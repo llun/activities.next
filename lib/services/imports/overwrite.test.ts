@@ -495,7 +495,7 @@ describe('applyOverwrite', () => {
         expect(await follows(alice)).not.toBeNull()
       })
 
-      it('keeps a relation whose host is the parent of the handle domain', async () => {
+      it('removes a relation whose host is the parent of the handle domain', async () => {
         vi.mocked(resolveAccountTarget).mockResolvedValue({
           type: 'not-found'
         })
@@ -503,8 +503,40 @@ describe('applyOverwrite', () => {
 
         await run('following', [{ acct: 'alice@eu.social.example.com' }])
 
+        expect(await follows(alice)).toBeNull()
+      })
+
+      it('keeps a relation whose host equals the handle domain', async () => {
+        vi.mocked(resolveAccountTarget).mockResolvedValue({
+          type: 'not-found'
+        })
+        await followAlice()
+
+        await run('following', [{ acct: 'alice@social.example.com' }])
+
         expect(await follows(alice)).not.toBeNull()
       })
+
+      it.each(['com', 'test'])(
+        'removes a relation when the handle domain is the bare %s',
+        async (tld) => {
+          vi.mocked(resolveAccountTarget).mockResolvedValue({
+            type: 'not-found'
+          })
+          const zed = await createRemoteActor(database, 'zed', `host.${tld}`)
+          await database.createFollow({
+            actorId: actor.id,
+            targetActorId: zed.id,
+            status: FollowStatus.enum.Accepted,
+            inbox: `${actor.id}/inbox`,
+            sharedInbox: 'https://test.llun.dev/inbox'
+          })
+
+          await run('following', [{ acct: `zed@${tld}` }])
+
+          expect(await follows(zed)).toBeNull()
+        }
+      )
 
       it('removes a relation on an unrelated domain', async () => {
         vi.mocked(resolveAccountTarget).mockResolvedValue({

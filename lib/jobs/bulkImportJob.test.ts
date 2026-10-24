@@ -680,10 +680,12 @@ describe('bulkImportJob', () => {
 
     describe('heartbeat', () => {
       // A unit of work the test holds open, with only the timers it needs faked.
-      const startBlockedRun = async () => {
+      const startBlockedRun = async (
+        rows: BulkImportRowData[] = [{ acct: 'bob@remote.test' }]
+      ) => {
         vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
         vi.spyOn(database, 'renewBulkImportRun')
-        await createImport('following', [{ acct: 'bob@remote.test' }])
+        await createImport('following', rows)
         let finishUnit!: () => void
         let reached!: () => void
         const unitReached = new Promise<void>((resolve) => (reached = resolve))
@@ -766,14 +768,82 @@ describe('bulkImportJob', () => {
         await expectNothingWritten()
       })
 
-      it('fails the run with the renewal error, writing and publishing nothing, when a renewal throws', async () => {
+      it.each([
+        ['15 minutes', 20 * 60 * 1000],
+        ['24 hours', 25 * 60 * 60 * 1000]
+      ])(
+        'stops a suspended holder that resumes after its import was abandoned (%s idle)',
+        async (_name, idleMs) => {
+          const { run, finishUnit } = await startBlockedRun([
+            { acct: 'bob@remote.test' },
+            { acct: 'carol@remote.test' }
+          ])
+          // Mid-unit, the actor starts a new import; the idle one is abandoned.
+          await db
+            .updateTable('bulk_imports')
+            .set({
+              updatedAt: new Date(Date.now() - idleMs),
+              claimedUntil: new Date(Date.now() - 1000)
+            })
+            .where('id', '=', IMPORT_ID)
+            .execute()
+          expect(
+            await database.createBulkImport({
+              id: 'import-2',
+              actorId: actor.id,
+              type: 'following',
+              overwrite: false,
+              originalFilename: 'new.csv',
+              rows: [{ acct: 'dave@remote.test' }]
+            })
+          ).not.toBeNull()
+
+          const mark = vi.spyOn(database, 'markBulkImportRowProcessed')
+          finishUnit()
+          await settle()
+          await run
+
+          // Only the in-flight row's follow; nothing marked, queued or followed.
+          expect(follow).toHaveBeenCalledTimes(1)
+          expect(mark).not.toHaveBeenCalled()
+          expect(jobMessages()).toEqual([])
+          expect(await getImport()).toMatchObject({
+            state: 'finished',
+            lastError: 'Abandoned: no progress',
+            processedItems: 0
+          })
+          expect(vi.getTimerCount()).toBe(0)
+        }
+      )
+
+      it('carries on when a heartbeat renewal throws once: the next renewal re-checks the lease', async () => {
         const renew = vi.spyOn(database, 'renewBulkImportRun')
         const { run, finishUnit } = await startBlockedRun()
         renew.mockRejectedValueOnce(new Error('db down'))
-        const outcome = expect(run).rejects.toThrow('db down')
 
         await tick(BULK_IMPORT_HEARTBEAT_MS)
         expect(renew).toHaveBeenCalledTimes(1)
+
+        finishUnit()
+        await settle()
+        await run
+        expect(await getImport()).toMatchObject({
+          state: 'finished',
+          processedItems: 1,
+          lastError: null
+        })
+        expect(vi.getTimerCount()).toBe(0)
+      })
+
+      it('fails the run with the renewal error, writing and publishing nothing, when the main path renewal throws', async () => {
+        const renew = vi.spyOn(database, 'renewBulkImportRun')
+        const { run, finishUnit } = await startBlockedRun()
+        const outcome = expect(run).rejects.toThrow('db down')
+
+        // The heartbeat renews the unit (really), the main path's own throws.
+        await tick(BULK_IMPORT_HEARTBEAT_MS)
+        expect(renew).toHaveBeenCalledTimes(1)
+        renew.mockRejectedValueOnce(new Error('db down'))
 
         finishUnit()
         await settle()

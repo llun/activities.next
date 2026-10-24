@@ -87,6 +87,9 @@ export const createBulkImport = async (
       .set({
         state: 'finished',
         lastError: 'Abandoned: no progress',
+        // A suspended holder that resumes finds its lease gone (LeaseLost).
+        runToken: null,
+        claimedUntil: null,
         finishedAt: now,
         updatedAt: now
       })

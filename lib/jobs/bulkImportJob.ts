@@ -310,32 +310,33 @@ export const runBulkImport = async (
   }
 
   // `lost`: a renewal changed no row, so another run holds the import and
-  // this one stops quietly. `renewError`: a renewal threw, so the lease state
-  // is unknown; the run stops by rethrowing it and the queue retries.
+  // this one stops quietly. `renewError`: the main path's own renewal threw,
+  // so the lease state is unknown; the run stops by rethrowing it and the
+  // queue retries. A heartbeat renewal that throws is only logged: the main
+  // path's next renewal re-checks the lease.
   let lost = false
   let renewError: unknown
   const renewLease = async () => {
+    if (
+      !(await database.renewBulkImportRun({ id: importId, runToken, leaseMs }))
+    )
+      lost = true
+  }
+  const renew: Renew = async () => {
+    if (renewError !== undefined) throw renewError
+    if (lost) throw new LeaseLostError()
     try {
-      if (
-        !(await database.renewBulkImportRun({
-          id: importId,
-          runToken,
-          leaseMs
-        }))
-      )
-        lost = true
+      await renewLease()
     } catch (error) {
       logger.warn({
         message: 'Bulk import lease renewal failed',
         importId,
         err: toLoggableError(error)
       })
-      renewError ??= error
+      // Sticky: a caller that swallows the throw still fails the run below.
+      renewError = error
+      throw error
     }
-  }
-  const renew: Renew = async () => {
-    if (!lost && renewError === undefined) await renewLease()
-    if (renewError !== undefined) throw renewError
     if (lost) throw new LeaseLostError()
   }
   // Keeps the lease alive through a unit of work longer than the lease. The
@@ -344,10 +345,18 @@ export const runBulkImport = async (
   let beat: Promise<void> | undefined
   const heartbeat = setInterval(
     () => {
-      if (beat || lost || renewError !== undefined) return
-      beat = renewLease().finally(() => {
-        beat = undefined
-      })
+      if (beat || lost) return
+      beat = renewLease()
+        .catch((error) =>
+          logger.warn({
+            message: 'Bulk import heartbeat renewal failed',
+            importId,
+            err: toLoggableError(error)
+          })
+        )
+        .finally(() => {
+          beat = undefined
+        })
     },
     Math.min(BULK_IMPORT_HEARTBEAT_MS, leaseMs / 3)
   )

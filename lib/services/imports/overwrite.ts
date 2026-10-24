@@ -80,10 +80,13 @@ export type RenewLease = () => Promise<void>
 const rowUsername = (row: KeyedRow, actor: Actor): string =>
   toAcctKey(row.data.acct ?? '', actor).split('@')[0]
 
-// Whether a handle's domain and an actor's host can be one account's two
-// names: equal, or one a subdomain of the other (the WEB_DOMAIN split).
-const isSameSite = (a: string, b: string): boolean =>
-  a === b || a.endsWith(`.${b}`) || b.endsWith(`.${a}`)
+// Whether a row's handle domain and an actor's host can be one account's two
+// names: equal, or the host a subdomain of the handle domain (the WEB_DOMAIN
+// split). A bare TLD never counts. shortcut: public suffixes such as co.uk
+// still pass, a public-suffix list is the upgrade.
+const isSameSite = (rowDomain: string, host: string): boolean =>
+  rowDomain.includes('.') &&
+  (host === rowDomain || host.endsWith(`.${rowDomain}`))
 
 export type OverwriteResult = {
   // False when the budget ran out; run it again to continue.

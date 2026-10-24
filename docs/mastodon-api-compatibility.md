@@ -451,12 +451,12 @@ a string>`, which returns an empty page, so that poller never detects new
   by its handle, then by the actor that handle resolves to, so Mastodon's
   local-domain handles still match; a relation is kept, not removed, when a row
   with the same username, whose resolution failed for a reason that may pass,
-  names the same domain (or a subdomain of it), and that row is retried. Failed
+  names the same domain (a dotted one; the relation's host may be a subdomain of it), and that row is retried. Failed
   rows are kept and listed (up to 100 on `GET /api/v1/imports/:id`); Mastodon
   deletes imported rows and only counts failures. A failed NoQueue run finishes
   the import immediately. When the actor starts another import, an unfinished
   one with no live claim and no progress for 15 minutes, or no progress for 24
-  hours, is abandoned (`lastError` "Abandoned: no progress"). A bookmark of a
+  hours, is abandoned (`lastError` "Abandoned: no progress", its lease cleared). A bookmark of a
   remote status is fetched through the existing remote status fetch, which
   stores only public notes, so a non-public remote bookmark fails. A mute's
   `notifications` flag is Mastodon's `hide_notifications`.

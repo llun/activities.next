@@ -163,6 +163,13 @@ describe('BulkImportDatabase', () => {
       expect(third).toBeNull()
     })
 
+    const getClaim = (id: string) =>
+      testDb.db
+        .selectFrom('bulk_imports')
+        .select(['runToken', 'claimedUntil'])
+        .where('id', '=', id)
+        .executeTakeFirstOrThrow()
+
     it('abandons a stale unfinished import but still blocks on a fresh one', async () => {
       const actorId = await seedActor(
         `stale-${crypto.randomUUID().slice(0, 8)}`
@@ -186,7 +193,11 @@ describe('BulkImportDatabase', () => {
       // Stale: no progress for more than 24 hours
       await testDb.db
         .updateTable('bulk_imports')
-        .set({ updatedAt: new Date(Date.now() - BULK_IMPORT_STALE_MS - 1000) })
+        .set({
+          updatedAt: new Date(Date.now() - BULK_IMPORT_STALE_MS - 1000),
+          runToken: 'run',
+          claimedUntil: new Date(Date.now() + 60_000)
+        })
         .where('id', '=', firstId)
         .execute()
       const secondId = crypto.randomUUID()
@@ -196,6 +207,11 @@ describe('BulkImportDatabase', () => {
       expect(first?.state).toBe('finished')
       expect(first?.lastError).toBe('Abandoned: no progress')
       expect(first?.finishedAt).not.toBeNull()
+      // Its holder, if it resumes, loses the lease on its next renewal.
+      expect(await getClaim(firstId)).toEqual({
+        runToken: null,
+        claimedUntil: null
+      })
     })
 
     it('abandons an import nobody holds after 15 minutes, but not one with a live claim', async () => {
@@ -231,6 +247,10 @@ describe('BulkImportDatabase', () => {
       expect(await database.getBulkImportById({ id: firstId })).toMatchObject({
         state: 'finished',
         lastError: 'Abandoned: no progress'
+      })
+      expect(await getClaim(firstId)).toEqual({
+        runToken: null,
+        claimedUntil: null
       })
 
       await database.updateBulkImport({ id: secondId, state: 'finished' })
