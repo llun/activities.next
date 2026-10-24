@@ -18,6 +18,7 @@ const DAY = 24 * 60 * 60 * 1000
 
 let mockCurrentActor: Actor
 let storedActor: Actor
+let storedTarget: Actor | null = null
 const migrations: {
   id: string
   actorId: string
@@ -37,7 +38,11 @@ let recordOutcome:
 
 const mockDatabase = {
   getActorFromId: vi.fn(async ({ id }: { id: string }) =>
-    id === storedActor.id ? storedActor : null
+    id === storedActor.id
+      ? storedActor
+      : id === storedTarget?.id
+        ? storedTarget
+        : null
   ),
   updateActor: vi.fn(
     async ({ movedTo }: { actorId: string; movedTo?: string | null }) => {
@@ -203,6 +208,7 @@ describe('Account migration API route', () => {
     suspended = new Set()
     recordOutcome = { status: 'created' }
     storedActor = MockActor({ id: ME })
+    storedTarget = null
     publish.mockReset().mockResolvedValue(undefined)
     vi.mocked(getQueue).mockReturnValue({ publish } as never)
     resolveTo(makeTarget())
@@ -236,11 +242,12 @@ describe('Account migration API route', () => {
         createdAt
       })
       storedActor = { ...storedActor, movedTo: 'https://new.test/users/llun' }
+      storedTarget = makeTarget()
 
       const json = await (await get()).json()
       expect(json.movedTo).toEqual({
         id: 'https://new.test/users/llun',
-        acct: null
+        acct: 'llun@new.test'
       })
       expect(json.migrations).toEqual([
         {
@@ -522,13 +529,11 @@ describe('Account migration API route', () => {
     it('does not let a retry of a move to the first target bypass the cooldown for another', async () => {
       await post(goodBody)
       resolveTo(makeTarget({ id: 'https://third.test/users/llun' }))
-      vi.mocked(getActorPerson).mockResolvedValue({
-        id: 'https://third.test/users/llun',
-        alsoKnownAs: [ME]
-      } as never)
-      recordOutcome = { status: 'cooldown', until: Date.now() + 30 * DAY }
+      mockDatabase.recordActorMigration.mockClear()
       const res = await post({ ...goodBody, acct: '@llun@third.test' })
       expect(res.status).toBe(HTTP_STATUS.TOO_MANY_REQUESTS)
+      // Answered from the last move row, before the target or the database.
+      expect(mockDatabase.recordActorMigration).not.toHaveBeenCalled()
       expect(migrations).toHaveLength(1)
     })
 

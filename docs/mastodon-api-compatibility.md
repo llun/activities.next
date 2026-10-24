@@ -1089,7 +1089,8 @@ ActivityPub objects are **JSON-LD**, so the same logical object can arrive in ma
   (`AccountMigration::COOLDOWN_PERIOD`), an alias on the new account required
   for a move only, the current password (or the current username for a
   passwordless account) as the challenge, and `MoveService`'s steps (the Move
-  activity to followers, follower rewiring, then notes, blocks and mutes carried
+  activity to the remote followers, the remote accounts that block the origin and
+  every accepted relay, follower rewiring, then notes, blocks and mutes carried
   over). Differences: the cooldown answers 429 with `cooldownUntil`; the move
   row and `movedTo` are written in one locked transaction, then `Update(Person)`
   goes out and the Move is queued, so a queue failure answers 503 and keeps the

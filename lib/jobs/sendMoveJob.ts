@@ -25,7 +25,9 @@ const JobData = z.object({
   migrationId: z.string(),
   originActorId: z.string(),
   targetActorId: z.string(),
-  // The last follow id of the previous slice (followers are paged by id).
+  // Followers go first, then the remote accounts that block the origin; each
+  // is paged by row id and `cursor` is the last id of the previous slice.
+  phase: z.enum(['followers', 'blockers']).optional(),
   cursor: z.string().optional()
 })
 
@@ -34,8 +36,11 @@ const JobData = z.object({
 export const SEND_MOVE_JOB_TIME_BUDGET_MS = 20_000
 const FOLLOWER_PAGE_SIZE = 100
 
-export const getSendMoveContinueJobId = (migrationId: string, cursor: string) =>
-  `${migrationId}:continue:${cursor}`
+export const getSendMoveContinueJobId = (
+  migrationId: string,
+  phase: 'followers' | 'blockers',
+  cursor: string | undefined
+) => `${migrationId}:continue:${phase}:${cursor ?? 'start'}`
 
 // Mastodon MoveService: MoveWorker for the origin's local followers (every
 // target, local or remote) and MoveDistributionWorker for the Move sent to each
@@ -83,65 +88,11 @@ export const runSendMove = async (
       originActorId: origin.id,
       targetActorId: target.id
     })
+    let phase = parsed.data.phase ?? 'followers'
     let cursor = parsed.data.cursor
+    const isFirstSlice = phase === 'followers' && !cursor
 
-    if (!cursor) {
-      const failures = await publishMoveRelationshipsJobs({
-        database,
-        originActorId: origin.id,
-        targetActorId: target.id,
-        migrationId
-      })
-      if (failures > 0) {
-        throw new Error(
-          `Move: ${failures} relationship carryover job(s) could not be queued`
-        )
-      }
-    }
-
-    for (;;) {
-      const follows = await database.getFollowers({
-        targetActorId: origin.id,
-        limit: pageSize,
-        maxId: cursor
-      })
-      if (follows.length === 0) return
-
-      const actors = await database.getActorsFromIds({
-        ids: [...new Set(follows.map((follow) => follow.actorId))]
-      })
-      const localIds = new Set(
-        actors.filter((actor) => actor.privateKey).map((actor) => actor.id)
-      )
-      const localFollows = follows.filter((follow) =>
-        localIds.has(follow.actorId)
-      )
-      const inboxes = await filterFederatedUrls(database, [
-        ...new Set(
-          follows
-            .filter((follow) => !localIds.has(follow.actorId))
-            .map((follow) => follow.sharedInbox || follow.inbox)
-        )
-      ])
-
-      // A target that has itself moved on is not followed (as MoveActorJob).
-      const rewire = target.movedTo ? [] : localFollows
-      const jobs: JobMessage[] = [
-        ...rewire.map((follow) => ({
-          id: getMoveFollowerJobId(follow.id, target.id),
-          name: MOVE_FOLLOWER_JOB_NAME,
-          data: {
-            followId: follow.id,
-            targetActorId: target.id,
-            migrationId
-          }
-        })),
-        ...inboxes.map((inbox) => ({
-          id: getDeliveryJobId(migrationId, inbox),
-          name: DELIVER_ACTIVITY_JOB_NAME,
-          data: { inbox, actorId: origin.id, activity }
-        }))
-      ]
+    const publishAll = async (jobs: JobMessage[]) => {
       const results = await runWithConcurrencyLimit(
         jobs,
         MAX_CONCURRENT_DELIVERY_PUBLICATIONS,
@@ -168,14 +119,119 @@ export const runSendMove = async (
         }
         errors.forEach((error) => span.recordException(error))
       }
+    }
+    const deliveryJobs = (inboxes: string[]): JobMessage[] =>
+      inboxes.map((inbox) => ({
+        id: getDeliveryJobId(migrationId, inbox),
+        name: DELIVER_ACTIVITY_JOB_NAME,
+        data: { inbox, actorId: origin.id, activity }
+      }))
 
-      cursor = follows[follows.length - 1].id
-      if (follows.length < pageSize) return
+    if (isFirstSlice) {
+      const failures = await publishMoveRelationshipsJobs({
+        database,
+        originActorId: origin.id,
+        targetActorId: target.id,
+        migrationId
+      })
+      if (failures > 0) {
+        throw new Error(
+          `Move: ${failures} relationship carryover job(s) could not be queued`
+        )
+      }
+      // Mastodon also sends the Move to every enabled relay.
+      const relays = await database.getAcceptedRelays()
+      await publishAll(
+        deliveryJobs(
+          await filterFederatedUrls(
+            database,
+            relays.map((relay) => relay.inboxUrl)
+          )
+        )
+      )
+    }
+
+    for (;;) {
+      let jobs: JobMessage[]
+      let last: string | undefined
+      let count: number
+      if (phase === 'followers') {
+        const follows = await database.getFollowers({
+          targetActorId: origin.id,
+          limit: pageSize,
+          maxId: cursor
+        })
+        count = follows.length
+        last = follows[follows.length - 1]?.id
+        const actors = await database.getActorsFromIds({
+          ids: [...new Set(follows.map((follow) => follow.actorId))]
+        })
+        const localIds = new Set(
+          actors.filter((actor) => actor.privateKey).map((actor) => actor.id)
+        )
+        const inboxes = await filterFederatedUrls(database, [
+          ...new Set(
+            follows
+              .filter((follow) => !localIds.has(follow.actorId))
+              .map((follow) => follow.sharedInbox || follow.inbox)
+          )
+        ])
+        // A target that has itself moved on is not followed (as MoveActorJob).
+        const rewire = target.movedTo
+          ? []
+          : follows.filter((follow) => localIds.has(follow.actorId))
+        jobs = [
+          ...rewire.map((follow) => ({
+            id: getMoveFollowerJobId(follow.id, target.id),
+            name: MOVE_FOLLOWER_JOB_NAME,
+            data: {
+              followId: follow.id,
+              targetActorId: target.id,
+              migrationId
+            }
+          })),
+          ...deliveryJobs(inboxes)
+        ]
+      } else {
+        // Mastodon's MoveDistributionWorker also reaches the accounts that
+        // block the origin (account.blocked_by.inboxes).
+        const blocks = await database.getRemoteBlockers({
+          targetActorId: origin.id,
+          limit: pageSize,
+          maxId: cursor
+        })
+        count = blocks.length
+        last = blocks[blocks.length - 1]?.id
+        const actors = await database.getActorsFromIds({
+          ids: [...new Set(blocks.map((block) => block.actorId))]
+        })
+        jobs = deliveryJobs(
+          await filterFederatedUrls(database, [
+            ...new Set(
+              actors.map((actor) => actor.sharedInboxUrl || actor.inboxUrl)
+            )
+          ])
+        )
+      }
+
+      await publishAll(jobs)
+
+      if (count < pageSize) {
+        // Followers are done: the blockers follow in the same slice.
+        if (phase === 'followers') {
+          phase = 'blockers'
+          cursor = undefined
+        } else {
+          return
+        }
+      } else {
+        cursor = last
+      }
       if (Date.now() >= deadline) {
         await queue.publish({
-          id: getSendMoveContinueJobId(migrationId, cursor),
+          id: getSendMoveContinueJobId(migrationId, phase, cursor),
           name: SEND_MOVE_JOB_NAME,
-          data: { migrationId, originActorId, targetActorId, cursor }
+          data: { migrationId, originActorId, targetActorId, phase, cursor }
         })
         return
       }

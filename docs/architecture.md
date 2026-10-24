@@ -2088,8 +2088,9 @@ changed' }` before any write. Mastodon clients do not send it and are
   leading `@` stripped) is resolved: `invalid` is 422 `Invalid account`,
   `forbidden` is 403 and `not-found` is 404. `performOutgoingMove`
   (`lib/services/accounts/migration/outgoingMove.ts`) then refuses, all as 422:
-  first an origin that is being deleted (`This account is being deleted`, checked
-  before any target is resolved), then the account itself, a target that is
+  first an origin that is being deleted (`This account is being deleted`; the
+  route has already resolved the target, so an unknown target still answers
+  first), then the account itself, a target that is
   suspended or being deleted, a target
   whose `movedTo` is set, and an account whose `movedTo` already equals this
   target (`Already moved to this account`, whether by a started move or a
@@ -2160,16 +2161,24 @@ move, try again later`, but nothing is rolled back: the row, `movedTo` and the
   `MoveRelationshipsJob` it publishes (job ids unchanged). On its first slice it
   publishes one `MoveRelationshipsJob` per local blocker, muter and note author
   of the origin, for any target, local or remote, and fails the run if one
-  cannot be queued. Then it pages the origin's followers 100 at a time by follow
-  id. Each distinct remote shared inbox (or inbox) gets one delivery of the
-  activity, keyed on the migration id so one Move goes to each inbox across all
-  continuations. That one-per-inbox guarantee relies on the queue dropping
+  cannot be queued. It also delivers the Move to every accepted relay inbox on
+  that first slice only (Mastodon's `Relay.enabled`). Then it pages the origin's
+  followers 100 at a time by follow id, and after them the remote actors that
+  block the origin (`getRemoteBlockers`, paged 100 at a time by block id;
+  Mastodon's `account.blocked_by.inboxes`). Each distinct remote shared inbox
+  (or inbox) gets one delivery of the activity, keyed on the migration id so one
+  Move goes to each inbox across all continuations and both phases, even when a
+  follower and a blocker share it. A target that is suspended or being deleted
+  when the job runs does not stop the remote Move (Mastodon's
+  `MoveDistributionWorker` does not re-check it); only the local rewiring skips
+  it, in `MoveFollowerJob`. That one-per-inbox guarantee relies on the queue dropping
   duplicate job ids (the database-backed queue and QStash do); a queue driver
   that does not dedupe may deliver the same Move twice, which receivers treat as
   a no-op. Each local follower gets a `MoveFollowerJob`, but only when
   the target has not itself moved. Every job id is deterministic. A run stops after
   the page that crosses a 20-second budget and queues
-  `${migrationId}:continue:<cursor>`. On a real queue a refused delivery fails
+  `${migrationId}:continue:<phase>:<cursor>` (`followers` or `blockers`, with
+  `start` when the phase has no cursor yet). On a real queue a refused delivery fails
   the run for a retry; the in-process queue records the error and carries on.
 - **`MoveFollowerJob` and `MoveRelationshipsJob` accept a local origin.** Both
   used to refuse an origin with a private key. Now a local origin with a recorded

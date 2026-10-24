@@ -228,7 +228,7 @@ describe('sendMoveJob', () => {
     )
     expect(continuation).toBeDefined()
     expect(continuation.id).toBe(
-      `${MIGRATION}:continue:${continuation.data.cursor}`
+      `${MIGRATION}:continue:followers:${continuation.data.cursor}`
     )
     expect(continuation.data).toMatchObject({
       migrationId: MIGRATION,
@@ -292,6 +292,131 @@ describe('sendMoveJob', () => {
     expect(
       all.filter((job) => job.name === MOVE_FOLLOWER_JOB_NAME)
     ).toHaveLength(2)
+  })
+
+  describe('blockers and relays', () => {
+    const blocker = async (name: string, sharedInbox: string) => {
+      const actorId = `https://blocker.test/users/${name}`
+      await database.createActor({
+        actorId,
+        username: name,
+        domain: 'blocker.test',
+        inboxUrl: `${actorId}/inbox`,
+        sharedInboxUrl: sharedInbox,
+        followersUrl: `${actorId}/followers`,
+        publicKey: 'publicKey',
+        createdAt: Date.now()
+      })
+      await database.createBlock({
+        actorId,
+        targetActorId: ORIGIN,
+        uri: `${actorId}#blocks/1`
+      })
+    }
+    const relay = async (inboxUrl: string, state: 'accepted' | 'pending') => {
+      const created = await database.createRelay({ inboxUrl })
+      await database.updateRelay({ id: created.id, state })
+    }
+    // Runs every slice (one page each) and returns everything published.
+    const runAll = async () => {
+      const all: ReturnType<typeof published> = []
+      const slices: ReturnType<typeof published>[] = []
+      let next: ReturnType<typeof message> | undefined = message()
+      while (next && slices.length < 30) {
+        mockPublish.mockClear()
+        await runSendMove(database, next, { budgetMs: 0, pageSize: 1 })
+        slices.push(published())
+        all.push(...published())
+        const continuation = published().find(
+          (job) => job.name === SEND_MOVE_JOB_NAME
+        )
+        next = continuation && message(continuation.data, continuation.id)
+      }
+      expect(slices.length).toBeLessThan(30)
+      return { all, slices }
+    }
+    const inboxesOf = (jobs: ReturnType<typeof published>) =>
+      jobs
+        .filter((job) => job.name === DELIVER_ACTIVITY_JOB_NAME)
+        .map((job) => job.data.inbox)
+
+    it('delivers the Move to the inbox of a remote account that blocks the origin', async () => {
+      await blocker('b1', 'https://blocker.test/inbox')
+      await sendMoveJob(database, message())
+
+      expect(inboxesOf(published()).sort()).toEqual([
+        'https://blocker.test/inbox',
+        'https://other.test/inbox',
+        'https://somewhere.test/inbox'
+      ])
+    })
+
+    it('never delivers to a local account that blocks the origin', async () => {
+      await database.createBlock({
+        actorId: ACTOR2_ID,
+        targetActorId: ORIGIN,
+        uri: `${ACTOR2_ID}#blocks/1`
+      })
+      await sendMoveJob(database, message())
+
+      expect(inboxesOf(published())).toHaveLength(2)
+    })
+
+    it('gives an inbox shared by a follower and a blocker one delivery id', async () => {
+      await blocker('b2', 'https://other.test/inbox')
+      const { all } = await runAll()
+
+      const sent = all.filter((job) => job.name === DELIVER_ACTIVITY_JOB_NAME)
+      expect(
+        new Set(
+          sent
+            .filter((job) => job.data.inbox === 'https://other.test/inbox')
+            .map((job) => job.id)
+        )
+      ).toEqual(
+        new Set([getDeliveryJobId(MIGRATION, 'https://other.test/inbox')])
+      )
+    })
+
+    it('delivers to accepted relays on the first slice only', async () => {
+      await relay('https://relay.test/inbox', 'accepted')
+      await relay('https://pending-relay.test/inbox', 'pending')
+      const { slices } = await runAll()
+
+      expect(slices.length).toBeGreaterThan(1)
+      expect(inboxesOf(slices[0])).toContain('https://relay.test/inbox')
+      expect(inboxesOf(slices[0])).not.toContain(
+        'https://pending-relay.test/inbox'
+      )
+      expect(inboxesOf(slices.slice(1).flat())).not.toContain(
+        'https://relay.test/inbox'
+      )
+    })
+
+    it('continues through the follower phase and then the blocker phase', async () => {
+      await blocker('b3', 'https://blocker.test/inbox')
+      await blocker('b4', 'https://blocker2.test/inbox')
+      const { all, slices } = await runAll()
+
+      expect(new Set(inboxesOf(all))).toEqual(
+        new Set([
+          'https://somewhere.test/inbox',
+          'https://other.test/inbox',
+          'https://blocker.test/inbox',
+          'https://blocker2.test/inbox'
+        ])
+      )
+      const continuations = slices
+        .map((slice) => slice.find((job) => job.name === SEND_MOVE_JOB_NAME))
+        .filter((job) => job !== undefined)
+      expect(continuations.map((job) => job.data.phase)).toContain('blockers')
+      expect(new Set(continuations.map((job) => job.id)).size).toBe(
+        continuations.length
+      )
+      expect(
+        all.filter((job) => job.name === MOVE_FOLLOWER_JOB_NAME)
+      ).toHaveLength(2)
+    })
   })
 
   it('does nothing when the move was cancelled before it started', async () => {
