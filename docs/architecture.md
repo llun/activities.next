@@ -1806,9 +1806,10 @@ changed' }` before any write. Mastodon clients do not send it and are
   target has itself moved. On retry or resume, `SendBlockJob` is re-published
   with the deterministic id for remote targets; deduplicating queues drop it and
   receivers treat duplicate blocks with the same uri as no-ops. A resume also
-  repeats the rest of the block: a follow the user made after the carried block
-  is left alone; any follow from the target, or a follow that predates the
-  block, is ended. Unless the target has itself moved (the `movedTo` is still
+  repeats the rest of the block, per direction (`endFollowsForBlock`): the
+  target's follow of the user is always ended while the block exists; the
+  user's follow of the target is ended only if it predates the block, and one
+  made after the carried block is left alone. Unless the target has itself moved (the `movedTo` is still
   recorded, but nobody is rewired, as Mastodon does not follow a moved account),
   the job publishes one `MoveFollowerJob` per accepted local follower of the
   origin. Each has a deterministic id from the origin follow id and the

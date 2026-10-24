@@ -32,6 +32,20 @@ export const applyBlock = async ({
     })
   ])
 
+  await endFollowsForBlock({ database, follows })
+
+  return block
+}
+
+// Marks the follows Undo and federates an Undo for those whose follower is
+// local (deterministic job ids, so a re-run does not duplicate them).
+export const endFollowsForBlock = async ({
+  database,
+  follows
+}: {
+  database: Database
+  follows: (Follow | null | undefined)[]
+}) => {
   const followsToUndo = follows.filter((follow): follow is Follow =>
     Boolean(follow)
   )
@@ -81,6 +95,4 @@ export const applyBlock = async ({
       })
     }
   })
-
-  return block
 }
