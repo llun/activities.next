@@ -769,5 +769,191 @@ describe('ActorDatabase', () => {
         expect(settings?.postLineLimit).toBeUndefined()
       })
     })
+
+    describe('updateActorAliases', () => {
+      it('adds an alias to an actor with no aliases, and sets alsoKnownAs', async () => {
+        const username = `alias-add-${crypto.randomUUID().slice(0, 8)}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        await database.createActor({
+          actorId,
+          username,
+          domain: TEST_DOMAIN,
+          followersUrl: `${actorId}/followers`,
+          inboxUrl: `${actorId}/inbox`,
+          sharedInboxUrl: `${actorId}/inbox`,
+          publicKey: 'publicKey',
+          createdAt: Date.now()
+        })
+
+        const res = await database.updateActorAliases({
+          actorId,
+          add: 'https://remote.test/users/alice',
+          max: 10
+        })
+
+        expect(res).toEqual({
+          status: 'ok',
+          aliases: ['https://remote.test/users/alice']
+        })
+        const actor = await database.getActorFromId({ id: actorId })
+        expect(actor?.alsoKnownAs).toEqual(['https://remote.test/users/alice'])
+        const settings = await database.getActorSettings({ actorId })
+        expect(settings?.alsoKnownAs).toEqual([
+          'https://remote.test/users/alice'
+        ])
+      })
+
+      it('returns duplicate when alias already exists, verifying actorIdsMatch normalization', async () => {
+        const username = `alias-dup-${crypto.randomUUID().slice(0, 8)}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        await database.createActor({
+          actorId,
+          username,
+          domain: TEST_DOMAIN,
+          followersUrl: `${actorId}/followers`,
+          inboxUrl: `${actorId}/inbox`,
+          sharedInboxUrl: `${actorId}/inbox`,
+          publicKey: 'publicKey',
+          createdAt: Date.now(),
+          alsoKnownAs: ['https://remote.test/users/alice']
+        })
+
+        const res = await database.updateActorAliases({
+          actorId,
+          add: 'https://remote.test/users/alice/',
+          max: 10
+        })
+
+        expect(res).toEqual({ status: 'duplicate' })
+        const actor = await database.getActorFromId({ id: actorId })
+        expect(actor?.alsoKnownAs).toEqual(['https://remote.test/users/alice'])
+      })
+
+      it('returns limit when aliases length reaches max', async () => {
+        const username = `alias-lim-${crypto.randomUUID().slice(0, 8)}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        await database.createActor({
+          actorId,
+          username,
+          domain: TEST_DOMAIN,
+          followersUrl: `${actorId}/followers`,
+          inboxUrl: `${actorId}/inbox`,
+          sharedInboxUrl: `${actorId}/inbox`,
+          publicKey: 'publicKey',
+          createdAt: Date.now(),
+          alsoKnownAs: [
+            'https://remote.test/users/alias1',
+            'https://remote.test/users/alias2'
+          ]
+        })
+
+        const res = await database.updateActorAliases({
+          actorId,
+          add: 'https://remote.test/users/alias3',
+          max: 2
+        })
+
+        expect(res).toEqual({ status: 'limit' })
+        const actor = await database.getActorFromId({ id: actorId })
+        expect(actor?.alsoKnownAs).toEqual([
+          'https://remote.test/users/alias1',
+          'https://remote.test/users/alias2'
+        ])
+      })
+
+      it('removes existing alias, and clears alsoKnownAs key when list becomes empty', async () => {
+        const username = `alias-rem-${crypto.randomUUID().slice(0, 8)}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        await database.createActor({
+          actorId,
+          username,
+          domain: TEST_DOMAIN,
+          followersUrl: `${actorId}/followers`,
+          inboxUrl: `${actorId}/inbox`,
+          sharedInboxUrl: `${actorId}/inbox`,
+          publicKey: 'publicKey',
+          createdAt: Date.now(),
+          alsoKnownAs: ['https://remote.test/users/alice']
+        })
+
+        const res = await database.updateActorAliases({
+          actorId,
+          remove: 'https://remote.test/users/alice/',
+          max: 10
+        })
+
+        expect(res).toEqual({ status: 'ok', aliases: [] })
+        const actor = await database.getActorFromId({ id: actorId })
+        expect(actor?.alsoKnownAs).toBeUndefined()
+        const settings = await database.getActorSettings({ actorId })
+        expect(settings?.alsoKnownAs).toBeUndefined()
+      })
+
+      it('returns not-found when alias does not exist on actor', async () => {
+        const username = `alias-nf-${crypto.randomUUID().slice(0, 8)}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        await database.createActor({
+          actorId,
+          username,
+          domain: TEST_DOMAIN,
+          followersUrl: `${actorId}/followers`,
+          inboxUrl: `${actorId}/inbox`,
+          sharedInboxUrl: `${actorId}/inbox`,
+          publicKey: 'publicKey',
+          createdAt: Date.now(),
+          alsoKnownAs: ['https://remote.test/users/alice']
+        })
+
+        const res = await database.updateActorAliases({
+          actorId,
+          remove: 'https://remote.test/users/bob',
+          max: 10
+        })
+
+        expect(res).toEqual({ status: 'not-found' })
+      })
+
+      it('returns no-actor for non-existent actorId', async () => {
+        const res = await database.updateActorAliases({
+          actorId: `https://${TEST_DOMAIN}/users/nonexistent-${crypto.randomUUID().slice(0, 8)}`,
+          add: 'https://remote.test/users/alice',
+          max: 10
+        })
+
+        expect(res).toEqual({ status: 'no-actor' })
+      })
+
+      it('handles concurrent add and remove operations without losing updates', async () => {
+        for (let i = 0; i < 5; i++) {
+          const username = `alias-race-${i}-${crypto.randomUUID().slice(0, 8)}`
+          const actorId = `https://${TEST_DOMAIN}/users/${username}`
+          const aliasA = `https://remote.test/users/alias-a-${i}`
+          const aliasB = `https://remote.test/users/alias-b-${i}`
+
+          await database.createActor({
+            actorId,
+            username,
+            domain: TEST_DOMAIN,
+            followersUrl: `${actorId}/followers`,
+            inboxUrl: `${actorId}/inbox`,
+            sharedInboxUrl: `${actorId}/inbox`,
+            publicKey: 'publicKey',
+            createdAt: Date.now(),
+            alsoKnownAs: [aliasA]
+          })
+
+          const [addRes, removeRes] = await Promise.all([
+            database.updateActorAliases({ actorId, add: aliasB, max: 10 }),
+            database.updateActorAliases({ actorId, remove: aliasA, max: 10 })
+          ])
+
+          expect(addRes.status).toBe('ok')
+          expect(removeRes.status).toBe('ok')
+
+          const actor = await database.getActorFromId({ id: actorId })
+          expect(actor?.alsoKnownAs).toEqual([aliasB])
+        }
+      })
+    })
   })
 })

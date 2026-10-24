@@ -5,6 +5,7 @@ import { PER_PAGE_LIMIT } from '@/lib/database/constants'
 import type {
   CreateMuteParams,
   DeleteMuteParams,
+  GetLocalMuterIdsParams,
   GetMuteParams,
   GetMuteRelationsParams,
   GetMutesParams,
@@ -13,6 +14,7 @@ import type {
 import type { DB, Db } from '@/lib/database/kysely'
 import { timestampValue } from '@/lib/database/kysely/dialect'
 import { chunkArray } from '@/lib/database/kysely/inList'
+import { isLocalActor } from '@/lib/database/kysely/visibility/localActor'
 import { isUniqueConstraintError } from '@/lib/database/utils/isUniqueConstraintError'
 import type { Mute } from '@/lib/types/domain/mute'
 
@@ -238,11 +240,31 @@ export const getMuteRelations = async (
   return [...relationsByKey.values()]
 }
 
+export const getLocalMuterIds = async (
+  db: Db,
+  { targetActorId }: GetLocalMuterIdsParams
+): Promise<string[]> => {
+  const now = Date.now()
+  const rows = await db
+    .selectFrom('actors')
+    .innerJoin('mutes', 'mutes.actorId', 'actors.id')
+    .where('mutes.targetActorId', '=', targetActorId)
+    .where((eb) =>
+      eb.or([eb('mutes.endsAt', 'is', null), eb('mutes.endsAt', '>', now)])
+    )
+    .where(isLocalActor)
+    .select('actors.id')
+    .$narrowType<{ id: string }>()
+    .execute()
+  return rows.map((row) => row.id)
+}
+
 // The facade getSQLDatabase binds with bindDb().
 export const muteQueries = {
   createMute,
   deleteMute,
   getMute,
   getMutes,
-  getMuteRelations
+  getMuteRelations,
+  getLocalMuterIds
 }

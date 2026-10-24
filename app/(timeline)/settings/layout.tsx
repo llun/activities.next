@@ -1,71 +1,41 @@
-'use client'
-
-import {
-  Ban,
-  Bell,
-  Filter,
-  Image as ImageIcon,
-  PanelLeft,
-  Settings as SettingsIcon,
-  SlidersHorizontal,
-  UserRound,
-  VolumeX
-} from 'lucide-react'
 import { FC, ReactNode } from 'react'
 
-import {
-  PageHeader,
-  PageHeaderSectionProvider
-} from '@/lib/components/page-header'
-import {
-  SectionNavDropdown,
-  type SectionNavTab
-} from '@/lib/components/section-nav-dropdown'
+import { SectionLayout } from '@/lib/components/section-nav'
+import { getDatabase } from '@/lib/database'
+import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { getActorFromSession } from '@/lib/utils/getActorFromSession'
+import { isRealAvatar } from '@/lib/utils/isRealAvatar'
+
+import { getSettingsGroups, settingsFooter } from './sections'
 
 interface Props {
   children: ReactNode
 }
 
-// Account and Sessions moved out of Settings into the dedicated /account
-// section (they are account-level, shared across actors). Everything here is
-// specific to a single actor.
-const tabs: SectionNavTab[] = [
-  { name: 'Profile', url: '/settings/profile', icon: UserRound },
-  { name: 'General', url: '/settings', icon: SettingsIcon },
-  {
-    name: 'Preferences',
-    url: '/settings/preferences',
-    icon: SlidersHorizontal
-  },
-  { name: 'Navigation', url: '/settings/navigation', icon: PanelLeft },
-  { name: 'Media', url: '/settings/media', icon: ImageIcon },
-  { name: 'Notifications', url: '/settings/notifications', icon: Bell },
-  { name: 'Blocked accounts', url: '/settings/blocks', icon: Ban },
-  { name: 'Muted accounts', url: '/settings/mutes', icon: VolumeX },
-  { name: 'Filters', url: '/settings/filters', icon: Filter }
-]
+const Layout: FC<Props> = async ({ children }) => {
+  const database = getDatabase()
+  const actor = database
+    ? await getActorFromSession(database, await getServerAuthSession())
+    : null
+  const profile = actor
+    ? {
+        handle: `@${actor.username}@${actor.domain}`,
+        username: actor.username,
+        iconUrl: isRealAvatar(actor.iconUrl) ? (actor.iconUrl ?? null) : null
+      }
+    : null
 
-const Layout: FC<Props> = ({ children }) => {
   return (
-    <>
-      {/* Section-level sticky header shared by every settings page, matching the
-          full-width chrome the other top-level routes use. Rendered outside the
-          section provider so it keeps the sticky chrome; per-page titles
-          ("General", "Account Settings", …) render below in section mode. */}
-      <PageHeader
-        title="Settings"
-        description="Manage your account and preferences"
-      />
-      <PageHeaderSectionProvider>
-        <div className="w-full pt-4 max-md:pt-0">
-          {/* Dropdown sub-navigation on every breakpoint (desktop included) so
-              the content always gets the full width — no vertical rail. */}
-          <SectionNavDropdown label="Settings" tabs={tabs} />
-
-          <div className="min-w-0">{children}</div>
-        </div>
-      </PageHeaderSectionProvider>
-    </>
+    <SectionLayout
+      label="Settings"
+      title="Settings"
+      description={profile ? `For ${profile.handle}` : undefined}
+      indexUrl="/settings"
+      groups={getSettingsGroups(profile)}
+      footer={settingsFooter}
+    >
+      {children}
+    </SectionLayout>
   )
 }
 

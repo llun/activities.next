@@ -8,15 +8,18 @@ import AccountLoading from './account/loading'
 import SecurityLoading from './account/security/loading'
 import SessionsLoading from './account/sessions/loading'
 import VerifyEmailLoading from './account/verify-email/loading'
+import AppearanceLoading from './settings/appearance/loading'
 import BlocksLoading from './settings/blocks/loading'
+import DeleteLoading from './settings/delete/loading'
 import FiltersLoading from './settings/filters/loading'
 import SettingsLoading from './settings/loading'
 import MediaLoading from './settings/media/loading'
 import MutesLoading from './settings/mutes/loading'
-import NavigationLoading from './settings/navigation/loading'
 import NotificationsLoading from './settings/notifications/loading'
 import PreferencesLoading from './settings/preferences/loading'
+import PrivacyLoading from './settings/privacy/loading'
 import ProfileLoading from './settings/profile/loading'
+import SidebarLoading from './settings/sidebar/loading'
 
 // Every Settings and Account route draws its final layout while it loads: the
 // section headings and frame outlines as shimmer bars, with one polite
@@ -25,7 +28,10 @@ describe.each([
   ['settings', SettingsLoading],
   ['settings/profile', ProfileLoading],
   ['settings/preferences', PreferencesLoading],
-  ['settings/navigation', NavigationLoading],
+  ['settings/sidebar', SidebarLoading],
+  ['settings/appearance', AppearanceLoading],
+  ['settings/privacy', PrivacyLoading],
+  ['settings/delete', DeleteLoading],
   ['settings/notifications', NotificationsLoading],
   ['settings/filters', FiltersLoading],
   ['settings/blocks', BlocksLoading],

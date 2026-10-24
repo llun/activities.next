@@ -42,6 +42,9 @@ export type GetBlockRelationsParams = {
   actorIds: string[]
   targetActorIds: string[]
 }
+export type GetLocalBlockerIdsParams = {
+  targetActorId: string
+}
 export type BlockRelation = Pick<Block, 'actorId' | 'targetActorId'>
 
 export interface BlockDatabase {
@@ -54,4 +57,5 @@ export interface BlockDatabase {
   isEitherBlocking(params: IsEitherBlockingParams): Promise<boolean>
   getBlocks(params: GetBlocksParams): Promise<Block[]>
   getBlockRelations(params: GetBlockRelationsParams): Promise<BlockRelation[]>
+  getLocalBlockerIds(params: GetLocalBlockerIdsParams): Promise<string[]>
 }

@@ -9,6 +9,7 @@ import type {
   GetBlockParams,
   GetBlockRelationsParams,
   GetBlocksParams,
+  GetLocalBlockerIdsParams,
   IsBlockingParams,
   IsEitherBlockingParams
 } from '@/lib/database/domains/block/types'
@@ -19,6 +20,7 @@ import {
 } from '@/lib/database/kysely/counter'
 import { chunkArray } from '@/lib/database/kysely/inList'
 import { pastKeyset } from '@/lib/database/kysely/keyset'
+import { isLocalActor } from '@/lib/database/kysely/visibility/localActor'
 import { CounterKey } from '@/lib/database/utils/counter'
 import { isUniqueConstraintError } from '@/lib/database/utils/isUniqueConstraintError'
 import type { Block } from '@/lib/types/domain/block'
@@ -308,6 +310,21 @@ export const getBlockRelations = async (
   return [...relationsByKey.values()]
 }
 
+export const getLocalBlockerIds = async (
+  db: Db,
+  { targetActorId }: GetLocalBlockerIdsParams
+): Promise<string[]> => {
+  const rows = await db
+    .selectFrom('actors')
+    .innerJoin('blocks', 'blocks.actorId', 'actors.id')
+    .where('blocks.targetActorId', '=', targetActorId)
+    .where(isLocalActor)
+    .select('actors.id')
+    .$narrowType<{ id: string }>()
+    .execute()
+  return rows.map((row) => row.id)
+}
+
 // The facade getSQLDatabase binds with bindDb().
 export const blockQueries = {
   createBlock,
@@ -318,5 +335,6 @@ export const blockQueries = {
   isBlocking,
   isEitherBlocking,
   getBlocks,
-  getBlockRelations
+  getBlockRelations,
+  getLocalBlockerIds
 }

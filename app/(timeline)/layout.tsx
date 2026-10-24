@@ -143,7 +143,7 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
 
   return (
     <InstanceLimitsProvider {...instanceLimits}>
-      {/* Wraps the children too: on wide screens the Settings → Navigation
+      {/* Wraps the children too: on wide screens the Settings → Sidebar
           manager edits the very sidebar rendered beside it, and a soft
           navigation never re-runs this layout to re-seed them separately. */}
       <PlaybackPreferencesProvider
@@ -190,7 +190,10 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
                       'md:pl-[72px] md:[--sidebar-w:72px] xl:pl-[280px] xl:[--sidebar-w:280px]'
                     )}
                   >
-                    <div className="mx-auto flex w-full max-w-content flex-1 flex-col px-4 pb-6">
+                    {/* A settings-style section (`SectionLayout`) widens the column
+                        to `--container-section` so its rail fits beside the
+                        content at today's width. */}
+                    <div className="mx-auto flex w-full max-w-content flex-1 flex-col px-4 pb-6 [&:has([data-section-layout])]:max-w-section">
                       <ConnectionStatusBar />
                       {children}
                     </div>

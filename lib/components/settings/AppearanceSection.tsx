@@ -11,7 +11,7 @@ import { ThemeControl } from '@/lib/components/theme'
 const SAVED_MS = 2000
 
 /**
- * Settings › General › Appearance. The theme is a device-local preference that
+ * Settings › Appearance. The theme is a device-local preference that
  * applies the moment it is picked, so it shows the quiet "Saved" tick in the
  * section's actions instead of asking for a Save. It sits outside the page's
  * native `<form>` (its radios are not form fields and must not mark it dirty).
@@ -35,7 +35,7 @@ export const AppearanceSection: FC = () => {
 
   return (
     <Section
-      title="Appearance"
+      title="Theme"
       description="The theme for this device."
       actions={<SavedIndicator saved={saved} />}
     >

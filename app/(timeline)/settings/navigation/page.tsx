@@ -1,45 +1,13 @@
-import { Metadata } from 'next'
-import { redirect } from 'next/navigation'
+import { permanentRedirect } from 'next/navigation'
 
-import { NavigationSettings } from '@/lib/components/settings/NavigationSettings'
-import { getDatabase } from '@/lib/database'
-import { getServerAuthSession } from '@/lib/services/auth/getSession'
-import { getVisitedFeatures } from '@/lib/services/domains/visitedFeatures'
-import { getResolvedServerSettings } from '@/lib/services/serverSettings'
-import { getActorFromSession } from '@/lib/utils/getActorFromSession'
-
+// The timeline layout reads the config and database, so this is never
+// prerendered.
 export const dynamic = 'force-dynamic'
 
-export const metadata: Metadata = {
-  title: 'Navigation'
-}
-
-const Page = async () => {
-  const database = getDatabase()
-  if (!database) {
-    throw new Error('Failed to load database')
-  }
-
-  const session = await getServerAuthSession()
-  const actor = await getActorFromSession(database, session)
-  if (!actor || !actor.account) {
-    return redirect('/auth/signin')
-  }
-
-  const serverSettings = await getResolvedServerSettings(database)
-  const features = await getVisitedFeatures(serverSettings.features)
-
-  // Only the availability inputs: the order and hidden items come from the
-  // shared store the (timeline) layout seeded, which is what keeps the sidebar
-  // beside this page in step as it is edited.
-  return (
-    <NavigationSettings
-      fitnessUrl="/fitness"
-      galleryUrl="/gallery"
-      isAdmin={actor.account.role === 'admin'}
-      features={features}
-    />
-  )
+// Navigation was renamed to Sidebar. Keep this stub so existing links and
+// bookmarks to `/settings/navigation` still resolve.
+const Page = () => {
+  permanentRedirect('/settings/sidebar')
 }
 
 export default Page

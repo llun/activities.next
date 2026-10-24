@@ -82,6 +82,9 @@ export type GetFollowRequestsCountParams = {
 
 export interface FollowDatabase {
   createFollow(params: CreateFollowParams): Promise<Follow>
+  createFollowIfAbsent(
+    params: CreateFollowParams
+  ): Promise<{ follow: Follow; inserted: boolean }>
   updateFollowPreferences(
     params: UpdateFollowPreferencesParams
   ): Promise<Follow | null>

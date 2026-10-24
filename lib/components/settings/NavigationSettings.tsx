@@ -152,7 +152,7 @@ export const NavigationSettings: FC<Props> = ({
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Navigation"
+        title="Sidebar"
         description="Choose what shows in your sidebar, and in what order. Hidden items stay one click away under More."
       />
 

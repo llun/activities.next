@@ -674,6 +674,52 @@ describe('FollowDatabase', () => {
       })
     })
 
+    describe('createFollowIfAbsent', () => {
+      it('reports inserted: true on first call with explicit id and inserted: false on second call', async () => {
+        const actorId = await createLocalActor()
+        const targetActorId = await createLocalActor()
+        const id = crypto.randomUUID()
+        const params = {
+          id,
+          actorId,
+          targetActorId,
+          inbox: `${actorId}/inbox`,
+          sharedInbox: TEST_SHARED_INBOX,
+          status: FollowStatus.enum.Accepted
+        }
+        const first = await database.createFollowIfAbsent(params)
+        expect(first.inserted).toBe(true)
+        expect(first.follow.id).toBe(id)
+
+        const second = await database.createFollowIfAbsent(params)
+        expect(second.inserted).toBe(false)
+        expect(second.follow.id).toBe(id)
+      })
+
+      it('returns inserted: false when a follow between the actors already exists', async () => {
+        const actorId = await createLocalActor()
+        const targetActorId = await createLocalActor()
+        const first = await database.createFollowIfAbsent({
+          actorId,
+          targetActorId,
+          inbox: `${actorId}/inbox`,
+          sharedInbox: TEST_SHARED_INBOX,
+          status: FollowStatus.enum.Accepted
+        })
+        expect(first.inserted).toBe(true)
+
+        const second = await database.createFollowIfAbsent({
+          actorId,
+          targetActorId,
+          inbox: `${actorId}/inbox`,
+          sharedInbox: TEST_SHARED_INBOX,
+          status: FollowStatus.enum.Accepted
+        })
+        expect(second.inserted).toBe(false)
+        expect(second.follow.id).toBe(first.follow.id)
+      })
+    })
+
     describe('updateFollow', () => {
       it('reduce following and follower when actor undo', async () => {
         const actorId = await createLocalActor()

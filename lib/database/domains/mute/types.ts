@@ -32,6 +32,9 @@ export type GetMutesParams = {
   minId?: string | null
   sinceId?: string | null
 }
+export type GetLocalMuterIdsParams = {
+  targetActorId: string
+}
 
 export interface MuteDatabase {
   createMute(params: CreateMuteParams): Promise<Mute>
@@ -39,4 +42,5 @@ export interface MuteDatabase {
   getMute(params: GetMuteParams): Promise<Mute | null>
   getMuteRelations(params: GetMuteRelationsParams): Promise<MuteRelation[]>
   getMutes(params: GetMutesParams): Promise<Mute[]>
+  getLocalMuterIds(params: GetLocalMuterIdsParams): Promise<string[]>
 }
