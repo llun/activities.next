@@ -64,7 +64,15 @@ export const up = async (db: Kysely<any>): Promise<void> => {
     .unique()
     .on('account_archives')
     .column('accountId')
-    .where(sql.ref('status'), 'in', [sql.lit('queued'), sql.lit('running')])
+    .where((eb) =>
+      // Two equalities, not IN: PostgreSQL prints an IN list over a varchar
+      // column in a form that differs between the live index and a reloaded
+      // dump, which the baseline test compares.
+      eb.or([
+        eb(sql.ref('status'), '=', sql.lit('queued')),
+        eb(sql.ref('status'), '=', sql.lit('running'))
+      ])
+    )
     .execute()
 
   await db.schema

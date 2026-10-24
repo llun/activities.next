@@ -2019,7 +2019,7 @@ ALTER TABLE ONLY public.wahoo_imports
 ALTER TABLE ONLY public.wahoo_imports
     ADD CONSTRAINT wahoo_imports_pkey PRIMARY KEY (id);
 
-CREATE UNIQUE INDEX account_archives_account_active_idx ON public.account_archives USING btree ("accountId") WHERE ((status)::text = ANY ((ARRAY['queued'::character varying, 'running'::character varying])::text[]));
+CREATE UNIQUE INDEX account_archives_account_active_idx ON public.account_archives USING btree ("accountId") WHERE (((status)::text = 'queued'::text) OR ((status)::text = 'running'::text));
 
 CREATE INDEX account_archives_account_created_idx ON public.account_archives USING btree ("accountId", "createdAt");
 
