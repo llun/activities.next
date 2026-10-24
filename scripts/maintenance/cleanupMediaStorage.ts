@@ -26,6 +26,10 @@ import {
   MediaStorageType
 } from '@/lib/config/mediaStorage'
 import { openScriptDatabase } from '@/lib/database/scriptDatabase'
+import {
+  ARCHIVE_STORAGE_PREFIX,
+  isArchiveStoragePath
+} from '@/lib/services/accountArchive/constants'
 import { getEffectiveFitnessStorageConfig } from '@/lib/services/fitness-files'
 import { resolveStorageFilePath } from '@/lib/services/medias/storagePath'
 import { createStorageS3Client } from '@/lib/services/storage/s3Client'
@@ -485,6 +489,16 @@ async function cleanupMediaStorage() {
     const skipped = before - storageFiles.length
     console.log(
       `   Skipped ${skipped} file(s) under the shared fitness prefix '${fitnessPrefix}' (managed as fitness storage, not media)`
+    )
+  }
+
+  // Account exports (archives/) are created and expired by the export job and
+  // are referenced by account_archives, not by any media row.
+  {
+    const before = storageFiles.length
+    storageFiles = storageFiles.filter((file) => !isArchiveStoragePath(file))
+    console.log(
+      `   Skipped ${before - storageFiles.length} file(s) under '${ARCHIVE_STORAGE_PREFIX}/' (account exports, managed by the export job)`
     )
   }
 

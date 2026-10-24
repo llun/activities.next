@@ -7,6 +7,10 @@ import { getConfig } from '@/lib/config'
 import { FitnessStorageType } from '@/lib/config/fitnessStorage'
 import { MediaStorageType } from '@/lib/config/mediaStorage'
 import { getEffectiveFitnessStorageConfig } from '@/lib/services/fitness-files'
+import {
+  isObjectStorageMediaKey,
+  isReservedFitnessMediaPath
+} from '@/lib/services/medias/reservedPaths'
 import { resolveStorageFilePath } from '@/lib/services/medias/storagePath'
 import { createStorageS3Client } from '@/lib/services/storage/s3Client'
 
@@ -42,7 +46,8 @@ const errorName = (error: unknown) => (error as { name?: string }).name
 
 const openLocal = async (
   root: string,
-  relativePath: string
+  relativePath: string,
+  start: number
 ): Promise<SourceFileOutcome> => {
   // The same containment check the storage drivers use: a stored path is data
   // from a row, and one that leaves the storage root is never read.
@@ -53,7 +58,10 @@ const openLocal = async (
     if (!stat.isFile()) return { ok: false, reason: 'missing' }
     return {
       ok: true,
-      file: { stream: createReadStream(target), size: stat.size }
+      file: {
+        stream: createReadStream(target, { start }),
+        size: stat.size
+      }
     }
   } catch (error) {
     return {
@@ -69,11 +77,16 @@ const openLocal = async (
 const openObject = async (
   client: S3Client,
   bucket: string,
-  key: string
+  key: string,
+  start: number
 ): Promise<SourceFileOutcome> => {
   try {
     const object = await client.send(
-      new GetObjectCommand({ Bucket: bucket, Key: key })
+      new GetObjectCommand({
+        Bucket: bucket,
+        Key: key,
+        ...(start > 0 ? { Range: `bytes=${start}-` } : {})
+      })
     )
     if (!object.Body) return { ok: false, reason: 'missing' }
     const stream =
@@ -93,6 +106,10 @@ const openObject = async (
       }
     }
   } catch (error) {
+    // A resume at the very end of the object: nothing is left to copy.
+    if (start > 0 && errorName(error) === 'InvalidRange') {
+      return { ok: true, file: { stream: Readable.from([]), size: 0 } }
+    }
     return {
       ok: false,
       reason:
@@ -105,18 +122,29 @@ const openObject = async (
 
 /** Opens a stored media file (`medias.original`, a thumbnail, an edit render). */
 export const openMediaSourceFile = async (
-  storagePath: string
+  storagePath: string,
+  start = 0
 ): Promise<SourceFileOutcome> => {
+  // Media lives under `medias/` and never under the reserved prefixes (other
+  // accounts' exports, private fitness originals). A URL that names anything
+  // else is refused, whoever wrote it.
+  if (
+    isReservedFitnessMediaPath(storagePath) ||
+    !isObjectStorageMediaKey(storagePath)
+  ) {
+    return { ok: false, reason: 'refused-path' }
+  }
   const { mediaStorage } = getConfig()
   switch (mediaStorage?.type) {
     case MediaStorageType.LocalFile:
-      return openLocal(mediaStorage.path, storagePath)
+      return openLocal(mediaStorage.path, storagePath, start)
     case MediaStorageType.S3Storage:
     case MediaStorageType.ObjectStorage:
       return openObject(
         getClient(mediaStorage),
         mediaStorage.bucket,
-        storagePath
+        storagePath,
+        start
       )
     default:
       return { ok: false, reason: 'not-configured' }
@@ -125,12 +153,13 @@ export const openMediaSourceFile = async (
 
 /** Opens a stored fitness file (the original .fit/.gpx/.tcx upload). */
 export const openFitnessSourceFile = async (
-  storagePath: string
+  storagePath: string,
+  start = 0
 ): Promise<SourceFileOutcome> => {
   const fitnessStorage = getEffectiveFitnessStorageConfig()
   switch (fitnessStorage?.type) {
     case FitnessStorageType.LocalFile:
-      return openLocal(fitnessStorage.path, storagePath)
+      return openLocal(fitnessStorage.path, storagePath, start)
     case FitnessStorageType.S3Storage:
     case FitnessStorageType.ObjectStorage:
       return openObject(
@@ -138,17 +167,22 @@ export const openFitnessSourceFile = async (
         fitnessStorage.bucket,
         fitnessStorage.prefix
           ? `${fitnessStorage.prefix}${storagePath}`
-          : storagePath
+          : storagePath,
+        start
       )
     default:
       return { ok: false, reason: 'not-configured' }
   }
 }
 
-export const openSourceFile = (kind: SourceKind, storagePath: string) =>
+export const openSourceFile = (
+  kind: SourceKind,
+  storagePath: string,
+  start = 0
+) =>
   kind === 'media'
-    ? openMediaSourceFile(storagePath)
-    : openFitnessSourceFile(storagePath)
+    ? openMediaSourceFile(storagePath, start)
+    : openFitnessSourceFile(storagePath, start)
 
 export const describeSourceFailure = (
   reason: Extract<SourceFileOutcome, { ok: false }>['reason']

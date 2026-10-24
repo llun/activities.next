@@ -40,12 +40,15 @@ export interface AccountArchives {
   createdAt: WithDefault<Timestamp>
   error: Nullable<string>
   expiresAt: Nullable<Timestamp>
+  heartbeatAt: WithDefault<Timestamp>
   id: string
   options: WithDefault<string>
   progress: Nullable<string>
   readyAt: Nullable<Timestamp>
+  reapCount: WithDefault<number>
   status: WithDefault<string>
   storagePath: Nullable<string>
+  storageToken: string
 }
 
 export interface AccountNotes {

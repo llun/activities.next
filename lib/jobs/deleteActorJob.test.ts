@@ -144,13 +144,19 @@ describe('deleteActorJob', () => {
     const accountId = (await database.getActorFromId({ id: actorId }))!.account!
       .id
     const archiveId = crypto.randomUUID()
-    await database.createAccountArchive({
+    const archiveRow = await database.createAccountArchive({
       id: archiveId,
       accountId,
       options: { stripExactLocations: false, drafts: false }
     })
     await database.updateAccountArchive({ id: archiveId, status: 'ready' })
-    const zip = path.join(root, 'archives', archiveId, 'archive.zip')
+    const zip = path.join(
+      root,
+      'archives',
+      archiveId,
+      archiveRow.storageToken,
+      'archive-1.zip'
+    )
     await fs.mkdir(path.dirname(zip), { recursive: true })
     await fs.writeFile(zip, 'PRIVATE EXPORT')
     const other = path.join(root, 'archives', 'someone-else', 'archive.zip')
@@ -167,6 +173,83 @@ describe('deleteActorJob', () => {
     expect(await database.getActorFromId({ id: actorId })).toBeNull()
     await expect(fs.stat(zip)).rejects.toThrow()
     expect((await fs.readFile(other)).toString()).toBe('KEEP')
+    expect(await database.getAccountArchive({ id: archiveId })).toBeNull()
+    await fs.rm(root, { recursive: true, force: true })
+  })
+
+  it('still removes the exports when two actors of an account are deleted at once', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'delete-race-'))
+    vi.mocked(getConfig).mockReturnValue({
+      host: 'test.social',
+      email: { serviceFromAddress: 'noreply@test.social' },
+      mediaStorage: { type: MediaStorageType.LocalFile, path: root }
+    } as unknown as ReturnType<typeof getConfig>)
+    const suffix = `${Date.now()}-race`
+    const first = `delete-race-a-${suffix}`
+    const firstId = `https://test.social/users/${first}`
+    await database.createAccount({
+      email: `${first}@test.social`,
+      username: first,
+      domain: 'test.social',
+      passwordHash: 'hash',
+      privateKey: `privateKey-${suffix}`,
+      publicKey: `publicKey-${suffix}`
+    })
+    const accountId = (await database.getActorFromId({ id: firstId }))!.account!
+      .id
+    const second = `delete-race-b-${suffix}`
+    const secondId = await database.createActorForAccount({
+      accountId,
+      username: second,
+      domain: 'test.social',
+      publicKey: 'public',
+      privateKey: 'private'
+    })
+    expect(secondId).toBeTruthy()
+
+    const archiveId = crypto.randomUUID()
+    const row = await database.createAccountArchive({
+      id: archiveId,
+      accountId,
+      options: { stripExactLocations: false, drafts: false }
+    })
+    await database.updateAccountArchive({ id: archiveId, status: 'ready' })
+    const zip = path.join(
+      root,
+      'archives',
+      archiveId,
+      row.storageToken,
+      'archive-1.zip'
+    )
+    await fs.mkdir(path.dirname(zip), { recursive: true })
+    await fs.writeFile(zip, 'PRIVATE EXPORT')
+
+    // Both jobs started while the other actor still existed: each one's check
+    // before deleting sees a sibling, so neither purges there.
+    const real = database.getActorsForAccount.bind(database)
+    let calls = 0
+    vi.spyOn(database, 'getActorsForAccount').mockImplementation(
+      async (params) => {
+        const actors = await real(params)
+        calls += 1
+        // The first lookup of each job (before its deletion) is stale.
+        return calls % 2 === 1
+          ? [...actors, { ...actors[0], id: 'https://test.social/users/other' }]
+          : actors
+      }
+    )
+
+    const actorIdToDelete = `https://test.social/users/${second}`
+    for (const id of [firstId, actorIdToDelete]) {
+      await database.scheduleActorDeletion({ actorId: id, scheduledAt: null })
+      await deleteActorJob(database, {
+        id: `delete-race-${id}`,
+        name: DELETE_ACTOR_JOB_NAME,
+        data: { actorId: id }
+      })
+    }
+
+    await expect(fs.stat(zip)).rejects.toThrow()
     expect(await database.getAccountArchive({ id: archiveId })).toBeNull()
     await fs.rm(root, { recursive: true, force: true })
   })

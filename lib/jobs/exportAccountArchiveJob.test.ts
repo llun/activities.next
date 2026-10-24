@@ -4,15 +4,21 @@ import os from 'os'
 import path from 'path'
 
 import { getConfig } from '@/lib/config'
+import { FitnessStorageType } from '@/lib/config/fitnessStorage'
 import { MediaStorageType } from '@/lib/config/mediaStorage'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { EXPORT_ACCOUNT_ARCHIVE_JOB_NAME } from '@/lib/jobs/names'
 import { getArchiveMediaPath } from '@/lib/services/accountArchive/actorArchive'
 import { getArchiveObjectStore } from '@/lib/services/accountArchive/objectStore'
+import {
+  parseProgress,
+  serializeProgress
+} from '@/lib/services/accountArchive/progress'
 import { requestAccountArchive } from '@/lib/services/accountArchive/request'
 import {
   collectKeys,
-  readZip
+  readZip,
+  verifyZipWithTools
 } from '@/lib/services/accountArchive/testing/readZip'
 import { sendMail } from '@/lib/services/email'
 import { getQueue } from '@/lib/services/queue'
@@ -29,8 +35,11 @@ vi.mock('@/lib/services/accountArchive/constants', async (importOriginal) => ({
   ...(await importOriginal<
     typeof import('@/lib/services/accountArchive/constants')
   >()),
-  ARCHIVE_SLICE_BUDGET_MS: 0,
   ARCHIVE_PAGE_SIZE: 2
+}))
+const sliceBudget = vi.hoisted(() => ({ ms: 0 }))
+vi.mock('@/lib/services/accountArchive/budget', () => ({
+  getArchiveSliceBudgetMs: () => sliceBudget.ms
 }))
 
 vi.mock('@/lib/services/queue', () => ({ getQueue: vi.fn() }))
@@ -88,6 +97,7 @@ describe('exportAccountArchiveJob', () => {
   })
 
   beforeEach(async () => {
+    sliceBudget.ms = 0
     await db.deleteFrom('account_archives').execute()
     root = await fs.mkdtemp(path.join(os.tmpdir(), 'account-archive-'))
     vi.mocked(getConfig).mockReturnValue({
@@ -153,7 +163,15 @@ describe('exportAccountArchiveJob', () => {
   const readArchive = async (archiveId: string) => {
     const archive = (await database.getAccountArchive({ id: archiveId }))!
     expect(archive.storagePath).toBeTruthy()
-    return readZip(path.join(root, archive.storagePath!))
+    const file = path.join(root, archive.storagePath!)
+    // Whatever slices wrote it, unzip and Python must accept it as a whole.
+    expect(verifyZipWithTools(file).length).toBeGreaterThan(0)
+    return readZip(file)
+  }
+
+  const archiveDir = async (archiveId: string) => {
+    const archive = (await database.getAccountArchive({ id: archiveId }))!
+    return path.join(root, 'archives', archiveId, archive.storageToken)
   }
 
   it('builds a Mastodon-shaped archive across many resumed slices', async () => {
@@ -171,7 +189,7 @@ describe('exportAccountArchiveJob', () => {
       'outbox.json',
       'likes.json',
       'bookmarks.json',
-      'manifest.json',
+      'activities.next/manifest.json',
       'activities.next/account.json',
       'activities.next/actors/llun.test/test1/profile.json',
       'activities.next/actors/llun.test/test1/statuses.jsonl',
@@ -191,11 +209,16 @@ describe('exportAccountArchiveJob', () => {
     expect(new Set(names.map((name) => name.toLowerCase())).size).toBe(
       names.length
     )
-    expect(names[names.length - 1]).toBe('manifest.json')
+    expect(names[names.length - 1]).toBe('activities.next/manifest.json')
+    expect(names).not.toContain('manifest.json')
 
     const actor = JSON.parse(files.get('actor.json')!.toString())
     expect(actor.type).toBe('Person')
     expect(actor.preferredUsername).toBe('test1')
+    // The collections are the sibling files, as in a Mastodon backup.
+    expect(actor.outbox).toBe('outbox.json')
+    expect(actor.likes).toBe('likes.json')
+    expect(actor.bookmarks).toBe('bookmarks.json')
 
     const outbox = JSON.parse(files.get('outbox.json')!.toString())
     expect(outbox.type).toBe('OrderedCollection')
@@ -213,9 +236,22 @@ describe('exportAccountArchiveJob', () => {
     expect(statuses.length).toBe(outbox.totalItems)
     for (const line of statuses) JSON.parse(line)
 
-    const manifest = JSON.parse(files.get('manifest.json')!.toString())
+    const manifest = JSON.parse(
+      files.get('activities.next/manifest.json')!.toString()
+    )
     expect(manifest.format).toBe('activities.next-archive')
+    expect(new Date(manifest.exportedAt).getTime()).toBeGreaterThan(0)
+    expect(manifest.server).toBe(getConfig().host)
+    expect(manifest.account).toEqual({
+      id: accountId,
+      signUpDomain: expect.any(String),
+      defaultActorId: (await database.getAccountExportAccount({ accountId }))
+        ?.defaultActorId
+    })
+    expect(manifest.entries).toContain('outbox.json')
     expect(manifest.actors[0]).toMatchObject({
+      id: ACTOR1_ID,
+      handle: '@test1@llun.test',
       username: 'test1',
       isDefault: true,
       directory: 'activities.next/actors/llun.test/test1'
@@ -272,7 +308,9 @@ describe('exportAccountArchiveJob', () => {
     expect(
       JSON.parse(files.get(`${other}/actor.json`)!.toString()).preferredUsername
     ).toBe('second')
-    const manifest = JSON.parse(files.get('manifest.json')!.toString())
+    const manifest = JSON.parse(
+      files.get('activities.next/manifest.json')!.toString()
+    )
     expect(
       manifest.actors.map((entry: { username: string }) => entry.username)
     ).toEqual([seedActor2.username, 'second'])
@@ -345,7 +383,9 @@ describe('exportAccountArchiveJob', () => {
       expect(archive.status).toBe('ready')
       const { names, files } = await readArchive(id)
       expect(names).not.toContain(getArchiveMediaPath(mediaPath))
-      const manifest = JSON.parse(files.get('manifest.json')!.toString())
+      const manifest = JSON.parse(
+        files.get('activities.next/manifest.json')!.toString()
+      )
       expect(manifest.files.skipped).toBeGreaterThan(0)
       const warning = manifest.warnings.join('\n')
       expect(warning).toContain('missing from storage')
@@ -407,8 +447,12 @@ describe('exportAccountArchiveJob', () => {
     const archive = await runToCompletion(id)
     expect(archive.status).toBe('ready')
 
-    const entries = await fs.readdir(path.join(root, 'archives', id))
-    expect(entries).toEqual(['archive.zip'])
+    // Only the finished file is left under the export's secret segment.
+    const entries = await fs.readdir(await archiveDir(id))
+    expect(entries).toEqual([archive.storagePath!.split('/').pop()])
+    expect(archive.storagePath).toMatch(
+      new RegExp(`^archives/${id}/[A-Za-z0-9_-]{43}/archive-[0-9a-f]+\\.zip$`)
+    )
 
     expect(sendMail).toHaveBeenCalledTimes(1)
     const mail = vi.mocked(sendMail).mock.calls[0][0]
@@ -453,7 +497,7 @@ describe('exportAccountArchiveJob', () => {
 
     expect(resumed.names).toEqual(baseline.names)
     for (const name of baseline.names) {
-      if (name === 'manifest.json') continue
+      if (name === 'activities.next/manifest.json') continue
       expect(resumed.files.get(name)!.toString(), name).toBe(
         baseline.files.get(name)!.toString()
       )
@@ -511,5 +555,386 @@ describe('exportAccountArchiveJob', () => {
     const id = await makeArchive(accountId)
     await run(id, 0)
     expect((await database.getAccountArchive({ id }))!.status).toBe('failed')
+  })
+
+  describe('files copied into the archive', () => {
+    const MIB = 1024 * 1024
+    const bigPath = 'medias/2026-01-02/export-big.bin'
+    let bigBytes: Buffer
+
+    beforeAll(async () => {
+      bigBytes = crypto.randomBytes(3 * MIB + 77)
+      await database.createMedia({
+        actorId: ACTOR1_ID,
+        original: {
+          path: bigPath,
+          bytes: bigBytes.length,
+          mimeType: 'application/octet-stream',
+          metaData: { width: 1, height: 1 }
+        }
+      })
+    })
+
+    it('copies a large file across slices by byte range, to an intact zip', async () => {
+      const target = path.join(root, bigPath)
+      await fs.mkdir(path.dirname(target), { recursive: true })
+      await fs.writeFile(target, bigBytes)
+      const id = await makeArchive(accountId)
+
+      // Count the slices: with no time budget each slice copies one chunk.
+      let slices = 0
+      await run(id, 0)
+      for (;;) {
+        const next = published.find(
+          (message) =>
+            (message.data as { action?: string }).action === undefined
+        )
+        if (!next) break
+        published.splice(published.indexOf(next), 1)
+        slices += 1
+        await run(id, (next.data as { slice: number }).slice)
+      }
+      expect(slices).toBeGreaterThan(10)
+
+      const archive = (await database.getAccountArchive({ id }))!
+      expect(archive.status).toBe('ready')
+      const { files } = await readArchive(id)
+      expect(files.get(getArchiveMediaPath(bigPath))?.equals(bigBytes)).toBe(
+        true
+      )
+    })
+
+    it('copies a fitness file from the fitness storage under fitness/files', async () => {
+      const fitnessRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'fitness-'))
+      try {
+        vi.mocked(getConfig).mockReturnValue({
+          ...baseConfig(),
+          fitnessStorage: {
+            type: FitnessStorageType.LocalFile,
+            path: fitnessRoot
+          }
+        } as ReturnType<typeof getConfig>)
+        const content = Buffer.from('FIT-FILE-BYTES')
+        await fs.mkdir(path.join(fitnessRoot, 'fitness'), { recursive: true })
+        await fs.writeFile(path.join(fitnessRoot, 'fitness/run.fit'), content)
+        const file = await database.createFitnessFile({
+          actorId: ACTOR1_ID,
+          path: 'fitness/run.fit',
+          fileName: 'run.fit',
+          fileType: 'fit',
+          mimeType: 'application/vnd.ant.fit',
+          bytes: content.length
+        })
+
+        const id = await makeArchive(accountId)
+        await runToCompletion(id)
+        const { files } = await readArchive(id)
+        expect(
+          files
+            .get(
+              `activities.next/actors/llun.test/test1/fitness/files/${file!.id}.fit`
+            )
+            ?.equals(content)
+        ).toBe(true)
+        await db
+          .deleteFrom('fitness_files')
+          .where('id', '=', file!.id)
+          .execute()
+      } finally {
+        await fs.rm(fitnessRoot, { recursive: true, force: true })
+      }
+    })
+
+    it('never copies a file whose stored path points at an export or fitness storage', async () => {
+      const secret = path.join(root, 'archives/other/token/archive-1.zip')
+      await fs.mkdir(path.dirname(secret), { recursive: true })
+      await fs.writeFile(secret, 'ANOTHER-ACCOUNTS-EXPORT')
+      await fs.mkdir(path.join(root, 'fitness'), { recursive: true })
+      await fs.writeFile(path.join(root, 'fitness/private.fit'), 'PRIVATE-FIT')
+      for (const original of [
+        'archives/other/token/archive-1.zip',
+        'fitness/private.fit'
+      ]) {
+        await database.createMedia({
+          actorId: ACTOR1_ID,
+          original: {
+            path: original,
+            bytes: 5,
+            mimeType: 'application/zip',
+            metaData: { width: 1, height: 1 }
+          }
+        })
+      }
+
+      const id = await makeArchive(accountId)
+      await runToCompletion(id)
+      const { files } = await readArchive(id)
+      const all = [...files.values()].map((buffer) => buffer.toString('latin1'))
+      expect(all.some((text) => text.includes('ANOTHER-ACCOUNTS-EXPORT'))).toBe(
+        false
+      )
+      expect(all.some((text) => text.includes('PRIVATE-FIT'))).toBe(false)
+      const manifest = JSON.parse(
+        files.get('activities.next/manifest.json')!.toString()
+      )
+      expect(manifest.warnings.join('\n')).toContain('outside the storage root')
+    })
+  })
+
+  describe('profile images', () => {
+    const ownedAvatar = 'medias/2026-01-03/avatar-owned.png'
+
+    const setIcon = (iconUrl: string | null) =>
+      database.updateActor({ actorId: ACTOR1_ID, iconUrl })
+
+    afterEach(async () => {
+      await setIcon(null)
+    })
+
+    it("copies an avatar that is one of the account's own media", async () => {
+      await database.createMedia({
+        actorId: ACTOR1_ID,
+        original: {
+          path: ownedAvatar,
+          bytes: 6,
+          mimeType: 'image/png',
+          metaData: { width: 1, height: 1 }
+        }
+      })
+      await fs.mkdir(path.join(root, 'medias/2026-01-03'), { recursive: true })
+      await fs.writeFile(path.join(root, ownedAvatar), 'AVATAR')
+      await setIcon(`https://${getConfig().host}/api/v1/files/${ownedAvatar}`)
+
+      const id = await makeArchive(accountId)
+      await runToCompletion(id)
+      const { files } = await readArchive(id)
+      expect(files.get('avatar.png')?.toString()).toBe('AVATAR')
+    })
+
+    it.each([
+      ['another export', 'archives/other/token/archive-1.zip'],
+      ['fitness storage', 'fitness/private.fit'],
+      [
+        'a media file nobody on this account owns',
+        'medias/2026-01-03/foreign.png'
+      ]
+    ])('does not copy an avatar that names %s', async (_label, stored) => {
+      const target = path.join(root, stored)
+      await fs.mkdir(path.dirname(target), { recursive: true })
+      await fs.writeFile(target, 'NOT-YOURS')
+      await setIcon(`https://${getConfig().host}/api/v1/files/${stored}`)
+
+      const id = await makeArchive(accountId)
+      await runToCompletion(id)
+      const { names, files } = await readArchive(id)
+      expect(names.filter((name) => name.startsWith('avatar'))).toEqual([])
+      const manifest = JSON.parse(
+        files.get('activities.next/manifest.json')!.toString()
+      )
+      expect(manifest.warnings.join('\n')).toMatch(
+        /not one of the account|outside the storage root/
+      )
+      for (const buffer of files.values()) {
+        expect(buffer.toString('latin1')).not.toContain('NOT-YOURS')
+      }
+    })
+  })
+
+  describe('profile.json settings', () => {
+    it('lists only the profile and preference keys, never server bookkeeping', async () => {
+      const row = await db
+        .selectFrom('actors')
+        .select('settings')
+        .where('id', '=', ACTOR1_ID)
+        .executeTakeFirstOrThrow()
+      const original =
+        typeof row.settings === 'string'
+          ? row.settings
+          : JSON.stringify(row.settings)
+      await db
+        .updateTable('actors')
+        .set({
+          settings: JSON.stringify({
+            ...JSON.parse(original),
+            bot: true,
+            linksCheckedAt: 123,
+            moveProcessing: { at: 1 },
+            someFutureInternalKey: 'must-not-leak'
+          })
+        })
+        .where('id', '=', ACTOR1_ID)
+        .execute()
+      try {
+        const id = await makeArchive(accountId)
+        await runToCompletion(id)
+        const { files } = await readArchive(id)
+        const profile = JSON.parse(
+          files
+            .get('activities.next/actors/llun.test/test1/profile.json')!
+            .toString()
+        )
+        expect(profile.settings.bot).toBe(true)
+        expect(profile.settings).not.toHaveProperty('linksCheckedAt')
+        expect(profile.settings).not.toHaveProperty('moveProcessing')
+        expect(profile.settings).not.toHaveProperty('someFutureInternalKey')
+        expect(profile.settings).not.toHaveProperty('inboxUrl')
+      } finally {
+        await db
+          .updateTable('actors')
+          .set({ settings: original })
+          .where('id', '=', ACTOR1_ID)
+          .execute()
+      }
+    })
+  })
+
+  describe('stripExactLocations', () => {
+    it('also drops the fitness home point and hidden circles and the gallery hidden locations', async () => {
+      const settingsId = crypto.randomUUID()
+      await db
+        .insertInto('fitness_settings')
+        .values({
+          id: settingsId,
+          actorId: ACTOR1_ID,
+          serviceType: 'strava',
+          privacyHomeLatitude: 13.1111,
+          privacyHomeLongitude: 100.2222,
+          privacyHideRadiusMeters: 500,
+          privacyLocations: JSON.stringify([
+            { latitude: 13.3333, longitude: 100.4444, hideRadiusMeters: 250 }
+          ])
+        })
+        .execute()
+      await db
+        .insertInto('gallery_settings')
+        .values({
+          actorId: ACTOR1_ID,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          hiddenLocations: JSON.stringify([
+            { latitude: 13.5555, longitude: 100.6666, hideRadiusMeters: 250 }
+          ])
+        })
+        .execute()
+      try {
+        const kept = await makeArchive(accountId)
+        await runToCompletion(kept)
+        const keptFiles = (await readArchive(kept)).files
+        const base = 'activities.next/actors/llun.test/test1'
+        expect(
+          keptFiles.get(`${base}/fitness/settings.json`)!.toString()
+        ).toContain('13.1111')
+
+        expect(
+          keptFiles.get(`${base}/gallery/settings.json`)!.toString()
+        ).toContain('13.5555')
+
+        const stripped = await makeArchive(accountId, {
+          stripExactLocations: true
+        })
+        await runToCompletion(stripped)
+        const files = (await readArchive(stripped)).files
+        const fitness = files.get(`${base}/fitness/settings.json`)!.toString()
+        expect(fitness).not.toContain('13.1111')
+        expect(fitness).not.toContain('13.3333')
+        expect(fitness).not.toContain('privacyHome')
+        const galleryText = files
+          .get(`${base}/gallery/settings.json`)!
+          .toString()
+        expect(galleryText).not.toContain('13.5555')
+      } finally {
+        await db
+          .deleteFrom('fitness_settings')
+          .where('id', '=', settingsId)
+          .execute()
+        await db
+          .deleteFrom('gallery_settings')
+          .where('actorId', '=', ACTOR1_ID)
+          .execute()
+      }
+    })
+  })
+
+  describe('overlapping deliveries', () => {
+    it('keeps the finished file when a second delivery completes the same slice', async () => {
+      sliceBudget.ms = 10 * 60 * 1000
+      const id = await makeArchive(accountId)
+      const original = database.updateAccountArchive.bind(database)
+      let intercepted = false
+      vi.spyOn(database, 'updateAccountArchive').mockImplementation(
+        async (params) => {
+          if (params.status === 'ready' && !intercepted) {
+            intercepted = true
+            // Before this worker's final update lands, another delivery of the
+            // same slice takes over (its lease long expired) and finishes.
+            const current = (await database.getAccountArchive({ id }))!
+            const progress = parseProgress(current.progress)!
+            progress.lease = null
+            await original({
+              id,
+              progress: serializeProgress(progress)
+            })
+            await run(id, progress.slice)
+          }
+          return original(params)
+        }
+      )
+
+      await run(id, 0)
+      const archive = (await database.getAccountArchive({ id }))!
+      expect(archive.status).toBe('ready')
+      const { names } = await readArchive(id)
+      expect(names).toContain('activities.next/manifest.json')
+      await expect(
+        fs.stat(path.join(root, archive.storagePath!))
+      ).resolves.toBeTruthy()
+    })
+
+    it('turns away a delivery while another worker holds the lease', async () => {
+      const id = await makeArchive(accountId)
+      await run(id, 0)
+      const before = (await database.getAccountArchive({ id }))!
+      const progress = parseProgress(before.progress)!
+      progress.lease = { token: 'other-worker', until: Date.now() + 60_000 }
+      await database.updateAccountArchive({
+        id,
+        progress: serializeProgress(progress)
+      })
+      const held = (await database.getAccountArchive({ id }))!.progress
+      const publishedBefore = published.length
+
+      await run(id, progress.slice + 1)
+
+      expect((await database.getAccountArchive({ id }))!.progress).toBe(held)
+      expect(published.length).toBe(publishedBefore)
+    })
+
+    it('removes what a slice staged when the export is deleted underneath it', async () => {
+      sliceBudget.ms = 10 * 60 * 1000
+      const id = await makeArchive(accountId)
+      const original = database.updateAccountArchive.bind(database)
+      let saves = 0
+      vi.spyOn(database, 'updateAccountArchive').mockImplementation(
+        async (params) => {
+          // A later progress save, once parts are staged: the export is deleted
+          // meanwhile (its account was removed).
+          if (
+            params.progress !== undefined &&
+            params.onlyIfProgress !== undefined &&
+            (saves += 1) === 4
+          ) {
+            await db
+              .deleteFrom('account_archives')
+              .where('id', '=', id)
+              .execute()
+          }
+          return original(params)
+        }
+      )
+      await run(id, 0)
+      await expect(
+        fs.readdir(path.join(root, 'archives', id))
+      ).rejects.toThrow()
+    })
   })
 })

@@ -147,6 +147,67 @@ describe('account archive queries', () => {
     expect(expired.map((archive) => archive.id)).toEqual(['archive-1'])
   })
 
+  it('has a secret storage token, a heartbeat and a reap counter of its own', async () => {
+    const row = (await database.getAccountArchive({ id: 'archive-other' }))!
+    expect(row.storageToken).toMatch(/^[A-Za-z0-9_-]{43}$/)
+    expect(row.reapCount).toBe(0)
+    expect(row.heartbeatAt).toBeGreaterThan(0)
+    const mine = (await database.getAccountArchive({ id: 'archive-1' }))!
+    expect(mine.storageToken).not.toBe(row.storageToken)
+  })
+
+  it('moves the heartbeat on every progress save and only compares on the reap count', async () => {
+    const before = (await database.getAccountArchive({ id: 'archive-other' }))!
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    const saved = (await database.updateAccountArchive({
+      id: 'archive-other',
+      progress: '{"x":1}'
+    }))!
+    expect(saved.heartbeatAt).toBeGreaterThan(before.heartbeatAt)
+
+    expect(
+      await database.updateAccountArchive({
+        id: 'archive-other',
+        onlyIfReapCount: 3,
+        reapCount: 4
+      })
+    ).toBeNull()
+    expect(
+      (await database.updateAccountArchive({
+        id: 'archive-other',
+        onlyIfReapCount: 0,
+        reapCount: 1
+      }))!.reapCount
+    ).toBe(1)
+  })
+
+  it('lists unfinished archives by the oldest heartbeat first', async () => {
+    await database.updateAccountArchive({
+      id: 'archive-1',
+      status: 'running',
+      heartbeatAt: Date.now() - 5000
+    })
+    await database.updateAccountArchive({
+      id: 'archive-other',
+      status: 'running',
+      heartbeatAt: Date.now() - 9000
+    })
+    const stale = await database.getStaleAccountArchives({
+      before: Date.now() - 1000,
+      limit: 10
+    })
+    expect(stale.map((archive) => archive.id)).toEqual([
+      'archive-other',
+      'archive-1'
+    ])
+    expect(
+      await database.getStaleAccountArchives({
+        before: Date.now() - 7000,
+        limit: 10
+      })
+    ).toHaveLength(1)
+  })
+
   it('deletes every archive of an account', async () => {
     await database.deleteAccountArchivesForAccount({ accountId })
     expect(

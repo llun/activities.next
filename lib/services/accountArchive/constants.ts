@@ -1,6 +1,19 @@
 /** Object-store prefix of every export file and staged part. Never public. */
 export const ARCHIVE_STORAGE_PREFIX = 'archives'
 
+/**
+ * Whether a storage-root-relative file path (a directory listing or an S3 key)
+ * is an export file. Separators are normalised and the prefix compared without
+ * case, as a case-insensitive filesystem would.
+ */
+export const isArchiveStoragePath = (file: string) => {
+  const normalized = file.replace(/\\/g, '/').replace(/^\/+/, '').toLowerCase()
+  return (
+    normalized === ARCHIVE_STORAGE_PREFIX ||
+    normalized.startsWith(`${ARCHIVE_STORAGE_PREFIX}/`)
+  )
+}
+
 /** An export is deleted this long after it became ready. */
 export const ARCHIVE_RETENTION_MS = 7 * 24 * 60 * 60 * 1000
 

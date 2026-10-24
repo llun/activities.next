@@ -268,7 +268,10 @@ read-only against the database and storage.
 > (`lib/services/accountArchive/actorArchive.ts`, re-exported by the script), so
 > a fix to the Mastodon-shaped files applies to both. An operator can delete an
 > export's files early by removing `archives/<id>/` from the storage; the row
-> then expires on its own.
+> then expires on its own. The media cleanup script and the production backup
+> both skip the `archives/` prefix. Add a lifecycle rule to the bucket that
+> aborts incomplete multipart uploads after a day or two, as a worker that
+> died mid-export leaves one behind until the reaper discards it.
 
 ### Usage
 

@@ -20,6 +20,32 @@ const stringOrNull = (value: unknown) =>
 /** The columns that name coordinates; `stripExactLocations` drops them. */
 export const EXACT_LOCATION_COLUMNS = ['placeLatitude', 'placeLongitude']
 
+/**
+ * The Fitness privacy settings name coordinates too (the home point and the
+ * hidden circles), so `stripExactLocations` drops those, keeping the rest of
+ * the row. The raw .fit/.gpx activity files and photo EXIF are the owner's
+ * files and are copied as they are.
+ */
+export const FITNESS_SETTINGS_LOCATION_COLUMNS = [
+  'privacyHomeLatitude',
+  'privacyHomeLongitude',
+  'privacyHideRadiusMeters'
+]
+
+export const stripFitnessSettingsLocations = (
+  row: Record<string, unknown>
+): Record<string, unknown> => {
+  const kept = { ...row }
+  for (const column of FITNESS_SETTINGS_LOCATION_COLUMNS) delete kept[column]
+  kept.privacyLocations = []
+  return kept
+}
+
+export const stripGallerySettingsLocations = (
+  row: Record<string, unknown> | null
+): Record<string, unknown> | null =>
+  row ? { ...row, hiddenLocations: [] } : row
+
 interface MediasCursor {
   after?: AccountExportCursor | null
 }
@@ -202,7 +228,11 @@ export const fitnessMetaStep: CollectorStep = {
     )
     await stage.append(
       entryPath(actor.dir, 'fitness', 'settings.json'),
-      json(settings)
+      json(
+        context.options.stripExactLocations
+          ? settings.map(stripFitnessSettingsLocations)
+          : settings
+      )
     )
     return 'done'
   }
@@ -237,7 +267,11 @@ export const galleryStep: CollectorStep = {
     )
     await stage.append(
       entryPath(actor.dir, 'gallery', 'settings.json'),
-      json(settings[0] ?? null)
+      json(
+        context.options.stripExactLocations
+          ? stripGallerySettingsLocations(settings[0] ?? null)
+          : (settings[0] ?? null)
+      )
     )
     return 'done'
   }

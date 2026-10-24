@@ -6,39 +6,32 @@ import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
-import { deleteArchiveFiles } from './expiry'
+import { discardUnfinishedArchive } from './expiry'
 import { type ArchiveObjectStore, getArchiveObjectStore } from './objectStore'
-import { parseProgress, serializeProgress } from './progress'
+import { parseProgress } from './progress'
 
-/** A queued or running export with no progress for this long is stuck. */
+/** A queued or running export that has not moved for this long is stuck. */
 export const ARCHIVE_STUCK_AFTER_MS = 60 * 60 * 1000
 /** An export is requeued this many times before it is given up on. */
 export const ARCHIVE_MAX_REAPS = 3
-const REAP_MARKER = 'reaped:'
 const SWEEP_BATCH = 50
-
-const getReaps = (archive: AccountArchive) => {
-  if (!archive.error?.startsWith(REAP_MARKER)) return 0
-  const count = Number(archive.error.slice(REAP_MARKER.length))
-  return Number.isInteger(count) && count > 0 ? count : 0
-}
 
 export const isArchiveStuck = (
   archive: AccountArchive,
   now: number,
   stuckAfterMs = ARCHIVE_STUCK_AFTER_MS
-) => {
-  if (archive.status !== 'queued' && archive.status !== 'running') return false
-  const last = parseProgress(archive.progress)?.updatedAt ?? archive.createdAt
-  return now - last >= stuckAfterMs
-}
+) =>
+  (archive.status === 'queued' || archive.status === 'running') &&
+  now - archive.heartbeatAt >= stuckAfterMs
 
 /**
  * Deals with one export that stopped moving (its worker died, or the queue lost
  * the message): requeues its current slice when a queue can deliver it, and
- * marks it failed, with its staged parts deleted, when it cannot or when it has
- * been requeued `ARCHIVE_MAX_REAPS` times already. A failed export does not
- * count against the 7-day request limit. Returns the row as it now is.
+ * marks it failed, with its files and unfinished upload discarded, when it
+ * cannot or when it has been requeued `ARCHIVE_MAX_REAPS` times already. Each
+ * requeue moves the heartbeat, so the next check is an hour away. A failed
+ * export does not count against the 7-day request limit. Returns the row as it
+ * now is.
  */
 export const reapStuckAccountArchive = async ({
   database,
@@ -54,8 +47,7 @@ export const reapStuckAccountArchive = async ({
   if (!isArchiveStuck(archive, now())) return archive
 
   const queue = getQueue()
-  const reaps = getReaps(archive)
-  if (queue.runsInline || reaps >= ARCHIVE_MAX_REAPS) {
+  if (queue.runsInline || archive.reapCount >= ARCHIVE_MAX_REAPS) {
     const failed = await database.updateAccountArchive({
       id: archive.id,
       onlyIfStatus: ['queued', 'running'],
@@ -64,25 +56,26 @@ export const reapStuckAccountArchive = async ({
       progress: null
     })
     if (store)
-      await deleteArchiveFiles(store, archive.id).catch(() => undefined)
+      await discardUnfinishedArchive(store, archive).catch(() => undefined)
     return failed ?? { ...archive, status: 'failed' }
   }
 
   const progress = parseProgress(archive.progress)
-  if (progress) progress.updatedAt = now()
   const marked = await database.updateAccountArchive({
     id: archive.id,
     onlyIfStatus: ['queued', 'running'],
-    // Only one sweep or request wins the requeue of a given cursor.
+    // Only one sweep or request wins the requeue of a given cursor, and of a
+    // row that never saved one.
     onlyIfProgress: archive.progress,
-    error: `${REAP_MARKER}${reaps + 1}`,
-    ...(progress ? { progress: serializeProgress(progress) } : {})
+    onlyIfReapCount: archive.reapCount,
+    reapCount: archive.reapCount + 1,
+    heartbeatAt: now()
   })
   if (!marked) return archive
 
   try {
     await queue.publish({
-      id: getHashFromString(`${archive.id}:reap:${reaps + 1}`),
+      id: getHashFromString(`${archive.id}:reap:${marked.reapCount}`),
       name: EXPORT_ACCOUNT_ARCHIVE_JOB_NAME,
       data: { archiveId: archive.id, slice: progress?.slice ?? 0 }
     })
@@ -101,7 +94,7 @@ export const sweepStuckAccountArchives = async (
   database: Database,
   now: number = Date.now()
 ): Promise<number> => {
-  const candidates = await database.getActiveAccountArchivesCreatedBefore({
+  const candidates = await database.getStaleAccountArchives({
     before: now - ARCHIVE_STUCK_AFTER_MS,
     limit: SWEEP_BATCH
   })

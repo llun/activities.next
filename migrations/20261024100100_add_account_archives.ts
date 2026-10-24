@@ -9,6 +9,11 @@ import { type Kysely, SqliteAdapter, sql } from 'kysely'
 // - `storagePath` is the object key of the finished zip (under `archives/`),
 //   `bytes` its size, `expiresAt` when the file is deleted (7 days after it was
 //   ready).
+// - `storageToken` is a random segment of every object key of the export
+//   (`archives/<id>/<token>/...`). It never leaves the server: a bucket served
+//   from a public hostname must not make the files guessable from the id.
+// - `heartbeatAt` is when the export last moved (created, a cursor saved, a
+//   stuck export requeued); `reapCount` how often it was requeued as stuck.
 // - The partial unique index allows one queued or running export per account,
 //   so two concurrent requests cannot both start one.
 //
@@ -30,6 +35,7 @@ export const up = async (db: Kysely<any>): Promise<void> => {
       col.notNull().defaultTo('queued')
     )
     .addColumn('options', 'text', (col) => col.notNull().defaultTo('{}'))
+    .addColumn('storageToken', 'varchar(64)', (col) => col.notNull())
     .addColumn('progress', 'text')
     .addColumn('storagePath', 'varchar(512)')
     .addColumn('bytes', 'bigint')
@@ -37,6 +43,10 @@ export const up = async (db: Kysely<any>): Promise<void> => {
     .addColumn('createdAt', timestampType, (col) =>
       col.notNull().defaultTo(sql`CURRENT_TIMESTAMP`)
     )
+    .addColumn('heartbeatAt', timestampType, (col) =>
+      col.notNull().defaultTo(sql`CURRENT_TIMESTAMP`)
+    )
+    .addColumn('reapCount', 'integer', (col) => col.notNull().defaultTo(0))
     .addColumn('readyAt', timestampType)
     .addColumn('expiresAt', timestampType)
     .execute()
@@ -55,6 +65,13 @@ export const up = async (db: Kysely<any>): Promise<void> => {
     .on('account_archives')
     .column('accountId')
     .where(sql.ref('status'), 'in', [sql.lit('queued'), sql.lit('running')])
+    .execute()
+
+  await db.schema
+    .createIndex('account_archives_heartbeat_idx')
+    .ifNotExists()
+    .on('account_archives')
+    .columns(['status', 'heartbeatAt'])
     .execute()
 
   await db.schema

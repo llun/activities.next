@@ -8,7 +8,8 @@ import type {
   AccountExportRows,
   GetAccountExportAccountParams,
   GetAccountExportActorsParams,
-  GetAccountExportRowsParams
+  GetAccountExportRowsParams,
+  OwnsAccountExportMediaPathParams
 } from '@/lib/database/domains/accountExport/types'
 import type { Db } from '@/lib/database/kysely'
 
@@ -160,8 +161,29 @@ export const getAccountExportRows = async (
   return { rows: normalized, next }
 }
 
+export const ownsAccountExportMediaPath = async (
+  db: Db,
+  { accountId, path }: OwnsAccountExportMediaPathParams
+): Promise<boolean> => {
+  const row = await db
+    .selectFrom('medias')
+    .select('id')
+    .where(
+      'actorId',
+      'in',
+      db.selectFrom('actors').select('id').where('accountId', '=', accountId)
+    )
+    .where((eb) =>
+      eb.or([eb('original', '=', path), eb('thumbnail', '=', path)])
+    )
+    .limit(1)
+    .executeTakeFirst()
+  return Boolean(row)
+}
+
 export const accountExportQueries = {
   getAccountExportAccount,
   getAccountExportActors,
-  getAccountExportRows
+  getAccountExportRows,
+  ownsAccountExportMediaPath
 }

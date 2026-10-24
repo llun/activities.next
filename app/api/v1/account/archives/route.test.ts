@@ -139,11 +139,16 @@ describe('account archive routes', () => {
     expect((await post()).status).toBe(202)
   })
 
-  it('answers 409 while an export is running', async () => {
-    await post()
+  it('answers 429 with the retry time while an export is running', async () => {
+    const created = await (await post()).json()
+    const row = (await database.getAccountArchive({ id: created.id }))!
     const response = await post()
-    expect(response.status).toBe(409)
-    expect((await response.json()).archive.status).toBe('queued')
+    expect(response.status).toBe(429)
+    const nextAllowedAt = new Date(
+      row.createdAt + 7 * 24 * 60 * 60 * 1000
+    ).toISOString()
+    expect((await response.json()).nextAllowedAt).toBe(nextAllowedAt)
+    expect(Number(response.headers.get('Retry-After'))).toBeGreaterThan(0)
   })
 
   it('answers 429 with the next allowed date inside 7 days', async () => {
@@ -156,6 +161,7 @@ describe('account archive routes', () => {
     expect(data.nextAllowedAt).toBe(
       new Date(row.createdAt + 7 * 24 * 60 * 60 * 1000).toISOString()
     )
+    expect(Number(response.headers.get('Retry-After'))).toBeGreaterThan(0)
   })
 
   it('validates drafts: 422 for a bad payload, 413 for a large one', async () => {
@@ -170,6 +176,33 @@ describe('account archive routes', () => {
       ).status
     ).toBe(413)
     expect((await post({ stripExactLocations: 'yes' })).status).toBe(400)
+  })
+
+  it('stops reading a body past the limit even when it declares no length', async () => {
+    let pulled = 0
+    const chunk = new Uint8Array(1024 * 1024).fill(0x20)
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulled += 1
+        if (pulled > 64) return controller.close()
+        controller.enqueue(chunk)
+      }
+    })
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/account/archives', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'https://llun.test'
+        },
+        body,
+        duplex: 'half'
+      } as unknown as ConstructorParameters<typeof NextRequest>[1]),
+      { params: Promise.resolve({}) }
+    )
+    expect(response.status).toBe(413)
+    // It stopped near the 6 MiB cap instead of draining all 64 MiB.
+    expect(pulled).toBeLessThan(20)
   })
 
   it('refuses a cross-site request', async () => {

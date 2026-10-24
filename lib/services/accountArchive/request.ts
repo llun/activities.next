@@ -1,11 +1,12 @@
-import { randomUUID } from 'crypto'
+import { randomBytes, randomUUID } from 'crypto'
 
 import type { Database } from '@/lib/database/types'
 import { EXPORT_ACCOUNT_ARCHIVE_JOB_NAME } from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
-import type {
-  AccountArchive,
-  AccountArchiveOptions
+import {
+  type AccountArchive,
+  type AccountArchiveOptions,
+  getArchiveStorageRoot
 } from '@/lib/types/domain/accountArchive'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
@@ -88,12 +89,11 @@ export const requestAccountArchive = async ({
   }
 
   const id = randomUUID()
+  const storageToken = randomBytes(32).toString('base64url')
+  const root = getArchiveStorageRoot({ id, storageToken })
   const archiveOptions: AccountArchiveOptions = {
     stripExactLocations: options.stripExactLocations === true,
     drafts: draftsJson !== null
-  }
-  if (draftsJson !== null) {
-    await store.put(getDraftsKey(id), draftsJson)
   }
 
   let archive: AccountArchive
@@ -101,15 +101,30 @@ export const requestAccountArchive = async ({
     archive = await database.createAccountArchive({
       id,
       accountId,
+      storageToken,
       options: archiveOptions
     })
   } catch (error) {
-    await store.deletePrefix(getArchiveStorageKey(id)).catch(() => undefined)
     if (isUniqueViolation(error)) {
       const raced = await database.getActiveAccountArchive({ accountId })
       if (raced) return { ok: false, reason: 'running', archive: raced }
     }
     throw error
+  }
+
+  // The drafts are staged after the row exists, so a request that dies between
+  // the two leaves a row the reaper handles instead of an object nobody owns.
+  if (draftsJson !== null) {
+    try {
+      await store.put(getDraftsKey(root), draftsJson)
+    } catch (error) {
+      await database.updateAccountArchive({
+        id,
+        status: 'failed',
+        error: 'The drafts could not be stored'
+      })
+      throw error
+    }
   }
 
   const queue = getQueue()
@@ -131,7 +146,7 @@ export const requestAccountArchive = async ({
         error: 'The export could not be queued'
       })
       .catch(() => undefined)
-    await store.deletePrefix(getArchiveStorageKey(id)).catch(() => undefined)
+    await store.deletePrefix(getArchiveStorageKey(root)).catch(() => undefined)
   }
   if (queue.runsInline) {
     // The in-process queue runs the whole export inside `publish`: the request

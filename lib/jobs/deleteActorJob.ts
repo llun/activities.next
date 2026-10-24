@@ -321,6 +321,28 @@ export const deleteActorJob = createJobHandle(
         throw err
       }
 
+      // Two actors of one account deleted at the same time each saw the other
+      // still there before; whichever finishes last finds the account empty.
+      if (ownerAccountId) {
+        try {
+          const remaining = await database.getActorsForAccount({
+            accountId: ownerAccountId
+          })
+          if (remaining.length === 0) {
+            await purgeAccountArchives({
+              database,
+              accountId: ownerAccountId
+            })
+          }
+        } catch (err) {
+          logger.error({
+            message: 'Failed to remove the account exports after deletion',
+            actorId,
+            err: toLoggableError(err)
+          })
+        }
+      }
+
       // Send email notification
       if (accountEmail) {
         const config = getConfig()

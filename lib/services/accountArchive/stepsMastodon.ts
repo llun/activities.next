@@ -3,7 +3,6 @@ import path from 'path'
 import { encodeFavouriteCursor } from '@/lib/database/domains/like/favouriteCursor'
 import { getMediaPathFromFileUrl } from '@/lib/services/medias/mediaFileUrl'
 import { StatusType, hasStatusBeenEdited } from '@/lib/types/domain/status'
-import { getLocalActorOutboxId } from '@/lib/utils/activitypubId'
 import { getPersonFromActor } from '@/lib/utils/getPersonFromActor'
 
 import {
@@ -23,14 +22,49 @@ const json = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`
 
 const MEDIA_ID_BATCH_SIZE = 100
 
-/** Settings keys that are bookkeeping of this server, not the owner's profile. */
-export const INTERNAL_ACTOR_SETTING_KEYS = ['linksCheckedAt', 'moveProcessing']
+/**
+ * The settings keys that make it into profile.json: the owner's own profile
+ * and preference choices. An allowlist, so a key added to ActorSettings later
+ * (bookkeeping, tokens, server state) stays out until someone opts it in.
+ */
+export const EXPORTED_ACTOR_SETTING_KEYS = [
+  'iconUrl',
+  'headerImageUrl',
+  'manuallyApprovesFollowers',
+  'fields',
+  'tags',
+  'bot',
+  'discoverable',
+  'indexable',
+  'hideCollections',
+  'attributionDomains',
+  'movedTo',
+  'alsoKnownAs',
+  'defaultPrivacy',
+  'defaultSensitive',
+  'defaultLanguage',
+  'defaultQuotePolicy',
+  'postLineLimit',
+  'readingExpandMedia',
+  'readingExpandSpoilers',
+  'readingAutoplayGifs',
+  'emailNotifications',
+  'pushNotifications',
+  'notificationPolicy',
+  'avatarDescription',
+  'headerDescription',
+  'showMedia',
+  'showMediaReplies',
+  'showFeatured'
+] as const
 
-export const withoutInternalSettings = (
+export const exportedActorSettings = (
   settings: Record<string, unknown>
 ): Record<string, unknown> => {
-  const kept = { ...settings }
-  for (const key of INTERNAL_ACTOR_SETTING_KEYS) delete kept[key]
+  const kept: Record<string, unknown> = {}
+  for (const key of EXPORTED_ACTOR_SETTING_KEYS) {
+    if (settings[key] !== undefined) kept[key] = settings[key]
+  }
   return kept
 }
 
@@ -69,35 +103,60 @@ export const profileStep: CollectorStep = {
     const headerPath = record.headerImageUrl
       ? getMediaPathFromFileUrl(record.headerImageUrl, context.hostConfig)
       : null
-    const avatarName = profileImageName(iconPath, 'avatar')
-    const headerName = profileImageName(headerPath, 'header')
-    if (iconPath && avatarName) {
+    // A profile image URL is free text that only has to name a file on this
+    // host, so the copy is limited to files that are the actor's own media.
+    const owns = async (storagePath: string | null) => {
+      if (!storagePath) return null
+      if (
+        await database.ownsAccountExportMediaPath({
+          accountId,
+          path: storagePath
+        })
+      ) {
+        return storagePath
+      }
+      context.warn(
+        "A profile image is not one of the account's own media and was not copied."
+      )
+      return null
+    }
+    const ownedIconPath = await owns(iconPath)
+    const ownedHeaderPath = await owns(headerPath)
+    const avatarName = profileImageName(ownedIconPath, 'avatar')
+    const headerName = profileImageName(ownedHeaderPath, 'header')
+    if (ownedIconPath && avatarName) {
       context.addFile(
         entryPath(actor.mastodonDir, avatarName),
         'media',
-        iconPath
+        ownedIconPath
       )
     }
-    if (headerPath && headerName) {
+    if (ownedHeaderPath && headerName) {
       context.addFile(
         entryPath(actor.mastodonDir, headerName),
         'media',
-        headerPath
+        ownedHeaderPath
       )
     }
 
     await context.stage.append(
       entryPath(actor.mastodonDir, 'actor.json'),
-      json(
-        buildActorJson({
+      json({
+        ...buildActorJson({
           person: getPersonFromActor(record) as unknown as Record<
             string,
             unknown
           >,
           avatarFileName: avatarName,
           headerFileName: headerName
-        })
-      )
+        }),
+        // The collections sit next to actor.json in the archive, as in a
+        // Mastodon backup, so they are named by relative path (this server's
+        // own URLs mean nothing to the importer).
+        outbox: 'outbox.json',
+        likes: 'likes.json',
+        bookmarks: 'bookmarks.json'
+      })
     )
 
     const profile = (await database.getAccountExportActors({ accountId })).find(
@@ -116,7 +175,7 @@ export const profileStep: CollectorStep = {
         type: profile?.type ?? null,
         isDefault: actor.isDefault,
         createdAt: profile ? new Date(profile.createdAt).toISOString() : null,
-        settings: withoutInternalSettings(profile?.settings ?? {})
+        settings: exportedActorSettings(profile?.settings ?? {})
       })
     )
     return 'done'
@@ -137,10 +196,7 @@ export const outboxStep: CollectorStep = {
     const statusesFile = entryPath(actor.dir, 'statuses.jsonl')
 
     if (!cursor.started) {
-      await stage.append(
-        outbox,
-        orderedCollectionHead(getLocalActorOutboxId(actor.id))
-      )
+      await stage.append(outbox, orderedCollectionHead('outbox.json'))
       stage.touch(statusesFile)
     }
 
@@ -244,10 +300,7 @@ export const likesStep: CollectorStep = {
     const cursor = (raw ?? {}) as LikesCursor
     const entry = entryPath(actor.mastodonDir, 'likes.json')
     if (!cursor.started) {
-      await stage.append(
-        entry,
-        orderedCollectionHead(`${actor.id}/likes-archive`)
-      )
+      await stage.append(entry, orderedCollectionHead('likes.json'))
     }
 
     const batch = await database.getLikes({
@@ -285,10 +338,7 @@ export const bookmarksStep: CollectorStep = {
     const cursor = (raw ?? {}) as LikesCursor
     const entry = entryPath(actor.mastodonDir, 'bookmarks.json')
     if (!cursor.started) {
-      await stage.append(
-        entry,
-        orderedCollectionHead(`${actor.id}/bookmarks-archive`)
-      )
+      await stage.append(entry, orderedCollectionHead('bookmarks.json'))
     }
 
     const batch = await database.getBookmarks({

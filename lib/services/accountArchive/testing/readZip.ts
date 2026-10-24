@@ -1,3 +1,4 @@
+import { spawnSync } from 'child_process'
 import yauzl from 'yauzl'
 
 /** Reads every entry of a zip file into memory (tests only). */
@@ -39,4 +40,37 @@ export const collectKeys = (value: unknown, keys = new Set<string>()) => {
     }
   }
   return keys
+}
+
+/**
+ * Checks a zip with the tools people use to open one: Info-ZIP's `unzip -t`
+ * (every entry's CRC and sizes) and Python's `zipfile`. A tool that is not
+ * installed is skipped, so the reader above is the floor.
+ */
+export const verifyZipWithTools = (file: string): string[] => {
+  const used: string[] = []
+  const unzip = spawnSync('unzip', ['-tq', file], { encoding: 'utf8' })
+  if (!unzip.error) {
+    used.push('unzip')
+    if (unzip.status !== 0) {
+      throw new Error(`unzip -t failed: ${unzip.stdout}${unzip.stderr}`)
+    }
+  }
+  const python = spawnSync(
+    'python3',
+    [
+      '-I',
+      '-c',
+      'import sys, zipfile\nz = zipfile.ZipFile(sys.argv[1])\nbad = z.testzip()\nsys.exit(1 if bad else 0)',
+      file
+    ],
+    { encoding: 'utf8' }
+  )
+  if (!python.error) {
+    used.push('python')
+    if (python.status !== 0) {
+      throw new Error(`zipfile check failed: ${python.stdout}${python.stderr}`)
+    }
+  }
+  return used
 }

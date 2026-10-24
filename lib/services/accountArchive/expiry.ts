@@ -3,11 +3,13 @@ import type { AccountArchive } from '@/lib/types/domain/accountArchive'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
+import { abortAssembly } from './assemble'
 import {
   type ArchiveObjectStore,
   getArchiveObjectStore,
   getArchiveStorageKey
 } from './objectStore'
+import { parseProgress } from './progress'
 
 const SWEEP_BATCH = 50
 
@@ -17,6 +19,20 @@ export const deleteArchiveFiles = async (
   archiveId: string
 ) => {
   await store.deletePrefix(getArchiveStorageKey(archiveId))
+}
+
+/**
+ * Drops what an export that will never finish left behind: the unfinished
+ * multipart upload (it bills until aborted) and every object of the export.
+ */
+export const discardUnfinishedArchive = async (
+  store: ArchiveObjectStore,
+  archive: AccountArchive
+) => {
+  await abortAssembly(store, parseProgress(archive.progress)).catch(
+    () => undefined
+  )
+  await deleteArchiveFiles(store, archive.id)
 }
 
 /**

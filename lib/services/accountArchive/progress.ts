@@ -59,8 +59,46 @@ export interface ArchiveProgress {
   /** Consecutive slices that threw. */
   failures: number
   startedAt: number
-  /** When the cursor was last saved; the stuck-export reaper reads it. */
-  updatedAt?: number
+  /**
+   * The worker running a slice. A delivery that finds a live lease held by
+   * another worker returns without touching anything; the holder clears it when
+   * its slice ends, and it lapses on its own if the holder dies.
+   */
+  lease: { token: string; until: number } | null
+  /** Where the zip is being written; null until collection is done. */
+  assembly: AssemblyState | null
+}
+
+/** The resumable state of the streaming zip writer. */
+export interface AssemblyState {
+  /** Names this attempt's output key; a new attempt gets a new key. */
+  attempt: string
+  key: string
+  /** What the object store needs to reopen the output; null before it exists. */
+  sink: Record<string, unknown> | null
+  stage: 'entries' | 'extras' | 'files' | 'manifest' | 'central' | 'finish'
+  /** Position inside the stage: an entry index, extras index or file line. */
+  item: number
+  /** File index position: [part, line]. */
+  fileCursor: [number, number]
+  /** The entry being written, when a slice stopped inside one. */
+  entry: {
+    name: string
+    headerOffset: number
+    written: number
+    crc: number
+  } | null
+  /** Bytes of the zip written so far (the next entry's header offset). */
+  offset: number
+  /** Staged central directory parts, and the entries they hold. */
+  directoryParts: number
+  directoryEntries: number
+  /** Position while the central directory is copied out. */
+  directoryCopied: number
+  /** Where the central directory starts, once it is being written. */
+  directoryOffset?: number
+  filesCopied: number
+  filesSkipped: number
 }
 
 export const createInitialProgress = ({
@@ -83,7 +121,8 @@ export const createInitialProgress = ({
   slice: 0,
   failures: 0,
   startedAt: now,
-  updatedAt: now
+  lease: null,
+  assembly: null
 })
 
 export const parseProgress = (value: string | null): ArchiveProgress | null => {
@@ -104,17 +143,20 @@ const entryKeyName = (entry: string) =>
   createHash('sha256').update(entry).digest('hex').slice(0, 24)
 
 /** The object key of part `index` of a staged document. */
-export const getPartKey = (archiveId: string, entry: string, index: number) =>
-  getArchiveStorageKey(archiveId, 'stage', `${entryKeyName(entry)}-${index}`)
+export const getPartKey = (root: string, entry: string, index: number) =>
+  getArchiveStorageKey(root, 'stage', `${entryKeyName(entry)}-${index}`)
 
-export const getFileIndexKey = (archiveId: string, index: number) =>
-  getArchiveStorageKey(archiveId, 'stage', `files-${index}`)
+export const getFileIndexKey = (root: string, index: number) =>
+  getArchiveStorageKey(root, 'stage', `files-${index}`)
 
-export const getDraftsKey = (archiveId: string) =>
-  getArchiveStorageKey(archiveId, 'stage', 'drafts.json')
+export const getDraftsKey = (root: string) =>
+  getArchiveStorageKey(root, 'stage', 'drafts.json')
 
-export const getArchiveFileKey = (archiveId: string) =>
-  getArchiveStorageKey(archiveId, 'archive.zip')
+export const getArchiveFileKey = (root: string, attempt: string) =>
+  getArchiveStorageKey(root, `archive-${attempt}.zip`)
+
+export const getDirectoryPartKey = (root: string, index: number) =>
+  getArchiveStorageKey(root, 'stage', `directory-${index}`)
 
 /**
  * Writes the documents' parts. The key of a part is a function of the entry and
@@ -125,7 +167,7 @@ export const getArchiveFileKey = (archiveId: string) =>
 export class PartStager {
   constructor(
     private readonly store: ArchiveObjectStore,
-    private readonly archiveId: string,
+    private readonly root: string,
     private readonly progress: ArchiveProgress
   ) {}
 
@@ -136,7 +178,7 @@ export class PartStager {
   /** Stages raw text as the next part of `entry`. */
   async append(entry: string, text: string, items = 0) {
     const state = this.entry(entry)
-    await this.store.put(getPartKey(this.archiveId, entry, state.parts), text)
+    await this.store.put(getPartKey(this.root, entry, state.parts), text)
     state.parts += 1
     state.items += items
   }
@@ -174,7 +216,7 @@ export class PartStager {
   ) {
     if (files.length === 0) return
     await this.store.put(
-      getFileIndexKey(this.archiveId, this.progress.fileParts),
+      getFileIndexKey(this.root, this.progress.fileParts),
       `${files.map((file) => JSON.stringify({ e: file.entry, k: file.kind, p: file.path })).join('\n')}\n`
     )
     this.progress.fileParts += 1

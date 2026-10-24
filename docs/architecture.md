@@ -386,52 +386,100 @@ Export](maintenance.md#actor-archive-export)). It is built by
 
 - **One archive per account, one zip.** The default profile's Mastodon-shaped
   files (`actor.json`, `outbox.json`, `likes.json`, `bookmarks.json`, media under
-  `media_attachments/`) sit at the root, so the archive imports as a Mastodon
-  export; every other profile has the same files under
-  `activities.next/actors/<domain>/<username>/`. The extras per profile
-  (`profile.json`, `statuses.jsonl`, `scheduled.json`, `medias.jsonl`,
-  `gallery/*`, `fitness/*`, `graph.json`) live in that same directory,
-  `activities.next/account.json` and `manifest.json` describe the whole archive,
-  and `activities.next/drafts.json` is there when the request carried drafts.
-  `csvHook.ts` is where the Mastodon CSV files (follows, followers, lists,
-  blocks, mutes) are registered once their writers exist; until then the same
-  data is in `graph.json`.
+  `media_attachments/files/<storagePath>`) sit at the root, so the archive
+  imports as a Mastodon export; in `actor.json` the `outbox`, `likes` and
+  `bookmarks` properties name those sibling files by relative path, as
+  Mastodon's backup does (the operator CLI keeps the URLs). Every other profile
+  has the same files under `activities.next/actors/<domain>/<username>/`. The
+  extras per profile (`profile.json`, `statuses.jsonl`, `scheduled.json`,
+  `medias.jsonl`, `gallery/*`, `fitness/*`, `graph.json`) live in that same
+  directory. `activities.next/account.json` describes the account,
+  `activities.next/drafts.json` is there when the request carried drafts, and
+  `activities.next/manifest.json` is always the last entry (format, version,
+  `exportedAt`, the server host, the account's id, sign-up domain and default
+  actor id, every profile's id and handle with its counts, the entry list and
+  warnings). `csvHook.ts` is where the Mastodon CSV files (follows, followers,
+  lists, blocks, mutes) are registered once their writers exist; until then the
+  same data is in `graph.json`.
 - **Nothing secret, by construction.** The collectors read through
   `lib/database/domains/accountExport/`, which selects an explicit column
-  allowlist per table (`tables.ts`). A new column is therefore absent until
+  allowlist per table (`tables.ts`); `profile.json` lists an allowlist of the
+  actor's settings keys (`EXPORTED_ACTOR_SETTING_KEYS`), so a setting added
+  later stays out until someone lists it. A new column is therefore absent until
   someone lists it, which is the safe direction. Keys, password hashes, 2FA and
   passkey material, sessions, OAuth grants and tokens, push subscriptions and
   fitness tokens are not in any allowlist, and the job test scans every JSON
-  entry's key names.
-- **Resumable, idempotent slices.** A slice collects pages for at most four
-  minutes, writing each page to a deterministic part key under
-  `archives/<id>/stage/` and then saving the cursor (`account_archives.progress`)
-  with a compare-and-set, so a slice killed at any point reruns the same page
-  to the same keys and a duplicate delivery cannot advance the cursor twice. The
-  next slice is published with a deterministic id. A slice that throws is
-  retried; three in a row mark the export `failed` and delete its files. When
-  every profile is collected the job streams the zip (Zip64, one source file open
-  at a time, never held in memory) into `archives/<id>/archive.zip`, removes
-  the staged parts and emails the owner.
+  entry's key names. A file is copied into the archive only when its stored path
+  is the account's own media (a profile image must be one of the account's
+  `medias` rows) and lies under `medias/`; a path that names `archives/`,
+  fitness storage or anything else is refused with a warning.
+  `stripExactLocations` removes the media place coordinates, the Fitness
+  privacy home point and hidden circles and the Gallery hidden locations from
+  the JSON documents; it does not rewrite the owner's files (activity files
+  and the EXIF of photos are copied as they are).
+- **Resumable, idempotent slices.** The collect stage writes each page to a
+  deterministic part key under `archives/<id>/<secret>/stage/` and then saves the
+  cursor (`account_archives.progress`) with a compare-and-set, so a slice killed
+  at any point reruns the same page to the same keys. Every delivery takes a
+  lease (a random token and an expiry kept in the cursor); a delivery that finds
+  another worker's live lease does nothing, and one that loses its lease finds
+  out at its next compare-and-set save and stops. The slice budget depends on the
+  queue (`budget.ts`): 20 seconds on QStash, whose jobs are cut off at 30, and
+  four minutes elsewhere. A slice that runs out of time saves its cursor and
+  publishes the next slice with a deterministic id. A slice that throws is
+  retried; three in a row mark the export `failed` and delete its files.
+- **Resumable assembly.** Writing the zip is a stage of the same cursor, so a
+  large export does not need to fit in one slice. `zipFormat.ts` is a small
+  zip writer whose state fits in the cursor: every entry is STORED (not
+  compressed) with a Zip64 data descriptor, so only the byte offset, the
+  running CRC-32 and the sink's own state need saving, and the central
+  directory is staged and appended at the end (Zip64 end records, readable by
+  `unzip`, Python and yauzl; the tests check all three). The cost is size: the
+  JSON text is not compressed. The output goes through `ResumableSink`
+  (`objectStore.ts`): on local disk a `.partial` file that is truncated to the
+  checkpoint on resume and renamed at the end; on S3 a multipart upload (8 MiB
+  parts, so at least 5 MiB except the last) whose UploadId and part ETags are
+  in the cursor, with the bytes that do not fill a part kept in a staged
+  `.tail` object. A large source file is copied across slices by byte range
+  (`Range: bytes=n-`). Each attempt writes its own `archive-<attempt>.zip`, so
+  a second worker finishing the same slice cannot clobber or delete the file the
+  first one marked ready; the `ready` update is a compare-and-set, and the loser
+  deletes nothing. An abandoned S3 multipart upload that nothing aborts (a
+  crashed worker) costs storage until it is aborted: add a bucket lifecycle rule
+  that aborts incomplete multipart uploads after a day or two.
 - **Storage.** The files use the media storage (local disk or S3-compatible),
-  under the reserved `archives/` prefix. `GET /api/v1/files/...` refuses that
-  prefix (`isReservedFitnessMediaPath`), and the owner-only download route is the
-  only way out: it streams from disk or redirects to a five-minute signed URL.
+  under the reserved `archives/` prefix, and the key holds a random secret
+  segment that only the database row knows: `archives/<id>/<secret>/...`. The
+  public files route refuses the prefix (`isReservedFitnessMediaPath`), and the
+  owner-only download route is the only way out: it streams from disk or
+  redirects to a five-minute signed URL (`Content-Disposition: attachment`).
+  Do not serve the bucket through a public CDN hostname that maps the whole
+  bucket or the `archives/` prefix: the secret segment makes a key unguessable,
+  but it is not an access control. Deleting an export deletes `archives/<id>/`.
 - **Limits.** One queued or running export per account (a partial unique index
-  on `account_archives`), one request per 7 days (`429` with `nextAllowedAt`; a
+  on `account_archives`), one request per 7 days (`429` with `nextAllowedAt` and
+  a `Retry-After` header, whether the earlier export is running or finished; a
   failed export does not count), drafts capped at 5 MiB and reduced to an
-  allowlist of fields with no attachment bytes. A ready archive expires after 7
-  days: a delayed `ExportAccountArchiveJob` (`action: 'expire'`) deletes it under
-  a real queue, `startActorDeletionSweep` does the same every ten minutes (the
-  only mechanism under the in-process queue), and the list and download routes
-  expire a due archive on access. An export with no cursor progress for an hour (a dead worker, a lost message)
-  is reaped by the same sweep and by `GET /api/v1/account/archives`: its
-  current slice is requeued (up to three times), or, behind the in-process
-  queue or after the third reap, it is marked `failed` and its staged parts are
-  deleted; a failed export does not count against the 7-day limit. When an
-  account's last actor is deleted (`deleteActorJob`) or a pending account is
-  rejected, its exports' files are deleted first and then its rows, so a
-  deleted account's full export does not linger.
+  allowlist of fields with no attachment bytes; the request body is counted as
+  it arrives and refused past 6 MiB. A ready archive expires after 7 days: a
+  delayed `ExportAccountArchiveJob` (`action: 'expire'`) deletes it under a real
+  queue, `startActorDeletionSweep` does the same every ten minutes (the only
+  mechanism under the in-process queue), and the list and download routes expire
+  a due archive on access. Every cursor save moves `account_archives.heartbeatAt`;
+  an export whose heartbeat is an hour old (a dead worker, a lost message) is
+  reaped by the same sweep (oldest heartbeat first) and by
+  `GET /api/v1/account/archives`: its current slice is requeued, counted in
+  `reapCount` (up to three times), or, behind the in-process queue or after the
+  third reap, it is marked `failed` and its files and unfinished upload are
+  discarded; a failed export does not count against the 7-day limit. A suspended
+  (moderation-blocked) account can still list and download its own exports, as
+  an export is the user's copy of their data. When an account's last actor is
+  deleted (`deleteActorJob`, checked again after the deletion for two actors
+  deleted at once) or a pending account is rejected, its exports' files are
+  deleted first and then its rows, so a deleted account's full export does not
+  linger. `scripts/maintenance/cleanupMediaStorage.ts` and the operator backup
+  (`scripts/backup/productionArchive.ts`) skip the `archives/` prefix like the
+  fitness prefix.
 
 ### Link Preview Cards
 

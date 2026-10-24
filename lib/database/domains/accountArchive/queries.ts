@@ -1,3 +1,4 @@
+import { randomBytes } from 'crypto'
 import type { Selectable } from 'kysely'
 
 import type {
@@ -6,9 +7,9 @@ import type {
   GetAccountArchiveParams,
   GetAccountArchivesForAccountParams,
   GetActiveAccountArchiveParams,
-  GetActiveAccountArchivesCreatedBeforeParams,
   GetExpiredAccountArchivesParams,
   GetLatestRequestedAccountArchiveParams,
+  GetStaleAccountArchivesParams,
   UpdateAccountArchiveParams
 } from '@/lib/database/domains/accountArchive/types'
 import type { Db } from '@/lib/database/kysely'
@@ -43,18 +44,26 @@ const toArchive = (row: Row): AccountArchive => ({
   accountId: row.accountId,
   status: row.status as AccountArchiveStatus,
   options: parseOptions(row.options),
+  storageToken: row.storageToken,
   progress: row.progress ?? null,
   storagePath: row.storagePath ?? null,
   bytes: row.bytes ?? null,
   error: row.error ?? null,
   createdAt: row.createdAt,
+  heartbeatAt: row.heartbeatAt,
+  reapCount: row.reapCount,
   readyAt: row.readyAt ?? null,
   expiresAt: row.expiresAt ?? null
 })
 
 export const createAccountArchive = async (
   db: Db,
-  { id, accountId, options }: CreateAccountArchiveParams
+  {
+    id,
+    accountId,
+    options,
+    storageToken = randomBytes(32).toString('base64url')
+  }: CreateAccountArchiveParams
 ): Promise<AccountArchive> => {
   await db
     .insertInto('account_archives')
@@ -63,7 +72,9 @@ export const createAccountArchive = async (
       accountId,
       status: 'queued',
       options: JSON.stringify(options),
-      createdAt: new Date()
+      storageToken,
+      createdAt: new Date(),
+      heartbeatAt: new Date()
     })
     .execute()
   const row = await db
@@ -137,18 +148,26 @@ export const updateAccountArchive = async (
     id,
     onlyIfStatus,
     onlyIfProgress,
+    onlyIfReapCount,
     status,
     progress,
     storagePath,
     bytes,
     error,
     readyAt,
-    expiresAt
+    expiresAt,
+    heartbeatAt,
+    reapCount
   }: UpdateAccountArchiveParams
 ): Promise<AccountArchive | null> => {
   const values: Record<string, unknown> = {}
   if (status !== undefined) values.status = status
-  if (progress !== undefined) values.progress = progress
+  if (progress !== undefined) {
+    values.progress = progress
+    values.heartbeatAt = new Date()
+  }
+  if (heartbeatAt !== undefined) values.heartbeatAt = new Date(heartbeatAt)
+  if (reapCount !== undefined) values.reapCount = reapCount
   if (storagePath !== undefined) values.storagePath = storagePath
   if (bytes !== undefined) values.bytes = bytes
   if (error !== undefined) values.error = error
@@ -170,6 +189,9 @@ export const updateAccountArchive = async (
         onlyIfProgress === null
           ? query.where('progress', 'is', null)
           : query.where('progress', '=', onlyIfProgress)
+    }
+    if (onlyIfReapCount !== undefined) {
+      query = query.where('reapCount', '=', onlyIfReapCount)
     }
     const result = await query.executeTakeFirst()
     if (Number(result.numUpdatedRows) === 0) return null
@@ -193,16 +215,16 @@ export const getExpiredAccountArchives = async (
   return rows.map(toArchive)
 }
 
-export const getActiveAccountArchivesCreatedBefore = async (
+export const getStaleAccountArchives = async (
   db: Db,
-  { before, limit }: GetActiveAccountArchivesCreatedBeforeParams
+  { before, limit }: GetStaleAccountArchivesParams
 ): Promise<AccountArchive[]> => {
   const rows = await db
     .selectFrom('account_archives')
     .selectAll()
     .where('status', 'in', ['queued', 'running'])
-    .where('createdAt', '<=', timestampValue(before))
-    .orderBy('createdAt', 'asc')
+    .where('heartbeatAt', '<=', timestampValue(before))
+    .orderBy('heartbeatAt', 'asc')
     .limit(limit)
     .execute()
   return rows.map(toArchive)
@@ -226,6 +248,6 @@ export const accountArchiveQueries = {
   getLatestRequestedAccountArchive,
   updateAccountArchive,
   getExpiredAccountArchives,
-  getActiveAccountArchivesCreatedBefore,
+  getStaleAccountArchives,
   deleteAccountArchivesForAccount
 }

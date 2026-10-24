@@ -7,6 +7,8 @@ import type {
 
 export type CreateAccountArchiveParams = {
   id: string
+  /** Random key segment; one is generated when omitted. */
+  storageToken?: string
   accountId: string
   options: AccountArchiveOptions
 }
@@ -27,6 +29,8 @@ export type UpdateAccountArchiveParams = {
    * workers that picked up the same slice cannot both advance it.
    */
   onlyIfProgress?: string | null
+  /** Compare-and-set on the reap counter: only one sweep wins a given reap. */
+  onlyIfReapCount?: number
   status?: AccountArchiveStatus
   progress?: string | null
   storagePath?: string | null
@@ -34,9 +38,13 @@ export type UpdateAccountArchiveParams = {
   error?: string | null
   readyAt?: number | null
   expiresAt?: number | null
+  /** Setting `progress` also moves the heartbeat; pass this to move it alone. */
+  heartbeatAt?: number
+  reapCount?: number
 }
 export type GetExpiredAccountArchivesParams = { now: number; limit: number }
-export type GetActiveAccountArchivesCreatedBeforeParams = {
+export type GetStaleAccountArchivesParams = {
+  /** Queued or running exports whose heartbeat is at or before this time. */
   before: number
   limit: number
 }
@@ -77,9 +85,9 @@ export interface AccountArchiveDatabase {
   getExpiredAccountArchives(
     params: GetExpiredAccountArchivesParams
   ): Promise<AccountArchive[]>
-  /** Queued or running exports created at or before `before`, oldest first. */
-  getActiveAccountArchivesCreatedBefore(
-    params: GetActiveAccountArchivesCreatedBeforeParams
+  /** Queued or running exports idle since `before`, longest idle first. */
+  getStaleAccountArchives(
+    params: GetStaleAccountArchivesParams
   ): Promise<AccountArchive[]>
   deleteAccountArchivesForAccount(
     params: DeleteAccountArchivesForAccountParams

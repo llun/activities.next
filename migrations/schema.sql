@@ -15,11 +15,14 @@ CREATE TABLE public.account_archives (
     "accountId" character varying(255) NOT NULL,
     status character varying(32) DEFAULT 'queued'::character varying NOT NULL,
     options text DEFAULT '{}'::text NOT NULL,
+    "storageToken" character varying(64) NOT NULL,
     progress text,
     "storagePath" character varying(512),
     bytes bigint,
     error text,
     "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "heartbeatAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "reapCount" integer DEFAULT 0 NOT NULL,
     "readyAt" timestamp with time zone,
     "expiresAt" timestamp with time zone
 );
@@ -2021,6 +2024,8 @@ CREATE UNIQUE INDEX account_archives_account_active_idx ON public.account_archiv
 CREATE INDEX account_archives_account_created_idx ON public.account_archives USING btree ("accountId", "createdAt");
 
 CREATE INDEX account_archives_expires_idx ON public.account_archives USING btree (status, "expiresAt");
+
+CREATE INDEX account_archives_heartbeat_idx ON public.account_archives USING btree (status, "heartbeatAt");
 
 CREATE INDEX "account_providers_accountId_provider_providerId_idx" ON public.account_providers USING btree ("accountId", provider, "providerId");
 

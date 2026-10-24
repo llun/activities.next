@@ -4,22 +4,27 @@ import {
   getServedHostConfig,
   refreshServedDomains
 } from '@/lib/services/domains/servedDomainSnapshot'
-import type { AccountArchive } from '@/lib/types/domain/accountArchive'
-
 import {
-  ARCHIVE_MAX_WARNINGS,
-  ARCHIVE_PAGE_SIZE,
-  ARCHIVE_SLICE_BUDGET_MS
-} from './constants'
+  type AccountArchive,
+  getArchiveStorageRoot
+} from '@/lib/types/domain/accountArchive'
+
+import { getArchiveSliceBudgetMs } from './budget'
+import { ARCHIVE_MAX_WARNINGS, ARCHIVE_PAGE_SIZE } from './constants'
 import { planArchiveActors } from './layout'
 import type { ArchiveObjectStore } from './objectStore'
 import {
   type ArchiveProgress,
   PartStager,
   createInitialProgress,
-  parseProgress,
-  serializeProgress
+  parseProgress
 } from './progress'
+import {
+  ARCHIVE_LEASE_GRACE_MS,
+  LeaseHeldError,
+  ProgressSaver,
+  isLeaseHeld
+} from './saver'
 import type { SourceKind } from './sourceFiles'
 import type { CollectorStep, StepContext } from './steps.types'
 import {
@@ -53,13 +58,7 @@ export const COLLECTOR_STEPS: readonly CollectorStep[] = [
   graphStep
 ]
 
-/** Another worker saved the cursor first; this one stops without writing. */
-export class StaleSliceError extends Error {
-  constructor() {
-    super('The export cursor moved on; another worker owns this slice')
-    this.name = 'StaleSliceError'
-  }
-}
+export { StaleSliceError } from './saver'
 
 export type SliceOutcome =
   /** The time budget ran out: requeue the next slice. */
@@ -76,6 +75,8 @@ export interface RunSliceParams {
   budgetMs?: number
   pageSize?: number
   now?: () => number
+  /** Identifies this worker in the lease it takes. */
+  token: string
 }
 
 /**
@@ -92,29 +93,21 @@ export const runCollectionSlice = async ({
   archive,
   store,
   slice,
-  budgetMs = ARCHIVE_SLICE_BUDGET_MS,
+  budgetMs = getArchiveSliceBudgetMs(),
   pageSize = ARCHIVE_PAGE_SIZE,
-  now = Date.now
+  now = Date.now,
+  token
 }: RunSliceParams): Promise<{
   outcome: SliceOutcome
   progress: ArchiveProgress
+  saver: ProgressSaver
 }> => {
   const deadline = now() + budgetMs
-  let savedText = archive.progress
   let progress = parseProgress(archive.progress)
+  const leaseUntil = () => now() + budgetMs + ARCHIVE_LEASE_GRACE_MS
 
-  const save = async () => {
-    progress!.updatedAt = now()
-    const text = serializeProgress(progress!)
-    const updated = await database.updateAccountArchive({
-      id: archive.id,
-      onlyIfStatus: ['running'],
-      onlyIfProgress: savedText,
-      progress: text
-    })
-    if (!updated) throw new StaleSliceError()
-    savedText = text
-  }
+  if (progress && isLeaseHeld(progress, token, now()))
+    throw new LeaseHeldError()
 
   if (!progress) {
     const [account, actors] = await Promise.all([
@@ -128,13 +121,19 @@ export const runCollectionSlice = async ({
       actors: planArchiveActors(actors, account.defaultActorId),
       now: now()
     })
-    progress.slice = slice
-    await save()
   }
-  if (slice > progress.slice) {
-    progress.slice = slice
-  }
-  if (progress.phase === 'assemble') return { outcome: 'collected', progress }
+  const saver = new ProgressSaver(
+    database,
+    archive.id,
+    progress,
+    archive.progress
+  )
+  progress.slice = Math.max(progress.slice, slice)
+  progress.lease = { token, until: leaseUntil() }
+  await saver.save()
+  const save = () => saver.save()
+  if (progress.phase === 'assemble')
+    return { outcome: 'collected', progress, saver }
 
   // Attachment and image URLs on an Admin > Domains row are ours too.
   await refreshServedDomains(database)
@@ -153,7 +152,7 @@ export const runCollectionSlice = async ({
       progress.phase = 'assemble'
       progress.cursor = null
       await save()
-      return { outcome: 'collected', progress }
+      return { outcome: 'collected', progress, saver }
     }
 
     const step = COLLECTOR_STEPS[progress.step]
@@ -170,7 +169,11 @@ export const runCollectionSlice = async ({
       cacheOwner = progress.actorIndex
     }
     const pendingFiles: { entry: string; kind: SourceKind; path: string }[] = []
-    const stage = new PartStager(store, archive.id, progress)
+    const stage = new PartStager(
+      store,
+      getArchiveStorageRoot(archive),
+      progress
+    )
     const context: StepContext = {
       database,
       accountId: archive.accountId,
@@ -203,5 +206,5 @@ export const runCollectionSlice = async ({
     await save()
   } while (now() < deadline)
 
-  return { outcome: 'budget', progress }
+  return { outcome: 'budget', progress, saver }
 }

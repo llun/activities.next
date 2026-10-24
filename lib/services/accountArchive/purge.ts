@@ -1,29 +1,25 @@
 import type { Database } from '@/lib/database/types'
+import type { AccountArchive } from '@/lib/types/domain/accountArchive'
 
-import { deleteArchiveFiles } from './expiry'
+import { discardUnfinishedArchive } from './expiry'
 import { type ArchiveObjectStore, getArchiveObjectStore } from './objectStore'
 
 const PURGE_LIMIT = 1000
 
-/** The ids of every export row the account has, whatever its state. */
-export const listAccountArchiveIds = async (
+/** Every export row the account has, whatever its state. */
+export const listAccountArchives = (
   database: Database,
   accountId: string
-): Promise<string[]> =>
-  (
-    await database.getAccountArchivesForAccount({
-      accountId,
-      limit: PURGE_LIMIT
-    })
-  ).map((archive) => archive.id)
+): Promise<AccountArchive[]> =>
+  database.getAccountArchivesForAccount({ accountId, limit: PURGE_LIMIT })
 
-/** Deletes the files of the given exports (zip and staged parts). */
+/** Deletes the files of the given exports (zip, staged parts, open uploads). */
 export const deleteAccountArchiveFiles = async (
-  archiveIds: string[],
+  archives: AccountArchive[],
   store: ArchiveObjectStore | null = getArchiveObjectStore()
 ) => {
   if (!store) return
-  for (const id of archiveIds) await deleteArchiveFiles(store, id)
+  for (const archive of archives) await discardUnfinishedArchive(store, archive)
 }
 
 /**
@@ -41,7 +37,7 @@ export const purgeAccountArchives = async ({
   store?: ArchiveObjectStore | null
 }) => {
   await deleteAccountArchiveFiles(
-    await listAccountArchiveIds(database, accountId),
+    await listAccountArchives(database, accountId),
     store
   )
   await database.deleteAccountArchivesForAccount({ accountId })

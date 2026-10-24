@@ -296,4 +296,32 @@ describe('account export readers', () => {
     })
     expect(medias[0]).not.toHaveProperty('accountId')
   })
+
+  it('says which media paths belong to the account', async () => {
+    await db
+      .insertInto('medias')
+      .values({
+        actorId: ACTOR1_ID,
+        accountId,
+        original: 'medias/owned.webp',
+        originalMimeType: 'image/webp',
+        originalBytes: 10,
+        originalMetaData: '{"width":1,"height":1}',
+        thumbnail: 'medias/owned-thumb.webp',
+        thumbnailMimeType: 'image/webp',
+        thumbnailBytes: 5,
+        thumbnailMetaData: '{"width":1,"height":1}'
+      })
+      .execute()
+    const owns = (path: string, forAccount = accountId) =>
+      database.ownsAccountExportMediaPath({ accountId: forAccount, path })
+    expect(await owns('medias/owned.webp')).toBe(true)
+    expect(await owns('medias/owned-thumb.webp')).toBe(true)
+    expect(await owns('medias/not-in-the-table.webp')).toBe(false)
+    expect(await owns('archives/x/y/archive-1.zip')).toBe(false)
+    const other = (await database.getActorFromEmail({
+      email: 'test2@llun.test'
+    }))!.account!.id
+    expect(await owns('medias/owned.webp', other)).toBe(false)
+  })
 })

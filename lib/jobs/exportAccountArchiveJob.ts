@@ -1,14 +1,17 @@
+import { randomBytes } from 'crypto'
 import { z } from 'zod'
 
 import { getConfig } from '@/lib/config'
 import type { Database } from '@/lib/database/types'
-import { assembleArchive } from '@/lib/services/accountArchive/assemble'
+import { runAssemblySlice } from '@/lib/services/accountArchive/assemble'
+import { getArchiveSliceBudgetMs } from '@/lib/services/accountArchive/budget'
 import {
   ARCHIVE_MAX_SLICE_FAILURES,
   ARCHIVE_RETENTION_MS
 } from '@/lib/services/accountArchive/constants'
 import {
   deleteArchiveFiles,
+  discardUnfinishedArchive,
   expireArchiveIfDue
 } from '@/lib/services/accountArchive/expiry'
 import {
@@ -28,7 +31,10 @@ import { sendMail } from '@/lib/services/email'
 import { resolveEmailIdentity } from '@/lib/services/email/sender'
 import { buildAccountArchiveReadyEmail } from '@/lib/services/email/templates/accountArchiveReady'
 import { getQueue } from '@/lib/services/queue'
-import type { AccountArchive } from '@/lib/types/domain/accountArchive'
+import {
+  type AccountArchive,
+  getArchiveStorageRoot
+} from '@/lib/types/domain/accountArchive'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
@@ -120,40 +126,41 @@ const sendReadyEmail = async ({
 const markFailed = async ({
   database,
   store,
-  archiveId,
+  archive,
   reason
 }: {
   database: Database
   store: ArchiveObjectStore | null
-  archiveId: string
+  archive: AccountArchive
   reason: string
 }) => {
   await database.updateAccountArchive({
-    id: archiveId,
+    id: archive.id,
     onlyIfStatus: ['queued', 'running'],
     status: 'failed',
     error: reason,
     progress: null
   })
-  if (store) {
-    await deleteArchiveFiles(store, archiveId).catch(() => undefined)
-  }
+  if (store) await discardUnfinishedArchive(store, archive)
 }
 
 /**
  * Records a slice failure in the cursor. After `ARCHIVE_MAX_SLICE_FAILURES` in a
  * row the export is marked failed and cleaned up; before that the error is
- * rethrown so the queue retries the same slice.
+ * rethrown so the queue retries the same slice. The failing worker's lease is
+ * cleared so the retry is not turned away by it.
  */
 const handleSliceFailure = async ({
   database,
   store,
   archiveId,
+  token,
   error
 }: {
   database: Database
   store: ArchiveObjectStore | null
   archiveId: string
+  token: string
   error: unknown
 }) => {
   logger.error({
@@ -166,13 +173,20 @@ const handleSliceFailure = async ({
   if (!current || !progress || current.status !== 'running') throw error
 
   progress.failures += 1
+  if (progress.lease?.token === token) progress.lease = null
   if (progress.failures >= ARCHIVE_MAX_SLICE_FAILURES) {
-    await markFailed({ database, store, archiveId, reason: FAILURE_MESSAGE })
+    await markFailed({
+      database,
+      store,
+      archive: current,
+      reason: FAILURE_MESSAGE
+    })
     return
   }
   await database.updateAccountArchive({
     id: archiveId,
     onlyIfStatus: ['running'],
+    onlyIfProgress: current.progress,
     progress: serializeProgress(progress)
   })
   throw error
@@ -202,7 +216,7 @@ export const exportAccountArchiveJob = createJobHandle(
       await markFailed({
         database,
         store,
-        archiveId: archive.id,
+        archive,
         reason: 'Storage is not configured'
       })
       return
@@ -224,38 +238,56 @@ export const exportAccountArchiveJob = createJobHandle(
     }
     if (!running || running.status !== 'running') return
 
+    const token = randomBytes(8).toString('hex')
+    const budgetMs = getArchiveSliceBudgetMs()
+    const deadline = Date.now() + budgetMs
+    const root = getArchiveStorageRoot(archive)
+
     try {
-      const { outcome, progress } = await runCollectionSlice({
+      const { outcome, saver } = await runCollectionSlice({
         database,
         archive: running,
         store,
-        slice: data.slice
+        slice: data.slice,
+        budgetMs,
+        token
       })
+      const progress = saver.progress
 
       if (progress.failures > 0) {
         progress.failures = 0
-        await database.updateAccountArchive({
-          id: archive.id,
-          onlyIfStatus: ['running'],
-          progress: serializeProgress(progress)
-        })
+        await saver.save()
+      }
+
+      // Both stages end the same way when time runs out: hand the export on.
+      const continueLater = async () => {
+        await saver.release()
+        await publishNextSlice(archive.id, progress.slice + 1)
       }
 
       if (outcome === 'budget') {
-        await publishNextSlice(archive.id, progress.slice + 1)
+        await continueLater()
         return
       }
 
-      const assembled = await assembleArchive({
+      const assembled = await runAssemblySlice({
         database,
         archive: running,
         store,
-        progress
+        saver,
+        deadline
       })
+      if (!assembled.done) {
+        await continueLater()
+        return
+      }
+
       const now = Date.now()
       const ready = await database.updateAccountArchive({
         id: archive.id,
         onlyIfStatus: ['running'],
+        // Still the worker that holds the export: nobody saved since.
+        onlyIfProgress: saver.savedText,
         status: 'ready',
         storagePath: assembled.key,
         bytes: assembled.bytes,
@@ -265,13 +297,14 @@ export const exportAccountArchiveJob = createJobHandle(
         error: null
       })
       if (!ready) {
-        // The export was failed or removed while it was being built.
-        await deleteArchiveFiles(store, archive.id).catch(() => undefined)
+        // Lost the race. The winner owns this file, so nothing is deleted
+        // here, unless the export is gone altogether.
+        if (!(await database.getAccountArchive({ id: archive.id }))) {
+          await deleteArchiveFiles(store, archive.id).catch(() => undefined)
+        }
         return
       }
-      await store
-        .deletePrefix(`${assembled.key.replace(/\/archive\.zip$/, '')}/stage`)
-        .catch(() => undefined)
+      await store.deletePrefix(`archives/${root}/stage`).catch(() => undefined)
 
       const defaultActor =
         progress.actors.find((actor) => actor.isDefault) ?? progress.actors[0]
@@ -282,11 +315,19 @@ export const exportAccountArchiveJob = createJobHandle(
       })
       await publishExpiry(ready)
     } catch (error) {
-      if (error instanceof StaleSliceError) return
+      if (error instanceof StaleSliceError) {
+        // Another worker owns the export now. If the account is gone, what this
+        // slice staged is garbage nobody will collect.
+        if (!(await database.getAccountArchive({ id: archive.id }))) {
+          await deleteArchiveFiles(store, archive.id).catch(() => undefined)
+        }
+        return
+      }
       await handleSliceFailure({
         database,
         store,
         archiveId: archive.id,
+        token,
         error
       })
     }

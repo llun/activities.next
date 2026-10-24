@@ -70,11 +70,6 @@ describe('stuck export reaper', () => {
       accountId,
       options: { stripExactLocations: false, drafts: false }
     })
-    await db
-      .updateTable('account_archives')
-      .set({ createdAt: new Date(Date.now() - updatedAgoMs) })
-      .where('id', '=', id)
-      .execute()
     if (withProgress) {
       const progress = createInitialProgress({
         actors: [],
@@ -87,6 +82,15 @@ describe('stuck export reaper', () => {
         progress: serializeProgress(progress)
       })
     }
+    // Saving progress moves the heartbeat, so the age is set last.
+    await db
+      .updateTable('account_archives')
+      .set({
+        createdAt: new Date(Date.now() - updatedAgoMs),
+        heartbeatAt: new Date(Date.now() - updatedAgoMs)
+      })
+      .where('id', '=', id)
+      .execute()
     await store.put(`archives/${id}/stage/part-0`, 'staged')
     return (await database.getAccountArchive({ id }))!
   }
@@ -131,6 +135,43 @@ describe('stuck export reaper', () => {
     expect(publish).toHaveBeenCalledWith(
       expect.objectContaining({ data: { archiveId: archive.id, slice: 0 } })
     )
+  })
+
+  it('gives up on a never-started export after repeated reaps, with the counter in its own column', async () => {
+    const archive = await stuckArchive(hour * 2, false)
+    expect(archive.reapCount).toBe(0)
+    let current = archive
+    for (let reap = 1; reap <= ARCHIVE_MAX_REAPS; reap += 1) {
+      current = await reapStuckAccountArchive({
+        database,
+        archive: current,
+        store,
+        now: () => Date.now() + reap * hour * 2
+      })
+      expect(current.status).toBe('queued')
+      expect(current.reapCount).toBe(reap)
+      expect(current.error).toBeNull()
+    }
+    const failed = await reapStuckAccountArchive({
+      database,
+      archive: current,
+      store,
+      now: () => Date.now() + 10 * hour
+    })
+    expect(failed.status).toBe('failed')
+    expect(publish).toHaveBeenCalledTimes(ARCHIVE_MAX_REAPS)
+  })
+
+  it('lets only one of two sweeps holding the same row requeue it', async () => {
+    const archive = await stuckArchive(hour * 2, false)
+    await Promise.all([
+      reapStuckAccountArchive({ database, archive, store }),
+      reapStuckAccountArchive({ database, archive, store })
+    ])
+    expect(publish).toHaveBeenCalledTimes(1)
+    expect(
+      (await database.getAccountArchive({ id: archive.id }))!.reapCount
+    ).toBe(1)
   })
 
   it('marks it failed and deletes the staged parts after three reaps', async () => {

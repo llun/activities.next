@@ -197,10 +197,42 @@ describe('requestAccountArchive', () => {
     expect(result.ok).toBe(true)
     if (!result.ok) return
     expect(result.archive.options.drafts).toBe(true)
+    expect(result.archive.storageToken.length).toBeGreaterThanOrEqual(40)
     const staged = await fs.readdir(
-      path.join(root, 'archives', result.archive.id, 'stage')
+      path.join(
+        root,
+        'archives',
+        result.archive.id,
+        result.archive.storageToken,
+        'stage'
+      )
     )
     expect(staged).toEqual(['drafts.json'])
+  })
+
+  it('gives every export its own random storage token', async () => {
+    const first = await requestAccountArchive({
+      database,
+      accountId,
+      options: {},
+      store
+    })
+    expect(first.ok).toBe(true)
+    if (!first.ok) return
+    await database.updateAccountArchive({
+      id: first.archive.id,
+      status: 'failed'
+    })
+    const second = await requestAccountArchive({
+      database,
+      accountId,
+      options: {},
+      store
+    })
+    expect(second.ok).toBe(true)
+    if (!second.ok) return
+    expect(second.archive.storageToken).not.toBe(first.archive.storageToken)
+    expect(first.archive.storageToken).toMatch(/^[A-Za-z0-9_-]{43}$/)
   })
 
   it('marks the export failed and cleans up when the queue refuses it', async () => {
@@ -215,7 +247,11 @@ describe('requestAccountArchive', () => {
       })
     ).rejects.toThrow('queue down')
     expect(await database.getActiveAccountArchive({ accountId })).toBeNull()
-    expect(await fs.readdir(path.join(root, 'archives'))).toEqual([])
+    const left = await fs.readdir(path.join(root, 'archives'), {
+      recursive: true,
+      withFileTypes: true
+    })
+    expect(left.filter((entry) => entry.isFile())).toEqual([])
   })
 
   it('does not wait for an in-process queue to finish the export', async () => {

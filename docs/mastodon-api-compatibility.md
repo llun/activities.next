@@ -503,7 +503,8 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   `likes.json`, `bookmarks.json`, media files), so a Mastodon-format importer
   can read it; everything else lives under `activities.next/`. Mastodon's
   limit is one request per 6 days in code and 7 in its documentation; this
-  server uses 7. See [Account data export](architecture.md#account-data-export).
+  server uses 7. `POST` answers `429` with `nextAllowedAt` and a `Retry-After`
+  header both while an export is running and inside the 7 days. See [Account data export](architecture.md#account-data-export).
 - **Browser Web Vitals** — `POST /api/v1/web-vitals` takes a same-origin,
   sampled report of LCP, CLS and INP from this app's own pages and writes it to
   the server log; it is off (404) unless `ACTIVITIES_WEB_VITALS_SAMPLE_RATE` is

@@ -79,7 +79,19 @@ export type AccountExportActor = {
 export type GetAccountExportAccountParams = { accountId: string }
 export type GetAccountExportActorsParams = { accountId: string }
 
+export type OwnsAccountExportMediaPathParams = {
+  accountId: string
+  path: string
+}
+
 export interface AccountExportDatabase {
+  /**
+   * Whether `path` is the original or thumbnail of a media row of one of the
+   * account's actors (a profile image URL is free text, so it is checked).
+   */
+  ownsAccountExportMediaPath(
+    params: OwnsAccountExportMediaPathParams
+  ): Promise<boolean>
   getAccountExportAccount(
     params: GetAccountExportAccountParams
   ): Promise<AccountExportAccount | null>
