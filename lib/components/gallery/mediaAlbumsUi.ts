@@ -4,6 +4,14 @@ import type { MediaAlbumOptionEntity } from '@/lib/services/gallery/galleryAlbum
 // top-bar button and All media's multi-select picker): copy and accessible names, so the
 // components stay about layout and behaviour.
 
+/**
+ * The open menu carries `data-albums-menu`, so the lightbox can leave the arrow
+ * keys to it (the menu is portalled out of the lightbox, but its keydowns still
+ * reach the lightbox's window listener). Lives here, not in the control, so the
+ * lightbox need not import the control's chunk to know it.
+ */
+export const ALBUMS_MENU_SELECTOR = '[data-albums-menu]'
+
 const pluralPhotos = (count: number) =>
   `${count.toLocaleString('en-US')} ${count === 1 ? 'photo' : 'photos'}`
 

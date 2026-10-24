@@ -7,6 +7,7 @@ import {
   Play,
   X
 } from 'lucide-react'
+import dynamic from 'next/dynamic'
 import {
   FC,
   useCallback,
@@ -20,10 +21,8 @@ import { createPortal } from 'react-dom'
 
 import { getMediaPublicDetails } from '@/lib/client'
 import { CustomEmojiText } from '@/lib/components/actors/ActorDisplayName'
-import {
-  ALBUMS_MENU_SELECTOR,
-  MediaAlbumsControl
-} from '@/lib/components/gallery/MediaAlbumsControl'
+import { MediaAlbumsPillSkeleton } from '@/lib/components/gallery/MediaAlbumsPillSkeleton'
+import { ALBUMS_MENU_SELECTOR } from '@/lib/components/gallery/mediaAlbumsUi'
 import {
   MediaDetailsPanel,
   hasPublicDetailsContent
@@ -35,6 +34,17 @@ import { ActorEmojiTag } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Tag } from '@/lib/types/domain/tag'
 import { cn } from '@/lib/utils'
+
+// Only the owner's lightbox shows the albums button, and it carries the menu,
+// the New album dialog and the album picker behind it: keep that out of every
+// timeline page's initial bundle. The placeholder is the button's size.
+const MediaAlbumsControl = dynamic(
+  () =>
+    import('@/lib/components/gallery/MediaAlbumsControl').then(
+      (module) => module.MediaAlbumsControl
+    ),
+  { ssr: false, loading: () => <MediaAlbumsPillSkeleton /> }
+)
 
 const MIN_SWIPE_DISTANCE = 50 // Minimum distance in pixels for a swipe to be recognized
 const INTERACTIVE_SWIPE_IGNORE_SELECTOR =
@@ -160,18 +170,19 @@ export const MediasModal: FC<Props> = ({
       focusInOverlay.current = false
       return
     }
+    // Details can refuse focus for the first frame after it turns visible (its
+    // visibility transitions), so Close is the fallback rather than body.
+    const restoreFocus = () => {
+      const details = hasOverlayContent ? detailsButtonRef.current : null
+      details?.focus()
+      if (document.activeElement !== details) closeButtonRef.current?.focus()
+    }
     if (inOverlay && (!overlayVisible || lostFocus)) {
-      const target = hasOverlayContent
-        ? detailsButtonRef.current
-        : closeButtonRef.current
-      target?.focus()
+      restoreFocus()
       focusInOverlay.current = false
     }
     if (focusInAlbums.current && lostFocus) {
-      const target = hasOverlayContent
-        ? detailsButtonRef.current
-        : closeButtonRef.current
-      target?.focus()
+      restoreFocus()
       focusInAlbums.current = false
     }
   }, [overlayVisible, hasOverlayContent, currentMediaId])

@@ -15,6 +15,7 @@ import {
 
 import { GalleryAlbumFormDialog } from '@/app/(timeline)/gallery/albums/GalleryAlbumFormDialog'
 import { AlbumUndoToast } from '@/lib/components/gallery/AlbumUndoToast'
+import { MediaAlbumsPillSkeleton } from '@/lib/components/gallery/MediaAlbumsPillSkeleton'
 import {
   NOT_ADDABLE_HINT,
   getAlbumOptionNames,
@@ -31,13 +32,6 @@ import {
 } from '@/lib/components/ui/popover'
 import type { MediaAlbumOptionEntity } from '@/lib/services/gallery/galleryAlbumEntities'
 import { cn } from '@/lib/utils'
-
-/**
- * The open menu carries `data-albums-menu`, so the lightbox can leave the arrow
- * keys to it (the menu is portalled out of the lightbox, but its keydowns still
- * reach the lightbox's window listener).
- */
-export const ALBUMS_MENU_SELECTOR = '[data-albums-menu]'
 
 interface Props {
   /** The photo's media id (the row id the albums route takes). */
@@ -164,12 +158,7 @@ export const MediaAlbumsControl: FC<Props> = ({
         </div>
       )
     ) : (
-      <div className={cn('relative dark flex items-center', className)}>
-        <p role="status">
-          <span className="sr-only">Loading albums</span>
-          <SkeletonBar className="h-9 w-10 rounded-md bg-white/10 sm:w-32" />
-        </p>
-      </div>
+      <MediaAlbumsPillSkeleton className={className} />
     )
   }
   if (status === 'error') {

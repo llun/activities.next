@@ -264,6 +264,41 @@ describe('MediasModal albums button', () => {
     expect(document.activeElement).not.toBe(document.body)
   })
 
+  it('keeps focus off body when the Details button cannot take focus yet after the photo changes', async () => {
+    // A browser refuses focus() on a button that is still `visibility: hidden`
+    // for the first frame of its hidden-to-visible transition: that is the
+    // Details button when the next photo, unlike this one, has details.
+    let resolveNext: (value: ReturnType<typeof albumsResponse>) => void = () =>
+      undefined
+    getMediaAlbumsMock.mockImplementation((mediaId) =>
+      mediaId === 'm1'
+        ? Promise.resolve(albumsResponse([]))
+        : new Promise((resolve) => {
+            resolveNext = resolve
+          })
+    )
+    renderModal({ medias: [photo('m1'), { ...photo('m2'), name: 'Alt text' }] })
+    const button = await findAlbumsButton('Add to album')
+    button.focus()
+    const details = screen.getByText('Details').closest('button')
+    const focus = HTMLElement.prototype.focus
+    const spy = vi
+      .spyOn(HTMLElement.prototype, 'focus')
+      .mockImplementation(function (this: HTMLElement, options) {
+        if (this !== details) focus.call(this, options)
+      })
+
+    fireEvent.keyDown(window, { key: 'ArrowRight' })
+    await act(async () => {})
+    resolveNext(albumsResponse(['a1']))
+    await findAlbumsButton('In 1 album')
+    spy.mockRestore()
+
+    expect(
+      screen.getByRole('button', { name: 'Close media dialog' })
+    ).toHaveFocus()
+  })
+
   it('renders the Undo toast without changing the header height or showing in the overlay', async () => {
     addMock.mockResolvedValue({
       added: ['m1'],
