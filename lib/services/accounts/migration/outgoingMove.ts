@@ -134,6 +134,10 @@ export const performOutgoingMove = async ({
   target: Actor
   kind: ActorMigrationKind
 }): Promise<{ ok: true } | OutgoingMoveFailure> => {
+  // A deleting origin must not leave a Move or redirect behind.
+  if (actor.deletionStatus) {
+    return fail(422, 'This account is being deleted')
+  }
   if (actorIdsMatch(target.id, actor.id)) {
     return fail(422, 'Cannot move to yourself')
   }

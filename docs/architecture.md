@@ -2088,7 +2088,9 @@ changed' }` before any write. Mastodon clients do not send it and are
   leading `@` stripped) is resolved: `invalid` is 422 `Invalid account`,
   `forbidden` is 403 and `not-found` is 404. `performOutgoingMove`
   (`lib/services/accounts/migration/outgoingMove.ts`) then refuses, all as 422:
-  the account itself, a target that is suspended or being deleted, a target
+  first an origin that is being deleted (`This account is being deleted`, checked
+  before any target is resolved), then the account itself, a target that is
+  suspended or being deleted, a target
   whose `movedTo` is set, and an account whose `movedTo` already equals this
   target (`Already moved to this account`, whether by a started move or a
   redirect, except a retry of a `move` whose job was never queued, see below).
@@ -2161,7 +2163,10 @@ move, try again later`, but nothing is rolled back: the row, `movedTo` and the
   cannot be queued. Then it pages the origin's followers 100 at a time by follow
   id. Each distinct remote shared inbox (or inbox) gets one delivery of the
   activity, keyed on the migration id so one Move goes to each inbox across all
-  continuations, and each local follower gets a `MoveFollowerJob`, but only when
+  continuations. That one-per-inbox guarantee relies on the queue dropping
+  duplicate job ids (the database-backed queue and QStash do); a queue driver
+  that does not dedupe may deliver the same Move twice, which receivers treat as
+  a no-op. Each local follower gets a `MoveFollowerJob`, but only when
   the target has not itself moved. Every job id is deterministic. A run stops after
   the page that crosses a 20-second budget and queues
   `${migrationId}:continue:<cursor>`. On a real queue a refused delivery fails

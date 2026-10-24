@@ -261,6 +261,36 @@ describe('performOutgoingMove on a real database', () => {
     expect(publishActorUpdate).not.toHaveBeenCalled()
   })
 
+  it('answers 422 and records nothing when the origin account is being deleted', async () => {
+    const { actor, target } = await setup('origin-deleting')
+    const deleting = { ...actor, deletionStatus: 'scheduled' } as Actor
+
+    expect(
+      await performOutgoingMove({
+        database,
+        actor: deleting,
+        target,
+        kind: 'move'
+      })
+    ).toEqual({
+      ok: false,
+      status: 422,
+      error: 'This account is being deleted',
+      cooldownUntil: undefined
+    })
+    expect(
+      await performOutgoingMove({
+        database,
+        actor: deleting,
+        target,
+        kind: 'redirect'
+      })
+    ).toMatchObject({ ok: false, status: 422 })
+    expect(publish).not.toHaveBeenCalled()
+    expect(publishActorUpdate).not.toHaveBeenCalled()
+    expect(await database.getLastActorMove({ actorId: actor.id })).toBeNull()
+  })
+
   it('answers 429 to a started move repeated after the move was cancelled', async () => {
     const { actor, target } = await setup('started-cancelled')
     await moveAgain(actor, target)
