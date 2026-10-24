@@ -270,7 +270,7 @@ export const NotificationSettings: FC<Props> = ({
           <>
             Control which notifications are sent and how. Email notifications go
             to <span className="font-medium">{accountEmail}</span>.{' '}
-            <Link href="/settings" className="text-primary-text underline">
+            <Link href="/account" className="text-primary-text underline">
               Change email address
             </Link>
           </>

@@ -259,7 +259,8 @@ export const PageHeader = ({
       >
         <div
           className={cn(
-            'mx-auto max-w-content px-4 py-4',
+            // Inside a `SectionLayout` the title row lines up with its rail.
+            'mx-auto max-w-content px-4 py-4 [[data-section-layout]_&]:max-w-section',
             back && hasMobileBar && 'max-md:pt-2'
           )}
         >

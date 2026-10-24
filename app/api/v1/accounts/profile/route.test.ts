@@ -530,6 +530,40 @@ describe('POST /api/v1/accounts/profile', () => {
         'https://llun.test/settings'
       )
     })
+
+    it.each([
+      {
+        returnTo: '/settings/appearance',
+        expected: 'https://llun.test/settings/appearance'
+      },
+      {
+        returnTo: '/settings/privacy',
+        expected: 'https://llun.test/settings/privacy'
+      }
+    ])(
+      'redirects to allowed returnTo path $returnTo with 303',
+      async ({ returnTo, expected }) => {
+        const response = await post({ name: 'New name', returnTo })
+
+        expect(response.status).toBe(303)
+        expect(response.headers.get('location')).toBe(expected)
+        expect(
+          mockDatabase.updateActorWithPrevious.mock.calls[0][0]
+        ).not.toHaveProperty('returnTo')
+      }
+    )
+
+    it.each(['https://evil.test/', '//evil.test', '/admin'])(
+      'ignores disallowed returnTo %s and defaults to /settings',
+      async (returnTo) => {
+        const response = await post({ name: 'New name', returnTo })
+
+        expect(response.status).toBe(303)
+        expect(response.headers.get('location')).toBe(
+          'https://llun.test/settings'
+        )
+      }
+    )
   })
 })
 

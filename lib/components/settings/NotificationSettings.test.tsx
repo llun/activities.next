@@ -68,4 +68,20 @@ describe('Notification settings', () => {
     expect(notice.closest('[data-slot=frame]')).toBeNull()
     expect(screen.queryByText(/ACTIVITIES_/)).not.toBeInTheDocument()
   })
+
+  it('renders a link to change email address pointing to /account', async () => {
+    render(
+      <NotificationSettings
+        actorId="actor-1"
+        accountEmail="alice@llun.test"
+        actors={actors}
+        notificationTypes={notificationTypes}
+      />
+    )
+
+    const link = await screen.findByRole('link', {
+      name: 'Change email address'
+    })
+    expect(link).toHaveAttribute('href', '/account')
+  })
 })

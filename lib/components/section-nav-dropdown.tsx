@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { FC } from 'react'
 
+import { resolveActiveSectionUrl } from '@/lib/components/sectionNavActive'
 import { Button } from '@/lib/components/ui/button'
 import {
   DropdownMenu,
@@ -27,10 +28,10 @@ interface SectionNavDropdownProps {
 }
 
 /**
- * Dropdown sub-navigation used by settings-style section layouts (settings,
- * fitness, admin) on every breakpoint, including desktop — the design-system default
- * that replaced the desktop vertical nav rail so the content spans the full
- * width. The trigger reflects the active section; the menu lists every section
+ * Dropdown sub-navigation for content sections (Fitness, Gallery) and, until
+ * they move to `SectionLayout`'s rail, Admin and Account, on every breakpoint.
+ * Settings uses `SectionLayout` (lib/components/section-nav.tsx). The trigger
+ * reflects the active section; the menu lists every section
  * as one flat run — the design system's sub-nav has no group headings or
  * separators, because every entry in a section's menu is already part of that
  * one section. The active item is marked `aria-current="page"`. See the "Page
@@ -42,15 +43,11 @@ export const SectionNavDropdown: FC<SectionNavDropdownProps> = ({
 }) => {
   const pathname = usePathname()
 
-  // Pick the most-specific matching tab: filter to tabs whose url is the path
-  // or a parent of it, then take the longest url so e.g.
-  // `/account/security/...` resolves to Security, not General.
-  const activeTab =
-    tabs
-      .filter(
-        (tab) => pathname === tab.url || pathname.startsWith(`${tab.url}/`)
-      )
-      .sort((a, b) => b.url.length - a.url.length)[0] || tabs[0]
+  const activeUrl = resolveActiveSectionUrl(
+    pathname,
+    tabs.map((tab) => tab.url)
+  )
+  const activeTab = tabs.find((tab) => tab.url === activeUrl) || tabs[0]
 
   return (
     <nav aria-label={label} className="mb-4 max-md:mb-5">

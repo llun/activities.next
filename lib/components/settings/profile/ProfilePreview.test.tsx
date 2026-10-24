@@ -126,7 +126,7 @@ describe('ProfilePreview', () => {
       within(aside).getByRole('navigation', { name: 'Set in Settings' })
     ).getAllByRole('link')
     expect(links.map((link) => link.getAttribute('href'))).toEqual([
-      '/settings',
+      '/settings/privacy',
       '/fitness/privacy',
       '/gallery/privacy'
     ])

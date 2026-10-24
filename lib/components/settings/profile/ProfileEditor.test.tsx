@@ -237,7 +237,7 @@ describe('ProfileEditor', () => {
       })
       expect(
         within(card).getByRole('link', { name: /Who can follow you/ })
-      ).toHaveAttribute('href', '/settings')
+      ).toHaveAttribute('href', '/settings/privacy')
       expect(
         within(card).getByRole('link', { name: /Fitness privacy/ })
       ).toHaveAttribute('href', '/fitness/privacy')
