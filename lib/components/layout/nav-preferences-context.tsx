@@ -107,7 +107,7 @@ interface PendingSave {
  * Holds the navigation customization for the whole signed-in tree.
  *
  * It is one store rather than per-surface state because the sidebar and the
- * Settings → Navigation manager are on screen together on wide viewports, and a
+ * Settings → Sidebar manager are on screen together on wide viewports, and a
  * soft navigation never re-renders the layout that seeded them — without shared
  * state the sidebar would keep rendering the layout the user just changed.
  *

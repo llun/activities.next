@@ -35,7 +35,7 @@ export interface NavItem {
   // Falls back to `label` when omitted.
   shortLabel?: string
   icon: LucideIcon
-  // One line explaining the destination, shown by the Settings → Navigation
+  // One line explaining the destination, shown by the Settings → Sidebar
   // manager under each row.
   blurb: string
   // Pinned items can be reordered but never hidden.
@@ -135,13 +135,13 @@ const NAV_ITEM_DEFINITIONS: Record<NavItemId, NavItemDefinition> = {
     href: '/account',
     label: 'Account',
     icon: Users,
-    blurb: 'Settings shared across your actors'
+    blurb: 'Email, password and sessions, shared across your profiles'
   },
   settings: {
     href: '/settings',
     label: 'Settings',
     icon: Settings,
-    blurb: 'Settings for this actor'
+    blurb: 'Settings for this profile'
   }
 }
 

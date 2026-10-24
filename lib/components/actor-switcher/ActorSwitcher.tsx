@@ -153,8 +153,8 @@ export function ActorSwitcher({
   )
 
   // With a single actor there is nothing to switch to, so the whole row is just
-  // a link to the profile: no dropdown and no chevron. (Adding another actor
-  // remains available under Settings → Actors.)
+  // a link to the profile: no dropdown and no chevron. (Adding another profile is
+  // in Account & security → Profiles.)
   if (!hasMultipleActors) {
     return (
       <Link

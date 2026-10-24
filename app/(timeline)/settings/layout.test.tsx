@@ -2,8 +2,10 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { usePathname } from 'next/navigation'
+
+import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import Layout from './layout'
 
@@ -11,141 +13,135 @@ vi.mock('next/navigation', () => ({
   usePathname: vi.fn()
 }))
 
-const renderLayout = () =>
+vi.mock('@/lib/database', () => ({
+  getDatabase: vi.fn(() => ({}))
+}))
+
+vi.mock('@/lib/services/auth/getSession', () => ({
+  getServerAuthSession: vi.fn().mockResolvedValue({
+    user: { email: 'anna@llun.test' }
+  })
+}))
+
+vi.mock('@/lib/utils/getActorFromSession', () => ({
+  getActorFromSession: vi.fn().mockResolvedValue({
+    id: 'https://llun.test/users/anna',
+    username: 'anna',
+    domain: 'llun.test',
+    iconUrl: null
+  })
+}))
+
+const renderLayout = async (pathname: string) => {
+  ;(usePathname as jest.Mock).mockReturnValue(pathname)
   render(
-    <Layout>
-      <div>content</div>
-    </Layout>
+    await Layout({
+      children: <div>content</div>
+    })
   )
+}
 
 describe('Settings Layout', () => {
-  it('reflects the most-specific tab in the dropdown trigger', () => {
-    ;(usePathname as jest.Mock).mockReturnValue('/settings/preferences')
-    renderLayout()
+  it('names the profile the settings are for in the section header', async () => {
+    await renderLayout('/settings/appearance')
 
-    const nav = screen.getByRole('navigation', { name: 'Settings' })
-    expect(within(nav).getByRole('button')).toHaveTextContent('Preferences')
-  })
-
-  it('does not expose Account or Sessions (moved to the Account section)', async () => {
-    ;(usePathname as jest.Mock).mockReturnValue('/settings')
-    renderLayout()
-
-    const nav = screen.getByRole('navigation', { name: 'Settings' })
-    fireEvent.keyDown(within(nav).getByRole('button'), { key: 'ArrowDown' })
-
-    const menu = await screen.findByRole('menu')
     expect(
-      within(menu).queryByRole('menuitem', { name: 'Account' })
-    ).not.toBeInTheDocument()
-    expect(
-      within(menu).queryByRole('menuitem', { name: 'Sessions' })
-    ).not.toBeInTheDocument()
-  })
-
-  it('renders the section-level Settings header above the dropdown nav', () => {
-    ;(usePathname as jest.Mock).mockReturnValue('/settings')
-    renderLayout()
-
-    const heading = screen.getByRole('heading', { name: 'Settings' })
-    const nav = screen.getByRole('navigation', { name: 'Settings' })
-
-    // The shared "Settings" header must precede the dropdown nav so every
-    // settings page leads with the same full-width chrome the other top-level
-    // routes use.
-    expect(
-      heading.compareDocumentPosition(nav) & Node.DOCUMENT_POSITION_FOLLOWING
-    ).toBeTruthy()
-    expect(
-      screen.getByText('Manage your account and preferences')
+      screen.getByRole('heading', { level: 1, name: 'Settings' })
     ).toBeInTheDocument()
+    expect(screen.getByText('For @anna@llun.test')).toBeInTheDocument()
   })
 
-  it('reflects the General tab in the dropdown trigger on the settings root', () => {
-    ;(usePathname as jest.Mock).mockReturnValue('/settings')
-    renderLayout()
+  it('renders Settings title without profile subtitle when signed out', async () => {
+    vi.mocked(getActorFromSession).mockResolvedValueOnce(null as never)
+    await renderLayout('/settings/appearance')
 
-    const nav = screen.getByRole('navigation', { name: 'Settings' })
-    expect(within(nav).getByRole('button')).toHaveTextContent('General')
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Settings' })
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/^For /)).not.toBeInTheDocument()
   })
 
-  // Open the Radix menu the same way the rest of the suite does (keyboard, since
-  // jsdom has no pointer layout), then assert the items the rail used to expose.
-  // Scope to the open menu so the test fails loudly if items ever render outside
-  // an opened dropdown.
-  it('renders every section as a menu item when the dropdown is opened', async () => {
-    ;(usePathname as jest.Mock).mockReturnValue('/settings')
-    renderLayout()
+  it('groups the rail under Preferences and Privacy & safety, in order', async () => {
+    await renderLayout('/settings/appearance')
 
     const nav = screen.getByRole('navigation', { name: 'Settings' })
-    fireEvent.keyDown(within(nav).getByRole('button'), { key: 'ArrowDown' })
-
-    const menu = await screen.findByRole('menu')
-    for (const label of [
-      'Profile',
-      'General',
-      'Preferences',
-      'Navigation',
-      'Media',
+    const names = (group: string) =>
+      within(within(nav).getByRole('group', { name: group }))
+        .getAllByRole('link')
+        .map((link) => link.textContent)
+    expect(names('Preferences')).toEqual([
+      'Appearance',
+      'Posting & reading',
       'Notifications',
+      'Sidebar',
+      'Media & AI'
+    ])
+    expect(names('Privacy & safety')).toEqual([
+      'Privacy',
       'Blocked accounts',
       'Muted accounts',
       'Filters'
-    ]) {
-      expect(
-        within(menu).getByRole('menuitem', { name: label })
-      ).toBeInTheDocument()
-    }
+    ])
+
+    const links = within(nav).getAllByRole('link')
+    expect(links[0]).toHaveAttribute('href', '/settings/profile')
+    expect(links[0]).toHaveTextContent('Edit profile@anna@llun.test')
+    expect(
+      within(nav).getByRole('link', { name: 'Delete this profile' })
+    ).toHaveAttribute('href', '/settings/delete')
+    expect(
+      within(nav).getByRole('link', { name: /Account & security/ })
+    ).toHaveAttribute('href', '/account')
+    // No "General" any more, and no dropdown.
+    expect(within(nav).queryByText('General')).not.toBeInTheDocument()
+    expect(within(nav).queryByRole('button')).not.toBeInTheDocument()
   })
 
-  it('lists Profile first and no longer lists Featured hashtags', async () => {
-    ;(usePathname as jest.Mock).mockReturnValue('/settings')
-    renderLayout()
+  it.each([
+    ['/settings/preferences', 'Posting & reading'],
+    ['/settings/sidebar', 'Sidebar'],
+    ['/settings/profile', 'Edit profile@anna@llun.test']
+  ])('marks %s current as %s', async (pathname, name) => {
+    await renderLayout(pathname)
 
     const nav = screen.getByRole('navigation', { name: 'Settings' })
-    fireEvent.keyDown(within(nav).getByRole('button'), { key: 'ArrowDown' })
+    const current = within(nav)
+      .getAllByRole('link')
+      .filter((link) => link.getAttribute('aria-current') === 'page')
+    expect(current).toHaveLength(1)
+    expect(current[0]).toHaveTextContent(name)
+  })
 
-    const menu = await screen.findByRole('menu')
-    const items = within(menu).getAllByRole('menuitem')
-    expect(items[0]).toHaveTextContent('Profile')
-    expect(items[0]).toHaveAttribute('href', '/settings/profile')
-    expect(items[1]).toHaveTextContent('General')
+  it('leads a section page with Back to Settings below lg', async () => {
+    await renderLayout('/settings/privacy')
+
+    const back = screen.getByRole('link', { name: 'Back to settings' })
+    expect(back).toHaveAttribute('href', '/settings')
+    expect(back).toHaveClass('lg:hidden')
+  })
+
+  it('renders the index list instead of the rail on /settings', async () => {
+    await renderLayout('/settings')
+
     expect(
-      within(menu).queryByRole('menuitem', { name: 'Featured hashtags' })
+      screen.queryByRole('navigation', { name: 'Settings' })
     ).not.toBeInTheDocument()
-  })
-
-  it('reflects the Profile tab in the dropdown trigger on the editor page', () => {
-    ;(usePathname as jest.Mock).mockReturnValue('/settings/profile')
-    renderLayout()
-
-    const nav = screen.getByRole('navigation', { name: 'Settings' })
-    expect(within(nav).getByRole('button')).toHaveTextContent('Profile')
-  })
-
-  it('marks the active section as current in the opened dropdown', async () => {
-    ;(usePathname as jest.Mock).mockReturnValue('/settings/preferences')
-    renderLayout()
-
-    const nav = screen.getByRole('navigation', { name: 'Settings' })
-    fireEvent.keyDown(within(nav).getByRole('button'), { key: 'ArrowDown' })
-
-    const menu = await screen.findByRole('menu')
-    const active = within(menu).getByRole('menuitem', { name: 'Preferences' })
-    expect(active).toHaveAttribute('aria-current', 'page')
-    expect(active).toHaveAttribute('href', '/settings/preferences')
     expect(
-      within(menu).getByRole('menuitem', { name: 'General' })
-    ).not.toHaveAttribute('aria-current')
-  })
-
-  // Below md the description's own 16px bottom padding is the whole gap to
-  // the dropdown; from md up the section keeps its 16px top padding.
-  it('drops the section top padding below md only', () => {
-    ;(usePathname as jest.Mock).mockReturnValue('/settings')
-    renderLayout()
-
-    const nav = screen.getByRole('navigation', { name: 'Settings' })
-    expect(nav.parentElement).toHaveClass('pt-4', 'max-md:pt-0')
+      screen.queryByRole('link', { name: 'Back to settings' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)
+    ).toEqual([
+      'Preferences',
+      'Privacy & safety',
+      'Shared across your profiles'
+    ])
+    expect(
+      screen.getByText('Remove @anna and its posts from this server')
+    ).toBeInTheDocument()
+    // Edit profile is the page's own card on the index, not a list row.
+    expect(
+      screen.queryByRole('link', { name: /Edit profile/ })
+    ).not.toBeInTheDocument()
   })
 })

@@ -19,7 +19,7 @@ interface DeleteActorSectionProps {
 }
 
 /**
- * The body of Settings › General › Danger zone: the irreversible action is an
+ * The body of Settings › Delete this profile: the irreversible action is an
  * error-tone alert card whose action is the destructive button; when the actor
  * cannot be deleted, or is already going, it says so without offering the
  * button.

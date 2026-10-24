@@ -128,7 +128,7 @@ export const ProfilePreview: FC<Props> = ({
         <p className="px-4 pt-3 text-sm font-semibold">Set in Settings</p>
         <ul className="mt-2 divide-y border-t">
           {[
-            { label: 'Who can follow you', href: '/settings' },
+            { label: 'Who can follow you', href: '/settings/privacy' },
             { label: 'Fitness privacy', href: fitnessPrivacyHref },
             { label: 'Gallery privacy', href: galleryPrivacyHref }
           ].map((link) => (

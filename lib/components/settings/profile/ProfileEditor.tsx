@@ -16,7 +16,10 @@ import {
 import { ApiRequestError, updateProfile } from '@/lib/client'
 import type { CustomEmojiTextProps } from '@/lib/components/actors/ActorDisplayName'
 import { BackLink } from '@/lib/components/back-link'
-import { breakoutStyle } from '@/lib/components/layout/chromeLayout'
+import {
+  SECTION_STICKY_TOP_CLASS,
+  breakoutStyle
+} from '@/lib/components/layout/chromeLayout'
 import { PageHeader } from '@/lib/components/page-header'
 import { ConfirmDialog } from '@/lib/components/photo-editor/ConfirmDialog'
 import { ProfileFieldsField } from '@/lib/components/settings/ProfileFieldsField'
@@ -31,6 +34,7 @@ import { Input } from '@/lib/components/ui/input'
 import { Switch } from '@/lib/components/ui/switch'
 import { Textarea } from '@/lib/components/ui/textarea'
 import type { SavedProfile } from '@/lib/types/domain/savedProfile'
+import { cn } from '@/lib/utils'
 
 import { FeaturedTagsSection } from './FeaturedTagsSection'
 import { ProfileImageField } from './ProfileImageField'
@@ -319,7 +323,7 @@ export const ProfileEditor: FC<Props> = ({
   )
 
   return (
-    <div className="space-y-6">
+    <div className="@container space-y-6">
       {/* One polite region, always mounted, so the save is announced. */}
       <div role="status" aria-live="polite" className="sr-only">
         {toastId !== null ? (
@@ -359,7 +363,7 @@ export const ProfileEditor: FC<Props> = ({
           accessibleName="Back to your profile"
           label="Back to your profile"
           prefetch={false}
-          className="mb-3"
+          className="mb-3 max-lg:hidden"
         />
         <PageHeader
           title="Edit profile"
@@ -391,7 +395,9 @@ export const ProfileEditor: FC<Props> = ({
         </div>
       ) : null}
 
-      <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_17rem] xl:items-start xl:gap-8">
+      {/* The section rail takes width beside the content from lg up, so
+          size the two-column editor by its container, not the viewport. */}
+      <div className="@min-[860px]:grid @min-[860px]:grid-cols-[minmax(0,1fr)_17rem] @min-[860px]:items-start @min-[860px]:gap-8">
         <div className="min-w-0 space-y-6">
           <form
             ref={formRef}
@@ -624,7 +630,14 @@ export const ProfileEditor: FC<Props> = ({
           </Frame>
         </div>
 
-        <div className="hidden xl:sticky xl:top-4 xl:block">
+        {/* Sticks at the section rail's offset so its top does not slide
+            under the sticky Settings header. */}
+        <div
+          className={cn(
+            'sticky hidden @min-[860px]:block',
+            SECTION_STICKY_TOP_CLASS
+          )}
+        >
           <ProfilePreview draft={draft} username={username} handle={handle} />
         </div>
       </div>

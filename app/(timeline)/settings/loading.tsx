@@ -2,6 +2,9 @@ import { FC } from 'react'
 
 import { SectionSkeleton } from '@/lib/components/surface/SectionSkeleton'
 
-const Loading: FC = () => <SectionSkeleton sections={[1, [1, 5, 1], 1]} form />
+// The index's profile card; the section layout already draws the list below.
+const Loading: FC = () => (
+  <SectionSkeleton sections={[1]} title={false} headings={false} />
+)
 
 export default Loading

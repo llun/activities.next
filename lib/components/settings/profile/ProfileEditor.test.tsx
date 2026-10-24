@@ -142,6 +142,14 @@ describe('ProfileEditor', () => {
       ).toHaveAttribute('href', '/@anna@llun.test')
     })
 
+    it('hides the in-content Back to profile link below lg where the section layout shows its own Back row', () => {
+      renderEditor()
+
+      expect(
+        screen.getByRole('link', { name: 'Back to your profile' })
+      ).toHaveClass('max-lg:hidden')
+    })
+
     it('draws one box per section, in order', () => {
       renderEditor()
 
@@ -237,7 +245,7 @@ describe('ProfileEditor', () => {
       })
       expect(
         within(card).getByRole('link', { name: /Who can follow you/ })
-      ).toHaveAttribute('href', '/settings')
+      ).toHaveAttribute('href', '/settings/privacy')
       expect(
         within(card).getByRole('link', { name: /Fitness privacy/ })
       ).toHaveAttribute('href', '/fitness/privacy')
@@ -260,6 +268,21 @@ describe('ProfileEditor', () => {
         '[data-slot="profile-preview-tabs"]'
       ) as HTMLElement
       expect(strip.textContent).toBe('PostsRepliesGalleryFitness')
+    })
+
+    it('sizes the preview column by a container query at 860px rather than viewport width', () => {
+      const { container } = renderEditor()
+
+      const preview = screen.getByRole('complementary', { name: 'Preview' })
+      const previewColumn = preview.parentElement as HTMLElement
+      expect(previewColumn).toHaveClass(
+        'sticky',
+        'top-[103px]',
+        'hidden',
+        '@min-[860px]:block'
+      )
+
+      expect(container.firstElementChild).toHaveClass('@container')
     })
   })
 

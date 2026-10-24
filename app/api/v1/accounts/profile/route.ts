@@ -26,6 +26,12 @@ import {
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
+// Allow-list of paths the form POST may redirect to, preventing open redirects.
+const PROFILE_FORM_RETURN_PATHS = new Set([
+  '/settings/appearance',
+  '/settings/privacy'
+])
+
 // The settings form's own fields, and nothing else. `publicKey`,
 // `followersUrl`, `inboxUrl` and `sharedInboxUrl` were accepted here as free
 // strings and passed straight to `updateActor`, which persists all four — so
@@ -37,7 +43,8 @@ const ProfileRequest = z.object({
   iconUrl: z.string().optional(),
   headerImageUrl: z.string().optional(),
   manuallyApprovesFollowers: z.string().optional(),
-  postLineLimit: z.string().optional()
+  postLineLimit: z.string().optional(),
+  returnTo: z.string().optional()
 })
 
 export const POST = traceApiRoute(
@@ -62,15 +69,16 @@ export const POST = traceApiRoute(
       postLineLimit: rawPostLineLimit,
       iconUrl: rawIconUrl,
       headerImageUrl: rawHeaderImageUrl,
+      returnTo,
       ...safeParsed
     } = parsed.data
 
     // Only a URL shaped like one this instance serves its own media from — a
     // host and path check, not a lookup. An absent field is left alone (the
-    // General form no longer sends the images, Edit profile saves them through
-    // PATCH), while an empty one is the user clearing the image —
-    // `parseProfileImageUrl` answers null for it and `updateActor` reads that
-    // as an explicit clear.
+    // Appearance and Privacy forms never send the images, Edit profile
+    // saves them through PATCH), while an empty one is the user clearing the
+    // image — `parseProfileImageUrl` answers null for it and `updateActor`
+    // reads that as an explicit clear.
     // The actor's stored values are passed so a form resubmitting one it did
     // not change is treated as "no change" rather than re-validated — see
     // `parseProfileImageUrl`, where the single settings form makes that
@@ -156,8 +164,12 @@ export const POST = traceApiRoute(
     }
 
     const host = headerHost(req.headers)
-    const url = new URL('/settings', `https://${host}`)
-    // 303 so the browser GETs /settings; a 307 would re-POST the form to the
+    const targetPath =
+      returnTo && PROFILE_FORM_RETURN_PATHS.has(returnTo)
+        ? returnTo
+        : '/settings'
+    const url = new URL(targetPath, `https://${host}`)
+    // 303 so the browser GETs the settings page; a 307 would re-POST the form to the
     // page, which answers 404
     return Response.redirect(url.toString(), 303)
   })
