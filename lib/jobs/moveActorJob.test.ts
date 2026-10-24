@@ -4,10 +4,16 @@ import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import { moveActorJob } from '@/lib/jobs/moveActorJob'
 import { getMoveFollowerJobId } from '@/lib/jobs/moveFollowerJob'
-import { MOVE_ACTOR_JOB_NAME, MOVE_FOLLOWER_JOB_NAME } from '@/lib/jobs/names'
+import { getMoveRelationshipsJobId } from '@/lib/jobs/moveRelationshipsJob'
+import {
+  MOVE_ACTOR_JOB_NAME,
+  MOVE_FOLLOWER_JOB_NAME,
+  MOVE_RELATIONSHIPS_JOB_NAME
+} from '@/lib/jobs/names'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
+import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { EXTERNAL_ACTOR1 } from '@/lib/stub/seed/external1'
 import { FollowStatus } from '@/lib/types/domain/follow'
 
@@ -102,8 +108,14 @@ describe('moveActorJob', () => {
       .map(([published]) => published)
       .filter(({ name }) => name === MOVE_FOLLOWER_JOB_NAME)
 
+  const publishedRelationshipsJobs = () =>
+    mockPublish.mock.calls
+      .map(([published]) => published)
+      .filter(({ name }) => name === MOVE_RELATIONSHIPS_JOB_NAME)
+
   const expectNothingMoved = async () => {
     expect(publishedFollowerJobs()).toEqual([])
+    expect(publishedRelationshipsJobs()).toEqual([])
     expect(
       (await database.getActorFromId({ id: ORIGIN }))?.movedTo
     ).toBeUndefined()
@@ -509,14 +521,141 @@ describe('moveActorJob', () => {
     expect((await claim())?.activityId).toBe('inbox-move-1')
   })
 
-  it('refuses a local target', async () => {
+  it('moves from a remote origin into a local target whose alsoKnownAs includes the origin', async () => {
+    const follower = await accepted(ACTOR1_ID, ORIGIN)
     await database.updateActor({ actorId: ACTOR2_ID, alsoKnownAs: [ORIGIN] })
+
+    await moveActorJob(database, message({ target: ACTOR2_ID }))
+
+    expect((await database.getActorFromId({ id: ORIGIN }))?.movedTo).toBe(
+      ACTOR2_ID
+    )
+    expect(getActorPerson).not.toHaveBeenCalled()
+    expect(recordActorIfNeeded).not.toHaveBeenCalledWith(
+      expect.objectContaining({ actorId: ACTOR2_ID })
+    )
+    expect(publishedFollowerJobs()).toEqual([
+      {
+        id: getMoveFollowerJobId(follower?.id as string, ACTOR2_ID),
+        name: MOVE_FOLLOWER_JOB_NAME,
+        data: { followId: follower?.id, targetActorId: ACTOR2_ID }
+      }
+    ])
+    expect((await claim())?.activityId).toBe('inbox-move-1')
+  })
+
+  it('refuses a local target when alsoKnownAs does not include the origin', async () => {
+    await database.updateActor({
+      actorId: ACTOR2_ID,
+      alsoKnownAs: ['https://other.test/users/someone']
+    })
 
     await moveActorJob(database, message({ target: ACTOR2_ID }))
 
     expect(getActorPerson).not.toHaveBeenCalled()
     await expectNothingMoved()
     expect(await claim()).toBeUndefined()
+  })
+
+  it('refuses a local target when alsoKnownAs is empty or missing', async () => {
+    await database.updateActor({ actorId: ACTOR2_ID, alsoKnownAs: [] })
+
+    await moveActorJob(database, message({ target: ACTOR2_ID }))
+
+    expect(getActorPerson).not.toHaveBeenCalled()
+    await expectNothingMoved()
+    expect(await claim()).toBeUndefined()
+  })
+
+  it('refuses a local target that is suspended', async () => {
+    await database.updateActor({ actorId: ACTOR2_ID, alsoKnownAs: [ORIGIN] })
+    vi.spyOn(database, 'getModerationStatesForActors').mockImplementation(
+      async ({ actorIds }) =>
+        new Map(
+          actorIds.includes(ACTOR2_ID)
+            ? [
+                [
+                  ACTOR2_ID,
+                  { suspendedAt: 1, silencedAt: null, sensitizedAt: null }
+                ]
+              ]
+            : []
+        )
+    )
+
+    await moveActorJob(database, message({ target: ACTOR2_ID }))
+
+    expect(getActorPerson).not.toHaveBeenCalled()
+    await expectNothingMoved()
+    expect(await claim()).toBeUndefined()
+  })
+
+  it('refuses a local target that is scheduled for deletion', async () => {
+    await database.updateActor({ actorId: ACTOR2_ID, alsoKnownAs: [ORIGIN] })
+    await database.scheduleActorDeletion({
+      actorId: ACTOR2_ID,
+      scheduledAt: null
+    })
+
+    await moveActorJob(database, message({ target: ACTOR2_ID }))
+
+    expect(getActorPerson).not.toHaveBeenCalled()
+    await expectNothingMoved()
+    expect(await claim()).toBeUndefined()
+  })
+
+  it('records movedTo but rewires nobody when a local target has itself moved', async () => {
+    await database.updateActor({
+      actorId: ACTOR2_ID,
+      alsoKnownAs: [ORIGIN],
+      movedTo: 'https://elsewhere.test/users/test2'
+    })
+
+    await moveActorJob(database, message({ target: ACTOR2_ID }))
+
+    expect(getActorPerson).not.toHaveBeenCalled()
+    expect((await database.getActorFromId({ id: ORIGIN }))?.movedTo).toBe(
+      ACTOR2_ID
+    )
+    expect(publishedFollowerJobs()).toEqual([])
+    expect((await claim())?.activityId).toBe('inbox-move-1')
+  })
+
+  it('queues followers on retry for a local target without re-verifying', async () => {
+    const follower = await accepted(ACTOR1_ID, ORIGIN)
+    await database.updateActor({
+      actorId: ACTOR2_ID,
+      alsoKnownAs: [ORIGIN]
+    })
+    await database.updateActor({ actorId: ORIGIN, movedTo: ACTOR2_ID })
+    await database.claimActorMove({
+      actorId: ORIGIN,
+      activityId: 'inbox-move-1',
+      target: ACTOR2_ID,
+      now: Date.now(),
+      windowMs: 7 * DAY
+    })
+    await database.markActorMoveVerified({
+      actorId: ORIGIN,
+      activityId: 'inbox-move-1'
+    })
+
+    // Clear alsoKnownAs on ACTOR2_ID: retry must use storedTarget and not fail
+    await database.updateActor({
+      actorId: ACTOR2_ID,
+      alsoKnownAs: []
+    })
+
+    await moveActorJob(database, message({ target: ACTOR2_ID }))
+
+    expect(getActorPerson).not.toHaveBeenCalled()
+    expect(publishedFollowerJobs()).toEqual([
+      {
+        id: getMoveFollowerJobId(follower?.id as string, ACTOR2_ID),
+        name: MOVE_FOLLOWER_JOB_NAME,
+        data: { followId: follower?.id, targetActorId: ACTOR2_ID }
+      }
+    ])
   })
 
   it.each([
@@ -552,5 +691,196 @@ describe('moveActorJob', () => {
 
     expect(getActorPerson).not.toHaveBeenCalled()
     expect(mockPublish).not.toHaveBeenCalled()
+  })
+
+  describe('relationships carryover', () => {
+    it('publishes one MoveRelationshipsJob per local actor that blocks, mutes, or has a note on the origin', async () => {
+      await database.createBlock({
+        actorId: ACTOR1_ID,
+        targetActorId: ORIGIN,
+        uri: `${ACTOR1_ID}#blocks/1`
+      })
+      await database.createMute({
+        actorId: ACTOR2_ID,
+        targetActorId: ORIGIN,
+        notifications: true,
+        endsAt: null
+      })
+      await database.upsertAccountNote({
+        actorId: ACTOR3_ID,
+        targetActorId: ORIGIN,
+        comment: 'important person'
+      })
+
+      await moveActorJob(database, message())
+
+      const relJobs = publishedRelationshipsJobs()
+      expect(relJobs).toHaveLength(3)
+      expect(relJobs).toEqual(
+        expect.arrayContaining([
+          {
+            id: getMoveRelationshipsJobId(ACTOR1_ID, ORIGIN, TARGET),
+            name: MOVE_RELATIONSHIPS_JOB_NAME,
+            data: {
+              actorId: ACTOR1_ID,
+              originActorId: ORIGIN,
+              targetActorId: TARGET
+            }
+          },
+          {
+            id: getMoveRelationshipsJobId(ACTOR2_ID, ORIGIN, TARGET),
+            name: MOVE_RELATIONSHIPS_JOB_NAME,
+            data: {
+              actorId: ACTOR2_ID,
+              originActorId: ORIGIN,
+              targetActorId: TARGET
+            }
+          },
+          {
+            id: getMoveRelationshipsJobId(ACTOR3_ID, ORIGIN, TARGET),
+            name: MOVE_RELATIONSHIPS_JOB_NAME,
+            data: {
+              actorId: ACTOR3_ID,
+              originActorId: ORIGIN,
+              targetActorId: TARGET
+            }
+          }
+        ])
+      )
+    })
+
+    it('publishes MoveRelationshipsJob when the target is local', async () => {
+      await database.createBlock({
+        actorId: ACTOR1_ID,
+        targetActorId: ORIGIN,
+        uri: `${ACTOR1_ID}#blocks/1`
+      })
+      await database.upsertAccountNote({
+        actorId: ACTOR3_ID,
+        targetActorId: ORIGIN,
+        comment: 'note on origin'
+      })
+      await database.updateActor({
+        actorId: ACTOR2_ID,
+        alsoKnownAs: [ORIGIN]
+      })
+
+      await moveActorJob(database, message({ target: ACTOR2_ID }))
+
+      const relJobs = publishedRelationshipsJobs()
+      expect(relJobs).toHaveLength(2)
+      expect(relJobs).toEqual(
+        expect.arrayContaining([
+          {
+            id: getMoveRelationshipsJobId(ACTOR1_ID, ORIGIN, ACTOR2_ID),
+            name: MOVE_RELATIONSHIPS_JOB_NAME,
+            data: {
+              actorId: ACTOR1_ID,
+              originActorId: ORIGIN,
+              targetActorId: ACTOR2_ID
+            }
+          },
+          {
+            id: getMoveRelationshipsJobId(ACTOR3_ID, ORIGIN, ACTOR2_ID),
+            name: MOVE_RELATIONSHIPS_JOB_NAME,
+            data: {
+              actorId: ACTOR3_ID,
+              originActorId: ORIGIN,
+              targetActorId: ACTOR2_ID
+            }
+          }
+        ])
+      )
+    })
+
+    it('publishes MoveRelationshipsJob but no follower job when the target has itself moved', async () => {
+      await database.createBlock({
+        actorId: ACTOR1_ID,
+        targetActorId: ORIGIN,
+        uri: `${ACTOR1_ID}#blocks/1`
+      })
+      vi.mocked(getActorPerson).mockResolvedValue(
+        targetPerson([ORIGIN], 'https://elsewhere.test/users/test1')
+      )
+
+      await moveActorJob(database, message())
+
+      expect((await database.getActorFromId({ id: ORIGIN }))?.movedTo).toBe(
+        TARGET
+      )
+      expect(publishedRelationshipsJobs()).toEqual([
+        {
+          id: getMoveRelationshipsJobId(ACTOR1_ID, ORIGIN, TARGET),
+          name: MOVE_RELATIONSHIPS_JOB_NAME,
+          data: {
+            actorId: ACTOR1_ID,
+            originActorId: ORIGIN,
+            targetActorId: TARGET
+          }
+        }
+      ])
+      expect(publishedFollowerJobs()).toEqual([])
+      expect((await claim())?.activityId).toBe('inbox-move-1')
+    })
+
+    it('throws and does not mark move queued when a relationship job fails to publish', async () => {
+      await database.createBlock({
+        actorId: ACTOR1_ID,
+        targetActorId: ORIGIN,
+        uri: `${ACTOR1_ID}#blocks/1`
+      })
+      mockPublish.mockRejectedValueOnce(new Error('queue down'))
+
+      await expect(moveActorJob(database, message())).rejects.toThrow(
+        'could not be queued'
+      )
+
+      const stored = await claim()
+      expect(stored?.verified).toBe(true)
+      expect(stored?.queued).toBeUndefined()
+    })
+
+    it('throws when target has itself moved and relationship job fails to publish', async () => {
+      await database.createBlock({
+        actorId: ACTOR1_ID,
+        targetActorId: ORIGIN,
+        uri: `${ACTOR1_ID}#blocks/1`
+      })
+      vi.mocked(getActorPerson).mockResolvedValue(
+        targetPerson([ORIGIN], 'https://elsewhere.test/users/test1')
+      )
+      mockPublish.mockRejectedValueOnce(new Error('queue down'))
+
+      await expect(moveActorJob(database, message())).rejects.toThrow(
+        'could not be queued'
+      )
+
+      const stored = await claim()
+      expect(stored?.verified).toBe(true)
+      expect(stored?.queued).toBeUndefined()
+    })
+
+    it('publishes nothing new on redelivery after success (alreadyQueued)', async () => {
+      await database.createBlock({
+        actorId: ACTOR1_ID,
+        targetActorId: ORIGIN,
+        uri: `${ACTOR1_ID}#blocks/1`
+      })
+
+      await moveActorJob(database, message())
+
+      expect(publishedRelationshipsJobs()).toHaveLength(1)
+      expect(publishedFollowerJobs()).toHaveLength(1)
+      expect((await claim())?.queued).toBe(true)
+
+      mockPublish.mockClear()
+      vi.mocked(getActorPerson).mockClear()
+
+      await moveActorJob(database, message())
+
+      expect(mockPublish).not.toHaveBeenCalled()
+      expect(getActorPerson).not.toHaveBeenCalled()
+      expect((await claim())?.queued).toBe(true)
+    })
   })
 })

@@ -1,3 +1,5 @@
+import crypto from 'crypto'
+
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 
 describe('AccountNoteDatabase', () => {
@@ -119,5 +121,67 @@ describe('AccountNoteDatabase', () => {
     await expect(
       database.getAccountNote({ actorId: otherAuthor, targetActorId })
     ).resolves.toBe('theirs')
+  })
+
+  it('returns local note author ids for a given target actor', async () => {
+    const target = `https://remote.test/users/note-target-${crypto.randomUUID()}`
+    const localAuthorId = `https://llun.test/users/local-note-${crypto.randomUUID()}`
+    const remoteAuthorId = `https://remote.test/users/remote-note-${crypto.randomUUID()}`
+
+    // Create local actor with privateKey
+    await database.createActor({
+      actorId: localAuthorId,
+      username: `local_${crypto.randomUUID().slice(0, 8)}`,
+      domain: 'llun.test',
+      publicKey: 'fake-public-key',
+      privateKey: 'fake-private-key',
+      inboxUrl: `${localAuthorId}/inbox`,
+      sharedInboxUrl: 'https://llun.test/inbox',
+      followersUrl: `${localAuthorId}/followers`,
+      createdAt: Date.now()
+    })
+
+    // Create remote actor without privateKey
+    await database.createActor({
+      actorId: remoteAuthorId,
+      username: `remote_${crypto.randomUUID().slice(0, 8)}`,
+      domain: 'remote.test',
+      publicKey: 'fake-public-key',
+      inboxUrl: `${remoteAuthorId}/inbox`,
+      sharedInboxUrl: 'https://remote.test/inbox',
+      followersUrl: `${remoteAuthorId}/followers`,
+      createdAt: Date.now()
+    })
+
+    // Remote author has a note -> should NOT be returned
+    await database.upsertAccountNote({
+      actorId: remoteAuthorId,
+      targetActorId: target,
+      comment: 'remote note'
+    })
+
+    // Local author has an empty note (or no note) -> should NOT be returned
+    let authors = await database.getLocalNoteAuthorIds({
+      targetActorId: target
+    })
+    expect(authors).toEqual([])
+
+    // Local author sets a note -> should be returned
+    await database.upsertAccountNote({
+      actorId: localAuthorId,
+      targetActorId: target,
+      comment: 'local note on target'
+    })
+    authors = await database.getLocalNoteAuthorIds({ targetActorId: target })
+    expect(authors).toEqual([localAuthorId])
+
+    // Local author clears the note -> should NOT be returned
+    await database.upsertAccountNote({
+      actorId: localAuthorId,
+      targetActorId: target,
+      comment: ''
+    })
+    authors = await database.getLocalNoteAuthorIds({ targetActorId: target })
+    expect(authors).toEqual([])
   })
 })

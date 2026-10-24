@@ -6,10 +6,16 @@ import {
   MOVE_FOLLOWER_JOB_NAME,
   SEND_UNDO_FOLLOW_JOB_NAME
 } from '@/lib/jobs/names'
+import { resolveActorEmailBrand } from '@/lib/services/email/sender'
+import { buildFollowEmail } from '@/lib/services/email/templates/follow'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
+import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
+import { followGroupKey } from '@/lib/services/notifications/followGrouping'
+import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { getQueue } from '@/lib/services/queue'
 import { JobHandle } from '@/lib/services/queue/type'
+import { NotificationType } from '@/lib/types/database/operations'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { actorIdsMatch, normalizeActorId } from '@/lib/utils/activitypub'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
@@ -135,7 +141,10 @@ export const moveFollowerJob: JobHandle = createJobHandle(
       if (!follower?.privateKey) return
 
       const target = await database.getActorFromId({ id: targetId })
-      if (!target || target.privateKey) return
+      if (!target) return
+      if (actorIdsMatch(follower.id, target.id)) return
+
+      const isLocalTarget = Boolean(target.privateKey)
 
       // The target can change between the fan-out and this job: check it again
       // as MoveActorJob does, and leave the origin follow if it is unavailable.
@@ -225,7 +234,9 @@ export const moveFollowerJob: JobHandle = createJobHandle(
           id: ownFollowId,
           actorId: follower.id,
           targetActorId: target.id,
-          status: FollowStatus.enum.Requested,
+          status: isLocalTarget
+            ? FollowStatus.enum.Accepted
+            : FollowStatus.enum.Requested,
           inbox: `${follower.id}/inbox`,
           sharedInbox: `https://${follower.domain}/inbox`,
           reblogs: oldFollow.reblogs,
@@ -235,6 +246,43 @@ export const moveFollowerJob: JobHandle = createJobHandle(
         // The user followed the target in between: theirs, not ours.
         if (created.id !== ownFollowId) return keepOrigin(created)
         mine = created
+
+        if (isLocalTarget) {
+          const followNotification = await createNotificationWithPolicy(
+            database,
+            {
+              actorId: target.id,
+              type: NotificationType.enum.follow,
+              sourceActorId: follower.id,
+              followId: created.id,
+              groupKey: followGroupKey(Date.now())
+            }
+          )
+          if (followNotification && !followNotification.filtered) {
+            sendNotificationAlerts({
+              database,
+              actorId: target.id,
+              sourceActorId: follower.id,
+              sourceActor: follower,
+              events: [
+                {
+                  type: NotificationType.enum.follow,
+                  notificationId: followNotification.id,
+                  emailContent: target.account
+                    ? {
+                        recipientEmail: target.account.email,
+                        ...buildFollowEmail({
+                          recipient: target,
+                          brand: await resolveActorEmailBrand(database, target),
+                          actor: follower
+                        })
+                      }
+                    : undefined
+                }
+              ]
+            })
+          }
+        }
       }
       // The row is the job's own but was ended (rejected, unfollowed) before
       // this run saw it: leave it, and leave the origin follow.
@@ -242,8 +290,18 @@ export const moveFollowerJob: JobHandle = createJobHandle(
 
       // A failed send keeps the Requested row. The retry finds it by id and
       // sends the same row again (as Mastodon does), so a late Accept for it
-      // is never one of two follows.
-      if (mine.status === FollowStatus.enum.Requested) await send(mine.id)
+      // is never one of two follows. For a local target, no remote activity is
+      // sent; if the row was somehow left as Requested, transition it to Accepted.
+      if (mine.status === FollowStatus.enum.Requested) {
+        if (isLocalTarget) {
+          await database.updateFollowStatus({
+            followId: mine.id,
+            status: FollowStatus.enum.Accepted
+          })
+        } else {
+          await send(mine.id)
+        }
+      }
 
       // Order: add the target to the lists, flip the origin follow to Undo (this
       // also drops the origin from the lists, atomically), then queue the Undo.

@@ -1748,8 +1748,10 @@ changed' }` before any write. Mastodon clients do not send it and are
   origin is suspended or the target is suspended or deleted/being deleted
   (Mastodon parity). Stored `alsoKnownAs` keeps only
   http(s) URLs, at most 20, and an inbound `movedTo` that is not an http(s) URL
-  is dropped. Outbound `alsoKnownAs` and `movedTo` are not emitted: local aliases and outbound
-  account migration do not exist yet (see the inbound `Move` bullet below).
+  is dropped. Local aliases are supported via `GET/POST/DELETE /api/v1/accounts/aliases`
+  (up to 10 aliases) and federated in `alsoKnownAs` and `movedTo` for local
+  actors; outbound Move and a migration settings page are not implemented (see
+  the inbound `Move` bullet below).
 - **An inbound `Move` (account migration) goes to `MoveActorJob` from both
   inboxes, and nothing in its body is trusted beyond three ids.**
   `getJobMessage` queues it only when the HTTP signer, `actor` and `object` are
@@ -1758,9 +1760,10 @@ changed' }` before any write. Mastodon clients do not send it and are
   the claim below is what makes a redelivery safe. The job
   (`lib/jobs/moveActorJob.ts`, Mastodon's `ActivityPub::Activity::Move` plus
   `MoveWorker`) works in this order. It ignores a local or suspended origin and
-  a Move where either domain fails `canFederateWithDomain`. A local target is
-  refused for now: local accounts cannot have aliases yet, so no local target
-  could verify. It then claims the origin with Mastodon's
+  a Move where either domain fails `canFederateWithDomain`. An inbound Move may
+  target a local account (aliases verified from the stored row, no fetch;
+  local origin still refused — outgoing Move is not implemented). It then claims
+  the origin with Mastodon's
   `move_in_progress:<account_id>` cooldown: `claimActorMove` stores
   `moveProcessing: { at, activityId, target }` in the origin actor's settings JSON (no
   migration), under a row lock, and any other Move of the same origin within 7
@@ -1778,13 +1781,19 @@ changed' }` before any write. Mastodon clients do not send it and are
   the same activity returns without doing anything; the verification-skipping
   retry applies only to a verified claim that is not yet queued, and a claim
   older than 7 days is replaced whole, with neither flag. The target is fetched with a signed request
-  when a federation signing actor is configured. Only then does the job store
-  the origin's `movedTo`, and, unless the target has itself moved (the `movedTo`
+  when a federation signing actor is configured (a local target is read from
+  storage without a remote fetch). Only then does the job store the origin's
+  `movedTo`. Notes, blocks (federated via `SendBlockJob`, deterministic uri) and
+  mutes (notifications flag and end time kept) are carried by
+  `MoveRelationshipsJob` (`lib/jobs/moveRelationshipsJob.ts`, Mastodon's
+  `MoveWorker` parity) with Mastodon's skip rules (already blocking/muting the
+  target, or following it) and Mastodon's note texts, regardless of whether the
+  target has itself moved. Unless the target has itself moved (the `movedTo`
   is still recorded, but nobody is rewired, as Mastodon does not follow a moved
-  account), publish one `MoveFollowerJob` per accepted local follower of the
-  origin. Each has a deterministic id from the origin follow id and the target
-  id. Cloud Tasks and NoQueue do not dedupe by job id (only some backends do),
-  so the id only helps where the queue honours it; the follower job protects
+  account), the job publishes one `MoveFollowerJob` per accepted local follower
+  of the origin. Each has a deterministic id from the origin follow id and the
+  target id. Cloud Tasks and NoQueue do not dedupe by job id (only some backends
+  do), so the id only helps where the queue honours it; the follower job protects
   itself instead (below), and a retry or redelivery may run a follower twice
   without harm.
   `MoveFollowerJob` (`UnfollowFollowWorker` plus `FollowMigrationService`)
@@ -1796,18 +1805,21 @@ changed' }` before any write. Mastodon clients do not send it and are
   follower blocks the target's domain. The follow it makes has a deterministic
   id derived from `originFollowId/move/targetId` (a UUID), and `createFollow`
   inserts it with a conflict-ignoring insert on the primary key, so two
-  concurrent runs cannot leave two rows. Only a follow with that id is the
-  job's own leftover: if it is `Requested`, the Follow is sent again for that
-  row (a failed send keeps the row, as Mastodon does, instead of undoing it, so
-  a late Accept never leaves two Accepted follows); if it is `Accepted`, the
-  move is finished. Any other follow of the target, `Requested` or `Accepted`,
-  is the user's own: as in `FollowMigrationService` only
-  `reblogs`/`notify`/`languages` are copied (a language filter the origin does
-  not have is left alone), the target is added to the lists that hold the
-  origin, and the origin follow and the origin in those lists are kept.
-  Otherwise the job creates a `Requested` follow with the origin's options
-  (and stops if that row turns out to be ended already), sends the Follow,
-  adds the target to the follower's lists that hold the origin, marks the
+  concurrent runs cannot leave two rows. Local followers are repointed onto a
+  local target directly (`Accepted` even when locked, the target gets a follow
+  notification, no Follow over the network; the Undo to the remote origin is
+  still sent). For a remote target, only a follow with that id is the job's own
+  leftover: if it is `Requested`, the Follow is sent again for that row (a failed
+  send keeps the row, as Mastodon does, instead of undoing it, so a late Accept
+  never leaves two Accepted follows); if it is `Accepted`, the move is finished.
+  Any other follow of the target, `Requested` or `Accepted`, is the user's own:
+  as in `FollowMigrationService` only `reblogs`/`notify`/`languages` are copied
+  (a language filter the origin does not have is left alone), the target is added
+  to the lists that hold the origin, and the origin follow and the origin in
+  those lists are kept. Otherwise the job creates a `Requested` follow (or
+  `Accepted` directly for a local target) with the origin's options (and stops if
+  that row turns out to be ended already), sends the Follow (skipped for a local
+  target), adds the target to the follower's lists that hold the origin, marks the
   origin follow `Undo` (which drops the origin from those lists in the same
   transaction, so an `Accepted` origin never leaves a list early) and only then
   queues `SendUndoFollowJob` (deterministic id). The flip must come first:
@@ -1817,10 +1829,8 @@ changed' }` before any write. Mastodon clients do not send it and are
   retry repeats the idempotent steps; if it crashed after, the retry only
   repeats the Undo job: when the origin follow is already `Undo`, `movedTo` is
   that target and the job's own follow exists, the lists were finished before
-  the flip. A Follow that cannot be delivered keeps the origin
-  follow and throws for a retry. Only accepted local followers are moved.
-  Not done, unlike Mastodon: account notes, mutes and blocks are not carried
-  over yet.
+  the flip. A Follow that cannot be delivered keeps the origin follow and
+  throws for a retry. Only accepted local followers are moved.
 - **Profile links (`fields`) are plain text in storage and HTML everywhere
   they leave.** `formatProfileFieldValue`
   (`lib/utils/text/formatProfileFieldValue.ts`) is the one formatter, a

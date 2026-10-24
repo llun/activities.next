@@ -61,9 +61,8 @@ export interface ActorSettings {
   indexable?: boolean
   hideCollections?: boolean
   attributionDomains?: string[]
-  // Remote actors only: the account they migrated to (`movedTo`) and the
-  // accounts they claim as aliases (`alsoKnownAs`), as last seen in their
-  // actor document. Nothing sets them on a local actor yet.
+  // Remote actors as last seen in their actor document; local actors: set
+  // through the aliases API (or movedTo when migrated).
   movedTo?: string
   alsoKnownAs?: string[]
   // Mastodon `source.*` posting defaults surfaced by the credential endpoints.

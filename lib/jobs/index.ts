@@ -23,6 +23,7 @@ import { importWahooHistoryJob } from './importWahooHistoryJob'
 import { likeJob } from './likeJob'
 import { moveActorJob } from './moveActorJob'
 import { moveFollowerJob } from './moveFollowerJob'
+import { moveRelationshipsJob } from './moveRelationshipsJob'
 import {
   CREATE_ANNOUNCE_JOB_NAME,
   CREATE_NOTE_JOB_NAME,
@@ -47,6 +48,7 @@ import {
   LIKE_JOB_NAME,
   MOVE_ACTOR_JOB_NAME,
   MOVE_FOLLOWER_JOB_NAME,
+  MOVE_RELATIONSHIPS_JOB_NAME,
   PROCESS_FITNESS_FILE_JOB_NAME,
   PROCESS_FORWARDED_ACTIVITY_JOB_NAME,
   PUBLISH_SCHEDULED_STATUS_JOB_NAME,
@@ -196,6 +198,9 @@ export const JOBS: Record<string, JobHandle> = {
   },
   get [MOVE_FOLLOWER_JOB_NAME]() {
     return moveFollowerJob
+  },
+  get [MOVE_RELATIONSHIPS_JOB_NAME]() {
+    return moveRelationshipsJob
   },
   get [UPDATE_ACTOR_JOB_NAME]() {
     return updateActorJob
