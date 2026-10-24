@@ -9,7 +9,8 @@ import {
 } from '@/lib/jobs/moveRelationshipsJob'
 import {
   MOVE_RELATIONSHIPS_JOB_NAME,
-  SEND_BLOCK_JOB_NAME
+  SEND_BLOCK_JOB_NAME,
+  SEND_UNDO_FOLLOW_JOB_NAME
 } from '@/lib/jobs/names'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
@@ -469,6 +470,7 @@ describe('moveRelationshipsJob', () => {
           inbox: `${ACTOR2_ID}/inbox`,
           sharedInbox: 'https://llun.test/inbox'
         })
+        await new Promise((resolve) => setTimeout(resolve, 5))
         await database.createBlock({
           actorId: ACTOR1_ID,
           targetActorId: ACTOR2_ID,
@@ -482,6 +484,33 @@ describe('moveRelationshipsJob', () => {
         expect(updated?.status).toBe(FollowStatus.enum.Undo)
         expect(mockPublish).not.toHaveBeenCalledWith(
           expect.objectContaining({ name: SEND_BLOCK_JOB_NAME })
+        )
+      })
+
+      it('leaves a follow made after the carried block alone on re-run', async () => {
+        await applyBlock({
+          database,
+          actorId: ACTOR1_ID,
+          targetActorId: ORIGIN,
+          uri: `${ACTOR1_ID}#blocks/origin`
+        })
+        await runJob()
+        await new Promise((resolve) => setTimeout(resolve, 5))
+        const follow = await database.createFollow({
+          actorId: ACTOR1_ID,
+          targetActorId: TARGET,
+          status: FollowStatus.enum.Accepted,
+          inbox: `${TARGET}/inbox`,
+          sharedInbox: 'https://llun.test/inbox'
+        })
+
+        mockPublish.mockClear()
+        await runJob()
+
+        const updated = await database.getFollowFromId({ followId: follow.id })
+        expect(updated?.status).toBe(FollowStatus.enum.Accepted)
+        expect(mockPublish).not.toHaveBeenCalledWith(
+          expect.objectContaining({ name: SEND_UNDO_FOLLOW_JOB_NAME })
         )
       })
 
