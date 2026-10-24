@@ -275,7 +275,12 @@ describe('ProfileEditor', () => {
 
       const preview = screen.getByRole('complementary', { name: 'Preview' })
       const previewColumn = preview.parentElement as HTMLElement
-      expect(previewColumn).toHaveClass('hidden', '@min-[860px]:block')
+      expect(previewColumn).toHaveClass(
+        'sticky',
+        'top-[103px]',
+        'hidden',
+        '@min-[860px]:block'
+      )
 
       expect(container.firstElementChild).toHaveClass('@container')
     })

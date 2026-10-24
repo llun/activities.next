@@ -82,10 +82,14 @@ const Page = async () => {
 
       <Section
         title="Location privacy"
-        description="Set in Fitness and Gallery, where the places are."
+        description={
+          features.fitness
+            ? 'Set in Fitness and Gallery, where the places are.'
+            : 'Set in Gallery, where the places are.'
+        }
       >
         <FramedList>
-          {actor.account && features.fitness ? (
+          {features.fitness ? (
             <FramedListItem
               href="/fitness/privacy"
               className="flex items-center gap-3 text-sm font-medium"

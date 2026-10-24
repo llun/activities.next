@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import { FC, ReactNode, useId } from 'react'
 
 import { BackLink } from '@/lib/components/back-link'
+import { SECTION_STICKY_TOP_CLASS } from '@/lib/components/layout/chromeLayout'
 import {
   PageHeader,
   PageHeaderSectionProvider
@@ -315,10 +316,14 @@ export const SectionLayout: FC<SectionLayoutProps> = ({
               label={label}
               groups={groups}
               footer={footer}
-              // 103px: the 79px section header plus the 24px gap above the
-              // rail, so it sticks where it already sits; it scrolls on its own
-              // on a short viewport instead of losing its foot.
-              className="sticky top-[103px] max-h-[calc(100dvh-103px-1.5rem)] w-[200px] shrink-0 self-start overflow-y-auto max-lg:hidden xl:w-[216px]"
+              // SECTION_STICKY_TOP_CLASS (103px): the 79px section header plus
+              // the 24px gap above the rail, so it sticks where it already
+              // sits; it scrolls on its own on a short viewport instead of
+              // losing its foot.
+              className={cn(
+                'sticky max-h-[calc(100dvh-103px-1.5rem)] w-[200px] shrink-0 self-start overflow-y-auto max-lg:hidden xl:w-[216px]',
+                SECTION_STICKY_TOP_CLASS
+              )}
             />
           )}
           <div className="min-w-0 flex-1">

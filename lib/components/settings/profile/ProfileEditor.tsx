@@ -16,7 +16,10 @@ import {
 import { ApiRequestError, updateProfile } from '@/lib/client'
 import type { CustomEmojiTextProps } from '@/lib/components/actors/ActorDisplayName'
 import { BackLink } from '@/lib/components/back-link'
-import { breakoutStyle } from '@/lib/components/layout/chromeLayout'
+import {
+  SECTION_STICKY_TOP_CLASS,
+  breakoutStyle
+} from '@/lib/components/layout/chromeLayout'
 import { PageHeader } from '@/lib/components/page-header'
 import { ConfirmDialog } from '@/lib/components/photo-editor/ConfirmDialog'
 import { ProfileFieldsField } from '@/lib/components/settings/ProfileFieldsField'
@@ -31,6 +34,7 @@ import { Input } from '@/lib/components/ui/input'
 import { Switch } from '@/lib/components/ui/switch'
 import { Textarea } from '@/lib/components/ui/textarea'
 import type { SavedProfile } from '@/lib/types/domain/savedProfile'
+import { cn } from '@/lib/utils'
 
 import { FeaturedTagsSection } from './FeaturedTagsSection'
 import { ProfileImageField } from './ProfileImageField'
@@ -626,7 +630,14 @@ export const ProfileEditor: FC<Props> = ({
           </Frame>
         </div>
 
-        <div className="hidden @min-[860px]:sticky @min-[860px]:top-4 @min-[860px]:block">
+        {/* Sticks at the section rail's offset so its top does not slide
+            under the sticky Settings header. */}
+        <div
+          className={cn(
+            'sticky hidden @min-[860px]:block',
+            SECTION_STICKY_TOP_CLASS
+          )}
+        >
           <ProfilePreview draft={draft} username={username} handle={handle} />
         </div>
       </div>

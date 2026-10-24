@@ -30,17 +30,7 @@ vi.mock('@/lib/services/serverSettings', () => ({
 }))
 
 vi.mock('@/lib/services/domains/visitedFeatures', () => ({
-  getVisitedFeatures: vi.fn(async (features) => {
-    const defaultFeatures = {
-      fitness: true,
-      explore: false,
-      messages: false
-    }
-    return {
-      ...defaultFeatures,
-      ...features
-    }
-  })
+  getVisitedFeatures: vi.fn()
 }))
 
 const ACTOR = {
@@ -174,6 +164,10 @@ describe('/settings/privacy', () => {
   it('links to Fitness and Gallery privacy', async () => {
     render(await Page())
 
+    expect(
+      screen.getByText('Set in Fitness and Gallery, where the places are.')
+    ).toBeInTheDocument()
+
     const fitnessLink = screen.getByRole('link', { name: /Fitness privacy/ })
     expect(fitnessLink).toHaveAttribute('href', '/fitness/privacy')
 
@@ -188,6 +182,10 @@ describe('/settings/privacy', () => {
       messages: false
     })
     render(await Page())
+
+    expect(
+      screen.getByText('Set in Gallery, where the places are.')
+    ).toBeInTheDocument()
 
     expect(
       screen.queryByRole('link', { name: /Fitness privacy/ })

@@ -1734,7 +1734,8 @@ changed' }` before any write. Mastodon clients do not send it and are
   successful save shows `ProfileSavedToast` (in the shape of
   `GalleryAddedToast`, with the words also in an always-mounted polite region
   that carries the save's number, so a second save is announced again)
-  and calls `router.refresh()`. From `xl` a live preview column
+  and calls `router.refresh()`. When the editor is at least 860px wide (a
+  container query; from `lg` the Settings rail takes width) a live preview column
   (`ProfilePreview`: avatar, header, name, handle, bio, the links through
   `ProfileFieldsBlock` with "+N more", the tab strip, and a "Set in Settings"
   card linking Who can follow you (`/settings/privacy`), Fitness privacy (`/fitness/privacy`) and Gallery privacy (`/gallery/privacy`)) sits

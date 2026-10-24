@@ -82,7 +82,7 @@ export const getSettingsGroups = (
         name: 'Privacy',
         url: '/settings/privacy',
         icon: <UserCheck />,
-        description: 'Who can follow you, plus Fitness and Gallery privacy'
+        description: 'Who can follow you, and where to hide places'
       },
       {
         name: 'Blocked accounts',
