@@ -285,7 +285,9 @@ describe('AddActorDialog', () => {
     it('shows error when username is empty or whitespace', async () => {
       renderDialog()
 
-      const submitButton = screen.getByRole('button', { name: 'Create actor' })
+      const submitButton = screen.getByRole('button', {
+        name: 'Create profile'
+      })
       const input = screen.getByLabelText('Username')
 
       expect(submitButton).toBeDisabled()
@@ -418,7 +420,9 @@ describe('AddActorDialog', () => {
 
       expect(switchActor).not.toHaveBeenCalled()
       expect(mockOnSuccess).not.toHaveBeenCalled()
-      expect(screen.getByRole('button', { name: 'Create actor' })).toBeEnabled()
+      expect(
+        screen.getByRole('button', { name: 'Create profile' })
+      ).toBeEnabled()
     })
 
     it('exposes network failure when creation encounters an error', async () => {
@@ -467,10 +471,12 @@ describe('AddActorDialog', () => {
       expect(mockOnSuccess).not.toHaveBeenCalled()
 
       await waitFor(() => {
-        expect(screen.getByText('Failed to switch actor')).toBeInTheDocument()
+        expect(screen.getByText('Failed to switch profile')).toBeInTheDocument()
       })
 
-      expect(screen.getByRole('button', { name: 'Create actor' })).toBeEnabled()
+      expect(
+        screen.getByRole('button', { name: 'Create profile' })
+      ).toBeEnabled()
     })
 
     it('sets active offline session for the new actor and succeeds even if session update fails', async () => {
@@ -600,10 +606,10 @@ describe('AddActorDialog', () => {
 
       expect(screen.getByLabelText('Username')).toHaveValue('')
       expect(
-        screen.queryByText('Failed to switch actor')
+        screen.queryByText('Failed to switch profile')
       ).not.toBeInTheDocument()
       expect(
-        screen.getByRole('button', { name: 'Create actor' })
+        screen.getByRole('button', { name: 'Create profile' })
       ).toBeDisabled()
       expect(mockOnSuccess).not.toHaveBeenCalled()
     })

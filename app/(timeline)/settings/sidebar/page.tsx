@@ -34,6 +34,7 @@ const Page = async () => {
   // beside this page in step as it is edited.
   return (
     <NavigationSettings
+      profileUrl={`/@${actor.username}@${actor.domain}`}
       fitnessUrl="/fitness"
       galleryUrl="/gallery"
       isAdmin={actor.account.role === 'admin'}

@@ -58,7 +58,13 @@ describe('NavigationSettings', () => {
   })
 
   it('lists the items this account can reach, with their descriptions', () => {
-    renderSettings(<NavigationSettings fitnessUrl="/fitness" isAdmin />)
+    renderSettings(
+      <NavigationSettings
+        profileUrl="/@alice@example.com"
+        fitnessUrl="/fitness"
+        isAdmin
+      />
+    )
 
     expect(screen.getAllByRole('listitem')).toHaveLength(13)
     expect(
@@ -66,6 +72,7 @@ describe('NavigationSettings', () => {
     ).toBeInTheDocument()
     expect(screen.getByText('Admin')).toBeInTheDocument()
     expect(screen.getByText('Fitness')).toBeInTheDocument()
+    expect(screen.getByText('Profile')).toBeInTheDocument()
   })
 
   it('leaves out items this account does not have', () => {
@@ -73,6 +80,39 @@ describe('NavigationSettings', () => {
 
     expect(screen.queryByText('Admin')).not.toBeInTheDocument()
     expect(screen.queryByText('Fitness')).not.toBeInTheDocument()
+    expect(screen.queryByText('Profile')).not.toBeInTheDocument()
+  })
+
+  it('includes Profile when profileUrl is provided and allows hiding it', () => {
+    renderSettings(<NavigationSettings profileUrl="/@alice@example.com" />)
+
+    const row = rowFor('Profile')
+    expect(
+      within(row).getByRole('switch', { name: 'Show Profile' })
+    ).toBeInTheDocument()
+    expect(within(row).queryByText('Pinned')).not.toBeInTheDocument()
+  })
+
+  it('does not have an Account & security row', () => {
+    renderSettings(
+      <NavigationSettings
+        profileUrl="/@alice@example.com"
+        fitnessUrl="/fitness"
+        isAdmin
+      />
+    )
+
+    expect(screen.queryByText('Account & security')).not.toBeInTheDocument()
+  })
+
+  it('displays a note explaining where Account & security and Sign out are located', () => {
+    renderSettings(<NavigationSettings />)
+
+    expect(
+      screen.getByText(
+        'Account & security and Sign out are in the account menu at the bottom of the sidebar.'
+      )
+    ).toBeInTheDocument()
   })
 
   it('hides an item and marks the row', async () => {
@@ -186,7 +226,7 @@ describe('NavigationSettings', () => {
   })
 
   it('announces where a moved row landed', async () => {
-    renderSettings(<NavigationSettings />)
+    renderSettings(<NavigationSettings profileUrl="/@alice@example.com" />)
 
     fireEvent.keyDown(
       within(rowFor('Search')).getByRole('button', { name: /Reorder Search/ }),
@@ -253,7 +293,7 @@ describe('NavigationSettings', () => {
   })
 
   it('says only the row moved after a keyboard reorder, not that it saved', async () => {
-    renderSettings(<NavigationSettings />)
+    renderSettings(<NavigationSettings profileUrl="/@alice@example.com" />)
 
     fireEvent.keyDown(
       within(rowFor('Search')).getByRole('button', { name: /^Reorder Search/ }),
@@ -372,18 +412,18 @@ describe('NavigationSettings', () => {
   })
 
   it('keeps focus on the button that moved a row to the end of the list', async () => {
-    renderSettings(<NavigationSettings />)
+    renderSettings(<NavigationSettings profileUrl="/@alice@example.com" />)
 
-    // Account sits second from last, so one press puts it last and its own
+    // Profile sits second from last, so one press puts it last and its own
     // "Move down" becomes inert.
-    const down = within(rowFor('Account & security')).getByRole('button', {
-      name: 'Move Account & security down'
+    const down = within(rowFor('Profile')).getByRole('button', {
+      name: 'Move Profile down'
     })
     down.focus()
     fireEvent.click(down)
     await act(async () => {})
 
-    expect(rowLabels().at(-1)).toBe('Account & security')
+    expect(rowLabels().at(-1)).toBe('Profile')
     expect(document.activeElement).toBe(down)
   })
 

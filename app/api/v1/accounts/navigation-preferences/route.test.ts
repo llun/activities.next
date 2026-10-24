@@ -194,4 +194,22 @@ describe('POST /api/v1/accounts/navigation-preferences', () => {
       navHidden: ['bookmarks']
     })
   })
+
+  it('maps legacy account in navOrder to profile and drops it from navHidden', async () => {
+    await POST(
+      buildRequest(
+        JSON.stringify({
+          navOrder: ['timeline', 'account', 'bookmarks'],
+          navHidden: ['account', 'favorites']
+        })
+      ),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(mockDb.updateActor).toHaveBeenCalledWith({
+      actorId: ACTOR1_ID,
+      navOrder: ['timeline', 'profile', 'bookmarks'],
+      navHidden: ['favorites']
+    })
+  })
 })

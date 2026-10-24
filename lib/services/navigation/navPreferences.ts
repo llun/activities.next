@@ -21,7 +21,7 @@ export const NAV_ITEM_IDS = [
   'gallery',
   'notifications',
   'admin',
-  'account',
+  'profile',
   'settings'
 ] as const
 
@@ -32,14 +32,14 @@ export type NavItemId = (typeof NAV_ITEM_IDS)[number]
 export const DEFAULT_NAV_ORDER: readonly NavItemId[] = NAV_ITEM_IDS
 
 // Pinned items. They can still be reordered, but never hidden: they are either
-// the only way back to a section that hides things (Settings, Account) or the
-// core reading surfaces (Timeline, Search, Lists, Notifications).
+// the only way back to a section that hides things (Settings) or the core
+// reading surfaces (Timeline, Search, Lists, Notifications). Profile is not
+// locked and can be hidden under More.
 export const LOCKED_NAV_IDS: ReadonlySet<NavItemId> = new Set<NavItemId>([
   'timeline',
   'search',
   'lists',
   'notifications',
-  'account',
   'settings'
 ])
 
@@ -73,11 +73,28 @@ export const isNavItemId = (value: string): value is NavItemId =>
 export const isNavItemLocked = (id: NavItemId): boolean =>
   LOCKED_NAV_IDS.has(id)
 
-const dedupeKnownIds = (input: readonly string[] | undefined): NavItemId[] => {
+// Legacy alias: step 3 replaced the Account nav item with Profile (Account &
+// security moved to the account menu). Stored orders map 'account' to
+// 'profile' in the same slot; hidden lists drop it, because it was locked and
+// must not hide Profile.
+const dedupeKnownIds = (
+  input: readonly (string | NavItemId)[] | undefined,
+  options?: { legacyAccount?: 'profile' | 'drop' }
+): NavItemId[] => {
   if (!input) return []
   const seen = new Set<NavItemId>()
-  for (const value of input) {
-    if (isNavItemId(value)) seen.add(value)
+  for (const raw of input) {
+    let candidate: string = raw
+    if (raw === 'account') {
+      if (options?.legacyAccount === 'profile') {
+        candidate = 'profile'
+      } else {
+        continue
+      }
+    }
+    if (isNavItemId(candidate)) {
+      seen.add(candidate)
+    }
   }
   return [...seen]
 }
@@ -89,7 +106,7 @@ const dedupeKnownIds = (input: readonly string[] | undefined): NavItemId[] => {
  * up for everyone instead of disappearing behind a stale preference.
  */
 export const normalizedOrder = (prefs: NavPreferences): NavItemId[] => {
-  const kept = dedupeKnownIds(prefs.navOrder)
+  const kept = dedupeKnownIds(prefs.navOrder, { legacyAccount: 'profile' })
   const keptSet = new Set(kept)
   return [...kept, ...DEFAULT_NAV_ORDER.filter((id) => !keptSet.has(id))]
 }
@@ -101,7 +118,9 @@ export const normalizedOrder = (prefs: NavPreferences): NavItemId[] => {
  */
 export const normalizedHidden = (prefs: NavPreferences): NavItemId[] => {
   const hidden = new Set(
-    dedupeKnownIds(prefs.navHidden).filter((id) => !isNavItemLocked(id))
+    dedupeKnownIds(prefs.navHidden, { legacyAccount: 'drop' }).filter(
+      (id) => !isNavItemLocked(id)
+    )
   )
   return normalizedOrder(prefs).filter((id) => hidden.has(id))
 }
@@ -178,7 +197,9 @@ export const moveNavItemTo = (
 // Request sanitizers. The browser sends whatever it has; persist only ids this
 // release knows, without duplicates, and never a pinned id in the hidden list.
 export const sanitizeNavOrder = (input: readonly string[]): NavItemId[] =>
-  dedupeKnownIds(input)
+  dedupeKnownIds(input, { legacyAccount: 'profile' })
 
 export const sanitizeNavHidden = (input: readonly string[]): NavItemId[] =>
-  dedupeKnownIds(input).filter((id) => !isNavItemLocked(id))
+  dedupeKnownIds(input, { legacyAccount: 'drop' }).filter(
+    (id) => !isNavItemLocked(id)
+  )

@@ -4,7 +4,23 @@ const itemHrefs = (params: Parameters<typeof buildNavLayout>[0]) =>
   buildNavLayout(params).shown.map((item) => item.href)
 
 describe('buildNavLayout', () => {
-  it('places favorites before bookmarks and account before settings in the base navigation', () => {
+  it('places favorites before bookmarks and profile before settings in the base navigation', () => {
+    expect(itemHrefs({ profileUrl: '/@llun' })).toEqual([
+      '/',
+      '/search',
+      '/explore',
+      '/messages',
+      '/drafts',
+      '/favorites',
+      '/bookmarks',
+      '/lists',
+      '/notifications',
+      '/@llun',
+      '/settings'
+    ])
+  })
+
+  it('omits profile when profileUrl is not provided', () => {
     expect(itemHrefs({})).toEqual([
       '/',
       '/search',
@@ -15,13 +31,17 @@ describe('buildNavLayout', () => {
       '/bookmarks',
       '/lists',
       '/notifications',
-      '/account',
       '/settings'
     ])
   })
 
   it('anchors fitness before notifications', () => {
-    expect(itemHrefs({ fitnessUrl: '/@llun@llun.test/fitness' })).toEqual([
+    expect(
+      itemHrefs({
+        fitnessUrl: '/@llun@llun.test/fitness',
+        profileUrl: '/@llun'
+      })
+    ).toEqual([
       '/',
       '/search',
       '/explore',
@@ -32,13 +52,13 @@ describe('buildNavLayout', () => {
       '/lists',
       '/@llun@llun.test/fitness',
       '/notifications',
-      '/account',
+      '/@llun',
       '/settings'
     ])
   })
 
-  it('anchors admin before account', () => {
-    expect(itemHrefs({ isAdmin: true })).toEqual([
+  it('anchors admin before profile', () => {
+    expect(itemHrefs({ isAdmin: true, profileUrl: '/@llun' })).toEqual([
       '/',
       '/search',
       '/explore',
@@ -49,14 +69,18 @@ describe('buildNavLayout', () => {
       '/lists',
       '/notifications',
       '/admin',
-      '/account',
+      '/@llun',
       '/settings'
     ])
   })
 
   it('keeps fitness and admin anchored when both are present', () => {
     expect(
-      itemHrefs({ fitnessUrl: '/@llun@llun.test/fitness', isAdmin: true })
+      itemHrefs({
+        fitnessUrl: '/@llun@llun.test/fitness',
+        isAdmin: true,
+        profileUrl: '/@llun'
+      })
     ).toEqual([
       '/',
       '/search',
@@ -69,7 +93,7 @@ describe('buildNavLayout', () => {
       '/@llun@llun.test/fitness',
       '/notifications',
       '/admin',
-      '/account',
+      '/@llun',
       '/settings'
     ])
   })
@@ -88,7 +112,7 @@ describe('buildNavLayout', () => {
   )
 
   it('keeps every item shown when the user has no preference', () => {
-    const { shown, more } = buildNavLayout({})
+    const { shown, more } = buildNavLayout({ profileUrl: '/@llun' })
     expect(more).toEqual([])
     expect(shown.map((item) => item.id)).toEqual([
       'timeline',
@@ -100,7 +124,7 @@ describe('buildNavLayout', () => {
       'bookmarks',
       'lists',
       'notifications',
-      'account',
+      'profile',
       'settings'
     ])
   })
@@ -151,16 +175,46 @@ describe('buildNavLayout', () => {
     )
   })
 
+  it('offers the profile item only with a profile url and points to it', () => {
+    expect(buildNavLayout({}).shown.some((item) => item.id === 'profile')).toBe(
+      false
+    )
+    const { shown } = buildNavLayout({ profileUrl: '/@llun' })
+    const ids = shown.map((item) => item.id)
+    expect(ids.indexOf('profile')).toBe(ids.indexOf('settings') - 1)
+    expect(shown.find((item) => item.id === 'profile')?.href).toEqual('/@llun')
+  })
+
+  it('allows profile to be hidden under more', () => {
+    const { shown, more } = buildNavLayout({
+      profileUrl: '/@llun',
+      prefs: { navHidden: ['profile'] }
+    })
+    expect(shown.map((item) => item.id)).not.toContain('profile')
+    expect(more.map((item) => item.id)).toContain('profile')
+  })
+
+  it('never contains an account nav item', () => {
+    const layout = buildNavLayout({
+      profileUrl: '/@llun',
+      fitnessUrl: '/fitness',
+      galleryUrl: '/gallery',
+      isAdmin: true
+    })
+    const allIds = [...layout.shown, ...layout.more].map((item) => item.id)
+    expect(allIds).not.toContain('account')
+  })
+
   it('marks pinned items as locked', () => {
-    const { shown } = buildNavLayout({})
+    const { shown } = buildNavLayout({ profileUrl: '/@llun' })
     const locked = shown.filter((item) => item.locked).map((item) => item.id)
     expect(locked).toEqual([
       'timeline',
       'search',
       'lists',
       'notifications',
-      'account',
       'settings'
     ])
+    expect(shown.find((item) => item.id === 'profile')?.locked).toBe(false)
   })
 })

@@ -46,7 +46,8 @@ vi.mock('next/link', () => ({
 
 const mockPathname = vi.fn(() => '/lists')
 vi.mock('next/navigation', () => ({
-  usePathname: () => mockPathname()
+  usePathname: () => mockPathname(),
+  useRouter: () => ({ refresh: vi.fn() })
 }))
 
 vi.mock('@/lib/client', () => ({
@@ -123,9 +124,6 @@ describe('MobileNav', () => {
     expect(screen.getByRole('link', { name: 'Bookmarks' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Fitness' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Admin' })).toBeInTheDocument()
-    expect(
-      screen.getByRole('link', { name: 'Account & security' })
-    ).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Settings' })).toBeInTheDocument()
   })
 
@@ -253,7 +251,7 @@ describe('MobileNav', () => {
 
     fireEvent.click(screen.getByTestId('mobile-trigger'))
 
-    const profileLink = screen.getByRole('link', { name: /Alice/ })
+    const profileLink = screen.getByRole('link', { name: 'Profile' })
     expect(profileLink).toHaveAttribute('href', '/@alice@example.com')
   })
 
