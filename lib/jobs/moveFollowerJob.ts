@@ -235,20 +235,22 @@ export const moveFollowerJob: JobHandle = createJobHandle(
           // The notification goes only once the follow is Accepted (a null
           // result leaves it Requested), and also for a follow a failed earlier
           // run already accepted, so a retry cleans up what that run left.
+          const acceptResult =
+            existing.status === FollowStatus.enum.Accepted
+              ? null
+              : await acceptFollowRequest({
+                  activity: {
+                    id: existing.id,
+                    type: 'Accept',
+                    actor: target.id,
+                    object: existing.id
+                  },
+                  database,
+                  silent: true
+                })
           const accepted =
             existing.status === FollowStatus.enum.Accepted ||
-            (
-              await acceptFollowRequest({
-                activity: {
-                  id: existing.id,
-                  type: 'Accept',
-                  actor: target.id,
-                  object: existing.id
-                },
-                database,
-                silent: true
-              })
-            )?.status === FollowStatus.enum.Accepted
+            acceptResult?.status === FollowStatus.enum.Accepted
           if (accepted) {
             const pendingNotification =
               await database.getNotificationFromFollowId({

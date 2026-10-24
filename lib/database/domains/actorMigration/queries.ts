@@ -53,7 +53,7 @@ export const createActorMigration = (
 
 export const recordActorMigration = async (
   db: Db,
-  { cooldownMs, ...params }: RecordActorMigrationParams
+  { cooldownMs, aliasVerified, ...params }: RecordActorMigrationParams
 ): Promise<RecordActorMigrationResult> =>
   inTransaction(db, async (trx) => {
     const actor = await forUpdate(
@@ -91,6 +91,10 @@ export const recordActorMigration = async (
         }
         return { status: 'cooldown', until: last.createdAt + cooldownMs }
       }
+      // A new move row is only ever created for an alias the caller verified:
+      // the cooldown the caller relied on to skip the check may have ended
+      // since it looked.
+      if (!aliasVerified) return { status: 'unverified' }
     }
 
     const migration = await insertActorMigration(trx, params)

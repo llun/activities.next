@@ -109,12 +109,14 @@ describe('ActorMigrationDatabase', () => {
       id: string,
       actorId: string,
       kind: 'move' | 'redirect' = 'move',
-      targetActorId = TARGET
+      targetActorId = TARGET,
+      aliasVerified = true
     ) =>
       database.recordActorMigration({
         ...params(id, kind, actorId),
         targetActorId,
-        cooldownMs: COOLDOWN
+        cooldownMs: COOLDOWN,
+        aliasVerified
       })
     const rowCount = async (actorId: string) =>
       (await database.getActorMigrations({ actorId })).length
@@ -273,6 +275,48 @@ describe('ActorMigrationDatabase', () => {
       expect(
         (await record('rec-boundary-3', actorId, 'move', other)).status
       ).toBe('created')
+    })
+
+    it('creates no move row for an unverified alias, even when the cooldown just ended', async () => {
+      const actorId = await newActor('rec-unverified')
+      const other = 'https://third.test/users/mover'
+      await record('rec-unverified-1', actorId)
+      await testDb.db
+        .updateTable('actor_migrations')
+        .set({ createdAt: new Date(Date.now() - COOLDOWN - 60 * 1000) })
+        .where('actorId', '=', actorId)
+        .execute()
+      await database.updateActor({ actorId, movedTo: null })
+
+      expect(
+        await record('rec-unverified-2', actorId, 'move', other, false)
+      ).toEqual({ status: 'unverified' })
+      expect(await rowCount(actorId)).toBe(1)
+      expect((await database.getActorFromId({ id: actorId }))?.movedTo).toBe(
+        undefined
+      )
+
+      expect(
+        (await record('rec-unverified-3', actorId, 'move', other, true)).status
+      ).toBe('created')
+      expect(await rowCount(actorId)).toBe(2)
+      expect((await database.getActorFromId({ id: actorId }))?.movedTo).toBe(
+        other
+      )
+    })
+
+    it('still returns the existing row of an unstarted retry without a verified alias', async () => {
+      const actorId = await newActor('rec-unverified-retry')
+      await record('rec-uv-retry-1', actorId)
+      const again = await record(
+        'rec-uv-retry-2',
+        actorId,
+        'move',
+        TARGET,
+        false
+      )
+      expect(again.status).toBe('existing')
+      expect(await rowCount(actorId)).toBe(1)
     })
 
     it('writes explicit timestamps that read back as the current time', async () => {

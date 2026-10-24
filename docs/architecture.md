@@ -2127,7 +2127,11 @@ move, try again later`, but nothing is rolled back: the row, `movedTo` and the
   because the rows stay. A move whose start failed (503) and was never retried
   keeps `movedTo` and still counts toward the 30-day cooldown, as Mastodon's
   cooldown counts every recorded migration; `DELETE` clears the pointer, not the
-  cooldown. A redirect that succeeds
+  cooldown. `performOutgoingMove` skips the alias read only for a retry that a
+  newer migration row has already superseded (expected to answer 429); it then
+  passes `aliasVerified: false`, and the transaction never creates a `move` row
+  for it (answer `unverified`, 429, even if the cooldown ended meanwhile), while
+  an unstarted retry of the same verified move still returns `existing`. A redirect that succeeds
   sets `movedTo` and sends `Update(Person)` and nothing more. `GET` returns
   `getMigrationState` (`movedTo`, the migrations, `cooldownUntil`,
   `followersCount`).

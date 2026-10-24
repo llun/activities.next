@@ -24,6 +24,10 @@ export interface CreateActorMigrationParams {
 export interface RecordActorMigrationParams extends CreateActorMigrationParams {
   // A 'move' inside this window after the last 'move' is refused.
   cooldownMs: number
+  // The caller read the target's alias list and it names the actor. A 'move'
+  // never creates a row without it (an unstarted retry of the same move, which
+  // was verified when it was recorded, is still answered 'existing').
+  aliasVerified: boolean
 }
 
 export type RecordActorMigrationResult =
@@ -32,6 +36,8 @@ export type RecordActorMigrationResult =
   // nothing was written, the caller queues it again.
   | { status: 'existing'; migration: ActorMigration }
   | { status: 'cooldown'; until: number }
+  // A 'move' that would create a row but whose alias was not verified.
+  | { status: 'unverified' }
   | { status: 'no-actor' }
 
 export interface MarkActorMigrationStartedParams {

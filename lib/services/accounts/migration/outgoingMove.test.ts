@@ -147,10 +147,7 @@ describe('performOutgoingMove on a real database', () => {
 
   const cancelAndRedirect = async (actor: Actor, target: Actor) => {
     // DELETE /api/v1/accounts/migration clears movedTo, then a redirect to the
-    // same account sets it again. A later millisecond keeps "newest row"
-    // unambiguous (rows order by createdAt, then by a random id).
-    vi.useFakeTimers({ toFake: ['Date'] })
-    vi.setSystemTime(Date.now() + 1000)
+    // same account sets it again.
     await database.updateActor({ actorId: actor.id, movedTo: null })
     expect(
       await performOutgoingMove({

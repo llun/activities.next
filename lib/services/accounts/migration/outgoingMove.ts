@@ -1,5 +1,4 @@
 import bcrypt from 'bcrypt'
-import crypto from 'crypto'
 
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import type { ActorMigrationKind } from '@/lib/database/domains/actorMigration/types'
@@ -11,6 +10,7 @@ import { getQueue } from '@/lib/services/queue'
 import { Actor } from '@/lib/types/domain/actor'
 import { actorIdsMatch } from '@/lib/utils/activitypub'
 import { logger } from '@/lib/utils/logger'
+import { generatePublicId } from '@/lib/utils/publicId'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 // Mastodon: AccountMigration::COOLDOWN_PERIOD.
@@ -186,7 +186,8 @@ export const performOutgoingMove = async ({
   }
 
   const recorded = await database.recordActorMigration({
-    id: crypto.randomUUID(),
+    // Time-ordered, so rows created in the same millisecond keep their order.
+    id: generatePublicId(),
     actorId: actor.id,
     targetActorId: target.id,
     targetAcct: `${target.username}@${target.domain}`,
@@ -194,9 +195,15 @@ export const performOutgoingMove = async ({
     followersCount: await database.getActorFollowersCount({
       actorId: actor.id
     }),
-    cooldownMs: MOVE_COOLDOWN_MS
+    cooldownMs: MOVE_COOLDOWN_MS,
+    // Skipped only when the transaction is expected to answer cooldown; it
+    // refuses to create a move row for anything not verified here.
+    aliasVerified: !superseded
   })
   if (recorded.status === 'no-actor') return fail(404, 'Record not found')
+  if (recorded.status === 'unverified') {
+    return fail(429, 'The move changed while it was checked, try again')
+  }
   if (recorded.status === 'cooldown') {
     const cooldownUntil = new Date(recorded.until).toISOString()
     return fail(429, `You can move again after ${cooldownUntil}`, cooldownUntil)

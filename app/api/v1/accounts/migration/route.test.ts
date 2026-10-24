@@ -63,9 +63,11 @@ const mockDatabase = {
   recordActorMigration: vi.fn(
     async ({
       cooldownMs: _cooldownMs,
+      aliasVerified: _aliasVerified,
       ...params
     }: Omit<(typeof migrations)[number], 'createdAt'> & {
       cooldownMs: number
+      aliasVerified: boolean
     }) => {
       if (recordOutcome.status === 'existing') {
         return { status: 'existing' as const, migration: migrations[0] }
