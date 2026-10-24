@@ -113,7 +113,7 @@ describe('sendMoveJob', () => {
       'https://somewhere.test/inbox'
     ])
     for (const job of sent) {
-      expect(job.id).toBe(getDeliveryJobId(MESSAGE_ID, job.data.inbox))
+      expect(job.id).toBe(getDeliveryJobId(MIGRATION, job.data.inbox))
       expect(job.data.actorId).toBe(ORIGIN)
       expect(job.data.activity).toEqual({
         '@context': 'https://www.w3.org/ns/activitystreams',
@@ -240,6 +240,41 @@ describe('sendMoveJob', () => {
       next = published().find((job) => job.name === SEND_MOVE_JOB_NAME)
     }
     expect(guard).toBeLessThan(10)
+  })
+
+  it('keys a shared inbox on the migration across pages and covers every follower', async () => {
+    const all: ReturnType<typeof published> = []
+    let next: ReturnType<typeof message> | undefined = message()
+    let slices = 0
+    while (next && slices++ < 20) {
+      mockPublish.mockClear()
+      await runSendMove(database, next, { budgetMs: 0, pageSize: 1 })
+      all.push(...published())
+      const continuation = published().find(
+        (job) => job.name === SEND_MOVE_JOB_NAME
+      )
+      next = continuation && message(continuation.data, continuation.id)
+    }
+    expect(slices).toBeLessThan(20)
+
+    const sent = all.filter((job) => job.name === DELIVER_ACTIVITY_JOB_NAME)
+    // somewhere.test/inbox is shared by two followers on two different pages.
+    expect(
+      sent.filter((job) => job.data.inbox === 'https://somewhere.test/inbox')
+    ).toHaveLength(2)
+    expect(new Set(sent.map((job) => job.id))).toEqual(
+      new Set(
+        ['https://somewhere.test/inbox', 'https://other.test/inbox'].map(
+          (inbox) => getDeliveryJobId(MIGRATION, inbox)
+        )
+      )
+    )
+    expect(new Set(sent.map((job) => job.data.inbox))).toEqual(
+      new Set(['https://somewhere.test/inbox', 'https://other.test/inbox'])
+    )
+    expect(
+      all.filter((job) => job.name === MOVE_FOLLOWER_JOB_NAME)
+    ).toHaveLength(2)
   })
 
   it('does nothing when the move was cancelled', async () => {

@@ -30,7 +30,7 @@ export interface MigrationState {
 
 export type OutgoingMoveFailure = {
   ok: false
-  status: 403 | 404 | 422 | 429 | 503
+  status: 403 | 404 | 422 | 429 | 502 | 503
   error: string
   cooldownUntil?: string
 }
@@ -141,61 +141,69 @@ export const performOutgoingMove = async ({
     return fail(422, 'Target account is not available')
   }
   if (target.movedTo) return fail(422, 'Target account has moved')
-  if (actor.movedTo && actorIdsMatch(actor.movedTo, target.id)) {
+  // A move retried after its publish failed targets the account the last move
+  // row already names; the database call below tells it apart from a new move.
+  const lastMove =
+    kind === 'move'
+      ? await database.getLastActorMove({ actorId: actor.id })
+      : null
+  const isRetry =
+    lastMove !== null &&
+    actorIdsMatch(lastMove.targetActorId, target.id) &&
+    lastMove.createdAt + MOVE_COOLDOWN_MS > Date.now()
+  if (!isRetry && actor.movedTo && actorIdsMatch(actor.movedTo, target.id)) {
     return fail(422, 'Already moved to this account')
   }
 
   if (kind === 'move') {
     const fresh = await readTargetFresh(database, target)
-    if (fresh?.moved) return fail(422, 'Target account has moved')
-    if (!fresh?.aliases.some((alias) => actorIdsMatch(alias, actor.id))) {
-      return fail(422, ALIAS_REQUIRED)
+    if (!fresh) {
+      return fail(502, 'Could not reach the new account, try again later')
     }
-    const lastMove = await database.getLastActorMove({ actorId: actor.id })
-    const cooldownEnd = lastMove ? lastMove.createdAt + MOVE_COOLDOWN_MS : 0
-    if (cooldownEnd > Date.now()) {
-      const cooldownUntil = new Date(cooldownEnd).toISOString()
-      return fail(
-        429,
-        `You can move again after ${cooldownUntil}`,
-        cooldownUntil
-      )
+    if (fresh.moved) return fail(422, 'Target account has moved')
+    if (!fresh.aliases.some((alias) => actorIdsMatch(alias, actor.id))) {
+      return fail(422, ALIAS_REQUIRED)
     }
   }
 
-  await database.updateActor({ actorId: actor.id, movedTo: target.id })
-  const migrationId = crypto.randomUUID()
-  await database.createActorMigration({
-    id: migrationId,
+  const recorded = await database.recordActorMigration({
+    id: crypto.randomUUID(),
     actorId: actor.id,
     targetActorId: target.id,
     targetAcct: `${target.username}@${target.domain}`,
     kind,
     followersCount: await database.getActorFollowersCount({
       actorId: actor.id
-    })
+    }),
+    cooldownMs: MOVE_COOLDOWN_MS
   })
+  if (recorded.status === 'no-actor') return fail(404, 'Record not found')
+  if (recorded.status === 'cooldown') {
+    const cooldownUntil = new Date(recorded.until).toISOString()
+    return fail(429, `You can move again after ${cooldownUntil}`, cooldownUntil)
+  }
+  const { migration } = recorded
   await publishActorUpdate({ actorId: actor.id })
 
   if (kind === 'move') {
     try {
+      // The id is the migration's, so a retry re-publishes the same job.
       await getQueue().publish({
-        id: `${migrationId}:start`,
+        id: `${migration.id}:start`,
         name: SEND_MOVE_JOB_NAME,
         data: {
-          migrationId,
+          migrationId: migration.id,
           originActorId: actor.id,
           targetActorId: target.id
         }
       })
     } catch (error) {
-      // movedTo and the migration row are already saved and the Update(Person)
-      // is out, so rolling back would show remote servers a move that never
-      // happened. The 503 tells the user the Move delivery did not start.
+      // The move is recorded and the Update(Person) is out; retrying the same
+      // request publishes the job again.
       logger.error({
         message: 'Failed to queue the Move activity',
         actorId: actor.id,
-        migrationId,
+        migrationId: migration.id,
         err: toLoggableError(error)
       })
       return fail(503, 'Could not start the move, try again later')

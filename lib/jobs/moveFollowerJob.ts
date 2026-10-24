@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { acceptFollowRequest } from '@/lib/actions/acceptFollowRequest'
 import { follow } from '@/lib/activities'
 import { createJobHandle } from '@/lib/jobs/createJobHandle'
 import {
@@ -11,7 +12,7 @@ import { getFederationSigningActor } from '@/lib/services/federation/getFederati
 import { notifyLocalFollow } from '@/lib/services/notifications/notifyLocalFollow'
 import { getQueue } from '@/lib/services/queue'
 import { JobHandle } from '@/lib/services/queue/type'
-import { FollowStatus } from '@/lib/types/domain/follow'
+import { type Follow, FollowStatus } from '@/lib/types/domain/follow'
 import { actorIdsMatch, normalizeActorId } from '@/lib/utils/activitypub'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { withSpan } from '@/lib/utils/trace'
@@ -210,7 +211,7 @@ export const moveFollowerJob: JobHandle = createJobHandle(
         }
       }
 
-      const keepOrigin = async (existing: { id: string }) => {
+      const keepOrigin = async (existing: Pick<Follow, 'id' | 'status'>) => {
         // FollowMigrationService#change_follow_options!: the follower already
         // follows (or asked to follow) the target themselves, so only the
         // options move. `undefined` leaves an existing language filter alone.
@@ -224,6 +225,25 @@ export const moveFollowerJob: JobHandle = createJobHandle(
           languages: oldFollow.languages ?? undefined
         })
         await addTargetToLists()
+        // MoveWorker#rewrite_follows!: between two local accounts the pending
+        // request to the target is authorized (a silenced follower's stays
+        // pending, as for a new follow).
+        if (
+          origin.privateKey &&
+          isLocalTarget &&
+          !isSilenced &&
+          existing.status === FollowStatus.enum.Requested
+        ) {
+          await acceptFollowRequest({
+            activity: {
+              id: existing.id,
+              type: 'Accept',
+              actor: target.id,
+              object: existing.id
+            },
+            database
+          })
+        }
         span.setAttribute('keptOriginFollow', existing.id)
       }
 

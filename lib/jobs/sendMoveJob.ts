@@ -40,7 +40,8 @@ export const getSendMoveContinueJobId = (migrationId: string, cursor: string) =>
 // Mastodon MoveService: MoveWorker for the origin's local followers (every
 // target, local or remote) and MoveDistributionWorker for the Move sent to each
 // remote follower inbox. Every published job id is deterministic, so a retry,
-// or a republished page, is harmless.
+// or a republished page, is harmless. Deliveries are keyed on the migration
+// rather than the slice, so a shared inbox seen on several pages gets one Move.
 export const runSendMove = async (
   database: Database,
   message: JobMessage,
@@ -129,7 +130,7 @@ export const runSendMove = async (
           data: { followId: follow.id, targetActorId: target.id }
         })),
         ...inboxes.map((inbox) => ({
-          id: getDeliveryJobId(message.id, inbox),
+          id: getDeliveryJobId(migrationId, inbox),
           name: DELIVER_ACTIVITY_JOB_NAME,
           data: { inbox, actorId: origin.id, activity }
         }))

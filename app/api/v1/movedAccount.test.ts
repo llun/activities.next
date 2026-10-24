@@ -6,12 +6,14 @@ import { ACCOUNT_MOVED_ERROR } from '@/lib/services/accounts/movedAccount'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
+import { urlToId } from '@/lib/utils/urlToId'
 
 import { POST as postOutbox } from './accounts/outbox/route'
 import { POST as postRepost } from './accounts/repost/route'
 import { GET as getVerifyCredentials } from './accounts/verify_credentials/route'
 import { GET as getProfile } from './profile/route'
 import { POST as postReblog } from './statuses/[id]/reblog/route'
+import { PUT as putStatus } from './statuses/[id]/route'
 import { POST as postStatus } from './statuses/route'
 
 const mockGetServerSession = vi.fn()
@@ -177,6 +179,40 @@ describe('a moved account cannot post', () => {
         actorId: ACTOR1_ID
       })
     ).toBeFalsy()
+  })
+
+  it('refuses to edit an own status and leaves the text unchanged', async () => {
+    const statusId = `${ACTOR1_ID}/statuses/moved-edit-target`
+    await database.createNote({
+      id: statusId,
+      url: statusId,
+      actorId: ACTOR1_ID,
+      text: 'original text',
+      to: [],
+      cc: []
+    })
+    const put = (text: string) =>
+      putStatus(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({ status: text }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+    await markMoved()
+    await expectMoved(await put('edited after move'))
+    expect(await statusTexts()).not.toContain('edited after move')
+
+    await database.updateActor({ actorId: ACTOR1_ID, movedTo: null })
+    expect((await put('edited before move')).status).toBe(200)
   })
 
   it('exposes the moved flag on the profile and the moved account on verify_credentials', async () => {

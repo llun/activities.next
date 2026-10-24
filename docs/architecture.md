@@ -2089,24 +2089,36 @@ changed' }` before any write. Mastodon clients do not send it and are
   `forbidden` is 403 and `not-found` is 404. `performOutgoingMove`
   (`lib/services/accounts/migration/outgoingMove.ts`) then refuses, all as 422:
   the account itself, a target that is suspended or being deleted, a target
-  whose `movedTo` is set, and an account that already moved to this target. For
-  `move` only, it reads the target's `alsoKnownAs` and `movedTo` fresh (a stored
-  row for a local target; for a remote one, the Person from its origin, signed
-  when a signing actor is configured, never the cache, and a failed read counts
-  as no alias). The account must be in those aliases (`Add this account as an
-alias on the new account first`) and the target must not have moved. Then the
-  account's last `move` must be 30 days old, or the answer is 429 with
-  `cooldownUntil`. `redirect` skips the alias and cooldown checks.
-- **The effects of a move run in this order.** `movedTo` is written, then an
-  `actor_migrations` row is created (kind, `targetAcct`, the followers count),
-  then `publishActorUpdate` sends `Update(Person)`, and only for `move` is
+  whose `movedTo` is set, and an account that already moved to this target
+  (`Already moved to this account`, except a retry of the same `move` inside its
+  cooldown, see below). For `move` only, it reads the target's `alsoKnownAs` and
+  `movedTo` fresh (a stored row for a local target; for a remote one, the Person
+  from its origin, signed when a signing actor is configured, never the cache).
+  An unreachable target is 502 `Could not reach the new account, try again
+later`; a reachable target that has moved is 422, and so is one whose aliases
+  do not list the account (`Add this account as an alias on the new account
+first`). The 30-day cooldown is checked when the move is recorded, below, and
+  answers 429 with `cooldownUntil`. `redirect` skips the target reads, the alias
+  and the cooldown checks.
+- **A move is recorded in one locked transaction, then published.**
+  `recordActorMigration` (`lib/database/domains/actorMigration/queries.ts`)
+  locks the actor row, checks the cooldown for a `move` (the newest `move` row
+  less than 30 days old, else 429), then inserts the `actor_migrations` row (kind,
+  `targetAcct`, the followers count) with explicit timestamps and sets
+  `movedTo` in the actor's settings, all in one commit. A retry of the same
+  `move` (the last move names this target and `movedTo` already points at it)
+  inside the cooldown returns that existing row instead of a new one. After the
+  commit, `publishActorUpdate` sends `Update(Person)`, and only for `move` is
   `SendMoveJob` queued with id `${migrationId}:start`. A failed queue publish is
   logged and answered with 503 `Could not start the move, try again later`, but
-  nothing is rolled back: `movedTo` and the row stay, because the Update is
-  already out. A retry is then refused as `Already moved to this account`, so
-  the API never queues that Move again. A redirect that succeeds sets `movedTo`
-  and sends `Update(Person)` and nothing more. `GET` returns `getMigrationState`
-  (`movedTo`, the migrations, `cooldownUntil`, `followersCount`).
+  nothing is rolled back: the row, `movedTo` and the Update stay. Retrying the
+  same POST publishes the same job id (the id is the migration's), which
+  completes the move. While the last move to that target is inside the cooldown,
+  that retry is not refused as `Already moved to this account`. The cooldown
+  still counts after `DELETE`, because the rows stay. A redirect that succeeds
+  sets `movedTo` and sends `Update(Person)` and nothing more. `GET` returns
+  `getMigrationState` (`movedTo`, the migrations, `cooldownUntil`,
+  `followersCount`).
 - **`SendMoveJob` (`lib/jobs/sendMoveJob.ts`, Mastodon's `MoveWorker` and
   `MoveDistributionWorker`) sends the Move.** The activity
   (`lib/activities/move.ts`) has id `${origin}#moves/${migrationId}`, type
@@ -2118,8 +2130,9 @@ alias on the new account first`) and the target must not have moved. Then the
   of the origin, for any target, local or remote, and fails the run if one
   cannot be queued. Then it pages the origin's followers 100 at a time by follow
   id. Each distinct remote shared inbox (or inbox) gets one delivery of the
-  activity, and each local follower gets a `MoveFollowerJob`, but only when the
-  target has not itself moved. Every job id is deterministic. A run stops after
+  activity, keyed on the migration id so one Move goes to each inbox across all
+  continuations, and each local follower gets a `MoveFollowerJob`, but only when
+  the target has not itself moved. Every job id is deterministic. A run stops after
   the page that crosses a 20-second budget and queues
   `${migrationId}:continue:<cursor>`. On a real queue a refused delivery fails
   the run for a retry; the in-process queue records the error and carries on.
@@ -2127,7 +2140,11 @@ alias on the new account first`) and the target must not have moved. Then the
   used to refuse an origin with a private key. Now a local origin whose
   `movedTo` is the target is accepted, because the origin of an outgoing move is
   ours. `MoveFollowerJob` then sends no `Undo` for the old follow (`publishUndo`
-  returns for a local origin), so that follow simply ends locally.
+  returns for a local origin), so that follow simply ends locally. In a
+  local-to-local move a request the follower already has pending to the target
+  is authorized through `acceptFollowRequest`, as Mastodon's
+  `MoveWorker#rewrite_follows!` does, unless the follower is silenced (a silenced
+  follower's request stays pending).
 - **Clearing a move, posting, and deletion.** `DELETE
 /api/v1/accounts/migration` (`actorId` from the query or a JSON body; 409 on a
   mismatch) clears `movedTo` and publishes `Update(Person)`, and nothing else.
@@ -2140,7 +2157,12 @@ alias on the new account first`) and the target must not have moved. Then the
   on the deprecated `POST /api/v1/accounts/outbox` and `POST
 /api/v1/accounts/repost`. A scheduled status whose author has moved when it is
   due is deleted by `publishScheduledStatusJob` without being published. These
-  posting checks are the only gates on a moved account. The profile response
+  posting checks are the only gates on a moved account, apart from the edit
+  check on `PUT /api/v1/statuses/:id` (422 `This account has moved` too, as
+  `movedAccountResponse` in `app/api/v1/statuses/[id]/route.ts`), and the known
+  gap below. Fitness imports (`importFitnessFilesJob`, `importStravaActivityJob`)
+  still create their post for a moved account through `database.createNote`
+  without that check, because the post is part of the import. The profile response
   (`lib/services/accounts/profile.ts`) carries `moved: true` while `movedTo` is
   set. `deleteActorData` (`lib/database/domains/actor/deletion.ts`) removes the
   account's `actor_migrations` rows with the rest of its data.

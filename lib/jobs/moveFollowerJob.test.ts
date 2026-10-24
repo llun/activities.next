@@ -590,6 +590,25 @@ describe('moveFollowerJob', () => {
     })
   })
 
+  it('leaves a pending request to a local target pending for a remote origin', async () => {
+    mockPublish.mockResolvedValue(undefined)
+    await database.updateActor({ actorId: ORIGIN, movedTo: ACTOR2_ID })
+    const pending = await database.createFollow({
+      actorId: ACTOR1_ID,
+      targetActorId: ACTOR2_ID,
+      status: FollowStatus.enum.Requested,
+      inbox: `${ACTOR1_ID}/inbox`,
+      sharedInbox: 'https://llun.test/inbox'
+    })
+
+    await run(ACTOR1_ID, ACTOR2_ID)
+
+    expect(
+      (await database.getFollowFromId({ followId: pending.id }))?.status
+    ).toBe(FollowStatus.enum.Requested)
+    expect(await originStatus()).toBe(FollowStatus.enum.Accepted)
+  })
+
   it('keeps its Requested row when the Follow is not delivered, then sends the same row', async () => {
     vi.mocked(follow).mockResolvedValueOnce(false)
 
@@ -771,6 +790,54 @@ describe('moveFollowerJob', () => {
         (await database.getFollowFromId({ followId: oldFollow.id }))?.status
       ).toBe(FollowStatus.enum.Undo)
       expect(mockPublish).not.toHaveBeenCalled()
+    })
+
+    describe('a pending request to a local target', () => {
+      const requestTarget = async () => {
+        mockPublish.mockResolvedValue(undefined)
+        const oldFollow = await setup(ACTOR3_ID)
+        const pending = await database.createFollow({
+          actorId: ACTOR1_ID,
+          targetActorId: ACTOR3_ID,
+          status: FollowStatus.enum.Requested,
+          inbox: `${ACTOR1_ID}/inbox`,
+          sharedInbox: 'https://llun.test/inbox'
+        })
+        return { oldFollow, pending }
+      }
+
+      it('is authorized and the origin follow is kept (MoveWorker rewrite_follows!)', async () => {
+        const { oldFollow, pending } = await requestTarget()
+
+        await runLocal(oldFollow.id, ACTOR3_ID)
+
+        expect(follow).not.toHaveBeenCalled()
+        expect(
+          (await database.getFollowFromId({ followId: pending.id }))?.status
+        ).toBe(FollowStatus.enum.Accepted)
+        expect(
+          (await database.getFollowFromId({ followId: oldFollow.id }))?.status
+        ).toBe(FollowStatus.enum.Accepted)
+        expect(sendNotificationAlerts).toHaveBeenCalledTimes(1)
+        expect(sendNotificationAlerts).toHaveBeenCalledWith(
+          expect.objectContaining({
+            actorId: ACTOR3_ID,
+            sourceActorId: ACTOR1_ID
+          })
+        )
+      })
+
+      it('stays pending for a silenced follower', async () => {
+        await database.setActorSilenced({ actorId: ACTOR1_ID, silenced: true })
+        const { oldFollow, pending } = await requestTarget()
+
+        await runLocal(oldFollow.id, ACTOR3_ID)
+
+        expect(
+          (await database.getFollowFromId({ followId: pending.id }))?.status
+        ).toBe(FollowStatus.enum.Requested)
+        expect(sendNotificationAlerts).not.toHaveBeenCalled()
+      })
     })
 
     it('does nothing when the local origin has not moved to the target', async () => {
