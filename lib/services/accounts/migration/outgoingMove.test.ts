@@ -123,6 +123,34 @@ describe('performOutgoingMove on a real database', () => {
     expect(row.startedAt).toBeGreaterThan(0)
   })
 
+  it('records the move as verified on a normal successful move', async () => {
+    const { actor, target } = await setup('verified')
+    const record = vi.spyOn(database, 'recordActorMigration')
+    await performOutgoingMove({ database, actor, target, kind: 'move' })
+    expect(record).toHaveBeenCalledWith(
+      expect.objectContaining({ aliasVerified: true })
+    )
+    record.mockRestore()
+  })
+
+  it('answers 429 and publishes nothing when the move was recorded unverified', async () => {
+    const { actor, target } = await setup('unverified')
+    const record = vi
+      .spyOn(database, 'recordActorMigration')
+      .mockResolvedValueOnce({ status: 'unverified' } as never)
+    expect(
+      await performOutgoingMove({ database, actor, target, kind: 'move' })
+    ).toEqual({
+      ok: false,
+      status: 429,
+      error: 'The move changed while it was checked, try again',
+      cooldownUntil: undefined
+    })
+    expect(publish).not.toHaveBeenCalled()
+    expect(publishActorUpdate).not.toHaveBeenCalled()
+    record.mockRestore()
+  })
+
   it('answers 422 to a repeat of a successful move without a job or an Update', async () => {
     const { actor, target } = await setup('repeat')
     await performOutgoingMove({ database, actor, target, kind: 'move' })
@@ -172,10 +200,15 @@ describe('performOutgoingMove on a real database', () => {
     const stored = await cancelAndRedirect(actor, target)
     expect(stored.movedTo).toBe(target.id)
 
+    const record = vi.spyOn(database, 'recordActorMigration')
     expect(await moveAgain(stored, target)).toMatchObject({
       ok: false,
       status: 429
     })
+    expect(record).toHaveBeenCalledWith(
+      expect.objectContaining({ aliasVerified: false })
+    )
+    record.mockRestore()
     expect(publish).not.toHaveBeenCalled()
     expect(publishActorUpdate).not.toHaveBeenCalled()
   })
