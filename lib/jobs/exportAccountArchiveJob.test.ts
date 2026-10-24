@@ -294,7 +294,7 @@ describe('exportAccountArchiveJob', () => {
       await db
         .updateTable('medias')
         .set({ placeLatitude: 13.7563, placeLongitude: 100.5018 })
-        .where('id', '=', media!.id)
+        .where('id', '=', Number(media!.id))
         .execute()
     })
 

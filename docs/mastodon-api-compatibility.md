@@ -492,6 +492,18 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
 
 - **Multi-actor management** — `/api/v1/actors` and friends (`switch`, `default`,
   `domains`, `delete`, `cancel-deletion`) let one account own multiple actors.
+- **Account archive export** — `POST`/`GET /api/v1/account/archives` request and
+  list the signed-in account's data exports, and
+  `GET /api/v1/account/archives/:id/download` streams (or, on object storage,
+  redirects to a short-lived signed URL for) a finished one. These are **not** a
+  Mastodon API: Mastodon has no archive endpoint (its export is a web-UI
+  action), so no client is expected to call them, they use the web session, not
+  an OAuth scope, and they answer `404` to anyone but the owning account. The
+  archive's top level follows Mastodon's export (`actor.json`, `outbox.json`,
+  `likes.json`, `bookmarks.json`, media files), so a Mastodon-format importer
+  can read it; everything else lives under `activities.next/`. Mastodon's
+  limit is one request per 6 days in code and 7 in its documentation; this
+  server uses 7. See [Account data export](architecture.md#account-data-export).
 - **Browser Web Vitals** — `POST /api/v1/web-vitals` takes a same-origin,
   sampled report of LCP, CLS and INP from this app's own pages and writes it to
   the server log; it is off (404) unless `ACTIVITIES_WEB_VITALS_SAMPLE_RATE` is

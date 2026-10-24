@@ -258,6 +258,18 @@ the Mastodon archive format — includes imported activities that were never
 posted), the actor profile, likes, bookmarks, and follow lists. It is
 read-only against the database and storage.
 
+> **CLI versus the user export.** This script is the operator's tool: it needs
+> shell access, writes a `.tar.gz` of one actor and can fetch remote
+> attachments. Account owners get their own export from the web app
+> (`POST /api/v1/account/archives`, see [Account data
+> export](architecture.md#account-data-export)): one zip per account with every
+> profile, built by a background job and kept for 7 days under the media
+> storage's `archives/` prefix. Both share the same core
+> (`lib/services/accountArchive/actorArchive.ts`, re-exported by the script), so
+> a fix to the Mastodon-shaped files applies to both. An operator can delete an
+> export's files early by removing `archives/<id>/` from the storage; the row
+> then expires on its own.
+
 ### Usage
 
 ```bash

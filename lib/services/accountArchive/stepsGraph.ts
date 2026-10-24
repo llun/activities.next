@@ -165,7 +165,7 @@ export const graphStep: CollectorStep = {
       await stage.append(entry, `,${JSON.stringify(section.key)}:[`)
     }
 
-    let items: Record<string, unknown>[] = []
+    let items: Record<string, unknown>[]
     let next: AccountExportCursor | null = null
     if (section.kind === 'paged') {
       const page = await context.database.getAccountExportRows({

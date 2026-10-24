@@ -375,6 +375,57 @@ Status deletion (`deleteStatusFromUserInput`) adapts its federation queue dispat
   - The `SendDeleteNoteJob` is then published to the queue with the pre-deletion recipient snapshot.
   - If publishing to the external queue fails, the error is logged without masking the committed local deletion, ensuring the user is not falsely told their post remains when it has already been removed.
 
+### Account data export
+
+`POST /api/v1/account/archives` lets an account owner download everything the
+account holds (the user-facing counterpart of the operator-run
+`scripts/backup/exportActorArchive.ts`, see [Actor Archive
+Export](maintenance.md#actor-archive-export)). It is built by
+`ExportAccountArchiveJob` (`lib/jobs/exportAccountArchiveJob.ts`) from
+`lib/services/accountArchive/`:
+
+- **One archive per account, one zip.** The default profile's Mastodon-shaped
+  files (`actor.json`, `outbox.json`, `likes.json`, `bookmarks.json`, media under
+  `media_attachments/`) sit at the root, so the archive imports as a Mastodon
+  export; every other profile has the same files under
+  `activities.next/actors/<domain>/<username>/`. The extras per profile
+  (`profile.json`, `statuses.jsonl`, `scheduled.json`, `medias.jsonl`,
+  `gallery/*`, `fitness/*`, `graph.json`) live in that same directory,
+  `activities.next/account.json` and `manifest.json` describe the whole archive,
+  and `activities.next/drafts.json` is there when the request carried drafts.
+  `csvHook.ts` is where the Mastodon CSV files (follows, followers, lists,
+  blocks, mutes) are registered once their writers exist; until then the same
+  data is in `graph.json`.
+- **Nothing secret, by construction.** The collectors read through
+  `lib/database/domains/accountExport/`, which selects an explicit column
+  allowlist per table (`tables.ts`). A new column is therefore absent until
+  someone lists it, which is the safe direction. Keys, password hashes, 2FA and
+  passkey material, sessions, OAuth grants and tokens, push subscriptions and
+  fitness tokens are not in any allowlist, and the job test scans every JSON
+  entry's key names.
+- **Resumable, idempotent slices.** A slice collects pages for at most four
+  minutes, writing each page to a deterministic part key under
+  `archives/<id>/stage/` and then saving the cursor (`account_archives.progress`)
+  with a compare-and-set, so a slice killed at any point reruns the same page
+  to the same keys and a duplicate delivery cannot advance the cursor twice. The
+  next slice is published with a deterministic id. A slice that throws is
+  retried; three in a row mark the export `failed` and delete its files. When
+  every profile is collected the job streams the zip (Zip64, one source file open
+  at a time, never held in memory) into `archives/<id>/archive.zip`, removes
+  the staged parts and emails the owner.
+- **Storage.** The files use the media storage (local disk or S3-compatible),
+  under the reserved `archives/` prefix. `GET /api/v1/files/...` refuses that
+  prefix (`isReservedFitnessMediaPath`), and the owner-only download route is the
+  only way out: it streams from disk or redirects to a five-minute signed URL.
+- **Limits.** One queued or running export per account (a partial unique index
+  on `account_archives`), one request per 7 days (`429` with `nextAllowedAt`; a
+  failed export does not count), drafts capped at 5 MiB and reduced to an
+  allowlist of fields with no attachment bytes. A ready archive expires after 7
+  days: a delayed `ExportAccountArchiveJob` (`action: 'expire'`) deletes it under
+  a real queue, `startActorDeletionSweep` does the same every ten minutes (the
+  only mechanism under the in-process queue), and the list and download routes
+  expire a due archive on access. Deleting a pending account removes its rows.
+
 ### Link Preview Cards
 
 When a status contains a link, `FetchLinkPreviewJob` fetches that page once,
