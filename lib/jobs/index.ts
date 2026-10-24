@@ -65,6 +65,7 @@ import {
   SEND_BLOCK_JOB_NAME,
   SEND_DELETE_NOTE_JOB_NAME,
   SEND_FLAG_JOB_NAME,
+  SEND_MOVE_JOB_NAME,
   SEND_NOTE_JOB_NAME,
   SEND_QUOTE_ACCEPT_JOB_NAME,
   SEND_QUOTE_REJECT_JOB_NAME,
@@ -91,6 +92,7 @@ import { sendAnnounceJob } from './sendAnnounceJob'
 import { sendBlockJob } from './sendBlockJob'
 import { sendDeleteNoteJob } from './sendDeleteNoteJob'
 import { sendFlagJob } from './sendFlagJob'
+import { sendMoveJob } from './sendMoveJob'
 import { sendNoteJob } from './sendNoteJob'
 import { sendQuoteAcceptJob } from './sendQuoteAcceptJob'
 import { sendQuoteRejectJob } from './sendQuoteRejectJob'
@@ -175,6 +177,9 @@ export const JOBS: Record<string, JobHandle> = {
   },
   get [IMPORT_WAHOO_HISTORY_JOB_NAME]() {
     return importWahooHistoryJob
+  },
+  get [SEND_MOVE_JOB_NAME]() {
+    return sendMoveJob
   },
   get [SEND_NOTE_JOB_NAME]() {
     return sendNoteJob

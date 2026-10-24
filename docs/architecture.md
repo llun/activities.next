@@ -1983,7 +1983,7 @@ changed' }` before any write. Mastodon clients do not send it and are
   (Mastodon parity). Stored `alsoKnownAs` keeps only
   http(s) URLs, at most 20, and an inbound `movedTo` that is not an http(s) URL
   is dropped. Local aliases are supported via `GET/POST/DELETE /api/v1/accounts/aliases`
-  (up to 10 aliases; `alsoKnownAs` is set through the aliases API; `movedTo` is emitted when set, but nothing sets it on a local actor yet — outgoing Move is not implemented); a migration settings page is not implemented (see the inbound `Move` bullet below).
+  (up to 10 aliases; `alsoKnownAs` is set through the aliases API; `movedTo` is set by the outgoing migration API, see the outgoing bullets below, and there is no settings page for it).
 - **An inbound `Move` (account migration) goes to `MoveActorJob` from both
   inboxes, and nothing in its body is trusted beyond three ids.**
   `getJobMessage` queues it only when the HTTP signer, `actor` and `object` are
@@ -1994,7 +1994,7 @@ changed' }` before any write. Mastodon clients do not send it and are
   `MoveWorker`) works in this order. It ignores a local or suspended origin and
   a Move where either domain fails `canFederateWithDomain`. An inbound Move may
   target a local account (aliases verified from the stored row, no fetch;
-  local origin still refused — outgoing Move is not implemented). It then claims
+  a local origin is refused, see the outgoing bullets below). It then claims
   the origin with Mastodon's
   `move_in_progress:<account_id>` cooldown: `claimActorMove` stores
   `moveProcessing: { at, activityId, target }` in the origin actor's settings JSON (no
@@ -2076,6 +2076,79 @@ changed' }` before any write. Mastodon clients do not send it and are
   that target and the job's own follow exists, the lists were finished before
   the flip. A Follow that cannot be delivered keeps the origin follow and
   throws for a retry. Only accepted local followers are moved.
+- **An outgoing move is `POST /api/v1/accounts/migration`, and it checks things
+  in a fixed order.** `app/api/v1/accounts/migration/route.ts` parses the body
+  (`acct`, `kind` as `move` or `redirect`, and the optional `password`,
+  `username` and `actorId`): bad JSON is 400 `Invalid request`, a body that
+  fails the schema is 422, and an `actorId` other than the session's is 409
+  `Actor changed`. Then `verifyChallenge` re-authenticates. When the account has
+  a `passwordHash`, the password must match by bcrypt (`Invalid password`); a
+  passwordless account must send its current username, compared
+  case-insensitively (`Invalid username`); both are 422. Then `acct` (with a
+  leading `@` stripped) is resolved: `invalid` is 422 `Invalid account`,
+  `forbidden` is 403 and `not-found` is 404. `performOutgoingMove`
+  (`lib/services/accounts/migration/outgoingMove.ts`) then refuses, all as 422:
+  the account itself, a target that is suspended or being deleted, a target
+  whose `movedTo` is set, and an account that already moved to this target. For
+  `move` only, it reads the target's `alsoKnownAs` and `movedTo` fresh (a stored
+  row for a local target; for a remote one, the Person from its origin, signed
+  when a signing actor is configured, never the cache, and a failed read counts
+  as no alias). The account must be in those aliases (`Add this account as an
+alias on the new account first`) and the target must not have moved. Then the
+  account's last `move` must be 30 days old, or the answer is 429 with
+  `cooldownUntil`. `redirect` skips the alias and cooldown checks.
+- **The effects of a move run in this order.** `movedTo` is written, then an
+  `actor_migrations` row is created (kind, `targetAcct`, the followers count),
+  then `publishActorUpdate` sends `Update(Person)`, and only for `move` is
+  `SendMoveJob` queued with id `${migrationId}:start`. A failed queue publish is
+  logged and answered with 503 `Could not start the move, try again later`, but
+  nothing is rolled back: `movedTo` and the row stay, because the Update is
+  already out. A retry is then refused as `Already moved to this account`, so
+  the API never queues that Move again. A redirect that succeeds sets `movedTo`
+  and sends `Update(Person)` and nothing more. `GET` returns `getMigrationState`
+  (`movedTo`, the migrations, `cooldownUntil`, `followersCount`).
+- **`SendMoveJob` (`lib/jobs/sendMoveJob.ts`, Mastodon's `MoveWorker` and
+  `MoveDistributionWorker`) sends the Move.** The activity
+  (`lib/activities/move.ts`) has id `${origin}#moves/${migrationId}`, type
+  `Move`, `actor` and `object` set to the origin, `target` set to the new
+  account, and no `to`, as Mastodon's `MoveSerializer` builds it. The job does
+  nothing unless the origin is local with a private key and its `movedTo` is
+  still the target, so a cancelled move stops here. On its first slice it
+  publishes one `MoveRelationshipsJob` per local blocker, muter and note author
+  of the origin, for any target, local or remote, and fails the run if one
+  cannot be queued. Then it pages the origin's followers 100 at a time by follow
+  id. Each distinct remote shared inbox (or inbox) gets one delivery of the
+  activity, and each local follower gets a `MoveFollowerJob`, but only when the
+  target has not itself moved. Every job id is deterministic. A run stops after
+  the page that crosses a 20-second budget and queues
+  `${migrationId}:continue:<cursor>`. On a real queue a refused delivery fails
+  the run for a retry; the in-process queue records the error and carries on.
+- **`MoveFollowerJob` and `MoveRelationshipsJob` accept a local origin.** Both
+  used to refuse an origin with a private key. Now a local origin whose
+  `movedTo` is the target is accepted, because the origin of an outgoing move is
+  ours. `MoveFollowerJob` then sends no `Undo` for the old follow (`publishUndo`
+  returns for a local origin), so that follow simply ends locally.
+- **Clearing a move, posting, and deletion.** `DELETE
+/api/v1/accounts/migration` (`actorId` from the query or a JSON body; 409 on a
+  mismatch) clears `movedTo` and publishes `Update(Person)`, and nothing else.
+  It cancels a redirect, but a performed move is not undone: followers already
+  moved and kept their new follows, and the `actor_migrations` rows stay. While
+  `movedTo` is set (`isMovedActor` in `lib/services/accounts/movedAccount.ts`),
+  posting is refused with 422 `This account has moved` (`movedAccountResponse`)
+  on `POST /api/v1/statuses` (the check runs first, so polls, replies and
+  scheduled posts are refused too), on `POST /api/v1/statuses/:id/reblog`, and
+  on the deprecated `POST /api/v1/accounts/outbox` and `POST
+/api/v1/accounts/repost`. A scheduled status whose author has moved when it is
+  due is deleted by `publishScheduledStatusJob` without being published. These
+  posting checks are the only gates on a moved account. The profile response
+  (`lib/services/accounts/profile.ts`) carries `moved: true` while `movedTo` is
+  set. `deleteActorData` (`lib/database/domains/actor/deletion.ts`) removes the
+  account's `actor_migrations` rows with the rest of its data.
+- **`actor_migrations` (migration `20261024131756_add_actor_migrations`) holds
+  one row per move or redirect**: the target actor, `targetAcct`
+  (`username@domain` at the time), `kind`, and the followers count. The cooldown
+  reads only the newest `move` row (`getLastActorMove`), so a redirect never
+  starts one.
 - **Profile links (`fields`) are plain text in storage and HTML everywhere
   they leave.** `formatProfileFieldValue`
   (`lib/utils/text/formatProfileFieldValue.ts`) is the one formatter, a

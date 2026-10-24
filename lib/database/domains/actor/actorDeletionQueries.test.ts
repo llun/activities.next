@@ -592,6 +592,17 @@ const seedSettings = async (actorId: string, statusId: string) => {
       updatedAt: at
     })
     .execute()
+  await db()
+    .insertInto('actor_migrations')
+    .values({
+      id: randomUUID(),
+      actorId,
+      targetActorId: 'https://elsewhere.test/users/new',
+      targetAcct: 'new@elsewhere.test',
+      kind: 'move',
+      followersCount: 3
+    })
+    .execute()
 }
 
 const seedTimeline = (
@@ -666,6 +677,7 @@ const EITHER_SIDE_TABLES = [
 // Tables cleared of the actor's own rows.
 const OWN_TABLES = [
   'bulk_imports',
+  'actor_migrations',
   'lists',
   'featured_tags',
   'filters',
@@ -1315,6 +1327,7 @@ describe('statements', () => {
       'delete account_notes by actorId',
       'delete bulk_import_rows by importId',
       'delete bulk_imports by actorId',
+      'delete actor_migrations by actorId',
       'delete filter_statuses by filterId',
       'delete filter_keywords by filterId',
       'delete filters by actorId',

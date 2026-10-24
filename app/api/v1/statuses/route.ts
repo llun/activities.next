@@ -14,6 +14,7 @@ import {
 } from '@/lib/database/domains/idempotency/types'
 import { Database } from '@/lib/database/types'
 import { PUBLISH_SCHEDULED_STATUS_JOB_NAME } from '@/lib/jobs/names'
+import { movedAccountResponse } from '@/lib/services/accounts/movedAccount'
 import {
   OAuthGuardAnyScope,
   OptionalOAuthGuard,
@@ -216,6 +217,8 @@ export const POST = traceApiRoute(
     [Scope.enum.write, Scope.enum['write:statuses']],
     async (req, context) => {
       const { currentActor, database, clientId } = context
+      const moved = movedAccountResponse(req, CORS_HEADERS, currentActor)
+      if (moved) return moved
       // Web-client extension: a queued post names the profile it was written
       // as. Checked before anything else (the Idempotency-Key claim, the body,
       // a replay), because keys are per actor: a resend under another

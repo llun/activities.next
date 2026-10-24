@@ -139,6 +139,31 @@ describe('publishScheduledStatusJob', () => {
     expect(row).toBeNull()
   })
 
+  it('drops a due scheduled status whose author has moved since scheduling', async () => {
+    const text = `Scheduled before the move ${Date.now()}`
+    const scheduled = await database.createScheduledStatus({
+      actorId: actor1.id,
+      scheduledAt: Date.now() - 1_000,
+      params: baseParams({ text })
+    })
+    await database.updateActor({ actorId: actor1.id, movedTo: ACTOR2_ID })
+    try {
+      await publishScheduledStatusJob(database, {
+        id: 'job-moved',
+        name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+        data: { scheduledStatusId: scheduled.id }
+      })
+    } finally {
+      await database.updateActor({ actorId: actor1.id, movedTo: null })
+    }
+
+    const statuses = await database.getActorStatuses({ actorId: actor1.id })
+    expect(statuses.find((status) => hasText(status, text))).toBeUndefined()
+    expect(
+      await database.getScheduledStatusById({ id: scheduled.id })
+    ).toBeNull()
+  })
+
   describe('in_reply_to_id resolution', () => {
     // Regression coverage for the pre-existing bug: the stored params carry
     // whatever id form the client originally posted, and

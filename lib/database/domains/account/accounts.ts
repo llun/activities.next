@@ -380,6 +380,9 @@ export const getActorsForAccount = async (
         ? { headerImageUrl: settings.headerImageUrl }
         : null),
       manuallyApprovesFollowers: settings.manuallyApprovesFollowers ?? true,
+      // The cookie-session actor must carry the move pointer too, or the
+      // posting entry points cannot refuse a moved account.
+      ...(settings.movedTo ? { movedTo: settings.movedTo } : null),
       ...(settings.readingExpandMedia !== undefined
         ? { readingExpandMedia: settings.readingExpandMedia }
         : null),

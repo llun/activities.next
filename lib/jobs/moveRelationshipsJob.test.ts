@@ -1081,8 +1081,24 @@ describe('moveRelationshipsJob', () => {
         expect(note).toBe('')
       })
 
-      it('does nothing if origin is local', async () => {
+      it('copies the note from a local origin that moved (outgoing move)', async () => {
         await database.updateActor({ actorId: ACTOR2_ID, movedTo: TARGET })
+        await database.upsertAccountNote({
+          actorId: ACTOR1_ID,
+          targetActorId: ACTOR2_ID,
+          comment: 'some note'
+        })
+
+        await runJob(ACTOR1_ID, ACTOR2_ID, TARGET)
+
+        const note = await database.getAccountNote({
+          actorId: ACTOR1_ID,
+          targetActorId: TARGET
+        })
+        expect(note).toContain('some note')
+      })
+
+      it('does nothing if local origin has not moved to the target', async () => {
         await database.upsertAccountNote({
           actorId: ACTOR1_ID,
           targetActorId: ACTOR2_ID,

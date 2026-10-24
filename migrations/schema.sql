@@ -89,6 +89,17 @@ CREATE TABLE public.actor_domain_blocks (
     "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE public.actor_migrations (
+    id character varying(255) NOT NULL,
+    "actorId" character varying(255) NOT NULL,
+    "targetActorId" character varying(255) NOT NULL,
+    "targetAcct" character varying(255) DEFAULT ''::character varying NOT NULL,
+    kind character varying(255) NOT NULL,
+    "followersCount" integer DEFAULT 0 NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
 CREATE TABLE public.actors (
     id character varying(255),
     username character varying(255),
@@ -1576,6 +1587,9 @@ ALTER TABLE ONLY public.actor_domain_blocks
 ALTER TABLE ONLY public.actor_domain_blocks
     ADD CONSTRAINT actor_domain_blocks_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY public.actor_migrations
+    ADD CONSTRAINT actor_migrations_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY public.actors
     ADD CONSTRAINT actors_id_unique UNIQUE (id);
 
@@ -2033,6 +2047,8 @@ CREATE INDEX "account_providers_accountId_provider_providerId_idx" ON public.acc
 CREATE INDEX "accountsIndex" ON public.accounts USING btree (email, "createdAt", "updatedAt");
 
 CREATE INDEX actor_domain_blocks_actor_created ON public.actor_domain_blocks USING btree ("actorId", "createdAt");
+
+CREATE INDEX actor_migrations_actor_created_idx ON public.actor_migrations USING btree ("actorId", "createdAt");
 
 CREATE INDEX "actorsIndex" ON public.actors USING btree (username, "createdAt", "updatedAt");
 

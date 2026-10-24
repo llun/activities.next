@@ -8,6 +8,7 @@ import { createPollFromUserInput } from '@/lib/actions/createPoll'
 import { deleteStatusFromUserInput } from '@/lib/actions/deleteStatus'
 import { StatusPublishFailedError } from '@/lib/database/domains/idempotency/types'
 import { toMediaRowId } from '@/lib/database/domains/media/rows'
+import { movedAccountResponse } from '@/lib/services/accounts/movedAccount'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { MAX_STORED_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
@@ -42,6 +43,8 @@ export const POST = traceApiRoute(
   'getAccountOutbox',
   AuthenticatedGuard(async (req, context) => {
     const { currentActor, database } = context
+    const moved = movedAccountResponse(req, CORS_HEADERS, currentActor)
+    if (moved) return moved
     try {
       const body = await req.json()
       const parsed = PostRequest.safeParse(body)

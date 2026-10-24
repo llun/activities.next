@@ -37,5 +37,6 @@ export const buildProfile = ({
     show_media: settings?.showMedia ?? true,
     show_media_replies: settings?.showMediaReplies ?? true,
     show_featured: settings?.showFeatured ?? true,
-    attribution_domains: settings?.attributionDomains ?? []
+    attribution_domains: settings?.attributionDomains ?? [],
+    moved: Boolean(settings?.movedTo)
   })

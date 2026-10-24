@@ -113,7 +113,6 @@ export const moveRelationshipsJob: JobHandle = createJobHandle(
       if (
         !localActor?.privateKey ||
         !origin ||
-        origin.privateKey ||
         !origin.movedTo ||
         !actorIdsMatch(origin.movedTo, targetActorId) ||
         !target ||

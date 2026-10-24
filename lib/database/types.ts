@@ -1,5 +1,6 @@
 import { AccountArchiveDatabase } from '@/lib/database/domains/accountArchive/types'
 import { AccountExportDatabase } from '@/lib/database/domains/accountExport/types'
+import { ActorMigrationDatabase } from '@/lib/database/domains/actorMigration/types'
 import { BulkImportDatabase } from '@/lib/database/domains/bulkImport/types'
 import { FitnessFileDatabase } from '@/lib/database/domains/fitnessFile/types'
 import { FitnessFileRouteDatabase } from '@/lib/database/domains/fitnessFileRoute/types'
@@ -96,6 +97,7 @@ export type Database = AccountDatabase &
   StravaArchiveImportDatabase &
   WahooImportDatabase &
   BulkImportDatabase &
+  ActorMigrationDatabase &
   BlockDatabase &
   MuteDatabase &
   EndorsementDatabase &

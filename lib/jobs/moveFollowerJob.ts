@@ -93,12 +93,20 @@ export const moveFollowerJob: JobHandle = createJobHandle(
       const ownFollowId = getMoveFollowId(oldFollow.id, targetId)
       const own = await database.getFollowFromId({ followId: ownFollowId })
 
-      const publishUndo = () =>
-        getQueue().publish({
+      // A local origin is ours: the old follow ends locally and there is no
+      // server to send the Undo to (an outgoing move, Mastodon's
+      // rewrite_follows).
+      const publishUndo = async () => {
+        const originActor = await database.getActorFromId({
+          id: oldFollow.targetActorId
+        })
+        if (originActor?.privateKey) return
+        await getQueue().publish({
           id: getMoveUndoJobId(oldFollow.id),
           name: SEND_UNDO_FOLLOW_JOB_NAME,
           data: { actorId: oldFollow.actorId, follow: oldFollow }
         })
+      }
 
       if (oldFollow.status === FollowStatus.enum.Undo) {
         // The previous run flipped the origin follow but may have died before
@@ -123,7 +131,6 @@ export const moveFollowerJob: JobHandle = createJobHandle(
       })
       if (
         !origin ||
-        origin.privateKey ||
         !origin.movedTo ||
         !actorIdsMatch(origin.movedTo, targetId)
       ) {

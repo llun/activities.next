@@ -441,25 +441,26 @@ a string>`, which returns an empty page, so that poller never detects new
   body is read with a byte cap, so a chunked body over the limit is refused
   without being buffered. Rows run in resumable, time-budgeted slices of about
   20 seconds rather than one Sidekiq job per row, with one attempt per row. The
-  run's lease is renewed after each unit of work, and a NoQueue run is unbudgeted
-  and finishes in one go. A row that throws is stored with a generic error, not
-  the exception message. A blank or missing follow option leaves an existing
-  follow's stored value. A following row, or a list row for another account,
-  fails with `Account is blocked` when either side blocks the other or the
-  importer blocks the target's domain or its handle's domain, and with
-  `Account has moved` when the target has moved. Overwrite matches an account
-  by its handle, then by the actor that handle resolves to, so Mastodon's
+  run's lease is renewed after each unit of work, and a NoQueue run is
+  unbudgeted and finishes in one go. A row that throws is stored with a generic
+  error, not the exception message. A blank or missing follow option leaves an
+  existing follow's stored value. A following row, or a list row for another
+  account, fails with `Account is blocked` when either side blocks the other or
+  the importer blocks the target's domain or its handle's domain, and with
+  `Account has moved` when the target has moved. Overwrite matches an account by
+  its handle, then by the actor that handle resolves to, so Mastodon's
   local-domain handles still match; a relation is kept, not removed, when a row
   with the same username, whose resolution failed for a reason that may pass,
-  names the same domain (a dotted one; the relation's host may be a subdomain of it), and that row is retried. Failed
-  rows are kept and listed (up to 100 on `GET /api/v1/imports/:id`); Mastodon
-  deletes imported rows and only counts failures. A failed NoQueue run finishes
-  the import immediately. When the actor starts another import, an unfinished
-  one with no live claim and no progress for 15 minutes, or no progress for 24
-  hours, is abandoned (`lastError` "Abandoned: no progress", its lease cleared). A bookmark of a
-  remote status is fetched through the existing remote status fetch, which
-  stores only public notes, so a non-public remote bookmark fails. A mute's
-  `notifications` flag is Mastodon's `hide_notifications`.
+  names the same domain (a dotted one; the relation's host may be a subdomain of
+  it), and that row is retried. Failed rows are kept and listed (up to 100 on
+  `GET /api/v1/imports/:id`); Mastodon deletes imported rows and only counts
+  failures. A failed NoQueue run finishes the import immediately. When the actor
+  starts another import, an unfinished one with no live claim and no progress
+  for 15 minutes, or no progress for 24 hours, is abandoned (`lastError`
+  "Abandoned: no progress", its lease cleared). A bookmark of a remote status is
+  fetched through the existing remote status fetch, which stores only public
+  notes, so a non-public remote bookmark fails. A mute's `notifications` flag is
+  Mastodon's `hide_notifications`.
 
 ## Not planned
 
@@ -1079,6 +1080,25 @@ ActivityPub objects are **JSON-LD**, so the same logical object can arrive in ma
 - **An actor's `publicKey` may be an array.** The `Actor` schema (`lib/types/activitypub/actor.ts`) still outputs a single key object, chosen by `selectDefaultActorPublicKey`: among the entries shaped as a key (id, owner, `publicKeyPem`; a Multikey is skipped) it prefers the `#main-key` entry, else the first, and an empty or all-invalid array fails the parse. When a signature names a key, `getSenderPublicKey` first narrows the array to the entry whose normalised id equals that `keyId`, so a request signed with a non-default key resolves when the key is fetched (an actor not yet stored, or the throttled refresh below; the stored row keeps only the default key, so for a stored actor this is best effort); the narrowed entry then goes through the same owner checks as a single key, so an entry owned by another actor is rejected.
 - **Inbound HTTP signatures accept RFC 9421 as well as draft-cavage; outbound stays draft-cavage.** `ActivityPubVerifyGuard` accepts both, so a peer that has moved to RFC 9421 HTTP Message Signatures still delivers, while every peer can still read what we send: a request with a `Signature-Input` header is verified as RFC 9421 (`rsa-v1_5-sha256` or `ed25519`, `alg` checked against the key type and inferred when absent), any other request as draft-cavage exactly as before. A 9421 `POST` must cover `content-digest` and its RFC 9530 `Content-Digest` must match the body; the target URI and other derived components come from our own view of the request (trusted host, https), so a signature made for another host or path fails. Both schemes share the freshness window, the `keyId` resolution, the domain policy check, the key-rotation refresh below and the forwarded-delivery handling. There is no outbound RFC 9421 signing and no double-knocking; RSA-PSS, ECDSA, HMAC, Multikey keys and a nonce replay cache are out of scope. See **Inbound Forwarding & Verification** in [architecture.md](architecture.md#inbound-forwarding--verification) for the required components.
 - **An inbound `Move` is Mastodon's account migration, accepted at the shared and the per-user inbox (it is no longer an accepted-and-ignored type).** `actor` and `object` must both be the HTTP signer (the origin account) and `target` the new account; anything else is dropped with 202. `MoveActorJob` takes a per-origin 7-day cooldown (Mastodon's `move_in_progress`, kept in the actor's settings JSON and released when verification fails), refuses a suspended or deleted target (a local target's aliases are verified from its stored row without network fetch; a remote target is re-fetched, signed when a federation signing actor is configured) and requires its `alsoKnownAs` to contain the origin before it records the origin's `movedTo` (which the Mastodon Account entity then exposes as `moved`). It then queues one `MoveFollowerJob` per accepted local follower. It skips (and keeps the origin follow for) a target that became unavailable, or a follower and target that block each other or where the follower blocks the target's domain. Otherwise it follows the target with the same options, moves the follower's lists to the target and unfollows the origin. Local followers are repointed onto a local target directly without network Follow: an unsilenced local follower is Accepted directly (`follow` notification), while a silenced local follower gets a follow request (`Requested` + `follow_request` notification, as Mastodon's `FollowService`); the Undo is still sent to the remote origin. A Requested follow it made itself is sent again, never duplicated; if the follower already follows or requested the target (Requested or Accepted), only the options are copied, the target is added to their lists and the origin follow stays. A failed verification releases the 7-day cooldown, so the limit applies to verified moves. The queue does not dedupe job ids on every backend, so the follower job guards itself with a deterministic follow id. Account notes, mutes (notifications flag and end time kept) and blocks (federated only for remote targets via `SendBlockJob`, deterministic uri; not federated for a local target) are carried over by `MoveRelationshipsJob` with Mastodon's skip rules and note texts, even if the target has itself moved; on resume, `SendBlockJob` is re-published with the deterministic id for remote targets (deduplicating queues drop it and receivers treat duplicate blocks with the same uri as no-ops). Details in [architecture.md](architecture.md#agents-actor-profile-deletion-federation).
+- **Outgoing account migration is this server's own API,
+  `/api/v1/accounts/migration` (`GET`, `POST`, `DELETE`), not a Mastodon
+  endpoint.** Mastodon does it from its settings forms
+  (`Settings::MigrationsController` for a move, `Settings::RedirectsController`
+  for a redirect), so there is no REST shape to match. The rules follow
+  Mastodon: a 30-day cooldown between moves
+  (`AccountMigration::COOLDOWN_PERIOD`), an alias on the new account required
+  for a move only, the current password (or the current username for a
+  passwordless account) as the challenge, and `MoveService`'s steps (the Move
+  activity to followers, follower rewiring, then notes, blocks and mutes carried
+  over). Differences: the cooldown answers 429 with `cooldownUntil`; the Move is
+  queued only after `movedTo` and the migration row are saved, so a queue
+  failure answers 503 and leaves the account moved, and a retry is refused as
+  `Already moved to this account`; and there is no settings UI yet. Details in
+  [architecture.md](architecture.md#agents-actor-profile-deletion-federation).
+- **Posting from a moved account gets 422 `This account has moved`.** The check
+  covers `POST /api/v1/statuses` (polls, replies and scheduled posts included),
+  reblogs, and the deprecated `accounts/outbox` and `accounts/repost` routes.
+  `DELETE` on the migration route lifts it, since it clears only the pointer.
 - **A failed verification against a stored remote key triggers one throttled refresh.** When `ActivityPubVerifyGuard` cannot verify a request with the key it holds (non-empty), it calls `refreshSenderPublicKeyDetails`, which re-fetches the `keyId` through `fetchSenderPublicKeyDetails` (3 s, no retries, no cross-host redirects, owner-validated) and returns the key only if its owner equals the stored owner and the key differs. It never refreshes a local actor, a key with no stored row, or a row updated within 5 minutes, and records the attempt per owner before fetching (in memory, so a failing peer is throttled too). The happy path makes no network call. Only a key that came from the stored actor row is refreshed (a key just fetched, such as a path-based GoToSocial key, is already fresh). The attempt map is capped; when full it drops only entries outside the window and otherwise refuses to refresh. The stored key is replaced (`persistRefreshedSenderPublicKey`) only after this very request verifies with the fresh key, and only when that key is the actor's default key (the single key, or the array's `#main-key`/first entry): a request signed with another key of a multi-key actor is accepted but leaves the stored default key alone. A failed write is logged and the verified request continues. It deliberately does not call `recordActorIfNeeded`: that is a slow, multi-fetch path, wrong for an unauthenticated inbox request.
 - **Do not change `http://schema.org#` to `https`.** Mastodon maps the `schema` prefix to the non-standard `http://schema.org#` base in actor `@context`; the canonical context must use the same IRI so profile fields (`PropertyValue`/`value`) compact correctly.
 - **Account `fields[].verified_at` is the time `VerifyProfileLinksJob` saw the field's page link back with `rel="me"`, or `null`; `source.fields` carries the same value.** It follows Mastodon's `VerifyLinkService` (single https URL values only, as `Account::Field`'s `ACCEPTED_SCHEMES = %w(https)`, so an `http://` value is not verified there either and shows no status; an `<a>` or `<link>` with the `me` rel token and an `href` equal, case-insensitively, to the profile URL) and its `requires_verification?` re-queue of an unverified link on every save. Deviations: the page is fetched through `safeRemoteFetch` (HTTPS only, SSRF guard, 1 MiB, HTML only, two redirects, 5 s connect + 5 s read per hop, so about 30 s per link at most); **the actor id is also accepted as a link-back target**, where Mastodon matches only `url_for(account)`; a remote actor's profile URL is derived as `https://<domain>/@<username>` because its own `url` is not stored; at most four fields are checked; and a verified link is not checked again until its value changes. The job stamps `linksCheckedAt` in the actor's settings on every run (internal, never federated, not in the API), and a remote profile render queues a check only when that stamp is older than 1 hour (changed values) or 3 days (unchanged unverified values); local saves and real refreshes always queue. The time is never federated: the `PropertyValue` attachments carry no verification, and each server verifies for itself.

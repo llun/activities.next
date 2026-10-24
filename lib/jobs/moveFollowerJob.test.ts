@@ -16,6 +16,7 @@ import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotific
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
+import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { EXTERNAL_ACTOR1 } from '@/lib/stub/seed/external1'
 import { NotificationType } from '@/lib/types/database/operations'
 import { type Follow, FollowStatus } from '@/lib/types/domain/follow'
@@ -717,6 +718,70 @@ describe('moveFollowerJob', () => {
       expect(follow).not.toHaveBeenCalled()
       expect(await active(ACTOR1_ID, TARGET)).toBeNull()
       expect(await originStatus()).toBe(FollowStatus.enum.Accepted)
+    })
+  })
+
+  describe('local origin (outgoing move)', () => {
+    const LOCAL_ORIGIN = ACTOR2_ID
+
+    const setup = async (movedTo: string) => {
+      await database.updateActor({ actorId: LOCAL_ORIGIN, movedTo })
+      const oldFollow = await database.createFollow({
+        actorId: ACTOR1_ID,
+        targetActorId: LOCAL_ORIGIN,
+        status: FollowStatus.enum.Accepted,
+        inbox: `${ACTOR1_ID}/inbox`,
+        sharedInbox: 'https://llun.test/inbox'
+      })
+      return oldFollow
+    }
+
+    const runLocal = (followId: string, targetActorId: string) =>
+      moveFollowerJob(database, {
+        id: getMoveFollowerJobId(followId, targetActorId),
+        name: MOVE_FOLLOWER_JOB_NAME,
+        data: { followId, targetActorId }
+      })
+
+    it('follows a remote target and ends the old follow without an Undo to ourselves', async () => {
+      const oldFollow = await setup(TARGET)
+
+      await runLocal(oldFollow.id, TARGET)
+
+      expect(follow).toHaveBeenCalledTimes(1)
+      expect((await active(ACTOR1_ID, TARGET))?.status).toBe(
+        FollowStatus.enum.Requested
+      )
+      expect(
+        (await database.getFollowFromId({ followId: oldFollow.id }))?.status
+      ).toBe(FollowStatus.enum.Undo)
+      expect(mockPublish).not.toHaveBeenCalled()
+    })
+
+    it('rewrites the follow to a local target (Mastodon rewrite_follows)', async () => {
+      const oldFollow = await setup(ACTOR3_ID)
+
+      await runLocal(oldFollow.id, ACTOR3_ID)
+
+      expect(follow).not.toHaveBeenCalled()
+      expect((await active(ACTOR1_ID, ACTOR3_ID))?.status).toBe(
+        FollowStatus.enum.Accepted
+      )
+      expect(
+        (await database.getFollowFromId({ followId: oldFollow.id }))?.status
+      ).toBe(FollowStatus.enum.Undo)
+      expect(mockPublish).not.toHaveBeenCalled()
+    })
+
+    it('does nothing when the local origin has not moved to the target', async () => {
+      const oldFollow = await setup(TARGET)
+
+      await runLocal(oldFollow.id, ACTOR3_ID)
+
+      expect(await active(ACTOR1_ID, ACTOR3_ID)).toBeNull()
+      expect(
+        (await database.getFollowFromId({ followId: oldFollow.id }))?.status
+      ).toBe(FollowStatus.enum.Accepted)
     })
   })
 
