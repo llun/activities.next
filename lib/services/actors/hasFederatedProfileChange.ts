@@ -21,7 +21,7 @@ const stableStringify = (value: Json): string => {
 // What a remote server sees of the actor. Taken from `getPersonFromActor`, the
 // document the actor URL serves and `Update(Person)` carries, so the list of
 // federated fields (name, summary, icon and header URLs, profile links, the
-// locked/discoverable/indexable flags, attribution domains, the emoji tags)
+// locked/discoverable/indexable flags, attribution domains, alsoKnownAs, movedTo, the emoji tags)
 // can never drift from what is actually sent. The one volatile value is each
 // emoji tag's `updated`, which `getPersonFromActor` takes from the row's
 // `updatedAt`: it moves on every save, so it is not a change of the profile.

@@ -858,5 +858,146 @@ describe('moveFollowerJob', () => {
       expect(await originStatus()).toBe(FollowStatus.enum.Undo)
       expect(mockPublish).toHaveBeenCalledTimes(1)
     })
+
+    it('creates a Requested follow and follow_request notification for a silenced follower without network follow, flips origin to Undo, and leaves Requested on retry without duplicate notification', async () => {
+      await database.setActorSilenced({ actorId: ACTOR1_ID, silenced: true })
+      await database.updateActor({ actorId: ORIGIN, movedTo: ACTOR2_ID })
+      const oldFollow = await active(ACTOR1_ID, ORIGIN)
+      const expectedFollowId = getMoveFollowId(
+        oldFollow?.id as string,
+        ACTOR2_ID
+      )
+
+      await run(ACTOR1_ID, ACTOR2_ID)
+
+      expect(follow).not.toHaveBeenCalled()
+
+      const createdFollow = await active(ACTOR1_ID, ACTOR2_ID)
+      expect(createdFollow).toMatchObject({
+        id: expectedFollowId,
+        actorId: ACTOR1_ID,
+        targetActorId: ACTOR2_ID,
+        status: FollowStatus.enum.Requested
+      })
+
+      const notifications = await database.getNotifications({
+        actorId: ACTOR2_ID,
+        limit: 10
+      })
+      expect(notifications).toHaveLength(1)
+      expect(notifications[0]).toMatchObject({
+        actorId: ACTOR2_ID,
+        type: NotificationType.enum.follow_request,
+        sourceActorId: ACTOR1_ID,
+        followId: expectedFollowId
+      })
+
+      expect(sendNotificationAlerts).toHaveBeenCalledTimes(1)
+      expect(sendNotificationAlerts).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorId: ACTOR2_ID,
+          sourceActorId: ACTOR1_ID,
+          events: [
+            expect.objectContaining({
+              type: NotificationType.enum.follow_request,
+              notificationId: notifications[0].id,
+              emailContent: expect.objectContaining({
+                recipientEmail: 'test2@llun.test'
+              })
+            })
+          ]
+        })
+      )
+
+      expect(await originStatus()).toBe(FollowStatus.enum.Undo)
+      expect(mockPublish).toHaveBeenCalledWith({
+        id: getMoveUndoJobId(oldFollow?.id as string),
+        name: SEND_UNDO_FOLLOW_JOB_NAME,
+        data: {
+          actorId: ACTOR1_ID,
+          follow: expect.objectContaining({ id: oldFollow?.id })
+        }
+      })
+
+      // Retry: must stay Requested and not duplicate the notification
+      await run(ACTOR1_ID, ACTOR2_ID)
+
+      expect(follow).not.toHaveBeenCalled()
+      expect(
+        (await database.getFollowFromId({ followId: expectedFollowId }))?.status
+      ).toBe(FollowStatus.enum.Requested)
+      expect(sendNotificationAlerts).toHaveBeenCalledTimes(1)
+      expect(
+        await database.getNotifications({ actorId: ACTOR2_ID, limit: 10 })
+      ).toHaveLength(1)
+    })
+
+    it('creates missing notification on retry when own follow row already exists without one', async () => {
+      await database.updateActor({ actorId: ORIGIN, movedTo: ACTOR2_ID })
+      const oldFollow = await active(ACTOR1_ID, ORIGIN)
+      const ownLocalId = getMoveFollowId(oldFollow?.id as string, ACTOR2_ID)
+
+      await database.createFollow({
+        id: ownLocalId,
+        actorId: ACTOR1_ID,
+        targetActorId: ACTOR2_ID,
+        status: FollowStatus.enum.Accepted,
+        inbox: `${ACTOR1_ID}/inbox`,
+        sharedInbox: 'https://llun.test/inbox'
+      })
+
+      expect(
+        await database.getNotificationFromFollowId({ followId: ownLocalId })
+      ).toBeNull()
+
+      await run(ACTOR1_ID, ACTOR2_ID)
+
+      const notification = await database.getNotificationFromFollowId({
+        followId: ownLocalId
+      })
+      expect(notification).not.toBeNull()
+      expect(notification).toMatchObject({
+        actorId: ACTOR2_ID,
+        type: NotificationType.enum.follow,
+        sourceActorId: ACTOR1_ID,
+        followId: ownLocalId
+      })
+      expect(sendNotificationAlerts).toHaveBeenCalledTimes(1)
+    })
+
+    it('creates missing follow_request notification on retry for silenced follower when own row already exists', async () => {
+      await database.setActorSilenced({ actorId: ACTOR1_ID, silenced: true })
+      await database.updateActor({ actorId: ORIGIN, movedTo: ACTOR2_ID })
+      const oldFollow = await active(ACTOR1_ID, ORIGIN)
+      const ownLocalId = getMoveFollowId(oldFollow?.id as string, ACTOR2_ID)
+
+      await database.createFollow({
+        id: ownLocalId,
+        actorId: ACTOR1_ID,
+        targetActorId: ACTOR2_ID,
+        status: FollowStatus.enum.Requested,
+        inbox: `${ACTOR1_ID}/inbox`,
+        sharedInbox: 'https://llun.test/inbox'
+      })
+
+      await run(ACTOR1_ID, ACTOR2_ID)
+
+      expect(follow).not.toHaveBeenCalled()
+      expect(
+        (await database.getFollowFromId({ followId: ownLocalId }))?.status
+      ).toBe(FollowStatus.enum.Requested)
+
+      const notification = await database.getNotificationFromFollowId({
+        followId: ownLocalId
+      })
+      expect(notification).not.toBeNull()
+      expect(notification).toMatchObject({
+        actorId: ACTOR2_ID,
+        type: NotificationType.enum.follow_request,
+        sourceActorId: ACTOR1_ID,
+        followId: ownLocalId
+      })
+      expect(sendNotificationAlerts).toHaveBeenCalledTimes(1)
+    })
   })
 })

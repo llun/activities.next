@@ -40,6 +40,7 @@ import {
   scheduleActorDeletion,
   startActorDeletion,
   updateActor,
+  updateActorAliases,
   updateActorWithPrevious,
   updateNotificationPolicy
 } from '@/lib/database/domains/actor/writes'
@@ -63,6 +64,7 @@ export const actorQueries = {
   getLocalMastodonActors,
   getMastodonActors,
   updateActor,
+  updateActorAliases,
   updateActorWithPrevious,
   claimActorMove,
   clearActorMove,

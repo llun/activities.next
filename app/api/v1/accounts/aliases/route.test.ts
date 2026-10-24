@@ -4,6 +4,7 @@ import { publishActorUpdate } from '@/lib/services/actors/actorUpdate'
 import { resolveAccountTarget } from '@/lib/services/actors/resolveAccountTarget'
 import { MockActor } from '@/lib/stub/actor'
 import { Actor } from '@/lib/types/domain/actor'
+import { actorIdsMatch } from '@/lib/utils/activitypub'
 import { HTTP_STATUS } from '@/lib/utils/response'
 
 import { DELETE, GET, OPTIONS, POST } from './route'
@@ -33,6 +34,37 @@ const mockDatabase = {
         return actor
       }
       return null
+    }
+  ),
+  updateActorAliases: vi.fn(
+    async ({
+      actorId,
+      add,
+      remove,
+      max
+    }: {
+      actorId: string
+      add?: string
+      remove?: string
+      max: number
+    }) => {
+      const actor = actorRegistry.get(actorId)
+      if (!actor) return { status: 'no-actor' as const }
+      const current = actor.alsoKnownAs ?? []
+      let next = [...current]
+      if (remove !== undefined) {
+        const exists = next.some((alias) => actorIdsMatch(alias, remove))
+        if (!exists) return { status: 'not-found' as const }
+        next = next.filter((alias) => !actorIdsMatch(alias, remove))
+      }
+      if (add !== undefined) {
+        const duplicate = next.some((alias) => actorIdsMatch(alias, add))
+        if (duplicate) return { status: 'duplicate' as const }
+        if (next.length >= max) return { status: 'limit' as const }
+        next = [...next, add]
+      }
+      actor.alsoKnownAs = next
+      return { status: 'ok' as const, aliases: next }
     }
   )
 }
@@ -89,14 +121,31 @@ const createPostRequest = (body: unknown) => {
   })
 }
 
-const createDeleteRequest = (body: unknown) => {
-  return new NextRequest('https://llun.test/api/v1/accounts/aliases', {
-    method: 'DELETE',
-    body: typeof body === 'string' ? body : JSON.stringify(body),
-    headers: {
-      'content-type': 'application/json',
-      origin: 'https://llun.test'
+const createDeleteRequest = (
+  body?: unknown,
+  queryParams?: Record<string, string>
+) => {
+  const url = new URL('https://llun.test/api/v1/accounts/aliases')
+  if (queryParams) {
+    for (const [key, value] of Object.entries(queryParams)) {
+      url.searchParams.set(key, value)
     }
+  }
+  return new NextRequest(url, {
+    method: 'DELETE',
+    ...(body !== undefined
+      ? {
+          body: typeof body === 'string' ? body : JSON.stringify(body),
+          headers: {
+            'content-type': 'application/json',
+            origin: 'https://llun.test'
+          }
+        }
+      : {
+          headers: {
+            origin: 'https://llun.test'
+          }
+        })
   })
 }
 
@@ -181,9 +230,10 @@ describe('Accounts Aliases API route', () => {
       expect(await res.json()).toEqual([
         { id: remoteActor.id, acct: 'alice@remote.test' }
       ])
-      expect(mockDatabase.updateActor).toHaveBeenCalledWith({
+      expect(mockDatabase.updateActorAliases).toHaveBeenCalledWith({
         actorId: mockCurrentActor.id,
-        alsoKnownAs: [remoteActor.id]
+        add: remoteActor.id,
+        max: 10
       })
       expect(publishActorUpdate).toHaveBeenCalledWith({
         actorId: mockCurrentActor.id
@@ -210,9 +260,10 @@ describe('Accounts Aliases API route', () => {
       expect(await res.json()).toEqual([
         { id: remoteActor.id, acct: 'alice@remote.test' }
       ])
-      expect(mockDatabase.updateActor).toHaveBeenCalledWith({
+      expect(mockDatabase.updateActorAliases).toHaveBeenCalledWith({
         actorId: mockCurrentActor.id,
-        alsoKnownAs: [remoteActor.id]
+        add: remoteActor.id,
+        max: 10
       })
       expect(publishActorUpdate).toHaveBeenCalledWith({
         actorId: mockCurrentActor.id
@@ -236,9 +287,10 @@ describe('Accounts Aliases API route', () => {
       expect(await res.json()).toEqual([
         { id: localActor2.id, acct: 'bob@llun.test' }
       ])
-      expect(mockDatabase.updateActor).toHaveBeenCalledWith({
+      expect(mockDatabase.updateActorAliases).toHaveBeenCalledWith({
         actorId: mockCurrentActor.id,
-        alsoKnownAs: [localActor2.id]
+        add: localActor2.id,
+        max: 10
       })
       expect(publishActorUpdate).toHaveBeenCalledWith({
         actorId: mockCurrentActor.id
@@ -279,7 +331,7 @@ describe('Accounts Aliases API route', () => {
       expect(res.status).toBe(HTTP_STATUS.UNPROCESSABLE_ENTITY)
       expect(await res.json()).toEqual({ error: 'Cannot alias yourself' })
       expect(publishActorUpdate).not.toHaveBeenCalled()
-      expect(mockDatabase.updateActor).not.toHaveBeenCalled()
+      expect(mockDatabase.updateActorAliases).not.toHaveBeenCalled()
     })
 
     it('refuses duplicate alias', async () => {
@@ -303,7 +355,11 @@ describe('Accounts Aliases API route', () => {
       expect(res.status).toBe(HTTP_STATUS.UNPROCESSABLE_ENTITY)
       expect(await res.json()).toEqual({ error: 'Alias already added' })
       expect(publishActorUpdate).not.toHaveBeenCalled()
-      expect(mockDatabase.updateActor).not.toHaveBeenCalled()
+      expect(mockDatabase.updateActorAliases).toHaveBeenCalledWith({
+        actorId: mockCurrentActor.id,
+        add: targetActor.id,
+        max: 10
+      })
     })
 
     it('refuses alias when cap at 10 is reached', async () => {
@@ -330,7 +386,11 @@ describe('Accounts Aliases API route', () => {
       expect(res.status).toBe(HTTP_STATUS.UNPROCESSABLE_ENTITY)
       expect(await res.json()).toEqual({ error: 'Too many aliases' })
       expect(publishActorUpdate).not.toHaveBeenCalled()
-      expect(mockDatabase.updateActor).not.toHaveBeenCalled()
+      expect(mockDatabase.updateActorAliases).toHaveBeenCalledWith({
+        actorId: mockCurrentActor.id,
+        add: eleventh.id,
+        max: 10
+      })
     })
 
     it('returns 422 Invalid account when resolver returns invalid', async () => {
@@ -399,7 +459,10 @@ describe('Accounts Aliases API route', () => {
         params: Promise.resolve({})
       })
       expect(invalidJsonRes.status).toBe(HTTP_STATUS.BAD_REQUEST)
-      expect(await invalidJsonRes.json()).toEqual({ error: 'Bad Request' })
+      expect(await invalidJsonRes.json()).toEqual({ error: 'Invalid request' })
+      expect(
+        invalidJsonRes.headers.get('Access-Control-Allow-Origin')
+      ).toBeDefined()
 
       const schemaFailureRes = await POST(createPostRequest({}), {
         params: Promise.resolve({})
@@ -426,9 +489,10 @@ describe('Accounts Aliases API route', () => {
       expect(await res.json()).toEqual([
         { id: bob.id, acct: 'bob@remote.test' }
       ])
-      expect(mockDatabase.updateActor).toHaveBeenCalledWith({
+      expect(mockDatabase.updateActorAliases).toHaveBeenCalledWith({
         actorId: mockCurrentActor.id,
-        alsoKnownAs: [bob.id]
+        remove: alice.id,
+        max: 10
       })
       expect(publishActorUpdate).toHaveBeenCalledWith({
         actorId: mockCurrentActor.id
@@ -445,9 +509,10 @@ describe('Accounts Aliases API route', () => {
       })
       expect(res.status).toBe(HTTP_STATUS.OK)
       expect(await res.json()).toEqual([])
-      expect(mockDatabase.updateActor).toHaveBeenCalledWith({
+      expect(mockDatabase.updateActorAliases).toHaveBeenCalledWith({
         actorId: mockCurrentActor.id,
-        alsoKnownAs: []
+        remove: alice.id,
+        max: 10
       })
       expect(publishActorUpdate).toHaveBeenCalledWith({
         actorId: mockCurrentActor.id
@@ -484,7 +549,11 @@ describe('Accounts Aliases API route', () => {
       expect(res.status).toBe(HTTP_STATUS.NOT_FOUND)
       expect(await res.json()).toEqual({ error: 'Record not found' })
       expect(publishActorUpdate).not.toHaveBeenCalled()
-      expect(mockDatabase.updateActor).not.toHaveBeenCalled()
+      expect(mockDatabase.updateActorAliases).toHaveBeenCalledWith({
+        actorId: mockCurrentActor.id,
+        remove: 'https://remote.test/users/charlie',
+        max: 10
+      })
     })
 
     it('returns 409 Conflict when body actorId mismatches current actor', async () => {
@@ -500,7 +569,99 @@ describe('Accounts Aliases API route', () => {
       expect(res.status).toBe(HTTP_STATUS.CONFLICT)
       expect(await res.json()).toEqual({ error: 'Actor changed' })
       expect(publishActorUpdate).not.toHaveBeenCalled()
-      expect(mockDatabase.updateActor).not.toHaveBeenCalled()
+      expect(mockDatabase.updateActorAliases).not.toHaveBeenCalled()
+    })
+
+    it('accepts id from query string when body is empty', async () => {
+      const alice = MockActor({ id: 'https://remote.test/users/alice' })
+      const bob = MockActor({ id: 'https://remote.test/users/bob' })
+      actorRegistry.set(alice.id, alice)
+      actorRegistry.set(bob.id, bob)
+      mockStoredActor.alsoKnownAs = [alice.id, bob.id]
+
+      const url = new URL('https://llun.test/api/v1/accounts/aliases')
+      url.searchParams.set('id', alice.id)
+      const req = new NextRequest(url, {
+        method: 'DELETE',
+        headers: {
+          origin: 'https://llun.test'
+        }
+      })
+
+      const res = await DELETE(req, {
+        params: Promise.resolve({})
+      })
+      expect(res.status).toBe(HTTP_STATUS.OK)
+      expect(await res.json()).toEqual([
+        { id: bob.id, acct: 'bob@remote.test' }
+      ])
+      expect(mockDatabase.updateActorAliases).toHaveBeenCalledWith({
+        actorId: mockCurrentActor.id,
+        remove: alice.id,
+        max: 10
+      })
+      expect(publishActorUpdate).toHaveBeenCalledWith({
+        actorId: mockCurrentActor.id
+      })
+    })
+
+    it('accepts matching actorId in query string when body is empty', async () => {
+      const alice = MockActor({ id: 'https://remote.test/users/alice' })
+      actorRegistry.set(alice.id, alice)
+      mockStoredActor.alsoKnownAs = [alice.id]
+
+      const url = new URL('https://llun.test/api/v1/accounts/aliases')
+      url.searchParams.set('id', alice.id)
+      url.searchParams.set('actorId', mockCurrentActor.id)
+      const req = new NextRequest(url, {
+        method: 'DELETE',
+        headers: {
+          origin: 'https://llun.test'
+        }
+      })
+
+      const res = await DELETE(req, {
+        params: Promise.resolve({})
+      })
+      expect(res.status).toBe(HTTP_STATUS.OK)
+      expect(await res.json()).toEqual([])
+    })
+
+    it('returns 409 Conflict when query actorId mismatches current actor with empty body', async () => {
+      const url = new URL('https://llun.test/api/v1/accounts/aliases')
+      url.searchParams.set('id', 'https://remote.test/users/alice')
+      url.searchParams.set('actorId', 'https://llun.test/users/other')
+      const req = new NextRequest(url, {
+        method: 'DELETE',
+        headers: {
+          origin: 'https://llun.test'
+        }
+      })
+
+      const res = await DELETE(req, {
+        params: Promise.resolve({})
+      })
+      expect(res.status).toBe(HTTP_STATUS.CONFLICT)
+      expect(await res.json()).toEqual({ error: 'Actor changed' })
+      expect(publishActorUpdate).not.toHaveBeenCalled()
+      expect(mockDatabase.updateActorAliases).not.toHaveBeenCalled()
+    })
+
+    it('returns 422 Invalid request when body is empty and no query params are provided', async () => {
+      const req = new NextRequest('https://llun.test/api/v1/accounts/aliases', {
+        method: 'DELETE',
+        headers: {
+          origin: 'https://llun.test'
+        }
+      })
+
+      const res = await DELETE(req, {
+        params: Promise.resolve({})
+      })
+      expect(res.status).toBe(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+      expect(await res.json()).toEqual({ error: 'Invalid request' })
+      expect(publishActorUpdate).not.toHaveBeenCalled()
+      expect(mockDatabase.updateActorAliases).not.toHaveBeenCalled()
     })
 
     it('returns 400 on invalid JSON and 422 on schema failure', async () => {
@@ -511,11 +672,18 @@ describe('Accounts Aliases API route', () => {
         }
       )
       expect(invalidJsonRes.status).toBe(HTTP_STATUS.BAD_REQUEST)
+      expect(await invalidJsonRes.json()).toEqual({ error: 'Invalid request' })
+      expect(
+        invalidJsonRes.headers.get('Access-Control-Allow-Origin')
+      ).toBeDefined()
 
       const schemaFailureRes = await DELETE(createDeleteRequest({}), {
         params: Promise.resolve({})
       })
       expect(schemaFailureRes.status).toBe(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+      expect(await schemaFailureRes.json()).toEqual({
+        error: 'Invalid request'
+      })
     })
   })
 

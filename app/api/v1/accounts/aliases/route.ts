@@ -10,7 +10,6 @@ import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   HTTP_STATUS,
   StatusCode,
-  apiErrorResponse,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -92,7 +91,7 @@ export const POST = traceApiRoute(
     try {
       body = await req.json()
     } catch {
-      return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+      return errorResponse(req, 'Invalid request', HTTP_STATUS.BAD_REQUEST)
     }
 
     const parsed = AddAliasRequest.safeParse(body)
@@ -121,25 +120,25 @@ export const POST = traceApiRoute(
       return errorResponse(req, 'Cannot alias yourself')
     }
 
-    const freshCurrentActor = await database.getActorFromId({
-      id: currentActor.id
+    const outcome = await database.updateActorAliases({
+      actorId: currentActor.id,
+      add: targetActor.id,
+      max: MAX_ALIASES
     })
-    const existing = freshCurrentActor?.alsoKnownAs ?? []
-    if (existing.some((alias) => actorIdsMatch(alias, targetActor.id))) {
+
+    if (outcome.status === 'duplicate') {
       return errorResponse(req, 'Alias already added')
     }
-    if (existing.length >= MAX_ALIASES) {
+    if (outcome.status === 'limit') {
       return errorResponse(req, 'Too many aliases')
     }
+    if (outcome.status === 'not-found' || outcome.status === 'no-actor') {
+      return errorResponse(req, 'Record not found', HTTP_STATUS.NOT_FOUND)
+    }
 
-    const nextAliases = [...existing, targetActor.id]
-    await database.updateActor({
-      actorId: currentActor.id,
-      alsoKnownAs: nextAliases
-    })
     await publishActorUpdate({ actorId: currentActor.id })
 
-    const items = await toAliasItems(database, nextAliases)
+    const items = await toAliasItems(database, outcome.aliases)
     return apiResponse({
       req,
       allowedMethods: ALLOWED_METHODS,
@@ -153,11 +152,22 @@ export const DELETE = traceApiRoute(
   AuthenticatedGuard(async (req, context) => {
     const { currentActor, database } = context
 
+    const text = await req.text()
     let body: unknown
-    try {
-      body = await req.json()
-    } catch {
-      return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+    if (text.trim().length === 0) {
+      const url = new URL(req.url)
+      const id = url.searchParams.get('id')
+      const actorId = url.searchParams.get('actorId')
+      body = {
+        ...(id !== null ? { id } : null),
+        ...(actorId !== null ? { actorId } : null)
+      }
+    } else {
+      try {
+        body = JSON.parse(text)
+      } catch {
+        return errorResponse(req, 'Invalid request', HTTP_STATUS.BAD_REQUEST)
+      }
     }
 
     const parsed = DeleteAliasRequest.safeParse(body)
@@ -170,23 +180,22 @@ export const DELETE = traceApiRoute(
       return errorResponse(req, 'Actor changed', HTTP_STATUS.CONFLICT)
     }
 
-    const freshCurrentActor = await database.getActorFromId({
-      id: currentActor.id
+    const outcome = await database.updateActorAliases({
+      actorId: currentActor.id,
+      remove: id,
+      max: MAX_ALIASES
     })
-    const existing = freshCurrentActor?.alsoKnownAs ?? []
-    const index = existing.findIndex((alias) => actorIdsMatch(alias, id))
-    if (index === -1) {
+
+    if (outcome.status === 'not-found' || outcome.status === 'no-actor') {
       return errorResponse(req, 'Record not found', HTTP_STATUS.NOT_FOUND)
     }
+    if (outcome.status !== 'ok') {
+      return errorResponse(req, 'Invalid request')
+    }
 
-    const remaining = existing.filter((alias) => !actorIdsMatch(alias, id))
-    await database.updateActor({
-      actorId: currentActor.id,
-      alsoKnownAs: remaining
-    })
     await publishActorUpdate({ actorId: currentActor.id })
 
-    const items = await toAliasItems(database, remaining)
+    const items = await toAliasItems(database, outcome.aliases)
     return apiResponse({
       req,
       allowedMethods: ALLOWED_METHODS,

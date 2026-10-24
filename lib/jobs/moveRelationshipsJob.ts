@@ -49,7 +49,9 @@ export const publishMoveRelationshipsJobs = async ({
     database.getLocalNoteAuthorIds({ targetActorId: originActorId })
   ])
 
-  const actorIds = [...new Set([...blockerIds, ...muterIds, ...authorIds])]
+  const actorIds = [
+    ...new Set([...blockerIds, ...muterIds, ...authorIds])
+  ].filter((id) => !actorIdsMatch(id, targetActorId))
   let failures = 0
 
   for (const actorId of actorIds) {
@@ -93,7 +95,12 @@ export const moveRelationshipsJob: JobHandle = createJobHandle(
       const originActorId = normalizeActorId(parsed.data.originActorId)
       const targetActorId = normalizeActorId(parsed.data.targetActorId)
 
-      if (!actorId || !originActorId || !targetActorId) {
+      if (
+        !actorId ||
+        !originActorId ||
+        !targetActorId ||
+        actorIdsMatch(actorId, targetActorId)
+      ) {
         return
       }
 
@@ -193,16 +200,24 @@ export const moveRelationshipsJob: JobHandle = createJobHandle(
           targetActorId: target.id
         })
         const isFollowing = follow?.status === FollowStatus.enum.Accepted
+        const blockNote = `This user moved from ${acct}, which you had blocked.`
 
         if (existingBlock?.uri === blockUri) {
-          await getQueue().publish({
-            id: getHashFromString(blockUri),
-            name: SEND_BLOCK_JOB_NAME,
-            data: { actorId, targetActorId: target.id, uri: blockUri }
+          // The "had blocked" note is only written after the send was queued, so
+          // it proves the Block went out; without it send again (a duplicate
+          // Block with the same uri is harmless, a missing one is not).
+          const targetNote = await database.getAccountNote({
+            actorId,
+            targetActorId: target.id
           })
-          await addAccountNoteIfNeeded(
-            `This user moved from ${acct}, which you had blocked.`
-          )
+          if (!target.privateKey && !targetNote?.includes(blockNote)) {
+            await getQueue().publish({
+              id: getHashFromString(blockUri),
+              name: SEND_BLOCK_JOB_NAME,
+              data: { actorId, targetActorId: target.id, uri: blockUri }
+            })
+          }
+          await addAccountNoteIfNeeded(blockNote)
         } else if (!existingBlock && !isFollowing) {
           const block = await applyBlock({
             database,
@@ -210,14 +225,14 @@ export const moveRelationshipsJob: JobHandle = createJobHandle(
             targetActorId: target.id,
             uri: blockUri
           })
-          await getQueue().publish({
-            id: getHashFromString(block.uri),
-            name: SEND_BLOCK_JOB_NAME,
-            data: { actorId, targetActorId: target.id, uri: block.uri }
-          })
-          await addAccountNoteIfNeeded(
-            `This user moved from ${acct}, which you had blocked.`
-          )
+          if (!target.privateKey) {
+            await getQueue().publish({
+              id: getHashFromString(block.uri),
+              name: SEND_BLOCK_JOB_NAME,
+              data: { actorId, targetActorId: target.id, uri: block.uri }
+            })
+          }
+          await addAccountNoteIfNeeded(blockNote)
         }
       }
 
@@ -237,6 +252,7 @@ export const moveRelationshipsJob: JobHandle = createJobHandle(
           targetActorId: target.id
         })
         const isFollowing = follow?.status === FollowStatus.enum.Accepted
+        const muteNote = `This user moved from ${acct}, which you had muted.`
 
         if (!targetMute && !isFollowing) {
           await applyMute({
@@ -247,9 +263,14 @@ export const moveRelationshipsJob: JobHandle = createJobHandle(
             // Mastodon passes only the notifications flag; the end time is kept so a temporary mute stays temporary.
             endsAt: originMute.endsAt
           })
-          await addAccountNoteIfNeeded(
-            `This user moved from ${acct}, which you had muted.`
-          )
+          await addAccountNoteIfNeeded(muteNote)
+        } else if (
+          targetMute &&
+          !isFollowing &&
+          targetMute.notifications === originMute.notifications &&
+          targetMute.endsAt === originMute.endsAt
+        ) {
+          await addAccountNoteIfNeeded(muteNote)
         }
       }
     })

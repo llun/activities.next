@@ -146,12 +146,19 @@ export type NotificationGroupKeyParams = {
   limit?: number
 }
 
+export type GetNotificationFromFollowIdParams = {
+  followId: string
+}
+
 export interface NotificationDatabase {
   createNotification(params: CreateNotificationParams): Promise<Notification>
   getNotifications(params: GetNotificationsParams): Promise<Notification[]>
   getNotificationsCount(params: GetNotificationsCountParams): Promise<number>
   markNotificationsRead(params: MarkNotificationsReadParams): Promise<void>
   deleteNotification(notificationId: string): Promise<void>
+  getNotificationFromFollowId(
+    params: GetNotificationFromFollowIdParams
+  ): Promise<Notification | null>
 
   // Notification requests: grouped views over filtered = true notifications.
   getNotificationRequests(

@@ -6,16 +6,11 @@ import {
   MOVE_FOLLOWER_JOB_NAME,
   SEND_UNDO_FOLLOW_JOB_NAME
 } from '@/lib/jobs/names'
-import { resolveActorEmailBrand } from '@/lib/services/email/sender'
-import { buildFollowEmail } from '@/lib/services/email/templates/follow'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
-import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
-import { followGroupKey } from '@/lib/services/notifications/followGrouping'
-import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
+import { notifyLocalFollow } from '@/lib/services/notifications/notifyLocalFollow'
 import { getQueue } from '@/lib/services/queue'
 import { JobHandle } from '@/lib/services/queue/type'
-import { NotificationType } from '@/lib/types/database/operations'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { actorIdsMatch, normalizeActorId } from '@/lib/utils/activitypub'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
@@ -161,6 +156,15 @@ export const moveFollowerJob: JobHandle = createJobHandle(
         return
       }
 
+      // Mastodon FollowService sends a follow request when the follower is silenced,
+      // even for a local target or with auto-approval.
+      const followerStates = isLocalTarget
+        ? await database.getModerationStatesForActors({
+            actorIds: [follower.id]
+          })
+        : undefined
+      const isSilenced = Boolean(followerStates?.get(follower.id)?.silencedAt)
+
       if (
         (await database.isEitherBlocking({
           actorIdA: follower.id,
@@ -234,9 +238,10 @@ export const moveFollowerJob: JobHandle = createJobHandle(
           id: ownFollowId,
           actorId: follower.id,
           targetActorId: target.id,
-          status: isLocalTarget
-            ? FollowStatus.enum.Accepted
-            : FollowStatus.enum.Requested,
+          status:
+            isLocalTarget && !isSilenced
+              ? FollowStatus.enum.Accepted
+              : FollowStatus.enum.Requested,
           inbox: `${follower.id}/inbox`,
           sharedInbox: `https://${follower.domain}/inbox`,
           reblogs: oldFollow.reblogs,
@@ -248,40 +253,26 @@ export const moveFollowerJob: JobHandle = createJobHandle(
         mine = created
 
         if (isLocalTarget) {
-          const followNotification = await createNotificationWithPolicy(
+          await notifyLocalFollow({
             database,
-            {
-              actorId: target.id,
-              type: NotificationType.enum.follow,
-              sourceActorId: follower.id,
-              followId: created.id,
-              groupKey: followGroupKey(Date.now())
-            }
-          )
-          if (followNotification && !followNotification.filtered) {
-            sendNotificationAlerts({
-              database,
-              actorId: target.id,
-              sourceActorId: follower.id,
-              sourceActor: follower,
-              events: [
-                {
-                  type: NotificationType.enum.follow,
-                  notificationId: followNotification.id,
-                  emailContent: target.account
-                    ? {
-                        recipientEmail: target.account.email,
-                        ...buildFollowEmail({
-                          recipient: target,
-                          brand: await resolveActorEmailBrand(database, target),
-                          actor: follower
-                        })
-                      }
-                    : undefined
-                }
-              ]
-            })
-          }
+            targetActor: target,
+            followerActor: follower,
+            followId: created.id,
+            type: isSilenced ? 'follow_request' : 'follow'
+          })
+        }
+      } else if (isLocalTarget) {
+        const existingNotification = await database.getNotificationFromFollowId(
+          { followId: mine.id }
+        )
+        if (!existingNotification) {
+          await notifyLocalFollow({
+            database,
+            targetActor: target,
+            followerActor: follower,
+            followId: mine.id,
+            type: isSilenced ? 'follow_request' : 'follow'
+          })
         }
       }
       // The row is the job's own but was ended (rejected, unfollowed) before
@@ -291,13 +282,16 @@ export const moveFollowerJob: JobHandle = createJobHandle(
       // A failed send keeps the Requested row. The retry finds it by id and
       // sends the same row again (as Mastodon does), so a late Accept for it
       // is never one of two follows. For a local target, no remote activity is
-      // sent; if the row was somehow left as Requested, transition it to Accepted.
+      // sent; if the row was somehow left as Requested, transition it to Accepted
+      // unless the follower is silenced (silenced followers stay Requested).
       if (mine.status === FollowStatus.enum.Requested) {
         if (isLocalTarget) {
-          await database.updateFollowStatus({
-            followId: mine.id,
-            status: FollowStatus.enum.Accepted
-          })
+          if (!isSilenced) {
+            await database.updateFollowStatus({
+              followId: mine.id,
+              status: FollowStatus.enum.Accepted
+            })
+          }
         } else {
           await send(mine.id)
         }

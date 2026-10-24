@@ -198,6 +198,21 @@ export type UpdateActorParams = {
   inboxUrl?: string
   sharedInboxUrl?: string
 }
+
+export interface UpdateActorAliasesParams {
+  actorId: string
+  add?: string
+  remove?: string
+  max: number
+}
+
+export type UpdateActorAliasesResult =
+  | { status: 'ok'; aliases: string[] }
+  | { status: 'duplicate' }
+  | { status: 'limit' }
+  | { status: 'not-found' }
+  | { status: 'no-actor' }
+
 export type ScheduleActorDeletionParams = {
   actorId: string
   scheduledAt: Date | null // null means immediate deletion
@@ -253,6 +268,9 @@ export interface ActorDatabase {
   updateActorWithPrevious(
     params: UpdateActorParams
   ): Promise<{ before: Actor | null; after: Actor | null }>
+  updateActorAliases(
+    params: UpdateActorAliasesParams
+  ): Promise<UpdateActorAliasesResult>
   // Atomically claims the actor for one inbound Move (Mastodon's nx key):
   // false when a different activity claimed it within `windowMs`.
   claimActorMove(params: ClaimActorMoveParams): Promise<boolean>

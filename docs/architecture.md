@@ -1749,9 +1749,7 @@ changed' }` before any write. Mastodon clients do not send it and are
   (Mastodon parity). Stored `alsoKnownAs` keeps only
   http(s) URLs, at most 20, and an inbound `movedTo` that is not an http(s) URL
   is dropped. Local aliases are supported via `GET/POST/DELETE /api/v1/accounts/aliases`
-  (up to 10 aliases) and federated in `alsoKnownAs` and `movedTo` for local
-  actors; outbound Move and a migration settings page are not implemented (see
-  the inbound `Move` bullet below).
+  (up to 10 aliases; `alsoKnownAs` is set through the aliases API; `movedTo` is emitted when set, but nothing sets it on a local actor yet — outgoing Move is not implemented); a migration settings page is not implemented (see the inbound `Move` bullet below).
 - **An inbound `Move` (account migration) goes to `MoveActorJob` from both
   inboxes, and nothing in its body is trusted beyond three ids.**
   `getJobMessage` queues it only when the HTTP signer, `actor` and `object` are

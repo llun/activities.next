@@ -250,6 +250,10 @@ export const moveActorJob: JobHandle = createJobHandle(
               `Move: ${relationshipFailures} relationship carryover job(s) could not be queued`
             )
           }
+          await database.markActorMoveQueued({
+            actorId: origin.id,
+            activityId: message.id
+          })
           return
         }
 

@@ -138,6 +138,36 @@ describe('moveRelationshipsJob', () => {
         })
       )
     })
+
+    it('does not publish jobs for the target itself if target has relationships on origin', async () => {
+      // ACTOR2_ID is target, and ACTOR2_ID blocks, mutes, and has an account note on ORIGIN
+      await database.createBlock({
+        actorId: ACTOR2_ID,
+        targetActorId: ORIGIN,
+        uri: `${ACTOR2_ID}#blocks/1`
+      })
+      await applyMute({
+        database,
+        actorId: ACTOR2_ID,
+        targetActorId: ORIGIN,
+        notifications: true,
+        endsAt: null
+      })
+      await database.upsertAccountNote({
+        actorId: ACTOR2_ID,
+        targetActorId: ORIGIN,
+        comment: 'Target note on origin'
+      })
+
+      const failures = await publishMoveRelationshipsJobs({
+        database,
+        originActorId: ORIGIN,
+        targetActorId: ACTOR2_ID
+      })
+
+      expect(failures).toBe(0)
+      expect(mockPublish).not.toHaveBeenCalled()
+    })
   })
 
   describe('moveRelationshipsJob execution', () => {
@@ -359,7 +389,38 @@ describe('moveRelationshipsJob', () => {
         expect(block).toBeNull()
       })
 
-      it('re-publishes SEND_BLOCK_JOB_NAME on retry when already blocked with deterministic uri', async () => {
+      it('creates block in DB and adds note for a local target without publishing SEND_BLOCK_JOB_NAME', async () => {
+        await database.updateActor({ actorId: ORIGIN, movedTo: ACTOR2_ID })
+        await applyBlock({
+          database,
+          actorId: ACTOR1_ID,
+          targetActorId: ORIGIN,
+          uri: `${ACTOR1_ID}#blocks/origin`
+        })
+
+        mockPublish.mockClear()
+        await runJob(ACTOR1_ID, ORIGIN, ACTOR2_ID)
+
+        const block = await database.getBlock({
+          actorId: ACTOR1_ID,
+          targetActorId: ACTOR2_ID
+        })
+        expect(block).not.toBeNull()
+
+        expect(mockPublish).not.toHaveBeenCalled()
+
+        const origin = await database.getActorFromId({ id: ORIGIN })
+        const acct = `${origin?.username}@${origin?.domain}`
+        const note = await database.getAccountNote({
+          actorId: ACTOR1_ID,
+          targetActorId: ACTOR2_ID
+        })
+        expect(note).toBe(
+          `This user moved from ${acct}, which you had blocked.`
+        )
+      })
+
+      it('re-publishes SEND_BLOCK_JOB_NAME on retry when already blocked with deterministic uri and no note', async () => {
         const deterministicUri = `${ACTOR1_ID}#blocks/${getHashFromString(`${ACTOR1_ID}/move-block/${ORIGIN}/${TARGET}`)}`
         await applyBlock({
           database,
@@ -385,6 +446,26 @@ describe('moveRelationshipsJob', () => {
             uri: deterministicUri
           }
         })
+      })
+
+      it('skips publishing SEND_BLOCK_JOB_NAME on second run after success with note present', async () => {
+        await applyBlock({
+          database,
+          actorId: ACTOR1_ID,
+          targetActorId: ORIGIN,
+          uri: `${ACTOR1_ID}#blocks/origin`
+        })
+        mockPublish.mockClear()
+
+        await runJob()
+        expect(mockPublish).toHaveBeenCalledTimes(1)
+        expect(mockPublish).toHaveBeenCalledWith(
+          expect.objectContaining({ name: SEND_BLOCK_JOB_NAME })
+        )
+
+        mockPublish.mockClear()
+        await runJob()
+        expect(mockPublish).not.toHaveBeenCalled()
       })
 
       it('does not overwrite existing note with block note', async () => {
@@ -535,9 +616,147 @@ describe('moveRelationshipsJob', () => {
         expect(note).toContain('here were your previous notes about them')
         expect(note).not.toContain('which you had muted')
       })
+
+      it('adds note on resume when target mute exists with matching notifications and endsAt', async () => {
+        const future = Date.now() + 100000
+        await applyMute({
+          database,
+          actorId: ACTOR1_ID,
+          targetActorId: ORIGIN,
+          notifications: false,
+          endsAt: future
+        })
+        await applyMute({
+          database,
+          actorId: ACTOR1_ID,
+          targetActorId: TARGET,
+          notifications: false,
+          endsAt: future
+        })
+
+        await runJob()
+
+        const origin = await database.getActorFromId({ id: ORIGIN })
+        const acct = `${origin?.username}@${origin?.domain}`
+        const note = await database.getAccountNote({
+          actorId: ACTOR1_ID,
+          targetActorId: TARGET
+        })
+        expect(note).toBe(`This user moved from ${acct}, which you had muted.`)
+      })
+
+      it('leaves target mute untouched and adds no note when notifications setting differs', async () => {
+        const future = Date.now() + 100000
+        await applyMute({
+          database,
+          actorId: ACTOR1_ID,
+          targetActorId: ORIGIN,
+          notifications: false,
+          endsAt: future
+        })
+        await applyMute({
+          database,
+          actorId: ACTOR1_ID,
+          targetActorId: TARGET,
+          notifications: true,
+          endsAt: future
+        })
+
+        await runJob()
+
+        const mute = await database.getMute({
+          actorId: ACTOR1_ID,
+          targetActorId: TARGET
+        })
+        expect(mute?.notifications).toBe(true)
+        expect(mute?.endsAt).toBe(future)
+
+        const note = await database.getAccountNote({
+          actorId: ACTOR1_ID,
+          targetActorId: TARGET
+        })
+        expect(note).toBe('')
+      })
+
+      it('leaves target mute untouched and adds no note when endsAt setting differs', async () => {
+        const future1 = Date.now() + 100000
+        const future2 = Date.now() + 200000
+        await applyMute({
+          database,
+          actorId: ACTOR1_ID,
+          targetActorId: ORIGIN,
+          notifications: false,
+          endsAt: future1
+        })
+        await applyMute({
+          database,
+          actorId: ACTOR1_ID,
+          targetActorId: TARGET,
+          notifications: false,
+          endsAt: future2
+        })
+
+        await runJob()
+
+        const mute = await database.getMute({
+          actorId: ACTOR1_ID,
+          targetActorId: TARGET
+        })
+        expect(mute?.notifications).toBe(false)
+        expect(mute?.endsAt).toBe(future2)
+
+        const note = await database.getAccountNote({
+          actorId: ACTOR1_ID,
+          targetActorId: TARGET
+        })
+        expect(note).toBe('')
+      })
     })
 
     describe('guard conditions (no-op)', () => {
+      it('does nothing if actorId matches targetActorId (self relationship)', async () => {
+        await database.updateActor({ actorId: ORIGIN, movedTo: ACTOR1_ID })
+        await database.createBlock({
+          actorId: ACTOR1_ID,
+          targetActorId: ORIGIN,
+          uri: `${ACTOR1_ID}#blocks/1`
+        })
+        await applyMute({
+          database,
+          actorId: ACTOR1_ID,
+          targetActorId: ORIGIN,
+          notifications: true,
+          endsAt: null
+        })
+        await database.upsertAccountNote({
+          actorId: ACTOR1_ID,
+          targetActorId: ORIGIN,
+          comment: 'self note'
+        })
+
+        mockPublish.mockClear()
+        await runJob(ACTOR1_ID, ORIGIN, ACTOR1_ID)
+
+        expect(mockPublish).not.toHaveBeenCalled()
+        expect(
+          await database.getBlock({
+            actorId: ACTOR1_ID,
+            targetActorId: ACTOR1_ID
+          })
+        ).toBeNull()
+        expect(
+          await database.getMute({
+            actorId: ACTOR1_ID,
+            targetActorId: ACTOR1_ID
+          })
+        ).toBeNull()
+        expect(
+          await database.getAccountNote({
+            actorId: ACTOR1_ID,
+            targetActorId: ACTOR1_ID
+          })
+        ).toBe('')
+      })
       it('does nothing if localActor is not local', async () => {
         // ORIGIN is remote, not local
         await database.upsertAccountNote({

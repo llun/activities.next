@@ -519,6 +519,7 @@ describe('moveActorJob', () => {
     )
     expect(publishedFollowerJobs()).toEqual([])
     expect((await claim())?.activityId).toBe('inbox-move-1')
+    expect((await claim())?.queued).toBe(true)
   })
 
   it('moves from a remote origin into a local target whose alsoKnownAs includes the origin', async () => {
@@ -619,6 +620,7 @@ describe('moveActorJob', () => {
     )
     expect(publishedFollowerJobs()).toEqual([])
     expect((await claim())?.activityId).toBe('inbox-move-1')
+    expect((await claim())?.queued).toBe(true)
   })
 
   it('queues followers on retry for a local target without re-verifying', async () => {
@@ -821,6 +823,7 @@ describe('moveActorJob', () => {
       ])
       expect(publishedFollowerJobs()).toEqual([])
       expect((await claim())?.activityId).toBe('inbox-move-1')
+      expect((await claim())?.queued).toBe(true)
     })
 
     it('throws and does not mark move queued when a relationship job fails to publish', async () => {
@@ -871,6 +874,32 @@ describe('moveActorJob', () => {
 
       expect(publishedRelationshipsJobs()).toHaveLength(1)
       expect(publishedFollowerJobs()).toHaveLength(1)
+      expect((await claim())?.queued).toBe(true)
+
+      mockPublish.mockClear()
+      vi.mocked(getActorPerson).mockClear()
+
+      await moveActorJob(database, message())
+
+      expect(mockPublish).not.toHaveBeenCalled()
+      expect(getActorPerson).not.toHaveBeenCalled()
+      expect((await claim())?.queued).toBe(true)
+    })
+
+    it('with a moved target, a second delivery of the same Move publishes nothing (alreadyQueued)', async () => {
+      await database.createBlock({
+        actorId: ACTOR1_ID,
+        targetActorId: ORIGIN,
+        uri: `${ACTOR1_ID}#blocks/1`
+      })
+      vi.mocked(getActorPerson).mockResolvedValue(
+        targetPerson([ORIGIN], 'https://elsewhere.test/users/test1')
+      )
+
+      await moveActorJob(database, message())
+
+      expect(publishedRelationshipsJobs()).toHaveLength(1)
+      expect(publishedFollowerJobs()).toHaveLength(0)
       expect((await claim())?.queued).toBe(true)
 
       mockPublish.mockClear()
