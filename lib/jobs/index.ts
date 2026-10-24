@@ -10,6 +10,7 @@ import { deleteActorJob } from './deleteActorJob'
 import { deleteObjectJob } from './deleteObjectJob'
 import { deliverActivityJob } from './deliverActivityJob'
 import { emojiReactionJob } from './emojiReactionJob'
+import { exportAccountArchiveJob } from './exportAccountArchiveJob'
 import { fetchLinkPreviewJob } from './fetchLinkPreviewJob'
 import { fetchRemoteStatusJob } from './fetchRemoteStatusJob'
 import { followTimelineBackfillJob } from './followTimelineBackfillJob'
@@ -35,6 +36,7 @@ import {
   DELETE_OBJECT_JOB_NAME,
   DELIVER_ACTIVITY_JOB_NAME,
   EMOJI_REACTION_JOB_NAME,
+  EXPORT_ACCOUNT_ARCHIVE_JOB_NAME,
   FETCH_LINK_PREVIEW_JOB_NAME,
   FETCH_REMOTE_STATUS_JOB_NAME,
   FOLLOW_TIMELINE_BACKFILL_JOB_NAME,
@@ -161,6 +163,9 @@ export const JOBS: Record<string, JobHandle> = {
   },
   get [IMPORT_STRAVA_ACTIVITY_JOB_NAME]() {
     return importStravaActivityJob
+  },
+  get [EXPORT_ACCOUNT_ARCHIVE_JOB_NAME]() {
+    return exportAccountArchiveJob
   },
   get [IMPORT_STRAVA_ARCHIVE_JOB_NAME]() {
     return importStravaArchiveJob
