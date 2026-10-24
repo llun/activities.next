@@ -2,9 +2,11 @@ import { randomUUID } from 'node:crypto'
 
 import type {
   GetAccountNoteParams,
+  GetLocalNoteAuthorIdsParams,
   UpsertAccountNoteParams
 } from '@/lib/database/domains/accountNote/types'
 import type { Db } from '@/lib/database/kysely'
+import { isLocalActor } from '@/lib/database/kysely/visibility/localActor'
 
 export const upsertAccountNote = async (
   db: Db,
@@ -61,4 +63,24 @@ export const getAccountNote = async (
   return typeof data?.comment === 'string' ? data.comment : ''
 }
 
-export const accountNoteQueries = { upsertAccountNote, getAccountNote }
+export const getLocalNoteAuthorIds = async (
+  db: Db,
+  { targetActorId }: GetLocalNoteAuthorIdsParams
+): Promise<string[]> => {
+  const rows = await db
+    .selectFrom('actors')
+    .innerJoin('account_notes', 'account_notes.actorId', 'actors.id')
+    .where('account_notes.targetActorId', '=', targetActorId)
+    .where('account_notes.comment', '<>', '')
+    .where(isLocalActor)
+    .select('actors.id')
+    .$narrowType<{ id: string }>()
+    .execute()
+  return rows.map((row) => row.id)
+}
+
+export const accountNoteQueries = {
+  upsertAccountNote,
+  getAccountNote,
+  getLocalNoteAuthorIds
+}

@@ -2,13 +2,7 @@ import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { acceptFollow, rejectFollow } from '@/lib/activities'
 import { FollowRequest } from '@/lib/activities/followAction'
 import { Database } from '@/lib/database/types'
-import { resolveActorEmailBrand } from '@/lib/services/email/sender'
-import { buildFollowEmail } from '@/lib/services/email/templates/follow'
-import { buildFollowRequestEmail } from '@/lib/services/email/templates/followRequest'
-import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
-import { followGroupKey } from '@/lib/services/notifications/followGrouping'
-import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
-import { NotificationType } from '@/lib/types/database/operations'
+import { notifyLocalFollow } from '@/lib/services/notifications/notifyLocalFollow'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { actorIdsMatch } from '@/lib/utils/activitypub'
 
@@ -91,41 +85,13 @@ export const createFollower = async ({
       sharedInbox: followerActor.sharedInboxUrl
     })
 
-    // Create follow_request notification; only send alerts if accepted.
-    const followRequestNotification = await createNotificationWithPolicy(
+    await notifyLocalFollow({
       database,
-      {
-        actorId: targetActor.id,
-        type: NotificationType.enum.follow_request,
-        sourceActorId: followerActor.id,
-        followId: follow.id
-      }
-    )
-
-    if (followRequestNotification && !followRequestNotification.filtered) {
-      sendNotificationAlerts({
-        database,
-        actorId: targetActor.id,
-        sourceActorId: followerActor.id,
-        sourceActor: followerActor,
-        events: [
-          {
-            type: NotificationType.enum.follow_request,
-            notificationId: followRequestNotification?.id,
-            emailContent: targetActor.account
-              ? {
-                  recipientEmail: targetActor.account.email,
-                  ...buildFollowRequestEmail({
-                    recipient: targetActor,
-                    brand: await resolveActorEmailBrand(database, targetActor),
-                    actor: followerActor
-                  })
-                }
-              : undefined
-          }
-        ]
-      })
-    }
+      targetActor,
+      followerActor,
+      followId: follow.id,
+      type: 'follow_request'
+    })
   } else {
     // Auto-accept: create follow with Accepted status and send Accept activity
     const follow = await database.createFollow({
@@ -136,43 +102,16 @@ export const createFollower = async ({
       sharedInbox: followerActor.sharedInboxUrl
     })
 
-    const [, followNotification] = await Promise.all([
+    await Promise.all([
       acceptFollow(targetActor, followerActor.inboxUrl, followRequest),
-      // Create follow notification (auto-accepted). Bucket follows by UTC day so
-      // they group within a bounded window instead of one ever-growing group.
-      createNotificationWithPolicy(database, {
-        actorId: targetActor.id,
-        type: NotificationType.enum.follow,
-        sourceActorId: followerActor.id,
+      notifyLocalFollow({
+        database,
+        targetActor,
+        followerActor,
         followId: follow.id,
-        groupKey: followGroupKey(Date.now())
+        type: 'follow'
       })
     ])
-
-    if (followNotification && !followNotification.filtered) {
-      sendNotificationAlerts({
-        database,
-        actorId: targetActor.id,
-        sourceActorId: followerActor.id,
-        sourceActor: followerActor,
-        events: [
-          {
-            type: NotificationType.enum.follow,
-            notificationId: followNotification?.id,
-            emailContent: targetActor.account
-              ? {
-                  recipientEmail: targetActor.account.email,
-                  ...buildFollowEmail({
-                    recipient: targetActor,
-                    brand: await resolveActorEmailBrand(database, targetActor),
-                    actor: followerActor
-                  })
-                }
-              : undefined
-          }
-        ]
-      })
-    }
   }
 
   return followRequest

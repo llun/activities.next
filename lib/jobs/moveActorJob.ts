@@ -5,6 +5,7 @@ import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { Database } from '@/lib/database/types'
 import { createJobHandle } from '@/lib/jobs/createJobHandle'
 import { getMoveFollowerJobId } from '@/lib/jobs/moveFollowerJob'
+import { publishMoveRelationshipsJobs } from '@/lib/jobs/moveRelationshipsJob'
 import { MOVE_ACTOR_JOB_NAME, MOVE_FOLLOWER_JOB_NAME } from '@/lib/jobs/names'
 import { actorMatchesVerifiedSender } from '@/lib/jobs/verifiedSender'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
@@ -29,9 +30,9 @@ const MOVE_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000
 const includesActorId = (aliases: string[] | undefined, actorId: string) =>
   (aliases ?? []).some((alias) => actorIdsMatch(alias, actorId))
 
-// Re-reads the target from its own origin with a signed request (when a
+// Re-reads the remote target from its own origin with a signed request (when a
 // federation signing actor is configured), never taken from the Move body.
-// `null` means "cannot verify". Local targets are refused before this runs.
+// `null` means "cannot verify".
 const getTargetAliases = async (
   targetId: string,
   signingActor: Actor | undefined
@@ -57,6 +58,26 @@ const verifyTarget = async ({
   signingActor: Actor | undefined
   span: { setAttribute: (key: string, value: boolean) => unknown }
 }): Promise<(Actor & { moved: boolean }) | null> => {
+  const local = await database.getActorFromId({ id: targetId })
+  if (local?.privateKey) {
+    // A local target's aliases are read from its stored row, never fetched over the network.
+    if (actorIdsMatch(local.id, origin.id)) {
+      return null
+    }
+    if (!includesActorId(local.alsoKnownAs ?? [], origin.id)) {
+      span.setAttribute('aliasMismatch', true)
+      return null
+    }
+    const states = await database.getModerationStatesForActors({
+      actorIds: [local.id]
+    })
+    if (states.get(local.id)?.suspendedAt || local.deletionStatus) {
+      span.setAttribute('targetUnavailable', true)
+      return null
+    }
+    return { ...local, moved: Boolean(local.movedTo) }
+  }
+
   const targetInfo = await getTargetAliases(targetId, signingActor)
   if (!targetInfo) {
     span.setAttribute('targetUnreachable', true)
@@ -93,10 +114,12 @@ const verifyTarget = async ({
 // otherwise anyone could "move" an account onto a profile of their choosing.
 // Like Mastodon's `move_in_progress` key, one Move per origin is processed
 // every 7 days, and the claim is released when verification fails. The job
-// verifies once, records `movedTo`, then publishes one MoveFollowerJob per
-// accepted local follower, each with a deterministic id, so a retry never
-// abandons or duplicates a follower. Once all of them are published the claim
-// is marked `queued` and a redelivery of the same Move does nothing.
+// verifies once, records `movedTo`, then publishes one MoveRelationshipsJob
+// per local actor holding a note, block or mute on the origin, and one
+// MoveFollowerJob per accepted local follower of the origin, each with a
+// deterministic id, so a retry never abandons or duplicates a relationship or
+// follower. Once all of them are published the claim is marked `queued` and a
+// redelivery of the same Move does nothing.
 export const moveActorJob: JobHandle = createJobHandle(
   MOVE_ACTOR_JOB_NAME,
   async (database, message) => {
@@ -128,15 +151,9 @@ export const moveActorJob: JobHandle = createJobHandle(
         return
       }
 
-      // A local account never moves by network activity, and local accounts
-      // cannot list aliases yet, so a local target can never verify either.
+      // A local account never moves by network activity.
       const knownOrigin = await database.getActorFromId({ id: originId })
       if (knownOrigin?.privateKey) return
-      const knownTarget = await database.getActorFromId({ id: targetId })
-      if (knownTarget?.privateKey) {
-        span.setAttribute('localTarget', true)
-        return
-      }
       const states = await database.getModerationStatesForActors({
         actorIds: [originId]
       })
@@ -193,7 +210,7 @@ export const moveActorJob: JobHandle = createJobHandle(
             ? await database.getActorFromId({ id: targetId })
             : undefined
         let target: (Actor & { moved: boolean }) | null
-        if (storedTarget && !storedTarget.privateKey) {
+        if (storedTarget) {
           span.setAttribute('verifiedRetry', true)
           target = { ...storedTarget, moved: Boolean(storedTarget.movedTo) }
           recorded = true
@@ -217,18 +234,33 @@ export const moveActorJob: JobHandle = createJobHandle(
           })
         }
 
+        const relationshipFailures = await publishMoveRelationshipsJobs({
+          database,
+          originActorId: origin.id,
+          targetActorId: target.id
+        })
+
         // Mastodon follows a moved account only if it is live: a target that
         // has itself moved on keeps the origin's `movedTo`, but no follower is
         // rewired onto it.
         if (target.moved) {
           span.setAttribute('targetMoved', true)
+          if (relationshipFailures > 0) {
+            throw new Error(
+              `Move: ${relationshipFailures} relationship carryover job(s) could not be queued`
+            )
+          }
+          await database.markActorMoveQueued({
+            actorId: origin.id,
+            activityId: message.id
+          })
           return
         }
 
         const follows = await database.getLocalFollowersForActorId({
           targetActorId: origin.id
         })
-        let failures = 0
+        let failures = relationshipFailures
         for (const oldFollow of follows) {
           try {
             await getQueue().publish({

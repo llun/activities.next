@@ -766,4 +766,60 @@ describe('MuteDatabase', () => {
       endsAt: 5_000_000_000_000
     })
   })
+
+  it('returns local muter ids for a given target actor considering expiry', async () => {
+    const target = targetActorId()
+    const remoteMuterId = `https://remote.test/users/remote-${crypto.randomUUID()}`
+
+    // Remote muter has no privateKey
+    await database.createActor({
+      actorId: remoteMuterId,
+      username: `remote_${crypto.randomUUID().slice(0, 8)}`,
+      domain: 'remote.test',
+      publicKey: 'fake-public-key',
+      inboxUrl: `${remoteMuterId}/inbox`,
+      sharedInboxUrl: 'https://remote.test/inbox',
+      followersUrl: `${remoteMuterId}/followers`,
+      createdAt: Date.now()
+    })
+
+    // Remote actor mutes target indefinitely -> should NOT be returned
+    await database.createMute({
+      actorId: remoteMuterId,
+      targetActorId: target,
+      notifications: false,
+      endsAt: null
+    })
+
+    // Local actor mutes target indefinitely -> should be returned
+    await database.createMute({
+      actorId: ACTOR1_ID,
+      targetActorId: target,
+      notifications: true,
+      endsAt: null
+    })
+
+    let muters = await database.getLocalMuterIds({ targetActorId: target })
+    expect(muters).toEqual([ACTOR1_ID])
+
+    // Update ACTOR1_ID mute to an active temporary mute -> should still be returned
+    await database.createMute({
+      actorId: ACTOR1_ID,
+      targetActorId: target,
+      notifications: true,
+      endsAt: Date.now() + 60_000
+    })
+    muters = await database.getLocalMuterIds({ targetActorId: target })
+    expect(muters).toEqual([ACTOR1_ID])
+
+    // Update ACTOR1_ID mute to an expired mute -> should NOT be returned
+    await database.createMute({
+      actorId: ACTOR1_ID,
+      targetActorId: target,
+      notifications: true,
+      endsAt: Date.now() - 60_000
+    })
+    muters = await database.getLocalMuterIds({ targetActorId: target })
+    expect(muters).toEqual([])
+  })
 })

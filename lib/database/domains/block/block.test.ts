@@ -567,4 +567,54 @@ describe('BlockDatabase', () => {
       })
     ).resolves.toEqual([{ actorId, targetActorId: target }])
   })
+
+  it('returns only local blocker ids for a given target actor', async () => {
+    const target = targetActorId()
+    const otherTarget = targetActorId()
+    const remoteBlockerId = `https://remote.test/users/remote-${crypto.randomUUID()}`
+
+    // Remote blocker has no privateKey
+    await database.createActor({
+      actorId: remoteBlockerId,
+      username: `remote_${crypto.randomUUID().slice(0, 8)}`,
+      domain: 'remote.test',
+      publicKey: 'fake-public-key',
+      inboxUrl: `${remoteBlockerId}/inbox`,
+      sharedInboxUrl: 'https://remote.test/inbox',
+      followersUrl: `${remoteBlockerId}/followers`,
+      createdAt: Date.now()
+    })
+
+    // Local blocker (ACTOR1_ID is seeded as a local actor with privateKey) blocks target
+    await database.createBlock({
+      actorId: ACTOR1_ID,
+      targetActorId: target,
+      uri: `${ACTOR1_ID}#blocks/${crypto.randomUUID()}`
+    })
+
+    // Remote blocker blocks target
+    await database.createBlock({
+      actorId: remoteBlockerId,
+      targetActorId: target,
+      uri: `${remoteBlockerId}#blocks/${crypto.randomUUID()}`
+    })
+
+    // Local blocker blocks another target
+    await database.createBlock({
+      actorId: ACTOR1_ID,
+      targetActorId: otherTarget,
+      uri: `${ACTOR1_ID}#blocks/${crypto.randomUUID()}`
+    })
+
+    const blockers = await database.getLocalBlockerIds({
+      targetActorId: target
+    })
+    expect(blockers).toContain(ACTOR1_ID)
+    expect(blockers).not.toContain(remoteBlockerId)
+
+    const otherBlockers = await database.getLocalBlockerIds({
+      targetActorId: `https://remote.test/users/unblocked-${crypto.randomUUID()}`
+    })
+    expect(otherBlockers).toEqual([])
+  })
 })

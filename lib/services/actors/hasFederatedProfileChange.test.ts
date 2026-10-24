@@ -104,13 +104,14 @@ describe('hasFederatedProfileChange', () => {
     expect(hasFederatedProfileChange(before, after)).toBe(false)
   })
 
-  it('ignores moved-to and aliases, which a local Person does not carry', () => {
-    const after = {
+  it('counts moved-to and aliases, which the local Person carries', () => {
+    const moved = { ...base(), movedTo: 'https://other.example/users/me' }
+    const aliased = {
       ...base(),
-      movedTo: 'https://other.example/users/me',
       alsoKnownAs: ['https://other.example/users/me']
     }
-    expect(hasFederatedProfileChange(base(), after)).toBe(false)
+    expect(hasFederatedProfileChange(base(), moved)).toBe(true)
+    expect(hasFederatedProfileChange(base(), aliased)).toBe(true)
   })
 
   it('treats an empty name and an absent one as the same document', () => {

@@ -254,4 +254,95 @@ describe('getPersonFromActor', () => {
       ])
     })
   })
+
+  describe('alsoKnownAs', () => {
+    it('omits the property and the term when unset or empty', () => {
+      const unsetPerson = getPersonFromActor(MockActor({}))
+      expect(unsetPerson).not.toHaveProperty('alsoKnownAs')
+      expect(JSON.stringify(unsetPerson['@context'])).not.toContain(
+        'alsoKnownAs'
+      )
+
+      const emptyPerson = getPersonFromActor({
+        ...MockActor({}),
+        alsoKnownAs: []
+      })
+      expect(emptyPerson).not.toHaveProperty('alsoKnownAs')
+      expect(JSON.stringify(emptyPerson['@context'])).not.toContain(
+        'alsoKnownAs'
+      )
+    })
+
+    it('emits alsoKnownAs and declares as:alsoKnownAs in @context when present', () => {
+      const person = getPersonFromActor({
+        ...MockActor({}),
+        alsoKnownAs: ['https://mastodon.social/users/alice']
+      })
+      expect(person.alsoKnownAs).toEqual([
+        'https://mastodon.social/users/alice'
+      ])
+      expect(person['@context']).toContainEqual(
+        expect.objectContaining({
+          alsoKnownAs: {
+            '@id': 'as:alsoKnownAs',
+            '@type': '@id'
+          }
+        })
+      )
+    })
+
+    it('survives inbound compaction and actor parsing', async () => {
+      const person = getPersonFromActor({
+        ...MockActor({}),
+        alsoKnownAs: [
+          'https://mastodon.social/users/alice',
+          'https://threads.net/@alice'
+        ]
+      })
+      const compacted = await compactActivityPub(
+        JSON.parse(JSON.stringify(person))
+      )
+      const parsed = ActivityPubActor.parse(compacted)
+      expect(parsed.alsoKnownAs).toEqual([
+        'https://mastodon.social/users/alice',
+        'https://threads.net/@alice'
+      ])
+    })
+  })
+
+  describe('movedTo', () => {
+    it('omits the property and the term when unset', () => {
+      const person = getPersonFromActor(MockActor({}))
+      expect(person).not.toHaveProperty('movedTo')
+      expect(JSON.stringify(person['@context'])).not.toContain('movedTo')
+    })
+
+    it('emits movedTo and declares as:movedTo in @context when set', () => {
+      const person = getPersonFromActor({
+        ...MockActor({}),
+        movedTo: 'https://mastodon.social/users/alice_new'
+      })
+      expect(person.movedTo).toEqual('https://mastodon.social/users/alice_new')
+      expect(person['@context']).toContainEqual(
+        expect.objectContaining({
+          movedTo: {
+            '@id': 'as:movedTo',
+            '@type': '@id'
+          }
+        })
+      )
+    })
+
+    it('survives inbound compaction and actor parsing', async () => {
+      const person = getPersonFromActor({
+        ...MockActor({}),
+        movedTo: 'https://mastodon.social/users/alice_new'
+      })
+      const compacted = await compactActivityPub(
+        JSON.parse(JSON.stringify(person))
+      )
+      const parsed = ActivityPubActor.parse(compacted)
+      expect(parsed.movedTo).toEqual('https://mastodon.social/users/alice_new')
+    })
+  })
 })

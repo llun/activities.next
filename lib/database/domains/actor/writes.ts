@@ -20,6 +20,8 @@ import type {
   MarkActorProfileFieldsVerifiedParams,
   ScheduleActorDeletionParams,
   StartActorDeletionParams,
+  UpdateActorAliasesParams,
+  UpdateActorAliasesResult,
   UpdateActorParams
 } from '@/lib/database/domains/actor/types'
 import {
@@ -35,6 +37,7 @@ import type {
 } from '@/lib/types/database/operations'
 import type { ActorSettings } from '@/lib/types/database/rows'
 import type { Actor } from '@/lib/types/domain/actor'
+import { actorIdsMatch } from '@/lib/utils/activitypub'
 import { carryOverFieldVerification } from '@/lib/utils/profileFieldVerification'
 import { generatePublicId } from '@/lib/utils/publicId'
 import { getEmojiTags } from '@/lib/utils/text/getEmojiTags'
@@ -388,6 +391,70 @@ export const updateActorWithPrevious = (
   db: Db,
   params: UpdateActorParams
 ): Promise<ActorUpdateResult> => applyActorUpdate(db, true, params)
+
+export const updateActorAliases = async (
+  db: Db,
+  { actorId, add, remove, max }: UpdateActorAliasesParams
+): Promise<UpdateActorAliasesResult> => {
+  return inTransaction(db, async (trx) => {
+    const freshActor = await forUpdate(
+      trx,
+      trx
+        .selectFrom('actors')
+        .select('settings')
+        .where('id', '=', actorId)
+        .limit(1)
+    ).executeTakeFirst()
+
+    if (!freshActor) {
+      return { status: 'no-actor' }
+    }
+
+    const freshSettings =
+      getCompatibleJSON<ActorSettings>(
+        freshActor.settings as string | ActorSettings
+      ) ?? {}
+    const currentAliases = freshSettings.alsoKnownAs ?? []
+    let nextAliases = [...currentAliases]
+
+    if (remove !== undefined) {
+      const exists = nextAliases.some((alias) => actorIdsMatch(alias, remove))
+      if (!exists) {
+        return { status: 'not-found' }
+      }
+      nextAliases = nextAliases.filter((alias) => !actorIdsMatch(alias, remove))
+    }
+
+    if (add !== undefined) {
+      const duplicate = nextAliases.some((alias) => actorIdsMatch(alias, add))
+      if (duplicate) {
+        return { status: 'duplicate' }
+      }
+      if (nextAliases.length >= max) {
+        return { status: 'limit' }
+      }
+      nextAliases = [...nextAliases, add]
+    }
+
+    const nextSettings: ActorSettings = { ...freshSettings }
+    if (nextAliases.length > 0) {
+      nextSettings.alsoKnownAs = nextAliases
+    } else {
+      delete nextSettings.alsoKnownAs
+    }
+
+    await trx
+      .updateTable('actors')
+      .set({
+        settings: JSON.stringify(nextSettings),
+        updatedAt: new Date()
+      })
+      .where('id', '=', actorId)
+      .execute()
+
+    return { status: 'ok', aliases: nextAliases }
+  })
+}
 
 // Stamps `verifiedAt` on the stored profile fields whose value is one of
 // `values`, the values the verification job checked, and `linksCheckedAt` with

@@ -105,6 +105,10 @@ export const getPersonFromActor = (
     discoverable: actor.discoverable === true,
     indexable: actor.indexable === true,
     ...(attributionDomains.length > 0 ? { attributionDomains } : null),
+    ...(actor.alsoKnownAs && actor.alsoKnownAs.length > 0
+      ? { alsoKnownAs: actor.alsoKnownAs }
+      : null),
+    ...(actor.movedTo ? { movedTo: actor.movedTo } : null),
     publicKey: {
       id: `${actor.id}#main-key`,
       owner: actor.id,
@@ -136,6 +140,22 @@ export const getPersonFromActor = (
                 '@id': 'toot:attributionDomains',
                 '@type': '@id',
                 '@container': '@set'
+              }
+            }
+          : null),
+        ...(actor.alsoKnownAs && actor.alsoKnownAs.length > 0
+          ? {
+              alsoKnownAs: {
+                '@id': 'as:alsoKnownAs',
+                '@type': '@id'
+              }
+            }
+          : null),
+        ...(actor.movedTo
+          ? {
+              movedTo: {
+                '@id': 'as:movedTo',
+                '@type': '@id'
               }
             }
           : null),

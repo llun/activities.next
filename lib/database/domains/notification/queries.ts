@@ -2,6 +2,7 @@ import { type ExpressionBuilder, type Selectable } from 'kysely'
 
 import {
   type CreateNotificationParams,
+  type GetNotificationFromFollowIdParams,
   type GetNotificationRequestParams,
   type GetNotificationRequestsParams,
   type GetNotificationsCountParams,
@@ -542,6 +543,19 @@ export const deleteNotification = async (
     .execute()
 }
 
+export const getNotificationFromFollowId = async (
+  db: Db,
+  { followId }: GetNotificationFromFollowIdParams
+): Promise<Notification | null> => {
+  const row = await db
+    .selectFrom('notifications')
+    .selectAll()
+    .where('followId', '=', followId)
+    .executeTakeFirst()
+  if (!row) return null
+  return toNotification(row)
+}
+
 // The facade getSQLDatabase binds with bindDb().
 export const notificationQueries = {
   createNotification,
@@ -555,5 +569,6 @@ export const notificationQueries = {
   dismissNotificationRequests,
   getNotificationsForGroupKey,
   dismissNotificationGroup,
-  deleteNotification
+  deleteNotification,
+  getNotificationFromFollowId
 }

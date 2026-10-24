@@ -846,6 +846,34 @@ describe('Notification Database', () => {
       })
     })
 
+    describe('getNotificationFromFollowId', () => {
+      it('returns the notification with matching followId or null if not found', async () => {
+        const followId = 'follow-id-test-123'
+        const created = await database.createNotification({
+          actorId: actor1Id,
+          type: NotificationType.enum.follow,
+          sourceActorId: actor2Id,
+          followId
+        })
+
+        const found = await database.getNotificationFromFollowId({ followId })
+        expect(found).toMatchObject({
+          id: created.id,
+          actorId: actor1Id,
+          type: 'follow',
+          sourceActorId: actor2Id,
+          followId
+        })
+
+        const notFound = await database.getNotificationFromFollowId({
+          followId: 'non-existent-follow-id'
+        })
+        expect(notFound).toBeNull()
+
+        await database.deleteNotification(created.id)
+      })
+    })
+
     describe('retired notification types', () => {
       const retired = ['added_to_collection', 'collection_update'] as const
       const recipient = 'https://example.com/users/retired-recipient'
