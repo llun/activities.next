@@ -135,6 +135,7 @@ export const updateAccountArchive = async (
   {
     id,
     onlyIfStatus,
+    onlyIfProgress,
     status,
     progress,
     storagePath,
@@ -163,6 +164,12 @@ export const updateAccountArchive = async (
       .set(values)
       .where('id', '=', id)
     if (onlyIfStatus) query = query.where('status', 'in', onlyIfStatus)
+    if (onlyIfProgress !== undefined) {
+      query =
+        onlyIfProgress === null
+          ? query.where('progress', 'is', null)
+          : query.where('progress', '=', onlyIfProgress)
+    }
     const result = await query.executeTakeFirst()
     if (Number(result.numUpdatedRows) === 0) return null
   }

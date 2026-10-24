@@ -21,6 +21,12 @@ export type UpdateAccountArchiveParams = {
   id: string
   /** When set, the update only applies while the row still has one of these. */
   onlyIfStatus?: AccountArchiveStatus[]
+  /**
+   * Compare-and-set on the stored cursor: the update only applies while
+   * `progress` still equals this text (null means "not written yet"), so two
+   * workers that picked up the same slice cannot both advance it.
+   */
+  onlyIfProgress?: string | null
   status?: AccountArchiveStatus
   progress?: string | null
   storagePath?: string | null

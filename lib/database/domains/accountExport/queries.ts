@@ -109,7 +109,13 @@ export const getAccountExportRows = async (
 
   let query = dynamic
     .selectFrom(spec.table)
-    .select(spec.columns.map((column) => sql.ref(column).as(column)))
+    // The sort key is read even when it is not an exported column (a settings
+    // table keyed by actor id), because the next cursor is made from it.
+    .select(
+      [...new Set([...spec.columns, ...spec.key])].map((column) =>
+        sql.ref(column).as(column)
+      )
+    )
     .where(spec.scope(actorId))
 
   if (spec.softDeletedColumn) {
