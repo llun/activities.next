@@ -89,6 +89,21 @@ describe('/settings/delete', () => {
     })
   })
 
+  it('passes isDefaultActor: true when defaultActorId matches actor id', async () => {
+    vi.mocked(getActorFromSession).mockResolvedValue({
+      ...ACTOR,
+      account: { ...ACTOR.account, defaultActorId: ACTOR.id }
+    } as never)
+
+    render(await Page())
+
+    expect(deleteActorSectionProps).toHaveBeenCalledWith(
+      expect.objectContaining({
+        isDefaultActor: true
+      })
+    )
+  })
+
   it('correctly calculates isOnlyActor with multiple actors', async () => {
     getActorsForAccount.mockResolvedValue([
       { id: 'https://llun.test/users/anna', deletionStatus: null },

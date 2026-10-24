@@ -4,6 +4,9 @@
 import '@testing-library/jest-dom'
 import { render, screen, within } from '@testing-library/react'
 
+import { getVisitedFeatures } from '@/lib/services/domains/visitedFeatures'
+import { getResolvedServerSettings } from '@/lib/services/serverSettings'
+import { getActorProfile } from '@/lib/types/domain/actor'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import Page from './page'
@@ -17,6 +20,26 @@ vi.mock('@/lib/database', () => ({
 vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: vi.fn().mockResolvedValue({
     user: { email: 'anna@llun.test' }
+  })
+}))
+
+vi.mock('@/lib/services/serverSettings', () => ({
+  getResolvedServerSettings: vi.fn().mockResolvedValue({
+    features: { fitness: true }
+  })
+}))
+
+vi.mock('@/lib/services/domains/visitedFeatures', () => ({
+  getVisitedFeatures: vi.fn(async (features) => {
+    const defaultFeatures = {
+      fitness: true,
+      explore: false,
+      messages: false
+    }
+    return {
+      ...defaultFeatures,
+      ...features
+    }
   })
 }))
 
@@ -39,15 +62,13 @@ vi.mock('@/lib/utils/getActorFromSession', () => ({
 }))
 
 vi.mock('@/lib/types/domain/actor', () => ({
-  getActorProfile: () => ({
+  getActorProfile: vi.fn(() => ({
     username: 'anna',
     domain: 'llun.test',
     name: 'Anna',
     summary: '',
-    iconUrl: null,
-    headerImageUrl: null,
     manuallyApprovesFollowers: true
-  })
+  }))
 }))
 
 const redirect = vi.fn((path: string) => {
@@ -62,6 +83,25 @@ describe('/settings/privacy', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.mocked(getActorFromSession).mockResolvedValue(ACTOR as never)
+    vi.mocked(getResolvedServerSettings).mockResolvedValue({
+      features: { fitness: true }
+    } as never)
+    const defaultFeatures = {
+      fitness: true,
+      explore: false,
+      messages: false
+    }
+    vi.mocked(getVisitedFeatures).mockImplementation(async (features) => ({
+      ...defaultFeatures,
+      ...features
+    }))
+    vi.mocked(getActorProfile).mockReturnValue({
+      username: 'anna',
+      domain: 'llun.test',
+      name: 'Anna',
+      summary: '',
+      manuallyApprovesFollowers: true
+    } as never)
     vi.stubGlobal(
       'ResizeObserver',
       class {
@@ -95,8 +135,28 @@ describe('/settings/privacy', () => {
     const group = screen.getByRole('group', { name: 'Followers' })
     expect(group).toHaveTextContent('Control who can follow you.')
     expect(
-      within(group).getByLabelText('Manually approve followers')
+      within(group).getByText('When on, you approve each follow request.')
     ).toBeInTheDocument()
+    const switchElement = within(group).getByLabelText(
+      'Manually approve followers'
+    )
+    expect(switchElement).toBeInTheDocument()
+    expect(switchElement).toBeChecked()
+  })
+
+  it('renders switch as unchecked when manuallyApprovesFollowers is false', async () => {
+    vi.mocked(getActorProfile).mockReturnValueOnce({
+      username: 'anna',
+      domain: 'llun.test',
+      name: 'Anna',
+      summary: '',
+      manuallyApprovesFollowers: false
+    } as never)
+    render(await Page())
+
+    const switchElement = screen.getByLabelText('Manually approve followers')
+    expect(switchElement).toBeInTheDocument()
+    expect(switchElement).not.toBeChecked()
   })
 
   it('has hidden returnTo="/settings/privacy" and marker, no postLineLimit field', async () => {
@@ -118,6 +178,23 @@ describe('/settings/privacy', () => {
     expect(fitnessLink).toHaveAttribute('href', '/fitness/privacy')
 
     const galleryLink = screen.getByRole('link', { name: /Gallery privacy/ })
+    expect(galleryLink).toHaveAttribute('href', '/gallery/privacy')
+  })
+
+  it('hides Fitness privacy when fitness is disabled, while still showing Gallery privacy', async () => {
+    vi.mocked(getVisitedFeatures).mockResolvedValueOnce({
+      fitness: false,
+      explore: false,
+      messages: false
+    })
+    render(await Page())
+
+    expect(
+      screen.queryByRole('link', { name: /Fitness privacy/ })
+    ).not.toBeInTheDocument()
+
+    const galleryLink = screen.getByRole('link', { name: /Gallery privacy/ })
+    expect(galleryLink).toBeInTheDocument()
     expect(galleryLink).toHaveAttribute('href', '/gallery/privacy')
   })
 

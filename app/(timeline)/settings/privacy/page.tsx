@@ -12,6 +12,8 @@ import { Section } from '@/lib/components/surface/Section'
 import { Switch } from '@/lib/components/ui/switch'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { getVisitedFeatures } from '@/lib/services/domains/visitedFeatures'
+import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { getActorProfile } from '@/lib/types/domain/actor'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
@@ -33,6 +35,9 @@ const Page = async () => {
     return redirect('/auth/signin')
   }
 
+  const serverSettings = await getResolvedServerSettings(database)
+  const features = await getVisitedFeatures(serverSettings.features)
+
   const profile = getActorProfile(actor)
 
   return (
@@ -52,7 +57,7 @@ const Page = async () => {
             <FormRow
               label="Manually approve followers"
               htmlFor="manuallyApprovesFollowersInput"
-              hint="When enabled, you must manually approve each follow request"
+              hint="When on, you approve each follow request."
               inline
             >
               {({ describedBy }) => (
@@ -80,20 +85,22 @@ const Page = async () => {
         description="Set in Fitness and Gallery, where the places are."
       >
         <FramedList>
-          <FramedListItem
-            href="/fitness/privacy"
-            className="flex items-center gap-3 text-sm font-medium"
-          >
-            <Activity
-              className="size-4 shrink-0 text-muted-foreground"
-              aria-hidden="true"
-            />
-            <span className="flex-1">Fitness privacy</span>
-            <ChevronRight
-              className="size-4 shrink-0 text-muted-foreground"
-              aria-hidden="true"
-            />
-          </FramedListItem>
+          {actor.account && features.fitness ? (
+            <FramedListItem
+              href="/fitness/privacy"
+              className="flex items-center gap-3 text-sm font-medium"
+            >
+              <Activity
+                className="size-4 shrink-0 text-muted-foreground"
+                aria-hidden="true"
+              />
+              <span className="flex-1">Fitness privacy</span>
+              <ChevronRight
+                className="size-4 shrink-0 text-muted-foreground"
+                aria-hidden="true"
+              />
+            </FramedListItem>
+          ) : null}
           <FramedListItem
             href="/gallery/privacy"
             className="flex items-center gap-3 text-sm font-medium"

@@ -83,7 +83,7 @@ describe('AppearanceSection', () => {
       screen.getByRole('group', { name: 'Theme' })
     ).toHaveAccessibleDescription(/Saved instantly on this device/)
     expect(
-      screen.getByRole('heading', { level: 2, name: 'Appearance' })
+      screen.getByRole('heading', { level: 2, name: 'Theme' })
     ).toBeInTheDocument()
   })
 })

@@ -5,6 +5,8 @@ import '@testing-library/jest-dom'
 import { render, screen, within } from '@testing-library/react'
 import { usePathname } from 'next/navigation'
 
+import { getActorFromSession } from '@/lib/utils/getActorFromSession'
+
 import Layout from './layout'
 
 vi.mock('next/navigation', () => ({
@@ -47,6 +49,16 @@ describe('Settings Layout', () => {
       screen.getByRole('heading', { level: 1, name: 'Settings' })
     ).toBeInTheDocument()
     expect(screen.getByText('For @anna@llun.test')).toBeInTheDocument()
+  })
+
+  it('renders Settings title without profile subtitle when signed out', async () => {
+    vi.mocked(getActorFromSession).mockResolvedValueOnce(null as never)
+    await renderLayout('/settings/appearance')
+
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Settings' })
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/^For /)).not.toBeInTheDocument()
   })
 
   it('groups the rail under Preferences and Privacy & safety, in order', async () => {

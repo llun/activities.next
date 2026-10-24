@@ -35,7 +35,7 @@ export const AppearanceSection: FC = () => {
 
   return (
     <Section
-      title="Appearance"
+      title="Theme"
       description="The theme for this device."
       actions={<SavedIndicator saved={saved} />}
     >

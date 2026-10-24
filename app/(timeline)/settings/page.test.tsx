@@ -4,6 +4,8 @@
 import '@testing-library/jest-dom'
 import { render, screen } from '@testing-library/react'
 
+import { getActorFromSession } from '@/lib/utils/getActorFromSession'
+
 import Page from './page'
 
 vi.mock('@/lib/database', () => ({
@@ -16,24 +18,32 @@ vi.mock('@/lib/services/auth/getSession', () => ({
   })
 }))
 
+const ACTOR = {
+  id: 'https://llun.test/users/anna',
+  username: 'anna',
+  domain: 'llun.test',
+  name: 'Anna',
+  iconUrl: null,
+  account: { id: 'acct-1', defaultActorId: null }
+}
+
 vi.mock('@/lib/utils/getActorFromSession', () => ({
-  getActorFromSession: vi.fn().mockResolvedValue({
-    id: 'https://llun.test/users/anna',
-    username: 'anna',
-    domain: 'llun.test',
-    name: 'Anna',
-    iconUrl: null,
-    account: { id: 'acct-1', defaultActorId: null }
-  })
+  getActorFromSession: vi.fn()
 }))
 
+const redirect = vi.fn((path: string) => {
+  throw new Error(`redirect:${path}`)
+})
+
 vi.mock('next/navigation', () => ({
-  redirect: vi.fn((path: string) => {
-    throw new Error(`Unexpected redirect to ${path}`)
-  })
+  redirect: (path: string) => redirect(path)
 }))
 
 describe('/settings', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(getActorFromSession).mockResolvedValue(ACTOR as never)
+  })
   it('shows who the settings are for, with View profile and Edit profile', async () => {
     render(await Page())
 
@@ -58,5 +68,12 @@ describe('/settings', () => {
     expect(
       screen.queryByText('Looking for your name, bio or profile fields?')
     ).not.toBeInTheDocument()
+  })
+
+  it('redirects to /auth/signin if unauthenticated', async () => {
+    vi.mocked(getActorFromSession).mockResolvedValue(null as never)
+
+    await expect(Page()).rejects.toThrow('redirect:/auth/signin')
+    expect(redirect).toHaveBeenCalledWith('/auth/signin')
   })
 })

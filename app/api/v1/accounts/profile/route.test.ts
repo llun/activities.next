@@ -564,6 +564,36 @@ describe('POST /api/v1/accounts/profile', () => {
         )
       }
     )
+
+    it('updates postLineLimit without touching manuallyApprovesFollowers and redirects to appearance', async () => {
+      const response = await post({
+        postLineLimit: '10',
+        returnTo: '/settings/appearance'
+      })
+
+      expect(response.status).toBe(303)
+      expect(response.headers.get('location')).toBe(
+        'https://llun.test/settings/appearance'
+      )
+      const params = mockDatabase.updateActorWithPrevious.mock.calls[0][0]
+      expect(params).toMatchObject({ postLineLimit: 10 })
+      expect(params).not.toHaveProperty('manuallyApprovesFollowers')
+    })
+
+    it('updates manuallyApprovesFollowers to false without touching postLineLimit and redirects to privacy', async () => {
+      const response = await post({
+        manuallyApprovesFollowers_marker: 'true',
+        returnTo: '/settings/privacy'
+      })
+
+      expect(response.status).toBe(303)
+      expect(response.headers.get('location')).toBe(
+        'https://llun.test/settings/privacy'
+      )
+      const params = mockDatabase.updateActorWithPrevious.mock.calls[0][0]
+      expect(params).toMatchObject({ manuallyApprovesFollowers: false })
+      expect(params).not.toHaveProperty('postLineLimit')
+    })
   })
 })
 

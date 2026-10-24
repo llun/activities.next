@@ -73,7 +73,7 @@ export const SectionNav: FC<{
         return (
           <div
             key={group.heading ?? group.items[0]?.url}
-            role="group"
+            role={group.heading ? 'group' : undefined}
             aria-labelledby={group.heading ? headingId : undefined}
           >
             {group.heading && (
@@ -93,7 +93,7 @@ export const SectionNav: FC<{
                       href={item.url}
                       aria-current={isActive ? 'page' : undefined}
                       className={cn(
-                        'flex min-h-9 items-center gap-2.5 rounded-lg px-3 text-sm font-medium transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring',
+                        'flex min-h-9 items-center gap-2.5 rounded-lg px-3 text-sm font-medium transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
                         item.hint && 'py-1.5',
                         isActive
                           ? 'bg-primary/10 text-primary-text'
@@ -128,7 +128,7 @@ export const SectionNav: FC<{
         <div className="border-t pt-4">
           <Link
             href={footer.item.url}
-            className="flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
           >
             <span className={cn(ICON_CLASS, 'text-primary')}>
               {footer.item.icon}
@@ -160,8 +160,11 @@ const IndexGroup: FC<{
   accent?: boolean
 }> = ({ heading, items, accent }) => {
   const id = useId()
+  const Block = heading ? 'section' : 'div'
   return (
-    <section aria-labelledby={heading ? id : undefined}>
+    // A headless run (Delete) is a plain block: an unnamed <section> or
+    // group would only add noise for assistive tech.
+    <Block {...(heading ? { 'aria-labelledby': id } : null)}>
       {heading && (
         <h2
           id={id}
@@ -190,9 +193,14 @@ const IndexGroup: FC<{
                 {item.name}
               </span>
               {item.description && (
-                // Phones list the names only; the descriptions are for the
-                // wider index cards.
-                <span className="block text-xs text-muted-foreground max-lg:hidden">
+                // Phones list the names only, except the cross-link card, whose
+                // line says what lives on the other side.
+                <span
+                  className={cn(
+                    'block text-xs text-muted-foreground',
+                    !accent && 'max-lg:hidden'
+                  )}
+                >
                   {item.description}
                 </span>
               )}
@@ -204,7 +212,7 @@ const IndexGroup: FC<{
           </FramedListItem>
         ))}
       </FramedList>
-    </section>
+    </Block>
   )
 }
 
@@ -307,7 +315,10 @@ export const SectionLayout: FC<SectionLayoutProps> = ({
               label={label}
               groups={groups}
               footer={footer}
-              className="sticky top-28 w-[200px] shrink-0 self-start max-lg:hidden xl:w-[216px]"
+              // 103px: the 79px section header plus the 24px gap above the
+              // rail, so it sticks where it already sits; it scrolls on its own
+              // on a short viewport instead of losing its foot.
+              className="sticky top-[103px] max-h-[calc(100dvh-103px-1.5rem)] w-[200px] shrink-0 self-start overflow-y-auto max-lg:hidden xl:w-[216px]"
             />
           )}
           <div className="min-w-0 flex-1">

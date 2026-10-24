@@ -75,10 +75,10 @@ export const POST = traceApiRoute(
 
     // Only a URL shaped like one this instance serves its own media from — a
     // host and path check, not a lookup. An absent field is left alone (the
-    // General form no longer sends the images, Edit profile saves them through
-    // PATCH), while an empty one is the user clearing the image —
-    // `parseProfileImageUrl` answers null for it and `updateActor` reads that
-    // as an explicit clear.
+    // Appearance and Privacy forms never send the images, Edit profile
+    // saves them through PATCH), while an empty one is the user clearing the
+    // image — `parseProfileImageUrl` answers null for it and `updateActor`
+    // reads that as an explicit clear.
     // The actor's stored values are passed so a form resubmitting one it did
     // not change is treated as "no change" rather than re-validated — see
     // `parseProfileImageUrl`, where the single settings form makes that

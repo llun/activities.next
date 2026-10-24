@@ -78,6 +78,15 @@ describe('SectionNav', () => {
     ).not.toHaveAttribute('aria-current')
   })
 
+  it('names every group it exposes: headless runs are not groups', () => {
+    ;(usePathname as jest.Mock).mockReturnValue('/s/one')
+    render(<SectionNav label="Things" groups={groups} footer={footer} />)
+
+    expect(
+      screen.getAllByRole('group').map((group) => group.textContent)
+    ).toEqual(['FirstOneTwo', 'SecondThree'])
+  })
+
   it('shows rail-only groups with their hint, and the footer with its heading', () => {
     ;(usePathname as jest.Mock).mockReturnValue('/s/one')
     render(<SectionNav label="Things" groups={groups} footer={footer} />)
@@ -103,6 +112,18 @@ describe('SectionIndex', () => {
     ).toEqual(['/s/one', '/s/two', '/s/three', '/other', '/s/last'])
     expect(screen.queryByText('@a@b')).not.toBeInTheDocument()
     expect(screen.getByText('One line')).toHaveClass('max-lg:hidden')
+    // The cross-link card keeps its line on phones.
+    expect(screen.getByText('What')).not.toHaveClass('max-lg:hidden')
+  })
+
+  it('renders a headless run as a plain block, not an unnamed section', () => {
+    const { container } = render(
+      <SectionIndex groups={groups} footer={footer} />
+    )
+
+    const last = screen.getByRole('link', { name: 'Last' }).closest('ul')
+    expect(last?.closest('section')).toBeNull()
+    expect(container.querySelectorAll('section')).toHaveLength(3)
   })
 })
 
@@ -121,13 +142,13 @@ describe('SectionLayout', () => {
       </SectionLayout>
     )
 
-  it('shows the rail and a Back row below lg on a section page', () => {
+  it('renders the rail from lg up and the Back row below lg on a section page', () => {
     ;(usePathname as jest.Mock).mockReturnValue('/s/one')
     renderLayout()
 
-    expect(
-      screen.getByRole('navigation', { name: 'Things' })
-    ).toBeInTheDocument()
+    expect(screen.getByRole('navigation', { name: 'Things' })).toHaveClass(
+      'max-lg:hidden'
+    )
     const back = screen.getByRole('link', { name: 'Back to things' })
     expect(back).toHaveAttribute('href', '/s')
     expect(back).toHaveTextContent('Back to Things')
@@ -148,10 +169,18 @@ describe('SectionLayout', () => {
     expect(screen.getByRole('heading', { name: 'First' })).toBeInTheDocument()
   })
 
-  it('widens the shell column through the data-section-layout hook', () => {
+  it('wraps the section header in the data-section-layout hook the wide column keys on', () => {
     ;(usePathname as jest.Mock).mockReturnValue('/s/one')
     const { container } = renderLayout()
 
-    expect(container.firstElementChild).toHaveAttribute('data-section-layout')
+    const root = container.firstElementChild
+    expect(root).toHaveAttribute('data-section-layout')
+    // The shell (`[&:has([data-section-layout])]`) and the header's title row
+    // (`[[data-section-layout]_&]`) only widen when the header sits inside it.
+    const heading = screen.getByRole('heading', { level: 1, name: 'Things' })
+    expect(root).toContainElement(heading)
+    expect(heading.closest('.max-w-content')).toHaveClass(
+      '[[data-section-layout]_&]:max-w-section'
+    )
   })
 })
