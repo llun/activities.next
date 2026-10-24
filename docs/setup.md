@@ -91,7 +91,32 @@ ACTIVITIES_MEDIA_STORAGE_PATH=./uploads
 
 #### S3 / S3-Compatible Object Storage
 
-The account exports (`archives/` in the same bucket) need these permissions on the bucket's credentials besides what media needs: `s3:PutObject`, `s3:GetObject`, `s3:DeleteObject` and `s3:ListBucket` on `archives/*`, `s3:AbortMultipartUpload` (to clean up an unfinished upload), and optionally `s3:ListMultipartUploadParts`. Without the last one an export still completes, with a warning in the logs, but cannot double-check its part ETags. Add a bucket lifecycle rule that aborts incomplete multipart uploads after a day or two.
+The account exports (`archives/` in the same bucket) need these permissions on the bucket's credentials besides what media needs: `s3:PutObject`, `s3:GetObject`, `s3:DeleteObject` and `s3:AbortMultipartUpload` (to clean up an unfinished upload) on `archives/*`, `s3:ListBucket` on the bucket (limited to the `archives/*` prefix with a condition), and optionally `s3:ListMultipartUploadParts` on `archives/*`. Without the last one an export still completes, with a warning in the logs, but cannot double-check its part ETags. Add a bucket lifecycle rule that aborts incomplete multipart uploads after a day or two.
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:PutObject",
+        "s3:GetObject",
+        "s3:DeleteObject",
+        "s3:AbortMultipartUpload",
+        "s3:ListMultipartUploadParts"
+      ],
+      "Resource": "arn:aws:s3:::my-bucket/archives/*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::my-bucket",
+      "Condition": { "StringLike": { "s3:prefix": ["archives/*"] } }
+    }
+  ]
+}
+```
 
 ```bash
 ACTIVITIES_MEDIA_STORAGE_TYPE=s3          # or 'object' for S3-compatible

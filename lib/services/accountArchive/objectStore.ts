@@ -32,6 +32,7 @@ import { createStorageS3Client } from '@/lib/services/storage/s3Client'
 import { logger } from '@/lib/utils/logger'
 
 import { ARCHIVE_STORAGE_PREFIX } from './constants'
+import { toArchiveLoggableError } from './redact'
 
 /** A short-lived link to the finished file on object storage. */
 const DOWNLOAD_URL_TTL_SECONDS = 5 * 60
@@ -58,14 +59,14 @@ const warnListPartsOnce = (error: unknown) => {
   logger.warn({
     message:
       'Listing the parts of an archive upload failed; completing it with the recorded part ETags. Allow s3:ListMultipartUploadParts to check them.',
-    err: { name: (error as { name?: string }).name }
+    err: toArchiveLoggableError(error)
   })
 }
 
-/** The digest of an ETag that is a plain MD5 (no quotes, no part count). */
-const plainMd5 = (etag: string) => {
-  const bare = etag.replace(/"/g, '')
-  return /^[0-9a-f]{32}$/i.test(bare) ? bare.toLowerCase() : null
+/** A store that does not implement ListParts (501) is not a transient failure. */
+const isNotImplemented = (error: unknown) => {
+  const e = error as { name?: string; $metadata?: { httpStatusCode?: number } }
+  return e?.name === 'NotImplemented' || e?.$metadata?.httpStatusCode === 501
 }
 
 const KEY_PATTERN = new RegExp(`^${ARCHIVE_STORAGE_PREFIX}(/[A-Za-z0-9._-]+)+$`)
@@ -542,7 +543,9 @@ export class S3ArchiveObjectStore implements ArchiveObjectStore {
         try {
           listed = await listParts()
         } catch (error) {
-          if (isTransientStorageError(error)) throw error
+          if (isTransientStorageError(error) && !isNotImplemented(error)) {
+            throw error
+          }
           warnListPartsOnce(error)
         }
         if (listed) {
@@ -557,13 +560,6 @@ export class S3ArchiveObjectStore implements ArchiveObjectStore {
               index === parts.length - 1 ? lastSize : partSizeOf(part.n)
             if (found.n !== part.n || found.size !== expected) {
               throw new Error('A part of the archive upload has the wrong size')
-            }
-            // Two plain MD5 ETags that differ are different bytes: a source
-            // that changed while it was copied. Fail rather than complete.
-            const a = plainMd5(found.etag)
-            const b = plainMd5(part.etag)
-            if (a && b && a !== b) {
-              throw new Error('A part of the archive upload changed')
             }
           })
         }

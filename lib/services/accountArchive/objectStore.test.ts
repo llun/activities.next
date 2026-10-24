@@ -433,6 +433,25 @@ describe('S3ArchiveObjectStore', () => {
       expect(binary.get(key)?.equals(data)).toBe(true)
     })
 
+    it('completes with listed ETags that are 32 hex characters but not digests', async () => {
+      const key = 'archives/a/t/archive-1.zip'
+      const small = new S3ArchiveObjectStore(
+        { type: MediaStorageType.S3Storage, bucket: 'bucket', region: 'r' },
+        { send: multipartSend } as unknown as S3Client,
+        5 * MIB,
+        1000,
+        10
+      )
+      const data = crypto.randomBytes(11 * MIB)
+      const sink = await small.openResumableWrite(key, null)
+      await sink.write(data)
+      // SSE-KMS: a re-uploaded part has another 32-hex ETag.
+      const [id] = [...uploads.keys()]
+      etags.set(`${id}:1`, `"${'b'.repeat(32)}"`)
+      expect(await sink.finish()).toBe(data.length)
+      expect(binary.get(key)?.equals(data)).toBe(true)
+    })
+
     describe('listing the parts at the end', () => {
       const MIB = 1024 * 1024
       const small = () =>
@@ -528,47 +547,16 @@ describe('S3ArchiveObjectStore', () => {
         await expect(sink.finish()).rejects.toThrow('busy')
       })
 
-      it('fails when a part is listed with another plain MD5 than the one recorded', async () => {
-        const md5 = (text: string) =>
-          crypto.createHash('md5').update(text).digest('hex')
-        const data = crypto.randomBytes(11 * MIB)
-        const sink = await small().openResumableWrite(key, null)
-        await sink.write(data)
-        const [id] = [...uploads.keys()]
-        // The recorded ETags are plain MD5s too.
-        const state = await sink.checkpoint()
-        const recorded = (state as { parts: { n: number; etag: string }[] })
-          .parts
-        expect(recorded.length).toBeGreaterThan(1)
-        void id
-        // Recorded ETags in the cursor are the mock's; make them MD5-shaped by
-        // listing a different MD5 and recording an MD5.
-        const sink2 = await small().openResumableWrite(key, null)
-        const original = multipartSend.getMockImplementation()!
-        multipartSend.mockImplementation(async (command: unknown) => {
-          const result = await original(command)
-          if (command instanceof UploadPartCommand) {
-            return { ETag: `"${md5('recorded')}"` }
-          }
-          return result
-        })
-        try {
-          await sink2.write(data)
-          const second = [...uploads.keys()].at(-1)!
-          listHook = () => ({
-            Parts: [...uploads.get(second)!.parts.entries()].map(
-              ([PartNumber, body]) => ({
-                PartNumber,
-                Size: body.length,
-                ETag: `"${md5('other')}"`
-              })
-            ),
-            IsTruncated: false
+      it('completes with the recorded ETags when the store does not implement listing', async () => {
+        const { sink, data } = await upload(11 * MIB)
+        listHook = () => {
+          throw Object.assign(new Error('nope'), {
+            name: 'NotImplemented',
+            $metadata: { httpStatusCode: 501 }
           })
-          await expect(sink2.finish()).rejects.toThrow('changed')
-        } finally {
-          multipartSend.mockImplementation(original)
         }
+        expect(await sink.finish()).toBe(data.length)
+        expect(binary.get(key)?.equals(data)).toBe(true)
       })
     })
 

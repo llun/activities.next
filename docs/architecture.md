@@ -479,8 +479,10 @@ Export](maintenance.md#actor-archive-export)). It is built by
   last) whose UploadId and part ETags are in the cursor (completion uses the ETags
   that `ListParts` lists, after checking their count and sizes against the
   cursor, and falls back to the cursor's ETags with a warning when the
-  credentials may not list parts), with the bytes that do
-  not fill a part kept in a staged tail object. Every checkpoint writes a tail
+  credentials may not list parts or the store answers NotImplemented), with the bytes that do
+  not fill a part kept in a staged tail object. A source file that changes
+  while it is exported can give a zip with a bad CRC on both sinks (the
+  accepted case; nothing detects it). Every checkpoint writes a tail
   under a new name (the writer and a sequence number), and the older tail is
   deleted only after the cursor that refers to the new one has been saved, so a
   checkpoint whose save never lands cannot damage the saved state. S3 calls of
