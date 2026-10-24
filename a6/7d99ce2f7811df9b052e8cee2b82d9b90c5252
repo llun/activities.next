@@ -104,8 +104,10 @@ lib/database/kysely/db.ts
   s_279e7012f36c5f::t_7d1bb9ad2833c1 116-126,1453
 migrations/index.ts
   s_279e7012f36c5f::t_0d374d3d0d5a0e 16,38
+  s_279e7012f36c5f::t_41864fe33dfd71 40
 migrations/names.ts
   s_279e7012f36c5f::t_d39ff59290d5ca 15
+  s_279e7012f36c5f::t_41864fe33dfd71 17
 migrations/schema.sql
   s_279e7012f36c5f::t_7ccd296598a483 92-102,1590-1592,2050-2051
 migrations/schema.sqlite.sql
