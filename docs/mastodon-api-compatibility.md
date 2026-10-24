@@ -1562,6 +1562,32 @@ system's `Attachments` component.
 
 ### Review: Actor usernames
 
+- A **remote** username is validated like Mastodon's `Account` model
+  (`USERNAME_ONLY_RE` = `/\A[a-z0-9_]+([.-]+[a-z0-9_]+)*\z/i`, after `squish`):
+  `isValidRemoteUsername` / `squishUsername` in `lib/utils/username.ts`, ASCII
+  only. The length limit is the smaller of Mastodon's 2048
+  (`USERNAME_LENGTH_HARD_LIMIT`) and the 255 of the `actors.username` column,
+  so 255. `squishUsername` follows Rails' `[[:space:]]`: U+0085 is whitespace,
+  U+FEFF is not. A stored username cannot start with `=`, `+`, `-` or `@`, so a
+  hostile server cannot plant a spreadsheet formula in a CSV export. The one
+  chokepoint is `confirmActorHandle`, which every path that CREATES a remote
+  row passes (`recordActorIfNeeded`, `getProfileData`, `getSenderPublicKey`).
+  As in Mastodon, what is validated is the handle that would be STORED, not
+  `preferredUsername` itself: an invalid claimed name (logged) only disqualifies
+  the host handle, so the handle can still come from the FEP-2c59 `webfinger`
+  property, or, when the claimed name is still URL-safe, from the `subject` the
+  host answers with (`check_webfinger!`). Every candidate is validated by
+  `parseAcct`; if none confirms, `confirmActorHandle` returns `null`, the actor
+  is not recorded and a `Refused remote actor whose handle WebFinger does not
+confirm` line is logged. The refresh paths (`updateActor`, inbound
+  `Update(Person)`) never rewrite a stored username, so a rename is not followed
+  and needs no check. A new LOCAL username must satisfy the same rule
+  (`localUsernameSchema`: no leading or trailing dot or dash), so
+  peers that apply Mastodon's rule can federate with it; existing local rows are
+  untouched. Rows stored before this check are not migrated; the CSV exports
+  (`lib/services/exports/`) omit a remote actor whose stored username is invalid
+  and log it, as Mastodon could never hold such a row. Valid rows are exported
+  byte for byte as before.
 - A local username is the last path segment of the actor's ActivityPub id
   (`getLocalActorId` → `https://<domain>/users/<username>`, and every local
   status id is `${actorId}/statuses/${n}`), so casing is an identity question,

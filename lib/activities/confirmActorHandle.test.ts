@@ -71,6 +71,89 @@ describe('confirmActorHandle', () => {
     ).resolves.toEqual({ username: 'alice', domain: 'remote.test:8443' })
   })
 
+  describe('remote username validation (Mastodon USERNAME_ONLY_RE)', () => {
+    it.each(['=cmd', '+1', '-x', 'alice.', 'алиса'])(
+      'never stores %s, even when the host names the actor under it',
+      async (username) => {
+        const actorId = 'https://remote.test/users/x'
+        serveWebfinger({ [`${username}@remote.test`]: { self: actorId } })
+
+        await expect(
+          confirmActorHandle({ database, actorId, username })
+        ).resolves.toBeNull()
+      }
+    )
+
+    it.each(['a/b', 'a@b', 'a:b', 'a'.repeat(256)])(
+      'does not ask WebFinger about the unsafe or overlong name %s',
+      async (username) => {
+        const actorId = 'https://remote.test/users/x'
+        serveWebfinger({ [`${username}@remote.test`]: { self: actorId } })
+
+        await expect(
+          confirmActorHandle({ database, actorId, username })
+        ).resolves.toBeNull()
+        expect(fetchMock).not.toHaveBeenCalled()
+      }
+    )
+
+    it('squishes surrounding whitespace before validating', async () => {
+      const actorId = 'https://remote.test/users/alice'
+      serveWebfinger({ 'alice@remote.test': { self: actorId } })
+
+      await expect(
+        confirmActorHandle({ database, actorId, username: ' alice ' })
+      ).resolves.toEqual({ username: 'alice', domain: 'remote.test' })
+    })
+
+    it('uses the FEP-2c59 webfinger property when preferredUsername is invalid', async () => {
+      const actorId = 'https://actors.remote.test/users/alice'
+      serveWebfinger({
+        'alice@handle.test': { self: actorId }
+      })
+
+      await expect(
+        confirmActorHandle({
+          database,
+          actorId,
+          username: 'Ålice',
+          webfinger: 'alice@handle.test'
+        })
+      ).resolves.toEqual({ username: 'alice', domain: 'handle.test' })
+    })
+
+    it("follows the host subject when the claimed name fails only Mastodon's rule", async () => {
+      const actorId = 'https://ap.remote.test/users/bob'
+      serveWebfinger({
+        'bob-@ap.remote.test': {
+          self: 'https://elsewhere.test/other',
+          subject: 'acct:bob@handle.test'
+        },
+        'bob@handle.test': { self: actorId }
+      })
+
+      await expect(
+        confirmActorHandle({ database, actorId, username: 'bob-' })
+      ).resolves.toEqual({ username: 'bob', domain: 'handle.test' })
+    })
+
+    it('refuses a handle domain whose subject names an invalid username', async () => {
+      const actorId = 'https://actors.remote.test/users/alice'
+      serveWebfinger({
+        'alice@actors.remote.test': {
+          self: 'https://elsewhere.test/other',
+          subject: 'acct:=cmd@remote.test'
+        },
+        '=cmd@remote.test': { self: actorId }
+      })
+
+      await expect(
+        confirmActorHandle({ database, actorId, username: 'alice' })
+      ).resolves.toBeNull()
+      expect(askedAccounts()).not.toContain('=cmd@remote.test')
+    })
+  })
+
   // URL serialization noise (host case, a default port) is not a different
   // actor.
   it('matches a self link that differs only in host case', async () => {

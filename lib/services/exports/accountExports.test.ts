@@ -103,6 +103,63 @@ describe('accountExports', () => {
     })
   })
 
+  describe('remote actors with an invalid stored username', () => {
+    it('omits their rows from every account export and keeps valid ones', async () => {
+      await withFreshDatabase(async (database) => {
+        const owner = await createAccount(database, 'owner')
+        const good = await createRemoteActor(database, 'alice.bob', 'ok.test')
+        // Rows written before usernames were validated.
+        const bad = await createRemoteActor(database, '=cmd|calc', 'evil.test')
+
+        for (const [index, target] of [good, bad].entries()) {
+          await database.createFollow({
+            id: `follow-${index}`,
+            actorId: owner.id,
+            targetActorId: target.id,
+            status: FollowStatus.enum.Accepted,
+            inbox: `${target.id}/inbox`,
+            sharedInbox: `${target.id}/inbox`,
+            reblogs: true,
+            notify: false,
+            languages: null
+          })
+          await database.createMute({
+            actorId: owner.id,
+            targetActorId: target.id,
+            notifications: false,
+            endsAt: null
+          })
+          await database.createBlock({
+            actorId: owner.id,
+            targetActorId: target.id,
+            uri: `https://llun.test/blocks/${index}`
+          })
+        }
+
+        const following = await exportFollowingAccounts(database, owner.id)
+        expect(following).toContain('alice.bob@ok.test,true,false,\n')
+        expect(following).not.toContain('cmd')
+        const muted = await exportMutedAccounts(database, owner.id)
+        expect(muted).toContain('alice.bob@ok.test')
+        expect(muted).not.toContain('cmd')
+        const blocked = await exportBlockedAccounts(database, owner.id)
+        expect(blocked).toBe('alice.bob@ok.test\n')
+
+        const list = await database.createList({
+          actorId: owner.id,
+          title: 'Friends'
+        })
+        await database.addListAccounts({
+          listId: list.id,
+          actorId: owner.id,
+          targetActorIds: [good.id, bad.id]
+        })
+        const lists = await exportLists(database, owner.id)
+        expect(lists).toBe('Friends,alice.bob@ok.test\n')
+      })
+    })
+  })
+
   describe('following_accounts.csv', () => {
     it('exports following accounts with header, languages formatting, and excludes follow requests', async () => {
       await withFreshDatabase(async (database) => {

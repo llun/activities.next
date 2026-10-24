@@ -5,6 +5,9 @@ import {
   formatLanguages,
   toCsvRow
 } from '@/lib/services/exports/csv'
+import type { Actor } from '@/lib/types/domain/actor'
+import { logger } from '@/lib/utils/logger'
+import { isValidRemoteUsername } from '@/lib/utils/username'
 
 export const EXPORT_FILES = [
   'following_accounts.csv',
@@ -21,6 +24,25 @@ export const isExportFileName = (file: string): file is ExportFileName =>
   (EXPORT_FILES as readonly string[]).includes(file)
 
 export const DEFAULT_PAGE_SIZE = 500
+
+// `username@domain` for a CSV row, or null for a stored remote actor whose
+// username Mastodon's rule refuses (it starts with `=`, `+`, `-` or `@`, say,
+// which a spreadsheet would run as a formula). Remote usernames are validated
+// before they are stored, so such a row predates that check; Mastodon could
+// never hold it, so it is left out of the export rather than escaped. Local
+// actors are never filtered.
+const getExportAcct = (actor: Actor): string | null => {
+  const isLocal = Boolean(actor.privateKey || actor.account)
+  if (!isLocal && !isValidRemoteUsername(actor.username)) {
+    logger.warn({
+      message: 'Omitted remote actor with an invalid username from an export',
+      actorId: actor.id,
+      username: actor.username.slice(0, 64)
+    })
+    return null
+  }
+  return `${actor.username}@${actor.domain}`
+}
 
 export const csvEscape = escapeCsvField
 export { escapeCsvField, formatLanguages, toCsvRow }
@@ -85,7 +107,8 @@ const followingPage: PageFn = async (database, actorId, cursor, pageSize) => {
   for (const follow of page) {
     const targetActor = actorMap.get(follow.targetActorId)
     if (!targetActor) continue
-    const acct = `${targetActor.username}@${targetActor.domain}`
+    const acct = getExportAcct(targetActor)
+    if (!acct) continue
     text += toCsvRow([
       acct,
       follow.reblogs,
@@ -121,7 +144,9 @@ const listsPage: PageFn = async (database, actorId, cursor, pageSize) => {
     const title = titles.get(String(row.listId))
     const actor = actorMap.get(String(row.targetActorId))
     if (title === undefined || !actor) continue
-    text += toCsvRow([title, `${actor.username}@${actor.domain}`])
+    const acct = getExportAcct(actor)
+    if (!acct) continue
+    text += toCsvRow([title, acct])
   }
   return { text, next: page.next }
 }
@@ -142,11 +167,10 @@ const mutedPage: PageFn = async (database, actorId, cursor, pageSize) => {
     if (row.endsAt != null && endsAt <= now) continue
     const actor = actorMap.get(String(row.targetActorId))
     if (!actor) continue
+    const acct = getExportAcct(actor)
+    if (!acct) continue
     // In our schema, notifications: true means hide/mute notifications (Mastodon hide_notifications: true).
-    text += toCsvRow([
-      `${actor.username}@${actor.domain}`,
-      Boolean(row.notifications)
-    ])
+    text += toCsvRow([acct, Boolean(row.notifications)])
   }
   return { text, next: page.next }
 }
@@ -166,7 +190,9 @@ const blockedAccountsPage: PageFn = async (
   for (const row of page.rows) {
     const actor = actorMap.get(String(row.targetActorId))
     if (!actor) continue
-    text += toCsvRow([`${actor.username}@${actor.domain}`])
+    const acct = getExportAcct(actor)
+    if (!acct) continue
+    text += toCsvRow([acct])
   }
   return { text, next: page.next }
 }

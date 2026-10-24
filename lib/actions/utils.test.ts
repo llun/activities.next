@@ -92,6 +92,35 @@ describe('recordActorIfNeeded', () => {
     ).rejects.toThrow(BlockedFederationDomainError)
   })
 
+  it.each(['=cmd', '+1', '-x', '@x', 'a..', 'алиса', 'a'.repeat(256)])(
+    'does not record a new actor whose preferredUsername is %s',
+    async (preferredUsername) => {
+      const actorId = 'https://remote-badname.test/users/victim'
+      mockGetActorPerson.mockResolvedValue(
+        mockPerson(actorId, { preferredUsername })
+      )
+
+      await expect(
+        recordActorIfNeeded({ actorId, database })
+      ).resolves.toBeUndefined()
+      await expect(database.getActorFromId({ id: actorId })).resolves.toBeNull()
+    }
+  )
+
+  it('stores a padded preferredUsername squished', async () => {
+    const actorId = 'https://remote-padded.test/users/alice'
+    mockGetActorPerson.mockResolvedValue(
+      mockPerson(actorId, { preferredUsername: ' alice ' })
+    )
+
+    const actor = await recordActorIfNeeded({ actorId, database })
+
+    expect(actor).toMatchObject({
+      username: 'alice',
+      domain: 'remote-padded.test'
+    })
+  })
+
   it('persists remote profile data and collection counts when recording a new actor', async () => {
     const actorId = 'https://remote-profile.test/users/matteo'
     mockGetActorPerson.mockResolvedValue(

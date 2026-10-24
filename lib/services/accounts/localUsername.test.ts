@@ -110,11 +110,9 @@ describe('localUsernameSchema', () => {
     { description: 'all caps', username: 'ALICE' },
     { description: 'surrounding whitespace', username: '  Alice  ' },
     { description: 'dots and dashes', username: 'A.b-C_d' },
-    // `LOCAL_USERNAME_PATTERN` allows a trailing dot, and this is the exact
-    // divergence the comment above names — teach `normalizeUsername` to strip
-    // one and only a fixture ending in one can notice. Without this row that
-    // scenario passed.
-    { description: 'a trailing dot', username: 'Alice.' }
+    // A trailing dot is no longer minted at all (`isValidRemoteUsername`
+    // refuses it), so the dot that could once diverge is pinned mid-name.
+    { description: 'a dot run inside', username: 'Alice..B' }
   ])('agrees with normalizeUsername on $description', ({ username }) => {
     const result = parse(username)
     expect(result.success).toBe(true)
@@ -125,4 +123,20 @@ describe('localUsernameSchema', () => {
     expect(parse('a'.repeat(LOCAL_USERNAME_MAX_LENGTH)).success).toBe(true)
     expect(parse('a'.repeat(LOCAL_USERNAME_MAX_LENGTH + 1)).success).toBe(false)
   })
+
+  it.each(['bob-', 'bob.', 'a.-', 'x..'])(
+    'rejects %s, which a Mastodon-rule peer would refuse to record',
+    (username) => {
+      expect(parse(username).success).toBe(false)
+    }
+  )
+
+  it.each(['bad name!', 'é'])(
+    'reports exactly one error for %s',
+    (username) => {
+      const result = parse(username)
+      expect(result.success).toBe(false)
+      expect(!result.success && result.error.issues).toHaveLength(1)
+    }
+  )
 })
