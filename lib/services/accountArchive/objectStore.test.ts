@@ -492,6 +492,10 @@ describe('S3ArchiveObjectStore', () => {
         server.listen(0, '127.0.0.1', resolve)
       )
       try {
+        // CI has no AWS credentials; stub static ones so the default provider
+        // chain does not fail before the request can time out.
+        vi.stubEnv('AWS_ACCESS_KEY_ID', 'test')
+        vi.stubEnv('AWS_SECRET_ACCESS_KEY', 'test')
         const client = createStorageS3Client({
           region: 'us-east-1',
           endpoint: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
@@ -504,6 +508,7 @@ describe('S3ArchiveObjectStore', () => {
         expect(Date.now() - started).toBeLessThan(1200)
         client.destroy()
       } finally {
+        vi.unstubAllEnvs()
         server.closeAllConnections()
         await new Promise((resolve) => server.close(resolve))
       }
