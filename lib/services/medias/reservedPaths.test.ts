@@ -17,6 +17,14 @@ describe('isReservedFitnessMediaPath', () => {
     },
     { description: 'the bare prefix segment', userPath: 'fitness' },
     {
+      description: 'an account export file',
+      userPath: 'archives/0d5b7c1e/archive.zip'
+    },
+    {
+      description: 'an account export file behind an encoded dot segment',
+      userPath: 'medias/%2e%2e/archives/0d5b7c1e/archive.zip'
+    },
+    {
       description: 'a differently-cased prefix',
       userPath: 'FITNESS/a1b2c3d4e5f60718.gpx'
     },
@@ -97,6 +105,10 @@ describe('isReservedFitnessMediaPath', () => {
     {
       description: 'a key that merely starts with the same letters',
       userPath: 'fitnessed/a1b2c3d4e5f60718.webp'
+    },
+    {
+      description: 'a key that merely starts with archives',
+      userPath: 'archivesx/a1b2c3d4e5f60718.webp'
     },
     {
       description: 'the prefix below the top level',

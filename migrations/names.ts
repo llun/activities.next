@@ -13,6 +13,7 @@ export const MIGRATION_NAMES = [
   '20261021052511_add_idempotency_keys_state_changed_at',
   '20261021072844_add_domain_scopes',
   '20261024100037_add_bulk_imports',
+  '20261024100100_add_account_archives',
   '20261024160234_add_media_sort_at'
 ] as const
 

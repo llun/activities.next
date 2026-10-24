@@ -325,4 +325,9 @@ CREATE INDEX "bulk_imports_actor_state_idx" on "bulk_imports" ("actorId", "state
 CREATE TABLE IF NOT EXISTS "bulk_import_rows" ("id" varchar(255) primary key, "importId" varchar(255) not null, "rowIndex" integer not null, "data" text not null, "state" varchar(255) default 'pending' not null, "error" text, "createdAt" datetime default CURRENT_TIMESTAMP not null, "updatedAt" datetime default CURRENT_TIMESTAMP not null);
 CREATE UNIQUE INDEX "bulk_import_rows_import_row_unique" on "bulk_import_rows" ("importId", "rowIndex");
 CREATE INDEX "bulk_import_rows_import_state_idx" on "bulk_import_rows" ("importId", "state");
+CREATE TABLE IF NOT EXISTS "account_archives" ("id" varchar(255) primary key, "accountId" varchar(255) not null references "accounts" ("id") on delete cascade, "status" varchar(32) default 'queued' not null, "options" text default '{}' not null, "storageToken" varchar(64) not null, "progress" text, "storagePath" varchar(512), "bytes" bigint, "error" text, "createdAt" datetime default CURRENT_TIMESTAMP not null, "heartbeatAt" datetime default CURRENT_TIMESTAMP not null, "reapCount" integer default 0 not null, "readyAt" datetime, "expiresAt" datetime);
+CREATE INDEX "account_archives_account_created_idx" on "account_archives" ("accountId", "createdAt");
+CREATE UNIQUE INDEX "account_archives_account_active_idx" on "account_archives" ("accountId") where ("status" = 'queued' or "status" = 'running');
+CREATE INDEX "account_archives_heartbeat_idx" on "account_archives" ("status", "heartbeatAt");
+CREATE INDEX "account_archives_expires_idx" on "account_archives" ("status", "expiresAt");
 CREATE INDEX "medias_actorId_sortAt_id_idx" on "medias" ("actorId", "sortAt", "id");

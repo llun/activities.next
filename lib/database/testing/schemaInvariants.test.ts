@@ -388,10 +388,12 @@ describe('schema invariants', () => {
 
   describe('foreign keys', () => {
     // An account delete must detach or remove what refers to it: better-auth's
-    // passkeys and two-factor rows go with it, the others block it.
-    it('keeps the seven foreign keys to accounts and their delete rules', async () => {
+    // passkeys, two-factor rows and account exports go with it, the others
+    // block it.
+    it('keeps the eight foreign keys to accounts and their delete rules', async () => {
       expect(await getForeignKeysTo('accounts')).toEqual(
         [
+          { table: 'account_archives', from: 'accountId', onDelete: 'CASCADE' },
           { table: 'actors', from: 'accountId', onDelete: 'NO ACTION' },
           { table: 'oauthAccessToken', from: 'userId', onDelete: 'NO ACTION' },
           { table: 'oauthClient', from: 'userId', onDelete: 'NO ACTION' },

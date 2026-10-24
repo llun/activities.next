@@ -289,8 +289,30 @@ describe('production archive scripts', () => {
 
       expect(plan[0]).toMatchObject({
         destination: 'media',
-        excludePrefixes: ['fitness']
+        excludePrefixes: ['archives', 'fitness']
       })
+    })
+
+    it('never backs up account export files', () => {
+      const mediaStorage = {
+        type: MediaStorageType.LocalFile,
+        path: '/tmp/activitynext/uploads'
+      } as const
+      expect(
+        buildStoragePlan({
+          fitnessFilePaths: [],
+          mediaFilePaths: [],
+          scope: 'all',
+          mediaStorage
+        })[0]
+      ).toMatchObject({ excludePrefixes: ['archives'] })
+      const referenced = buildStoragePlan({
+        fitnessFilePaths: [],
+        mediaFilePaths: ['medias/a.jpg', 'archives/x/t/archive-1.zip'],
+        scope: 'referenced',
+        mediaStorage
+      })
+      expect(referenced[0]).toMatchObject({ files: ['medias/a.jpg'] })
     })
   })
 

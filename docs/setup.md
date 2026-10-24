@@ -91,11 +91,48 @@ ACTIVITIES_MEDIA_STORAGE_PATH=./uploads
 
 #### S3 / S3-Compatible Object Storage
 
+The account exports (`archives/` in the same bucket) need these permissions on the bucket's credentials besides what media needs: `s3:PutObject`, `s3:GetObject`, `s3:DeleteObject` and `s3:AbortMultipartUpload` (to clean up an unfinished upload) on `archives/*`, `s3:ListBucket` on the bucket (limited to the `archives/*` prefix with a condition), and optionally `s3:ListMultipartUploadParts` on `archives/*`. Without the last one an export still completes, with a warning in the logs, but cannot double-check its part ETags. Add a bucket lifecycle rule that aborts incomplete multipart uploads after a day or two.
+
+This is an extra IAM identity policy for the app's S3 credentials, added alongside the existing media policy (not a replacement for it, and not a bucket policy). If S3 answers 403 instead of 404 for missing keys, the `s3:prefix` condition on `s3:ListBucket` may be left off.
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:PutObject",
+        "s3:GetObject",
+        "s3:DeleteObject",
+        "s3:AbortMultipartUpload",
+        "s3:ListMultipartUploadParts"
+      ],
+      "Resource": "arn:aws:s3:::my-bucket/archives/*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::my-bucket",
+      "Condition": { "StringLike": { "s3:prefix": ["archives/*"] } }
+    }
+  ]
+}
+```
+
 ```bash
 ACTIVITIES_MEDIA_STORAGE_TYPE=s3          # or 'object' for S3-compatible
 ACTIVITIES_MEDIA_STORAGE_BUCKET=my-bucket
 ACTIVITIES_MEDIA_STORAGE_REGION=us-east-1
-# Optional: public CDN/custom domain used to serve media files
+# Optional: public CDN/custom domain used to serve media files.
+# Account data exports live in the same bucket under archives/. The hostname
+# must not serve that prefix (or the bucket root) publicly: an export is
+# protected by a secret key segment plus the owner-checked download endpoint,
+# not by the bucket. With this variable set, exports are streamed through the
+# app instead of redirecting to a signed bucket URL. A streamed download lasts as
+# long as the transfer, so on a host with a short request duration limit
+# (serverless) a large export may be cut off; a client can resume it with a
+# `Range: bytes=n-` request.
 ACTIVITIES_MEDIA_STORAGE_HOSTNAME=media.example.com
 # Optional: S3-compatible API endpoint for uploads/storage operations
 ACTIVITIES_MEDIA_STORAGE_ENDPOINT=https://s3.example.com

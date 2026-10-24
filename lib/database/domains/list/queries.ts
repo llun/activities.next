@@ -133,6 +133,8 @@ export const getLists = async (
     .selectAll()
     .where('actorId', '=', actorId)
     .orderBy('createdAt', 'asc')
+    // Lists made in the same millisecond keep one order, for paged readers.
+    .orderBy('id', 'asc')
     .execute()
   return rows.map(toList)
 }

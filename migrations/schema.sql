@@ -10,6 +10,23 @@ SET xmloption = content;
 SET client_min_messages = warning;
 SET row_security = off;
 
+CREATE TABLE public.account_archives (
+    id character varying(255) NOT NULL,
+    "accountId" character varying(255) NOT NULL,
+    status character varying(32) DEFAULT 'queued'::character varying NOT NULL,
+    options text DEFAULT '{}'::text NOT NULL,
+    "storageToken" character varying(64) NOT NULL,
+    progress text,
+    "storagePath" character varying(512),
+    bytes bigint,
+    error text,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "heartbeatAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "reapCount" integer DEFAULT 0 NOT NULL,
+    "readyAt" timestamp with time zone,
+    "expiresAt" timestamp with time zone
+);
+
 CREATE TABLE public.account_notes (
     id character varying(255) NOT NULL,
     "actorId" character varying(255) NOT NULL,
@@ -1538,6 +1555,9 @@ ALTER TABLE ONLY public.timelines ALTER COLUMN id SET DEFAULT nextval('public.ti
 ALTER TABLE ONLY public.account_providers
     ADD CONSTRAINT "accountProviders_pkey" PRIMARY KEY (id);
 
+ALTER TABLE ONLY public.account_archives
+    ADD CONSTRAINT account_archives_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY public.account_notes
     ADD CONSTRAINT account_notes_actor_target_unique UNIQUE ("actorId", "targetActorId");
 
@@ -2000,6 +2020,14 @@ ALTER TABLE ONLY public.wahoo_imports
 ALTER TABLE ONLY public.wahoo_imports
     ADD CONSTRAINT wahoo_imports_pkey PRIMARY KEY (id);
 
+CREATE UNIQUE INDEX account_archives_account_active_idx ON public.account_archives USING btree ("accountId") WHERE (((status)::text = 'queued'::text) OR ((status)::text = 'running'::text));
+
+CREATE INDEX account_archives_account_created_idx ON public.account_archives USING btree ("accountId", "createdAt");
+
+CREATE INDEX account_archives_expires_idx ON public.account_archives USING btree (status, "expiresAt");
+
+CREATE INDEX account_archives_heartbeat_idx ON public.account_archives USING btree (status, "heartbeatAt");
+
 CREATE INDEX "account_providers_accountId_provider_providerId_idx" ON public.account_providers USING btree ("accountId", provider, "providerId");
 
 CREATE INDEX "accountsIndex" ON public.accounts USING btree (email, "createdAt", "updatedAt");
@@ -2305,6 +2333,9 @@ CREATE INDEX wahoo_history_actor_status_idx ON public.wahoo_history_imports USIN
 CREATE INDEX wahoo_imports_actor_status_idx ON public.wahoo_imports USING btree ("actorId", status);
 
 CREATE INDEX wahoo_imports_history_idx ON public.wahoo_imports USING btree ("historyImportId");
+
+ALTER TABLE ONLY public.account_archives
+    ADD CONSTRAINT "account_archives_accountId_fkey" FOREIGN KEY ("accountId") REFERENCES public.accounts(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY public.actors
     ADD CONSTRAINT actors_accountid_foreign FOREIGN KEY ("accountId") REFERENCES public.accounts(id);

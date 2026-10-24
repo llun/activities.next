@@ -12,6 +12,7 @@ import * as addDomainsIdentity from './20261020232218_add_domains_identity'
 import * as addIdempotencyKeysStateChangedAt from './20261021052511_add_idempotency_keys_state_changed_at'
 import * as addDomainScopes from './20261021072844_add_domain_scopes'
 import * as addBulkImports from './20261024100037_add_bulk_imports'
+import * as addAccountArchives from './20261024100100_add_account_archives'
 import * as addMediaSortAt from './20261024160234_add_media_sort_at'
 import type { MigrationName } from './names'
 
@@ -34,5 +35,6 @@ export const migrations: MigrationRegistry = {
     addIdempotencyKeysStateChangedAt,
   '20261021072844_add_domain_scopes': addDomainScopes,
   '20261024100037_add_bulk_imports': addBulkImports,
+  '20261024100100_add_account_archives': addAccountArchives,
   '20261024160234_add_media_sort_at': addMediaSortAt
 } satisfies Record<MigrationName, MigrationModule>

@@ -1,4 +1,5 @@
 import { getMediaReservedFitnessPathPrefixes } from '@/lib/config/fitnessStorage'
+import { ARCHIVE_STORAGE_PREFIX } from '@/lib/services/accountArchive/constants'
 
 // How many times a path may be percent-decoded while canonicalising. Next has
 // already decoded the catch-all segments once, so a client that double-encodes
@@ -70,8 +71,8 @@ const getCanonicalMediaPath = (userPath: string): string => {
 }
 
 /**
- * Whether `userPath` addresses fitness storage and so must not be served by the
- * media route, which has no access control of its own.
+ * Whether `userPath` addresses fitness storage (or the account export
+ * prefix) and so must not be served by the media route, which has no access control of its own.
  *
  * The comparison is made on a CANONICAL form, not on the string the route
  * happens to hold, because the value does not stay that string. When media
@@ -93,7 +94,12 @@ const getCanonicalMediaPath = (userPath: string): string => {
  */
 export const isReservedFitnessMediaPath = (userPath: string): boolean => {
   const canonicalPath = getCanonicalMediaPath(userPath)
-  return getMediaReservedFitnessPathPrefixes().some(
+  // Account exports live under `archives/` of the same storage. They are served
+  // only by the owner-only download endpoint, never by this route.
+  return [
+    ...getMediaReservedFitnessPathPrefixes(),
+    ARCHIVE_STORAGE_PREFIX
+  ].some(
     (prefix) =>
       canonicalPath === prefix || canonicalPath.startsWith(`${prefix}/`)
   )
