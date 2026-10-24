@@ -123,7 +123,9 @@ describe('MobileNav', () => {
     expect(screen.getByRole('link', { name: 'Bookmarks' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Fitness' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Admin' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Account' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: 'Account & security' })
+    ).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Settings' })).toBeInTheDocument()
   })
 

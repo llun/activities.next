@@ -27,7 +27,7 @@ import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Account security'
+  title: 'Password & sign-in'
 }
 
 const Page = async () => {
@@ -68,7 +68,7 @@ const Page = async () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Security"
+        title="Password & sign-in"
         description="Protect how you sign in to this account."
       />
 

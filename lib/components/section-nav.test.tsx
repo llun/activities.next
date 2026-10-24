@@ -34,7 +34,7 @@ const groups: SectionNavGroup[] = [
     heading: 'Second',
     items: [{ name: 'Three', url: '/s/three', icon: null }]
   },
-  { items: [{ name: 'Last', url: '/s/last', icon: null }] }
+  { afterFooter: true, items: [{ name: 'Last', url: '/s/last', icon: null }] }
 ]
 
 const footer: SectionNavFooter = {
@@ -100,8 +100,49 @@ describe('SectionNav', () => {
   })
 })
 
+describe('long names', () => {
+  const long: SectionNavFooter = {
+    heading: 'Elsewhere',
+    item: {
+      name: 'Settings for @someone@very-long-domain.example.social',
+      url: '/other',
+      icon: null,
+      description: 'What'
+    }
+  }
+
+  it('wraps the rail footer name and the index names anywhere', () => {
+    ;(usePathname as jest.Mock).mockReturnValue('/s/one')
+    const { unmount } = render(
+      <SectionNav label="Things" groups={groups} footer={long} />
+    )
+    expect(screen.getByText(long.item.name)).toHaveClass(
+      '[overflow-wrap:anywhere]'
+    )
+    unmount()
+
+    render(<SectionIndex groups={groups} footer={long} />)
+    expect(screen.getByText(long.item.name)).toHaveClass(
+      '[overflow-wrap:anywhere]'
+    )
+    expect(screen.getByText('One')).toHaveClass('[overflow-wrap:anywhere]')
+    expect(screen.getByText('One line')).toHaveClass('[overflow-wrap:anywhere]')
+  })
+
+  it('renders no rail without groups or footer', () => {
+    ;(usePathname as jest.Mock).mockReturnValue('/s/one')
+    render(
+      <SectionLayout label="Things" title="Things" groups={[]}>
+        <p>body</p>
+      </SectionLayout>
+    )
+    expect(screen.queryByRole('navigation')).not.toBeInTheDocument()
+    expect(screen.getByText('body')).toBeInTheDocument()
+  })
+})
+
 describe('SectionIndex', () => {
-  it('lists headed groups, then the footer, then plain runs, without rail-only groups', () => {
+  it('lists the groups, then the footer, then after-footer groups, without rail-only groups', () => {
     render(<SectionIndex groups={groups} footer={footer} />)
 
     expect(
@@ -182,5 +223,42 @@ describe('SectionLayout', () => {
     expect(heading.closest('.max-w-content')).toHaveClass(
       '[[data-section-layout]_&]:max-w-section'
     )
+  })
+  it('puts mobileNav where the Back row would be, and has no Back without an index', () => {
+    ;(usePathname as jest.Mock).mockReturnValue('/s/one')
+    render(
+      <SectionLayout
+        label="Things"
+        title="Things"
+        groups={groups}
+        mobileNav={<div>dropdown</div>}
+      >
+        <div>content</div>
+      </SectionLayout>
+    )
+
+    expect(screen.getByText('dropdown').parentElement).toHaveClass('lg:hidden')
+    expect(
+      screen.queryByRole('link', { name: /^Back/ })
+    ).not.toBeInTheDocument()
+    // Rail stays; no index means no index list either.
+    expect(
+      screen.getByRole('navigation', { name: 'Things' })
+    ).toBeInTheDocument()
+  })
+
+  it('uses the footer hint for the rail card when given', () => {
+    ;(usePathname as jest.Mock).mockReturnValue('/s/one')
+    render(
+      <SectionNav
+        label="Things"
+        groups={groups}
+        footer={{ ...footer, hint: 'Each has its own' }}
+      />
+    )
+
+    const card = screen.getByRole('link', { name: /Other/ })
+    expect(card).toHaveTextContent('Each has its own')
+    expect(card).not.toHaveTextContent('Elsewhere')
   })
 })

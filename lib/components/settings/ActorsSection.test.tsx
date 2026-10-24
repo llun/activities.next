@@ -296,12 +296,12 @@ describe('ActorsSection', () => {
     )
 
     expect(
-      screen.getByRole('button', { name: 'Switch to actor' })
+      screen.getByRole('button', { name: 'Switch to profile' })
     ).toHaveAttribute('type', 'button')
     expect(
       screen.getByRole('button', { name: 'Set as default' })
     ).toHaveAttribute('type', 'button')
-    expect(screen.getByRole('button', { name: 'Add actor' })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: 'Add profile' })).toHaveAttribute(
       'type',
       'button'
     )
@@ -405,7 +405,7 @@ describe('ActorsSection', () => {
 
     expect(setDefaultActor).toHaveBeenCalledWith({ actorId: 'actor-2' })
     await waitFor(() => {
-      expect(screen.getByText('Default actor updated')).toBeInTheDocument()
+      expect(screen.getByText('Default profile updated')).toBeInTheDocument()
       expect(mockRefresh).toHaveBeenCalled()
     })
   })
@@ -439,12 +439,12 @@ describe('ActorsSection', () => {
     expect(setDefaultActor).toHaveBeenCalledWith({ actorId: 'actor-2' })
     await waitFor(() => {
       expect(
-        screen.getByText('Failed to update default actor')
+        screen.getByText('Failed to update default profile')
       ).toBeInTheDocument()
     })
   })
 
-  it('names the actor menu by its row and describes it with the row hint', () => {
+  it('names the profile menu by its row and describes it with the row hint', () => {
     render(
       <ActorsSection
         currentActor={actors[0]}
@@ -454,8 +454,8 @@ describe('ActorsSection', () => {
     )
 
     const trigger = screen.getByRole('button', { name: /alice/i })
-    expect(trigger).toHaveAccessibleName(/^Actor\b.*alice/i)
-    expect(trigger).toHaveAccessibleDescription(/Pick an actor to switch to/)
+    expect(trigger).toHaveAccessibleName(/^Profile\b.*alice/i)
+    expect(trigger).toHaveAccessibleDescription(/Pick a profile to switch to/)
   })
 
   it('switches to selected actor, sets active offline session, and reloads page', async () => {
@@ -477,7 +477,7 @@ describe('ActorsSection', () => {
     fireEvent.click(bobItem)
 
     const switchButton = screen.getByRole('button', {
-      name: 'Switch to actor'
+      name: 'Switch to profile'
     })
     expect(switchButton).not.toBeDisabled()
     fireEvent.click(switchButton)
@@ -513,7 +513,7 @@ describe('ActorsSection', () => {
     fireEvent.click(bobItem)
 
     const switchButton = screen.getByRole('button', {
-      name: 'Switch to actor'
+      name: 'Switch to profile'
     })
     fireEvent.click(switchButton)
 

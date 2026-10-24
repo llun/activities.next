@@ -520,7 +520,7 @@ describe('ActorSwitcher', () => {
       fireEvent.keyDown(trigger, { key: 'ArrowDown' })
       await screen.findByRole('menu')
 
-      const addActorItem = screen.getByText('Add another actor')
+      const addActorItem = screen.getByText('Add another profile')
       fireEvent.click(addActorItem)
 
       expect(mockAddActorDialog).toHaveBeenLastCalledWith(

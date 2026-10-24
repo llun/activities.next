@@ -257,7 +257,7 @@ export const AccountSessions: FC<Props> = ({ currentTime, sessions, apps }) => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Sessions"
+        title="Sessions & apps"
         description={
           <>
             <p>
