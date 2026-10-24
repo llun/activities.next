@@ -188,6 +188,43 @@ describe('ActorMigrationDatabase', () => {
       expect(await rowCount(actorId)).toBe(1)
     })
 
+    it('answers cooldown for the same target once the move was started', async () => {
+      const actorId = await newActor('rec-started')
+      const first = await record('rec-started-1', actorId)
+      const id = (first as { migration: { id: string } }).migration.id
+      expect(
+        (await database.getActorMigrations({ actorId }))[0].startedAt
+      ).toBeNull()
+
+      await database.markActorMigrationStarted({ id })
+      const started = (await database.getActorMigrations({ actorId }))[0]
+      expect(started.startedAt).toBeGreaterThan(0)
+
+      // A second mark keeps the first time.
+      await database.markActorMigrationStarted({ id })
+      expect(
+        (await database.getActorMigrations({ actorId }))[0].startedAt
+      ).toBe(started.startedAt)
+
+      const again = await record('rec-started-2', actorId)
+      expect(again.status).toBe('cooldown')
+      expect(await rowCount(actorId)).toBe(1)
+    })
+
+    it('answers cooldown once a redirect to the same target is newer than the unstarted move', async () => {
+      const actorId = await newActor('rec-redirected')
+      await record('rec-redirected-1', actorId)
+      await database.updateActor({ actorId, movedTo: null })
+      await record('rec-redirected-2', actorId, 'redirect')
+      expect((await database.getActorFromId({ id: actorId }))?.movedTo).toBe(
+        TARGET
+      )
+
+      const result = await record('rec-redirected-3', actorId)
+      expect(result.status).toBe('cooldown')
+      expect(await rowCount(actorId)).toBe(2)
+    })
+
     it('answers cooldown for the same target once movedTo was cleared', async () => {
       const actorId = await newActor('rec-cleared')
       await record('rec-cleared-1', actorId)

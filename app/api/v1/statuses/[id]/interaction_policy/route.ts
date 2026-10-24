@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import { updateStatusInteractionPolicyFromUserInput } from '@/lib/actions/updateStatusInteractionPolicy'
+import { movedAccountResponse } from '@/lib/services/accounts/movedAccount'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
@@ -44,6 +45,8 @@ export const PUT = traceApiRoute(
       const { database, currentActor, params } = context
       const encodedStatusId = (await params).id
       if (!encodedStatusId) return apiCorsError(req, CORS_HEADERS, 404)
+      const moved = movedAccountResponse(req, CORS_HEADERS, currentActor)
+      if (moved) return moved
       const statusId = await resolveStatusIdParam(database, encodedStatusId)
 
       let parsed: z.infer<typeof BodySchema>

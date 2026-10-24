@@ -1,4 +1,7 @@
+import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import { publishActorUpdate } from '@/lib/services/actors/actorUpdate'
+import { getFederationSigningActorSafe } from '@/lib/services/federation/getFederationSigningActor'
 import { getQueue } from '@/lib/services/queue'
 import { MockActor } from '@/lib/stub/actor'
 import { Actor } from '@/lib/types/domain/actor'
@@ -9,6 +12,12 @@ vi.mock('@/lib/services/actors/actorUpdate', () => ({
   publishActorUpdate: vi.fn().mockResolvedValue(undefined)
 }))
 vi.mock('@/lib/services/queue', () => ({ getQueue: vi.fn() }))
+vi.mock('@/lib/activities/getActorPerson', () => ({
+  getActorPerson: vi.fn()
+}))
+vi.mock('@/lib/services/federation/getFederationSigningActor', () => ({
+  getFederationSigningActorSafe: vi.fn()
+}))
 
 describe('performOutgoingMove on a real database', () => {
   const testDb = createTestDatabase()
@@ -23,6 +32,7 @@ describe('performOutgoingMove on a real database', () => {
     await testDb.destroy()
   })
   beforeEach(() => {
+    vi.mocked(publishActorUpdate).mockClear()
     publish.mockReset().mockResolvedValue(undefined)
     vi.mocked(getQueue).mockReturnValue({ publish } as never)
   })
@@ -50,6 +60,16 @@ describe('performOutgoingMove on a real database', () => {
 
   it('records one move and one job id for two concurrent requests', async () => {
     const { actor, target } = await setup('concurrent')
+    // Neither publish settles before both requests reached it, so neither
+    // request marks the move started before the other one was recorded.
+    let release = () => {}
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    publish.mockImplementation(async () => {
+      if (publish.mock.calls.length >= 2) release()
+      await gate
+    })
     const results = await Promise.all([
       performOutgoingMove({ database, actor, target, kind: 'move' }),
       performOutgoingMove({ database, actor, target, kind: 'move' })
@@ -72,6 +92,9 @@ describe('performOutgoingMove on a real database', () => {
     const stored = (await database.getActorFromId({ id: actor.id })) as Actor
     expect(stored.movedTo).toBe(target.id)
     expect(
+      (await database.getActorMigrations({ actorId: actor.id }))[0].startedAt
+    ).toBeNull()
+    expect(
       await performOutgoingMove({
         database,
         actor: stored,
@@ -82,9 +105,145 @@ describe('performOutgoingMove on a real database', () => {
 
     const rows = await database.getActorMigrations({ actorId: actor.id })
     expect(rows).toHaveLength(1)
+    expect(rows[0].startedAt).toBeGreaterThan(0)
     expect(publish.mock.calls.map(([job]) => job.id)).toEqual([
       `${rows[0].id}:start`,
       `${rows[0].id}:start`
     ])
+  })
+
+  it('marks the move started after a successful publish', async () => {
+    const { actor, target } = await setup('started')
+    await performOutgoingMove({ database, actor, target, kind: 'move' })
+    const [row] = await database.getActorMigrations({ actorId: actor.id })
+    expect(publish).toHaveBeenCalledTimes(1)
+    expect(row.startedAt).toBeGreaterThan(0)
+  })
+
+  it('answers 422 to a repeat of a successful move without a job or an Update', async () => {
+    const { actor, target } = await setup('repeat')
+    await performOutgoingMove({ database, actor, target, kind: 'move' })
+    publish.mockClear()
+    vi.mocked(publishActorUpdate).mockClear()
+
+    const stored = (await database.getActorFromId({ id: actor.id })) as Actor
+    expect(
+      await performOutgoingMove({
+        database,
+        actor: stored,
+        target,
+        kind: 'move'
+      })
+    ).toMatchObject({ ok: false, status: 422 })
+    expect(publish).not.toHaveBeenCalled()
+    expect(publishActorUpdate).not.toHaveBeenCalled()
+    expect(
+      await database.getActorMigrations({ actorId: actor.id })
+    ).toHaveLength(1)
+  })
+
+  const cancelAndRedirect = async (actor: Actor, target: Actor) => {
+    // DELETE /api/v1/accounts/migration clears movedTo, then a redirect to the
+    // same account sets it again.
+    await database.updateActor({ actorId: actor.id, movedTo: null })
+    expect(
+      await performOutgoingMove({
+        database,
+        actor: (await database.getActorFromId({ id: actor.id })) as Actor,
+        target,
+        kind: 'redirect'
+      })
+    ).toEqual({ ok: true })
+    publish.mockClear()
+    vi.mocked(publishActorUpdate).mockClear()
+    return (await database.getActorFromId({ id: actor.id })) as Actor
+  }
+
+  const moveAgain = (actor: Actor, target: Actor) =>
+    performOutgoingMove({ database, actor, target, kind: 'move' })
+
+  it('does not re-send a cancelled move that was redirected to the same account', async () => {
+    const { actor, target } = await setup('cancelled')
+    publish.mockRejectedValueOnce(new Error('queue down'))
+    await moveAgain(actor, target)
+    const stored = await cancelAndRedirect(actor, target)
+    expect(stored.movedTo).toBe(target.id)
+
+    expect(await moveAgain(stored, target)).toMatchObject({
+      ok: false,
+      status: 429
+    })
+    expect(publish).not.toHaveBeenCalled()
+    expect(publishActorUpdate).not.toHaveBeenCalled()
+  })
+
+  it('answers 422 to a started move that was redirected to the same account', async () => {
+    const { actor, target } = await setup('started-redirected')
+    await moveAgain(actor, target)
+    const stored = await cancelAndRedirect(actor, target)
+
+    expect(await moveAgain(stored, target)).toMatchObject({
+      ok: false,
+      status: 422
+    })
+    expect(publish).not.toHaveBeenCalled()
+    expect(publishActorUpdate).not.toHaveBeenCalled()
+  })
+
+  it('answers 429 to a started move repeated after the move was cancelled', async () => {
+    const { actor, target } = await setup('started-cancelled')
+    await moveAgain(actor, target)
+    await database.updateActor({ actorId: actor.id, movedTo: null })
+    publish.mockClear()
+    vi.mocked(publishActorUpdate).mockClear()
+
+    expect(
+      await moveAgain(
+        (await database.getActorFromId({ id: actor.id })) as Actor,
+        target
+      )
+    ).toMatchObject({ ok: false, status: 429 })
+    expect(publish).not.toHaveBeenCalled()
+    expect(publishActorUpdate).not.toHaveBeenCalled()
+  })
+
+  describe('reading a remote target', () => {
+    const remote = async (name: string) => {
+      const { actor, target } = await setup(name)
+      return {
+        actor,
+        target: Actor.parse({ ...target, privateKey: undefined })
+      }
+    }
+
+    it('answers 502 when the target cannot be fetched', async () => {
+      const { actor, target } = await remote('fetch-fails')
+      vi.mocked(getFederationSigningActorSafe).mockResolvedValue({
+        id: 'https://llun.test/users/signer'
+      } as Actor)
+      vi.mocked(getActorPerson).mockResolvedValue(null as never)
+
+      expect(
+        await performOutgoingMove({ database, actor, target, kind: 'move' })
+      ).toMatchObject({ ok: false, status: 502 })
+      expect(publish).not.toHaveBeenCalled()
+    })
+
+    it('answers 500 when there is no signing actor to fetch with', async () => {
+      const { actor, target } = await remote('no-signer')
+      vi.mocked(getFederationSigningActorSafe).mockResolvedValue(undefined)
+      vi.mocked(getActorPerson).mockClear()
+
+      expect(
+        await performOutgoingMove({ database, actor, target, kind: 'move' })
+      ).toEqual({
+        ok: false,
+        status: 500,
+        error: 'This server cannot fetch remote accounts right now',
+        cooldownUntil: undefined
+      })
+      expect(getActorPerson).not.toHaveBeenCalled()
+      expect(publish).not.toHaveBeenCalled()
+    })
   })
 })

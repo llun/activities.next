@@ -97,7 +97,8 @@ CREATE TABLE public.actor_migrations (
     kind character varying(255) NOT NULL,
     "followersCount" integer DEFAULT 0 NOT NULL,
     "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "startedAt" timestamp with time zone
 );
 
 CREATE TABLE public.actors (

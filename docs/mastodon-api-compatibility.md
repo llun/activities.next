@@ -1093,14 +1093,18 @@ ActivityPub objects are **JSON-LD**, so the same logical object can arrive in ma
   over). Differences: the cooldown answers 429 with `cooldownUntil`; the move
   row and `movedTo` are written in one locked transaction, then `Update(Person)`
   goes out and the Move is queued, so a queue failure answers 503 and keeps the
-  move, and retrying the same request publishes the same job and completes it;
-  an unreachable target is 502 and a reachable target without the alias is 422;
+  move, and retrying the same request publishes the same job and completes it
+  (only until the job is queued: a repeat of a started move is 422, and a move
+  repeated after a `DELETE` and a redirect is 429, so a cancelled move is never
+  sent again); an unreachable target is 502, a server with no federation signing
+  actor to fetch with is 500, and a reachable target without the alias is 422;
   one Move goes to each remote shared inbox across all continuations; and there
   is no settings UI yet. Details in
   [architecture.md](architecture.md#agents-actor-profile-deletion-federation).
 - **Posting and editing from a moved account gets 422 `This account has moved`.**
   The check covers `POST /api/v1/statuses` (polls, replies and scheduled posts
-  included), reblogs, the edit `PUT /api/v1/statuses/:id`, and the deprecated
+  included), reblogs, the edit `PUT /api/v1/statuses/:id`, `PUT /api/v1/statuses/:id/interaction_policy`
+  (it rewrites the note and re-federates it), and the deprecated
   `accounts/outbox` and `accounts/repost` routes. `DELETE` on the migration route
   lifts it, since it clears only the pointer. Known gap: a fitness import still
   creates its post for a moved account, because the post is part of the import.

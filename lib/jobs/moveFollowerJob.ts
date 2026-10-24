@@ -12,6 +12,7 @@ import { getFederationSigningActor } from '@/lib/services/federation/getFederati
 import { notifyLocalFollow } from '@/lib/services/notifications/notifyLocalFollow'
 import { getQueue } from '@/lib/services/queue'
 import { JobHandle } from '@/lib/services/queue/type'
+import { NotificationType } from '@/lib/types/database/operations'
 import { type Follow, FollowStatus } from '@/lib/types/domain/follow'
 import { actorIdsMatch, normalizeActorId } from '@/lib/utils/activitypub'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
@@ -226,8 +227,10 @@ export const moveFollowerJob: JobHandle = createJobHandle(
         })
         await addTargetToLists()
         // MoveWorker#rewrite_follows!: between two local accounts the pending
-        // request to the target is authorized (a silenced follower's stays
-        // pending, as for a new follow).
+        // request to the target is authorized silently (follow_request.authorize!
+        // sends no alert), so its pending notification is dropped instead of
+        // turned into a follow one (a silenced follower's stays pending, as for
+        // a new follow).
         if (
           origin.privateKey &&
           isLocalTarget &&
@@ -241,8 +244,18 @@ export const moveFollowerJob: JobHandle = createJobHandle(
               actor: target.id,
               object: existing.id
             },
-            database
+            database,
+            silent: true
           })
+          const pendingNotification =
+            await database.getNotificationFromFollowId({
+              followId: existing.id
+            })
+          if (
+            pendingNotification?.type === NotificationType.enum.follow_request
+          ) {
+            await database.deleteNotification(pendingNotification.id)
+          }
         }
         span.setAttribute('keptOriginFollow', existing.id)
       }

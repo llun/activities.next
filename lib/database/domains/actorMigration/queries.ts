@@ -6,6 +6,7 @@ import type {
   CreateActorMigrationParams,
   GetActorMigrationsParams,
   GetLastActorMoveParams,
+  MarkActorMigrationStartedParams,
   RecordActorMigrationParams,
   RecordActorMigrationResult
 } from '@/lib/database/domains/actorMigration/types'
@@ -26,7 +27,8 @@ const toActorMigration = (
   targetAcct: row.targetAcct,
   kind: row.kind as ActorMigrationKind,
   followersCount: row.followersCount,
-  createdAt: getCompatibleTime(row.createdAt)
+  createdAt: getCompatibleTime(row.createdAt),
+  startedAt: row.startedAt ? getCompatibleTime(row.startedAt) : null
 })
 
 // Explicit timestamps: the column default is CURRENT_TIMESTAMP, which SQLite
@@ -71,8 +73,16 @@ export const recordActorMigration = async (
     if (params.kind === 'move') {
       const last = await getLastActorMove(trx, { actorId: params.actorId })
       if (last && last.createdAt + cooldownMs > Date.now()) {
-        // The same move again (a retry after a failed publish) is not a new one.
+        // The same move again is a retry of a failed publish, and only then:
+        // nothing newer than it (a redirect after a DELETE is a new decision),
+        // never started, and movedTo still names the target.
+        const [newest] = await getActorMigrations(trx, {
+          actorId: params.actorId,
+          limit: 1
+        })
         if (
+          newest?.id === last.id &&
+          last.startedAt === null &&
           actorIdsMatch(last.targetActorId, params.targetActorId) &&
           settings.movedTo &&
           actorIdsMatch(settings.movedTo, params.targetActorId)
@@ -97,6 +107,19 @@ export const recordActorMigration = async (
       .execute()
     return { status: 'created', migration }
   })
+
+export const markActorMigrationStarted = async (
+  db: Db,
+  { id }: MarkActorMigrationStartedParams
+): Promise<void> => {
+  const now = new Date()
+  await db
+    .updateTable('actor_migrations')
+    .set({ startedAt: now, updatedAt: now })
+    .where('id', '=', id)
+    .where('startedAt', 'is', null)
+    .execute()
+}
 
 export const getActorMigrations = async (
   db: Db,
@@ -131,6 +154,7 @@ export const getLastActorMove = async (
 export const actorMigrationQueries = {
   createActorMigration,
   recordActorMigration,
+  markActorMigrationStarted,
   getActorMigrations,
   getLastActorMove
 }

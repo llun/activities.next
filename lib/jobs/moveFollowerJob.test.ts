@@ -803,10 +803,16 @@ describe('moveFollowerJob', () => {
           inbox: `${ACTOR1_ID}/inbox`,
           sharedInbox: 'https://llun.test/inbox'
         })
+        await database.createNotification({
+          actorId: ACTOR3_ID,
+          type: NotificationType.enum.follow_request,
+          sourceActorId: ACTOR1_ID,
+          followId: pending.id
+        })
         return { oldFollow, pending }
       }
 
-      it('is authorized and the origin follow is kept (MoveWorker rewrite_follows!)', async () => {
+      it('is authorized silently and the origin follow is kept (MoveWorker rewrite_follows!)', async () => {
         const { oldFollow, pending } = await requestTarget()
 
         await runLocal(oldFollow.id, ACTOR3_ID)
@@ -818,13 +824,12 @@ describe('moveFollowerJob', () => {
         expect(
           (await database.getFollowFromId({ followId: oldFollow.id }))?.status
         ).toBe(FollowStatus.enum.Accepted)
-        expect(sendNotificationAlerts).toHaveBeenCalledTimes(1)
-        expect(sendNotificationAlerts).toHaveBeenCalledWith(
-          expect.objectContaining({
-            actorId: ACTOR3_ID,
-            sourceActorId: ACTOR1_ID
-          })
-        )
+        // Mastodon's authorize! sends no alert, and the request notification
+        // is gone rather than left pending.
+        expect(sendNotificationAlerts).not.toHaveBeenCalled()
+        expect(
+          await database.getNotificationFromFollowId({ followId: pending.id })
+        ).toBeNull()
       })
 
       it('stays pending for a silenced follower', async () => {
@@ -837,6 +842,9 @@ describe('moveFollowerJob', () => {
           (await database.getFollowFromId({ followId: pending.id }))?.status
         ).toBe(FollowStatus.enum.Requested)
         expect(sendNotificationAlerts).not.toHaveBeenCalled()
+        expect(
+          await database.getNotificationFromFollowId({ followId: pending.id })
+        ).not.toBeNull()
       })
     })
 

@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import type { Database } from '@/lib/database/types'
 import { ACCOUNT_MOVED_ERROR } from '@/lib/services/accounts/movedAccount'
+import { getQueue } from '@/lib/services/queue'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
@@ -12,6 +13,7 @@ import { POST as postOutbox } from './accounts/outbox/route'
 import { POST as postRepost } from './accounts/repost/route'
 import { GET as getVerifyCredentials } from './accounts/verify_credentials/route'
 import { GET as getProfile } from './profile/route'
+import { PUT as putPolicy } from './statuses/[id]/interaction_policy/route'
 import { POST as postReblog } from './statuses/[id]/reblog/route'
 import { PUT as putStatus } from './statuses/[id]/route'
 import { POST as postStatus } from './statuses/route'
@@ -213,6 +215,53 @@ describe('a moved account cannot post', () => {
 
     await database.updateActor({ actorId: ACTOR1_ID, movedTo: null })
     expect((await put('edited before move')).status).toBe(200)
+  })
+
+  it('refuses to change the quote policy and leaves it unchanged', async () => {
+    const statusId = `${ACTOR1_ID}/statuses/moved-policy-target`
+    await database.createNote({
+      id: statusId,
+      url: statusId,
+      actorId: ACTOR1_ID,
+      text: 'policy target',
+      to: [],
+      cc: []
+    })
+    const put = (policy: string) =>
+      putPolicy(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}/interaction_policy`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({ quote_approval_policy: policy }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+    vi.mocked(getQueue().publish).mockClear()
+
+    // The embedded actor carries movedTo, which changes with markMoved.
+    const policyOf = async () => {
+      const { actor: _actor, ...rest } = (await database.getStatus({
+        statusId
+      })) as Record<string, unknown>
+      return rest
+    }
+    const before = await policyOf()
+
+    await markMoved()
+    await expectMoved(await put('nobody'))
+    expect(getQueue().publish).not.toHaveBeenCalled()
+    expect(await policyOf()).toEqual(before)
+
+    await database.updateActor({ actorId: ACTOR1_ID, movedTo: null })
+    const response = await put('nobody')
+    expect(response.status).toBe(200)
+    expect(getQueue().publish).toHaveBeenCalled()
   })
 
   it('exposes the moved flag on the profile and the moved account on verify_credentials', async () => {

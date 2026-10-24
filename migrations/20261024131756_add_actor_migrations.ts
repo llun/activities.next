@@ -25,6 +25,8 @@ export const up = async (db: Kysely<any>): Promise<void> => {
     .addColumn('updatedAt', timestampType, (col) =>
       col.notNull().defaultTo(sql`CURRENT_TIMESTAMP`)
     )
+    // Set once the Move job is queued: a move whose publish failed has none.
+    .addColumn('startedAt', timestampType)
     .execute()
 
   await db.schema

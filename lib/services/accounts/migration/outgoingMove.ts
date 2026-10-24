@@ -30,7 +30,7 @@ export interface MigrationState {
 
 export type OutgoingMoveFailure = {
   ok: false
-  status: 403 | 404 | 422 | 429 | 502 | 503
+  status: 403 | 404 | 422 | 429 | 500 | 502 | 503
   error: string
   cooldownUntil?: string
 }
@@ -107,7 +107,9 @@ const ALIAS_REQUIRED = 'Add this account as an alias on the new account first'
 const readTargetFresh = async (
   database: Database,
   target: Actor
-): Promise<{ aliases: string[]; moved: boolean } | null> => {
+): Promise<
+  { aliases: string[]; moved: boolean } | 'fetch-failed' | 'no-signer'
+> => {
   if (target.privateKey) {
     return { aliases: target.alsoKnownAs ?? [], moved: Boolean(target.movedTo) }
   }
@@ -115,8 +117,9 @@ const readTargetFresh = async (
     database,
     'for outgoing move'
   )
+  if (!signingActor) return 'no-signer'
   const person = await getActorPerson({ actorId: target.id, signingActor })
-  if (!person || !actorIdsMatch(person.id, target.id)) return null
+  if (!person || !actorIdsMatch(person.id, target.id)) return 'fetch-failed'
   return { aliases: person.alsoKnownAs ?? [], moved: Boolean(person.movedTo) }
 }
 
@@ -142,13 +145,15 @@ export const performOutgoingMove = async ({
   }
   if (target.movedTo) return fail(422, 'Target account has moved')
   // A move retried after its publish failed targets the account the last move
-  // row already names; the database call below tells it apart from a new move.
+  // row already names and was never started; the database call below also
+  // checks that nothing newer was recorded.
   const lastMove =
     kind === 'move'
       ? await database.getLastActorMove({ actorId: actor.id })
       : null
   const isRetry =
     lastMove !== null &&
+    lastMove.startedAt === null &&
     actorIdsMatch(lastMove.targetActorId, target.id) &&
     lastMove.createdAt + MOVE_COOLDOWN_MS > Date.now()
   if (!isRetry && actor.movedTo && actorIdsMatch(actor.movedTo, target.id)) {
@@ -157,7 +162,15 @@ export const performOutgoingMove = async ({
 
   if (kind === 'move') {
     const fresh = await readTargetFresh(database, target)
-    if (!fresh) {
+    if (fresh === 'no-signer') {
+      logger.error({
+        message: 'No federation signing actor to read the new account',
+        actorId: actor.id,
+        targetActorId: target.id
+      })
+      return fail(500, 'This server cannot fetch remote accounts right now')
+    }
+    if (fresh === 'fetch-failed') {
       return fail(502, 'Could not reach the new account, try again later')
     }
     if (fresh.moved) return fail(422, 'Target account has moved')
@@ -183,6 +196,9 @@ export const performOutgoingMove = async ({
     return fail(429, `You can move again after ${cooldownUntil}`, cooldownUntil)
   }
   const { migration } = recorded
+  // Also on 'existing': a retry only exists until the job is queued (see
+  // markActorMigrationStarted below), so the repeats of Update(Person) are
+  // bounded to the failed attempts.
   await publishActorUpdate({ actorId: actor.id })
 
   if (kind === 'move') {
@@ -197,6 +213,8 @@ export const performOutgoingMove = async ({
           targetActorId: target.id
         }
       })
+      // Ends the retry window: a repeat of this move is 422 from here on.
+      await database.markActorMigrationStarted({ id: migration.id })
     } catch (error) {
       // The move is recorded and the Update(Person) is out; retrying the same
       // request publishes the job again.

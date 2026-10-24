@@ -8,6 +8,8 @@ export interface ActorMigration {
   kind: ActorMigrationKind
   followersCount: number
   createdAt: number
+  // When the Move job was queued; null until then.
+  startedAt: number | null
 }
 
 export interface CreateActorMigrationParams {
@@ -26,10 +28,15 @@ export interface RecordActorMigrationParams extends CreateActorMigrationParams {
 
 export type RecordActorMigrationResult =
   | { status: 'created'; migration: ActorMigration }
-  // An earlier call already recorded this exact move: nothing was written.
+  // The same move is recorded and its job was never queued (a failed publish):
+  // nothing was written, the caller queues it again.
   | { status: 'existing'; migration: ActorMigration }
   | { status: 'cooldown'; until: number }
   | { status: 'no-actor' }
+
+export interface MarkActorMigrationStartedParams {
+  id: string
+}
 
 export interface GetActorMigrationsParams {
   actorId: string
@@ -50,6 +57,11 @@ export interface ActorMigrationDatabase {
   recordActorMigration(
     params: RecordActorMigrationParams
   ): Promise<RecordActorMigrationResult>
+  // Records that the Move job was queued, which ends the retry window of
+  // recordActorMigration. A second call keeps the first time.
+  markActorMigrationStarted(
+    params: MarkActorMigrationStartedParams
+  ): Promise<void>
   // Newest first.
   getActorMigrations(
     params: GetActorMigrationsParams

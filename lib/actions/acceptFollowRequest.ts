@@ -19,12 +19,16 @@ interface AcceptFollowRequestParams {
   activity: AcceptFollow
   database: Database
   recipientActorId?: string
+  // Authorize without the target's follow email/push (Mastodon's silent
+  // authorize!, used when a move rewrites a pending request).
+  silent?: boolean
 }
 
 export const acceptFollowRequest = async ({
   activity,
   database,
-  recipientActorId
+  recipientActorId,
+  silent = false
 }: AcceptFollowRequestParams) => {
   const follow = await resolveFollowFromActivity({
     activity,
@@ -80,7 +84,7 @@ export const acceptFollowRequest = async ({
     database.getActorFromId({ id: follow.targetActorId })
   ])
 
-  if (!wasAlreadyAccepted && actor && targetActor?.account) {
+  if (!silent && !wasAlreadyAccepted && actor && targetActor?.account) {
     sendNotificationAlerts({
       database,
       actorId: targetActor.id,

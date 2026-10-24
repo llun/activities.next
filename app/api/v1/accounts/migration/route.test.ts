@@ -5,6 +5,7 @@ import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { SEND_MOVE_JOB_NAME } from '@/lib/jobs/names'
 import { publishActorUpdate } from '@/lib/services/actors/actorUpdate'
 import { resolveAccountTarget } from '@/lib/services/actors/resolveAccountTarget'
+import { getFederationSigningActorSafe } from '@/lib/services/federation/getFederationSigningActor'
 import { getQueue } from '@/lib/services/queue'
 import { MockActor } from '@/lib/stub/actor'
 import { Actor } from '@/lib/types/domain/actor'
@@ -25,6 +26,7 @@ const migrations: {
   kind: 'move' | 'redirect'
   followersCount: number
   createdAt: number
+  startedAt?: number | null
 }[] = []
 let suspended = new Set<string>()
 
@@ -65,7 +67,11 @@ const mockDatabase = {
         last &&
         last.createdAt + cooldownMs > Date.now()
       ) {
-        return last.targetActorId === params.targetActorId &&
+        // Mirrors the real rule: a retry only while nothing newer exists and
+        // the job was never queued.
+        return migrations[0] === last &&
+          !last.startedAt &&
+          last.targetActorId === params.targetActorId &&
           storedActor.movedTo === params.targetActorId
           ? { status: 'existing' as const, migration: last }
           : { status: 'cooldown' as const, until: last.createdAt + cooldownMs }
@@ -76,10 +82,17 @@ const mockDatabase = {
       return { status: 'created' as const, migration }
     }
   ),
-  getActorMigrations: vi.fn(async () => migrations),
-  getLastActorMove: vi.fn(
-    async () => migrations.find((m) => m.kind === 'move') ?? null
-  )
+  markActorMigrationStarted: vi.fn(async ({ id }: { id: string }) => {
+    const row = migrations.find((m) => m.id === id)
+    if (row && !row.startedAt) row.startedAt = Date.now()
+  }),
+  getActorMigrations: vi.fn(async () =>
+    migrations.map((m) => ({ ...m, startedAt: m.startedAt ?? null }))
+  ),
+  getLastActorMove: vi.fn(async () => {
+    const last = migrations.find((m) => m.kind === 'move')
+    return last ? { ...last, startedAt: last.startedAt ?? null } : null
+  })
 }
 
 vi.mock('@/lib/services/actors/actorUpdate', () => ({
@@ -92,7 +105,7 @@ vi.mock('@/lib/activities/getActorPerson', () => ({
   getActorPerson: vi.fn()
 }))
 vi.mock('@/lib/services/federation/getFederationSigningActor', () => ({
-  getFederationSigningActorSafe: vi.fn().mockResolvedValue(undefined)
+  getFederationSigningActorSafe: vi.fn()
 }))
 vi.mock('@/lib/services/queue', () => ({
   getQueue: vi.fn()
@@ -196,6 +209,9 @@ describe('Account migration API route', () => {
     vi.mocked(getQueue).mockReturnValue({ publish } as never)
     resolveTo(makeTarget())
     remoteDocument({ alsoKnownAs: [ME] })
+    vi.mocked(getFederationSigningActorSafe).mockResolvedValue({
+      id: 'https://llun.test/users/signer'
+    } as Actor)
   })
 
   describe('GET', () => {
@@ -414,6 +430,17 @@ describe('Account migration API route', () => {
       expect(mockDatabase.recordActorMigration).not.toHaveBeenCalled()
     })
 
+    it('answers 500, not 502, when there is no signing actor to fetch with', async () => {
+      vi.mocked(getFederationSigningActorSafe).mockResolvedValue(undefined)
+      const res = await post(goodBody)
+      expect(res.status).toBe(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+      expect(await res.json()).toEqual({
+        error: 'This server cannot fetch remote accounts right now'
+      })
+      expect(getActorPerson).not.toHaveBeenCalled()
+      expect(mockDatabase.recordActorMigration).not.toHaveBeenCalled()
+    })
+
     it('reads a local target from its row, without a fetch', async () => {
       const local = MockActor({ id: 'https://other.test/users/llun' })
       resolveTo(Actor.parse({ ...local, alsoKnownAs: [ME] }))
@@ -447,6 +474,9 @@ describe('Account migration API route', () => {
         })
       )
       const migrationId = mockDatabase.recordActorMigration.mock.calls[0][0].id
+      expect(mockDatabase.markActorMigrationStarted).toHaveBeenCalledWith({
+        id: migrationId
+      })
       expect(publish).toHaveBeenCalledTimes(1)
       expect(publish).toHaveBeenCalledWith({
         id: `${migrationId}:start`,
@@ -474,9 +504,13 @@ describe('Account migration API route', () => {
       expect(storedActor.movedTo).toBe('https://new.test/users/llun')
       expect(migrations).toHaveLength(1)
       const migrationId = migrations[0].id
+      expect(mockDatabase.markActorMigrationStarted).not.toHaveBeenCalled()
 
       const retry = await post(goodBody)
       expect(retry.status).toBe(HTTP_STATUS.OK)
+      expect(mockDatabase.markActorMigrationStarted).toHaveBeenCalledWith({
+        id: migrationId
+      })
       expect(migrations).toHaveLength(1)
       expect(publish).toHaveBeenCalledTimes(2)
       expect(publish.mock.calls[1][0]).toMatchObject({
@@ -505,6 +539,37 @@ describe('Account migration API route', () => {
       const res = await post(goodBody)
       expect(res.status).toBe(HTTP_STATUS.TOO_MANY_REQUESTS)
       expect(migrations).toHaveLength(1)
+    })
+
+    it('answers 422 to a repeat of a successful move and queues nothing', async () => {
+      expect((await post(goodBody)).status).toBe(HTTP_STATUS.OK)
+      publish.mockClear()
+      vi.mocked(publishActorUpdate).mockClear()
+      const res = await post(goodBody)
+      expect(res.status).toBe(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+      expect(await res.json()).toEqual({
+        error: 'Already moved to this account'
+      })
+      expect(publish).not.toHaveBeenCalled()
+      expect(publishActorUpdate).not.toHaveBeenCalled()
+    })
+
+    it('answers 429 to a move after a cancelled, unstarted move was redirected to the same account', async () => {
+      publish.mockRejectedValueOnce(new Error('queue down'))
+      expect((await post(goodBody)).status).toBe(
+        HTTP_STATUS.SERVICE_UNAVAILABLE
+      )
+      expect((await del()).status).toBe(HTTP_STATUS.OK)
+      expect((await post({ ...goodBody, kind: 'redirect' })).status).toBe(
+        HTTP_STATUS.OK
+      )
+      publish.mockClear()
+      vi.mocked(publishActorUpdate).mockClear()
+
+      const res = await post(goodBody)
+      expect(res.status).toBe(HTTP_STATUS.TOO_MANY_REQUESTS)
+      expect(publish).not.toHaveBeenCalled()
+      expect(publishActorUpdate).not.toHaveBeenCalled()
     })
 
     it('refuses with 429 and the date inside the 30-day cooldown', async () => {

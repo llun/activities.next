@@ -119,6 +119,7 @@ export interface ActorMigrations {
   followersCount: WithDefault<number>
   id: string
   kind: string
+  startedAt: Nullable<Timestamp>
   targetAcct: WithDefault<string>
   targetActorId: string
   updatedAt: WithDefault<Timestamp>
