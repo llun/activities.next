@@ -55,6 +55,23 @@ export interface UserList {
   title: string
 }
 
+// Usernames match case-insensitively, as the profile lookup does; the domain
+// stays exact. `exact` rejects sub-paths such as `/followers`.
+const isOwnProfilePath = (
+  pathname: string,
+  actor: { username: string; domain: string },
+  exact: boolean
+) => {
+  const [first, ...rest] = pathname.split('/').slice(1)
+  if (!first.startsWith('@') || (exact && rest.some(Boolean))) return false
+  const [username, domain, ...extra] = first.slice(1).split('@')
+  return (
+    extra.length === 0 &&
+    username.toLowerCase() === actor.username.toLowerCase() &&
+    (domain === undefined || domain === actor.domain)
+  )
+}
+
 export interface SidebarProps {
   variant?: 'responsive' | 'drawer'
   onNavigate?: () => void
@@ -246,12 +263,20 @@ export function Sidebar({
     [shown]
   )
 
-  const isItemActive = (href: string) => {
+  // The proxy rewrites a bare `/@user` to `/@user@host` without changing the
+  // browser URL, so the Profile href (the long form) never equals the
+  // pathname on the short form. Both forms are the same page.
+  const matchesRoute = (href: string, exact: boolean) => {
     if (href === '/') {
       return pathname === '/' || pathname === '/app'
     }
-    return pathname === href || pathname.startsWith(href + '/')
+    if (currentActor && href === profileUrl) {
+      return isOwnProfilePath(pathname, currentActor, exact)
+    }
+    return pathname === href || (!exact && pathname.startsWith(href + '/'))
   }
+
+  const isItemActive = (href: string) => matchesRoute(href, false)
 
   // Tapping the item of the page already open goes back to its top, as
   // tapping a column header does in Mastodon, instead of re-opening the same
@@ -261,9 +286,7 @@ export function Sidebar({
   const handleNavClick =
     (href: string) => (event: MouseEvent<HTMLAnchorElement>) => {
       const isCurrentPage =
-        (href === '/'
-          ? pathname === '/' || pathname === '/app'
-          : pathname === href) && window.location.search === ''
+        matchesRoute(href, true) && window.location.search === ''
       if (
         isCurrentPage &&
         !event.defaultPrevented &&
