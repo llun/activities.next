@@ -1,0 +1,245 @@
+lib/components/gallery/filters/useGalleryMediaFacets.ts
+  s_1f1a1efd8db0bf::t_b8fbcb241099e2 1-60
+app/(timeline)/gallery/albums/galleryAlbumPickerUi.ts
+  s_1f1a1efd8db0bf::t_270a77788d79d6 73-83,85-88,118,122,142
+  s_1f1a1efd8db0bf::t_6e7bef76159857 133
+  s_1f1a1efd8db0bf::t_1338a6cb6711aa 102-117,119-121,123-132,134-141
+migrations/index.ts
+  s_1f1a1efd8db0bf::t_c705c17e0ae2a0 15,36-37
+lib/components/gallery/filters/galleryMediaFilterLabels.ts
+  s_1f1a1efd8db0bf::t_ef7ff5fef6b178 1-256
+lib/database/domains/media/mediaSortAt.test.ts
+  s_1f1a1efd8db0bf::t_88f1c33c862ca6 1-372
+lib/services/gallery/galleryQueries.ts
+  s_1f1a1efd8db0bf::t_f2df188a4165a7 300-301
+  s_1f1a1efd8db0bf::t_597a5622c5d2c3 3-4,9-12,26,42-43,58,74,96-103,138-146,151-152,154-190,192-199,201,203,205-208,210-224,226-227,230-232,234-235,237-243,252,265-269,277,281-282,284-299,302-308,318-321
+  s_1f1a1efd8db0bf::t_06c826f8a0183f 228-229,270-276,278-280,283
+lib/services/gallery/galleryMediaFacets.ts
+  s_1f1a1efd8db0bf::t_99f61004dfee8f 1-70,73-86,88-282,284-306,308-339,341-352
+  s_1f1a1efd8db0bf::t_5bd7370890a95b 283
+  s_1f1a1efd8db0bf::t_8db95de44682cd 71-72,87,307
+  s_1f1a1efd8db0bf::t_d916173f2fde5a 340
+app/api/v1/accounts/[id]/gallery/media/route.ts
+  s_1f1a1efd8db0bf::t_f15827e0dc3004 3,67-68,193-200
+  s_1f1a1efd8db0bf::t_597a5622c5d2c3 4,13,37-51,62-66,69-70,90-93,150-156,171-192,201-246,259-271
+  s_1f1a1efd8db0bf::t_8bb7ad3dc799af 71-73,76-88,94-95,128-129,131-134,157-158
+lib/components/gallery/filters/GalleryMediaFilterBar.tsx
+  s_1f1a1efd8db0bf::t_ef7ff5fef6b178 3-4,6-9,11-12,14-33,50,52-95,104,108-123,125-129,132-138,140-146,148-178,181-187,189-195,197-208,210-229,232-235,237-243,245-251,253-257,260-266,268-274,276-290,292-306,309,321,327,333-335,337-341,343,351,356,361,369,387-388,391-393,401-402,413,415,417-420,422-451
+  s_1f1a1efd8db0bf::t_b8fbcb241099e2 1-2,5,10,13,34-49,51,244
+  s_1f1a1efd8db0bf::t_daaa792603b73a 96-103,105-107,124,130-131,139,147,179-180,188,196,209,230-231,236,252,258-259,267,275,291,307-308,310-320,322-326,328-332,336,342,344-350,352-355,357-360,362-368,370-386,389-390,394-400,403-412,414,416,421
+lib/components/gallery/filters/GalleryMediaFilterSheet.tsx
+  s_1f1a1efd8db0bf::t_ef7ff5fef6b178 3-14,16,18-32,41-49,51-64,66-84,86-118,120-127,138-198,201-213,216-228,231-243,246-287,289-300,302-317,319-326,328-334,336-346,348-360,362-370,372-378,380-391
+  s_1f1a1efd8db0bf::t_b8fbcb241099e2 1-2,15,17,33-40,50,119
+  s_1f1a1efd8db0bf::t_dc9d951d75d827 65,85,128-137,199-200,214-215,229-230,244-245,288,301,318,327,335,347,361,371,379
+docs/features.md
+  s_1f1a1efd8db0bf::t_88f1c33c862ca6 70
+  s_1f1a1efd8db0bf::t_8e73671c5d1ed3 69
+lib/database/testing/schemaInvariants.test.ts
+  s_1f1a1efd8db0bf::t_88f1c33c862ca6 151-158
+app/api/v1/gallery/media/facets/route.test.ts
+  s_1f1a1efd8db0bf::t_99f61004dfee8f 1-169,171-180
+  s_1f1a1efd8db0bf::t_56aa17ee1dc7fe 170
+lib/database/migrate/addMediaSortAt.test.ts
+  s_1f1a1efd8db0bf::t_88f1c33c862ca6 1-163,237
+  s_1f1a1efd8db0bf::t_bcc55f6f206d0b 168-171,173,176-180,182,184,186-188,190,192-236
+  s_1f1a1efd8db0bf::t_88ad34e0be75a4 164-167,172,174-175,181,183,185,189,191
+app/(timeline)/gallery/albums/GalleryAlbumPicker.test.tsx
+  s_1f1a1efd8db0bf::t_270a77788d79d6 9-13,15-24,29-109,123-124,142-143,151,165,192-199,206,208-209,213-219,224-230,232,234-237,241-252,254-255,257,260,262,264-268,271-273,275-277,280,282-283,286-287,291-292,295-296,300-301,310,313,316,319-326,329-330,338-341,345-350,353-355,357-359,362,365,369-370,372-376,380-423,429,432,434-437,439-451,454-462,465,467-468,470-474,476-481,484-485,487,491-495,497,499,501-506,509-513,515,517-539,543-547,558,564-568,570,572-573,575-576,578-579,582-595,598-605,608,610-614,617-621,623-627,629,633,635-637,640-652,654-657,659,662,664-668,671-680,682-689,693-706,708-716,718-719,721-744,747,749-750,753-755,757-758
+lib/database/kysely/dialect.ts
+  s_1f1a1efd8db0bf::t_99f61004dfee8f 1-7,89-100
+  s_1f1a1efd8db0bf::t_eb6e048cd81952 101
+app/api/v1/accounts/[id]/gallery/media/route.test.ts
+  s_1f1a1efd8db0bf::t_597a5622c5d2c3 3,56,59-77,83,421-429,431-440,442-470,472-522,524-535,537-550,552-680,724,726-727,729-730,732,735,742,744-792,795-796,805,807,818-819
+  s_1f1a1efd8db0bf::t_280b7c79583832 683-722,731,809,811
+  s_1f1a1efd8db0bf::t_035d751151e64a 430,441,471,523,536,551,681-682,723,725,728,733-734,736-741,743,793-794,797-804,806,808,810,812-817
+docs/maintenance.md
+  s_1f1a1efd8db0bf::t_5d8b9368851d18 372-383,985,988
+  s_1f1a1efd8db0bf::t_88f1c33c862ca6 987,1010
+  s_1f1a1efd8db0bf::t_ab88a13518564d 986
+lib/components/gallery/filters/GalleryMediaFilterBar.test.tsx
+  s_1f1a1efd8db0bf::t_ef7ff5fef6b178 1-76,78-93,95,99,101-122,124-169,171-197,199-225,227-253,255-281,283-311,313-466,468-705
+  s_1f1a1efd8db0bf::t_3398a0234ab587 77,94,96-98,100,123,170,198,226,254,282,312,467
+lib/components/gallery/filters/useGalleryMediaFacets.test.tsx
+  s_1f1a1efd8db0bf::t_b8fbcb241099e2 1-81
+lib/database/domains/gallery/types.ts
+  s_1f1a1efd8db0bf::t_f2df188a4165a7 286,299-301
+  s_1f1a1efd8db0bf::t_365c9a72710147 12,179-180,258-273,285,287-298,302-335,386-389
+migrations/schema.sqlite.sql
+  s_1f1a1efd8db0bf::t_f32dfcb20e9ad9 223
+  s_1f1a1efd8db0bf::t_d7e8351a2b0f8d 328
+lib/components/gallery/filters/galleryMediaFilterState.ts
+  s_1f1a1efd8db0bf::t_5162cfe2436a63 1-17,19-143
+  s_1f1a1efd8db0bf::t_b8fbcb241099e2 18
+lib/database/kysely/db.ts
+  s_1f1a1efd8db0bf::t_0662ed78c90fb3 864
+docs/mastodon-api-compatibility.md
+  s_1f1a1efd8db0bf::t_5d8b9368851d18 636
+  s_1f1a1efd8db0bf::t_88f1c33c862ca6 622-626,633,638-640
+  s_1f1a1efd8db0bf::t_d93c978f6d116e 627-632,634-635,637
+app/(timeline)/gallery/albums/GalleryAlbumFormDialog.test.tsx
+  s_1f1a1efd8db0bf::t_270a77788d79d6 29,38,48,122,225,245,344,359,363-386
+  s_1f1a1efd8db0bf::t_e34a6868fd68ff 387-388,482,491
+lib/components/gallery/filters/GalleryFilterMenu.tsx
+  s_1f1a1efd8db0bf::t_ef7ff5fef6b178 1-3,5-47,56-63,65,67,71-72,75-76,81-83,87-89,91-94,98,100-101,103-111,113-118
+  s_1f1a1efd8db0bf::t_20e5fd0c3ee730 4,48-55,64,66,68-70,73-74,77-80,84-86,90,95-97,99,102,112
+lib/services/gallery/galleryQueries.test.ts
+  s_1f1a1efd8db0bf::t_597a5622c5d2c3 3-6,28,1276-1280,1366-1377,1379,1383-1384,1387-1395,1397-1398,1401-1436,1438-1501,1506-1533,1536-1556,1559-1560,1562-1571,1573-1584,1589-1590,1593-1600
+docs/architecture.md
+  s_1f1a1efd8db0bf::t_88f1c33c862ca6 295
+lib/components/gallery/filters/GalleryMediaFilterSheet.test.tsx
+  s_1f1a1efd8db0bf::t_ef7ff5fef6b178 1-196,198-207,209-240,242-267,269-292,294-296,298-380,382,386-537,539-584
+  s_1f1a1efd8db0bf::t_843fbd32fdf5a2 197,208,241,268,293,297,381,383-385,538
+lib/components/gallery/filters/GalleryDateFilterPanel.test.tsx
+  s_1f1a1efd8db0bf::t_ef7ff5fef6b178 1-28,30,32-33,35-37,39-41,43-54,56-58,60-62,64-77,79-80,82-83,85-86,88-89,91-104,107-116,119-120,123-133,136-226
+  s_1f1a1efd8db0bf::t_b8275e3edd04ff 29,31,34,38,42,55,59,63,78,81,84,87,90,105-106,117-118,121-122,134-135
+lib/components/gallery/filters/GalleryMediaFilterEmpty.tsx
+  s_1f1a1efd8db0bf::t_b8fbcb241099e2 1-2,8-9,20-23,25,35
+  s_1f1a1efd8db0bf::t_ef7ff5fef6b178 3-7,10-19,24,26-34,36-78
+lib/database/domains/gallery/activityPhotos.ts
+  s_1f1a1efd8db0bf::t_5054fe6d22ddbe 6-10,45
+  s_1f1a1efd8db0bf::t_342956babc3d20 22-24
+  s_1f1a1efd8db0bf::t_f2df188a4165a7 42-44,47-48,64-65
+  s_1f1a1efd8db0bf::t_7f838ea3545a72 3-5
+  s_1f1a1efd8db0bf::t_340c92cbb2d86c 11-13,19-21
+  s_1f1a1efd8db0bf::t_058f3d226b4d0e 25-27,39-41
+  s_1f1a1efd8db0bf::t_b26e74ea73d057 46
+  s_1f1a1efd8db0bf::t_d8bd23af0cb024 49-51,61-63
+  s_1f1a1efd8db0bf::t_ff3e0cb0735cd4 66-68
+  s_fb712d7876e554::t_8921f860a8d090 1-2,14-18,28-38,52-60,69-70
+app/(timeline)/gallery/albums/GalleryAlbumPicker.tsx
+  s_1f1a1efd8db0bf::t_270a77788d79d6 7-16,22,26,28,46,52-53,55,64-65,67-70,75,79,84-85,87,89-90,93-95,104-110,117-127,129,134-142,144,147-153,159,162,165-171,186,193-196,199,201-202,204,229,236-241,244,246-247,254-258,287-298,300-301,313,337,354,362,389-393,396,401-402
+  s_1f1a1efd8db0bf::t_402da998d9d95c 71-74,76-78,80-83,242-243,245,248,251,253,299
+lib/client/galleryMedia.ts
+  s_1f1a1efd8db0bf::t_0fe4e910989c2d 4,9,31-43,91-103,106,115-122,129-133,135-146
+  s_1f1a1efd8db0bf::t_b8ee81b468d282 104-105,134,147-149
+lib/database/domains/media/writes.ts
+  s_1f1a1efd8db0bf::t_88f1c33c862ca6 454-467,523-529,548-549,623,651-652,662-663,696,813,840-845
+app/api/v1/routeScopeWiring.test.ts
+  s_1f1a1efd8db0bf::t_99f61004dfee8f 602-605
+app/api/v1/gallery/media/facets/route.ts
+  s_1f1a1efd8db0bf::t_99f61004dfee8f 1-57
+lib/components/gallery/filters/GalleryDateFilterPanel.tsx
+  s_1f1a1efd8db0bf::t_ef7ff5fef6b178 1-88,90-96,98-118,120-140,142-166,168-200,202-205,207-213,215-254,256-317
+  s_1f1a1efd8db0bf::t_e814065f1cbc40 89,97,119,141,167,201,206,214,255
+lib/database/domains/gallery/galleryMediaQueryPlan.test.ts
+  s_1f1a1efd8db0bf::t_597a5622c5d2c3 108-160
+app/(timeline)/gallery/albums/GalleryAlbumFormDialog.tsx
+  s_1f1a1efd8db0bf::t_270a77788d79d6 371
+  s_1f1a1efd8db0bf::t_1711ac0f92cae9 4,61-73
+lib/components/gallery/filters/galleryMediaFilterState.test.ts
+  s_1f1a1efd8db0bf::t_5162cfe2436a63 1-86,88-90,92-131
+  s_1f1a1efd8db0bf::t_078b6848b1a15a 87,91
+lib/services/gallery/galleryMediaFacets.test.ts
+  s_1f1a1efd8db0bf::t_4961c8a66ecc69 638-647
+  s_1f1a1efd8db0bf::t_99f61004dfee8f 1-3,5-113,115,120-557,664-771
+  s_1f1a1efd8db0bf::t_bcc55f6f206d0b 4,558-637,648-663
+  s_1f1a1efd8db0bf::t_ae88704c060457 114,116-119
+lib/components/gallery/filters/GallerySortMenu.tsx
+  s_1f1a1efd8db0bf::t_ef7ff5fef6b178 1-2,4-9,12-66,70,73,75,79-81,85-89
+  s_1f1a1efd8db0bf::t_b6e13ab06118a1 3,10-11,67-69,71-72,74,76-78,82-84
+lib/client/galleryMedia.test.ts
+  s_1f1a1efd8db0bf::t_0fe4e910989c2d 6,10,64-73,76-88,91-103,116-164
+  s_1f1a1efd8db0bf::t_a5db110110a5eb 74-75,89-90,165
+app/(timeline)/gallery/albums/GalleryAlbumPickerTile.test.tsx
+  s_1f1a1efd8db0bf::t_270a77788d79d6 35-56
+lib/database/domains/gallery/media.ts
+  s_1f1a1efd8db0bf::t_597a5622c5d2c3 3,45,47,167-169,171-173,182,215-225,230-251,253,257,259-285,288-316,343
+.github/workflows/ci.yml
+  s_1f1a1efd8db0bf::t_88f1c33c862ca6 284-291,416-421
+lib/database/domains/gallery/mediaFilters.ts
+  s_1f1a1efd8db0bf::t_597a5622c5d2c3 1-232,235-252,258-287
+  s_1f1a1efd8db0bf::t_f2df188a4165a7 234,253-257
+  s_1f1a1efd8db0bf::t_c9df6a5f4cef31 233
+app/(timeline)/gallery/albums/GalleryAlbumFormDialog.suggestions.test.tsx
+  s_1f1a1efd8db0bf::t_270a77788d79d6 34,38,43
+  s_1f1a1efd8db0bf::t_51b72b38005988 164,179,421,459
+app/(timeline)/gallery/albums/galleryAlbumPickerUi.test.ts
+  s_1f1a1efd8db0bf::t_270a77788d79d6 198-209
+  s_1f1a1efd8db0bf::t_efa1dd20d1cf6e 258-260,264-266,269,271-275,277-282,284-299,302-304,307-308,313-315,318-319,322,326,328
+  s_1f1a1efd8db0bf::t_1bd2a9b71510b4 1,7-8,243-257,261-263,267-268,270,276,283,300-301,305-306,309-312,316-317,320-321,323-325,327,329
+lib/types/database/gallery.ts
+  s_1f1a1efd8db0bf::t_b8fbcb241099e2 50-54
+  s_1f1a1efd8db0bf::t_01f77b264db1d9 55-60
+migrations/20261024160234_add_media_sort_at.ts
+  s_1f1a1efd8db0bf::t_c705c17e0ae2a0 1,3-15,17-47,50-61,64-67
+  s_1f1a1efd8db0bf::t_81eca867d44024 2,16,62-63
+  s_1f1a1efd8db0bf::t_f2df188a4165a7 48-49
+migrations/names.ts
+  s_1f1a1efd8db0bf::t_c705c17e0ae2a0 15-16
+lib/components/gallery/filters/GalleryMediaFilterEmpty.test.tsx
+  s_1f1a1efd8db0bf::t_ef7ff5fef6b178 1-251
+lib/database/domains/gallery/facets.ts
+  s_1f1a1efd8db0bf::t_b8fbcb241099e2 6
+  s_1f1a1efd8db0bf::t_99f61004dfee8f 1,7-126
+  s_1f1a1efd8db0bf::t_b5e99894726665 2-5,127
+lib/database/domains/gallery/galleryMediaFacets.test.ts
+  s_1f1a1efd8db0bf::t_99f61004dfee8f 1-45,47-77,84-714
+  s_1f1a1efd8db0bf::t_02687973564f74 46,78-83
+lib/components/gallery/filters/GallerySortMenu.test.tsx
+  s_1f1a1efd8db0bf::t_ef7ff5fef6b178 1-51,53-56,58-65
+  s_1f1a1efd8db0bf::t_f19a491dbffbb0 52,57
+lib/components/gallery/filters/galleryMediaFilterLabels.test.ts
+  s_1f1a1efd8db0bf::t_ef7ff5fef6b178 1-871
+lib/database/domains/gallery/galleryMediaFilters.test.ts
+  s_1f1a1efd8db0bf::t_bcc55f6f206d0b 11,1069-1073,1075-1103,1110-1111,1120-1121,1125-1126,1130-1131,1136-1146,1158-1184
+  s_1f1a1efd8db0bf::t_5054fe6d22ddbe 3,1074
+  s_1f1a1efd8db0bf::t_597a5622c5d2c3 1-2,4-10,12-469,473-475,477,479-1068,1106,1109,1115,1118,1124,1127,1129,1185-1281
+  s_1f1a1efd8db0bf::t_707027050294c1 470-472,476,478,1104-1105,1107-1108,1112-1114,1116-1117,1119,1122-1123,1128,1132-1135,1147-1157
+lib/components/gallery/filters/GalleryFilterOptionList.test.tsx
+  s_1f1a1efd8db0bf::t_ef7ff5fef6b178 1-61,66-80,82-83,86,89-118,120-121,123-124,126-201
+  s_1f1a1efd8db0bf::t_cec12dd6dc4520 62-65,81,84-85,87-88,119,122,125
+lib/services/gallery/galleryEntities.ts
+  s_1f1a1efd8db0bf::t_8882b9523da4e3 297-341
+  s_1f1a1efd8db0bf::t_01f77b264db1d9 160-161,163-168
+lib/components/gallery/filters/GalleryFilterOptionList.tsx
+  s_1f1a1efd8db0bf::t_ef7ff5fef6b178 1-126,129-133,135-170,172-218,220-222,224-265
+  s_1f1a1efd8db0bf::t_831ab9d1325f5d 127-128,134,171,219,223
+lib/database/domains/gallery/queries.ts
+  s_1f1a1efd8db0bf::t_b8fbcb241099e2 4
+  s_1f1a1efd8db0bf::t_1dfabc0e3f587e 20,380-381
+lib/database/kysely/dialect.test.ts
+  s_1f1a1efd8db0bf::t_99f61004dfee8f 1-3,11-12,14,16,210-313
+  s_1f1a1efd8db0bf::t_ffb91fb27e120f 314
+app/(timeline)/gallery/media/GalleryAllMediaView.test.tsx
+  s_1f1a1efd8db0bf::t_cfaddd97e552c6 16,19-20,24-26,46-48,52-110,221-222,229-240,245-246,302,306-307,347-394,408,512,516-517,1684-1891
+app/(timeline)/gallery/media/GalleryAllMediaView.tsx
+  s_1f1a1efd8db0bf::t_1e6d4cfa7c3fdd 9-10,20-29,120-124,145-149,158-183,202,208,317-318,399-401,406,460-480,544,548,550-553,563-571,580
+app/(timeline)/gallery/media/page.tsx
+  s_1f1a1efd8db0bf::t_a2b068bc1dc20b 63-65
+lib/components/gallery/GalleryPagedGrid.test.tsx
+  s_1f1a1efd8db0bf::t_49dd80146b811e 275-452
+lib/components/gallery/GalleryPagedGrid.tsx
+  s_1f1a1efd8db0bf::t_00206116eb2ad7 6,21,34,51,64-66,70,82-83,109,115-117,120,127,137-139,146-150,152,157,159-163,165,168-172,176-179,182-184,189-191,194,199-205,210-211,224,287-291,298-308,310-311,339-340,343,348
+lib/services/gallery/galleryAlbumQueries.test.ts
+  s_1f1a1efd8db0bf::t_54c9f1478a0e54 40-46,56-58
+lib/services/gallery/galleryAlbumQueries.ts
+  s_1f1a1efd8db0bf::t_f023cfcb120824 83-84,90-93
+migrations/schema.sql
+  s_1f1a1efd8db0bf::t_4765c97d46a53a 919-920,2165-2166
+scripts/maintenance/backfillMediaSortAt.ts
+  s_1f1a1efd8db0bf::t_02bc232514fe10 1-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7438a575813a1d1186e52656764e1eaf03afd40e",
+  "prompts": {},
+  "sessions": {
+    "s_1f1a1efd8db0bf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6f1be9b0-86e0-4f32-9286-3562b40d391e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_fb712d7876e554": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a8271601b17ad248a",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
