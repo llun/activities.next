@@ -56,7 +56,6 @@ const renderTimelines = (
       currentActor={currentActorProfile}
       isCurrentUser
       hasFitnessData
-      hasGalleryMedia
       gallerySubviews={['subjects', 'recent']}
       statusPagination={{ nextPageUrl: null, prevPageUrl: null }}
       {...props}
@@ -168,7 +167,6 @@ describe('ActorTimelines tab visibility', () => {
         statuses: [createStatus('https://llun.test/statuses/note')],
         attachments: [sampleAttachment],
         hasFitnessData: false,
-        hasGalleryMedia: false,
         gallerySubviews: [],
         tabVisibility: { ...ALL_SHOWN, media: false }
       })

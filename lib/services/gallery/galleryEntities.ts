@@ -134,6 +134,13 @@ export interface GalleryItemEntity {
   // Owner only: whether a post uses it. False for a photo added in Gallery
   // that only the owner can see.
   posted?: boolean
+  // Owner only (omitted for everyone else): when the media was uploaded
+  // (`medias.createdAt`), ISO 8601. What a tile's date falls back to without
+  // `takenAt`.
+  uploadedAt?: string | null
+  // Owner only, on gallery media pages: how many of the owner's albums hold
+  // the photo. Never sent to anyone else.
+  albumCount?: number
   // The owner gets the stored place with coordinates whatever the precision;
   // everyone else gets `getPublicPlace`.
   place:

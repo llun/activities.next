@@ -28,8 +28,9 @@ import type { GalleryShow } from '@/lib/types/database/gallery'
 // audience alone: every other audience keeps the posted condition, whatever
 // `show` says.
 //
-// The album reads (lib/database/domains/gallery/albums.ts) use it too, with the
-// default options only, over their join of `gallery_album_items` to `medias`;
+// The album reads (lib/database/domains/gallery/albums.ts) use it too, passing
+// `{ requireInGallery: false }`, so a photo hidden from the gallery stays in
+// its albums and is shown to a visitor exactly when its post is readable;
 // galleryMediaEquivalence.test.ts checks that join selects what a plain read of
 // `medias` does, for every audience.
 
@@ -120,13 +121,15 @@ export const postedGalleryAttachment = (
 export const galleryMediaIdRef = sql.ref<number>('medias.id')
 
 export type GalleryMediaScopeOptions = {
-  // `false` only for the owner's gear usage, which counts every photo
-  // regardless of its gallery switch.
+  // `false` for the album reads and the owner's gear usage, which consider
+  // photos regardless of their gallery switch.
   requireInGallery?: boolean
   // Narrows the owner's view: `all` adds no `inGallery` condition, `hidden`
   // requires it to be false, `not_posted` lists only the media added in
-  // Gallery that no post uses. Honoured for the owner audience only; every
-  // other audience keeps `inGallery = true` and the posted condition.
+  // Gallery that no post uses, and `not_in_album` lists posted or added media
+  // that none of the owner's albums holds. Honoured for the owner audience
+  // only; every other audience keeps `inGallery = true` and the posted
+  // condition.
   show?: GalleryShow
 }
 
@@ -163,7 +166,8 @@ export const galleryMediaScope = (
   if (
     requireInGallery &&
     effectiveShow !== 'all' &&
-    effectiveShow !== 'not_posted'
+    effectiveShow !== 'not_posted' &&
+    effectiveShow !== 'not_in_album'
   ) {
     conditions.push(
       scope('medias.inGallery', '=', effectiveShow === 'in_gallery')
@@ -185,6 +189,24 @@ export const galleryMediaScope = (
         scope('medias.galleryAddedAt', 'is not', null)
       ])
     )
+    if (effectiveShow === 'not_in_album') {
+      conditions.push(
+        scope.not(
+          scope.exists(
+            db
+              .selectFrom('gallery_album_items as scope_album_items')
+              .innerJoin(
+                'gallery_albums as scope_albums',
+                'scope_albums.id',
+                'scope_album_items.albumId'
+              )
+              .select(sql.lit(1).as('one'))
+              .where('scope_album_items.mediaId', '=', galleryMediaIdRef)
+              .where('scope_albums.actorId', '=', actorId)
+          )
+        )
+      )
+    }
   }
   return scope.and(conditions)
 }

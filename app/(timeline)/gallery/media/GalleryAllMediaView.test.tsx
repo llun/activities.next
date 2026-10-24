@@ -12,7 +12,11 @@ import {
 } from '@testing-library/react'
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
-import { deleteUnpostedMedia, getGalleryMedia } from '@/lib/client'
+import {
+  deleteUnpostedMedia,
+  getGalleryAlbumMembership,
+  getGalleryMedia
+} from '@/lib/client'
 import { buildAlbumCard } from '@/lib/components/gallery/__fixtures__/galleryAlbums'
 import { buildGalleryItem } from '@/lib/components/gallery/__fixtures__/galleryItems'
 import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
@@ -33,6 +37,7 @@ vi.mock('@/lib/client', async () => {
     deleteUnpostedMedia: vi.fn(),
     getGalleryAlbums: albums.getGalleryAlbums,
     addGalleryAlbumItems: albums.addGalleryAlbumItems,
+    getGalleryAlbumMembership: vi.fn(),
     GalleryAlbumAddError: albums.GalleryAlbumAddError
   }
 })
@@ -103,13 +108,15 @@ vi.mock('@/lib/components/gallery/GalleryEditDetailsDialog', () => ({
 vi.mock('@/lib/components/gallery/GalleryGrid', () => ({
   GalleryGrid: ({
     items,
-    selection
+    selection,
+    onAlbumsChanged
   }: {
     items: { mediaId: string }[]
     selection?: {
       selected: ReadonlySet<string>
       onToggle: (item: { mediaId: string }) => void
     }
+    onAlbumsChanged?: (albumIds: string[]) => void
   }) => (
     <ul data-testid="grid" data-selecting={selection ? 'yes' : 'no'}>
       {items.map((item) => (
@@ -127,16 +134,30 @@ vi.mock('@/lib/components/gallery/GalleryGrid', () => ({
           )}
         </li>
       ))}
+      <button type="button" onClick={() => onAlbumsChanged?.(['album-1'])}>
+        Change albums
+      </button>
+      {selection ? (
+        <button
+          type="button"
+          onClick={() => selection.onToggle({ mediaId: 'missing-from-seen' })}
+        >
+          Select missing
+        </button>
+      ) : null}
     </ul>
   )
 }))
 
 const getGalleryMediaMock = getGalleryMedia as jest.Mock
 const deleteUnpostedMediaMock = deleteUnpostedMedia as jest.Mock
+const getGalleryAlbumMembershipMock = getGalleryAlbumMembership as jest.Mock
 
 describe('GalleryAllMediaView', () => {
   beforeEach(() => {
     getGalleryMediaMock.mockReset()
+    getGalleryAlbumMembershipMock.mockReset()
+    getGalleryAlbumMembershipMock.mockResolvedValue({ albums: [] })
     fetchMock.resetMocks()
     formDialog.current = null
     editDialog.current = null
@@ -258,13 +279,13 @@ describe('GalleryAllMediaView', () => {
     ).toBeInTheDocument()
   })
 
-  describe('show filter', () => {
-    const openShowMenu = async () => {
-      const nav = screen.getByRole('group', { name: 'Show' })
-      fireEvent.keyDown(nav.querySelector('button')!, { key: 'ArrowDown' })
-      return screen.findByRole('menu')
-    }
+  const openShowMenu = async () => {
+    const nav = screen.getByRole('group', { name: 'Show' })
+    fireEvent.keyDown(nav.querySelector('button')!, { key: 'ArrowDown' })
+    return screen.findByRole('menu')
+  }
 
+  describe('show filter', () => {
     it('starts on the list from the URL, Everything by default', () => {
       const { unmount } = render(
         <GalleryAllMediaView
@@ -292,7 +313,7 @@ describe('GalleryAllMediaView', () => {
       )
     })
 
-    it('offers the four lists with a hint each', async () => {
+    it('offers the five lists with a hint each', async () => {
       render(
         <GalleryAllMediaView
           actorId="actor-1"
@@ -307,7 +328,8 @@ describe('GalleryAllMediaView', () => {
         'EverythingPhotos and videos you’ve posted or added',
         'In galleryShown in your gallery',
         'Hidden from galleryShow in my gallery is switched off',
-        'Not postedAdded in Gallery, only you can see them'
+        'Not postedAdded in Gallery, only you can see them',
+        'Not in any albumPhotos you haven’t filed yet'
       ])
       expect(items[0]).toHaveAttribute('aria-current', 'true')
     })
@@ -327,6 +349,11 @@ describe('GalleryAllMediaView', () => {
         description: 'not posted',
         label: /^Not posted/,
         show: 'not_posted'
+      },
+      {
+        description: 'not in any album',
+        label: /^Not in any album/,
+        show: 'not_in_album'
       }
     ])(
       'reloads from the first page for $description',
@@ -386,6 +413,14 @@ describe('GalleryAllMediaView', () => {
       )
       expect(
         await screen.findByText('No photos waiting to be posted')
+      ).toBeInTheDocument()
+
+      await openShowMenu()
+      fireEvent.click(
+        await screen.findByRole('menuitem', { name: /^Not in any album/ })
+      )
+      expect(
+        await screen.findByText('Every photo is in an album')
       ).toBeInTheDocument()
     })
   })
@@ -828,15 +863,25 @@ describe('GalleryAllMediaView', () => {
       ).toHaveTextContent('0 selected')
     })
 
-    it('forgets the picks when the category changes', async () => {
-      getGalleryMediaMock.mockResolvedValue({
-        items: [buildGalleryItem('8')],
-        nextMaxId: null
-      })
+    it('keeps the selection across Category and Show changes, and Add sends every picked id', async () => {
+      answerWith((ids) => accepted(ids))
+      getGalleryMediaMock
+        .mockResolvedValueOnce({
+          items: [buildGalleryItem('8')],
+          nextMaxId: null
+        })
+        .mockResolvedValueOnce({
+          items: [buildGalleryItem('9')],
+          nextMaxId: null
+        })
       renderAllMedia()
       startSelecting()
       fireEvent.click(screen.getByRole('button', { name: 'Select 1' }))
+      expect(
+        screen.getByRole('region', { name: 'Selection' })
+      ).toHaveTextContent('1 selected')
 
+      // Switch Category
       const nav = screen.getByRole('navigation', { name: 'Category' })
       fireEvent.keyDown(nav.querySelector('button')!, { key: 'ArrowDown' })
       fireEvent.click(await screen.findByRole('menuitem', { name: 'Mammals' }))
@@ -844,7 +889,42 @@ describe('GalleryAllMediaView', () => {
       await screen.findByRole('button', { name: 'Select 8' })
       expect(
         screen.getByRole('region', { name: 'Selection' })
-      ).toHaveTextContent('0 selected')
+      ).toHaveTextContent('1 selected')
+
+      // Pick photo 8 from Mammals
+      fireEvent.click(screen.getByRole('button', { name: 'Select 8' }))
+      expect(
+        screen.getByRole('region', { name: 'Selection' })
+      ).toHaveTextContent('2 selected')
+
+      // Switch Show
+      await openShowMenu()
+      fireEvent.click(
+        await screen.findByRole('menuitem', { name: /^In gallery/ })
+      )
+
+      await screen.findByRole('button', { name: 'Select 9' })
+      expect(
+        screen.getByRole('region', { name: 'Selection' })
+      ).toHaveTextContent('2 selected')
+
+      // Add to album sends every picked id (1 and 8), neither of which is in current list (which has 9)
+      fireEvent.click(
+        within(screen.getByRole('region', { name: 'Selection' })).getByRole(
+          'button',
+          { name: 'Add to album' }
+        )
+      )
+      fireEvent.click(await screen.findByRole('radio', { name: /^Kruger/ }))
+      fireEvent.click(screen.getByRole('button', { name: 'Add 2 photos' }))
+
+      await screen.findByText(/Added 2 photos to “Kruger”/)
+      const posts = fetchMock.mock.calls.filter(
+        ([, init]) => init?.method === 'POST'
+      )
+      expect(JSON.parse(String(posts[0][1]?.body))).toEqual({
+        media_ids: ['1', '8']
+      })
     })
 
     it('adds the selection to an album in the order picked and links to it', async () => {
@@ -1048,10 +1128,9 @@ describe('GalleryAllMediaView', () => {
       expect(
         await screen.findByRole('dialog', { name: 'Edit details' })
       ).toBeVisible()
-      // Newest first, as the grid lists them.
       expect(editDialog.current?.items.map((i) => i.mediaId)).toEqual([
-        '1',
-        '3'
+        '3',
+        '1'
       ])
       expect(editDialog.current?.ownerId).toBe('actor-1')
 
@@ -1110,52 +1189,30 @@ describe('GalleryAllMediaView', () => {
           fireEvent.click(screen.getByRole('button', { name: `Select ${id}` }))
         )
 
-      it('turns Add to album off while only hidden photos are selected', () => {
-        renderMixed()
-        startSelecting()
-        pick('2', '3')
-
-        const add = within(bar()).getByRole('button', { name: 'Add to album' })
-        expect(add).toHaveAttribute('aria-disabled', 'true')
-        expect(bar()).toHaveTextContent(
-          'Hidden photos can’t be added to albums. Turn on Show in my gallery first.'
-        )
-        fireEvent.click(add)
-        expect(
-          screen.queryByRole('dialog', { name: /Add \d+ photos? to an album/ })
-        ).not.toBeInTheDocument()
-        // Editing them is still fine.
-        expect(
-          within(bar()).getByRole('button', { name: 'Edit details' })
-        ).not.toHaveAttribute('aria-disabled')
-      })
-
-      it('adds the photos in the gallery and says how many hidden ones were skipped', async () => {
+      it('sends hidden photos to Add to album with no hidden note', async () => {
         answerWith((ids) => accepted(ids))
         renderMixed()
         startSelecting()
         pick('2', '1', '3')
-        expect(bar()).toHaveTextContent('2 hidden photos will be skipped')
+        expect(bar()).not.toHaveTextContent('hidden')
         fireEvent.click(
           within(bar()).getByRole('button', { name: 'Add to album' })
         )
         fireEvent.click(await screen.findByRole('radio', { name: /^Kruger/ }))
-        fireEvent.click(screen.getByRole('button', { name: 'Add 1 photo' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Add 3 photos' }))
 
         expect(
-          await screen.findByText(
-            /Added 1 photo to “Kruger”\. 2 hidden photos skipped: turn on Show in my gallery to add them to albums\./
-          )
+          await screen.findByText('Added 3 photos to “Kruger”.')
         ).toBeVisible()
         const posts = fetchMock.mock.calls.filter(
           ([, init]) => init?.method === 'POST'
         )
         expect(JSON.parse(String(posts[0][1]?.body))).toEqual({
-          media_ids: ['1']
+          media_ids: ['2', '1', '3']
         })
       })
 
-      it('starts a new album from the photos in the gallery only', async () => {
+      it('starts a new album including hidden photos with no hidden note', async () => {
         answerWith((ids) => accepted(ids))
         renderMixed()
         startSelecting()
@@ -1165,40 +1222,100 @@ describe('GalleryAllMediaView', () => {
         )
         fireEvent.click(
           await screen.findByRole('button', {
-            name: 'New album with this photo'
+            name: 'New album with these photos'
           })
         )
 
-        expect(formDialog.current?.initialMediaIds).toEqual(['4'])
+        expect(formDialog.current?.initialMediaIds).toEqual(['4', '2'])
         expect(formDialog.current?.initialItems?.map((i) => i.mediaId)).toEqual(
-          ['4']
+          ['4', '2']
         )
         await act(async () => formDialog.current?.onSaved('new-album'))
-        expect(
-          await screen.findByText(
-            'Album created. 1 hidden photo skipped: turn on Show in my gallery to add it to albums.'
-          )
-        ).toBeVisible()
+        expect(await screen.findByText('Album created.')).toBeVisible()
       })
 
-      it('forgets a pick that left the list after a save', async () => {
-        renderMixed('in_gallery')
+      it('removes the pick when a photo is deleted', async () => {
+        renderMixed()
         startSelecting()
         pick('1', '4')
+        expect(bar()).toHaveTextContent('2 selected')
+
         fireEvent.click(
           within(bar()).getByRole('button', { name: 'Edit details' })
         )
-
-        await act(async () =>
-          editDialog.current?.onSaved([
-            buildGalleryItem('1', { inGallery: false })
-          ])
-        )
+        await act(async () => editDialog.current?.onDeleted?.(['1']))
 
         expect(bar()).toHaveTextContent('1 selected')
-        expect(
-          screen.queryByRole('button', { name: 'Select 1' })
-        ).not.toBeInTheDocument()
+      })
+
+      it('reloads the grid when an add finishes on not_in_album show', async () => {
+        answerWith((ids) => accepted(ids))
+        getGalleryMediaMock.mockResolvedValue({
+          items: [buildGalleryItem('5')],
+          nextMaxId: null
+        })
+        render(
+          <GalleryAllMediaView
+            actorId="actor-1"
+            initialCategory={null}
+            initialShow="not_in_album"
+            initialPage={{ items: mixed(), nextMaxId: null }}
+          />
+        )
+        startSelecting()
+        pick('1')
+
+        fireEvent.click(
+          within(bar()).getByRole('button', { name: 'Add to album' })
+        )
+        fireEvent.click(await screen.findByRole('radio', { name: /^Kruger/ }))
+        fireEvent.click(screen.getByRole('button', { name: 'Add 1 photo' }))
+
+        await waitFor(() =>
+          expect(getGalleryMediaMock).toHaveBeenCalledWith(
+            'actor-1',
+            expect.objectContaining({ show: 'not_in_album' })
+          )
+        )
+      })
+
+      it('reloads the grid when albums change in the viewer on not_in_album show', async () => {
+        getGalleryMediaMock.mockResolvedValue({
+          items: [buildGalleryItem('5')],
+          nextMaxId: null
+        })
+        render(
+          <GalleryAllMediaView
+            actorId="actor-1"
+            initialCategory={null}
+            initialShow="not_in_album"
+            initialPage={{ items: mixed(), nextMaxId: null }}
+          />
+        )
+
+        expect(getGalleryMediaMock).not.toHaveBeenCalled()
+        fireEvent.click(screen.getByRole('button', { name: 'Change albums' }))
+
+        await waitFor(() =>
+          expect(getGalleryMediaMock).toHaveBeenCalledWith(
+            'actor-1',
+            expect.objectContaining({ show: 'not_in_album' })
+          )
+        )
+      })
+
+      it('does not reload the grid when albums change in the viewer on other show modes', () => {
+        render(
+          <GalleryAllMediaView
+            actorId="actor-1"
+            initialCategory={null}
+            initialShow="all"
+            initialPage={{ items: mixed(), nextMaxId: null }}
+          />
+        )
+
+        fireEvent.click(screen.getByRole('button', { name: 'Change albums' }))
+        expect(getGalleryMediaMock).not.toHaveBeenCalled()
       })
     })
 
@@ -1252,6 +1369,27 @@ describe('GalleryAllMediaView', () => {
       it('turns Post and Delete off when a posted photo is picked, and says why', () => {
         renderMixed()
         pickPhotos('1', '3')
+
+        expect(bar()).toHaveTextContent('Only photos you haven’t posted')
+        for (const name of ['Post', 'Delete']) {
+          const button = within(bar()).getByRole('button', { name })
+          expect(button).toHaveAttribute('aria-disabled', 'true')
+          fireEvent.click(button)
+        }
+        expect(router.push).not.toHaveBeenCalled()
+        expect(
+          screen.queryByRole('dialog', { name: /^Delete/ })
+        ).not.toBeInTheDocument()
+      })
+
+      it('turns Post and Delete off when some selected ids are missing from seen items', () => {
+        renderMixed()
+        pickPhotos('1')
+        expect(
+          within(bar()).getByRole('button', { name: 'Post' })
+        ).not.toHaveAttribute('aria-disabled')
+
+        fireEvent.click(screen.getByRole('button', { name: 'Select missing' }))
 
         expect(bar()).toHaveTextContent('Only photos you haven’t posted')
         for (const name of ['Post', 'Delete']) {

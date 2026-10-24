@@ -626,15 +626,27 @@ describe('MediaAlbumsControl', () => {
       renderControl()
 
       expect(
-        await screen.findByText(/can’t be added to an album/)
+        await screen.findByText(new RegExp(NOT_ADDABLE_HINT))
       ).toBeVisible()
+    })
+
+    it('lets you toggle when addable is true even for photos hidden from the gallery', async () => {
+      getMediaAlbumsMock.mockResolvedValue(response({ addable: true }))
+      renderControl('row')
+      const menu = await openMenu()
+
+      const boxes = within(menu).getAllByRole('checkbox')
+      expect(boxes[1]).toBeEnabled()
+      expect(
+        within(menu).getByRole('button', { name: 'New album with this photo' })
+      ).toBeEnabled()
     })
   })
 
   describe('a pending upload', () => {
-    it('is addable when galleryOn is true, and explains albums apply on post', async () => {
+    it('is addable without galleryOn, and explains albums apply on post', async () => {
       getMediaAlbumsMock.mockResolvedValue(response({ pending: true }))
-      renderControl('row', { galleryOn: true })
+      renderControl('row')
       const menu = await openMenu()
 
       const boxes = within(menu).getAllByRole('checkbox')
@@ -644,22 +656,6 @@ describe('MediaAlbumsControl', () => {
       expect(
         within(menu).getByRole('button', { name: 'New album with this photo' })
       ).toBeEnabled()
-    })
-
-    it('is blocked when galleryOn is false, and explains to turn it on', async () => {
-      getMediaAlbumsMock.mockResolvedValue(response({ pending: true }))
-      renderControl('row', { galleryOn: false })
-      const menu = await openMenu()
-
-      const boxes = within(menu).getAllByRole('checkbox')
-      expect(boxes[1]).toBeDisabled()
-
-      expect(menu).toHaveTextContent(
-        'Turn on Show in my gallery to add this photo to an album.'
-      )
-      expect(
-        within(menu).getByRole('button', { name: 'New album with this photo' })
-      ).toBeDisabled()
     })
   })
 
@@ -767,21 +763,46 @@ describe('MediaAlbumsControl', () => {
   })
 
   describe('pill', () => {
-    it('counts the albums that hold the photo', async () => {
+    it('counts the albums that hold the photo and renders an aria-label and phone count', async () => {
       renderControl('pill')
 
-      expect(
-        await screen.findByRole('button', { name: 'In 1 album' })
-      ).toBeVisible()
+      const button = await screen.findByRole('button', { name: 'In 1 album' })
+      expect(button).toBeVisible()
+      expect(button).toHaveAttribute('aria-label', 'In 1 album')
+      const phoneCount = button.querySelector('span.tabular-nums')
+      expect(phoneCount).toHaveTextContent('1')
+      expect(phoneCount).toHaveClass('sm:hidden')
     })
 
-    it('invites an add when the photo is in no album', async () => {
+    it('invites an add when the photo is in no album, with an empty phone count', async () => {
       getMediaAlbumsMock.mockResolvedValue(response({ albumIds: [] }))
       renderControl('pill')
 
+      const button = await screen.findByRole('button', { name: 'Add to album' })
+      expect(button).toBeVisible()
+      expect(button).toHaveAttribute('aria-label', 'Add to album')
+      const phoneCount = button.querySelector('span.tabular-nums')
+      expect(phoneCount).toHaveTextContent('')
+    })
+
+    it('shows a ghost Try again button and sr-only alert when loading fails', async () => {
+      getMediaAlbumsMock.mockRejectedValueOnce(new Error('Server is down'))
+      renderControl('pill')
+
+      const button = await screen.findByRole('button', {
+        name: 'Server is down Try again'
+      })
+      expect(button).toBeVisible()
+      expect(button).toHaveTextContent('Try again')
+      const alert = screen.getByRole('alert')
+      expect(alert).toHaveClass('sr-only')
+      expect(alert).toHaveTextContent('Server is down')
+
+      fireEvent.click(button)
       expect(
-        await screen.findByRole('button', { name: 'Add to album' })
+        await screen.findByRole('button', { name: 'In 1 album' })
       ).toBeVisible()
+      expect(getMediaAlbumsMock).toHaveBeenCalledTimes(2)
     })
 
     it('shows a skeleton while loading, and nothing for a photo that is not the caller’s', async () => {

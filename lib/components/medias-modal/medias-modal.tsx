@@ -7,6 +7,7 @@ import {
   Play,
   X
 } from 'lucide-react'
+import dynamic from 'next/dynamic'
 import {
   FC,
   useCallback,
@@ -20,10 +21,8 @@ import { createPortal } from 'react-dom'
 
 import { getMediaPublicDetails } from '@/lib/client'
 import { CustomEmojiText } from '@/lib/components/actors/ActorDisplayName'
-import {
-  ALBUMS_MENU_SELECTOR,
-  MediaAlbumsControl
-} from '@/lib/components/gallery/MediaAlbumsControl'
+import { MediaAlbumsPillSkeleton } from '@/lib/components/gallery/MediaAlbumsPillSkeleton'
+import { ALBUMS_MENU_SELECTOR } from '@/lib/components/gallery/mediaAlbumsUi'
 import {
   MediaDetailsPanel,
   hasPublicDetailsContent
@@ -35,6 +34,17 @@ import { ActorEmojiTag } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Tag } from '@/lib/types/domain/tag'
 import { cn } from '@/lib/utils'
+
+// Only the owner's lightbox shows the albums button, and it carries the menu,
+// the New album dialog and the album picker behind it: keep that out of every
+// timeline page's initial bundle. The placeholder is the button's size.
+const MediaAlbumsControl = dynamic(
+  () =>
+    import('@/lib/components/gallery/MediaAlbumsControl').then(
+      (module) => module.MediaAlbumsControl
+    ),
+  { ssr: false, loading: () => <MediaAlbumsPillSkeleton /> }
+)
 
 const MIN_SWIPE_DISTANCE = 50 // Minimum distance in pixels for a swipe to be recognized
 const INTERACTIVE_SWIPE_IGNORE_SELECTOR =
@@ -54,11 +64,11 @@ interface Props {
   ownerName?: string | null
   /**
    * The signed-in viewer's actor id when every photo shown is theirs. With it
-   * the photo gets an "In N albums" pill that opens the add-to-album menu;
+   * the top bar offers an "In N albums" button that opens the add-to-album menu;
    * without it there is none and nothing is requested.
    */
   albumsOwnerId?: string | null
-  /** Called with an album's id after the albums pill changed what it holds. */
+  /** Called with an album's id after the albums button changed what it holds. */
   onAlbumsChange?: (albumId: string) => void
   /**
    * Owner editing. With it the top bar offers an Edit button beside Details,
@@ -94,7 +104,7 @@ export const MediasModal: FC<Props> = ({
     -1 | 0 | 1
   >(0)
   const [mounted, setMounted] = useState(false)
-  // The info overlay (alt text, public details, albums) is hidden whenever the
+  // The info overlay (alt text, public details) is hidden whenever the
   // viewer opens and stays at the owner's choice while moving between photos.
   const [detailsOpen, setDetailsOpen] = useState(false)
   const detailsOverlayId = useId()
@@ -110,8 +120,9 @@ export const MediasModal: FC<Props> = ({
   const closeButtonRef = useRef<HTMLButtonElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
   // True while focus sits inside the overlay, so it can be put back when the
-  // element holding it is removed (the albums pill remounts per photo).
+  // element holding it is removed.
   const focusInOverlay = useRef(false)
+  const focusInAlbums = useRef(false)
   // Public details, keyed by media id, so going back to a photo reuses the
   // answer. The cache belongs to one viewing session: it is dropped whenever
   // the attachment list changes (which includes closing the modal, since the
@@ -139,9 +150,7 @@ export const MediasModal: FC<Props> = ({
     ? loadedDetails
     : null
   const currentAltText = currentMedia?.name?.trim() ?? ''
-  const hasOverlayContent = Boolean(
-    currentAltText || currentDetails || (albumsOwnerId && currentMediaId)
-  )
+  const hasOverlayContent = Boolean(currentAltText || currentDetails)
   // The overlay renders only for a photo with something to show; the toggle
   // keeps its state across photos that have nothing.
   const overlayVisible = detailsOpen && hasOverlayContent
@@ -161,12 +170,20 @@ export const MediasModal: FC<Props> = ({
       focusInOverlay.current = false
       return
     }
+    // Details can refuse focus for the first frame after it turns visible (its
+    // visibility transitions), so Close is the fallback rather than body.
+    const restoreFocus = () => {
+      const details = hasOverlayContent ? detailsButtonRef.current : null
+      details?.focus()
+      if (document.activeElement !== details) closeButtonRef.current?.focus()
+    }
     if (inOverlay && (!overlayVisible || lostFocus)) {
-      const target = hasOverlayContent
-        ? detailsButtonRef.current
-        : closeButtonRef.current
-      target?.focus()
+      restoreFocus()
       focusInOverlay.current = false
+    }
+    if (focusInAlbums.current && lostFocus) {
+      restoreFocus()
+      focusInAlbums.current = false
     }
   }, [overlayVisible, hasOverlayContent, currentMediaId])
 
@@ -458,6 +475,27 @@ export const MediasModal: FC<Props> = ({
             <Info className="h-5 w-5" aria-hidden="true" />
             Details
           </Button>
+          {albumsOwnerId && currentMediaId ? (
+            <div
+              onFocus={() => {
+                focusInAlbums.current = true
+              }}
+              onBlur={(e) => {
+                const target = e.target
+                queueMicrotask(() => {
+                  if (target.isConnected) focusInAlbums.current = false
+                })
+              }}
+            >
+              <MediaAlbumsControl
+                key={currentMediaId}
+                mediaId={currentMediaId}
+                ownerId={albumsOwnerId}
+                variant="pill"
+                onChange={onAlbumsChange}
+              />
+            </div>
+          ) : null}
           {onEdit &&
           currentMedia &&
           currentMediaId &&
@@ -525,17 +563,6 @@ export const MediasModal: FC<Props> = ({
                 ownerName={ownerName}
                 attachmentUpdatedAt={currentMedia.updatedAt}
                 className="py-3 first:pt-0 last:pb-0"
-              />
-            ) : null}
-            {albumsOwnerId && currentMediaId ? (
-              <MediaAlbumsControl
-                // Its own load and state for each photo.
-                key={currentMediaId}
-                mediaId={currentMediaId}
-                ownerId={albumsOwnerId}
-                variant="pill"
-                onChange={onAlbumsChange}
-                className="items-start py-3 first:pt-0 last:pb-0"
               />
             ) : null}
           </div>

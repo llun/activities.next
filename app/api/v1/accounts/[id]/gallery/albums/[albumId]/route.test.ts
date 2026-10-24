@@ -124,14 +124,18 @@ describe('GET /api/v1/accounts/:id/gallery/albums/:albumId', () => {
     // One photo per post kind: public, unlisted, followers only, direct, a
     // deleted post, and one not in the gallery.
     it.each([
-      ['a logged-out caller', null, ['public', 'unlisted']],
-      ['a stranger', seedActor2.email, ['public', 'unlisted']],
-      ['a blocked account', seedActor4.email, ['public', 'unlisted']],
-      ['a follower', seedActor3.email, ['public', 'unlisted', 'followers']],
+      ['a logged-out caller', null, ['public', 'unlisted', 'hidden']],
+      ['a stranger', seedActor2.email, ['public', 'unlisted', 'hidden']],
+      ['a blocked account', seedActor4.email, ['public', 'unlisted', 'hidden']],
+      [
+        'a follower',
+        seedActor3.email,
+        ['public', 'unlisted', 'followers', 'hidden']
+      ],
       [
         'the owner',
         MATRIX_OWNER_EMAIL,
-        ['public', 'unlisted', 'followers', 'direct']
+        ['public', 'unlisted', 'followers', 'direct', 'hidden']
       ]
     ])('shows %s the posts they may read', async (_, email, visible) => {
       signIn(email)
@@ -155,14 +159,15 @@ describe('GET /api/v1/accounts/:id/gallery/albums/:albumId', () => {
       ).json()
 
       expect(body.album.firstAt).toBe('2026-01-10T12:00:00.000Z')
-      expect(body.album.lastAt).toBe('2026-02-10T12:00:00.000Z')
+      expect(body.album.lastAt).toBe('2026-06-10T12:00:00.000Z')
       expect(body.facts).toMatchObject({
-        photoCount: 2,
-        speciesCount: 2,
+        photoCount: 3,
+        speciesCount: 3,
         placeCount: 1,
         countryCodes: ['GB']
       })
       expect(body.species.map((chip: { name: string }) => chip.name)).toEqual([
+        'Badger',
         'Common Kingfisher',
         'Red Fox'
       ])
@@ -181,7 +186,7 @@ describe('GET /api/v1/accounts/:id/gallery/albums/:albumId', () => {
       ).json()
 
       expect(body.album.cover.mediaId).toBe(matrix.media.followers)
-      expect(body.album.lastAt).toBe('2026-03-10T12:00:00.000Z')
+      expect(body.album.lastAt).toBe('2026-06-10T12:00:00.000Z')
     })
 
     it('keeps owner-only fields out of a visitor response', async () => {
@@ -206,7 +211,7 @@ describe('GET /api/v1/accounts/:id/gallery/albums/:albumId', () => {
       ['an empty album', 'empty'],
       ['an album of only followers-only photos', 'followersOnly'],
       ['an album of only direct-message photos', 'directOnly'],
-      ['an album of only deleted or ungalleried photos', 'goneOnly']
+      ['an album of only deleted photos', 'goneOnly']
     ]
 
     it.each(notThere)(
@@ -361,6 +366,7 @@ describe('GET /api/v1/accounts/:id/gallery/albums/:albumId', () => {
       }
 
       expect(seen).toEqual([
+        matrix.media.hidden,
         matrix.media.followers,
         matrix.media.unlisted,
         matrix.media.public
@@ -374,7 +380,11 @@ describe('GET /api/v1/accounts/:id/gallery/albums/:albumId', () => {
 
       expect(
         body.items.map((item: { mediaId: string }) => item.mediaId)
-      ).toEqual([matrix.media.public, matrix.media.unlisted])
+      ).toEqual([
+        matrix.media.public,
+        matrix.media.unlisted,
+        matrix.media.hidden
+      ])
     })
 
     it('filters by a species key', async () => {

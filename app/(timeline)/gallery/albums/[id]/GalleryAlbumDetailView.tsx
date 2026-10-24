@@ -14,7 +14,15 @@ import {
   X
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { FC, useCallback, useEffect, useId, useRef, useState } from 'react'
+import {
+  ComponentProps,
+  FC,
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState
+} from 'react'
 
 import { GalleryAlbumFormDialog } from '@/app/(timeline)/gallery/albums/GalleryAlbumFormDialog'
 import { GalleryAlbumHero } from '@/app/(timeline)/gallery/albums/GalleryAlbumHero'
@@ -28,6 +36,7 @@ import {
   getAlbumTileLabel,
   getHiddenPlacesLabel
 } from '@/app/(timeline)/gallery/albums/galleryAlbumsUi'
+import { useGalleryAlbumSuggestions } from '@/app/(timeline)/gallery/albums/useGalleryAlbumSuggestions'
 import {
   deleteGalleryAlbum,
   getGalleryAlbumItems,
@@ -79,6 +88,13 @@ const TOUCH_SM_BUTTON = 'pointer-coarse:h-10'
 
 const getErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback
+
+const AddPhotosDialog: FC<ComponentProps<typeof GalleryAlbumFormDialog>> = (
+  props
+) => {
+  const suggestions = useGalleryAlbumSuggestions()
+  return <GalleryAlbumFormDialog {...props} suggestions={suggestions} />
+}
 
 export const GalleryAlbumDetailView: FC<Props> = ({
   ownerId,
@@ -269,8 +285,6 @@ export const GalleryAlbumDetailView: FC<Props> = ({
     ;(target ?? gridRef.current)?.focus()
   }, [busyId])
 
-  // Set when an edit hid a photo, so the viewer's close reads the album again.
-  const hiddenByEdit = useRef(false)
   // After anything that changes the album: the facts, chips and cover come
   // from the server render, the grid from here.
   const refreshAll = async () => {
@@ -601,17 +615,6 @@ export const GalleryAlbumDetailView: FC<Props> = ({
               <GalleryGrid
                 items={items}
                 albumsOwnerId={ownerId}
-                // Edit details can switch Show in my gallery off, and an album
-                // holds only photos shown there: the list, facts and count are
-                // read again when the viewer closes, as for the pill below.
-                onItemEdited={(item) => {
-                  if (item.inGallery === false) hiddenByEdit.current = true
-                }}
-                onViewerClosed={() => {
-                  if (!hiddenByEdit.current) return
-                  hiddenByEdit.current = false
-                  void refreshAll()
-                }}
                 // The lightbox pill can take a photo out of this very album;
                 // the grid, facts and count behind it are read again when the
                 // viewer closes (not under it, which would swap the photo
@@ -642,10 +645,10 @@ export const GalleryAlbumDetailView: FC<Props> = ({
         </div>
       )}
 
-      {dialog && (
-        <GalleryAlbumFormDialog
+      {dialog === 'add' ? (
+        <AddPhotosDialog
           open
-          intent={dialog}
+          intent="add"
           ownerId={ownerId}
           album={album}
           existingMediaIds={detail.mediaIds}
@@ -655,7 +658,20 @@ export const GalleryAlbumDetailView: FC<Props> = ({
           }}
           onSaved={() => void refreshAll()}
         />
-      )}
+      ) : dialog === 'edit' ? (
+        <GalleryAlbumFormDialog
+          open
+          intent="edit"
+          ownerId={ownerId}
+          album={album}
+          existingMediaIds={detail.mediaIds}
+          storedItemCount={detail.storedItemCount}
+          onOpenChange={(open) => {
+            if (!open) setDialog(null)
+          }}
+          onSaved={() => void refreshAll()}
+        />
+      ) : null}
 
       <Dialog open={isDeleteOpen} onOpenChange={handleDeleteOpenChange}>
         <DialogContent showCloseButton={!isDeleting}>

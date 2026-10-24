@@ -15,6 +15,7 @@ import { GalleryAlbumDetailView } from '@/app/(timeline)/gallery/albums/[id]/Gal
 import {
   deleteGalleryAlbum,
   getGalleryAlbumItems,
+  getGalleryAlbumSuggestions,
   removeGalleryAlbumItems,
   updateGalleryAlbum
 } from '@/lib/client'
@@ -27,66 +28,64 @@ import { buildGalleryItem } from '@/lib/components/gallery/__fixtures__/galleryI
 vi.mock('@/lib/client', () => ({
   deleteGalleryAlbum: vi.fn(),
   getGalleryAlbumItems: vi.fn(),
+  getGalleryAlbumSuggestions: vi.fn(),
   removeGalleryAlbumItems: vi.fn(),
   updateGalleryAlbum: vi.fn()
 }))
 
 const mockPush = vi.fn()
 const mockRefresh = vi.fn()
+const mockGalleryGrid = vi.fn()
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mockPush, refresh: mockRefresh })
 }))
 
 vi.mock('@/lib/components/gallery/GalleryGrid', () => ({
-  GalleryGrid: ({
-    items,
-    albumsOwnerId,
-    onAlbumsChanged,
-    onItemEdited,
-    onViewerClosed
-  }: {
+  GalleryGrid: (props: {
     items: { mediaId: string }[]
     albumsOwnerId?: string | null
     onAlbumsChanged?: (albumIds: string[]) => void
     onItemEdited?: (item: { inGallery?: boolean }) => void
     onViewerClosed?: () => void
-  }) => (
-    <div>
-      <ul data-testid="grid" data-albums-owner={albumsOwnerId ?? 'none'}>
-        {items.map((item) => (
-          <li key={item.mediaId}>{item.mediaId}</li>
-        ))}
-      </ul>
-      {/* What the grid does when its viewer closes after a pill change. */}
-      <button onClick={() => onAlbumsChanged?.(['a1'])}>
-        viewer closed after changing this album
-      </button>
-      <button onClick={() => onAlbumsChanged?.(['elsewhere'])}>
-        viewer closed after changing another album
-      </button>
-      <button onClick={() => onItemEdited?.({ inGallery: false })}>
-        hide a photo with Edit details
-      </button>
-      <button onClick={() => onItemEdited?.({ inGallery: true })}>
-        edit a photo, still shown
-      </button>
-      <button onClick={() => onViewerClosed?.()}>close the viewer</button>
-    </div>
-  )
+  }) => {
+    mockGalleryGrid(props)
+    return (
+      <div>
+        <ul
+          data-testid="grid"
+          data-albums-owner={props.albumsOwnerId ?? 'none'}
+        >
+          {props.items.map((item) => (
+            <li key={item.mediaId}>{item.mediaId}</li>
+          ))}
+        </ul>
+        {/* What the grid does when its viewer closes after a pill change. */}
+        <button onClick={() => props.onAlbumsChanged?.(['a1'])}>
+          viewer closed after changing this album
+        </button>
+        <button onClick={() => props.onAlbumsChanged?.(['elsewhere'])}>
+          viewer closed after changing another album
+        </button>
+      </div>
+    )
+  }
 }))
 
 vi.mock('@/app/(timeline)/gallery/albums/GalleryAlbumFormDialog', () => ({
   GalleryAlbumFormDialog: ({
     intent,
     existingMediaIds,
+    suggestions,
     onSaved
   }: {
     intent: string
     existingMediaIds?: string[]
+    suggestions?: unknown
     onSaved: (id: string) => void
   }) => (
     <div role="dialog" aria-label={`dialog ${intent}`}>
       <span data-testid="existing">{existingMediaIds?.join(',')}</span>
+      {suggestions ? <button role="tab">Suggestions</button> : null}
       <button onClick={() => onSaved('a1')}>finish</button>
     </div>
   )
@@ -96,6 +95,7 @@ const items = vi.mocked(getGalleryAlbumItems)
 const remove = vi.mocked(removeGalleryAlbumItems)
 const update = vi.mocked(updateGalleryAlbum)
 const del = vi.mocked(deleteGalleryAlbum)
+const suggestions = vi.mocked(getGalleryAlbumSuggestions)
 
 const SHARE_URL = 'https://activities.test/@owner@activities.test/albums/a1'
 
@@ -111,9 +111,19 @@ const renderView = (detail = buildAlbumDetail()) =>
 
 describe('GalleryAlbumDetailView', () => {
   beforeEach(() => {
-    for (const mock of [items, remove, update, del, mockPush, mockRefresh]) {
+    for (const mock of [
+      items,
+      remove,
+      update,
+      del,
+      suggestions,
+      mockPush,
+      mockRefresh,
+      mockGalleryGrid
+    ]) {
       mock.mockReset()
     }
+    suggestions.mockReturnValue(new Promise(() => {}))
   })
 
   it('shows the title, date range and country over the cover, then the facts', () => {
@@ -329,43 +339,20 @@ describe('GalleryAlbumDetailView', () => {
     })
   })
 
-  describe('Edit details in the lightbox', () => {
-    it('reads the album again when the viewer closes after a photo was hidden', async () => {
-      items.mockResolvedValue({
-        items: [buildGalleryItem('a1-1')],
-        nextMaxId: null
-      })
+  describe('GalleryGrid integration', () => {
+    it('receives no onItemEdited or onViewerClosed because albums ignore the gallery switch', () => {
       renderView()
 
-      fireEvent.click(
-        screen.getByRole('button', { name: 'hide a photo with Edit details' })
+      expect(mockGalleryGrid).toHaveBeenCalledWith(
+        expect.objectContaining({
+          items: expect.any(Array),
+          albumsOwnerId: 'owner',
+          onAlbumsChanged: expect.any(Function)
+        })
       )
-      // Not under the viewer: that would swap the photo being looked at.
-      await act(async () => {})
-      expect(mockRefresh).not.toHaveBeenCalled()
-
-      fireEvent.click(screen.getByRole('button', { name: 'close the viewer' }))
-      await waitFor(() => expect(mockRefresh).toHaveBeenCalledTimes(1))
-      await waitFor(() => expect(items).toHaveBeenCalled())
-
-      // Once: a later close with nothing hidden leaves the page alone.
-      mockRefresh.mockClear()
-      fireEvent.click(screen.getByRole('button', { name: 'close the viewer' }))
-      await act(async () => {})
-      expect(mockRefresh).not.toHaveBeenCalled()
-    })
-
-    it('leaves the page alone when the edit kept the photo in the gallery', async () => {
-      renderView()
-
-      fireEvent.click(
-        screen.getByRole('button', { name: 'edit a photo, still shown' })
-      )
-      fireEvent.click(screen.getByRole('button', { name: 'close the viewer' }))
-      await act(async () => {})
-
-      expect(mockRefresh).not.toHaveBeenCalled()
-      expect(items).not.toHaveBeenCalled()
+      const lastProps = mockGalleryGrid.mock.calls.at(-1)?.[0]
+      expect(lastProps?.onItemEdited).toBeUndefined()
+      expect(lastProps?.onViewerClosed).toBeUndefined()
     })
   })
 
@@ -797,6 +784,33 @@ describe('GalleryAlbumDetailView', () => {
       screen.getByRole('dialog', { name: 'dialog add' })
     ).toBeInTheDocument()
     expect(screen.getByTestId('existing')).toHaveTextContent('a1-1,a1-2,a1-3')
+  })
+
+  it('does not call getGalleryAlbumSuggestions on page load or when opening the Edit dialog', () => {
+    renderView()
+    expect(suggestions).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+    expect(
+      screen.getByRole('dialog', { name: 'dialog edit' })
+    ).toBeInTheDocument()
+    expect(suggestions).not.toHaveBeenCalled()
+    expect(
+      screen.queryByRole('tab', { name: 'Suggestions' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('calls getGalleryAlbumSuggestions once Add photos opens, and the Suggestions tab is shown', () => {
+    renderView()
+    expect(suggestions).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add photos' }))
+    expect(
+      screen.getByRole('dialog', { name: 'dialog add' })
+    ).toBeInTheDocument()
+    expect(suggestions).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('tab', { name: 'Suggestions' })).toBeInTheDocument()
   })
 
   it('shows the empty state of an empty album', () => {

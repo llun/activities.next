@@ -10,6 +10,7 @@ import {
   getAccountGalleryAlbums,
   getGalleryAlbum,
   getGalleryAlbumItems,
+  getGalleryAlbumMembership,
   getGalleryAlbums,
   getMediaAlbums,
   removeGalleryAlbumItems,
@@ -74,6 +75,7 @@ describe('gallery albums client module', () => {
       description: null,
       visibility: 'private',
       sortOrder: 'taken_asc',
+      coverMediaId: '2',
       mediaIds: ['1', '2']
     })
 
@@ -84,11 +86,12 @@ describe('gallery albums client module', () => {
       description: null,
       visibility: 'private',
       sort_order: 'taken_asc',
+      cover_media_id: '2',
       media_ids: ['1', '2']
     })
   })
 
-  it('createGalleryAlbum leaves media_ids out when there are none', async () => {
+  it('createGalleryAlbum leaves media_ids and cover_media_id out when absent', async () => {
     fetchMock.mockResponseOnce(JSON.stringify({ album: { id: 'a1' } }))
 
     await createGalleryAlbum({ title: 'Empty', mediaIds: [] })
@@ -352,6 +355,67 @@ describe('gallery albums client module', () => {
       })
 
       await expect(getMediaAlbums('9')).rejects.toThrow('Boom')
+    })
+  })
+
+  describe('getGalleryAlbumMembership', () => {
+    it('de-duplicates, splits 150 ids into two POSTs of 100 and 50, and merges album ids without duplicates', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          albums: [
+            { id: 'a1', mediaIds: ['1', '2'] },
+            { id: 'a2', mediaIds: ['3'] }
+          ]
+        })
+      )
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          albums: [
+            { id: 'a1', mediaIds: ['101'] },
+            { id: 'a3', mediaIds: ['102'] }
+          ]
+        })
+      )
+
+      const input = [...ids(150), '1', '2', '100']
+      const result = await getGalleryAlbumMembership(input)
+
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+
+      expect(fetchMock.mock.calls[0][0]).toBe(
+        '/api/v1/gallery/albums/membership'
+      )
+      expect(fetchMock.mock.calls[0][1]?.method).toBe('POST')
+      expect(bodyOf(0)).toEqual({ media_ids: ids(100) })
+
+      expect(fetchMock.mock.calls[1][0]).toBe(
+        '/api/v1/gallery/albums/membership'
+      )
+      expect(fetchMock.mock.calls[1][1]?.method).toBe('POST')
+      expect(bodyOf(1)).toEqual({ media_ids: ids(50, 101) })
+
+      expect(result).toEqual({
+        albums: [
+          { id: 'a1', mediaIds: ['1', '2', '101'] },
+          { id: 'a2', mediaIds: ['3'] },
+          { id: 'a3', mediaIds: ['102'] }
+        ]
+      })
+    })
+
+    it('makes no request for empty array', async () => {
+      const result = await getGalleryAlbumMembership([])
+
+      expect(fetchMock).not.toHaveBeenCalled()
+      expect(result).toEqual({ albums: [] })
+    })
+
+    it('throws on non-OK response', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ error: 'Boom' }), {
+        status: 500
+      })
+
+      await expect(getGalleryAlbumMembership(['1'])).rejects.toThrow('Boom')
     })
   })
 })

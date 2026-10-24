@@ -136,7 +136,6 @@ describe('[actor] page header handle link', () => {
       isInternalAccount: false,
       profileFields: [],
       hasFitnessData: false,
-      hasGalleryMedia: false,
       gallerySubviews: [],
       isPixelfed: false
     })
@@ -181,7 +180,6 @@ describe('[actor] page header handle link', () => {
       isInternalAccount: false,
       profileFields: [],
       hasFitnessData: false,
-      hasGalleryMedia: false,
       gallerySubviews: [],
       isPixelfed: false
     })
@@ -214,7 +212,6 @@ describe('[actor] page header handle link', () => {
       isInternalAccount: false,
       profileFields: [],
       hasFitnessData: false,
-      hasGalleryMedia: false,
       gallerySubviews: [],
       isPixelfed: false
     })
@@ -249,7 +246,6 @@ describe('[actor] page header handle link', () => {
       isInternalAccount: true,
       profileFields: [],
       hasFitnessData: false,
-      hasGalleryMedia: false,
       gallerySubviews: [],
       isPixelfed: false
     })
@@ -291,7 +287,6 @@ describe('[actor] page header handle link', () => {
       isInternalAccount: false,
       profileFields: [],
       hasFitnessData: false,
-      hasGalleryMedia: false,
       gallerySubviews: [],
       isPixelfed: false
     })
@@ -331,7 +326,6 @@ describe('[actor] page header handle link', () => {
         isInternalAccount: false,
         profileFields: [],
         hasFitnessData: false,
-        hasGalleryMedia: false,
         gallerySubviews: [],
         isPixelfed: false,
         serverSoftware: {
@@ -372,7 +366,6 @@ describe('[actor] page header handle link', () => {
       isInternalAccount: false,
       profileFields: [],
       hasFitnessData: false,
-      hasGalleryMedia: false,
       gallerySubviews: [],
       isPixelfed: false,
       serverSoftware: null
@@ -407,7 +400,6 @@ describe('[actor] page header handle link', () => {
       isInternalAccount: false,
       profileFields: [],
       hasFitnessData: false,
-      hasGalleryMedia: false,
       gallerySubviews: [],
       isPixelfed: false,
       serverSoftware: null
@@ -453,7 +445,6 @@ describe('[actor] page header handle link', () => {
       isInternalAccount: false,
       profileFields: [],
       hasFitnessData: false,
-      hasGalleryMedia: false,
       gallerySubviews: [],
       isPixelfed: false,
       serverSoftware: null
@@ -509,7 +500,6 @@ describe('[actor] page profile links', () => {
     followersCount: 0,
     isInternalAccount: false,
     hasFitnessData: false,
-    hasGalleryMedia: false,
     gallerySubviews: [],
     isPixelfed: false
   })
@@ -600,7 +590,6 @@ describe('[actor] page edit profile entry points', () => {
     followersCount: 0,
     isInternalAccount,
     hasFitnessData: false,
-    hasGalleryMedia: false,
     gallerySubviews: [],
     isPixelfed: false
   })
@@ -714,7 +703,6 @@ describe('[actor] page avatar description', () => {
     followersCount: 0,
     isInternalAccount,
     hasFitnessData: false,
-    hasGalleryMedia: false,
     gallerySubviews: [],
     isPixelfed: false
   })

@@ -103,7 +103,7 @@ describe('GalleryAlbumFormDialog', () => {
     return { onSaved, onOpenChange }
   }
 
-  it('saves nothing until the primary button, then creates, adds the rest and sets the cover', async () => {
+  it('saves nothing until the primary button, then creates with cover, and adds the rest', async () => {
     create.mockResolvedValue(result('new'))
     add.mockResolvedValue(result('new'))
     update.mockResolvedValue(buildAlbumCard('new'))
@@ -129,11 +129,36 @@ describe('GalleryAlbumFormDialog', () => {
       title: 'Kruger',
       description: 'Eight days',
       visibility: 'private',
-      mediaIds: ['m1', 'm2']
+      mediaIds: ['m1', 'm2'],
+      coverMediaId: 'm1'
     })
     expect(add).toHaveBeenCalledWith('new', ['m3'])
-    expect(update).toHaveBeenCalledWith('new', { coverMediaId: 'm1' })
+    expect(update).not.toHaveBeenCalled()
     expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('creates with coverMediaId in first batch and adds remaining in batches without calling updateGalleryAlbum when 150 items are selected', async () => {
+    create.mockResolvedValue(result('new'))
+    add.mockResolvedValue(result('new'))
+    const ids = Array.from({ length: 150 }, (_, i) => `item-${i + 1}`)
+    const { onSaved } = renderDialog({ initialMediaIds: ids })
+
+    fireEvent.change(screen.getByLabelText('Title'), {
+      target: { value: 'Big Album' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Create album' }))
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith('new'))
+
+    // In this test file, GALLERY_ALBUM_ITEMS_BATCH is mocked to 2
+    expect(create).toHaveBeenCalledWith({
+      title: 'Big Album',
+      description: null,
+      visibility: 'public',
+      mediaIds: ['item-1', 'item-2'],
+      coverMediaId: 'item-1'
+    })
+    expect(add).toHaveBeenCalledWith('new', ids.slice(2))
+    expect(update).not.toHaveBeenCalled()
   })
 
   it('needs a title and does not call the server without one', () => {
@@ -415,8 +440,13 @@ describe('GalleryAlbumFormDialog', () => {
       await waitFor(() => expect(onSaved).toHaveBeenCalledWith('new'))
 
       expect(create).toHaveBeenCalledWith(
-        expect.objectContaining({ title: 'Pair', mediaIds: ['p1', 'p2'] })
+        expect.objectContaining({
+          title: 'Pair',
+          mediaIds: ['p1', 'p2'],
+          coverMediaId: 'p1'
+        })
       )
+      expect(update).not.toHaveBeenCalled()
     })
 
     it('starts again from them each time it opens, not from earlier edits', () => {
@@ -457,5 +487,19 @@ describe('GalleryAlbumFormDialog', () => {
   it('pads and offsets the scroll container to prevent highlight clipping', () => {
     renderDialog()
     expect(screen.getByTestId('scroll-container')).toHaveClass('p-1', '-m-1')
+  })
+
+  it('uses sm:max-w-4xl for the Add photos dialog', () => {
+    render(
+      <GalleryAlbumFormDialog
+        open
+        ownerId="owner"
+        intent="add"
+        album={buildAlbumCard('a1')}
+        onOpenChange={vi.fn()}
+        onSaved={vi.fn()}
+      />
+    )
+    expect(screen.getByRole('dialog')).toHaveClass('sm:max-w-4xl')
   })
 })

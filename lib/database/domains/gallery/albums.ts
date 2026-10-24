@@ -71,10 +71,11 @@ import {
 // Albums: owner-curated groups of the owner's own gallery media. An album item
 // says nothing about who may see the photo. Every read of items goes through
 // `galleryMediaScope` (lib/database/kysely/visibility/galleryMedia.ts) with a
-// REQUIRED `GalleryAudience`, which decides what "visible gallery media" means
-// for every other gallery read, so an album never shows a
-// photo outside the viewer's gallery scope, and every count, date range, cover
-// and preview below is computed from the VISIBLE items only.
+// REQUIRED `GalleryAudience` and `{ requireInGallery: false }`, so albums
+// ignore the gallery switch (a photo hidden from the gallery stays in its
+// albums and is shown to a visitor exactly when its post is readable), and every
+// count, date range, cover and preview below is computed from the VISIBLE items
+// only.
 //
 // Ordering and paging happen over one narrow read of the album's visible items
 // (at most `MAX_GALLERY_ALBUM_ITEMS` rows of a handful of columns), not in SQL:
@@ -82,7 +83,7 @@ import {
 // comparisons whose stored form differs between SQLite (numbers or text) and
 // PostgreSQL, and a JS sort over epoch milliseconds is the same on both. The
 // full rows of just one page are then read through `getGalleryMediaByIds`,
-// which applies the scope a second time.
+// which applies the scope a second time (also with `requireInGallery: false`).
 
 // Bindings a scoped query spends beyond its `in` list, as in ./media.ts:
 // generous, so SQLite's 999-variable cap is never hit.
@@ -214,6 +215,10 @@ const readOpenableAlbum = async (
   return album.visibility === 'public' ? album : null
 }
 
+// Albums ignore the gallery switch; the post's audience still decides.
+const albumMediaScope = (db: Db, actorId: string, audience: GalleryAudience) =>
+  galleryMediaScope(db, actorId, audience, { requireInGallery: false })
+
 /** The scoped join of album items to the media the audience may see. */
 const visibleItemsQuery = (
   db: Db,
@@ -226,7 +231,7 @@ const visibleItemsQuery = (
     .innerJoin('medias', 'medias.id', 'album_items.mediaId')
     .where('album_items.albumId', 'in', albumIds)
     .where('album_items.actorId', '=', actorId)
-    .where(galleryMediaScope(db, actorId, audience))
+    .where(albumMediaScope(db, actorId, audience))
 
 interface VisibleItem extends SortableItem {
   albumId: string
@@ -380,7 +385,7 @@ const addItems = async (
   const albumAddableMediaScope = (db: Db, actorId: string) => {
     return (eb: ExpressionBuilder<DB, 'medias'>): Expression<SqlBool> =>
       eb.or([
-        galleryMediaScope(db, actorId, { kind: 'owner' }),
+        albumMediaScope(db, actorId, { kind: 'owner' }),
         eb.and([
           eb('medias.actorId', '=', actorId),
           eb('medias.galleryAddedAt', 'is', null),
@@ -772,6 +777,7 @@ export const getGalleryAlbumMedia = async (
   const full = await getGalleryMediaByIds(db, {
     actorId,
     audience,
+    requireInGallery: false,
     mediaIds: page.map((item) => String(item.mediaId))
   })
   const byId = new Map(full.map((row) => [row.media.id, row]))
@@ -850,7 +856,7 @@ export const countGalleryAlbumMedia = async (
     .$if(!isOwnerGalleryAudience(audience), (qb) =>
       qb.where('albums.visibility', '=', 'public')
     )
-    .where(galleryMediaScope(db, actorId, audience))
+    .where(albumMediaScope(db, actorId, audience))
     .select((eb) => eb.fn.count('medias.id').distinct().as('total'))
     .limit(1)
     .executeTakeFirst()
@@ -877,7 +883,7 @@ export const getActorHasVisibleGalleryAlbums = async (
     .where('albums.actorId', '=', actorId)
     .where('album_items.actorId', '=', actorId)
     .where('albums.visibility', '=', 'public')
-    .where(galleryMediaScope(db, actorId, audience))
+    .where(albumMediaScope(db, actorId, audience))
     .select(sql.lit(1).as('one'))
     .limit(1)
     .executeTakeFirst()

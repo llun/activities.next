@@ -19,7 +19,9 @@ import {
 } from '@/lib/types/database/galleryAlbums'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
+import { logger } from '@/lib/utils/logger'
 import { ERROR_422, apiResponse, defaultOptions } from '@/lib/utils/response'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [
@@ -56,8 +58,10 @@ export const GET = traceApiRoute(
 
 // POST /api/v1/gallery/albums — creates an album, optionally with its first
 // photos (`media_ids`, at most 100; a client with more adds the rest through
-// `/items`). The photos are the owner's own gallery media: any other id is
-// reported as `skipped`. Past 200 albums it answers 422 and creates nothing.
+// `/items`). An optional `cover_media_id` must be one of `media_ids` (422) and
+// becomes the album cover; it is ignored if that photo was skipped. The photos
+// are the owner's own gallery media: any other id is reported as `skipped`.
+// Past 200 albums it answers 422 and creates nothing.
 export const POST = traceApiRoute(
   'createGalleryAlbum',
   OAuthGuardAnyScope(
@@ -78,8 +82,14 @@ export const POST = traceApiRoute(
         return albumRateLimited(req, CORS_HEADERS)
       }
 
-      const { title, description, visibility, sort_order, media_ids } =
-        parsed.data
+      const {
+        title,
+        description,
+        visibility,
+        sort_order,
+        media_ids,
+        cover_media_id
+      } = parsed.data
       // The album and its first photos are written in one transaction: if
       // the add fails, no empty album is left behind.
       const created = await database.createGalleryAlbumWithinLimit({
@@ -101,6 +111,30 @@ export const POST = traceApiRoute(
         })
       }
       const { added, existing, skipped } = created
+
+      if (cover_media_id && added.includes(cover_media_id)) {
+        const albumId = created.album.id
+        try {
+          const { status } = await database.updateGalleryAlbum({
+            id: albumId,
+            actorId: currentActor.id,
+            coverMediaId: cover_media_id
+          })
+          if (status !== 'updated') {
+            logger.warn({
+              message: 'Could not set the new album cover',
+              albumId,
+              status
+            })
+          }
+        } catch (error) {
+          logger.warn({
+            message: 'Could not set the new album cover',
+            albumId,
+            err: toLoggableError(error)
+          })
+        }
+      }
 
       const album = await getGalleryAlbumCard({
         database,

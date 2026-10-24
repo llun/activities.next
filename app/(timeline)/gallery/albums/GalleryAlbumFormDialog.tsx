@@ -9,6 +9,9 @@ import {
   updateGalleryAlbum
 } from '@/lib/client'
 import { GALLERY_ALBUM_ITEMS_BATCH } from '@/lib/client/galleryAlbums'
+import { AlbumUndoToast } from '@/lib/components/gallery/AlbumUndoToast'
+import { pluralize } from '@/lib/components/gallery/galleryCategories'
+import type { AlbumToast } from '@/lib/components/gallery/useMediaAlbums'
 import { Alert } from '@/lib/components/surface/Alert'
 import { FormRow } from '@/lib/components/surface/FormRow'
 import { RadioCard } from '@/lib/components/surface/RadioCard'
@@ -81,9 +84,10 @@ interface Props {
   initialItems?: GalleryItemEntity[]
   /**
    * The owner's suggestions, as `useGalleryAlbumSuggestions` reads them. With
-   * them, creating an album offers a Suggestions tab next to From gallery; a
-   * suggestion's "Use" selects its photos and fills the title, and the owner
-   * can still add and remove photos. Without them there is no tab.
+   * them, creating an album or adding photos offers a Suggestions tab next to
+   * From gallery; a suggestion's "Use" selects its photos and (when creating)
+   * fills the title, and the owner can still add and remove photos. Without
+   * them there is no tab.
    */
   suggestions?: { state: GalleryAlbumSuggestionsState; reload: () => void }
   /** The tab that is open first when the dialog has both. */
@@ -174,6 +178,8 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
   const [reviewItems, setReviewItems] = useState<
     ReadonlyMap<string, GalleryItemEntity>
   >(new Map())
+  const [toast, setToast] = useState<AlbumToast | null>(null)
+  const handleDismissToast = useCallback(() => setToast(null), [])
   // Whether the owner typed the title themselves: a suggestion fills it only
   // while they have not.
   const titleEdited = useRef(false)
@@ -195,6 +201,7 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
     setTab(initialTab)
     setActiveSuggestion(null)
     setReviewItems(new Map())
+    setToast(null)
     titleEdited.current = false
     // `initialMediaIds` seeds the picker once per opening (the effect runs on
     // open or a new album only): a parent that builds a new array on every
@@ -206,7 +213,8 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
   const isLocked = isSaving || createdId !== null
   const showFields = intent !== 'add'
   const showPicker = intent !== 'edit'
-  const showSuggestions = intent === 'create' && suggestions !== undefined
+  const showSuggestions =
+    (intent === 'create' || intent === 'add') && suggestions !== undefined
   const capacity =
     intent === 'add'
       ? Math.max(
@@ -228,10 +236,37 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
   }, [])
 
   const handleUseSuggestion = (suggestion: GalleryAlbumSuggestionEntity) => {
-    setSelected(suggestion.mediaIds.slice(0, capacity))
+    const skip = new Set([
+      ...selected,
+      ...(intent === 'add' ? (existingMediaIds ?? []) : [])
+    ])
+    const unpicked = suggestion.mediaIds.filter((id) => !skip.has(id))
+    const additions = unpicked.slice(0, Math.max(capacity - selected.length, 0))
+    if (additions.length > 0) {
+      setSelected([...selected, ...additions])
+      const added = new Set(additions)
+      setToast({
+        id: Date.now(),
+        message: `Added ${pluralize(additions.length, 'photo')} to your selection`,
+        undo: () =>
+          setSelected((current) => current.filter((id) => !added.has(id)))
+      })
+    } else if (unpicked.length > 0) {
+      setToast({
+        id: Date.now(),
+        message: 'Your selection is full.',
+        undo: null
+      })
+    } else {
+      setToast({
+        id: Date.now(),
+        message: 'These photos are already selected.',
+        undo: null
+      })
+    }
     setActiveSuggestion(suggestion)
     setReviewRun((run) => run + 1)
-    if (!titleEdited.current || !title.trim()) {
+    if (intent === 'create' && (!titleEdited.current || !title.trim())) {
       setTitle(suggestion.title)
       titleEdited.current = false
       setTitleError(null)
@@ -271,18 +306,13 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
           title: trimmedTitle,
           description: description.trim() || null,
           visibility,
-          mediaIds: selected.slice(0, GALLERY_ALBUM_ITEMS_BATCH)
+          mediaIds: selected.slice(0, GALLERY_ALBUM_ITEMS_BATCH),
+          coverMediaId: selected[0]
         })
         albumId = created.album.id
         setCreatedId(created.album.id)
         const rest = selected.slice(GALLERY_ALBUM_ITEMS_BATCH)
         if (rest.length > 0) await addGalleryAlbumItems(created.album.id, rest)
-        // The first photo picked is the cover, as the form says.
-        if (selected.length > 0) {
-          await updateGalleryAlbum(created.album.id, {
-            coverMediaId: selected[0]
-          })
-        }
       } else if (intent === 'edit' && album) {
         await updateGalleryAlbum(album.id, {
           title: trimmedTitle,
@@ -325,6 +355,7 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
       ) : null}
       <GalleryAlbumPicker
         ownerId={ownerId}
+        columns={showFields ? 4 : 5}
         selected={selected}
         onChange={setSelected}
         onFirstItemChange={setPickerCover}
@@ -341,7 +372,7 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
       <DialogContent
         className={cn(
           'flex max-h-[90dvh] flex-col gap-4 overflow-hidden p-4 sm:p-6',
-          showFields && showPicker ? 'sm:max-w-4xl' : 'sm:max-w-xl'
+          showPicker ? 'sm:max-w-4xl' : 'sm:max-w-xl'
         )}
         showCloseButton={!isSaving}
         onCloseAutoFocus={onCloseAutoFocus}
@@ -536,18 +567,33 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
                       forceMount
                       className="space-y-4 data-[state=inactive]:hidden"
                     >
+                      <span
+                        role="status"
+                        aria-live="polite"
+                        className="sr-only"
+                      >
+                        {toast?.message ?? ''}
+                      </span>
                       <p className="text-muted-foreground text-xs">
-                        Using a suggestion replaces the photos you have selected
-                        with its own and fills in the title, unless you have
-                        typed one. You can still add and remove photos, and
-                        nothing is saved until you create the album.
+                        {intent === 'create'
+                          ? 'Using a suggestion adds its photos to the ones you’ve picked. Nothing is saved until you create the album.'
+                          : 'Using a suggestion adds its photos to the ones you’ve picked. Photos already in this album are skipped. Nothing is saved until you add the photos.'}
                       </p>
+                      {toast ? (
+                        <AlbumUndoToast
+                          toast={toast}
+                          onDismiss={handleDismissToast}
+                        />
+                      ) : null}
                       <GalleryAlbumSuggestionList
                         state={suggestions.state}
                         onRetry={suggestions.reload}
                         activeId={activeSuggestion?.id ?? null}
                         onUse={handleUseSuggestion}
                         disabled={isLocked}
+                        existingIds={
+                          intent === 'add' ? existingMediaIds : undefined
+                        }
                       />
                       {activeSuggestion ? (
                         <GalleryAlbumSuggestionReview
@@ -558,6 +604,9 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
                           onItemsLoaded={handleItemsLoaded}
                           capacity={capacity}
                           disabled={isLocked}
+                          existingIds={
+                            intent === 'add' ? existingMediaIds : undefined
+                          }
                         />
                       ) : null}
                     </TabsContent>

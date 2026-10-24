@@ -26,8 +26,8 @@ interface Props {
   onClear: () => void
   onAddToAlbum: () => void
   onEditDetails: () => void
-  /** How many of the selected photos are hidden from the gallery (never in an album). */
-  hiddenCount?: number
+  /** How many of the currently loaded photos are in the selection. */
+  loadedSelectedCount: number
   /**
    * Whether every selected photo was added in Gallery and is not posted yet.
    * Post and Delete only act on those, so they are off for any other selection.
@@ -42,10 +42,8 @@ interface Props {
 /**
  * The bar that rides the bottom of the page while photos are selected:
  * "N selected" with the Edit details, Add to album, Post and Delete actions.
- * Albums hold only photos shown in the gallery, so Add to album is off while only hidden photos
- * are selected, and says so. It is a toolbar region, so a screen reader can find
- * it, and the count is a polite live region so every tick of a
- * tile is spoken.
+ * It is a toolbar region, so a screen reader can find it, and the count is a
+ * polite live region so every tick of a tile is spoken.
  */
 export const GallerySelectionBar: FC<Props> = ({
   count,
@@ -54,21 +52,14 @@ export const GallerySelectionBar: FC<Props> = ({
   onClear,
   onAddToAlbum,
   onEditDetails,
-  hiddenCount = 0,
+  loadedSelectedCount = 0,
   allUnposted = false,
   maxPostAttachments = Number.POSITIVE_INFINITY,
   onPost,
   onDelete
 }) => {
-  const allSelected = loadedCount === 0 || count >= loadedCount
-  const canAdd = count > hiddenCount
+  const allSelected = loadedCount === 0 || loadedSelectedCount >= loadedCount
   const canEdit = count <= MAX_EDIT_DETAILS_PHOTOS
-  const addHint =
-    count > 0 && hiddenCount > 0
-      ? canAdd
-        ? `${hiddenCount.toLocaleString('en-US')} hidden ${hiddenCount === 1 ? 'photo' : 'photos'} will be skipped: albums hold only photos shown in your gallery.`
-        : 'Hidden photos can’t be added to albums. Turn on Show in my gallery first.'
-      : null
   const editHint = canEdit
     ? null
     : `Edit up to ${MAX_EDIT_DETAILS_PHOTOS} at a time`
@@ -95,14 +86,12 @@ export const GallerySelectionBar: FC<Props> = ({
         className="min-w-0 flex-1 text-sm font-medium tabular-nums"
       >
         {count.toLocaleString('en-US')} selected
-        {addHint || editHint || unpostedHint || postLimitHint ? (
+        {editHint || unpostedHint || postLimitHint ? (
           <span
             id={`${GALLERY_SELECTION_BAR_ID}-hint`}
             className="text-muted-foreground block text-xs font-normal"
           >
-            {[editHint, addHint, unpostedHint, postLimitHint]
-              .filter(Boolean)
-              .join(' ')}
+            {[editHint, unpostedHint, postLimitHint].filter(Boolean).join(' ')}
           </span>
         ) : null}
       </p>
@@ -151,14 +140,12 @@ export const GallerySelectionBar: FC<Props> = ({
         <Button
           type="button"
           size="sm"
+          variant="outline"
           className={cn('pointer-coarse:h-10', DISABLED_CLASS)}
           onClick={() => {
-            if (count > 0 && canAdd) onAddToAlbum()
+            if (count > 0) onAddToAlbum()
           }}
-          aria-disabled={count === 0 || !canAdd || undefined}
-          aria-describedby={
-            addHint ? `${GALLERY_SELECTION_BAR_ID}-hint` : undefined
-          }
+          aria-disabled={count === 0 || undefined}
         >
           <FolderPlus aria-hidden="true" />
           Add to album

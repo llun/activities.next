@@ -30,8 +30,25 @@ vi.mock('@/lib/client/galleryAlbums', () => ({
 // The picker and the review grid have their own tests: here they only show
 // what they were given and report picks.
 vi.mock('@/app/(timeline)/gallery/albums/GalleryAlbumPicker', () => ({
-  GalleryAlbumPicker: ({ selected }: { selected: string[] }) => (
-    <span data-testid="picker">{selected.join(',')}</span>
+  GalleryAlbumPicker: ({
+    selected,
+    onChange
+  }: {
+    selected: string[]
+    onChange?: (ids: string[]) => void
+  }) => (
+    <div>
+      <span data-testid="picker">{selected.join(',')}</span>
+      <button type="button" onClick={() => onChange?.(['pick-1'])}>
+        pick one
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange?.([...selected, 'manual-1'])}
+      >
+        manual pick
+      </button>
+    </div>
   )
 }))
 
@@ -154,7 +171,7 @@ describe('GalleryAlbumFormDialog suggestions', () => {
       'true'
     )
     expect(
-      screen.getByText(/replaces the photos you have selected/)
+      screen.getByText(/adds its photos to the ones you’ve picked/)
     ).toBeInTheDocument()
   })
 
@@ -171,7 +188,7 @@ describe('GalleryAlbumFormDialog suggestions', () => {
     expect(panels[1]).toHaveAttribute('data-state', 'active')
   })
 
-  it('has no tabs without suggestions, nor when editing or adding', () => {
+  it('has no tabs without suggestions, nor when editing', () => {
     const { unmount } = render(
       <GalleryAlbumFormDialog
         open
@@ -184,21 +201,19 @@ describe('GalleryAlbumFormDialog suggestions', () => {
     expect(screen.queryByRole('tab')).not.toBeInTheDocument()
     unmount()
 
-    for (const intent of ['edit', 'add'] as const) {
-      const view = render(
-        <GalleryAlbumFormDialog
-          open
-          ownerId="owner"
-          intent={intent}
-          album={buildAlbumCard('a')}
-          suggestions={{ state: ready(trip), reload: vi.fn() }}
-          onOpenChange={vi.fn()}
-          onSaved={vi.fn()}
-        />
-      )
-      expect(screen.queryByRole('tab')).not.toBeInTheDocument()
-      view.unmount()
-    }
+    const view = render(
+      <GalleryAlbumFormDialog
+        open
+        ownerId="owner"
+        intent="edit"
+        album={buildAlbumCard('a')}
+        suggestions={{ state: ready(trip), reload: vi.fn() }}
+        onOpenChange={vi.fn()}
+        onSaved={vi.fn()}
+      />
+    )
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument()
+    view.unmount()
   })
 
   it('opens on the Suggestions tab when asked to', () => {
@@ -258,11 +273,10 @@ describe('GalleryAlbumFormDialog suggestions', () => {
       title: 'Kruger, September 2026',
       description: null,
       visibility: 'public',
-      mediaIds: ['trip:2026-09-12-2', 'trip:2026-09-12-3']
-    })
-    expect(update).toHaveBeenCalledWith('new', {
+      mediaIds: ['trip:2026-09-12-2', 'trip:2026-09-12-3'],
       coverMediaId: 'trip:2026-09-12-2'
     })
+    expect(update).not.toHaveBeenCalled()
   })
 
   it('keeps a title the owner typed', () => {
@@ -281,7 +295,7 @@ describe('GalleryAlbumFormDialog suggestions', () => {
     )
   })
 
-  it('replaces the title of an earlier suggestion with the next one', () => {
+  it('replaces the title of an earlier suggestion with the next one and appends its photos', () => {
     renderDialog({ initialTab: 'suggestions' })
 
     fireEvent.click(
@@ -294,7 +308,9 @@ describe('GalleryAlbumFormDialog suggestions', () => {
     )
 
     expect(screen.getByLabelText('Title')).toHaveValue('Common kingfisher')
-    expect(screen.getByTestId('review-selected')).toHaveTextContent('k1,k2,k3')
+    expect(screen.getByTestId('review-selected')).toHaveTextContent(
+      'trip:2026-09-12-1,trip:2026-09-12-2,trip:2026-09-12-3,k1,k2,k3'
+    )
     expect(screen.getByTestId('review-of')).toHaveTextContent(species.id)
   })
 
@@ -396,5 +412,214 @@ describe('GalleryAlbumFormDialog suggestions', () => {
       />
     )
     expect(screen.getByText('No suggestions right now')).toBeInTheDocument()
+  })
+
+  it('adds to an existing selection, skipping already-selected ids and album members, and respects capacity', () => {
+    const { unmount: unmountCreate } = render(
+      <GalleryAlbumFormDialog
+        open
+        ownerId="owner"
+        intent="create"
+        initialMediaIds={['pre-1', 'k1']}
+        initialTab="suggestions"
+        suggestions={{ state: ready(species), reload: vi.fn() }}
+        onOpenChange={vi.fn()}
+        onSaved={vi.fn()}
+      />
+    )
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: /^Use 3 photos from Common kingfisher/
+      })
+    )
+    expect(screen.getByTestId('picker')).toHaveTextContent('pre-1,k1,k2,k3')
+    expect(screen.getByTestId('album-toast')).toHaveTextContent(
+      'Added 2 photos to your selection'
+    )
+    unmountCreate()
+
+    const { unmount: unmountAdd } = render(
+      <GalleryAlbumFormDialog
+        open
+        ownerId="owner"
+        intent="add"
+        album={buildAlbumCard('a1', { itemCount: 1998 })}
+        existingMediaIds={['k1']}
+        storedItemCount={1998}
+        initialTab="gallery"
+        suggestions={{ state: ready(species), reload: vi.fn() }}
+        onOpenChange={vi.fn()}
+        onSaved={vi.fn()}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'pick one' }))
+    selectTab('Suggestions')
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: /^Use 2 photos from Common kingfisher/
+      })
+    )
+    expect(screen.getByTestId('picker')).toHaveTextContent('pick-1,k2')
+    expect(screen.getByTestId('album-toast')).toHaveTextContent(
+      'Added 1 photo to your selection'
+    )
+    unmountAdd()
+  })
+
+  it('displays the toast and updates polite status live region when photos are added', () => {
+    renderDialog({ initialTab: 'suggestions' })
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: /^Use 3 photos from Kruger, September 2026/
+      })
+    )
+
+    expect(screen.getByTestId('album-toast')).toHaveTextContent(
+      'Added 3 photos to your selection'
+    )
+    const statusRegions = screen.getAllByRole('status')
+    const politeToastRegion = statusRegions.find(
+      (el) => el.textContent === 'Added 3 photos to your selection'
+    )
+    expect(politeToastRegion).toBeInTheDocument()
+    expect(politeToastRegion).toHaveAttribute('aria-live', 'polite')
+  })
+
+  it('undo removes only the photos added by the suggestion, keeping later manual picks', () => {
+    renderDialog({
+      initialMediaIds: ['pre-1', 'pre-2'],
+      initialTab: 'suggestions'
+    })
+
+    expect(screen.getByTestId('picker')).toHaveTextContent('pre-1,pre-2')
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: /^Use 3 photos from Kruger, September 2026/
+      })
+    )
+    expect(screen.getByTestId('picker')).toHaveTextContent(
+      'pre-1,pre-2,trip:2026-09-12-1,trip:2026-09-12-2,trip:2026-09-12-3'
+    )
+
+    // User makes a manual pick after using the suggestion
+    fireEvent.click(screen.getByRole('button', { name: 'manual pick' }))
+    expect(screen.getByTestId('picker')).toHaveTextContent(
+      'pre-1,pre-2,trip:2026-09-12-1,trip:2026-09-12-2,trip:2026-09-12-3,manual-1'
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    // Undo removes only the suggestion photos and keeps the later manual pick
+    expect(screen.getByTestId('picker')).toHaveTextContent(
+      'pre-1,pre-2,manual-1'
+    )
+  })
+
+  it('shows no-undo message when all suggestion photos are already selected', () => {
+    renderDialog({
+      initialMediaIds: [
+        'trip:2026-09-12-1',
+        'trip:2026-09-12-2',
+        'trip:2026-09-12-3'
+      ],
+      initialTab: 'suggestions'
+    })
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: /^Use 3 photos from Kruger, September 2026/
+      })
+    )
+
+    expect(screen.getByTestId('album-toast')).toHaveTextContent(
+      'These photos are already selected.'
+    )
+    expect(
+      screen.queryByRole('button', { name: 'Undo' })
+    ).not.toBeInTheDocument()
+    expect(screen.getByTestId('picker')).toHaveTextContent(
+      'trip:2026-09-12-1,trip:2026-09-12-2,trip:2026-09-12-3'
+    )
+  })
+
+  it('shows no-undo message when capacity is reached but there were unselected photos', () => {
+    renderDialog({
+      intent: 'add',
+      album: buildAlbumCard('a1', { itemCount: 2000 }),
+      storedItemCount: 2000,
+      initialTab: 'suggestions',
+      suggestions: { state: ready(species), reload: vi.fn() }
+    })
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: /^Use 3 photos from Common kingfisher/
+      })
+    )
+
+    expect(screen.getByTestId('album-toast')).toHaveTextContent(
+      'Your selection is full.'
+    )
+    expect(
+      screen.queryByRole('button', { name: 'Undo' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('fills title only when untyped in create intent', () => {
+    renderDialog({ initialTab: 'suggestions' })
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: /^Use 3 photos from Kruger, September 2026/
+      })
+    )
+    expect(screen.getByLabelText('Title')).toHaveValue('Kruger, September 2026')
+
+    fireEvent.change(screen.getByLabelText('Title'), {
+      target: { value: 'My custom album title' }
+    })
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: /^Use 3 photos from Common kingfisher/
+      })
+    )
+    expect(screen.getByLabelText('Title')).toHaveValue('My custom album title')
+  })
+
+  it('shows Suggestions tab in add intent and add-specific copy, but no tab in create without suggestions', () => {
+    const { unmount: unmountCreate } = render(
+      <GalleryAlbumFormDialog
+        open
+        ownerId="owner"
+        intent="create"
+        onOpenChange={vi.fn()}
+        onSaved={vi.fn()}
+      />
+    )
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument()
+    unmountCreate()
+
+    render(
+      <GalleryAlbumFormDialog
+        open
+        ownerId="owner"
+        intent="add"
+        album={buildAlbumCard('a1')}
+        suggestions={{ state: ready(trip), reload: vi.fn() }}
+        initialTab="suggestions"
+        onOpenChange={vi.fn()}
+        onSaved={vi.fn()}
+      />
+    )
+    expect(screen.getByRole('tab', { name: 'Suggestions' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('tab', { name: 'From gallery' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Using a suggestion adds its photos to the ones you’ve picked. Photos already in this album are skipped. Nothing is saved until you add the photos.'
+      )
+    ).toBeInTheDocument()
   })
 })

@@ -135,7 +135,6 @@ describe('[actor] page follow counts display', () => {
         isInternalAccount,
         profileFields: [],
         hasFitnessData: false,
-        hasGalleryMedia: false,
         gallerySubviews: []
       })
 
@@ -173,7 +172,6 @@ describe('[actor] page follow counts display', () => {
       isInternalAccount: true,
       profileFields: [],
       hasFitnessData: false,
-      hasGalleryMedia: false,
       gallerySubviews: []
     })
 
@@ -221,7 +219,6 @@ describe('[actor] page follow counts display', () => {
       isInternalAccount: true,
       profileFields: [],
       hasFitnessData: false,
-      hasGalleryMedia: false,
       gallerySubviews: []
     })
 

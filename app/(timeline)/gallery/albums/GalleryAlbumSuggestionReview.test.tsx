@@ -26,12 +26,14 @@ const Harness = ({
   suggestion,
   initial,
   capacity,
-  onItemsLoaded
+  onItemsLoaded,
+  existingIds
 }: {
   suggestion: GalleryAlbumSuggestionEntity
   initial?: string[]
   capacity?: number
   onItemsLoaded?: (items: unknown[]) => void
+  existingIds?: readonly string[]
 }) => {
   const [selected, setSelected] = useState<string[]>(
     initial ?? suggestion.mediaIds
@@ -44,6 +46,7 @@ const Harness = ({
         onChange={setSelected}
         capacity={capacity}
         onItemsLoaded={onItemsLoaded}
+        existingIds={existingIds}
       />
       <output data-testid="selected">{selected.join(',')}</output>
     </>
@@ -208,6 +211,27 @@ describe('GalleryAlbumSuggestionReview', () => {
     ).toHaveLength(3)
   })
 
+  it('disables member tiles and marks them as already in the album', async () => {
+    render(
+      <Harness
+        suggestion={buildSuggestion('s', { photoCount: 3 })}
+        existingIds={['s-2']}
+      />
+    )
+
+    const member = await screen.findByRole('button', {
+      name: 'Photo 2, already in the album'
+    })
+    expect(member).toBeDisabled()
+    expect(member).toHaveTextContent('In album')
+    expect(member).not.toHaveAttribute('aria-pressed')
+
+    const nonMember = screen.getByRole('button', {
+      name: 'Select Photo 1'
+    })
+    expect(nonMember).toBeEnabled()
+  })
+
   describe('Select all', () => {
     it('adds the suggestion to the picks and keeps the other picks and the cover', async () => {
       // The owner added two photos of their own, took one suggested photo out,
@@ -241,6 +265,23 @@ describe('GalleryAlbumSuggestionReview', () => {
 
       expect(screen.getByTestId('selected')).toHaveTextContent('own-1,s-1')
       expect(screen.getByRole('button', { name: 'Select all' })).toBeDisabled()
+    })
+
+    it('excludes members when existingIds is provided', async () => {
+      render(
+        <Harness
+          suggestion={buildSuggestion('s')}
+          initial={['own-1']}
+          existingIds={['s-2']}
+        />
+      )
+      await screen.findByRole('button', {
+        name: 'Photo 2, already in the album'
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: 'Select all' }))
+
+      expect(screen.getByTestId('selected')).toHaveTextContent('own-1,s-1,s-3')
     })
   })
 
@@ -376,6 +417,24 @@ describe('GalleryAlbumSuggestionReview', () => {
       fireEvent.keyDown(screen.getByLabelText('Taken from'), { key: 'Enter' })
 
       expect(onSubmit).not.toHaveBeenCalled()
+    })
+
+    it('gives selects and date inputs pointer-coarse:h-10', async () => {
+      render(<Harness suggestion={suggestion} />)
+      await screen.findAllByRole('button', {
+        name: /^Select (Kingfisher|Heron)/
+      })
+
+      expect(screen.getByLabelText('Species')).toHaveClass(
+        'pointer-coarse:h-10'
+      )
+      expect(screen.getByLabelText('Place')).toHaveClass('pointer-coarse:h-10')
+      expect(screen.getByLabelText('Taken from')).toHaveClass(
+        'pointer-coarse:h-10'
+      )
+      expect(screen.getByLabelText('Taken to')).toHaveClass(
+        'pointer-coarse:h-10'
+      )
     })
   })
 })

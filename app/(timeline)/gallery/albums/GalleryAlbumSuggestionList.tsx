@@ -1,7 +1,7 @@
 'use client'
 
 import { Folder, Sparkles } from 'lucide-react'
-import { FC } from 'react'
+import { FC, useMemo } from 'react'
 
 import { Alert } from '@/lib/components/surface/Alert'
 import { Button } from '@/lib/components/ui/button'
@@ -9,16 +9,21 @@ import type { GalleryAlbumSuggestionEntity } from '@/lib/services/gallery/galler
 import { cn } from '@/lib/utils'
 
 import { GalleryAlbumThumb } from './GalleryAlbumThumb'
-import { getSuggestionMeta } from './galleryAlbumSuggestionsUi'
+import {
+  getAddIntentSuggestions,
+  getNonMemberIds,
+  getSuggestionMeta
+} from './galleryAlbumSuggestionsUi'
 import type { GalleryAlbumSuggestionsState } from './useGalleryAlbumSuggestions'
 
-interface Props {
+export interface GalleryAlbumSuggestionListProps {
   state: GalleryAlbumSuggestionsState
   onRetry: () => void
   /** The suggestion whose photos are selected now, if any. */
   activeId: string | null
   onUse: (suggestion: GalleryAlbumSuggestionEntity) => void
   disabled?: boolean
+  existingIds?: readonly string[]
 }
 
 /**
@@ -26,13 +31,20 @@ interface Props {
  * the loading, empty and error states. It only reports a choice; the dialog
  * selects the photos and fills the title, and saves nothing.
  */
-export const GalleryAlbumSuggestionList: FC<Props> = ({
-  state,
-  onRetry,
-  activeId,
-  onUse,
-  disabled = false
-}) => {
+export const GalleryAlbumSuggestionList: FC<
+  GalleryAlbumSuggestionListProps
+> = ({ state, onRetry, activeId, onUse, disabled = false, existingIds }) => {
+  const existingSet = useMemo(
+    () => (existingIds ? new Set(existingIds) : null),
+    [existingIds]
+  )
+
+  const suggestions = useMemo(() => {
+    if (state.status !== 'ready') return []
+    if (!existingSet) return state.suggestions
+    return getAddIntentSuggestions(state.suggestions, existingSet)
+  }, [state, existingSet])
+
   if (state.status === 'loading') {
     return (
       <div role="status" aria-busy="true" className="space-y-2">
@@ -52,7 +64,7 @@ export const GalleryAlbumSuggestionList: FC<Props> = ({
     return <Alert title={state.message} onRetry={onRetry} />
   }
 
-  if (state.suggestions.length === 0) {
+  if (suggestions.length === 0) {
     return (
       <div className="bg-muted/40 flex flex-col items-center gap-2 rounded-lg border p-6 text-center">
         <span
@@ -73,8 +85,13 @@ export const GalleryAlbumSuggestionList: FC<Props> = ({
 
   return (
     <ul className="space-y-2" aria-label="Suggested albums">
-      {state.suggestions.map((suggestion) => {
+      {suggestions.map((suggestion) => {
         const isActive = suggestion.id === activeId
+        const notInAlbum = existingSet
+          ? getNonMemberIds(suggestion, existingSet).length
+          : undefined
+        const count = notInAlbum ?? suggestion.photoCount
+        const formattedCount = count.toLocaleString('en-US')
         return (
           <li
             key={suggestion.id}
@@ -98,7 +115,7 @@ export const GalleryAlbumSuggestionList: FC<Props> = ({
                 {suggestion.title}
               </p>
               <p className="text-muted-foreground text-xs break-words">
-                {getSuggestionMeta(suggestion)}
+                {getSuggestionMeta(suggestion, notInAlbum)}
               </p>
             </div>
             <Button
@@ -111,10 +128,10 @@ export const GalleryAlbumSuggestionList: FC<Props> = ({
               // it again only selects its photos again.
               aria-current={isActive ? 'true' : undefined}
               // Starts with the visible text, so voice control can say it.
-              aria-label={`Use ${suggestion.photoCount.toLocaleString('en-US')} photos from ${suggestion.title}`}
+              aria-label={`Use ${formattedCount} photos from ${suggestion.title}`}
               className="pointer-coarse:h-10 shrink-0"
             >
-              Use {suggestion.photoCount.toLocaleString('en-US')}
+              Use {formattedCount}
             </Button>
           </li>
         )

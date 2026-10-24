@@ -353,13 +353,10 @@ describe('MediasModal media details', () => {
     expect(region).toHaveClass('divide-y', 'divide-white/10')
     expect(region.className).not.toMatch(/space-y-/)
 
-    expect(region.children.length).toBe(3)
-    const [altTextRow, detailsPanelRow, albumsControlRow] = Array.from(
-      region.children
-    )
+    expect(region.children.length).toBe(2)
+    const [altTextRow, detailsPanelRow] = Array.from(region.children)
 
     expect(altTextRow).toHaveClass('py-3', 'first:pt-0', 'last:pb-0')
     expect(detailsPanelRow).toHaveClass('py-3', 'first:pt-0', 'last:pb-0')
-    expect(albumsControlRow).toHaveClass('py-3', 'first:pt-0', 'last:pb-0')
   })
 })

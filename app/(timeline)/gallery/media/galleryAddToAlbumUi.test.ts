@@ -1,12 +1,33 @@
 import { buildAlbumCard } from '@/lib/components/gallery/__fixtures__/galleryAlbums'
 
-import { describeAddFailure, describeAddResult } from './galleryAddToAlbumUi'
+import {
+  describeAddFailure,
+  describeAddResult,
+  describeAlreadyIn
+} from './galleryAddToAlbumUi'
 
 const outcome = (added: string[], existing: string[], skipped: string[]) => ({
   added,
   existing,
   skipped,
   album: buildAlbumCard('a1')
+})
+
+describe('describeAlreadyIn', () => {
+  it('returns empty string when none are in the album', () => {
+    expect(describeAlreadyIn(0, 5)).toBe('')
+    expect(describeAlreadyIn(0, 0)).toBe('')
+  })
+
+  it('reports partial counts', () => {
+    expect(describeAlreadyIn(2, 3)).toBe('2 of 3 already in')
+    expect(describeAlreadyIn(3, 5)).toBe('3 of 5 already in')
+  })
+
+  it('reports when all are in the album', () => {
+    expect(describeAlreadyIn(3, 3)).toBe('All 3 already in')
+    expect(describeAlreadyIn(5, 5)).toBe('All 5 already in')
+  })
 })
 
 describe('describeAddResult', () => {
@@ -23,7 +44,7 @@ describe('describeAddResult', () => {
     expect(
       describeAddResult('Kruger', outcome(['1', '2'], ['3'], ['4', '5']))
     ).toBe(
-      'Added 2 photos to “Kruger”. 1 photo was already there. 2 photos couldn’t be added: they are hidden from your gallery or no longer posted.'
+      'Added 2 photos to “Kruger”. 1 photo was already there. 2 photos couldn’t be added: they are no longer posted or added in Gallery.'
     )
   })
 
@@ -38,7 +59,7 @@ describe('describeAddResult', () => {
 
   it('says nothing was added when everything was skipped', () => {
     expect(describeAddResult('Kruger', outcome([], [], ['1']))).toBe(
-      'Nothing was added to “Kruger”. 1 photo couldn’t be added: it is hidden from your gallery or no longer posted.'
+      'Nothing was added to “Kruger”. 1 photo couldn’t be added: it is no longer posted or added in Gallery.'
     )
   })
 })

@@ -329,6 +329,10 @@ export const ProfileGalleryTab: FC<Props> = ({
   } | null>(null)
   const [category, setCategory] = useState<MediaSubjectCategory | null>(null)
 
+  if (subviews.length === 0) {
+    return null
+  }
+
   const tabs = subviews.map((id) => SUBVIEW_TABS[id])
   const activeView = subviews.includes(view)
     ? view

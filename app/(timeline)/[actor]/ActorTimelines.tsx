@@ -114,11 +114,9 @@ interface Props {
    */
   hasFitnessData?: boolean
   /**
-   * Whether the viewer may see any of this actor's gallery photos. Drives
-   * whether the Gallery tab is offered; `gallerySubviews` lists the views the
-   * viewer may open in it.
+   * Gallery views the viewer may open. The Gallery tab is offered whenever this
+   * is non-empty.
    */
-  hasGalleryMedia?: boolean
   gallerySubviews?: GallerySubview[]
   /**
    * Tabs the owner chose to show; absent means all of them. A hidden tab is
@@ -188,7 +186,6 @@ export const ActorTimelines: FC<Props> = ({
   currentActor,
   isCurrentUser = false,
   hasFitnessData = false,
-  hasGalleryMedia = false,
   gallerySubviews = [],
   tabVisibility = SHOW_ALL_PROFILE_TABS,
   handle,
@@ -222,10 +219,13 @@ export const ActorTimelines: FC<Props> = ({
 
   const showActions = Boolean(currentActor)
   const showFitnessTab = Boolean(hasFitnessData) && tabVisibility.fitness
+  // Same rule as ProfileGalleryTab: an album link needs the handle, so without
+  // one the tab would open blank.
+  const visibleGallerySubviews = handle
+    ? gallerySubviews
+    : gallerySubviews.filter((id) => id !== 'albums')
   const showGalleryTab =
-    Boolean(hasGalleryMedia) &&
-    gallerySubviews.length > 0 &&
-    tabVisibility.gallery
+    visibleGallerySubviews.length > 0 && tabVisibility.gallery
   const showRepliesTab = Boolean(isInternalAccount) && tabVisibility.replies
 
   const mediaAttachments = useMemo(() => {

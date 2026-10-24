@@ -132,6 +132,12 @@ export interface GalleryAlbumItemsResult {
   album: GalleryAlbumCardEntity
 }
 
+/** `POST /api/v1/gallery/albums/membership`: owner only. Only the owner's
+ * albums that hold at least one of the ids asked about, each with those ids. */
+export interface GalleryAlbumMembershipResponse {
+  albums: { id: string; mediaIds: string[] }[]
+}
+
 /** One of the owner's albums as the add-to-album menu lists it. */
 export interface MediaAlbumOptionEntity {
   id: string
@@ -147,8 +153,9 @@ export interface MediaAlbumsResponse {
   albums: MediaAlbumOptionEntity[]
   // The albums that hold this photo (ids from `albums`).
   albumIds: string[]
-  // Whether the photo can be added to an album: it is in the owner's gallery
-  // and posted, or it is a pending upload. A photo that is not can still be taken out of an album.
+  // Whether the photo can be added to an album: the owner's posted or
+  // Gallery-added media, whatever its gallery switch, or a pending upload. A
+  // photo that is not can still be taken out of an album.
   addable: boolean
   // Whether the photo is a pending upload (not attached to any status, galleryAddedAt is null).
   pending?: boolean

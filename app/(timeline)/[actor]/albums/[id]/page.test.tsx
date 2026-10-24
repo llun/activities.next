@@ -131,10 +131,10 @@ describe('public album page', () => {
       names.map((name) => matrix.media[name]).sort()
 
     it.each([
-      ['a logged-out visitor', null, ['public', 'unlisted']],
-      ['a stranger', 'stranger', ['public', 'unlisted']],
-      ['a blocked account', 'blocked', ['public', 'unlisted']],
-      ['a follower', 'follower', ['public', 'unlisted', 'followers']]
+      ['a logged-out visitor', null, ['public', 'unlisted', 'hidden']],
+      ['a stranger', 'stranger', ['public', 'unlisted', 'hidden']],
+      ['a blocked account', 'blocked', ['public', 'unlisted', 'hidden']],
+      ['a follower', 'follower', ['public', 'unlisted', 'followers', 'hidden']]
     ] as const)(
       'renders only the posts %s may read',
       async (_, who, visible) => {
@@ -162,7 +162,7 @@ describe('public album page', () => {
       }))!
 
       expect(await itemIds(matrix.albums.mixed)).toEqual(
-        named('public', 'unlisted', 'followers', 'direct')
+        named('public', 'unlisted', 'followers', 'direct', 'hidden')
       )
     })
 
@@ -356,12 +356,13 @@ describe('public album page', () => {
 
       expect(result.title).toBe('Mixed · @test6@llun.test')
       expect(result.description).toBe(
-        '2 photos · 10 Jan – 10 Feb 2026 · United Kingdom · by @test6@llun.test — One photo for every kind of post.'
+        '3 photos · 10 Jan – 10 Jun 2026 · United Kingdom · by @test6@llun.test — One photo for every kind of post.'
       )
       const [image] = result.openGraph!.images as Array<{ url: string }>
       expect([
         'https://media.test/matrix-public.jpg',
-        'https://media.test/matrix-unlisted.jpg'
+        'https://media.test/matrix-unlisted.jpg',
+        'https://media.test/matrix-hidden.jpg'
       ]).toContain(image.url)
       expect(result.alternates?.canonical).toBe(
         `https://llun.test/@test6@llun.test/albums/${matrix.albums.mixed}`
@@ -380,7 +381,6 @@ describe('public album page', () => {
         'matrix-followers.jpg',
         'matrix-direct.jpg',
         'matrix-deleted.jpg',
-        'matrix-hidden.jpg',
         'Marsh',
         'Hemis',
         'Burrow',
@@ -391,6 +391,7 @@ describe('public album page', () => {
       ]) {
         expect(text).not.toContain(hidden)
       }
+      expect(text).toContain('matrix-hidden.jpg')
       // The date range ends on the last public photo, not the followers' one.
       expect(text).not.toContain('10 Mar')
     })

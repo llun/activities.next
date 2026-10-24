@@ -1,8 +1,16 @@
 import type { MediaAlbumOptionEntity } from '@/lib/services/gallery/galleryAlbumEntities'
 
 // Pure helpers for the add-to-album menu (the details dialog row, the lightbox
-// pill and All media's multi-select picker): copy and accessible names, so the
+// top-bar button and All media's multi-select picker): copy and accessible names, so the
 // components stay about layout and behaviour.
+
+/**
+ * The open menu carries `data-albums-menu`, so the lightbox can leave the arrow
+ * keys to it (the menu is portalled out of the lightbox, but its keydowns still
+ * reach the lightbox's window listener). Lives here, not in the control, so the
+ * lightbox need not import the control's chunk to know it.
+ */
+export const ALBUMS_MENU_SELECTOR = '[data-albums-menu]'
 
 const pluralPhotos = (count: number) =>
   `${count.toLocaleString('en-US')} ${count === 1 ? 'photo' : 'photos'}`
@@ -39,7 +47,7 @@ export const getAlbumsPillLabel = (count: number): string =>
     : `In ${count} ${count === 1 ? 'album' : 'albums'}`
 
 export const NOT_ADDABLE_HINT =
-  'This photo can’t be added to an album until it’s in your gallery and shown there.'
+  'This photo can’t be added to an album until it’s posted or added in Gallery.'
 
 export const albumAddedMessage = (title: string) => `Added to “${title}”`
 export const albumRemovedMessage = (title: string) => `Removed from “${title}”`

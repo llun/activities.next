@@ -4,6 +4,7 @@ import type {
   GalleryAlbumItemsResult,
   GalleryAlbumListResponse,
   GalleryAlbumMediaPage,
+  GalleryAlbumMembershipResponse,
   GalleryAlbumViewResponse,
   MediaAlbumsResponse
 } from '@/lib/services/gallery/galleryAlbumEntities'
@@ -31,6 +32,8 @@ export interface CreateGalleryAlbumInput {
   description?: string | null
   visibility?: GalleryAlbumVisibility
   sortOrder?: GalleryAlbumSort
+  /** One of `mediaIds`: the album's cover. Ignored by the server when that photo was skipped. */
+  coverMediaId?: string
   // The owner's own gallery media to start with, at most 100.
   mediaIds?: string[]
 }
@@ -116,6 +119,7 @@ export const createGalleryAlbum = async (
       description: input.description,
       visibility: input.visibility,
       sort_order: input.sortOrder,
+      cover_media_id: input.coverMediaId,
       media_ids:
         input.mediaIds && input.mediaIds.length > 0 ? input.mediaIds : undefined
     })
@@ -249,6 +253,37 @@ export const removeGalleryAlbumItems = async (
   }
   if (!album) throw new Error('Choose at least one photo.')
   return { removed, album }
+}
+
+const MEMBERSHIP_URL = `${ALBUMS_URL}/membership`
+
+/**
+ * Which of the owner's albums hold each of `mediaIds`, asked in requests of
+ * 100 and merged. Owner only.
+ */
+export const getGalleryAlbumMembership = async (
+  mediaIds: string[]
+): Promise<GalleryAlbumMembershipResponse> => {
+  const merged = new Map<string, Set<string>>()
+  for (const batch of batches([...new Set(mediaIds)])) {
+    const response = await fetch(MEMBERSHIP_URL, {
+      method: 'POST',
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ media_ids: batch })
+    })
+    if (!response.ok) {
+      throw new Error(await parseApiError(response, 'Failed to load albums.'))
+    }
+    const page = (await response.json()) as GalleryAlbumMembershipResponse
+    for (const album of page.albums) {
+      const ids = merged.get(album.id) ?? new Set<string>()
+      for (const id of album.mediaIds) ids.add(id)
+      merged.set(album.id, ids)
+    }
+  }
+  return {
+    albums: [...merged].map(([id, ids]) => ({ id, mediaIds: [...ids] }))
+  }
 }
 
 const accountAlbumsUrl = (actorId: string) =>

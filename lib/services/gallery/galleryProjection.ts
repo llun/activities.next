@@ -172,7 +172,14 @@ export const toGalleryItemEntity = (
     exposure: showGear ? toExposureEntity(details.exposure) : null,
     // Gallery membership is the owner's own bookkeeping.
     ...(isOwner
-      ? { inGallery: details.inGallery, posted: row.statusId !== null }
+      ? {
+          inGallery: details.inGallery,
+          posted: row.statusId !== null,
+          uploadedAt:
+            row.uploadedAt == null || !Number.isFinite(row.uploadedAt)
+              ? null
+              : new Date(row.uploadedAt).toISOString()
+        }
       : {}),
     place: isOwner
       ? toOwnerPlace(details)

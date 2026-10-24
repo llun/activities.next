@@ -173,7 +173,6 @@ const Page: FC<Props> = async ({ params }) => {
     followingCount,
     followersCount,
     hasFitnessData,
-    hasGalleryMedia,
     gallerySubviews,
     tabVisibility,
     isPixelfed,
@@ -457,7 +456,6 @@ const Page: FC<Props> = async ({ params }) => {
         isMediaService={Boolean(isMediaService ?? isMediaOnly)}
         isMediaOnly={Boolean(isMediaOnly ?? isMediaService)}
         hasFitnessData={hasFitnessData}
-        hasGalleryMedia={hasGalleryMedia}
         gallerySubviews={gallerySubviews}
         tabVisibility={tabVisibility}
         handle={profileHandle}

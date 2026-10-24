@@ -309,7 +309,13 @@ describe('GET /api/v1/accounts/:id/gallery/media', () => {
       signIn(email)
       const baseline = await (await call(ACTOR1_ID)).json()
 
-      for (const show of ['all', 'hidden', 'in_gallery', 'not_posted']) {
+      for (const show of [
+        'all',
+        'hidden',
+        'in_gallery',
+        'not_posted',
+        'not_in_album'
+      ]) {
         const body = await (await call(ACTOR1_ID, `?show=${show}`)).json()
         expect(body).toEqual(baseline)
         const shown = body.items.map(
@@ -321,6 +327,64 @@ describe('GET /api/v1/accounts/:id/gallery/media', () => {
           expect(item).not.toHaveProperty('inGallery')
           expect(item).not.toHaveProperty('posted')
         }
+      }
+    })
+
+    it('accepts show=not_in_album with 200 for the owner', async () => {
+      const album = await database.createGalleryAlbumWithinLimit({
+        actorId: ACTOR1_ID,
+        title: 'Owner Album',
+        mediaIds: [ids.kingfisher],
+        limit: 100
+      })
+      if (album.status !== 'created') throw new Error('album not created')
+
+      try {
+        signIn(seedActor1.email)
+
+        const response = await call(ACTOR1_ID, '?show=not_in_album')
+
+        expect(response.status).toBe(200)
+        const body = await response.json()
+        expect(Array.isArray(body.items)).toBe(true)
+        const shown = body.items.map(
+          (item: { subject: { name: string } | null }) => item.subject?.name
+        )
+        expect(shown).not.toContain('Kingfisher')
+        expect(shown).toContain('Red Fox')
+
+        signIn(null)
+        const visitorResponse = await call(ACTOR1_ID, '?show=not_in_album')
+        expect(visitorResponse.status).toBe(200)
+        const visitorBody = await visitorResponse.json()
+        const visitorBaseline = await (await call(ACTOR1_ID)).json()
+        expect(visitorBody).toEqual(visitorBaseline)
+        const visitorShown = visitorBody.items.map(
+          (item: { subject: { name: string } | null }) => item.subject?.name
+        )
+        expect(visitorShown).toContain('Kingfisher')
+        expect(visitorShown).toContain('Red Fox')
+      } finally {
+        await database.deleteGalleryAlbum({
+          id: album.album.id,
+          actorId: ACTOR1_ID
+        })
+      }
+    })
+
+    it('provides numeric albumCount on owner items and omits it for visitor items', async () => {
+      signIn(seedActor1.email)
+      const ownerBody = await (await call(ACTOR1_ID)).json()
+      expect(ownerBody.items.length).toBeGreaterThan(0)
+      for (const item of ownerBody.items) {
+        expect(typeof item.albumCount).toBe('number')
+      }
+
+      signIn(null)
+      const visitorBody = await (await call(ACTOR1_ID)).json()
+      expect(visitorBody.items.length).toBeGreaterThan(0)
+      for (const item of visitorBody.items) {
+        expect(item).not.toHaveProperty('albumCount')
       }
     })
 

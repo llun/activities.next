@@ -60,34 +60,32 @@ describe('album visitor matrix', () => {
       [
         'the owner',
         'owner',
-        // The deleted post and the photo not in the gallery are gone for
-        // everyone, the owner included.
-        ['public', 'unlisted', 'followers', 'direct'],
-        { first: Date.UTC(2026, 0, 10, 12), last: Date.UTC(2026, 3, 10, 12) }
+        ['public', 'unlisted', 'followers', 'direct', 'hidden'],
+        { first: Date.UTC(2026, 0, 10, 12), last: Date.UTC(2026, 5, 10, 12) }
       ],
       [
         'a follower',
         'follower',
-        ['public', 'unlisted', 'followers'],
-        { first: Date.UTC(2026, 0, 10, 12), last: Date.UTC(2026, 2, 10, 12) }
+        ['public', 'unlisted', 'followers', 'hidden'],
+        { first: Date.UTC(2026, 0, 10, 12), last: Date.UTC(2026, 5, 10, 12) }
       ],
       [
         'a signed-in stranger',
         'stranger',
-        ['public', 'unlisted'],
-        { first: Date.UTC(2026, 0, 10, 12), last: Date.UTC(2026, 1, 10, 12) }
+        ['public', 'unlisted', 'hidden'],
+        { first: Date.UTC(2026, 0, 10, 12), last: Date.UTC(2026, 5, 10, 12) }
       ],
       [
         'a blocked account',
         'blocked',
-        ['public', 'unlisted'],
-        { first: Date.UTC(2026, 0, 10, 12), last: Date.UTC(2026, 1, 10, 12) }
+        ['public', 'unlisted', 'hidden'],
+        { first: Date.UTC(2026, 0, 10, 12), last: Date.UTC(2026, 5, 10, 12) }
       ],
       [
         'a logged-out visitor',
         'loggedOut',
-        ['public', 'unlisted'],
-        { first: Date.UTC(2026, 0, 10, 12), last: Date.UTC(2026, 1, 10, 12) }
+        ['public', 'unlisted', 'hidden'],
+        { first: Date.UTC(2026, 0, 10, 12), last: Date.UTC(2026, 5, 10, 12) }
       ]
     ]
 
@@ -192,10 +190,10 @@ describe('album visitor matrix', () => {
           maxId = page!.nextMaxId
         }
 
-        expect(seen).toHaveLength(3)
-        expect(new Set(seen).size).toBe(3)
+        expect(seen).toHaveLength(4)
+        expect(new Set(seen).size).toBe(4)
         expect(seen.sort()).toEqual(
-          ['public', 'unlisted', 'followers']
+          ['public', 'unlisted', 'followers', 'hidden']
             .map((name) => matrix.media[name])
             .sort()
         )
@@ -220,7 +218,7 @@ describe('album visitor matrix', () => {
           [true, false, false, false, false]
         ],
         [
-          'an album whose only photos are deleted or not in the gallery',
+          'an album whose only photo is deleted',
           'goneOnly',
           [true, false, false, false, false]
         ],
@@ -270,7 +268,7 @@ describe('album visitor matrix', () => {
         const everyone = [albums.mixed, albums.places].sort()
         const loggedOut = await listed(null)
         expect(loggedOut.ids).toEqual(everyone)
-        expect(loggedOut.counts[albums.mixed]).toBe(2)
+        expect(loggedOut.counts[albums.mixed]).toBe(3)
         for (const who of [matrix.viewers.stranger, matrix.viewers.blocked]) {
           expect((await listed(who)).ids).toEqual(everyone)
         }
@@ -279,14 +277,14 @@ describe('album visitor matrix', () => {
         expect(follower.ids).toEqual(
           [albums.mixed, albums.followersOnly, albums.places].sort()
         )
-        expect(follower.counts[albums.mixed]).toBe(3)
+        expect(follower.counts[albums.mixed]).toBe(4)
         expect(follower.counts[albums.followersOnly]).toBe(1)
 
         const mine = await listed(owner)
         expect(mine.ids).toEqual(Object.values(albums).sort())
         // The photo total never counts a photo twice, or one nobody can open.
-        expect(loggedOut.photoCount).toBe(2 + 7)
-        expect(follower.photoCount).toBe(3 + 7)
+        expect(loggedOut.photoCount).toBe(3 + 7)
+        expect(follower.photoCount).toBe(4 + 7)
       })
     })
 
@@ -423,24 +421,28 @@ describe('album visitor matrix', () => {
           matrix.albums.mixed
         )
 
-        expect(share!.album.itemCount).toBe(2)
+        expect(share!.album.itemCount).toBe(3)
         expect(share!.facts).toEqual(loggedOut!.facts)
         expect(share!.album.cover?.mediaId).toBe(
           loggedOut!.album.cover?.mediaId
         )
         expect(share!.album.cover?.mediaId).not.toBe(matrix.media.followers)
-        expect([matrix.media.public, matrix.media.unlisted]).toContain(
-          share!.album.cover?.mediaId
-        )
+        expect([
+          matrix.media.public,
+          matrix.media.unlisted,
+          matrix.media.hidden
+        ]).toContain(share!.album.cover?.mediaId)
         expect(share!.facts.lastAt).toBe(
-          new Date(Date.UTC(2026, 1, 10, 12)).toISOString()
+          new Date(Date.UTC(2026, 5, 10, 12)).toISOString()
         )
         // Nothing of the photos a logged-out visitor cannot open.
         const text = JSON.stringify(share)
-        for (const name of ['followers', 'direct', 'deleted', 'hidden']) {
+        for (const name of ['followers', 'direct', 'deleted']) {
           expect(text).not.toContain(`"mediaId":"${matrix.media[name]}"`)
           expect(text).not.toContain(`matrix-${name}.jpg`)
         }
+        expect(text).toContain(`"mediaId":"${matrix.media.hidden}"`)
+        expect(text).toContain('matrix-hidden.jpg')
       })
 
       it.each([

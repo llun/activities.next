@@ -166,6 +166,21 @@ describe('GalleryAlbumSuggestionDatabase', () => {
       ).toEqual([])
     })
 
+    it('matches nothing, and does not throw, for ids outside the media row id range', async () => {
+      // A media id above the 32-bit integer column would otherwise fail the query.
+      const sets = await database.getGalleryAlbumItemSets({
+        actorId: ownerId,
+        mediaIds: ['3000000000', '0', ids.a]
+      })
+      expect(sets).toEqual([{ albumId: ownerAlbum, mediaIds: [ids.a] }])
+      expect(
+        await database.getGalleryAlbumItemSets({
+          actorId: ownerId,
+          mediaIds: ['3000000000', '0']
+        })
+      ).toEqual([])
+    })
+
     it('asks in batches, so thousands of ids stay under the binding limit', async () => {
       const many = Array.from({ length: 3000 }, (_, index) =>
         String(900_000 + index)

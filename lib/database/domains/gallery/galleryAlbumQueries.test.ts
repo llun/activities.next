@@ -445,12 +445,12 @@ describe('album reads', () => {
     // Private, with the same visible photo.
     const privateId = await seedAlbum(owner, { visibility: 'private' })
     await seedItem(privateId, publicA, owner)
-    // Public, holding only a hidden photo, an unposted upload, a
+    // Public, holding only a followers-only photo, an unposted upload, a
     // followers-only photo and a visible photo written for another actor.
     const dimId = await seedAlbum(owner)
     await seedItem(
       dimId,
-      await postedMedia(ids(10), owner, { inGallery: false }),
+      await postedMedia(ids(10), owner, {}, [`${owner}/followers`]),
       owner
     )
     await seedItem(dimId, await seedMedia(ids(11), owner), owner)
@@ -505,8 +505,8 @@ describe('album reads', () => {
         .sort((a, b) => a - b)
 
     // The unposted upload is not added in Gallery, so not even the owner's.
-    expect(await names(OWNER)).toEqual([publicA, publicB])
-    expect(await names(PUBLIC)).toEqual([publicA, publicB])
+    expect(await names(OWNER)).toEqual([publicA, publicB, hidden])
+    expect(await names(PUBLIC)).toEqual([publicA, publicB, hidden])
     expect(hidden).toBeDefined()
     expect(unposted).toBeDefined()
 
@@ -699,10 +699,10 @@ describe('album reads', () => {
       updatedAt: at('2026-04-01')
     })
     await seedItem(tiedA, await photo(3), owner, at('2026-02-05'))
-    // A hidden photo joined last: it does not move the visible time.
+    // A followers-only photo joined last: it does not move the visible time.
     await seedItem(
       tiedA,
-      await postedMedia(ids(4), owner, { inGallery: false }),
+      await postedMedia(ids(4), owner, {}, [`${owner}/followers`]),
       owner,
       at('2026-03-01')
     )
@@ -803,12 +803,12 @@ describe('album reads', () => {
       )
 
     expect(await groups(OWNER)).toEqual({
-      [first]: [named, followersPlaced],
+      [first]: [named, hiddenPlaced, followersPlaced],
       [second]: [located],
       [privateId]: [named]
     })
     expect(await groups(PUBLIC)).toEqual({
-      [first]: [named],
+      [first]: [named, hiddenPlaced],
       [second]: [located]
     })
     expect(await groups(OWNER, second)).toEqual({ [second]: [located] })
@@ -854,13 +854,13 @@ describe('album reads', () => {
 
     expect(
       await database.countGalleryAlbumMedia({ actorId: owner, audience: OWNER })
-    ).toBe(3)
+    ).toBe(4)
     expect(
       await database.countGalleryAlbumMedia({
         actorId: owner,
         audience: PUBLIC
       })
-    ).toBe(2)
+    ).toBe(3)
     expect(
       await database.countGalleryAlbumMedia({ actorId: other, audience: OWNER })
     ).toBe(0)
@@ -877,7 +877,7 @@ describe('album reads', () => {
       })
     ).toBeFalse()
 
-    // Private with a visible photo, public with a hidden one and one written
+    // Private with a visible photo, public with a followers-only one and one written
     // for another actor, and another actor's public album holding a row
     // written for the owner.
     const privateId = await seedAlbum(owner, { visibility: 'private' })
@@ -885,7 +885,7 @@ describe('album reads', () => {
     const dimId = await seedAlbum(owner)
     await seedItem(
       dimId,
-      await postedMedia(ids(2), owner, { inGallery: false }),
+      await postedMedia(ids(2), owner, {}, [`${owner}/followers`]),
       owner
     )
     await seedItem(dimId, await postedMedia(ids(3), owner), other)
@@ -1084,6 +1084,7 @@ describe('getGalleryAlbumMedia', () => {
     expect(await page('taken_desc')).toEqual([
       [m.dec, at('2025-12-01').getTime()],
       [m.followers, at('2025-07-01').getTime()],
+      [m.hidden, at('2025-06-01').getTime()],
       [m.marHigh, at('2025-03-01').getTime()],
       [m.marLow, at('2025-03-01').getTime()],
       [m.undated, at('2025-02-01').getTime()],
@@ -1094,10 +1095,12 @@ describe('getGalleryAlbumMedia', () => {
       [m.undated, at('2025-02-01').getTime()],
       [m.marLow, at('2025-03-01').getTime()],
       [m.marHigh, at('2025-03-01').getTime()],
+      [m.hidden, at('2025-06-01').getTime()],
       [m.followers, at('2025-07-01').getTime()],
       [m.dec, at('2025-12-01').getTime()]
     ])
     expect(await page('added_desc')).toEqual([
+      [m.hidden, at('2026-02-06').getTime()],
       [m.jan, at('2026-02-05').getTime()],
       [m.marHigh, at('2026-02-04').getTime()],
       [m.undated, at('2026-02-04').getTime()],
@@ -1107,6 +1110,7 @@ describe('getGalleryAlbumMedia', () => {
     ])
     expect((await page('taken_desc', PUBLIC)).map(([id]) => id)).toEqual([
       m.dec,
+      m.hidden,
       m.marHigh,
       m.marLow,
       m.undated,
@@ -1751,28 +1755,22 @@ describe('addGalleryAlbumItems', () => {
     })
     if (result.status !== 'added') throw new Error('not added')
     expect([...result.added].sort()).toEqual(
-      [fresh, neighbourOnly, added].map(String).sort()
+      [fresh, neighbourOnly, added, addedHidden].map(String).sort()
     )
     expect([...result.existing].sort()).toEqual(
-      [publicA, publicB, unposted].map(String).sort()
+      [publicA, publicB, unposted, hidden].map(String).sort()
     )
     expect([...result.skipped].sort()).toEqual(
-      [
-        String(hidden),
-        String(foreign),
-        String(addedHidden),
-        String(ids(99)),
-        'nope'
-      ].sort()
+      [String(foreign), String(ids(99)), 'nope'].sort()
     )
 
     const rows = await db()
       .selectFrom('gallery_album_items')
       .selectAll()
       .where('albumId', '=', albumId)
-      .where('mediaId', 'in', [fresh, neighbourOnly, added])
+      .where('mediaId', 'in', [fresh, neighbourOnly, added, addedHidden])
       .execute()
-    expect(rows.map((row) => row.actorId)).toEqual([owner, owner, owner])
+    expect(rows.map((row) => row.actorId)).toEqual([owner, owner, owner, owner])
     expect(new Set(rows.map((row) => row.createdAt)).size).toBe(1)
     expect((await albumRow(albumId))?.updatedAt).toBe(rows[0].createdAt)
     expect(await albumRow(neighbourId)).toEqual(neighbourBefore)

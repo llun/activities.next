@@ -63,6 +63,7 @@ type GalleryQueryDatabase = Pick<
   | 'getGalleryMediaByIds'
   | 'getGalleryMediaIndex'
   | 'getGalleryMapRows'
+  | 'getGalleryAlbumItemSets'
 >
 
 interface GalleryQueryBase {
@@ -227,10 +228,28 @@ export const getGalleryMediaPage = async ({
   const pageRows = rows.slice(0, pageSize)
   const items = await projectRows(database, pageRows, audience, settings)
 
+  let counts: Map<string, number> | null = null
+  if (viewer === 'owner' && pageRows.length > 0) {
+    const sets = await database.getGalleryAlbumItemSets({
+      actorId: owner.id,
+      mediaIds: pageRows.map((row) => row.media.id)
+    })
+    counts = new Map<string, number>()
+    for (const set of sets) {
+      for (const id of set.mediaIds) {
+        counts.set(id, (counts.get(id) ?? 0) + 1)
+      }
+    }
+  }
+
   return {
     items: pageRows.flatMap((row) => {
       const item = items.get(row.media.id)
-      return item ? [item] : []
+      if (!item) return []
+      if (counts) {
+        return [{ ...item, albumCount: counts.get(item.mediaId) ?? 0 }]
+      }
+      return [item]
     }),
     nextMaxId: hasMore ? pageRows[pageRows.length - 1].media.id : resumeAfter
   }

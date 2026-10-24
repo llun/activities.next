@@ -235,7 +235,7 @@ describe('/api/v1/media/[id]/albums', () => {
     expect(body.pending).toBe(true)
   })
 
-  it('marks a photo kept out of the gallery as not addable', async () => {
+  it('marks a photo kept out of the gallery as addable', async () => {
     const { mediaId } = await makePhoto({
       name: 'not-in-gallery',
       inGallery: false
@@ -244,7 +244,7 @@ describe('/api/v1/media/[id]/albums', () => {
     const response = await get(mediaId)
 
     expect(response.status).toBe(200)
-    expect((await response.json()).addable).toBe(false)
+    expect((await response.json()).addable).toBe(true)
   })
 
   it('marks a photo whose post was deleted as a pending upload (addable), and lists its albums', async () => {

@@ -265,7 +265,6 @@ describe('ActorTimelines', () => {
     it('is offered after Media and before Fitness when the viewer may see gallery photos', async () => {
       renderTimelines({
         hasFitnessData: true,
-        hasGalleryMedia: true,
         gallerySubviews: ['subjects', 'recent']
       })
 
@@ -280,8 +279,28 @@ describe('ActorTimelines', () => {
       )
     })
 
+    it('is offered when only albums are available and clicking it opens the gallery tab with albums', async () => {
+      renderTimelines({
+        handle: 'me',
+        gallerySubviews: ['albums']
+      })
+
+      expect(screen.getByRole('radio', { name: 'Gallery' })).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('radio', { name: 'Gallery' }))
+      expect(await screen.findByTestId('mock-gallery-tab')).toHaveTextContent(
+        'albums:false'
+      )
+    })
+
+    it('is left out when only albums are available and there is no handle', () => {
+      renderTimelines({ gallerySubviews: ['albums'] })
+      expect(
+        screen.queryByRole('radio', { name: 'Gallery' })
+      ).not.toBeInTheDocument()
+    })
+
     it('is left out without gallery photos', () => {
-      renderTimelines({ hasGalleryMedia: false, gallerySubviews: [] })
+      renderTimelines({ gallerySubviews: [] })
       expect(
         screen.queryByRole('radio', { name: 'Gallery' })
       ).not.toBeInTheDocument()

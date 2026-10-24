@@ -74,6 +74,8 @@ interface Props {
   onItemsChange?: (items: GalleryItemEntity[]) => void
   /** Lets the page update tiles it edited itself. */
   controllerRef?: RefObject<GalleryPagedGridController | null>
+  /** Told which albums had photos added/removed when the viewer closes. */
+  onAlbumsChanged?: (albumIds: string[]) => void
 }
 
 const PAGE_SIZE = 24
@@ -109,7 +111,8 @@ export const GalleryPagedGrid: FC<Props> = ({
   onPostItems,
   onItemsDeleted,
   onItemsChange,
-  controllerRef
+  controllerRef,
+  onAlbumsChanged
 }) => {
   const [items, setItems] = useState<GalleryItemEntity[]>(
     initialPage?.items ?? []
@@ -189,7 +192,9 @@ export const GalleryPagedGrid: FC<Props> = ({
           ? item.inGallery !== true
           : list === 'not_posted'
             ? item.posted === false
-            : true
+            : list === 'not_in_album'
+              ? (item.albumCount ?? 0) === 0
+              : true
     },
     [show]
   )
@@ -269,6 +274,7 @@ export const GalleryPagedGrid: FC<Props> = ({
               : undefined
           }
           onViewerClosed={dropMisfiled}
+          onAlbumsChanged={onAlbumsChanged}
         />
       ) : error || nextMaxId ? null : (
         <EmptyState icon={Images} title={emptyTitle} />

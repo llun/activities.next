@@ -18,7 +18,7 @@ import {
 } from '@/lib/services/federation/serverSoftware'
 import { queueProfileLinkVerification } from '@/lib/services/profile-links/queueProfileLinkVerification'
 import { mockRequests } from '@/lib/stub/activities'
-import { TEST_DOMAIN } from '@/lib/stub/const'
+import { TEST_DOMAIN, TEST_PASSWORD_HASH } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { DatabaseSeed } from '@/lib/stub/scenarios/database'
 import { Actor } from '@/lib/types/activitypub'
@@ -364,7 +364,6 @@ describe('getProfileData', () => {
           mockDatabase.getActorHasVisibleGalleryAlbums
         ).not.toHaveBeenCalled()
         expect(mockDatabase.getGallerySettings).not.toHaveBeenCalled()
-        expect(result?.hasGalleryMedia).toBeFalse()
         expect(result?.gallerySubviews).toEqual([])
       })
 
@@ -712,7 +711,6 @@ describe('getProfileData', () => {
           { currentActor: null }
         )
 
-        expect(result?.hasGalleryMedia).toBeFalse()
         expect(result?.gallerySubviews).toEqual([])
         expect(mockDatabase.getGallerySettings).not.toHaveBeenCalled()
       })
@@ -754,7 +752,6 @@ describe('getProfileData', () => {
             { currentActor }
           )
 
-          expect(result?.hasGalleryMedia).toBeTrue()
           expect(result?.gallerySubviews).toEqual(expected)
         }
       )
@@ -831,7 +828,12 @@ describe('getProfileData', () => {
           })
         })
 
-        it('is not asked for when there is no gallery media to make an album of', async () => {
+        it('is not asked for when the Gallery tab is hidden', async () => {
+          ;(mockDatabase.getActorFromUsername as jest.Mock).mockResolvedValue({
+            ...mockLocalActor,
+            showGallery: false
+          })
+
           await getProfileData(mockDatabase, '@localuser@example.com', false, {
             currentActor: null
           })
@@ -839,6 +841,25 @@ describe('getProfileData', () => {
           expect(
             mockDatabase.getActorHasVisibleGalleryAlbums
           ).not.toHaveBeenCalled()
+        })
+
+        it('offers only Albums when there is no in-gallery media but visible albums exist', async () => {
+          vi.mocked(mockDatabase.getActorHasGalleryMedia).mockResolvedValue(
+            false
+          )
+          vi.mocked(
+            mockDatabase.getActorHasVisibleGalleryAlbums
+          ).mockResolvedValue(true)
+
+          const result = await getProfileData(
+            mockDatabase,
+            '@localuser@example.com',
+            false,
+            { currentActor: null }
+          )
+
+          expect(result?.gallerySubviews).toEqual(['albums'])
+          expect(mockDatabase.getGallerySettings).not.toHaveBeenCalled()
         })
       })
 
@@ -1246,7 +1267,6 @@ describe('getProfileData', () => {
         { currentActor: null }
       )
 
-      expect(result?.hasGalleryMedia).toBeFalse()
       expect(result?.gallerySubviews).toEqual([])
       expect(mockDatabase.getActorHasGalleryMedia).not.toHaveBeenCalled()
     })
@@ -1840,7 +1860,6 @@ describe('getProfileData gallery presence', () => {
         currentActor
       })
       return {
-        hasGalleryMedia: result?.hasGalleryMedia,
         gallerySubviews: result?.gallerySubviews
       }
     }
@@ -1849,19 +1868,18 @@ describe('getProfileData gallery presence', () => {
       {
         description: 'a logged-out visitor',
         viewerId: null,
-        expected: { hasGalleryMedia: false, gallerySubviews: [] }
+        expected: { gallerySubviews: [] }
       },
       {
         description: 'a signed-in stranger',
         viewerId: actors.replyAuthor.id,
-        expected: { hasGalleryMedia: false, gallerySubviews: [] }
+        expected: { gallerySubviews: [] }
       },
       {
         description: 'a follower',
         viewerId: actors.extra.id,
         // `mapPublic` is on by default, `lifeListPublic` off.
         expected: {
-          hasGalleryMedia: true,
           gallerySubviews: ['subjects', 'recent', 'map']
         }
       },
@@ -1869,12 +1887,519 @@ describe('getProfileData gallery presence', () => {
         description: 'the owner',
         viewerId: ownerId,
         expected: {
-          hasGalleryMedia: true,
           gallerySubviews: ['subjects', 'recent', 'map', 'life-list']
         }
       }
     ])('answers $description', async ({ viewerId, expected }) => {
       expect(await presenceFor(viewerId)).toEqual(expected)
+    })
+  })
+})
+
+describe('getProfileData album presence', () => {
+  const { actors } = DatabaseSeed
+  const table = getTestDatabaseTable()
+
+  beforeAll(async () => {
+    await databaseBeforeAll(table)
+  })
+
+  describe.each(table)('%s', (_, database) => {
+    const followerId = actors.extra.id
+    const strangerId = actors.replyAuthor.id
+    const mentionedId = actors.pollAuthor.id
+
+    beforeAll(async () => {
+      await seedDatabase(database)
+    })
+
+    afterAll(async () => {
+      await database.destroy()
+    })
+
+    const createOwner = async (
+      tag: string,
+      overrides: Partial<Parameters<Database['createAccount']>[0]> = {}
+    ) => {
+      const username = `album-presence-${tag}-${crypto.randomUUID().slice(0, 8)}`
+      const domain = 'llun.test'
+      const actorId = `https://${domain}/users/${username}`
+      await database.createAccount({
+        email: `${username}@${domain}`,
+        username,
+        passwordHash: TEST_PASSWORD_HASH,
+        domain,
+        privateKey: `privateKey-${username}`,
+        publicKey: `publicKey-${username}`,
+        ...overrides
+      })
+      await database.createFollow({
+        actorId: followerId,
+        targetActorId: actorId,
+        inbox: `${actorId}/inbox`,
+        sharedInbox: `https://${domain}/inbox`,
+        status: FollowStatus.enum.Accepted
+      })
+      return {
+        actorId,
+        username,
+        handle: `@${username}@${domain}`,
+        followersUrl: `${actorId}/followers`
+      }
+    }
+
+    const presenceFor = async (handle: string, viewerId: string | null) => {
+      const currentActor = viewerId
+        ? await database.getActorFromId({ id: viewerId })
+        : null
+      const result = await getProfileData(
+        database,
+        handle,
+        Boolean(currentActor),
+        { currentActor }
+      )
+      return {
+        gallerySubviews: result?.gallerySubviews
+      }
+    }
+
+    it('shows only albums to a logged-out visitor when an actor has a public album with hidden-from-gallery photo on a public post', async () => {
+      const owner = await createOwner('public-hidden')
+      const media = await database.createMedia({
+        actorId: owner.actorId,
+        original: {
+          path: '/test/public-hidden.jpg',
+          bytes: 10,
+          mimeType: 'image/jpeg',
+          metaData: { width: 10, height: 10 }
+        },
+        details: { inGallery: false }
+      })
+      const statusId = `${owner.actorId}/statuses/public-hidden-post`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: owner.actorId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'public post'
+      })
+      await database.createAttachment({
+        actorId: owner.actorId,
+        statusId,
+        mediaType: 'image/jpeg',
+        url: '/test/public-hidden.jpg',
+        mediaId: media!.id
+      })
+      const album = await database.createGalleryAlbumWithinLimit({
+        actorId: owner.actorId,
+        title: 'Public Album',
+        visibility: 'public',
+        limit: 50
+      })
+      if (album.status !== 'created') throw new Error('album not created')
+      await database.addGalleryAlbumItems({
+        albumId: album.album.id,
+        actorId: owner.actorId,
+        mediaIds: [media!.id],
+        limit: 100
+      })
+
+      const presence = await presenceFor(owner.handle, null)
+      expect(presence).toEqual({
+        gallerySubviews: ['albums']
+      })
+    })
+
+    it('shows no Gallery tab to a logged-out visitor and shows albums to a follower when the photo is followers-only', async () => {
+      const owner = await createOwner('followers-hidden')
+      const media = await database.createMedia({
+        actorId: owner.actorId,
+        original: {
+          path: '/test/followers-hidden.jpg',
+          bytes: 10,
+          mimeType: 'image/jpeg',
+          metaData: { width: 10, height: 10 }
+        },
+        details: { inGallery: false }
+      })
+      const statusId = `${owner.actorId}/statuses/followers-hidden-post`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: owner.actorId,
+        to: [owner.followersUrl],
+        cc: [],
+        text: 'followers only'
+      })
+      await database.createAttachment({
+        actorId: owner.actorId,
+        statusId,
+        mediaType: 'image/jpeg',
+        url: '/test/followers-hidden.jpg',
+        mediaId: media!.id
+      })
+      const album = await database.createGalleryAlbumWithinLimit({
+        actorId: owner.actorId,
+        title: 'Followers Album',
+        visibility: 'public',
+        limit: 50
+      })
+      if (album.status !== 'created') throw new Error('album not created')
+      await database.addGalleryAlbumItems({
+        albumId: album.album.id,
+        actorId: owner.actorId,
+        mediaIds: [media!.id],
+        limit: 100
+      })
+
+      expect(await presenceFor(owner.handle, null)).toEqual({
+        gallerySubviews: []
+      })
+      expect(await presenceFor(owner.handle, followerId)).toEqual({
+        gallerySubviews: ['albums']
+      })
+    })
+
+    it('shows albums for a direct post only to the mentioned actor and owner, and not to visitors', async () => {
+      const owner = await createOwner('direct-hidden')
+      const media = await database.createMedia({
+        actorId: owner.actorId,
+        original: {
+          path: '/test/direct-hidden.jpg',
+          bytes: 10,
+          mimeType: 'image/jpeg',
+          metaData: { width: 10, height: 10 }
+        },
+        details: { inGallery: false }
+      })
+      const statusId = `${owner.actorId}/statuses/direct-hidden-post`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: owner.actorId,
+        to: [mentionedId],
+        cc: [],
+        text: 'direct note'
+      })
+      await database.createAttachment({
+        actorId: owner.actorId,
+        statusId,
+        mediaType: 'image/jpeg',
+        url: '/test/direct-hidden.jpg',
+        mediaId: media!.id
+      })
+      const album = await database.createGalleryAlbumWithinLimit({
+        actorId: owner.actorId,
+        title: 'Direct Album',
+        visibility: 'public',
+        limit: 50
+      })
+      if (album.status !== 'created') throw new Error('album not created')
+      await database.addGalleryAlbumItems({
+        albumId: album.album.id,
+        actorId: owner.actorId,
+        mediaIds: [media!.id],
+        limit: 100
+      })
+
+      expect(await presenceFor(owner.handle, mentionedId)).toEqual({
+        gallerySubviews: ['albums']
+      })
+      expect(await presenceFor(owner.handle, owner.actorId)).toEqual({
+        gallerySubviews: ['albums']
+      })
+      expect(await presenceFor(owner.handle, strangerId)).toEqual({
+        gallerySubviews: []
+      })
+      expect(await presenceFor(owner.handle, null)).toEqual({
+        gallerySubviews: []
+      })
+    })
+
+    it('shows no chip to visitors for a deleted post or unposted media', async () => {
+      // Deleted post
+      const ownerDeleted = await createOwner('deleted-post')
+      const mediaDeleted = await database.createMedia({
+        actorId: ownerDeleted.actorId,
+        original: {
+          path: '/test/deleted.jpg',
+          bytes: 10,
+          mimeType: 'image/jpeg',
+          metaData: { width: 10, height: 10 }
+        },
+        details: { inGallery: false }
+      })
+      const statusId = `${ownerDeleted.actorId}/statuses/deleted-post`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ownerDeleted.actorId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'to be deleted'
+      })
+      await database.createAttachment({
+        actorId: ownerDeleted.actorId,
+        statusId,
+        mediaType: 'image/jpeg',
+        url: '/test/deleted.jpg',
+        mediaId: mediaDeleted!.id
+      })
+      const albumDeleted = await database.createGalleryAlbumWithinLimit({
+        actorId: ownerDeleted.actorId,
+        title: 'Deleted Post Album',
+        visibility: 'public',
+        limit: 50
+      })
+      if (albumDeleted.status !== 'created')
+        throw new Error('album not created')
+      await database.addGalleryAlbumItems({
+        albumId: albumDeleted.album.id,
+        actorId: ownerDeleted.actorId,
+        mediaIds: [mediaDeleted!.id],
+        limit: 100
+      })
+      await database.deleteStatus({ statusId })
+
+      expect(await presenceFor(ownerDeleted.handle, null)).toEqual({
+        gallerySubviews: []
+      })
+
+      // Unposted media
+      const ownerUnposted = await createOwner('unposted-media')
+      const mediaUnposted = await database.createMedia({
+        actorId: ownerUnposted.actorId,
+        original: {
+          path: '/test/unposted.jpg',
+          bytes: 10,
+          mimeType: 'image/jpeg',
+          metaData: { width: 10, height: 10 }
+        },
+        details: { inGallery: false }
+      })
+      const albumUnposted = await database.createGalleryAlbumWithinLimit({
+        actorId: ownerUnposted.actorId,
+        title: 'Unposted Media Album',
+        visibility: 'public',
+        limit: 50
+      })
+      if (albumUnposted.status !== 'created')
+        throw new Error('album not created')
+      await database.addGalleryAlbumItems({
+        albumId: albumUnposted.album.id,
+        actorId: ownerUnposted.actorId,
+        mediaIds: [mediaUnposted!.id],
+        limit: 100
+      })
+
+      expect(await presenceFor(ownerUnposted.handle, null)).toEqual({
+        gallerySubviews: []
+      })
+    })
+
+    it('shows albums to the owner for their own album of hidden photos', async () => {
+      const owner = await createOwner('owner-hidden')
+      const media = await database.createMedia({
+        actorId: owner.actorId,
+        original: {
+          path: '/test/owner-hidden.jpg',
+          bytes: 10,
+          mimeType: 'image/jpeg',
+          metaData: { width: 10, height: 10 }
+        },
+        details: { inGallery: false }
+      })
+      const statusId = `${owner.actorId}/statuses/owner-hidden-post`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: owner.actorId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'owner hidden'
+      })
+      await database.createAttachment({
+        actorId: owner.actorId,
+        statusId,
+        mediaType: 'image/jpeg',
+        url: '/test/owner-hidden.jpg',
+        mediaId: media!.id
+      })
+      const album = await database.createGalleryAlbumWithinLimit({
+        actorId: owner.actorId,
+        title: 'Owner Album',
+        visibility: 'public',
+        limit: 50
+      })
+      if (album.status !== 'created') throw new Error('album not created')
+      await database.addGalleryAlbumItems({
+        albumId: album.album.id,
+        actorId: owner.actorId,
+        mediaIds: [media!.id],
+        limit: 100
+      })
+
+      expect(await presenceFor(owner.handle, owner.actorId)).toEqual({
+        gallerySubviews: ['albums']
+      })
+    })
+
+    it('never makes the chip appear for visitors when an album is private', async () => {
+      const owner = await createOwner('private-album')
+      const media = await database.createMedia({
+        actorId: owner.actorId,
+        original: {
+          path: '/test/private-album.jpg',
+          bytes: 10,
+          mimeType: 'image/jpeg',
+          metaData: { width: 10, height: 10 }
+        },
+        details: { inGallery: false }
+      })
+      const statusId = `${owner.actorId}/statuses/private-album-post`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: owner.actorId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'public post'
+      })
+      await database.createAttachment({
+        actorId: owner.actorId,
+        statusId,
+        mediaType: 'image/jpeg',
+        url: '/test/private-album.jpg',
+        mediaId: media!.id
+      })
+      const album = await database.createGalleryAlbumWithinLimit({
+        actorId: owner.actorId,
+        title: 'Private Album',
+        visibility: 'private',
+        limit: 50
+      })
+      if (album.status !== 'created') throw new Error('album not created')
+      await database.addGalleryAlbumItems({
+        albumId: album.album.id,
+        actorId: owner.actorId,
+        mediaIds: [media!.id],
+        limit: 100
+      })
+
+      expect(await presenceFor(owner.handle, null)).toEqual({
+        gallerySubviews: []
+      })
+      expect(await presenceFor(owner.handle, strangerId)).toEqual({
+        gallerySubviews: []
+      })
+      expect(await presenceFor(owner.handle, followerId)).toEqual({
+        gallerySubviews: []
+      })
+    })
+
+    it('leaves the subview list unchanged for an actor with in-gallery media', async () => {
+      const owner = await createOwner('in-gallery-media')
+      const media = await database.createMedia({
+        actorId: owner.actorId,
+        original: {
+          path: '/test/in-gallery.jpg',
+          bytes: 10,
+          mimeType: 'image/jpeg',
+          metaData: { width: 10, height: 10 }
+        },
+        details: { inGallery: true }
+      })
+      const statusId = `${owner.actorId}/statuses/in-gallery-post`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: owner.actorId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'in gallery post'
+      })
+      await database.createAttachment({
+        actorId: owner.actorId,
+        statusId,
+        mediaType: 'image/jpeg',
+        url: '/test/in-gallery.jpg',
+        mediaId: media!.id
+      })
+      const album = await database.createGalleryAlbumWithinLimit({
+        actorId: owner.actorId,
+        title: 'Album with In-Gallery Photo',
+        visibility: 'public',
+        limit: 50
+      })
+      if (album.status !== 'created') throw new Error('album not created')
+      await database.addGalleryAlbumItems({
+        albumId: album.album.id,
+        actorId: owner.actorId,
+        mediaIds: [media!.id],
+        limit: 100
+      })
+
+      expect(await presenceFor(owner.handle, null)).toEqual({
+        gallerySubviews: ['subjects', 'recent', 'albums', 'map']
+      })
+      expect(await presenceFor(owner.handle, owner.actorId)).toEqual({
+        gallerySubviews: ['subjects', 'recent', 'albums', 'map', 'life-list']
+      })
+    })
+
+    it('offers no Gallery tab when gallery is turned off in profile settings, regardless of albums', async () => {
+      const owner = await createOwner('gallery-off')
+      await database.updateActor({
+        actorId: owner.actorId,
+        showGallery: false
+      })
+      const media = await database.createMedia({
+        actorId: owner.actorId,
+        original: {
+          path: '/test/gallery-off.jpg',
+          bytes: 10,
+          mimeType: 'image/jpeg',
+          metaData: { width: 10, height: 10 }
+        },
+        details: { inGallery: false }
+      })
+      const statusId = `${owner.actorId}/statuses/gallery-off-post`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: owner.actorId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'gallery off post'
+      })
+      await database.createAttachment({
+        actorId: owner.actorId,
+        statusId,
+        mediaType: 'image/jpeg',
+        url: '/test/gallery-off.jpg',
+        mediaId: media!.id
+      })
+      const album = await database.createGalleryAlbumWithinLimit({
+        actorId: owner.actorId,
+        title: 'Public Album with Hidden Photo',
+        visibility: 'public',
+        limit: 50
+      })
+      if (album.status !== 'created') throw new Error('album not created')
+      await database.addGalleryAlbumItems({
+        albumId: album.album.id,
+        actorId: owner.actorId,
+        mediaIds: [media!.id],
+        limit: 100
+      })
+
+      expect(await presenceFor(owner.handle, null)).toEqual({
+        gallerySubviews: []
+      })
+      expect(await presenceFor(owner.handle, owner.actorId)).toEqual({
+        gallerySubviews: []
+      })
     })
   })
 })

@@ -336,7 +336,7 @@ export const seedGalleryAlbumMatrix = async (
     ),
     followersOnly: await make('Only followers', ['followers']),
     directOnly: await make('Only direct', ['direct']),
-    goneOnly: await make('Gone', ['deleted', 'hidden']),
+    goneOnly: await make('Gone', ['deleted']),
     secret: await make('Secret', ['public'], { visibility: 'private' }),
     empty: await make('Nothing yet', []),
     places: await make('Places', [

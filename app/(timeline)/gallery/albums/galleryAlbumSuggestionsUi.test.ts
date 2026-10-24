@@ -1,6 +1,8 @@
 import { buildSuggestion } from '@/lib/components/gallery/__fixtures__/galleryAlbumSuggestions'
 
 import {
+  getAddIntentSuggestions,
+  getNonMemberIds,
   getSuggestedAlbumsLabel,
   getSuggestionMeta
 } from './galleryAlbumSuggestionsUi'
@@ -71,6 +73,61 @@ describe('getSuggestionMeta', () => {
         buildSuggestion('t', { firstAt: null, lastAt: null, placeCount: 0 })
       )
     ).toBe('Trip · 3 photos · 3 species')
+  })
+
+  it('reads "38 not in this album" when notInAlbum is 38', () => {
+    expect(
+      getSuggestionMeta(
+        buildSuggestion('t', {
+          photoCount: 86,
+          placeCount: 4,
+          speciesCount: 11
+        }),
+        38
+      )
+    ).toBe(
+      'Trip · 38 not in this album · 12 – 19 Sep 2026 · 4 places · 11 species'
+    )
+  })
+})
+
+describe('getNonMemberIds', () => {
+  it('keeps order of mediaIds', () => {
+    const suggestion = buildSuggestion('s', {
+      mediaIds: ['p1', 'p2', 'p3', 'p4', 'p5']
+    })
+    const members = new Set(['p2', 'p4'])
+    expect(getNonMemberIds(suggestion, members)).toEqual(['p1', 'p3', 'p5'])
+  })
+})
+
+describe('getAddIntentSuggestions', () => {
+  it('keeps 79% members, hides 80% and 100% members', () => {
+    const createSuggestion = (
+      id: string,
+      total: number,
+      memberCount: number
+    ) => {
+      const mediaIds = Array.from({ length: total }, (_, i) => `${id}-${i}`)
+      const memberIds = mediaIds.slice(0, memberCount)
+      const suggestion = buildSuggestion(id, { mediaIds, photoCount: total })
+      return { suggestion, memberIds }
+    }
+
+    const { suggestion: s79, memberIds: m79 } = createSuggestion('s79', 100, 79)
+    const { suggestion: s80, memberIds: m80 } = createSuggestion('s80', 100, 80)
+    const { suggestion: s100, memberIds: m100 } = createSuggestion(
+      's100',
+      100,
+      100
+    )
+
+    const members = new Set([...m79, ...m80, ...m100])
+
+    expect(getAddIntentSuggestions([s79], members)).toEqual([s79])
+    expect(getAddIntentSuggestions([s80], members)).toEqual([])
+    expect(getAddIntentSuggestions([s100], members)).toEqual([])
+    expect(getAddIntentSuggestions([s79, s80, s100], members)).toEqual([s79])
   })
 })
 

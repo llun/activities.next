@@ -40,6 +40,11 @@ export const GALLERY_SHOW_OPTIONS: ShowOption[] = [
     id: 'not_posted',
     label: 'Not posted',
     hint: 'Added in Gallery, only you can see them'
+  },
+  {
+    id: 'not_in_album',
+    label: 'Not in any album',
+    hint: 'Photos you haven’t filed yet'
   }
 ]
 

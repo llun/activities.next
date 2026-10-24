@@ -538,6 +538,80 @@ describe('gallery queries', () => {
           })
         ).toEqual({ items: [], nextMaxId: null })
       })
+
+      describe('albumCount', () => {
+        beforeAll(async () => {
+          await database.createGalleryAlbumWithinLimit({
+            actorId: owner.id,
+            title: 'Album 1',
+            mediaIds: [ids['kingfisher-1']],
+            limit: 100,
+            itemLimit: 100
+          })
+          await database.createGalleryAlbumWithinLimit({
+            actorId: owner.id,
+            title: 'Album 2',
+            mediaIds: [ids['kingfisher-1']],
+            limit: 100,
+            itemLimit: 100
+          })
+        })
+
+        it('includes albumCount for owner (2 for photo in two albums, 0 otherwise)', async () => {
+          const page = await getGalleryMediaPage({
+            database,
+            owner,
+            audience: OWNER_GALLERY_AUDIENCE,
+            limit: 30
+          })
+
+          const inTwo = page.items.find(
+            (item) => item.mediaId === ids['kingfisher-1']
+          )
+          expect(inTwo?.albumCount).toBe(2)
+
+          const inNone = page.items.find((item) => item.mediaId === ids.fox)
+          expect(inNone?.albumCount).toBe(0)
+        })
+
+        it('has no albumCount key on logged-out page', async () => {
+          const page = await getGalleryMediaPage({
+            database,
+            owner,
+            audience: PUBLIC_GALLERY_AUDIENCE,
+            limit: 30
+          })
+
+          expect(page.items.length).toBeGreaterThan(0)
+          for (const item of page.items) {
+            expect(item).not.toHaveProperty('albumCount')
+          }
+        })
+
+        it('makes one getGalleryAlbumItemSets call per page', async () => {
+          const spy = vi.spyOn(database, 'getGalleryAlbumItemSets')
+          try {
+            await getGalleryMediaPage({
+              database,
+              owner,
+              audience: OWNER_GALLERY_AUDIENCE,
+              limit: 30
+            })
+            expect(spy).toHaveBeenCalledTimes(1)
+
+            spy.mockClear()
+            await getGalleryMediaPage({
+              database,
+              owner,
+              audience: PUBLIC_GALLERY_AUDIENCE,
+              limit: 30
+            })
+            expect(spy).not.toHaveBeenCalled()
+          } finally {
+            spy.mockRestore()
+          }
+        })
+      })
     })
 
     describe('getGalleryMapPoints', () => {
@@ -1187,6 +1261,7 @@ describe('gallery queries at the index cap', () => {
     getGalleryGearNamesByIds: vi.fn(async () => ({})),
     getGalleryMedia: vi.fn(async () => []),
     getGalleryMediaByIds: vi.fn(async () => []),
+    getGalleryAlbumItemSets: vi.fn(async () => []),
     getGalleryMediaIndex: vi.fn(
       async ({ limit, maxId }: { limit: number; maxId?: string }) =>
         rows

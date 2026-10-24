@@ -15,16 +15,39 @@ export const SUGGESTION_KIND_LABELS: Record<
   activity_day: 'Activity day'
 }
 
+/** In Add photos, a suggestion whose photos are at least this share in the album is not offered. */
+export const ADD_INTENT_MEMBER_SHARE = 0.8
+/** The suggestion's photos not in the album (in its order). */
+export const getNonMemberIds = (
+  s: GalleryAlbumSuggestionEntity,
+  members: ReadonlySet<string>
+): string[] => s.mediaIds.filter((id) => !members.has(id))
+/** The suggestions worth offering for an existing album. */
+export const getAddIntentSuggestions = (
+  list: readonly GalleryAlbumSuggestionEntity[],
+  members: ReadonlySet<string>
+): GalleryAlbumSuggestionEntity[] =>
+  list.filter(
+    (s) =>
+      s.mediaIds.length > 0 &&
+      (s.mediaIds.length - getNonMemberIds(s, members).length) /
+        s.mediaIds.length <
+        ADD_INTENT_MEMBER_SHARE
+  )
+
 /**
  * "Trip · 86 photos · 12 – 19 Sep 2026 · 4 places · 11 species": the kind, the
  * count, the dates, and what a visitor would see of the places and species.
  */
 export const getSuggestionMeta = (
-  suggestion: GalleryAlbumSuggestionEntity
+  suggestion: GalleryAlbumSuggestionEntity,
+  notInAlbum?: number
 ): string =>
   [
     SUGGESTION_KIND_LABELS[suggestion.kind],
-    pluralize(suggestion.photoCount, 'photo'),
+    typeof notInAlbum === 'number'
+      ? `${notInAlbum.toLocaleString('en-US')} not in this album`
+      : pluralize(suggestion.photoCount, 'photo'),
     formatAlbumDateRange(suggestion.firstAt, suggestion.lastAt),
     suggestion.kind === 'trip' && suggestion.placeCount > 0
       ? pluralize(suggestion.placeCount, 'place')

@@ -38,8 +38,9 @@ const GalleryMediaQueryParams = z.object({
   category: z.enum(MEDIA_SUBJECT_CATEGORIES).optional(),
   gear_id: z.string().max(255).optional(),
   // Owner only: `in_gallery` (default), `all` (posted or added in Gallery),
-  // `hidden` (switched off in the gallery) or `not_posted` (added, no post
-  // yet). Anyone else is always shown the gallery, whatever they send.
+  // `hidden` (switched off in the gallery), `not_posted` (added, no post
+  // yet) or `not_in_album` (posted or added, in no album). Anyone else is
+  // always shown the gallery, whatever they send.
   show: z.enum(GALLERY_SHOWS).optional()
 })
 

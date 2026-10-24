@@ -1,4 +1,5 @@
 import {
+  NOT_ADDABLE_HINT,
   albumAddedMessage,
   albumRemovedMessage,
   getAlbumOptionNames,
@@ -68,6 +69,12 @@ describe('album wording', () => {
   it('words the toast messages with the album title', () => {
     expect(albumAddedMessage('Kruger')).toBe('Added to “Kruger”')
     expect(albumRemovedMessage('Kruger')).toBe('Removed from “Kruger”')
+  })
+
+  it('words the non-addable hint', () => {
+    expect(NOT_ADDABLE_HINT).toBe(
+      'This photo can’t be added to an album until it’s posted or added in Gallery.'
+    )
   })
 })
 
