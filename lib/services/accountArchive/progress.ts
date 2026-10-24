@@ -59,6 +59,8 @@ export interface ArchiveProgress {
   /** Consecutive slices that threw. */
   failures: number
   startedAt: number
+  /** When the cursor was last saved; the stuck-export reaper reads it. */
+  updatedAt?: number
 }
 
 export const createInitialProgress = ({
@@ -80,7 +82,8 @@ export const createInitialProgress = ({
   warnings: [],
   slice: 0,
   failures: 0,
-  startedAt: now
+  startedAt: now,
+  updatedAt: now
 })
 
 export const parseProgress = (value: string | null): ArchiveProgress | null => {

@@ -6,6 +6,7 @@ import type {
   GetAccountArchiveParams,
   GetAccountArchivesForAccountParams,
   GetActiveAccountArchiveParams,
+  GetActiveAccountArchivesCreatedBeforeParams,
   GetExpiredAccountArchivesParams,
   GetLatestRequestedAccountArchiveParams,
   UpdateAccountArchiveParams
@@ -192,6 +193,21 @@ export const getExpiredAccountArchives = async (
   return rows.map(toArchive)
 }
 
+export const getActiveAccountArchivesCreatedBefore = async (
+  db: Db,
+  { before, limit }: GetActiveAccountArchivesCreatedBeforeParams
+): Promise<AccountArchive[]> => {
+  const rows = await db
+    .selectFrom('account_archives')
+    .selectAll()
+    .where('status', 'in', ['queued', 'running'])
+    .where('createdAt', '<=', timestampValue(before))
+    .orderBy('createdAt', 'asc')
+    .limit(limit)
+    .execute()
+  return rows.map(toArchive)
+}
+
 export const deleteAccountArchivesForAccount = async (
   db: Db,
   { accountId }: DeleteAccountArchivesForAccountParams
@@ -210,5 +226,6 @@ export const accountArchiveQueries = {
   getLatestRequestedAccountArchive,
   updateAccountArchive,
   getExpiredAccountArchives,
+  getActiveAccountArchivesCreatedBefore,
   deleteAccountArchivesForAccount
 }

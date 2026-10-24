@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { ARCHIVE_LIST_LIMIT } from '@/lib/services/accountArchive/constants'
 import { expireArchiveIfDue } from '@/lib/services/accountArchive/expiry'
+import { reapStuckAccountArchive } from '@/lib/services/accountArchive/reaper'
 import { requestAccountArchive } from '@/lib/services/accountArchive/request'
 import { toArchiveResponse } from '@/lib/services/accountArchive/serialize'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
@@ -44,7 +45,12 @@ export const GET = traceApiRoute(
       limit: ARCHIVE_LIST_LIMIT
     })
     const current = await Promise.all(
-      archives.map((archive) => expireArchiveIfDue({ database, archive }))
+      archives.map(async (archive) =>
+        reapStuckAccountArchive({
+          database,
+          archive: await expireArchiveIfDue({ database, archive })
+        })
+      )
     )
     return apiResponse({
       req,

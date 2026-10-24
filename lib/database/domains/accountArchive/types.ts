@@ -36,6 +36,10 @@ export type UpdateAccountArchiveParams = {
   expiresAt?: number | null
 }
 export type GetExpiredAccountArchivesParams = { now: number; limit: number }
+export type GetActiveAccountArchivesCreatedBeforeParams = {
+  before: number
+  limit: number
+}
 export type DeleteAccountArchivesForAccountParams = { accountId: string }
 
 export interface AccountArchiveDatabase {
@@ -72,6 +76,10 @@ export interface AccountArchiveDatabase {
   /** Ready exports whose `expiresAt` has passed, oldest first. */
   getExpiredAccountArchives(
     params: GetExpiredAccountArchivesParams
+  ): Promise<AccountArchive[]>
+  /** Queued or running exports created at or before `before`, oldest first. */
+  getActiveAccountArchivesCreatedBefore(
+    params: GetActiveAccountArchivesCreatedBeforeParams
   ): Promise<AccountArchive[]>
   deleteAccountArchivesForAccount(
     params: DeleteAccountArchivesForAccountParams

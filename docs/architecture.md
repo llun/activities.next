@@ -424,7 +424,14 @@ Export](maintenance.md#actor-archive-export)). It is built by
   days: a delayed `ExportAccountArchiveJob` (`action: 'expire'`) deletes it under
   a real queue, `startActorDeletionSweep` does the same every ten minutes (the
   only mechanism under the in-process queue), and the list and download routes
-  expire a due archive on access. Deleting a pending account removes its rows.
+  expire a due archive on access. An export with no cursor progress for an hour (a dead worker, a lost message)
+  is reaped by the same sweep and by `GET /api/v1/account/archives`: its
+  current slice is requeued (up to three times), or, behind the in-process
+  queue or after the third reap, it is marked `failed` and its staged parts are
+  deleted; a failed export does not count against the 7-day limit. When an
+  account's last actor is deleted (`deleteActorJob`) or a pending account is
+  rejected, its exports' files are deleted first and then its rows, so a
+  deleted account's full export does not linger.
 
 ### Link Preview Cards
 

@@ -8,6 +8,7 @@ import {
   MAX_CONCURRENT_DELIVERY_PUBLICATIONS,
   runWithConcurrencyLimit
 } from '@/lib/jobs/sendNoteJob'
+import { purgeAccountArchives } from '@/lib/services/accountArchive/purge'
 import { getServedLinkDomain } from '@/lib/services/domains/localDomains'
 import { sendMail } from '@/lib/services/email'
 import { resolveEmailIdentity } from '@/lib/services/email/sender'
@@ -257,6 +258,22 @@ export const deleteActorJob = createJobHandle(
         actorId,
         hasEmail: !!accountEmail
       })
+
+      // The last actor of an account takes the account's data exports with it.
+      // The files go first, and before the actor is marked `deleting`: a failure
+      // here is retried from `scheduled`, whereas a `deleting` actor is skipped.
+      const ownerAccountId = actor.account?.id
+      if (ownerAccountId) {
+        const siblings = await database.getActorsForAccount({
+          accountId: ownerAccountId
+        })
+        if (siblings.every((sibling) => sibling.id === actorId)) {
+          await purgeAccountArchives({
+            database,
+            accountId: ownerAccountId
+          })
+        }
+      }
 
       // Mark actor as deleting
       try {

@@ -104,6 +104,7 @@ export const runCollectionSlice = async ({
   let progress = parseProgress(archive.progress)
 
   const save = async () => {
+    progress!.updatedAt = now()
     const text = serializeProgress(progress!)
     const updated = await database.updateAccountArchive({
       id: archive.id,
