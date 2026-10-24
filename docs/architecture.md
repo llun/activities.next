@@ -2105,8 +2105,9 @@ cannot fetch remote accounts right now` (logged); a reachable target that has mo
   do not list the account (`Add this account as an alias on the new account
 first`). The 30-day cooldown answers 429 with `cooldownUntil`; the check before the
   fetch is a shortcut, and the one made when the move is recorded, below, stays
-  authoritative. `redirect` skips the target reads, the alias
-  and the cooldown checks.
+  authoritative. `redirect` skips the fresh alias read (the target is still
+  resolved and checked for being moved, suspended or deleted) and the cooldown
+  check.
 - **A move is recorded in one locked transaction, then published.**
   `recordActorMigration` (`lib/database/domains/actorMigration/queries.ts`)
   locks the actor row, checks the cooldown for a `move` (the newest `move` row
