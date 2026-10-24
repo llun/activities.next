@@ -16,11 +16,13 @@ import type {
   DeleteListParams,
   GetListAccountCountsParams,
   GetListAccountsParams,
+  GetListMembersParams,
   GetListParams,
   GetListTimelineParams,
   GetListsParams,
   GetListsWithAccountParams,
   ListAccountsPage,
+  ListMember,
   RemoveListAccountsParams,
   UpdateListParams
 } from '@/lib/database/domains/list/types'
@@ -238,6 +240,41 @@ export const getListAccounts = async (
   }
 }
 
+export const getListMembers = async (
+  db: Db,
+  { listId, actorId, limit = PER_PAGE_LIMIT, maxId }: GetListMembersParams
+): Promise<ListMember[]> => {
+  let query = db
+    .selectFrom('list_accounts')
+    .select(['id', 'targetActorId'])
+    .where('listId', '=', listId)
+    .where('actorId', '=', actorId)
+
+  if (maxId) {
+    const cursor = await db
+      .selectFrom('list_accounts')
+      .select('createdAt')
+      .where('listId', '=', listId)
+      .where('actorId', '=', actorId)
+      .where('id', '=', maxId)
+      .limit(1)
+      .executeTakeFirst()
+    if (!cursor) return []
+    query = query.where((eb) =>
+      pastStoredKeyset(
+        eb,
+        { createdAt: cursor.createdAt, tieBreaker: maxId },
+        '<',
+        'id'
+      )
+    )
+  }
+
+  query = query.orderBy('createdAt', 'desc').orderBy('id', 'desc')
+  if (limit > 0) query = query.limit(limit)
+  return query.execute()
+}
+
 export const getListAccountCounts = async (
   db: Db,
   { actorId, listIds }: GetListAccountCountsParams
@@ -408,6 +445,7 @@ export const createListQueries = (getStatusesByIds: ListStatusSource) => ({
   getLists,
   deleteList,
   getListAccounts,
+  getListMembers,
   getListAccountCounts,
   addListAccounts,
   removeListAccounts,

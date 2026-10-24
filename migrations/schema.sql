@@ -183,6 +183,39 @@ CREATE SEQUENCE public.bookmarks_id_seq
 
 ALTER SEQUENCE public.bookmarks_id_seq OWNED BY public.bookmarks.id;
 
+CREATE TABLE public.bulk_import_rows (
+    id character varying(255) NOT NULL,
+    "importId" character varying(255) NOT NULL,
+    "rowIndex" integer NOT NULL,
+    data text NOT NULL,
+    state character varying(255) DEFAULT 'pending'::character varying NOT NULL,
+    error text,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE TABLE public.bulk_imports (
+    id character varying(255) NOT NULL,
+    "actorId" character varying(255) NOT NULL,
+    type character varying(255) NOT NULL,
+    overwrite boolean DEFAULT false NOT NULL,
+    state character varying(255) NOT NULL,
+    "originalFilename" character varying(255) DEFAULT ''::character varying NOT NULL,
+    "totalItems" integer DEFAULT 0 NOT NULL,
+    "processedItems" integer DEFAULT 0 NOT NULL,
+    "importedItems" integer DEFAULT 0 NOT NULL,
+    "overwriteDone" boolean DEFAULT false NOT NULL,
+    "nextRowIndex" integer DEFAULT 0 NOT NULL,
+    "overwriteProgress" integer DEFAULT 0 NOT NULL,
+    "listsPrepared" boolean DEFAULT false NOT NULL,
+    "runToken" character varying(255),
+    "claimedUntil" timestamp with time zone,
+    "lastError" text,
+    "finishedAt" timestamp with time zone,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
 CREATE TABLE public.clients (
     id character varying(255) NOT NULL,
     name character varying(255),
@@ -1567,6 +1600,12 @@ ALTER TABLE ONLY public.bookmarks
 ALTER TABLE ONLY public.bookmarks
     ADD CONSTRAINT bookmarks_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY public.bulk_import_rows
+    ADD CONSTRAINT bulk_import_rows_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY public.bulk_imports
+    ADD CONSTRAINT bulk_imports_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY public.collection_members
     ADD CONSTRAINT collection_members_collection_target_unique UNIQUE ("collectionSeq", "targetActorId");
 
@@ -1991,6 +2030,14 @@ CREATE INDEX bookmarks_actor_created_id ON public.bookmarks USING btree ("actorI
 CREATE INDEX bookmarks_actor_source_status ON public.bookmarks USING btree ("actorId", "sourceStatusId");
 
 CREATE INDEX bookmarks_status ON public.bookmarks USING btree ("statusId");
+
+CREATE UNIQUE INDEX bulk_import_rows_import_row_unique ON public.bulk_import_rows USING btree ("importId", "rowIndex");
+
+CREATE INDEX bulk_import_rows_import_state_idx ON public.bulk_import_rows USING btree ("importId", state);
+
+CREATE INDEX bulk_imports_actor_created_idx ON public.bulk_imports USING btree ("actorId", "createdAt");
+
+CREATE INDEX bulk_imports_actor_state_idx ON public.bulk_imports USING btree ("actorId", state);
 
 CREATE INDEX collection_members_target ON public.collection_members USING btree ("targetActorId");
 

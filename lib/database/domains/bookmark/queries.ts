@@ -211,7 +211,7 @@ export const getBookmarks = async (
     .limit(limit)
     .execute()
   return (minId ? bookmarks.reverse() : bookmarks).map((row) =>
-    // Parsing drops sourceStatusId and turns the integer id into a string.
+    // Parsing keeps sourceStatusId (null when the bookmark was not made through a boost) and turns the integer id into a string.
     Bookmark.parse({ ...row, id: String(row.id) })
   )
 }

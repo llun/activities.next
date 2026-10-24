@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { applyBlock } from '@/lib/actions/applyBlock'
+import { applyBlock, endFollowsForBlock } from '@/lib/actions/applyBlock'
 import { applyMute } from '@/lib/actions/applyMute'
 import { Database } from '@/lib/database/types'
 import { createJobHandle } from '@/lib/jobs/createJobHandle'
@@ -203,27 +203,25 @@ export const moveRelationshipsJob: JobHandle = createJobHandle(
         const blockNote = `This user moved from ${acct}, which you had blocked.`
 
         if (existingBlock?.uri === blockUri) {
-          // On resume, repeat the rest of applyBlock only for follows that
-          // predate the block (a crash after createBlock may have left them in
-          // place); a follow made after the block is the user's choice. Then
-          // re-publish SendBlockJob for a remote target with the deterministic
-          // id: deduplicating queues drop it; others send a duplicate Block with
+          // On resume, repeat the follow-ending half of applyBlock per
+          // direction: the target's follow is always ended while the block
+          // exists; the user's own follow only if it predates the block (one
+          // made after the carried block is left alone). Then re-publish
+          // SendBlockJob for a remote target with the deterministic id:
+          // deduplicating queues drop it; others send a duplicate Block with
           // the same uri, which remote receivers treat as a no-op.
           const reverseFollow = await database.getAcceptedOrRequestedFollow({
             actorId: target.id,
             targetActorId: actorId
           })
-          if (
-            [follow, reverseFollow].some(
-              (item) => item && item.createdAt <= existingBlock.createdAt
-            )
-          ) {
-            await applyBlock({
-              database,
-              actorId,
-              targetActorId: target.id,
-              uri: blockUri
-            })
+          const followsToEnd = [
+            reverseFollow,
+            follow && follow.createdAt <= existingBlock.createdAt
+              ? follow
+              : null
+          ].filter(Boolean)
+          if (followsToEnd.length > 0) {
+            await endFollowsForBlock({ database, follows: followsToEnd })
           }
           if (!target.privateKey) {
             await getQueue().publish({

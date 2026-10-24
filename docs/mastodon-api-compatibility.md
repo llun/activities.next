@@ -431,6 +431,36 @@ a string>`, which returns an empty page, so that poller never detects new
   same way once it accepts the request. Mastodon ≥ 4.4 merges at most 200 of a
   member's recent posts in both cases, and earlier versions backfill nothing.
 
+- **CSV export and import are plain endpoints.** Exports (`GET
+/api/v1/exports/<file>.csv`) match Mastodon's `Export` file formats, and
+  `following_accounts.csv` lists the newest follow first. Imports follow
+  `Form::Import`, `BulkImportService` and `BulkImportRowService` (merge or
+  overwrite, 20,000 rows). Mastodon has no REST API for either, only the
+  settings web UI, so `POST /api/v1/imports` and `GET /api/v1/imports[/:id]` are
+  this server's own. A file over 5 MiB gets 413 `File is too large`, and the
+  body is read with a byte cap, so a chunked body over the limit is refused
+  without being buffered. Rows run in resumable, time-budgeted slices of about
+  20 seconds rather than one Sidekiq job per row, with one attempt per row. The
+  run's lease is renewed after each unit of work, and a NoQueue run is unbudgeted
+  and finishes in one go. A row that throws is stored with a generic error, not
+  the exception message. A blank or missing follow option leaves an existing
+  follow's stored value. A following row, or a list row for another account,
+  fails with `Account is blocked` when either side blocks the other or the
+  importer blocks the target's domain or its handle's domain, and with
+  `Account has moved` when the target has moved. Overwrite matches an account
+  by its handle, then by the actor that handle resolves to, so Mastodon's
+  local-domain handles still match; a relation is kept, not removed, when a row
+  with the same username, whose resolution failed for a reason that may pass,
+  names the same domain (a dotted one; the relation's host may be a subdomain of it), and that row is retried. Failed
+  rows are kept and listed (up to 100 on `GET /api/v1/imports/:id`); Mastodon
+  deletes imported rows and only counts failures. A failed NoQueue run finishes
+  the import immediately. When the actor starts another import, an unfinished
+  one with no live claim and no progress for 15 minutes, or no progress for 24
+  hours, is abandoned (`lastError` "Abandoned: no progress", its lease cleared). A bookmark of a
+  remote status is fetched through the existing remote status fetch, which
+  stores only public notes, so a non-public remote bookmark fails. A mute's
+  `notifications` flag is Mastodon's `hide_notifications`.
+
 ## Not planned
 
 These endpoints are not implemented and are not currently on the roadmap. They

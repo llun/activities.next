@@ -16,6 +16,7 @@ import type {
   GetFollowRequestsParams,
   GetFollowersInboxParams,
   GetFollowersParams,
+  GetFollowingNewestFirstParams,
   GetFollowingParams,
   GetLocalActorsFromFollowerUrlParams,
   GetLocalFollowersForActorIdParams,
@@ -585,6 +586,29 @@ export const getFollowing = (
   { actorId, ...page }: GetFollowingParams
 ): Promise<Follow[]> => getAcceptedFollowPage(db, 'actorId', actorId, page)
 
+// Accepted follows of an actor, newest first by (createdAt, id). Unlike
+// getFollowing (ordered by the random UUID id), this matches Mastodon's order.
+export const getFollowingNewestFirst = async (
+  db: Db,
+  { actorId, limit, cursor }: GetFollowingNewestFirstParams
+): Promise<Follow[]> => {
+  let query = db
+    .selectFrom('follows')
+    .selectAll()
+    .where('actorId', '=', actorId)
+    .where('status', '=', FollowStatus.enum.Accepted)
+  if (cursor) {
+    const past = { createdAt: cursor.createdAt, tieBreaker: cursor.id }
+    query = query.where((eb) => pastStoredKeyset(eb, past, '<', 'id'))
+  }
+  const rows = await query
+    .orderBy('createdAt', 'desc')
+    .orderBy('id', 'desc')
+    .limit(limit)
+    .execute()
+  return rows.map(toFollow)
+}
+
 export const getFollowers = (
   db: Db,
   { targetActorId, ...page }: GetFollowersParams
@@ -665,6 +689,7 @@ export const followQueries = {
   updateFollowStatus,
   getFollowing,
   getFollowers,
+  getFollowingNewestFirst,
   getFollowRequests,
   getFollowRequestsCount
 }

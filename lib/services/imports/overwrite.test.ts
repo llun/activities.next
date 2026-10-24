@@ -1,0 +1,861 @@
+import { unfollow } from '@/lib/activities'
+import { Database } from '@/lib/database/types'
+import { SEND_UNBLOCK_JOB_NAME } from '@/lib/jobs/names'
+import { resolveAccountTarget } from '@/lib/services/actors/resolveAccountTarget'
+import { BulkImportRowData, BulkImportType } from '@/lib/services/imports/types'
+import { Actor } from '@/lib/types/domain/actor'
+import { FollowStatus } from '@/lib/types/domain/follow'
+
+import {
+  createImportTestDatabase,
+  createPublicNote,
+  createRemoteActor,
+  resolveStoredAccount
+} from './importTestUtils'
+import { applyOverwrite } from './overwrite'
+
+const mockPublish = vi.hoisted(() => vi.fn())
+
+vi.mock('@/lib/services/queue', () => ({
+  getQueue: () => ({ publish: mockPublish })
+}))
+vi.mock('@/lib/activities', () => ({ follow: vi.fn(), unfollow: vi.fn() }))
+vi.mock('@/lib/services/actors/resolveAccountTarget', () => ({
+  resolveAccountTarget: vi.fn()
+}))
+vi.mock('@/lib/services/federation/getFederationSigningActor', () => ({
+  getFederationSigningActor: vi.fn().mockResolvedValue(undefined)
+}))
+
+describe('applyOverwrite', () => {
+  let database: Database
+  let actor: Actor
+  let kept: Actor
+  let dropped: Actor
+
+  beforeEach(async () => {
+    ;({ database, actor } = await createImportTestDatabase())
+    kept = await createRemoteActor(database, 'kept')
+    dropped = await createRemoteActor(database, 'dropped')
+    mockPublish.mockReset().mockResolvedValue(undefined)
+    vi.mocked(unfollow).mockReset().mockResolvedValue(true)
+    vi.mocked(resolveAccountTarget)
+      .mockReset()
+      .mockImplementation(resolveStoredAccount)
+  })
+
+  afterEach(async () => {
+    await database.destroy()
+  })
+
+  const run = async (type: BulkImportType, rows: BulkImportRowData[]) => {
+    await database.createBulkImport({
+      id: 'import-1',
+      actorId: actor.id,
+      type,
+      overwrite: true,
+      originalFilename: 'file.csv',
+      rows
+    })
+    const bulkImport = await database.getBulkImportById({ id: 'import-1' })
+    // Twice: an interrupted pass reruns from the start.
+    await applyOverwrite({ database, actor, bulkImport: bulkImport! })
+    await applyOverwrite({ database, actor, bulkImport: bulkImport! })
+    return (await database.getBulkImportById({ id: 'import-1' }))!
+  }
+
+  const follows = (target: Actor) =>
+    database.getAcceptedOrRequestedFollow({
+      actorId: actor.id,
+      targetActorId: target.id
+    })
+
+  it('following: unfollows what the file omits, keeps and updates the rest', async () => {
+    for (const target of [kept, dropped]) {
+      await database.createFollow({
+        actorId: actor.id,
+        targetActorId: target.id,
+        status: FollowStatus.enum.Accepted,
+        inbox: `${actor.id}/inbox`,
+        sharedInbox: 'https://test.llun.dev/inbox'
+      })
+    }
+
+    const result = await run('following', [
+      {
+        acct: 'Kept@Remote.test',
+        show_reblogs: false,
+        notify: true,
+        languages: ['th']
+      },
+      { acct: 'other@remote.test' }
+    ])
+
+    expect(await follows(dropped)).toBeNull()
+    expect(unfollow).toHaveBeenCalledTimes(1)
+    expect(await follows(kept)).toMatchObject({
+      status: FollowStatus.enum.Accepted,
+      reblogs: false,
+      notify: true,
+      languages: ['th']
+    })
+    expect(result).toMatchObject({ processedItems: 1, importedItems: 1 })
+  })
+
+  it('following: a row without preferences keeps the stored ones', async () => {
+    await database.createFollow({
+      actorId: actor.id,
+      targetActorId: kept.id,
+      status: FollowStatus.enum.Accepted,
+      inbox: `${actor.id}/inbox`,
+      sharedInbox: 'https://test.llun.dev/inbox',
+      reblogs: false,
+      notify: true,
+      languages: ['th']
+    })
+
+    await run('following', [{ acct: 'kept@remote.test', notify: null }])
+
+    expect(await follows(kept)).toMatchObject({
+      reblogs: false,
+      notify: true,
+      languages: ['th']
+    })
+  })
+
+  it('blocking: unblocks (federated) what the file omits, keeps the rest', async () => {
+    for (const target of [kept, dropped]) {
+      await database.createBlock({
+        actorId: actor.id,
+        targetActorId: target.id,
+        uri: `${actor.id}#blocks/${target.username}`
+      })
+    }
+
+    const result = await run('blocking', [{ acct: 'kept@remote.test' }])
+
+    expect(
+      await database.isBlocking({
+        actorId: actor.id,
+        targetActorId: dropped.id
+      })
+    ).toBe(false)
+    expect(
+      await database.isBlocking({ actorId: actor.id, targetActorId: kept.id })
+    ).toBe(true)
+    expect(
+      mockPublish.mock.calls.filter(
+        ([message]) => message.name === SEND_UNBLOCK_JOB_NAME
+      )
+    ).toHaveLength(1)
+    expect(result).toMatchObject({ processedItems: 1, importedItems: 1 })
+  })
+
+  it('muting: unmutes what the file omits, re-mutes the rest with the row flag', async () => {
+    for (const target of [kept, dropped]) {
+      await database.createMute({
+        actorId: actor.id,
+        targetActorId: target.id,
+        notifications: true,
+        endsAt: null
+      })
+    }
+
+    const result = await run('muting', [
+      { acct: 'kept@remote.test', hide_notifications: false }
+    ])
+
+    expect(
+      await database.getMute({ actorId: actor.id, targetActorId: dropped.id })
+    ).toBeNull()
+    expect(
+      (await database.getMute({ actorId: actor.id, targetActorId: kept.id }))
+        ?.notifications
+    ).toBe(false)
+    expect(result).toMatchObject({ processedItems: 1, importedItems: 1 })
+  })
+
+  it('domain_blocking: removes the blocks the file omits', async () => {
+    for (const domain of ['keep.test', 'drop.test']) {
+      await database.createActorDomainBlock({ actorId: actor.id, domain })
+    }
+
+    const result = await run('domain_blocking', [{ domain: 'KEEP.test' }])
+
+    const blocks = await database.getActorDomainBlocks({ actorId: actor.id })
+    expect(blocks.map((block) => block.domain)).toEqual(['keep.test'])
+    // The row pass still handles the rows of this type.
+    expect(result).toMatchObject({ processedItems: 0, importedItems: 0 })
+  })
+
+  it('bookmarks: deletes the bookmarks the file omits, keeps the rest', async () => {
+    const keptUri = `${kept.id}/statuses/1`
+    const droppedUri = `${dropped.id}/statuses/1`
+    for (const [uri, author] of [
+      [keptUri, kept],
+      [droppedUri, dropped]
+    ] as const) {
+      await createPublicNote(database, uri, author.id)
+      await database.createBookmark({ actorId: actor.id, statusId: uri })
+    }
+
+    const result = await run('bookmarks', [{ uri: keptUri }])
+
+    const bookmarks = await database.getBookmarks({
+      actorId: actor.id,
+      limit: 10
+    })
+    expect(bookmarks.map((bookmark) => bookmark.statusId)).toEqual([keptUri])
+    expect(result).toMatchObject({ processedItems: 1, importedItems: 1 })
+  })
+
+  it('bookmarks: deletes every omitted bookmark before it marks a kept row', async () => {
+    const keptUris = [`${kept.id}/statuses/1`, `${kept.id}/statuses/2`]
+    const droppedUri = `${dropped.id}/statuses/1`
+    // Newest first: the kept bookmarks come back before the dropped one.
+    for (const uri of [droppedUri, ...keptUris]) {
+      await createPublicNote(database, uri, kept.id)
+      await database.createBookmark({ actorId: actor.id, statusId: uri })
+    }
+    const deleteBookmark = vi.spyOn(database, 'deleteBookmark')
+    const mark = vi.spyOn(database, 'markBulkImportRowProcessed')
+
+    await database.createBulkImport({
+      id: 'import-1',
+      actorId: actor.id,
+      type: 'bookmarks',
+      overwrite: true,
+      originalFilename: 'file.csv',
+      rows: keptUris.map((uri) => ({ uri }))
+    })
+    await applyOverwrite({
+      database,
+      actor,
+      bulkImport: (await database.getBulkImportById({ id: 'import-1' }))!
+    })
+
+    expect(deleteBookmark).toHaveBeenCalledTimes(1)
+    expect(mark).toHaveBeenCalledTimes(2)
+    expect(deleteBookmark.mock.invocationCallOrder[0]).toBeLessThan(
+      Math.min(...mark.mock.invocationCallOrder)
+    )
+  })
+
+  it('bookmarks: keeps a bookmark made through a boost when the file names the boost', async () => {
+    const original = `${kept.id}/statuses/1`
+    const boostUri = `${dropped.id}/statuses/boost-1`
+    await createPublicNote(database, original, kept.id)
+    await database.createAnnounce({
+      id: boostUri,
+      actorId: dropped.id,
+      originalStatusId: original,
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: []
+    })
+    await database.createBookmark({ actorId: actor.id, statusId: boostUri })
+
+    const result = await run('bookmarks', [{ uri: boostUri }])
+
+    const bookmarks = await database.getBookmarks({
+      actorId: actor.id,
+      limit: 10
+    })
+    expect(bookmarks.map((bookmark) => bookmark.statusId)).toEqual([original])
+    expect(result).toMatchObject({ processedItems: 1, importedItems: 1 })
+  })
+
+  it('lists: deletes lists the file omits and clears the members of the rest', async () => {
+    const keep = await database.createList({ actorId: actor.id, title: 'Keep' })
+    await database.createList({ actorId: actor.id, title: 'Drop' })
+    await database.createFollow({
+      actorId: actor.id,
+      targetActorId: kept.id,
+      status: FollowStatus.enum.Accepted,
+      inbox: `${actor.id}/inbox`,
+      sharedInbox: 'https://test.llun.dev/inbox'
+    })
+    await database.addListAccounts({
+      listId: keep.id,
+      actorId: actor.id,
+      targetActorIds: [kept.id]
+    })
+
+    await run('lists', [{ list_name: 'Keep', acct: 'kept@remote.test' }])
+
+    const lists = await database.getLists({ actorId: actor.id })
+    expect(lists.map((list) => list.title)).toEqual(['Keep'])
+    expect(
+      await database.getListMembers({ listId: keep.id, actorId: actor.id })
+    ).toHaveLength(0)
+  })
+
+  describe('handle domain differs from the actor host', () => {
+    // Mastodon exports the handle with its LOCAL_DOMAIN (alice@example.com)
+    // while the stored actor lives on its host (social.example.com).
+    let alice: Actor
+
+    beforeEach(async () => {
+      alice = await createRemoteActor(database, 'alice', 'social.example.com')
+      vi.mocked(resolveAccountTarget).mockImplementation(async (params) =>
+        params.input === 'alice@example.com'
+          ? { type: 'resolved', actor: alice }
+          : resolveStoredAccount(params)
+      )
+    })
+
+    const importedRow = async () =>
+      (
+        await database.getBulkImportRows({
+          importId: 'import-1',
+          fromRowIndex: 0,
+          limit: 10
+        })
+      )[0]
+
+    it('following: keeps the follow, marks the row imported and stores the id', async () => {
+      await database.createFollow({
+        actorId: actor.id,
+        targetActorId: alice.id,
+        status: FollowStatus.enum.Accepted,
+        inbox: `${actor.id}/inbox`,
+        sharedInbox: 'https://test.llun.dev/inbox'
+      })
+
+      const result = await run('following', [
+        { acct: 'alice@example.com', notify: true }
+      ])
+
+      expect(unfollow).not.toHaveBeenCalled()
+      expect(await follows(alice)).toMatchObject({
+        status: FollowStatus.enum.Accepted,
+        notify: true
+      })
+      expect(result).toMatchObject({ processedItems: 1, importedItems: 1 })
+      expect((await importedRow()).data.resolvedActorId).toBe(alice.id)
+    })
+
+    it('blocking: keeps the block without a federated Unblock', async () => {
+      await database.createBlock({
+        actorId: actor.id,
+        targetActorId: alice.id,
+        uri: `${actor.id}#blocks/alice`
+      })
+
+      const result = await run('blocking', [{ acct: 'alice@example.com' }])
+
+      expect(
+        await database.isBlocking({
+          actorId: actor.id,
+          targetActorId: alice.id
+        })
+      ).toBe(true)
+      expect(
+        mockPublish.mock.calls.filter(
+          ([message]) => message.name === SEND_UNBLOCK_JOB_NAME
+        )
+      ).toHaveLength(0)
+      expect(result).toMatchObject({ processedItems: 1, importedItems: 1 })
+    })
+
+    it('muting: keeps the mute and applies the row flag', async () => {
+      await database.createMute({
+        actorId: actor.id,
+        targetActorId: alice.id,
+        notifications: true,
+        endsAt: null
+      })
+
+      const result = await run('muting', [
+        { acct: 'alice@example.com', hide_notifications: false }
+      ])
+
+      expect(
+        await database.getMute({
+          actorId: actor.id,
+          targetActorId: alice.id
+        })
+      ).toMatchObject({ notifications: false })
+      expect(result).toMatchObject({ processedItems: 1, importedItems: 1 })
+    })
+
+    describe.each([
+      ['not found', async () => ({ type: 'not-found' as const })],
+      [
+        'throws',
+        async (): Promise<never> => {
+          throw new Error('remote offline')
+        }
+      ]
+    ])('when resolving the handle %s', (_name, failure) => {
+      beforeEach(() => {
+        vi.mocked(resolveAccountTarget).mockImplementation(async (params) =>
+          params.input === 'alice@example.com'
+            ? failure()
+            : resolveStoredAccount(params)
+        )
+      })
+
+      const expectRowPending = async () => {
+        const row = await importedRow()
+        expect(row.state).toBe('pending')
+        expect(row.data.resolvedActorId).toBeNull()
+      }
+
+      it('following: keeps the follow, without an Undo', async () => {
+        await database.createFollow({
+          actorId: actor.id,
+          targetActorId: alice.id,
+          status: FollowStatus.enum.Accepted,
+          inbox: `${actor.id}/inbox`,
+          sharedInbox: 'https://test.llun.dev/inbox'
+        })
+
+        await run('following', [{ acct: 'Alice@example.com' }])
+
+        expect(unfollow).not.toHaveBeenCalled()
+        expect(await follows(alice)).not.toBeNull()
+        await expectRowPending()
+      })
+
+      it('blocking: keeps the block, without an Unblock', async () => {
+        await database.createBlock({
+          actorId: actor.id,
+          targetActorId: alice.id,
+          uri: `${actor.id}#blocks/alice`
+        })
+
+        await run('blocking', [{ acct: 'alice@example.com' }])
+
+        expect(
+          await database.isBlocking({
+            actorId: actor.id,
+            targetActorId: alice.id
+          })
+        ).toBe(true)
+        expect(
+          mockPublish.mock.calls.filter(
+            ([message]) => message.name === SEND_UNBLOCK_JOB_NAME
+          )
+        ).toHaveLength(0)
+        await expectRowPending()
+      })
+
+      it('muting: keeps the mute', async () => {
+        await database.createMute({
+          actorId: actor.id,
+          targetActorId: alice.id,
+          notifications: true,
+          endsAt: null
+        })
+
+        await run('muting', [{ acct: 'alice@example.com' }])
+
+        expect(
+          await database.getMute({
+            actorId: actor.id,
+            targetActorId: alice.id
+          })
+        ).not.toBeNull()
+        await expectRowPending()
+      })
+
+      it('still removes a relation whose username no failed row shares', async () => {
+        await database.createFollow({
+          actorId: actor.id,
+          targetActorId: dropped.id,
+          status: FollowStatus.enum.Accepted,
+          inbox: `${actor.id}/inbox`,
+          sharedInbox: 'https://test.llun.dev/inbox'
+        })
+
+        await run('following', [{ acct: 'alice@example.com' }])
+
+        expect(await follows(dropped)).toBeNull()
+      })
+    })
+
+    describe('a failed row protects a relation only when it can be the same account', () => {
+      const followAlice = () =>
+        database.createFollow({
+          actorId: actor.id,
+          targetActorId: alice.id,
+          status: FollowStatus.enum.Accepted,
+          inbox: `${actor.id}/inbox`,
+          sharedInbox: 'https://test.llun.dev/inbox'
+        })
+
+      it('keeps a relation whose host is a subdomain of the handle domain', async () => {
+        vi.mocked(resolveAccountTarget).mockResolvedValue({
+          type: 'not-found'
+        })
+        await followAlice()
+
+        await run('following', [{ acct: 'alice@example.com' }])
+
+        expect(await follows(alice)).not.toBeNull()
+      })
+
+      it('removes a relation whose host is the parent of the handle domain', async () => {
+        vi.mocked(resolveAccountTarget).mockResolvedValue({
+          type: 'not-found'
+        })
+        await followAlice()
+
+        await run('following', [{ acct: 'alice@eu.social.example.com' }])
+
+        expect(await follows(alice)).toBeNull()
+      })
+
+      it('keeps a relation whose host equals the handle domain', async () => {
+        vi.mocked(resolveAccountTarget).mockResolvedValue({
+          type: 'not-found'
+        })
+        await followAlice()
+
+        await run('following', [{ acct: 'alice@social.example.com' }])
+
+        expect(await follows(alice)).not.toBeNull()
+      })
+
+      it.each(['com', 'test'])(
+        'removes a relation when the handle domain is the bare %s',
+        async (tld) => {
+          vi.mocked(resolveAccountTarget).mockResolvedValue({
+            type: 'not-found'
+          })
+          const zed = await createRemoteActor(database, 'zed', `host.${tld}`)
+          await database.createFollow({
+            actorId: actor.id,
+            targetActorId: zed.id,
+            status: FollowStatus.enum.Accepted,
+            inbox: `${actor.id}/inbox`,
+            sharedInbox: 'https://test.llun.dev/inbox'
+          })
+
+          await run('following', [{ acct: `zed@${tld}` }])
+
+          expect(await follows(zed)).toBeNull()
+        }
+      )
+
+      it('removes a relation on an unrelated domain', async () => {
+        vi.mocked(resolveAccountTarget).mockResolvedValue({
+          type: 'not-found'
+        })
+        await followAlice()
+
+        await run('following', [{ acct: 'alice@gone.example' }])
+
+        expect(await follows(alice)).toBeNull()
+      })
+
+      it('removes a relation when the row failed as forbidden', async () => {
+        vi.mocked(resolveAccountTarget).mockResolvedValue({
+          type: 'forbidden'
+        })
+        await followAlice()
+
+        await run('following', [{ acct: 'alice@example.com' }])
+
+        expect(await follows(alice)).toBeNull()
+      })
+    })
+
+    it('resolves only the rows whose username an unmatched relation shares, with one batch read', async () => {
+      await database.createFollow({
+        actorId: actor.id,
+        targetActorId: alice.id,
+        status: FollowStatus.enum.Accepted,
+        inbox: `${actor.id}/inbox`,
+        sharedInbox: 'https://test.llun.dev/inbox'
+      })
+      const getActorFromId = vi.spyOn(database, 'getActorFromId')
+      const getActorsFromIds = vi.spyOn(database, 'getActorsFromIds')
+
+      await run('following', [
+        { acct: 'alice@example.com' },
+        { acct: 'unrelated@remote.test' }
+      ])
+
+      expect(
+        vi.mocked(resolveAccountTarget).mock.calls.map(([p]) => p.input)
+      ).toEqual(['alice@example.com'])
+      expect(getActorsFromIds).toHaveBeenCalled()
+      expect(
+        getActorFromId.mock.calls.filter(([p]) => p.id === alice.id)
+      ).toHaveLength(0)
+    })
+
+    it('still removes a relation no row resolves to', async () => {
+      await database.createFollow({
+        actorId: actor.id,
+        targetActorId: dropped.id,
+        status: FollowStatus.enum.Accepted,
+        inbox: `${actor.id}/inbox`,
+        sharedInbox: 'https://test.llun.dev/inbox'
+      })
+
+      await run('following', [{ acct: 'alice@example.com' }])
+
+      expect(await follows(dropped)).toBeNull()
+    })
+  })
+
+  describe('budget of the keep loops', () => {
+    const passesUntilDone = async (importId: string) => {
+      const passes = []
+      for (let i = 0; i < 20; i += 1) {
+        // The checkpoint a job saves: the next pass reads the rows afresh.
+        const fresh = (await database.getBulkImportById({ id: importId }))!
+        const pass = await applyOverwrite({
+          database,
+          actor,
+          bulkImport: fresh,
+          deadline: 0
+        })
+        passes.push(pass)
+        if (pass.done) return passes
+      }
+      throw new Error('overwrite did not finish')
+    }
+
+    it('following: applies each kept follow once, a unit per pass', async () => {
+      const others = [
+        await createRemoteActor(database, 'one'),
+        await createRemoteActor(database, 'two')
+      ]
+      const targets = [kept, ...others]
+      for (const target of targets) {
+        await database.createFollow({
+          actorId: actor.id,
+          targetActorId: target.id,
+          status: FollowStatus.enum.Accepted,
+          inbox: `${actor.id}/inbox`,
+          sharedInbox: 'https://test.llun.dev/inbox'
+        })
+      }
+      await database.createBulkImport({
+        id: 'import-1',
+        actorId: actor.id,
+        type: 'following',
+        overwrite: true,
+        originalFilename: 'file.csv',
+        rows: targets.map((target) => ({
+          acct: `${target.username}@${target.domain}`,
+          notify: true
+        }))
+      })
+      const updatePreferences = vi.spyOn(database, 'updateFollowPreferences')
+
+      const passes = await passesUntilDone('import-1')
+
+      expect(passes).toEqual([
+        { done: false, units: 1 },
+        { done: false, units: 1 },
+        { done: true, units: 1 }
+      ])
+      // Once per follow, not once per pass, and every row is counted once.
+      expect(updatePreferences).toHaveBeenCalledTimes(3)
+      expect(
+        await database.getBulkImportById({ id: 'import-1' })
+      ).toMatchObject({
+        state: 'finished',
+        processedItems: 3,
+        importedItems: 3
+      })
+    })
+
+    it('following: applies the side effect before it marks the row', async () => {
+      await database.createFollow({
+        actorId: actor.id,
+        targetActorId: kept.id,
+        status: FollowStatus.enum.Accepted,
+        inbox: `${actor.id}/inbox`,
+        sharedInbox: 'https://test.llun.dev/inbox'
+      })
+      await database.createBulkImport({
+        id: 'import-1',
+        actorId: actor.id,
+        type: 'following',
+        overwrite: true,
+        originalFilename: 'file.csv',
+        rows: [{ acct: 'kept@remote.test', notify: true }]
+      })
+      const update = vi.spyOn(database, 'updateFollowPreferences')
+      const mark = vi.spyOn(database, 'markBulkImportRowProcessed')
+
+      await passesUntilDone('import-1')
+
+      expect(update.mock.invocationCallOrder[0]).toBeLessThan(
+        mark.mock.invocationCallOrder[0]
+      )
+    })
+
+    it('bookmarks: deletes and keeps a unit per pass, each once', async () => {
+      const keptUris = [`${kept.id}/statuses/1`, `${kept.id}/statuses/2`]
+      const droppedUris = [
+        `${dropped.id}/statuses/1`,
+        `${dropped.id}/statuses/2`,
+        `${dropped.id}/statuses/3`
+      ]
+      for (const uri of [...droppedUris, ...keptUris]) {
+        await createPublicNote(database, uri, kept.id)
+        await database.createBookmark({ actorId: actor.id, statusId: uri })
+      }
+      await database.createBulkImport({
+        id: 'import-1',
+        actorId: actor.id,
+        type: 'bookmarks',
+        overwrite: true,
+        originalFilename: 'file.csv',
+        rows: keptUris.map((uri) => ({ uri }))
+      })
+      const deleteBookmark = vi.spyOn(database, 'deleteBookmark')
+      const mark = vi.spyOn(database, 'markBulkImportRowProcessed')
+
+      const passes = await passesUntilDone('import-1')
+
+      // Three deletions, then two kept rows, one unit each.
+      expect(passes.map((pass) => pass.done)).toEqual([
+        false,
+        false,
+        false,
+        false,
+        true
+      ])
+      expect(deleteBookmark).toHaveBeenCalledTimes(3)
+      expect(
+        (await database.getBookmarks({ actorId: actor.id, limit: 10 }))
+          .map((bookmark) => bookmark.statusId)
+          .sort()
+      ).toEqual(keptUris)
+      expect(mark.mock.calls.filter(([p]) => p.imported)).toHaveLength(2)
+      expect(
+        await database.getBulkImportById({ id: 'import-1' })
+      ).toMatchObject({
+        state: 'finished',
+        processedItems: 2,
+        importedItems: 2
+      })
+    })
+  })
+
+  describe('budget', () => {
+    const createImport = async (rows: BulkImportRowData[]) => {
+      await database.createBulkImport({
+        id: 'import-1',
+        actorId: actor.id,
+        type: 'following',
+        overwrite: true,
+        originalFilename: 'file.csv',
+        rows
+      })
+      return (await database.getBulkImportById({ id: 'import-1' }))!
+    }
+
+    const followAll = async (targets: Actor[]) => {
+      for (const target of targets) {
+        await database.createFollow({
+          actorId: actor.id,
+          targetActorId: target.id,
+          status: FollowStatus.enum.Accepted,
+          inbox: `${actor.id}/inbox`,
+          sharedInbox: 'https://test.llun.dev/inbox'
+        })
+      }
+    }
+
+    it('stops removing when the budget is spent and finishes in later passes', async () => {
+      const other = await createRemoteActor(database, 'other')
+      await followAll([kept, dropped, other])
+      const bulkImport = await createImport([{ acct: 'kept@remote.test' }])
+
+      // A spent budget still allows one unit, so every pass makes progress.
+      const passes = []
+      for (;;) {
+        const pass = await applyOverwrite({
+          database,
+          actor,
+          bulkImport,
+          deadline: 0
+        })
+        passes.push(pass)
+        if (pass.done) break
+      }
+
+      // Two removals, then the kept row: one unit per pass.
+      expect(passes).toEqual([
+        { done: false, units: 1 },
+        { done: false, units: 1 },
+        { done: true, units: 1 }
+      ])
+      expect(unfollow).toHaveBeenCalledTimes(2)
+      expect(await follows(kept)).not.toBeNull()
+    })
+
+    it('resolves rows under the budget, once each, before removing anything', async () => {
+      await followAll([kept, dropped])
+      // Rows that share the dropped follow's username are the only ones that
+      // could match it, so only they are resolved (to unrelated actors here).
+      await createRemoteActor(database, 'dropped', 'a.test')
+      await createRemoteActor(database, 'dropped', 'b.test')
+      const bulkImport = await createImport([
+        { acct: 'kept@remote.test' },
+        { acct: 'dropped@a.test' },
+        { acct: 'dropped@b.test' }
+      ])
+
+      const first = await applyOverwrite({
+        database,
+        actor,
+        bulkImport,
+        deadline: 0
+      })
+      expect(first).toEqual({ done: false, units: 1 })
+      expect(await follows(dropped)).not.toBeNull()
+
+      const second = await applyOverwrite({
+        database,
+        actor,
+        bulkImport,
+        deadline: 0
+      })
+      expect(second).toEqual({ done: false, units: 1 })
+      expect(await follows(dropped)).not.toBeNull()
+
+      const third = await applyOverwrite({
+        database,
+        actor,
+        bulkImport,
+        deadline: 0
+      })
+      expect(third).toEqual({ done: false, units: 1 })
+      expect(await follows(dropped)).toBeNull()
+      // The kept row is the last unit.
+      expect(
+        await applyOverwrite({ database, actor, bulkImport, deadline: 0 })
+      ).toEqual({ done: true, units: 1 })
+      // The two rows were each resolved once, even though the passes repeat.
+      expect(resolveAccountTarget).toHaveBeenCalledTimes(2)
+    })
+
+    it('stops after a unit when the lease is lost, without removing or marking more', async () => {
+      const other = await createRemoteActor(database, 'other')
+      await followAll([kept, dropped, other])
+      const bulkImport = await createImport([{ acct: 'kept@remote.test' }])
+      const renew = vi
+        .fn()
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValue(new Error('lease lost'))
+
+      await expect(
+        applyOverwrite({ database, actor, bulkImport, renew })
+      ).rejects.toThrow('lease lost')
+
+      expect(unfollow).toHaveBeenCalledTimes(2)
+      expect(
+        (await database.getBulkImportById({ id: 'import-1' }))!.processedItems
+      ).toBe(0)
+    })
+  })
+})

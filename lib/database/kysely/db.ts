@@ -198,6 +198,39 @@ export interface Bookmarks {
   updatedAt: WithDefault<Nullable<Timestamp>>
 }
 
+export interface BulkImportRows {
+  createdAt: WithDefault<Timestamp>
+  data: string
+  error: Nullable<string>
+  id: string
+  importId: string
+  rowIndex: number
+  state: WithDefault<string>
+  updatedAt: WithDefault<Timestamp>
+}
+
+export interface BulkImports {
+  actorId: string
+  claimedUntil: Nullable<Timestamp>
+  createdAt: WithDefault<Timestamp>
+  finishedAt: Nullable<Timestamp>
+  id: string
+  importedItems: WithDefault<number>
+  lastError: Nullable<string>
+  listsPrepared: WithDefault<boolean>
+  nextRowIndex: WithDefault<number>
+  originalFilename: WithDefault<string>
+  overwrite: WithDefault<boolean>
+  overwriteDone: WithDefault<boolean>
+  overwriteProgress: WithDefault<number>
+  processedItems: WithDefault<number>
+  runToken: Nullable<string>
+  state: string
+  totalItems: WithDefault<number>
+  type: string
+  updatedAt: WithDefault<Timestamp>
+}
+
 export interface Clients {
   createdAt: WithDefault<Nullable<Timestamp>>
   id: string
@@ -1395,6 +1428,8 @@ export interface DB {
   auth_codes: AuthCodes
   blocks: Blocks
   bookmarks: Bookmarks
+  bulk_import_rows: BulkImportRows
+  bulk_imports: BulkImports
   clients: Clients
   collection_members: CollectionMembers
   collection_timeline: CollectionTimeline

@@ -487,6 +487,93 @@ describe('moveRelationshipsJob', () => {
         )
       })
 
+      it('ends a crash-left requested follow to a local target on resume', async () => {
+        const deterministicUri = `${ACTOR1_ID}#blocks/${getHashFromString(`${ACTOR1_ID}/move-block/${ORIGIN}/${ACTOR2_ID}`)}`
+        await database.updateActor({ actorId: ORIGIN, movedTo: ACTOR2_ID })
+        await applyBlock({
+          database,
+          actorId: ACTOR1_ID,
+          targetActorId: ORIGIN,
+          uri: `${ACTOR1_ID}#blocks/origin`
+        })
+        const follow = await database.createFollow({
+          actorId: ACTOR1_ID,
+          targetActorId: ACTOR2_ID,
+          status: FollowStatus.enum.Requested,
+          inbox: `${ACTOR2_ID}/inbox`,
+          sharedInbox: 'https://llun.test/inbox'
+        })
+        await new Promise((resolve) => setTimeout(resolve, 5))
+        await database.createBlock({
+          actorId: ACTOR1_ID,
+          targetActorId: ACTOR2_ID,
+          uri: deterministicUri
+        })
+
+        await runJob(ACTOR1_ID, ORIGIN, ACTOR2_ID)
+
+        const updated = await database.getFollowFromId({ followId: follow.id })
+        expect(updated?.status).toBe(FollowStatus.enum.Undo)
+      })
+
+      it('ends a target follow made after the carried block on re-run', async () => {
+        await applyBlock({
+          database,
+          actorId: ACTOR1_ID,
+          targetActorId: ORIGIN,
+          uri: `${ACTOR1_ID}#blocks/origin`
+        })
+        await runJob()
+        await new Promise((resolve) => setTimeout(resolve, 5))
+        const follow = await database.createFollow({
+          actorId: TARGET,
+          targetActorId: ACTOR1_ID,
+          status: FollowStatus.enum.Accepted,
+          inbox: `${TARGET}/inbox`,
+          sharedInbox: 'https://llun.test/inbox'
+        })
+
+        await runJob()
+
+        const updated = await database.getFollowFromId({ followId: follow.id })
+        expect(updated?.status).toBe(FollowStatus.enum.Undo)
+      })
+
+      it("ends the target's follow on re-run even when the user followed the target after the block", async () => {
+        await applyBlock({
+          database,
+          actorId: ACTOR1_ID,
+          targetActorId: ORIGIN,
+          uri: `${ACTOR1_ID}#blocks/origin`
+        })
+        await runJob()
+        await new Promise((resolve) => setTimeout(resolve, 5))
+        const follow = await database.createFollow({
+          actorId: ACTOR1_ID,
+          targetActorId: TARGET,
+          status: FollowStatus.enum.Accepted,
+          inbox: `${TARGET}/inbox`,
+          sharedInbox: 'https://llun.test/inbox'
+        })
+        const reverseFollow = await database.createFollow({
+          actorId: TARGET,
+          targetActorId: ACTOR1_ID,
+          status: FollowStatus.enum.Accepted,
+          inbox: `${TARGET}/inbox`,
+          sharedInbox: 'https://llun.test/inbox'
+        })
+
+        await runJob()
+
+        expect(
+          (await database.getFollowFromId({ followId: reverseFollow.id }))
+            ?.status
+        ).toBe(FollowStatus.enum.Undo)
+        expect(
+          (await database.getFollowFromId({ followId: follow.id }))?.status
+        ).toBe(FollowStatus.enum.Accepted)
+      })
+
       it('leaves a follow made after the carried block alone on re-run', async () => {
         await applyBlock({
           database,

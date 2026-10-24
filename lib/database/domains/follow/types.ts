@@ -57,6 +57,12 @@ export type GetFollowingParams = {
   minId?: string | null
   sinceId?: string | null
 }
+// Keyset cursor over (createdAt, id): the last row of the previous page.
+export type GetFollowingNewestFirstParams = {
+  actorId: string
+  limit: number
+  cursor?: { createdAt: number; id: string } | null
+}
 export type GetFollowersParams = {
   targetActorId: string
   limit: number
@@ -114,6 +120,10 @@ export interface FollowDatabase {
   // New method for getting following with pagination
   getFollowing(params: GetFollowingParams): Promise<Follow[]>
   getFollowers(params: GetFollowersParams): Promise<Follow[]>
+  // Accepted follows newest first by (createdAt, id); getFollowing is id-ordered.
+  getFollowingNewestFirst(
+    params: GetFollowingNewestFirstParams
+  ): Promise<Follow[]>
   // Follow requests methods
   getFollowRequests(params: GetFollowRequestsParams): Promise<Follow[]>
   getFollowRequestsCount(params: GetFollowRequestsCountParams): Promise<number>

@@ -1,19 +1,9 @@
-import { randomUUID } from 'node:crypto'
-
-import { applyBlock } from '@/lib/actions/applyBlock'
-import {
-  BlockedFederationDomainError,
-  recordActorIfNeeded
-} from '@/lib/actions/utils'
-import { SEND_BLOCK_JOB_NAME } from '@/lib/jobs/names'
+import { blockActor } from '@/lib/actions/blockActor'
 import { getRelationship } from '@/lib/services/accounts/relationship'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
-import { getQueue } from '@/lib/services/queue'
 import { Scope } from '@/lib/types/database/operations'
-import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { HttpMethod } from '@/lib/utils/http-headers'
-import { logger } from '@/lib/utils/logger'
 import {
   ERROR_403,
   apiCorsError,
@@ -44,61 +34,23 @@ export const POST = traceApiRoute(
         encodedAccountId
       )
 
-      // The recorded row's id, which differs from the requested one when the
-      // request named an alias URL (recordActorIfNeeded keys rows on the id the
-      // actor's origin names).
-      let targetActorId = requestedActorId
-      if (requestedActorId !== currentActor.id) {
-        let targetActor
-        try {
-          targetActor = await recordActorIfNeeded({
-            actorId: requestedActorId,
-            database
-          })
-        } catch (error) {
-          if (error instanceof BlockedFederationDomainError) {
-            return apiResponse({
-              req,
-              allowedMethods: CORS_HEADERS,
-              data: ERROR_403,
-              responseStatusCode: 403
-            })
-          }
-          throw error
-        }
-        if (!targetActor) return apiCorsError(req, CORS_HEADERS, 404)
-        targetActorId = targetActor.id
-      }
-
-      if (targetActorId !== currentActor.id) {
-        const blockId = randomUUID()
-        const uri = `${currentActor.id}#blocks/${blockId}`
-        const block = await applyBlock({
-          database,
-          actorId: currentActor.id,
-          targetActorId,
-          uri
+      const result = await blockActor({
+        database,
+        currentActor,
+        requestedActorId
+      })
+      if (result.type === 'forbidden') {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_403,
+          responseStatusCode: 403
         })
-
-        getQueue()
-          .publish({
-            id: getHashFromString(block.uri),
-            name: SEND_BLOCK_JOB_NAME,
-            data: {
-              actorId: currentActor.id,
-              targetActorId,
-              uri: block.uri
-            }
-          })
-          .catch((error) => {
-            logger.warn({
-              message: 'Failed to queue block federation',
-              actorId: currentActor.id,
-              targetActorId,
-              error
-            })
-          })
       }
+      if (result.type === 'not-found') {
+        return apiCorsError(req, CORS_HEADERS, 404)
+      }
+      const { targetActorId } = result
 
       const relationship = await getRelationship({
         database,

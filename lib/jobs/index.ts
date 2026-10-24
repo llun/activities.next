@@ -1,5 +1,6 @@
 import { JobHandle } from '@/lib/services/queue/type'
 
+import { bulkImportJob } from './bulkImportJob'
 import { createAnnounceJob } from './createAnnounceJob'
 import { createNoteJob } from './createNoteJob'
 import { createPollJob } from './createPollJob'
@@ -25,6 +26,7 @@ import { moveActorJob } from './moveActorJob'
 import { moveFollowerJob } from './moveFollowerJob'
 import { moveRelationshipsJob } from './moveRelationshipsJob'
 import {
+  BULK_IMPORT_JOB_NAME,
   CREATE_ANNOUNCE_JOB_NAME,
   CREATE_NOTE_JOB_NAME,
   CREATE_POLL_JOB_NAME,
@@ -201,6 +203,9 @@ export const JOBS: Record<string, JobHandle> = {
   },
   get [MOVE_RELATIONSHIPS_JOB_NAME]() {
     return moveRelationshipsJob
+  },
+  get [BULK_IMPORT_JOB_NAME]() {
+    return bulkImportJob
   },
   get [UPDATE_ACTOR_JOB_NAME]() {
     return updateActorJob

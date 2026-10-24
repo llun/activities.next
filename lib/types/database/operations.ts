@@ -953,3 +953,23 @@ export type {
   QueueJobStatus,
   ReplayQueueJobParams
 } from '@/lib/database/domains/queueJob/types'
+
+// ============================================================================
+// Bulk Import Database
+// ============================================================================
+
+export type {
+  BulkImport,
+  BulkImportDatabase,
+  BulkImportRow,
+  BulkImportRowState,
+  BulkImportState,
+  CreateBulkImportParams,
+  GetBulkImportByIdParams,
+  GetBulkImportFailedRowsParams,
+  GetBulkImportParams,
+  GetBulkImportRowsParams,
+  GetBulkImportsParams,
+  MarkBulkImportRowProcessedParams,
+  UpdateBulkImportParams
+} from '@/lib/database/domains/bulkImport/types'

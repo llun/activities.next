@@ -503,3 +503,105 @@ describe('getListAccounts', () => {
     })
   })
 })
+
+describe('getListMembers', () => {
+  it('returns list members with limit and maxId pagination', async () => {
+    await withFreshDatabase(async (database) => {
+      await createLocalAccount(database, 'owner')
+      const owner = await database.getActorFromUsername({
+        username: 'owner',
+        domain: TEST_DOMAIN
+      })
+      if (!owner) throw new Error('owner not created')
+
+      await createLocalAccount(database, 'other')
+      const other = await database.getActorFromUsername({
+        username: 'other',
+        domain: TEST_DOMAIN
+      })
+      if (!other) throw new Error('other not created')
+
+      const list = await database.createList({
+        actorId: owner.id,
+        title: 'Members list'
+      })
+
+      const usernames = ['m1', 'm2', 'm3', 'm4', 'm5']
+      const memberActors = []
+      for (const username of usernames) {
+        await createLocalAccount(database, username)
+        const member = await database.getActorFromUsername({
+          username,
+          domain: TEST_DOMAIN
+        })
+        if (!member) throw new Error(`${username} not created`)
+        memberActors.push(member)
+        await database.addListAccounts({
+          listId: list.id,
+          actorId: owner.id,
+          targetActorIds: [member.id]
+        })
+        await new Promise((resolve) => setTimeout(resolve, 10))
+      }
+
+      const allMembers = await database.getListMembers({
+        listId: list.id,
+        actorId: owner.id
+      })
+      expect(allMembers).toHaveLength(5)
+      expect(allMembers.map((m) => m.targetActorId)).toEqual([
+        memberActors[4].id,
+        memberActors[3].id,
+        memberActors[2].id,
+        memberActors[1].id,
+        memberActors[0].id
+      ])
+
+      const page1 = await database.getListMembers({
+        listId: list.id,
+        actorId: owner.id,
+        limit: 2
+      })
+      expect(page1).toHaveLength(2)
+      expect(page1.map((m) => m.targetActorId)).toEqual([
+        memberActors[4].id,
+        memberActors[3].id
+      ])
+
+      const page2 = await database.getListMembers({
+        listId: list.id,
+        actorId: owner.id,
+        limit: 2,
+        maxId: page1[1].id
+      })
+      expect(page2).toHaveLength(2)
+      expect(page2.map((m) => m.targetActorId)).toEqual([
+        memberActors[2].id,
+        memberActors[1].id
+      ])
+
+      const page3 = await database.getListMembers({
+        listId: list.id,
+        actorId: owner.id,
+        limit: 2,
+        maxId: page2[1].id
+      })
+      expect(page3).toHaveLength(1)
+      expect(page3.map((m) => m.targetActorId)).toEqual([memberActors[0].id])
+
+      const empty = await database.getListMembers({
+        listId: list.id,
+        actorId: owner.id,
+        limit: 2,
+        maxId: 'does-not-exist'
+      })
+      expect(empty).toEqual([])
+
+      const foreign = await database.getListMembers({
+        listId: list.id,
+        actorId: other.id
+      })
+      expect(foreign).toEqual([])
+    })
+  })
+})

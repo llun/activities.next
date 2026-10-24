@@ -1,15 +1,11 @@
 import { z } from 'zod'
 
-import { recordActorIfNeeded } from '@/lib/actions/utils'
-import { follow } from '@/lib/activities'
+import { followActor } from '@/lib/actions/followActor'
 import { parseFollowRequestBody } from '@/lib/services/accounts/parseFollowRequestBody'
 import { getRelationship } from '@/lib/services/accounts/relationship'
-import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
-import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { Scope } from '@/lib/types/database/operations'
-import { FollowStatus } from '@/lib/types/domain/follow'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_422,
@@ -85,7 +81,15 @@ export const POST = traceApiRoute(
         database,
         encodedAccountId
       )
-      if (!(await canFederateWithDomain(database, requestedActorId))) {
+      const result = await followActor({
+        database,
+        currentActor,
+        requestedActorId,
+        reblogs,
+        notify,
+        languages
+      })
+      if (result.type === 'forbidden') {
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
@@ -93,66 +97,10 @@ export const POST = traceApiRoute(
           responseStatusCode: HTTP_STATUS.FORBIDDEN
         })
       }
-
-      // Updating preferences on an account the actor already follows is a purely
-      // local operation, so resolve the existing follow before any network call.
-      // This lets clients change reblogs/notify/languages even when the remote
-      // actor is temporarily unreachable.
-      let targetActorId = requestedActorId
-      let existingFollow = await database.getAcceptedOrRequestedFollow({
-        actorId: currentActor.id,
-        targetActorId
-      })
-
-      let signingActor: Awaited<ReturnType<typeof getFederationSigningActor>>
-      if (!existingFollow) {
-        // New follow: the target must be recorded before a follow row points
-        // at it. recordActorIfNeeded refuses documents it will not store (an
-        // id on another origin, an unreachable actor), and it keys the row on
-        // the id the actor's origin names, which an alias URL is not.
-        signingActor = await getFederationSigningActor(database)
-        const targetActor = await recordActorIfNeeded({
-          actorId: requestedActorId,
-          database,
-          signingActor
-        })
-        if (!targetActor) return apiCorsError(req, CORS_HEADERS, 404)
-        if (targetActor.id !== requestedActorId) {
-          targetActorId = targetActor.id
-          existingFollow = await database.getAcceptedOrRequestedFollow({
-            actorId: currentActor.id,
-            targetActorId
-          })
-        }
+      if (result.type === 'not-found') {
+        return apiCorsError(req, CORS_HEADERS, 404)
       }
-
-      if (existingFollow) {
-        if (
-          reblogs !== undefined ||
-          notify !== undefined ||
-          languages !== undefined
-        ) {
-          await database.updateFollowPreferences({
-            actorId: currentActor.id,
-            targetActorId,
-            reblogs,
-            notify,
-            languages
-          })
-        }
-      } else {
-        const followItem = await database.createFollow({
-          actorId: currentActor.id,
-          targetActorId,
-          status: FollowStatus.enum.Requested,
-          inbox: `${currentActor.id}/inbox`,
-          sharedInbox: `https://${currentActor.domain}/inbox`,
-          reblogs,
-          notify,
-          languages
-        })
-        await follow(followItem.id, currentActor, targetActorId, signingActor)
-      }
+      const { targetActorId } = result
 
       const relationship = await getRelationship({
         database,
