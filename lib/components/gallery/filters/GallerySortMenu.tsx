@@ -73,7 +73,7 @@ export const GallerySortMenu: FC<GallerySortMenuProps> = ({
                 key={option.id}
                 value={option.id}
                 className={cn(
-                  'rounded-lg px-3 py-2 text-sm',
+                  'rounded-lg pr-3 pl-8 py-2 text-sm',
                   option.id === activeOption.id &&
                     'bg-primary/10 text-primary-text focus:bg-primary/10 focus:text-primary-text'
                 )}
