@@ -62,4 +62,18 @@ describe('GallerySortMenu', () => {
     fireEvent.click(oldestItem)
     expect(onChange).toHaveBeenCalledWith('taken_asc')
   })
+
+  it('keeps left padding so the checked indicator does not overlap the label', async () => {
+    render(<GallerySortMenu value="taken_desc" onChange={vi.fn()} />)
+
+    const group = screen.getByRole('group', { name: 'Sort' })
+    fireEvent.keyDown(group.querySelector('button')!, { key: 'ArrowDown' })
+
+    const menuItems = await screen.findAllByRole('menuitemradio')
+    expect(menuItems).toHaveLength(GALLERY_SORT_OPTIONS.length)
+    for (const item of menuItems) {
+      expect(item).toHaveClass('pl-8')
+      expect(item).not.toHaveClass('px-3')
+    }
+  })
 })
