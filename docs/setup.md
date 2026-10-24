@@ -91,6 +91,8 @@ ACTIVITIES_MEDIA_STORAGE_PATH=./uploads
 
 #### S3 / S3-Compatible Object Storage
 
+The account exports (`archives/` in the same bucket) need these permissions on the bucket's credentials besides what media needs: `s3:PutObject`, `s3:GetObject`, `s3:DeleteObject` and `s3:ListBucket` on `archives/*`, `s3:AbortMultipartUpload` (to clean up an unfinished upload), and optionally `s3:ListMultipartUploadParts`. Without the last one an export still completes, with a warning in the logs, but cannot double-check its part ETags. Add a bucket lifecycle rule that aborts incomplete multipart uploads after a day or two.
+
 ```bash
 ACTIVITIES_MEDIA_STORAGE_TYPE=s3          # or 'object' for S3-compatible
 ACTIVITIES_MEDIA_STORAGE_BUCKET=my-bucket

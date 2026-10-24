@@ -26,8 +26,10 @@ import {
   MediaStorageS3Config,
   MediaStorageType
 } from '@/lib/config/mediaStorage'
+import { isTransientStorageError } from '@/lib/services/accountArchive/transientErrors'
 import { assertStorageFilePath } from '@/lib/services/medias/storagePath'
 import { createStorageS3Client } from '@/lib/services/storage/s3Client'
+import { logger } from '@/lib/utils/logger'
 
 import { ARCHIVE_STORAGE_PREFIX } from './constants'
 
@@ -48,6 +50,23 @@ const S3_MAX_PARTS = 10000
  * 10 seconds, which is roughly 1.7 MB/s at 8 MiB parts.
  */
 export const ARCHIVE_S3_REQUEST_TIMEOUT_MS = 30 * 1000
+
+let warnedListParts = false
+const warnListPartsOnce = (error: unknown) => {
+  if (warnedListParts) return
+  warnedListParts = true
+  logger.warn({
+    message:
+      'Listing the parts of an archive upload failed; completing it with the recorded part ETags. Allow s3:ListMultipartUploadParts to check them.',
+    err: { name: (error as { name?: string }).name }
+  })
+}
+
+/** The digest of an ETag that is a plain MD5 (no quotes, no part count). */
+const plainMd5 = (etag: string) => {
+  const bare = etag.replace(/"/g, '')
+  return /^[0-9a-f]{32}$/i.test(bare) ? bare.toLowerCase() : null
+}
 
 const KEY_PATTERN = new RegExp(`^${ARCHIVE_STORAGE_PREFIX}(/[A-Za-z0-9._-]+)+$`)
 const PREFIX_PATTERN = new RegExp(
@@ -82,7 +101,10 @@ export type SinkState = Record<string, unknown>
 /**
  * A file written in pieces across job slices. `checkpoint` makes everything
  * written so far durable and returns the state a later slice reopens it with;
- * bytes written after the last checkpoint are discarded when reopening.
+ * a later slice writes on from that state over whatever an unfinished slice
+ * left past it (the same bytes), and `finish` cuts the file to its size. The
+ * file is shared by the workers that resume from a saved state, so opening it
+ * must not change it.
  */
 export interface ResumableSink {
   write(chunk: Buffer): Promise<void>
@@ -439,6 +461,13 @@ export class S3ArchiveObjectStore implements ArchiveObjectStore {
           })
         }
         if (!page.IsTruncated || page.NextPartNumberMarker === undefined) break
+        // A provider that repeats the marker would loop for ever.
+        if (
+          marker !== undefined &&
+          Number(page.NextPartNumberMarker) <= Number(marker)
+        ) {
+          throw new Error('The archive upload part listing does not advance')
+        }
         marker = String(page.NextPartNumberMarker)
       }
       return found.sort((a, b) => a.n - b.n)
@@ -503,29 +532,52 @@ export class S3ArchiveObjectStore implements ArchiveObjectStore {
           chunks = []
           buffered = 0
         }
-        // The ETags come from the store, not from the cursor: a late re-upload
-        // of a part with the same bytes (a stalled worker) replaces the part
-        // and can change its ETag (SSE-KMS ETags are not digests). The part
-        // count and sizes are still checked against what the cursor counted.
-        const listed = await listParts()
-        if (listed.length !== parts.length) {
-          throw new Error('The archive upload does not hold the expected parts')
+        // The ETags come from the store when it will list them: a late
+        // re-upload of a part with the same bytes (a stalled worker) replaces
+        // the part and can change its ETag (SSE-KMS ETags are not digests). The
+        // part count and sizes are still checked against what the cursor
+        // counted. Listing needs a permission that nothing else needs
+        // (s3:ListMultipartUploadParts); without it the cursor's ETags are used.
+        let listed: { n: number; etag: string; size: number }[] | null = null
+        try {
+          listed = await listParts()
+        } catch (error) {
+          if (isTransientStorageError(error)) throw error
+          warnListPartsOnce(error)
         }
-        const completed = parts.map((part, index) => {
-          const found = listed[index]
-          const expected =
-            index === parts.length - 1 ? lastSize : partSizeOf(part.n)
-          if (found.n !== part.n || found.size !== expected) {
-            throw new Error('A part of the archive upload has the wrong size')
+        if (listed) {
+          if (listed.length !== parts.length) {
+            throw new Error(
+              'The archive upload does not hold the expected parts'
+            )
           }
-          return { PartNumber: found.n, ETag: found.etag }
-        })
+          listed.forEach((found, index) => {
+            const part = parts[index]
+            const expected =
+              index === parts.length - 1 ? lastSize : partSizeOf(part.n)
+            if (found.n !== part.n || found.size !== expected) {
+              throw new Error('A part of the archive upload has the wrong size')
+            }
+            // Two plain MD5 ETags that differ are different bytes: a source
+            // that changed while it was copied. Fail rather than complete.
+            const a = plainMd5(found.etag)
+            const b = plainMd5(part.etag)
+            if (a && b && a !== b) {
+              throw new Error('A part of the archive upload changed')
+            }
+          })
+        }
         await client.send(
           new CompleteMultipartUploadCommand({
             Bucket: bucket,
             Key: key,
             UploadId: uploadId,
-            MultipartUpload: { Parts: completed }
+            MultipartUpload: {
+              Parts: parts.map((part, index) => ({
+                PartNumber: part.n,
+                ETag: listed ? listed[index].etag : part.etag
+              }))
+            }
           })
         )
         await deleteTails().catch(() => undefined)

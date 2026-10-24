@@ -473,9 +473,13 @@ Export](maintenance.md#actor-archive-export)). It is built by
   Small documents built during assembly (`account.json`, the manifest) are
   built once and kept in the stage, so every slice reads the same bytes. The
   output goes through `ResumableSink` (`objectStore.ts`): on local disk a
-  `.partial` file that is truncated to the checkpoint on resume and renamed at
+  `.partial` file that a resumed slice writes on in from the checkpoint offset
+  (opening it changes nothing) and that is cut to its final size and renamed at
   the end; on S3 a multipart upload (8 MiB parts, so at least 5 MiB except the
-  last) whose UploadId and part ETags are in the cursor, with the bytes that do
+  last) whose UploadId and part ETags are in the cursor (completion uses the ETags
+  that `ListParts` lists, after checking their count and sizes against the
+  cursor, and falls back to the cursor's ETags with a warning when the
+  credentials may not list parts), with the bytes that do
   not fill a part kept in a staged tail object. Every checkpoint writes a tail
   under a new name (the writer and a sequence number), and the older tail is
   deleted only after the cursor that refers to the new one has been saved, so a

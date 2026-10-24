@@ -296,6 +296,7 @@ describe('S3ArchiveObjectStore', () => {
     const uploads = new Map<string, Upload>()
     // ETags the store reports when they differ from the ones the upload gave.
     const etags = new Map<string, string>()
+    let listHook: ((command: ListPartsCommand) => unknown) | null = null
     const binary = new Map<string, Buffer>()
     const multipartSend = vi.fn(async (command: unknown) => {
       if (command instanceof CreateMultipartUploadCommand) {
@@ -312,6 +313,7 @@ describe('S3ArchiveObjectStore', () => {
         return { ETag: `"etag-${command.input.PartNumber}-${body.length}"` }
       }
       if (command instanceof ListPartsCommand) {
+        if (listHook) return listHook(command)
         const upload = uploads.get(command.input.UploadId!)!
         return {
           Parts: [...upload.parts.entries()]
@@ -381,6 +383,7 @@ describe('S3ArchiveObjectStore', () => {
     beforeEach(() => {
       uploads.clear()
       etags.clear()
+      listHook = null
       binary.clear()
       multipartSend.mockClear()
     })
@@ -428,6 +431,145 @@ describe('S3ArchiveObjectStore', () => {
       etags.set(`${id}:1`, '"late-etag-1"')
       expect(await sink.finish()).toBe(data.length)
       expect(binary.get(key)?.equals(data)).toBe(true)
+    })
+
+    describe('listing the parts at the end', () => {
+      const MIB = 1024 * 1024
+      const small = () =>
+        new S3ArchiveObjectStore(
+          { type: MediaStorageType.S3Storage, bucket: 'bucket', region: 'r' },
+          { send: multipartSend } as unknown as S3Client,
+          5 * MIB,
+          1000,
+          10
+        )
+      const key = 'archives/a/t/archive-1.zip'
+      const upload = async (bytes: number) => {
+        const data = crypto.randomBytes(bytes)
+        const sink = await small().openResumableWrite(key, null)
+        await sink.write(data)
+        return { sink, data }
+      }
+      const listing = (
+        parts: { PartNumber: number; Size: number; ETag: string }[]
+      ) => parts
+
+      it('follows the pages of a long listing', async () => {
+        const { sink, data } = await upload(11 * MIB)
+        const [id] = [...uploads.keys()]
+        const markers: (string | undefined)[] = []
+        listHook = (command) => {
+          markers.push(command.input.PartNumberMarker)
+          const at = command.input.PartNumberMarker
+            ? Number(command.input.PartNumberMarker)
+            : 0
+          const all = [...uploads.get(id)!.parts.entries()].map(
+            ([PartNumber, body]) => ({
+              PartNumber,
+              Size: body.length,
+              ETag: `"etag-${PartNumber}-${body.length}"`
+            })
+          )
+          const page = all.filter((part) => part.PartNumber > at).slice(0, 1)
+          return {
+            Parts: listing(page),
+            IsTruncated: page[0].PartNumber < all.length,
+            NextPartNumberMarker: page[0].PartNumber
+          }
+        }
+        expect(await sink.finish()).toBe(data.length)
+        expect(markers.length).toBeGreaterThan(1)
+        expect(binary.get(key)?.equals(data)).toBe(true)
+      })
+
+      it('refuses a part of the wrong size', async () => {
+        const { sink } = await upload(11 * MIB)
+        listHook = () => ({
+          Parts: listing([
+            { PartNumber: 1, Size: 5 * MIB - 1, ETag: '"x"' },
+            { PartNumber: 2, Size: 5 * MIB, ETag: '"y"' },
+            { PartNumber: 3, Size: MIB, ETag: '"z"' }
+          ]),
+          IsTruncated: false
+        })
+        await expect(sink.finish()).rejects.toThrow('wrong size')
+      })
+
+      it('stops when a provider repeats the page marker', async () => {
+        const { sink } = await upload(11 * MIB)
+        listHook = () => ({
+          Parts: listing([{ PartNumber: 1, Size: 5 * MIB, ETag: '"x"' }]),
+          IsTruncated: true,
+          NextPartNumberMarker: 1
+        })
+        await expect(sink.finish()).rejects.toThrow('does not advance')
+      })
+
+      it('completes with the recorded ETags when the credentials may not list parts', async () => {
+        const { sink, data } = await upload(11 * MIB)
+        listHook = () => {
+          throw Object.assign(new Error('denied'), {
+            name: 'AccessDenied',
+            $metadata: { httpStatusCode: 403 }
+          })
+        }
+        expect(await sink.finish()).toBe(data.length)
+        expect(binary.get(key)?.equals(data)).toBe(true)
+      })
+
+      it('still fails on a transient listing error', async () => {
+        const { sink } = await upload(11 * MIB)
+        listHook = () => {
+          throw Object.assign(new Error('busy'), {
+            name: 'ServiceUnavailable',
+            $metadata: { httpStatusCode: 503 }
+          })
+        }
+        await expect(sink.finish()).rejects.toThrow('busy')
+      })
+
+      it('fails when a part is listed with another plain MD5 than the one recorded', async () => {
+        const md5 = (text: string) =>
+          crypto.createHash('md5').update(text).digest('hex')
+        const data = crypto.randomBytes(11 * MIB)
+        const sink = await small().openResumableWrite(key, null)
+        await sink.write(data)
+        const [id] = [...uploads.keys()]
+        // The recorded ETags are plain MD5s too.
+        const state = await sink.checkpoint()
+        const recorded = (state as { parts: { n: number; etag: string }[] })
+          .parts
+        expect(recorded.length).toBeGreaterThan(1)
+        void id
+        // Recorded ETags in the cursor are the mock's; make them MD5-shaped by
+        // listing a different MD5 and recording an MD5.
+        const sink2 = await small().openResumableWrite(key, null)
+        const original = multipartSend.getMockImplementation()!
+        multipartSend.mockImplementation(async (command: unknown) => {
+          const result = await original(command)
+          if (command instanceof UploadPartCommand) {
+            return { ETag: `"${md5('recorded')}"` }
+          }
+          return result
+        })
+        try {
+          await sink2.write(data)
+          const second = [...uploads.keys()].at(-1)!
+          listHook = () => ({
+            Parts: [...uploads.get(second)!.parts.entries()].map(
+              ([PartNumber, body]) => ({
+                PartNumber,
+                Size: body.length,
+                ETag: `"${md5('other')}"`
+              })
+            ),
+            IsTruncated: false
+          })
+          await expect(sink2.finish()).rejects.toThrow('changed')
+        } finally {
+          multipartSend.mockImplementation(original)
+        }
+      })
     })
 
     it('refuses to complete an upload that lacks a counted part', async () => {
