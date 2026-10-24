@@ -72,10 +72,9 @@ export class ProgressSaver {
 
   /**
    * Throws when this worker's own lease has run out, or will within the safety
-   * margin. Called before every write to a key that a later worker (or a
-   * redelivery) writes too, so a worker that stalled past its lease and woke up
-   * after a takeover cannot overwrite what the new owner wrote. The slice is
-   * retried, from the last saved cursor.
+   * margin. Called before writes to shared keys, as an early exit only: a
+   * stalled worker stops sooner and the slice is retried from the last saved
+   * cursor. The export does not depend on it (see `writerOf`).
    */
   assertLeased(now: number) {
     const lease = this.progress.lease

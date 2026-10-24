@@ -376,7 +376,10 @@ export const runAssemblySlice = async ({
     const keptBy = assembly.generated[name]
     if (keptBy) {
       const kept = await store.get(getGeneratedKey(root, name, keptBy))
-      if (kept) return kept
+      // The cursor names it, so a missing object is an error, not a reason to
+      // build the document again with other bytes.
+      if (!kept) throw new Error('A staged generated document is missing')
+      return kept
     }
     const body = await build()
     assertLeased()

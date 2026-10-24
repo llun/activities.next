@@ -7,6 +7,7 @@ import {
   GetObjectCommand,
   HeadObjectCommand,
   ListObjectsV2Command,
+  ListPartsCommand,
   PutObjectCommand,
   type S3Client,
   UploadPartCommand
@@ -187,8 +188,12 @@ export class FileArchiveObjectStore implements ArchiveObjectStore {
     await fs.mkdir(path.dirname(target), { recursive: true })
     const handle = await fs.open(partial, state ? 'r+' : 'w')
     let position = state ? Number(state.offset) : 0
-    // Anything past the checkpoint belongs to a slice that did not finish.
-    await handle.truncate(position)
+    // The file is shared by every worker that resumes from a saved cursor, so
+    // opening it must not change it: a worker that is slow to open could cut
+    // what the one that took over has written. Writes go to the saved offset
+    // and over whatever an unfinished slice left there (the same bytes, since
+    // they are a function of the saved cursor); the file is cut to its final
+    // size when it is finished.
     let open = true
     const close = async () => {
       if (!open) return
@@ -216,6 +221,7 @@ export class FileArchiveObjectStore implements ArchiveObjectStore {
       async committed() {},
       release: close,
       async finish() {
+        await handle.truncate(position)
         await handle.sync()
         await close()
         await fs.rename(partial, target)
@@ -412,6 +418,32 @@ export class S3ArchiveObjectStore implements ArchiveObjectStore {
 
     const deleteTails = () => this.deleteTails(key)
 
+    const listParts = async () => {
+      const found: { n: number; etag: string; size: number }[] = []
+      let marker: string | undefined
+      for (;;) {
+        const page = await client.send(
+          new ListPartsCommand({
+            Bucket: bucket,
+            Key: key,
+            UploadId: uploadId,
+            PartNumberMarker: marker
+          })
+        )
+        for (const part of page.Parts ?? []) {
+          if (part.PartNumber === undefined || !part.ETag) continue
+          found.push({
+            n: part.PartNumber,
+            etag: part.ETag,
+            size: part.Size ?? -1
+          })
+        }
+        if (!page.IsTruncated || page.NextPartNumberMarker === undefined) break
+        marker = String(page.NextPartNumberMarker)
+      }
+      return found.sort((a, b) => a.n - b.n)
+    }
+
     return {
       async write(chunk) {
         chunks.push(chunk)
@@ -460,26 +492,40 @@ export class S3ArchiveObjectStore implements ArchiveObjectStore {
       },
       async release() {},
       async finish() {
+        let lastSize = parts.length > 0 ? partSizeOf(parts.length) : 0
         if (buffered > 0 || parts.length === 0) {
           const number = parts.length + 1
           assertPartNumber(number)
           const last = flatten()
           parts.push({ n: number, etag: await uploadPart(last, number) })
           uploaded += last.length
+          lastSize = last.length
           chunks = []
           buffered = 0
         }
+        // The ETags come from the store, not from the cursor: a late re-upload
+        // of a part with the same bytes (a stalled worker) replaces the part
+        // and can change its ETag (SSE-KMS ETags are not digests). The part
+        // count and sizes are still checked against what the cursor counted.
+        const listed = await listParts()
+        if (listed.length !== parts.length) {
+          throw new Error('The archive upload does not hold the expected parts')
+        }
+        const completed = parts.map((part, index) => {
+          const found = listed[index]
+          const expected =
+            index === parts.length - 1 ? lastSize : partSizeOf(part.n)
+          if (found.n !== part.n || found.size !== expected) {
+            throw new Error('A part of the archive upload has the wrong size')
+          }
+          return { PartNumber: found.n, ETag: found.etag }
+        })
         await client.send(
           new CompleteMultipartUploadCommand({
             Bucket: bucket,
             Key: key,
             UploadId: uploadId,
-            MultipartUpload: {
-              Parts: parts.map((part) => ({
-                PartNumber: part.n,
-                ETag: part.etag
-              }))
-            }
+            MultipartUpload: { Parts: completed }
           })
         )
         await deleteTails().catch(() => undefined)

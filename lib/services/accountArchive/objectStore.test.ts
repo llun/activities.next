@@ -7,6 +7,7 @@ import {
   GetObjectCommand,
   HeadObjectCommand,
   ListObjectsV2Command,
+  ListPartsCommand,
   PutObjectCommand,
   S3Client as RealS3Client,
   type S3Client,
@@ -141,6 +142,39 @@ describe('FileArchiveObjectStore', () => {
     expect(await fs.readdir(path.join(root, 'archives/a'))).toEqual([])
   })
 
+  it('does not cut what another worker wrote when a slow worker opens the file', async () => {
+    const key = 'archives/a/archive.zip'
+    const first = await store.openResumableWrite(key, null)
+    await first.write(Buffer.from('0123456789'))
+    const state = await first.checkpoint()
+    await first.release()
+
+    // The new owner resumes and writes on.
+    const owner = await store.openResumableWrite(key, state)
+    await owner.write(Buffer.from('ABCDEF'))
+    // A worker that was slow to open the file resumes from the same state.
+    const late = await store.openResumableWrite(key, state)
+    await late.release()
+
+    expect(await owner.finish()).toBe(16)
+    expect(await fs.readFile(path.join(root, key))).toEqual(
+      Buffer.from('0123456789ABCDEF')
+    )
+  })
+
+  it('cuts leftovers of an unfinished slice when the file is finished', async () => {
+    const key = 'archives/a/archive.zip'
+    const first = await store.openResumableWrite(key, null)
+    await first.write(Buffer.from('0123456789XXXX'))
+    await first.release()
+    const resumed = await store.openResumableWrite(key, { offset: 10 })
+    await resumed.write(Buffer.from('AB'))
+    expect(await resumed.finish()).toBe(12)
+    expect(await fs.readFile(path.join(root, key))).toEqual(
+      Buffer.from('0123456789AB')
+    )
+  })
+
   it('abort throws the partial file away', async () => {
     const sink = await store.openResumableWrite('archives/a/archive.zip', null)
     await sink.write(Buffer.from('abc'))
@@ -260,6 +294,8 @@ describe('S3ArchiveObjectStore', () => {
       parts: Map<number, Buffer>
     }
     const uploads = new Map<string, Upload>()
+    // ETags the store reports when they differ from the ones the upload gave.
+    const etags = new Map<string, string>()
     const binary = new Map<string, Buffer>()
     const multipartSend = vi.fn(async (command: unknown) => {
       if (command instanceof CreateMultipartUploadCommand) {
@@ -275,12 +311,30 @@ describe('S3ArchiveObjectStore', () => {
         upload.parts.set(command.input.PartNumber!, body)
         return { ETag: `"etag-${command.input.PartNumber}-${body.length}"` }
       }
+      if (command instanceof ListPartsCommand) {
+        const upload = uploads.get(command.input.UploadId!)!
+        return {
+          Parts: [...upload.parts.entries()]
+            .sort(([a], [b]) => a - b)
+            .map(([PartNumber, body]) => ({
+              PartNumber,
+              Size: body.length,
+              ETag:
+                etags.get(`${command.input.UploadId}:${PartNumber}`) ??
+                `"etag-${PartNumber}-${body.length}"`
+            })),
+          IsTruncated: false
+        }
+      }
       if (command instanceof CompleteMultipartUploadCommand) {
         const upload = uploads.get(command.input.UploadId!)!
         const listed = command.input.MultipartUpload!.Parts!
         const bodies = listed.map((part) => {
           const body = upload.parts.get(part.PartNumber!)!
-          expect(part.ETag).toBe(`"etag-${part.PartNumber}-${body.length}"`)
+          expect(part.ETag).toBe(
+            etags.get(`${command.input.UploadId}:${part.PartNumber}`) ??
+              `"etag-${part.PartNumber}-${body.length}"`
+          )
           return body
         })
         bodies.slice(0, -1).forEach((body) => {
@@ -326,6 +380,7 @@ describe('S3ArchiveObjectStore', () => {
 
     beforeEach(() => {
       uploads.clear()
+      etags.clear()
       binary.clear()
       multipartSend.mockClear()
     })
@@ -353,6 +408,42 @@ describe('S3ArchiveObjectStore', () => {
       expect(
         [...binary.keys()].filter((name) => name.includes('.tail-'))
       ).toEqual([])
+    })
+
+    it('completes with the ETags the store lists, not the ones in the cursor', async () => {
+      const key = 'archives/a/t/archive-1.zip'
+      const small = new S3ArchiveObjectStore(
+        { type: MediaStorageType.S3Storage, bucket: 'bucket', region: 'r' },
+        { send: multipartSend } as unknown as S3Client,
+        5 * MIB,
+        1000,
+        10
+      )
+      const data = crypto.randomBytes(11 * MIB)
+      const sink = await small.openResumableWrite(key, null)
+      await sink.write(data)
+      // A stalled worker re-uploaded part 1 with the same bytes: the store now
+      // holds another ETag for it than the one this worker recorded.
+      const [id] = [...uploads.keys()]
+      etags.set(`${id}:1`, '"late-etag-1"')
+      expect(await sink.finish()).toBe(data.length)
+      expect(binary.get(key)?.equals(data)).toBe(true)
+    })
+
+    it('refuses to complete an upload that lacks a counted part', async () => {
+      const key = 'archives/a/t/archive-1.zip'
+      const small = new S3ArchiveObjectStore(
+        { type: MediaStorageType.S3Storage, bucket: 'bucket', region: 'r' },
+        { send: multipartSend } as unknown as S3Client,
+        5 * MIB,
+        1000,
+        10
+      )
+      const sink = await small.openResumableWrite(key, null)
+      await sink.write(crypto.randomBytes(6 * MIB))
+      const [upload] = [...uploads.values()]
+      upload.parts.delete(1)
+      await expect(sink.finish()).rejects.toThrow('expected parts')
     })
 
     it('fails to resume when the staged tail is missing', async () => {
