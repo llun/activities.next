@@ -2124,7 +2124,10 @@ move, try again later`, but nothing is rolled back: the row, `movedTo` and the
   same job id (the id is the migration's) and sends `Update(Person)` again, which
   is bounded to the failed attempts because the retry ends once the move is
   started, and completes the move. The cooldown still counts after `DELETE`,
-  because the rows stay. A redirect that succeeds
+  because the rows stay. A move whose start failed (503) and was never retried
+  keeps `movedTo` and still counts toward the 30-day cooldown, as Mastodon's
+  cooldown counts every recorded migration; `DELETE` clears the pointer, not the
+  cooldown. A redirect that succeeds
   sets `movedTo` and sends `Update(Person)` and nothing more. `GET` returns
   `getMigrationState` (`movedTo`, the migrations, `cooldownUntil`,
   `followersCount`).
@@ -2167,12 +2170,15 @@ move, try again later`, but nothing is rolled back: the row, `movedTo` and the
   scheduled posts are refused too), on `POST /api/v1/statuses/:id/reblog`, and
   on the deprecated `POST /api/v1/accounts/outbox` and `POST
 /api/v1/accounts/repost`. A scheduled status whose author has moved when it is
-  due is deleted by `publishScheduledStatusJob` without being published. These
-  posting checks are the only gates on a moved account, apart from the edit
-  check on `PUT /api/v1/statuses/:id` and on `PUT /api/v1/statuses/:id/interaction_policy`
-  (422 `This account has moved` too, as `movedAccountResponse` in
-  `app/api/v1/statuses/[id]/route.ts` and `.../interaction_policy/route.ts`), and the known
-  gap below. Fitness imports (`importFitnessFilesJob`, `importStravaActivityJob`)
+  due is deleted by `publishScheduledStatusJob` without being published.
+  Editing a status (`PUT /api/v1/statuses/:id`) and its interaction policy
+  (`PUT /api/v1/statuses/:id/interaction_policy`) are refused the same way (see
+  `app/api/v1/statuses/[id]/route.ts` and `.../interaction_policy/route.ts`).
+  **Every other write route stays open to a moved account, deliberately**:
+  `PUT /api/v1/scheduled_statuses/:id` (harmless, the publish job drops the post
+  at its due time), quote revoke, retry-fitness, media uploads, favourites,
+  bookmarks, follows, settings and `DELETE` of its own statuses. Known gap:
+  Fitness imports (`importFitnessFilesJob`, `importStravaActivityJob`)
   still create their post for a moved account through `database.createNote`
   without that check, because the post is part of the import. The profile response
   (`lib/services/accounts/profile.ts`) carries `moved: true` while `movedTo` is

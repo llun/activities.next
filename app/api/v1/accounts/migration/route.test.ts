@@ -29,6 +29,11 @@ const migrations: {
   startedAt?: number | null
 }[] = []
 let suspended = new Set<string>()
+let recordOutcome:
+  | { status: 'created' }
+  | { status: 'existing' }
+  | { status: 'cooldown'; until: number }
+  | { status: 'no-actor' } = { status: 'created' }
 
 const mockDatabase = {
   getActorFromId: vi.fn(async ({ id }: { id: string }) =>
@@ -52,30 +57,20 @@ const mockDatabase = {
       )
   ),
   getActorFollowersCount: vi.fn(async () => 42),
-  // The real method runs in one locked transaction; this body has no await,
-  // so it is just as atomic here.
+  // The retry and cooldown rule lives in recordActorMigration and is covered
+  // by actorMigration.test.ts and outgoingMove.test.ts against real databases;
+  // each route test here sets the outcome it needs.
   recordActorMigration: vi.fn(
     async ({
-      cooldownMs,
+      cooldownMs: _cooldownMs,
       ...params
     }: Omit<(typeof migrations)[number], 'createdAt'> & {
       cooldownMs: number
     }) => {
-      const last = migrations.find((m) => m.kind === 'move')
-      if (
-        params.kind === 'move' &&
-        last &&
-        last.createdAt + cooldownMs > Date.now()
-      ) {
-        // Mirrors the real rule: a retry only while nothing newer exists and
-        // the job was never queued.
-        return migrations[0] === last &&
-          !last.startedAt &&
-          last.targetActorId === params.targetActorId &&
-          storedActor.movedTo === params.targetActorId
-          ? { status: 'existing' as const, migration: last }
-          : { status: 'cooldown' as const, until: last.createdAt + cooldownMs }
+      if (recordOutcome.status === 'existing') {
+        return { status: 'existing' as const, migration: migrations[0] }
       }
+      if (recordOutcome.status !== 'created') return recordOutcome
       const migration = { ...params, createdAt: Date.now() }
       migrations.unshift(migration)
       storedActor = { ...storedActor, movedTo: params.targetActorId }
@@ -204,6 +199,7 @@ describe('Account migration API route', () => {
     vi.clearAllMocks()
     migrations.length = 0
     suspended = new Set()
+    recordOutcome = { status: 'created' }
     storedActor = MockActor({ id: ME })
     publish.mockReset().mockResolvedValue(undefined)
     vi.mocked(getQueue).mockReturnValue({ publish } as never)
@@ -506,6 +502,7 @@ describe('Account migration API route', () => {
       const migrationId = migrations[0].id
       expect(mockDatabase.markActorMigrationStarted).not.toHaveBeenCalled()
 
+      recordOutcome = { status: 'existing' }
       const retry = await post(goodBody)
       expect(retry.status).toBe(HTTP_STATUS.OK)
       expect(mockDatabase.markActorMigrationStarted).toHaveBeenCalledWith({
@@ -527,6 +524,7 @@ describe('Account migration API route', () => {
         id: 'https://third.test/users/llun',
         alsoKnownAs: [ME]
       } as never)
+      recordOutcome = { status: 'cooldown', until: Date.now() + 30 * DAY }
       const res = await post({ ...goodBody, acct: '@llun@third.test' })
       expect(res.status).toBe(HTTP_STATUS.TOO_MANY_REQUESTS)
       expect(migrations).toHaveLength(1)
@@ -536,6 +534,7 @@ describe('Account migration API route', () => {
       expect((await post(goodBody)).status).toBe(HTTP_STATUS.OK)
       expect((await del()).status).toBe(HTTP_STATUS.OK)
       expect(storedActor.movedTo).toBeUndefined()
+      recordOutcome = { status: 'cooldown', until: Date.now() + 30 * DAY }
       const res = await post(goodBody)
       expect(res.status).toBe(HTTP_STATUS.TOO_MANY_REQUESTS)
       expect(migrations).toHaveLength(1)
@@ -566,10 +565,19 @@ describe('Account migration API route', () => {
       publish.mockClear()
       vi.mocked(publishActorUpdate).mockClear()
 
+      recordOutcome = { status: 'cooldown', until: Date.now() + 30 * DAY }
       const res = await post(goodBody)
       expect(res.status).toBe(HTTP_STATUS.TOO_MANY_REQUESTS)
       expect(publish).not.toHaveBeenCalled()
       expect(publishActorUpdate).not.toHaveBeenCalled()
+    })
+
+    it('answers 404 when the actor record is gone', async () => {
+      recordOutcome = { status: 'no-actor' }
+      const res = await post(goodBody)
+      expect(res.status).toBe(HTTP_STATUS.NOT_FOUND)
+      expect(await res.json()).toEqual({ error: 'Record not found' })
+      expect(publish).not.toHaveBeenCalled()
     })
 
     it('refuses with 429 and the date inside the 30-day cooldown', async () => {
@@ -584,6 +592,7 @@ describe('Account migration API route', () => {
         createdAt: lastMove
       })
       const until = new Date(lastMove + 30 * DAY).toISOString()
+      recordOutcome = { status: 'cooldown', until: lastMove + 30 * DAY }
       const res = await post(goodBody)
       expect(res.status).toBe(HTTP_STATUS.TOO_MANY_REQUESTS)
       expect(await res.json()).toEqual({

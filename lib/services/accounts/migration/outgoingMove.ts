@@ -145,8 +145,7 @@ export const performOutgoingMove = async ({
   }
   if (target.movedTo) return fail(422, 'Target account has moved')
   // A move retried after its publish failed targets the account the last move
-  // row already names and was never started; the database call below also
-  // checks that nothing newer was recorded.
+  // row already names and was never started.
   const lastMove =
     kind === 'move'
       ? await database.getLastActorMove({ actorId: actor.id })
@@ -159,8 +158,15 @@ export const performOutgoingMove = async ({
   if (!isRetry && actor.movedTo && actorIdsMatch(actor.movedTo, target.id)) {
     return fail(422, 'Already moved to this account')
   }
+  // The database call below treats it as a retry only while that move is also
+  // the newest migration row of any kind; anything newer (a cancelled move
+  // redirected to the same account) is answered 429 there, so skip the fetch.
+  const [newest] = isRetry
+    ? await database.getActorMigrations({ actorId: actor.id, limit: 1 })
+    : []
+  const superseded = isRetry && newest?.id !== lastMove?.id
 
-  if (kind === 'move') {
+  if (kind === 'move' && !superseded) {
     const fresh = await readTargetFresh(database, target)
     if (fresh === 'no-signer') {
       logger.error({

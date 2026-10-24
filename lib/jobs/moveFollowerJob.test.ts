@@ -1,3 +1,4 @@
+import { acceptFollowRequest } from '@/lib/actions/acceptFollowRequest'
 import { follow, unfollow } from '@/lib/activities'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
@@ -26,6 +27,11 @@ const mockPublish = vi.hoisted(() => vi.fn())
 vi.mock('@/lib/services/queue', () => ({
   getQueue: () => ({ publish: mockPublish })
 }))
+vi.mock('@/lib/actions/acceptFollowRequest', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/lib/actions/acceptFollowRequest')>()
+  return { acceptFollowRequest: vi.fn(actual.acceptFollowRequest) }
+})
 vi.mock('@/lib/activities', () => ({ follow: vi.fn(), unfollow: vi.fn() }))
 vi.mock('@/lib/services/federation/getFederationSigningActor', () => ({
   getFederationSigningActor: vi.fn().mockResolvedValue(undefined)
@@ -830,6 +836,37 @@ describe('moveFollowerJob', () => {
         expect(
           await database.getNotificationFromFollowId({ followId: pending.id })
         ).toBeNull()
+      })
+
+      it('drops the request notification on the retry when deleting it failed after the accept', async () => {
+        const { oldFollow, pending } = await requestTarget()
+        vi.spyOn(database, 'deleteNotification').mockRejectedValueOnce(
+          new Error('delete failed')
+        )
+
+        await expect(runLocal(oldFollow.id, ACTOR3_ID)).rejects.toThrow(
+          'delete failed'
+        )
+        expect(
+          (await database.getFollowFromId({ followId: pending.id }))?.status
+        ).toBe(FollowStatus.enum.Accepted)
+
+        await runLocal(oldFollow.id, ACTOR3_ID)
+
+        expect(
+          await database.getNotificationFromFollowId({ followId: pending.id })
+        ).toBeNull()
+      })
+
+      it('keeps the request notification when the accept result is not Accepted', async () => {
+        const { oldFollow, pending } = await requestTarget()
+        vi.mocked(acceptFollowRequest).mockResolvedValueOnce(null)
+
+        await runLocal(oldFollow.id, ACTOR3_ID)
+
+        expect(
+          await database.getNotificationFromFollowId({ followId: pending.id })
+        ).not.toBeNull()
       })
 
       it('stays pending for a silenced follower', async () => {

@@ -231,30 +231,34 @@ export const moveFollowerJob: JobHandle = createJobHandle(
         // sends no alert), so its pending notification is dropped instead of
         // turned into a follow one (a silenced follower's stays pending, as for
         // a new follow).
-        if (
-          origin.privateKey &&
-          isLocalTarget &&
-          !isSilenced &&
-          existing.status === FollowStatus.enum.Requested
-        ) {
-          await acceptFollowRequest({
-            activity: {
-              id: existing.id,
-              type: 'Accept',
-              actor: target.id,
-              object: existing.id
-            },
-            database,
-            silent: true
-          })
-          const pendingNotification =
-            await database.getNotificationFromFollowId({
-              followId: existing.id
-            })
-          if (
-            pendingNotification?.type === NotificationType.enum.follow_request
-          ) {
-            await database.deleteNotification(pendingNotification.id)
+        if (origin.privateKey && isLocalTarget && !isSilenced) {
+          // The notification goes only once the follow is Accepted (a null
+          // result leaves it Requested), and also for a follow a failed earlier
+          // run already accepted, so a retry cleans up what that run left.
+          const accepted =
+            existing.status === FollowStatus.enum.Accepted ||
+            (
+              await acceptFollowRequest({
+                activity: {
+                  id: existing.id,
+                  type: 'Accept',
+                  actor: target.id,
+                  object: existing.id
+                },
+                database,
+                silent: true
+              })
+            )?.status === FollowStatus.enum.Accepted
+          if (accepted) {
+            const pendingNotification =
+              await database.getNotificationFromFollowId({
+                followId: existing.id
+              })
+            if (
+              pendingNotification?.type === NotificationType.enum.follow_request
+            ) {
+              await database.deleteNotification(pendingNotification.id)
+            }
           }
         }
         span.setAttribute('keptOriginFollow', existing.id)

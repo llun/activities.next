@@ -31,6 +31,9 @@ describe('performOutgoingMove on a real database', () => {
   afterAll(async () => {
     await testDb.destroy()
   })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
   beforeEach(() => {
     vi.mocked(publishActorUpdate).mockClear()
     publish.mockReset().mockResolvedValue(undefined)
@@ -144,7 +147,10 @@ describe('performOutgoingMove on a real database', () => {
 
   const cancelAndRedirect = async (actor: Actor, target: Actor) => {
     // DELETE /api/v1/accounts/migration clears movedTo, then a redirect to the
-    // same account sets it again.
+    // same account sets it again. A later millisecond keeps "newest row"
+    // unambiguous (rows order by createdAt, then by a random id).
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(Date.now() + 1000)
     await database.updateActor({ actorId: actor.id, movedTo: null })
     expect(
       await performOutgoingMove({
@@ -175,6 +181,24 @@ describe('performOutgoingMove on a real database', () => {
     })
     expect(publish).not.toHaveBeenCalled()
     expect(publishActorUpdate).not.toHaveBeenCalled()
+  })
+
+  it('answers 429 without fetching the target for a cancelled move redirected to the same remote account', async () => {
+    const { actor, target } = await setup('redirected-remote')
+    publish.mockRejectedValueOnce(new Error('queue down'))
+    await moveAgain(actor, target)
+    const stored = await cancelAndRedirect(actor, target)
+    vi.mocked(getActorPerson)
+      .mockReset()
+      .mockResolvedValue(null as never)
+    vi.mocked(getFederationSigningActorSafe).mockResolvedValue({
+      id: 'https://llun.test/users/signer'
+    } as Actor)
+
+    expect(
+      await moveAgain(stored, Actor.parse({ ...target, privateKey: undefined }))
+    ).toMatchObject({ ok: false, status: 429 })
+    expect(getActorPerson).not.toHaveBeenCalled()
   })
 
   it('answers 422 to a started move that was redirected to the same account', async () => {
