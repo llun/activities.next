@@ -781,6 +781,31 @@ describe('Sidebar', () => {
       expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' })
     })
 
+    it('follows the Profile link on a sub-path of the own profile', () => {
+      mockPathname.mockReturnValue('/@alice/followers')
+      window.history.replaceState(null, '', '/@alice/followers')
+      renderSidebar(
+        <Sidebar
+          lists={[]}
+          currentActor={{
+            id: 'actor-1',
+            username: 'alice',
+            domain: 'llun.test',
+            name: 'Alice'
+          }}
+        />
+      )
+
+      const nav = screen.getAllByRole('navigation')[0]
+      const profile = within(nav).getByRole('link', { name: 'Profile' })
+      const click = createEvent.click(profile, { button: 0 })
+      document.addEventListener('click', stopDocumentNavigation)
+      fireEvent(profile, click)
+
+      expect(preventedBySidebar).toBe(false)
+      expect(scrollTo).not.toHaveBeenCalled()
+    })
+
     it('scrolls straight away outside the drawer', () => {
       mockPathname.mockReturnValue('/')
       renderSidebar(<Sidebar lists={[]} />)

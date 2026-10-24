@@ -265,7 +265,9 @@ export function Sidebar({
 
   // The proxy rewrites a bare `/@user` to `/@user@host` without changing the
   // browser URL, so the Profile href (the long form) never equals the
-  // pathname on the short form. Both forms are the same page.
+  // pathname on the short form. Both forms are the same page. This assumes the
+  // request host is the current actor's domain; on a multi-domain server the
+  // short form on another host is a different actor.
   const matchesRoute = (href: string, exact: boolean) => {
     if (href === '/') {
       return pathname === '/' || pathname === '/app'
