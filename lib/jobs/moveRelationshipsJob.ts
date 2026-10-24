@@ -203,14 +203,10 @@ export const moveRelationshipsJob: JobHandle = createJobHandle(
         const blockNote = `This user moved from ${acct}, which you had blocked.`
 
         if (existingBlock?.uri === blockUri) {
-          // The "had blocked" note is only written after the send was queued, so
-          // it proves the Block went out; without it send again (a duplicate
-          // Block with the same uri is harmless, a missing one is not).
-          const targetNote = await database.getAccountNote({
-            actorId,
-            targetActorId: target.id
-          })
-          if (!target.privateKey && !targetNote?.includes(blockNote)) {
+          // On resume, re-publish SendBlockJob for a remote target with the
+          // deterministic id: deduplicating queues drop it; others send a duplicate
+          // Block with the same uri, which remote receivers treat as a no-op.
+          if (!target.privateKey) {
             await getQueue().publish({
               id: getHashFromString(blockUri),
               name: SEND_BLOCK_JOB_NAME,
@@ -270,7 +266,16 @@ export const moveRelationshipsJob: JobHandle = createJobHandle(
           targetMute.notifications === originMute.notifications &&
           targetMute.endsAt === originMute.endsAt
         ) {
-          await addAccountNoteIfNeeded(muteNote)
+          const originSettings = await database.getActorSettings({
+            actorId: origin.id
+          })
+          const moveClaimAt = originSettings?.moveProcessing?.at
+          if (
+            typeof moveClaimAt === 'number' &&
+            targetMute.createdAt >= moveClaimAt
+          ) {
+            await addAccountNoteIfNeeded(muteNote)
+          }
         }
       }
     })

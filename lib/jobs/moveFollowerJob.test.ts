@@ -18,7 +18,7 @@ import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { EXTERNAL_ACTOR1 } from '@/lib/stub/seed/external1'
 import { NotificationType } from '@/lib/types/database/operations'
-import { FollowStatus } from '@/lib/types/domain/follow'
+import { type Follow, FollowStatus } from '@/lib/types/domain/follow'
 
 const mockPublish = vi.hoisted(() => vi.fn())
 
@@ -270,12 +270,15 @@ describe('moveFollowerJob', () => {
     })
     // The row exists as the job's own but ended between its check and the
     // insert (the insert reports the other writer's row).
-    vi.spyOn(database, 'createFollow').mockResolvedValue({
-      id: ownId(),
-      actorId: ACTOR1_ID,
-      targetActorId: TARGET,
-      status: FollowStatus.enum.Rejected
-    } as Awaited<ReturnType<typeof database.createFollow>>)
+    vi.spyOn(database, 'createFollowIfAbsent').mockResolvedValue({
+      follow: {
+        id: ownId(),
+        actorId: ACTOR1_ID,
+        targetActorId: TARGET,
+        status: FollowStatus.enum.Rejected
+      } as Follow,
+      inserted: false
+    })
 
     await run()
 
@@ -833,6 +836,19 @@ describe('moveFollowerJob', () => {
       expect(follows).toHaveLength(1)
       expect(follows[0].status).toBe(FollowStatus.enum.Accepted)
       expect(await originStatus(ACTOR1_ID)).toBe(FollowStatus.enum.Undo)
+    })
+
+    it('does not send duplicate notifications when two deliveries run concurrently', async () => {
+      await database.updateActor({ actorId: ORIGIN, movedTo: ACTOR2_ID })
+
+      await Promise.all([run(ACTOR1_ID, ACTOR2_ID), run(ACTOR1_ID, ACTOR2_ID)])
+
+      expect(sendNotificationAlerts).toHaveBeenCalledTimes(1)
+      const notifications = await database.getNotifications({
+        actorId: ACTOR2_ID,
+        limit: 10
+      })
+      expect(notifications).toHaveLength(1)
     })
 
     it('transitions existing Requested row to Accepted on retry without calling send()', async () => {

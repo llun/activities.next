@@ -1781,12 +1781,16 @@ changed' }` before any write. Mastodon clients do not send it and are
   older than 7 days is replaced whole, with neither flag. The target is fetched with a signed request
   when a federation signing actor is configured (a local target is read from
   storage without a remote fetch). Only then does the job store the origin's
-  `movedTo`. Notes, blocks (federated via `SendBlockJob`, deterministic uri) and
-  mutes (notifications flag and end time kept) are carried by
+  `movedTo`. Notes, blocks (federated only for remote targets via
+  `SendBlockJob`, deterministic uri; a block carried onto a local target is not
+  federated) and mutes (notifications flag and end time kept) are carried by
   `MoveRelationshipsJob` (`lib/jobs/moveRelationshipsJob.ts`, Mastodon's
   `MoveWorker` parity) with Mastodon's skip rules (already blocking/muting the
   target, or following it) and Mastodon's note texts, regardless of whether the
-  target has itself moved. Unless the target has itself moved (the `movedTo`
+  target has itself moved. On retry or resume, `SendBlockJob` is re-published with
+  the deterministic id for remote targets; deduplicating queues drop it and
+  receivers treat duplicate blocks with the same uri as no-ops. Unless the target
+  has itself moved (the `movedTo`
   is still recorded, but nobody is rewired, as Mastodon does not follow a moved
   account), the job publishes one `MoveFollowerJob` per accepted local follower
   of the origin. Each has a deterministic id from the origin follow id and the
@@ -1801,12 +1805,16 @@ changed' }` before any write. Mastodon clients do not send it and are
   `canFederateWithDomain`, not itself moved) and leaves the origin follow if it
   is unavailable, or if the follower and the target block each other or the
   follower blocks the target's domain. The follow it makes has a deterministic
-  id derived from `originFollowId/move/targetId` (a UUID), and `createFollow`
-  inserts it with a conflict-ignoring insert on the primary key, so two
-  concurrent runs cannot leave two rows. Local followers are repointed onto a
-  local target directly (`Accepted` even when locked, the target gets a follow
-  notification, no Follow over the network; the Undo to the remote origin is
-  still sent). For a remote target, only a follow with that id is the job's own
+  id derived from `originFollowId/move/targetId` (a UUID), and `createFollowIfAbsent`
+  inserts it with a conflict-ignoring insert on the primary key (only the inserting
+  worker notifies the local target), so two concurrent runs cannot leave two rows or
+  duplicate notifications. An unsilenced local follower moving onto
+  a local target is repointed directly (`Accepted` even when locked, the target
+  gets a `follow` notification, no Follow over the network; the Undo to the remote
+  origin is still sent). A silenced local follower moving onto a local target gets
+  a follow request (`Requested` status and a `follow_request` notification, as in
+  Mastodon's `FollowService`), even when the target is unlocked; the Undo to the
+  remote origin is still sent. For a remote target, only a follow with that id is the job's own
   leftover: if it is `Requested`, the Follow is sent again for that row (a failed
   send keeps the row, as Mastodon does, instead of undoing it, so a late Accept
   never leaves two Accepted follows); if it is `Accepted`, the move is finished.
@@ -1815,7 +1823,7 @@ changed' }` before any write. Mastodon clients do not send it and are
   (a language filter the origin does not have is left alone), the target is added
   to the lists that hold the origin, and the origin follow and the origin in
   those lists are kept. Otherwise the job creates a `Requested` follow (or
-  `Accepted` directly for a local target) with the origin's options (and stops if
+  `Accepted` directly for an unsilenced follower on a local target) with the origin's options (and stops if
   that row turns out to be ended already), sends the Follow (skipped for a local
   target), adds the target to the follower's lists that hold the origin, marks the
   origin follow `Undo` (which drops the origin from those lists in the same

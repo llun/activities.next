@@ -234,25 +234,26 @@ export const moveFollowerJob: JobHandle = createJobHandle(
         })
         if (existing) return keepOrigin(existing)
 
-        const created = await database.createFollow({
-          id: ownFollowId,
-          actorId: follower.id,
-          targetActorId: target.id,
-          status:
-            isLocalTarget && !isSilenced
-              ? FollowStatus.enum.Accepted
-              : FollowStatus.enum.Requested,
-          inbox: `${follower.id}/inbox`,
-          sharedInbox: `https://${follower.domain}/inbox`,
-          reblogs: oldFollow.reblogs,
-          notify: oldFollow.notify,
-          languages: oldFollow.languages
-        })
+        const { follow: created, inserted } =
+          await database.createFollowIfAbsent({
+            id: ownFollowId,
+            actorId: follower.id,
+            targetActorId: target.id,
+            status:
+              isLocalTarget && !isSilenced
+                ? FollowStatus.enum.Accepted
+                : FollowStatus.enum.Requested,
+            inbox: `${follower.id}/inbox`,
+            sharedInbox: `https://${follower.domain}/inbox`,
+            reblogs: oldFollow.reblogs,
+            notify: oldFollow.notify,
+            languages: oldFollow.languages
+          })
         // The user followed the target in between: theirs, not ours.
         if (created.id !== ownFollowId) return keepOrigin(created)
         mine = created
 
-        if (isLocalTarget) {
+        if (isLocalTarget && inserted) {
           await notifyLocalFollow({
             database,
             targetActor: target,

@@ -418,9 +418,14 @@ describe('moveRelationshipsJob', () => {
         expect(note).toBe(
           `This user moved from ${acct}, which you had blocked.`
         )
+
+        // On resume (second run), local target still never publishes SEND_BLOCK_JOB_NAME
+        mockPublish.mockClear()
+        await runJob(ACTOR1_ID, ORIGIN, ACTOR2_ID)
+        expect(mockPublish).not.toHaveBeenCalled()
       })
 
-      it('re-publishes SEND_BLOCK_JOB_NAME on retry when already blocked with deterministic uri and no note', async () => {
+      it('re-publishes SEND_BLOCK_JOB_NAME on retry when already blocked with deterministic uri', async () => {
         const deterministicUri = `${ACTOR1_ID}#blocks/${getHashFromString(`${ACTOR1_ID}/move-block/${ORIGIN}/${TARGET}`)}`
         await applyBlock({
           database,
@@ -448,7 +453,7 @@ describe('moveRelationshipsJob', () => {
         })
       })
 
-      it('skips publishing SEND_BLOCK_JOB_NAME on second run after success with note present', async () => {
+      it('re-publishes SEND_BLOCK_JOB_NAME with deterministic id on second run (resume)', async () => {
         await applyBlock({
           database,
           actorId: ACTOR1_ID,
@@ -458,14 +463,31 @@ describe('moveRelationshipsJob', () => {
         mockPublish.mockClear()
 
         await runJob()
+        const deterministicUri = `${ACTOR1_ID}#blocks/${getHashFromString(`${ACTOR1_ID}/move-block/${ORIGIN}/${TARGET}`)}`
+        const deterministicId = getHashFromString(deterministicUri)
         expect(mockPublish).toHaveBeenCalledTimes(1)
-        expect(mockPublish).toHaveBeenCalledWith(
-          expect.objectContaining({ name: SEND_BLOCK_JOB_NAME })
-        )
+        expect(mockPublish).toHaveBeenCalledWith({
+          id: deterministicId,
+          name: SEND_BLOCK_JOB_NAME,
+          data: {
+            actorId: ACTOR1_ID,
+            targetActorId: TARGET,
+            uri: deterministicUri
+          }
+        })
 
         mockPublish.mockClear()
         await runJob()
-        expect(mockPublish).not.toHaveBeenCalled()
+        expect(mockPublish).toHaveBeenCalledTimes(1)
+        expect(mockPublish).toHaveBeenCalledWith({
+          id: deterministicId,
+          name: SEND_BLOCK_JOB_NAME,
+          data: {
+            actorId: ACTOR1_ID,
+            targetActorId: TARGET,
+            uri: deterministicUri
+          }
+        })
       })
 
       it('does not overwrite existing note with block note', async () => {
@@ -617,7 +639,79 @@ describe('moveRelationshipsJob', () => {
         expect(note).not.toContain('which you had muted')
       })
 
-      it('adds note on resume when target mute exists with matching notifications and endsAt', async () => {
+      it('does not add note on resume when target mute was created before move claim time', async () => {
+        const future = Date.now() + 100000
+        await applyMute({
+          database,
+          actorId: ACTOR1_ID,
+          targetActorId: ORIGIN,
+          notifications: false,
+          endsAt: future
+        })
+        const targetMute = await applyMute({
+          database,
+          actorId: ACTOR1_ID,
+          targetActorId: TARGET,
+          notifications: false,
+          endsAt: future
+        })
+
+        const claimAt = targetMute.createdAt + 1000
+        await database.claimActorMove({
+          actorId: ORIGIN,
+          activityId: 'inbox-move-1',
+          target: TARGET,
+          now: claimAt,
+          windowMs: 7 * 86400000
+        })
+
+        await runJob()
+
+        const note = await database.getAccountNote({
+          actorId: ACTOR1_ID,
+          targetActorId: TARGET
+        })
+        expect(note).toBe('')
+      })
+
+      it('adds note on resume when target mute was created at or after move claim time', async () => {
+        const future = Date.now() + 100000
+        await applyMute({
+          database,
+          actorId: ACTOR1_ID,
+          targetActorId: ORIGIN,
+          notifications: false,
+          endsAt: future
+        })
+        const targetMute = await applyMute({
+          database,
+          actorId: ACTOR1_ID,
+          targetActorId: TARGET,
+          notifications: false,
+          endsAt: future
+        })
+
+        const claimAt = targetMute.createdAt
+        await database.claimActorMove({
+          actorId: ORIGIN,
+          activityId: 'inbox-move-1',
+          target: TARGET,
+          now: claimAt,
+          windowMs: 7 * 86400000
+        })
+
+        await runJob()
+
+        const origin = await database.getActorFromId({ id: ORIGIN })
+        const acct = `${origin?.username}@${origin?.domain}`
+        const note = await database.getAccountNote({
+          actorId: ACTOR1_ID,
+          targetActorId: TARGET
+        })
+        expect(note).toBe(`This user moved from ${acct}, which you had muted.`)
+      })
+
+      it('does not add note on resume when origin has no move claim time', async () => {
         const future = Date.now() + 100000
         await applyMute({
           database,
@@ -636,13 +730,11 @@ describe('moveRelationshipsJob', () => {
 
         await runJob()
 
-        const origin = await database.getActorFromId({ id: ORIGIN })
-        const acct = `${origin?.username}@${origin?.domain}`
         const note = await database.getAccountNote({
           actorId: ACTOR1_ID,
           targetActorId: TARGET
         })
-        expect(note).toBe(`This user moved from ${acct}, which you had muted.`)
+        expect(note).toBe('')
       })
 
       it('leaves target mute untouched and adds no note when notifications setting differs', async () => {

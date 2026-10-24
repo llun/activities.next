@@ -105,7 +105,7 @@ export const getAcceptedOrRequestedFollow = async (
   return row ? toFollow(row) : null
 }
 
-export const createFollow = async (
+export const createFollowIfAbsent = async (
   db: Db,
   {
     id,
@@ -118,16 +118,16 @@ export const createFollow = async (
     notify = false,
     languages = null
   }: CreateFollowParams
-): Promise<Follow> => {
+): Promise<{ follow: Follow; inserted: boolean }> => {
   if (id) {
     const sameId = await getFollowFromId(db, { followId: id })
-    if (sameId) return sameId
+    if (sameId) return { follow: sameId, inserted: false }
   }
   const existingFollow = await getAcceptedOrRequestedFollow(db, {
     actorId,
     targetActorId
   })
-  if (existingFollow) return existingFollow
+  if (existingFollow) return { follow: existingFollow, inserted: false }
 
   const currentTime = new Date()
   const follow: Follow = {
@@ -177,8 +177,17 @@ export const createFollow = async (
   })
   if (!created && id) {
     // Lost the race for this id: return the row the winner inserted.
-    return (await getFollowFromId(db, { followId: id })) ?? follow
+    const winner = (await getFollowFromId(db, { followId: id })) ?? follow
+    return { follow: winner, inserted: false }
   }
+  return { follow, inserted: true }
+}
+
+export const createFollow = async (
+  db: Db,
+  params: CreateFollowParams
+): Promise<Follow> => {
+  const { follow } = await createFollowIfAbsent(db, params)
   return follow
 }
 
@@ -643,6 +652,7 @@ export const getFollowRequestsCount = async (
 // The follow facade methods as `(db, params)` queries.
 export const followQueries = {
   createFollow,
+  createFollowIfAbsent,
   updateFollowPreferences,
   getFollowFromId,
   getLocalFollowersForActorId,
