@@ -3,6 +3,8 @@ import { S3Client } from '@aws-sdk/client-s3'
 export type StorageS3ClientConfig = {
   region: string
   endpoint?: string
+  /** Fails a request that gets no answer for this long. Unset: the SDK default. */
+  requestTimeoutMs?: number
 }
 
 export const normalizeStorageEndpoint = (endpoint: string) => {
@@ -19,7 +21,8 @@ export const normalizeStorageEndpoint = (endpoint: string) => {
 
 export const createStorageS3Client = ({
   endpoint,
-  region
+  region,
+  requestTimeoutMs
 }: StorageS3ClientConfig) => {
   const normalizedEndpoint = endpoint?.trim()
     ? normalizeStorageEndpoint(endpoint)
@@ -27,6 +30,14 @@ export const createStorageS3Client = ({
 
   return new S3Client({
     region,
+    ...(requestTimeoutMs
+      ? {
+          requestHandler: {
+            requestTimeout: requestTimeoutMs,
+            connectionTimeout: requestTimeoutMs
+          }
+        }
+      : null),
     ...(normalizedEndpoint
       ? {
           endpoint: normalizedEndpoint,

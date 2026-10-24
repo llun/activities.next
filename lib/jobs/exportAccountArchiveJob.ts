@@ -22,10 +22,12 @@ import {
   parseProgress,
   serializeProgress
 } from '@/lib/services/accountArchive/progress'
+import { toArchiveLoggableError } from '@/lib/services/accountArchive/redact'
 import {
   StaleSliceError,
   runCollectionSlice
 } from '@/lib/services/accountArchive/runner'
+import { LeaseHeldError } from '@/lib/services/accountArchive/saver'
 import { getServedLinkDomain } from '@/lib/services/domains/localDomains'
 import { sendMail } from '@/lib/services/email'
 import { resolveEmailIdentity } from '@/lib/services/email/sender'
@@ -37,7 +39,6 @@ import {
 } from '@/lib/types/domain/accountArchive'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
-import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import { createJobHandle } from './createJobHandle'
 import { EXPORT_ACCOUNT_ARCHIVE_JOB_NAME } from './names'
@@ -53,8 +54,9 @@ const FAILURE_MESSAGE = 'The export could not be completed'
 const EXPIRE_EARLY_TOLERANCE_MS = 60 * 1000
 
 const publishNextSlice = async (archiveId: string, slice: number) => {
+  // `slice` is a run number, and a run finishes once, so this id is new.
   await getQueue().publish({
-    id: getHashFromString(`${archiveId}:slice:${slice}`),
+    id: getHashFromString(`${archiveId}:run:${slice}`),
     name: EXPORT_ACCOUNT_ARCHIVE_JOB_NAME,
     data: { archiveId, slice }
   })
@@ -76,7 +78,7 @@ const publishExpiry = async (archive: AccountArchive) => {
       message:
         'Failed to queue the account archive expiry; the sweep covers it',
       archiveId: archive.id,
-      err: toLoggableError(error)
+      err: toArchiveLoggableError(error)
     })
   }
 }
@@ -118,7 +120,7 @@ const sendReadyEmail = async ({
     logger.error({
       message: 'Failed to send the account archive ready email',
       archiveId: archive.id,
-      err: toLoggableError(error)
+      err: toArchiveLoggableError(error)
     })
   }
 }
@@ -166,7 +168,7 @@ const handleSliceFailure = async ({
   logger.error({
     message: 'Account archive export slice failed',
     archiveId,
-    err: toLoggableError(error)
+    err: toArchiveLoggableError(error)
   })
   const current = await database.getAccountArchive({ id: archiveId })
   const progress = parseProgress(current?.progress ?? null)
@@ -222,9 +224,10 @@ export const exportAccountArchiveJob = createJobHandle(
       return
     }
 
-    // A duplicate or late delivery of a slice that already ran.
+    // A duplicate or late delivery of a run that already finished, or one from
+    // the future. A retry of a run that did not finish is the current one.
     const known = parseProgress(archive.progress)
-    if (known && data.slice < known.slice) return
+    if (known && data.slice !== known.completed + 1) return
 
     let running: AccountArchive | null = archive
     if (archive.status === 'queued') {
@@ -248,21 +251,19 @@ export const exportAccountArchiveJob = createJobHandle(
         database,
         archive: running,
         store,
-        slice: data.slice,
         budgetMs,
         token
       })
       const progress = saver.progress
 
-      if (progress.failures > 0) {
-        progress.failures = 0
-        await saver.save()
-      }
-
       // Both stages end the same way when time runs out: hand the export on.
       const continueLater = async () => {
+        // This run made progress: it is finished and the failure count starts
+        // again. Both ride on the save that releases the lease.
+        progress.completed = data.slice
+        progress.failures = 0
         await saver.release()
-        await publishNextSlice(archive.id, progress.slice + 1)
+        await publishNextSlice(archive.id, data.slice + 1)
       }
 
       if (outcome === 'budget') {
@@ -315,6 +316,9 @@ export const exportAccountArchiveJob = createJobHandle(
       })
       await publishExpiry(ready)
     } catch (error) {
+      // Another delivery holds the export: not a failure of this one, and not
+      // to be acknowledged, or the queue would never bring it back.
+      if (error instanceof LeaseHeldError) throw error
       if (error instanceof StaleSliceError) {
         // Another worker owns the export now. If the account is gone, what this
         // slice staged is garbage nobody will collect.

@@ -1,8 +1,10 @@
 import { createHash } from 'crypto'
+import { deflateRawSync, constants as zlibConstants } from 'zlib'
 
 import type { ArchiveActorPlan } from './layout'
 import type { ArchiveObjectStore } from './objectStore'
 import { getArchiveStorageKey } from './objectStore'
+import { updateCrc } from './zipFormat'
 
 /** What a run counted for one actor, for the manifest. */
 export interface ArchiveActorStats {
@@ -25,11 +27,28 @@ export const emptyActorStats = (): ArchiveActorStats => ({
   followers: 0
 })
 
-/** One staged document: how many parts it has and how many items they hold. */
+/**
+ * One staged document. Each part is deflated on its own when it is staged
+ * (`PartStager.append`), so the archive copies the bytes as they are and the
+ * entry's sizes and CRC-32 are known before its header is written.
+ */
 export interface StagedEntry {
   parts: number
   items: number
+  /** Deflated length of each part, to resume inside the entry by offset. */
+  sizes: number[]
+  /** Uncompressed length of the whole document. */
+  size: number
+  /** CRC-32 of the whole document. */
+  crc: number
 }
+
+/** The final empty deflate block that closes the concatenated parts. */
+export const DEFLATE_END = Buffer.from([0x03, 0x00])
+
+/** Compressed length of a staged document, the closing block included. */
+export const stagedCompressedSize = (entry: StagedEntry) =>
+  entry.sizes.reduce((total, size) => total + size, 0) + DEFLATE_END.length
 
 /**
  * The cursor `ExportAccountArchiveJob` persists in `account_archives.progress`
@@ -54,15 +73,21 @@ export interface ArchiveProgress {
   fileParts: number
   stats: ArchiveActorStats[]
   warnings: string[]
-  /** Slices started, which is also the number a duplicate message is compared to. */
-  slice: number
+  /**
+   * The last run (a message's number) that finished and handed the export on.
+   * Message `n` is current only while `completed === n - 1`: a duplicate of a
+   * finished run is dropped, a retry of an unfinished one runs, and the next
+   * message's id is derived from the number, so an id that was consumed is
+   * never published again.
+   */
+  completed: number
   /** Consecutive slices that threw. */
   failures: number
   startedAt: number
   /**
    * The worker running a slice. A delivery that finds a live lease held by
-   * another worker returns without touching anything; the holder clears it when
-   * its slice ends, and it lapses on its own if the holder dies.
+   * another worker fails with a retryable error, so the queue delivers it again
+   * once the lease lapses; the holder clears it when its slice ends.
    */
   lease: { token: string; until: number } | null
   /** Where the zip is being written; null until collection is done. */
@@ -85,7 +110,9 @@ export interface AssemblyState {
   entry: {
     name: string
     headerOffset: number
+    /** Bytes of the entry's data written (after its header). */
     written: number
+    /** Running CRC-32 of a streamed entry; unused by a known one. */
     crc: number
   } | null
   /** Bytes of the zip written so far (the next entry's header offset). */
@@ -118,7 +145,7 @@ export const createInitialProgress = ({
   fileParts: 0,
   stats: actors.map(emptyActorStats),
   warnings: [],
-  slice: 0,
+  completed: -1,
   failures: 0,
   startedAt: now,
   lease: null,
@@ -158,6 +185,14 @@ export const getArchiveFileKey = (root: string, attempt: string) =>
 export const getDirectoryPartKey = (root: string, index: number) =>
   getArchiveStorageKey(root, 'stage', `directory-${index}`)
 
+/** Eight-byte hashes of the entry names in directory part `index`. */
+export const getNamesPartKey = (root: string, index: number) =>
+  getArchiveStorageKey(root, 'stage', `names-${index}`)
+
+/** A small document built during assembly, kept so a resume reads the same bytes. */
+export const getGeneratedKey = (root: string, entry: string) =>
+  getArchiveStorageKey(root, 'stage', `generated-${entryKeyName(entry)}`)
+
 /**
  * Writes the documents' parts. The key of a part is a function of the entry and
  * of how many parts the persisted cursor already counts, so a slice that is cut
@@ -172,15 +207,31 @@ export class PartStager {
   ) {}
 
   private entry(name: string): StagedEntry {
-    return (this.progress.entries[name] ??= { parts: 0, items: 0 })
+    return (this.progress.entries[name] ??= {
+      parts: 0,
+      items: 0,
+      sizes: [],
+      size: 0,
+      crc: 0
+    })
   }
 
   /** Stages raw text as the next part of `entry`. */
   async append(entry: string, text: string, items = 0) {
     const state = this.entry(entry)
-    await this.store.put(getPartKey(this.root, entry, state.parts), text)
+    const raw = Buffer.from(text, 'utf8')
+    // A full flush byte-aligns the output and starts the next part with no
+    // history, so parts concatenate into one deflate stream (closed by
+    // DEFLATE_END) and nothing about the compressor has to survive a slice.
+    const packed = deflateRawSync(raw, {
+      finishFlush: zlibConstants.Z_FULL_FLUSH
+    })
+    await this.store.put(getPartKey(this.root, entry, state.parts), packed)
     state.parts += 1
     state.items += items
+    state.sizes.push(packed.length)
+    state.size += raw.length
+    state.crc = updateCrc(state.crc, raw)
   }
 
   /** Stages the items as comma-joined JSON, with the separator a later part needs. */

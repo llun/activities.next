@@ -9,7 +9,10 @@ import { MediaStorageType } from '@/lib/config/mediaStorage'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { EXPORT_ACCOUNT_ARCHIVE_JOB_NAME } from '@/lib/jobs/names'
 import { getArchiveMediaPath } from '@/lib/services/accountArchive/actorArchive'
-import { getArchiveObjectStore } from '@/lib/services/accountArchive/objectStore'
+import {
+  FileArchiveObjectStore,
+  getArchiveObjectStore
+} from '@/lib/services/accountArchive/objectStore'
 import {
   parseProgress,
   serializeProgress
@@ -18,6 +21,7 @@ import { requestAccountArchive } from '@/lib/services/accountArchive/request'
 import {
   collectKeys,
   readZip,
+  readZipStreaming,
   verifyZipWithTools
 } from '@/lib/services/accountArchive/testing/readZip'
 import { sendMail } from '@/lib/services/email'
@@ -874,7 +878,7 @@ describe('exportAccountArchiveJob', () => {
               id,
               progress: serializeProgress(progress)
             })
-            await run(id, progress.slice)
+            await run(id, progress.completed + 1)
           }
           return original(params)
         }
@@ -890,7 +894,7 @@ describe('exportAccountArchiveJob', () => {
       ).resolves.toBeTruthy()
     })
 
-    it('turns away a delivery while another worker holds the lease', async () => {
+    it('makes a delivery wait for the lease instead of dropping it', async () => {
       const id = await makeArchive(accountId)
       await run(id, 0)
       const before = (await database.getAccountArchive({ id }))!
@@ -903,10 +907,55 @@ describe('exportAccountArchiveJob', () => {
       const held = (await database.getAccountArchive({ id }))!.progress
       const publishedBefore = published.length
 
-      await run(id, progress.slice + 1)
+      // Not acknowledged: the queue has to bring it back once the lease lapses.
+      await expect(run(id, progress.completed + 1)).rejects.toThrow('lease')
 
       expect((await database.getAccountArchive({ id }))!.progress).toBe(held)
       expect(published.length).toBe(publishedBefore)
+      // It is not counted as a failed slice either.
+      expect(parseProgress(held)!.failures).toBe(0)
+    })
+
+    it('runs the delivery again once the lease has lapsed', async () => {
+      const id = await makeArchive(accountId)
+      await run(id, 0)
+      const before = (await database.getAccountArchive({ id }))!
+      const progress = parseProgress(before.progress)!
+      progress.lease = { token: 'dead-worker', until: Date.now() - 1 }
+      await database.updateAccountArchive({
+        id,
+        progress: serializeProgress(progress)
+      })
+      await run(id, progress.completed + 1)
+      expect(
+        parseProgress((await database.getAccountArchive({ id }))!.progress)!
+          .completed
+      ).toBe(1)
+    })
+
+    it('never publishes a continuation id twice, whatever is delivered again', async () => {
+      const id = await makeArchive(accountId)
+      const ids: string[] = []
+      const queue = vi.mocked(getQueue)()
+      const publish = vi.mocked(queue.publish)
+      publish.mockImplementation(async (message) => {
+        ids.push(message.id)
+        published.push(message)
+      })
+
+      await run(id, 0)
+      expect(ids).toHaveLength(1)
+      // The first message is delivered again after it finished: dropped, and it
+      // publishes nothing (the old ids were reused here, so a dropped slice
+      // could never come back).
+      await run(id, 0)
+      expect(ids).toHaveLength(1)
+      await run(id, 1)
+      expect(ids).toHaveLength(2)
+      await run(id, 1)
+      await run(id, 0)
+      expect(ids).toHaveLength(2)
+      expect(new Set(ids).size).toBe(ids.length)
     })
 
     it('removes what a slice staged when the export is deleted underneath it', async () => {
@@ -935,6 +984,160 @@ describe('exportAccountArchiveJob', () => {
       await expect(
         fs.readdir(path.join(root, 'archives', id))
       ).rejects.toThrow()
+    })
+  })
+
+  describe('Mastodon CSV files', () => {
+    const FILES = [
+      'following_accounts.csv',
+      'lists.csv',
+      'muted_accounts.csv',
+      'blocked_accounts.csv',
+      'blocked_domains.csv',
+      'bookmarks.csv'
+    ]
+
+    it('puts the six files at the root for the default profile and in the folder of every other profile', async () => {
+      const second = await database.createActorForAccount({
+        accountId,
+        username: 'csvother',
+        domain: 'llun.test',
+        publicKey: 'public',
+        privateKey: 'private'
+      })
+      expect(second).toBeTruthy()
+      try {
+        const id = await makeArchive(accountId)
+        await runToCompletion(id)
+        const { names, files, methods } = await readArchive(id)
+        const other = 'activities.next/actors/llun.test/csvother'
+        for (const file of FILES) {
+          expect(names, file).toContain(file)
+          expect(names, `${other}/${file}`).toContain(`${other}/${file}`)
+          expect(methods.get(file)).toBe(8)
+        }
+        const following = files.get('following_accounts.csv')!.toString()
+        expect(following.split('\n')[0]).toBe(
+          'Account address,Show boosts,Notify on new posts,Languages'
+        )
+        expect(following.trim().split('\n').length).toBeGreaterThan(1)
+        // Another profile's file holds that profile's data, not the default's.
+        expect(
+          files.get(`${other}/following_accounts.csv`)!.toString().trim()
+        ).toBe('Account address,Show boosts,Notify on new posts,Languages')
+      } finally {
+        await db
+          .deleteFrom('actors')
+          .where('username', '=', 'csvother')
+          .execute()
+      }
+    })
+  })
+
+  describe('assembly across many deliveries', () => {
+    it('fails the export after three failing assembly deliveries and cleans up', async () => {
+      const id = await makeArchive(accountId)
+      // Collect until assembly has started.
+      let next = 0
+      for (;;) {
+        await run(id, next)
+        next += 1
+        const progress = parseProgress(
+          (await database.getAccountArchive({ id }))!.progress
+        )!
+        if (progress.assembly) break
+      }
+      const dir = await archiveDir(id)
+      await fs.rm(path.join(dir, 'stage'), { recursive: true, force: true })
+
+      // Every delivery fails the same way. The counter used to be reset before
+      // assembly ran, so it never reached three and the row stayed `running`.
+      let status = 'running'
+      for (
+        let attempt = 0;
+        attempt < 12 && status === 'running';
+        attempt += 1
+      ) {
+        const current = parseProgress(
+          (await database.getAccountArchive({ id }))!.progress
+        )!
+        await run(id, current.completed + 1).catch(() => undefined)
+        status = (await database.getAccountArchive({ id }))!.status
+      }
+      const archive = (await database.getAccountArchive({ id }))!
+      expect(archive.status).toBe('failed')
+      expect(archive.error).toBe('The export could not be completed')
+      await expect(fs.stat(path.join(root, 'archives', id))).rejects.toThrow()
+    })
+
+    it('reads each staged part once, however many deliveries the export takes', async () => {
+      const id = await makeArchive(accountId)
+      const reads = new Map<string, number>()
+      const original = FileArchiveObjectStore.prototype.get
+      vi.spyOn(FileArchiveObjectStore.prototype, 'get').mockImplementation(
+        async function (this: FileArchiveObjectStore, key: string) {
+          if (/\/stage\/[0-9a-f]{24}-\d+$/.test(key)) {
+            reads.set(key, (reads.get(key) ?? 0) + 1)
+          }
+          return original.call(this, key)
+        }
+      )
+      const archive = await runToCompletion(id)
+      expect(archive.status).toBe('ready')
+      expect(reads.size).toBeGreaterThan(10)
+      // Resuming inside an entry seeks to its part instead of re-reading the
+      // parts before it.
+      expect([...reads.values()].filter((count) => count > 1)).toEqual([])
+    })
+
+    it('deflates the staged JSON and stores copied files, and a streaming reader reads the JSON', async () => {
+      const id = await makeArchive(accountId)
+      await runToCompletion(id)
+      const archive = (await database.getAccountArchive({ id }))!
+      const file = path.join(root, archive.storagePath!)
+      const { methods, files } = await readArchive(id)
+      expect(methods.get('outbox.json')).toBe(8)
+      expect(methods.get('actor.json')).toBe(8)
+      expect(methods.get('activities.next/manifest.json')).toBe(0)
+      // The JSON text is smaller in the zip than on its own.
+      const raw = [...files.values()].reduce((sum, b) => sum + b.length, 0)
+      expect((await fs.stat(file)).size).toBeLessThan(raw)
+
+      const streamed = readZipStreaming(file, root)
+      if (streamed) {
+        // No entry here has a descriptor, so Java's ZipInputStream reads all.
+        expect(streamed.error).toBeNull()
+        expect(streamed.sizes.get('outbox.json')).toBe(
+          files.get('outbox.json')!.length
+        )
+      }
+    })
+
+    it('keeps a document built during assembly the same across deliveries', async () => {
+      const id = await makeArchive(accountId)
+      const real = database.getAccountExportAccount.bind(database)
+      let calls = 0
+      vi.spyOn(database, 'getAccountExportAccount').mockImplementation(
+        async (params) => {
+          calls += 1
+          const account = await real(params)
+          // A longer document each time it is built.
+          return account && { ...account, signUpDomain: 'x'.repeat(calls * 50) }
+        }
+      )
+      await runToCompletion(id)
+      const { files } = await readArchive(id)
+      for (const name of [
+        'activities.next/account.json',
+        'activities.next/manifest.json'
+      ]) {
+        const text = files.get(name)!.toString()
+        expect(() => JSON.parse(text), name).not.toThrow()
+      }
+      const account = JSON.parse(
+        files.get('activities.next/account.json')!.toString()
+      )
+      expect(account.signUpDomain).toMatch(/^x+$/)
     })
   })
 })

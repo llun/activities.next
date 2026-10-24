@@ -11,7 +11,11 @@ import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 
 import { FileArchiveObjectStore } from './objectStore'
-import { createInitialProgress, serializeProgress } from './progress'
+import {
+  createInitialProgress,
+  parseProgress,
+  serializeProgress
+} from './progress'
 import {
   ARCHIVE_MAX_REAPS,
   ARCHIVE_STUCK_AFTER_MS,
@@ -75,7 +79,7 @@ describe('stuck export reaper', () => {
         actors: [],
         now: Date.now() - updatedAgoMs
       })
-      progress.slice = 4
+      progress.completed = 3
       await database.updateAccountArchive({
         id,
         status: 'running',
@@ -196,6 +200,34 @@ describe('stuck export reaper', () => {
     expect(failed.status).toBe('failed')
     expect(failed.error).toBe('The export stopped making progress')
     expect(await store.get(`archives/${archive.id}/stage/part-0`)).toBeNull()
+  })
+
+  it('does not fail an export that resumed after the sweep read it', async () => {
+    const archive = await stuckArchive(hour * 2)
+    await database.updateAccountArchive({
+      id: archive.id,
+      reapCount: ARCHIVE_MAX_REAPS
+    })
+    const stale = (await database.getAccountArchive({ id: archive.id }))!
+    // A worker picks the export up between the read and the give-up.
+    const resumed = parseProgress(stale.progress)!
+    resumed.completed += 1
+    await database.updateAccountArchive({
+      id: archive.id,
+      progress: serializeProgress(resumed)
+    })
+    const result = await reapStuckAccountArchive({
+      database,
+      archive: stale,
+      store
+    })
+    expect(result).toBe(stale)
+    expect((await database.getAccountArchive({ id: archive.id }))!.status).toBe(
+      'running'
+    )
+    expect(
+      await store.get(`archives/${archive.id}/stage/part-0`)
+    ).not.toBeNull()
   })
 
   it('marks it failed straight away when the queue cannot deliver later', async () => {

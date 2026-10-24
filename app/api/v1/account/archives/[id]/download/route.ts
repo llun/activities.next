@@ -57,6 +57,13 @@ export const GET = traceApiRoute(
       const fileName = getArchiveDownloadFileName(archive.id)
       const key = assertArchiveKey(archive.storagePath)
 
+      // A ready row whose object is gone answers 404 on every driver, instead
+      // of redirecting to an object-storage error page.
+      const size = await store.size(key)
+      if (size === null) return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+
+      // Null when the storage should not hand out a link to the key (see
+      // S3ArchiveObjectStore.getDownloadUrl): the file is streamed here.
       const url = await store.getDownloadUrl(key, { fileName })
       if (url) {
         return new Response(null, {
@@ -73,8 +80,7 @@ export const GET = traceApiRoute(
         'Cache-Control': 'private, no-store',
         'X-Content-Type-Options': 'nosniff'
       })
-      const size = await store.size(key)
-      if (size !== null) headers.set('Content-Length', String(size))
+      headers.set('Content-Length', String(size))
       return new Response(
         Readable.toWeb(stream) as unknown as ReadableStream<Uint8Array>,
         { status: 200, headers }

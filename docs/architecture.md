@@ -398,9 +398,12 @@ Export](maintenance.md#actor-archive-export)). It is built by
   `activities.next/manifest.json` is always the last entry (format, version,
   `exportedAt`, the server host, the account's id, sign-up domain and default
   actor id, every profile's id and handle with its counts, the entry list and
-  warnings). `csvHook.ts` is where the Mastodon CSV files (follows, followers,
-  lists, blocks, mutes) are registered once their writers exist; until then the
-  same data is in `graph.json`.
+  warnings). Mastodon's CSV files (`following_accounts.csv`, `lists.csv`,
+  `muted_accounts.csv`, `blocked_accounts.csv`, `blocked_domains.csv`,
+  `bookmarks.csv`) are written by the same functions as the web app's CSV
+  export (`lib/services/exports/`, `stepsCsv.ts`), beside each profile's
+  `actor.json`: at the root for the default profile, in the profile's folder
+  for the others. The same data is also in `graph.json`.
 - **Nothing secret, by construction.** The collectors read through
   `lib/database/domains/accountExport/`, which selects an explicit column
   allowlist per table (`tables.ts`); `profile.json` lists an allowlist of the
@@ -421,41 +424,70 @@ Export](maintenance.md#actor-archive-export)). It is built by
   deterministic part key under `archives/<id>/<secret>/stage/` and then saves the
   cursor (`account_archives.progress`) with a compare-and-set, so a slice killed
   at any point reruns the same page to the same keys. Every delivery takes a
-  lease (a random token and an expiry kept in the cursor); a delivery that finds
-  another worker's live lease does nothing, and one that loses its lease finds
-  out at its next compare-and-set save and stops. The slice budget depends on the
-  queue (`budget.ts`): 20 seconds on QStash, whose jobs are cut off at 30, and
-  four minutes elsewhere. A slice that runs out of time saves its cursor and
-  publishes the next slice with a deterministic id. A slice that throws is
-  retried; three in a row mark the export `failed` and delete its files.
+  lease (a random token and an expiry kept in the cursor). The queue messages are
+  numbered runs: message `n` is current only while the cursor says run `n - 1`
+  finished, so a duplicate of a finished run is dropped and a retry of an
+  unfinished one runs. The next message's id comes from its run number, and a
+  run finishes once, so an id that was consumed is never published again (the
+  reaper republishes under its own id). A delivery that finds another worker's
+  live lease fails with a retryable error, without counting as a failure, so
+  the queue brings it back after the lease lapses; a worker that loses its lease
+  finds out at its next compare-and-set save and stops. The slice budget depends
+  on the queue (`budget.ts`): 20 seconds on QStash, whose jobs are cut off at 30,
+  and four minutes elsewhere. A slice that runs out of time saves its cursor and
+  publishes the next message. A slice that throws is retried; the failure count
+  resets only when a slice finishes its run, so three failing deliveries in a
+  row, in collection or in assembly, mark the export `failed` and delete its
+  files. Errors written to the logs have the `archives/<id>/<secret>` part of any
+  path redacted.
 - **Resumable assembly.** Writing the zip is a stage of the same cursor, so a
   large export does not need to fit in one slice. `zipFormat.ts` is a small
-  zip writer whose state fits in the cursor: every entry is STORED (not
-  compressed) with a Zip64 data descriptor, so only the byte offset, the
-  running CRC-32 and the sink's own state need saving, and the central
-  directory is staged and appended at the end (Zip64 end records, readable by
-  `unzip`, Python and yauzl; the tests check all three). The cost is size: the
-  JSON text is not compressed. The output goes through `ResumableSink`
-  (`objectStore.ts`): on local disk a `.partial` file that is truncated to the
-  checkpoint on resume and renamed at the end; on S3 a multipart upload (8 MiB
-  parts, so at least 5 MiB except the last) whose UploadId and part ETags are
-  in the cursor, with the bytes that do not fill a part kept in a staged
-  `.tail` object. A large source file is copied across slices by byte range
-  (`Range: bytes=n-`). Each attempt writes its own `archive-<attempt>.zip`, so
-  a second worker finishing the same slice cannot clobber or delete the file the
-  first one marked ready; the `ready` update is a compare-and-set, and the loser
-  deletes nothing. An abandoned S3 multipart upload that nothing aborts (a
-  crashed worker) costs storage until it is aborted: add a bucket lifecycle rule
-  that aborts incomplete multipart uploads after a day or two.
+  zip writer whose state fits in the cursor, with Zip64 records (readable by
+  `unzip`, Python, Go, Java `ZipFile` and yauzl; the tests check several of
+  them). Staged documents (the JSON, JSON lines and CSV text) are deflated part
+  by part when they are staged, with a full flush after each part, so the
+  parts concatenate into one deflate stream (closed by an empty final block)
+  and no compressor state has to survive a slice; their sizes and CRC-32 are
+  recorded while staging, so these entries carry them in the header and have no
+  data descriptor, which lets a streaming reader such as Java's
+  `ZipInputStream` read them. A resume inside a staged document starts at the
+  right part and offset instead of reading the earlier parts again. Files
+  copied from storage (media, fitness files) are stored, not compressed, with a
+  Zip64 data descriptor, because their CRC is only known at the end: a reader
+  that does not use the central directory cannot read past the first of them.
+  Small documents built during assembly (`account.json`, the manifest) are
+  built once and kept in the stage, so every slice reads the same bytes. The
+  output goes through `ResumableSink` (`objectStore.ts`): on local disk a
+  `.partial` file that is truncated to the checkpoint on resume and renamed at
+  the end; on S3 a multipart upload (8 MiB parts, so at least 5 MiB except the
+  last) whose UploadId and part ETags are in the cursor, with the bytes that do
+  not fill a part kept in a staged tail object. Every checkpoint writes a tail
+  under a new name (the writer and a sequence number), and the older tail is
+  deleted only after the cursor that refers to the new one has been saved, so a
+  checkpoint whose save never lands cannot damage the saved state. S3 calls of
+  an export time out after 30 seconds, under the lease's grace. A large source
+  file is copied across slices by byte range (`Range: bytes=n-`), and the set
+  of claimed entry names (to drop duplicates) is kept as eight-byte hashes in
+  staged parts, not read back from the central directory. Each attempt writes
+  its own `archive-<attempt>.zip`, so a second worker finishing the same slice
+  cannot clobber or delete the file the first one marked ready; the `ready`
+  update is a compare-and-set, and the loser deletes nothing. An abandoned S3
+  multipart upload that nothing aborts (a crashed worker) costs storage until it
+  is aborted: add a bucket lifecycle rule that aborts incomplete multipart
+  uploads after a day or two.
 - **Storage.** The files use the media storage (local disk or S3-compatible),
   under the reserved `archives/` prefix, and the key holds a random secret
   segment that only the database row knows: `archives/<id>/<secret>/...`. The
   public files route refuses the prefix (`isReservedFitnessMediaPath`), and the
-  owner-only download route is the only way out: it streams from disk or
-  redirects to a five-minute signed URL (`Content-Disposition: attachment`).
-  Do not serve the bucket through a public CDN hostname that maps the whole
-  bucket or the `archives/` prefix: the secret segment makes a key unguessable,
-  but it is not an access control. Deleting an export deletes `archives/<id>/`.
+  owner-only download route is the only way out. On a private bucket it
+  redirects to a five-minute signed URL (`Content-Disposition: attachment`); on
+  local disk, and on a bucket with `ACTIVITIES_MEDIA_STORAGE_HOSTNAME` set (it
+  may be served publicly, and a signed URL carries the secret key, so anyone
+  holding it could drop the signature), it streams the file through the server
+  after the owner check. A ready row whose object is gone answers 404. Do not
+  serve the bucket or the `archives/` prefix through a public CDN hostname: the
+  secret segment makes a key unguessable, but it is not an access control.
+  Deleting an export deletes `archives/<id>/`.
 - **Limits.** One queued or running export per account (a partial unique index
   on `account_archives`), one request per 7 days (`429` with `nextAllowedAt` and
   a `Retry-After` header, whether the earlier export is running or finished; a
@@ -468,10 +500,10 @@ Export](maintenance.md#actor-archive-export)). It is built by
   a due archive on access. Every cursor save moves `account_archives.heartbeatAt`;
   an export whose heartbeat is an hour old (a dead worker, a lost message) is
   reaped by the same sweep (oldest heartbeat first) and by
-  `GET /api/v1/account/archives`: its current slice is requeued, counted in
+  `GET /api/v1/account/archives`: its current run is requeued, counted in
   `reapCount` (up to three times), or, behind the in-process queue or after the
-  third reap, it is marked `failed` and its files and unfinished upload are
-  discarded; a failed export does not count against the 7-day limit. A suspended
+  third reap, it is marked `failed` (only if it did not resume since the row was read) and
+  its files and unfinished upload are discarded; a failed export does not count against the 7-day limit. A suspended
   (moderation-blocked) account can still list and download its own exports, as
   an export is the user's copy of their data. When an account's last actor is
   deleted (`deleteActorJob`, checked again after the deletion for two actors

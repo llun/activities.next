@@ -9,7 +9,6 @@ import {
   getArchiveStorageRoot
 } from '@/lib/types/domain/accountArchive'
 import { logger } from '@/lib/utils/logger'
-import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import { ARCHIVE_REQUEST_INTERVAL_MS } from './constants'
 import { prepareArchiveDrafts } from './drafts'
@@ -19,6 +18,7 @@ import {
   getArchiveStorageKey
 } from './objectStore'
 import { getDraftsKey } from './progress'
+import { toArchiveLoggableError } from './redact'
 
 export type RequestArchiveResult =
   | { ok: true; archive: AccountArchive }
@@ -137,7 +137,7 @@ export const requestAccountArchive = async ({
     logger.error({
       message: 'Failed to queue the account archive export',
       archiveId: id,
-      err: toLoggableError(error)
+      err: toArchiveLoggableError(error)
     })
     await database
       .updateAccountArchive({

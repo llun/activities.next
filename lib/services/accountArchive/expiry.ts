@@ -1,7 +1,6 @@
 import type { Database } from '@/lib/database/types'
 import type { AccountArchive } from '@/lib/types/domain/accountArchive'
 import { logger } from '@/lib/utils/logger'
-import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import { abortAssembly } from './assemble'
 import {
@@ -10,6 +9,7 @@ import {
   getArchiveStorageKey
 } from './objectStore'
 import { parseProgress } from './progress'
+import { toArchiveLoggableError } from './redact'
 
 const SWEEP_BATCH = 50
 
@@ -104,7 +104,7 @@ export const sweepExpiredAccountArchives = async (
       logger.error({
         message: 'Failed to expire an account archive',
         archiveId: archive.id,
-        err: toLoggableError(error)
+        err: toArchiveLoggableError(error)
       })
     }
   }

@@ -1,9 +1,13 @@
 import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
-import { crc32 } from 'zlib'
+import { constants, crc32, deflateRawSync } from 'zlib'
 
-import { readZip, verifyZipWithTools } from './testing/readZip'
+import {
+  readZip,
+  readZipStreaming,
+  verifyZipWithTools
+} from './testing/readZip'
 import {
   buildCentralRecord,
   buildDataDescriptor,
@@ -105,5 +109,103 @@ describe('resumable zip format', () => {
     const file = path.join(dir, 'broken.zip')
     await fs.writeFile(file, broken)
     expect(() => verifyZipWithTools(file)).toThrow()
+  })
+
+  it('writes known entries (stored and deflated by parts) with no descriptor, readable by a streaming reader', async () => {
+    const dos = toDosDateTime(Date.UTC(2026, 9, 24))
+    const pieces: Buffer[] = []
+    const central: Buffer[] = []
+    let offset = 0
+    const push = (piece: Buffer) => {
+      pieces.push(piece)
+      offset += piece.length
+    }
+    const texts = ['{"items":[', '"a","b"', '],"done":true}\n']
+    const parts = texts.map((text) =>
+      deflateRawSync(Buffer.from(text), {
+        finishFlush: constants.Z_FULL_FLUSH
+      })
+    )
+    const whole = Buffer.from(texts.join(''))
+    const end = Buffer.from([3, 0])
+    const csize = parts.reduce((sum, part) => sum + part.length, 0) + 2
+    const deflated = {
+      method: 8 as const,
+      crc: crc32(whole),
+      size: whole.length,
+      csize
+    }
+    central.push(
+      (() => {
+        const headerOffset = offset
+        push(buildLocalHeader('doc.json', dos, deflated))
+        for (const part of parts) push(part)
+        push(end)
+        return buildCentralRecord({
+          name: 'doc.json',
+          crc: deflated.crc,
+          size: deflated.size,
+          headerOffset,
+          dos,
+          known: deflated
+        })
+      })()
+    )
+    const note = Buffer.from('plain note')
+    const stored = {
+      method: 0 as const,
+      crc: crc32(note),
+      size: note.length,
+      csize: note.length
+    }
+    central.push(
+      (() => {
+        const headerOffset = offset
+        push(buildLocalHeader('note.txt', dos, stored))
+        push(note)
+        return buildCentralRecord({
+          name: 'note.txt',
+          crc: stored.crc,
+          size: stored.size,
+          headerOffset,
+          dos,
+          known: stored
+        })
+      })()
+    )
+    const directory = Buffer.concat(central)
+    const directoryOffset = offset
+    push(directory)
+    push(
+      buildEndRecords({
+        entries: 2,
+        directoryOffset,
+        directorySize: directory.length
+      })
+    )
+    const file = path.join(dir, 'known.zip')
+    await fs.writeFile(file, Buffer.concat(pieces))
+
+    expect(verifyZipWithTools(file).length).toBeGreaterThan(0)
+    const { files, methods } = await readZip(file)
+    expect(files.get('doc.json')?.equals(whole)).toBe(true)
+    expect(files.get('note.txt')?.toString()).toBe('plain note')
+    expect(methods.get('doc.json')).toBe(8)
+    expect(methods.get('note.txt')).toBe(0)
+
+    const streamed = readZipStreaming(file, dir)
+    if (streamed) {
+      expect(streamed.error).toBeNull()
+      expect(streamed.sizes.get('doc.json')).toBe(whole.length)
+      expect(streamed.sizes.get('note.txt')).toBe(note.length)
+    }
+  })
+
+  it('cannot be read front to back when an entry has a descriptor (documented)', async () => {
+    const { zip } = build([{ name: 'a.bin', chunks: [Buffer.from('xyz')] }])
+    const file = path.join(dir, 'descriptor.zip')
+    await fs.writeFile(file, zip)
+    const streamed = readZipStreaming(file, dir)
+    if (streamed) expect(streamed.error).not.toBeNull()
   })
 })

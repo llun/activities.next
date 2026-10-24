@@ -12,6 +12,7 @@ import {
   UploadPartCommand
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
+import { randomBytes } from 'crypto'
 import { createReadStream } from 'fs'
 import fs from 'fs/promises'
 import path from 'path'
@@ -33,6 +34,12 @@ import { ARCHIVE_STORAGE_PREFIX } from './constants'
 const DOWNLOAD_URL_TTL_SECONDS = 5 * 60
 const DELETE_BATCH_SIZE = 1000
 const RESUMABLE_PART_SIZE = 8 * 1024 * 1024
+/**
+ * Every S3 call of an export fails after this long, well under the lease grace
+ * (`ARCHIVE_LEASE_GRACE_MS`), so a worker whose lease lapsed cannot keep
+ * writing for long.
+ */
+export const ARCHIVE_S3_REQUEST_TIMEOUT_MS = 30 * 1000
 
 const KEY_PATTERN = new RegExp(`^${ARCHIVE_STORAGE_PREFIX}(/[A-Za-z0-9._-]+)+$`)
 const PREFIX_PATTERN = new RegExp(
@@ -72,6 +79,12 @@ export type SinkState = Record<string, unknown>
 export interface ResumableSink {
   write(chunk: Buffer): Promise<void>
   checkpoint(): Promise<SinkState>
+  /**
+   * Called once the state `checkpoint` returned has been saved: whatever an
+   * older saved state needed (and this one does not) can go now. Until then it
+   * must stay, because a save that never lands leaves the old state current.
+   */
+  committed(): Promise<void>
   /** Drops local resources; the file stays resumable from its checkpoint. */
   release(): Promise<void>
   /** Completes the file at its key; resolves with its size. */
@@ -183,6 +196,7 @@ export class FileArchiveObjectStore implements ArchiveObjectStore {
         await handle.sync()
         return { offset: position }
       },
+      async committed() {},
       release: close,
       async finish() {
         await handle.sync()
@@ -234,7 +248,10 @@ export class FileArchiveObjectStore implements ArchiveObjectStore {
 export class S3ArchiveObjectStore implements ArchiveObjectStore {
   constructor(
     private readonly config: MediaStorageS3Config,
-    private readonly client: S3Client = createStorageS3Client(config),
+    private readonly client: S3Client = createStorageS3Client({
+      ...config,
+      requestTimeoutMs: ARCHIVE_S3_REQUEST_TIMEOUT_MS
+    }),
     // S3 refuses parts under 5 MiB except the last one.
     private readonly partSize: number = RESUMABLE_PART_SIZE
   ) {}
@@ -292,14 +309,23 @@ export class S3ArchiveObjectStore implements ArchiveObjectStore {
     state: SinkState | null
   ): Promise<ResumableSink> {
     assertArchiveKey(key)
-    const tailKey = `${key}.tail`
     const bucket = this.config.bucket
     const client = this.client
     const partSize = this.partSize
+    const tailPrefix = `${key}.tail-`
+    // Each writer names its own tails. A checkpoint whose cursor save never
+    // lands (a killed worker, or one that lost its lease) must not overwrite
+    // the tail that the saved cursor refers to, and neither may a worker that
+    // took over, so the name has the writer and the checkpoint in it.
+    const writer = randomBytes(6).toString('hex')
+    let sequence = 0
     let uploadId: string
     let parts: { n: number; etag: string }[] = []
     let uploaded = 0
     let buffer: Buffer = Buffer.alloc(0)
+    // The tail the saved state refers to, and the one a checkpoint just wrote.
+    let savedTail: string | null = null
+    let pendingTail: string | null = null
 
     if (state) {
       uploadId = String(state.uploadId)
@@ -307,7 +333,11 @@ export class S3ArchiveObjectStore implements ArchiveObjectStore {
       uploaded = Number(state.uploaded)
       const tailBytes = Number(state.tailBytes)
       if (tailBytes > 0) {
-        const tail = await this.get(tailKey)
+        savedTail = String(state.tail)
+        if (!savedTail.startsWith(tailPrefix)) {
+          throw new Error('The staged tail of the archive upload is invalid')
+        }
+        const tail = await this.get(savedTail)
         if (!tail || tail.length !== tailBytes) {
           throw new Error('The staged tail of the archive upload is missing')
         }
@@ -339,6 +369,19 @@ export class S3ArchiveObjectStore implements ArchiveObjectStore {
       return result.ETag
     }
 
+    const deleteTails = async () => {
+      const listed = await client.send(
+        new ListObjectsV2Command({ Bucket: bucket, Prefix: tailPrefix })
+      )
+      for (const object of listed.Contents ?? []) {
+        if (object.Key) {
+          await client.send(
+            new DeleteObjectCommand({ Bucket: bucket, Key: object.Key })
+          )
+        }
+      }
+    }
+
     return {
       async write(chunk) {
         buffer = buffer.length === 0 ? chunk : Buffer.concat([buffer, chunk])
@@ -353,16 +396,31 @@ export class S3ArchiveObjectStore implements ArchiveObjectStore {
       async checkpoint() {
         // The bytes that do not fill a part yet go to a staged object, so a
         // later slice (possibly on another worker) picks them up.
+        let tail: string | null = null
         if (buffer.length > 0) {
+          sequence += 1
+          tail = `${tailPrefix}${writer}-${sequence}`
           await client.send(
-            new PutObjectCommand({ Bucket: bucket, Key: tailKey, Body: buffer })
+            new PutObjectCommand({ Bucket: bucket, Key: tail, Body: buffer })
           )
         }
+        pendingTail = tail
         return {
           uploadId,
           parts: parts.map((part) => ({ ...part })),
           uploaded,
-          tailBytes: buffer.length
+          tailBytes: buffer.length,
+          tail
+        }
+      },
+      async committed() {
+        // The cursor now refers to the new tail; the old one is garbage.
+        const previous = savedTail
+        savedTail = pendingTail
+        if (previous && previous !== savedTail) {
+          await client
+            .send(new DeleteObjectCommand({ Bucket: bucket, Key: previous }))
+            .catch(() => undefined)
         }
       },
       async release() {},
@@ -386,9 +444,7 @@ export class S3ArchiveObjectStore implements ArchiveObjectStore {
             }
           })
         )
-        await client
-          .send(new DeleteObjectCommand({ Bucket: bucket, Key: tailKey }))
-          .catch(() => undefined)
+        await deleteTails().catch(() => undefined)
         return uploaded
       },
       async abort() {
@@ -401,9 +457,7 @@ export class S3ArchiveObjectStore implements ArchiveObjectStore {
             })
           )
           .catch(() => undefined)
-        await client
-          .send(new DeleteObjectCommand({ Bucket: bucket, Key: tailKey }))
-          .catch(() => undefined)
+        await deleteTails().catch(() => undefined)
       }
     }
   }
@@ -465,6 +519,12 @@ export class S3ArchiveObjectStore implements ArchiveObjectStore {
   }
 
   async getDownloadUrl(key: string, { fileName }: { fileName: string }) {
+    // A media hostname means the bucket may be served publicly (a CDN or a
+    // custom domain mapped to the whole bucket). A presigned URL names the key,
+    // which holds the export's secret, and anyone with it could drop the
+    // signature and fetch the file with no session for a week. So the download
+    // is streamed through the owner-checked endpoint instead.
+    if (this.config.hostname) return null
     return getSignedUrl(
       this.client,
       new GetObjectCommand({

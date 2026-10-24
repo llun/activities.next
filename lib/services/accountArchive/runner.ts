@@ -27,6 +27,7 @@ import {
 } from './saver'
 import type { SourceKind } from './sourceFiles'
 import type { CollectorStep, StepContext } from './steps.types'
+import { csvStep } from './stepsCsv'
 import {
   fitnessFilesStep,
   fitnessMetaStep,
@@ -55,7 +56,8 @@ export const COLLECTOR_STEPS: readonly CollectorStep[] = [
   galleryStep,
   scheduledStep,
   reactionsStep,
-  graphStep
+  graphStep,
+  csvStep
 ]
 
 export { StaleSliceError } from './saver'
@@ -70,8 +72,6 @@ export interface RunSliceParams {
   database: Database
   archive: AccountArchive
   store: ArchiveObjectStore
-  /** The slice number carried by the job message. */
-  slice: number
   budgetMs?: number
   pageSize?: number
   now?: () => number
@@ -92,7 +92,6 @@ export const runCollectionSlice = async ({
   database,
   archive,
   store,
-  slice,
   budgetMs = getArchiveSliceBudgetMs(),
   pageSize = ARCHIVE_PAGE_SIZE,
   now = Date.now,
@@ -128,7 +127,6 @@ export const runCollectionSlice = async ({
     progress,
     archive.progress
   )
-  progress.slice = Math.max(progress.slice, slice)
   progress.lease = { token, until: leaseUntil() }
   await saver.save()
   const save = () => saver.save()

@@ -1,7 +1,9 @@
+import type { S3Client } from '@aws-sdk/client-s3'
 import fs from 'fs/promises'
 import { NextRequest } from 'next/server'
 import os from 'os'
 import path from 'path'
+import { Readable } from 'stream'
 
 import { MediaStorageType } from '@/lib/config/mediaStorage'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
@@ -283,6 +285,7 @@ describe('account archive routes', () => {
       const spy = vi
         .spyOn(objectStore, 'getArchiveObjectStore')
         .mockReturnValue({
+          size: async () => 7,
           getDownloadUrl: async () => 'https://bucket.test/signed?x=1'
         } as unknown as ReturnType<typeof objectStore.getArchiveObjectStore>)
       const response = await fetchDownload(id)
@@ -290,6 +293,52 @@ describe('account archive routes', () => {
       expect(response.headers.get('location')).toBe(
         'https://bucket.test/signed?x=1'
       )
+      spy.mockRestore()
+    })
+
+    it('answers 404, not a redirect to an error page, when the object is gone', async () => {
+      const id = await makeReady(seedActor1.email)
+      const objectStore =
+        await import('@/lib/services/accountArchive/objectStore')
+      const spy = vi
+        .spyOn(objectStore, 'getArchiveObjectStore')
+        .mockReturnValue({
+          size: async () => null,
+          getDownloadUrl: async () => 'https://bucket.test/signed?x=1'
+        } as unknown as ReturnType<typeof objectStore.getArchiveObjectStore>)
+      const response = await fetchDownload(id)
+      expect(response.status).toBe(404)
+      expect(response.headers.get('location')).toBeNull()
+      spy.mockRestore()
+    })
+
+    it('streams through the server, with no redirect, when the bucket has a public hostname', async () => {
+      const id = await makeReady(seedActor1.email)
+      const objectStore =
+        await import('@/lib/services/accountArchive/objectStore')
+      const send = vi.fn(async (command: unknown) => {
+        const name = (command as { constructor: { name: string } }).constructor
+          .name
+        if (name === 'HeadObjectCommand') return { ContentLength: 7 }
+        return { Body: Readable.from([Buffer.from('ZIPDATA')]) }
+      })
+      const store = new objectStore.S3ArchiveObjectStore(
+        {
+          type: MediaStorageType.S3Storage,
+          bucket: 'bucket',
+          region: 'us-east-1',
+          hostname: 'media.example.com'
+        },
+        { send } as unknown as S3Client
+      )
+      const spy = vi
+        .spyOn(objectStore, 'getArchiveObjectStore')
+        .mockReturnValue(store)
+      const response = await fetchDownload(id)
+      expect(response.status).toBe(200)
+      expect(response.headers.get('location')).toBeNull()
+      expect(response.headers.get('content-length')).toBe('7')
+      expect(await response.text()).toBe('ZIPDATA')
       spy.mockRestore()
     })
 

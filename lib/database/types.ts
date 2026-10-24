@@ -1,6 +1,6 @@
-import { BulkImportDatabase } from '@/lib/database/domains/bulkImport/types'
 import { AccountArchiveDatabase } from '@/lib/database/domains/accountArchive/types'
 import { AccountExportDatabase } from '@/lib/database/domains/accountExport/types'
+import { BulkImportDatabase } from '@/lib/database/domains/bulkImport/types'
 import { FitnessFileDatabase } from '@/lib/database/domains/fitnessFile/types'
 import { FitnessFileRouteDatabase } from '@/lib/database/domains/fitnessFileRoute/types'
 import { FitnessFileRouteDataDatabase } from '@/lib/database/domains/fitnessFileRouteData/types'

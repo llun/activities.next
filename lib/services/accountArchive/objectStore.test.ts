@@ -10,20 +10,24 @@ import {
   type S3Client,
   UploadPartCommand
 } from '@aws-sdk/client-s3'
+import crypto from 'crypto'
 import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
 import { Readable } from 'stream'
 
 import { MediaStorageType } from '@/lib/config/mediaStorage'
+import { createStorageS3Client } from '@/lib/services/storage/s3Client'
 
 import {
+  ARCHIVE_S3_REQUEST_TIMEOUT_MS,
   FileArchiveObjectStore,
   S3ArchiveObjectStore,
   assertArchiveKey,
   createArchiveObjectStore,
   getArchiveStorageKey
 } from './objectStore'
+import { ARCHIVE_LEASE_GRACE_MS } from './saver'
 
 const readAll = async (stream: NodeJS.ReadableStream) => {
   const chunks: Buffer[] = []
@@ -285,6 +289,14 @@ describe('S3ArchiveObjectStore', () => {
         binary.delete(command.input.Key!)
         return {}
       }
+      if (command instanceof ListObjectsV2Command) {
+        return {
+          Contents: [...binary.keys()]
+            .filter((name) => name.startsWith(command.input.Prefix!))
+            .map((Key) => ({ Key })),
+          IsTruncated: false
+        }
+      }
       return {}
     })
     const multipartStore = new S3ArchiveObjectStore(
@@ -318,7 +330,9 @@ describe('S3ArchiveObjectStore', () => {
 
       expect(binary.get(key)?.equals(data)).toBe(true)
       // The staged tail is gone once the object is complete.
-      expect(binary.has(`${key}.tail`)).toBe(false)
+      expect(
+        [...binary.keys()].filter((name) => name.includes('.tail-'))
+      ).toEqual([])
     })
 
     it('fails to resume when the staged tail is missing', async () => {
@@ -326,10 +340,98 @@ describe('S3ArchiveObjectStore', () => {
       const first = await multipartStore.openResumableWrite(key, null)
       await first.write(Buffer.alloc(100))
       const state = await first.checkpoint()
-      binary.delete(`${key}.tail`)
+      binary.delete(String((state as { tail: string }).tail))
       await expect(
         multipartStore.openResumableWrite(key, state)
       ).rejects.toThrow('tail')
+    })
+
+    it('keeps the saved tail when a later checkpoint never lands', async () => {
+      const key = 'archives/a/t/archive-1.zip'
+      const data = crypto.randomBytes(40 * MIB)
+      const first = await multipartStore.openResumableWrite(key, null)
+      await first.write(data.subarray(0, 3 * MIB))
+      const saved = await first.checkpoint()
+      await first.committed()
+
+      // A later checkpoint writes its tail but the cursor save is lost (the
+      // worker was killed, or lost its lease and a stalled call went through).
+      // Eight more MiB leaves a tail of the same length as the saved one.
+      await first.write(data.subarray(3 * MIB, 11 * MIB))
+      await first.checkpoint()
+
+      const second = await multipartStore.openResumableWrite(key, saved)
+      await second.write(data.subarray(3 * MIB))
+      expect(await second.finish()).toBe(data.length)
+      expect(binary.get(key)?.equals(data)).toBe(true)
+    })
+
+    it('still resumes from the saved state when the lost checkpoint had a different tail length', async () => {
+      const key = 'archives/a/t/archive-1.zip'
+      const data = crypto.randomBytes(5 * MIB)
+      const first = await multipartStore.openResumableWrite(key, null)
+      await first.write(data.subarray(0, 3 * MIB))
+      const saved = await first.checkpoint()
+      await first.committed()
+      await first.write(data.subarray(3 * MIB, 4 * MIB))
+      await first.checkpoint()
+
+      const second = await multipartStore.openResumableWrite(key, saved)
+      await second.write(data.subarray(3 * MIB))
+      await second.finish()
+      expect(binary.get(key)?.equals(data)).toBe(true)
+    })
+
+    it('drops the old tail only after the new state is committed', async () => {
+      const key = 'archives/a/t/archive-1.zip'
+      const sink = await multipartStore.openResumableWrite(key, null)
+      await sink.write(Buffer.alloc(1000, 1))
+      const one = (await sink.checkpoint()) as { tail: string }
+      await sink.committed()
+      await sink.write(Buffer.alloc(1000, 2))
+      const two = (await sink.checkpoint()) as { tail: string }
+      expect(two.tail).not.toBe(one.tail)
+      expect(binary.has(one.tail)).toBe(true)
+      expect(binary.has(two.tail)).toBe(true)
+      await sink.committed()
+      expect(binary.has(one.tail)).toBe(false)
+      expect(binary.has(two.tail)).toBe(true)
+    })
+
+    it('gives every S3 call a timeout shorter than the lease grace', async () => {
+      expect(ARCHIVE_S3_REQUEST_TIMEOUT_MS).toBeLessThanOrEqual(
+        ARCHIVE_LEASE_GRACE_MS / 2
+      )
+      const client = createStorageS3Client({
+        region: 'us-east-1',
+        requestTimeoutMs: ARCHIVE_S3_REQUEST_TIMEOUT_MS
+      })
+      const handler = client.config.requestHandler as unknown as {
+        configProvider: Promise<{ requestTimeout?: number }>
+      }
+      expect((await handler.configProvider).requestTimeout).toBe(
+        ARCHIVE_S3_REQUEST_TIMEOUT_MS
+      )
+    })
+
+    it('hands out no download link when the bucket has a public hostname', async () => {
+      const publicStore = new S3ArchiveObjectStore(
+        {
+          type: MediaStorageType.S3Storage,
+          bucket: 'bucket',
+          region: 'us-east-1',
+          hostname: 'media.example.com'
+        },
+        new RealS3Client({
+          region: 'us-east-1',
+          credentials: { accessKeyId: 'AK', secretAccessKey: 'SK' }
+        })
+      )
+      expect(
+        await publicStore.getDownloadUrl('archives/a/t/archive-1.zip', {
+          fileName: 'x.zip'
+        })
+      ).toBeNull()
     })
 
     it('signs a download URL that lasts 5 minutes and names the file', async () => {

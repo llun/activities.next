@@ -4,11 +4,11 @@ import { getQueue } from '@/lib/services/queue'
 import type { AccountArchive } from '@/lib/types/domain/accountArchive'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
-import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import { discardUnfinishedArchive } from './expiry'
 import { type ArchiveObjectStore, getArchiveObjectStore } from './objectStore'
 import { parseProgress } from './progress'
+import { toArchiveLoggableError } from './redact'
 
 /** A queued or running export that has not moved for this long is stuck. */
 export const ARCHIVE_STUCK_AFTER_MS = 60 * 60 * 1000
@@ -51,13 +51,17 @@ export const reapStuckAccountArchive = async ({
     const failed = await database.updateAccountArchive({
       id: archive.id,
       onlyIfStatus: ['queued', 'running'],
+      // Not if the export resumed since the row was read: its files are in use.
+      onlyIfProgress: archive.progress,
+      onlyIfReapCount: archive.reapCount,
       status: 'failed',
       error: 'The export stopped making progress',
       progress: null
     })
+    if (!failed) return archive
     if (store)
       await discardUnfinishedArchive(store, archive).catch(() => undefined)
-    return failed ?? { ...archive, status: 'failed' }
+    return failed
   }
 
   const progress = parseProgress(archive.progress)
@@ -77,13 +81,13 @@ export const reapStuckAccountArchive = async ({
     await queue.publish({
       id: getHashFromString(`${archive.id}:reap:${marked.reapCount}`),
       name: EXPORT_ACCOUNT_ARCHIVE_JOB_NAME,
-      data: { archiveId: archive.id, slice: progress?.slice ?? 0 }
+      data: { archiveId: archive.id, slice: (progress?.completed ?? -1) + 1 }
     })
   } catch (error) {
     logger.error({
       message: 'Failed to requeue a stuck account archive export',
       archiveId: archive.id,
-      err: toLoggableError(error)
+      err: toArchiveLoggableError(error)
     })
   }
   return marked
@@ -111,7 +115,7 @@ export const sweepStuckAccountArchives = async (
       logger.error({
         message: 'Failed to reap an account archive export',
         archiveId: archive.id,
-        err: toLoggableError(error)
+        err: toArchiveLoggableError(error)
       })
     }
   }

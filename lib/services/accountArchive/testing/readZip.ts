@@ -1,19 +1,26 @@
 import { spawnSync } from 'child_process'
+import { writeFileSync } from 'fs'
 import yauzl from 'yauzl'
 
 /** Reads every entry of a zip file into memory (tests only). */
 export const readZip = (
   file: string
-): Promise<{ names: string[]; files: Map<string, Buffer> }> =>
+): Promise<{
+  names: string[]
+  files: Map<string, Buffer>
+  methods: Map<string, number>
+}> =>
   new Promise((resolve, reject) => {
     yauzl.open(file, { lazyEntries: true }, (error, zip) => {
       if (error || !zip) return reject(error)
       const names: string[] = []
       const files = new Map<string, Buffer>()
+      const methods = new Map<string, number>()
       zip.on('error', reject)
-      zip.on('end', () => resolve({ names, files }))
+      zip.on('end', () => resolve({ names, files, methods }))
       zip.on('entry', (entry: yauzl.Entry) => {
         names.push(entry.fileName)
+        methods.set(entry.fileName, entry.compressionMethod)
         zip.openReadStream(entry, (streamError, stream) => {
           if (streamError || !stream) return reject(streamError)
           const chunks: Buffer[] = []
@@ -73,4 +80,45 @@ export const verifyZipWithTools = (file: string): string[] => {
     }
   }
   return used
+}
+
+const STREAM_READER = `import java.io.FileInputStream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
+
+public class StreamZip {
+  public static void main(String[] args) throws Exception {
+    try (ZipInputStream zip = new ZipInputStream(new FileInputStream(args[0]))) {
+      ZipEntry entry;
+      while ((entry = zip.getNextEntry()) != null) {
+        System.out.println(entry.getName() + "\\t" + zip.readAllBytes().length);
+      }
+      System.out.println("OK");
+    }
+  }
+}
+`
+
+/**
+ * Reads a zip front to back the way Java's `ZipInputStream` does, which ignores
+ * the central directory. Returns the entry sizes it read, or the error text
+ * when the reader gave up, or null when there is no Java here.
+ */
+export const readZipStreaming = (
+  file: string,
+  workDir: string
+): { sizes: Map<string, number>; error: string | null } | null => {
+  const source = `${workDir}/StreamZip.java`
+  writeFileSync(source, STREAM_READER)
+  const result = spawnSync('java', [source, file], { encoding: 'utf8' })
+  if (result.error) return null
+  const sizes = new Map<string, number>()
+  for (const line of result.stdout.split('\n')) {
+    const [name, size] = line.split('\t')
+    if (size !== undefined) sizes.set(name, Number(size))
+  }
+  return {
+    sizes,
+    error: result.status === 0 ? null : result.stderr.trim() || 'failed'
+  }
 }
