@@ -4,6 +4,10 @@ import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import type { Database } from '@/lib/database/types'
 import { ACCOUNT_MOVED_ERROR } from '@/lib/services/accounts/movedAccount'
 import { getQueue } from '@/lib/services/queue'
+import {
+  EXPECTED_ACTOR_HEADER,
+  EXPECTED_ACTOR_MISMATCH_ERROR
+} from '@/lib/services/statuses/expectedActor'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
@@ -145,6 +149,27 @@ describe('a moved account cannot post', () => {
     )
     expect(response.status).toBe(200)
     expect(await statusTexts()).toContain('not moved note')
+  })
+
+  it('answers the expected-actor 409, not the moved 422, when another actor is named', async () => {
+    await markMoved()
+    const response = await postStatus(
+      new NextRequest('https://llun.test/api/v1/statuses', {
+        method: 'POST',
+        body: JSON.stringify({ status: 'moved wrong actor' }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test',
+          [EXPECTED_ACTOR_HEADER]: ACTOR2_ID
+        }
+      }),
+      context
+    )
+    expect(response.status).toBe(409)
+    expect(await response.json()).toEqual({
+      error: EXPECTED_ACTOR_MISMATCH_ERROR
+    })
+    expect(await statusTexts()).not.toContain('moved wrong actor')
   })
 
   it('refuses the deprecated outbox route', async () => {

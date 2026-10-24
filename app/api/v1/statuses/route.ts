@@ -217,8 +217,6 @@ export const POST = traceApiRoute(
     [Scope.enum.write, Scope.enum['write:statuses']],
     async (req, context) => {
       const { currentActor, database, clientId } = context
-      const moved = movedAccountResponse(req, CORS_HEADERS, currentActor)
-      if (moved) return moved
       // Web-client extension: a queued post names the profile it was written
       // as. Checked before anything else (the Idempotency-Key claim, the body,
       // a replay), because keys are per actor: a resend under another
@@ -229,6 +227,8 @@ export const POST = traceApiRoute(
         CORS_HEADERS
       )
       if (actorMismatch) return actorMismatch
+      const moved = movedAccountResponse(req, CORS_HEADERS, currentActor)
+      if (moved) return moved
       const idempotencyKey = req.headers.get('Idempotency-Key')?.trim()
       // idempotency_keys.key is varchar(255); PostgreSQL rejects a longer
       // value at the claim, so refuse it before doing anything.

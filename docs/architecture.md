@@ -2174,7 +2174,9 @@ move, try again later`, but nothing is rolled back: the row, `movedTo` and the
   scheduled posts are refused too), on `POST /api/v1/statuses/:id/reblog`, and
   on the deprecated `POST /api/v1/accounts/outbox` and `POST
 /api/v1/accounts/repost`. A scheduled status whose author has moved when it is
-  due is deleted by `publishScheduledStatusJob` without being published.
+  due is deleted by `publishScheduledStatusJob` without being published. This also
+  happens during a temporary redirect (`movedTo` set, then cleared): clearing the
+  redirect later does not bring the deleted scheduled post back.
   Editing a status (`PUT /api/v1/statuses/:id`) and its interaction policy
   (`PUT /api/v1/statuses/:id/interaction_policy`) are refused the same way (see
   `app/api/v1/statuses/[id]/route.ts` and `.../interaction_policy/route.ts`).
