@@ -93,6 +93,8 @@ ACTIVITIES_MEDIA_STORAGE_PATH=./uploads
 
 The account exports (`archives/` in the same bucket) need these permissions on the bucket's credentials besides what media needs: `s3:PutObject`, `s3:GetObject`, `s3:DeleteObject` and `s3:AbortMultipartUpload` (to clean up an unfinished upload) on `archives/*`, `s3:ListBucket` on the bucket (limited to the `archives/*` prefix with a condition), and optionally `s3:ListMultipartUploadParts` on `archives/*`. Without the last one an export still completes, with a warning in the logs, but cannot double-check its part ETags. Add a bucket lifecycle rule that aborts incomplete multipart uploads after a day or two.
 
+This is an extra IAM identity policy for the app's S3 credentials, added alongside the existing media policy (not a replacement for it, and not a bucket policy). If S3 answers 403 instead of 404 for missing keys, the `s3:prefix` condition on `s3:ListBucket` may be left off.
+
 ```json
 {
   "Version": "2012-10-17",

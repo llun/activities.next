@@ -57,8 +57,9 @@ const warnListPartsOnce = (error: unknown) => {
   if (warnedListParts) return
   warnedListParts = true
   logger.warn({
-    message:
-      'Listing the parts of an archive upload failed; completing it with the recorded part ETags. Allow s3:ListMultipartUploadParts to check them.',
+    message: isNotImplemented(error)
+      ? 'store does not support ListParts; completing with recorded ETags'
+      : 'Listing the parts of an archive upload failed; completing it with the recorded part ETags. Allow s3:ListMultipartUploadParts to check them.',
     err: toArchiveLoggableError(error)
   })
 }

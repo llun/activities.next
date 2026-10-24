@@ -435,19 +435,29 @@ describe('S3ArchiveObjectStore', () => {
 
     it('completes with listed ETags that are 32 hex characters but not digests', async () => {
       const key = 'archives/a/t/archive-1.zip'
-      const small = new S3ArchiveObjectStore(
+      // The ETag the cursor records is 32 hex characters too, so a plain-MD5
+      // check of listed against recorded would see a mismatch here.
+      const recordedSend = vi.fn(async (command: unknown) => {
+        if (command instanceof UploadPartCommand) {
+          await multipartSend(command)
+          return { ETag: `"${'a'.repeat(32)}"` }
+        }
+        return multipartSend(command)
+      })
+      const data = crypto.randomBytes(11 * MIB)
+      const sink = await new S3ArchiveObjectStore(
         { type: MediaStorageType.S3Storage, bucket: 'bucket', region: 'r' },
-        { send: multipartSend } as unknown as S3Client,
+        { send: recordedSend } as unknown as S3Client,
         5 * MIB,
         1000,
         10
-      )
-      const data = crypto.randomBytes(11 * MIB)
-      const sink = await small.openResumableWrite(key, null)
+      ).openResumableWrite(key, null)
       await sink.write(data)
-      // SSE-KMS: a re-uploaded part has another 32-hex ETag.
+      // SSE-KMS: the store lists another 32-hex ETag for each part.
       const [id] = [...uploads.keys()]
-      etags.set(`${id}:1`, `"${'b'.repeat(32)}"`)
+      for (const partNumber of uploads.get(id)!.parts.keys()) {
+        etags.set(`${id}:${partNumber}`, `"${'b'.repeat(32)}"`)
+      }
       expect(await sink.finish()).toBe(data.length)
       expect(binary.get(key)?.equals(data)).toBe(true)
     })
