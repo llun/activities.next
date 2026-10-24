@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import { isFederationSigningActorUsername } from '@/lib/services/federation/instanceActor'
+import { isValidRemoteUsername } from '@/lib/utils/username'
 
 // A local username becomes a path segment of the actor's canonical id —
 // `getLocalActorId` builds `https://${domain}/users/${username}` and does not
@@ -73,6 +74,19 @@ export const localUsernameSchema = z
     message:
       'Username may only contain letters, numbers, underscore, dot and dash, and must start with a letter, number or underscore'
   })
+  // A name minted here is also a remote username on every peer that applies
+  // Mastodon's rule (`isValidRemoteUsername`: no trailing `.` or `-`), and such a
+  // peer refuses to record the actor, so it could not federate. Only checked
+  // when a name is minted; existing rows are untouched.
+  // Only for a name the charset check accepted, so `bad name!` gets one error.
+  .refine(
+    (username) =>
+      !LOCAL_USERNAME_PATTERN.test(username) || isValidRemoteUsername(username),
+    {
+      message:
+        'Username must not start or end with a dot or dash, as other servers would refuse it'
+    }
+  )
   .refine((username) => !isFederationSigningActorUsername(username), {
     message: 'Username is reserved'
   })

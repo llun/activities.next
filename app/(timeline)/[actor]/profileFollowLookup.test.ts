@@ -44,6 +44,7 @@ describe('profile follow lookup', () => {
   // collection it passes through as the audience.
   const remotePerson = {
     id: REMOTE_ACTOR_ID,
+    preferredUsername: 'remote',
     followers: `${REMOTE_ACTOR_ID}/followers`
   } as Awaited<ReturnType<typeof getActorPerson>>
 

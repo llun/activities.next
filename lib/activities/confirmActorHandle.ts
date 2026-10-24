@@ -7,16 +7,25 @@ import {
 import { WebFinger } from '@/lib/types/activitypub/webfinger'
 import { normalizeActivityPubUri } from '@/lib/utils/activitypub'
 import { logger } from '@/lib/utils/logger'
+import {
+  REMOTE_USERNAME_HARD_LIMIT,
+  isValidRemoteUsername,
+  squishUsername
+} from '@/lib/utils/username'
 
 export type ConfirmedActorHandle = {
   username: string
   domain: string
 }
 
-// A handle's username part. Stored verbatim (remote servers choose their own
-// casing) and later spliced into `/@user@domain` paths and `acct:` URIs, so
-// anything that would change how those split is refused.
-const ACCT_USERNAME_PATTERN = /^[^\s@/\\:?#]+$/
+// A handle's username part is stored verbatim (remote servers choose their own
+// casing) and later spliced into `/@user@domain` paths, `acct:` URIs and CSV
+// exports, so it must pass Mastodon's remote username rule
+// (`isValidRemoteUsername`).
+
+// What the lookup of a claimed name that fails Mastodon's rule may still ask the
+// host: anything that cannot change how the `acct:` URI splits.
+const URL_SAFE_USERNAME_PATTERN = /^[^\s@/\\:?#]+$/
 
 // `user@domain` (an `acct:` prefix allowed), with the domain reduced to what
 // `new URL().host` would store: lowercase, port kept, no path or userinfo.
@@ -26,7 +35,7 @@ const parseAcct = (
   if (!value) return null
   const [username, domain, ...rest] = value.replace(/^acct:/i, '').split('@')
   if (!username || !domain || rest.length > 0) return null
-  if (!ACCT_USERNAME_PATTERN.test(username)) return null
+  if (!isValidRemoteUsername(username)) return null
   if (!URL.canParse(`https://${domain}`)) return null
   const { host, pathname, search, hash } = new URL(`https://${domain}`)
   if (host !== domain.toLowerCase() || pathname !== '/' || search || hash) {
@@ -73,7 +82,7 @@ const getSelfHrefs = (document: WebFinger | null) =>
 export const confirmActorHandle = async ({
   database,
   actorId,
-  username,
+  username: claimedUsername,
   webfinger,
   withNetworkRetry = true,
   responseTimeout,
@@ -90,6 +99,28 @@ export const confirmActorHandle = async ({
 }): Promise<ConfirmedActorHandle | null> => {
   const host = URL.canParse(actorId) ? new URL(actorId).host : ''
   if (!host) return null
+  // Mastodon squishes the username and validates what it STORES, not what the
+  // document claims: `preferredUsername` is only the name asked of the host
+  // (`check_webfinger!`), and the stored handle can come from the FEP-2c59
+  // `webfinger` property or from the `subject` the host answers with. So an
+  // invalid claimed name only disqualifies the host handle itself: it is never
+  // stored, and it is asked about only when it is still URL-safe.
+  const username = squishUsername(claimedUsername)
+  const claimedIsValid = isValidRemoteUsername(username)
+  const claimedIsAskable =
+    claimedIsValid ||
+    (username.length > 0 &&
+      username.length <= REMOTE_USERNAME_HARD_LIMIT &&
+      URL_SAFE_USERNAME_PATTERN.test(username))
+  if (!claimedIsValid) {
+    logger.warn({
+      message: 'Remote actor claims an invalid username',
+      actorId,
+      // The host chooses this string; a prefix is enough to diagnose.
+      username: String(claimedUsername).slice(0, 64),
+      usernameLength: String(claimedUsername).length
+    })
+  }
   const expectedId = normalizeActivityPubUri(actorId)
   const lookup = (
     handle: ConfirmedActorHandle,
@@ -107,8 +138,8 @@ export const confirmActorHandle = async ({
     )
 
   const hostHandle = { username, domain: host }
-  const hostDocument = await lookup(hostHandle)
-  if (namesActor(hostDocument)) return hostHandle
+  const hostDocument = claimedIsAskable ? await lookup(hostHandle) : null
+  if (claimedIsValid && namesActor(hostDocument)) return hostHandle
 
   // The property first, then the host's `subject`: the first that can be
   // asked gets the one question. A property naming the actor host itself (as
