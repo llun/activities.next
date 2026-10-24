@@ -545,10 +545,20 @@ describe('registerAttachmentUrl', () => {
 // matched the exact shape of the ternary, which prettier could rewrite for
 // reasons having nothing to do with behaviour.
 describe('actor archive remote attachment cap', () => {
-  const SOURCE = readFileSync(
+  // The CLI resolves the cap and stamps the deadline; the shared core in
+  // lib/services/accountArchive holds the start gate, so both are read.
+  const SOURCE = [
     path.join(process.cwd(), 'scripts', 'backup', 'actorArchive.ts'),
-    'utf-8'
-  )
+    path.join(
+      process.cwd(),
+      'lib',
+      'services',
+      'accountArchive',
+      'actorArchive.ts'
+    )
+  ]
+    .map((file) => readFileSync(file, 'utf-8'))
+    .join('\n')
 
   it('resolves the cap from the media.maxFileSize server setting', () => {
     // Asserting the call is PRESENT is not enough — it must be the thing
