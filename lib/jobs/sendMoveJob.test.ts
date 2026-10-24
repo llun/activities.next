@@ -136,7 +136,7 @@ describe('sendMoveJob', () => {
       })
     }
     expect(
-      sent.some((job) => String(job.data.inbox).startsWith('https://llun.test'))
+      sent.some((job) => new URL(String(job.data.inbox)).host === 'llun.test')
     ).toBe(false)
   })
 
