@@ -90,7 +90,7 @@ export interface RunSliceParams {
  * cursor records which writer's part it counts. A page that runs twice (a
  * retry, or a worker that stalled past its lease) leaves a part nothing refers
  * to, never one that replaces a counted part. The lease check before each write
- * only ends a stalled worker early.
+ * only ends a stalled worker early; the staged keys do not depend on it.
  */
 export const runCollectionSlice = async ({
   database,

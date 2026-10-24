@@ -1138,6 +1138,60 @@ describe('exportAccountArchiveJob', () => {
       const junk = (body: Buffer | string) =>
         Buffer.concat([Buffer.from(body), Buffer.from('XXXX')])
 
+      it('writes the same generated document whichever worker writes it out', async () => {
+        const id = await makeArchive(accountId)
+        // The first write of the manifest to the zip output is held, as a
+        // worker stalled inside an upload or a disk write would be.
+        const open = FileArchiveObjectStore.prototype.openResumableWrite
+        let release!: () => void
+        const gate = new Promise<void>((resolve) => (release = resolve))
+        let markHeld!: () => void
+        const held = new Promise<void>((resolve) => (markHeld = resolve))
+        let taken = false
+        vi.spyOn(
+          FileArchiveObjectStore.prototype,
+          'openResumableWrite'
+        ).mockImplementation(async function (
+          this: FileArchiveObjectStore,
+          ...args
+        ) {
+          const sink = await open.apply(this, args)
+          const write = sink.write.bind(sink)
+          sink.write = async (chunk) => {
+            if (!taken && chunk.includes('"exportedAt"')) {
+              taken = true
+              markHeld()
+              await gate
+            }
+            return write(chunk)
+          }
+          return sink
+        })
+
+        await run(id, 0)
+        let late: Promise<unknown> | null = null
+        let slice = 0
+        for (let slices = 0; slices < 600 && !late; slices += 1) {
+          const message = published.shift()!
+          slice = (message.data as { slice: number }).slice
+          const delivery = run(id, slice).catch(() => undefined)
+          const state = await Promise.race([
+            delivery.then(() => 'done'),
+            held.then(() => 'held')
+          ])
+          if (state === 'held') late = delivery
+        }
+        expect(late).not.toBeNull()
+        lapseClock()
+
+        // The new owner takes the same run over and writes the manifest out.
+        await run(id, slice)
+        release()
+        await late
+
+        await finish(id)
+      })
+
       it('cannot replace a staged part the new owner already counted', async () => {
         const id = await makeArchive(accountId)
         await run(id, 0)
@@ -1416,7 +1470,7 @@ describe('exportAccountArchiveJob', () => {
       const original = FileArchiveObjectStore.prototype.get
       vi.spyOn(FileArchiveObjectStore.prototype, 'get').mockImplementation(
         async function (this: FileArchiveObjectStore, key: string) {
-          if (/\/stage\/[0-9a-f]{24}-\d+\.[0-9a-f]{8}$/.test(key)) {
+          if (/\/stage\/[0-9a-f]{24}-\d+\.[0-9a-f]{16}$/.test(key)) {
             reads.set(key, (reads.get(key) ?? 0) + 1)
           }
           return original.call(this, key)

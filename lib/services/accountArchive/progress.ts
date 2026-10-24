@@ -179,14 +179,21 @@ const entryKeyName = (entry: string) =>
   createHash('sha256').update(entry).digest('hex').slice(0, 24)
 
 /**
- * Names the worker that writes a staged object: the first bytes of its slice
- * token, which is unique to a delivery. Every key a worker writes and the
- * cursor later relies on has its writer in it and the cursor records the
- * writer, so a worker that stalled past its lease and writes late can only
- * create a key that nothing references. Such orphans are removed with the
- * archive's prefix when it finishes, fails or expires.
+ * Names the worker that writes a staged object: its slice token, which is
+ * unique to a delivery. Every staged object a worker writes and the cursor
+ * later relies on has its writer in the key, and the cursor records the writer,
+ * so a worker that stalled past its lease and writes late can only create a key
+ * nothing references; such orphans are removed with the archive's prefix when
+ * it finishes, fails or expires.
+ *
+ * This protects the staged objects only. The zip output itself (S3 parts, the
+ * local `.partial` file) is written by every worker that resumes from a saved
+ * cursor, at the same offsets, so it is safe against a late write only because
+ * what is written there is a function of the saved cursor and the objects it
+ * names: nothing is written out before the cursor that names its source is saved
+ * (see `generated` in assemble.ts), and source files are read as they are.
  */
-export const writerOf = (token: string) => token.slice(0, 8)
+export const writerOf = (token: string) => token
 
 /** The object key of part `index` of a staged document. */
 export const getPartKey = (
@@ -235,7 +242,8 @@ export const getGeneratedKey = (root: string, entry: string, writer: string) =>
  * cut off after writing a part but before saving the cursor leaves an orphan
  * that the run which redoes the page does not read (it writes under its own
  * writer), and a stalled worker that writes late cannot replace a part the new
- * owner already counted.
+ * owner already counted. (What reaches the zip output is a separate matter, see
+ * `writerOf`.)
  */
 export class PartStager {
   constructor(

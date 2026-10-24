@@ -381,8 +381,14 @@ export const runAssemblySlice = async ({
     const body = await build()
     assertLeased()
     await store.put(getGeneratedKey(root, name, writer), body)
-    // Counted by the next cursor save, which also counts what it is used for.
     assembly.generated[name] = writer
+    // The cursor names this exact object before any byte of it reaches the
+    // output: the output is shared by every worker that resumes from a saved
+    // cursor, so what is written to it must be a function of that cursor.
+    // Without this a worker that takes over would build the document again
+    // with other bytes (the export time, the live account) and write them at
+    // the same offsets.
+    await checkpoint()
     return body
   }
 
