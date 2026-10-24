@@ -682,20 +682,31 @@ describe('bulkImportJob', () => {
       // A unit of work the test holds open, with only the timers it needs faked.
       const startBlockedRun = async () => {
         vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
+        vi.spyOn(database, 'renewBulkImportRun')
         await createImport('following', [{ acct: 'bob@remote.test' }])
         let finishUnit!: () => void
+        let reached!: () => void
+        const unitReached = new Promise<void>((resolve) => (reached = resolve))
         vi.mocked(follow).mockImplementation(
-          () => new Promise((resolve) => (finishUnit = () => resolve(true)))
+          () =>
+            new Promise((resolve) => {
+              finishUnit = () => resolve(true)
+              reached()
+            })
         )
         const run = runBulkImport(database, IMPORT_ID)
-        await settle(() => vi.mocked(follow).mock.calls.length > 0)
+        // Resolves only once the run is inside the unit: no polling budget.
+        await unitReached
         return { run, finishUnit: () => finishUnit() }
       }
-      // Real I/O finishes outside the fake clock: let it catch up.
-      const settle = async (until: () => boolean = () => false) => {
-        for (let i = 0; i < 50 && !until(); i += 1) {
-          await new Promise((resolve) => setImmediate(resolve))
-        }
+      // Real I/O finishes outside the fake clock: wait for every renewal the
+      // heartbeat started, not for a number of event-loop turns.
+      const settle = async () => {
+        await Promise.allSettled(
+          vi
+            .mocked(database.renewBulkImportRun)
+            .mock.results.map((result) => result.value)
+        )
       }
       const tick = async (ms: number) => {
         await vi.advanceTimersByTimeAsync(ms)

@@ -338,17 +338,16 @@ export const runBulkImport = async (
     if (renewError !== undefined) throw renewError
     if (lost) throw new LeaseLostError()
   }
-  // Keeps the lease alive through a unit of work longer than the lease.
-  let beating = false
+  // Keeps the lease alive through a unit of work longer than the lease. The
+  // in-flight renewal is tracked so the run can wait for it before releasing:
+  // nothing may still be pending once runBulkImport settles.
+  let beat: Promise<void> | undefined
   const heartbeat = setInterval(
-    async () => {
-      if (beating || lost || renewError !== undefined) return
-      beating = true
-      try {
-        await renewLease()
-      } finally {
-        beating = false
-      }
+    () => {
+      if (beat || lost || renewError !== undefined) return
+      beat = renewLease().finally(() => {
+        beat = undefined
+      })
     },
     Math.min(BULK_IMPORT_HEARTBEAT_MS, leaseMs / 3)
   )
@@ -368,6 +367,7 @@ export const runBulkImport = async (
     throw error
   } finally {
     clearInterval(heartbeat)
+    await beat
     await database.releaseBulkImportRun({ id: importId, runToken })
   }
   // A renewal that threw during the last stretch: the run cannot vouch for
