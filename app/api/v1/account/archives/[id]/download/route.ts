@@ -15,6 +15,16 @@ import {
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
+/**
+ * The one range form supported: `bytes=<start>-`, to resume a broken download.
+ * Anything else (a suffix, an end, several ranges) is ignored and the whole
+ * file is sent, which a client must accept.
+ */
+const parseResumeStart = (header: string | null) => {
+  const match = header?.match(/^bytes=(\d{1,15})-$/)
+  return match ? Number(match[1]) : null
+}
+
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
@@ -33,7 +43,7 @@ interface Params {
 export const GET = traceApiRoute(
   'downloadAccountArchive',
   AuthenticatedGuard<Params>(
-    async (_req, context) => {
+    async (req, context) => {
       const { currentActor, database } = context
       const accountId = currentActor.account?.id
       if (!accountId) return apiErrorResponse(HTTP_STATUS.UNAUTHORIZED)
@@ -72,18 +82,33 @@ export const GET = traceApiRoute(
         })
       }
 
-      const stream = await store.openRead(key)
+      const start = parseResumeStart(req.headers.get('range'))
+      if (start !== null && start >= size) {
+        return new Response(null, {
+          status: 416,
+          headers: {
+            'Content-Range': `bytes */${size}`,
+            'Cache-Control': 'private, no-store'
+          }
+        })
+      }
+      const stream = await store.openRead(key, start ?? 0)
       if (!stream) return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
       const headers = new Headers({
         'Content-Type': 'application/zip',
         'Content-Disposition': `attachment; filename="${fileName}"`,
         'Cache-Control': 'private, no-store',
-        'X-Content-Type-Options': 'nosniff'
+        'X-Content-Type-Options': 'nosniff',
+        'Accept-Ranges': 'bytes'
       })
-      headers.set('Content-Length', String(size))
+      const partial = start !== null && start > 0
+      if (partial) {
+        headers.set('Content-Range', `bytes ${start}-${size - 1}/${size}`)
+      }
+      headers.set('Content-Length', String(partial ? size - start : size))
       return new Response(
         Readable.toWeb(stream) as unknown as ReadableStream<Uint8Array>,
-        { status: 200, headers }
+        { status: partial ? 206 : 200, headers }
       )
     },
     { allowModerationBlocked: true }

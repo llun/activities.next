@@ -100,7 +100,10 @@ ACTIVITIES_MEDIA_STORAGE_REGION=us-east-1
 # must not serve that prefix (or the bucket root) publicly: an export is
 # protected by a secret key segment plus the owner-checked download endpoint,
 # not by the bucket. With this variable set, exports are streamed through the
-# app instead of redirecting to a signed bucket URL.
+# app instead of redirecting to a signed bucket URL. A streamed download lasts as
+# long as the transfer, so on a host with a short request duration limit
+# (serverless) a large export may be cut off; a client can resume it with a
+# `Range: bytes=n-` request.
 ACTIVITIES_MEDIA_STORAGE_HOSTNAME=media.example.com
 # Optional: S3-compatible API endpoint for uploads/storage operations
 ACTIVITIES_MEDIA_STORAGE_ENDPOINT=https://s3.example.com

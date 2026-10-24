@@ -61,7 +61,9 @@ export class ProgressSaver {
 
 /**
  * Whether the lease on `progress` stops a worker that is not `token`. A lease
- * with the worker's own token (a retry of the same delivery) does not.
+ * with the worker's own token does not. Each delivery uses a fresh token, so
+ * this matters only to a caller that holds one across calls; a retry of a
+ * failed delivery gets in because `handleSliceFailure` clears the lease.
  */
 export const isLeaseHeld = (
   progress: ArchiveProgress,

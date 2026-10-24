@@ -403,7 +403,9 @@ Export](maintenance.md#actor-archive-export)). It is built by
   `bookmarks.csv`) are written by the same functions as the web app's CSV
   export (`lib/services/exports/`, `stepsCsv.ts`), beside each profile's
   `actor.json`: at the root for the default profile, in the profile's folder
-  for the others. The same data is also in `graph.json`.
+  for the others. The same data is also in `graph.json`. A file is written one
+  database page at a time (`exportPage`), with the page cursor in the step's
+  cursor, so a very long list is spread over slices instead of needing one.
 - **Nothing secret, by construction.** The collectors read through
   `lib/database/domains/accountExport/`, which selects an explicit column
   allowlist per table (`tables.ts`); `profile.json` lists an allowlist of the
@@ -465,7 +467,14 @@ Export](maintenance.md#actor-archive-export)). It is built by
   under a new name (the writer and a sequence number), and the older tail is
   deleted only after the cursor that refers to the new one has been saved, so a
   checkpoint whose save never lands cannot damage the saved state. S3 calls of
-  an export time out after 30 seconds, under the lease's grace. A large source
+  an export time out after 30 seconds, under the lease's grace: the client is
+  built with `throwOnRequestTimeout`, which the SDK needs to reject a stalled
+  request (without it the handler only logs a warning), and the clients that
+  read the media and fitness source files use the same timeout. Parts are
+  8 MiB and grow by 8 MiB every 1,000 parts, so the 10,000-part limit of S3 is
+  out of reach before about 430 GiB; an upload that would pass it fails with a
+  clear message. A failed export aborts its upload from the saved state alone,
+  without reading the staged tail. A large source
   file is copied across slices by byte range (`Range: bytes=n-`), and the set
   of claimed entry names (to drop duplicates) is kept as eight-byte hashes in
   staged parts, not read back from the central directory. Each attempt writes
@@ -484,7 +493,11 @@ Export](maintenance.md#actor-archive-export)). It is built by
   local disk, and on a bucket with `ACTIVITIES_MEDIA_STORAGE_HOSTNAME` set (it
   may be served publicly, and a signed URL carries the secret key, so anyone
   holding it could drop the signature), it streams the file through the server
-  after the owner check. A ready row whose object is gone answers 404. Do not
+  after the owner check. The streamed download honours one range form,
+  `Range: bytes=n-` (206, or 416 past the end), so a broken download can
+  resume; the transfer still has to fit the host's request duration, so a
+  platform with a short function limit (serverless) needs the file served by
+  the bucket (leave the hostname unset) or a longer limit. A ready row whose object is gone answers 404. Do not
   serve the bucket or the `archives/` prefix through a public CDN hostname: the
   secret segment makes a key unguessable, but it is not an access control.
   Deleting an export deletes `archives/<id>/`.

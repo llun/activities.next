@@ -34,6 +34,9 @@ export const createStorageS3Client = ({
       ? {
           requestHandler: {
             requestTimeout: requestTimeoutMs,
+            // Without this the handler only logs a warning when a request
+            // stalls; with it the request rejects with a TimeoutError.
+            throwOnRequestTimeout: true,
             connectionTimeout: requestTimeoutMs
           }
         }

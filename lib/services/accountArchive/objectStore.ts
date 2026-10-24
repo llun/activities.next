@@ -34,6 +34,9 @@ import { ARCHIVE_STORAGE_PREFIX } from './constants'
 const DOWNLOAD_URL_TTL_SECONDS = 5 * 60
 const DELETE_BATCH_SIZE = 1000
 const RESUMABLE_PART_SIZE = 8 * 1024 * 1024
+const RESUMABLE_PARTS_PER_STEP = 1000
+/** The most parts S3 accepts in one multipart upload. */
+const S3_MAX_PARTS = 10000
 /**
  * Every S3 call of an export fails after this long, well under the lease grace
  * (`ARCHIVE_LEASE_GRACE_MS`), so a worker whose lease lapsed cannot keep
@@ -102,12 +105,18 @@ export interface ResumableSink {
 export interface ArchiveObjectStore {
   put(key: string, body: Buffer | string): Promise<void>
   get(key: string): Promise<Buffer | null>
-  openRead(key: string): Promise<Readable | null>
+  /** Reads `key` from byte `start` (default 0) to the end. */
+  openRead(key: string, start?: number): Promise<Readable | null>
   /** Opens `key` for a resumable write: a new file when `state` is null. */
   openResumableWrite(
     key: string,
     state: SinkState | null
   ): Promise<ResumableSink>
+  /**
+   * Throws away an unfinished file from its saved `state` alone: nothing is
+   * downloaded, so it works when a staged tail is missing.
+   */
+  abortResumableWrite(key: string, state: SinkState): Promise<void>
   delete(key: string): Promise<void>
   /** Deletes every object under `prefix` (`archives/<id>/` for one export). */
   deletePrefix(prefix: string): Promise<void>
@@ -150,7 +159,7 @@ export class FileArchiveObjectStore implements ArchiveObjectStore {
     }
   }
 
-  async openRead(key: string) {
+  async openRead(key: string, start = 0) {
     const target = this.resolve(key)
     try {
       await fs.access(target)
@@ -158,7 +167,11 @@ export class FileArchiveObjectStore implements ArchiveObjectStore {
       if (isNotFound(error)) return null
       throw error
     }
-    return createReadStream(target)
+    return createReadStream(target, { start })
+  }
+
+  async abortResumableWrite(key: string, _state?: SinkState) {
+    await fs.rm(`${this.resolve(key)}.partial`, { force: true })
   }
 
   async openResumableWrite(
@@ -253,7 +266,11 @@ export class S3ArchiveObjectStore implements ArchiveObjectStore {
       requestTimeoutMs: ARCHIVE_S3_REQUEST_TIMEOUT_MS
     }),
     // S3 refuses parts under 5 MiB except the last one.
-    private readonly partSize: number = RESUMABLE_PART_SIZE
+    private readonly partSize: number = RESUMABLE_PART_SIZE,
+    // Parts grow by one `partSize` every `partsPerStep` parts, so an upload
+    // reaches the 10,000-part limit of S3 only past hundreds of gigabytes.
+    private readonly partsPerStep: number = RESUMABLE_PARTS_PER_STEP,
+    private readonly maxParts: number = S3_MAX_PARTS
   ) {}
 
   async put(key: string, body: Buffer | string) {
@@ -282,12 +299,13 @@ export class S3ArchiveObjectStore implements ArchiveObjectStore {
     }
   }
 
-  async openRead(key: string) {
+  async openRead(key: string, start = 0) {
     try {
       const object = await this.client.send(
         new GetObjectCommand({
           Bucket: this.config.bucket,
-          Key: assertArchiveKey(key)
+          Key: assertArchiveKey(key),
+          ...(start > 0 ? { Range: `bytes=${start}-` } : null)
         })
       )
       if (!object.Body) return null
@@ -311,7 +329,19 @@ export class S3ArchiveObjectStore implements ArchiveObjectStore {
     assertArchiveKey(key)
     const bucket = this.config.bucket
     const client = this.client
-    const partSize = this.partSize
+    const { maxParts, partsPerStep } = this
+    // Part n is as large as the number of its step times `partSize`; a pure
+    // function of n, so a resumed upload cuts parts exactly as the first run.
+    const partSizeOf = (number: number) =>
+      this.partSize * (1 + Math.floor((number - 1) / partsPerStep))
+    const assertPartNumber = (number: number) => {
+      if (number > maxParts) {
+        throw new Error(
+          'The archive is too large to upload: it needs more than ' +
+            `${maxParts} parts`
+        )
+      }
+    }
     const tailPrefix = `${key}.tail-`
     // Each writer names its own tails. A checkpoint whose cursor save never
     // lands (a killed worker, or one that lost its lease) must not overwrite
@@ -369,28 +399,18 @@ export class S3ArchiveObjectStore implements ArchiveObjectStore {
       return result.ETag
     }
 
-    const deleteTails = async () => {
-      const listed = await client.send(
-        new ListObjectsV2Command({ Bucket: bucket, Prefix: tailPrefix })
-      )
-      for (const object of listed.Contents ?? []) {
-        if (object.Key) {
-          await client.send(
-            new DeleteObjectCommand({ Bucket: bucket, Key: object.Key })
-          )
-        }
-      }
-    }
+    const deleteTails = () => this.deleteTails(key)
 
     return {
       async write(chunk) {
         buffer = buffer.length === 0 ? chunk : Buffer.concat([buffer, chunk])
-        while (buffer.length >= partSize) {
-          const body = buffer.subarray(0, partSize)
+        while (buffer.length >= partSizeOf(parts.length + 1)) {
           const number = parts.length + 1
+          assertPartNumber(number)
+          const body = buffer.subarray(0, partSizeOf(number))
           parts.push({ n: number, etag: await uploadPart(body, number) })
           uploaded += body.length
-          buffer = buffer.subarray(partSize)
+          buffer = buffer.subarray(body.length)
         }
       },
       async checkpoint() {
@@ -427,6 +447,7 @@ export class S3ArchiveObjectStore implements ArchiveObjectStore {
       async finish() {
         if (buffer.length > 0 || parts.length === 0) {
           const number = parts.length + 1
+          assertPartNumber(number)
           parts.push({ n: number, etag: await uploadPart(buffer, number) })
           uploaded += buffer.length
           buffer = Buffer.alloc(0)
@@ -458,6 +479,42 @@ export class S3ArchiveObjectStore implements ArchiveObjectStore {
           )
           .catch(() => undefined)
         await deleteTails().catch(() => undefined)
+      }
+    }
+  }
+
+  async abortResumableWrite(key: string, state: SinkState) {
+    assertArchiveKey(key)
+    const bucket = this.config.bucket
+    if (typeof state.uploadId === 'string') {
+      await this.client
+        .send(
+          new AbortMultipartUploadCommand({
+            Bucket: bucket,
+            Key: key,
+            UploadId: state.uploadId
+          })
+        )
+        .catch(() => undefined)
+    }
+    await this.deleteTails(key).catch(() => undefined)
+  }
+
+  private async deleteTails(key: string) {
+    const listed = await this.client.send(
+      new ListObjectsV2Command({
+        Bucket: this.config.bucket,
+        Prefix: `${key}.tail-`
+      })
+    )
+    for (const object of listed.Contents ?? []) {
+      if (object.Key) {
+        await this.client.send(
+          new DeleteObjectCommand({
+            Bucket: this.config.bucket,
+            Key: object.Key
+          })
+        )
       }
     }
   }

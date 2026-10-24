@@ -6,6 +6,7 @@ import { Readable } from 'stream'
 import { getConfig } from '@/lib/config'
 import { FitnessStorageType } from '@/lib/config/fitnessStorage'
 import { MediaStorageType } from '@/lib/config/mediaStorage'
+import { ARCHIVE_S3_REQUEST_TIMEOUT_MS } from '@/lib/services/accountArchive/objectStore'
 import { getEffectiveFitnessStorageConfig } from '@/lib/services/fitness-files'
 import {
   isObjectStorageMediaKey,
@@ -36,7 +37,10 @@ const getClient = (config: { region: string; endpoint?: string }) => {
   const cacheKey = `${config.region}|${config.endpoint ?? ''}`
   let client = clients.get(cacheKey)
   if (!client) {
-    client = createStorageS3Client(config)
+    client = createStorageS3Client({
+      ...config,
+      requestTimeoutMs: ARCHIVE_S3_REQUEST_TIMEOUT_MS
+    })
     clients.set(cacheKey, client)
   }
   return client

@@ -2,6 +2,7 @@ import crypto from 'crypto'
 import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
+import { Readable } from 'stream'
 
 import { getConfig } from '@/lib/config'
 import { FitnessStorageType } from '@/lib/config/fitnessStorage'
@@ -79,6 +80,7 @@ const FORBIDDEN_KEYS = [
 describe('exportAccountArchiveJob', () => {
   const { database, db, prepare, destroy } = createTestDatabase()
   const published: { id: string; name: string; data: unknown }[] = []
+  const seenIds = new Set<string>()
   let root: string
   let accountId: string
   let secondAccountId: string
@@ -109,10 +111,14 @@ describe('exportAccountArchiveJob', () => {
       mediaStorage: { type: MediaStorageType.LocalFile, path: root }
     } as ReturnType<typeof getConfig>)
     published.length = 0
+    seenIds.clear()
     vi.mocked(sendMail).mockClear()
     vi.mocked(getQueue).mockReturnValue({
       runsInline: false,
+      // Like the real queues, keep one copy of a message id.
       publish: vi.fn(async (message) => {
+        if (seenIds.has(message.id)) return
+        seenIds.add(message.id)
         published.push(message)
       }),
       handle: vi.fn()
@@ -608,6 +614,39 @@ describe('exportAccountArchiveJob', () => {
       )
     })
 
+    it('closes the source file when writing the archive fails', async () => {
+      const target = path.join(root, bigPath)
+      await fs.mkdir(path.dirname(target), { recursive: true })
+      await fs.writeFile(target, bigBytes)
+      const id = await makeArchive(accountId)
+      sliceBudget.ms = 10 * 60 * 1000
+      const destroy = vi.spyOn(Readable.prototype, 'destroy')
+      const open = FileArchiveObjectStore.prototype.openResumableWrite
+      vi.spyOn(
+        FileArchiveObjectStore.prototype,
+        'openResumableWrite'
+      ).mockImplementation(async function (
+        this: FileArchiveObjectStore,
+        ...args
+      ) {
+        const sink = await open.apply(this, args)
+        const write = sink.write.bind(sink)
+        // The copy of the big file reads it in chunks of 64 KiB.
+        sink.write = async (chunk) => {
+          if (chunk.length === 64 * 1024) throw new Error('disk is full')
+          return write(chunk)
+        }
+        return sink
+      })
+
+      await expect(run(id, 0)).rejects.toThrow('disk is full')
+
+      const closed = destroy.mock.contexts.some(
+        (stream) => (stream as { path?: string }).path === target
+      )
+      expect(closed).toBe(true)
+    })
+
     it('copies a fitness file from the fitness storage under fitness/files', async () => {
       const fitnessRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'fitness-'))
       try {
@@ -945,17 +984,65 @@ describe('exportAccountArchiveJob', () => {
 
       await run(id, 0)
       expect(ids).toHaveLength(1)
-      // The first message is delivered again after it finished: dropped, and it
-      // publishes nothing (the old ids were reused here, so a dropped slice
-      // could never come back).
+      // The first message is delivered again after it finished: it publishes
+      // the next run again under the same id (a queue keeps one copy), never a
+      // new id, so a dropped publish can come back and nothing is duplicated.
       await run(id, 0)
-      expect(ids).toHaveLength(1)
       await run(id, 1)
-      expect(ids).toHaveLength(2)
       await run(id, 1)
       await run(id, 0)
-      expect(ids).toHaveLength(2)
-      expect(new Set(ids).size).toBe(ids.length)
+      expect(new Set(ids).size).toBe(2)
+      expect(ids).toEqual([ids[0], ids[0], ids[2], ids[2]])
+    })
+
+    it('publishes the next run again when a redelivery shows the first publish was lost', async () => {
+      const id = await makeArchive(accountId)
+      const queue = vi.mocked(getQueue)()
+      vi.mocked(queue.publish).mockRejectedValueOnce(new Error('queue is down'))
+
+      // The slice saved its progress and released the lease, then the publish
+      // failed: the queue brings the same message back.
+      await expect(run(id, 0)).rejects.toThrow('queue is down')
+      expect(published).toHaveLength(0)
+
+      await run(id, 0)
+      expect(published.map((message) => message.data)).toEqual([
+        { archiveId: id, slice: 1 }
+      ])
+      // And that next run is the current one.
+      await run(id, 1)
+      expect(
+        parseProgress((await database.getAccountArchive({ id }))!.progress)!
+          .completed
+      ).toBe(1)
+    })
+
+    it('does not publish again for a redelivery while another worker holds the lease', async () => {
+      const id = await makeArchive(accountId)
+      await run(id, 0)
+      published.length = 0
+      const progress = parseProgress(
+        (await database.getAccountArchive({ id }))!.progress
+      )!
+      progress.lease = { token: 'live-worker', until: Date.now() + 60_000 }
+      await database.updateAccountArchive({
+        id,
+        progress: serializeProgress(progress)
+      })
+
+      await run(id, 0)
+
+      expect(published).toHaveLength(0)
+    })
+
+    it('starts counting reaps again once a run makes progress', async () => {
+      const id = await makeArchive(accountId)
+      await run(id, 0)
+      await database.updateAccountArchive({ id, reapCount: 2 })
+
+      await run(id, 1)
+
+      expect((await database.getAccountArchive({ id }))!.reapCount).toBe(0)
     })
 
     it('removes what a slice staged when the export is deleted underneath it', async () => {

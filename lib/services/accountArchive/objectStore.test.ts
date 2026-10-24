@@ -1,9 +1,11 @@
 import {
+  AbortMultipartUploadCommand,
   CompleteMultipartUploadCommand,
   CreateMultipartUploadCommand,
   DeleteObjectCommand,
   DeleteObjectsCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
   S3Client as RealS3Client,
@@ -12,6 +14,8 @@ import {
 } from '@aws-sdk/client-s3'
 import crypto from 'crypto'
 import fs from 'fs/promises'
+import http from 'http'
+import type { AddressInfo } from 'net'
 import os from 'os'
 import path from 'path'
 import { Readable } from 'stream'
@@ -118,6 +122,22 @@ describe('FileArchiveObjectStore', () => {
     await sink.write(Buffer.from('abc'))
     await sink.release()
     await store.delete('archives/a/archive.zip')
+    expect(await fs.readdir(path.join(root, 'archives/a'))).toEqual([])
+  })
+
+  it('reads from a byte offset', async () => {
+    await store.put('archives/a/archive.zip', 'ZIPDATA')
+    expect(
+      await readAll((await store.openRead('archives/a/archive.zip', 3))!)
+    ).toBe('DATA')
+  })
+
+  it('aborts an unfinished file from its state alone', async () => {
+    const sink = await store.openResumableWrite('archives/a/archive.zip', null)
+    await sink.write(Buffer.from('abc'))
+    const state = await sink.checkpoint()
+    await sink.release()
+    await store.abortResumableWrite('archives/a/archive.zip', state)
     expect(await fs.readdir(path.join(root, 'archives/a'))).toEqual([])
   })
 
@@ -396,6 +416,97 @@ describe('S3ArchiveObjectStore', () => {
       await sink.committed()
       expect(binary.has(one.tail)).toBe(false)
       expect(binary.has(two.tail)).toBe(true)
+    })
+
+    it('aborts the upload and removes the tails without reading any of them', async () => {
+      const key = 'archives/a/t/archive-1.zip'
+      const first = await multipartStore.openResumableWrite(key, null)
+      await first.write(Buffer.alloc(100))
+      const state = await first.checkpoint()
+      // The tail is gone (the reason an assembly gave up), so a resume fails,
+      // but throwing the upload away needs only the saved state.
+      const tail = String((state as { tail: string }).tail)
+      binary.set(`${tail}-other`, Buffer.from('x'))
+      binary.delete(tail)
+      multipartSend.mockClear()
+
+      await multipartStore.abortResumableWrite(key, state)
+
+      const sent = multipartSend.mock.calls.map(([command]) => command)
+      expect(sent.some((c) => c instanceof GetObjectCommand)).toBe(false)
+      expect(
+        sent.find((c) => c instanceof AbortMultipartUploadCommand)
+      ).toMatchObject({
+        input: { UploadId: (state as { uploadId: string }).uploadId, Key: key }
+      })
+      expect(
+        [...binary.keys()].filter((name) => name.includes('.tail-'))
+      ).toEqual([])
+    })
+
+    it('grows the part size with the part count and fails clearly before the part limit', async () => {
+      const key = 'archives/a/t/archive-1.zip'
+      // Parts of 4 bytes, 8 after two parts, 12 after four; at most five.
+      const small = new S3ArchiveObjectStore(
+        { type: MediaStorageType.S3Storage, bucket: 'bucket', region: 'r' },
+        { send: multipartSend } as unknown as S3Client,
+        4,
+        2,
+        5
+      )
+      const sink = await small.openResumableWrite(key, null)
+      await sink.write(Buffer.alloc(4 + 4 + 8 + 8 + 12, 1))
+      const [upload] = [...uploads.values()]
+      expect([...upload.parts.values()].map((part) => part.length)).toEqual([
+        4, 4, 8, 8, 12
+      ])
+      // A sixth part would be the limit plus one.
+      await expect(sink.write(Buffer.alloc(12, 1))).rejects.toThrow(
+        'too large to upload'
+      )
+    })
+
+    it('reads from a byte offset with a range request', async () => {
+      const key = 'archives/a/t/archive-1.zip'
+      objects.set(key, 'ZIPDATA')
+      send.mockClear()
+      await store.openRead(key, 3)
+      const ranged = send.mock.calls[0][0] as GetObjectCommand
+      expect(ranged.input.Range).toBe('bytes=3-')
+      send.mockClear()
+      await store.openRead(key)
+      expect((send.mock.calls[0][0] as GetObjectCommand).input.Range).toBe(
+        undefined
+      )
+    })
+
+    it('rejects a request that gets no answer in time instead of waiting for it', async () => {
+      // A server that answers only after the client has given up.
+      const server = http.createServer((_req, res) => {
+        setTimeout(() => {
+          res.statusCode = 200
+          res.end()
+        }, 1500).unref()
+      })
+      await new Promise<void>((resolve) =>
+        server.listen(0, '127.0.0.1', resolve)
+      )
+      try {
+        const client = createStorageS3Client({
+          region: 'us-east-1',
+          endpoint: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
+          requestTimeoutMs: 200
+        })
+        const started = Date.now()
+        await expect(
+          client.send(new HeadObjectCommand({ Bucket: 'b', Key: 'k' }))
+        ).rejects.toMatchObject({ name: 'TimeoutError' })
+        expect(Date.now() - started).toBeLessThan(1200)
+        client.destroy()
+      } finally {
+        server.closeAllConnections()
+        await new Promise((resolve) => server.close(resolve))
+      }
     })
 
     it('gives every S3 call a timeout shorter than the lease grace', async () => {

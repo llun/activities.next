@@ -508,11 +508,19 @@ export const runAssemblySlice = async ({
           advance()
           continue
         }
-        const finished = await writeStreamed(name, async function* () {
-          for await (const chunk of outcome.file.stream) {
-            yield Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
-          }
-        })
+        let finished: boolean
+        try {
+          finished = await writeStreamed(name, async function* () {
+            for await (const chunk of outcome.file.stream) {
+              yield Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+            }
+          })
+        } catch (error) {
+          // A failed write must not leave the source open (a socket or a file
+          // handle) while the slice is retried.
+          outcome.file.stream.destroy()
+          throw error
+        }
         if (!finished) {
           outcome.file.stream.destroy()
           await checkpoint()
@@ -626,6 +634,7 @@ export const abortAssembly = async (
 ) => {
   const assembly = progress?.assembly
   if (!assembly || !assembly.sink) return
-  const sink = await store.openResumableWrite(assembly.key, assembly.sink)
-  await sink.abort()
+  // Needs neither the staged tail nor the part list to be readable: a failed
+  // assembly is often one whose tail is gone.
+  await store.abortResumableWrite(assembly.key, assembly.sink)
 }

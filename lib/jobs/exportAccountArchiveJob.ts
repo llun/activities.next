@@ -27,7 +27,10 @@ import {
   StaleSliceError,
   runCollectionSlice
 } from '@/lib/services/accountArchive/runner'
-import { LeaseHeldError } from '@/lib/services/accountArchive/saver'
+import {
+  LeaseHeldError,
+  isLeaseHeld
+} from '@/lib/services/accountArchive/saver'
 import { getServedLinkDomain } from '@/lib/services/domains/localDomains'
 import { sendMail } from '@/lib/services/email'
 import { resolveEmailIdentity } from '@/lib/services/email/sender'
@@ -227,7 +230,21 @@ export const exportAccountArchiveJob = createJobHandle(
     // A duplicate or late delivery of a run that already finished, or one from
     // the future. A retry of a run that did not finish is the current one.
     const known = parseProgress(archive.progress)
-    if (known && data.slice !== known.completed + 1) return
+    if (known && data.slice !== known.completed + 1) {
+      // The redelivery of the run that just finished: its release save landed
+      // but the message for the next run may not have gone out (the publish
+      // failed, or the worker died between the two). Publish it again under
+      // its own id; a queue drops the copy if the first one did arrive, and a
+      // copy that slips through meets the lease or the run check.
+      if (
+        data.slice === known.completed &&
+        archive.status === 'running' &&
+        !isLeaseHeld(known, '', Date.now())
+      ) {
+        await publishNextSlice(archive.id, data.slice + 1)
+      }
+      return
+    }
 
     let running: AccountArchive | null = archive
     if (archive.status === 'queued') {
@@ -263,6 +280,14 @@ export const exportAccountArchiveJob = createJobHandle(
         progress.completed = data.slice
         progress.failures = 0
         await saver.release()
+        // Progress was made, so earlier stalls no longer count toward giving up.
+        if (running.reapCount > 0) {
+          await database.updateAccountArchive({
+            id: archive.id,
+            onlyIfStatus: ['running'],
+            reapCount: 0
+          })
+        }
         await publishNextSlice(archive.id, data.slice + 1)
       }
 

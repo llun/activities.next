@@ -94,10 +94,11 @@ describe('account archive routes', () => {
       params: Promise.resolve({})
     })
 
-  const fetchDownload = (id: string) =>
+  const fetchDownload = (id: string, range?: string) =>
     download(
       new NextRequest(
-        `https://llun.test/api/v1/account/archives/${id}/download`
+        `https://llun.test/api/v1/account/archives/${id}/download`,
+        range ? { headers: { range } } : undefined
       ),
       { params: Promise.resolve({ id }) }
     )
@@ -251,6 +252,28 @@ describe('account archive routes', () => {
       )
       expect(response.headers.get('cache-control')).toContain('no-store')
       expect(await response.text()).toBe('ZIPDATA')
+    })
+
+    it('resumes a download from a byte offset', async () => {
+      const id = await makeReady(seedActor1.email)
+      const response = await fetchDownload(id, 'bytes=3-')
+      expect(response.status).toBe(206)
+      expect(response.headers.get('content-range')).toBe('bytes 3-6/7')
+      expect(response.headers.get('content-length')).toBe('4')
+      expect(response.headers.get('accept-ranges')).toBe('bytes')
+      expect(await response.text()).toBe('DATA')
+    })
+
+    it('answers 416 to an offset past the end and ignores other range forms', async () => {
+      const id = await makeReady(seedActor1.email)
+      const past = await fetchDownload(id, 'bytes=7-')
+      expect(past.status).toBe(416)
+      expect(past.headers.get('content-range')).toBe('bytes */7')
+      for (const range of ['bytes=-3', 'bytes=1-2', 'bytes=0-1,3-4']) {
+        const whole = await fetchDownload(id, range)
+        expect(whole.status).toBe(200)
+        expect(await whole.text()).toBe('ZIPDATA')
+      }
     })
 
     it('answers 404 to another account, as for an id that does not exist', async () => {
