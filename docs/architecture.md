@@ -1803,14 +1803,15 @@ changed' }` before any write. Mastodon clients do not send it and are
   `MoveRelationshipsJob` (`lib/jobs/moveRelationshipsJob.ts`, Mastodon's
   `MoveWorker` parity) with Mastodon's skip rules (already blocking/muting the
   target, or following it) and Mastodon's note texts, regardless of whether the
-  target has itself moved. On retry or resume, `SendBlockJob` is re-published with
-  the deterministic id for remote targets; deduplicating queues drop it and
-  receivers treat duplicate blocks with the same uri as no-ops. A resume also ends follows a crash left
-  behind (ones that predate the carried block) and leaves follows made later alone. Unless the target
-  has itself moved (the `movedTo`
-  is still recorded, but nobody is rewired, as Mastodon does not follow a moved
-  account), the job publishes one `MoveFollowerJob` per accepted local follower
-  of the origin. Each has a deterministic id from the origin follow id and the
+  target has itself moved. On retry or resume, `SendBlockJob` is re-published
+  with the deterministic id for remote targets; deduplicating queues drop it and
+  receivers treat duplicate blocks with the same uri as no-ops. A resume also
+  repeats the rest of the block: a follow the user made after the carried block
+  is left alone; any follow from the target, or a follow that predates the
+  block, is ended. Unless the target has itself moved (the `movedTo` is still
+  recorded, but nobody is rewired, as Mastodon does not follow a moved account),
+  the job publishes one `MoveFollowerJob` per accepted local follower of the
+  origin. Each has a deterministic id from the origin follow id and the
   target id. Cloud Tasks and NoQueue do not dedupe by job id (only some backends
   do), so the id only helps where the queue honours it; the follower job protects
   itself instead (below), and a retry or redelivery may run a follower twice

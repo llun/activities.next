@@ -203,20 +203,19 @@ export const moveRelationshipsJob: JobHandle = createJobHandle(
         const blockNote = `This user moved from ${acct}, which you had blocked.`
 
         if (existingBlock?.uri === blockUri) {
-          // On resume, repeat the rest of applyBlock only for follows that
-          // predate the block (a crash after createBlock may have left them in
-          // place); a follow made after the block is the user's choice. Then
-          // re-publish SendBlockJob for a remote target with the deterministic
-          // id: deduplicating queues drop it; others send a duplicate Block with
+          // On resume, repeat the rest of applyBlock: a follow the user made
+          // after the carried block is left alone; any follow from the target,
+          // or a follow that predates the block, is ended. Then re-publish
+          // SendBlockJob for a remote target with the deterministic id:
+          // deduplicating queues drop it; others send a duplicate Block with
           // the same uri, which remote receivers treat as a no-op.
           const reverseFollow = await database.getAcceptedOrRequestedFollow({
             actorId: target.id,
             targetActorId: actorId
           })
           if (
-            [follow, reverseFollow].some(
-              (item) => item && item.createdAt <= existingBlock.createdAt
-            )
+            (follow || reverseFollow) &&
+            !(follow && follow.createdAt > existingBlock.createdAt)
           ) {
             await applyBlock({
               database,
