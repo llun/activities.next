@@ -106,7 +106,9 @@ const TRANSIENT_FS_CODES = new Set([
   'ESTALE',
   'ETIMEDOUT',
   'EAGAIN',
-  'EBUSY'
+  'EBUSY',
+  'EMFILE',
+  'ENFILE'
 ])
 
 /**

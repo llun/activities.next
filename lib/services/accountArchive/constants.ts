@@ -54,7 +54,8 @@ export const getArchiveDownloadFileName = (archiveId: string) =>
 
 /**
  * A source file download that sends nothing for this long is cut off and the
- * slice fails. Longer than one S3 call: while the archive uploads a part, the
- * source stream is paused by backpressure and that time is not counted.
+ * slice fails. Generous on purpose, so a slow but live source is not cut off.
+ * Only the wait for the next chunk is timed: while the archive uploads a part
+ * the source is paused by backpressure and that time is not counted.
  */
 export const ARCHIVE_SOURCE_IDLE_TIMEOUT_MS = 45 * 1000

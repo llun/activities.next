@@ -28,11 +28,12 @@ export class LeaseExpiredError extends LeaseHeldError {
 }
 
 /**
- * A worker stops writing to keys another worker could also write this long
- * before its lease ends: one S3 call (`ARCHIVE_S3_REQUEST_TIMEOUT_MS`) may
- * still be in flight when the check passes.
+ * A worker stops writing this long before its lease ends: one S3 call
+ * (`ARCHIVE_S3_REQUEST_TIMEOUT_MS`) may still be in flight when the check
+ * passes. This is an early exit for a stalled worker, not what keeps the export
+ * correct: every key a worker writes has its own id in it (`writerOf`).
  */
-export const ARCHIVE_LEASE_SAFETY_MS = 30 * 1000
+export const ARCHIVE_LEASE_SAFETY_MS = 45 * 1000
 
 /** A worker's claim on an export is this long past its slice budget. */
 export const ARCHIVE_LEASE_GRACE_MS = 60 * 1000

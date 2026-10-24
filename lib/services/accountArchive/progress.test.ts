@@ -31,7 +31,7 @@ describe('PartStager', () => {
       path: root
     })
     const progress = createInitialProgress({ actors: [], now: 0 })
-    const stage = new PartStager(store, 'id/secret', progress)
+    const stage = new PartStager(store, 'id/secret', progress, 'writer01')
     await stage.append('doc.json', '{"a":[')
     await stage.appendJsonItems('doc.json', [1, 2, 3])
     await stage.appendJsonItems('doc.json', [4, 5])
@@ -42,11 +42,12 @@ describe('PartStager', () => {
     expect(entry.parts).toBe(4)
     expect(entry.size).toBe(text.length)
     expect(entry.crc).toBe(crc32(Buffer.from(text)))
+    expect(entry.writers).toEqual(Array(4).fill('writer01'))
 
     const parts: Buffer[] = []
     for (let index = 0; index < entry.parts; index += 1) {
       const part = (await store.get(
-        getPartKey('id/secret', 'doc.json', index)
+        getPartKey('id/secret', 'doc.json', index, entry.writers[index])
       ))!
       expect(part.length).toBe(entry.sizes[index])
       parts.push(part)

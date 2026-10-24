@@ -17,7 +17,8 @@ import {
   type ArchiveProgress,
   PartStager,
   createInitialProgress,
-  parseProgress
+  parseProgress,
+  writerOf
 } from './progress'
 import {
   ARCHIVE_LEASE_GRACE_MS,
@@ -84,9 +85,12 @@ export interface RunSliceParams {
  * cursor after every page. Always does at least one page, so a budget of zero
  * still moves the export forward.
  *
- * Resuming is safe at any point: a page's parts are written to deterministic
- * keys before the cursor that counts them is saved, so a page run twice writes
- * the same bytes to the same places.
+ * Resuming is safe at any point: a page's parts are written to keys with this
+ * worker's id in them before the cursor that counts them is saved, and the
+ * cursor records which writer's part it counts. A page that runs twice (a
+ * retry, or a worker that stalled past its lease) leaves a part nothing refers
+ * to, never one that replaces a counted part. The lease check before each write
+ * only ends a stalled worker early.
  */
 export const runCollectionSlice = async ({
   database,
@@ -170,7 +174,9 @@ export const runCollectionSlice = async ({
     const stage = new PartStager(
       store,
       getArchiveStorageRoot(archive),
-      progress
+      progress,
+      writerOf(token),
+      () => saver.assertLeased(now())
     )
     const context: StepContext = {
       database,

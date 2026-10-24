@@ -37,6 +37,8 @@ export interface StagedEntry {
   items: number
   /** Deflated length of each part, to resume inside the entry by offset. */
   sizes: number[]
+  /** The writer of each part: the part's key has it in, see `writerOf`. */
+  writers: string[]
   /** Uncompressed length of the whole document. */
   size: number
   /** CRC-32 of the whole document. */
@@ -71,6 +73,8 @@ export interface ArchiveProgress {
   entries: Record<string, StagedEntry>
   /** How many parts of the file index (media and fitness files to copy). */
   fileParts: number
+  /** The writer of each file index part (its key has it in). */
+  fileWriters: string[]
   stats: ArchiveActorStats[]
   warnings: string[]
   /**
@@ -119,6 +123,10 @@ export interface AssemblyState {
   offset: number
   /** Staged central directory parts, and the entries they hold. */
   directoryParts: number
+  /** The writer of each directory part and of its names part. */
+  directoryWriters: string[]
+  /** Generated documents already built, by entry name: their writer. */
+  generated: Record<string, string>
   directoryEntries: number
   /** Position while the central directory is copied out. */
   directoryCopied: number
@@ -143,6 +151,7 @@ export const createInitialProgress = ({
   cursor: null,
   entries: {},
   fileParts: 0,
+  fileWriters: [],
   stats: actors.map(emptyActorStats),
   warnings: [],
   completed: -1,
@@ -169,12 +178,31 @@ export const serializeProgress = (progress: ArchiveProgress) =>
 const entryKeyName = (entry: string) =>
   createHash('sha256').update(entry).digest('hex').slice(0, 24)
 
-/** The object key of part `index` of a staged document. */
-export const getPartKey = (root: string, entry: string, index: number) =>
-  getArchiveStorageKey(root, 'stage', `${entryKeyName(entry)}-${index}`)
+/**
+ * Names the worker that writes a staged object: the first bytes of its slice
+ * token, which is unique to a delivery. Every key a worker writes and the
+ * cursor later relies on has its writer in it and the cursor records the
+ * writer, so a worker that stalled past its lease and writes late can only
+ * create a key that nothing references. Such orphans are removed with the
+ * archive's prefix when it finishes, fails or expires.
+ */
+export const writerOf = (token: string) => token.slice(0, 8)
 
-export const getFileIndexKey = (root: string, index: number) =>
-  getArchiveStorageKey(root, 'stage', `files-${index}`)
+/** The object key of part `index` of a staged document. */
+export const getPartKey = (
+  root: string,
+  entry: string,
+  index: number,
+  writer: string
+) =>
+  getArchiveStorageKey(
+    root,
+    'stage',
+    `${entryKeyName(entry)}-${index}.${writer}`
+  )
+
+export const getFileIndexKey = (root: string, index: number, writer: string) =>
+  getArchiveStorageKey(root, 'stage', `files-${index}.${writer}`)
 
 export const getDraftsKey = (root: string) =>
   getArchiveStorageKey(root, 'stage', 'drafts.json')
@@ -182,28 +210,41 @@ export const getDraftsKey = (root: string) =>
 export const getArchiveFileKey = (root: string, attempt: string) =>
   getArchiveStorageKey(root, `archive-${attempt}.zip`)
 
-export const getDirectoryPartKey = (root: string, index: number) =>
-  getArchiveStorageKey(root, 'stage', `directory-${index}`)
+export const getDirectoryPartKey = (
+  root: string,
+  index: number,
+  writer: string
+) => getArchiveStorageKey(root, 'stage', `directory-${index}.${writer}`)
 
 /** Eight-byte hashes of the entry names in directory part `index`. */
-export const getNamesPartKey = (root: string, index: number) =>
-  getArchiveStorageKey(root, 'stage', `names-${index}`)
+export const getNamesPartKey = (root: string, index: number, writer: string) =>
+  getArchiveStorageKey(root, 'stage', `names-${index}.${writer}`)
 
 /** A small document built during assembly, kept so a resume reads the same bytes. */
-export const getGeneratedKey = (root: string, entry: string) =>
-  getArchiveStorageKey(root, 'stage', `generated-${entryKeyName(entry)}`)
+export const getGeneratedKey = (root: string, entry: string, writer: string) =>
+  getArchiveStorageKey(
+    root,
+    'stage',
+    `generated-${entryKeyName(entry)}.${writer}`
+  )
 
 /**
- * Writes the documents' parts. The key of a part is a function of the entry and
- * of how many parts the persisted cursor already counts, so a slice that is cut
- * off after writing a part but before saving the cursor writes the same bytes
- * to the same key when it runs again: nothing is duplicated, nothing is lost.
+ * Writes the documents' parts. The key of a part has the entry, the part's
+ * number and the writer in it, and the cursor that counts the part records the
+ * writer, so only the part the saved cursor names is ever read. A slice that is
+ * cut off after writing a part but before saving the cursor leaves an orphan
+ * that the run which redoes the page does not read (it writes under its own
+ * writer), and a stalled worker that writes late cannot replace a part the new
+ * owner already counted.
  */
 export class PartStager {
   constructor(
     private readonly store: ArchiveObjectStore,
     private readonly root: string,
-    private readonly progress: ArchiveProgress
+    private readonly progress: ArchiveProgress,
+    private readonly writer: string,
+    /** Called before each write; throws when the worker's lease has run out. */
+    private readonly assertLeased: () => void = () => undefined
   ) {}
 
   private entry(name: string): StagedEntry {
@@ -211,6 +252,7 @@ export class PartStager {
       parts: 0,
       items: 0,
       sizes: [],
+      writers: [],
       size: 0,
       crc: 0
     })
@@ -226,8 +268,13 @@ export class PartStager {
     const packed = deflateRawSync(raw, {
       finishFlush: zlibConstants.Z_FULL_FLUSH
     })
-    await this.store.put(getPartKey(this.root, entry, state.parts), packed)
+    this.assertLeased()
+    await this.store.put(
+      getPartKey(this.root, entry, state.parts, this.writer),
+      packed
+    )
     state.parts += 1
+    state.writers.push(this.writer)
     state.items += items
     state.sizes.push(packed.length)
     state.size += raw.length
@@ -266,10 +313,12 @@ export class PartStager {
     files: { entry: string; kind: 'media' | 'fitness'; path: string }[]
   ) {
     if (files.length === 0) return
+    this.assertLeased()
     await this.store.put(
-      getFileIndexKey(this.root, this.progress.fileParts),
+      getFileIndexKey(this.root, this.progress.fileParts, this.writer),
       `${files.map((file) => JSON.stringify({ e: file.entry, k: file.kind, p: file.path })).join('\n')}\n`
     )
     this.progress.fileParts += 1
+    this.progress.fileWriters.push(this.writer)
   }
 }

@@ -28,7 +28,8 @@ import {
   getGeneratedKey,
   getNamesPartKey,
   getPartKey,
-  stagedCompressedSize
+  stagedCompressedSize,
+  writerOf
 } from './progress'
 import type { ProgressSaver } from './saver'
 import {
@@ -74,6 +75,8 @@ const newAssembly = (root: string): AssemblyState => {
     entry: null,
     offset: 0,
     directoryParts: 0,
+    directoryWriters: [],
+    generated: {},
     directoryEntries: 0,
     directoryCopied: 0,
     filesCopied: 0,
@@ -169,7 +172,9 @@ export const runAssemblySlice = async ({
     if (names) return names
     names = new Set()
     for (let index = 0; index < assembly.directoryParts; index += 1) {
-      const part = await store.get(getNamesPartKey(root, index))
+      const part = await store.get(
+        getNamesPartKey(root, index, assembly.directoryWriters[index])
+      )
       if (!part) throw new Error('A staged name part is missing')
       for (let at = 0; at + 8 <= part.length; at += 8) {
         names.add(part.subarray(at, at + 8).toString('hex'))
@@ -189,6 +194,10 @@ export const runAssemblySlice = async ({
   // Every write to a key that another worker could also write is checked
   // against this worker's own lease first (see `ProgressSaver.assertLeased`).
   const assertLeased = () => saver.assertLeased(now())
+  // This worker's id in the keys it writes (see `writerOf`).
+  const writer = writerOf(
+    saver.progress.lease?.token ?? randomBytes(8).toString('hex')
+  )
 
   const put = async (chunk: Buffer) => {
     assertLeased()
@@ -200,14 +209,15 @@ export const runAssemblySlice = async ({
     if (directoryBuffer.length === 0) return
     assertLeased()
     await store.put(
-      getDirectoryPartKey(root, assembly.directoryParts),
+      getDirectoryPartKey(root, assembly.directoryParts, writer),
       Buffer.concat(directoryBuffer)
     )
     await store.put(
-      getNamesPartKey(root, assembly.directoryParts),
+      getNamesPartKey(root, assembly.directoryParts, writer),
       Buffer.concat(nameBuffer)
     )
     assembly.directoryParts += 1
+    assembly.directoryWriters.push(writer)
     directoryBuffer = []
     nameBuffer = []
     directoryBufferBytes = 0
@@ -339,7 +349,9 @@ export const runAssemblySlice = async ({
             skip -= length
             continue
           }
-          const part = await store.get(getPartKey(root, name, index))
+          const part = await store.get(
+            getPartKey(root, name, index, staged.writers[index])
+          )
           if (!part || part.length !== length) {
             throw new Error('A staged part is missing')
           }
@@ -360,12 +372,17 @@ export const runAssemblySlice = async ({
     )
 
   const generated = async (name: string, build: () => Promise<Buffer>) => {
-    const key = getGeneratedKey(root, name)
-    const kept = await store.get(key)
-    if (kept) return kept
+    // A document already built by an earlier slice is the one the cursor names.
+    const keptBy = assembly.generated[name]
+    if (keptBy) {
+      const kept = await store.get(getGeneratedKey(root, name, keptBy))
+      if (kept) return kept
+    }
     const body = await build()
     assertLeased()
-    await store.put(key, body)
+    await store.put(getGeneratedKey(root, name, writer), body)
+    // Counted by the next cursor save, which also counts what it is used for.
+    assembly.generated[name] = writer
     return body
   }
 
@@ -466,7 +483,9 @@ export const runAssemblySlice = async ({
         const [partIndex, lineIndex] = assembly.fileCursor
         if (partIndex >= progress.fileParts) break
         if (!loaded || loaded.index !== partIndex) {
-          const body = await store.get(getFileIndexKey(root, partIndex))
+          const body = await store.get(
+            getFileIndexKey(root, partIndex, progress.fileWriters[partIndex])
+          )
           loaded = {
             index: partIndex,
             lines: (body?.toString('utf8') ?? '')
@@ -548,7 +567,9 @@ export const runAssemblySlice = async ({
           await flushDirectory()
           const order: string[] = []
           for (let index = 0; index < assembly.directoryParts; index += 1) {
-            const part = await store.get(getDirectoryPartKey(root, index))
+            const part = await store.get(
+              getDirectoryPartKey(root, index, assembly.directoryWriters[index])
+            )
             if (!part) throw new Error('A staged directory part is missing')
             order.push(...readCentralNames(part))
           }
@@ -605,7 +626,11 @@ export const runAssemblySlice = async ({
           return { done: false }
         }
         const part = await store.get(
-          getDirectoryPartKey(root, assembly.directoryCopied)
+          getDirectoryPartKey(
+            root,
+            assembly.directoryCopied,
+            assembly.directoryWriters[assembly.directoryCopied]
+          )
         )
         if (!part) throw new Error('A staged directory part is missing')
         await put(part)

@@ -430,9 +430,10 @@ Export](maintenance.md#actor-archive-export)). It is built by
   the JSON documents; it does not rewrite the owner's files (activity files
   and the EXIF of photos are copied as they are).
 - **Resumable, idempotent slices.** The collect stage writes each page to a
-  deterministic part key under `archives/<id>/<secret>/stage/` and then saves the
-  cursor (`account_archives.progress`) with a compare-and-set, so a slice killed
-  at any point reruns the same page to the same keys. Every delivery takes a
+  part key under `archives/<id>/<secret>/stage/` that has the writer's id in it,
+  and then saves the cursor (`account_archives.progress`) with a compare-and-set
+  that records the writer of every part it counts, so a slice killed at any
+  point reruns the page and its leftovers are never read. Every delivery takes a
   lease (a random token and an expiry kept in the cursor). The queue messages are
   numbered runs: message `n` is current only while the cursor says run `n - 1`
   finished, so a duplicate of a finished run is dropped and a retry of an
@@ -489,12 +490,16 @@ Export](maintenance.md#actor-archive-export)). It is built by
   read the media and fitness source files use the same timeout. Parts are
   8 MiB and grow by 8 MiB every 1,000 parts, so the 10,000-part limit of S3 is
   out of reach before about 430 GiB; an upload that would pass it fails with a
-  clear message. Before every write to a key another worker could also write
-  (the directory and name parts, generated documents, the upload's parts and
-  tail, the final completion) a worker checks its own lease with a 30-second
-  margin and stops with a retryable error when it has run out, so a worker that
-  stalled past its lease and woke after a takeover cannot overwrite the new
-  owner's parts. A source file that sends nothing for 45 seconds fails the slice
+  clear message. Every object a worker writes and the cursor later relies on has the
+  worker's id (the start of its slice token) in its key, and the saved cursor
+  records which writer's object it counts: staged document parts, file index
+  parts, the directory and name parts, generated documents, and the upload's
+  tails. A worker that stalled past its lease and writes late creates a key
+  nothing refers to, never one that replaces what the new owner counted;
+  such orphans go with the archive's prefix when the export finishes, fails or
+  expires. Before each of those writes a worker also checks its own lease with
+  a 45-second margin and stops with a retryable error, only so a stalled worker
+  ends early. A source file that sends nothing for 45 seconds fails the slice
   (the request timeout ends at the response headers). A worker that fails after losing its lease logs and stops without writing a
   failure into the new owner's cursor. A failed export aborts its upload from the saved state alone,
   without reading the staged tail. A large source

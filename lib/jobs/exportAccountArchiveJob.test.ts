@@ -1076,6 +1076,116 @@ describe('exportAccountArchiveJob', () => {
       expect(names).toContain('activities.next/manifest.json')
     })
 
+    describe('a worker that writes late, after another took over', () => {
+      /**
+       * Holds the first write of a key matching `pattern` made by the next
+       * delivery, as a worker stalled inside an object store call would. Once
+       * released the write lands with `mutate` applied to its bytes, standing
+       * for data that changed between the two workers' reads.
+       */
+      const holdFirstPut = (pattern: RegExp) => {
+        const put = FileArchiveObjectStore.prototype.put
+        let hold: ((mutate: (body: Buffer | string) => Buffer) => void) | null =
+          null
+        let held: Promise<void>
+        let markHeld!: () => void
+        held = new Promise<void>((resolve) => (markHeld = resolve))
+        let taken = false
+        vi.spyOn(FileArchiveObjectStore.prototype, 'put').mockImplementation(
+          async function (this: FileArchiveObjectStore, key, body) {
+            if (!taken && pattern.test(key)) {
+              taken = true
+              const release = new Promise<(body: Buffer | string) => Buffer>(
+                (resolve) => {
+                  hold = resolve as typeof hold
+                }
+              )
+              markHeld()
+              const mutate = await release
+              return put.call(this, key, mutate(body))
+            }
+            return put.call(this, key, body)
+          }
+        )
+        return {
+          held,
+          release: (mutate: (body: Buffer | string) => Buffer) => hold!(mutate)
+        }
+      }
+
+      const lapseClock = () => {
+        const realNow = Date.now.bind(Date)
+        vi.spyOn(Date, 'now').mockImplementation(
+          () => realNow() + 2 * 60 * 60 * 1000
+        )
+      }
+
+      const finish = async (id: string) => {
+        for (
+          let slices = 0;
+          slices < 600 && published.length > 0;
+          slices += 1
+        ) {
+          const next = published.shift()!
+          await run(id, (next.data as { slice: number }).slice)
+        }
+        const archive = (await database.getAccountArchive({ id }))!
+        expect(archive.status).toBe('ready')
+        const { names } = await readArchive(id)
+        expect(names).toContain('activities.next/manifest.json')
+      }
+
+      const junk = (body: Buffer | string) =>
+        Buffer.concat([Buffer.from(body), Buffer.from('XXXX')])
+
+      it('cannot replace a staged part the new owner already counted', async () => {
+        const id = await makeArchive(accountId)
+        await run(id, 0)
+        const next = (await published.shift())!.data as { slice: number }
+        const hold = holdFirstPut(/\/stage\/[0-9a-f]{24}-\d+/)
+        const late = run(id, next.slice).catch(() => undefined)
+        await hold.held
+        lapseClock()
+
+        // The new owner takes the same run over and stages its own page.
+        await run(id, next.slice)
+        // Now the stalled worker's write lands, with bytes that differ.
+        hold.release(junk)
+        await late
+
+        await finish(id)
+      })
+
+      it('cannot replace a directory part the new owner already counted', async () => {
+        const id = await makeArchive(accountId)
+        sliceBudget.ms = 0
+        // Collect everything first.
+        await run(id, 0)
+        for (;;) {
+          const progress = parseProgress(
+            (await database.getAccountArchive({ id }))!.progress
+          )!
+          if (progress.phase === 'assemble') break
+          const message = published.shift()!
+          await run(id, (message.data as { slice: number }).slice)
+        }
+        const message = published.shift()!.data as { slice: number }
+        sliceBudget.ms = 10 * 60 * 1000
+        const hold = holdFirstPut(/\/stage\/directory-\d+/)
+        const late = run(id, message.slice).catch(() => undefined)
+        await hold.held
+        lapseClock()
+        sliceBudget.ms = 0
+
+        // The new owner resumes from the saved cursor and checkpoints a part.
+        await run(id, message.slice)
+        hold.release(junk)
+        await late
+
+        await finish(id)
+      })
+    })
+
     it('makes a delivery wait for the lease instead of dropping it', async () => {
       const id = await makeArchive(accountId)
       await run(id, 0)
@@ -1306,7 +1416,7 @@ describe('exportAccountArchiveJob', () => {
       const original = FileArchiveObjectStore.prototype.get
       vi.spyOn(FileArchiveObjectStore.prototype, 'get').mockImplementation(
         async function (this: FileArchiveObjectStore, key: string) {
-          if (/\/stage\/[0-9a-f]{24}-\d+$/.test(key)) {
+          if (/\/stage\/[0-9a-f]{24}-\d+\.[0-9a-f]{8}$/.test(key)) {
             reads.set(key, (reads.get(key) ?? 0) + 1)
           }
           return original.call(this, key)
