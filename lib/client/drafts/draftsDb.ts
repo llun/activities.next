@@ -294,6 +294,41 @@ export const countDrafts = (
     request.onsuccess = guard(() => done(request.result))
   })
 
+export const countDraftsByState = (
+  scope: { actorId: string } | { accountId: string }
+): Promise<{ waiting: number; drafts: number; profiles: number }> =>
+  runTx<{ waiting: number; drafts: number; profiles: number }>(
+    [DRAFTS_STORE],
+    'readonly',
+    (tx, { done, guard }) => {
+      const store = tx.objectStore(DRAFTS_STORE)
+      const index =
+        'actorId' in scope ? store.index('byActor') : store.index('byAccount')
+      const target = 'actorId' in scope ? scope.actorId : scope.accountId
+      const request = index.openCursor(target)
+      let drafts = 0
+      let waiting = 0
+      // The profiles the records belong to, for "across your profiles".
+      const actorIds = new Set<string>()
+      request.onsuccess = guard(() => {
+        const cursor = request.result
+        if (cursor) {
+          const record = cursor.value as DraftRecord
+          actorIds.add(record.actorId)
+          // Plain drafts have no queue (absent); all DraftQueueStateName states count as waiting to send.
+          if (record.queue) {
+            waiting += 1
+          } else {
+            drafts += 1
+          }
+          cursor.continue()
+        } else {
+          done({ waiting, drafts, profiles: actorIds.size })
+        }
+      })
+    }
+  )
+
 /**
  * One transaction: the epoch must still match (else the account signed out),
  * and the stored revision must equal `expectedRevision` (else another tab saved

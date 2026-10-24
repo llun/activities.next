@@ -28,13 +28,16 @@ interface AddActorDialogProps {
   onOpenChange: (open: boolean) => void
   domain: string
   onSuccess: () => void
+  /** Where focus goes on close; the account menu sends it back to its row. */
+  onCloseAutoFocus?: (event: Event) => void
 }
 
 export function AddActorDialog({
   open,
   onOpenChange,
   domain,
-  onSuccess
+  onSuccess,
+  onCloseAutoFocus
 }: AddActorDialogProps) {
   const [username, setUsername] = useState('')
   const [selectedDomain, setSelectedDomain] = useState(domain)
@@ -135,7 +138,7 @@ export function AddActorDialog({
 
       if (!didSwitch) {
         revokeProfileUnloadAllowance()
-        setError('Failed to switch actor')
+        setError('Failed to switch profile')
         return
       }
 
@@ -160,7 +163,7 @@ export function AddActorDialog({
       setError(
         err instanceof Error
           ? err.message
-          : 'An error occurred while creating the actor'
+          : 'An error occurred while creating the profile'
       )
     } finally {
       if (currentRequestId === createRequestIdRef.current) {
@@ -203,6 +206,7 @@ export function AddActorDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         showCloseButton={!isLoading}
+        onCloseAutoFocus={onCloseAutoFocus}
         onEscapeKeyDown={(e) => {
           if (isLoading) {
             e.preventDefault()
@@ -220,9 +224,9 @@ export function AddActorDialog({
         }}
       >
         <DialogHeader>
-          <DialogTitle>Add another actor</DialogTitle>
+          <DialogTitle>Add another profile</DialogTitle>
           <DialogDescription>
-            Create a new identity. You can switch between actors at any time.
+            Create a new identity. You can switch between profiles at any time.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -300,7 +304,7 @@ export function AddActorDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={isLoading || !username.trim()}>
-              {isLoading ? 'Creating…' : 'Create actor'}
+              {isLoading ? 'Creating…' : 'Create profile'}
             </Button>
           </DialogFooter>
         </form>

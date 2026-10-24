@@ -83,6 +83,19 @@ describe('NavPreferencesProvider', () => {
     expect(screen.getByTestId('hidden').textContent).toBe('favorites')
   })
 
+  it('maps legacy account in initialOrder to profile and drops it from initialHidden', () => {
+    renderStore({
+      order: ['timeline', 'account'],
+      hidden: ['account', 'favorites']
+    })
+
+    const orderText = screen.getByTestId('order').textContent ?? ''
+    const orderItems = orderText.split(',')
+    expect(orderItems[0]).toBe('timeline')
+    expect(orderItems[1]).toBe('profile')
+    expect(screen.getByTestId('hidden').textContent).toBe('favorites')
+  })
+
   it('ignores a saved preference that hides a pinned item', () => {
     renderStore({ hidden: ['settings'] })
 

@@ -67,6 +67,8 @@ export interface ClientBootstrapSnapshot {
   lists: BootstrapListSummary[]
   features: Partial<BootstrapFeatures>
   instanceLimits: BootstrapInstanceLimits
+  // A copy cached before Profile replaced Account may still hold 'account';
+  // readers pass these through normalizedOrder/normalizedHidden, which map it.
   navOrder?: NavItemId[]
   navHidden?: NavItemId[]
   readingAutoplayGifs: boolean

@@ -101,6 +101,10 @@ export const resolveBackDestination = (
   if (first === 'tags') {
     return second && !third ? backTo(`#${second}`) : PREVIOUS_PAGE_BACK
   }
+  // `/account/*` pages are not a main nav item, but still form a titled section.
+  if (first === 'account') {
+    return backTo('Account & security')
+  }
   // Every other first segment that is a navigation item id (`/notifications`,
   // `/settings`, ...) is that section; the timeline is `/`, handled above.
   if (isNavItemId(first)) return sectionBack(first)

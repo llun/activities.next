@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { AnchorHTMLAttributes, ReactNode } from 'react'
 
 import { cancelActorDeletion, switchActor } from '@/lib/client'
@@ -13,6 +13,32 @@ import {
 } from '@/lib/components/settings/profile/unsavedProfileChanges'
 
 import { ActorSwitcher } from './ActorSwitcher'
+
+vi.mock('next/dynamic', async () => ({
+  default: (await import('next/dist/shared/lib/app-dynamic')).default
+}))
+
+const preloadSpy = vi.hoisted(() => vi.fn())
+// The real factory, with every preload() call recorded.
+vi.mock('@/lib/components/lazy/createPreloadable', async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import('@/lib/components/lazy/createPreloadable')
+    >()
+  return {
+    ...actual,
+    createPreloadable: ((load, component) => {
+      const preloadable = actual.createPreloadable(load, component)
+      return {
+        ...preloadable,
+        preload: () => {
+          preloadSpy()
+          return preloadable.preload()
+        }
+      }
+    }) as typeof actual.createPreloadable
+  }
+})
 
 vi.mock('next/link', () => ({
   default: ({
@@ -51,7 +77,21 @@ const mockAddActorDialog = vi.fn()
 vi.mock('./AddActorDialog', () => ({
   AddActorDialog: (props: unknown) => {
     mockAddActorDialog(props)
-    return null
+    const { open } = (props as { open?: boolean }) || {}
+    return open ? (
+      <div data-testid="add-actor-dialog">Add actor dialog</div>
+    ) : null
+  }
+}))
+
+const mockSignOutDialog = vi.fn()
+vi.mock('@/lib/components/sign-out/SignOutDialog', () => ({
+  SignOutDialog: (props: unknown) => {
+    mockSignOutDialog(props)
+    const { open } = (props as { open?: boolean }) || {}
+    return open ? (
+      <div data-testid="sign-out-dialog">Sign out dialog</div>
+    ) : null
   }
 }))
 
@@ -93,6 +133,7 @@ describe('ActorSwitcher', () => {
     vi.mocked(setActiveOfflineSession).mockReset()
     mockRefresh.mockReset()
     mockAddActorDialog.mockReset()
+    mockSignOutDialog.mockReset()
 
     Object.defineProperty(window, 'location', {
       configurable: true,
@@ -108,61 +149,115 @@ describe('ActorSwitcher', () => {
   })
 
   describe('with a single actor', () => {
-    it('renders the whole row as a link to the profile without prefetch', () => {
+    it('renders a single button trigger that opens the menu with expected items and no switch profile list', async () => {
       render(<ActorSwitcher currentActor={alice} actors={[alice]} />)
 
-      const link = screen.getByRole('link')
-      expect(link).toHaveAttribute('href', profileHref)
-      expect(link).toHaveAttribute('data-prefetch', 'false')
-      expect(link).toHaveTextContent('Alice')
-      expect(link).toHaveTextContent('@alice@activities.local')
+      expect(screen.queryByTestId('add-actor-dialog')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('sign-out-dialog')).not.toBeInTheDocument()
+      expect(mockAddActorDialog).not.toHaveBeenCalled()
+      expect(mockSignOutDialog).not.toHaveBeenCalled()
+
+      const trigger = screen.getByRole('button', {
+        name: 'Account menu for Alice'
+      })
+      expect(trigger).toHaveTextContent('Alice')
+      expect(trigger).toHaveTextContent('@alice@activities.local')
+      expect(
+        trigger.querySelector('.lucide-chevrons-up-down')
+      ).toBeInTheDocument()
+
+      fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+      const menu = await screen.findByRole('menu')
+
+      // 1. Header
+      expect(menu).toHaveTextContent('Alice')
+      expect(menu).toHaveTextContent('@alice@activities.local')
+
+      // 3. View profile
+      const viewProfile = screen.getByRole('menuitem', {
+        name: /View profile/
+      })
+      expect(viewProfile).toHaveAttribute('href', profileHref)
+      expect(viewProfile).toHaveAttribute('data-prefetch', 'false')
+
+      // 4. Edit profile
+      const editProfile = screen.getByRole('menuitem', {
+        name: /Edit profile/
+      })
+      expect(editProfile).toHaveAttribute('href', '/settings/profile')
+      expect(editProfile).toHaveAttribute('data-prefetch', 'false')
+
+      // 7. Add another profile
+      expect(
+        screen.getByRole('menuitem', { name: /Add another profile/ })
+      ).toBeInTheDocument()
+
+      // 9. Account & security
+      const accountLink = screen.getByRole('menuitem', {
+        name: /Account & security/
+      })
+      expect(accountLink).toHaveAttribute('href', '/account')
+      expect(accountLink).toHaveAttribute('data-prefetch', 'false')
+
+      // 10. Sign out
+      expect(
+        screen.getByRole('menuitem', { name: /Sign out/ })
+      ).toBeInTheDocument()
+
+      // NO switch profile list
+      expect(screen.queryByText('Switch profile')).not.toBeInTheDocument()
     })
 
-    it('does not render the actor-list dropdown trigger or chevron', () => {
-      const { container } = render(
-        <ActorSwitcher currentActor={alice} actors={[alice]} />
-      )
+    it('strips custom emoji shortcodes from trigger accessible name', () => {
+      const flan = {
+        ...alice,
+        name: ':flan: Flan'
+      }
+      render(<ActorSwitcher currentActor={flan} actors={[flan]} />)
 
-      expect(screen.queryByRole('button')).not.toBeInTheDocument()
       expect(
-        container.querySelector('.lucide-chevron-down')
-      ).not.toBeInTheDocument()
+        screen.getByRole('button', {
+          name: 'Account menu for Flan'
+        })
+      ).toBeInTheDocument()
     })
   })
 
   describe('with multiple actors', () => {
-    it('links only the avatar icon to the profile without prefetch', () => {
+    it('renders the whole row as the dropdown trigger, not a separate link', () => {
       render(<ActorSwitcher currentActor={alice} actors={[alice, bob]} />)
 
-      const iconLink = screen.getByRole('link', {
-        name: "View Alice's profile"
+      const trigger = screen.getByRole('button', {
+        name: 'Account menu for Alice'
       })
-      expect(iconLink).toHaveAttribute('href', profileHref)
-      expect(iconLink).toHaveAttribute('data-prefetch', 'false')
-    })
-
-    it('renders the name/handle/arrow as the dropdown trigger, not a link', () => {
-      render(<ActorSwitcher currentActor={alice} actors={[alice, bob]} />)
-
-      const trigger = screen.getByRole('button')
       expect(trigger).toHaveTextContent('Alice')
       expect(trigger).toHaveTextContent('@alice@activities.local')
-      expect(trigger.querySelector('.lucide-chevron-down')).toBeInTheDocument()
-
-      const profileLinks = screen
-        .getAllByRole('link')
-        .filter((link) => link.getAttribute('href') === profileHref)
-      expect(profileLinks).toHaveLength(1)
-      expect(profileLinks[0]).not.toHaveTextContent('Alice')
+      expect(
+        trigger.querySelector('.lucide-chevrons-up-down')
+      ).toBeInTheDocument()
+      expect(screen.queryByRole('link')).not.toBeInTheDocument()
     })
 
-    it('switches actor and reloads page on successful selection', async () => {
+    it('shows Switch profile list with check on current actor and switches actor on selecting other', async () => {
       vi.mocked(switchActor).mockResolvedValue(true)
       render(<ActorSwitcher currentActor={alice} actors={[alice, bob]} />)
 
-      const trigger = screen.getByRole('button')
+      const trigger = screen.getByRole('button', {
+        name: 'Account menu for Alice'
+      })
       fireEvent.keyDown(trigger, { key: 'ArrowDown' })
       await screen.findByRole('menu')
+
+      expect(screen.getByText('Switch profile')).toBeInTheDocument()
+
+      const aliceItem = screen
+        .getAllByRole('menuitem')
+        .find(
+          (item) =>
+            item.textContent?.includes('Alice') &&
+            item.textContent?.includes('@alice@activities.local')
+        )
+      expect(aliceItem?.querySelector('.lucide-check')).toBeInTheDocument()
 
       const bobItem = screen.getByText('Bob')
       fireEvent.click(bobItem)
@@ -179,7 +274,10 @@ describe('ActorSwitcher', () => {
     describe('with unsaved Edit profile changes', () => {
       const pickBob = async () => {
         render(<ActorSwitcher currentActor={alice} actors={[alice, bob]} />)
-        fireEvent.keyDown(screen.getByRole('button'), { key: 'ArrowDown' })
+        fireEvent.keyDown(
+          screen.getByRole('button', { name: 'Account menu for Alice' }),
+          { key: 'ArrowDown' }
+        )
         await screen.findByRole('menu')
         fireEvent.click(screen.getByText('Bob'))
       }
@@ -213,7 +311,7 @@ describe('ActorSwitcher', () => {
         vi.mocked(switchActor).mockResolvedValue(false)
         await pickBob()
 
-        await screen.findByText('Failed to switch actor')
+        await screen.findByText('Failed to switch profile')
         expect(isProfileUnloadAllowed()).toBe(false)
       })
 
@@ -241,7 +339,9 @@ describe('ActorSwitcher', () => {
       vi.mocked(switchActor).mockResolvedValueOnce(false)
       render(<ActorSwitcher currentActor={alice} actors={[alice, bob]} />)
 
-      const trigger = screen.getByRole('button')
+      const trigger = screen.getByRole('button', {
+        name: 'Account menu for Alice'
+      })
       fireEvent.keyDown(trigger, { key: 'ArrowDown' })
       await screen.findByRole('menu')
 
@@ -252,20 +352,22 @@ describe('ActorSwitcher', () => {
       expect(window.location.reload).not.toHaveBeenCalled()
 
       const alert = await screen.findByRole('alert')
-      expect(alert).toHaveTextContent('Failed to switch actor')
+      expect(alert).toHaveTextContent('Failed to switch profile')
 
       // Dropdown closes on selection; verify error persists after closure
       await waitFor(() => {
         expect(screen.queryByRole('menu')).not.toBeInTheDocument()
       })
       expect(screen.getByRole('alert')).toHaveTextContent(
-        'Failed to switch actor'
+        'Failed to switch profile'
       )
 
       // Retry: reopen dropdown and select actor again
       vi.mocked(switchActor).mockResolvedValueOnce(true)
       fireEvent.keyDown(trigger, { key: 'ArrowDown' })
       await screen.findByRole('menu')
+      // Opening the menu again clears the old error.
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 
       const retryBobItem = screen.getByText('Bob')
       fireEvent.click(retryBobItem)
@@ -283,7 +385,9 @@ describe('ActorSwitcher', () => {
       )
       render(<ActorSwitcher currentActor={alice} actors={[alice, bob]} />)
 
-      const trigger = screen.getByRole('button')
+      const trigger = screen.getByRole('button', {
+        name: 'Account menu for Alice'
+      })
       fireEvent.keyDown(trigger, { key: 'ArrowDown' })
       await screen.findByRole('menu')
 
@@ -315,12 +419,21 @@ describe('ActorSwitcher', () => {
     it('does not switch actor when clicking current actor', async () => {
       render(<ActorSwitcher currentActor={alice} actors={[alice, bob]} />)
 
-      const trigger = screen.getByRole('button')
+      const trigger = screen.getByRole('button', {
+        name: 'Account menu for Alice'
+      })
       fireEvent.keyDown(trigger, { key: 'ArrowDown' })
       await screen.findByRole('menu')
 
-      const menuItems = screen.getAllByRole('menuitem')
-      fireEvent.click(menuItems[0])
+      const aliceItem = screen
+        .getAllByRole('menuitem')
+        .find(
+          (item) =>
+            item.textContent?.includes('Alice') &&
+            item.textContent?.includes('@alice@activities.local')
+        )
+      expect(aliceItem).toBeDefined()
+      fireEvent.click(aliceItem!)
 
       expect(switchActor).not.toHaveBeenCalled()
     })
@@ -335,7 +448,9 @@ describe('ActorSwitcher', () => {
         <ActorSwitcher currentActor={alice} actors={[alice, scheduledActor]} />
       )
 
-      const trigger = screen.getByRole('button')
+      const trigger = screen.getByRole('button', {
+        name: 'Account menu for Alice'
+      })
       fireEvent.keyDown(trigger, { key: 'ArrowDown' })
       await screen.findByRole('menu')
 
@@ -358,7 +473,9 @@ describe('ActorSwitcher', () => {
         <ActorSwitcher currentActor={alice} actors={[alice, scheduledActor]} />
       )
 
-      const trigger = screen.getByRole('button')
+      const trigger = screen.getByRole('button', {
+        name: 'Account menu for Alice'
+      })
       fireEvent.keyDown(trigger, { key: 'ArrowDown' })
       await screen.findByRole('menu')
 
@@ -387,7 +504,9 @@ describe('ActorSwitcher', () => {
         <ActorSwitcher currentActor={alice} actors={[alice, scheduledActor]} />
       )
 
-      const trigger = screen.getByRole('button')
+      const trigger = screen.getByRole('button', {
+        name: 'Account menu for Alice'
+      })
       fireEvent.keyDown(trigger, { key: 'ArrowDown' })
       await screen.findByRole('menu')
 
@@ -428,7 +547,9 @@ describe('ActorSwitcher', () => {
         <ActorSwitcher currentActor={alice} actors={[alice, deletingActor]} />
       )
 
-      const trigger = screen.getByRole('button')
+      const trigger = screen.getByRole('button', {
+        name: 'Account menu for Alice'
+      })
       fireEvent.keyDown(trigger, { key: 'ArrowDown' })
       await screen.findByRole('menu')
 
@@ -447,7 +568,9 @@ describe('ActorSwitcher', () => {
         <ActorSwitcher currentActor={alice} actors={[alice, scheduledActor]} />
       )
 
-      const trigger = screen.getByRole('button')
+      const trigger = screen.getByRole('button', {
+        name: 'Account menu for Alice'
+      })
       fireEvent.keyDown(trigger, { key: 'ArrowDown' })
       await screen.findByRole('menu')
 
@@ -470,7 +593,9 @@ describe('ActorSwitcher', () => {
         <ActorSwitcher currentActor={alice} actors={[alice, scheduledActor]} />
       )
 
-      const trigger = screen.getByRole('button')
+      const trigger = screen.getByRole('button', {
+        name: 'Account menu for Alice'
+      })
       fireEvent.keyDown(trigger, { key: 'ArrowDown' })
       const menu = await screen.findByRole('menu')
 
@@ -513,46 +638,232 @@ describe('ActorSwitcher', () => {
       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     })
 
-    it('opens add actor dialog when clicking add another actor item', async () => {
+    it('opens add actor dialog when clicking add another profile item', async () => {
       render(<ActorSwitcher currentActor={alice} actors={[alice, bob]} />)
 
-      const trigger = screen.getByRole('button')
+      const trigger = screen.getByRole('button', {
+        name: 'Account menu for Alice'
+      })
+      expect(screen.queryByTestId('add-actor-dialog')).not.toBeInTheDocument()
+      expect(mockAddActorDialog).not.toHaveBeenCalled()
+
       fireEvent.keyDown(trigger, { key: 'ArrowDown' })
       await screen.findByRole('menu')
 
-      const addActorItem = screen.getByText('Add another profile')
+      const addActorItem = screen.getByRole('menuitem', {
+        name: /Add another profile/
+      })
+      expect(screen.queryByTestId('add-actor-dialog')).not.toBeInTheDocument()
+      expect(mockAddActorDialog).not.toHaveBeenCalled()
+
       fireEvent.click(addActorItem)
 
-      expect(mockAddActorDialog).toHaveBeenLastCalledWith(
+      // Opened once the menu has closed, so it is not dismissed with it.
+      expect(await screen.findByTestId('add-actor-dialog')).toBeInTheDocument()
+      expect(mockAddActorDialog).toHaveBeenCalledWith(
         expect.objectContaining({
           open: true,
-          domain: 'activities.local'
+          domain: 'activities.local',
+          onCloseAutoFocus: expect.any(Function)
         })
       )
+
+      const lastProps = mockAddActorDialog.mock.calls.at(-1)?.[0] as {
+        onCloseAutoFocus: (e: Event) => void
+      }
+      const focusEvent = new Event('focus')
+      const preventDefault = vi.spyOn(focusEvent, 'preventDefault')
+      lastProps.onCloseAutoFocus(focusEvent)
+      expect(preventDefault).toHaveBeenCalled()
+      expect(document.activeElement).toBe(trigger)
     })
 
-    it('reloads page and closes dialog on successful actor creation', () => {
+    it('reloads page and closes dialog on successful actor creation', async () => {
       render(<ActorSwitcher currentActor={alice} actors={[alice, bob]} />)
+
+      const trigger = screen.getByRole('button', {
+        name: 'Account menu for Alice'
+      })
+      expect(screen.queryByTestId('add-actor-dialog')).not.toBeInTheDocument()
+      expect(mockAddActorDialog).not.toHaveBeenCalled()
+
+      fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+      await screen.findByRole('menu')
+
+      const addActorItem = screen.getByRole('menuitem', {
+        name: /Add another profile/
+      })
+      fireEvent.click(addActorItem)
+
+      expect(await screen.findByTestId('add-actor-dialog')).toBeInTheDocument()
+      expect(mockAddActorDialog).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          open: true
+        })
+      )
 
       const lastProps = mockAddActorDialog.mock.calls.at(-1)?.[0] as {
         onSuccess: () => void
       }
-      lastProps.onSuccess()
+      act(() => {
+        lastProps.onSuccess()
+      })
 
       expect(window.location.reload).toHaveBeenCalled()
-      expect(mockAddActorDialog).toHaveBeenLastCalledWith(
+      await waitFor(() =>
+        expect(mockAddActorDialog).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            open: false
+          })
+        )
+      )
+      expect(screen.queryByTestId('add-actor-dialog')).not.toBeInTheDocument()
+    })
+
+    it('preloads both dialogs when the trigger is hovered or focused', () => {
+      render(<ActorSwitcher currentActor={alice} actors={[alice]} />)
+      const trigger = screen.getByRole('button', {
+        name: 'Account menu for Alice'
+      })
+
+      preloadSpy.mockClear()
+      fireEvent.pointerEnter(trigger)
+      expect(preloadSpy).toHaveBeenCalledTimes(2)
+
+      preloadSpy.mockClear()
+      fireEvent.focus(trigger)
+      expect(preloadSpy).toHaveBeenCalledTimes(2)
+    })
+
+    it('says the add-profile dialog could not load instead of breaking the page', async () => {
+      mockAddActorDialog.mockImplementation(() => {
+        const error = new Error('Loading chunk 456 failed.')
+        error.name = 'ChunkLoadError'
+        throw error
+      })
+      const consoleError = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => {})
+      render(<ActorSwitcher currentActor={alice} actors={[alice]} />)
+
+      const trigger = screen.getByRole('button', {
+        name: 'Account menu for Alice'
+      })
+      fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+      await screen.findByRole('menu')
+      fireEvent.click(screen.getByText('Add another profile'))
+
+      expect(await screen.findByText("Couldn't load")).toBeInTheDocument()
+      consoleError.mockRestore()
+    })
+
+    it('opens Sign out on a later try after its chunk failed once', async () => {
+      // Fails until the connection comes back (React re-renders on error, so
+      // a single failure would be retried away).
+      let offline = true
+      mockSignOutDialog.mockImplementation((props: { open?: boolean }) => {
+        if (offline) {
+          const error = new Error('Loading chunk 123 failed.')
+          error.name = 'ChunkLoadError'
+          throw error
+        }
+        return props
+      })
+      const consoleError = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => {})
+      render(<ActorSwitcher currentActor={alice} actors={[alice]} />)
+      const trigger = screen.getByRole('button', {
+        name: 'Account menu for Alice'
+      })
+
+      fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+      await screen.findByRole('menu')
+      fireEvent.click(screen.getByRole('menuitem', { name: /Sign out/ }))
+      expect(await screen.findByText("Couldn't load")).toBeInTheDocument()
+
+      // Back online: opening the menu drops the message, and choosing Sign
+      // out again mounts a fresh dialog.
+      offline = false
+      fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+      await screen.findByRole('menu')
+      expect(screen.queryByText("Couldn't load")).not.toBeInTheDocument()
+      fireEvent.click(screen.getByRole('menuitem', { name: /Sign out/ }))
+      expect(await screen.findByTestId('sign-out-dialog')).toBeInTheDocument()
+      consoleError.mockRestore()
+    })
+
+    it('says the sign-out dialog could not load instead of breaking the page', async () => {
+      // A deploy under an open tab (or being offline) leaves the chunk missing.
+      mockSignOutDialog.mockImplementation(() => {
+        const error = new Error('Loading chunk 123 failed.')
+        error.name = 'ChunkLoadError'
+        throw error
+      })
+      const consoleError = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => {})
+      render(<ActorSwitcher currentActor={alice} actors={[alice]} />)
+
+      const trigger = screen.getByRole('button', {
+        name: 'Account menu for Alice'
+      })
+      fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+      await screen.findByRole('menu')
+      fireEvent.click(screen.getByRole('menuitem', { name: /Sign out/ }))
+
+      expect(await screen.findByText("Couldn't load")).toBeInTheDocument()
+      expect(
+        screen.getByText('Reload the page to try again.')
+      ).toBeInTheDocument()
+      // The menu itself keeps working.
+      expect(
+        screen.getByRole('button', { name: 'Account menu for Alice' })
+      ).toBeInTheDocument()
+      consoleError.mockRestore()
+    })
+
+    it('opens SignOutDialog when selecting Sign out', async () => {
+      render(<ActorSwitcher currentActor={alice} actors={[alice]} />)
+
+      const trigger = screen.getByRole('button', {
+        name: 'Account menu for Alice'
+      })
+      expect(screen.queryByTestId('sign-out-dialog')).not.toBeInTheDocument()
+      expect(mockSignOutDialog).not.toHaveBeenCalled()
+
+      fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+      await screen.findByRole('menu')
+
+      const signOutItem = screen.getByRole('menuitem', { name: /Sign out/ })
+      expect(screen.queryByTestId('sign-out-dialog')).not.toBeInTheDocument()
+      expect(mockSignOutDialog).not.toHaveBeenCalled()
+
+      fireEvent.click(signOutItem)
+      expect(await screen.findByTestId('sign-out-dialog')).toBeInTheDocument()
+      expect(mockSignOutDialog).toHaveBeenCalledWith(
         expect.objectContaining({
-          open: false
+          open: true,
+          onCloseAutoFocus: expect.any(Function)
         })
       )
+
+      const lastProps = mockSignOutDialog.mock.calls.at(-1)?.[0] as {
+        onCloseAutoFocus: (e: Event) => void
+      }
+      const focusEvent = new Event('focus')
+      const preventDefault = vi.spyOn(focusEvent, 'preventDefault')
+      lastProps.onCloseAutoFocus(focusEvent)
+      expect(preventDefault).toHaveBeenCalled()
+      expect(document.activeElement).toBe(trigger)
     })
 
     it.each([
-      ['multiple actors', [alice, bob], "View Alice's profile"],
-      ['a single actor', [alice], /Alice/]
+      ['multiple actors', [alice, bob]],
+      ['a single actor', [alice]]
     ])(
-      'invokes onNavigate when clicking the profile link with %s',
-      (_label, actors, name) => {
+      'invokes onNavigate when clicking View profile link with %s',
+      async (_label, actors) => {
         const onNavigate = vi.fn()
         render(
           <ActorSwitcher
@@ -562,9 +873,103 @@ describe('ActorSwitcher', () => {
           />
         )
 
-        fireEvent.click(screen.getByRole('link', { name }))
+        const trigger = screen.getByRole('button', {
+          name: 'Account menu for Alice'
+        })
+        fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+        const viewProfile = await screen.findByRole('menuitem', {
+          name: /View profile/
+        })
+        fireEvent.click(viewProfile)
         expect(onNavigate).toHaveBeenCalledTimes(1)
       }
     )
+  })
+
+  describe('rail variant', () => {
+    it('renders avatar as trigger and opens menu with side="right"', async () => {
+      render(
+        <ActorSwitcher currentActor={alice} actors={[alice]} variant="rail" />
+      )
+
+      const trigger = screen.getByRole('button', {
+        name: 'Account menu for Alice'
+      })
+      expect(trigger).toHaveClass('rounded-full')
+      expect(trigger).not.toHaveTextContent('Alice')
+      expect(
+        trigger.querySelector('.lucide-chevrons-up-down')
+      ).not.toBeInTheDocument()
+
+      fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+      const menu = await screen.findByRole('menu')
+      expect(menu).toHaveAttribute('data-side', 'right')
+    })
+  })
+
+  describe('user fallback', () => {
+    it('renders account menu and links View profile to /${user.handle} when only user is passed', async () => {
+      const user = {
+        name: 'Eve User',
+        username: 'eve',
+        handle: '@eve@activities.local',
+        avatarUrl: 'https://example.com/eve.png'
+      }
+      render(<ActorSwitcher user={user} />)
+
+      const trigger = screen.getByRole('button', {
+        name: 'Account menu for Eve User'
+      })
+      expect(trigger).toHaveTextContent('Eve User')
+      expect(trigger).toHaveTextContent('@eve@activities.local')
+
+      fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+      const menu = await screen.findByRole('menu')
+
+      expect(menu).toHaveTextContent('Eve User')
+      const viewProfile = screen.getByRole('menuitem', {
+        name: /View profile/
+      })
+      expect(viewProfile).toHaveAttribute('href', '/@eve@activities.local')
+      expect(viewProfile).toHaveAttribute('data-prefetch', 'false')
+
+      expect(
+        screen.getByRole('menuitem', { name: /Edit profile/ })
+      ).toHaveAttribute('href', '/settings/profile')
+      expect(
+        screen.getByRole('menuitem', { name: /Account & security/ })
+      ).toHaveAttribute('href', '/account')
+      expect(
+        screen.getByRole('menuitem', { name: /Sign out/ })
+      ).toBeInTheDocument()
+      expect(screen.queryByText('Switch profile')).not.toBeInTheDocument()
+    })
+
+    it('handles user handle without leading @', async () => {
+      const user = {
+        name: 'Eve User',
+        username: 'eve',
+        handle: 'eve@activities.local'
+      }
+      render(<ActorSwitcher user={user} />)
+
+      const trigger = screen.getByRole('button', {
+        name: 'Account menu for Eve User'
+      })
+      expect(trigger).toHaveTextContent('@eve@activities.local')
+
+      fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+      await screen.findByRole('menu')
+
+      const viewProfile = screen.getByRole('menuitem', {
+        name: /View profile/
+      })
+      expect(viewProfile).toHaveAttribute('href', '/@eve@activities.local')
+    })
+
+    it('returns null when neither currentActor nor user is provided', () => {
+      const { container } = render(<ActorSwitcher />)
+      expect(container.firstChild).toBeNull()
+    })
   })
 })

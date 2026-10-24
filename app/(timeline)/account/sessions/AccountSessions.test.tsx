@@ -31,15 +31,7 @@ vi.mock('@/lib/client', () => ({
 }))
 
 vi.mock('@/app/(timeline)/account/LogoutButton', () => ({
-  LogoutButton: ({
-    onError
-  }: {
-    onError: (message: string | null) => void
-  }) => (
-    <button type="button" onClick={() => onError('Sign out failed.')}>
-      Sign out
-    </button>
-  )
+  LogoutButton: () => <button type="button">Sign out</button>
 }))
 
 const NOW = new Date('2026-06-28T12:00:00.000Z').getTime()
@@ -135,7 +127,7 @@ describe('AccountSessions', () => {
     renderSessions()
     expect(
       screen.getByText(
-        '3 active sessions and 2 connected apps across 2 actors.'
+        '3 active sessions and 2 connected apps across 2 profiles.'
       )
     ).toBeInTheDocument()
   })
@@ -446,16 +438,5 @@ describe('AccountSessions', () => {
     expect(
       within(row as HTMLElement).getByRole('button', { name: 'Sign out' })
     ).toBeInTheDocument()
-  })
-
-  it('shows a failed sign-out as an Alert above the this-device box', () => {
-    renderSessions()
-    fireEvent.click(screen.getByRole('button', { name: 'Sign out' }))
-    const alert = screen
-      .getByText('Sign out failed.')
-      .closest('[data-slot=alert]')
-    expect(alert).not.toBeNull()
-    expect(alert!.closest('[data-slot=frame]')).toBeNull()
-    expect(alert!.nextElementSibling).toHaveAttribute('data-slot', 'frame')
   })
 })
