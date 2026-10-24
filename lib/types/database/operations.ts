@@ -955,6 +955,19 @@ export type {
 } from '@/lib/database/domains/queueJob/types'
 
 // ============================================================================
+// Actor Migration Database
+// ============================================================================
+
+export type {
+  ActorMigration,
+  ActorMigrationDatabase,
+  ActorMigrationKind,
+  CreateActorMigrationParams,
+  GetActorMigrationsParams,
+  GetLastActorMoveParams
+} from '@/lib/database/domains/actorMigration/types'
+
+// ============================================================================
 // Bulk Import Database
 // ============================================================================
 

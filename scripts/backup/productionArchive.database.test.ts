@@ -982,7 +982,7 @@ describe('production archive scripts', () => {
       expect(
         manifest.database?.tables
           .map((table) => table.name)
-          .filter((name) => /migration/.test(name))
+          .filter((name) => /^(kysely|knex)_migration/.test(name))
       ).toEqual([])
       expect(
         manifest.database?.tables.find((table) => table.name === 'actors')

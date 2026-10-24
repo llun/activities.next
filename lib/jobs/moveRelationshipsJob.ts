@@ -4,6 +4,7 @@ import { applyBlock, endFollowsForBlock } from '@/lib/actions/applyBlock'
 import { applyMute } from '@/lib/actions/applyMute'
 import { Database } from '@/lib/database/types'
 import { createJobHandle } from '@/lib/jobs/createJobHandle'
+import { isOutgoingMoveAuthorized } from '@/lib/jobs/isOutgoingMoveAuthorized'
 import {
   MOVE_RELATIONSHIPS_JOB_NAME,
   SEND_BLOCK_JOB_NAME
@@ -20,7 +21,9 @@ import { withSpan } from '@/lib/utils/trace'
 const JobData = z.object({
   actorId: z.string(),
   originActorId: z.string(),
-  targetActorId: z.string()
+  targetActorId: z.string(),
+  // Set by an outgoing move: the migration row that authorizes the job.
+  migrationId: z.string().optional()
 })
 
 const MAX_NOTE_LENGTH = 2000
@@ -37,11 +40,13 @@ export const getMoveRelationshipsJobId = (
 export const publishMoveRelationshipsJobs = async ({
   database,
   originActorId,
-  targetActorId
+  targetActorId,
+  migrationId
 }: {
   database: Database
   originActorId: string
   targetActorId: string
+  migrationId?: string
 }): Promise<number> => {
   const [blockerIds, muterIds, authorIds] = await Promise.all([
     database.getLocalBlockerIds({ targetActorId: originActorId }),
@@ -59,7 +64,7 @@ export const publishMoveRelationshipsJobs = async ({
       await getQueue().publish({
         id: getMoveRelationshipsJobId(actorId, originActorId, targetActorId),
         name: MOVE_RELATIONSHIPS_JOB_NAME,
-        data: { actorId, originActorId, targetActorId }
+        data: { actorId, originActorId, targetActorId, migrationId }
       })
     } catch (error) {
       failures++
@@ -113,14 +118,24 @@ export const moveRelationshipsJob: JobHandle = createJobHandle(
       if (
         !localActor?.privateKey ||
         !origin ||
-        origin.privateKey ||
-        !origin.movedTo ||
-        !actorIdsMatch(origin.movedTo, targetActorId) ||
         !target ||
         target.deletionStatus
       ) {
         return
       }
+      // A local origin's move is authorized by its recorded migration (a
+      // DELETE after the start does not stop it), a remote one by the pointer.
+      const authorized = origin.privateKey
+        ? await isOutgoingMoveAuthorized(
+            database,
+            origin,
+            targetActorId,
+            parsed.data.migrationId
+          )
+        : Boolean(
+            origin.movedTo && actorIdsMatch(origin.movedTo, targetActorId)
+          )
+      if (!authorized) return
 
       const states = await database.getModerationStatesForActors({
         actorIds: [target.id]
@@ -283,12 +298,20 @@ export const moveRelationshipsJob: JobHandle = createJobHandle(
           targetMute.notifications === originMute.notifications &&
           targetMute.endsAt === originMute.endsAt
         ) {
-          const originSettings = await database.getActorSettings({
-            actorId: origin.id
-          })
+          // Inbound: the claim time on the origin's settings. Outgoing: the
+          // migration row's creation (moveProcessing is never written for it).
+          const moveClaimAt = origin.privateKey
+            ? (parsed.data.migrationId
+                ? await database.getActorMigration({
+                    id: parsed.data.migrationId,
+                    actorId: origin.id
+                  })
+                : null
+              )?.createdAt
+            : (await database.getActorSettings({ actorId: origin.id }))
+                ?.moveProcessing?.at
           // updatedAt, not createdAt: createMute re-activates an expired row in place
           // and keeps its old createdAt.
-          const moveClaimAt = originSettings?.moveProcessing?.at
           if (
             typeof moveClaimAt === 'number' &&
             targetMute.updatedAt >= moveClaimAt

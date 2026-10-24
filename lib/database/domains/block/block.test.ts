@@ -617,4 +617,48 @@ describe('BlockDatabase', () => {
     })
     expect(otherBlockers).toEqual([])
   })
+
+  it('pages the blocks made by remote actors only', async () => {
+    const target = targetActorId()
+    const remoteIds: string[] = []
+    for (let i = 0; i < 3; i++) {
+      const actorId = `https://remote.test/users/blocker-${crypto.randomUUID()}`
+      remoteIds.push(actorId)
+      await database.createActor({
+        actorId,
+        username: `remote_${crypto.randomUUID().slice(0, 8)}`,
+        domain: 'remote.test',
+        publicKey: 'fake-public-key',
+        inboxUrl: `${actorId}/inbox`,
+        sharedInboxUrl: 'https://remote.test/inbox',
+        followersUrl: `${actorId}/followers`,
+        createdAt: Date.now()
+      })
+      await database.createBlock({
+        actorId,
+        targetActorId: target,
+        uri: `${actorId}#blocks/${crypto.randomUUID()}`
+      })
+    }
+    await database.createBlock({
+      actorId: ACTOR1_ID,
+      targetActorId: target,
+      uri: `${ACTOR1_ID}#blocks/${crypto.randomUUID()}`
+    })
+
+    const first = await database.getRemoteBlockers({
+      targetActorId: target,
+      limit: 2
+    })
+    const second = await database.getRemoteBlockers({
+      targetActorId: target,
+      limit: 2,
+      maxId: first[first.length - 1].id
+    })
+    expect(first).toHaveLength(2)
+    expect(second).toHaveLength(1)
+    expect([...first, ...second].map((block) => block.actorId).sort()).toEqual(
+      [...remoteIds].sort()
+    )
+  })
 })

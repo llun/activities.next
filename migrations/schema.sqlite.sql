@@ -330,4 +330,6 @@ CREATE INDEX "account_archives_account_created_idx" on "account_archives" ("acco
 CREATE UNIQUE INDEX "account_archives_account_active_idx" on "account_archives" ("accountId") where ("status" = 'queued' or "status" = 'running');
 CREATE INDEX "account_archives_heartbeat_idx" on "account_archives" ("status", "heartbeatAt");
 CREATE INDEX "account_archives_expires_idx" on "account_archives" ("status", "expiresAt");
+CREATE TABLE IF NOT EXISTS "actor_migrations" ("id" varchar(255) primary key, "actorId" varchar(255) not null, "targetActorId" varchar(255) not null, "targetAcct" varchar(255) default '' not null, "kind" varchar(255) not null, "followersCount" integer default 0 not null, "createdAt" datetime default CURRENT_TIMESTAMP not null, "updatedAt" datetime default CURRENT_TIMESTAMP not null, "startedAt" datetime);
+CREATE INDEX "actor_migrations_actor_created_idx" on "actor_migrations" ("actorId", "createdAt");
 CREATE INDEX "medias_actorId_sortAt_id_idx" on "medias" ("actorId", "sortAt", "id");

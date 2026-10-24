@@ -99,7 +99,8 @@ describe('GET /api/v1/profile', () => {
       show_media: true,
       show_media_replies: true,
       show_featured: true,
-      attribution_domains: []
+      attribution_domains: [],
+      moved: false
     })
     // CredentialAccount-only keys must be gone from this endpoint.
     expect(data.source).toBeUndefined()

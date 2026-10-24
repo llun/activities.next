@@ -45,6 +45,12 @@ export type GetBlockRelationsParams = {
 export type GetLocalBlockerIdsParams = {
   targetActorId: string
 }
+export type GetRemoteBlockersParams = {
+  targetActorId: string
+  limit: number
+  // Blocks are paged by block id, newest id first.
+  maxId?: string | null
+}
 export type BlockRelation = Pick<Block, 'actorId' | 'targetActorId'>
 
 export interface BlockDatabase {
@@ -58,4 +64,6 @@ export interface BlockDatabase {
   getBlocks(params: GetBlocksParams): Promise<Block[]>
   getBlockRelations(params: GetBlockRelationsParams): Promise<BlockRelation[]>
   getLocalBlockerIds(params: GetLocalBlockerIdsParams): Promise<string[]>
+  // Blocks of the target made by actors this server does not host.
+  getRemoteBlockers(params: GetRemoteBlockersParams): Promise<Block[]>
 }

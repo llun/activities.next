@@ -6,6 +6,7 @@ import {
   IdempotencyConflictError,
   IdempotencyDeletedError
 } from '@/lib/database/domains/idempotency/types'
+import { isMovedActor } from '@/lib/services/accounts/movedAccount'
 import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { getQueue } from '@/lib/services/queue'
 import { getAttachmentsFromMediaIds } from '@/lib/services/statuses/mediaIds'
@@ -79,6 +80,17 @@ export const publishScheduledStatusJob = createJobHandle(
       logger.warn(
         { scheduledStatusId: row.id, actorId: row.actorId },
         'publishScheduledStatusJob: actor missing, dropping scheduled status'
+      )
+      await database.deleteScheduledStatus({ id: row.id, actorId: row.actorId })
+      return
+    }
+
+    // A moved account can no longer post: drop the row like any other
+    // terminal failure so it is not retried or published later.
+    if (isMovedActor(actor)) {
+      logger.warn(
+        { scheduledStatusId: row.id, actorId: row.actorId },
+        'publishScheduledStatusJob: author has moved, dropping scheduled status'
       )
       await database.deleteScheduledStatus({ id: row.id, actorId: row.actorId })
       return

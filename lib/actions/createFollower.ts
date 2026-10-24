@@ -42,11 +42,13 @@ export const createFollower = async ({
     return null
   }
 
+  // Mastodon: a moved account takes no new followers (reject_follow_request!).
   if (
-    await database.isEitherBlocking({
+    targetActor.movedTo ||
+    (await database.isEitherBlocking({
       actorIdA: followerActor.id,
       actorIdB: targetActor.id
-    })
+    }))
   ) {
     await rejectFollow(targetActor, followerActor.inboxUrl, followRequest)
     return followRequest

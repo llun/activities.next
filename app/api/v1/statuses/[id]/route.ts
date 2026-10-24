@@ -4,6 +4,7 @@ import { deleteStatusFromUserInput } from '@/lib/actions/deleteStatus'
 import { updateNoteFromUserInput } from '@/lib/actions/updateNote'
 import { updateNoteVisibilityFromUserInput } from '@/lib/actions/updateNoteVisibility'
 import { updatePollFromUserInput } from '@/lib/actions/updatePoll'
+import { movedAccountResponse } from '@/lib/services/accounts/movedAccount'
 import {
   annotateMastodonStatusesWithFilters,
   getActiveFilters
@@ -184,6 +185,8 @@ export const PUT = traceApiRoute(
       if (!encodedStatusId) return apiCorsError(req, CORS_HEADERS, 404)
 
       const { database, currentActor } = context
+      const moved = movedAccountResponse(req, CORS_HEADERS, currentActor)
+      if (moved) return moved
       const statusId = await resolveStatusIdParam(database, encodedStatusId)
       try {
         const parsed = EditNoteSchema.safeParse(

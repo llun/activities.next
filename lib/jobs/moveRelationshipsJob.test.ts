@@ -31,10 +31,12 @@ const TARGET = 'https://newhome.test/users/test1'
 
 describe('moveRelationshipsJob', () => {
   let database: Database
+  let db: ReturnType<typeof createTestDatabase>['db']
 
   beforeEach(async () => {
     const created = createTestDatabase()
     database = created.database
+    db = created.db
     await created.prepare()
     await database.migrate()
     await seedDatabase(database)
@@ -175,12 +177,13 @@ describe('moveRelationshipsJob', () => {
     const runJob = async (
       actorId = ACTOR1_ID,
       originActorId = ORIGIN,
-      targetActorId = TARGET
+      targetActorId = TARGET,
+      migrationId?: string
     ) =>
       moveRelationshipsJob(database, {
         id: getMoveRelationshipsJobId(actorId, originActorId, targetActorId),
         name: MOVE_RELATIONSHIPS_JOB_NAME,
-        data: { actorId, originActorId, targetActorId }
+        data: { actorId, originActorId, targetActorId, migrationId }
       })
 
     describe('account notes', () => {
@@ -1081,8 +1084,20 @@ describe('moveRelationshipsJob', () => {
         expect(note).toBe('')
       })
 
-      it('does nothing if origin is local', async () => {
+      const recordLocalMove = async () => {
         await database.updateActor({ actorId: ACTOR2_ID, movedTo: TARGET })
+        await database.createActorMigration({
+          id: 'local-move',
+          actorId: ACTOR2_ID,
+          targetActorId: TARGET,
+          targetAcct: 'test1@newhome.test',
+          kind: 'move',
+          followersCount: 0
+        })
+      }
+
+      it('does nothing for a local origin when the job carries no migration id', async () => {
+        await recordLocalMove()
         await database.upsertAccountNote({
           actorId: ACTOR1_ID,
           targetActorId: ACTOR2_ID,
@@ -1090,6 +1105,168 @@ describe('moveRelationshipsJob', () => {
         })
 
         await runJob(ACTOR1_ID, ACTOR2_ID, TARGET)
+
+        expect(
+          await database.getAccountNote({
+            actorId: ACTOR1_ID,
+            targetActorId: TARGET
+          })
+        ).toBe('')
+      })
+
+      it('does not let an older started move to the same target authorize a newer move cancelled before it started', async () => {
+        await recordLocalMove()
+        await database.markActorMigrationStarted({ id: 'local-move' })
+        await database.updateActor({ actorId: ACTOR2_ID, movedTo: null })
+        await database.createActorMigration({
+          id: 'newer-cancelled-move',
+          actorId: ACTOR2_ID,
+          targetActorId: TARGET,
+          targetAcct: 'test1@newhome.test',
+          kind: 'move',
+          followersCount: 0
+        })
+        await database.upsertAccountNote({
+          actorId: ACTOR1_ID,
+          targetActorId: ACTOR2_ID,
+          comment: 'some note'
+        })
+
+        await runJob(ACTOR1_ID, ACTOR2_ID, TARGET, 'newer-cancelled-move')
+
+        expect(
+          await database.getAccountNote({
+            actorId: ACTOR1_ID,
+            targetActorId: TARGET
+          })
+        ).toBe('')
+      })
+
+      describe('mute note on resume after an outgoing move', () => {
+        const MIGRATION_AT = new Date('2026-03-01T00:00:00Z')
+        // The same end time on both mutes, or the resume branch is not taken.
+        const endsAt = Date.now() + 100000
+        const muteAt = async (targetActorId: string, at: Date) => {
+          const mute = await applyMute({
+            database,
+            actorId: ACTOR1_ID,
+            targetActorId,
+            notifications: false,
+            endsAt
+          })
+          await db
+            .updateTable('mutes')
+            .set({ createdAt: at, updatedAt: at })
+            .where('id', '=', mute.id)
+            .execute()
+        }
+        const pinMigration = () =>
+          db
+            .updateTable('actor_migrations')
+            .set({ createdAt: MIGRATION_AT })
+            .where('id', '=', 'local-move')
+            .execute()
+
+        it('writes the note when the target mute was applied after the migration and the run died before the note', async () => {
+          await recordLocalMove()
+          await pinMigration()
+          await muteAt(ACTOR2_ID, new Date('2026-02-01T00:00:00Z'))
+          // The crashed first run: applyMute done, note not yet written.
+          await muteAt(TARGET, new Date('2026-03-02T00:00:00Z'))
+
+          await runJob(ACTOR1_ID, ACTOR2_ID, TARGET, 'local-move')
+
+          const origin = await database.getActorFromId({ id: ACTOR2_ID })
+          expect(
+            await database.getAccountNote({
+              actorId: ACTOR1_ID,
+              targetActorId: TARGET
+            })
+          ).toBe(
+            `This user moved from ${origin?.username}@${origin?.domain}, which you had muted.`
+          )
+        })
+
+        it('writes no note when the target mute predates the migration', async () => {
+          await recordLocalMove()
+          await pinMigration()
+          await muteAt(ACTOR2_ID, new Date('2026-02-01T00:00:00Z'))
+          await muteAt(TARGET, new Date('2026-02-15T00:00:00Z'))
+
+          await runJob(ACTOR1_ID, ACTOR2_ID, TARGET, 'local-move')
+
+          expect(
+            await database.getAccountNote({
+              actorId: ACTOR1_ID,
+              targetActorId: TARGET
+            })
+          ).toBe('')
+        })
+      })
+
+      it('copies the note from a local origin that moved (outgoing move)', async () => {
+        await recordLocalMove()
+        await database.upsertAccountNote({
+          actorId: ACTOR1_ID,
+          targetActorId: ACTOR2_ID,
+          comment: 'some note'
+        })
+
+        await runJob(ACTOR1_ID, ACTOR2_ID, TARGET, 'local-move')
+
+        const note = await database.getAccountNote({
+          actorId: ACTOR1_ID,
+          targetActorId: TARGET
+        })
+        expect(note).toContain('some note')
+      })
+
+      it('still copies the note when the local move was deleted after it started', async () => {
+        await recordLocalMove()
+        await database.markActorMigrationStarted({ id: 'local-move' })
+        await database.updateActor({ actorId: ACTOR2_ID, movedTo: null })
+        await database.upsertAccountNote({
+          actorId: ACTOR1_ID,
+          targetActorId: ACTOR2_ID,
+          comment: 'some note'
+        })
+
+        await runJob(ACTOR1_ID, ACTOR2_ID, TARGET, 'local-move')
+
+        const note = await database.getAccountNote({
+          actorId: ACTOR1_ID,
+          targetActorId: TARGET
+        })
+        expect(note).toContain('some note')
+      })
+
+      it('does nothing when the local move was deleted before it started', async () => {
+        await recordLocalMove()
+        await database.updateActor({ actorId: ACTOR2_ID, movedTo: null })
+        await database.upsertAccountNote({
+          actorId: ACTOR1_ID,
+          targetActorId: ACTOR2_ID,
+          comment: 'some note'
+        })
+
+        await runJob(ACTOR1_ID, ACTOR2_ID, TARGET, 'local-move')
+
+        expect(
+          await database.getAccountNote({
+            actorId: ACTOR1_ID,
+            targetActorId: TARGET
+          })
+        ).toBe('')
+      })
+
+      it('does nothing if local origin has not moved to the target', async () => {
+        await database.upsertAccountNote({
+          actorId: ACTOR1_ID,
+          targetActorId: ACTOR2_ID,
+          comment: 'some note'
+        })
+
+        await runJob(ACTOR1_ID, ACTOR2_ID, TARGET, 'local-move')
 
         const note = await database.getAccountNote({
           actorId: ACTOR1_ID,

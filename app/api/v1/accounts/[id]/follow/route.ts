@@ -97,6 +97,14 @@ export const POST = traceApiRoute(
           responseStatusCode: HTTP_STATUS.FORBIDDEN
         })
       }
+      if (result.type === 'moved') {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: 'Target account has moved' },
+          responseStatusCode: HTTP_STATUS.FORBIDDEN
+        })
+      }
       if (result.type === 'not-found') {
         return apiCorsError(req, CORS_HEADERS, 404)
       }

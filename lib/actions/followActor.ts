@@ -9,6 +9,7 @@ import { FollowStatus } from '@/lib/types/domain/follow'
 export type FollowActorResult =
   | { type: 'forbidden' }
   | { type: 'not-found' }
+  | { type: 'moved' }
   | { type: 'ok'; targetActorId: string }
 
 /**
@@ -46,6 +47,7 @@ export const followActor = async ({
   })
 
   let signingActor: Awaited<ReturnType<typeof getFederationSigningActor>>
+  let movedTarget = false
   if (!existingFollow) {
     // New follow: the target must be recorded before a follow row points
     // at it. recordActorIfNeeded refuses documents it will not store (an
@@ -65,7 +67,12 @@ export const followActor = async ({
         targetActorId
       })
     }
+    movedTarget = Boolean(targetActor.movedTo)
   }
+
+  // Mastodon FollowService refuses a moved account (NotPermittedError); an
+  // existing follow can still have its preferences updated.
+  if (!existingFollow && movedTarget) return { type: 'moved' }
 
   if (existingFollow) {
     if (

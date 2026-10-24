@@ -54,6 +54,11 @@ export const Profile = z.object({
   attribution_domains: z
     .string()
     .array()
-    .describe('Domains allowed to credit this account for articles')
+    .describe('Domains allowed to credit this account for articles'),
+  // Not a Mastodon Profile field: lets clients know the account can no longer
+  // post. (Account.moved on verify_credentials is the target account object.)
+  moved: z
+    .boolean()
+    .describe('Whether this account has moved to another account')
 })
 export type Profile = z.infer<typeof Profile>

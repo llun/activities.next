@@ -7,6 +7,7 @@ import { z } from 'zod'
 
 import { userAnnounce } from '@/lib/actions/announce'
 import { userUndoAnnounce } from '@/lib/actions/undoAnnounce'
+import { movedAccountResponse } from '@/lib/services/accounts/movedAccount'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
@@ -31,6 +32,8 @@ export const POST = traceApiRoute(
   'repostToAccount',
   AuthenticatedGuard(async (req, context) => {
     const { database, currentActor } = context
+    const moved = movedAccountResponse(req, CORS_HEADERS, currentActor)
+    if (moved) return moved
     let body: unknown
     try {
       body = await req.json()

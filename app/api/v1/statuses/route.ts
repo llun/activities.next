@@ -14,6 +14,7 @@ import {
 } from '@/lib/database/domains/idempotency/types'
 import { Database } from '@/lib/database/types'
 import { PUBLISH_SCHEDULED_STATUS_JOB_NAME } from '@/lib/jobs/names'
+import { movedAccountResponse } from '@/lib/services/accounts/movedAccount'
 import {
   OAuthGuardAnyScope,
   OptionalOAuthGuard,
@@ -226,6 +227,8 @@ export const POST = traceApiRoute(
         CORS_HEADERS
       )
       if (actorMismatch) return actorMismatch
+      const moved = movedAccountResponse(req, CORS_HEADERS, currentActor)
+      if (moved) return moved
       const idempotencyKey = req.headers.get('Idempotency-Key')?.trim()
       // idempotency_keys.key is varchar(255); PostgreSQL rejects a longer
       // value at the claim, so refuse it before doing anything.

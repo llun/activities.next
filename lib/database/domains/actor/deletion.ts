@@ -522,6 +522,11 @@ export const deleteActorData = async (
       .where('actorId', '=', actorId)
       .execute()
 
+    await trx
+      .deleteFrom('actor_migrations')
+      .where('actorId', '=', actorId)
+      .execute()
+
     // Subquery avoids hitting the SQLite 999-parameter limit when an
     // actor has accumulated many filters; the mute precedent only
     // touches one table per actor so doesn't need this.

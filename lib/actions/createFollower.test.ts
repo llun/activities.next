@@ -1,7 +1,7 @@
 import fetchMock from 'jest-fetch-mock'
 
 import { createFollower } from '@/lib/actions/createFollower'
-import { acceptFollow } from '@/lib/activities'
+import { acceptFollow, rejectFollow } from '@/lib/activities'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { mockRequests } from '@/lib/stub/activities'
 import { testUserId } from '@/lib/stub/const'
@@ -235,5 +235,31 @@ describe('createFollower', () => {
       recipientActorId: `${actor.id}/`
     })
     expect(follow).toEqual(request)
+  })
+
+  it('rejects the follow and creates nothing when the target has moved', async () => {
+    await database.updateActor({
+      actorId: actor.id,
+      movedTo: 'https://newhome.test/users/moved'
+    })
+    try {
+      const request = MockFollowRequest({
+        actorId: 'https://another.network/users/moved-follower',
+        targetActorId: actor.id
+      })
+      const result = await createFollower({ database, followRequest: request })
+
+      expect(result).toEqual(request)
+      expect(rejectFollow).toHaveBeenCalledTimes(1)
+      expect(acceptFollow).not.toHaveBeenCalled()
+      await expect(
+        database.getAcceptedOrRequestedFollow({
+          actorId: 'https://another.network/users/moved-follower',
+          targetActorId: actor.id
+        })
+      ).resolves.toBeNull()
+    } finally {
+      await database.updateActor({ actorId: actor.id, movedTo: null })
+    }
   })
 })

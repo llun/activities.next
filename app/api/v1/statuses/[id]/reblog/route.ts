@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import { userAnnounce } from '@/lib/actions/announce'
+import { movedAccountResponse } from '@/lib/services/accounts/movedAccount'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { mastodonStatusResponse } from '@/lib/services/mastodon/statusActionResponse'
@@ -37,6 +38,8 @@ export const POST = traceApiRoute(
     [Scope.enum.write, Scope.enum['write:statuses']],
     async (req, context) => {
       const { database, currentActor, params } = context
+      const moved = movedAccountResponse(req, CORS_HEADERS, currentActor)
+      if (moved) return moved
       const encodedStatusId = (await params).id
       if (!encodedStatusId) return apiCorsError(req, CORS_HEADERS, 404)
 

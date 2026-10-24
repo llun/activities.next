@@ -1,11 +1,12 @@
 import { NextRequest } from 'next/server'
 
+import { acceptFollow } from '@/lib/activities'
 import { generatePublicId } from '@/lib/utils/publicId'
 import { idToUrl, urlToId } from '@/lib/utils/urlToId'
 
 import { POST } from './route'
 
-const mockCurrentActor = {
+const mockCurrentActor: { id: string; domain: string; movedTo?: string } = {
   id: 'https://llun.test/users/me',
   domain: 'llun.test'
 }
@@ -46,6 +47,7 @@ const request = (id: string) =>
 describe('POST /api/v1/follow_requests/:id/authorize', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    delete mockCurrentActor.movedTo
     mockDatabase.getAcceptedOrRequestedFollow.mockResolvedValue({
       id: 'follow-1',
       status: 'Requested',
@@ -57,6 +59,19 @@ describe('POST /api/v1/follow_requests/:id/authorize', () => {
       domain: 'remote.test',
       inboxUrl: 'https://remote.test/users/alice/inbox'
     })
+  })
+
+  it('refuses a moved account with 422 and changes nothing', async () => {
+    mockCurrentActor.movedTo = 'https://new.test/users/me'
+
+    const response = await POST(request(followerUrl), {
+      params: Promise.resolve({ id: followerUrl })
+    })
+
+    expect(response.status).toBe(422)
+    expect(await response.json()).toEqual({ error: 'This account has moved' })
+    expect(mockDatabase.updateFollowStatus).not.toHaveBeenCalled()
+    expect(acceptFollow).not.toHaveBeenCalled()
   })
 
   it('resolves an account id in urlToId format via idToUrl', async () => {

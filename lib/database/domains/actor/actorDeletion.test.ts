@@ -444,6 +444,31 @@ describe('ActorDatabase deletion', () => {
         ).resolves.toBe('')
       })
 
+      it('removes actor migrations belonging to the deleted actor only', async () => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const actorId = `https://${TEST_DOMAIN}/users/delete-mig-${suffix}`
+        const otherActorId = `https://${TEST_DOMAIN}/users/other-mig-${suffix}`
+        const migration = (id: string, owner: string) => ({
+          id,
+          actorId: owner,
+          targetActorId: 'https://elsewhere.test/users/new',
+          targetAcct: 'new@elsewhere.test',
+          kind: 'move' as const,
+          followersCount: 1
+        })
+        await database.createActorMigration(migration(`mig-${suffix}`, actorId))
+        await database.createActorMigration(
+          migration(`mig-other-${suffix}`, otherActorId)
+        )
+
+        await database.deleteActorData({ actorId })
+
+        expect(await database.getActorMigrations({ actorId })).toEqual([])
+        expect(
+          await database.getActorMigrations({ actorId: otherActorId })
+        ).toHaveLength(1)
+      })
+
       it('removes bulk imports and bulk import rows belonging to the deleted actor', async () => {
         const suffix = crypto.randomUUID().slice(0, 8)
         const username = `delete-bulk-${suffix}`

@@ -1,7 +1,9 @@
 import { z } from 'zod'
 
+import { acceptFollowRequest } from '@/lib/actions/acceptFollowRequest'
 import { follow } from '@/lib/activities'
 import { createJobHandle } from '@/lib/jobs/createJobHandle'
+import { isOutgoingMoveAuthorized } from '@/lib/jobs/isOutgoingMoveAuthorized'
 import {
   MOVE_FOLLOWER_JOB_NAME,
   SEND_UNDO_FOLLOW_JOB_NAME
@@ -11,14 +13,17 @@ import { getFederationSigningActor } from '@/lib/services/federation/getFederati
 import { notifyLocalFollow } from '@/lib/services/notifications/notifyLocalFollow'
 import { getQueue } from '@/lib/services/queue'
 import { JobHandle } from '@/lib/services/queue/type'
-import { FollowStatus } from '@/lib/types/domain/follow'
+import { NotificationType } from '@/lib/types/database/operations'
+import { type Follow, FollowStatus } from '@/lib/types/domain/follow'
 import { actorIdsMatch, normalizeActorId } from '@/lib/utils/activitypub'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { withSpan } from '@/lib/utils/trace'
 
 const JobData = z.object({
   followId: z.string(),
-  targetActorId: z.string()
+  targetActorId: z.string(),
+  // Set by an outgoing move: the migration row that authorizes the job.
+  migrationId: z.string().optional()
 })
 
 // One job per accepted local follower of a moved account, published by
@@ -93,12 +98,20 @@ export const moveFollowerJob: JobHandle = createJobHandle(
       const ownFollowId = getMoveFollowId(oldFollow.id, targetId)
       const own = await database.getFollowFromId({ followId: ownFollowId })
 
-      const publishUndo = () =>
-        getQueue().publish({
+      // A local origin is ours: the old follow ends locally and there is no
+      // server to send the Undo to (an outgoing move, Mastodon's
+      // rewrite_follows).
+      const publishUndo = async () => {
+        const originActor = await database.getActorFromId({
+          id: oldFollow.targetActorId
+        })
+        if (originActor?.privateKey) return
+        await getQueue().publish({
           id: getMoveUndoJobId(oldFollow.id),
           name: SEND_UNDO_FOLLOW_JOB_NAME,
           data: { actorId: oldFollow.actorId, follow: oldFollow }
         })
+      }
 
       if (oldFollow.status === FollowStatus.enum.Undo) {
         // The previous run flipped the origin follow but may have died before
@@ -121,14 +134,19 @@ export const moveFollowerJob: JobHandle = createJobHandle(
       const origin = await database.getActorFromId({
         id: oldFollow.targetActorId
       })
-      if (
-        !origin ||
-        origin.privateKey ||
-        !origin.movedTo ||
-        !actorIdsMatch(origin.movedTo, targetId)
-      ) {
-        return
-      }
+      if (!origin) return
+      // A local origin's move is authorized by its recorded migration, so a
+      // DELETE after the start does not strand followers; a remote origin by
+      // the verified pointer.
+      const authorized = origin.privateKey
+        ? await isOutgoingMoveAuthorized(
+            database,
+            origin,
+            targetId,
+            parsed.data.migrationId
+          )
+        : Boolean(origin.movedTo && actorIdsMatch(origin.movedTo, targetId))
+      if (!authorized) return
 
       const follower = await database.getActorFromId({ id: oldFollow.actorId })
       // Only accounts this server hosts are rewired; a follower row of a remote
@@ -203,7 +221,7 @@ export const moveFollowerJob: JobHandle = createJobHandle(
         }
       }
 
-      const keepOrigin = async (existing: { id: string }) => {
+      const keepOrigin = async (existing: Pick<Follow, 'id' | 'status'>) => {
         // FollowMigrationService#change_follow_options!: the follower already
         // follows (or asked to follow) the target themselves, so only the
         // options move. `undefined` leaves an existing language filter alone.
@@ -217,6 +235,43 @@ export const moveFollowerJob: JobHandle = createJobHandle(
           languages: oldFollow.languages ?? undefined
         })
         await addTargetToLists()
+        // MoveWorker#rewrite_follows!: between two local accounts the pending
+        // request to the target is authorized silently (follow_request.authorize!
+        // sends no alert), so its pending notification is dropped instead of
+        // turned into a follow one (a silenced follower's stays pending, as for
+        // a new follow).
+        if (origin.privateKey && isLocalTarget && !isSilenced) {
+          // The notification goes only once the follow is Accepted (a null
+          // result leaves it Requested), and also for a follow a failed earlier
+          // run already accepted, so a retry cleans up what that run left.
+          const acceptResult =
+            existing.status === FollowStatus.enum.Accepted
+              ? null
+              : await acceptFollowRequest({
+                  activity: {
+                    id: existing.id,
+                    type: 'Accept',
+                    actor: target.id,
+                    object: existing.id
+                  },
+                  database,
+                  silent: true
+                })
+          const accepted =
+            existing.status === FollowStatus.enum.Accepted ||
+            acceptResult?.status === FollowStatus.enum.Accepted
+          if (accepted) {
+            const pendingNotification =
+              await database.getNotificationFromFollowId({
+                followId: existing.id
+              })
+            if (
+              pendingNotification?.type === NotificationType.enum.follow_request
+            ) {
+              await database.deleteNotification(pendingNotification.id)
+            }
+          }
+        }
         span.setAttribute('keptOriginFollow', existing.id)
       }
 

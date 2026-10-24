@@ -1,5 +1,6 @@
 import { acceptFollow } from '@/lib/activities'
 import { FollowRequest } from '@/lib/activities/followAction'
+import { movedAccountResponse } from '@/lib/services/accounts/movedAccount'
 import { getRelationship } from '@/lib/services/accounts/relationship'
 import {
   OAuthGuardAnyScope,
@@ -21,6 +22,11 @@ export const POST = traceApiRoute(
   OAuthGuardAnyScope<{ id: string }>(
     [Scope.enum.write, Scope.enum['write:follows']],
     async (req, { currentActor, database, params }) => {
+      // A moved account takes no new followers (as inbound Follow refuses it);
+      // reject stays allowed.
+      const moved = movedAccountResponse(req, CORS_HEADERS, currentActor)
+      if (moved) return moved
+
       const { id } = await params
       // Accept every id form a GET endpoint has handed out: a UUIDv7 publicId
       // (what they emit now), the legacy urlToId form (what a Mastodon client

@@ -132,6 +132,9 @@ const importAccountRow = async ({
     if (result.type === 'forbidden') {
       return { imported: false, error: 'Domain not allowed' }
     }
+    if (result.type === 'moved') {
+      return { imported: false, error: 'Account has moved' }
+    }
     if (result.type === 'not-found') {
       return { imported: false, error: 'Account not found' }
     }
@@ -197,6 +200,9 @@ const importAccountRow = async ({
     })
     if (result.type === 'forbidden') {
       return { imported: false, error: 'Domain not allowed' }
+    }
+    if (result.type === 'moved') {
+      return { imported: false, error: 'Account has moved' }
     }
     if (result.type === 'not-found') {
       return { imported: false, error: 'Account not found' }

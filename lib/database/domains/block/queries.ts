@@ -10,6 +10,7 @@ import type {
   GetBlockRelationsParams,
   GetBlocksParams,
   GetLocalBlockerIdsParams,
+  GetRemoteBlockersParams,
   IsBlockingParams,
   IsEitherBlockingParams
 } from '@/lib/database/domains/block/types'
@@ -325,6 +326,24 @@ export const getLocalBlockerIds = async (
   return rows.map((row) => row.id)
 }
 
+export const getRemoteBlockers = async (
+  db: Db,
+  { targetActorId, limit, maxId }: GetRemoteBlockersParams
+): Promise<Block[]> => {
+  let query = db
+    .selectFrom('blocks')
+    .innerJoin('actors', 'actors.id', 'blocks.actorId')
+    .where('blocks.targetActorId', '=', targetActorId)
+    .where((eb) => eb.not(isLocalActor(eb)))
+  if (maxId) query = query.where('blocks.id', '<', maxId)
+  const rows = await query
+    .selectAll('blocks')
+    .orderBy('blocks.id', 'desc')
+    .limit(limit)
+    .execute()
+  return rows.map(toBlock)
+}
+
 // The facade getSQLDatabase binds with bindDb().
 export const blockQueries = {
   createBlock,
@@ -336,5 +355,6 @@ export const blockQueries = {
   isEitherBlocking,
   getBlocks,
   getBlockRelations,
-  getLocalBlockerIds
+  getLocalBlockerIds,
+  getRemoteBlockers
 }
