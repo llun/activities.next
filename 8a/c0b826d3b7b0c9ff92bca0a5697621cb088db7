@@ -1,0 +1,178 @@
+lib/database/domains/bulkImport/queries.ts
+  s_279e7012f36c5f::t_89c28f6bf1322e 19-87,91-92,99,116-118,135,225,229,240-241,250
+  s_279e7012f36c5f::t_15fe954b811d50 1-18,88-90,93-98,100-115,119-134,136-224,226-228,230-239,242-249,251-335
+app/api/v1/exports/[file]/route.test.ts
+  s_279e7012f36c5f::t_c648da763b2f63 1-187
+lib/jobs/bulkImportJob.test.ts
+  s_279e7012f36c5f::t_60be0ea2ac4f27 1-276,278-284,286-290,309-397
+  s_279e7012f36c5f::t_84820019ad30a4 277,285,291-308
+app/api/v1/exports/[file]/route.ts
+  s_279e7012f36c5f::t_c648da763b2f63 1-49
+docs/features.md
+  s_279e7012f36c5f::t_fb01c4c9289300 120
+lib/services/imports/importRow.test.ts
+  s_279e7012f36c5f::t_188c1ff589d7a6 1-5,7-200,202-275
+  s_279e7012f36c5f::t_ffd9e628507795 6,201
+lib/actions/unblockActor.ts
+  s_279e7012f36c5f::t_7f4d3bd706af89 1-64
+migrations/schema.sqlite.sql
+  s_279e7012f36c5f::t_8950f7335e9d4a 322-327
+lib/actions/followActor.ts
+  s_279e7012f36c5f::t_7f4d3bd706af89 1-2,4-99
+  s_279e7012f36c5f::t_c648da763b2f63 3
+docs/architecture.md
+  s_279e7012f36c5f::t_fb01c4c9289300 272-275
+lib/services/imports/importTestUtils.ts
+  s_279e7012f36c5f::t_188c1ff589d7a6 1-85
+lib/services/imports/types.ts
+  s_279e7012f36c5f::t_89c28f6bf1322e 12-13
+  s_279e7012f36c5f::t_6cdd28b9ff2d02 1-11,14-25
+lib/services/imports/importRow.ts
+  s_279e7012f36c5f::t_91056fa2c4a899 166
+  s_279e7012f36c5f::t_0d8460deae1436 1-9,11-24,28-84,88-165,167-225
+  s_279e7012f36c5f::t_1f67eb39c2dff5 10,25-27,85-87
+migrations/schema.sql
+  s_279e7012f36c5f::t_aa46313518c501 186-214,1599-1604,2030-2036
+  s_279e7012f36c5f::t_7820cf8afe9868 2037
+app/api/v1/accounts/[id]/unfollow/route.ts
+  s_279e7012f36c5f::t_abac6a06d7e516 1,32-34,37
+app/api/v1/accounts/[id]/block/route.ts
+  s_279e7012f36c5f::t_abac6a06d7e516 37-47,50-53
+  s_279e7012f36c5f::t_629c89bfb2b725 1
+lib/services/imports/overwrite.ts
+  s_279e7012f36c5f::t_738e19e45cb039 1-243
+app/api/v1/imports/route.ts
+  s_279e7012f36c5f::t_89c28f6bf1322e 27-151,170
+  s_279e7012f36c5f::t_aab6ce6db32e95 1-26,152-169,171-183
+lib/jobs/index.ts
+  s_279e7012f36c5f::t_5a54b9fea8a891 3,29,207-208
+  s_279e7012f36c5f::t_64a94923e960c2 209
+docs/mastodon-api-compatibility.md
+  s_279e7012f36c5f::t_fb01c4c9289300 434-447
+lib/database/kysely/db.ts
+  s_279e7012f36c5f::t_aa46313518c501 201-229,1427-1428
+lib/actions/unfollowActor.ts
+  s_279e7012f36c5f::t_7f4d3bd706af89 1-53
+lib/services/imports/overwrite.test.ts
+  s_279e7012f36c5f::t_c80d808ba364ec 1-207
+lib/database/domains/bulkImport/bulkImport.test.ts
+  s_279e7012f36c5f::t_89c28f6bf1322e 5-196,199,201-203,207,209,211-212,219,224,226,229,232,237,240,248,251,259,262,265,273,279,281,284,289,294,299,307,310,326,329,334,336,348,350,353,360,368,376,385,391,399,407,415,417,422,424,433,435,438,448,462,475,495-496,501,503,513,515,518,525,530,536,548,551,556,558,563,568,578,592,597,602,604,612,616,618,621,630,640,649,654
+  s_279e7012f36c5f::t_9248718b0ddc2a 1-4,197-198,200,204-206,208,210,213-218,220-223,225,227-228,230-231,233-236,238-239,241-247,249-250,252-258,260-261,263-264,266-272,274-278,280,282-283,285-288,290-293,295-298,300-306,308-309,311-325,327-328,330-333,335,337-347,349,351-352,354-359,361-367,369-375,377-384,386-390,392-398,400-406,408-414,416,418-421,423,425-432,434,436-437,439-447,449-461,463-474,476-494,497-500,502,504-512,514,516-517,519-524,526-529,531-535,537-547,549-550,552-555,557,559-562,564-567,569-577,579-591,593-596,598-601,603,605-611,613-615,617,619-620,622-629,631-639,641-648,650-653,655-656
+app/api/v1/accounts/[id]/unblock/route.ts
+  s_279e7012f36c5f::t_abac6a06d7e516 32-37
+  s_279e7012f36c5f::t_c0e96825d0781d 1
+app/api/v1/accounts/[id]/follow/route.ts
+  s_279e7012f36c5f::t_abac6a06d7e516 3,84-92,100-101,103
+lib/actions/blockActor.ts
+  s_279e7012f36c5f::t_7f4d3bd706af89 1-85
+lib/jobs/bulkImportJob.ts
+  s_279e7012f36c5f::t_5a54b9fea8a891 1-185
+lib/services/exports/accountExports.ts
+  s_279e7012f36c5f::t_40bf5b71175222 2-25
+  s_279e7012f36c5f::t_b40796fd0ff619 1,26-258
+app/api/v1/imports/route.test.ts
+  s_279e7012f36c5f::t_89c28f6bf1322e 83,106,111,115,126,128,134,156,165,180,188,201,213,220-221,227,236,238,240-278,282,286,292,295,303,306,311-312,316,320-321,325-326,332,335,340,343,351,353,355,364,367,373,379,381,383-384,393,399,401,403-404,409-410,415-416,420-421,426-427,440,447,450,513,521,530
+  s_279e7012f36c5f::t_01e52a00f2fac7 1-82,84-105,107-110,112-114,116-125,127,129-133,135-155,157-164,166-179,181-187,189-200,202-212,214-219,222-226,228-235,237,239,279-281,283-285,287-291,293-294,296-302,304-305,307-310,313-315,317-319,322-324,327-331,333-334,336-339,341-342,344-350,352,354,356-363,365-366,368-372,374-378,380,382,385-392,394-398,400,402,405-408,411-414,417-419,422-425,428-439,441-446,448-449,451-512,514-520,522-529,531-532
+app/api/v1/imports/[id]/route.test.ts
+  s_1f1a1efd8db0bf::t_5b0150029ce98b 1-205
+app/api/v1/imports/[id]/route.ts
+  s_1f1a1efd8db0bf::t_5a78d54afe4d2a 1-65
+lib/database/domains/actor/actorDeletion.test.ts
+  s_1f1a1efd8db0bf::t_d2af983c436b88 447-527
+lib/database/domains/actor/actorDeletionQueries.test.ts
+  s_1f1a1efd8db0bf::t_632034869d26c0 561-594,668,739-744,1316-1317
+lib/database/domains/list/list.test.ts
+  s_1f1a1efd8db0bf::t_bfaa30268625f2 506-607
+lib/database/domains/list/queries.ts
+  s_1f1a1efd8db0bf::t_35a558fcd6b87d 19,25,243-277,448
+lib/database/domains/list/types.ts
+  s_1f1a1efd8db0bf::t_461e02bb279070 39-48,95
+lib/database/types.ts
+  s_1f1a1efd8db0bf::t_553bacb3035d2c 1,94
+lib/services/exports/csv.test.ts
+  s_1f1a1efd8db0bf::t_542cd4d9ba983b 1-114
+lib/services/imports/serializeBulkImport.test.ts
+  s_1f1a1efd8db0bf::t_a6450051d0dab5 1-106
+lib/services/imports/serializeBulkImport.ts
+  s_1f1a1efd8db0bf::t_a82511017f8e98 1-60
+lib/types/database/operations.ts
+  s_1f1a1efd8db0bf::t_e094e68a7ca044 956-975
+lib/database/domains/actor/deletion.ts
+  s_1f1a1efd8db0bf::t_e902e247b22c8d 508-524
+lib/database/getSQLDatabase.ts
+  s_30a020ba0c4b94::t_5621b640b3dcd2 12,169
+lib/services/exports/accountExports.test.ts
+  s_4743ae7851425e::t_57f314575ce34f 1-624
+lib/services/exports/csv.ts
+  s_296c250304e6c9::t_9c0fff32d65eb6 1-34
+lib/services/imports/parseImportCsv.test.ts
+  s_ac2bb10d7641d5::t_ffcd264dcfa002 1-314
+lib/services/imports/parseImportCsv.ts
+  s_ac2bb10d7641d5::t_b91005ca31e582 1-168
+lib/database/domains/bulkImport/types.ts
+  s_279e7012f36c5f::t_21d0f32f918f15 1-100
+lib/jobs/names.ts
+  s_279e7012f36c5f::t_16938a50657a12 52
+migrations/20261024100037_add_bulk_imports.ts
+  s_279e7012f36c5f::t_923c2bf44f8e9f 1-92
+migrations/index.ts
+  s_279e7012f36c5f::t_aaab8685b79e31 14,34-35
+migrations/names.ts
+  s_279e7012f36c5f::t_98e02d581f7fde 14-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8ac0b826d3b7b0c9ff92bca0a5697621cb088db7",
+  "prompts": {},
+  "sessions": {
+    "s_1f1a1efd8db0bf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6f1be9b0-86e0-4f32-9286-3562b40d391e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_279e7012f36c5f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0410f49d-2e94-45e1-bd1f-237e6f7747bc",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_296c250304e6c9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a12e8cff372197e28",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_30a020ba0c4b94": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "753abe69-ff92-4577-a793-056050175d9a",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_4743ae7851425e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a8557625af5c7befa",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_ac2bb10d7641d5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a416e073fcc0c2781",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
