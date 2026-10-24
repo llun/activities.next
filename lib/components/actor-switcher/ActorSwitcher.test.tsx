@@ -18,6 +18,28 @@ vi.mock('next/dynamic', async () => ({
   default: (await import('next/dist/shared/lib/app-dynamic')).default
 }))
 
+const preloadSpy = vi.hoisted(() => vi.fn())
+// The real factory, with every preload() call recorded.
+vi.mock('@/lib/components/lazy/createPreloadable', async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import('@/lib/components/lazy/createPreloadable')
+    >()
+  return {
+    ...actual,
+    createPreloadable: ((load, component) => {
+      const preloadable = actual.createPreloadable(load, component)
+      return {
+        ...preloadable,
+        preload: () => {
+          preloadSpy()
+          return preloadable.preload()
+        }
+      }
+    }) as typeof actual.createPreloadable
+  }
+})
+
 vi.mock('next/link', () => ({
   default: ({
     children,
@@ -344,6 +366,8 @@ describe('ActorSwitcher', () => {
       vi.mocked(switchActor).mockResolvedValueOnce(true)
       fireEvent.keyDown(trigger, { key: 'ArrowDown' })
       await screen.findByRole('menu')
+      // Opening the menu again clears the old error.
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 
       const retryBobItem = screen.getByText('Bob')
       fireEvent.click(retryBobItem)
@@ -694,6 +718,79 @@ describe('ActorSwitcher', () => {
         )
       )
       expect(screen.queryByTestId('add-actor-dialog')).not.toBeInTheDocument()
+    })
+
+    it('preloads both dialogs when the trigger is hovered or focused', () => {
+      render(<ActorSwitcher currentActor={alice} actors={[alice]} />)
+      const trigger = screen.getByRole('button', {
+        name: 'Account menu for Alice'
+      })
+
+      preloadSpy.mockClear()
+      fireEvent.pointerEnter(trigger)
+      expect(preloadSpy).toHaveBeenCalledTimes(2)
+
+      preloadSpy.mockClear()
+      fireEvent.focus(trigger)
+      expect(preloadSpy).toHaveBeenCalledTimes(2)
+    })
+
+    it('says the add-profile dialog could not load instead of breaking the page', async () => {
+      mockAddActorDialog.mockImplementation(() => {
+        const error = new Error('Loading chunk 456 failed.')
+        error.name = 'ChunkLoadError'
+        throw error
+      })
+      const consoleError = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => {})
+      render(<ActorSwitcher currentActor={alice} actors={[alice]} />)
+
+      const trigger = screen.getByRole('button', {
+        name: 'Account menu for Alice'
+      })
+      fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+      await screen.findByRole('menu')
+      fireEvent.click(screen.getByText('Add another profile'))
+
+      expect(await screen.findByText("Couldn't load")).toBeInTheDocument()
+      consoleError.mockRestore()
+    })
+
+    it('opens Sign out on a later try after its chunk failed once', async () => {
+      // Fails until the connection comes back (React re-renders on error, so
+      // a single failure would be retried away).
+      let offline = true
+      mockSignOutDialog.mockImplementation((props: { open?: boolean }) => {
+        if (offline) {
+          const error = new Error('Loading chunk 123 failed.')
+          error.name = 'ChunkLoadError'
+          throw error
+        }
+        return props
+      })
+      const consoleError = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => {})
+      render(<ActorSwitcher currentActor={alice} actors={[alice]} />)
+      const trigger = screen.getByRole('button', {
+        name: 'Account menu for Alice'
+      })
+
+      fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+      await screen.findByRole('menu')
+      fireEvent.click(screen.getByRole('menuitem', { name: /Sign out/ }))
+      expect(await screen.findByText("Couldn't load")).toBeInTheDocument()
+
+      // Back online: opening the menu drops the message, and choosing Sign
+      // out again mounts a fresh dialog.
+      offline = false
+      fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+      await screen.findByRole('menu')
+      expect(screen.queryByText("Couldn't load")).not.toBeInTheDocument()
+      fireEvent.click(screen.getByRole('menuitem', { name: /Sign out/ }))
+      expect(await screen.findByTestId('sign-out-dialog')).toBeInTheDocument()
+      consoleError.mockRestore()
     })
 
     it('says the sign-out dialog could not load instead of breaking the page', async () => {

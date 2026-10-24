@@ -230,13 +230,13 @@ export function ActorSwitcher({
   const triggerLabel = spokenName
     ? `Account menu for ${spokenName}`
     : 'Account menu'
-  // The menu (and a dialog opened from it) hands focus back to the trigger;
-  // a deferred dialog opens after the menu has closed, so it does this itself.
   // Where the switch error and a failed dialog chunk say so. The rail is 72px
   // wide, so there they float beside it instead.
-  const chunkErrorClassName = isRail
+  const menuAlertClassName = isRail
     ? 'fixed bottom-4 left-[calc(84px+env(safe-area-inset-left,0px))] z-50 w-72 shadow-lg'
     : 'mt-1'
+  // The menu (and a dialog opened from it) hands focus back to the trigger;
+  // a deferred dialog opens after the menu has closed, so it does this itself.
   const returnFocusToTrigger = (event: Event) => {
     event.preventDefault()
     triggerRef.current?.focus()
@@ -290,8 +290,16 @@ export function ActorSwitcher({
         onOpenChange={(open) => {
           if (!open) return
           preloadMenuDialogs()
-          // A switch error from before is stale once the menu is used again.
+          // What the last use left on screen is stale now: the switch error,
+          // and a dialog whose chunk failed (unmounting its boundary drops the
+          // message, and the next choice mounts it afresh). So the two alerts
+          // never stack either.
           setError(null)
+          // Neither dialog can be showing: both are modal over the menu.
+          setIsSignOutOpen(false)
+          setIsSignOutMounted(false)
+          setIsDialogOpen(false)
+          setIsAddMounted(false)
         }}
       >
         {isRail ? (
@@ -457,8 +465,12 @@ export function ActorSwitcher({
           <DropdownMenuItem
             onSelect={() => {
               deferredSelectRef.current = () => {
-                setIsAddMounted(true)
-                setIsDialogOpen(true)
+                // Waits for the chunk (preload retries a failed one), so a
+                // retry after a blip mounts the loaded dialog.
+                void preloadAddActorDialog().then(() => {
+                  setIsAddMounted(true)
+                  setIsDialogOpen(true)
+                })
               }
             }}
             className={cn('cursor-pointer', 'pointer-coarse:min-h-[44px]')}
@@ -485,8 +497,10 @@ export function ActorSwitcher({
           <DropdownMenuItem
             onSelect={() => {
               deferredSelectRef.current = () => {
-                setIsSignOutMounted(true)
-                setIsSignOutOpen(true)
+                void preloadSignOutDialog().then(() => {
+                  setIsSignOutMounted(true)
+                  setIsSignOutOpen(true)
+                })
               }
             }}
             className={cn('cursor-pointer', 'pointer-coarse:min-h-[44px]')}
@@ -497,10 +511,10 @@ export function ActorSwitcher({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      {error ? <Alert title={error} className={chunkErrorClassName} /> : null}
+      {error ? <Alert title={error} className={menuAlertClassName} /> : null}
 
       {isAddMounted ? (
-        <LazyChunkBoundary className={chunkErrorClassName}>
+        <LazyChunkBoundary className={menuAlertClassName}>
           <AddActorDialog
             open={isDialogOpen}
             onOpenChange={setIsDialogOpen}
@@ -514,7 +528,7 @@ export function ActorSwitcher({
       {isSignOutMounted ? (
         // A chunk that cannot load (a deploy under an open tab, or offline)
         // says so here instead of replacing the page with its error.
-        <LazyChunkBoundary className={chunkErrorClassName}>
+        <LazyChunkBoundary className={menuAlertClassName}>
           <SignOutDialog
             open={isSignOutOpen}
             onOpenChange={setIsSignOutOpen}

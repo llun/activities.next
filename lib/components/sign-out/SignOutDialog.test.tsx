@@ -67,6 +67,8 @@ describe('SignOutDialog', () => {
       else options.fetchOptions?.onError?.()
     }) as unknown as typeof authClient.signOut)
 
+  const COUNT_TIMEOUT_MS = 5000
+
   const renderDialog = (
     props: {
       open?: boolean
@@ -168,6 +170,42 @@ describe('SignOutDialog', () => {
     countSpy.mockRestore()
   })
 
+  it('forgets an unknown count when it opens again, and waits for the new one', async () => {
+    const second = createDeferred<{
+      waiting: number
+      drafts: number
+      profiles: number
+    }>()
+    const countSpy = vi
+      .spyOn(draftsModule, 'countDraftsByState')
+      .mockRejectedValueOnce(new Error('IndexedDB unavailable'))
+      .mockReturnValueOnce(second.promise)
+    const tree = (open: boolean) => (
+      <DraftsProvider accountId="account-1" actorId="actor-1">
+        <SignOutDialog open={open} onOpenChange={vi.fn()} />
+      </DraftsProvider>
+    )
+    const { rerender } = render(tree(true))
+    expect(
+      await screen.findByText(/Couldn.t check this device/)
+    ).toBeInTheDocument()
+
+    rerender(tree(false))
+    rerender(tree(true))
+
+    // No stale line, and no confirm until this opening's count is in.
+    expect(
+      screen.queryByText(/Couldn.t check this device/)
+    ).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Sign out' })).toBeDisabled()
+
+    second.resolve({ waiting: 1, drafts: 0, profiles: 1 })
+    expect(
+      await screen.findByRole('button', { name: 'Sign out and delete' })
+    ).toBeEnabled()
+    countSpy.mockRestore()
+  })
+
   it('renders alert and destructive confirm button when 2 posts are waiting and 1 is a draft', async () => {
     await saveDraft(
       draft({
@@ -244,9 +282,15 @@ describe('SignOutDialog', () => {
     const alert = await screen.findByRole('alert')
     expect(alert).toBeInTheDocument()
     expect(alert).toHaveTextContent('1 post on this device has not been sent.')
-    const confirmDelete = await screen.findByRole('button', {
-      name: 'Sign out and delete'
-    })
+    const confirmDelete = await screen.findByRole(
+      'button',
+      {
+        name: 'Sign out and delete'
+      },
+      // The first count imports the drafts code and opens IndexedDB, which can
+      // outlast the default 1s on a loaded machine.
+      { timeout: COUNT_TIMEOUT_MS }
+    )
     expect(confirmDelete).toBeInTheDocument()
     await waitFor(() => expect(confirmDelete).toBeEnabled())
   })
@@ -275,9 +319,15 @@ describe('SignOutDialog', () => {
     finishSignOut('success')
     renderDialog({ open: true })
 
-    const confirmButton = await screen.findByRole('button', {
-      name: 'Sign out and delete'
-    })
+    const confirmButton = await screen.findByRole(
+      'button',
+      {
+        name: 'Sign out and delete'
+      },
+      // The first count imports the drafts code and opens IndexedDB, which can
+      // outlast the default 1s on a loaded machine.
+      { timeout: COUNT_TIMEOUT_MS }
+    )
     await waitFor(() => expect(confirmButton).toBeEnabled())
     fireEvent.click(confirmButton)
 
@@ -302,9 +352,15 @@ describe('SignOutDialog', () => {
     })
     renderDialog({ open: true })
 
-    const confirmButton = await screen.findByRole('button', {
-      name: 'Sign out and delete'
-    })
+    const confirmButton = await screen.findByRole(
+      'button',
+      {
+        name: 'Sign out and delete'
+      },
+      // The first count imports the drafts code and opens IndexedDB, which can
+      // outlast the default 1s on a loaded machine.
+      { timeout: COUNT_TIMEOUT_MS }
+    )
     await waitFor(() => expect(confirmButton).toBeEnabled())
     fireEvent.click(confirmButton)
 
@@ -328,9 +384,15 @@ describe('SignOutDialog', () => {
     const purgeSpy = vi.spyOn(draftsModule, 'purgeAccountDrafts')
 
     renderDialog({ open: true })
-    const confirmButton = await screen.findByRole('button', {
-      name: 'Sign out and delete'
-    })
+    const confirmButton = await screen.findByRole(
+      'button',
+      {
+        name: 'Sign out and delete'
+      },
+      // The first count imports the drafts code and opens IndexedDB, which can
+      // outlast the default 1s on a loaded machine.
+      { timeout: COUNT_TIMEOUT_MS }
+    )
     await waitFor(() => expect(confirmButton).toBeEnabled())
     fireEvent.click(confirmButton)
 
@@ -354,9 +416,15 @@ describe('SignOutDialog', () => {
     finishSignOut('success')
     renderDialog({ open: true })
 
-    const confirmButton = await screen.findByRole('button', {
-      name: 'Sign out and delete'
-    })
+    const confirmButton = await screen.findByRole(
+      'button',
+      {
+        name: 'Sign out and delete'
+      },
+      // The first count imports the drafts code and opens IndexedDB, which can
+      // outlast the default 1s on a loaded machine.
+      { timeout: COUNT_TIMEOUT_MS }
+    )
     await waitFor(() => expect(confirmButton).toBeEnabled())
 
     vi.doMock('@/lib/client/drafts', () => {
@@ -385,9 +453,15 @@ describe('SignOutDialog', () => {
     finishSignOut('error')
     renderDialog({ open: true })
 
-    const confirmButton = await screen.findByRole('button', {
-      name: 'Sign out and delete'
-    })
+    const confirmButton = await screen.findByRole(
+      'button',
+      {
+        name: 'Sign out and delete'
+      },
+      // The first count imports the drafts code and opens IndexedDB, which can
+      // outlast the default 1s on a loaded machine.
+      { timeout: COUNT_TIMEOUT_MS }
+    )
     await waitFor(() => expect(confirmButton).toBeEnabled())
     fireEvent.click(confirmButton)
 
@@ -415,9 +489,15 @@ describe('SignOutDialog', () => {
 
     renderDialog({ open: true })
 
-    const confirmButton = await screen.findByRole('button', {
-      name: 'Sign out and delete'
-    })
+    const confirmButton = await screen.findByRole(
+      'button',
+      {
+        name: 'Sign out and delete'
+      },
+      // The first count imports the drafts code and opens IndexedDB, which can
+      // outlast the default 1s on a loaded machine.
+      { timeout: COUNT_TIMEOUT_MS }
+    )
     await waitFor(() => expect(confirmButton).toBeEnabled())
     fireEvent.click(confirmButton)
 
@@ -454,9 +534,15 @@ describe('SignOutDialog', () => {
     finishSignOut('success')
 
     const view = renderDialog({ open: true })
-    const confirmButton = await screen.findByRole('button', {
-      name: 'Sign out and delete'
-    })
+    const confirmButton = await screen.findByRole(
+      'button',
+      {
+        name: 'Sign out and delete'
+      },
+      // The first count imports the drafts code and opens IndexedDB, which can
+      // outlast the default 1s on a loaded machine.
+      { timeout: COUNT_TIMEOUT_MS }
+    )
     await waitFor(() => expect(confirmButton).toBeEnabled())
 
     // Storage breaks after dialog counts drafts, before purge
