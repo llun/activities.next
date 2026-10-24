@@ -1,0 +1,129 @@
+app/api/v1/statuses/route.ts
+  s_279e7012f36c5f::t_b67dc1066a052b 17,220-221
+lib/services/accounts/movedAccount.ts
+  s_279e7012f36c5f::t_b67dc1066a052b 3-11,13-15,17-27
+  s_279e7012f36c5f::t_1c4f540cbb8ca4 12
+  s_279e7012f36c5f::t_e2304eab21921a 1-2,16
+app/api/v1/accounts/migration/route.ts
+  s_279e7012f36c5f::t_f648654b0329b7 134-147
+  s_279e7012f36c5f::t_0dce84e4f82796 1-133,148-172
+  s_279e7012f36c5f::t_4da7262d3d07dc 173-176
+lib/activities/move.ts
+  s_279e7012f36c5f::t_69445623c9ba66 1-20
+lib/database/domains/actorMigration/types.ts
+  s_279e7012f36c5f::t_ce9b4f129ecfce 1-41
+  s_279e7012f36c5f::t_ad768bdb2c99f4 42-43
+lib/database/domains/account/accounts.ts
+  s_279e7012f36c5f::t_1679a3b3b2a1f1 383-385
+lib/jobs/sendMoveJob.ts
+  s_279e7012f36c5f::t_69445623c9ba66 1-46,51-181
+  s_279e7012f36c5f::t_c7d81e08d2409e 47-50
+lib/jobs/publishScheduledStatusJob.test.ts
+  s_279e7012f36c5f::t_b7d15450229cea 162-164
+  s_279e7012f36c5f::t_2967ae4fbc078d 142-161,165-166
+lib/database/domains/actor/deletion.ts
+  s_279e7012f36c5f::t_7cc559140efc4f 525-529
+app/api/v1/accounts/repost/route.ts
+  s_279e7012f36c5f::t_b67dc1066a052b 10,35-36
+docs/features.md
+  s_279e7012f36c5f::t_8425fb33ab6175 11-12
+migrations/20261024131756_add_actor_migrations.ts
+  s_279e7012f36c5f::t_b37508bf7b8eeb 21
+  s_279e7012f36c5f::t_e1cd3015bafb76 1-20,22-41
+lib/database/getSQLDatabase.ts
+  s_279e7012f36c5f::t_7cc559140efc4f 8,171
+lib/database/domains/actorMigration/queries.ts
+  s_279e7012f36c5f::t_ce9b4f129ecfce 1-69
+  s_279e7012f36c5f::t_149068bbdfcd91 70-71
+app/api/v1/statuses/[id]/reblog/route.ts
+  s_279e7012f36c5f::t_b7d15450229cea 4
+  s_279e7012f36c5f::t_b67dc1066a052b 41-42
+app/api/v1/accounts/outbox/route.ts
+  s_279e7012f36c5f::t_b67dc1066a052b 46-47
+  s_279e7012f36c5f::t_b7d15450229cea 11
+lib/types/mastodon/account/profile.ts
+  s_279e7012f36c5f::t_1a7fc336903099 57-62
+docs/architecture.md
+  s_279e7012f36c5f::t_8425fb33ab6175 1781,1792,1874-1891,1893-1926,1928-1935,1937-1946
+  s_279e7012f36c5f::t_b37508bf7b8eeb 1892,1927,1936
+lib/services/accounts/profile.ts
+  s_279e7012f36c5f::t_1a7fc336903099 40-41
+lib/database/types.ts
+  s_279e7012f36c5f::t_7cc559140efc4f 1,96
+lib/activities/move.test.ts
+  s_279e7012f36c5f::t_c7d81e08d2409e 1-20
+lib/jobs/moveRelationshipsJob.test.ts
+  s_279e7012f36c5f::t_c1720a3f64a3be 1084,1089-1101,1103
+  s_279e7012f36c5f::t_07b17c3453ad86 1102,1104
+docs/mastodon-api-compatibility.md
+  s_279e7012f36c5f::t_8425fb33ab6175 444-451,454-463,1054-1072
+app/api/v1/accounts/migration/route.test.ts
+  s_279e7012f36c5f::t_3faa1bc21945a9 1-582
+scripts/backup/productionArchive.database.test.ts
+  s_279e7012f36c5f::t_5ca7327f0117ca 985
+lib/types/database/operations.ts
+  s_279e7012f36c5f::t_7cc559140efc4f 957-969
+lib/jobs/publishScheduledStatusJob.ts
+  s_279e7012f36c5f::t_b67dc1066a052b 9,83-93
+lib/jobs/moveFollowerJob.ts
+  s_279e7012f36c5f::t_93fa3f7793a7dc 96-104,109
+lib/jobs/names.ts
+  s_279e7012f36c5f::t_7cc559140efc4f 53
+app/api/v1/movedAccount.test.ts
+  s_279e7012f36c5f::t_9ac8b9998c6960 1-9,11,14-131,135-179,186,200,204-206
+  s_279e7012f36c5f::t_2feae0d8ec4200 13,188
+  s_279e7012f36c5f::t_b7d15450229cea 10,12
+  s_279e7012f36c5f::t_1c4f540cbb8ca4 132-134
+  s_279e7012f36c5f::t_bf72ebe7c70666 180-185,187,189-199,201-203
+lib/services/accounts/profile.test.ts
+  s_279e7012f36c5f::t_2feae0d8ec4200 75-76
+  s_279e7012f36c5f::t_75fae02f4cb6ab 113-121,126
+lib/database/domains/actor/actorDeletion.test.ts
+  s_279e7012f36c5f::t_9126890a008f3b 459
+  s_279e7012f36c5f::t_cb01553862e6be 447-458,460-471
+lib/jobs/index.ts
+  s_279e7012f36c5f::t_560131b7be444f 66,93,176-177
+  s_279e7012f36c5f::t_07b3e5eb25afc6 178
+lib/services/accounts/migration/outgoingMove.ts
+  s_279e7012f36c5f::t_0dce84e4f82796 1-205
+lib/jobs/sendMoveJob.test.ts
+  s_279e7012f36c5f::t_c7d81e08d2409e 1-276
+app/api/v1/accounts/migration/route.auth.test.ts
+  s_279e7012f36c5f::t_0c981a803c7531 1-33
+lib/database/domains/actorMigration/actorMigration.test.ts
+  s_279e7012f36c5f::t_6287aabe667c29 7-21,61-62,80-81
+  s_279e7012f36c5f::t_cb01553862e6be 1-6,22-60,63-79,82-88
+lib/jobs/moveFollowerJob.test.ts
+  s_279e7012f36c5f::t_c1720a3f64a3be 19,724-785
+  s_279e7012f36c5f::t_5ee9508eb0ae93 786-787
+app/api/v1/profile/route.test.ts
+  s_279e7012f36c5f::t_6cfe6de86b83f1 102-103
+lib/database/domains/actor/actorDeletionQueries.test.ts
+  s_279e7012f36c5f::t_ed85784b7a2c7b 595-605,680,1330
+lib/database/kysely/db.ts
+  s_279e7012f36c5f::t_7d1bb9ad2833c1 99-109,1434
+migrations/index.ts
+  s_279e7012f36c5f::t_0d374d3d0d5a0e 15,36-37
+migrations/names.ts
+  s_279e7012f36c5f::t_d39ff59290d5ca 15-16
+migrations/schema.sql
+  s_279e7012f36c5f::t_7ccd296598a483 75-85,1569-1571,2021-2022
+migrations/schema.sqlite.sql
+  s_279e7012f36c5f::t_58c1a1178e4e09 328-329
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f49ddb0444fb248a37341d663bfd54a1d9090e07",
+  "prompts": {},
+  "sessions": {
+    "s_279e7012f36c5f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0410f49d-2e94-45e1-bd1f-237e6f7747bc",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
