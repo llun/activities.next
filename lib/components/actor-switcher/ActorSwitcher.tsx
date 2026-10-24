@@ -10,6 +10,7 @@ import {
   SquarePen,
   UserRound
 } from 'lucide-react'
+import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
@@ -21,7 +22,6 @@ import {
   confirmDiscardProfileChanges,
   revokeProfileUnloadAllowance
 } from '@/lib/components/settings/profile/unsavedProfileChanges'
-import { SignOutDialog } from '@/lib/components/sign-out/SignOutDialog'
 import { Alert } from '@/lib/components/surface/Alert'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import {
@@ -32,9 +32,28 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@/lib/components/ui/dropdown-menu'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger
+} from '@/lib/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import { EMOJI_SHORTCODE_REGEX } from '@/lib/utils/text/getEmojiTags'
 
-import { AddActorDialog } from './AddActorDialog'
+// Both dialogs load the first time they are chosen: the sign-out flow pulls in
+// the auth client and the offline and drafts code, which every page's sidebar
+// would otherwise carry (see the route JS budgets).
+const AddActorDialog = dynamic(
+  () => import('./AddActorDialog').then((mod) => mod.AddActorDialog),
+  { ssr: false }
+)
+const SignOutDialog = dynamic(
+  () =>
+    import('@/lib/components/sign-out/SignOutDialog').then(
+      (mod) => mod.SignOutDialog
+    ),
+  { ssr: false }
+)
 
 export interface ActorInfo {
   id: string
@@ -72,6 +91,10 @@ export function ActorSwitcher({
   const router = useRouter()
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isSignOutOpen, setIsSignOutOpen] = useState(false)
+  // Mounted once requested and kept, so the dialogs can animate closed.
+  const [isSignOutMounted, setIsSignOutMounted] = useState(false)
+  const [isAddMounted, setIsAddMounted] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
   // A dialog opened straight from a menu item is closed again when the menu
   // hands focus back to its trigger, so the item only records it and the menu
   // opens it once it has closed (as the post menu does).
@@ -102,11 +125,7 @@ export function ActorSwitcher({
         ? user.handle
         : `@${user.handle}`
       : ''
-  const profileHref = currentActor
-    ? `/@${currentActor.username}@${currentActor.domain}`
-    : user?.handle
-      ? `/${user.handle}`
-      : '#'
+  const profileHref = handle ? `/${handle}` : '#'
   const domain = currentActor
     ? currentActor.domain
     : user?.handle
@@ -146,11 +165,11 @@ export function ActorSwitcher({
         window.location.reload()
       } else {
         revokeProfileUnloadAllowance()
-        setError('Failed to switch actor')
+        setError('Failed to switch profile')
       }
     } catch (err) {
       revokeProfileUnloadAllowance()
-      setError(err instanceof Error ? err.message : 'Failed to switch actor')
+      setError(err instanceof Error ? err.message : 'Failed to switch profile')
     } finally {
       setIsSwitching(false)
     }
@@ -194,45 +213,73 @@ export function ActorSwitcher({
   )
 
   const isRail = variant === 'rail'
+  // Spoken, so custom emoji shortcodes are dropped (as for Back labels).
+  const spokenName =
+    displayName
+      .replaceAll(EMOJI_SHORTCODE_REGEX, ' ')
+      .replace(/\s+/g, ' ')
+      .trim() || handle
+  const triggerLabel = spokenName
+    ? `Account menu for ${spokenName}`
+    : 'Account menu'
+  // The menu (and a dialog opened from it) hands focus back to the trigger;
+  // a deferred dialog opens after the menu has closed, so it does this itself.
+  const returnFocusToTrigger = (event: Event) => {
+    event.preventDefault()
+    triggerRef.current?.focus()
+  }
+
+  const trigger = (
+    <DropdownMenuTrigger asChild>
+      {isRail ? (
+        <button
+          type="button"
+          ref={triggerRef}
+          aria-label={triggerLabel}
+          className="block p-1 -m-1 border-0 rounded-full cursor-pointer hover:opacity-80 transition-opacity"
+        >
+          {avatar40}
+        </button>
+      ) : (
+        <button
+          type="button"
+          ref={triggerRef}
+          aria-label={triggerLabel}
+          className={cn(
+            'flex items-center gap-3 w-full rounded-lg p-2 cursor-pointer hover:bg-muted transition-colors text-left overflow-hidden',
+            drawer && 'min-h-[44px]'
+          )}
+        >
+          {avatar40}
+          <div className="flex-1 overflow-hidden min-w-0">
+            <p className="text-sm font-medium truncate">
+              {currentActor ? (
+                <ActorDisplayName name={displayName} tags={tags} />
+              ) : (
+                displayName
+              )}
+            </p>
+            <p className="text-xs text-muted-foreground truncate">{handle}</p>
+          </div>
+          <ChevronsUpDown className="w-4 h-4 text-muted-foreground shrink-0" />
+        </button>
+      )}
+    </DropdownMenuTrigger>
+  )
 
   return (
     <>
       <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          {isRail ? (
-            <button
-              type="button"
-              aria-label={`Account menu for ${displayName}`}
-              className="block p-1 -m-1 border-0 rounded-full cursor-pointer hover:opacity-80 transition-opacity"
-            >
-              {avatar40}
-            </button>
-          ) : (
-            <button
-              type="button"
-              aria-label={`Account menu for ${displayName}`}
-              className={cn(
-                'flex items-center gap-3 w-full rounded-lg p-2 cursor-pointer hover:bg-muted transition-colors text-left overflow-hidden',
-                drawer && 'min-h-[44px]'
-              )}
-            >
-              {avatar40}
-              <div className="flex-1 overflow-hidden min-w-0">
-                <p className="text-sm font-medium truncate">
-                  {currentActor ? (
-                    <ActorDisplayName name={displayName} tags={tags} />
-                  ) : (
-                    displayName
-                  )}
-                </p>
-                <p className="text-xs text-muted-foreground truncate">
-                  {handle}
-                </p>
-              </div>
-              <ChevronsUpDown className="w-4 h-4 text-muted-foreground shrink-0" />
-            </button>
-          )}
-        </DropdownMenuTrigger>
+        {isRail ? (
+          // The rail shows only the avatar, so its handle is a hover label, as
+          // every other rail icon has.
+          <Tooltip>
+            <TooltipTrigger asChild>{trigger}</TooltipTrigger>
+            <TooltipContent side="right">{handle}</TooltipContent>
+          </Tooltip>
+        ) : (
+          trigger
+        )}
         <DropdownMenuContent
           side={isRail ? 'right' : 'top'}
           align={isRail ? 'end' : 'start'}
@@ -267,10 +314,7 @@ export function ActorSwitcher({
           {/* 3. View profile */}
           <DropdownMenuItem
             asChild
-            className={cn(
-              'cursor-pointer',
-              drawer && 'pointer-coarse:min-h-[44px]'
-            )}
+            className={cn('cursor-pointer', 'pointer-coarse:min-h-[44px]')}
           >
             <Link href={profileHref} prefetch={false} onClick={onNavigate}>
               <UserRound className="h-4 w-4 mr-2" />
@@ -281,10 +325,7 @@ export function ActorSwitcher({
           {/* 4. Edit profile */}
           <DropdownMenuItem
             asChild
-            className={cn(
-              'cursor-pointer',
-              drawer && 'pointer-coarse:min-h-[44px]'
-            )}
+            className={cn('cursor-pointer', 'pointer-coarse:min-h-[44px]')}
           >
             <Link
               href="/settings/profile"
@@ -324,8 +365,8 @@ export function ActorSwitcher({
                     }}
                     disabled={isDisabled}
                     className={cn(
-                      'flex items-center gap-3 cursor-pointer min-h-[44px]',
-                      drawer && 'pointer-coarse:min-h-[44px]'
+                      'flex items-center gap-3 cursor-pointer',
+                      'pointer-coarse:min-h-[44px]'
                     )}
                   >
                     <Avatar
@@ -391,12 +432,12 @@ export function ActorSwitcher({
           {/* 7. Add another profile */}
           <DropdownMenuItem
             onSelect={() => {
-              deferredSelectRef.current = () => setIsDialogOpen(true)
+              deferredSelectRef.current = () => {
+                setIsAddMounted(true)
+                setIsDialogOpen(true)
+              }
             }}
-            className={cn(
-              'cursor-pointer',
-              drawer && 'pointer-coarse:min-h-[44px]'
-            )}
+            className={cn('cursor-pointer', 'pointer-coarse:min-h-[44px]')}
           >
             <Plus className="h-4 w-4 mr-2" />
             Add another profile
@@ -408,10 +449,7 @@ export function ActorSwitcher({
           {/* 9. Account & security */}
           <DropdownMenuItem
             asChild
-            className={cn(
-              'cursor-pointer',
-              drawer && 'pointer-coarse:min-h-[44px]'
-            )}
+            className={cn('cursor-pointer', 'pointer-coarse:min-h-[44px]')}
           >
             <Link href="/account" prefetch={false} onClick={onNavigate}>
               <ShieldCheck className="h-4 w-4 mr-2" />
@@ -422,12 +460,12 @@ export function ActorSwitcher({
           {/* 10. Sign out */}
           <DropdownMenuItem
             onSelect={() => {
-              deferredSelectRef.current = () => setIsSignOutOpen(true)
+              deferredSelectRef.current = () => {
+                setIsSignOutMounted(true)
+                setIsSignOutOpen(true)
+              }
             }}
-            className={cn(
-              'cursor-pointer',
-              drawer && 'pointer-coarse:min-h-[44px]'
-            )}
+            className={cn('cursor-pointer', 'pointer-coarse:min-h-[44px]')}
           >
             <LogOut className="h-4 w-4 mr-2" />
             Sign out
@@ -435,16 +473,33 @@ export function ActorSwitcher({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      {error ? <Alert title={error} className="mt-1" /> : null}
+      {error ? (
+        <Alert
+          title={error}
+          // The 72px rail has no room for it: float it beside the rail.
+          className={
+            isRail ? 'fixed bottom-4 left-[84px] z-50 w-72 shadow-lg' : 'mt-1'
+          }
+        />
+      ) : null}
 
-      <AddActorDialog
-        open={isDialogOpen}
-        onOpenChange={setIsDialogOpen}
-        domain={domain}
-        onSuccess={handleActorCreated}
-      />
+      {isAddMounted ? (
+        <AddActorDialog
+          open={isDialogOpen}
+          onOpenChange={setIsDialogOpen}
+          domain={domain}
+          onSuccess={handleActorCreated}
+          onCloseAutoFocus={returnFocusToTrigger}
+        />
+      ) : null}
 
-      <SignOutDialog open={isSignOutOpen} onOpenChange={setIsSignOutOpen} />
+      {isSignOutMounted ? (
+        <SignOutDialog
+          open={isSignOutOpen}
+          onOpenChange={setIsSignOutOpen}
+          onCloseAutoFocus={returnFocusToTrigger}
+        />
+      ) : null}
     </>
   )
 }

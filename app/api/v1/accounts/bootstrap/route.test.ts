@@ -155,7 +155,7 @@ describe('GET /api/v1/accounts/bootstrap', () => {
         }
       ]),
       getActorSettings: vi.fn().mockResolvedValue({
-        navOrder: ['home', 'explore', 'lists'],
+        navOrder: ['account', 'explore', 'lists'],
         navHidden: ['bookmarks'],
         readingAutoplayGifs: true,
         postLineLimit: 12,
@@ -215,7 +215,8 @@ describe('GET /api/v1/accounts/bootstrap', () => {
 
     expect(data.lists).toEqual([{ id: 'list-1', title: 'Close Friends' }])
 
-    expect(data.navOrder).toEqual(['home', 'explore', 'lists'])
+    // Served sanitized: a pre-Profile 'account' comes back as 'profile'.
+    expect(data.navOrder).toEqual(['profile', 'explore', 'lists'])
     expect(data.navHidden).toEqual(['bookmarks'])
     expect(data.readingAutoplayGifs).toBe(true)
     expect(data.postLineLimit).toBe(12)

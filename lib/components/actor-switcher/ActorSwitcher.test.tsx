@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { AnchorHTMLAttributes, ReactNode } from 'react'
 
 import { cancelActorDeletion, switchActor } from '@/lib/client'
@@ -13,6 +13,10 @@ import {
 } from '@/lib/components/settings/profile/unsavedProfileChanges'
 
 import { ActorSwitcher } from './ActorSwitcher'
+
+vi.mock('next/dynamic', async () => ({
+  default: (await import('next/dist/shared/lib/app-dynamic')).default
+}))
 
 vi.mock('next/link', () => ({
   default: ({
@@ -51,17 +55,22 @@ const mockAddActorDialog = vi.fn()
 vi.mock('./AddActorDialog', () => ({
   AddActorDialog: (props: unknown) => {
     mockAddActorDialog(props)
-    return null
+    const { open } = (props as { open?: boolean }) || {}
+    return open ? (
+      <div data-testid="add-actor-dialog">Add actor dialog</div>
+    ) : null
   }
 }))
 
+const mockSignOutDialog = vi.fn()
 vi.mock('@/lib/components/sign-out/SignOutDialog', () => ({
-  SignOutDialog: ({
-    open
-  }: {
-    open: boolean
-    onOpenChange: (open: boolean) => void
-  }) => (open ? <div data-testid="sign-out-dialog">Sign out dialog</div> : null)
+  SignOutDialog: (props: unknown) => {
+    mockSignOutDialog(props)
+    const { open } = (props as { open?: boolean }) || {}
+    return open ? (
+      <div data-testid="sign-out-dialog">Sign out dialog</div>
+    ) : null
+  }
 }))
 
 const alice = {
@@ -102,6 +111,7 @@ describe('ActorSwitcher', () => {
     vi.mocked(setActiveOfflineSession).mockReset()
     mockRefresh.mockReset()
     mockAddActorDialog.mockReset()
+    mockSignOutDialog.mockReset()
 
     Object.defineProperty(window, 'location', {
       configurable: true,
@@ -119,6 +129,11 @@ describe('ActorSwitcher', () => {
   describe('with a single actor', () => {
     it('renders a single button trigger that opens the menu with expected items and no switch profile list', async () => {
       render(<ActorSwitcher currentActor={alice} actors={[alice]} />)
+
+      expect(screen.queryByTestId('add-actor-dialog')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('sign-out-dialog')).not.toBeInTheDocument()
+      expect(mockAddActorDialog).not.toHaveBeenCalled()
+      expect(mockSignOutDialog).not.toHaveBeenCalled()
 
       const trigger = screen.getByRole('button', {
         name: 'Account menu for Alice'
@@ -169,6 +184,20 @@ describe('ActorSwitcher', () => {
 
       // NO switch profile list
       expect(screen.queryByText('Switch profile')).not.toBeInTheDocument()
+    })
+
+    it('strips custom emoji shortcodes from trigger accessible name', () => {
+      const flan = {
+        ...alice,
+        name: ':flan: Flan'
+      }
+      render(<ActorSwitcher currentActor={flan} actors={[flan]} />)
+
+      expect(
+        screen.getByRole('button', {
+          name: 'Account menu for Flan'
+        })
+      ).toBeInTheDocument()
     })
   })
 
@@ -260,7 +289,7 @@ describe('ActorSwitcher', () => {
         vi.mocked(switchActor).mockResolvedValue(false)
         await pickBob()
 
-        await screen.findByText('Failed to switch actor')
+        await screen.findByText('Failed to switch profile')
         expect(isProfileUnloadAllowed()).toBe(false)
       })
 
@@ -301,14 +330,14 @@ describe('ActorSwitcher', () => {
       expect(window.location.reload).not.toHaveBeenCalled()
 
       const alert = await screen.findByRole('alert')
-      expect(alert).toHaveTextContent('Failed to switch actor')
+      expect(alert).toHaveTextContent('Failed to switch profile')
 
       // Dropdown closes on selection; verify error persists after closure
       await waitFor(() => {
         expect(screen.queryByRole('menu')).not.toBeInTheDocument()
       })
       expect(screen.getByRole('alert')).toHaveTextContent(
-        'Failed to switch actor'
+        'Failed to switch profile'
       )
 
       // Retry: reopen dropdown and select actor again
@@ -591,37 +620,80 @@ describe('ActorSwitcher', () => {
       const trigger = screen.getByRole('button', {
         name: 'Account menu for Alice'
       })
+      expect(screen.queryByTestId('add-actor-dialog')).not.toBeInTheDocument()
+      expect(mockAddActorDialog).not.toHaveBeenCalled()
+
       fireEvent.keyDown(trigger, { key: 'ArrowDown' })
       await screen.findByRole('menu')
 
-      const addActorItem = screen.getByText('Add another profile')
+      const addActorItem = screen.getByRole('menuitem', {
+        name: /Add another profile/
+      })
+      expect(screen.queryByTestId('add-actor-dialog')).not.toBeInTheDocument()
+      expect(mockAddActorDialog).not.toHaveBeenCalled()
+
       fireEvent.click(addActorItem)
 
       // Opened once the menu has closed, so it is not dismissed with it.
-      await waitFor(() =>
-        expect(mockAddActorDialog).toHaveBeenLastCalledWith(
-          expect.objectContaining({
-            open: true,
-            domain: 'activities.local'
-          })
-        )
+      expect(await screen.findByTestId('add-actor-dialog')).toBeInTheDocument()
+      expect(mockAddActorDialog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          open: true,
+          domain: 'activities.local',
+          onCloseAutoFocus: expect.any(Function)
+        })
       )
+
+      const lastProps = mockAddActorDialog.mock.calls.at(-1)?.[0] as {
+        onCloseAutoFocus: (e: Event) => void
+      }
+      const focusEvent = new Event('focus')
+      const preventDefault = vi.spyOn(focusEvent, 'preventDefault')
+      lastProps.onCloseAutoFocus(focusEvent)
+      expect(preventDefault).toHaveBeenCalled()
+      expect(document.activeElement).toBe(trigger)
     })
 
-    it('reloads page and closes dialog on successful actor creation', () => {
+    it('reloads page and closes dialog on successful actor creation', async () => {
       render(<ActorSwitcher currentActor={alice} actors={[alice, bob]} />)
+
+      const trigger = screen.getByRole('button', {
+        name: 'Account menu for Alice'
+      })
+      expect(screen.queryByTestId('add-actor-dialog')).not.toBeInTheDocument()
+      expect(mockAddActorDialog).not.toHaveBeenCalled()
+
+      fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+      await screen.findByRole('menu')
+
+      const addActorItem = screen.getByRole('menuitem', {
+        name: /Add another profile/
+      })
+      fireEvent.click(addActorItem)
+
+      expect(await screen.findByTestId('add-actor-dialog')).toBeInTheDocument()
+      expect(mockAddActorDialog).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          open: true
+        })
+      )
 
       const lastProps = mockAddActorDialog.mock.calls.at(-1)?.[0] as {
         onSuccess: () => void
       }
-      lastProps.onSuccess()
+      act(() => {
+        lastProps.onSuccess()
+      })
 
       expect(window.location.reload).toHaveBeenCalled()
-      expect(mockAddActorDialog).toHaveBeenLastCalledWith(
-        expect.objectContaining({
-          open: false
-        })
+      await waitFor(() =>
+        expect(mockAddActorDialog).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            open: false
+          })
+        )
       )
+      expect(screen.queryByTestId('add-actor-dialog')).not.toBeInTheDocument()
     })
 
     it('opens SignOutDialog when selecting Sign out', async () => {
@@ -630,14 +702,33 @@ describe('ActorSwitcher', () => {
       const trigger = screen.getByRole('button', {
         name: 'Account menu for Alice'
       })
+      expect(screen.queryByTestId('sign-out-dialog')).not.toBeInTheDocument()
+      expect(mockSignOutDialog).not.toHaveBeenCalled()
+
       fireEvent.keyDown(trigger, { key: 'ArrowDown' })
       await screen.findByRole('menu')
 
       const signOutItem = screen.getByRole('menuitem', { name: /Sign out/ })
       expect(screen.queryByTestId('sign-out-dialog')).not.toBeInTheDocument()
+      expect(mockSignOutDialog).not.toHaveBeenCalled()
 
       fireEvent.click(signOutItem)
       expect(await screen.findByTestId('sign-out-dialog')).toBeInTheDocument()
+      expect(mockSignOutDialog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          open: true,
+          onCloseAutoFocus: expect.any(Function)
+        })
+      )
+
+      const lastProps = mockSignOutDialog.mock.calls.at(-1)?.[0] as {
+        onCloseAutoFocus: (e: Event) => void
+      }
+      const focusEvent = new Event('focus')
+      const preventDefault = vi.spyOn(focusEvent, 'preventDefault')
+      lastProps.onCloseAutoFocus(focusEvent)
+      expect(preventDefault).toHaveBeenCalled()
+      expect(document.activeElement).toBe(trigger)
     })
 
     it.each([
@@ -746,7 +837,7 @@ describe('ActorSwitcher', () => {
       const viewProfile = screen.getByRole('menuitem', {
         name: /View profile/
       })
-      expect(viewProfile).toHaveAttribute('href', '/eve@activities.local')
+      expect(viewProfile).toHaveAttribute('href', '/@eve@activities.local')
     })
 
     it('returns null when neither currentActor nor user is provided', () => {

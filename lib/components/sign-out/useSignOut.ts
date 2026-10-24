@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 
 import { postDraftsMessage } from '@/lib/client/drafts/draftsChannel'
 import { markPurgePending } from '@/lib/client/drafts/pendingPurgeMarker'
@@ -19,8 +19,12 @@ export function useSignOut(): {
   const [error, setError] = useState<string | null>(null)
 
   const clearError = useCallback(() => setError(null), [])
+  // A second click lands before the disabled button re-renders.
+  const inFlightRef = useRef(false)
 
   const signOut = useCallback(async () => {
+    if (inFlightRef.current) return
+    inFlightRef.current = true
     setSigningOut(true)
     setError(null)
 
@@ -38,6 +42,7 @@ export function useSignOut(): {
         postDraftsMessage({ type: 'sign-out-cancelled', accountId })
       }
       setError('Sign out failed. Please try again.')
+      inFlightRef.current = false
       setSigningOut(false)
     }
     try {

@@ -164,6 +164,35 @@ describe('Sidebar', () => {
     }
   })
 
+  it('marks Profile link with aria-current="page" when on current actor profile and omits it for other actors', () => {
+    const currentActor = {
+      id: 'actor-1',
+      username: 'alice',
+      domain: 'llun.test',
+      name: 'Alice'
+    }
+
+    mockPathname.mockReturnValue('/@alice@llun.test')
+    const { unmount } = renderSidebar(
+      <Sidebar lists={[]} currentActor={currentActor} />
+    )
+
+    const nav = screen.getAllByRole('navigation')[0]
+    expect(within(nav).getByRole('link', { name: 'Profile' })).toHaveAttribute(
+      'aria-current',
+      'page'
+    )
+    unmount()
+
+    mockPathname.mockReturnValue('/@bob@llun.test')
+    renderSidebar(<Sidebar lists={[]} currentActor={currentActor} />)
+
+    const updatedNav = screen.getAllByRole('navigation')[0]
+    expect(
+      within(updatedNav).getByRole('link', { name: 'Profile' })
+    ).not.toHaveAttribute('aria-current')
+  })
+
   describe('customization', () => {
     // jsdom has no pointer layout, so the Radix trigger opens from the
     // keyboard (same approach as the settings layout test).

@@ -66,7 +66,7 @@ describe('normalizedOrder', () => {
     expect(order).toHaveLength(DEFAULT_NAV_ORDER.length)
   })
 
-  it('maps legacy account to profile and home to timeline', () => {
+  it('maps legacy account to profile', () => {
     const order = normalizedOrder({
       navOrder: ['timeline', 'account', 'settings']
     })
@@ -233,7 +233,7 @@ describe('sanitizeNavOrder', () => {
     ).toEqual(['settings', 'timeline'])
   })
 
-  it('maps account to profile and home to timeline', () => {
+  it('maps account to profile', () => {
     expect(sanitizeNavOrder(['account', 'timeline'])).toEqual([
       'profile',
       'timeline'

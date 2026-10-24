@@ -28,13 +28,16 @@ interface AddActorDialogProps {
   onOpenChange: (open: boolean) => void
   domain: string
   onSuccess: () => void
+  /** Where focus goes on close; the account menu sends it back to its row. */
+  onCloseAutoFocus?: (event: Event) => void
 }
 
 export function AddActorDialog({
   open,
   onOpenChange,
   domain,
-  onSuccess
+  onSuccess,
+  onCloseAutoFocus
 }: AddActorDialogProps) {
   const [username, setUsername] = useState('')
   const [selectedDomain, setSelectedDomain] = useState(domain)
@@ -203,6 +206,7 @@ export function AddActorDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         showCloseButton={!isLoading}
+        onCloseAutoFocus={onCloseAutoFocus}
         onEscapeKeyDown={(e) => {
           if (isLoading) {
             e.preventDefault()

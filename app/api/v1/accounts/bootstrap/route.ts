@@ -2,6 +2,10 @@ import type { ClientBootstrapSnapshot } from '@/lib/client/offline/types'
 import { getConfig } from '@/lib/config'
 import { getRequestFeatures } from '@/lib/services/domains/visitedFeatures'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
+import {
+  sanitizeNavHidden,
+  sanitizeNavOrder
+} from '@/lib/services/navigation/navPreferences'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { Scope } from '@/lib/types/database/operations'
 import { getActorProfile, getMention } from '@/lib/types/domain/actor'
@@ -121,10 +125,14 @@ export const GET = traceApiRoute(
           lists: formattedLists,
           features,
           instanceLimits,
-          navOrder:
-            actorSettings?.navOrder as ClientBootstrapSnapshot['navOrder'],
-          navHidden:
-            actorSettings?.navHidden as ClientBootstrapSnapshot['navHidden'],
+          // Sanitized, so an order saved before Profile replaced Account is
+          // served (and cached offline) with 'profile' in its slot.
+          navOrder: actorSettings?.navOrder
+            ? sanitizeNavOrder(actorSettings.navOrder)
+            : undefined,
+          navHidden: actorSettings?.navHidden
+            ? sanitizeNavHidden(actorSettings.navHidden)
+            : undefined,
           readingAutoplayGifs: actorSettings?.readingAutoplayGifs ?? false,
           postLineLimit: actorSettings?.postLineLimit,
           readingGroupBoosts: settingsWithOptional?.readingGroupBoosts ?? true,

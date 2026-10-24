@@ -15,33 +15,34 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/lib/components/ui/dialog'
+import { cn } from '@/lib/utils'
 
-import {
-  unsentPostsDetail,
-  unsentPostsMessage,
-  unsentPostsTitle
-} from './unsentPostsMessage'
+import { unsentPostsDetail, unsentPostsTitle } from './unsentPostsMessage'
 import { useSignOut } from './useSignOut'
-
-export { unsentPostsMessage }
 
 export function SignOutDialog({
   open,
-  onOpenChange
+  onOpenChange,
+  onCloseAutoFocus
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
+  /** Where focus goes on close; the account menu sends it back to its row. */
+  onCloseAutoFocus?: (event: Event) => void
 }) {
   const accountId = useDrafts()?.accountId
-  const [counts, setCounts] = useState<{ waiting: number; drafts: number }>({
-    waiting: 0,
-    drafts: 0
-  })
+  // Null until this opening's count is in: the confirm button waits for it,
+  // so a quick tap can never sign out past unsent posts it has not shown.
+  const [counts, setCounts] = useState<{
+    waiting: number
+    drafts: number
+  } | null>(null)
   const { signOut, signingOut, error, clearError } = useSignOut()
 
   useEffect(() => {
     if (!open) {
       clearError()
+      setCounts(null)
       return
     }
     let active = true
@@ -74,12 +75,13 @@ export function SignOutDialog({
     onOpenChange(nextOpen)
   }
 
-  const hasUnsent = counts.waiting + counts.drafts > 0
+  const hasUnsent = counts !== null && counts.waiting + counts.drafts > 0
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         showCloseButton={false}
+        onCloseAutoFocus={onCloseAutoFocus}
         className="motion-reduce:animate-none"
       >
         <DialogHeader>
@@ -97,7 +99,18 @@ export function SignOutDialog({
         <DialogFooter>
           {hasUnsent ? (
             <Button asChild variant="ghost" className="sm:mr-auto">
-              <Link href="/drafts" onClick={() => handleOpenChange(false)}>
+              <Link
+                href="/drafts"
+                aria-disabled={signingOut || undefined}
+                className={cn(signingOut && 'pointer-events-none opacity-50')}
+                onClick={(event) => {
+                  if (signingOut) {
+                    event.preventDefault()
+                    return
+                  }
+                  handleOpenChange(false)
+                }}
+              >
                 <FileText aria-hidden="true" />
                 Review drafts
               </Link>
@@ -115,7 +128,7 @@ export function SignOutDialog({
             type="button"
             variant={hasUnsent ? 'destructive' : 'default'}
             onClick={() => void signOut()}
-            disabled={signingOut}
+            disabled={signingOut || counts === null}
           >
             {signingOut
               ? 'Signing out…'
