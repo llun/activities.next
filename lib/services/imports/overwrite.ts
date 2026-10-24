@@ -108,13 +108,23 @@ export const applyOverwrite = async ({
           continue
         }
         await keep(database, bulkImport, row)
-        await database.updateFollowPreferences({
-          actorId,
-          targetActorId: follow.targetActorId,
-          reblogs: row.data.show_reblogs ?? true,
-          notify: row.data.notify ?? false,
-          languages: row.data.languages ?? undefined
-        })
+        // Only what the file states: a blank cell leaves the stored value.
+        const reblogs = row.data.show_reblogs ?? undefined
+        const notify = row.data.notify ?? undefined
+        const languages = row.data.languages ?? undefined
+        if (
+          reblogs !== undefined ||
+          notify !== undefined ||
+          languages !== undefined
+        ) {
+          await database.updateFollowPreferences({
+            actorId,
+            targetActorId: follow.targetActorId,
+            reblogs,
+            notify,
+            languages
+          })
+        }
       }
       return
     }
@@ -197,7 +207,12 @@ export const applyOverwrite = async ({
         database.getBookmarks({ actorId, limit: PAGE_SIZE, maxId })
       )
       for (const bookmark of bookmarks) {
-        const row = rows.get(bookmark.statusId)
+        // A bookmark made through a boost keeps that boost's URI as its source.
+        const row =
+          rows.get(bookmark.statusId) ??
+          (bookmark.sourceStatusId
+            ? rows.get(bookmark.sourceStatusId)
+            : undefined)
         if (row) {
           await keep(database, bulkImport, row)
         } else {

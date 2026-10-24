@@ -98,24 +98,22 @@ describe('/api/v1/imports', () => {
   ) => {
     const origin = options.origin ?? 'https://llun.test'
     const url = `https://llun.test/api/v1/imports${options.query ?? ''}`
-    const req = new NextRequest(url, {
-      method: 'POST',
-      headers: {
-        origin
-      }
-    })
-
     if (options.formDataError) {
-      Object.defineProperty(req, 'formData', {
-        value: vi.fn().mockRejectedValue(new Error('Invalid multipart body'))
-      })
-    } else if (form) {
-      Object.defineProperty(req, 'formData', {
-        value: vi.fn().mockResolvedValue(form)
+      return new NextRequest(url, {
+        method: 'POST',
+        headers: {
+          origin,
+          'content-type': 'multipart/form-data; boundary=missing'
+        },
+        body: 'not a multipart body'
       })
     }
-
-    return req
+    // The route reads the raw body, so send a real multipart one.
+    return new NextRequest(url, {
+      method: 'POST',
+      headers: { origin },
+      body: form
+    })
   }
 
   const createGetRequest = (query = '') =>
@@ -277,6 +275,35 @@ describe('/api/v1/imports', () => {
       expect(formData).not.toHaveBeenCalled()
     })
 
+    it('returns 413 for a chunked body over the cap that has no content-length', async () => {
+      const chunk = new Uint8Array(1024 * 1024)
+      let sent = 0
+      const body = new ReadableStream<Uint8Array>({
+        pull(controller) {
+          sent += chunk.byteLength
+          controller.enqueue(chunk)
+          // Would run on for ever if the route did not stop reading.
+          if (sent > BULK_IMPORT_FILE_SIZE_LIMIT * 4) controller.close()
+        }
+      })
+      const req = new NextRequest('https://llun.test/api/v1/imports', {
+        method: 'POST',
+        headers: {
+          origin: 'https://llun.test',
+          'content-type': 'multipart/form-data; boundary=x'
+        },
+        body,
+        duplex: 'half'
+      } as ConstructorParameters<typeof NextRequest>[1])
+      expect(req.headers.get('content-length')).toBeNull()
+
+      const response = await POST(req, { params: Promise.resolve({}) })
+      expect(response.status).toBe(HTTP_STATUS.PAYLOAD_TOO_LARGE)
+      expect(await response.json()).toEqual({ error: 'File is too large' })
+      // Stopped near the cap, not after the whole stream.
+      expect(sent).toBeLessThan(BULK_IMPORT_FILE_SIZE_LIMIT * 2)
+    })
+
     it('returns 400 when formData fails to parse', async () => {
       const req = createPostRequest(undefined, { formDataError: true })
       const response = await POST(req, { params: Promise.resolve({}) })
@@ -334,14 +361,12 @@ describe('/api/v1/imports', () => {
       expect(await response.json()).toEqual({ error: 'Invalid import mode' })
     })
 
-    it('returns 422 and does not call file.text() when file size exceeds limit', async () => {
-      const file = new File(['content'], 'following_accounts.csv', {
-        type: 'text/csv'
-      })
-      Object.defineProperty(file, 'size', {
-        value: BULK_IMPORT_FILE_SIZE_LIMIT + 1
-      })
-      const textSpy = vi.spyOn(file, 'text')
+    it('returns 422 when the file exceeds the limit', async () => {
+      const file = new File(
+        [new Uint8Array(BULK_IMPORT_FILE_SIZE_LIMIT + 1)],
+        'following_accounts.csv',
+        { type: 'text/csv' }
+      )
 
       const form = new FormData()
       form.set('type', 'following')
@@ -351,7 +376,6 @@ describe('/api/v1/imports', () => {
       const response = await POST(req, { params: Promise.resolve({}) })
       expect(response.status).toBe(HTTP_STATUS.UNPROCESSABLE_ENTITY)
       expect(await response.json()).toEqual({ error: 'File is too large' })
-      expect(textSpy).not.toHaveBeenCalled()
     })
 
     it('returns 422 when CSV is empty', async () => {

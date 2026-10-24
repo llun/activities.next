@@ -19,6 +19,10 @@ import {
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
+import {
+  StreamByteLimitError,
+  readUnknownBodyToBufferWithLimit
+} from '@/lib/utils/streamLimit'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
@@ -46,19 +50,35 @@ export const POST = traceApiRoute(
   AuthenticatedGuard(async (req, context) => {
     const { currentActor, database } = context
 
-    // Reject before req.formData() buffers the whole body.
+    const maxBodyBytes = BULK_IMPORT_FILE_SIZE_LIMIT + MULTIPART_ALLOWANCE
+    const tooLarge = () =>
+      errorResponse(req, 'File is too large', HTTP_STATUS.PAYLOAD_TOO_LARGE)
+
+    // Fast path: refuse a declared size before reading anything.
     const contentLength = Number(req.headers.get('content-length') ?? 0)
-    if (contentLength > BULK_IMPORT_FILE_SIZE_LIMIT + MULTIPART_ALLOWANCE) {
-      return errorResponse(
-        req,
-        'File is too large',
-        HTTP_STATUS.PAYLOAD_TOO_LARGE
-      )
+    if (contentLength > maxBodyBytes) return tooLarge()
+
+    // A chunked body has no content-length, so count the bytes as they arrive
+    // and stop as soon as the cap is passed instead of buffering all of it.
+    let bytes: Buffer
+    try {
+      bytes = req.body
+        ? await readUnknownBodyToBufferWithLimit(
+            req.body,
+            maxBodyBytes,
+            'Import request'
+          )
+        : Buffer.alloc(0)
+    } catch (error) {
+      if (error instanceof StreamByteLimitError) return tooLarge()
+      return errorResponse(req, 'Invalid request', HTTP_STATUS.BAD_REQUEST)
     }
 
     let form: FormData
     try {
-      form = await req.formData()
+      form = await new Response(new Uint8Array(bytes), {
+        headers: { 'content-type': req.headers.get('content-type') ?? '' }
+      }).formData()
     } catch {
       return errorResponse(req, 'Invalid request', HTTP_STATUS.BAD_REQUEST)
     }

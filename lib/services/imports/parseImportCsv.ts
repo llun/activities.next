@@ -40,9 +40,10 @@ const FALSE_BOOLEAN_VALUES = new Set(['false', 'f', '0', 'off'])
 
 const convertBoolean = (val: string | undefined): boolean | null => {
   if (val === undefined || val === null) return null
-  const trimmed = val.trim()
-  if (!trimmed) return null
-  return !FALSE_BOOLEAN_VALUES.has(trimmed.toLowerCase())
+  // ActiveModel::Type::Boolean casts only "" to nil and does not trim, so " "
+  // and " false" are true.
+  if (val === '') return null
+  return !FALSE_BOOLEAN_VALUES.has(val.toLowerCase())
 }
 
 const convertLanguages = (val: string | undefined): string[] | null => {

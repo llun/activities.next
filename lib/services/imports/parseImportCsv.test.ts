@@ -191,6 +191,25 @@ describe('parseImportCsv', () => {
     })
   })
 
+  describe('boolean cells are not trimmed (ActiveModel::Type::Boolean)', () => {
+    it('casts a blank or padded cell like Mastodon: only "" is nil', () => {
+      const csv = [
+        'Account address,Show boosts,Notify on new posts',
+        'a@example.com," "," false"',
+        'b@example.com,,FALSE'
+      ].join('\n')
+
+      const result = parseImportCsv({ type: 'following', text: csv })
+      expect(result).toEqual({
+        ok: true,
+        rows: [
+          { acct: 'a@example.com', show_reblogs: true, notify: true },
+          { acct: 'b@example.com', show_reblogs: null, notify: false }
+        ]
+      })
+    })
+  })
+
   describe('UTF-8 BOM and whitespace handling', () => {
     it('strips UTF-8 BOM at the beginning of the file', () => {
       const csv = '\uFEFFAccount address\nalice@example.com'

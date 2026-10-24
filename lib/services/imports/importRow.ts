@@ -65,8 +65,10 @@ const importAccountRow = async ({
       database,
       currentActor: actor,
       requestedActorId: target.id,
-      reblogs: data.show_reblogs ?? true,
-      notify: data.notify ?? false,
+      // A missing or blank cell is undefined: an existing follow keeps its
+      // stored preference and only a new follow gets the defaults.
+      reblogs: data.show_reblogs ?? undefined,
+      notify: data.notify ?? undefined,
       languages: data.languages ?? undefined
     })
     if (result.type === 'forbidden') {

@@ -94,6 +94,27 @@ describe('applyOverwrite', () => {
     expect(result).toMatchObject({ processedItems: 1, importedItems: 1 })
   })
 
+  it('following: a row without preferences keeps the stored ones', async () => {
+    await database.createFollow({
+      actorId: actor.id,
+      targetActorId: kept.id,
+      status: FollowStatus.enum.Accepted,
+      inbox: `${actor.id}/inbox`,
+      sharedInbox: 'https://test.llun.dev/inbox',
+      reblogs: false,
+      notify: true,
+      languages: ['th']
+    })
+
+    await run('following', [{ acct: 'kept@remote.test', notify: null }])
+
+    expect(await follows(kept)).toMatchObject({
+      reblogs: false,
+      notify: true,
+      languages: ['th']
+    })
+  })
+
   it('blocking: unblocks (federated) what the file omits, keeps the rest', async () => {
     for (const target of [kept, dropped]) {
       await database.createBlock({
@@ -177,6 +198,29 @@ describe('applyOverwrite', () => {
       limit: 10
     })
     expect(bookmarks.map((bookmark) => bookmark.statusId)).toEqual([keptUri])
+    expect(result).toMatchObject({ processedItems: 1, importedItems: 1 })
+  })
+
+  it('bookmarks: keeps a bookmark made through a boost when the file names the boost', async () => {
+    const original = `${kept.id}/statuses/1`
+    const boostUri = `${dropped.id}/statuses/boost-1`
+    await createPublicNote(database, original, kept.id)
+    await database.createAnnounce({
+      id: boostUri,
+      actorId: dropped.id,
+      originalStatusId: original,
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: []
+    })
+    await database.createBookmark({ actorId: actor.id, statusId: boostUri })
+
+    const result = await run('bookmarks', [{ uri: boostUri }])
+
+    const bookmarks = await database.getBookmarks({
+      actorId: actor.id,
+      limit: 10
+    })
+    expect(bookmarks.map((bookmark) => bookmark.statusId)).toEqual([original])
     expect(result).toMatchObject({ processedItems: 1, importedItems: 1 })
   })
 

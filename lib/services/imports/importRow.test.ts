@@ -122,6 +122,32 @@ describe('importRow', () => {
       expect(follow).toHaveBeenCalledTimes(1)
     })
 
+    it('keeps the stored preferences of an existing follow when the row has none', async () => {
+      await run('following', {
+        acct: 'bob@remote.test',
+        show_reblogs: false,
+        notify: true,
+        languages: ['en']
+      })
+      for (const data of [
+        { acct: 'bob@remote.test' },
+        {
+          acct: 'bob@remote.test',
+          show_reblogs: null,
+          notify: null,
+          languages: null
+        }
+      ]) {
+        await run('following', data)
+        expect(
+          await database.getAcceptedOrRequestedFollow({
+            actorId: actor.id,
+            targetActorId: bob.id
+          })
+        ).toMatchObject({ reblogs: false, notify: true, languages: ['en'] })
+      }
+    })
+
     it('does not import following, blocking or muting yourself', async () => {
       for (const type of ['following', 'blocking', 'muting'] as const) {
         const result = await run(type, { acct: 'test1@llun.test' })

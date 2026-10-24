@@ -436,8 +436,8 @@ a string>`, which returns an empty page, so that poller never detects new
   follow `Form::Import`, `BulkImportService` and `BulkImportRowService`
   (merge or overwrite, 20,000 rows). Mastodon has no REST API for either, only
   the settings web UI, so `POST /api/v1/imports` and `GET /api/v1/imports[/:id]`
-  are this server's own. Rows run in one time-budgeted, resumable job instead
-  of one Sidekiq job per row, with one attempt per row. Failed rows are kept
+  are this server's own. The upload is read with a byte cap, so a chunked body over 5 MiB is refused (413) without being buffered. Rows run in one time-budgeted, resumable job instead
+  of one Sidekiq job per row, with one attempt per row, checking the time budget after every row. A row that throws is stored with a generic error, not the exception message. A blank or missing follow option leaves an existing follow's stored value. Failed rows are kept
   and listed (up to 100 on `GET /api/v1/imports/:id`); Mastodon deletes
   imported rows and only counts failures. An import with no progress for 24
   hours is abandoned so the actor can start another. A bookmark of a remote

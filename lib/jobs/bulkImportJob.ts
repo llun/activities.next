@@ -56,8 +56,9 @@ export const runBulkImport = async (
   try {
     await database.updateBulkImport({ id: importId, state: 'in_progress' })
 
-    // shortcut: the pre-pass has no time check of its own (its removals are
-    // local and quick); a killed run just starts it again, which is safe.
+    // shortcut: the pre-pass has no time budget and no checkpoint. It is
+    // idempotent and converges: what it removes drops out of the next run's
+    // reads, so a run that is killed part way and retried finishes the rest.
     if (bulkImport.overwrite && !bulkImport.overwriteDone) {
       await applyOverwrite({ database, actor, bulkImport })
       await database.updateBulkImport({ id: importId, overwriteDone: true })
@@ -111,16 +112,14 @@ export const runBulkImport = async (
             data: row.data
           })
         } catch (error) {
-          logger.warn({
+          logger.error({
             message: 'Bulk import row failed',
             importId,
             rowIndex: row.rowIndex,
             err: toLoggableError(error)
           })
-          result = {
-            imported: false,
-            error: error instanceof Error ? error.message : String(error)
-          }
+          // The row error is shown to the user; keep internals out of it.
+          result = { imported: false, error: 'Could not import this row' }
         }
         await database.markBulkImportRowProcessed({
           importId,
@@ -128,6 +127,19 @@ export const runBulkImport = async (
           imported: result.imported,
           error: result.error
         })
+
+        // Rows do remote work inline, so the budget is checked after every row,
+        // not once per page.
+        if (Date.now() >= deadline) {
+          nextRowIndex = row.rowIndex + 1
+          await database.updateBulkImport({ id: importId, nextRowIndex })
+          await getQueue().publish({
+            id: getBulkImportContinueJobId(importId, nextRowIndex),
+            name: BULK_IMPORT_JOB_NAME,
+            data: { importId }
+          })
+          return
+        }
       }
 
       if (rows.length === 0) break
@@ -135,14 +147,6 @@ export const runBulkImport = async (
       await database.updateBulkImport({ id: importId, nextRowIndex })
 
       if (rows.length < pageSize) break
-      if (Date.now() >= deadline) {
-        await getQueue().publish({
-          id: getBulkImportContinueJobId(importId, nextRowIndex),
-          name: BULK_IMPORT_JOB_NAME,
-          data: { importId }
-        })
-        return
-      }
     }
 
     // markBulkImportRowProcessed finishes the import when the counts meet;

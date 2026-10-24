@@ -27,8 +27,7 @@ export const toCsvRow = (
 export const formatLanguages = (
   languages: string[] | null | undefined
 ): string | null => {
-  if (!languages || languages.length === 0) {
-    return null
-  }
+  if (!languages) return null
+  // Ruby's [].join(', ') is "", not nil.
   return languages.join(', ')
 }

@@ -144,7 +144,7 @@ describe('bulkImportJob', () => {
     expect(failed[0].error).toBe('Account not found')
   })
 
-  it('records the message of a row that throws', async () => {
+  it('records a generic error for a row that throws, not its message', async () => {
     vi.mocked(resolveAccountTarget).mockRejectedValueOnce(new Error('boom'))
     await createImport('following', [{ acct: 'bob@remote.test' }])
 
@@ -153,7 +153,7 @@ describe('bulkImportJob', () => {
     const failed = await database.getBulkImportFailedRows({
       importId: IMPORT_ID
     })
-    expect(failed[0].error).toBe('boom')
+    expect(failed[0].error).toBe('Could not import this row')
     expect(await getImport()).toMatchObject({
       state: 'finished',
       processedItems: 1,
@@ -371,23 +371,33 @@ describe('bulkImportJob', () => {
       { acct: 'nobody@remote.test' }
     ])
 
+    // The budget is checked after every row, so a page of 2 stops after 1.
     await runBulkImport(database, IMPORT_ID, { budgetMs: -1, pageSize: 2 })
 
+    expect(
+      mockPublish.mock.calls.filter(
+        ([message]) => message.name === BULK_IMPORT_JOB_NAME
+      )
+    ).toHaveLength(1)
     expect(mockPublish).toHaveBeenCalledWith({
-      id: getBulkImportContinueJobId(IMPORT_ID, 2),
+      id: getBulkImportContinueJobId(IMPORT_ID, 1),
       name: BULK_IMPORT_JOB_NAME,
       data: { importId: IMPORT_ID }
     })
     expect(await getImport()).toMatchObject({
       state: 'in_progress',
-      nextRowIndex: 2,
-      processedItems: 2
+      nextRowIndex: 1,
+      processedItems: 1
     })
 
     mockPublish.mockClear()
     await runBulkImport(database, IMPORT_ID, { pageSize: 2 })
 
-    expect(mockPublish).not.toHaveBeenCalled()
+    expect(
+      mockPublish.mock.calls.filter(
+        ([message]) => message.name === BULK_IMPORT_JOB_NAME
+      )
+    ).toHaveLength(0)
     expect(await getImport()).toMatchObject({
       state: 'finished',
       processedItems: 3,

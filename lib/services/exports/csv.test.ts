@@ -76,7 +76,8 @@ describe('csv export utilities', () => {
     it('returns null for null, undefined, or empty array', () => {
       expect(formatLanguages(null)).toBeNull()
       expect(formatLanguages(undefined)).toBeNull()
-      expect(formatLanguages([])).toBeNull()
+      // Ruby's [].join(', ') is ""
+      expect(formatLanguages([])).toBe('')
     })
 
     it('returns language code directly when array has one item', () => {
@@ -104,7 +105,7 @@ describe('csv export utilities', () => {
 
       expect(
         toCsvRow(['alice@example.com', true, false, formatLanguages([])])
-      ).toBe('alice@example.com,true,false,\n')
+      ).toBe('alice@example.com,true,false,""\n')
 
       expect(
         toCsvRow(['alice@example.com', true, false, formatLanguages(null)])
