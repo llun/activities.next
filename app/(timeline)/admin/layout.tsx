@@ -3,10 +3,7 @@
 import { FC, ReactNode } from 'react'
 
 import { ADMIN_ICONS } from '@/lib/components/admin/adminIcons'
-import {
-  PageHeader,
-  PageHeaderSectionProvider
-} from '@/lib/components/page-header'
+import { SectionLayout } from '@/lib/components/section-nav'
 import {
   SectionNavDropdown,
   type SectionNavTab
@@ -52,26 +49,28 @@ const tabs: SectionNavTab[] = [
 ]
 
 const Layout: FC<Props> = ({ children }) => {
+  // Admin is a settings-style section: the navigation rail is shown from lg up
+  // (flat, in today's order), and the dropdown is shown below lg until the admin
+  // groups arrive in a later step. There is no indexUrl because /admin is the
+  // Overview page itself, not a section index, and no footer.
   return (
-    <>
-      {/* Shared section header — sticky chrome, outside the section provider, so
-          the admin section reads like Settings/Fitness and the other top-level
-          routes. Per-page titles ("Overview", "Accounts", …) render below in
-          section mode. */}
-      <PageHeader
-        title="Admin"
-        description="Moderate accounts, reports, and instance settings"
-      />
-      <PageHeaderSectionProvider>
-        <div className="w-full pt-4 max-md:pt-0">
-          {/* Dropdown sub-navigation on every breakpoint (desktop included) so
-              the content always gets the full width — no vertical rail. */}
-          <SectionNavDropdown label="Admin" tabs={tabs} />
-
-          <div className="min-w-0">{children}</div>
-        </div>
-      </PageHeaderSectionProvider>
-    </>
+    <SectionLayout
+      label="Admin"
+      title="Admin"
+      description="Moderate accounts, reports, and instance settings"
+      groups={[
+        {
+          items: tabs.map((tab) => ({
+            name: tab.name,
+            url: tab.url,
+            icon: <tab.icon />
+          }))
+        }
+      ]}
+      mobileNav={<SectionNavDropdown label="Admin" tabs={tabs} />}
+    >
+      {children}
+    </SectionLayout>
   )
 }
 

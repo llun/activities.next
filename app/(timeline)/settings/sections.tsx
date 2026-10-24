@@ -105,6 +105,7 @@ export const getSettingsGroups = (
     ]
   },
   {
+    afterFooter: true,
     items: [
       {
         name: 'Delete this profile',

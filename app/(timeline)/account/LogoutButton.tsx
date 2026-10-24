@@ -95,7 +95,7 @@ export const LogoutButton = ({
         aria-labelledby={labelledBy}
         onClick={handleClick}
       >
-        Logout
+        Sign out
       </Button>
       <ConfirmDialog
         open={confirmOpen}

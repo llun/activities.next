@@ -50,7 +50,7 @@ const Page: FC<Props> = async ({ searchParams }) => {
   const isLoggedIn = !!(actor && actor.account)
 
   const destination = isLoggedIn
-    ? { href: '/account', label: 'Go to account' }
+    ? { href: '/account/email', label: 'Go to Email & name' }
     : { href: '/auth/signin', label: 'Sign in' }
 
   return (

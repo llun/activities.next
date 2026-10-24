@@ -39,11 +39,18 @@ export interface SectionNavGroup {
    * profile card).
    */
   railOnly?: boolean
+  /**
+   * On the index, after the footer card instead of before it (Settings'
+   * Delete this profile, the last thing on the list page).
+   */
+  afterFooter?: boolean
 }
 
 export interface SectionNavFooter {
   /** The index's label above the card ("Shared across your profiles"). */
   heading: string
+  /** The card's second line in the rail; the heading when absent. */
+  hint?: string
   item: SectionNavItem
 }
 
@@ -141,7 +148,7 @@ export const SectionNav: FC<{
               {/* The rail says who it is for; the index's card says what
                   is in it. */}
               <span className="block text-xs text-muted-foreground">
-                {footer.heading}
+                {footer.hint ?? footer.heading}
               </span>
             </span>
             <ChevronRight
@@ -228,16 +235,15 @@ export const SectionIndex: FC<{
   footer?: SectionNavFooter
 }> = ({ groups, footer }) => {
   const listed = groups.filter((group) => !group.railOnly)
+  const toBlock = (group: SectionNavGroup) => (
+    <IndexGroup
+      key={group.heading ?? group.items[0]?.url}
+      heading={group.heading}
+      items={group.items}
+    />
+  )
   const blocks = [
-    ...listed
-      .filter((group) => group.heading)
-      .map((group) => (
-        <IndexGroup
-          key={group.heading}
-          heading={group.heading}
-          items={group.items}
-        />
-      )),
+    ...listed.filter((group) => !group.afterFooter).map(toBlock),
     ...(footer
       ? [
           <IndexGroup
@@ -248,11 +254,7 @@ export const SectionIndex: FC<{
           />
         ]
       : []),
-    ...listed
-      .filter((group) => !group.heading)
-      .map((group) => (
-        <IndexGroup key={group.items[0]?.url} items={group.items} />
-      ))
+    ...listed.filter((group) => group.afterFooter).map(toBlock)
   ]
 
   return (
@@ -268,20 +270,28 @@ interface SectionLayoutProps {
   label: string
   title: ReactNode
   description?: ReactNode
-  /** The index route; the rail and the Back row are hidden there. */
-  indexUrl: string
+  /**
+   * The index route; the rail and the Back row are hidden there. A section
+   * without one (Admin, whose root is its Overview page) has no Back row.
+   */
+  indexUrl?: string
+  /**
+   * Below `lg`, in place of the Back row: Admin keeps its dropdown there.
+   */
+  mobileNav?: ReactNode
   groups: SectionNavGroup[]
   footer?: SectionNavFooter
   children: ReactNode
 }
 
 /**
- * The chrome of a settings-style section (Settings; Account & security and
- * Admin to follow): the sticky section header, the wider
- * `--container-section` column (the `[data-section-layout]` hook in the
- * (timeline) layout), the rail from `lg` up, and below `lg` a "Back to …" row
- * on every page but the index, which renders `SectionIndex` after the page.
- * Fitness and Gallery are content sections and keep `SectionNavDropdown`.
+ * The chrome of a settings-style section (Settings, Account & security,
+ * Admin): the sticky section header, the wider `--container-section` column
+ * (the `[data-section-layout]` hook in the (timeline) layout), the rail from
+ * `lg` up, and below `lg` either `mobileNav` (Admin's dropdown) or a
+ * "Back to …" row on every page but the index, which renders `SectionIndex`
+ * after the page. Fitness and Gallery are content sections and keep
+ * `SectionNavDropdown`.
  */
 export const SectionLayout: FC<SectionLayoutProps> = ({
   label,
@@ -290,9 +300,13 @@ export const SectionLayout: FC<SectionLayoutProps> = ({
   indexUrl,
   groups,
   footer,
+  mobileNav,
   children
 }) => {
   const isIndex = usePathname() === indexUrl
+  // A section with an index opens its pages on the Back row below `md`; one
+  // without (Admin) keeps its header box and dropdown there.
+  const headerOnPhone = isIndex || !indexUrl
 
   return (
     <div data-section-layout="">
@@ -302,13 +316,13 @@ export const SectionLayout: FC<SectionLayoutProps> = ({
       <PageHeader
         title={title}
         description={description}
-        className={isIndex ? undefined : 'max-md:hidden'}
+        className={headerOnPhone ? undefined : 'max-md:hidden'}
       />
       <PageHeaderSectionProvider>
         <div
           className={cn(
             'flex w-full gap-6 pt-6 xl:gap-8',
-            isIndex ? 'max-md:pt-0' : 'max-md:pt-2'
+            headerOnPhone ? 'max-md:pt-0' : 'max-md:pt-2'
           )}
         >
           {!isIndex && (
@@ -327,7 +341,8 @@ export const SectionLayout: FC<SectionLayoutProps> = ({
             />
           )}
           <div className="min-w-0 flex-1">
-            {!isIndex && (
+            {mobileNav ? <div className="lg:hidden">{mobileNav}</div> : null}
+            {!isIndex && !mobileNav && indexUrl && (
               <BackLink
                 href={indexUrl}
                 label={`Back to ${label}`}

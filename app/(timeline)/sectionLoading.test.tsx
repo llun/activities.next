@@ -4,7 +4,9 @@
 import '@testing-library/jest-dom'
 import { render, screen } from '@testing-library/react'
 
+import EmailLoading from './account/email/loading'
 import AccountLoading from './account/loading'
+import ProfilesLoading from './account/profiles/loading'
 import SecurityLoading from './account/security/loading'
 import SessionsLoading from './account/sessions/loading'
 import VerifyEmailLoading from './account/verify-email/loading'
@@ -38,6 +40,8 @@ describe.each([
   ['settings/mutes', MutesLoading],
   ['settings/media', MediaLoading],
   ['account', AccountLoading],
+  ['account/email', EmailLoading],
+  ['account/profiles', ProfilesLoading],
   ['account/security', SecurityLoading],
   ['account/sessions', SessionsLoading],
   ['account/verify-email', VerifyEmailLoading]

@@ -82,6 +82,6 @@ describe('Notification settings', () => {
     const link = await screen.findByRole('link', {
       name: 'Change email address'
     })
-    expect(link).toHaveAttribute('href', '/account')
+    expect(link).toHaveAttribute('href', '/account/email')
   })
 })

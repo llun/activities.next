@@ -28,7 +28,7 @@ describe('resolveBackDestination', () => {
     ['/gallery/subjects/sci%3Aalcedo%20atthis', 'Back to Gallery'],
     ['/settings', 'Back to Settings'],
     ['/settings/preferences', 'Back to Settings'],
-    ['/account/security', 'Back to Account'],
+    ['/account/security', 'Back to Account & security'],
     ['/admin/reports/3', 'Back to Admin'],
     ['/@anna@llun.social/followers', "Back to @anna@llun.social's followers"],
     ['/@anna@llun.social/following', "Back to @anna@llun.social's following"],

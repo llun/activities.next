@@ -47,7 +47,7 @@ describe('LogoutButton', () => {
     )
 
     expect(
-      screen.getByRole('button', { name: 'Logout' })
+      screen.getByRole('button', { name: 'Sign out' })
     ).toHaveAccessibleDescription('You can sign in again at any time.')
   })
 
@@ -73,7 +73,7 @@ describe('LogoutButton', () => {
     const onError = vi.fn()
     render(<LogoutButton onError={onError} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Logout' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Sign out' }))
 
     await waitFor(() => {
       expect(onError).toHaveBeenLastCalledWith(
@@ -86,7 +86,7 @@ describe('LogoutButton', () => {
   it('clears all offline data when logout button is clicked', async () => {
     render(<LogoutButton onError={vi.fn()} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Logout' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Sign out' }))
 
     await waitFor(() => {
       expect(clearAllOfflineData).toHaveBeenCalledTimes(1)
@@ -171,7 +171,7 @@ describe('LogoutButton', () => {
       finishSignOut('success')
       renderLogout()
 
-      fireEvent.click(screen.getByRole('button', { name: 'Logout' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Sign out' }))
 
       await waitFor(() => expect(assign).toHaveBeenCalledWith('/auth/signin'))
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -187,7 +187,7 @@ describe('LogoutButton', () => {
       })
       renderLogout()
 
-      fireEvent.click(screen.getByRole('button', { name: 'Logout' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Sign out' }))
 
       const dialog = await screen.findByRole('dialog')
       expect(dialog).toHaveAccessibleName('Delete 2 unsent posts?')
@@ -208,7 +208,7 @@ describe('LogoutButton', () => {
       await save('a')
       renderLogout()
 
-      fireEvent.click(screen.getByRole('button', { name: 'Logout' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Sign out' }))
 
       expect(await screen.findByRole('dialog')).toHaveAccessibleName(
         'Delete 1 unsent post?'
@@ -218,7 +218,7 @@ describe('LogoutButton', () => {
     it('Keep me signed in closes the dialog and signs nothing out', async () => {
       await save('a')
       renderLogout()
-      fireEvent.click(screen.getByRole('button', { name: 'Logout' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Sign out' }))
 
       fireEvent.click(
         await screen.findByRole('button', { name: 'Keep me signed in' })
@@ -236,7 +236,7 @@ describe('LogoutButton', () => {
       await save('a', 'b')
       finishSignOut('success')
       renderLogout()
-      fireEvent.click(screen.getByRole('button', { name: 'Logout' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Sign out' }))
 
       fireEvent.click(
         await screen.findByRole('button', { name: 'Sign out and delete' })
@@ -260,7 +260,7 @@ describe('LogoutButton', () => {
         )
       })
       renderLogout()
-      fireEvent.click(screen.getByRole('button', { name: 'Logout' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Sign out' }))
 
       fireEvent.click(
         await screen.findByRole('button', { name: 'Sign out and delete' })
@@ -279,7 +279,7 @@ describe('LogoutButton', () => {
         throw new Error('Loading chunk failed')
       })
       try {
-        fireEvent.click(screen.getByRole('button', { name: 'Logout' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Sign out' }))
 
         await waitFor(() => expect(assign).toHaveBeenCalledWith('/auth/signin'))
       } finally {
@@ -300,7 +300,7 @@ describe('LogoutButton', () => {
       await save('a')
       finishSignOut('error')
       renderLogout()
-      fireEvent.click(screen.getByRole('button', { name: 'Logout' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Sign out' }))
 
       fireEvent.click(
         await screen.findByRole('button', { name: 'Sign out and delete' })
@@ -324,7 +324,7 @@ describe('LogoutButton', () => {
         throw new TypeError('Failed to fetch')
       }) as unknown as typeof authClient.signOut)
       renderLogout()
-      fireEvent.click(screen.getByRole('button', { name: 'Logout' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Sign out' }))
 
       fireEvent.click(
         await screen.findByRole('button', { name: 'Sign out and delete' })
@@ -362,7 +362,7 @@ describe('LogoutButton', () => {
           <LogoutButton onError={vi.fn()} />
         </DraftsProvider>
       )
-      fireEvent.click(screen.getByRole('button', { name: 'Logout' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Sign out' }))
       fireEvent.click(
         await screen.findByRole('button', { name: 'Sign out and delete' })
       )
@@ -401,7 +401,7 @@ describe('LogoutButton', () => {
       finishSignOut('success')
       renderLogout()
 
-      fireEvent.click(screen.getByRole('button', { name: 'Logout' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Sign out' }))
 
       await waitFor(() => expect(assign).toHaveBeenCalledWith('/auth/signin'))
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument()

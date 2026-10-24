@@ -34,7 +34,7 @@ const groups: SectionNavGroup[] = [
     heading: 'Second',
     items: [{ name: 'Three', url: '/s/three', icon: null }]
   },
-  { items: [{ name: 'Last', url: '/s/last', icon: null }] }
+  { afterFooter: true, items: [{ name: 'Last', url: '/s/last', icon: null }] }
 ]
 
 const footer: SectionNavFooter = {
@@ -101,7 +101,7 @@ describe('SectionNav', () => {
 })
 
 describe('SectionIndex', () => {
-  it('lists headed groups, then the footer, then plain runs, without rail-only groups', () => {
+  it('lists the groups, then the footer, then after-footer groups, without rail-only groups', () => {
     render(<SectionIndex groups={groups} footer={footer} />)
 
     expect(
@@ -182,5 +182,42 @@ describe('SectionLayout', () => {
     expect(heading.closest('.max-w-content')).toHaveClass(
       '[[data-section-layout]_&]:max-w-section'
     )
+  })
+  it('puts mobileNav where the Back row would be, and has no Back without an index', () => {
+    ;(usePathname as jest.Mock).mockReturnValue('/s/one')
+    render(
+      <SectionLayout
+        label="Things"
+        title="Things"
+        groups={groups}
+        mobileNav={<div>dropdown</div>}
+      >
+        <div>content</div>
+      </SectionLayout>
+    )
+
+    expect(screen.getByText('dropdown').parentElement).toHaveClass('lg:hidden')
+    expect(
+      screen.queryByRole('link', { name: /^Back/ })
+    ).not.toBeInTheDocument()
+    // Rail stays; no index means no index list either.
+    expect(
+      screen.getByRole('navigation', { name: 'Things' })
+    ).toBeInTheDocument()
+  })
+
+  it('uses the footer hint for the rail card when given', () => {
+    ;(usePathname as jest.Mock).mockReturnValue('/s/one')
+    render(
+      <SectionNav
+        label="Things"
+        groups={groups}
+        footer={{ ...footer, hint: 'Each has its own' }}
+      />
+    )
+
+    const card = screen.getByRole('link', { name: /Other/ })
+    expect(card).toHaveTextContent('Each has its own')
+    expect(card).not.toHaveTextContent('Elsewhere')
   })
 })

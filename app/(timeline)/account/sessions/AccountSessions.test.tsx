@@ -37,7 +37,7 @@ vi.mock('@/app/(timeline)/account/LogoutButton', () => ({
     onError: (message: string | null) => void
   }) => (
     <button type="button" onClick={() => onError('Sign out failed.')}>
-      Logout
+      Sign out
     </button>
   )
 }))
@@ -444,13 +444,13 @@ describe('AccountSessions', () => {
     expect(row).not.toBeNull()
     expect(row).toContainElement(label)
     expect(
-      within(row as HTMLElement).getByRole('button', { name: 'Logout' })
+      within(row as HTMLElement).getByRole('button', { name: 'Sign out' })
     ).toBeInTheDocument()
   })
 
   it('shows a failed sign-out as an Alert above the this-device box', () => {
     renderSessions()
-    fireEvent.click(screen.getByRole('button', { name: 'Logout' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Sign out' }))
     const alert = screen
       .getByText('Sign out failed.')
       .closest('[data-slot=alert]')

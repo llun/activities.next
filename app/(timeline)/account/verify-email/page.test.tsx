@@ -68,10 +68,9 @@ describe('/account/verify-email', () => {
     expect(
       screen.queryByText('Please sign in with your new email address.')
     ).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Go to account' })).toHaveAttribute(
-      'href',
-      '/account'
-    )
+    expect(
+      screen.getByRole('link', { name: 'Go to Email & name' })
+    ).toHaveAttribute('href', '/account/email')
   })
 
   it('reports an invalid or expired link as an error, with the same destination rule', async () => {
@@ -85,7 +84,9 @@ describe('/account/verify-email', () => {
       .closest('[data-slot="alert"]') as HTMLElement
     expect(alert).toHaveAttribute('data-tone', 'error')
     expect(alert).toHaveTextContent('invalid or has expired')
-    expect(screen.getByRole('link', { name: 'Go to account' })).toBeVisible()
+    expect(
+      screen.getByRole('link', { name: 'Go to Email & name' })
+    ).toBeVisible()
   })
 
   it('fails without asking the database when there is no code', async () => {

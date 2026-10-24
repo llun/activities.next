@@ -11,7 +11,7 @@ export const POST = traceApiRoute(
 
     const invalidImageUrl = () =>
       Response.redirect(
-        new URL('/account?error=Invalid+image+URL', req.url),
+        new URL('/account/email?error=Invalid+image+URL', req.url),
         303
       )
 
@@ -47,6 +47,6 @@ export const POST = traceApiRoute(
       })
     }
 
-    return Response.redirect(new URL('/account', req.url), 303)
+    return Response.redirect(new URL('/account/email', req.url), 303)
   })
 )

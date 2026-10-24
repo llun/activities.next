@@ -68,7 +68,9 @@ describe('POST /api/v1/accounts/image', () => {
     const response = await post({ iconUrl: MEDIA_URL })
 
     expect(response.status).toBe(303)
-    expect(response.headers.get('location')).toBe('https://llun.test/account')
+    expect(response.headers.get('location')).toBe(
+      'https://llun.test/account/email'
+    )
     expect(mockDatabase.updateAccountImage).toHaveBeenCalledWith({
       accountId: 'account-1',
       iconUrl: MEDIA_URL
@@ -90,7 +92,7 @@ describe('POST /api/v1/accounts/image', () => {
     const response = await POST(req, { params: Promise.resolve({}) })
 
     expect(response.headers.get('location')).toBe(
-      'https://llun.test/account?error=Invalid+image+URL'
+      'https://llun.test/account/email?error=Invalid+image+URL'
     )
     expect(mockDatabase.updateAccountImage).not.toHaveBeenCalled()
   })
@@ -115,7 +117,7 @@ describe('POST /api/v1/accounts/image', () => {
     const response = await post({ iconUrl: value })
 
     expect(response.headers.get('location')).toBe(
-      'https://llun.test/account?error=Invalid+image+URL'
+      'https://llun.test/account/email?error=Invalid+image+URL'
     )
     expect(mockDatabase.updateAccountImage).not.toHaveBeenCalled()
   })
@@ -154,7 +156,9 @@ describe('POST /api/v1/accounts/image', () => {
       mockCurrentActor.account.iconUrl = STALE
       const response = await post({ iconUrl: STALE })
 
-      expect(response.headers.get('location')).toBe('https://llun.test/account')
+      expect(response.headers.get('location')).toBe(
+        'https://llun.test/account/email'
+      )
       expect(mockDatabase.updateAccountImage).not.toHaveBeenCalled()
     })
 

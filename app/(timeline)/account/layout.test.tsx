@@ -2,8 +2,10 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { usePathname } from 'next/navigation'
+
+import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import Layout from './layout'
 
@@ -11,80 +13,106 @@ vi.mock('next/navigation', () => ({
   usePathname: vi.fn()
 }))
 
-const renderLayout = () =>
-  render(
-    <Layout>
-      <div>content</div>
-    </Layout>
-  )
+vi.mock('@/lib/database', () => ({
+  getDatabase: vi.fn(() => ({
+    getActorsForAccount: vi.fn().mockResolvedValue([{}, {}, {}])
+  }))
+}))
+
+vi.mock('@/lib/services/auth/getSession', () => ({
+  getServerAuthSession: vi.fn().mockResolvedValue({
+    user: { email: 'anna@llun.test' }
+  })
+}))
+
+vi.mock('@/lib/utils/getActorFromSession', () => ({
+  getActorFromSession: vi.fn().mockResolvedValue({
+    id: 'https://llun.test/users/anna',
+    username: 'anna',
+    domain: 'llun.test',
+    iconUrl: null,
+    account: { id: 'acct-1', email: 'anna@llun.test' }
+  })
+}))
+
+const renderLayout = async (pathname: string) => {
+  ;(usePathname as jest.Mock).mockReturnValue(pathname)
+  render(await Layout({ children: <div>content</div> }))
+}
 
 describe('Account Layout', () => {
-  it('renders the section-level Account header above the dropdown nav', () => {
-    ;(usePathname as jest.Mock).mockReturnValue('/account')
-    renderLayout()
+  it('names the account email in the section header', async () => {
+    await renderLayout('/account/security')
 
-    const heading = screen.getByRole('heading', { name: 'Account' })
-    const nav = screen.getByRole('navigation', { name: 'Account' })
     expect(
-      heading.compareDocumentPosition(nav) & Node.DOCUMENT_POSITION_FOLLOWING
-    ).toBeTruthy()
+      screen.getByRole('heading', { level: 1, name: 'Account & security' })
+    ).toBeInTheDocument()
     expect(
-      screen.getByText(
-        'Identity, security, and sessions shared across your actors'
-      )
+      screen.getByText('Shared across your profiles · anna@llun.test')
     ).toBeInTheDocument()
   })
 
-  it('reflects the General tab on the account root', () => {
-    ;(usePathname as jest.Mock).mockReturnValue('/account')
-    renderLayout()
+  it('has no email in the header when signed out', async () => {
+    vi.mocked(getActorFromSession).mockResolvedValueOnce(null as never)
+    await renderLayout('/account/security')
 
-    const nav = screen.getByRole('navigation', { name: 'Account' })
-    expect(within(nav).getByRole('button')).toHaveTextContent('General')
+    expect(screen.getByText('Shared across your profiles')).toBeInTheDocument()
+    expect(screen.queryByText(/anna@llun\.test/)).not.toBeInTheDocument()
   })
 
-  it.each([
-    ['/account/security', 'Security'],
-    ['/account/sessions', 'Sessions']
-  ])('reflects the %s path as the %s tab', (pathname, label) => {
-    ;(usePathname as jest.Mock).mockReturnValue(pathname)
-    renderLayout()
+  it('lists the four sections in order and the settings card', async () => {
+    await renderLayout('/account/security')
 
-    const nav = screen.getByRole('navigation', { name: 'Account' })
-    expect(within(nav).getByRole('button')).toHaveTextContent(label)
+    const nav = screen.getByRole('navigation', { name: 'Account & security' })
+    const links = within(nav).getAllByRole('link')
+    expect(
+      links.slice(0, 4).map((l) => [l.textContent, l.getAttribute('href')])
+    ).toEqual([
+      ['Email & name', '/account/email'],
+      ['Password & sign-in', '/account/security'],
+      ['Sessions & apps', '/account/sessions'],
+      ['Profiles', '/account/profiles']
+    ])
+    const footer = within(nav).getByRole('link', {
+      name: /Settings for @anna@llun.test/
+    })
+    expect(footer).toHaveAttribute('href', '/settings')
+    expect(footer).toHaveTextContent('Each profile has its own')
+    expect(within(nav).queryByRole('button')).not.toBeInTheDocument()
   })
 
-  it('resolves /account/verify-email to General, not a deeper tab', () => {
-    ;(usePathname as jest.Mock).mockReturnValue('/account/verify-email')
-    renderLayout()
+  it('marks a nested security path as Password & sign-in', async () => {
+    await renderLayout('/account/security/passkeys')
 
-    const nav = screen.getByRole('navigation', { name: 'Account' })
-    // '/account' is a prefix of the path; no deeper tab matches, so it stays General.
-    expect(within(nav).getByRole('button')).toHaveTextContent('General')
+    const nav = screen.getByRole('navigation', { name: 'Account & security' })
+    const current = within(nav)
+      .getAllByRole('link')
+      .filter((link) => link.getAttribute('aria-current') === 'page')
+    expect(current).toHaveLength(1)
+    expect(current[0]).toHaveTextContent('Password & sign-in')
   })
 
-  it('renders every account section as a menu item', async () => {
-    ;(usePathname as jest.Mock).mockReturnValue('/account')
-    renderLayout()
+  it('leads a section page with Back to Account & security below lg', async () => {
+    await renderLayout('/account/email')
 
-    const nav = screen.getByRole('navigation', { name: 'Account' })
-    fireEvent.keyDown(within(nav).getByRole('button'), { key: 'ArrowDown' })
-
-    const menu = await screen.findByRole('menu')
-    for (const label of ['General', 'Security', 'Sessions']) {
-      expect(
-        within(menu).getByRole('menuitem', { name: label })
-      ).toBeInTheDocument()
-    }
+    const back = screen.getByRole('link', {
+      name: 'Back to account & security'
+    })
+    expect(back).toHaveAttribute('href', '/account')
+    expect(back).toHaveClass('lg:hidden')
   })
 
-  // Below md the description's own 16px bottom padding is the whole gap to
-  // the dropdown; from md up the section keeps its 16px top padding.
-  it('drops the section top padding below md only', () => {
-    ;(usePathname as jest.Mock).mockReturnValue('/account')
-    renderLayout()
+  it('renders the index list instead of the rail on /account', async () => {
+    await renderLayout('/account')
 
-    const nav = screen.getByRole('navigation', { name: 'Account' })
-    expect(nav.parentElement).toHaveClass('pt-4', 'max-md:pt-0')
+    expect(
+      screen.queryByRole('navigation', { name: 'Account & security' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { level: 2, name: 'For this profile' })
+    ).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Profiles/ })).toHaveTextContent(
+      '3 profiles: switch, set the default, add one'
+    )
   })
 })

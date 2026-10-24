@@ -84,7 +84,7 @@ export function ActorsSection({
         }
         window.location.reload()
       } else {
-        setMessage({ type: 'error', text: 'Failed to switch actor' })
+        setMessage({ type: 'error', text: 'Failed to switch profile' })
       }
     } catch {
       setMessage({ type: 'error', text: 'An error occurred' })
@@ -101,10 +101,10 @@ export function ActorsSection({
 
     try {
       await setDefaultActor({ actorId: selectedActorId })
-      setMessage({ type: 'success', text: 'Default actor updated' })
+      setMessage({ type: 'success', text: 'Default profile updated' })
       router.refresh()
     } catch {
-      setMessage({ type: 'error', text: 'Failed to update default actor' })
+      setMessage({ type: 'error', text: 'Failed to update default profile' })
     } finally {
       setIsSavingDefault(false)
     }
@@ -129,7 +129,9 @@ export function ActorsSection({
       setMessage({
         type: 'error',
         text:
-          err instanceof Error ? err.message : 'Failed to cancel actor deletion'
+          err instanceof Error
+            ? err.message
+            : 'Failed to cancel profile deletion'
       })
     }
   }
@@ -170,7 +172,7 @@ export function ActorsSection({
               }
               className="w-full sm:w-auto"
             >
-              {isSwitching ? 'Switching…' : 'Switch to actor'}
+              {isSwitching ? 'Switching…' : 'Switch to profile'}
             </Button>
             <Button
               type="button"
@@ -195,15 +197,15 @@ export function ActorsSection({
               className="w-full sm:w-auto"
             >
               <Plus className="h-4 w-4 mr-2" />
-              Add actor
+              Add profile
             </Button>
           </div>
         }
       >
         <FormRow
-          label="Actor"
+          label="Profile"
           htmlFor="actorSectionTrigger"
-          hint="Pick an actor to switch to, or the one you sign in as by default."
+          hint="Pick a profile to switch to, or the one you sign in as by default."
         >
           {({ describedBy, labelledBy }) => (
             <DropdownMenu>

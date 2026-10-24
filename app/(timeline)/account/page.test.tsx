@@ -3,15 +3,14 @@
  */
 import '@testing-library/jest-dom'
 import { render, screen } from '@testing-library/react'
+import { redirect } from 'next/navigation'
 
 import Page from './page'
 
-const getActorsForAccount = vi.fn()
-const mockDatabase = { getActorsForAccount }
 const getActorFromSession = vi.fn()
 
 vi.mock('@/lib/database', () => ({
-  getDatabase: vi.fn(() => mockDatabase)
+  getDatabase: vi.fn(() => ({}))
 }))
 
 vi.mock('@/lib/services/auth/getSession', () => ({
@@ -26,38 +25,49 @@ vi.mock('@/lib/utils/getActorFromSession', () => ({
 
 vi.mock('next/navigation', () => ({
   redirect: vi.fn((path: string) => {
-    throw new Error(`Unexpected redirect to ${path}`)
-  }),
-  useRouter: () => ({ refresh: vi.fn(), push: vi.fn() })
+    throw new Error(`redirect:${path}`)
+  })
 }))
 
-const actorWithAccount = (emailVerifiedAt: number | null) => ({
+const actorWithAccount = {
   id: 'https://llun.test/users/anna',
   username: 'anna',
   domain: 'llun.test',
-  name: 'Anna',
-  iconUrl: null,
   account: {
     id: 'acct-1',
     email: 'anna@llun.test',
-    name: 'Anna',
-    iconUrl: null,
-    defaultActorId: null,
-    emailVerifiedAt
+    name: 'Anna Account',
+    iconUrl: null
   }
-})
+}
 
 describe('/account', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    getActorsForAccount.mockResolvedValue([])
+    getActorFromSession.mockResolvedValue(actorWithAccount)
   })
 
-  it('shows no badge while the email is unverified', async () => {
-    getActorFromSession.mockResolvedValue(actorWithAccount(null))
-
+  it('renders the identity card only', async () => {
     render(await Page({ searchParams: Promise.resolve({}) }))
 
-    expect(screen.queryByText('Verified')).not.toBeInTheDocument()
+    expect(screen.getByText('Anna Account')).toBeInTheDocument()
+    expect(screen.getByText('anna@llun.test')).toBeInTheDocument()
+  })
+
+  it('forwards an old image-upload error to /account/email', async () => {
+    await expect(
+      Page({ searchParams: Promise.resolve({ error: 'Invalid image URL' }) })
+    ).rejects.toThrow('redirect:/account/email?error=Invalid%20image%20URL')
+    expect(redirect).toHaveBeenCalledWith(
+      '/account/email?error=Invalid%20image%20URL'
+    )
+  })
+
+  it('redirects signed-out visitors to sign in', async () => {
+    getActorFromSession.mockResolvedValue(null)
+
+    await expect(Page({ searchParams: Promise.resolve({}) })).rejects.toThrow(
+      'redirect:/auth/signin'
+    )
   })
 })

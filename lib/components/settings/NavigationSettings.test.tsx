@@ -376,14 +376,14 @@ describe('NavigationSettings', () => {
 
     // Account sits second from last, so one press puts it last and its own
     // "Move down" becomes inert.
-    const down = within(rowFor('Account')).getByRole('button', {
-      name: 'Move Account down'
+    const down = within(rowFor('Account & security')).getByRole('button', {
+      name: 'Move Account & security down'
     })
     down.focus()
     fireEvent.click(down)
     await act(async () => {})
 
-    expect(rowLabels().at(-1)).toBe('Account')
+    expect(rowLabels().at(-1)).toBe('Account & security')
     expect(document.activeElement).toBe(down)
   })
 

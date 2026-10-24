@@ -133,7 +133,8 @@ const NAV_ITEM_DEFINITIONS: Record<NavItemId, NavItemDefinition> = {
   },
   account: {
     href: '/account',
-    label: 'Account',
+    label: 'Account & security',
+    shortLabel: 'Account',
     icon: Users,
     blurb: 'Email, password and sessions, shared across your profiles'
   },
