@@ -1,0 +1,94 @@
+lib/types/database/rows.ts
+  s_4a5bfe34af82c1::t_128b95aff0b27e 64-65
+lib/database/domains/mute/queries.ts
+  s_1f1a1efd8db0bf::t_ee66bd202b30a7 8,17,243-261,268-269
+lib/jobs/names.ts
+  s_4a5bfe34af82c1::t_103394a92d828b 17
+app/api/v1/accounts/aliases/route.test.ts
+  s_f92b4a9beb2361::t_0446e791bc802a 1-534
+lib/database/domains/accountNote/types.ts
+  s_f92b4a9beb2361::t_909ffe207851c1 14-16,23
+lib/database/domains/accountNote/queries.ts
+  s_4a5bfe34af82c1::t_bce26ef558a668 5,9,66-86
+lib/services/actors/hasFederatedProfileChange.test.ts
+  s_279e7012f36c5f::t_84f84443467ce5 107-109,113-114
+lib/database/domains/block/types.ts
+  s_f92b4a9beb2361::t_5c4538c1196a6c 45-47,60
+lib/jobs/moveFollowerJob.test.ts
+  s_4a5bfe34af82c1::t_b4a96b42361112 15,20,32-34,50,719-861
+lib/utils/getPersonFromActor.ts
+  s_f92b4a9beb2361::t_76e1fd6318531b 108-111,146-161
+docs/mastodon-api-compatibility.md
+  s_f92b4a9beb2361::t_68614657f3f8f3 1018
+lib/jobs/moveActorJob.ts
+  s_f92b4a9beb2361::t_0eb57c39a0fc3b 8,33,35,61-80,117-122,154,213,237-242,248-252,259
+lib/jobs/moveActorJob.test.ts
+  s_f92b4a9beb2361::t_f301f2780b62ea 7-12,16,111-115,118,524-593,595-598,607-660,695-885
+lib/jobs/moveFollowerJob.ts
+  s_4a5bfe34af82c1::t_e93b29df35e811 9-10,13-15,18,144-147,237-239,249-285,293-304
+lib/jobs/moveRelationshipsJob.test.ts
+  s_f92b4a9beb2361::t_5aef12d7698608 1-699
+lib/database/domains/block/block.test.ts
+  s_f92b4a9beb2361::t_fa5e5caaae6135 570-619
+lib/database/domains/mute/mute.test.ts
+  s_f92b4a9beb2361::t_44a641be4e36a3 769-824
+docs/architecture.md
+  s_279e7012f36c5f::t_f8c5c8673dba4b 1751-1754,1763-1766,1784-1788,1790-1791,1793-1796,1808-1822,1832-1833
+  s_279e7012f36c5f::t_1e4883f5c9a5b2 1789
+lib/jobs/moveRelationshipsJob.ts
+  s_f92b4a9beb2361::t_f610a14b34d7fb 1-257
+app/api/v1/accounts/aliases/route.ts
+  s_f92b4a9beb2361::t_3a8b365e5bcb62 1-198
+lib/jobs/index.ts
+  s_4a5bfe34af82c1::t_f292985e3ff17d 26,51,202-204
+docs/features.md
+  s_f92b4a9beb2361::t_b9d3051fdd5723 11
+lib/utils/getPersonFromActor.test.ts
+  s_1f1a1efd8db0bf::t_39aeaaa7c05566 257-347
+lib/database/domains/block/queries.ts
+  s_4a5bfe34af82c1::t_c3786c2ef73302 12,23,313-327,338-339
+lib/database/domains/accountNote/accountNote.test.ts
+  s_f92b4a9beb2361::t_4050990ac30d98 1-2,125-186
+lib/database/domains/mute/types.ts
+  s_f92b4a9beb2361::t_e55a0bb09c6ae3 35-37,45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cb9288c5bebe1593f1c40ac504dd340a5b8e6d0f",
+  "prompts": {},
+  "sessions": {
+    "s_1f1a1efd8db0bf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6f1be9b0-86e0-4f32-9286-3562b40d391e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_279e7012f36c5f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0410f49d-2e94-45e1-bd1f-237e6f7747bc",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_4a5bfe34af82c1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a0665615c9d122f30",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_f92b4a9beb2361": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ee3acfd9-97dc-47c9-8a2a-2e741f8b14b8",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
