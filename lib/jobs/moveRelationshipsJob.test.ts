@@ -453,6 +453,38 @@ describe('moveRelationshipsJob', () => {
         })
       })
 
+      it('ends a local target follow on resume when only the block row was inserted', async () => {
+        const deterministicUri = `${ACTOR1_ID}#blocks/${getHashFromString(`${ACTOR1_ID}/move-block/${ORIGIN}/${ACTOR2_ID}`)}`
+        await database.updateActor({ actorId: ORIGIN, movedTo: ACTOR2_ID })
+        await applyBlock({
+          database,
+          actorId: ACTOR1_ID,
+          targetActorId: ORIGIN,
+          uri: `${ACTOR1_ID}#blocks/origin`
+        })
+        const follow = await database.createFollow({
+          actorId: ACTOR2_ID,
+          targetActorId: ACTOR1_ID,
+          status: FollowStatus.enum.Accepted,
+          inbox: `${ACTOR2_ID}/inbox`,
+          sharedInbox: 'https://llun.test/inbox'
+        })
+        await database.createBlock({
+          actorId: ACTOR1_ID,
+          targetActorId: ACTOR2_ID,
+          uri: deterministicUri
+        })
+
+        mockPublish.mockClear()
+        await runJob(ACTOR1_ID, ORIGIN, ACTOR2_ID)
+
+        const updated = await database.getFollowFromId({ followId: follow.id })
+        expect(updated?.status).toBe(FollowStatus.enum.Undo)
+        expect(mockPublish).not.toHaveBeenCalledWith(
+          expect.objectContaining({ name: SEND_BLOCK_JOB_NAME })
+        )
+      })
+
       it('re-publishes SEND_BLOCK_JOB_NAME with deterministic id on second run (resume)', async () => {
         await applyBlock({
           database,
@@ -698,6 +730,51 @@ describe('moveRelationshipsJob', () => {
           target: TARGET,
           now: claimAt,
           windowMs: 7 * 86400000
+        })
+
+        await runJob()
+
+        const origin = await database.getActorFromId({ id: ORIGIN })
+        const acct = `${origin?.username}@${origin?.domain}`
+        const note = await database.getAccountNote({
+          actorId: ACTOR1_ID,
+          targetActorId: TARGET
+        })
+        expect(note).toBe(`This user moved from ${acct}, which you had muted.`)
+      })
+
+      it('adds note on resume when an expired target mute was re-activated after the move claim', async () => {
+        await applyMute({
+          database,
+          actorId: ACTOR1_ID,
+          targetActorId: TARGET,
+          notifications: false,
+          endsAt: Date.now() - 100000
+        })
+        await new Promise((resolve) => setTimeout(resolve, 5))
+
+        const future = Date.now() + 100000
+        await applyMute({
+          database,
+          actorId: ACTOR1_ID,
+          targetActorId: ORIGIN,
+          notifications: false,
+          endsAt: future
+        })
+        await database.claimActorMove({
+          actorId: ORIGIN,
+          activityId: 'inbox-move-1',
+          target: TARGET,
+          now: Date.now(),
+          windowMs: 7 * 86400000
+        })
+        // The crashed first run re-muted the target and stopped before the note
+        await applyMute({
+          database,
+          actorId: ACTOR1_ID,
+          targetActorId: TARGET,
+          notifications: false,
+          endsAt: future
         })
 
         await runJob()

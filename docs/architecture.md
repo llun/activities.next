@@ -1806,9 +1806,11 @@ changed' }` before any write. Mastodon clients do not send it and are
   is unavailable, or if the follower and the target block each other or the
   follower blocks the target's domain. The follow it makes has a deterministic
   id derived from `originFollowId/move/targetId` (a UUID), and `createFollowIfAbsent`
-  inserts it with a conflict-ignoring insert on the primary key (only the inserting
-  worker notifies the local target), so two concurrent runs cannot leave two rows or
-  duplicate notifications. An unsilenced local follower moving onto
+  inserts it with a conflict-ignoring insert on the primary key, so two concurrent
+  runs cannot leave two rows. Only the run that inserted the follow notifies the
+  local target, and a retry notifies only when no notification exists yet for that
+  follow, so a duplicate notification needs a redelivery that lands in the short
+  gap between one run's insert and its notification. An unsilenced local follower moving onto
   a local target is repointed directly (`Accepted` even when locked, the target
   gets a `follow` notification, no Follow over the network; the Undo to the remote
   origin is still sent). A silenced local follower moving onto a local target gets

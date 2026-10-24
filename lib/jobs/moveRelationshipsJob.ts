@@ -203,9 +203,17 @@ export const moveRelationshipsJob: JobHandle = createJobHandle(
         const blockNote = `This user moved from ${acct}, which you had blocked.`
 
         if (existingBlock?.uri === blockUri) {
-          // On resume, re-publish SendBlockJob for a remote target with the
-          // deterministic id: deduplicating queues drop it; others send a duplicate
-          // Block with the same uri, which remote receivers treat as a no-op.
+          // On resume, repeat the rest of applyBlock (a crash after createBlock may
+          // have left the follows in place), then re-publish SendBlockJob for a
+          // remote target with the deterministic id: deduplicating queues drop it;
+          // others send a duplicate Block with the same uri, which remote receivers
+          // treat as a no-op.
+          await applyBlock({
+            database,
+            actorId,
+            targetActorId: target.id,
+            uri: blockUri
+          })
           if (!target.privateKey) {
             await getQueue().publish({
               id: getHashFromString(blockUri),
@@ -269,10 +277,12 @@ export const moveRelationshipsJob: JobHandle = createJobHandle(
           const originSettings = await database.getActorSettings({
             actorId: origin.id
           })
+          // updatedAt, not createdAt: createMute re-activates an expired row in place
+          // and keeps its old createdAt.
           const moveClaimAt = originSettings?.moveProcessing?.at
           if (
             typeof moveClaimAt === 'number' &&
-            targetMute.createdAt >= moveClaimAt
+            targetMute.updatedAt >= moveClaimAt
           ) {
             await addAccountNoteIfNeeded(muteNote)
           }
