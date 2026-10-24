@@ -769,11 +769,18 @@ describe('moveFollowerJob', () => {
       return oldFollow
     }
 
-    const runLocal = (followId: string, targetActorId: string) =>
+    const migrationIdOf = (targetActorId: string) =>
+      `move-${LOCAL_ORIGIN}-${targetActorId}`
+
+    const runLocal = (
+      followId: string,
+      targetActorId: string,
+      migrationId: string | null = migrationIdOf(targetActorId)
+    ) =>
       moveFollowerJob(database, {
         id: getMoveFollowerJobId(followId, targetActorId),
         name: MOVE_FOLLOWER_JOB_NAME,
-        data: { followId, targetActorId }
+        data: { followId, targetActorId, migrationId: migrationId ?? undefined }
       })
 
     it('follows a remote target and ends the old follow without an Undo to ourselves', async () => {
@@ -908,6 +915,35 @@ describe('moveFollowerJob', () => {
       expect(
         (await database.getFollowFromId({ followId: oldFollow.id }))?.status
       ).toBe(FollowStatus.enum.Undo)
+    })
+
+    it('does not let an older started move to the same target authorize a newer move cancelled before it started', async () => {
+      const oldFollow = await setup(ACTOR3_ID)
+      await database.markActorMigrationStarted({ id: migrationIdOf(ACTOR3_ID) })
+      // DELETE, then a newer move to the same target that was cancelled again
+      // before its start job ran.
+      await database.updateActor({ actorId: LOCAL_ORIGIN, movedTo: null })
+      await database.createActorMigration({
+        id: 'newer-cancelled-move',
+        actorId: LOCAL_ORIGIN,
+        targetActorId: ACTOR3_ID,
+        targetAcct: 'test1@newhome.test',
+        kind: 'move',
+        followersCount: 0
+      })
+
+      await runLocal(oldFollow.id, ACTOR3_ID, 'newer-cancelled-move')
+      expect(await active(ACTOR1_ID, ACTOR3_ID)).toBeNull()
+
+      // A job without the migration id is refused for a local origin.
+      await runLocal(oldFollow.id, ACTOR3_ID, null)
+      expect(await active(ACTOR1_ID, ACTOR3_ID)).toBeNull()
+
+      // The started move's own job still runs after the DELETE.
+      await runLocal(oldFollow.id, ACTOR3_ID)
+      expect((await active(ACTOR1_ID, ACTOR3_ID))?.status).toBe(
+        FollowStatus.enum.Accepted
+      )
     })
 
     it('does nothing when the move was deleted before it started', async () => {

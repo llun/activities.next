@@ -2151,7 +2151,11 @@ move, try again later`, but nothing is rolled back: the row, `movedTo` and the
   started does not stop the fan-out (Mastodon never stops a performed move).
   `startedAt` is set only after the start job is published, so the first slice
   may run before it: until then `movedTo` must still name the target, and a
-  `DELETE` in that window cancels the move. On its first slice it
+  `DELETE` in that window cancels the move (a small window remains: a `DELETE`
+  that lands between the job's publish and `markActorMigrationStarted` can still
+  let the start run, because the `POST` is still pending then). The job
+  passes its `migrationId` in the data of every `MoveFollowerJob` and
+  `MoveRelationshipsJob` it publishes (job ids unchanged). On its first slice it
   publishes one `MoveRelationshipsJob` per local blocker, muter and note author
   of the origin, for any target, local or remote, and fails the run if one
   cannot be queued. Then it pages the origin's followers 100 at a time by follow
@@ -2164,8 +2168,14 @@ move, try again later`, but nothing is rolled back: the row, `movedTo` and the
   the run for a retry; the in-process queue records the error and carries on.
 - **`MoveFollowerJob` and `MoveRelationshipsJob` accept a local origin.** Both
   used to refuse an origin with a private key. Now a local origin with a recorded
-  `move` row for the target (started, or `movedTo` still the target before the
-  start; a remote origin still needs `movedTo` at the target) is accepted,
+  `move` row for the target is accepted, read by the `migrationId` in the job's
+  data (`getActorMigration`; started, or `movedTo` still the target before the
+  start; a job for a local origin without a `migrationId` is refused, so an old
+  started move to the same target never authorizes the jobs of a newer move that
+  was cancelled before it started; a remote origin still needs `movedTo` at the
+  target). The mute note on resume uses the migration row's `createdAt` as the
+  claim time for an outgoing move (`moveProcessing.at` is only written for an
+  inbound one),
   because the origin of an outgoing move is ours, and a `DELETE` after the start
   does not strand the remaining followers. `MoveFollowerJob` then sends no `Undo` for the old follow (`publishUndo`
   returns for a local origin), so that follow simply ends locally. In a
@@ -2186,7 +2196,9 @@ move, try again later`, but nothing is rolled back: the row, `movedTo` and the
   inbound `Follow` is answered with `Reject` (as for a blocked follower, like
   Mastodon's `reject_follow_request!`), and `POST /api/v1/accounts/:id/follow`
   answers 403 `Target account has moved` for a moved local or remote target
-  without a follow already, as Mastodon's `FollowService` refuses it. While
+  without a follow already, as Mastodon's `FollowService` refuses it, and
+  `POST /api/v1/follow_requests/:id/authorize` answers 422 `This account has
+moved` (reject stays allowed). While
   `movedTo` is set (`isMovedActor` in `lib/services/accounts/movedAccount.ts`),
   posting is refused with 422 `This account has moved` (`movedAccountResponse`)
   on `POST /api/v1/statuses` (the check runs first, so polls, replies and
@@ -2202,7 +2214,7 @@ move, try again later`, but nothing is rolled back: the row, `movedTo` and the
   **Every other write route stays open to a moved account, deliberately**:
   `PUT /api/v1/scheduled_statuses/:id` (harmless, the publish job drops the post
   at its due time), quote revoke, retry-fitness, media uploads, favourites,
-  bookmarks, follows, settings and `DELETE` of its own statuses. Known gap:
+  bookmarks, poll votes (`POST /api/v1/polls/:id/votes`), follows, settings and `DELETE` of its own statuses. Known gap:
   Fitness imports (`importFitnessFilesJob`, `importStravaActivityJob`)
   still create their post for a moved account through `database.createNote`
   without that check, because the post is part of the import. The profile response

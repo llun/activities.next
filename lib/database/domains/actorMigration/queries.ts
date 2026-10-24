@@ -4,6 +4,7 @@ import type {
   ActorMigration,
   ActorMigrationKind,
   CreateActorMigrationParams,
+  GetActorMigrationParams,
   GetActorMigrationsParams,
   GetLastActorMoveParams,
   MarkActorMigrationStartedParams,
@@ -97,6 +98,15 @@ export const recordActorMigration = async (
       if (!aliasVerified) return { status: 'unverified' }
     }
 
+    // A concurrent identical redirect already set the pointer: no second row.
+    if (
+      params.kind === 'redirect' &&
+      settings.movedTo &&
+      actorIdsMatch(settings.movedTo, params.targetActorId)
+    ) {
+      return { status: 'already-moved' }
+    }
+
     const migration = await insertActorMigration(trx, params)
     await trx
       .updateTable('actors')
@@ -123,6 +133,19 @@ export const markActorMigrationStarted = async (
     .where('id', '=', id)
     .where('startedAt', 'is', null)
     .execute()
+}
+
+export const getActorMigration = async (
+  db: Db,
+  { id, actorId }: GetActorMigrationParams
+): Promise<ActorMigration | null> => {
+  const row = await db
+    .selectFrom('actor_migrations')
+    .selectAll()
+    .where('id', '=', id)
+    .where('actorId', '=', actorId)
+    .executeTakeFirst()
+  return row ? toActorMigration(row) : null
 }
 
 export const getActorMigrations = async (
@@ -159,6 +182,7 @@ export const actorMigrationQueries = {
   createActorMigration,
   recordActorMigration,
   markActorMigrationStarted,
+  getActorMigration,
   getActorMigrations,
   getLastActorMove
 }

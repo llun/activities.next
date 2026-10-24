@@ -38,10 +38,17 @@ export type RecordActorMigrationResult =
   | { status: 'cooldown'; until: number }
   // A 'move' that would create a row but whose alias was not verified.
   | { status: 'unverified' }
+  // A 'redirect' to the account movedTo already names: nothing was written.
+  | { status: 'already-moved' }
   | { status: 'no-actor' }
 
 export interface MarkActorMigrationStartedParams {
   id: string
+}
+
+export interface GetActorMigrationParams {
+  id: string
+  actorId: string
 }
 
 export interface GetActorMigrationsParams {
@@ -68,6 +75,9 @@ export interface ActorMigrationDatabase {
   markActorMigrationStarted(
     params: MarkActorMigrationStartedParams
   ): Promise<void>
+  getActorMigration(
+    params: GetActorMigrationParams
+  ): Promise<ActorMigration | null>
   // Newest first.
   getActorMigrations(
     params: GetActorMigrationsParams

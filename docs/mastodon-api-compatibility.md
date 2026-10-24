@@ -1100,7 +1100,10 @@ ActivityPub objects are **JSON-LD**, so the same logical object can arrive in ma
   `movedTo` and still counts toward the 30-day cooldown, as Mastodon's cooldown
   counts every recorded migration (`DELETE` clears the pointer, not the
   cooldown, and does not stop a move already started: the fan-out and the
-  follower rewiring complete, as Mastodon never stops a performed move); an unreachable target is 502, a server with no federation signing
+  follower rewiring complete, as Mastodon never stops a performed move; a
+  `DELETE` that lands between the job's publish and the start being recorded
+  can still let the start run); a redirect to the account `movedTo` already names
+  is 422 `Already moved to this account`, even for two concurrent requests; an unreachable target is 502, a server with no federation signing
   actor to fetch with is 500, and a reachable target without the alias is 422;
   one Move goes to each remote shared inbox across all continuations; and there
   is no settings UI yet. Details in
@@ -1111,8 +1114,9 @@ ActivityPub objects are **JSON-LD**, so the same logical object can arrive in ma
   `reject_follow_request!`; `POST /api/v1/accounts/:id/follow` answers 403
   `Target account has moved` (the bulk import reports `Account has moved`) for a
   moved local or remote target, where Mastodon's `FollowService` raises
-  `NotPermittedError`. An existing follow can still have its preferences
-  updated.
+  `NotPermittedError`. `POST /api/v1/follow_requests/:id/authorize` from a
+  moved account is 422 `This account has moved` (`reject` stays allowed). An
+  existing follow can still have its preferences updated.
 - **Posting and editing from a moved account gets 422 `This account has moved`.**
   The check covers `POST /api/v1/statuses` (polls, replies and scheduled posts
   included), reblogs, the edit `PUT /api/v1/statuses/:id`, `PUT /api/v1/statuses/:id/interaction_policy`
@@ -1121,8 +1125,8 @@ ActivityPub objects are **JSON-LD**, so the same logical object can arrive in ma
   lifts it, since it clears only the pointer. The other write routes stay open to
   a moved account, deliberately: `PUT /api/v1/scheduled_statuses/:id` (harmless,
   the publish job drops the post at its due time), quote revoke, retry-fitness,
-  media uploads, favourites, bookmarks, follows, settings and `DELETE` of its own
-  statuses. Mastodon differs: `require_user!` refuses most of the API for a moved
+  media uploads, favourites, bookmarks, poll votes (`POST /api/v1/polls/:id/votes`),
+  follows, settings and `DELETE` of its own statuses. Mastodon differs: `require_user!` refuses most of the API for a moved
   (non-functional) account with 403. Known gap: a fitness import still creates
   its post for a moved account, because the post is part of the import.
 - **A failed verification against a stored remote key triggers one throttled refresh.** When `ActivityPubVerifyGuard` cannot verify a request with the key it holds (non-empty), it calls `refreshSenderPublicKeyDetails`, which re-fetches the `keyId` through `fetchSenderPublicKeyDetails` (3 s, no retries, no cross-host redirects, owner-validated) and returns the key only if its owner equals the stored owner and the key differs. It never refreshes a local actor, a key with no stored row, or a row updated within 5 minutes, and records the attempt per owner before fetching (in memory, so a failing peer is throttled too). The happy path makes no network call. Only a key that came from the stored actor row is refreshed (a key just fetched, such as a path-based GoToSocial key, is already fresh). The attempt map is capped; when full it drops only entries outside the window and otherwise refuses to refresh. The stored key is replaced (`persistRefreshedSenderPublicKey`) only after this very request verifies with the fresh key, and only when that key is the actor's default key (the single key, or the array's `#main-key`/first entry): a request signed with another key of a multi-key actor is accepted but leaves the stored default key alone. A failed write is logged and the verified request continues. It deliberately does not call `recordActorIfNeeded`: that is a slow, multi-fetch path, wrong for an unauthenticated inbox request.

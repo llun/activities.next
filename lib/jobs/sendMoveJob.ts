@@ -89,7 +89,8 @@ export const runSendMove = async (
       const failures = await publishMoveRelationshipsJobs({
         database,
         originActorId: origin.id,
-        targetActorId: target.id
+        targetActorId: target.id,
+        migrationId
       })
       if (failures > 0) {
         throw new Error(
@@ -129,7 +130,11 @@ export const runSendMove = async (
         ...rewire.map((follow) => ({
           id: getMoveFollowerJobId(follow.id, target.id),
           name: MOVE_FOLLOWER_JOB_NAME,
-          data: { followId: follow.id, targetActorId: target.id }
+          data: {
+            followId: follow.id,
+            targetActorId: target.id,
+            migrationId
+          }
         })),
         ...inboxes.map((inbox) => ({
           id: getDeliveryJobId(migrationId, inbox),

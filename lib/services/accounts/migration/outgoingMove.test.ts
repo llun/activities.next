@@ -231,6 +231,23 @@ describe('performOutgoingMove on a real database', () => {
     expect(getActorPerson).not.toHaveBeenCalled()
   })
 
+  it('answers 422 and records one redirect for two concurrent identical redirects', async () => {
+    const { actor, target } = await setup('redirect-race')
+    const results = await Promise.all([
+      performOutgoingMove({ database, actor, target, kind: 'redirect' }),
+      performOutgoingMove({ database, actor, target, kind: 'redirect' })
+    ])
+    expect(results).toContainEqual({ ok: true })
+    expect(results).toContainEqual({
+      ok: false,
+      status: 422,
+      error: 'Already moved to this account'
+    })
+    expect(
+      await database.getActorMigrations({ actorId: actor.id })
+    ).toHaveLength(1)
+  })
+
   it('answers 422 to a started move that was redirected to the same account', async () => {
     const { actor, target } = await setup('started-redirected')
     await moveAgain(actor, target)

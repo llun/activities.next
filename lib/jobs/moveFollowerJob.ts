@@ -21,7 +21,9 @@ import { withSpan } from '@/lib/utils/trace'
 
 const JobData = z.object({
   followId: z.string(),
-  targetActorId: z.string()
+  targetActorId: z.string(),
+  // Set by an outgoing move: the migration row that authorizes the job.
+  migrationId: z.string().optional()
 })
 
 // One job per accepted local follower of a moved account, published by
@@ -137,7 +139,12 @@ export const moveFollowerJob: JobHandle = createJobHandle(
       // DELETE after the start does not strand followers; a remote origin by
       // the verified pointer.
       const authorized = origin.privateKey
-        ? await isOutgoingMoveAuthorized(database, origin, targetId)
+        ? await isOutgoingMoveAuthorized(
+            database,
+            origin,
+            targetId,
+            parsed.data.migrationId
+          )
         : Boolean(origin.movedTo && actorIdsMatch(origin.movedTo, targetId))
       if (!authorized) return
 

@@ -214,6 +214,9 @@ export const performOutgoingMove = async ({
     aliasVerified: !superseded
   })
   if (recorded.status === 'no-actor') return fail(404, 'Record not found')
+  if (recorded.status === 'already-moved') {
+    return fail(422, 'Already moved to this account')
+  }
   if (recorded.status === 'unverified') {
     return fail(429, 'The move changed while it was checked, try again')
   }

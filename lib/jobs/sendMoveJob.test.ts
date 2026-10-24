@@ -158,6 +158,7 @@ describe('sendMoveJob', () => {
     for (const job of followerJobs()) {
       expect(job.id).toBe(getMoveFollowerJobId(job.data.followId, TARGET))
       expect(job.data.targetActorId).toBe(TARGET)
+      expect(job.data.migrationId).toBe(MIGRATION)
     }
   })
 
@@ -203,7 +204,8 @@ describe('sendMoveJob', () => {
         data: {
           actorId: ACTOR2_ID,
           originActorId: ORIGIN,
-          targetActorId: TARGET
+          targetActorId: TARGET,
+          migrationId: MIGRATION
         }
       }
     ])

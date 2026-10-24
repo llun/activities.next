@@ -15,12 +15,17 @@ export const isOutgoingMoveAuthorized = async (
   const pointerMatches = Boolean(
     origin.movedTo && actorIdsMatch(origin.movedTo, targetActorId)
   )
-  const migrations = await database.getActorMigrations({ actorId: origin.id })
-  return migrations.some(
-    (migration) =>
-      migration.kind === 'move' &&
-      (!migrationId || migration.id === migrationId) &&
-      actorIdsMatch(migration.targetActorId, targetActorId) &&
-      (migration.startedAt !== null || pointerMatches)
+  // A job without the migration id (or a stale one) is never authorized: an
+  // older started move to the same target must not cover a newer cancelled one.
+  if (!migrationId) return false
+  const migration = await database.getActorMigration({
+    id: migrationId,
+    actorId: origin.id
+  })
+  return Boolean(
+    migration &&
+    migration.kind === 'move' &&
+    actorIdsMatch(migration.targetActorId, targetActorId) &&
+    (migration.startedAt !== null || pointerMatches)
   )
 }

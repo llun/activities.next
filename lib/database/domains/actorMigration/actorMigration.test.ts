@@ -332,9 +332,41 @@ describe('ActorMigrationDatabase', () => {
     it('records a redirect without a cooldown check', async () => {
       const actorId = await newActor('rec-redirect')
       await record('rec-redirect-1', actorId, 'move')
-      const result = await record('rec-redirect-2', actorId, 'redirect')
+      const result = await record(
+        'rec-redirect-2',
+        actorId,
+        'redirect',
+        'https://other.test/users/mover'
+      )
       expect(result.status).toBe('created')
       expect(await rowCount(actorId)).toBe(2)
+    })
+
+    it('records one redirect for two concurrent identical redirects', async () => {
+      const actorId = await newActor('rec-redirect-race')
+      const results = await Promise.all([
+        record('rec-redirect-race-a', actorId, 'redirect'),
+        record('rec-redirect-race-b', actorId, 'redirect')
+      ])
+      expect(results.map((r) => r.status).sort()).toEqual([
+        'already-moved',
+        'created'
+      ])
+      expect(await rowCount(actorId)).toBe(1)
+    })
+
+    it('reads one migration by id and actor', async () => {
+      const actorId = await newActor('rec-get')
+      await record('rec-get-1', actorId)
+      expect(
+        (await database.getActorMigration({ id: 'rec-get-1', actorId }))?.id
+      ).toBe('rec-get-1')
+      expect(
+        await database.getActorMigration({
+          id: 'rec-get-1',
+          actorId: 'https://llun.test/users/else'
+        })
+      ).toBeNull()
     })
   })
 })
