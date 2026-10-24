@@ -861,6 +861,7 @@ export interface Medias {
   placeName: Nullable<string>
   placeNameSource: Nullable<string>
   placePrecision: Nullable<string>
+  sortAt: Nullable<Timestamp>
   subjectCategory: Nullable<string>
   subjectIucnCategory: Nullable<string>
   subjectLookupAt: Nullable<Timestamp>

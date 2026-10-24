@@ -619,9 +619,25 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
 - **Media details and gallery** — `GET`/`PUT`/`PATCH /api/v1/media/:id` carry a
   non-Mastodon `details` object (snake_case on the way in), and
   `/api/v1/gallery/*` and `/api/v1/accounts/:id/gallery/*` serve the gallery.
-  `GET /api/v1/accounts/:id/gallery/media` takes an owner-only `show`
-  (`all`, `in_gallery`, `hidden`, `not_posted`, `not_in_album`; ignored for anyone else) and
-  reports `inGallery`, `posted`, `uploadedAt` and `albumCount` on each of the owner's items. Photos the
+  `GET /api/v1/accounts/:id/gallery/media` takes owner-only query parameters: `show`
+  (`all`, `in_gallery`, `hidden`, `not_posted`, `not_in_album`; ignored for anyone else),
+  `sort` (`taken_desc` default for UI, `uploaded` default for API and non-owners, `taken_asc`),
+  `cursor` (opaque keyset date cursor `<sortAt ms>:<mediaId>` for date sorts),
+  `taken_from` and `taken_to` (`YYYY-MM-DD` inclusive UTC date range),
+  `place` (place name or `none`), `activity_id` (fitness file id or `none`; the activity's route map image, found by the file's recorded `mapImagePath` and so still after a post edit renames it, is not one of its photos), and `album_id`
+  (calculates membership for album pickers), and `include_total=true`. Anyone else's copies of
+  these owner-only parameters are ignored, even malformed ones (only `gear_id` answers 422 to a
+  non-owner); `max_id` still pages the `uploaded` order. The response adds `nextCursor` for date
+  pagination (while `nextMaxId` is used for `uploaded`), `total` (matching photos across all pages,
+  on the owner's first page when `include_total=true`), and `inAlbumTotal` (when `album_id` is
+  supplied), and reports `inGallery`, `posted`, `uploadedAt` and `albumCount` on each of the
+  owner's items. Photos with no `sortAt` (inserted by a build older than the migration) are left
+  out of the date sorts until `scripts/maintenance/backfillMediaSortAt.ts` fills them.
+  `place=none` and `activity_id=none` are reserved values meaning "no place" and "not from an
+  activity" (any media on an activity's post counts as from it, the route map included); a place literally named "none" cannot be selected by name (accepted limitation).
+  `GET /api/v1/gallery/media/facets?show=<GalleryShow>` is an owner-only endpoint returning filter facet options
+  and counts across the owner's media in `show`: `total`, `species`, `places`, `noPlaceCount`, `months`
+  (`YYYY-MM` UTC), `activities`, and `notFromActivityCount`. Photos the
   owner added in Gallery without a post (`POST /api/v1/gallery/media` with
   `{ "media_ids": [...] }`, up to 40, scope `write` or `write:media`, answers
   `{ "media_ids": [...] }` with the ones kept) are listed to the owner only,

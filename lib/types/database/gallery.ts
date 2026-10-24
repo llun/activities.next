@@ -47,6 +47,17 @@ export const GALLERY_SHOWS = [
 ] as const
 export type GalleryShow = (typeof GALLERY_SHOWS)[number]
 
+export const GALLERY_MEDIA_SORTS = [
+  'taken_desc',
+  'taken_asc',
+  'uploaded'
+] as const
+export type GalleryMediaSort = (typeof GALLERY_MEDIA_SORTS)[number]
+// The API default and the only order anyone but the owner gets: medias.id DESC.
+export const DEFAULT_GALLERY_MEDIA_SORT: GalleryMediaSort = 'uploaded'
+// `place=none`: photos with no place; `activity_id=none`: photos not from an activity.
+export const GALLERY_FILTER_NONE = 'none'
+
 // Whether a new upload lands in the owner's gallery: `always` and `never` are
 // unconditional, `subject` waits until a subject is set on the media.
 export const GALLERY_DEFAULTS = ['subject', 'always', 'never'] as const

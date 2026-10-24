@@ -148,6 +148,14 @@ describe('schema invariants', () => {
     // an index can leave a query that constrains only its leading columns
     // without an index condition.
     it.each<[string, IndexDefinition]>([
+      [
+        'medias_actorId_sortAt_id_idx',
+        {
+          table: 'medias',
+          unique: false,
+          columns: ['actorId', 'sortAt', 'id']
+        }
+      ],
       // getRebloggedBy constrains `type` and `originalStatusId` but not
       // `actorId`, so `originalStatusId` must come second.
       [

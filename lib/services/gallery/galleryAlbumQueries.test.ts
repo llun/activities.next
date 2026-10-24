@@ -37,6 +37,13 @@ describe('album cursors', () => {
     }
   })
 
+  it('accepts the extremes of a JS Date', () => {
+    expect(parseAlbumCursor('8640000000000000:1')).toEqual({
+      key: 8.64e15,
+      mediaId: 1
+    })
+  })
+
   it.each([
     '',
     'abc',
@@ -46,7 +53,9 @@ describe('album cursors', () => {
     '1:2:3',
     '1.5:2',
     '1:x',
-    '12345678901234567:1'
+    '12345678901234567:1',
+    '9000000000000000:1',
+    '-9000000000000000:1'
   ])('refuses %j', (value) => {
     expect(parseAlbumCursor(value)).toBeNull()
   })

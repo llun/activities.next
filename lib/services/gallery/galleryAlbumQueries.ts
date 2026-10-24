@@ -80,12 +80,17 @@ export const toAlbumCursorString = (cursor: GalleryAlbumCursor): string =>
   `${cursor.key}:${cursor.mediaId}`
 
 /** `null` for anything `toAlbumCursorString` did not produce. */
+const MAX_CURSOR_KEY = 8.64e15
+
 export const parseAlbumCursor = (value: string): GalleryAlbumCursor | null => {
   const match = /^(-?\d{1,16}):(\d{1,10})$/.exec(value)
   if (!match) return null
   const key = Number(match[1])
   const mediaId = Number(match[2])
-  return Number.isSafeInteger(key) && Number.isSafeInteger(mediaId)
+  // Past the range of a JS Date the key would be an Invalid Date in SQL.
+  return Number.isSafeInteger(key) &&
+    Math.abs(key) <= MAX_CURSOR_KEY &&
+    Number.isSafeInteger(mediaId)
     ? { key, mediaId }
     : null
 }

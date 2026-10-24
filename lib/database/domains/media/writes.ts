@@ -451,6 +451,20 @@ const getDetailsColumns = (
   return columns
 }
 
+const resolveSortAtUpdate = (
+  detailsColumns: MediaColumns,
+  mediaCreatedAt: unknown
+): Date | undefined => {
+  if (!('takenAt' in detailsColumns)) return undefined
+  if (detailsColumns.takenAt) {
+    return new Date(detailsColumns.takenAt as Date | string | number)
+  }
+  if (mediaCreatedAt !== null && mediaCreatedAt !== undefined) {
+    return new Date(mediaCreatedAt as Date | string | number)
+  }
+  return undefined
+}
+
 // The whole `medias` row by id, as the parser reads it.
 const selectMediaRow = async (
   trx: Db,
@@ -506,6 +520,13 @@ export const createMedia = async (
       .limit(1)
       .executeTakeFirst()
 
+    const detailsColumns = getDetailsColumns(details)
+    const now = new Date()
+    // sortAt may lead createdAt by under a second for a dateless upload
+    const sortAt = detailsColumns.takenAt
+      ? new Date(detailsColumns.takenAt as Date | string | number)
+      : now
+
     const content: Insertable<Medias> = {
       actorId,
       original: original.path,
@@ -524,7 +545,8 @@ export const createMedia = async (
       ...(description ? { description } : null),
       ...(focus ? { focusX: focus.x, focusY: focus.y } : null),
       ...(blurhash ? { blurhash } : null),
-      ...getDetailsColumns(details)
+      ...detailsColumns,
+      sortAt
     }
 
     const inserted = await trx
@@ -598,6 +620,7 @@ export const markMediaUploadVerified = async (
           .selectFrom('medias')
           .innerJoin('actors', 'medias.actorId', 'actors.id')
           .select(MEDIA_SELECT)
+          .select('medias.createdAt as mediaCreatedAt')
           .where('medias.id', '=', id)
           .where('actors.accountId', '=', accountId)
           .limit(1),
@@ -625,6 +648,8 @@ export const markMediaUploadVerified = async (
 
       const bytesDelta =
         originalBytes === undefined ? 0 : originalBytes - media.original.bytes
+      const detailsColumns = getDetailsColumns(details, media.details)
+      const sortAt = resolveSortAtUpdate(detailsColumns, data.mediaCreatedAt)
       // The update is itself conditional on `pending` and the side effects
       // below run only when it changed the row, so the counter moves once
       // even if the lock above were ever bypassed.
@@ -634,7 +659,8 @@ export const markMediaUploadVerified = async (
           originalMetaData: JSON.stringify(metaData),
           ...(originalBytes === undefined ? null : { originalBytes }),
           ...(originalPath === undefined ? null : { original: originalPath }),
-          ...getDetailsColumns(details, media.details)
+          ...detailsColumns,
+          ...(sortAt !== undefined ? { sortAt } : null)
         })
         .where('id', '=', id)
         .where(
@@ -667,7 +693,7 @@ export const markMediaUploadVerified = async (
       // Details go through column coercion (dates, JSON), so read them back
       // rather than echoing the input.
       const writtenDetails =
-        details && Object.keys(getDetailsColumns(details)).length > 0
+        details && Object.keys(detailsColumns).length > 0
           ? parseMediaDetails((await selectMediaRow(trx, id)) as MediaRow)
           : media.details
 
@@ -784,6 +810,7 @@ export const updateMedia = async (
       .selectFrom('medias')
       .innerJoin('actors', 'medias.actorId', 'actors.id')
       .select(MEDIA_SELECT)
+      .select('medias.createdAt as mediaCreatedAt')
       .where('medias.id', '=', id)
       .where('actors.accountId', '=', accountId)
       .$if(Boolean(actorId), (qb) => qb.where('medias.actorId', '=', actorId!))
@@ -810,7 +837,12 @@ export const updateMedia = async (
       updates.blurhash = blurhash
     }
 
-    Object.assign(updates, getDetailsColumns(details, parseMediaDetails(owned)))
+    const detailsColumns = getDetailsColumns(details, parseMediaDetails(owned))
+    Object.assign(updates, detailsColumns)
+    const sortAt = resolveSortAtUpdate(detailsColumns, ownedRow.mediaCreatedAt)
+    if (sortAt !== undefined) {
+      updates.sortAt = sortAt
+    }
 
     let thumbnailUsageDelta = 0
     let replacedThumbnailPath: string | null = null

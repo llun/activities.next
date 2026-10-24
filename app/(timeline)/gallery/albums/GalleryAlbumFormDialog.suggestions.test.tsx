@@ -31,13 +31,16 @@ vi.mock('@/lib/client/galleryAlbums', () => ({
 // what they were given and report picks.
 vi.mock('@/app/(timeline)/gallery/albums/GalleryAlbumPicker', () => ({
   GalleryAlbumPicker: ({
+    albumId,
     selected,
     onChange
   }: {
+    albumId?: string
     selected: string[]
     onChange?: (ids: string[]) => void
   }) => (
     <div>
+      <span data-testid="picker-album-id">{albumId}</span>
       <span data-testid="picker">{selected.join(',')}</span>
       <button type="button" onClick={() => onChange?.(['pick-1'])}>
         pick one
@@ -158,7 +161,7 @@ describe('GalleryAlbumFormDialog suggestions', () => {
     return { onSaved, reload }
   }
 
-  it('offers From gallery and Suggestions tabs when creating, From gallery first', () => {
+  it('offers From gallery and Suggestions tabs when creating, From gallery first', async () => {
     renderDialog()
 
     const tabs = screen.getAllByRole('tab')
@@ -173,6 +176,7 @@ describe('GalleryAlbumFormDialog suggestions', () => {
     expect(
       screen.getByText(/adds its photos to the ones you’ve picked/)
     ).toBeInTheDocument()
+    expect(await screen.findByTestId('picker-album-id')).toBeEmptyDOMElement()
   })
 
   it('hides the panel of the tab that is not open, keeping it mounted', () => {
@@ -414,7 +418,7 @@ describe('GalleryAlbumFormDialog suggestions', () => {
     expect(screen.getByText('No suggestions right now')).toBeInTheDocument()
   })
 
-  it('adds to an existing selection, skipping already-selected ids and album members, and respects capacity', () => {
+  it('adds to an existing selection, skipping already-selected ids and album members, and respects capacity', async () => {
     const { unmount: unmountCreate } = render(
       <GalleryAlbumFormDialog
         open
@@ -452,6 +456,7 @@ describe('GalleryAlbumFormDialog suggestions', () => {
         onSaved={vi.fn()}
       />
     )
+    expect(await screen.findByTestId('picker-album-id')).toHaveTextContent('a1')
     fireEvent.click(screen.getByRole('button', { name: 'pick one' }))
     selectTab('Suggestions')
     fireEvent.click(

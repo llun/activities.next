@@ -105,6 +105,59 @@ describe('gallery statements on SQLite', () => {
       await destroy()
     }
   })
+
+  it('uses medias_actorId_sortAt_id_idx and avoids temp b-tree for date sorts', async () => {
+    const { database, db, captureQueries, destroy } = createTestDatabase({
+      backend: 'sqlite'
+    })
+    try {
+      await database.migrate()
+
+      const statements = await captureQueries(async () => {
+        await database.getGalleryMedia({
+          actorId: 'actor',
+          audience: OWNER_GALLERY_AUDIENCE,
+          limit: 10,
+          sort: 'taken_desc'
+        })
+        await database.getGalleryMedia({
+          actorId: 'actor',
+          audience: OWNER_GALLERY_AUDIENCE,
+          limit: 10,
+          sort: 'taken_desc',
+          cursor: { key: 1000, mediaId: 1 }
+        })
+      })
+
+      const baseQuery = statements[0]
+      const basePlan = await db.executeQuery<{ detail: string }>(
+        CompiledQuery.raw(
+          `explain query plan ${baseQuery.sql}`,
+          baseQuery.bindings
+        )
+      )
+      const basePlanText = basePlan.rows.map((row) => row.detail).join('\n')
+      expect(basePlanText).toContain('medias_actorId_sortAt_id_idx')
+      expect(basePlanText).not.toContain('USE TEMP B-TREE FOR ORDER BY')
+
+      const cursorQuery = statements[1]
+      const cursorPlan = await db.executeQuery<{ detail: string }>(
+        CompiledQuery.raw(
+          `explain query plan ${cursorQuery.sql}`,
+          cursorQuery.bindings
+        )
+      )
+      const cursorPlanText = cursorPlan.rows.map((row) => row.detail).join('\n')
+      expect(cursorPlanText).toContain('medias_actorId_sortAt_id_idx')
+      expect(
+        cursorPlanText.includes('sortAt<?') ||
+          cursorPlanText.includes('sortAt<')
+      ).toBe(true)
+      expect(cursorPlanText).not.toContain('USE TEMP B-TREE FOR ORDER BY')
+    } finally {
+      await destroy()
+    }
+  })
 })
 
 // `attachments.mediaId` holds the media row's integer id, however the caller

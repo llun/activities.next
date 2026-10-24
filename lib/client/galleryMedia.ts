@@ -1,10 +1,12 @@
 import type {
   GalleryLifeListResponse,
   GalleryMapResponse,
+  GalleryMediaFacetsResponse,
   GalleryMediaPage,
   GallerySubjectsResponse
 } from '@/lib/services/gallery/galleryEntities'
 import type {
+  GalleryMediaSort,
   GalleryShow,
   MediaSubjectCategory
 } from '@/lib/types/database/gallery'
@@ -26,6 +28,19 @@ export interface GetGalleryMediaOptions {
    * (`in_gallery`); for anyone but the owner it is ignored.
    */
   show?: GalleryShow
+  /** Date orders: the previous page's `nextCursor`. */
+  cursor?: string
+  sort?: GalleryMediaSort
+  /** A place name in any spelling, or `none`. */
+  place?: string
+  /** YYYY-MM-DD, inclusive. */
+  takenFrom?: string
+  takenTo?: string
+  /** A fitness file id, or `none`. */
+  activityId?: string
+  albumId?: string
+  /** Owner only: ask for `total` (and `inAlbumTotal`) on the first page. */
+  includeTotal?: boolean
 }
 
 const galleryUrl = (
@@ -73,7 +88,22 @@ const readGalleryOrNull = async <T>(
 /** A page of the account's gallery photos, newest upload first. */
 export const getGalleryMedia = async (
   actorId: string,
-  { maxId, limit, subject, category, gearId, show }: GetGalleryMediaOptions = {}
+  {
+    maxId,
+    limit,
+    subject,
+    category,
+    gearId,
+    show,
+    cursor,
+    sort,
+    place,
+    takenFrom,
+    takenTo,
+    activityId,
+    albumId,
+    includeTotal
+  }: GetGalleryMediaOptions = {}
 ): Promise<GalleryMediaPage> => {
   const query = new URLSearchParams()
   if (maxId !== undefined) query.set('max_id', maxId)
@@ -82,9 +112,38 @@ export const getGalleryMedia = async (
   if (category !== undefined) query.set('category', category)
   if (gearId !== undefined) query.set('gear_id', gearId)
   if (show !== undefined) query.set('show', show)
+  if (cursor !== undefined) query.set('cursor', cursor)
+  if (sort !== undefined) query.set('sort', sort)
+  if (place !== undefined) query.set('place', place)
+  if (takenFrom !== undefined) query.set('taken_from', takenFrom)
+  if (takenTo !== undefined) query.set('taken_to', takenTo)
+  if (activityId !== undefined) query.set('activity_id', activityId)
+  if (albumId !== undefined) query.set('album_id', albumId)
+  if (includeTotal) query.set('include_total', 'true')
   return readGallery<GalleryMediaPage>(
     galleryUrl(actorId, 'media', query),
     'Failed to load photos.'
+  )
+}
+
+/** How many photos match (owner only): the media route with `limit=1`. */
+export const countGalleryMedia = async (
+  actorId: string,
+  options: Omit<GetGalleryMediaOptions, 'maxId' | 'cursor' | 'limit'>
+): Promise<number> =>
+  (await getGalleryMedia(actorId, { ...options, limit: 1, includeTotal: true }))
+    .total ?? 0
+
+/** Owner only: the values the filter menus offer, for photos in `show`. */
+export const getGalleryMediaFacets = async ({
+  show
+}: { show?: GalleryShow } = {}): Promise<GalleryMediaFacetsResponse> => {
+  const query = new URLSearchParams()
+  if (show !== undefined) query.set('show', show)
+  const search = query.toString()
+  return readGallery<GalleryMediaFacetsResponse>(
+    `/api/v1/gallery/media/facets${search ? `?${search}` : ''}`,
+    'Failed to load the photo filters.'
   )
 }
 
