@@ -2,6 +2,7 @@ import { follow, unfollow } from '@/lib/activities'
 import type { Db } from '@/lib/database/kysely'
 import { Database } from '@/lib/database/types'
 import {
+  BULK_IMPORT_HEARTBEAT_MS,
   bulkImportJob,
   getBulkImportContinueJobId,
   getBulkImportOverwriteJobId,
@@ -431,7 +432,12 @@ describe('bulkImportJob', () => {
         id: IMPORT_ID,
         runToken: 'probe',
         leaseMs: 1
-      })) as { claimed: false; claimedUntil: number }
+      })) as { claimed: false; runToken: string; claimedUntil: number }
+      expect(held.runToken).toBe('other-run')
+      const holder = {
+        runToken: held.runToken,
+        claimedUntil: held.claimedUntil
+      }
 
       await runBulkImport(database, IMPORT_ID)
 
@@ -444,9 +450,9 @@ describe('bulkImportJob', () => {
       ).toBe(false)
       expect(jobMessages()).toEqual([
         {
-          id: getBulkImportWaitJobId(IMPORT_ID, held.claimedUntil),
+          id: getBulkImportWaitJobId(IMPORT_ID, holder),
           name: BULK_IMPORT_JOB_NAME,
-          data: { importId: IMPORT_ID, waitedFor: held.claimedUntil },
+          data: { importId: IMPORT_ID, waitedFor: holder },
           delaySeconds: expect.any(Number)
         }
       ])
@@ -464,20 +470,22 @@ describe('bulkImportJob', () => {
           runToken: 'other-run',
           leaseMs: 60_000
         })
-        return (
-          (await database.claimBulkImportRun({
-            id: IMPORT_ID,
-            runToken: 'probe',
-            leaseMs: 1
-          })) as { claimedUntil: number }
-        ).claimedUntil
+        const { runToken, claimedUntil } = (await database.claimBulkImportRun({
+          id: IMPORT_ID,
+          runToken: 'probe',
+          leaseMs: 1
+        })) as { runToken: string; claimedUntil: number }
+        return { runToken, claimedUntil }
       }
 
-      it('does not republish when the claim changed since it was queued', async () => {
-        const claimedUntil = await holdClaim()
+      it('does not republish when another holder has the claim', async () => {
+        const holder = await holdClaim()
 
         await runBulkImport(database, IMPORT_ID, {
-          waitedFor: claimedUntil - 5000
+          waitedFor: {
+            runToken: 'earlier-run',
+            claimedUntil: holder.claimedUntil
+          }
         })
 
         expect(jobMessages()).toEqual([])
@@ -485,31 +493,127 @@ describe('bulkImportJob', () => {
       })
 
       it('reads the claim it waited for from its job data', async () => {
-        const claimedUntil = await holdClaim()
+        const holder = await holdClaim()
 
         await bulkImportJob(database, {
           id: `${IMPORT_ID}:wait:1`,
           name: BULK_IMPORT_JOB_NAME,
-          data: { importId: IMPORT_ID, waitedFor: claimedUntil - 5000 }
+          data: {
+            importId: IMPORT_ID,
+            waitedFor: { runToken: 'earlier-run', claimedUntil: 1 }
+          }
         })
-
         expect(jobMessages()).toEqual([])
+
+        await bulkImportJob(database, {
+          id: `${IMPORT_ID}:wait:2`,
+          name: BULK_IMPORT_JOB_NAME,
+          data: { importId: IMPORT_ID, waitedFor: holder }
+        })
+        expect(jobMessages()).toHaveLength(1)
       })
 
-      it('republishes exactly one delayed wait when the same claim is still live', async () => {
-        const claimedUntil = await holdClaim()
+      it('keeps waiting for a holder that renewed its lease, under an id of the new lease', async () => {
+        const queued = await holdClaim()
+        // The holder works on: its lease moves, its token does not.
+        await database.renewBulkImportRun({
+          id: IMPORT_ID,
+          runToken: 'other-run',
+          leaseMs: 120_000
+        })
+        const renewed = (await database.claimBulkImportRun({
+          id: IMPORT_ID,
+          runToken: 'probe',
+          leaseMs: 1
+        })) as { claimedUntil: number }
+        expect(renewed.claimedUntil).toBeGreaterThan(queued.claimedUntil)
 
-        await runBulkImport(database, IMPORT_ID, { waitedFor: claimedUntil })
+        await runBulkImport(database, IMPORT_ID, { waitedFor: queued })
 
         expect(jobMessages()).toEqual([
           {
-            id: getBulkImportWaitJobId(IMPORT_ID, claimedUntil),
+            id: getBulkImportWaitJobId(IMPORT_ID, {
+              runToken: 'other-run',
+              claimedUntil: renewed.claimedUntil
+            }),
             name: BULK_IMPORT_JOB_NAME,
-            data: { importId: IMPORT_ID, waitedFor: claimedUntil },
+            data: {
+              importId: IMPORT_ID,
+              waitedFor: {
+                runToken: 'other-run',
+                claimedUntil: renewed.claimedUntil
+              }
+            },
+            delaySeconds: expect.any(Number)
+          }
+        ])
+        expect(jobMessages()[0].delaySeconds).toBeGreaterThan(115)
+      })
+
+      it('republishes exactly one delayed wait when the same claim is still live', async () => {
+        const holder = await holdClaim()
+
+        await runBulkImport(database, IMPORT_ID, { waitedFor: holder })
+
+        expect(jobMessages()).toEqual([
+          {
+            id: getBulkImportWaitJobId(IMPORT_ID, holder),
+            name: BULK_IMPORT_JOB_NAME,
+            data: { importId: IMPORT_ID, waitedFor: holder },
             delaySeconds: expect.any(Number)
           }
         ])
         expect(jobMessages()[0].delaySeconds).toBeGreaterThan(55)
+      })
+
+      it('finishes the import after a holder that renewed and then died', async () => {
+        await createImport('blocking', [{ acct: 'bob@remote.test' }])
+        // H1 holds the import, and the queue retry R finds it live and waits.
+        await database.claimBulkImportRun({
+          id: IMPORT_ID,
+          runToken: 'h1',
+          leaseMs: 30_000
+        })
+        await runBulkImport(database, IMPORT_ID)
+        expect(jobMessages()).toHaveLength(1)
+        const first = jobMessages()[0]
+        // H1 renews (its lease moves past the one R waited for), then dies
+        // without releasing.
+        await database.renewBulkImportRun({
+          id: IMPORT_ID,
+          runToken: 'h1',
+          leaseMs: 90_000
+        })
+
+        // The first wait lands: the same holder is still live, so one more
+        // wait is queued rather than the import being dropped.
+        mockPublish.mockClear()
+        await bulkImportJob(database, { ...first, data: first.data })
+        expect(jobMessages()).toHaveLength(1)
+        const second = jobMessages()[0]
+        expect(second.id).not.toBe(first.id)
+        expect(await getImport()).toMatchObject({ processedItems: 0 })
+
+        // The lease lapses with nobody renewing it; the next wait claims.
+        await db
+          .updateTable('bulk_imports')
+          .set({ claimedUntil: new Date(Date.now() - 1000) })
+          .where('id', '=', IMPORT_ID)
+          .execute()
+        mockPublish.mockClear()
+        await bulkImportJob(database, { ...second, data: second.data })
+
+        expect(await getImport()).toMatchObject({
+          state: 'finished',
+          processedItems: 1,
+          importedItems: 1
+        })
+        expect(
+          await database.isBlocking({
+            actorId: actor.id,
+            targetActorId: bob.id
+          })
+        ).toBe(true)
       })
     })
 
@@ -552,6 +656,127 @@ describe('bulkImportJob', () => {
           leaseMs: 1000
         })
       ).toMatchObject({ claimed: false })
+    })
+
+    it('writes no lastError when it fails after losing the lease', async () => {
+      await createImport('blocking', [{ acct: 'bob@remote.test' }])
+      vi.spyOn(database, 'markBulkImportRowProcessed').mockImplementation(
+        async () => {
+          await db
+            .updateTable('bulk_imports')
+            .set({ runToken: 'thief' })
+            .where('id', '=', IMPORT_ID)
+            .execute()
+          throw new Error('db down')
+        }
+      )
+
+      // The thief owns the import (and its error state): this run just stops.
+      await runBulkImport(database, IMPORT_ID)
+
+      expect((await getImport()).lastError).toBeNull()
+      expect(jobMessages()).toEqual([])
+    })
+
+    describe('heartbeat', () => {
+      // A unit of work the test holds open, with only the timers it needs faked.
+      const startBlockedRun = async () => {
+        vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
+        await createImport('following', [{ acct: 'bob@remote.test' }])
+        let finishUnit!: () => void
+        vi.mocked(follow).mockImplementation(
+          () => new Promise((resolve) => (finishUnit = () => resolve(true)))
+        )
+        const run = runBulkImport(database, IMPORT_ID)
+        await settle(() => vi.mocked(follow).mock.calls.length > 0)
+        return { run, finishUnit: () => finishUnit() }
+      }
+      // Real I/O finishes outside the fake clock: let it catch up.
+      const settle = async (until: () => boolean = () => false) => {
+        for (let i = 0; i < 50 && !until(); i += 1) {
+          await new Promise((resolve) => setImmediate(resolve))
+        }
+      }
+      const tick = async (ms: number) => {
+        await vi.advanceTimersByTimeAsync(ms)
+        await settle()
+      }
+
+      afterEach(() => {
+        vi.useRealTimers()
+      })
+
+      it('keeps the lease through a unit longer than the lease', async () => {
+        const { run, finishUnit } = await startBlockedRun()
+
+        // Twice the 35s lease; only the heartbeat renews it.
+        for (let i = 0; i < 7; i += 1) await tick(BULK_IMPORT_HEARTBEAT_MS)
+        expect(
+          await database.claimBulkImportRun({
+            id: IMPORT_ID,
+            runToken: 'rival',
+            leaseMs: 1000
+          })
+        ).toMatchObject({ claimed: false })
+
+        finishUnit()
+        await settle()
+        await run
+        expect(await getImport()).toMatchObject({
+          state: 'finished',
+          processedItems: 1
+        })
+        // The timer does not outlive the run.
+        expect(vi.getTimerCount()).toBe(0)
+      })
+
+      const expectNothingWritten = async () => {
+        expect(await getImport()).toMatchObject({
+          processedItems: 0,
+          nextRowIndex: 0,
+          lastError: null
+        })
+        expect(jobMessages()).toEqual([])
+        expect(vi.getTimerCount()).toBe(0)
+      }
+
+      it('stops quietly, without checkpointing, marking or publishing, when a renewal changes no row', async () => {
+        const renew = vi.spyOn(database, 'renewBulkImportRun')
+        const { run, finishUnit } = await startBlockedRun()
+        renew.mockResolvedValueOnce(false)
+
+        // The heartbeat is the only renewal while the unit is open.
+        await tick(BULK_IMPORT_HEARTBEAT_MS)
+        expect(renew).toHaveBeenCalledTimes(1)
+
+        finishUnit()
+        await settle()
+        await run
+        await expectNothingWritten()
+      })
+
+      it('fails the run with the renewal error, writing and publishing nothing, when a renewal throws', async () => {
+        const renew = vi.spyOn(database, 'renewBulkImportRun')
+        const { run, finishUnit } = await startBlockedRun()
+        renew.mockRejectedValueOnce(new Error('db down'))
+        const outcome = expect(run).rejects.toThrow('db down')
+
+        await tick(BULK_IMPORT_HEARTBEAT_MS)
+        expect(renew).toHaveBeenCalledTimes(1)
+
+        finishUnit()
+        await settle()
+        await outcome
+        await expectNothingWritten()
+        // The claim is released so the queue's retry can take the import.
+        expect(
+          await database.claimBulkImportRun({
+            id: IMPORT_ID,
+            runToken: 'retry',
+            leaseMs: 1000
+          })
+        ).toEqual({ claimed: true })
+      })
     })
 
     it('does not publish a continuation or checkpoint when the lease is lost at the budget', async () => {

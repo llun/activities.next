@@ -80,6 +80,11 @@ export type RenewLease = () => Promise<void>
 const rowUsername = (row: KeyedRow, actor: Actor): string =>
   toAcctKey(row.data.acct ?? '', actor).split('@')[0]
 
+// Whether a handle's domain and an actor's host can be one account's two
+// names: equal, or one a subdomain of the other (the WEB_DOMAIN split).
+const isSameSite = (a: string, b: string): boolean =>
+  a === b || a.endsWith(`.${b}`) || b.endsWith(`.${a}`)
+
 export type OverwriteResult = {
   // False when the budget ran out; run it again to continue.
   done: boolean
@@ -162,12 +167,14 @@ const syncAccountRelations = async ({
       }
       if (outOfBudget()) return { done: false, units }
       let resolvedActorId: string | null = null
+      let resolutionForbidden = false
       try {
         const resolved = await resolveAccountTarget({
           database,
           input: toAcctKey(row.data.acct ?? '', actor)
         })
         if (resolved.type === 'resolved') resolvedActorId = resolved.actor.id
+        resolutionForbidden = resolved.type === 'forbidden'
       } catch (error) {
         logger.warn({
           message: 'Bulk import could not resolve an account',
@@ -176,7 +183,11 @@ const syncAccountRelations = async ({
         })
       }
       await renew()
-      row.data = { ...row.data, resolvedActorId }
+      row.data = {
+        ...row.data,
+        resolvedActorId,
+        ...(resolutionForbidden ? { resolutionForbidden } : {})
+      }
       await database.updateBulkImportRowData({
         importId: bulkImport.id,
         rowId: row.id,
@@ -186,20 +197,30 @@ const syncAccountRelations = async ({
     }
 
     const rowsByActorId = new Map<string, KeyedRow>()
-    const failedUsernames = new Set<string>()
+    // Handles (username, domain) of the rows that failed for a reason that
+    // may pass: a forbidden domain is permanent, so it protects nothing.
+    const failedHandles: string[][] = []
     for (const row of rows.values()) {
       if (row.data.resolvedActorId) {
         rowsByActorId.set(row.data.resolvedActorId, row)
-      } else if (row.state === 'pending' && row.data.resolvedActorId === null) {
-        failedUsernames.add(rowUsername(row, actor))
+      } else if (
+        row.state === 'pending' &&
+        row.data.resolvedActorId === null &&
+        !row.data.resolutionForbidden
+      ) {
+        failedHandles.push(toAcctKey(row.data.acct ?? '', actor).split('@'))
       }
     }
     for (const targetActorId of unmatched) {
       const row = rowsByActorId.get(targetActorId)
+      const target = targets.get(targetActorId)
       if (row) kept.set(targetActorId, row)
       else if (
-        failedUsernames.has(
-          targets.get(targetActorId)?.username.toLowerCase() ?? ''
+        target &&
+        failedHandles.some(
+          ([username, domain]) =>
+            username === target.username.toLowerCase() &&
+            isSameSite(domain, target.domain.toLowerCase())
         )
       ) {
         protectedActorIds.add(targetActorId)
@@ -218,10 +239,16 @@ const syncAccountRelations = async ({
 
   // Last: keeping the final row finishes the import (its counts meet), and a
   // finished import is never run again, so removals must all be done first.
-  await renew()
+  // The side effect comes before the mark, so a row left pending is redone and
+  // a row marked is done; one that is no longer pending was kept by an earlier
+  // pass.
   for (const [targetActorId, row] of kept) {
-    await keep(database, bulkImport, row)
+    if (row.state !== 'pending') continue
+    if (outOfBudget()) return { done: false, units }
     await onKept(targetActorId, row)
+    await renew()
+    await keep(database, bulkImport, row)
+    units += 1
   }
   return { done: true, units }
 }
@@ -229,8 +256,8 @@ const syncAccountRelations = async ({
 /**
  * Mastodon BulkImportService's overwrite pre-pass: keep (and count) what the
  * file names, remove what it does not. Idempotent, so an interrupted pass can
- * simply run again from the start. The account types stop when `deadline`
- * passes (after at least one unit of work) and report `done: false`.
+ * simply run again from the start. The account types and bookmarks stop when
+ * `deadline` passes (after at least one unit of work) and report `done: false`.
  */
 export const applyOverwrite = async ({
   database,
@@ -247,8 +274,8 @@ export const applyOverwrite = async ({
 }): Promise<OverwriteResult> => {
   const actorId = actor.id
 
-  // shortcut: only the account types are budgeted; the others are local
-  // database work, bounded by the 20,000 row cap. Budget them if one ever
+  // shortcut: only the account types and bookmarks are budgeted; the others
+  // are local work bounded by the 20,000 row cap. Budget them if one ever
   // does remote work.
   switch (bulkImport.type) {
     case 'following': {
@@ -351,7 +378,8 @@ export const applyOverwrite = async ({
       const bookmarks = await collectAll((maxId) =>
         database.getBookmarks({ actorId, limit: PAGE_SIZE, maxId })
       )
-      const kept: KeyedRow[] = []
+      const kept = new Map<string, KeyedRow>()
+      const omitted: string[] = []
       for (const bookmark of bookmarks) {
         // A bookmark made through a boost keeps that boost's URI as its source.
         const row =
@@ -359,20 +387,29 @@ export const applyOverwrite = async ({
           (bookmark.sourceStatusId
             ? rows.get(bookmark.sourceStatusId)
             : undefined)
-        if (row) {
-          kept.push(row)
-        } else {
-          await database.deleteBookmark({
-            actorId,
-            statusId: bookmark.statusId
-          })
-        }
+        if (row) kept.set(row.id, row)
+        else omitted.push(bookmark.statusId)
+      }
+      // Both lists are recomputed on every pass, so a pass that stops early
+      // leaves only the remaining work for the next one.
+      let units = 0
+      const outOfBudget = () => units > 0 && Date.now() >= deadline
+      for (const statusId of omitted) {
+        if (outOfBudget()) return { done: false, units }
+        await database.deleteBookmark({ actorId, statusId })
+        units += 1
+        await renew()
       }
       // Last, as for the account types: keeping the final row finishes the
       // import, so a crash between the two must not leave deletions undone.
-      await renew()
-      for (const row of kept) await keep(database, bulkImport, row)
-      return { done: true, units: 0 }
+      for (const row of kept.values()) {
+        if (row.state !== 'pending') continue
+        if (outOfBudget()) return { done: false, units }
+        await renew()
+        await keep(database, bulkImport, row)
+        units += 1
+      }
+      return { done: true, units }
     }
     case 'lists': {
       const rows = await loadRowsByKey(

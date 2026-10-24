@@ -99,8 +99,13 @@ export interface ClaimBulkImportRunParams {
 
 export type ClaimBulkImportRunResult =
   | { claimed: true }
-  // claimedUntil is when the live claim lapses (null: it was just released).
-  | { claimed: false; claimedUntil: number | null }
+  // The live holder: its token and when its claim lapses (both null: it was
+  // just released).
+  | {
+      claimed: false
+      runToken: string | null
+      claimedUntil: number | null
+    }
 
 export interface ReleaseBulkImportRunParams {
   id: string

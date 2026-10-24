@@ -13,6 +13,8 @@ export const BULK_IMPORT_LIST_NAME_MAX_LENGTH = 255
 export const BULK_IMPORT_FILE_SIZE_LIMIT = 5 * 1024 * 1024
 // An unfinished import with no progress for this long is treated as abandoned
 export const BULK_IMPORT_STALE_MS = 24 * 60 * 60 * 1000
+// ...and one nobody holds (no live claim) is abandoned after this long
+export const BULK_IMPORT_ABANDONED_MS = 15 * 60 * 1000
 
 // One parsed row, Mastodon's attribute names
 export type BulkImportRowData = {
@@ -28,4 +30,7 @@ export type BulkImportRowData = {
   // not resolve). Handles can differ from the stored actor's domain, so this
   // is what matches a row to an existing follow, block or mute.
   resolvedActorId?: string | null
+  // Set with a null resolvedActorId when the handle's domain is not allowed:
+  // a permanent failure, unlike an outage.
+  resolutionForbidden?: boolean
 }

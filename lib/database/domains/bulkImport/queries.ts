@@ -22,7 +22,10 @@ import type {
 import { type Db, inTransaction } from '@/lib/database/kysely'
 import type { BulkImportRows, BulkImports } from '@/lib/database/kysely/db'
 import { forUpdate, timestampValue } from '@/lib/database/kysely/dialect'
-import { BULK_IMPORT_STALE_MS } from '@/lib/services/imports/types'
+import {
+  BULK_IMPORT_ABANDONED_MS,
+  BULK_IMPORT_STALE_MS
+} from '@/lib/services/imports/types'
 import type {
   BulkImportRowData,
   BulkImportType
@@ -74,21 +77,40 @@ export const createBulkImport = async (
 
     const now = new Date()
 
-    // A job that died for good never finishes its import; free the actor.
+    // A job that died for good never finishes its import; free the actor. A
+    // run that holds its claim keeps it alive (the heartbeat renews it), so an
+    // import whose claim lapsed or never was, and that has not moved for
+    // BULK_IMPORT_ABANDONED_MS, has no run left (an inline queue lost it to a
+    // restart); anything else waits out BULK_IMPORT_STALE_MS.
     await trx
       .updateTable('bulk_imports')
       .set({
         state: 'finished',
-        lastError: 'Abandoned: no progress for 24 hours',
+        lastError: 'Abandoned: no progress',
         finishedAt: now,
         updatedAt: now
       })
       .where('actorId', '=', params.actorId)
       .where('state', '!=', 'finished')
-      .where(
-        'updatedAt',
-        '<',
-        timestampValue(now.getTime() - BULK_IMPORT_STALE_MS)
+      .where((eb) =>
+        eb.or([
+          eb(
+            'updatedAt',
+            '<',
+            timestampValue(now.getTime() - BULK_IMPORT_STALE_MS)
+          ),
+          eb.and([
+            eb.or([
+              eb('claimedUntil', 'is', null),
+              eb('claimedUntil', '<', timestampValue(now.getTime()))
+            ]),
+            eb(
+              'updatedAt',
+              '<',
+              timestampValue(now.getTime() - BULK_IMPORT_ABANDONED_MS)
+            )
+          ])
+        ])
       )
       .execute()
 
@@ -364,11 +386,12 @@ export const claimBulkImportRun = async (
 
   const current = await db
     .selectFrom('bulk_imports')
-    .select('claimedUntil')
+    .select(['claimedUntil', 'runToken'])
     .where('id', '=', params.id)
     .executeTakeFirst()
   return {
     claimed: false,
+    runToken: current?.claimedUntil ? (current.runToken ?? null) : null,
     claimedUntil: current?.claimedUntil
       ? new Date(current.claimedUntil).getTime()
       : null

@@ -3,6 +3,7 @@ import crypto from 'crypto'
 import { getBulkImportRowId } from '@/lib/database/domains/bulkImport/queries'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import {
+  BULK_IMPORT_ABANDONED_MS,
   BULK_IMPORT_STALE_MS,
   type BulkImportRowData
 } from '@/lib/services/imports/types'
@@ -193,8 +194,59 @@ describe('BulkImportDatabase', () => {
 
       const first = await database.getBulkImportById({ id: firstId })
       expect(first?.state).toBe('finished')
-      expect(first?.lastError).toBe('Abandoned: no progress for 24 hours')
+      expect(first?.lastError).toBe('Abandoned: no progress')
       expect(first?.finishedAt).not.toBeNull()
+    })
+
+    it('abandons an import nobody holds after 15 minutes, but not one with a live claim', async () => {
+      const actorId = await seedActor(`idle-${crypto.randomUUID().slice(0, 8)}`)
+      const firstId = crypto.randomUUID()
+      const params = (id: string) => ({
+        id,
+        actorId,
+        type: 'bookmarks' as const,
+        overwrite: false,
+        originalFilename: 'b.csv',
+        rows: [{ uri: 'https://example.com/status/1' }]
+      })
+      await database.createBulkImport(params(firstId))
+      const idle = new Date(Date.now() - BULK_IMPORT_ABANDONED_MS - 1000)
+      const setIdle = (claimedUntil: Date | null) =>
+        testDb.db
+          .updateTable('bulk_imports')
+          .set({ updatedAt: idle, runToken: 'run', claimedUntil })
+          .where('id', '=', firstId)
+          .execute()
+
+      // A live claim: the run is working, however long since its last write.
+      await setIdle(new Date(Date.now() + 60_000))
+      expect(
+        await database.createBulkImport(params(crypto.randomUUID()))
+      ).toBeNull()
+
+      // A lapsed claim (a restart lost the run), then a claim never taken.
+      await setIdle(new Date(Date.now() - 1000))
+      const secondId = crypto.randomUUID()
+      expect(await database.createBulkImport(params(secondId))).not.toBeNull()
+      expect(await database.getBulkImportById({ id: firstId })).toMatchObject({
+        state: 'finished',
+        lastError: 'Abandoned: no progress'
+      })
+
+      await database.updateBulkImport({ id: secondId, state: 'finished' })
+      const thirdId = crypto.randomUUID()
+      await database.createBulkImport(params(thirdId))
+      await testDb.db
+        .updateTable('bulk_imports')
+        .set({ updatedAt: idle })
+        .where('id', '=', thirdId)
+        .execute()
+      expect(
+        await database.createBulkImport(params(crypto.randomUUID()))
+      ).not.toBeNull()
+      expect((await database.getBulkImportById({ id: thirdId }))?.state).toBe(
+        'finished'
+      )
     })
 
     it('allows creation after the first import is finished', async () => {
@@ -693,7 +745,7 @@ describe('BulkImportDatabase', () => {
         runToken: 'b',
         leaseMs: 60_000
       })
-      expect(second).toMatchObject({ claimed: false })
+      expect(second).toMatchObject({ claimed: false, runToken: 'a' })
       expect(
         (second as { claimedUntil: number }).claimedUntil
       ).toBeGreaterThanOrEqual(before + 60_000)
@@ -776,7 +828,11 @@ describe('BulkImportDatabase', () => {
           runToken: 'a',
           leaseMs: 1000
         })
-      ).toEqual({ claimed: false, claimedUntil: null })
+      ).toEqual({
+        claimed: false,
+        runToken: null,
+        claimedUntil: null
+      })
     })
   })
 

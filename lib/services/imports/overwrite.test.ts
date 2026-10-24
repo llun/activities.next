@@ -474,6 +474,61 @@ describe('applyOverwrite', () => {
       })
     })
 
+    describe('a failed row protects a relation only when it can be the same account', () => {
+      const followAlice = () =>
+        database.createFollow({
+          actorId: actor.id,
+          targetActorId: alice.id,
+          status: FollowStatus.enum.Accepted,
+          inbox: `${actor.id}/inbox`,
+          sharedInbox: 'https://test.llun.dev/inbox'
+        })
+
+      it('keeps a relation whose host is a subdomain of the handle domain', async () => {
+        vi.mocked(resolveAccountTarget).mockResolvedValue({
+          type: 'not-found'
+        })
+        await followAlice()
+
+        await run('following', [{ acct: 'alice@example.com' }])
+
+        expect(await follows(alice)).not.toBeNull()
+      })
+
+      it('keeps a relation whose host is the parent of the handle domain', async () => {
+        vi.mocked(resolveAccountTarget).mockResolvedValue({
+          type: 'not-found'
+        })
+        await followAlice()
+
+        await run('following', [{ acct: 'alice@eu.social.example.com' }])
+
+        expect(await follows(alice)).not.toBeNull()
+      })
+
+      it('removes a relation on an unrelated domain', async () => {
+        vi.mocked(resolveAccountTarget).mockResolvedValue({
+          type: 'not-found'
+        })
+        await followAlice()
+
+        await run('following', [{ acct: 'alice@gone.example' }])
+
+        expect(await follows(alice)).toBeNull()
+      })
+
+      it('removes a relation when the row failed as forbidden', async () => {
+        vi.mocked(resolveAccountTarget).mockResolvedValue({
+          type: 'forbidden'
+        })
+        await followAlice()
+
+        await run('following', [{ acct: 'alice@example.com' }])
+
+        expect(await follows(alice)).toBeNull()
+      })
+    })
+
     it('resolves only the rows whose username an unmatched relation shares, with one batch read', async () => {
       await database.createFollow({
         actorId: actor.id,
@@ -511,6 +566,145 @@ describe('applyOverwrite', () => {
       await run('following', [{ acct: 'alice@example.com' }])
 
       expect(await follows(dropped)).toBeNull()
+    })
+  })
+
+  describe('budget of the keep loops', () => {
+    const passesUntilDone = async (importId: string) => {
+      const passes = []
+      for (let i = 0; i < 20; i += 1) {
+        // The checkpoint a job saves: the next pass reads the rows afresh.
+        const fresh = (await database.getBulkImportById({ id: importId }))!
+        const pass = await applyOverwrite({
+          database,
+          actor,
+          bulkImport: fresh,
+          deadline: 0
+        })
+        passes.push(pass)
+        if (pass.done) return passes
+      }
+      throw new Error('overwrite did not finish')
+    }
+
+    it('following: applies each kept follow once, a unit per pass', async () => {
+      const others = [
+        await createRemoteActor(database, 'one'),
+        await createRemoteActor(database, 'two')
+      ]
+      const targets = [kept, ...others]
+      for (const target of targets) {
+        await database.createFollow({
+          actorId: actor.id,
+          targetActorId: target.id,
+          status: FollowStatus.enum.Accepted,
+          inbox: `${actor.id}/inbox`,
+          sharedInbox: 'https://test.llun.dev/inbox'
+        })
+      }
+      await database.createBulkImport({
+        id: 'import-1',
+        actorId: actor.id,
+        type: 'following',
+        overwrite: true,
+        originalFilename: 'file.csv',
+        rows: targets.map((target) => ({
+          acct: `${target.username}@${target.domain}`,
+          notify: true
+        }))
+      })
+      const updatePreferences = vi.spyOn(database, 'updateFollowPreferences')
+
+      const passes = await passesUntilDone('import-1')
+
+      expect(passes).toEqual([
+        { done: false, units: 1 },
+        { done: false, units: 1 },
+        { done: true, units: 1 }
+      ])
+      // Once per follow, not once per pass, and every row is counted once.
+      expect(updatePreferences).toHaveBeenCalledTimes(3)
+      expect(
+        await database.getBulkImportById({ id: 'import-1' })
+      ).toMatchObject({
+        state: 'finished',
+        processedItems: 3,
+        importedItems: 3
+      })
+    })
+
+    it('following: applies the side effect before it marks the row', async () => {
+      await database.createFollow({
+        actorId: actor.id,
+        targetActorId: kept.id,
+        status: FollowStatus.enum.Accepted,
+        inbox: `${actor.id}/inbox`,
+        sharedInbox: 'https://test.llun.dev/inbox'
+      })
+      await database.createBulkImport({
+        id: 'import-1',
+        actorId: actor.id,
+        type: 'following',
+        overwrite: true,
+        originalFilename: 'file.csv',
+        rows: [{ acct: 'kept@remote.test', notify: true }]
+      })
+      const update = vi.spyOn(database, 'updateFollowPreferences')
+      const mark = vi.spyOn(database, 'markBulkImportRowProcessed')
+
+      await passesUntilDone('import-1')
+
+      expect(update.mock.invocationCallOrder[0]).toBeLessThan(
+        mark.mock.invocationCallOrder[0]
+      )
+    })
+
+    it('bookmarks: deletes and keeps a unit per pass, each once', async () => {
+      const keptUris = [`${kept.id}/statuses/1`, `${kept.id}/statuses/2`]
+      const droppedUris = [
+        `${dropped.id}/statuses/1`,
+        `${dropped.id}/statuses/2`,
+        `${dropped.id}/statuses/3`
+      ]
+      for (const uri of [...droppedUris, ...keptUris]) {
+        await createPublicNote(database, uri, kept.id)
+        await database.createBookmark({ actorId: actor.id, statusId: uri })
+      }
+      await database.createBulkImport({
+        id: 'import-1',
+        actorId: actor.id,
+        type: 'bookmarks',
+        overwrite: true,
+        originalFilename: 'file.csv',
+        rows: keptUris.map((uri) => ({ uri }))
+      })
+      const deleteBookmark = vi.spyOn(database, 'deleteBookmark')
+      const mark = vi.spyOn(database, 'markBulkImportRowProcessed')
+
+      const passes = await passesUntilDone('import-1')
+
+      // Three deletions, then two kept rows, one unit each.
+      expect(passes.map((pass) => pass.done)).toEqual([
+        false,
+        false,
+        false,
+        false,
+        true
+      ])
+      expect(deleteBookmark).toHaveBeenCalledTimes(3)
+      expect(
+        (await database.getBookmarks({ actorId: actor.id, limit: 10 }))
+          .map((bookmark) => bookmark.statusId)
+          .sort()
+      ).toEqual(keptUris)
+      expect(mark.mock.calls.filter(([p]) => p.imported)).toHaveLength(2)
+      expect(
+        await database.getBulkImportById({ id: 'import-1' })
+      ).toMatchObject({
+        state: 'finished',
+        processedItems: 2,
+        importedItems: 2
+      })
     })
   })
 
@@ -557,7 +751,9 @@ describe('applyOverwrite', () => {
         if (pass.done) break
       }
 
+      // Two removals, then the kept row: one unit per pass.
       expect(passes).toEqual([
+        { done: false, units: 1 },
         { done: false, units: 1 },
         { done: true, units: 1 }
       ])
@@ -601,8 +797,12 @@ describe('applyOverwrite', () => {
         bulkImport,
         deadline: 0
       })
-      expect(third).toEqual({ done: true, units: 1 })
+      expect(third).toEqual({ done: false, units: 1 })
       expect(await follows(dropped)).toBeNull()
+      // The kept row is the last unit.
+      expect(
+        await applyOverwrite({ database, actor, bulkImport, deadline: 0 })
+      ).toEqual({ done: true, units: 1 })
       // The two rows were each resolved once, even though the passes repeat.
       expect(resolveAccountTarget).toHaveBeenCalledTimes(2)
     })

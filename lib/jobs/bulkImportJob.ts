@@ -13,10 +13,13 @@ import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { withSpan } from '@/lib/utils/trace'
 
-// `waitedFor` is the claim a wait job waited out (see runBulkImport).
+// `waitedFor` is the holder a wait job waited out (see runBulkImport).
+const WaitedFor = z.object({ runToken: z.string(), claimedUntil: z.number() })
+type WaitedFor = z.infer<typeof WaitedFor>
+
 const JobData = z.object({
   importId: z.string(),
-  waitedFor: z.number().nullable().optional()
+  waitedFor: WaitedFor.optional()
 })
 
 // Each run must finish well inside the queue's per-job timeout: QStash caps a
@@ -27,6 +30,9 @@ export const BULK_IMPORT_JOB_TIME_BUDGET_MS = 20_000
 // The claim outlives the budget by this much so a run that overshoots by one
 // slow row still holds it.
 const CLAIM_GRACE_MS = 15_000
+// A live run renews its lease this often (at most a third of the lease), so a
+// lapsed lease means the run is dead, however long one unit of work takes.
+export const BULK_IMPORT_HEARTBEAT_MS = 10_000
 const WAIT_BUFFER_SECONDS = 2
 const ROW_PAGE_SIZE = 100
 
@@ -42,15 +48,18 @@ export const getBulkImportOverwriteJobId = (
 
 export const getBulkImportWaitJobId = (
   importId: string,
-  claimedUntil: number | null
-): string => `${importId}:wait:${claimedUntil ?? 'released'}`
+  holder: WaitedFor | null
+): string =>
+  holder
+    ? `${importId}:wait:${holder.runToken}:${holder.claimedUntil}`
+    : `${importId}:wait:released`
 
 type RunOptions = {
   // Time left before the job hands over to a continuation.
   budgetMs?: number
   pageSize?: number
-  // Set by a wait job: the claimedUntil of the claim it waited for.
-  waitedFor?: number | null
+  // Set by a wait job: the holder (token and lease) it waited for.
+  waitedFor?: WaitedFor
 }
 
 const continuation = (id: string, importId: string): JobMessage => ({
@@ -238,6 +247,9 @@ const processImport = async (
       importId,
       err: toLoggableError(error)
     })
+    // Renewing first skips the write (LeaseLostError) when the run lost the
+    // import: lastError belongs to the new holder's state.
+    await renew()
     await database.updateBulkImport({
       id: importId,
       lastError: error instanceof Error ? error.message : String(error)
@@ -274,33 +286,73 @@ export const runBulkImport = async (
     leaseMs
   })
   if (!claim.claimed) {
-    // A wait job that finds a different claim than the one it waited for has
-    // been overtaken: that holder's own continuation (or the queue's retry)
-    // covers the import, and republishing would chain waits forever.
-    if (waitedFor !== undefined && claim.claimedUntil !== waitedFor) return
+    const holder =
+      claim.runToken && claim.claimedUntil
+        ? { runToken: claim.runToken, claimedUntil: claim.claimedUntil }
+        : null
+    // A wait job that finds another holder has been overtaken: that holder's
+    // own continuation (or the queue's retry) covers the import, and
+    // republishing would chain waits forever. The same holder, though, renews
+    // its lease as it works, so its own renewals must not look like a new
+    // claim: the wait goes on until that holder finishes or dies.
+    if (waitedFor && holder?.runToken !== waitedFor.runToken) return
     // Try again once the claim lapses. A NoQueue drops the delayed message,
     // but it runs one job at a time in-process, so the holder is still going.
-    const waitSeconds = claim.claimedUntil
-      ? Math.max(0, Math.ceil((claim.claimedUntil - Date.now()) / 1000))
+    const waitSeconds = holder
+      ? Math.max(0, Math.ceil((holder.claimedUntil - Date.now()) / 1000))
       : 0
-    const wait = continuation(
-      getBulkImportWaitJobId(importId, claim.claimedUntil),
-      importId
-    )
     await getQueue().publish({
-      ...wait,
-      data: { importId, waitedFor: claim.claimedUntil },
+      ...continuation(getBulkImportWaitJobId(importId, holder), importId),
+      data: { importId, ...(holder ? { waitedFor: holder } : {}) },
       delaySeconds: waitSeconds + WAIT_BUFFER_SECONDS
     })
     return
   }
 
-  const renew: Renew = async () => {
-    if (
-      !(await database.renewBulkImportRun({ id: importId, runToken, leaseMs }))
-    )
-      throw new LeaseLostError()
+  // `lost`: a renewal changed no row, so another run holds the import and
+  // this one stops quietly. `renewError`: a renewal threw, so the lease state
+  // is unknown; the run stops by rethrowing it and the queue retries.
+  let lost = false
+  let renewError: unknown
+  const renewLease = async () => {
+    try {
+      if (
+        !(await database.renewBulkImportRun({
+          id: importId,
+          runToken,
+          leaseMs
+        }))
+      )
+        lost = true
+    } catch (error) {
+      logger.warn({
+        message: 'Bulk import lease renewal failed',
+        importId,
+        err: toLoggableError(error)
+      })
+      renewError ??= error
+    }
   }
+  const renew: Renew = async () => {
+    if (!lost && renewError === undefined) await renewLease()
+    if (renewError !== undefined) throw renewError
+    if (lost) throw new LeaseLostError()
+  }
+  // Keeps the lease alive through a unit of work longer than the lease.
+  let beating = false
+  const heartbeat = setInterval(
+    async () => {
+      if (beating || lost || renewError !== undefined) return
+      beating = true
+      try {
+        await renewLease()
+      } finally {
+        beating = false
+      }
+    },
+    Math.min(BULK_IMPORT_HEARTBEAT_MS, leaseMs / 3)
+  )
+  heartbeat.unref?.()
 
   let next: JobMessage | undefined
   try {
@@ -315,8 +367,12 @@ export const runBulkImport = async (
     }
     throw error
   } finally {
+    clearInterval(heartbeat)
     await database.releaseBulkImportRun({ id: importId, runToken })
   }
+  // A renewal that threw during the last stretch: the run cannot vouch for
+  // its work, so fail it (nothing is published) and let the queue retry.
+  if (renewError !== undefined) throw renewError
   // After the release, so the continuation is not turned away by this claim.
   if (next) await getQueue().publish(next)
 }
