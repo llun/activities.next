@@ -39,21 +39,41 @@ export const getActorAcctKey = (target: {
 export const isValidListName = (name: string | undefined): name is string =>
   Boolean(name) && name!.length <= BULK_IMPORT_LIST_NAME_MAX_LENGTH
 
-// Mastodon's FollowService#following_not_allowed?: a blocked pair, either way,
-// or a blocked domain.
-const isFollowNotAllowed = async (
+// Mastodon's FollowService#following_not_allowed?: a moved target, a blocked
+// pair (either way) or a blocked domain. The blocked_domains.csv of Mastodon
+// names the domain of the account's handle, which on a split-domain server is
+// not the host of the actor, so both are checked.
+const getFollowNotAllowedError = async (
   database: Database,
   actor: Actor,
-  target: Actor
-): Promise<boolean> =>
-  (await database.isEitherBlocking({
-    actorIdA: actor.id,
-    actorIdB: target.id
-  })) ||
-  (await database.isDomainBlockedByActor({
-    actorId: actor.id,
-    domain: target.domain
-  }))
+  target: Actor,
+  acct: string
+): Promise<string | null> => {
+  if (target.movedTo) return 'Account has moved'
+  if (
+    await database.isEitherBlocking({
+      actorIdA: actor.id,
+      actorIdB: target.id
+    })
+  ) {
+    return 'Account is blocked'
+  }
+  const acctDomain = normalizeActorHost(
+    toAcctKey(acct, actor).split('@')[1] ?? ''
+  )
+  const domains = new Set([target.domain, acctDomain].filter(Boolean))
+  for (const domain of domains) {
+    if (
+      await database.isDomainBlockedByActor({
+        actorId: actor.id,
+        domain: domain as string
+      })
+    ) {
+      return 'Account is blocked'
+    }
+  }
+  return null
+}
 
 const importAccountRow = async ({
   database,
@@ -92,9 +112,13 @@ const importAccountRow = async ({
 
   if (type === 'following') {
     if (isSelf) return { imported: false, error: 'Cannot follow yourself' }
-    if (await isFollowNotAllowed(database, actor, target)) {
-      return { imported: false, error: 'Account is blocked' }
-    }
+    const notAllowed = await getFollowNotAllowedError(
+      database,
+      actor,
+      target,
+      data.acct
+    )
+    if (notAllowed) return { imported: false, error: notAllowed }
     const result = await followActor({
       database,
       currentActor: actor,
@@ -158,9 +182,13 @@ const importAccountRow = async ({
   if (!list) return { imported: false, error: 'List not found' }
 
   if (!isSelf) {
-    if (await isFollowNotAllowed(database, actor, target)) {
-      return { imported: false, error: 'Account is blocked' }
-    }
+    const notAllowed = await getFollowNotAllowedError(
+      database,
+      actor,
+      target,
+      data.acct
+    )
+    if (notAllowed) return { imported: false, error: notAllowed }
     // Plain follow with default options; an existing follow is left alone.
     const result = await followActor({
       database,

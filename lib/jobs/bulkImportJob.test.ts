@@ -1,4 +1,5 @@
 import { follow, unfollow } from '@/lib/activities'
+import type { Db } from '@/lib/database/kysely'
 import { Database } from '@/lib/database/types'
 import {
   bulkImportJob,
@@ -22,9 +23,13 @@ import { Actor } from '@/lib/types/domain/actor'
 import { FollowStatus } from '@/lib/types/domain/follow'
 
 const mockPublish = vi.hoisted(() => vi.fn())
+const queueState = vi.hoisted(() => ({ runsInline: false }))
 
 vi.mock('@/lib/services/queue', () => ({
-  getQueue: () => ({ publish: mockPublish })
+  getQueue: () => ({
+    publish: mockPublish,
+    runsInline: queueState.runsInline
+  })
 }))
 vi.mock('@/lib/activities', () => ({ follow: vi.fn(), unfollow: vi.fn() }))
 vi.mock('@/lib/services/federation/getFederationSigningActor', () => ({
@@ -41,12 +46,14 @@ const IMPORT_ID = 'import-1'
 
 describe('bulkImportJob', () => {
   let database: Database
+  let db: Db
   let actor: Actor
   let bob: Actor
   let carol: Actor
 
   beforeEach(async () => {
-    ;({ database, actor } = await createImportTestDatabase())
+    ;({ database, db, actor } = await createImportTestDatabase())
+    queueState.runsInline = false
     bob = await createRemoteActor(database, 'bob')
     carol = await createRemoteActor(database, 'carol')
     mockPublish.mockReset().mockResolvedValue(undefined)
@@ -439,7 +446,7 @@ describe('bulkImportJob', () => {
         {
           id: getBulkImportWaitJobId(IMPORT_ID, held.claimedUntil),
           name: BULK_IMPORT_JOB_NAME,
-          data: { importId: IMPORT_ID },
+          data: { importId: IMPORT_ID, waitedFor: held.claimedUntil },
           delaySeconds: expect.any(Number)
         }
       ])
@@ -447,6 +454,139 @@ describe('bulkImportJob', () => {
       const { delaySeconds } = jobMessages()[0]
       expect(delaySeconds).toBeGreaterThan(55)
       expect(delaySeconds).toBeLessThan(70)
+    })
+
+    describe('wait jobs', () => {
+      const holdClaim = async () => {
+        await createImport('blocking', [{ acct: 'bob@remote.test' }])
+        await database.claimBulkImportRun({
+          id: IMPORT_ID,
+          runToken: 'other-run',
+          leaseMs: 60_000
+        })
+        return (
+          (await database.claimBulkImportRun({
+            id: IMPORT_ID,
+            runToken: 'probe',
+            leaseMs: 1
+          })) as { claimedUntil: number }
+        ).claimedUntil
+      }
+
+      it('does not republish when the claim changed since it was queued', async () => {
+        const claimedUntil = await holdClaim()
+
+        await runBulkImport(database, IMPORT_ID, {
+          waitedFor: claimedUntil - 5000
+        })
+
+        expect(jobMessages()).toEqual([])
+        expect(await getImport()).toMatchObject({ processedItems: 0 })
+      })
+
+      it('reads the claim it waited for from its job data', async () => {
+        const claimedUntil = await holdClaim()
+
+        await bulkImportJob(database, {
+          id: `${IMPORT_ID}:wait:1`,
+          name: BULK_IMPORT_JOB_NAME,
+          data: { importId: IMPORT_ID, waitedFor: claimedUntil - 5000 }
+        })
+
+        expect(jobMessages()).toEqual([])
+      })
+
+      it('republishes exactly one delayed wait when the same claim is still live', async () => {
+        const claimedUntil = await holdClaim()
+
+        await runBulkImport(database, IMPORT_ID, { waitedFor: claimedUntil })
+
+        expect(jobMessages()).toEqual([
+          {
+            id: getBulkImportWaitJobId(IMPORT_ID, claimedUntil),
+            name: BULK_IMPORT_JOB_NAME,
+            data: { importId: IMPORT_ID, waitedFor: claimedUntil },
+            delaySeconds: expect.any(Number)
+          }
+        ])
+        expect(jobMessages()[0].delaySeconds).toBeGreaterThan(55)
+      })
+    })
+
+    it('stops without checkpointing, marking or publishing when another run took the lease mid-run', async () => {
+      await createImport('blocking', [
+        { acct: 'bob@remote.test' },
+        { acct: 'carol@remote.test' },
+        { acct: 'nobody@remote.test' }
+      ])
+      const mark = database.markBulkImportRowProcessed.bind(database)
+      vi.spyOn(database, 'markBulkImportRowProcessed').mockImplementation(
+        async (params) => {
+          const marked = await mark(params)
+          // The lease lapsed and another run claimed the import.
+          await db
+            .updateTable('bulk_imports')
+            .set({ runToken: 'thief' })
+            .where('id', '=', IMPORT_ID)
+            .execute()
+          return marked
+        }
+      )
+
+      await runBulkImport(database, IMPORT_ID, { pageSize: 2 })
+
+      expect(await getImport()).toMatchObject({
+        state: 'in_progress',
+        processedItems: 1,
+        nextRowIndex: 0
+      })
+      expect(
+        await database.isBlocking({ actorId: actor.id, targetActorId: bob.id })
+      ).toBe(true)
+      expect(jobMessages()).toEqual([])
+      // The thief's claim is untouched by this run's release.
+      expect(
+        await database.claimBulkImportRun({
+          id: IMPORT_ID,
+          runToken: 'next',
+          leaseMs: 1000
+        })
+      ).toMatchObject({ claimed: false })
+    })
+
+    it('does not publish a continuation or checkpoint when the lease is lost at the budget', async () => {
+      await createImport('blocking', [
+        { acct: 'bob@remote.test' },
+        { acct: 'carol@remote.test' }
+      ])
+      vi.spyOn(database, 'renewBulkImportRun').mockResolvedValue(false)
+
+      await runBulkImport(database, IMPORT_ID, { budgetMs: -1, pageSize: 1 })
+
+      expect(jobMessages()).toEqual([])
+      expect(await getImport()).toMatchObject({
+        processedItems: 0,
+        nextRowIndex: 0
+      })
+    })
+
+    it('runs to completion in one go under an inline queue', async () => {
+      queueState.runsInline = true
+      await createImport('blocking', [
+        { acct: 'bob@remote.test' },
+        { acct: 'carol@remote.test' },
+        { acct: 'nobody@remote.test' }
+      ])
+
+      // Any other queue would stop after the first row on this budget.
+      await runBulkImport(database, IMPORT_ID, { budgetMs: -1, pageSize: 1 })
+
+      expect(jobMessages()).toEqual([])
+      expect(await getImport()).toMatchObject({
+        state: 'finished',
+        processedItems: 3,
+        importedItems: 2
+      })
     })
 
     it('releases the claim before it publishes the continuation', async () => {

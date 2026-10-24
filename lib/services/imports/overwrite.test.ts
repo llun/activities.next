@@ -209,6 +209,38 @@ describe('applyOverwrite', () => {
     expect(result).toMatchObject({ processedItems: 1, importedItems: 1 })
   })
 
+  it('bookmarks: deletes every omitted bookmark before it marks a kept row', async () => {
+    const keptUris = [`${kept.id}/statuses/1`, `${kept.id}/statuses/2`]
+    const droppedUri = `${dropped.id}/statuses/1`
+    // Newest first: the kept bookmarks come back before the dropped one.
+    for (const uri of [droppedUri, ...keptUris]) {
+      await createPublicNote(database, uri, kept.id)
+      await database.createBookmark({ actorId: actor.id, statusId: uri })
+    }
+    const deleteBookmark = vi.spyOn(database, 'deleteBookmark')
+    const mark = vi.spyOn(database, 'markBulkImportRowProcessed')
+
+    await database.createBulkImport({
+      id: 'import-1',
+      actorId: actor.id,
+      type: 'bookmarks',
+      overwrite: true,
+      originalFilename: 'file.csv',
+      rows: keptUris.map((uri) => ({ uri }))
+    })
+    await applyOverwrite({
+      database,
+      actor,
+      bulkImport: (await database.getBulkImportById({ id: 'import-1' }))!
+    })
+
+    expect(deleteBookmark).toHaveBeenCalledTimes(1)
+    expect(mark).toHaveBeenCalledTimes(2)
+    expect(deleteBookmark.mock.invocationCallOrder[0]).toBeLessThan(
+      Math.min(...mark.mock.invocationCallOrder)
+    )
+  })
+
   it('bookmarks: keeps a bookmark made through a boost when the file names the boost', async () => {
     const original = `${kept.id}/statuses/1`
     const boostUri = `${dropped.id}/statuses/boost-1`
@@ -346,6 +378,127 @@ describe('applyOverwrite', () => {
       expect(result).toMatchObject({ processedItems: 1, importedItems: 1 })
     })
 
+    describe.each([
+      ['not found', async () => ({ type: 'not-found' as const })],
+      [
+        'throws',
+        async (): Promise<never> => {
+          throw new Error('remote offline')
+        }
+      ]
+    ])('when resolving the handle %s', (_name, failure) => {
+      beforeEach(() => {
+        vi.mocked(resolveAccountTarget).mockImplementation(async (params) =>
+          params.input === 'alice@example.com'
+            ? failure()
+            : resolveStoredAccount(params)
+        )
+      })
+
+      const expectRowPending = async () => {
+        const row = await importedRow()
+        expect(row.state).toBe('pending')
+        expect(row.data.resolvedActorId).toBeNull()
+      }
+
+      it('following: keeps the follow, without an Undo', async () => {
+        await database.createFollow({
+          actorId: actor.id,
+          targetActorId: alice.id,
+          status: FollowStatus.enum.Accepted,
+          inbox: `${actor.id}/inbox`,
+          sharedInbox: 'https://test.llun.dev/inbox'
+        })
+
+        await run('following', [{ acct: 'Alice@example.com' }])
+
+        expect(unfollow).not.toHaveBeenCalled()
+        expect(await follows(alice)).not.toBeNull()
+        await expectRowPending()
+      })
+
+      it('blocking: keeps the block, without an Unblock', async () => {
+        await database.createBlock({
+          actorId: actor.id,
+          targetActorId: alice.id,
+          uri: `${actor.id}#blocks/alice`
+        })
+
+        await run('blocking', [{ acct: 'alice@example.com' }])
+
+        expect(
+          await database.isBlocking({
+            actorId: actor.id,
+            targetActorId: alice.id
+          })
+        ).toBe(true)
+        expect(
+          mockPublish.mock.calls.filter(
+            ([message]) => message.name === SEND_UNBLOCK_JOB_NAME
+          )
+        ).toHaveLength(0)
+        await expectRowPending()
+      })
+
+      it('muting: keeps the mute', async () => {
+        await database.createMute({
+          actorId: actor.id,
+          targetActorId: alice.id,
+          notifications: true,
+          endsAt: null
+        })
+
+        await run('muting', [{ acct: 'alice@example.com' }])
+
+        expect(
+          await database.getMute({
+            actorId: actor.id,
+            targetActorId: alice.id
+          })
+        ).not.toBeNull()
+        await expectRowPending()
+      })
+
+      it('still removes a relation whose username no failed row shares', async () => {
+        await database.createFollow({
+          actorId: actor.id,
+          targetActorId: dropped.id,
+          status: FollowStatus.enum.Accepted,
+          inbox: `${actor.id}/inbox`,
+          sharedInbox: 'https://test.llun.dev/inbox'
+        })
+
+        await run('following', [{ acct: 'alice@example.com' }])
+
+        expect(await follows(dropped)).toBeNull()
+      })
+    })
+
+    it('resolves only the rows whose username an unmatched relation shares, with one batch read', async () => {
+      await database.createFollow({
+        actorId: actor.id,
+        targetActorId: alice.id,
+        status: FollowStatus.enum.Accepted,
+        inbox: `${actor.id}/inbox`,
+        sharedInbox: 'https://test.llun.dev/inbox'
+      })
+      const getActorFromId = vi.spyOn(database, 'getActorFromId')
+      const getActorsFromIds = vi.spyOn(database, 'getActorsFromIds')
+
+      await run('following', [
+        { acct: 'alice@example.com' },
+        { acct: 'unrelated@remote.test' }
+      ])
+
+      expect(
+        vi.mocked(resolveAccountTarget).mock.calls.map(([p]) => p.input)
+      ).toEqual(['alice@example.com'])
+      expect(getActorsFromIds).toHaveBeenCalled()
+      expect(
+        getActorFromId.mock.calls.filter(([p]) => p.id === alice.id)
+      ).toHaveLength(0)
+    })
+
     it('still removes a relation no row resolves to', async () => {
       await database.createFollow({
         actorId: actor.id,
@@ -414,10 +567,14 @@ describe('applyOverwrite', () => {
 
     it('resolves rows under the budget, once each, before removing anything', async () => {
       await followAll([kept, dropped])
+      // Rows that share the dropped follow's username are the only ones that
+      // could match it, so only they are resolved (to unrelated actors here).
+      await createRemoteActor(database, 'dropped', 'a.test')
+      await createRemoteActor(database, 'dropped', 'b.test')
       const bulkImport = await createImport([
         { acct: 'kept@remote.test' },
-        { acct: 'x1@remote.test' },
-        { acct: 'x2@remote.test' }
+        { acct: 'dropped@a.test' },
+        { acct: 'dropped@b.test' }
       ])
 
       const first = await applyOverwrite({
@@ -446,8 +603,27 @@ describe('applyOverwrite', () => {
       })
       expect(third).toEqual({ done: true, units: 1 })
       expect(await follows(dropped)).toBeNull()
-      // x1 and x2 were each resolved once, even though the passes repeat.
+      // The two rows were each resolved once, even though the passes repeat.
       expect(resolveAccountTarget).toHaveBeenCalledTimes(2)
+    })
+
+    it('stops after a unit when the lease is lost, without removing or marking more', async () => {
+      const other = await createRemoteActor(database, 'other')
+      await followAll([kept, dropped, other])
+      const bulkImport = await createImport([{ acct: 'kept@remote.test' }])
+      const renew = vi
+        .fn()
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValue(new Error('lease lost'))
+
+      await expect(
+        applyOverwrite({ database, actor, bulkImport, renew })
+      ).rejects.toThrow('lease lost')
+
+      expect(unfollow).toHaveBeenCalledTimes(2)
+      expect(
+        (await database.getBulkImportById({ id: 'import-1' }))!.processedItems
+      ).toBe(0)
     })
   })
 })

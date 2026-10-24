@@ -107,6 +107,12 @@ export interface ReleaseBulkImportRunParams {
   runToken: string
 }
 
+export interface RenewBulkImportRunParams {
+  id: string
+  runToken: string
+  leaseMs: number
+}
+
 export interface GetBulkImportFailedRowsParams {
   importId: string
   limit?: number
@@ -127,6 +133,8 @@ export interface BulkImportDatabase {
     params: ClaimBulkImportRunParams
   ): Promise<ClaimBulkImportRunResult>
   releaseBulkImportRun(params: ReleaseBulkImportRunParams): Promise<void>
+  // False when the run no longer holds the claim (another run took it over).
+  renewBulkImportRun(params: RenewBulkImportRunParams): Promise<boolean>
   getBulkImportFailedRows(
     params: GetBulkImportFailedRowsParams
   ): Promise<BulkImportRow[]>

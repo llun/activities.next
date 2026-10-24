@@ -279,7 +279,7 @@ describe('/api/v1/imports', () => {
       finishRun()
     })
 
-    it('keeps the import and answers 202 when an inline run throws', async () => {
+    it('answers 202 and finishes the import with an error when an inline run throws, freeing the actor', async () => {
       mockRunsInline = true
       mockPublish.mockRejectedValueOnce(new Error('job exploded'))
 
@@ -287,14 +287,20 @@ describe('/api/v1/imports', () => {
         params: Promise.resolve({})
       })
       expect(response.status).toBe(HTTP_STATUS.ACCEPTED)
-      await new Promise((resolve) => setTimeout(resolve, 0))
-
-      const [stored] = await database.getBulkImports({
-        actorId: ACTOR1_ID,
-        limit: 1
+      await vi.waitFor(async () => {
+        const [stored] = await database.getBulkImports({
+          actorId: ACTOR1_ID,
+          limit: 1
+        })
+        expect(stored.state).toBe('finished')
+        expect(stored.lastError).toBeTruthy()
+        expect(stored.finishedAt).not.toBeNull()
       })
-      expect(stored.state).toBe('scheduled')
-      expect(stored.lastError).toBeNull()
+
+      const retry = await POST(createPostRequest(buildValidForm()), {
+        params: Promise.resolve({})
+      })
+      expect(retry.status).toBe(HTTP_STATUS.ACCEPTED)
     })
 
     it('returns 413 before reading the body when content-length is too large', async () => {

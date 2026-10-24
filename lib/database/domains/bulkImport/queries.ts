@@ -15,6 +15,7 @@ import type {
   GetBulkImportsParams,
   MarkBulkImportRowProcessedParams,
   ReleaseBulkImportRunParams,
+  RenewBulkImportRunParams,
   UpdateBulkImportParams,
   UpdateBulkImportRowDataParams
 } from '@/lib/database/domains/bulkImport/types'
@@ -332,6 +333,10 @@ export const updateBulkImportRowData = async (
     .execute()
 }
 
+// The lease is computed and compared with the app server's clock, not the
+// database's: SQLite stores these timestamps as epoch milliseconds while
+// PostgreSQL compares timestamptz, so one CURRENT_TIMESTAMP expression cannot
+// serve both without per-dialect SQL; app servers are assumed NTP-synced.
 // Takes the import for one run. Only one run at a time may work on an import:
 // a redelivered or retried job would otherwise process the same rows twice. The
 // lease lapses by itself, so a run that died never blocks the import for good.
@@ -384,6 +389,21 @@ export const releaseBulkImportRun = async (
     .execute()
 }
 
+// Extends a claim this run still holds. Zero rows changed means another run
+// owns the import now, and this one must stop without writing anything more.
+export const renewBulkImportRun = async (
+  db: Db,
+  params: RenewBulkImportRunParams
+): Promise<boolean> => {
+  const result = await db
+    .updateTable('bulk_imports')
+    .set({ claimedUntil: new Date(Date.now() + params.leaseMs) })
+    .where('id', '=', params.id)
+    .where('runToken', '=', params.runToken)
+    .executeTakeFirst()
+  return Number(result.numUpdatedRows ?? 0n) > 0
+}
+
 export const getBulkImportFailedRows = async (
   db: Db,
   params: GetBulkImportFailedRowsParams
@@ -414,5 +434,6 @@ export const bulkImportQueries = {
   updateBulkImportRowData,
   claimBulkImportRun,
   releaseBulkImportRun,
+  renewBulkImportRun,
   getBulkImportFailedRows
 }

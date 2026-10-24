@@ -1,3 +1,4 @@
+import type { Db } from '@/lib/database/kysely'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import { seedDatabase } from '@/lib/stub/database'
@@ -7,6 +8,7 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 export const createImportTestDatabase = async (): Promise<{
   database: Database
+  db: Db
   actor: Actor
 }> => {
   const created = createTestDatabase()
@@ -28,7 +30,7 @@ export const createImportTestDatabase = async (): Promise<{
   }
 
   const actor = (await database.getActorFromId({ id: ACTOR1_ID })) as Actor
-  return { database, actor }
+  return { database, db: created.db, actor }
 }
 
 export const createRemoteActor = async (

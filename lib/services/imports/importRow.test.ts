@@ -381,4 +381,66 @@ describe('importRow', () => {
       })
     })
   })
+
+  describe('split-domain and moved accounts', () => {
+    let alice: Actor
+
+    beforeEach(async () => {
+      alice = await createRemoteActor(database, 'alice', 'social.example.com')
+      vi.mocked(resolveAccountTarget).mockImplementation(async (params) =>
+        params.input === 'alice@example.com'
+          ? { type: 'resolved', actor: alice }
+          : resolveStoredAccount(params)
+      )
+    })
+
+    it('refuses to follow when the domain of the handle is blocked, not only the actor host', async () => {
+      await database.createActorDomainBlock({
+        actorId: actor.id,
+        domain: 'example.com'
+      })
+      expect(await run('following', { acct: 'alice@example.com' })).toEqual({
+        imported: false,
+        error: 'Account is blocked'
+      })
+      expect(follow).not.toHaveBeenCalled()
+    })
+
+    it('refuses a list row when the domain of the handle is blocked', async () => {
+      await database.createActorDomainBlock({
+        actorId: actor.id,
+        domain: 'example.com'
+      })
+      await database.createList({ actorId: actor.id, title: 'Friends' })
+      expect(
+        await run('lists', { list_name: 'Friends', acct: 'alice@example.com' })
+      ).toEqual({ imported: false, error: 'Account is blocked' })
+      expect(follow).not.toHaveBeenCalled()
+    })
+
+    it('refuses to follow or list an account that has moved', async () => {
+      const mover = (await database.createActor({
+        actorId: 'https://remote.test/users/mover',
+        username: 'mover',
+        domain: 'remote.test',
+        inboxUrl: 'https://remote.test/users/mover/inbox',
+        sharedInboxUrl: 'https://remote.test/inbox',
+        followersUrl: 'https://remote.test/users/mover/followers',
+        publicKey: 'publicKey',
+        createdAt: Date.now(),
+        movedTo: 'https://remote.test/users/new-home'
+      })) as Actor
+      expect(mover.movedTo).toBeTruthy()
+      await database.createList({ actorId: actor.id, title: 'Friends' })
+
+      expect(await run('following', { acct: 'mover@remote.test' })).toEqual({
+        imported: false,
+        error: 'Account has moved'
+      })
+      expect(
+        await run('lists', { list_name: 'Friends', acct: 'mover@remote.test' })
+      ).toEqual({ imported: false, error: 'Account has moved' })
+      expect(follow).not.toHaveBeenCalled()
+    })
+  })
 })

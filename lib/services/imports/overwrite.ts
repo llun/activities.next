@@ -73,6 +73,13 @@ const keep = async (
   })
 }
 
+// Stops the run (by throwing) when it no longer holds the import's lease.
+export type RenewLease = () => Promise<void>
+
+// The username part of a row's handle, as toAcctKey writes it.
+const rowUsername = (row: KeyedRow, actor: Actor): string =>
+  toAcctKey(row.data.acct ?? '', actor).split('@')[0]
+
 export type OverwriteResult = {
   // False when the budget ran out; run it again to continue.
   done: boolean
@@ -93,6 +100,7 @@ const syncAccountRelations = async ({
   actor,
   bulkImport,
   deadline,
+  renew,
   relations,
   remove,
   onKept
@@ -101,6 +109,7 @@ const syncAccountRelations = async ({
   actor: Actor
   bulkImport: BulkImport
   deadline: number
+  renew: RenewLease
   relations: AccountRelation[]
   remove: (targetActorId: string) => Promise<unknown>
   onKept: (targetActorId: string, row: KeyedRow) => Promise<unknown>
@@ -109,12 +118,18 @@ const syncAccountRelations = async ({
     row.data.acct ? toAcctKey(row.data.acct, actor) : null
   )
 
+  const targets = new Map<string, Actor>()
+  for (let i = 0; i < relations.length; i += PAGE_SIZE) {
+    const ids = relations.slice(i, i + PAGE_SIZE).map((r) => r.targetActorId)
+    for (const target of await database.getActorsFromIds({ ids })) {
+      targets.set(target.id, target)
+    }
+  }
+
   const kept = new Map<string, KeyedRow>()
   const unmatched: string[] = []
   for (const relation of relations) {
-    const target = await database.getActorFromId({
-      id: relation.targetActorId
-    })
+    const target = targets.get(relation.targetActorId)
     const row = target ? rows.get(getActorAcctKey(target)) : undefined
     if (row) kept.set(relation.targetActorId, row)
     else unmatched.push(relation.targetActorId)
@@ -124,13 +139,24 @@ const syncAccountRelations = async ({
   let units = 0
   const outOfBudget = () => units > 0 && Date.now() >= deadline
 
+  // Relations a row whose resolution failed might still name: the failure is
+  // not proof the file omits them (an outage must never cost a follow), so
+  // they stay, and the row pass retries the row.
+  const protectedActorIds = new Set<string>()
+
   if (unmatched.length > 0) {
+    // A row can only resolve to one of these relations if the username agrees;
+    // every other row is left to the row pass.
+    const unmatchedUsernames = new Set(
+      unmatched.map((id) => targets.get(id)?.username.toLowerCase())
+    )
     const keptRowIds = new Set([...kept.values()].map((row) => row.id))
     for (const row of rows.values()) {
       if (
         row.state !== 'pending' ||
         keptRowIds.has(row.id) ||
-        row.data.resolvedActorId !== undefined
+        row.data.resolvedActorId !== undefined ||
+        !unmatchedUsernames.has(rowUsername(row, actor))
       ) {
         continue
       }
@@ -149,6 +175,7 @@ const syncAccountRelations = async ({
           err: toLoggableError(error)
         })
       }
+      await renew()
       row.data = { ...row.data, resolvedActorId }
       await database.updateBulkImportRowData({
         importId: bulkImport.id,
@@ -159,26 +186,39 @@ const syncAccountRelations = async ({
     }
 
     const rowsByActorId = new Map<string, KeyedRow>()
+    const failedUsernames = new Set<string>()
     for (const row of rows.values()) {
       if (row.data.resolvedActorId) {
         rowsByActorId.set(row.data.resolvedActorId, row)
+      } else if (row.state === 'pending' && row.data.resolvedActorId === null) {
+        failedUsernames.add(rowUsername(row, actor))
       }
     }
     for (const targetActorId of unmatched) {
       const row = rowsByActorId.get(targetActorId)
       if (row) kept.set(targetActorId, row)
+      else if (
+        failedUsernames.has(
+          targets.get(targetActorId)?.username.toLowerCase() ?? ''
+        )
+      ) {
+        protectedActorIds.add(targetActorId)
+      }
     }
   }
 
   for (const { targetActorId } of relations) {
-    if (kept.has(targetActorId)) continue
+    if (kept.has(targetActorId) || protectedActorIds.has(targetActorId))
+      continue
     if (outOfBudget()) return { done: false, units }
     await remove(targetActorId)
     units += 1
+    await renew()
   }
 
   // Last: keeping the final row finishes the import (its counts meet), and a
   // finished import is never run again, so removals must all be done first.
+  await renew()
   for (const [targetActorId, row] of kept) {
     await keep(database, bulkImport, row)
     await onKept(targetActorId, row)
@@ -196,12 +236,14 @@ export const applyOverwrite = async ({
   database,
   actor,
   bulkImport,
-  deadline = Number.POSITIVE_INFINITY
+  deadline = Number.POSITIVE_INFINITY,
+  renew = async () => {}
 }: {
   database: Database
   actor: Actor
   bulkImport: BulkImport
   deadline?: number
+  renew?: RenewLease
 }): Promise<OverwriteResult> => {
   const actorId = actor.id
 
@@ -218,6 +260,7 @@ export const applyOverwrite = async ({
         actor,
         bulkImport,
         deadline,
+        renew,
         relations: follows,
         remove: (targetActorId) =>
           unfollowActor({ database, currentActor: actor, targetActorId }),
@@ -251,6 +294,7 @@ export const applyOverwrite = async ({
         actor,
         bulkImport,
         deadline,
+        renew,
         relations: blocks,
         remove: (targetActorId) =>
           unblockActor({ database, currentActor: actor, targetActorId }),
@@ -267,6 +311,7 @@ export const applyOverwrite = async ({
         actor,
         bulkImport,
         deadline,
+        renew,
         relations: mutes,
         remove: (targetActorId) =>
           applyUnmute({ database, actorId, targetActorId }),
@@ -306,6 +351,7 @@ export const applyOverwrite = async ({
       const bookmarks = await collectAll((maxId) =>
         database.getBookmarks({ actorId, limit: PAGE_SIZE, maxId })
       )
+      const kept: KeyedRow[] = []
       for (const bookmark of bookmarks) {
         // A bookmark made through a boost keeps that boost's URI as its source.
         const row =
@@ -314,7 +360,7 @@ export const applyOverwrite = async ({
             ? rows.get(bookmark.sourceStatusId)
             : undefined)
         if (row) {
-          await keep(database, bulkImport, row)
+          kept.push(row)
         } else {
           await database.deleteBookmark({
             actorId,
@@ -322,6 +368,10 @@ export const applyOverwrite = async ({
           })
         }
       }
+      // Last, as for the account types: keeping the final row finishes the
+      // import, so a crash between the two must not leave deletions undone.
+      await renew()
+      for (const row of kept) await keep(database, bulkImport, row)
       return { done: true, units: 0 }
     }
     case 'lists': {

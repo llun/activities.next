@@ -271,71 +271,17 @@ External queue clients (`@upstash/qstash` and `@google-cloud/tasks`), the Postgr
 
 #### Bulk imports (CSV)
 
-`POST /api/v1/imports` reads the request body through a byte counter (the 5 MiB
-file plus a 64 KiB multipart allowance, answering 413 as soon as it is passed,
-with or without a `content-length`), and a file over 5 MiB gets 413 `File is too
-large` too. It then parses the multipart form and a Mastodon-format CSV (up to
-20,000 rows), stores it in `bulk_imports` and `bulk_import_rows` in one
-transaction, then publishes `BulkImportJob`. An actor can have only one
-unfinished import: `createBulkImport` locks the actor row and refuses a second
-one, except that an unfinished import with no progress (`updatedAt`) for 24
-hours is marked finished with `lastError` "Abandoned: no progress for 24 hours"
-so a dead-lettered job cannot lock the actor out. If publishing fails outside
-`NoQueue`, the import is finished with a `lastError` and the route answers 503.
-Under `NoQueue` the route starts the run detached and answers 202; a job error
-is logged and the import keeps its state. Row ids are deterministic,
-`${importId}:${rowIndex}`.
+`POST /api/v1/imports` reads the request body through a byte counter (the 5 MiB file plus a 64 KiB multipart allowance, answering 413 as soon as it is passed, with or without a `content-length`), and a file over 5 MiB gets 413 `File is too large` too. It then parses the multipart form and a Mastodon-format CSV (up to 20,000 rows), stores it in `bulk_imports` and `bulk_import_rows` in one transaction, then publishes `BulkImportJob`. An actor can have only one unfinished import: `createBulkImport` locks the actor row and refuses a second one, except that an unfinished import with no progress (`updatedAt`) for 24 hours is marked finished with `lastError` "Abandoned: no progress for 24 hours" so a dead-lettered job cannot lock the actor out. If publishing fails outside `NoQueue`, the import is finished with a `lastError` and the route answers 503. Under `NoQueue` the route starts the run detached and answers 202; a run that throws finishes the import with `lastError` "The import stopped because of an error", so it does not block the actor's next import. Row ids are deterministic, `${importId}:${rowIndex}`.
 
-A run works in slices of about 20 seconds (`BULK_IMPORT_JOB_TIME_BUDGET_MS`),
-well under the 30 second cap QStash puts on a job. The budget is checked after
-each unit of work: before each overwrite resolution or removal (after at least
-one, so every continuation makes progress) and after each row, since rows do
-remote work inline. When it is spent the run saves its place and publishes a
-continuation: `${importId}:overwrite:N` while the overwrite pre-pass is
-unfinished (`N` is the saved `overwriteProgress`), or `${importId}:continue:N`
-in the row pass (`N` is the saved `nextRowIndex`).
+A run works in slices of about 20 seconds (`BULK_IMPORT_JOB_TIME_BUDGET_MS`), well under the 30 second cap QStash puts on a job. The budget is checked after each unit of work: before each overwrite resolution or removal (after at least one, so every continuation makes progress) and after each row, since rows do remote work inline. When it is spent the run saves its place and publishes a continuation: `${importId}:overwrite:N` while the overwrite pre-pass is unfinished (`N` is the saved `overwriteProgress`), or `${importId}:continue:N` in the row pass (`N` is the saved `nextRowIndex`). Under an inline queue (`NoQueue`, `runsInline`) a run is not budgeted and finishes in one go, still claimed and fenced.
 
-Only one run works on an import at a time. A run claims it with a `runToken` and
-a `claimedUntil` lease of the budget plus 15 seconds, taken by a conditional
-update that succeeds only when no lease is live, so a lapsed lease can be
-reclaimed. The run releases the claim before it publishes its continuation, so
-the continuation is not turned away by its own claim. A run that finds a live
-claim publishes `${importId}:wait:<claimedUntil>` with a delay that lands after
-the lease lapses. Under `NoQueue` that delayed job is dropped, which is fine
-because the holder is still running in the same process.
+Only one run works on an import at a time. A run claims it with a `runToken` and a `claimedUntil` lease of `min(budget, 20 s) + 15 s`, taken by a conditional update that succeeds only when no lease is live, so a lapsed lease can be reclaimed. Each unit of work renews the lease under the same `runToken` (`renewBulkImportRun`). A run that finds its token gone has been taken over, so it stops at once without checkpointing, marking or publishing (fencing). The run releases the claim before it publishes its continuation, so the continuation is not turned away by its own claim. A run that finds a live claim publishes `${importId}:wait:<claimedUntil>` with a delay that lands after the lease lapses. A wait job carries `waitedFor` (the `claimedUntil` it waited for): if the live claim differs it returns without republishing; if the same claim is still live it republishes one delayed wait with the deterministic id. Under NoQueue the delayed job is dropped, which is fine because the holder is still running in the same process.
 
-When the mode is `overwrite`, the pre-pass runs before the rows. For
-`following`, `blocking` and `muting`, a row matches a current relation by handle
-first, then by the actor its handle resolves to, which is stored as
-`resolvedActorId` in the row data. Mastodon exports the handle with its local
-domain, while the stored actor's domain is its host, so the two forms can
-differ; an account the file names is never removed for that reason. The pre-pass
-removes what the file does not name first, then marks the kept rows imported
-last, since keeping the final row can finish the import. It is budgeted and
-resumable through `overwriteProgress`, and sets `overwriteDone` only when it is
-fully done, so it runs once. Domain blocks, bookmarks and lists are local work
-and run in one pass with no budget.
+When the mode is `overwrite`, the pre-pass runs before the rows. For `following`, `blocking` and `muting`, a row matches a current relation by handle first, then by the actor its handle resolves to, which is stored as `resolvedActorId` in the row data. Mastodon exports the handle with its local domain, while the stored actor's domain is its host, so the two forms can differ; an account the file names is not removed because of that domain difference or because its resolution failed. Only pending rows whose username matches an unmatched relation are resolved over the network, and relation actors are read in batches. A pending row whose resolution failed protects any still-unmatched relation with the same username: that relation is kept, and the row pass retries the row. The pre-pass removes what the file does not name first, then marks the kept rows imported last, since keeping the final row can finish the import. It is budgeted and resumable through `overwriteProgress`, and sets `overwriteDone` only when it is fully done, so it runs once. Domain blocks, bookmarks and lists are local work and run in one pass with no budget; bookmarks delete first, then the kept rows are marked.
 
-Lists imports create their lists once per import (`listsPrepared`), before any
-row runs: each distinct list name in the file is created by exact title,
-skipping titles that already exist. A title that fails to create fails only its
-own rows. A list name must be 1 to 255 characters after trimming, the same rule
-as `app/api/v1/lists/route.ts`, or the row fails with `Invalid list name`.
+Lists imports create their lists once per import (`listsPrepared`), before any row runs: each distinct list name in the file is created by exact title, skipping titles that already exist. A title that fails to create fails only its own rows. A list name must be 1 to 255 characters after trimming, the same rule as `app/api/v1/lists/route.ts`, or the row fails with `Invalid list name`.
 
-The row pass works through pending rows in pages of 100 with one attempt per
-row, saving `nextRowIndex` after each page. `markBulkImportRowProcessed` only
-moves a row from pending, and only that transition bumps the counters, so a
-redelivered job cannot count a row twice; the import finishes when processed
-meets total. A row that throws is logged and stored with the generic error
-"Could not import this row" (the exception message can hold internals); expected
-outcomes such as "Account not found" are stored as they are. An existing follow
-keeps its stored reblogs, notify and languages when a row leaves them blank or
-the file has no such column; only a new follow gets the defaults. A following
-row, or a lists row for another account, fails with `Account is blocked` when
-either side blocks the other or the importer blocks the target's domain, as
-Mastodon's `FollowService` refuses it. Failed rows stay with their error and are
-listed by `GET /api/v1/imports/:id`. Both tables are deleted with the actor's
-data.
+The row pass works through pending rows in pages of 100 with one attempt per row, saving `nextRowIndex` after each page. `markBulkImportRowProcessed` only moves a row from pending, and only that transition bumps the counters, so a redelivered job cannot count a row twice; the import finishes when processed meets total. A row that throws is logged and stored with the generic error "Could not import this row" (the exception message can hold internals); expected outcomes such as "Account not found" are stored as they are. An existing follow keeps its stored reblogs, notify and languages when a row leaves them blank or the file has no such column; only a new follow gets the defaults. A following row, or a lists row for another account, fails with `Account is blocked` when either side blocks the other or the importer blocks the target's actor host or its handle domain, as Mastodon's `FollowService` refuses it. It fails with `Account has moved` when the target has moved. Failed rows stay with their error and are listed by `GET /api/v1/imports/:id`. Both tables are deleted with the actor's data.
 
 #### Gallery albums
 

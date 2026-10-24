@@ -728,6 +728,47 @@ describe('BulkImportDatabase', () => {
       ).toMatchObject({ claimed: false })
     })
 
+    it('renews the lease only for the holder token', async () => {
+      const id = await createImport()
+      await database.claimBulkImportRun({ id, runToken: 'a', leaseMs: 1000 })
+      const claimedUntil = async () =>
+        (
+          (await database.claimBulkImportRun({
+            id,
+            runToken: 'probe',
+            leaseMs: 1
+          })) as { claimedUntil: number }
+        ).claimedUntil
+      const first = await claimedUntil()
+
+      expect(
+        await database.renewBulkImportRun({
+          id,
+          runToken: 'a',
+          leaseMs: 60_000
+        })
+      ).toBe(true)
+      const extended = await claimedUntil()
+      expect(extended).toBeGreaterThan(first + 50_000)
+
+      // Another run holds the import now: the old holder cannot extend it.
+      expect(
+        await database.renewBulkImportRun({
+          id,
+          runToken: 'thief',
+          leaseMs: 120_000
+        })
+      ).toBe(false)
+      expect(await claimedUntil()).toBe(extended)
+      expect(
+        await database.renewBulkImportRun({
+          id: 'missing',
+          runToken: 'a',
+          leaseMs: 1000
+        })
+      ).toBe(false)
+    })
+
     it('does not claim an import that does not exist', async () => {
       expect(
         await database.claimBulkImportRun({

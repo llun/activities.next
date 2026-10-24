@@ -152,14 +152,29 @@ export const POST = traceApiRoute(
     if (queue.runsInline) {
       // `publish` runs the whole job here (NoQueue), so awaiting it would hold
       // the request for the import and turn a job error into a failed start.
-      // The job logs its own failures and keeps the import's state.
-      void queue.publish(message).catch((error) => {
+      // NoQueue never retries, so a failed run finishes the import here;
+      // otherwise it would block the actor's next import until it goes stale.
+      void queue.publish(message).catch(async (error) => {
         logger.error({
           message: 'Inline bulk import run failed',
           importId,
           actorId: currentActor.id,
           err: toLoggableError(error)
         })
+        try {
+          await database.updateBulkImport({
+            id: importId,
+            state: 'finished',
+            finishedAt: Date.now(),
+            lastError: 'The import stopped because of an error'
+          })
+        } catch (updateError) {
+          logger.error({
+            message: 'Could not finish a failed inline bulk import',
+            importId,
+            err: toLoggableError(updateError)
+          })
+        }
       })
     } else {
       try {
