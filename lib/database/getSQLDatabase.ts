@@ -1,6 +1,8 @@
 import type { Kysely } from 'kysely'
 
 import { accountQueries } from '@/lib/database/domains/account/queries'
+import { accountArchiveQueries } from '@/lib/database/domains/accountArchive/queries'
+import { accountExportQueries } from '@/lib/database/domains/accountExport/queries'
 import { accountNoteQueries } from '@/lib/database/domains/accountNote/queries'
 import { actorQueries } from '@/lib/database/domains/actor/queries'
 import type { SQLActorDatabase } from '@/lib/database/domains/actor/types'
@@ -109,6 +111,8 @@ export const getSQLDatabase = (
     },
 
     ...bindDb(kysely, accountQueries),
+    ...bindDb(kysely, accountArchiveQueries),
+    ...bindDb(kysely, accountExportQueries),
     ...bindDb(kysely, accountNoteQueries),
     // Not in `Database`: the Mastodon Account lookups (`getMastodonActor(s)`)
     // are checked against SQLActorDatabase here.
