@@ -84,7 +84,7 @@ This document tracks the implemented and planned features for Activity.next.
   - **Email & name** (`/account/email`) — email address with Verified badge, account name, and account photo (image upload 303s to `/account/email[?error=]`)
   - **Password & sign-in** (`/account/security`) — password change, two-factor authentication, and passkeys
   - **Sessions & apps** (`/account/sessions`) — active browser sessions, connected OAuth applications, and Sign out button
-  - **Profiles** (`/account/profiles`) — list of profiles (`ActorsSection`) with avatar, handle, role, and follower count; switch active profile, set the default profile, or add a profile
+  - **Profiles** (`/account/profiles`) — list of profiles (`ActorsSection`) with avatar, name and handle; switch active profile, set the default profile, or add a profile
   - **Settings** footer link (`/settings`) — cross-links to profile-specific settings ("Settings for @handle")
 - ✅ **Fitness file storage** — Upload .fit, .gpx, and .tcx activity files
 - ✅ **Fitness activity processing** — Parse GPS tracks and metrics from uploaded .fit, .gpx, and .tcx files

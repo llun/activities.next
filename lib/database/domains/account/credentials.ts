@@ -305,7 +305,7 @@ export const repointUnconfirmedAccountEmail = async (
       // Local nuance not in that type doc: `verifyAccount` restores
       // `verifiedAt`, `emailVerified`, and `emailVerifiedAt` when the new
       // address is confirmed, so an account that re-points an unconfirmed
-      // address recovers every verification proof — including the `/account`
+      // address recovers every verification proof — including the `/account/email`
       // "Verified" badge — upon confirmation.
       emailVerified: false,
       verifiedAt: null,

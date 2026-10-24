@@ -60,6 +60,21 @@ describe('Account Layout', () => {
     expect(screen.queryByText(/anna@llun\.test/)).not.toBeInTheDocument()
   })
 
+  it('renders no section chrome when signed out', async () => {
+    vi.mocked(getActorFromSession).mockResolvedValueOnce(null as never)
+    await renderLayout('/account/verify-email')
+
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Account & security' })
+    ).toBeInTheDocument()
+    expect(screen.getByText('content')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('navigation', { name: 'Account & security' })
+    ).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Back to/ })).toBeNull()
+    expect(screen.queryByRole('link', { name: /Settings for/ })).toBeNull()
+  })
+
   it('lists the four sections in order and the settings card', async () => {
     await renderLayout('/account/security')
 

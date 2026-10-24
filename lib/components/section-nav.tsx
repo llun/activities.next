@@ -142,7 +142,7 @@ export const SectionNav: FC<{
               {footer.item.icon}
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-sm font-medium">
+              <span className="block text-sm font-medium [overflow-wrap:anywhere]">
                 {footer.item.name}
               </span>
               {/* The rail says who it is for; the index's card says what
@@ -197,7 +197,7 @@ const IndexGroup: FC<{
               {item.icon}
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block font-medium max-lg:font-normal lg:text-sm">
+              <span className="block font-medium [overflow-wrap:anywhere] max-lg:font-normal lg:text-sm">
                 {item.name}
               </span>
               {item.description && (
@@ -205,7 +205,7 @@ const IndexGroup: FC<{
                 // line says what lives on the other side.
                 <span
                   className={cn(
-                    'block text-xs text-muted-foreground',
+                    'block text-xs text-muted-foreground [overflow-wrap:anywhere]',
                     !accent && 'max-lg:hidden'
                   )}
                 >
@@ -226,9 +226,10 @@ const IndexGroup: FC<{
 
 /**
  * The section's index: the list page on phones and the described cards on
- * desktop, one component at every width. The first headed group fills the
- * left column from `lg` up; the other groups, then the footer cross-link, then
- * the plain runs (Delete) stack on the right.
+ * desktop, one component at every width. Groups that are not `railOnly`
+ * render in order, then the footer card, then the `afterFooter` groups; from
+ * `lg` up the first block fills the left column and the rest stack on the
+ * right.
  */
 export const SectionIndex: FC<{
   groups: SectionNavGroup[]
@@ -325,7 +326,7 @@ export const SectionLayout: FC<SectionLayoutProps> = ({
             headerOnPhone ? 'max-md:pt-0' : 'max-md:pt-2'
           )}
         >
-          {!isIndex && (
+          {!isIndex && (groups.length > 0 || footer) && (
             <SectionNav
               label={label}
               groups={groups}

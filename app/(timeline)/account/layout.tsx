@@ -32,11 +32,16 @@ const Layout: FC<Props> = async ({ children }) => {
           ? `Shared across your profiles · ${account.email}`
           : 'Shared across your profiles'
       }
-      indexUrl="/account"
-      groups={getAccountGroups(
-        handle ? { handle, profileCount: actors.length } : null
-      )}
-      footer={getAccountFooter(handle)}
+      // Signed out (verify-email from the change-email mail): no section chrome.
+      indexUrl={account ? '/account' : undefined}
+      groups={
+        account
+          ? getAccountGroups(
+              handle ? { handle, profileCount: actors.length } : null
+            )
+          : []
+      }
+      footer={account ? getAccountFooter(handle) : undefined}
     >
       {children}
     </SectionLayout>

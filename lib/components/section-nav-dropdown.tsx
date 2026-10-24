@@ -28,9 +28,10 @@ interface SectionNavDropdownProps {
 }
 
 /**
- * Dropdown sub-navigation for content sections (Fitness, Gallery) and, until
- * they move to `SectionLayout`'s rail, Admin and Account, on every breakpoint.
- * Settings uses `SectionLayout` (lib/components/section-nav.tsx). The trigger
+ * Dropdown sub-navigation for content sections (Fitness, Gallery) at every
+ * width, and for Admin below `lg` through `SectionLayout`'s `mobileNav`.
+ * Settings and Account & security use `SectionLayout`'s rail and index
+ * (lib/components/section-nav.tsx). The trigger
  * reflects the active section; the menu lists every section
  * as one flat run — the design system's sub-nav has no group headings or
  * separators, because every entry in a section's menu is already part of that

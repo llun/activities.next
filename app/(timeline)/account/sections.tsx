@@ -16,6 +16,8 @@ import type {
 export const getAccountGroups = (
   info: { handle: string; profileCount: number } | null
 ): SectionNavGroup[] => [
+  // Deliberately unheaded: on the index the identity card heads this list
+  // (the page renders AccountIdentityCard above it).
   {
     items: [
       {

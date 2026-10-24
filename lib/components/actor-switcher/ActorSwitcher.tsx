@@ -271,7 +271,7 @@ export function ActorSwitcher({
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={() => setIsDialogOpen(true)}>
             <Plus className="h-4 w-4 mr-2" />
-            Add another actor
+            Add another profile
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

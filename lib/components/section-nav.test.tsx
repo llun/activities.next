@@ -100,6 +100,47 @@ describe('SectionNav', () => {
   })
 })
 
+describe('long names', () => {
+  const long: SectionNavFooter = {
+    heading: 'Elsewhere',
+    item: {
+      name: 'Settings for @someone@very-long-domain.example.social',
+      url: '/other',
+      icon: null,
+      description: 'What'
+    }
+  }
+
+  it('wraps the rail footer name and the index names anywhere', () => {
+    ;(usePathname as jest.Mock).mockReturnValue('/s/one')
+    const { unmount } = render(
+      <SectionNav label="Things" groups={groups} footer={long} />
+    )
+    expect(screen.getByText(long.item.name)).toHaveClass(
+      '[overflow-wrap:anywhere]'
+    )
+    unmount()
+
+    render(<SectionIndex groups={groups} footer={long} />)
+    expect(screen.getByText(long.item.name)).toHaveClass(
+      '[overflow-wrap:anywhere]'
+    )
+    expect(screen.getByText('One')).toHaveClass('[overflow-wrap:anywhere]')
+    expect(screen.getByText('One line')).toHaveClass('[overflow-wrap:anywhere]')
+  })
+
+  it('renders no rail without groups or footer', () => {
+    ;(usePathname as jest.Mock).mockReturnValue('/s/one')
+    render(
+      <SectionLayout label="Things" title="Things" groups={[]}>
+        <p>body</p>
+      </SectionLayout>
+    )
+    expect(screen.queryByRole('navigation')).not.toBeInTheDocument()
+    expect(screen.getByText('body')).toBeInTheDocument()
+  })
+})
+
 describe('SectionIndex', () => {
   it('lists the groups, then the footer, then after-footer groups, without rail-only groups', () => {
     render(<SectionIndex groups={groups} footer={footer} />)

@@ -52,6 +52,10 @@ describe('/account', () => {
 
     expect(screen.getByText('Anna Account')).toBeInTheDocument()
     expect(screen.getByText('anna@llun.test')).toBeInTheDocument()
+    expect(document.querySelector('form')).toBeNull()
+    for (const name of ['Email address', 'Account photo']) {
+      expect(screen.queryByRole('heading', { name })).not.toBeInTheDocument()
+    }
   })
 
   it('forwards an old image-upload error to /account/email', async () => {
