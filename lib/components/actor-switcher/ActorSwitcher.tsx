@@ -18,6 +18,8 @@ import { useEffect, useRef, useState } from 'react'
 import { cancelActorDeletion, switchActor } from '@/lib/client'
 import { setActiveOfflineSession } from '@/lib/client/offline'
 import { ActorDisplayName } from '@/lib/components/actors/ActorDisplayName'
+import { createPreloadable } from '@/lib/components/lazy/createPreloadable'
+import { LazyChunkBoundary } from '@/lib/components/posts/lazy-chunk-boundary'
 import {
   confirmDiscardProfileChanges,
   revokeProfileUnloadAllowance
@@ -40,20 +42,26 @@ import {
 import { cn } from '@/lib/utils'
 import { EMOJI_SHORTCODE_REGEX } from '@/lib/utils/text/getEmojiTags'
 
-// Both dialogs load the first time they are chosen: the sign-out flow pulls in
-// the auth client and the offline and drafts code, which every page's sidebar
-// would otherwise carry (see the route JS budgets).
-const AddActorDialog = dynamic(
-  () => import('./AddActorDialog').then((mod) => mod.AddActorDialog),
-  { ssr: false }
-)
-const SignOutDialog = dynamic(
-  () =>
-    import('@/lib/components/sign-out/SignOutDialog').then(
-      (mod) => mod.SignOutDialog
-    ),
-  { ssr: false }
-)
+// Both dialogs are split out: the sign-out flow pulls in the auth client and
+// the offline and drafts code, which every page's sidebar would otherwise
+// carry (see the route JS budgets). Their chunks preload as the menu is
+// hovered, focused or opened, so choosing one opens it without a wait.
+const loadAddActorDialog = () =>
+  import('./AddActorDialog').then((mod) => mod.AddActorDialog)
+const loadSignOutDialog = () =>
+  import('@/lib/components/sign-out/SignOutDialog').then(
+    (mod) => mod.SignOutDialog
+  )
+const DynamicAddActorDialog = dynamic(loadAddActorDialog, { ssr: false })
+const DynamicSignOutDialog = dynamic(loadSignOutDialog, { ssr: false })
+const { Component: AddActorDialog, preload: preloadAddActorDialog } =
+  createPreloadable(loadAddActorDialog, DynamicAddActorDialog)
+const { Component: SignOutDialog, preload: preloadSignOutDialog } =
+  createPreloadable(loadSignOutDialog, DynamicSignOutDialog)
+const preloadMenuDialogs = () => {
+  void preloadSignOutDialog()
+  void preloadAddActorDialog()
+}
 
 export interface ActorInfo {
   id: string
@@ -224,6 +232,11 @@ export function ActorSwitcher({
     : 'Account menu'
   // The menu (and a dialog opened from it) hands focus back to the trigger;
   // a deferred dialog opens after the menu has closed, so it does this itself.
+  // Where the switch error and a failed dialog chunk say so. The rail is 72px
+  // wide, so there they float beside it instead.
+  const chunkErrorClassName = isRail
+    ? 'fixed bottom-4 left-[calc(84px+env(safe-area-inset-left,0px))] z-50 w-72 shadow-lg'
+    : 'mt-1'
   const returnFocusToTrigger = (event: Event) => {
     event.preventDefault()
     triggerRef.current?.focus()
@@ -236,6 +249,8 @@ export function ActorSwitcher({
           type="button"
           ref={triggerRef}
           aria-label={triggerLabel}
+          onPointerEnter={preloadMenuDialogs}
+          onFocus={preloadMenuDialogs}
           className="block p-1 -m-1 border-0 rounded-full cursor-pointer hover:opacity-80 transition-opacity"
         >
           {avatar40}
@@ -245,6 +260,8 @@ export function ActorSwitcher({
           type="button"
           ref={triggerRef}
           aria-label={triggerLabel}
+          onPointerEnter={preloadMenuDialogs}
+          onFocus={preloadMenuDialogs}
           className={cn(
             'flex items-center gap-3 w-full rounded-lg p-2 cursor-pointer hover:bg-muted transition-colors text-left overflow-hidden',
             drawer && 'min-h-[44px]'
@@ -269,7 +286,14 @@ export function ActorSwitcher({
 
   return (
     <>
-      <DropdownMenu>
+      <DropdownMenu
+        onOpenChange={(open) => {
+          if (!open) return
+          preloadMenuDialogs()
+          // A switch error from before is stale once the menu is used again.
+          setError(null)
+        }}
+      >
         {isRail ? (
           // The rail shows only the avatar, so its handle is a hover label, as
           // every other rail icon has.
@@ -473,32 +497,30 @@ export function ActorSwitcher({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      {error ? (
-        <Alert
-          title={error}
-          // The 72px rail has no room for it: float it beside the rail.
-          className={
-            isRail ? 'fixed bottom-4 left-[84px] z-50 w-72 shadow-lg' : 'mt-1'
-          }
-        />
-      ) : null}
+      {error ? <Alert title={error} className={chunkErrorClassName} /> : null}
 
       {isAddMounted ? (
-        <AddActorDialog
-          open={isDialogOpen}
-          onOpenChange={setIsDialogOpen}
-          domain={domain}
-          onSuccess={handleActorCreated}
-          onCloseAutoFocus={returnFocusToTrigger}
-        />
+        <LazyChunkBoundary className={chunkErrorClassName}>
+          <AddActorDialog
+            open={isDialogOpen}
+            onOpenChange={setIsDialogOpen}
+            domain={domain}
+            onSuccess={handleActorCreated}
+            onCloseAutoFocus={returnFocusToTrigger}
+          />
+        </LazyChunkBoundary>
       ) : null}
 
       {isSignOutMounted ? (
-        <SignOutDialog
-          open={isSignOutOpen}
-          onOpenChange={setIsSignOutOpen}
-          onCloseAutoFocus={returnFocusToTrigger}
-        />
+        // A chunk that cannot load (a deploy under an open tab, or offline)
+        // says so here instead of replacing the page with its error.
+        <LazyChunkBoundary className={chunkErrorClassName}>
+          <SignOutDialog
+            open={isSignOutOpen}
+            onOpenChange={setIsSignOutOpen}
+            onCloseAutoFocus={returnFocusToTrigger}
+          />
+        </LazyChunkBoundary>
       ) : null}
     </>
   )

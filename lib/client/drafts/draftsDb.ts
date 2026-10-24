@@ -296,8 +296,8 @@ export const countDrafts = (
 
 export const countDraftsByState = (
   scope: { actorId: string } | { accountId: string }
-): Promise<{ waiting: number; drafts: number }> =>
-  runTx<{ waiting: number; drafts: number }>(
+): Promise<{ waiting: number; drafts: number; profiles: number }> =>
+  runTx<{ waiting: number; drafts: number; profiles: number }>(
     [DRAFTS_STORE],
     'readonly',
     (tx, { done, guard }) => {
@@ -308,10 +308,13 @@ export const countDraftsByState = (
       const request = index.openCursor(target)
       let drafts = 0
       let waiting = 0
+      // The profiles the records belong to, for "across your profiles".
+      const actorIds = new Set<string>()
       request.onsuccess = guard(() => {
         const cursor = request.result
         if (cursor) {
           const record = cursor.value as DraftRecord
+          actorIds.add(record.actorId)
           // Plain drafts have no queue (absent); all DraftQueueStateName states count as waiting to send.
           if (record.queue) {
             waiting += 1
@@ -320,7 +323,7 @@ export const countDraftsByState = (
           }
           cursor.continue()
         } else {
-          done({ waiting, drafts })
+          done({ waiting, drafts, profiles: actorIds.size })
         }
       })
     }

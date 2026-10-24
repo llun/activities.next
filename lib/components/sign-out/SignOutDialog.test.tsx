@@ -129,7 +129,11 @@ describe('SignOutDialog', () => {
   })
 
   it('disables the confirm button while countDraftsByState is pending, and enables it once resolved', async () => {
-    const deferred = createDeferred<{ waiting: number; drafts: number }>()
+    const deferred = createDeferred<{
+      waiting: number
+      drafts: number
+      profiles: number
+    }>()
     const countSpy = vi
       .spyOn(draftsModule, 'countDraftsByState')
       .mockReturnValue(deferred.promise)
@@ -139,11 +143,28 @@ describe('SignOutDialog', () => {
     const confirmButton = screen.getByRole('button', { name: 'Sign out' })
     expect(confirmButton).toBeDisabled()
 
-    deferred.resolve({ waiting: 0, drafts: 0 })
+    deferred.resolve({ waiting: 0, drafts: 0, profiles: 0 })
 
     await waitFor(() => {
       expect(confirmButton).toBeEnabled()
     })
+    countSpy.mockRestore()
+  })
+
+  it('says it could not check, without the warning, when the count fails', async () => {
+    const countSpy = vi
+      .spyOn(draftsModule, 'countDraftsByState')
+      .mockRejectedValue(new Error('IndexedDB unavailable'))
+
+    renderDialog({ open: true })
+
+    expect(
+      await screen.findByText(
+        /Couldn.t check this device for unsent posts\. Signing out deletes any that are saved here\./
+      )
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Sign out' })).toBeEnabled()
     countSpy.mockRestore()
   })
 

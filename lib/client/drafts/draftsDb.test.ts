@@ -134,11 +134,13 @@ describe('draftsDb', () => {
       // Empty store handles non-existent actor and account
       expect(await countDraftsByState({ actorId: 'actor-1' })).toEqual({
         waiting: 0,
-        drafts: 0
+        drafts: 0,
+        profiles: 0
       })
       expect(await countDraftsByState({ accountId: 'account-1' })).toEqual({
         waiting: 0,
-        drafts: 0
+        drafts: 0,
+        profiles: 0
       })
 
       // 2 plain drafts for actor-1 (account-1)
@@ -180,35 +182,42 @@ describe('draftsDb', () => {
       // actorId scope
       expect(await countDraftsByState({ actorId: 'actor-1' })).toEqual({
         waiting: 1,
-        drafts: 2
+        drafts: 2,
+        profiles: 1
       })
       expect(await countDraftsByState({ actorId: 'actor-2' })).toEqual({
         waiting: 1,
-        drafts: 0
+        drafts: 0,
+        profiles: 1
       })
       expect(await countDraftsByState({ actorId: 'actor-3' })).toEqual({
         waiting: 0,
-        drafts: 1
+        drafts: 1,
+        profiles: 1
       })
       expect(await countDraftsByState({ actorId: 'missing-actor' })).toEqual({
         waiting: 0,
-        drafts: 0
+        drafts: 0,
+        profiles: 0
       })
 
       // accountId scope
       expect(await countDraftsByState({ accountId: 'account-1' })).toEqual({
         waiting: 2,
-        drafts: 2
+        drafts: 2,
+        profiles: 2
       })
       expect(await countDraftsByState({ accountId: 'account-2' })).toEqual({
         waiting: 0,
-        drafts: 1
+        drafts: 1,
+        profiles: 1
       })
       expect(
         await countDraftsByState({ accountId: 'missing-account' })
       ).toEqual({
         waiting: 0,
-        drafts: 0
+        drafts: 0,
+        profiles: 0
       })
     })
 

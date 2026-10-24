@@ -70,3 +70,14 @@ describe('unsentPostsTitle and unsentPostsDetail', () => {
     )
   })
 })
+
+describe('unsentPostsTitle across profiles', () => {
+  it('says the posts span profiles when they belong to more than one', () => {
+    expect(unsentPostsTitle({ waiting: 1, drafts: 1, profiles: 2 })).toBe(
+      '2 posts on this device across your profiles have not been sent.'
+    )
+    expect(unsentPostsTitle({ waiting: 0, drafts: 1, profiles: 1 })).toBe(
+      '1 post on this device has not been sent.'
+    )
+  })
+})

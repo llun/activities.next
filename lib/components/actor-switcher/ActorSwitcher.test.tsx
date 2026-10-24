@@ -696,6 +696,36 @@ describe('ActorSwitcher', () => {
       expect(screen.queryByTestId('add-actor-dialog')).not.toBeInTheDocument()
     })
 
+    it('says the sign-out dialog could not load instead of breaking the page', async () => {
+      // A deploy under an open tab (or being offline) leaves the chunk missing.
+      mockSignOutDialog.mockImplementation(() => {
+        const error = new Error('Loading chunk 123 failed.')
+        error.name = 'ChunkLoadError'
+        throw error
+      })
+      const consoleError = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => {})
+      render(<ActorSwitcher currentActor={alice} actors={[alice]} />)
+
+      const trigger = screen.getByRole('button', {
+        name: 'Account menu for Alice'
+      })
+      fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+      await screen.findByRole('menu')
+      fireEvent.click(screen.getByRole('menuitem', { name: /Sign out/ }))
+
+      expect(await screen.findByText("Couldn't load")).toBeInTheDocument()
+      expect(
+        screen.getByText('Reload the page to try again.')
+      ).toBeInTheDocument()
+      // The menu itself keeps working.
+      expect(
+        screen.getByRole('button', { name: 'Account menu for Alice' })
+      ).toBeInTheDocument()
+      consoleError.mockRestore()
+    })
+
     it('opens SignOutDialog when selecting Sign out', async () => {
       render(<ActorSwitcher currentActor={alice} actors={[alice]} />)
 

@@ -17,7 +17,11 @@ import {
 } from '@/lib/components/ui/dialog'
 import { cn } from '@/lib/utils'
 
-import { unsentPostsDetail, unsentPostsTitle } from './unsentPostsMessage'
+import {
+  type UnsentCounts,
+  unsentPostsDetail,
+  unsentPostsTitle
+} from './unsentPostsMessage'
 import { useSignOut } from './useSignOut'
 
 export function SignOutDialog({
@@ -33,21 +37,26 @@ export function SignOutDialog({
   const accountId = useDrafts()?.accountId
   // Null until this opening's count is in: the confirm button waits for it,
   // so a quick tap can never sign out past unsent posts it has not shown.
-  const [counts, setCounts] = useState<{
-    waiting: number
-    drafts: number
-  } | null>(null)
+  // 'unknown' when the count failed: the purge may still delete real posts.
+  const [counts, setCounts] = useState<UnsentCounts | 'unknown' | null>(null)
   const { signOut, signingOut, error, clearError } = useSignOut()
+
+  // Reset as it opens, not as it closes, so the warning stays put while the
+  // dialog fades out.
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) setCounts(null)
+  }
 
   useEffect(() => {
     if (!open) {
       clearError()
-      setCounts(null)
       return
     }
     let active = true
     if (!accountId) {
-      setCounts({ waiting: 0, drafts: 0 })
+      setCounts({ waiting: 0, drafts: 0, profiles: 0 })
       return
     }
     import('@/lib/client/drafts')
@@ -59,7 +68,7 @@ export function SignOutDialog({
       })
       .catch(() => {
         if (active) {
-          setCounts({ waiting: 0, drafts: 0 })
+          setCounts('unknown')
         }
       })
     return () => {
@@ -75,7 +84,8 @@ export function SignOutDialog({
     onOpenChange(nextOpen)
   }
 
-  const hasUnsent = counts !== null && counts.waiting + counts.drafts > 0
+  const known = counts !== null && counts !== 'unknown' ? counts : null
+  const hasUnsent = known !== null && known.waiting + known.drafts > 0
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -91,9 +101,15 @@ export function SignOutDialog({
           </DialogDescription>
         </DialogHeader>
         {hasUnsent ? (
-          <Alert tone="error" title={unsentPostsTitle(counts)}>
-            {unsentPostsDetail(counts)}
+          <Alert tone="error" title={unsentPostsTitle(known)}>
+            {unsentPostsDetail(known)}
           </Alert>
+        ) : null}
+        {counts === 'unknown' ? (
+          <p className="text-sm text-muted-foreground">
+            Couldn&rsquo;t check this device for unsent posts. Signing out
+            deletes any that are saved here.
+          </p>
         ) : null}
         {error ? <Alert tone="error" title={error} /> : null}
         <DialogFooter>
