@@ -1,5 +1,7 @@
 import { Database } from '@/lib/database/types'
 import { DELETE_ACTOR_JOB_NAME } from '@/lib/jobs/names'
+import { sweepExpiredAccountArchives } from '@/lib/services/accountArchive/expiry'
+import { sweepStuckAccountArchives } from '@/lib/services/accountArchive/reaper'
 import { getQueue } from '@/lib/services/queue'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
@@ -161,6 +163,34 @@ export const startActorDeletionSweep = (
     } catch (error) {
       logger.error({
         message: 'Expired idempotency key sweep failed',
+        err: toLoggableError(error)
+      })
+    }
+    try {
+      const expired = await sweepExpiredAccountArchives(database)
+      if (expired > 0) {
+        logger.info({
+          message: 'Expired account archives',
+          count: expired
+        })
+      }
+    } catch (error) {
+      logger.error({
+        message: 'Expired account archive sweep failed',
+        err: toLoggableError(error)
+      })
+    }
+    try {
+      const reaped = await sweepStuckAccountArchives(database)
+      if (reaped > 0) {
+        logger.info({
+          message: 'Reaped stuck account archive exports',
+          count: reaped
+        })
+      }
+    } catch (error) {
+      logger.error({
+        message: 'Stuck account archive sweep failed',
         err: toLoggableError(error)
       })
     }

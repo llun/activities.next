@@ -245,6 +245,11 @@ describe('rejectPendingAccount', () => {
     await patchAccount(target.accountId, { approvedAt: null })
     await addSession(target.accountId, `reject-t-${target.accountId}`)
     await addSession(neighbour.accountId, `reject-n-${neighbour.accountId}`)
+    await database.createAccountArchive({
+      id: `reject-archive-${target.accountId}`,
+      accountId: target.accountId,
+      options: { stripExactLocations: false, drafts: false }
+    })
 
     expect(
       await database.rejectPendingAccount({ accountId: target.accountId })
@@ -272,6 +277,12 @@ describe('rejectPendingAccount', () => {
         .execute()
     ).toEqual([])
     expect(await sessionCount(target.accountId)).toBe(0)
+    expect(
+      await database.getAccountArchivesForAccount({
+        accountId: target.accountId,
+        limit: 10
+      })
+    ).toEqual([])
     expect(await searchDocumentIds([target.actorId, secondActorId])).toEqual([])
 
     // The neighbour keeps its account, actor, provider, session and document.

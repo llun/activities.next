@@ -34,6 +34,23 @@ export type WithDefault<T> = ColumnType<
   UpdateType<T>
 >
 
+export interface AccountArchives {
+  accountId: string
+  bytes: Nullable<number>
+  createdAt: WithDefault<Timestamp>
+  error: Nullable<string>
+  expiresAt: Nullable<Timestamp>
+  heartbeatAt: WithDefault<Timestamp>
+  id: string
+  options: WithDefault<string>
+  progress: Nullable<string>
+  readyAt: Nullable<Timestamp>
+  reapCount: WithDefault<number>
+  status: WithDefault<string>
+  storagePath: Nullable<string>
+  storageToken: string
+}
+
 export interface AccountNotes {
   actorHost: string
   actorId: string
@@ -1416,6 +1433,7 @@ export interface WahooImports {
 }
 
 export interface DB {
+  account_archives: AccountArchives
   account_notes: AccountNotes
   account_providers: AccountProviders
   accounts: Accounts

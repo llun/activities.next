@@ -12,7 +12,8 @@ export const MIGRATION_NAMES = [
   '20261020232218_add_domains_identity',
   '20261021052511_add_idempotency_keys_state_changed_at',
   '20261021072844_add_domain_scopes',
-  '20261024100037_add_bulk_imports'
+  '20261024100037_add_bulk_imports',
+  '20261024100100_add_account_archives'
 ] as const
 
 export type MigrationName = (typeof MIGRATION_NAMES)[number]

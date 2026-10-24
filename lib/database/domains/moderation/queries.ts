@@ -119,6 +119,12 @@ export const rejectPendingAccount = (
       .deleteFrom('account_providers')
       .where('accountId', '=', accountId)
       .execute()
+    // Export rows reference the account; the files they point at expire with
+    // the account's other storage (an unapproved account has none).
+    await trx
+      .deleteFrom('account_archives')
+      .where('accountId', '=', accountId)
+      .execute()
     await trx
       .deleteFrom('sessions')
       .where('accountId', '=', accountId)

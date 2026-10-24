@@ -1,4 +1,8 @@
 import { Database } from '@/lib/database/types'
+import {
+  deleteAccountArchiveFiles,
+  listAccountArchives
+} from '@/lib/services/accountArchive/purge'
 import { AdminModerator } from '@/lib/services/guards/AdminApiGuard'
 import {
   AdminAccountRecord,
@@ -94,9 +98,11 @@ export const applyAdminAccountAction = async ({
       await database.approveAccount({ accountId: account!.id })
       break
     case 'reject': {
+      const archives = await listAccountArchives(database, account!.id)
       const rejected = await database.rejectPendingAccount({
         accountId: account!.id
       })
+      if (rejected) await deleteAccountArchiveFiles(archives)
       if (!rejected) {
         return {
           ok: false,
