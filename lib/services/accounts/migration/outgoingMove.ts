@@ -87,7 +87,9 @@ export const verifyChallenge = async ({
     }
     return null
   }
-  if (username?.toLowerCase() !== actor.username.toLowerCase()) {
+  // Mastodon strips one leading '@' from the confirmation username.
+  const submitted = username?.trim().replace(/^@/, '').toLowerCase()
+  if (submitted !== actor.username.toLowerCase()) {
     return 'Invalid username'
   }
   return null

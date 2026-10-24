@@ -43,10 +43,11 @@ export const getSendMoveContinueJobId = (
 ) => `${migrationId}:continue:${phase}:${cursor ?? 'start'}`
 
 // Mastodon MoveService: MoveWorker for the origin's local followers (every
-// target, local or remote) and MoveDistributionWorker for the Move sent to each
-// remote follower inbox. Every published job id is deterministic, so a retry,
-// or a republished page, is harmless. Deliveries are keyed on the migration
-// rather than the slice, so a shared inbox seen on several pages gets one Move.
+// target, local or remote) and MoveDistributionWorker, which sends the Move to
+// remote follower inboxes, remote blockers' inboxes and accepted relays. Every
+// published job id is deterministic, so a retry, or a republished page, is
+// harmless. Deliveries are keyed on the migration rather than the slice, so a
+// shared inbox seen on several pages gets one Move.
 export const runSendMove = async (
   database: Database,
   message: JobMessage,
@@ -145,7 +146,9 @@ export const runSendMove = async (
         deliveryJobs(
           await filterFederatedUrls(
             database,
-            relays.map((relay) => relay.inboxUrl)
+            relays
+              .map((relay) => relay.inboxUrl)
+              .filter((url): url is string => Boolean(url))
           )
         )
       )
@@ -174,6 +177,7 @@ export const runSendMove = async (
             follows
               .filter((follow) => !localIds.has(follow.actorId))
               .map((follow) => follow.sharedInbox || follow.inbox)
+              .filter((url): url is string => Boolean(url))
           )
         ])
         // A target that has itself moved on is not followed (as MoveActorJob).
@@ -208,7 +212,9 @@ export const runSendMove = async (
         jobs = deliveryJobs(
           await filterFederatedUrls(database, [
             ...new Set(
-              actors.map((actor) => actor.sharedInboxUrl || actor.inboxUrl)
+              actors
+                .map((actor) => actor.sharedInboxUrl || actor.inboxUrl)
+                .filter((url): url is string => Boolean(url))
             )
           ])
         )

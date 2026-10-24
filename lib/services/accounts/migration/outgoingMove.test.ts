@@ -6,7 +6,7 @@ import { getQueue } from '@/lib/services/queue'
 import { MockActor } from '@/lib/stub/actor'
 import { Actor } from '@/lib/types/domain/actor'
 
-import { performOutgoingMove } from './outgoingMove'
+import { performOutgoingMove, verifyChallenge } from './outgoingMove'
 
 vi.mock('@/lib/services/actors/actorUpdate', () => ({
   publishActorUpdate: vi.fn().mockResolvedValue(undefined)
@@ -369,5 +369,27 @@ describe('performOutgoingMove on a real database', () => {
       expect(getActorPerson).not.toHaveBeenCalled()
       expect(publish).not.toHaveBeenCalled()
     })
+  })
+})
+
+describe('verifyChallenge without a password', () => {
+  const actor = { username: 'name', account: undefined }
+
+  it('accepts the username with a leading @ or surrounding spaces', async () => {
+    await expect(
+      verifyChallenge({ actor, username: '@Name' })
+    ).resolves.toBeNull()
+    await expect(
+      verifyChallenge({ actor, username: ' name ' })
+    ).resolves.toBeNull()
+  })
+
+  it('refuses a different username', async () => {
+    await expect(verifyChallenge({ actor, username: '@other' })).resolves.toBe(
+      'Invalid username'
+    )
+    await expect(verifyChallenge({ actor, username: '@@name' })).resolves.toBe(
+      'Invalid username'
+    )
   })
 })
