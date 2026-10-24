@@ -4,6 +4,7 @@ import { applyBlock, endFollowsForBlock } from '@/lib/actions/applyBlock'
 import { applyMute } from '@/lib/actions/applyMute'
 import { Database } from '@/lib/database/types'
 import { createJobHandle } from '@/lib/jobs/createJobHandle'
+import { isOutgoingMoveAuthorized } from '@/lib/jobs/isOutgoingMoveAuthorized'
 import {
   MOVE_RELATIONSHIPS_JOB_NAME,
   SEND_BLOCK_JOB_NAME
@@ -113,13 +114,19 @@ export const moveRelationshipsJob: JobHandle = createJobHandle(
       if (
         !localActor?.privateKey ||
         !origin ||
-        !origin.movedTo ||
-        !actorIdsMatch(origin.movedTo, targetActorId) ||
         !target ||
         target.deletionStatus
       ) {
         return
       }
+      // A local origin's move is authorized by its recorded migration (a
+      // DELETE after the start does not stop it), a remote one by the pointer.
+      const authorized = origin.privateKey
+        ? await isOutgoingMoveAuthorized(database, origin, targetActorId)
+        : Boolean(
+            origin.movedTo && actorIdsMatch(origin.movedTo, targetActorId)
+          )
+      if (!authorized) return
 
       const states = await database.getModerationStatesForActors({
         actorIds: [target.id]

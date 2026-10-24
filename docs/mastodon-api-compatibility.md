@@ -1099,11 +1099,20 @@ ActivityPub objects are **JSON-LD**, so the same logical object can arrive in ma
   sent again); a move whose start failed (503) and was never retried keeps
   `movedTo` and still counts toward the 30-day cooldown, as Mastodon's cooldown
   counts every recorded migration (`DELETE` clears the pointer, not the
-  cooldown); an unreachable target is 502, a server with no federation signing
+  cooldown, and does not stop a move already started: the fan-out and the
+  follower rewiring complete, as Mastodon never stops a performed move); an unreachable target is 502, a server with no federation signing
   actor to fetch with is 500, and a reachable target without the alias is 422;
   one Move goes to each remote shared inbox across all continuations; and there
   is no settings UI yet. Details in
   [architecture.md](architecture.md#agents-actor-profile-deletion-federation).
+- **A moved account takes no new followers, and a moved target cannot be
+  followed.** An inbound `Follow` to a local account with `movedTo` set is
+  answered with `Reject` and creates nothing, like Mastodon's
+  `reject_follow_request!`; `POST /api/v1/accounts/:id/follow` answers 403
+  `Target account has moved` (the bulk import reports `Account has moved`) for a
+  moved local or remote target, where Mastodon's `FollowService` raises
+  `NotPermittedError`. An existing follow can still have its preferences
+  updated.
 - **Posting and editing from a moved account gets 422 `This account has moved`.**
   The check covers `POST /api/v1/statuses` (polls, replies and scheduled posts
   included), reblogs, the edit `PUT /api/v1/statuses/:id`, `PUT /api/v1/statuses/:id/interaction_policy`

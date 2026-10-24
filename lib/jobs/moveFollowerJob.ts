@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { acceptFollowRequest } from '@/lib/actions/acceptFollowRequest'
 import { follow } from '@/lib/activities'
 import { createJobHandle } from '@/lib/jobs/createJobHandle'
+import { isOutgoingMoveAuthorized } from '@/lib/jobs/isOutgoingMoveAuthorized'
 import {
   MOVE_FOLLOWER_JOB_NAME,
   SEND_UNDO_FOLLOW_JOB_NAME
@@ -131,13 +132,14 @@ export const moveFollowerJob: JobHandle = createJobHandle(
       const origin = await database.getActorFromId({
         id: oldFollow.targetActorId
       })
-      if (
-        !origin ||
-        !origin.movedTo ||
-        !actorIdsMatch(origin.movedTo, targetId)
-      ) {
-        return
-      }
+      if (!origin) return
+      // A local origin's move is authorized by its recorded migration, so a
+      // DELETE after the start does not strand followers; a remote origin by
+      // the verified pointer.
+      const authorized = origin.privateKey
+        ? await isOutgoingMoveAuthorized(database, origin, targetId)
+        : Boolean(origin.movedTo && actorIdsMatch(origin.movedTo, targetId))
+      if (!authorized) return
 
       const follower = await database.getActorFromId({ id: oldFollow.actorId })
       // Only accounts this server hosts are rewired; a follower row of a remote

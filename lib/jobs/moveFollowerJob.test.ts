@@ -751,6 +751,14 @@ describe('moveFollowerJob', () => {
 
     const setup = async (movedTo: string) => {
       await database.updateActor({ actorId: LOCAL_ORIGIN, movedTo })
+      await database.createActorMigration({
+        id: `move-${LOCAL_ORIGIN}-${movedTo}`,
+        actorId: LOCAL_ORIGIN,
+        targetActorId: movedTo,
+        targetAcct: 'test1@newhome.test',
+        kind: 'move',
+        followersCount: 0
+      })
       const oldFollow = await database.createFollow({
         actorId: ACTOR1_ID,
         targetActorId: LOCAL_ORIGIN,
@@ -883,6 +891,32 @@ describe('moveFollowerJob', () => {
           await database.getNotificationFromFollowId({ followId: pending.id })
         ).not.toBeNull()
       })
+    })
+
+    it('still moves the follower when the move was deleted after it started', async () => {
+      const oldFollow = await setup(ACTOR3_ID)
+      await database.markActorMigrationStarted({
+        id: `move-${LOCAL_ORIGIN}-${ACTOR3_ID}`
+      })
+      await database.updateActor({ actorId: LOCAL_ORIGIN, movedTo: null })
+
+      await runLocal(oldFollow.id, ACTOR3_ID)
+
+      expect((await active(ACTOR1_ID, ACTOR3_ID))?.status).toBe(
+        FollowStatus.enum.Accepted
+      )
+      expect(
+        (await database.getFollowFromId({ followId: oldFollow.id }))?.status
+      ).toBe(FollowStatus.enum.Undo)
+    })
+
+    it('does nothing when the move was deleted before it started', async () => {
+      const oldFollow = await setup(ACTOR3_ID)
+      await database.updateActor({ actorId: LOCAL_ORIGIN, movedTo: null })
+
+      await runLocal(oldFollow.id, ACTOR3_ID)
+
+      expect(await active(ACTOR1_ID, ACTOR3_ID)).toBeNull()
     })
 
     it('does nothing when the local origin has not moved to the target', async () => {

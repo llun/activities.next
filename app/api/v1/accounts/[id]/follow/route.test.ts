@@ -7,6 +7,7 @@ import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { JRD_JSON_HEADERS, mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
+import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { MockWebfinger } from '@/lib/stub/webfinger'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { urlToId } from '@/lib/utils/urlToId'
@@ -245,6 +246,72 @@ describe('Account Action Endpoints', () => {
         expect(stored).not.toBeNull()
       }
     )
+
+    const postFollow = (targetActorId: string, body: object = {}) =>
+      followAccount(
+        new NextRequest(
+          `https://llun.test/api/v1/accounts/${urlToId(targetActorId)}/follow`,
+          {
+            method: 'POST',
+            headers: {
+              Origin: 'https://llun.test',
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(body)
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(targetActorId) }) }
+      )
+
+    // Mastodon FollowService raises NotPermittedError for a moved account.
+    it.each([
+      ['remote', 'follow-moved-remote'],
+      ['local', ACTOR2_ID]
+    ])(
+      'returns 403 and creates no follow for a moved %s target',
+      async (kind, suffix) => {
+        const targetActorId =
+          kind === 'remote' ? await createFollowTargetActor(suffix) : suffix
+        await database.updateActor({
+          actorId: targetActorId,
+          movedTo: 'https://newhome.test/users/moved'
+        })
+        // A remote target is read again, so its document carries the move.
+        const person = (getActorPerson as jest.Mock).getMockImplementation()
+        ;(getActorPerson as jest.Mock).mockImplementation((params) => ({
+          ...person?.(params),
+          movedTo: 'https://newhome.test/users/moved'
+        }))
+        try {
+          const response = await postFollow(targetActorId)
+
+          expect(response.status).toBe(403)
+          await expect(
+            database.getAcceptedOrRequestedFollow({
+              actorId: ACTOR1_ID,
+              targetActorId
+            })
+          ).resolves.toBeNull()
+          expect(follow).not.toHaveBeenCalled()
+        } finally {
+          await database.updateActor({ actorId: targetActorId, movedTo: null })
+        }
+      }
+    )
+
+    it('still updates preferences of an existing follow when the target has moved', async () => {
+      const targetActorId = await createFollowTargetActor('follow-moved-prefs')
+      await postFollow(targetActorId, { notify: false })
+      await database.updateActor({
+        actorId: targetActorId,
+        movedTo: 'https://newhome.test/users/moved'
+      })
+
+      const response = await postFollow(targetActorId, { notify: true })
+
+      expect(response.status).toBe(200)
+      expect((await response.json()).notifying).toBe(true)
+    })
 
     it('updates preferences when re-following an existing follow', async () => {
       const targetActorId = await createFollowTargetActor('follow-update')

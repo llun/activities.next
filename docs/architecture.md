@@ -2089,17 +2089,20 @@ changed' }` before any write. Mastodon clients do not send it and are
   `forbidden` is 403 and `not-found` is 404. `performOutgoingMove`
   (`lib/services/accounts/migration/outgoingMove.ts`) then refuses, all as 422:
   the account itself, a target that is suspended or being deleted, a target
-  whose `movedTo` is set, and an account that already moved to this target
-  (`Already moved to this account`, except a retry of a `move` whose job was never
-  queued, see below). For `move` only, it reads the target's `alsoKnownAs` and
+  whose `movedTo` is set, and an account whose `movedTo` already equals this
+  target (`Already moved to this account`, whether by a started move or a
+  redirect, except a retry of a `move` whose job was never queued, see below).
+  For `move`, a user inside the 30-day cooldown that is not such a retry gets
+  429 at once, before the target is read. For `move` only, it reads the target's `alsoKnownAs` and
   `movedTo` fresh (a stored row for a local target; for a remote one, the Person
   from its origin, signed when a signing actor is configured, never the cache).
   An unreachable target is 502 `Could not reach the new account, try again
 later`; with no federation signing actor to fetch with it is 500 `This server
 cannot fetch remote accounts right now` (logged); a reachable target that has moved is 422, and so is one whose aliases
   do not list the account (`Add this account as an alias on the new account
-first`). The 30-day cooldown is checked when the move is recorded, below, and
-  answers 429 with `cooldownUntil`. `redirect` skips the target reads, the alias
+first`). The 30-day cooldown answers 429 with `cooldownUntil`; the check before the
+  fetch is a shortcut, and the one made when the move is recorded, below, stays
+  authoritative. `redirect` skips the target reads, the alias
   and the cooldown checks.
 - **A move is recorded in one locked transaction, then published.**
   `recordActorMigration` (`lib/database/domains/actorMigration/queries.ts`)
@@ -2110,9 +2113,10 @@ first`). The 30-day cooldown is checked when the move is recorded, below, and
   returns the existing row instead of a new one only while every one of these
   holds: the newest row of any kind is that move, it names this target, its
   `startedAt` is null (the job was never queued), it is inside the cooldown and
-  `movedTo` still points at the target. Any other `move` inside the cooldown is
-  429, except one whose row is started with `movedTo` at the target, which
-  `performOutgoingMove` answers 422 `Already moved to this account`; so a
+  `movedTo` still points at the target. Any other `move` inside the cooldown is 429. Before that, `performOutgoingMove` answers 422 `Already moved to this
+account` whenever `movedTo` already equals the target and the request is not
+  such a retry, started row or not, and also after a redirect to that target
+  (Mastodon's `AccountMigration` refuses `already_moved` the same way); a
   `DELETE` followed by a redirect to the same account cannot bring a cancelled
   move back, and a repeat of a successful move queues nothing. After the commit,
   `publishActorUpdate` sends `Update(Person)`, and only for `move` is
@@ -2140,8 +2144,14 @@ move, try again later`, but nothing is rolled back: the row, `movedTo` and the
   (`lib/activities/move.ts`) has id `${origin}#moves/${migrationId}`, type
   `Move`, `actor` and `object` set to the origin, `target` set to the new
   account, and no `to`, as Mastodon's `MoveSerializer` builds it. The job does
-  nothing unless the origin is local with a private key and its `movedTo` is
-  still the target, so a cancelled move stops here. On its first slice it
+  nothing unless the origin is local with a private key and the job's
+  `migrationId` names a `move` row for this origin and target
+  (`isOutgoingMoveAuthorized`, `lib/jobs/isOutgoingMoveAuthorized.ts`). The row
+  authorizes the work, not the live pointer, so a `DELETE` after the move
+  started does not stop the fan-out (Mastodon never stops a performed move).
+  `startedAt` is set only after the start job is published, so the first slice
+  may run before it: until then `movedTo` must still name the target, and a
+  `DELETE` in that window cancels the move. On its first slice it
   publishes one `MoveRelationshipsJob` per local blocker, muter and note author
   of the origin, for any target, local or remote, and fails the run if one
   cannot be queued. Then it pages the origin's followers 100 at a time by follow
@@ -2153,9 +2163,11 @@ move, try again later`, but nothing is rolled back: the row, `movedTo` and the
   `${migrationId}:continue:<cursor>`. On a real queue a refused delivery fails
   the run for a retry; the in-process queue records the error and carries on.
 - **`MoveFollowerJob` and `MoveRelationshipsJob` accept a local origin.** Both
-  used to refuse an origin with a private key. Now a local origin whose
-  `movedTo` is the target is accepted, because the origin of an outgoing move is
-  ours. `MoveFollowerJob` then sends no `Undo` for the old follow (`publishUndo`
+  used to refuse an origin with a private key. Now a local origin with a recorded
+  `move` row for the target (started, or `movedTo` still the target before the
+  start; a remote origin still needs `movedTo` at the target) is accepted,
+  because the origin of an outgoing move is ours, and a `DELETE` after the start
+  does not strand the remaining followers. `MoveFollowerJob` then sends no `Undo` for the old follow (`publishUndo`
   returns for a local origin), so that follow simply ends locally. In a
   local-to-local move a request the follower already has pending to the target
   is authorized through `acceptFollowRequest` with `silent: true`, as Mastodon's
@@ -2165,9 +2177,16 @@ move, try again later`, but nothing is rolled back: the row, `movedTo` and the
   pending.
 - **Clearing a move, posting, and deletion.** `DELETE
 /api/v1/accounts/migration` (`actorId` from the query or a JSON body; 409 on a
-  mismatch) clears `movedTo` and publishes `Update(Person)`, and nothing else.
-  It cancels a redirect, but a performed move is not undone: followers already
-  moved and kept their new follows, and the `actor_migrations` rows stay. While
+  mismatch) clears `movedTo` and publishes `Update(Person)`, and nothing else
+  (Mastodon's `RedirectsController#destroy` does the same). It cancels a
+  redirect, but a performed move is not undone and an in-flight one still
+  completes: the queued `SendMoveJob` continuations and follower jobs go on, the
+  followers already moved keep their new follows, and the `actor_migrations`
+  rows stay. A moved local account (`movedTo` set) takes no new follower: an
+  inbound `Follow` is answered with `Reject` (as for a blocked follower, like
+  Mastodon's `reject_follow_request!`), and `POST /api/v1/accounts/:id/follow`
+  answers 403 `Target account has moved` for a moved local or remote target
+  without a follow already, as Mastodon's `FollowService` refuses it. While
   `movedTo` is set (`isMovedActor` in `lib/services/accounts/movedAccount.ts`),
   posting is refused with 422 `This account has moved` (`movedAccountResponse`)
   on `POST /api/v1/statuses` (the check runs first, so polls, replies and

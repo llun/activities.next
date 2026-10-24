@@ -50,6 +50,16 @@ describe('sendMoveJob', () => {
       sharedInbox
     })
 
+  const recordMove = (id: string, targetActorId: string) =>
+    database.createActorMigration({
+      id,
+      actorId: ORIGIN,
+      targetActorId,
+      targetAcct: 'test1@newhome.test',
+      kind: 'move',
+      followersCount: 0
+    })
+
   const published = () => mockPublish.mock.calls.map(([job]) => job)
   const deliveries = () =>
     published().filter((job) => job.name === DELIVER_ACTIVITY_JOB_NAME)
@@ -76,6 +86,7 @@ describe('sendMoveJob', () => {
       createdAt: Date.now()
     })
     await database.updateActor({ actorId: ORIGIN, movedTo: TARGET })
+    await recordMove(MIGRATION, TARGET)
     // Seeded remote follower: somewhere.test/inbox (shared). Add a second one
     // behind the same shared inbox, a third one elsewhere, two local ones.
     await followOrigin(
@@ -152,7 +163,11 @@ describe('sendMoveJob', () => {
 
   it('repoints local followers to a local target', async () => {
     await database.updateActor({ actorId: ORIGIN, movedTo: ACTOR2_ID })
-    await sendMoveJob(database, message({ targetActorId: ACTOR2_ID }))
+    await recordMove('migration-2', ACTOR2_ID)
+    await sendMoveJob(
+      database,
+      message({ targetActorId: ACTOR2_ID, migrationId: 'migration-2' })
+    )
 
     expect(followerJobs().map((job) => job.data.targetActorId)).toEqual([
       ACTOR2_ID,
@@ -277,14 +292,36 @@ describe('sendMoveJob', () => {
     ).toHaveLength(2)
   })
 
-  it('does nothing when the move was cancelled', async () => {
+  it('does nothing when the move was cancelled before it started', async () => {
     await database.updateActor({ actorId: ORIGIN, movedTo: null })
     await sendMoveJob(database, message())
 
     expect(mockPublish).not.toHaveBeenCalled()
   })
 
-  it('does nothing when movedTo points at a different target', async () => {
+  it('still completes the fan-out when the move was deleted after it started', async () => {
+    await database.markActorMigrationStarted({ id: MIGRATION })
+    await database.updateActor({ actorId: ORIGIN, movedTo: null })
+    await sendMoveJob(database, message())
+
+    expect(followerJobs()).toHaveLength(2)
+    expect(deliveries()).toHaveLength(2)
+  })
+
+  it('does nothing when no started or pointed move names the migration', async () => {
+    await sendMoveJob(database, message({ migrationId: 'unknown-migration' }))
+
+    expect(mockPublish).not.toHaveBeenCalled()
+  })
+
+  it('does nothing when the migration names a different target', async () => {
+    await database.markActorMigrationStarted({ id: MIGRATION })
+    await sendMoveJob(database, message({ targetActorId: ACTOR2_ID }))
+
+    expect(mockPublish).not.toHaveBeenCalled()
+  })
+
+  it('does nothing when movedTo points at a different target before the start', async () => {
     await database.updateActor({
       actorId: ORIGIN,
       movedTo: 'https://elsewhere.test/users/test1'

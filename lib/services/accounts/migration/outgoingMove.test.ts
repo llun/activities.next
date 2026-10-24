@@ -283,6 +283,29 @@ describe('performOutgoingMove on a real database', () => {
       expect(publish).not.toHaveBeenCalled()
     })
 
+    it('answers 429 without fetching an unreachable target while in cooldown', async () => {
+      const { actor, target } = await setup('cooldown-first')
+      expect(
+        await performOutgoingMove({ database, actor, target, kind: 'move' })
+      ).toEqual({ ok: true })
+      const { target: other } = await remote('cooldown-second')
+      vi.mocked(getFederationSigningActorSafe).mockResolvedValue({
+        id: 'https://llun.test/users/signer'
+      } as Actor)
+      vi.mocked(getActorPerson).mockClear()
+      vi.mocked(getActorPerson).mockResolvedValue(null as never)
+
+      expect(
+        await performOutgoingMove({
+          database,
+          actor: (await database.getActorFromId({ id: actor.id })) as Actor,
+          target: other,
+          kind: 'move'
+        })
+      ).toMatchObject({ ok: false, status: 429 })
+      expect(getActorPerson).not.toHaveBeenCalled()
+    })
+
     it('answers 500 when there is no signing actor to fetch with', async () => {
       const { actor, target } = await remote('no-signer')
       vi.mocked(getFederationSigningActorSafe).mockResolvedValue(undefined)

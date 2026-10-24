@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { getMoveActivity } from '@/lib/activities/move'
 import { Database } from '@/lib/database/types'
 import { createJobHandle } from '@/lib/jobs/createJobHandle'
+import { isOutgoingMoveAuthorized } from '@/lib/jobs/isOutgoingMoveAuthorized'
 import { getMoveFollowerJobId } from '@/lib/jobs/moveFollowerJob'
 import { publishMoveRelationshipsJobs } from '@/lib/jobs/moveRelationshipsJob'
 import {
@@ -18,7 +19,6 @@ import {
 import { filterFederatedUrls } from '@/lib/services/federation/domainPolicy'
 import { getQueue } from '@/lib/services/queue'
 import { JobHandle, JobMessage } from '@/lib/services/queue/type'
-import { actorIdsMatch } from '@/lib/utils/activitypub'
 import { withSpan } from '@/lib/utils/trace'
 
 const JobData = z.object({
@@ -64,13 +64,15 @@ export const runSendMove = async (
       database.getActorFromId({ id: originActorId }),
       database.getActorFromId({ id: targetActorId })
     ])
-    // The API records `movedTo` before publishing; a cleared or changed
-    // pointer means the move was cancelled.
+    if (!origin?.privateKey || !target) return
+    // A started move completes even if DELETE cleared `movedTo` since.
     if (
-      !origin?.privateKey ||
-      !target ||
-      !origin.movedTo ||
-      !actorIdsMatch(origin.movedTo, target.id)
+      !(await isOutgoingMoveAuthorized(
+        database,
+        origin,
+        target.id,
+        migrationId
+      ))
     ) {
       return
     }

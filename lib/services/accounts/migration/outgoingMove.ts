@@ -158,6 +158,19 @@ export const performOutgoingMove = async ({
   if (!isRetry && actor.movedTo && actorIdsMatch(actor.movedTo, target.id)) {
     return fail(422, 'Already moved to this account')
   }
+  // In cooldown and not a retry: answer before reading the target. The
+  // database call below stays the authoritative check.
+  if (lastMove && !isRetry) {
+    const until = lastMove.createdAt + MOVE_COOLDOWN_MS
+    if (until > Date.now()) {
+      const cooldownUntil = new Date(until).toISOString()
+      return fail(
+        429,
+        `You can move again after ${cooldownUntil}`,
+        cooldownUntil
+      )
+    }
+  }
   // The database call below treats it as a retry only while that move is also
   // the newest migration row of any kind; anything newer (a cancelled move
   // redirected to the same account) is answered 429 there, so skip the fetch.

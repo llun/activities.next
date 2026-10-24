@@ -1081,8 +1081,20 @@ describe('moveRelationshipsJob', () => {
         expect(note).toBe('')
       })
 
-      it('copies the note from a local origin that moved (outgoing move)', async () => {
+      const recordLocalMove = async () => {
         await database.updateActor({ actorId: ACTOR2_ID, movedTo: TARGET })
+        await database.createActorMigration({
+          id: 'local-move',
+          actorId: ACTOR2_ID,
+          targetActorId: TARGET,
+          targetAcct: 'test1@newhome.test',
+          kind: 'move',
+          followersCount: 0
+        })
+      }
+
+      it('copies the note from a local origin that moved (outgoing move)', async () => {
+        await recordLocalMove()
         await database.upsertAccountNote({
           actorId: ACTOR1_ID,
           targetActorId: ACTOR2_ID,
@@ -1096,6 +1108,44 @@ describe('moveRelationshipsJob', () => {
           targetActorId: TARGET
         })
         expect(note).toContain('some note')
+      })
+
+      it('still copies the note when the local move was deleted after it started', async () => {
+        await recordLocalMove()
+        await database.markActorMigrationStarted({ id: 'local-move' })
+        await database.updateActor({ actorId: ACTOR2_ID, movedTo: null })
+        await database.upsertAccountNote({
+          actorId: ACTOR1_ID,
+          targetActorId: ACTOR2_ID,
+          comment: 'some note'
+        })
+
+        await runJob(ACTOR1_ID, ACTOR2_ID, TARGET)
+
+        const note = await database.getAccountNote({
+          actorId: ACTOR1_ID,
+          targetActorId: TARGET
+        })
+        expect(note).toContain('some note')
+      })
+
+      it('does nothing when the local move was deleted before it started', async () => {
+        await recordLocalMove()
+        await database.updateActor({ actorId: ACTOR2_ID, movedTo: null })
+        await database.upsertAccountNote({
+          actorId: ACTOR1_ID,
+          targetActorId: ACTOR2_ID,
+          comment: 'some note'
+        })
+
+        await runJob(ACTOR1_ID, ACTOR2_ID, TARGET)
+
+        expect(
+          await database.getAccountNote({
+            actorId: ACTOR1_ID,
+            targetActorId: TARGET
+          })
+        ).toBe('')
       })
 
       it('does nothing if local origin has not moved to the target', async () => {
