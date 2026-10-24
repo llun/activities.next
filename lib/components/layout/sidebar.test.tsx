@@ -193,6 +193,51 @@ describe('Sidebar', () => {
     ).not.toHaveAttribute('aria-current')
   })
 
+  describe('Profile on the short /@user URL', () => {
+    const currentActor = {
+      id: 'actor-1',
+      username: 'alice',
+      domain: 'llun.test',
+      name: 'Alice'
+    }
+    const profileAt = (pathname: string, variant?: 'drawer') => {
+      mockPathname.mockReturnValue(pathname)
+      renderSidebar(
+        <Sidebar lists={[]} currentActor={currentActor} variant={variant} />
+      )
+      return within(screen.getAllByRole('navigation')[0]).getByRole('link', {
+        name: 'Profile'
+      })
+    }
+
+    it.each([
+      ['/@alice', true],
+      ['/@Alice', true],
+      ['/@alice/followers', true],
+      ['/@alice@llun.test', true],
+      ['/@alice@llun.test/followers', true],
+      ['/@alice2', false],
+      ['/@alice2/followers', false],
+      ['/@bob', false],
+      ['/@alice@other.test', false]
+    ])('%s is current: %s', (pathname, current) => {
+      const profile = profileAt(pathname)
+      if (current) expect(profile).toHaveAttribute('aria-current', 'page')
+      else expect(profile).not.toHaveAttribute('aria-current')
+    })
+
+    it('marks Profile in the phone drawer', () => {
+      expect(profileAt('/@alice', 'drawer')).toHaveAttribute(
+        'aria-current',
+        'page'
+      )
+    })
+
+    it('keeps the long form as the href', () => {
+      expect(profileAt('/@alice')).toHaveAttribute('href', '/@alice@llun.test')
+    })
+  })
+
   describe('customization', () => {
     // jsdom has no pointer layout, so the Radix trigger opens from the
     // keyboard (same approach as the settings layout test).
@@ -711,6 +756,54 @@ describe('Sidebar', () => {
       expect(scrollTo).not.toHaveBeenCalled()
       onStay.mock.calls[0][0]()
       expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' })
+    })
+
+    it('scrolls to the top when Profile is tapped on the short /@user URL', () => {
+      mockPathname.mockReturnValue('/@alice')
+      renderSidebar(
+        <Sidebar
+          lists={[]}
+          currentActor={{
+            id: 'actor-1',
+            username: 'alice',
+            domain: 'llun.test',
+            name: 'Alice'
+          }}
+        />
+      )
+
+      const nav = screen.getAllByRole('navigation')[0]
+      const profile = within(nav).getByRole('link', { name: 'Profile' })
+      const click = createEvent.click(profile, { button: 0 })
+      fireEvent(profile, click)
+
+      expect(click.defaultPrevented).toBe(true)
+      expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' })
+    })
+
+    it('follows the Profile link on a sub-path of the own profile', () => {
+      mockPathname.mockReturnValue('/@alice/followers')
+      window.history.replaceState(null, '', '/@alice/followers')
+      renderSidebar(
+        <Sidebar
+          lists={[]}
+          currentActor={{
+            id: 'actor-1',
+            username: 'alice',
+            domain: 'llun.test',
+            name: 'Alice'
+          }}
+        />
+      )
+
+      const nav = screen.getAllByRole('navigation')[0]
+      const profile = within(nav).getByRole('link', { name: 'Profile' })
+      const click = createEvent.click(profile, { button: 0 })
+      document.addEventListener('click', stopDocumentNavigation)
+      fireEvent(profile, click)
+
+      expect(preventedBySidebar).toBe(false)
+      expect(scrollTo).not.toHaveBeenCalled()
     })
 
     it('scrolls straight away outside the drawer', () => {
