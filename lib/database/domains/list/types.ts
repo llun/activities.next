@@ -36,6 +36,16 @@ export type ListAccountsPage = {
   nextMaxId: string | null
   prevMinId: string | null
 }
+export type GetListMembersParams = {
+  listId: string
+  actorId: string
+  limit?: number
+  maxId?: string | null
+}
+export type ListMember = {
+  id: string
+  targetActorId: string
+}
 export type AddListAccountsParams = {
   listId: string
   actorId: string
@@ -82,6 +92,7 @@ export interface ListDatabase {
   getLists(params: GetListsParams): Promise<List[]>
   deleteList(params: DeleteListParams): Promise<boolean>
   getListAccounts(params: GetListAccountsParams): Promise<ListAccountsPage>
+  getListMembers(params: GetListMembersParams): Promise<ListMember[]>
   // Member counts keyed by list id for the supplied lists. Lists with no
   // members are present in the result with a count of 0.
   getListAccountCounts(

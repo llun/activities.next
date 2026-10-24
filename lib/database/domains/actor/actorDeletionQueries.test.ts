@@ -558,6 +558,40 @@ const seedSettings = async (actorId: string, statusId: string) => {
       updatedAt: at
     })
     .execute()
+  const importId = randomUUID()
+  await db()
+    .insertInto('bulk_imports')
+    .values({
+      id: importId,
+      actorId,
+      type: 'following',
+      state: 'finished',
+      originalFilename: 'following.csv',
+      totalItems: 1,
+      processedItems: 1,
+      importedItems: 1,
+      overwrite: false,
+      overwriteDone: false,
+      nextRowIndex: 1,
+      lastError: null,
+      finishedAt: at,
+      createdAt: at,
+      updatedAt: at
+    })
+    .execute()
+  await db()
+    .insertInto('bulk_import_rows')
+    .values({
+      id: `${importId}:0`,
+      importId,
+      rowIndex: 0,
+      data: JSON.stringify({ acct: 'someone@example.com' }),
+      state: 'imported',
+      error: null,
+      createdAt: at,
+      updatedAt: at
+    })
+    .execute()
 }
 
 const seedTimeline = (
@@ -631,6 +665,7 @@ const EITHER_SIDE_TABLES = [
 
 // Tables cleared of the actor's own rows.
 const OWN_TABLES = [
+  'bulk_imports',
   'lists',
   'featured_tags',
   'filters',
@@ -701,6 +736,12 @@ const expectedAfterPurge = (
   for (const table of OWN_TABLES) {
     dump = drop(dump, table, (row) => row.actorId === actorId)
   }
+  const bulkImportIds = ids(
+    before.bulk_imports.filter((row) => row.actorId === actorId)
+  )
+  dump = drop(dump, 'bulk_import_rows', (row) =>
+    bulkImportIds.has(row.importId)
+  )
   dump = drop(
     dump,
     'timelines',
@@ -1272,6 +1313,8 @@ describe('statements', () => {
       'delete blocks by actorId',
       'delete mutes by actorId',
       'delete account_notes by actorId',
+      'delete bulk_import_rows by importId',
+      'delete bulk_imports by actorId',
       'delete filter_statuses by filterId',
       'delete filter_keywords by filterId',
       'delete filters by actorId',

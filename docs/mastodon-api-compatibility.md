@@ -431,6 +431,20 @@ a string>`, which returns an empty page, so that poller never detects new
   same way once it accepts the request. Mastodon ≥ 4.4 merges at most 200 of a
   member's recent posts in both cases, and earlier versions backfill nothing.
 
+- **CSV export and import are plain endpoints.** Exports (`GET
+/api/v1/exports/<file>.csv`) match Mastodon's `Export` file formats. Imports
+  follow `Form::Import`, `BulkImportService` and `BulkImportRowService`
+  (merge or overwrite, 20,000 rows). Mastodon has no REST API for either, only
+  the settings web UI, so `POST /api/v1/imports` and `GET /api/v1/imports[/:id]`
+  are this server's own. Rows run in one time-budgeted, resumable job instead
+  of one Sidekiq job per row, with one attempt per row. Failed rows are kept
+  and listed (up to 100 on `GET /api/v1/imports/:id`); Mastodon deletes
+  imported rows and only counts failures. An import with no progress for 24
+  hours is abandoned so the actor can start another. A bookmark of a remote
+  status is fetched through the existing remote status fetch, which stores only
+  public notes, so a non-public remote bookmark fails. A mute's `notifications`
+  flag is Mastodon's `hide_notifications`.
+
 ## Not planned
 
 These endpoints are not implemented and are not currently on the roadmap. They

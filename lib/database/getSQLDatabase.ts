@@ -9,6 +9,7 @@ import { adminQueries } from '@/lib/database/domains/admin/queries'
 import { announcementQueries } from '@/lib/database/domains/announcement/queries'
 import { blockQueries } from '@/lib/database/domains/block/queries'
 import { bookmarkQueries } from '@/lib/database/domains/bookmark/queries'
+import { bulkImportQueries } from '@/lib/database/domains/bulkImport/queries'
 import { createConversationQueries } from '@/lib/database/domains/conversation/queries'
 import { customEmojiQueries } from '@/lib/database/domains/customEmoji/queries'
 import { deadLetterJobQueries } from '@/lib/database/domains/deadLetterJob/queries'
@@ -165,6 +166,7 @@ export const getSQLDatabase = (
     ...bindDb(kysely, searchQueries),
     ...bindDb(kysely, stravaArchiveImportQueries),
     ...bindDb(kysely, wahooImportQueries),
+    ...bindDb(kysely, bulkImportQueries),
     ...bindDb(kysely, suggestionQueries),
     ...bindDb(kysely, trendsQueries),
     ...statusDatabase,

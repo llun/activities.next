@@ -505,6 +505,23 @@ export const deleteActorData = async (
       )
       .execute()
 
+    await trx
+      .deleteFrom('bulk_import_rows')
+      .where(
+        'importId',
+        'in',
+        trx
+          .selectFrom('bulk_imports')
+          .select('id')
+          .where('actorId', '=', actorId)
+      )
+      .execute()
+
+    await trx
+      .deleteFrom('bulk_imports')
+      .where('actorId', '=', actorId)
+      .execute()
+
     // Subquery avoids hitting the SQLite 999-parameter limit when an
     // actor has accumulated many filters; the mute precedent only
     // touches one table per actor so doesn't need this.

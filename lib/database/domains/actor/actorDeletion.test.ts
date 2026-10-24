@@ -444,6 +444,87 @@ describe('ActorDatabase deletion', () => {
         ).resolves.toBe('')
       })
 
+      it('removes bulk imports and bulk import rows belonging to the deleted actor', async () => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const username = `delete-bulk-${suffix}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        const otherUsername = `other-bulk-${suffix}`
+        const otherActorId = `https://${TEST_DOMAIN}/users/${otherUsername}`
+
+        await database.createAccount({
+          email: `${username}@${TEST_DOMAIN}`,
+          username,
+          passwordHash: TEST_PASSWORD_HASH,
+          domain: TEST_DOMAIN,
+          privateKey: `privateKey-${suffix}`,
+          publicKey: `publicKey-${suffix}`
+        })
+        await database.createAccount({
+          email: `${otherUsername}@${TEST_DOMAIN}`,
+          username: otherUsername,
+          passwordHash: TEST_PASSWORD_HASH,
+          domain: TEST_DOMAIN,
+          privateKey: `privateKey-other-${suffix}`,
+          publicKey: `publicKey-other-${suffix}`
+        })
+
+        const importId = crypto.randomUUID()
+        const otherImportId = crypto.randomUUID()
+
+        await database.createBulkImport({
+          id: importId,
+          actorId,
+          type: 'following',
+          overwrite: false,
+          originalFilename: 'test.csv',
+          rows: [{ acct: 'user1@example.com' }, { acct: 'user2@example.com' }]
+        })
+
+        await database.createBulkImport({
+          id: otherImportId,
+          actorId: otherActorId,
+          type: 'following',
+          overwrite: false,
+          originalFilename: 'test2.csv',
+          rows: [{ acct: 'user3@example.com' }]
+        })
+
+        expect(await database.getBulkImports({ actorId })).toHaveLength(1)
+        expect(
+          await database.getBulkImports({ actorId: otherActorId })
+        ).toHaveLength(1)
+        expect(
+          await database.getBulkImportRows({
+            importId,
+            fromRowIndex: 0,
+            limit: 10
+          })
+        ).toHaveLength(2)
+
+        await database.deleteActorData({ actorId })
+
+        expect(await database.getBulkImports({ actorId })).toEqual([])
+        expect(
+          await database.getBulkImportRows({
+            importId,
+            fromRowIndex: 0,
+            limit: 10
+          })
+        ).toEqual([])
+
+        // Other actor's import and rows must survive untouched
+        expect(
+          await database.getBulkImports({ actorId: otherActorId })
+        ).toHaveLength(1)
+        expect(
+          await database.getBulkImportRows({
+            importId: otherImportId,
+            fromRowIndex: 0,
+            limit: 10
+          })
+        ).toHaveLength(1)
+      })
+
       describe('deleting an actor that owns statuses, relationships and counters', () => {
         const suffix = crypto.randomUUID().slice(0, 8)
         const username = `delete-data-${suffix}`

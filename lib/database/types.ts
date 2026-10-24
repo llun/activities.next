@@ -1,3 +1,4 @@
+import { BulkImportDatabase } from '@/lib/database/domains/bulkImport/types'
 import { FitnessFileDatabase } from '@/lib/database/domains/fitnessFile/types'
 import { FitnessFileRouteDatabase } from '@/lib/database/domains/fitnessFileRoute/types'
 import { FitnessFileRouteDataDatabase } from '@/lib/database/domains/fitnessFileRouteData/types'
@@ -90,6 +91,7 @@ export type Database = AccountDatabase &
   ImportLockDatabase &
   StravaArchiveImportDatabase &
   WahooImportDatabase &
+  BulkImportDatabase &
   BlockDatabase &
   MuteDatabase &
   EndorsementDatabase &

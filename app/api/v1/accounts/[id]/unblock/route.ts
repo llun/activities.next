@@ -1,13 +1,9 @@
-import { applyUnblock } from '@/lib/actions/applyUnblock'
-import { SEND_UNBLOCK_JOB_NAME } from '@/lib/jobs/names'
+import { unblockActor } from '@/lib/actions/unblockActor'
 import { getRelationship } from '@/lib/services/accounts/relationship'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
-import { getQueue } from '@/lib/services/queue'
 import { Scope } from '@/lib/types/database/operations'
-import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { HttpMethod } from '@/lib/utils/http-headers'
-import { logger } from '@/lib/utils/logger'
 import { apiCorsError, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
@@ -33,45 +29,12 @@ export const POST = traceApiRoute(
         encodedAccountId
       )
 
-      if (targetActorId !== currentActor.id) {
-        const existingBlock = await database.getBlock({
-          actorId: currentActor.id,
-          targetActorId
-        })
-
-        if (!existingBlock) {
-          const targetActor = await database.getActorFromId({
-            id: targetActorId
-          })
-          if (!targetActor) return apiCorsError(req, CORS_HEADERS, 404)
-        }
-
-        if (existingBlock) {
-          await applyUnblock({
-            database,
-            actorId: currentActor.id,
-            targetActorId
-          })
-
-          getQueue()
-            .publish({
-              id: getHashFromString(`${existingBlock.uri}/undo`),
-              name: SEND_UNBLOCK_JOB_NAME,
-              data: {
-                actorId: currentActor.id,
-                block: existingBlock
-              }
-            })
-            .catch((error) => {
-              logger.warn({
-                message: 'Failed to queue unblock federation',
-                actorId: currentActor.id,
-                targetActorId,
-                error
-              })
-            })
-        }
-      }
+      const unblocked = await unblockActor({
+        database,
+        currentActor,
+        targetActorId
+      })
+      if (!unblocked) return apiCorsError(req, CORS_HEADERS, 404)
 
       const relationship = await getRelationship({
         database,
