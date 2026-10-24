@@ -3,7 +3,12 @@ import { S3Client } from '@aws-sdk/client-s3'
 export type StorageS3ClientConfig = {
   region: string
   endpoint?: string
-  /** Fails a request that gets no answer for this long. Unset: the SDK default. */
+  /**
+   * Fails a request that gets no answer for this long. Unset: the SDK default.
+   * When set the client also makes a single attempt, so the call as a whole is
+   * bounded by this time (the SDK would retry a timeout twice, tripling it);
+   * the caller's own retry is the retry.
+   */
   requestTimeoutMs?: number
 }
 
@@ -30,6 +35,7 @@ export const createStorageS3Client = ({
 
   return new S3Client({
     region,
+    ...(requestTimeoutMs ? { maxAttempts: 1 } : null),
     ...(requestTimeoutMs
       ? {
           requestHandler: {

@@ -34,12 +34,47 @@ type PageFn = (
   pageSize: number
 ) => Promise<ExportPage>
 
-const idsCursor = (page: { id: string }[], pageSize: number) =>
-  page.length < pageSize ? null : { maxId: page[page.length - 1].id }
+/**
+ * Where the next page of an id-paged file starts: the last row seen, and the
+ * ids of the few rows before it (oldest last, the last row included).
+ */
+type IdCursor = { maxId: string; recent: string[] }
+const RECENT_ROWS = 5
 
-const maxIdOf = (cursor: unknown | null) => {
-  const maxId = (cursor as { maxId?: string } | null)?.maxId
-  return maxId ? { maxId } : null
+/**
+ * One page of rows that the database pages by "rows after this id". A cursor
+ * row deleted between two slices makes such a query answer nothing, which is
+ * not the end of the file: the recent ids let the page start from the nearest
+ * row that still exists, and the rows already exported are left out.
+ */
+const fetchIdPage = async <Row extends { id: string }>(
+  fetchRows: (maxId: string | undefined, limit: number) => Promise<Row[]>,
+  cursor: unknown | null,
+  pageSize: number
+): Promise<{ rows: Row[]; next: IdCursor | null }> => {
+  const after = cursor as IdCursor | null
+  let rows = await fetchRows(after?.maxId, pageSize)
+  if (after && rows.length === 0) {
+    const seen = new Set(after.recent)
+    for (const id of [...after.recent].reverse().slice(1)) {
+      const later = (await fetchRows(id, pageSize + RECENT_ROWS)).filter(
+        (row) => !seen.has(row.id)
+      )
+      if (later.length > 0) {
+        rows = later.slice(0, pageSize)
+        break
+      }
+    }
+  }
+  if (rows.length < pageSize) return { rows, next: null }
+  const recent = [...(after?.recent ?? []), ...rows.map((row) => row.id)]
+  return {
+    rows,
+    next: {
+      maxId: rows[rows.length - 1].id,
+      recent: recent.slice(-RECENT_ROWS)
+    }
+  }
 }
 
 const actorMapFor = async (database: Database, ids: string[]) => {
@@ -82,64 +117,95 @@ const followingPage: PageFn = async (database, actorId, cursor, pageSize) => {
   }
 }
 
-/** The cursor is the list's position, then the last member seen in it. */
+type ListKey = { id: string; createdAt: number }
+
+/**
+ * The cursor names the list being written (its id and creation time) and, in
+ * it, the member cursor. A list deleted between two slices is replaced by the
+ * first list created after it.
+ */
 const listsPage: PageFn = async (database, actorId, cursor, pageSize) => {
-  const { list: position = 0, maxId } = (cursor ?? {}) as {
-    list?: number
-    maxId?: string
+  const { list: key, members } = (cursor ?? {}) as {
+    list?: ListKey
+    members?: IdCursor | null
   }
   const lists = await database.getLists({ actorId })
+  let position = 0
+  let memberCursor: IdCursor | null = null
+  if (key) {
+    position = lists.findIndex((list) => list.id === key.id)
+    if (position >= 0) {
+      memberCursor = members ?? null
+    } else {
+      position = lists.findIndex(
+        (list) =>
+          list.createdAt > key.createdAt ||
+          (list.createdAt === key.createdAt && list.id > key.id)
+      )
+    }
+  }
   const list = lists[position]
   if (!list) return { text: '', next: null }
-  const nextList = position + 1 < lists.length ? { list: position + 1 } : null
+  const following = lists[position + 1]
+  const nextList = following
+    ? { list: { id: following.id, createdAt: following.createdAt } }
+    : null
 
-  const page = await database.getListMembers({
-    listId: list.id,
-    actorId,
-    limit: pageSize,
-    ...(maxId ? { maxId } : null)
-  })
-  if (page.length === 0) return { text: '', next: nextList }
-
+  const page = await fetchIdPage(
+    (maxId, limit) =>
+      database.getListMembers({
+        listId: list.id,
+        actorId,
+        limit,
+        ...(maxId ? { maxId } : null)
+      }),
+    memberCursor,
+    pageSize
+  )
   const actorMap = await actorMapFor(
     database,
-    page.map((m) => m.targetActorId)
+    page.rows.map((m) => m.targetActorId)
   )
   let text = ''
-  for (const member of page) {
+  for (const member of page.rows) {
     const actor = actorMap.get(member.targetActorId)
     if (!actor) continue
     text += toCsvRow([list.title, `${actor.username}@${actor.domain}`])
   }
   return {
     text,
-    next:
-      page.length < pageSize
-        ? nextList
-        : { list: position, maxId: page[page.length - 1].id }
+    next: page.next
+      ? {
+          list: { id: list.id, createdAt: list.createdAt },
+          members: page.next
+        }
+      : nextList
   }
 }
 
 const mutedPage: PageFn = async (database, actorId, cursor, pageSize) => {
-  let text = cursor ? '' : 'Account address,Hide notifications\n'
-  const page = await database.getMutes({
-    actorId,
-    limit: pageSize,
-    ...maxIdOf(cursor)
-  })
-  if (page.length === 0) return { text, next: null }
-
+  const text = cursor ? '' : 'Account address,Hide notifications\n'
+  const page = await fetchIdPage(
+    (maxId, limit) =>
+      database.getMutes({ actorId, limit, ...(maxId ? { maxId } : null) }),
+    cursor,
+    pageSize
+  )
   const actorMap = await actorMapFor(
     database,
-    page.map((m) => m.targetActorId)
+    page.rows.map((m) => m.targetActorId)
   )
-  for (const mute of page) {
+  let output = text
+  for (const mute of page.rows) {
     const actor = actorMap.get(mute.targetActorId)
     if (!actor) continue
     // In our schema, notifications: true means hide/mute notifications (Mastodon hide_notifications: true).
-    text += toCsvRow([`${actor.username}@${actor.domain}`, mute.notifications])
+    output += toCsvRow([
+      `${actor.username}@${actor.domain}`,
+      mute.notifications
+    ])
   }
-  return { text, next: idsCursor(page, pageSize) }
+  return { text: output, next: page.next }
 }
 
 const blockedAccountsPage: PageFn = async (
@@ -148,24 +214,23 @@ const blockedAccountsPage: PageFn = async (
   cursor,
   pageSize
 ) => {
-  const page = await database.getBlocks({
-    actorId,
-    limit: pageSize,
-    ...maxIdOf(cursor)
-  })
-  if (page.length === 0) return { text: '', next: null }
-
+  const page = await fetchIdPage(
+    (maxId, limit) =>
+      database.getBlocks({ actorId, limit, ...(maxId ? { maxId } : null) }),
+    cursor,
+    pageSize
+  )
   const actorMap = await actorMapFor(
     database,
-    page.map((b) => b.targetActorId)
+    page.rows.map((b) => b.targetActorId)
   )
   let text = ''
-  for (const block of page) {
+  for (const block of page.rows) {
     const actor = actorMap.get(block.targetActorId)
     if (!actor) continue
     text += toCsvRow([`${actor.username}@${actor.domain}`])
   }
-  return { text, next: idsCursor(page, pageSize) }
+  return { text, next: page.next }
 }
 
 const blockedDomainsPage: PageFn = async (
@@ -174,34 +239,39 @@ const blockedDomainsPage: PageFn = async (
   cursor,
   pageSize
 ) => {
-  const page = await database.getActorDomainBlocks({
-    actorId,
-    limit: pageSize,
-    ...maxIdOf(cursor)
-  })
-  if (page.length === 0) return { text: '', next: null }
+  const page = await fetchIdPage(
+    (maxId, limit) =>
+      database.getActorDomainBlocks({
+        actorId,
+        limit,
+        ...(maxId ? { maxId } : null)
+      }),
+    cursor,
+    pageSize
+  )
   let text = ''
-  for (const item of page) text += toCsvRow([item.domain])
-  return { text, next: idsCursor(page, pageSize) }
+  for (const item of page.rows) text += toCsvRow([item.domain])
+  return { text, next: page.next }
 }
 
 const bookmarksPage: PageFn = async (database, actorId, cursor, pageSize) => {
-  const page = await database.getBookmarks({
-    actorId,
-    limit: pageSize,
-    ...maxIdOf(cursor)
-  })
-  if (page.length === 0) return { text: '', next: null }
-
-  const statuses = await database.getStatusesByIds({
-    statusIds: page.map((b) => b.statusId)
-  })
+  const page = await fetchIdPage(
+    (maxId, limit) =>
+      database.getBookmarks({ actorId, limit, ...(maxId ? { maxId } : null) }),
+    cursor,
+    pageSize
+  )
+  const statuses = page.rows.length
+    ? await database.getStatusesByIds({
+        statusIds: page.rows.map((b) => b.statusId)
+      })
+    : []
   const statusSet = new Set(statuses.map((s) => s.id))
   let text = ''
-  for (const bookmark of page) {
+  for (const bookmark of page.rows) {
     if (statusSet.has(bookmark.statusId)) text += toCsvRow([bookmark.statusId])
   }
-  return { text, next: idsCursor(page, pageSize) }
+  return { text, next: page.next }
 }
 
 const PAGES: Record<ExportFileName, PageFn> = {

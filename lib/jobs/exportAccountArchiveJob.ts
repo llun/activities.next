@@ -177,6 +177,17 @@ const handleSliceFailure = async ({
   const progress = parseProgress(current?.progress ?? null)
   if (!current || !progress || current.status !== 'running') throw error
 
+  // Another worker holds the export now (this one's lease lapsed). Its failure
+  // is not the run's: writing it would replace the owner's saved cursor, and
+  // the owner would stop at its next save. The owner carries the run.
+  if (isLeaseHeld(progress, token, Date.now())) {
+    logger.warn({
+      message: 'Account archive export slice failed after losing its lease',
+      archiveId
+    })
+    return
+  }
+
   progress.failures += 1
   if (progress.lease?.token === token) progress.lease = null
   if (progress.failures >= ARCHIVE_MAX_SLICE_FAILURES) {
@@ -234,8 +245,9 @@ export const exportAccountArchiveJob = createJobHandle(
       // The redelivery of the run that just finished: its release save landed
       // but the message for the next run may not have gone out (the publish
       // failed, or the worker died between the two). Publish it again under
-      // its own id; a queue drops the copy if the first one did arrive, and a
-      // copy that slips through meets the lease or the run check.
+      // its own id; a queue that dedupes drops the copy if the first one did
+      // arrive, and a copy that slips through (Cloud Tasks does not dedupe)
+      // meets the lease or the run check.
       if (
         data.slice === known.completed &&
         archive.status === 'running' &&

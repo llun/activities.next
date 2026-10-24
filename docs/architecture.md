@@ -405,7 +405,11 @@ Export](maintenance.md#actor-archive-export)). It is built by
   `actor.json`: at the root for the default profile, in the profile's folder
   for the others. The same data is also in `graph.json`. A file is written one
   database page at a time (`exportPage`), with the page cursor in the step's
-  cursor, so a very long list is spread over slices instead of needing one.
+  cursor, so a very long list is spread over slices instead of needing one. The
+  cursors survive edits between slices: a list is named by its id and creation
+  time (lists are ordered by both), and a page whose cursor row was deleted
+  continues from the nearest recent row that still exists instead of ending
+  the file.
 - **Nothing secret, by construction.** The collectors read through
   `lib/database/domains/accountExport/`, which selects an explicit column
   allowlist per table (`tables.ts`); `profile.json` lists an allowlist of the
@@ -430,8 +434,12 @@ Export](maintenance.md#actor-archive-export)). It is built by
   numbered runs: message `n` is current only while the cursor says run `n - 1`
   finished, so a duplicate of a finished run is dropped and a retry of an
   unfinished one runs. The next message's id comes from its run number, and a
-  run finishes once, so an id that was consumed is never published again (the
-  reaper republishes under its own id). A delivery that finds another worker's
+  run finishes once, so a new run always gets a new id. The one deliberate
+  repeat is the recovery of a lost publish: a redelivery of a run that already
+  finished republishes the next run under the same id (a queue that dedupes
+  drops the copy if the first arrived; Cloud Tasks does not, and the lease and
+  run checks absorb a copy). The reaper's requeue id has the run number and the
+  reap count in it. A delivery that finds another worker's
   live lease fails with a retryable error, without counting as a failure, so
   the queue brings it back after the lease lapses; a worker that loses its lease
   finds out at its next compare-and-set save and stops. The slice budget depends
@@ -467,13 +475,16 @@ Export](maintenance.md#actor-archive-export)). It is built by
   under a new name (the writer and a sequence number), and the older tail is
   deleted only after the cursor that refers to the new one has been saved, so a
   checkpoint whose save never lands cannot damage the saved state. S3 calls of
-  an export time out after 30 seconds, under the lease's grace: the client is
+  an export time out after 30 seconds in total, under the lease's grace (the
+  clients make a single attempt, because the SDK's retries would triple it and
+  outlive the lease; the slice retry is the retry): the client is
   built with `throwOnRequestTimeout`, which the SDK needs to reject a stalled
   request (without it the handler only logs a warning), and the clients that
   read the media and fitness source files use the same timeout. Parts are
   8 MiB and grow by 8 MiB every 1,000 parts, so the 10,000-part limit of S3 is
   out of reach before about 430 GiB; an upload that would pass it fails with a
-  clear message. A failed export aborts its upload from the saved state alone,
+  clear message. A worker that fails after losing its lease logs and stops without writing a
+  failure into the new owner's cursor. A failed export aborts its upload from the saved state alone,
   without reading the staged tail. A large source
   file is copied across slices by byte range (`Range: bytes=n-`), and the set
   of claimed entry names (to drop duplicates) is kept as eight-byte hashes in
@@ -514,7 +525,7 @@ Export](maintenance.md#actor-archive-export)). It is built by
   an export whose heartbeat is an hour old (a dead worker, a lost message) is
   reaped by the same sweep (oldest heartbeat first) and by
   `GET /api/v1/account/archives`: its current run is requeued, counted in
-  `reapCount` (up to three times), or, behind the in-process queue or after the
+  `reapCount` (up to three times in a row: a run that makes progress sets it back to 0), or, behind the in-process queue or after the
   third reap, it is marked `failed` (only if it did not resume since the row was read) and
   its files and unfinished upload are discarded; a failed export does not count against the 7-day limit. A suspended
   (moderation-blocked) account can still list and download its own exports, as

@@ -933,6 +933,35 @@ describe('exportAccountArchiveJob', () => {
       ).resolves.toBeTruthy()
     })
 
+    it('leaves the cursor of the worker that took over alone when a lapsed worker fails', async () => {
+      const id = await makeArchive(accountId)
+      await run(id, 0)
+      let owner: string | null = null
+      vi.spyOn(database, 'getAccountExportRows').mockImplementation(
+        async () => {
+          // While this slice works, another worker takes the export over and
+          // saves its own lease; then this slice's call fails (a timeout).
+          const current = (await database.getAccountArchive({ id }))!
+          const progress = parseProgress(current.progress)!
+          progress.lease = { token: 'worker-B', until: Date.now() + 60_000 }
+          await database.updateAccountArchive({
+            id,
+            progress: serializeProgress(progress)
+          })
+          owner = (await database.getAccountArchive({ id }))!.progress
+          throw new Error('request timed out')
+        }
+      )
+
+      // Acknowledged, not retried: the owner carries the run.
+      await run(id, 1)
+
+      const after = (await database.getAccountArchive({ id }))!
+      expect(after.progress).toBe(owner)
+      expect(parseProgress(after.progress)!.failures).toBe(0)
+      expect(after.status).toBe('running')
+    })
+
     it('makes a delivery wait for the lease instead of dropping it', async () => {
       const id = await makeArchive(accountId)
       await run(id, 0)

@@ -155,3 +155,124 @@ describe('csvStep', () => {
     ).toBe('done')
   })
 })
+
+describe('csvStep when rows change between slices', () => {
+  let blocks: { id: string; targetActorId: string }[]
+  let listRows: { id: string; title: string; createdAt: number }[]
+  let listMembers: Record<string, { id: string; targetActorId: string }[]>
+  const appended: { entry: string; text: string }[] = []
+
+  const after = <Row extends { id: string }>(
+    rows: Row[],
+    limit: number,
+    maxId?: string
+  ) => {
+    if (!maxId) return rows.slice(0, limit)
+    const at = rows.findIndex((row) => row.id === maxId)
+    // As the real queries do: a cursor row that is gone answers nothing.
+    if (at < 0) return []
+    return rows.slice(at + 1, at + 1 + limit)
+  }
+
+  const database = {
+    getBlocks: async ({ limit, maxId }: { limit: number; maxId?: string }) =>
+      after(blocks, limit, maxId),
+    getLists: async () => listRows,
+    getListMembers: async ({
+      listId,
+      limit,
+      maxId
+    }: {
+      listId: string
+      limit: number
+      maxId?: string
+    }) => after(listMembers[listId] ?? [], limit, maxId),
+    getActorsFromIds: async ({ ids }: { ids: string[] }) =>
+      ids.map((id) => ({ id, username: id, domain: 'llun.test' }))
+  } as unknown as Database
+
+  const context = {
+    database,
+    actor: { id: 'me', mastodonDir: '' },
+    pageSize: 2,
+    stage: {
+      append: async (entry: string, text: string) => {
+        appended.push({ entry, text })
+      }
+    }
+  } as unknown as StepContext
+
+  const runFile = async (index: number, between?: () => void) => {
+    let cursor: unknown = { index, page: null }
+    let first = true
+    for (;;) {
+      const result = await csvStep.run(context, cursor)
+      if (result === 'done') return
+      const next = result.cursor as { index: number }
+      if (next.index !== index) return
+      cursor = JSON.parse(JSON.stringify(next))
+      if (first) between?.()
+      first = false
+    }
+  }
+
+  const textOf = (entry: string) =>
+    appended
+      .filter((part) => part.entry === entry)
+      .map((part) => part.text)
+      .join('')
+
+  beforeEach(() => {
+    appended.length = 0
+    blocks = ['k1', 'k2', 'k3', 'k4', 'k5'].map((id) => ({
+      id,
+      targetActorId: id
+    }))
+    listRows = [
+      { id: 'l1', title: 'One', createdAt: 5 },
+      { id: 'l2', title: 'Two', createdAt: 5 },
+      { id: 'l3', title: 'Three', createdAt: 9 }
+    ]
+    listMembers = {
+      l1: ['a', 'b', 'c'].map((id) => ({ id: `l1-${id}`, targetActorId: id })),
+      l2: [{ id: 'l2-a', targetActorId: 'a' }],
+      l3: [{ id: 'l3-a', targetActorId: 'z' }]
+    }
+  })
+
+  it('continues after a cursor row that was deleted instead of ending the file', async () => {
+    // The last row of the first page is deleted before the next slice.
+    await runFile(3, () => {
+      blocks = blocks.filter((block) => block.id !== 'k2')
+    })
+    expect(textOf('blocked_accounts.csv')).toBe(
+      'k1@llun.test\nk2@llun.test\nk3@llun.test\nk4@llun.test\nk5@llun.test\n'
+    )
+  })
+
+  it('does not repeat a row when the fallback starts from an earlier one', async () => {
+    await runFile(3, () => {
+      blocks = blocks.filter((block) => block.id !== 'k2')
+    })
+    const rows = textOf('blocked_accounts.csv').trim().split('\n')
+    expect(new Set(rows).size).toBe(rows.length)
+  })
+
+  it('keeps each list whole when the list being written is deleted', async () => {
+    await runFile(1, () => {
+      listRows = listRows.filter((list) => list.id !== 'l1')
+    })
+    // One's first page was written; the rest of One goes with the list, and
+    // the lists after it are written from their start.
+    expect(textOf('lists.csv')).toBe(
+      'One,a@llun.test\nOne,b@llun.test\nTwo,a@llun.test\nThree,z@llun.test\n'
+    )
+  })
+
+  it('orders lists of the same creation time by id and loses none', async () => {
+    await runFile(1)
+    expect(textOf('lists.csv')).toBe(
+      'One,a@llun.test\nOne,b@llun.test\nOne,c@llun.test\nTwo,a@llun.test\nThree,z@llun.test\n'
+    )
+  })
+})

@@ -7,6 +7,7 @@ import { MediaStorageType } from '@/lib/config/mediaStorage'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { EXPORT_ACCOUNT_ARCHIVE_JOB_NAME } from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
+import { DatabaseQueue } from '@/lib/services/queue/database'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 
@@ -131,6 +132,54 @@ describe('stuck export reaper', () => {
     expect(
       await store.get(`archives/${archive.id}/stage/part-0`)
     ).not.toBeNull()
+  })
+
+  it('requeues a second stall after progress, which a queue that remembers ids must not drop', async () => {
+    const queue = new DatabaseQueue(
+      { type: 'database', maxRetries: 3 },
+      database
+    )
+    vi.mocked(getQueue).mockReturnValue(queue)
+    const jobs = async () =>
+      db
+        .selectFrom('queue_jobs')
+        .select(['id', 'status'])
+        .where('name', '=', EXPORT_ACCOUNT_ARCHIVE_JOB_NAME)
+        .execute()
+
+    const archive = await stuckArchive(hour * 2)
+    const first = await reapStuckAccountArchive({ database, archive, store })
+    expect(first.reapCount).toBe(1)
+    // The requeued run was delivered and finished, and made progress: the
+    // counter starts again, as the job does after a finished run.
+    await db
+      .updateTable('queue_jobs')
+      .set({ status: 'completed' })
+      .where('name', '=', EXPORT_ACCOUNT_ARCHIVE_JOB_NAME)
+      .execute()
+    const progress = parseProgress(first.progress)!
+    progress.completed = 10
+    await database.updateAccountArchive({
+      id: archive.id,
+      progress: serializeProgress(progress),
+      reapCount: 0
+    })
+    await db
+      .updateTable('account_archives')
+      .set({ heartbeatAt: new Date(Date.now() - hour * 2) })
+      .where('id', '=', archive.id)
+      .execute()
+
+    const second = await reapStuckAccountArchive({
+      database,
+      archive: (await database.getAccountArchive({ id: archive.id }))!,
+      store
+    })
+
+    expect(second.reapCount).toBe(1)
+    const stored = await jobs()
+    expect(stored).toHaveLength(2)
+    expect(stored.filter((job) => job.status === 'pending')).toHaveLength(1)
   })
 
   it('requeues an export that never started, from slice 0', async () => {

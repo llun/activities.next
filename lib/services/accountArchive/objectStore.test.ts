@@ -482,7 +482,9 @@ describe('S3ArchiveObjectStore', () => {
 
     it('rejects a request that gets no answer in time instead of waiting for it', async () => {
       // A server that answers only after the client has given up.
+      let requests = 0
       const server = http.createServer((_req, res) => {
+        requests += 1
         setTimeout(() => {
           res.statusCode = 200
           res.end()
@@ -505,13 +507,39 @@ describe('S3ArchiveObjectStore', () => {
         await expect(
           client.send(new HeadObjectCommand({ Bucket: 'b', Key: 'k' }))
         ).rejects.toMatchObject({ name: 'TimeoutError' })
-        expect(Date.now() - started).toBeLessThan(1200)
+        // One attempt: the SDK would retry a timeout twice, which makes the
+        // call as long as three timeouts and longer than the lease.
+        expect(Date.now() - started).toBeLessThan(200 * 1.9)
+        expect(requests).toBe(1)
         client.destroy()
       } finally {
         vi.unstubAllEnvs()
         server.closeAllConnections()
         await new Promise((resolve) => server.close(resolve))
       }
+    })
+
+    it('joins many small chunks into the same parts and tail', async () => {
+      const key = 'archives/a/t/archive-1.zip'
+      const small = new S3ArchiveObjectStore(
+        { type: MediaStorageType.S3Storage, bucket: 'bucket', region: 'r' },
+        { send: multipartSend } as unknown as S3Client,
+        5 * MIB,
+        1000,
+        10
+      )
+      const data = crypto.randomBytes(12 * MIB + 5)
+      const sink = await small.openResumableWrite(key, null)
+      for (let at = 0; at < data.length; at += 16 * 1024) {
+        await sink.write(data.subarray(at, at + 16 * 1024))
+      }
+      const state = await sink.checkpoint()
+      expect(state).toMatchObject({
+        uploaded: 10 * MIB,
+        tailBytes: 2 * MIB + 5
+      })
+      expect(await sink.finish()).toBe(data.length)
+      expect(binary.get(key)?.equals(data)).toBe(true)
     })
 
     it('gives every S3 call a timeout shorter than the lease grace', async () => {

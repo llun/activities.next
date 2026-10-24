@@ -77,11 +77,15 @@ export const reapStuckAccountArchive = async ({
   })
   if (!marked) return archive
 
+  const slice = (progress?.completed ?? -1) + 1
   try {
     await queue.publish({
-      id: getHashFromString(`${archive.id}:reap:${marked.reapCount}`),
+      // The run number is in the id: a run that makes progress resets
+      // `reapCount`, so the count alone would repeat an id the queue has
+      // already consumed and drop the requeue.
+      id: getHashFromString(`${archive.id}:reap:${slice}:${marked.reapCount}`),
       name: EXPORT_ACCOUNT_ARCHIVE_JOB_NAME,
-      data: { archiveId: archive.id, slice: (progress?.completed ?? -1) + 1 }
+      data: { archiveId: archive.id, slice }
     })
   } catch (error) {
     logger.error({

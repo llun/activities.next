@@ -38,9 +38,11 @@ const RESUMABLE_PARTS_PER_STEP = 1000
 /** The most parts S3 accepts in one multipart upload. */
 const S3_MAX_PARTS = 10000
 /**
- * Every S3 call of an export fails after this long, well under the lease grace
- * (`ARCHIVE_LEASE_GRACE_MS`), so a worker whose lease lapsed cannot keep
- * writing for long.
+ * Every S3 call of an export fails after this long, in total: the clients make
+ * one attempt (no SDK retries, which would multiply it), and this is well under
+ * the lease grace (`ARCHIVE_LEASE_GRACE_MS`), so a worker whose lease lapsed
+ * cannot keep writing for long. A part must upload within it, so parts of up to
+ * 80 MiB need a few MB/s.
  */
 export const ARCHIVE_S3_REQUEST_TIMEOUT_MS = 30 * 1000
 
@@ -352,7 +354,13 @@ export class S3ArchiveObjectStore implements ArchiveObjectStore {
     let uploadId: string
     let parts: { n: number; etag: string }[] = []
     let uploaded = 0
-    let buffer: Buffer = Buffer.alloc(0)
+    // Chunks wait in a list and are joined once per part, not on every write.
+    let chunks: Buffer[] = []
+    let buffered = 0
+    const flatten = () => {
+      if (chunks.length > 1) chunks = [Buffer.concat(chunks, buffered)]
+      return chunks[0] ?? Buffer.alloc(0)
+    }
     // The tail the saved state refers to, and the one a checkpoint just wrote.
     let savedTail: string | null = null
     let pendingTail: string | null = null
@@ -371,7 +379,8 @@ export class S3ArchiveObjectStore implements ArchiveObjectStore {
         if (!tail || tail.length !== tailBytes) {
           throw new Error('The staged tail of the archive upload is missing')
         }
-        buffer = tail
+        chunks = [tail]
+        buffered = tail.length
       }
     } else {
       const created = await client.send(
@@ -403,25 +412,29 @@ export class S3ArchiveObjectStore implements ArchiveObjectStore {
 
     return {
       async write(chunk) {
-        buffer = buffer.length === 0 ? chunk : Buffer.concat([buffer, chunk])
-        while (buffer.length >= partSizeOf(parts.length + 1)) {
+        chunks.push(chunk)
+        buffered += chunk.length
+        while (buffered >= partSizeOf(parts.length + 1)) {
           const number = parts.length + 1
           assertPartNumber(number)
-          const body = buffer.subarray(0, partSizeOf(number))
+          const all = flatten()
+          const body = all.subarray(0, partSizeOf(number))
+          const rest = all.subarray(body.length)
           parts.push({ n: number, etag: await uploadPart(body, number) })
           uploaded += body.length
-          buffer = buffer.subarray(body.length)
+          chunks = rest.length > 0 ? [rest] : []
+          buffered = rest.length
         }
       },
       async checkpoint() {
         // The bytes that do not fill a part yet go to a staged object, so a
         // later slice (possibly on another worker) picks them up.
         let tail: string | null = null
-        if (buffer.length > 0) {
+        if (buffered > 0) {
           sequence += 1
           tail = `${tailPrefix}${writer}-${sequence}`
           await client.send(
-            new PutObjectCommand({ Bucket: bucket, Key: tail, Body: buffer })
+            new PutObjectCommand({ Bucket: bucket, Key: tail, Body: flatten() })
           )
         }
         pendingTail = tail
@@ -429,7 +442,7 @@ export class S3ArchiveObjectStore implements ArchiveObjectStore {
           uploadId,
           parts: parts.map((part) => ({ ...part })),
           uploaded,
-          tailBytes: buffer.length,
+          tailBytes: buffered,
           tail
         }
       },
@@ -445,12 +458,14 @@ export class S3ArchiveObjectStore implements ArchiveObjectStore {
       },
       async release() {},
       async finish() {
-        if (buffer.length > 0 || parts.length === 0) {
+        if (buffered > 0 || parts.length === 0) {
           const number = parts.length + 1
           assertPartNumber(number)
-          parts.push({ n: number, etag: await uploadPart(buffer, number) })
-          uploaded += buffer.length
-          buffer = Buffer.alloc(0)
+          const last = flatten()
+          parts.push({ n: number, etag: await uploadPart(last, number) })
+          uploaded += last.length
+          chunks = []
+          buffered = 0
         }
         await client.send(
           new CompleteMultipartUploadCommand({
