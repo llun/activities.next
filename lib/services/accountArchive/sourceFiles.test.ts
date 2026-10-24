@@ -1,10 +1,11 @@
 import http from 'http'
 import type { AddressInfo } from 'net'
+import { Readable } from 'stream'
 
 import { getConfig } from '@/lib/config'
 import { MediaStorageType } from '@/lib/config/mediaStorage'
 
-import { openMediaSourceFile } from './sourceFiles'
+import { openMediaSourceFile, readWithIdleTimeout } from './sourceFiles'
 
 describe('openMediaSourceFile on object storage', () => {
   let answers: number[]
@@ -22,7 +23,13 @@ describe('openMediaSourceFile on object storage', () => {
       res.end(
         status === 200
           ? 'PHOTO'
-          : `<Error><Code>${status === 404 ? 'NoSuchKey' : 'AccessDenied'}</Code></Error>`
+          : `<Error><Code>${
+              status === 404
+                ? 'NoSuchKey'
+                : status === 401
+                  ? 'RequestTimeTooSkewed'
+                  : 'AccessDenied'
+            }</Code></Error>`
       )
     })
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
@@ -72,6 +79,13 @@ describe('openMediaSourceFile on object storage', () => {
     await expect(read('medias/2026/a.jpg')).rejects.toBeTruthy()
   })
 
+  it('rethrows clock skew, which a later attempt gets past', async () => {
+    answers = [401]
+    await expect(read('medias/2026/a.jpg')).rejects.toMatchObject({
+      name: 'RequestTimeTooSkewed'
+    })
+  })
+
   it('still skips a file that cannot be read for good', async () => {
     answers = [403, 404]
     expect(await read('medias/2026/a.jpg')).toEqual({
@@ -82,5 +96,47 @@ describe('openMediaSourceFile on object storage', () => {
       ok: false,
       reason: 'missing'
     })
+  })
+})
+
+describe('readWithIdleTimeout', () => {
+  it('passes the chunks of a stream that keeps sending', async () => {
+    const chunks: Buffer[] = []
+    for await (const chunk of readWithIdleTimeout(
+      Readable.from([Buffer.from('ab'), Buffer.from('cd')]),
+      1000
+    )) {
+      chunks.push(chunk)
+    }
+    expect(Buffer.concat(chunks).toString()).toBe('abcd')
+  })
+
+  it('rejects a body that stalls after its first bytes, and closes the stream', async () => {
+    // Sends its first bytes, then nothing and no end.
+    const stalled = new Readable({ read() {} })
+    stalled.push(Buffer.from('head'))
+    const started = Date.now()
+    const read = async () => {
+      const seen: string[] = []
+      for await (const chunk of readWithIdleTimeout(stalled, 150)) {
+        seen.push(chunk.toString())
+      }
+      return seen
+    }
+    await expect(read()).rejects.toMatchObject({ name: 'TimeoutError' })
+    expect(Date.now() - started).toBeLessThan(1500)
+    expect(stalled.destroyed).toBe(true)
+  })
+
+  it('does not count the time the caller spends with a chunk', async () => {
+    const chunks: string[] = []
+    for await (const chunk of readWithIdleTimeout(
+      Readable.from([Buffer.from('a'), Buffer.from('b')]),
+      100
+    )) {
+      chunks.push(chunk.toString())
+      await new Promise((resolve) => setTimeout(resolve, 250))
+    }
+    expect(chunks).toEqual(['a', 'b'])
   })
 })

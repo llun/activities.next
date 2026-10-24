@@ -34,7 +34,8 @@ import type { ProgressSaver } from './saver'
 import {
   type SourceKind,
   describeSourceFailure,
-  openSourceFile
+  openSourceFile,
+  readWithIdleTimeout
 } from './sourceFiles'
 import {
   type DosDateTime,
@@ -185,13 +186,19 @@ export const runAssemblySlice = async ({
     return true
   }
 
+  // Every write to a key that another worker could also write is checked
+  // against this worker's own lease first (see `ProgressSaver.assertLeased`).
+  const assertLeased = () => saver.assertLeased(now())
+
   const put = async (chunk: Buffer) => {
+    assertLeased()
     await sink.write(chunk)
     assembly.offset += chunk.length
   }
 
   const flushDirectory = async () => {
     if (directoryBuffer.length === 0) return
+    assertLeased()
     await store.put(
       getDirectoryPartKey(root, assembly.directoryParts),
       Buffer.concat(directoryBuffer)
@@ -208,6 +215,7 @@ export const runAssemblySlice = async ({
 
   const checkpoint = async () => {
     await flushDirectory()
+    assertLeased()
     assembly.sink = await sink.checkpoint()
     await saver.save()
     // Only now may the sink drop what the previous saved state needed.
@@ -356,6 +364,7 @@ export const runAssemblySlice = async ({
     const kept = await store.get(key)
     if (kept) return kept
     const body = await build()
+    assertLeased()
     await store.put(key, body)
     return body
   }
@@ -510,11 +519,9 @@ export const runAssemblySlice = async ({
         }
         let finished: boolean
         try {
-          finished = await writeStreamed(name, async function* () {
-            for await (const chunk of outcome.file.stream) {
-              yield Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
-            }
-          })
+          finished = await writeStreamed(name, () =>
+            readWithIdleTimeout(outcome.file.stream)
+          )
         } catch (error) {
           // A failed write must not leave the source open (a socket or a file
           // handle) while the slice is retried.
@@ -616,6 +623,7 @@ export const runAssemblySlice = async ({
       await checkpoint()
     }
 
+    assertLeased()
     const bytes = await sink.finish()
     return { done: true, key: assembly.key, bytes }
   } catch (error) {

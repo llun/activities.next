@@ -18,6 +18,22 @@ export class LeaseHeldError extends StaleSliceError {
   }
 }
 
+/** This worker's lease ran out (or is about to): another may own the export. */
+export class LeaseExpiredError extends LeaseHeldError {
+  constructor() {
+    super()
+    this.message = 'The export lease of this worker has run out'
+    this.name = 'LeaseExpiredError'
+  }
+}
+
+/**
+ * A worker stops writing to keys another worker could also write this long
+ * before its lease ends: one S3 call (`ARCHIVE_S3_REQUEST_TIMEOUT_MS`) may
+ * still be in flight when the check passes.
+ */
+export const ARCHIVE_LEASE_SAFETY_MS = 30 * 1000
+
 /** A worker's claim on an export is this long past its slice budget. */
 export const ARCHIVE_LEASE_GRACE_MS = 60 * 1000
 
@@ -50,6 +66,20 @@ export class ProgressSaver {
     })
     if (!updated) throw new StaleSliceError()
     this.saved = text
+  }
+
+  /**
+   * Throws when this worker's own lease has run out, or will within the safety
+   * margin. Called before every write to a key that a later worker (or a
+   * redelivery) writes too, so a worker that stalled past its lease and woke up
+   * after a takeover cannot overwrite what the new owner wrote. The slice is
+   * retried, from the last saved cursor.
+   */
+  assertLeased(now: number) {
+    const lease = this.progress.lease
+    if (lease && now >= lease.until - ARCHIVE_LEASE_SAFETY_MS) {
+      throw new LeaseExpiredError()
+    }
   }
 
   /** Ends this worker's slice: the next delivery may take the export. */

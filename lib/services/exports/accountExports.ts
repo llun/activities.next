@@ -41,7 +41,8 @@ type ExportRow = Record<string, unknown>
  * One page of rows read through the account export reader: a keyset on the
  * row id, taken from the cursor, never from a row that has to still exist, so
  * a row deleted or edited between two slices cannot end the file, skip a row
- * or repeat one. Rows come oldest id first, which Mastodon does not care about.
+ * or repeat one. Rows come in id order (oldest first only for bookmarks; the
+ * other ids are random), which Mastodon does not care about.
  */
 const readRows = async (
   database: Database,

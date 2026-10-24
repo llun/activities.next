@@ -1002,6 +1002,80 @@ describe('exportAccountArchiveJob', () => {
       ).resolves.toBeTruthy()
     })
 
+    it('stops writing shared parts once its own lease has run out, and the export still ends in a valid zip', async () => {
+      const id = await makeArchive(accountId)
+      // Collect first, so the next delivery starts the assembly.
+      await run(id, 0)
+      for (;;) {
+        const progress = parseProgress(
+          (await database.getAccountArchive({ id }))!.progress
+        )!
+        if (progress.phase === 'assemble') break
+        const next = published.shift()!
+        await run(id, (next.data as { slice: number }).slice)
+      }
+      published.length = 0
+      sliceBudget.ms = 10 * 60 * 1000
+
+      // The worker stalls inside the archive output for longer than its lease.
+      const realNow = Date.now.bind(Date)
+      let offset = 0
+      vi.spyOn(Date, 'now').mockImplementation(() => realNow() + offset)
+      const open = FileArchiveObjectStore.prototype.openResumableWrite
+      const put = FileArchiveObjectStore.prototype.put
+      let jumped = false
+      const writtenAfterLapse: string[] = []
+      vi.spyOn(
+        FileArchiveObjectStore.prototype,
+        'openResumableWrite'
+      ).mockImplementation(async function (
+        this: FileArchiveObjectStore,
+        ...args
+      ) {
+        const sink = await open.apply(this, args)
+        const write = sink.write.bind(sink)
+        sink.write = async (chunk) => {
+          await write(chunk)
+          if (!jumped) {
+            jumped = true
+            offset = 2 * 60 * 60 * 1000
+          }
+        }
+        return sink
+      })
+      vi.spyOn(FileArchiveObjectStore.prototype, 'put').mockImplementation(
+        async function (this: FileArchiveObjectStore, key, body) {
+          if (offset > 0 && /\/stage\/(directory|names)-/.test(key)) {
+            writtenAfterLapse.push(key)
+          }
+          return put.call(this, key, body)
+        }
+      )
+
+      const progress = parseProgress(
+        (await database.getAccountArchive({ id }))!.progress
+      )!
+      await expect(run(id, progress.completed + 1)).rejects.toThrow('lease')
+      expect(jumped).toBe(true)
+      // Nothing was written to the shared directory keys after the lapse.
+      expect(writtenAfterLapse).toEqual([])
+      // Not a failure of the export, and not given up on.
+      const after = (await database.getAccountArchive({ id }))!
+      expect(after.status).toBe('running')
+      expect(parseProgress(after.progress)!.failures).toBe(0)
+
+      // The redelivery, with the clock still ahead, finishes it.
+      await run(id, progress.completed + 1)
+      for (let slices = 0; slices < 50 && published.length > 0; slices += 1) {
+        const next = published.shift()!
+        await run(id, (next.data as { slice: number }).slice)
+      }
+      const archive = (await database.getAccountArchive({ id }))!
+      expect(archive.status).toBe('ready')
+      const { names } = await readArchive(id)
+      expect(names).toContain('activities.next/manifest.json')
+    })
+
     it('makes a delivery wait for the lease instead of dropping it', async () => {
       const id = await makeArchive(accountId)
       await run(id, 0)

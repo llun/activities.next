@@ -6,6 +6,7 @@ import { Readable } from 'stream'
 import { getConfig } from '@/lib/config'
 import { FitnessStorageType } from '@/lib/config/fitnessStorage'
 import { MediaStorageType } from '@/lib/config/mediaStorage'
+import { ARCHIVE_SOURCE_IDLE_TIMEOUT_MS } from '@/lib/services/accountArchive/constants'
 import { ARCHIVE_S3_REQUEST_TIMEOUT_MS } from '@/lib/services/accountArchive/objectStore'
 import { getEffectiveFitnessStorageConfig } from '@/lib/services/fitness-files'
 import {
@@ -48,23 +49,48 @@ const getClient = (config: { region: string; endpoint?: string }) => {
 
 const errorName = (error: unknown) => (error as { name?: string }).name
 
+// The retryable S3 error codes of the AWS SDK (smithy service-error
+// classification), copied here because that package is only a transitive
+// dependency.
 const TRANSIENT_ERROR_NAMES = new Set([
-  'TimeoutError',
-  'RequestTimeout',
+  // Clock skew and expired credentials: a later attempt gets past them.
+  'AuthFailure',
+  'InvalidSignatureException',
+  'RequestExpired',
+  'RequestInTheFuture',
+  'RequestTimeTooSkewed',
+  'SignatureDoesNotMatch',
+  'ExpiredToken',
+  'ExpiredTokenException',
+  // Throttling.
+  'BandwidthLimitExceeded',
+  'EC2ThrottledException',
+  'LimitExceededException',
+  'PriorRequestNotComplete',
+  'ProvisionedThroughputExceededException',
+  'RequestLimitExceeded',
+  'RequestThrottled',
+  'RequestThrottledException',
   'SlowDown',
+  'ThrottledException',
   'Throttling',
   'ThrottlingException',
-  'RequestThrottled',
-  'ServiceUnavailable',
-  'InternalError'
+  'TooManyRequestsException',
+  'TransactionInProgressException',
+  // Transient server and network errors.
+  'TimeoutError',
+  'RequestTimeout',
+  'RequestTimeoutException',
+  'InternalError',
+  'ServiceUnavailable'
 ])
 
 /**
- * An error that a later attempt can get past: a server error, throttling, a
- * timeout, or a network failure with no answer at all. The clients of an export
- * make a single attempt, so these must not be mistaken for a file that cannot
- * be read: the error is rethrown, the slice fails and the queue retries it.
- * A final answer (access denied, bad request) stays a skipped file.
+ * An error that a later attempt can get past: a server error, throttling, clock
+ * skew, a timeout, or a network failure with no answer at all. The clients of
+ * an export make a single attempt, so these must not be mistaken for a file
+ * that cannot be read: the error is rethrown, the slice fails and the queue
+ * retries it. A final answer (access denied, bad request) stays a skipped file.
  */
 const isTransientStorageError = (error: unknown) => {
   if (TRANSIENT_ERROR_NAMES.has(errorName(error) ?? '')) return true
@@ -72,6 +98,54 @@ const isTransientStorageError = (error: unknown) => {
     .$metadata?.httpStatusCode
   if (status === undefined) return true
   return status >= 500 || status === 429 || status === 408
+}
+
+/** Errors of the local disk that a later attempt can get past. */
+const TRANSIENT_FS_CODES = new Set([
+  'EIO',
+  'ESTALE',
+  'ETIMEDOUT',
+  'EAGAIN',
+  'EBUSY'
+])
+
+/**
+ * Reads `stream` and gives up when it sends nothing for `idleMs`: the request
+ * timeout of the client stops at the response headers, so a body that stalls
+ * would otherwise be waited for for ever. Only the wait for the next chunk is
+ * timed, not the time the caller spends with a chunk (an upload of a part).
+ */
+export async function* readWithIdleTimeout(
+  stream: Readable,
+  idleMs: number = ARCHIVE_SOURCE_IDLE_TIMEOUT_MS
+): AsyncGenerator<Buffer> {
+  const iterator = stream[Symbol.asyncIterator]()
+  try {
+    for (;;) {
+      let timer: NodeJS.Timeout | undefined
+      const idle = new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => {
+          reject(
+            Object.assign(new Error('The source file stopped sending data'), {
+              name: 'TimeoutError'
+            })
+          )
+        }, idleMs)
+      })
+      let next: IteratorResult<unknown>
+      try {
+        next = await Promise.race([iterator.next(), idle])
+      } finally {
+        clearTimeout(timer)
+      }
+      if (next.done) return
+      yield Buffer.isBuffer(next.value)
+        ? next.value
+        : Buffer.from(next.value as string)
+    }
+  } finally {
+    stream.destroy()
+  }
 }
 
 const openLocal = async (
@@ -94,12 +168,11 @@ const openLocal = async (
       }
     }
   } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code
+    if (code && TRANSIENT_FS_CODES.has(code)) throw error
     return {
       ok: false,
-      reason:
-        (error as NodeJS.ErrnoException).code === 'ENOENT'
-          ? 'missing'
-          : 'failed'
+      reason: code === 'ENOENT' ? 'missing' : 'failed'
     }
   }
 }

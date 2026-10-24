@@ -51,3 +51,10 @@ export const ARCHIVE_EXTRAS_DIR = 'activities.next'
 /** The file name a download is offered under. */
 export const getArchiveDownloadFileName = (archiveId: string) =>
   `activities-archive-${archiveId.slice(0, 8)}.zip`
+
+/**
+ * A source file download that sends nothing for this long is cut off and the
+ * slice fails. Longer than one S3 call: while the archive uploads a part, the
+ * source stream is paused by backpressure and that time is not counted.
+ */
+export const ARCHIVE_SOURCE_IDLE_TIMEOUT_MS = 45 * 1000
