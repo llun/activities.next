@@ -131,6 +131,7 @@ describe('every Back', () => {
     '/tags/running',
     '/fitness',
     '/settings',
+    '/account/security',
     '/@anna@llun.social',
     '/%40anna%40llun.social',
     '/@anna@llun.social/followers',

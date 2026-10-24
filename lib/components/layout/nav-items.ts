@@ -12,7 +12,7 @@ import {
   Search,
   Settings,
   Shield,
-  Users
+  UserRound
 } from 'lucide-react'
 import { type LucideIcon } from 'lucide-react'
 
@@ -131,12 +131,11 @@ const NAV_ITEM_DEFINITIONS: Record<NavItemId, NavItemDefinition> = {
     icon: Shield,
     blurb: 'Instance moderation (admins only)'
   },
-  account: {
-    href: '/account',
-    label: 'Account & security',
-    shortLabel: 'Account',
-    icon: Users,
-    blurb: 'Email, password and sessions, shared across your profiles'
+  profile: {
+    href: '/',
+    label: 'Profile',
+    icon: UserRound,
+    blurb: 'Your profile page, as others see it'
   },
   settings: {
     href: '/settings',
@@ -149,6 +148,7 @@ const NAV_ITEM_DEFINITIONS: Record<NavItemId, NavItemDefinition> = {
 export interface BuildNavItemsParams {
   fitnessUrl?: string
   galleryUrl?: string
+  profileUrl?: string
   isAdmin?: boolean
   // Instance features an admin can switch off. Missing keys default to on.
   features?: Partial<NavFeatureFlags>
@@ -163,13 +163,15 @@ const isFeatureEnabled = (
 }
 
 /**
- * What this viewer can reach at all: role-gated items (Admin), account-gated
- * ones (Fitness), and anything an admin has switched off instance-wide. Items
- * outside this set render nowhere, but keep their slot in the saved order.
+ * What this viewer can reach at all: role-gated items (Admin), actor/account-gated
+ * ones (Profile, Fitness, Gallery), and anything an admin has switched off
+ * instance-wide. Items outside this set render nowhere, but keep their slot in
+ * the saved order.
  */
 export const availableNavIds = ({
   fitnessUrl,
   galleryUrl,
+  profileUrl,
   isAdmin = false,
   features
 }: BuildNavItemsParams): Set<NavItemId> =>
@@ -178,6 +180,7 @@ export const availableNavIds = ({
       if (!isFeatureEnabled(id, features)) return false
       if (id === 'fitness') return Boolean(fitnessUrl)
       if (id === 'gallery') return Boolean(galleryUrl)
+      if (id === 'profile') return Boolean(profileUrl)
       if (id === 'admin') return isAdmin
       return true
     })
@@ -185,7 +188,7 @@ export const availableNavIds = ({
 
 export const getNavItem = (
   id: NavItemId,
-  { fitnessUrl, galleryUrl }: BuildNavItemsParams = {}
+  { fitnessUrl, galleryUrl, profileUrl }: BuildNavItemsParams = {}
 ): NavItem => {
   const definition = NAV_ITEM_DEFINITIONS[id]
   return {
@@ -196,7 +199,9 @@ export const getNavItem = (
         ? fitnessUrl
         : id === 'gallery' && galleryUrl
           ? galleryUrl
-          : definition.href,
+          : id === 'profile' && profileUrl
+            ? profileUrl
+            : definition.href,
     locked: isNavItemLocked(id),
     feature: NAV_FEATURE_BY_ID[id]
   }

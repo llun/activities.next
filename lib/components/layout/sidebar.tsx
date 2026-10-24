@@ -23,7 +23,6 @@ import { type NavItem, buildNavLayout } from '@/lib/components/layout/nav-items'
 import { useNavPreferences } from '@/lib/components/layout/nav-preferences-context'
 import { NotificationBadge } from '@/lib/components/notification-badge/NotificationBadge'
 import { scrollPageToTop } from '@/lib/components/scroll-to-top-button/scrollPageToTop'
-import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Badge } from '@/lib/components/ui/badge'
 import {
   DropdownMenu,
@@ -223,16 +222,22 @@ export function Sidebar({
   const pathname = usePathname()
   const draftsCount = useDrafts()?.count ?? 0
   const { order, hidden, hideItem, showItem, move } = useNavPreferences()
+  const profileUrl = currentActor
+    ? `/@${currentActor.username}@${currentActor.domain}`
+    : user
+      ? `/${user.handle}`
+      : undefined
   const { shown, more } = useMemo(
     () =>
       buildNavLayout({
+        profileUrl,
         fitnessUrl,
         galleryUrl,
         isAdmin,
         features,
         prefs: { navOrder: order, navHidden: hidden }
       }),
-    [features, fitnessUrl, galleryUrl, hidden, isAdmin, order]
+    [features, fitnessUrl, galleryUrl, hidden, isAdmin, order, profileUrl]
   )
   // Reordering swaps with the nearest neighbour that is actually on screen, so
   // hidden and unavailable items keep their slot.
@@ -294,11 +299,6 @@ export function Sidebar({
   useEffect(() => {
     if (isMoreSectionActive) setMoreOpen(true)
   }, [isMoreSectionActive])
-
-  const getAvatarInitial = (username: string) => {
-    if (!username) return '?'
-    return username[0].toUpperCase()
-  }
 
   // Hiding a row and putting it back both unmount the control that did it: the
   // row moves between the navigation and the More group, taking the ⋯ menu or
@@ -497,6 +497,7 @@ export function Sidebar({
                     onClick={handleNavClick(item.href)}
                     ref={registerRow(`nav:${item.id}`)}
                     aria-current={isActive ? 'page' : undefined}
+                    prefetch={item.id === 'profile' ? false : undefined}
                     className={cn(
                       'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors relative',
                       isDrawer ? 'min-h-[44px] pr-14' : 'pr-10',
@@ -594,6 +595,7 @@ export function Sidebar({
                             onClick={handleNavClick(item.href)}
                             ref={registerRow(`more:${item.id}`)}
                             aria-current={isActive ? 'page' : undefined}
+                            prefetch={item.id === 'profile' ? false : undefined}
                             className={cn(
                               'flex items-center gap-3 rounded-lg py-1.5 pl-6 text-sm transition-colors',
                               isDrawer ? 'min-h-[44px] pr-14' : 'pr-10',
@@ -633,38 +635,16 @@ export function Sidebar({
           </ul>
         </nav>
 
-        {currentActor && actors.length > 0 ? (
+        {currentActor || user ? (
           <div className={accountRowClassName}>
             <ActorSwitcher
               currentActor={currentActor}
               actors={actors}
+              user={user}
               onNavigate={onNavigate}
+              variant="row"
+              drawer={isDrawer}
             />
-          </div>
-        ) : user ? (
-          <div className={accountRowClassName}>
-            <Link
-              href={`/${user.handle}`}
-              onClick={onNavigate}
-              prefetch={false}
-              className={cn(
-                'flex items-center gap-3 rounded-lg p-2 cursor-pointer hover:bg-muted transition-colors',
-                isDrawer && 'min-h-[44px]'
-              )}
-            >
-              <Avatar className="h-10 w-10">
-                {user.avatarUrl && <AvatarImage src={user.avatarUrl} />}
-                <AvatarFallback className="bg-(--skeleton) font-semibold text-muted-foreground dark:bg-input">
-                  {getAvatarInitial(user.username)}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1 overflow-hidden">
-                <p className="text-sm font-medium truncate">{user.name}</p>
-                <p className="text-xs text-muted-foreground truncate">
-                  {user.handle}
-                </p>
-              </div>
-            </Link>
           </div>
         ) : isLoading ? (
           <div className={accountRowClassName} aria-hidden="true">
@@ -708,6 +688,7 @@ export function Sidebar({
                           href={item.href}
                           onClick={handleNavClick(item.href)}
                           ref={registerRow(`rail:${item.id}`)}
+                          prefetch={item.id === 'profile' ? false : undefined}
                           // The row is an icon, and the tooltip beside it only
                           // describes: without this the rail reads out as a list
                           // of unnamed links — including to whoever has just been
@@ -789,6 +770,9 @@ export function Sidebar({
                               <Link
                                 href={item.href}
                                 aria-current={isActive ? 'page' : undefined}
+                                prefetch={
+                                  item.id === 'profile' ? false : undefined
+                                }
                                 className={cn(
                                   'flex items-center gap-2.5 pr-10',
                                   isActive && 'text-primary-text'
@@ -848,30 +832,15 @@ export function Sidebar({
             </ul>
           </nav>
 
-          {user ? (
-            // The bottom padding clears the home indicator, so the account
-            // stays tappable on iPhones and foldables in landscape.
-            // w-full so the divider spans the whole rail (the aside is an
-            // items-center column, which would shrink it to its content);
-            // justify-center keeps the avatar where it was.
+          {currentActor || user ? (
             <div className="flex w-full justify-center border-t px-3 pt-3 pb-[calc(env(safe-area-inset-bottom,0px)+0.75rem)]">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Link
-                    href={`/${user.handle}`}
-                    prefetch={false}
-                    className="cursor-pointer block"
-                  >
-                    <Avatar className="h-10 w-10">
-                      {user.avatarUrl && <AvatarImage src={user.avatarUrl} />}
-                      <AvatarFallback className="bg-(--skeleton) font-semibold text-muted-foreground dark:bg-input">
-                        {getAvatarInitial(user.username)}
-                      </AvatarFallback>
-                    </Avatar>
-                  </Link>
-                </TooltipTrigger>
-                <TooltipContent side="right">{user.handle}</TooltipContent>
-              </Tooltip>
+              <ActorSwitcher
+                currentActor={currentActor}
+                actors={actors}
+                user={user}
+                onNavigate={onNavigate}
+                variant="rail"
+              />
             </div>
           ) : isLoading ? (
             <div

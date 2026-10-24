@@ -1,6 +1,7 @@
 import {
   DEFAULT_NAV_ORDER,
   type NavItemId,
+  isNavItemLocked,
   moveNavItem,
   moveNavItemTo,
   normalizedHidden,
@@ -64,6 +65,41 @@ describe('normalizedOrder', () => {
     expect(order.filter((id) => id === 'settings')).toHaveLength(1)
     expect(order).toHaveLength(DEFAULT_NAV_ORDER.length)
   })
+
+  it('maps legacy account to profile and home to timeline', () => {
+    const order = normalizedOrder({
+      navOrder: ['timeline', 'account', 'settings']
+    })
+    expect(order[0]).toBe('timeline')
+    expect(order[1]).toBe('profile')
+    expect(order[2]).toBe('settings')
+  })
+
+  it('keeps the first occurrence when both profile and account appear', () => {
+    const orderWithAccountFirst = normalizedOrder({
+      navOrder: ['timeline', 'account', 'explore', 'profile']
+    })
+    expect(orderWithAccountFirst.slice(0, 3)).toEqual([
+      'timeline',
+      'profile',
+      'explore'
+    ])
+    expect(orderWithAccountFirst.filter((id) => id === 'profile')).toHaveLength(
+      1
+    )
+
+    const orderWithProfileFirst = normalizedOrder({
+      navOrder: ['timeline', 'profile', 'explore', 'account']
+    })
+    expect(orderWithProfileFirst.slice(0, 3)).toEqual([
+      'timeline',
+      'profile',
+      'explore'
+    ])
+    expect(orderWithProfileFirst.filter((id) => id === 'profile')).toHaveLength(
+      1
+    )
+  })
 })
 
 describe('normalizedHidden', () => {
@@ -84,6 +120,10 @@ describe('normalizedHidden', () => {
         navHidden: ['favorites', 'bookmarks']
       })
     ).toEqual(['bookmarks', 'favorites'])
+  })
+
+  it('drops legacy account so it never hides profile', () => {
+    expect(normalizedHidden({ navHidden: ['account'] })).toEqual([])
   })
 })
 
@@ -193,6 +233,13 @@ describe('sanitizeNavOrder', () => {
     ).toEqual(['settings', 'timeline'])
   })
 
+  it('maps account to profile and home to timeline', () => {
+    expect(sanitizeNavOrder(['account', 'timeline'])).toEqual([
+      'profile',
+      'timeline'
+    ])
+  })
+
   it('accepts an empty list as a reset', () => {
     expect(sanitizeNavOrder([])).toEqual([])
   })
@@ -203,5 +250,20 @@ describe('sanitizeNavHidden', () => {
     expect(
       sanitizeNavHidden(['settings', 'timeline', 'favorites', 'trends'])
     ).toEqual(['favorites'])
+  })
+
+  it('drops legacy account so it cannot hide profile', () => {
+    expect(sanitizeNavHidden(['account'])).toEqual([])
+  })
+})
+
+describe('isNavItemLocked', () => {
+  it('locks core reading surfaces and settings, but leaves profile unlocked', () => {
+    expect(isNavItemLocked('profile')).toBe(false)
+    expect(isNavItemLocked('settings')).toBe(true)
+    expect(isNavItemLocked('timeline')).toBe(true)
+    expect(isNavItemLocked('search')).toBe(true)
+    expect(isNavItemLocked('lists')).toBe(true)
+    expect(isNavItemLocked('notifications')).toBe(true)
   })
 })

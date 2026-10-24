@@ -67,8 +67,8 @@ export interface ClientBootstrapSnapshot {
   lists: BootstrapListSummary[]
   features: Partial<BootstrapFeatures>
   instanceLimits: BootstrapInstanceLimits
-  navOrder?: NavItemId[]
-  navHidden?: NavItemId[]
+  navOrder?: (NavItemId | string)[]
+  navHidden?: (NavItemId | string)[]
   readingAutoplayGifs: boolean
   postLineLimit?: PostLineLimit
   readingGroupBoosts: boolean

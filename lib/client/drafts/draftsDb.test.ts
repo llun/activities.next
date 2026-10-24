@@ -13,6 +13,7 @@ import {
   DraftSignedOutError,
   DraftsUnavailableError,
   countDrafts,
+  countDraftsByState,
   deleteAccountDrafts,
   deleteDraft,
   deleteDraftBlob,
@@ -127,6 +128,88 @@ describe('draftsDb', () => {
       expect(await countDrafts({ actorId: 'nobody' })).toBe(0)
       expect(await countDrafts({ accountId: 'account-1' })).toBe(3)
       expect(await countDrafts({ accountId: 'account-2' })).toBe(1)
+    })
+
+    it('counts drafts partitioned by state into waiting and drafts', async () => {
+      // Empty store handles non-existent actor and account
+      expect(await countDraftsByState({ actorId: 'actor-1' })).toEqual({
+        waiting: 0,
+        drafts: 0
+      })
+      expect(await countDraftsByState({ accountId: 'account-1' })).toEqual({
+        waiting: 0,
+        drafts: 0
+      })
+
+      // 2 plain drafts for actor-1 (account-1)
+      await saveDraft(draft({ id: 'plain-1' }), {
+        expectedRevision: 0,
+        epoch: 0
+      })
+      await saveDraft(draft({ id: 'plain-2' }), {
+        expectedRevision: 0,
+        epoch: 0
+      })
+      // 1 queued draft for actor-1 (account-1)
+      await saveDraft(
+        draft({
+          id: 'queued-1',
+          queue: { state: 'waiting', queuedAt: 10, attempts: 0 }
+        }),
+        { expectedRevision: 0, epoch: 0 }
+      )
+      // 1 queued draft for actor-2 (account-1)
+      await saveDraft(
+        draft({
+          id: 'queued-2',
+          actorId: 'actor-2',
+          queue: { state: 'couldnt_send', queuedAt: 20, attempts: 3 }
+        }),
+        { expectedRevision: 0, epoch: 0 }
+      )
+      // 1 plain draft for actor-3 (account-2)
+      await saveDraft(
+        draft({
+          id: 'plain-3',
+          accountId: 'account-2',
+          actorId: 'actor-3'
+        }),
+        { expectedRevision: 0, epoch: 0 }
+      )
+
+      // actorId scope
+      expect(await countDraftsByState({ actorId: 'actor-1' })).toEqual({
+        waiting: 1,
+        drafts: 2
+      })
+      expect(await countDraftsByState({ actorId: 'actor-2' })).toEqual({
+        waiting: 1,
+        drafts: 0
+      })
+      expect(await countDraftsByState({ actorId: 'actor-3' })).toEqual({
+        waiting: 0,
+        drafts: 1
+      })
+      expect(await countDraftsByState({ actorId: 'missing-actor' })).toEqual({
+        waiting: 0,
+        drafts: 0
+      })
+
+      // accountId scope
+      expect(await countDraftsByState({ accountId: 'account-1' })).toEqual({
+        waiting: 2,
+        drafts: 2
+      })
+      expect(await countDraftsByState({ accountId: 'account-2' })).toEqual({
+        waiting: 0,
+        drafts: 1
+      })
+      expect(
+        await countDraftsByState({ accountId: 'missing-account' })
+      ).toEqual({
+        waiting: 0,
+        drafts: 0
+      })
     })
 
     it('keeps an attachment record whole, including its upload id and the flag that its bytes are kept', async () => {

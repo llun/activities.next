@@ -32,12 +32,15 @@ import {
 } from '@/lib/services/navigation/navPreferences'
 import { cn } from '@/lib/utils'
 
-interface Props {
+export interface NavigationSettingsProps {
   fitnessUrl?: string
   galleryUrl?: string
+  profileUrl?: string
   isAdmin?: boolean
   features?: Partial<NavFeatureFlags>
 }
+
+type Props = NavigationSettingsProps
 
 const Chip: FC<{ children: React.ReactNode }> = ({ children }) => (
   <span className="whitespace-nowrap rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
@@ -55,6 +58,7 @@ const StatusCaption: FC<{ children: React.ReactNode }> = ({ children }) => (
 export const NavigationSettings: FC<Props> = ({
   fitnessUrl,
   galleryUrl,
+  profileUrl,
   isAdmin = false,
   features
 }) => {
@@ -99,6 +103,7 @@ export const NavigationSettings: FC<Props> = ({
     const navParams: BuildNavItemsParams = {
       fitnessUrl,
       galleryUrl,
+      profileUrl,
       isAdmin,
       features
     }
@@ -106,6 +111,7 @@ export const NavigationSettings: FC<Props> = ({
     const thisAccountsItems = availableNavIds({
       fitnessUrl,
       galleryUrl,
+      profileUrl,
       isAdmin
     })
     return order
@@ -115,7 +121,7 @@ export const NavigationSettings: FC<Props> = ({
         isHidden: hidden.includes(id),
         isFeatureOff: !available.has(id)
       }))
-  }, [features, fitnessUrl, galleryUrl, hidden, isAdmin, order])
+  }, [features, fitnessUrl, galleryUrl, hidden, isAdmin, order, profileUrl])
 
   // Moves a row to the next position *in this list*, which is what dragging
   // does — the sidebar's ⋯ menu skips over hidden items instead, because there
@@ -343,6 +349,10 @@ export const NavigationSettings: FC<Props> = ({
             )
           })}
         </FramedList>
+        <p className="text-xs text-muted-foreground">
+          Account &amp; security and Sign out are in the account menu at the
+          bottom of the sidebar.
+        </p>
       </Section>
 
       <p aria-live="polite" className="sr-only">

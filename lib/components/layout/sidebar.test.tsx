@@ -59,7 +59,17 @@ vi.mock('@/lib/client', () => ({
 }))
 
 vi.mock('@/lib/components/actor-switcher/ActorSwitcher', () => ({
-  ActorSwitcher: () => <div data-testid="actor-switcher" />
+  ActorSwitcher: ({
+    user,
+    currentActor
+  }: {
+    user?: { name?: string; username?: string; handle?: string }
+    currentActor?: { name?: string; username?: string }
+  }) => (
+    <div data-testid="actor-switcher">
+      {currentActor?.name || currentActor?.username || user?.name}
+    </div>
+  )
 }))
 
 const renderSidebar = (
@@ -532,8 +542,8 @@ describe('Sidebar', () => {
       const { container } = renderSidebar(<Sidebar lists={[]} user={user} />)
 
       const accountRows = Array.from(
-        container.querySelectorAll(`aside a[href="/${user.handle}"]`)
-      ).map((link) => link.closest('aside > div'))
+        container.querySelectorAll('[data-testid="actor-switcher"]')
+      ).map((el) => el.closest('aside > div'))
       expect(accountRows).toHaveLength(2)
       for (const row of accountRows) {
         expect(row?.className).toContain('env(safe-area-inset-bottom,0px)')
@@ -546,7 +556,7 @@ describe('Sidebar', () => {
       )
 
       const row = container
-        .querySelector(`aside a[href="/${user.handle}"]`)
+        .querySelector('[data-testid="actor-switcher"]')
         ?.closest('aside > div')
       expect(row).toHaveClass('pb-4')
       expect(row?.className).not.toContain('safe-area-inset-bottom')
