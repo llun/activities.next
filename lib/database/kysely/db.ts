@@ -211,16 +211,20 @@ export interface BulkImportRows {
 
 export interface BulkImports {
   actorId: string
+  claimedUntil: Nullable<Timestamp>
   createdAt: WithDefault<Timestamp>
   finishedAt: Nullable<Timestamp>
   id: string
   importedItems: WithDefault<number>
   lastError: Nullable<string>
+  listsPrepared: WithDefault<boolean>
   nextRowIndex: WithDefault<number>
   originalFilename: WithDefault<string>
   overwrite: WithDefault<boolean>
   overwriteDone: WithDefault<boolean>
+  overwriteProgress: WithDefault<number>
   processedItems: WithDefault<number>
+  runToken: Nullable<string>
   state: string
   totalItems: WithDefault<number>
   type: string

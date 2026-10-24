@@ -54,8 +54,10 @@ vi.mock('@/lib/config', () => ({
 }))
 
 const mockPublish = vi.fn().mockResolvedValue(undefined)
+let mockRunsInline = false
 vi.mock('@/lib/services/queue', () => ({
   getQueue: vi.fn(() => ({
+    runsInline: mockRunsInline,
     publish: mockPublish
   }))
 }))
@@ -77,6 +79,7 @@ describe('/api/v1/imports', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockRunsInline = false
     mockPublish.mockResolvedValue(undefined)
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
@@ -258,6 +261,42 @@ describe('/api/v1/imports', () => {
       expect(retry.status).toBe(HTTP_STATUS.ACCEPTED)
     })
 
+    it('starts an inline queue run without waiting for it and answers 202', async () => {
+      mockRunsInline = true
+      let finishRun!: () => void
+      mockPublish.mockReturnValueOnce(
+        new Promise<void>((resolve) => {
+          finishRun = resolve
+        })
+      )
+
+      // Resolves although the "job" is still running.
+      const response = await POST(createPostRequest(buildValidForm()), {
+        params: Promise.resolve({})
+      })
+      expect(response.status).toBe(HTTP_STATUS.ACCEPTED)
+      expect(mockPublish).toHaveBeenCalledTimes(1)
+      finishRun()
+    })
+
+    it('keeps the import and answers 202 when an inline run throws', async () => {
+      mockRunsInline = true
+      mockPublish.mockRejectedValueOnce(new Error('job exploded'))
+
+      const response = await POST(createPostRequest(buildValidForm()), {
+        params: Promise.resolve({})
+      })
+      expect(response.status).toBe(HTTP_STATUS.ACCEPTED)
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      const [stored] = await database.getBulkImports({
+        actorId: ACTOR1_ID,
+        limit: 1
+      })
+      expect(stored.state).toBe('scheduled')
+      expect(stored.lastError).toBeNull()
+    })
+
     it('returns 413 before reading the body when content-length is too large', async () => {
       const req = new NextRequest('https://llun.test/api/v1/imports', {
         method: 'POST',
@@ -361,7 +400,7 @@ describe('/api/v1/imports', () => {
       expect(await response.json()).toEqual({ error: 'Invalid import mode' })
     })
 
-    it('returns 422 when the file exceeds the limit', async () => {
+    it('returns 413 when the file exceeds the limit but fits the multipart allowance', async () => {
       const file = new File(
         [new Uint8Array(BULK_IMPORT_FILE_SIZE_LIMIT + 1)],
         'following_accounts.csv',
@@ -374,7 +413,7 @@ describe('/api/v1/imports', () => {
       const req = createPostRequest(form)
 
       const response = await POST(req, { params: Promise.resolve({}) })
-      expect(response.status).toBe(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+      expect(response.status).toBe(HTTP_STATUS.PAYLOAD_TOO_LARGE)
       expect(await response.json()).toEqual({ error: 'File is too large' })
     })
 

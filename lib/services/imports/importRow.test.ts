@@ -284,6 +284,24 @@ describe('importRow', () => {
       expect(follow).toHaveBeenCalledTimes(1)
     })
 
+    it('fails a row with an empty or over-long list name', async () => {
+      await database.createList({ actorId: actor.id, title: 'Friends' })
+      for (const list_name of ['', 'x'.repeat(256)]) {
+        expect(
+          await run('lists', { list_name, acct: 'bob@remote.test' })
+        ).toEqual({ imported: false, error: 'Invalid list name' })
+      }
+      expect(resolveAccountTarget).not.toHaveBeenCalled()
+    })
+
+    it('accepts a list name of exactly 255 characters', async () => {
+      const title = 'x'.repeat(255)
+      await database.createList({ actorId: actor.id, title })
+      expect(
+        await run('lists', { list_name: title, acct: 'bob@remote.test' })
+      ).toEqual({ imported: true })
+    })
+
     it('adds the owner without following themselves', async () => {
       const list = await database.createList({
         actorId: actor.id,
@@ -296,6 +314,71 @@ describe('importRow', () => {
       expect(
         await database.getListMembers({ listId: list.id, actorId: actor.id })
       ).toHaveLength(1)
+    })
+  })
+
+  describe('blocked accounts', () => {
+    const setups: [string, () => Promise<unknown>][] = [
+      [
+        'the importer blocks the account',
+        () =>
+          database.createBlock({
+            actorId: actor.id,
+            targetActorId: bob.id,
+            uri: `${actor.id}#blocks/bob`
+          })
+      ],
+      [
+        'the account blocks the importer',
+        () =>
+          database.createBlock({
+            actorId: bob.id,
+            targetActorId: actor.id,
+            uri: `${bob.id}#blocks/test1`
+          })
+      ],
+      [
+        'the importer blocks the domain',
+        () =>
+          database.createActorDomainBlock({
+            actorId: actor.id,
+            domain: bob.domain
+          })
+      ]
+    ]
+
+    describe.each(setups)('when %s', (_name, setup) => {
+      beforeEach(async () => {
+        await setup()
+      })
+
+      it('does not follow from a following row', async () => {
+        expect(await run('following', { acct: 'bob@remote.test' })).toEqual({
+          imported: false,
+          error: 'Account is blocked'
+        })
+        expect(follow).not.toHaveBeenCalled()
+        expect(
+          await database.getAcceptedOrRequestedFollow({
+            actorId: actor.id,
+            targetActorId: bob.id
+          })
+        ).toBeNull()
+      })
+
+      it('neither follows nor adds from a lists row', async () => {
+        const list = await database.createList({
+          actorId: actor.id,
+          title: 'Friends'
+        })
+        expect(
+          await run('lists', { list_name: 'Friends', acct: 'bob@remote.test' })
+        ).toEqual({ imported: false, error: 'Account is blocked' })
+        expect(follow).not.toHaveBeenCalled()
+        expect(
+          await database.getListMembers({ listId: list.id, actorId: actor.id })
+        ).toHaveLength(0)
+      })
     })
   })
 })

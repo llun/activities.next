@@ -30,14 +30,14 @@ export const exportFollowingAccounts = async (
   options?: { pageSize?: number }
 ): Promise<string> => {
   const pageSize = options?.pageSize ?? DEFAULT_PAGE_SIZE
-  let maxId: string | undefined
+  let cursor: { createdAt: number; id: string } | undefined
   let output = 'Account address,Show boosts,Notify on new posts,Languages\n'
 
   for (;;) {
-    const page = await database.getFollowing({
+    const page = await database.getFollowingNewestFirst({
       actorId,
       limit: pageSize,
-      ...(maxId ? { maxId } : null)
+      cursor
     })
     if (page.length === 0) break
 
@@ -58,7 +58,8 @@ export const exportFollowingAccounts = async (
     }
 
     if (page.length < pageSize) break
-    maxId = page[page.length - 1].id
+    const last = page[page.length - 1]
+    cursor = { createdAt: last.createdAt, id: last.id }
   }
 
   return output

@@ -113,9 +113,9 @@ export const POST = traceApiRoute(
       return errorResponse(req, 'File is required')
     }
 
-    if (file.size > BULK_IMPORT_FILE_SIZE_LIMIT) {
-      return errorResponse(req, 'File is too large')
-    }
+    // Same answer as a body over the cap: the file can fit inside the
+    // multipart allowance and still be over the limit.
+    if (file.size > BULK_IMPORT_FILE_SIZE_LIMIT) return tooLarge()
 
     const text = await file.text()
     const parsed = parseImportCsv({ type, text })
@@ -143,31 +143,47 @@ export const POST = traceApiRoute(
       )
     }
 
-    try {
-      await getQueue().publish({
-        id: `${importId}:start`,
-        name: BULK_IMPORT_JOB_NAME,
-        data: { importId }
+    const queue = getQueue()
+    const message = {
+      id: `${importId}:start`,
+      name: BULK_IMPORT_JOB_NAME,
+      data: { importId }
+    }
+    if (queue.runsInline) {
+      // `publish` runs the whole job here (NoQueue), so awaiting it would hold
+      // the request for the import and turn a job error into a failed start.
+      // The job logs its own failures and keeps the import's state.
+      void queue.publish(message).catch((error) => {
+        logger.error({
+          message: 'Inline bulk import run failed',
+          importId,
+          actorId: currentActor.id,
+          err: toLoggableError(error)
+        })
       })
-    } catch (error) {
-      // Finish the import so it does not block the actor's next import forever.
-      logger.error({
-        message: 'Failed to publish bulk import job',
-        importId,
-        actorId: currentActor.id,
-        err: toLoggableError(error)
-      })
-      await database.updateBulkImport({
-        id: importId,
-        state: 'finished',
-        finishedAt: Date.now(),
-        lastError: 'Could not start the import'
-      })
-      return errorResponse(
-        req,
-        'Could not start the import, try again later',
-        HTTP_STATUS.SERVICE_UNAVAILABLE
-      )
+    } else {
+      try {
+        await queue.publish(message)
+      } catch (error) {
+        // Finish the import so it does not block the actor's next import forever.
+        logger.error({
+          message: 'Failed to publish bulk import job',
+          importId,
+          actorId: currentActor.id,
+          err: toLoggableError(error)
+        })
+        await database.updateBulkImport({
+          id: importId,
+          state: 'finished',
+          finishedAt: Date.now(),
+          lastError: 'Could not start the import'
+        })
+        return errorResponse(
+          req,
+          'Could not start the import, try again later',
+          HTTP_STATUS.SERVICE_UNAVAILABLE
+        )
+      }
     }
 
     return apiResponse({

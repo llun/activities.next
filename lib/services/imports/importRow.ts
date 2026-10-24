@@ -12,7 +12,11 @@ import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { Actor } from '@/lib/types/domain/actor'
 import { actorIdsMatch } from '@/lib/utils/activitypub'
 
-import { BulkImportRowData, BulkImportType } from './types'
+import {
+  BULK_IMPORT_LIST_NAME_MAX_LENGTH,
+  BulkImportRowData,
+  BulkImportType
+} from './types'
 
 export type ImportRowResult = { imported: boolean; error?: string }
 
@@ -32,6 +36,25 @@ export const getActorAcctKey = (target: {
   domain: string
 }): string => `${target.username}@${target.domain}`.toLowerCase()
 
+export const isValidListName = (name: string | undefined): name is string =>
+  Boolean(name) && name!.length <= BULK_IMPORT_LIST_NAME_MAX_LENGTH
+
+// Mastodon's FollowService#following_not_allowed?: a blocked pair, either way,
+// or a blocked domain.
+const isFollowNotAllowed = async (
+  database: Database,
+  actor: Actor,
+  target: Actor
+): Promise<boolean> =>
+  (await database.isEitherBlocking({
+    actorIdA: actor.id,
+    actorIdB: target.id
+  })) ||
+  (await database.isDomainBlockedByActor({
+    actorId: actor.id,
+    domain: target.domain
+  }))
+
 const importAccountRow = async ({
   database,
   actor,
@@ -43,24 +66,35 @@ const importAccountRow = async ({
   type: 'following' | 'blocking' | 'muting' | 'lists'
   data: BulkImportRowData
 }): Promise<ImportRowResult> => {
+  if (type === 'lists' && !isValidListName(data.list_name)) {
+    return { imported: false, error: 'Invalid list name' }
+  }
   if (!data.acct) return { imported: false, error: 'Account not found' }
 
-  const resolved = await resolveAccountTarget({
-    database,
-    input: toAcctKey(data.acct, actor)
-  })
-  if (resolved.type === 'forbidden') {
-    return { imported: false, error: 'Domain not allowed' }
+  // The overwrite pre-pass may have resolved the handle already.
+  let target = data.resolvedActorId
+    ? await database.getActorFromId({ id: data.resolvedActorId })
+    : undefined
+  if (!target) {
+    const resolved = await resolveAccountTarget({
+      database,
+      input: toAcctKey(data.acct, actor)
+    })
+    if (resolved.type === 'forbidden') {
+      return { imported: false, error: 'Domain not allowed' }
+    }
+    if (resolved.type !== 'resolved') {
+      return { imported: false, error: 'Account not found' }
+    }
+    target = resolved.actor
   }
-  if (resolved.type !== 'resolved') {
-    return { imported: false, error: 'Account not found' }
-  }
-
-  const target = resolved.actor
   const isSelf = actorIdsMatch(target.id, actor.id)
 
   if (type === 'following') {
     if (isSelf) return { imported: false, error: 'Cannot follow yourself' }
+    if (await isFollowNotAllowed(database, actor, target)) {
+      return { imported: false, error: 'Account is blocked' }
+    }
     const result = await followActor({
       database,
       currentActor: actor,
@@ -118,13 +152,15 @@ const importAccountRow = async ({
   }
 
   // lists
-  if (!data.list_name) return { imported: false, error: 'List not found' }
   const list = (await database.getLists({ actorId: actor.id })).find(
     (item) => item.title === data.list_name
   )
   if (!list) return { imported: false, error: 'List not found' }
 
   if (!isSelf) {
+    if (await isFollowNotAllowed(database, actor, target)) {
+      return { imported: false, error: 'Account is blocked' }
+    }
     // Plain follow with default options; an existing follow is left alone.
     const result = await followActor({
       database,

@@ -5,6 +5,8 @@ import type {
   BulkImportRow,
   BulkImportRowState,
   BulkImportState,
+  ClaimBulkImportRunParams,
+  ClaimBulkImportRunResult,
   CreateBulkImportParams,
   GetBulkImportByIdParams,
   GetBulkImportFailedRowsParams,
@@ -12,7 +14,9 @@ import type {
   GetBulkImportRowsParams,
   GetBulkImportsParams,
   MarkBulkImportRowProcessedParams,
-  UpdateBulkImportParams
+  ReleaseBulkImportRunParams,
+  UpdateBulkImportParams,
+  UpdateBulkImportRowDataParams
 } from '@/lib/database/domains/bulkImport/types'
 import { type Db, inTransaction } from '@/lib/database/kysely'
 import type { BulkImportRows, BulkImports } from '@/lib/database/kysely/db'
@@ -40,6 +44,8 @@ const toBulkImport = (row: Selectable<BulkImports>): BulkImport => ({
   importedItems: row.importedItems,
   overwriteDone: Boolean(row.overwriteDone),
   nextRowIndex: row.nextRowIndex,
+  overwriteProgress: row.overwriteProgress,
+  listsPrepared: Boolean(row.listsPrepared),
   lastError: row.lastError ?? null,
   finishedAt: row.finishedAt ? new Date(row.finishedAt).getTime() : null,
   createdAt: new Date(row.createdAt).getTime(),
@@ -110,6 +116,10 @@ export const createBulkImport = async (
         importedItems: 0,
         overwriteDone: false,
         nextRowIndex: 0,
+        overwriteProgress: 0,
+        listsPrepared: false,
+        runToken: null,
+        claimedUntil: null,
         lastError: null,
         finishedAt: null,
         createdAt: now,
@@ -289,6 +299,12 @@ export const updateBulkImport = async (
   if (params.overwriteDone !== undefined) {
     updateData.overwriteDone = params.overwriteDone
   }
+  if (params.overwriteProgress !== undefined) {
+    updateData.overwriteProgress = params.overwriteProgress
+  }
+  if (params.listsPrepared !== undefined) {
+    updateData.listsPrepared = params.listsPrepared
+  }
   if (params.lastError !== undefined) {
     updateData.lastError = params.lastError
   }
@@ -301,6 +317,70 @@ export const updateBulkImport = async (
     .updateTable('bulk_imports')
     .set(updateData)
     .where('id', '=', params.id)
+    .execute()
+}
+
+export const updateBulkImportRowData = async (
+  db: Db,
+  params: UpdateBulkImportRowDataParams
+): Promise<void> => {
+  await db
+    .updateTable('bulk_import_rows')
+    .set({ data: JSON.stringify(params.data), updatedAt: new Date() })
+    .where('id', '=', params.rowId)
+    .where('importId', '=', params.importId)
+    .execute()
+}
+
+// Takes the import for one run. Only one run at a time may work on an import:
+// a redelivered or retried job would otherwise process the same rows twice. The
+// lease lapses by itself, so a run that died never blocks the import for good.
+export const claimBulkImportRun = async (
+  db: Db,
+  params: ClaimBulkImportRunParams
+): Promise<ClaimBulkImportRunResult> => {
+  const now = Date.now()
+  const result = await db
+    .updateTable('bulk_imports')
+    .set({
+      runToken: params.runToken,
+      claimedUntil: new Date(now + params.leaseMs)
+    })
+    .where('id', '=', params.id)
+    .where((eb) =>
+      eb.or([
+        eb('claimedUntil', 'is', null),
+        eb('claimedUntil', '<', timestampValue(now))
+      ])
+    )
+    .executeTakeFirst()
+
+  if (Number(result.numUpdatedRows ?? 0n) > 0) return { claimed: true }
+
+  const current = await db
+    .selectFrom('bulk_imports')
+    .select('claimedUntil')
+    .where('id', '=', params.id)
+    .executeTakeFirst()
+  return {
+    claimed: false,
+    claimedUntil: current?.claimedUntil
+      ? new Date(current.claimedUntil).getTime()
+      : null
+  }
+}
+
+// Only clears a claim this run still holds; a lapsed one may already be
+// another run's.
+export const releaseBulkImportRun = async (
+  db: Db,
+  params: ReleaseBulkImportRunParams
+): Promise<void> => {
+  await db
+    .updateTable('bulk_imports')
+    .set({ runToken: null, claimedUntil: null })
+    .where('id', '=', params.id)
+    .where('runToken', '=', params.runToken)
     .execute()
 }
 
@@ -331,5 +411,8 @@ export const bulkImportQueries = {
   getBulkImportRows,
   markBulkImportRowProcessed,
   updateBulkImport,
+  updateBulkImportRowData,
+  claimBulkImportRun,
+  releaseBulkImportRun,
   getBulkImportFailedRows
 }

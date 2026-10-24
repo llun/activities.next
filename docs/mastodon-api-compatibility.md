@@ -432,18 +432,28 @@ a string>`, which returns an empty page, so that poller never detects new
   member's recent posts in both cases, and earlier versions backfill nothing.
 
 - **CSV export and import are plain endpoints.** Exports (`GET
-/api/v1/exports/<file>.csv`) match Mastodon's `Export` file formats. Imports
-  follow `Form::Import`, `BulkImportService` and `BulkImportRowService`
-  (merge or overwrite, 20,000 rows). Mastodon has no REST API for either, only
-  the settings web UI, so `POST /api/v1/imports` and `GET /api/v1/imports[/:id]`
-  are this server's own. The upload is read with a byte cap, so a chunked body over 5 MiB is refused (413) without being buffered. Rows run in one time-budgeted, resumable job instead
-  of one Sidekiq job per row, with one attempt per row, checking the time budget after every row. A row that throws is stored with a generic error, not the exception message. A blank or missing follow option leaves an existing follow's stored value. Failed rows are kept
-  and listed (up to 100 on `GET /api/v1/imports/:id`); Mastodon deletes
-  imported rows and only counts failures. An import with no progress for 24
-  hours is abandoned so the actor can start another. A bookmark of a remote
-  status is fetched through the existing remote status fetch, which stores only
-  public notes, so a non-public remote bookmark fails. A mute's `notifications`
-  flag is Mastodon's `hide_notifications`.
+/api/v1/exports/<file>.csv`) match Mastodon's `Export` file formats, and
+  `following_accounts.csv` lists the newest follow first. Imports follow
+  `Form::Import`, `BulkImportService` and `BulkImportRowService` (merge or
+  overwrite, 20,000 rows). Mastodon has no REST API for either, only the
+  settings web UI, so `POST /api/v1/imports` and `GET /api/v1/imports[/:id]` are
+  this server's own. A file over 5 MiB gets 413 `File is too large`, and the
+  body is read with a byte cap, so a chunked body over the limit is refused
+  without being buffered. Rows run in resumable, time-budgeted slices of about
+  20 seconds rather than one Sidekiq job per row, with one attempt per row, and
+  the budget is checked after each row. A row that throws is stored with a
+  generic error, not the exception message. A blank or missing follow option
+  leaves an existing follow's stored value. A following row, or a list row for
+  another account, fails with `Account is blocked` when either side blocks the
+  other or the importer blocks the target's domain. Overwrite matches an account
+  by its handle, then by the actor that handle resolves to, so Mastodon's
+  local-domain handles still match. Failed rows are kept and listed (up to 100
+  on `GET /api/v1/imports/:id`); Mastodon deletes imported rows and only counts
+  failures. An import with no progress for 24 hours is abandoned so the actor
+  can start another. A bookmark of a remote status is fetched through the
+  existing remote status fetch, which stores only public notes, so a non-public
+  remote bookmark fails. A mute's `notifications` flag is Mastodon's
+  `hide_notifications`.
 
 ## Not planned
 

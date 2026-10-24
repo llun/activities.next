@@ -158,6 +158,48 @@ describe('accountExports', () => {
         )
       })
     })
+
+    it('exports following accounts newest first by createdAt, across a page boundary', async () => {
+      await withFreshDatabase(async (database, db) => {
+        const owner = await createAccount(database, 'owner')
+        const alice = await createRemoteActor(database, 'alice', 'remote1.test')
+        const bob = await createRemoteActor(database, 'bob', 'remote2.test')
+        const carol = await createRemoteActor(database, 'carol', 'remote3.test')
+
+        // Ids sort opposite to createdAt, so id order alone gets this wrong.
+        const follows = [
+          { id: 'follow-1', target: alice, createdAt: 3000 },
+          { id: 'follow-3', target: bob, createdAt: 1000 },
+          { id: 'follow-2', target: carol, createdAt: 2000 }
+        ]
+        for (const { id, target, createdAt } of follows) {
+          await database.createFollow({
+            id,
+            actorId: owner.id,
+            targetActorId: target.id,
+            status: FollowStatus.enum.Accepted,
+            inbox: `${target.id}/inbox`,
+            sharedInbox: `${target.id}/inbox`
+          })
+          await db
+            .updateTable('follows')
+            .set({ createdAt: new Date(createdAt) })
+            .where('id', '=', id)
+            .execute()
+        }
+
+        // pageSize 2 forces a second page for the third follow.
+        const csv = await exportFollowingAccounts(database, owner.id, {
+          pageSize: 2
+        })
+        expect(csv).toBe(
+          'Account address,Show boosts,Notify on new posts,Languages\n' +
+            'alice@remote1.test,true,false,\n' +
+            'carol@remote3.test,true,false,\n' +
+            'bob@remote2.test,true,false,\n'
+        )
+      })
+    })
   })
 
   describe('lists.csv', () => {

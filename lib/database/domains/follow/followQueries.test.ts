@@ -13,6 +13,7 @@ import {
   getFollowers,
   getFollowersInbox,
   getFollowing,
+  getFollowingNewestFirst,
   getLocalActorsFromFollowerUrl,
   getLocalFollowersForActorId,
   getLocalFollowsFromInboxUrl,
@@ -1398,6 +1399,44 @@ describe('getFollowRequests', () => {
     expect(await page({ minId: nullIds[0] })).toEqual([nullIds[2], nullIds[1]])
     // A dated cursor never reaches the undated rows.
     expect(await page({ sinceId: datedId })).toEqual([])
+  })
+})
+
+describe('getFollowingNewestFirst', () => {
+  it('pages accepted follows by (createdAt, id) descending, skipping requests', async () => {
+    const prefix = nextPrefix()
+    const actorId = actorIn('o.test', `${prefix}-owner`)
+    // Ids sort opposite to createdAt; createdAt 1000 is shared by two follows.
+    const rows = [
+      { id: `${prefix}-a`, createdAt: BASE + 1000, status: Accepted },
+      { id: `${prefix}-b`, createdAt: BASE + 3000, status: Accepted },
+      { id: `${prefix}-c`, createdAt: BASE + 1000, status: Accepted },
+      { id: `${prefix}-d`, createdAt: BASE + 2000, status: Accepted },
+      { id: `${prefix}-e`, createdAt: BASE + 4000, status: Requested }
+    ]
+    for (const [index, row] of rows.entries()) {
+      await seedFollow({
+        ...row,
+        actorId,
+        targetActorId: actorIn('t.test', `${prefix}-${index}`)
+      })
+    }
+    const expected = [
+      `${prefix}-b`,
+      `${prefix}-d`,
+      `${prefix}-c`,
+      `${prefix}-a`
+    ]
+
+    const first = await getFollowingNewestFirst(db, { actorId, limit: 2 })
+    expect(first.map((f) => f.id)).toEqual(expected.slice(0, 2))
+    const last = first[first.length - 1]
+    const second = await getFollowingNewestFirst(db, {
+      actorId,
+      limit: 2,
+      cursor: { createdAt: last.createdAt, id: last.id }
+    })
+    expect(second.map((f) => f.id)).toEqual(expected.slice(2))
   })
 })
 

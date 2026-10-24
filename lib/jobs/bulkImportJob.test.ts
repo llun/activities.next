@@ -3,6 +3,8 @@ import { Database } from '@/lib/database/types'
 import {
   bulkImportJob,
   getBulkImportContinueJobId,
+  getBulkImportOverwriteJobId,
+  getBulkImportWaitJobId,
   runBulkImport
 } from '@/lib/jobs/bulkImportJob'
 import { fetchRemoteStatusJob } from '@/lib/jobs/fetchRemoteStatusJob'
@@ -402,6 +404,299 @@ describe('bulkImportJob', () => {
       state: 'finished',
       processedItems: 3,
       importedItems: 2
+    })
+  })
+
+  describe('run claim', () => {
+    const jobMessages = () =>
+      mockPublish.mock.calls
+        .map(([message]) => message)
+        .filter((message) => message.name === BULK_IMPORT_JOB_NAME)
+
+    it('does nothing when another run holds the claim and republishes a delayed wait job', async () => {
+      await createImport('blocking', [{ acct: 'bob@remote.test' }])
+      await database.claimBulkImportRun({
+        id: IMPORT_ID,
+        runToken: 'other-run',
+        leaseMs: 60_000
+      })
+      const held = (await database.claimBulkImportRun({
+        id: IMPORT_ID,
+        runToken: 'probe',
+        leaseMs: 1
+      })) as { claimed: false; claimedUntil: number }
+
+      await runBulkImport(database, IMPORT_ID)
+
+      expect(await getImport()).toMatchObject({
+        state: 'scheduled',
+        processedItems: 0
+      })
+      expect(
+        await database.isBlocking({ actorId: actor.id, targetActorId: bob.id })
+      ).toBe(false)
+      expect(jobMessages()).toEqual([
+        {
+          id: getBulkImportWaitJobId(IMPORT_ID, held.claimedUntil),
+          name: BULK_IMPORT_JOB_NAME,
+          data: { importId: IMPORT_ID },
+          delaySeconds: expect.any(Number)
+        }
+      ])
+      // The lease has about a minute left; wait for that, plus a little.
+      const { delaySeconds } = jobMessages()[0]
+      expect(delaySeconds).toBeGreaterThan(55)
+      expect(delaySeconds).toBeLessThan(70)
+    })
+
+    it('releases the claim before it publishes the continuation', async () => {
+      await createImport('blocking', [
+        { acct: 'bob@remote.test' },
+        { acct: 'carol@remote.test' }
+      ])
+      let claimedDuringPublish: boolean | undefined
+      let claimedDuringRow: boolean | undefined
+      mockPublish.mockImplementation(async (message) => {
+        if (message.name !== BULK_IMPORT_JOB_NAME) {
+          // The block job a row publishes: the run still holds the claim.
+          claimedDuringRow ??= (
+            await database.claimBulkImportRun({
+              id: IMPORT_ID,
+              runToken: 'probe',
+              leaseMs: 1000
+            })
+          ).claimed
+          return
+        }
+        const result = await database.claimBulkImportRun({
+          id: IMPORT_ID,
+          runToken: 'next-run',
+          leaseMs: 1000
+        })
+        claimedDuringPublish = result.claimed
+      })
+
+      await runBulkImport(database, IMPORT_ID, { budgetMs: -1, pageSize: 1 })
+
+      expect(claimedDuringRow).toBe(false)
+      expect(claimedDuringPublish).toBe(true)
+    })
+
+    it('releases the claim when the run fails', async () => {
+      await createImport('blocking', [{ acct: 'bob@remote.test' }])
+      let claimedWhileRunning: boolean | undefined
+      vi.spyOn(database, 'markBulkImportRowProcessed').mockImplementationOnce(
+        async () => {
+          claimedWhileRunning = (
+            await database.claimBulkImportRun({
+              id: IMPORT_ID,
+              runToken: 'probe',
+              leaseMs: 1000
+            })
+          ).claimed
+          throw new Error('db down')
+        }
+      )
+
+      await expect(runBulkImport(database, IMPORT_ID)).rejects.toThrow(
+        'db down'
+      )
+
+      expect(claimedWhileRunning).toBe(false)
+
+      expect(
+        await database.claimBulkImportRun({
+          id: IMPORT_ID,
+          runToken: 'retry',
+          leaseMs: 1000
+        })
+      ).toEqual({ claimed: true })
+    })
+
+    it('processes each row once and creates one list per title when two runs overlap', async () => {
+      await createImport('lists', [
+        { list_name: 'Friends', acct: 'bob@remote.test' },
+        { list_name: 'Friends', acct: 'carol@remote.test' },
+        { list_name: 'Work', acct: 'bob@remote.test' }
+      ])
+
+      await Promise.all([
+        runBulkImport(database, IMPORT_ID),
+        runBulkImport(database, IMPORT_ID)
+      ])
+
+      const lists = await database.getLists({ actorId: actor.id })
+      expect(lists.map((list) => list.title).sort()).toEqual([
+        'Friends',
+        'Work'
+      ])
+      expect(await getImport()).toMatchObject({
+        state: 'finished',
+        processedItems: 3,
+        importedItems: 3
+      })
+      // bob is followed once for two rows, carol once.
+      expect(follow).toHaveBeenCalledTimes(2)
+      // The run that lost the claim only queued a wait job.
+      expect(
+        jobMessages().filter((message) => message.id.includes(':wait:'))
+      ).toHaveLength(1)
+    })
+  })
+
+  describe('lists', () => {
+    it('does not clear members the row pass added when a failed run is retried', async () => {
+      const keep = await database.createList({
+        actorId: actor.id,
+        title: 'Keep'
+      })
+      await followTarget(bob)
+      await database.addListAccounts({
+        listId: keep.id,
+        actorId: actor.id,
+        targetActorIds: [bob.id]
+      })
+      await createImport(
+        'lists',
+        [
+          { list_name: 'Keep', acct: 'carol@remote.test' },
+          { list_name: 'Keep', acct: 'dave@remote.test' }
+        ],
+        true
+      )
+      await createRemoteActor(database, 'dave')
+      const processed = database.markBulkImportRowProcessed.bind(database)
+      const spy = vi
+        .spyOn(database, 'markBulkImportRowProcessed')
+        .mockImplementation(async (params) => {
+          if (params.rowId.endsWith(':1')) throw new Error('db down')
+          return processed(params)
+        })
+
+      await expect(runBulkImport(database, IMPORT_ID)).rejects.toThrow()
+      const removeSpy = vi.spyOn(database, 'removeListAccounts')
+      spy.mockImplementation(processed)
+      await runBulkImport(database, IMPORT_ID)
+
+      expect(removeSpy).not.toHaveBeenCalled()
+      expect(
+        (await database.getListMembers({ listId: keep.id, actorId: actor.id }))
+          .map((member) => member.targetActorId)
+          .sort()
+      ).toContain(carol.id)
+      expect(await getImport()).toMatchObject({
+        state: 'finished',
+        overwriteDone: true,
+        processedItems: 2
+      })
+    })
+
+    it('creates the lists once, not on every continuation', async () => {
+      await createImport('lists', [
+        { list_name: 'Friends', acct: 'bob@remote.test' },
+        { list_name: 'Friends', acct: 'carol@remote.test' }
+      ])
+      const createList = vi.spyOn(database, 'createList')
+
+      await runBulkImport(database, IMPORT_ID, { budgetMs: -1, pageSize: 1 })
+      expect(await getImport()).toMatchObject({ listsPrepared: true })
+      await runBulkImport(database, IMPORT_ID, { pageSize: 1 })
+
+      expect(createList).toHaveBeenCalledTimes(1)
+      expect(await getImport()).toMatchObject({
+        state: 'finished',
+        importedItems: 2
+      })
+    })
+
+    it('fails the rows of an over-long or uncreatable list name and finishes the import', async () => {
+      const tooLong = 'x'.repeat(300)
+      await createImport('lists', [
+        { list_name: tooLong, acct: 'bob@remote.test' },
+        { list_name: 'Boom', acct: 'bob@remote.test' },
+        { list_name: 'Good', acct: 'bob@remote.test' }
+      ])
+      const create = database.createList.bind(database)
+      const createList = vi
+        .spyOn(database, 'createList')
+        .mockImplementation(async (params) => {
+          // PostgreSQL's varchar(255) error, which SQLite does not raise.
+          if (params.title === 'Boom') throw new Error('value too long')
+          return create(params)
+        })
+
+      await runBulkImport(database, IMPORT_ID)
+
+      expect(createList.mock.calls.map(([params]) => params.title)).toEqual([
+        'Boom',
+        'Good'
+      ])
+      const failed = await database.getBulkImportFailedRows({
+        importId: IMPORT_ID
+      })
+      expect(failed.map((row) => [row.rowIndex, row.error])).toEqual([
+        [0, 'Invalid list name'],
+        [1, 'List not found']
+      ])
+      expect(await getImport()).toMatchObject({
+        state: 'finished',
+        processedItems: 3,
+        importedItems: 1
+      })
+    })
+  })
+
+  describe('overwrite pre-pass', () => {
+    it('checkpoints under a tiny budget, continues in later runs and then runs the rows', async () => {
+      const dave = await createRemoteActor(database, 'dave')
+      const erin = await createRemoteActor(database, 'erin')
+      await followTarget(bob)
+      await followTarget(carol)
+      await followTarget(dave)
+      await followTarget(erin)
+      await createImport('following', [{ acct: 'bob@remote.test' }], true)
+
+      await runBulkImport(database, IMPORT_ID, { budgetMs: -1 })
+
+      expect(await getImport()).toMatchObject({
+        state: 'in_progress',
+        overwriteDone: false,
+        overwriteProgress: 1
+      })
+      expect(mockPublish).toHaveBeenCalledWith({
+        id: getBulkImportOverwriteJobId(IMPORT_ID, 1),
+        name: BULK_IMPORT_JOB_NAME,
+        data: { importId: IMPORT_ID }
+      })
+      expect(unfollow).toHaveBeenCalledTimes(1)
+
+      mockPublish.mockClear()
+      await runBulkImport(database, IMPORT_ID, { budgetMs: -1 })
+      expect(await getImport()).toMatchObject({
+        overwriteDone: false,
+        overwriteProgress: 2
+      })
+      expect(mockPublish).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: getBulkImportOverwriteJobId(IMPORT_ID, 2)
+        })
+      )
+      expect(unfollow).toHaveBeenCalledTimes(2)
+
+      mockPublish.mockClear()
+      await runBulkImport(database, IMPORT_ID)
+      expect(mockPublish).not.toHaveBeenCalled()
+      expect(await getImport()).toMatchObject({
+        state: 'finished',
+        overwriteDone: true,
+        processedItems: 1,
+        importedItems: 1
+      })
+      expect(await activeFollow(bob)).not.toBeNull()
+      expect(await activeFollow(carol)).toBeNull()
+      expect(await activeFollow(dave)).toBeNull()
+      expect(await activeFollow(erin)).toBeNull()
+      expect(unfollow).toHaveBeenCalledTimes(3)
     })
   })
 })

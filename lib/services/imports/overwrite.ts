@@ -7,8 +7,11 @@ import type {
   BulkImportRow
 } from '@/lib/database/domains/bulkImport/types'
 import { Database } from '@/lib/database/types'
+import { resolveAccountTarget } from '@/lib/services/actors/resolveAccountTarget'
 import { normalizeActorHost } from '@/lib/services/federation/domainRules'
 import { Actor } from '@/lib/types/domain/actor'
+import { logger } from '@/lib/utils/logger'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import { getActorAcctKey, toAcctKey } from './importRow'
 
@@ -70,115 +73,212 @@ const keep = async (
   })
 }
 
-/**
- * Mastodon BulkImportService's overwrite pre-pass: keep (and count) what the
- * file names, remove what it does not. Idempotent, so an interrupted pass can
- * simply run again from the start.
- */
-export const applyOverwrite = async ({
+export type OverwriteResult = {
+  // False when the budget ran out; run it again to continue.
+  done: boolean
+  // Network work finished this pass (resolutions and removals).
+  units: number
+}
+
+type AccountRelation = { targetActorId: string }
+
+// Matches the current follows, blocks or mutes to the file's rows and removes
+// the ones the file does not name. A row matches by handle first (cheap), then
+// by the actor its handle resolves to: Mastodon exports the handle with its
+// LOCAL_DOMAIN while the stored domain is the actor's host, and treating that
+// as "not in the file" would unfollow and re-add the account. Resolutions are
+// stored on the rows, so a budgeted pass picks up where it stopped.
+const syncAccountRelations = async ({
   database,
   actor,
-  bulkImport
+  bulkImport,
+  deadline,
+  relations,
+  remove,
+  onKept
 }: {
   database: Database
   actor: Actor
   bulkImport: BulkImport
-}): Promise<void> => {
-  const actorId = actor.id
-  const accountKey = (row: BulkImportRow) =>
+  deadline: number
+  relations: AccountRelation[]
+  remove: (targetActorId: string) => Promise<unknown>
+  onKept: (targetActorId: string, row: KeyedRow) => Promise<unknown>
+}): Promise<OverwriteResult> => {
+  const rows = await loadRowsByKey(database, bulkImport, (row) =>
     row.data.acct ? toAcctKey(row.data.acct, actor) : null
+  )
 
+  const kept = new Map<string, KeyedRow>()
+  const unmatched: string[] = []
+  for (const relation of relations) {
+    const target = await database.getActorFromId({
+      id: relation.targetActorId
+    })
+    const row = target ? rows.get(getActorAcctKey(target)) : undefined
+    if (row) kept.set(relation.targetActorId, row)
+    else unmatched.push(relation.targetActorId)
+  }
+
+  // At least one unit per pass, so every continuation makes progress.
+  let units = 0
+  const outOfBudget = () => units > 0 && Date.now() >= deadline
+
+  if (unmatched.length > 0) {
+    const keptRowIds = new Set([...kept.values()].map((row) => row.id))
+    for (const row of rows.values()) {
+      if (
+        row.state !== 'pending' ||
+        keptRowIds.has(row.id) ||
+        row.data.resolvedActorId !== undefined
+      ) {
+        continue
+      }
+      if (outOfBudget()) return { done: false, units }
+      let resolvedActorId: string | null = null
+      try {
+        const resolved = await resolveAccountTarget({
+          database,
+          input: toAcctKey(row.data.acct ?? '', actor)
+        })
+        if (resolved.type === 'resolved') resolvedActorId = resolved.actor.id
+      } catch (error) {
+        logger.warn({
+          message: 'Bulk import could not resolve an account',
+          importId: bulkImport.id,
+          err: toLoggableError(error)
+        })
+      }
+      row.data = { ...row.data, resolvedActorId }
+      await database.updateBulkImportRowData({
+        importId: bulkImport.id,
+        rowId: row.id,
+        data: row.data
+      })
+      units += 1
+    }
+
+    const rowsByActorId = new Map<string, KeyedRow>()
+    for (const row of rows.values()) {
+      if (row.data.resolvedActorId) {
+        rowsByActorId.set(row.data.resolvedActorId, row)
+      }
+    }
+    for (const targetActorId of unmatched) {
+      const row = rowsByActorId.get(targetActorId)
+      if (row) kept.set(targetActorId, row)
+    }
+  }
+
+  for (const { targetActorId } of relations) {
+    if (kept.has(targetActorId)) continue
+    if (outOfBudget()) return { done: false, units }
+    await remove(targetActorId)
+    units += 1
+  }
+
+  // Last: keeping the final row finishes the import (its counts meet), and a
+  // finished import is never run again, so removals must all be done first.
+  for (const [targetActorId, row] of kept) {
+    await keep(database, bulkImport, row)
+    await onKept(targetActorId, row)
+  }
+  return { done: true, units }
+}
+
+/**
+ * Mastodon BulkImportService's overwrite pre-pass: keep (and count) what the
+ * file names, remove what it does not. Idempotent, so an interrupted pass can
+ * simply run again from the start. The account types stop when `deadline`
+ * passes (after at least one unit of work) and report `done: false`.
+ */
+export const applyOverwrite = async ({
+  database,
+  actor,
+  bulkImport,
+  deadline = Number.POSITIVE_INFINITY
+}: {
+  database: Database
+  actor: Actor
+  bulkImport: BulkImport
+  deadline?: number
+}): Promise<OverwriteResult> => {
+  const actorId = actor.id
+
+  // shortcut: only the account types are budgeted; the others are local
+  // database work, bounded by the 20,000 row cap. Budget them if one ever
+  // does remote work.
   switch (bulkImport.type) {
     case 'following': {
-      const rows = await loadRowsByKey(database, bulkImport, accountKey)
       const follows = await collectAll((maxId) =>
         database.getFollowing({ actorId, limit: PAGE_SIZE, maxId })
       )
-      for (const follow of follows) {
-        const target = await database.getActorFromId({
-          id: follow.targetActorId
-        })
-        const row = target ? rows.get(getActorAcctKey(target)) : undefined
-        if (!row) {
-          await unfollowActor({
-            database,
-            currentActor: actor,
-            targetActorId: follow.targetActorId
-          })
-          continue
+      return syncAccountRelations({
+        database,
+        actor,
+        bulkImport,
+        deadline,
+        relations: follows,
+        remove: (targetActorId) =>
+          unfollowActor({ database, currentActor: actor, targetActorId }),
+        onKept: async (targetActorId, row) => {
+          // Only what the file states: a blank cell leaves the stored value.
+          const reblogs = row.data.show_reblogs ?? undefined
+          const notify = row.data.notify ?? undefined
+          const languages = row.data.languages ?? undefined
+          if (
+            reblogs !== undefined ||
+            notify !== undefined ||
+            languages !== undefined
+          ) {
+            await database.updateFollowPreferences({
+              actorId,
+              targetActorId,
+              reblogs,
+              notify,
+              languages
+            })
+          }
         }
-        await keep(database, bulkImport, row)
-        // Only what the file states: a blank cell leaves the stored value.
-        const reblogs = row.data.show_reblogs ?? undefined
-        const notify = row.data.notify ?? undefined
-        const languages = row.data.languages ?? undefined
-        if (
-          reblogs !== undefined ||
-          notify !== undefined ||
-          languages !== undefined
-        ) {
-          await database.updateFollowPreferences({
-            actorId,
-            targetActorId: follow.targetActorId,
-            reblogs,
-            notify,
-            languages
-          })
-        }
-      }
-      return
+      })
     }
     case 'blocking': {
-      const rows = await loadRowsByKey(database, bulkImport, accountKey)
       const blocks = await collectAll((maxId) =>
         database.getBlocks({ actorId, limit: PAGE_SIZE, maxId })
       )
-      for (const block of blocks) {
-        const target = await database.getActorFromId({
-          id: block.targetActorId
-        })
-        const row = target ? rows.get(getActorAcctKey(target)) : undefined
-        if (row) {
-          // The block stays as it is; re-applying it would federate it again.
-          await keep(database, bulkImport, row)
-        } else {
-          await unblockActor({
-            database,
-            currentActor: actor,
-            targetActorId: block.targetActorId
-          })
-        }
-      }
-      return
+      return syncAccountRelations({
+        database,
+        actor,
+        bulkImport,
+        deadline,
+        relations: blocks,
+        remove: (targetActorId) =>
+          unblockActor({ database, currentActor: actor, targetActorId }),
+        // The block stays as it is; re-applying it would federate it again.
+        onKept: async () => {}
+      })
     }
     case 'muting': {
-      const rows = await loadRowsByKey(database, bulkImport, accountKey)
       const mutes = await collectAll((maxId) =>
         database.getMutes({ actorId, limit: PAGE_SIZE, maxId })
       )
-      for (const mute of mutes) {
-        const target = await database.getActorFromId({
-          id: mute.targetActorId
-        })
-        const row = target ? rows.get(getActorAcctKey(target)) : undefined
-        if (!row) {
-          await applyUnmute({
+      return syncAccountRelations({
+        database,
+        actor,
+        bulkImport,
+        deadline,
+        relations: mutes,
+        remove: (targetActorId) =>
+          applyUnmute({ database, actorId, targetActorId }),
+        onKept: (targetActorId, row) =>
+          applyMute({
             database,
             actorId,
-            targetActorId: mute.targetActorId
+            targetActorId,
+            notifications: row.data.hide_notifications ?? true,
+            endsAt: null
           })
-          continue
-        }
-        await keep(database, bulkImport, row)
-        await applyMute({
-          database,
-          actorId,
-          targetActorId: mute.targetActorId,
-          notifications: row.data.hide_notifications ?? true,
-          endsAt: null
-        })
-      }
-      return
+      })
     }
     case 'domain_blocking': {
       // Mastodon runs this type synchronously; the row pass then blocks the
@@ -195,7 +295,7 @@ export const applyOverwrite = async ({
           })
         }
       }
-      return
+      return { done: true, units: 0 }
     }
     case 'bookmarks': {
       const rows = await loadRowsByKey(
@@ -222,7 +322,7 @@ export const applyOverwrite = async ({
           })
         }
       }
-      return
+      return { done: true, units: 0 }
     }
     case 'lists': {
       const rows = await loadRowsByKey(
@@ -252,7 +352,7 @@ export const applyOverwrite = async ({
           })
         }
       }
-      return
+      return { done: true, units: 0 }
     }
   }
 }

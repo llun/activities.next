@@ -18,6 +18,10 @@ export interface BulkImport {
   importedItems: number
   overwriteDone: boolean
   nextRowIndex: number
+  // Units of overwrite pre-pass work finished so far; names the continuation.
+  overwriteProgress: number
+  // The lists of a lists import were created; never done twice.
+  listsPrepared: boolean
   lastError: string | null
   finishedAt: number | null
   createdAt: number
@@ -75,8 +79,32 @@ export interface UpdateBulkImportParams {
   state?: BulkImportState
   nextRowIndex?: number
   overwriteDone?: boolean
+  overwriteProgress?: number
+  listsPrepared?: boolean
   lastError?: string | null
   finishedAt?: number | null
+}
+
+export interface UpdateBulkImportRowDataParams {
+  importId: string
+  rowId: string
+  data: BulkImportRowData
+}
+
+export interface ClaimBulkImportRunParams {
+  id: string
+  runToken: string
+  leaseMs: number
+}
+
+export type ClaimBulkImportRunResult =
+  | { claimed: true }
+  // claimedUntil is when the live claim lapses (null: it was just released).
+  | { claimed: false; claimedUntil: number | null }
+
+export interface ReleaseBulkImportRunParams {
+  id: string
+  runToken: string
 }
 
 export interface GetBulkImportFailedRowsParams {
@@ -94,6 +122,11 @@ export interface BulkImportDatabase {
     params: MarkBulkImportRowProcessedParams
   ): Promise<boolean>
   updateBulkImport(params: UpdateBulkImportParams): Promise<void>
+  updateBulkImportRowData(params: UpdateBulkImportRowDataParams): Promise<void>
+  claimBulkImportRun(
+    params: ClaimBulkImportRunParams
+  ): Promise<ClaimBulkImportRunResult>
+  releaseBulkImportRun(params: ReleaseBulkImportRunParams): Promise<void>
   getBulkImportFailedRows(
     params: GetBulkImportFailedRowsParams
   ): Promise<BulkImportRow[]>

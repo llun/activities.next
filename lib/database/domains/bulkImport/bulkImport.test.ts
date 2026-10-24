@@ -70,6 +70,8 @@ describe('BulkImportDatabase', () => {
         importedItems: 0,
         overwriteDone: false,
         nextRowIndex: 0,
+        overwriteProgress: 0,
+        listsPrepared: false,
         lastError: null,
         finishedAt: null,
         createdAt: expect.any(Number),
@@ -594,6 +596,146 @@ describe('BulkImportDatabase', () => {
       imp = await database.getBulkImportById({ id: importId })
       expect(imp?.lastError).toBeNull()
       expect(imp?.finishedAt).toBeNull()
+    })
+  })
+
+  describe('overwrite checkpoint and list preparation flags', () => {
+    it('stores overwriteProgress and listsPrepared', async () => {
+      const actorId = await seedActor(
+        `flags-${crypto.randomUUID().slice(0, 8)}`
+      )
+      const importId = crypto.randomUUID()
+      await database.createBulkImport({
+        id: importId,
+        actorId,
+        type: 'lists',
+        overwrite: true,
+        originalFilename: 'lists.csv',
+        rows: []
+      })
+
+      await database.updateBulkImport({
+        id: importId,
+        overwriteProgress: 7,
+        listsPrepared: true
+      })
+
+      expect(await database.getBulkImportById({ id: importId })).toMatchObject({
+        overwriteProgress: 7,
+        listsPrepared: true
+      })
+    })
+  })
+
+  describe('updateBulkImportRowData', () => {
+    it('replaces the data of one row only', async () => {
+      const actorId = await seedActor(
+        `rowdata-${crypto.randomUUID().slice(0, 8)}`
+      )
+      const importId = crypto.randomUUID()
+      await database.createBulkImport({
+        id: importId,
+        actorId,
+        type: 'following',
+        overwrite: true,
+        originalFilename: 'following.csv',
+        rows: [{ acct: 'a@example.com' }, { acct: 'b@example.com' }]
+      })
+
+      await database.updateBulkImportRowData({
+        importId,
+        rowId: getBulkImportRowId(importId, 0),
+        data: { acct: 'a@example.com', resolvedActorId: 'https://x.test/a' }
+      })
+
+      const rows = await database.getBulkImportRows({
+        importId,
+        fromRowIndex: 0,
+        limit: 10
+      })
+      expect(rows.map((row) => row.data)).toEqual([
+        { acct: 'a@example.com', resolvedActorId: 'https://x.test/a' },
+        { acct: 'b@example.com' }
+      ])
+    })
+  })
+
+  describe('claimBulkImportRun / releaseBulkImportRun', () => {
+    const createImport = async () => {
+      const actorId = await seedActor(
+        `claim-${crypto.randomUUID().slice(0, 8)}`
+      )
+      const id = crypto.randomUUID()
+      await database.createBulkImport({
+        id,
+        actorId,
+        type: 'following',
+        overwrite: false,
+        originalFilename: 'following.csv',
+        rows: []
+      })
+      return id
+    }
+
+    it('lets one run claim at a time and reports when the claim lapses', async () => {
+      const id = await createImport()
+      const before = Date.now()
+
+      expect(
+        await database.claimBulkImportRun({
+          id,
+          runToken: 'a',
+          leaseMs: 60_000
+        })
+      ).toEqual({ claimed: true })
+      const second = await database.claimBulkImportRun({
+        id,
+        runToken: 'b',
+        leaseMs: 60_000
+      })
+      expect(second).toMatchObject({ claimed: false })
+      expect(
+        (second as { claimedUntil: number }).claimedUntil
+      ).toBeGreaterThanOrEqual(before + 60_000)
+    })
+
+    it('releases only with the holder token', async () => {
+      const id = await createImport()
+      await database.claimBulkImportRun({ id, runToken: 'a', leaseMs: 60_000 })
+
+      await database.releaseBulkImportRun({ id, runToken: 'other' })
+      expect(
+        await database.claimBulkImportRun({ id, runToken: 'b', leaseMs: 1000 })
+      ).toMatchObject({ claimed: false })
+
+      await database.releaseBulkImportRun({ id, runToken: 'a' })
+      expect(
+        await database.claimBulkImportRun({ id, runToken: 'b', leaseMs: 1000 })
+      ).toEqual({ claimed: true })
+    })
+
+    it('can be claimed again once the lease has lapsed', async () => {
+      const id = await createImport()
+      await database.claimBulkImportRun({ id, runToken: 'a', leaseMs: -1000 })
+
+      expect(
+        await database.claimBulkImportRun({ id, runToken: 'b', leaseMs: 1000 })
+      ).toEqual({ claimed: true })
+      // The lapsed holder's late release must not clear the new claim.
+      await database.releaseBulkImportRun({ id, runToken: 'a' })
+      expect(
+        await database.claimBulkImportRun({ id, runToken: 'c', leaseMs: 1000 })
+      ).toMatchObject({ claimed: false })
+    })
+
+    it('does not claim an import that does not exist', async () => {
+      expect(
+        await database.claimBulkImportRun({
+          id: 'missing',
+          runToken: 'a',
+          leaseMs: 1000
+        })
+      ).toEqual({ claimed: false, claimedUntil: null })
     })
   })
 

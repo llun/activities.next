@@ -26,6 +26,14 @@ export const up = async (db: Kysely<any>): Promise<void> => {
       col.notNull().defaultTo(false)
     )
     .addColumn('nextRowIndex', 'integer', (col) => col.notNull().defaultTo(0))
+    .addColumn('overwriteProgress', 'integer', (col) =>
+      col.notNull().defaultTo(0)
+    )
+    .addColumn('listsPrepared', 'boolean', (col) =>
+      col.notNull().defaultTo(false)
+    )
+    .addColumn('runToken', 'varchar(255)')
+    .addColumn('claimedUntil', timestampType)
     .addColumn('lastError', 'text')
     .addColumn('finishedAt', timestampType)
     .addColumn('createdAt', timestampType, (col) =>

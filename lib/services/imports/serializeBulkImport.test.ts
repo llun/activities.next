@@ -18,6 +18,8 @@ describe('serializeBulkImport', () => {
     importedItems: 4,
     overwriteDone: false,
     nextRowIndex: 6,
+    overwriteProgress: 0,
+    listsPrepared: false,
     lastError: null,
     finishedAt: null,
     createdAt: 1729766400000,
