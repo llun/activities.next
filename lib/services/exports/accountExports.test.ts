@@ -537,7 +537,7 @@ describe('accountExports', () => {
     })
 
     it('pages through list members across multiple lists with pageSize = 1', async () => {
-      await withFreshDatabase(async (database) => {
+      await withFreshDatabase(async (database, db) => {
         const owner = await createAccount(database, 'owner')
         const m1 = await createRemoteActor(database, 'm1', 'remote.test')
         const m2 = await createRemoteActor(database, 'm2', 'remote.test')
@@ -561,6 +561,20 @@ describe('accountExports', () => {
           actorId: owner.id,
           targetActorIds: [m2.id]
         })
+
+        // Lists created in the same millisecond tie on createdAt, and getLists
+        // then orders them by random id. Give them distinct creation times so
+        // the expected order follows the ordering rule (createdAt, then id).
+        await db
+          .updateTable('lists')
+          .set({ createdAt: new Date(1000) })
+          .where('id', '=', list1.id)
+          .execute()
+        await db
+          .updateTable('lists')
+          .set({ createdAt: new Date(2000) })
+          .where('id', '=', list2.id)
+          .execute()
 
         const listCsv = await exportLists(database, owner.id, { pageSize: 1 })
         expect(listCsv).toBe(
