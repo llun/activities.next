@@ -26,6 +26,7 @@ vi.mock('@/lib/client/galleryAlbums', () => ({
 // The picker has its own tests: here it only reports picks.
 vi.mock('@/app/(timeline)/gallery/albums/GalleryAlbumPicker', () => ({
   GalleryAlbumPicker: ({
+    albumId,
     selected,
     onChange,
     onFirstItemChange,
@@ -34,6 +35,7 @@ vi.mock('@/app/(timeline)/gallery/albums/GalleryAlbumPicker', () => ({
     seedItems,
     disabled
   }: {
+    albumId?: string
     seedItems?: { mediaId: string }[]
     selected: string[]
     onChange: (ids: string[]) => void
@@ -43,6 +45,7 @@ vi.mock('@/app/(timeline)/gallery/albums/GalleryAlbumPicker', () => ({
     disabled?: boolean
   }) => (
     <div>
+      <span data-testid="album-id">{albumId}</span>
       <span data-testid="capacity">{capacity}</span>
       <span data-testid="existing">{existingIds?.join(',')}</span>
       <span data-testid="seed">
@@ -116,7 +119,7 @@ describe('GalleryAlbumFormDialog', () => {
       target: { value: 'Eight days' }
     })
     fireEvent.click(screen.getByRole('radio', { name: 'Private' }))
-    fireEvent.click(screen.getByText('pick three'))
+    fireEvent.click(await screen.findByText('pick three'))
     expect(create).not.toHaveBeenCalled()
     expect(screen.getByTestId('album-selection-count')).toHaveTextContent(
       '3 selected · max 2,000 per album'
@@ -219,7 +222,7 @@ describe('GalleryAlbumFormDialog', () => {
     fireEvent.change(screen.getByLabelText('Title'), {
       target: { value: 'One' }
     })
-    fireEvent.click(screen.getByText('pick three'))
+    fireEvent.click(await screen.findByText('pick three'))
     fireEvent.click(screen.getByRole('button', { name: 'Create album' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
@@ -239,7 +242,7 @@ describe('GalleryAlbumFormDialog', () => {
     fireEvent.change(screen.getByLabelText('Title'), {
       target: { value: 'One' }
     })
-    fireEvent.click(screen.getByText('pick three'))
+    fireEvent.click(await screen.findByText('pick three'))
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument()
     expect(screen.getByTestId('picker-disabled')).toHaveTextContent('false')
 
@@ -338,7 +341,7 @@ describe('GalleryAlbumFormDialog', () => {
       'Choose at least one photo.'
     )
 
-    fireEvent.click(screen.getByText('pick three'))
+    fireEvent.click(await screen.findByText('pick three'))
     expect(screen.getByTestId('album-selection-count')).toHaveTextContent(
       '3 selected · can add up to 7 more'
     )
@@ -353,7 +356,34 @@ describe('GalleryAlbumFormDialog', () => {
       album: buildAlbumCard('a1', { itemCount: 2 }),
       existingMediaIds: ['x1', 'x2']
     })
+    expect(screen.getByTestId('album-id')).toHaveTextContent('a1')
     expect(screen.getByTestId('existing')).toHaveTextContent('x1,x2')
+  })
+
+  it('passes the album id to the picker when adding, and undefined when creating', () => {
+    const { unmount } = render(
+      <GalleryAlbumFormDialog
+        open
+        ownerId="owner"
+        intent="create"
+        onOpenChange={vi.fn()}
+        onSaved={vi.fn()}
+      />
+    )
+    expect(screen.getByTestId('album-id')).toBeEmptyDOMElement()
+    unmount()
+
+    render(
+      <GalleryAlbumFormDialog
+        open
+        ownerId="owner"
+        intent="add"
+        album={buildAlbumCard('a1')}
+        onOpenChange={vi.fn()}
+        onSaved={vi.fn()}
+      />
+    )
+    expect(screen.getByTestId('album-id')).toHaveTextContent('a1')
   })
 
   it('describes what each visibility choice lets other people open', () => {
@@ -449,7 +479,7 @@ describe('GalleryAlbumFormDialog', () => {
       expect(update).not.toHaveBeenCalled()
     })
 
-    it('starts again from them each time it opens, not from earlier edits', () => {
+    it('starts again from them each time it opens, not from earlier edits', async () => {
       const props = {
         ownerId: 'owner',
         intent: 'create' as const,
@@ -458,7 +488,7 @@ describe('GalleryAlbumFormDialog', () => {
         onSaved: vi.fn()
       }
       const { rerender } = render(<GalleryAlbumFormDialog open {...props} />)
-      fireEvent.click(screen.getByText('pick three'))
+      fireEvent.click(await screen.findByText('pick three'))
       expect(screen.getByTestId('picked')).toHaveTextContent('m1,m2,m3')
 
       // A parent that builds a new array every render must not undo the picks.

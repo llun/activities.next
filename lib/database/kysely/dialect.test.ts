@@ -1,3 +1,6 @@
+import { sql } from 'kysely'
+
+import type { Db } from '@/lib/database/kysely'
 import {
   forShare,
   forUpdate,
@@ -5,9 +8,12 @@ import {
   getDialectName,
   jsonText,
   normalizedHashtagName,
-  timestampValue
+  timestampValue,
+  utcYearMonth
 } from '@/lib/database/kysely/dialect'
+import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
 import { createCompileOnlyDb } from '@/lib/database/testing/compileOnlyDb'
+import type { Database } from '@/lib/database/types'
 
 // Compiles only: neither instance connects.
 const sqlite = createCompileOnlyDb('sqlite')
@@ -199,5 +205,110 @@ describe('normalizedHashtagName', () => {
       .compile()
     expect(compiled.sql).toBe(item.sql)
     expect(compiled.parameters).toEqual(item.parameters)
+  })
+})
+
+describe('utcYearMonth', () => {
+  it.each([
+    {
+      name: 'sqlite',
+      instance: sqlite,
+      sql: `select strftime('%Y-%m', "likes"."createdAt" / 1000.0, 'unixepoch') as "ym" from "likes"`
+    },
+    {
+      name: 'postgres',
+      instance: postgres,
+      sql: `select to_char("likes"."createdAt" at time zone 'UTC', 'YYYY-MM') as "ym" from "likes"`
+    }
+  ])('compiles string column reference ($name)', (item) => {
+    const db = item.instance
+    const compiled = db
+      .selectFrom('likes')
+      .select(utcYearMonth(db, 'likes.createdAt').as('ym'))
+      .compile()
+    expect(compiled.sql).toBe(item.sql)
+    expect(compiled.parameters).toEqual([])
+  })
+
+  it.each([
+    {
+      name: 'sqlite',
+      instance: sqlite,
+      sql: `select strftime('%Y-%m', "likes"."createdAt" / 1000.0, 'unixepoch') as "ym" from "likes"`
+    },
+    {
+      name: 'postgres',
+      instance: postgres,
+      sql: `select to_char("likes"."createdAt" at time zone 'UTC', 'YYYY-MM') as "ym" from "likes"`
+    }
+  ])('compiles Expression reference ($name)', (item) => {
+    const db = item.instance
+    const compiled = db
+      .selectFrom('likes')
+      .select(utcYearMonth(db, sql.ref('likes.createdAt')).as('ym'))
+      .compile()
+    expect(compiled.sql).toBe(item.sql)
+    expect(compiled.parameters).toEqual([])
+  })
+
+  describe('real database execution', () => {
+    let database: Database
+    let db: Db
+
+    beforeAll(async () => {
+      const test = getTestDatabaseWithInstance()
+      database = test.database
+      db = test.db
+      await test.prepare()
+      await database.migrate()
+    })
+
+    afterAll(async () => {
+      await database.destroy()
+    })
+
+    it.each([
+      {
+        description: 'pre-1970 date',
+        date: new Date('1965-06-15T12:00:00.000Z'),
+        expected: '1965-06'
+      },
+      {
+        description: '23:59:59.999 date',
+        date: new Date('2026-03-31T23:59:59.999Z'),
+        expected: '2026-03'
+      },
+      {
+        description: 'regular date',
+        date: new Date('2024-10-24T15:30:00.000Z'),
+        expected: '2024-10'
+      }
+    ])(
+      'extracts UTC year and month on active database backend ($description)',
+      async ({ date, expected }) => {
+        const id = `counter-${date.getTime()}`
+        await db
+          .insertInto('counters')
+          .values({
+            id,
+            value: 1,
+            createdAt: date,
+            updatedAt: date
+          })
+          .execute()
+
+        const row = await db
+          .selectFrom('counters')
+          .select([
+            utcYearMonth(db, 'counters.createdAt').as('ymString'),
+            utcYearMonth(db, sql.ref('counters.createdAt')).as('ymExpr')
+          ])
+          .where('id', '=', id)
+          .executeTakeFirstOrThrow()
+
+        expect(row.ymString).toBe(expected)
+        expect(row.ymExpr).toBe(expected)
+      }
+    )
   })
 })

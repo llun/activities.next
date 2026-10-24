@@ -1,6 +1,7 @@
 'use client'
 
 import { Folder, Globe, Lock, Sparkles } from 'lucide-react'
+import dynamic from 'next/dynamic'
 import { FC, FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 
 import {
@@ -46,7 +47,6 @@ import {
 } from '@/lib/types/database/galleryAlbums'
 import { cn } from '@/lib/utils'
 
-import { GalleryAlbumPicker } from './GalleryAlbumPicker'
 import { GalleryAlbumSuggestionList } from './GalleryAlbumSuggestionList'
 import { GalleryAlbumSuggestionReview } from './GalleryAlbumSuggestionReview'
 import { GalleryAlbumThumb } from './GalleryAlbumThumb'
@@ -57,6 +57,19 @@ import type { GalleryAlbumSuggestionsState } from './useGalleryAlbumSuggestions'
  * `add` is the picker alone, for an album that already exists.
  */
 export type GalleryAlbumFormIntent = 'create' | 'edit' | 'add'
+
+// The picker and the filter bar behind it are only needed once the dialog is
+// open: keep them out of every page that merely links to the dialog.
+const GalleryAlbumPicker = dynamic(
+  () =>
+    import('./GalleryAlbumPicker').then((module) => module.GalleryAlbumPicker),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="skeleton h-40 rounded-md" aria-hidden="true" />
+    )
+  }
+)
 
 /** The two ways to choose photos in the create dialog. */
 export type GalleryAlbumPickerTab = 'gallery' | 'suggestions'
@@ -355,6 +368,7 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
       ) : null}
       <GalleryAlbumPicker
         ownerId={ownerId}
+        albumId={intent === 'add' ? album?.id : undefined}
         columns={showFields ? 4 : 5}
         selected={selected}
         onChange={setSelected}

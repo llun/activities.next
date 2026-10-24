@@ -157,8 +157,15 @@ export interface GalleryItemEntity {
 
 export interface GalleryMediaPage {
   items: GalleryItemEntity[]
-  // Pass back as `max_id` for the next page; null on the last page.
+  // `uploaded` order: pass back as `max_id` for the next page; null on the
+  // last page.
   nextMaxId: string | null
+  // Date orders: pass back as `cursor` ("<sortAt ms>:<mediaId>").
+  nextCursor?: string | null
+  // Owner, first page only: every match.
+  total?: number
+  // Owner, first page, with `album_id`: matches already in that album.
+  inAlbumTotal?: number
 }
 
 export interface GallerySubjectEntry {
@@ -286,6 +293,51 @@ const normalizeSubjectText = (value: string | null | undefined): string =>
     .trim()
     .replace(/\s+/g, ' ')
     .toLocaleLowerCase('en-US')
+
+/** The one identity of a place name, used to group and filter ('' for blank). */
+export const toPlaceKey = (name: string | null | undefined): string =>
+  normalizeSubjectText(name)
+
+export interface GallerySpeciesFacet {
+  key: string
+  name: string | null
+  scientificName: string | null
+  category: MediaSubjectCategory | null
+  count: number
+}
+// `name`: the most-used raw spelling.
+export interface GalleryPlaceFacet {
+  name: string
+  count: number
+}
+// `month`: 'YYYY-MM' (UTC of sortAt).
+export interface GalleryMonthFacet {
+  month: string
+  count: number
+}
+export interface GalleryActivityFacet {
+  id: string
+  activityType: string | null
+  // ISO
+  startTime: string | null
+  distanceMeters: number | null
+  placeName: string | null
+  count: number
+}
+export interface GalleryMediaFacetsResponse {
+  // Every photo in the `show` scope ("Any place 1,284").
+  total: number
+  // Count desc, then name; unidentified left out.
+  species: GallerySpeciesFacet[]
+  // Count desc, then name; blank names left out.
+  places: GalleryPlaceFacet[]
+  noPlaceCount: number
+  // Newest first.
+  months: GalleryMonthFacet[]
+  // startTime desc, null last.
+  activities: GalleryActivityFacet[]
+  notFromActivityCount: number
+}
 
 /**
  * The one identity of a subject, used to group, count and filter. A scientific

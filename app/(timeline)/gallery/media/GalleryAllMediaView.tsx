@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation'
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { GalleryAlbumFormDialog } from '@/app/(timeline)/gallery/albums/GalleryAlbumFormDialog'
+import { scrollToResultsStart } from '@/app/(timeline)/gallery/albums/galleryAlbumPickerUi'
+import { countGalleryMedia } from '@/lib/client'
 import { AddToGalleryDialog } from '@/lib/components/gallery/AddToGalleryDialog'
 import { ConfirmDeleteMediaDialog } from '@/lib/components/gallery/ConfirmDeleteMediaDialog'
 import { GalleryAddedToast } from '@/lib/components/gallery/GalleryAddedToast'
@@ -15,6 +17,16 @@ import {
   type GalleryPagedGridController
 } from '@/lib/components/gallery/GalleryPagedGrid'
 import { GalleryShowSelect } from '@/lib/components/gallery/GalleryShowSelect'
+import { GalleryMediaFilterBar } from '@/lib/components/gallery/filters/GalleryMediaFilterBar'
+import { GalleryMediaFilterEmpty } from '@/lib/components/gallery/filters/GalleryMediaFilterEmpty'
+import {
+  EMPTY_GALLERY_FILTERS,
+  type GalleryMediaFilterState,
+  type GalleryMediaQuery,
+  countActiveFilters,
+  toGalleryMediaQuery
+} from '@/lib/components/gallery/filters/galleryMediaFilterState'
+import { useGalleryMediaFacets } from '@/lib/components/gallery/filters/useGalleryMediaFacets'
 import {
   GALLERY_CATEGORY_ICONS,
   GALLERY_CATEGORY_LABELS
@@ -105,6 +117,11 @@ export const GalleryAllMediaView: FC<Props> = ({
   const [filter, setFilterState] = useState<Filter>(initialCategory ?? 'all')
   const startFilter = initialCategory ?? 'all'
   const [show, setShowState] = useState<GalleryShow>(initialShow)
+  const [filters, setFilters] = useState<GalleryMediaFilterState>(
+    EMPTY_GALLERY_FILTERS
+  )
+  const [query, setQuery] = useState<GalleryMediaQuery>({ sort: 'taken_desc' })
+  const [total, setTotal] = useState<number | null>(initialPage?.total ?? null)
   const [isEditOpen, setIsEditOpen] = useState(false)
   const gridController = useRef<GalleryPagedGridController | null>(null)
   const [isSelecting, setIsSelecting] = useState(false)
@@ -125,6 +142,11 @@ export const GalleryAllMediaView: FC<Props> = ({
   const [isDragging, setIsDragging] = useState(false)
   const [toast, setToast] = useState<AddedToast | null>(null)
   const [gridNonce, setGridNonce] = useState(0)
+  const [facetsReloadKey, setFacetsReloadKey] = useState(0)
+  const { facets, error: facetsError } = useGalleryMediaFacets(
+    show,
+    gridNonce + facetsReloadKey
+  )
   const [deleteIds, setDeleteIds] = useState<string[] | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const addButton = useRef<HTMLButtonElement>(null)
@@ -132,6 +154,32 @@ export const GalleryAllMediaView: FC<Props> = ({
   // the owner has switched filters (or edited anything) it is stale, so a later
   // return to the starting filter loads its own.
   const [reuseInitialPage, setReuseInitialPage] = useState(true)
+
+  const filterBarRef = useRef<HTMLDivElement>(null)
+  const scrollToTop = useCallback(
+    () => scrollToResultsStart(filterBarRef.current),
+    []
+  )
+
+  const handleFilterChange = useCallback(
+    (next: GalleryMediaFilterState) => {
+      setReuseInitialPage(false)
+      setFilters(next)
+      setQuery(toGalleryMediaQuery(next, new Date()))
+      scrollToTop()
+    },
+    [scrollToTop]
+  )
+
+  const countDraft = useCallback(
+    (draft: GalleryMediaFilterState) =>
+      countGalleryMedia(actorId, {
+        ...toGalleryMediaQuery(draft, new Date()),
+        category: filter === 'all' ? undefined : filter,
+        show
+      }),
+    [actorId, filter, show]
+  )
 
   const selectButton = useRef<HTMLButtonElement>(null)
   // Set when an add or create finished, so the dialog that closes hands focus
@@ -151,11 +199,13 @@ export const GalleryAllMediaView: FC<Props> = ({
   const setFilter = (next: Filter) => {
     setReuseInitialPage(false)
     setFilterState(next)
+    scrollToTop()
   }
 
   const setShow = (next: GalleryShow) => {
     setReuseInitialPage(false)
     setShowState(next)
+    scrollToTop()
   }
 
   const handleItemsChange = useCallback((items: GalleryItemEntity[]) => {
@@ -264,6 +314,8 @@ export const GalleryAllMediaView: FC<Props> = ({
     // the unfiltered list, whose first page has them first.
     setFilterState('all')
     setShowState((current) => (current === 'hidden' ? 'all' : current))
+    setFilters(EMPTY_GALLERY_FILTERS)
+    setQuery({ sort: 'taken_desc' })
     setReuseInitialPage(false)
     setGridNonce((nonce) => nonce + 1)
     setSelected([])
@@ -344,11 +396,14 @@ export const GalleryAllMediaView: FC<Props> = ({
     stopSelecting()
   }
 
+  const hasFilters = countActiveFilters(filters) > 0
+  const isDefaultFiltersAndSort = !hasFilters && filters.sort === 'taken_desc'
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="All media"
-        description="Every photo and video you've posted or added, newest first"
+        description="Every photo and video you've posted or added"
         actions={
           <div className="flex items-center gap-2">
             {isUploadEnabled ? (
@@ -402,14 +457,28 @@ export const GalleryAllMediaView: FC<Props> = ({
           </div>
         }
       />
-      <div className="flex flex-wrap gap-2">
-        <SectionNavSelect
-          label="Category"
-          tabs={FILTER_TABS}
-          active={filter}
-          onChange={setFilter}
+      <div ref={filterBarRef} className="md:scroll-mt-24">
+        <GalleryMediaFilterBar
+          idPrefix="all-media"
+          leading={
+            <>
+              <SectionNavSelect
+                label="Category"
+                tabs={FILTER_TABS}
+                active={filter}
+                onChange={setFilter}
+              />
+              <GalleryShowSelect value={show} onChange={setShow} />
+            </>
+          }
+          filters={filters}
+          onChange={handleFilterChange}
+          facets={facets}
+          facetsError={facetsError}
+          onRetryFacets={() => setFacetsReloadKey((key) => key + 1)}
+          total={total}
+          countDraft={countDraft}
         />
-        <GalleryShowSelect value={show} onChange={setShow} />
       </div>
       {/* Always on the page (hidden visually while empty), so the result is
           announced when it appears. */}
@@ -472,12 +541,16 @@ export const GalleryAllMediaView: FC<Props> = ({
       ) : null}
       <GalleryPagedGrid
         // A different filter is a different query, so a fresh grid.
-        key={`${filter}:${show}:${gridNonce}`}
+        key={`${filter}:${show}:${JSON.stringify(query)}:${gridNonce}`}
         actorId={actorId}
         category={filter === 'all' ? undefined : filter}
         show={show}
+        query={query}
         initialPage={
-          reuseInitialPage && filter === startFilter && show === initialShow
+          reuseInitialPage &&
+          filter === startFilter &&
+          show === initialShow &&
+          isDefaultFiltersAndSort
             ? initialPage
             : undefined
         }
@@ -487,6 +560,15 @@ export const GalleryAllMediaView: FC<Props> = ({
             ? EMPTY_TITLES[show]
             : `No ${GALLERY_CATEGORY_LABELS[filter].toLowerCase()} yet`
         }
+        emptyState={
+          hasFilters ? (
+            <GalleryMediaFilterEmpty
+              filters={filters}
+              facets={facets}
+              onChange={handleFilterChange}
+            />
+          ) : undefined
+        }
         selection={selection}
         albumsOwnerId={actorId}
         onPostItems={postMedia}
@@ -495,6 +577,7 @@ export const GalleryAllMediaView: FC<Props> = ({
           setOutcome({ message: describeDeleted(ids.length) })
         }}
         onItemsChange={handleItemsChange}
+        onTotalChange={setTotal}
         onAlbumsChanged={
           show === 'not_in_album'
             ? () => {

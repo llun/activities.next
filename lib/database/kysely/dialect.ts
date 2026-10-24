@@ -1,4 +1,10 @@
-import { type SelectQueryBuilder, SqliteAdapter, sql } from 'kysely'
+import {
+  type Expression,
+  type RawBuilder,
+  type SelectQueryBuilder,
+  SqliteAdapter,
+  sql
+} from 'kysely'
 
 import type { DB, Db } from '@/lib/database/kysely'
 import type { EpochMs } from '@/lib/database/kysely/db'
@@ -79,6 +85,19 @@ export const normalizedHashtagName = (db: Db, column: string) =>
   getDialectName(db) === 'sqlite'
     ? sql<string>`lower(ltrim(${sql.ref(column)}, ${'#'}))`
     : sql<string>`lower(trim(leading '#' from ${sql.ref(column)}))`
+
+// Extracts the year and month in UTC as a 'YYYY-MM' string: strftime() on
+// SQLite (where epoch milliseconds are divided by 1000.0), to_char() at time
+// zone 'UTC' on PostgreSQL.
+export const utcYearMonth = (
+  db: Db,
+  ref: string | Expression<unknown>
+): RawBuilder<string> => {
+  const target = typeof ref === 'string' ? sql.ref(ref) : ref
+  return getDialectName(db) === 'sqlite'
+    ? sql<string>`strftime('%Y-%m', ${target} / 1000.0, 'unixepoch')`
+    : sql<string>`to_char(${target} at time zone 'UTC', 'YYYY-MM')`
+}
 
 // Keeps the `search_documents` rows whose documentText contains every token as
 // a word prefix. `query` must select from `search_documents` and `tokens` must

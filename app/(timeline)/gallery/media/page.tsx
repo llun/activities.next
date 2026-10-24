@@ -60,7 +60,9 @@ const Page = async ({ searchParams }: PageProps) => {
     audience: OWNER_GALLERY_AUDIENCE,
     limit: 24,
     category,
-    show
+    show,
+    sort: 'taken_desc',
+    includeTotal: true
   })
 
   return (

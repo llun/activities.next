@@ -3,6 +3,7 @@
 import { Images } from 'lucide-react'
 import {
   FC,
+  ReactNode,
   RefObject,
   useCallback,
   useEffect,
@@ -17,6 +18,7 @@ import {
   type GalleryGridSelection
 } from '@/lib/components/gallery/GalleryGrid'
 import { GalleryGridSkeleton } from '@/lib/components/gallery/GalleryGridSkeleton'
+import type { GalleryMediaQuery } from '@/lib/components/gallery/filters/galleryMediaFilterState'
 import {
   LOAD_MORE_CONTAINER_CLASS,
   LoadMoreButton
@@ -29,6 +31,7 @@ import type {
   GalleryMediaPage
 } from '@/lib/services/gallery/galleryEntities'
 import type {
+  GalleryMediaSort,
   GalleryShow,
   MediaSubjectCategory
 } from '@/lib/types/database/gallery'
@@ -45,7 +48,7 @@ export interface GalleryPagedGridController {
   removeItems: (mediaIds: string[]) => void
 }
 
-interface Props {
+export interface GalleryPagedGridProps {
   actorId: string
   /** A `toSubjectKey` key. */
   subject?: string
@@ -58,9 +61,13 @@ interface Props {
    * gallery's photos.
    */
   show?: GalleryShow
+  sort?: GalleryMediaSort
+  query?: GalleryMediaQuery
+  albumId?: string
   /** A page the server already loaded; without it the grid loads its own. */
   initialPage?: GalleryMediaPage
   emptyTitle?: string
+  emptyState?: ReactNode
   showCaption?: boolean
   /** Select mode (owner views): tiles toggle instead of opening the viewer. */
   selection?: GalleryGridSelection
@@ -72,6 +79,8 @@ interface Props {
   onItemsDeleted?: (mediaIds: string[]) => void
   /** Told the photos loaded so far each time they change. */
   onItemsChange?: (items: GalleryItemEntity[]) => void
+  /** Called from the first page, including initialPage.total */
+  onTotalChange?: (total: number | null) => void
   /** Lets the page update tiles it edited itself. */
   controllerRef?: RefObject<GalleryPagedGridController | null>
   /** Told which albums had photos added/removed when the viewer closes. */
@@ -97,20 +106,25 @@ const appendUnique = (
  * query is fixed for the life of the component: mount it with a `key` that
  * changes with the query.
  */
-export const GalleryPagedGrid: FC<Props> = ({
+export const GalleryPagedGrid: FC<GalleryPagedGridProps> = ({
   actorId,
   subject,
   category,
   gearId,
   show,
+  sort,
+  query,
+  albumId,
   initialPage,
   emptyTitle = 'No photos in your gallery yet',
+  emptyState,
   showCaption = true,
   selection,
   albumsOwnerId,
   onPostItems,
   onItemsDeleted,
   onItemsChange,
+  onTotalChange,
   controllerRef,
   onAlbumsChanged
 }) => {
@@ -120,48 +134,81 @@ export const GalleryPagedGrid: FC<Props> = ({
   const [nextMaxId, setNextMaxId] = useState<string | null>(
     initialPage?.nextMaxId ?? null
   )
+  const [nextCursor, setNextCursor] = useState<string | null>(
+    initialPage?.nextCursor ?? null
+  )
   const [isLoading, setIsLoading] = useState(!initialPage)
   const [error, setError] = useState<string | null>(null)
   const isMounted = useRef(true)
 
   const isLoadingRef = useRef(false)
 
+  const onTotalChangeRef = useRef(onTotalChange)
+  useEffect(() => {
+    onTotalChangeRef.current = onTotalChange
+  }, [onTotalChange])
+
   const load = useCallback(
-    async (maxId?: string) => {
+    async (paging?: string | { cursor?: string; maxId?: string }) => {
       if (isLoadingRef.current) return
       isLoadingRef.current = true
       setIsLoading(true)
       setError(null)
+      let isFirstPage = false
       try {
-        let cursor = maxId
-        let replace = !maxId
+        const pagingOptions =
+          typeof paging === 'string' ? { maxId: paging } : paging
+        let cursor = pagingOptions?.cursor
+        let maxId = pagingOptions?.maxId
+        let replace = !cursor && !maxId
         for (let attempt = 0; ; attempt += 1) {
+          isFirstPage = attempt === 0 && replace
           const page = await getGalleryMedia(actorId, {
             limit: PAGE_SIZE,
-            maxId: cursor,
+            ...(isFirstPage && onTotalChangeRef.current
+              ? { includeTotal: true }
+              : {}),
+            ...(cursor ? { cursor } : {}),
+            ...(maxId ? { maxId } : {}),
             subject,
             category,
             gearId,
-            show
+            show,
+            sort,
+            albumId,
+            ...query
           })
           if (!isMounted.current) return
+          if (isFirstPage) {
+            onTotalChangeRef.current?.(page.total ?? null)
+          }
           const append = !replace
           setItems((current) =>
             append ? appendUnique(current, page.items) : page.items
           )
-          setNextMaxId(page.nextMaxId)
+          setNextCursor(page.nextCursor ?? null)
+          setNextMaxId(page.nextMaxId ?? null)
+          const nextPageHasMore = Boolean(page.nextCursor || page.nextMaxId)
           if (
             page.items.length > 0 ||
-            !page.nextMaxId ||
+            !nextPageHasMore ||
             attempt >= MAX_AUTO_CONTINUES
           ) {
             break
           }
-          cursor = page.nextMaxId
+          if (page.nextCursor) {
+            cursor = page.nextCursor
+            maxId = undefined
+          } else if (page.nextMaxId) {
+            maxId = page.nextMaxId
+            cursor = undefined
+          }
           replace = false
         }
       } catch (loadError) {
         if (!isMounted.current) return
+        // A failed first page must not leave the previous query's count up.
+        if (isFirstPage) onTotalChangeRef.current?.(null)
         setError(
           loadError instanceof Error
             ? loadError.message
@@ -174,7 +221,7 @@ export const GalleryPagedGrid: FC<Props> = ({
         }
       }
     },
-    [actorId, subject, category, gearId, show]
+    [actorId, subject, category, gearId, show, sort, albumId, query]
   )
 
   // An edit can move a photo out of the list this grid shows (hidden under
@@ -237,18 +284,31 @@ export const GalleryPagedGrid: FC<Props> = ({
 
   useEffect(() => {
     isMounted.current = true
-    if (!initialPage) void load()
+    if (initialPage) {
+      onTotalChangeRef.current?.(initialPage.total ?? null)
+    } else {
+      void load()
+    }
     return () => {
       isMounted.current = false
     }
     // Loads once per mount: the query is fixed for this component's life.
   }, [])
 
+  const hasNext = Boolean(nextCursor || nextMaxId)
+
+  const loadMore = useCallback(() => {
+    if (isLoadingRef.current) return
+    if (nextCursor) {
+      void load({ cursor: nextCursor })
+    } else if (nextMaxId) {
+      void load({ maxId: nextMaxId })
+    }
+  }, [load, nextCursor, nextMaxId])
+
   const { loadMoreRef } = useLoadMoreOnVisible({
-    enabled: !!nextMaxId,
-    onLoadMore: useCallback(() => {
-      if (!isLoadingRef.current && nextMaxId) void load(nextMaxId)
-    }, [load, nextMaxId])
+    enabled: hasNext,
+    onLoadMore: loadMore
   })
 
   if (isLoading && items.length === 0) {
@@ -276,16 +336,16 @@ export const GalleryPagedGrid: FC<Props> = ({
           onViewerClosed={dropMisfiled}
           onAlbumsChanged={onAlbumsChanged}
         />
-      ) : error || nextMaxId ? null : (
-        <EmptyState icon={Images} title={emptyTitle} />
+      ) : error || hasNext || isLoading ? null : (
+        (emptyState ?? <EmptyState icon={Images} title={emptyTitle} />)
       )}
       {error ? <Alert title={error} /> : null}
-      {nextMaxId ? (
+      {hasNext ? (
         <LoadMoreButton
           containerRef={loadMoreRef}
           isLoading={isLoading}
           loadingText="Loading more"
-          onClick={() => void load(nextMaxId)}
+          onClick={loadMore}
         />
       ) : error && items.length === 0 ? (
         <LoadMoreButton

@@ -1,6 +1,7 @@
 import crypto from 'crypto'
 
 import { getGalleryAlbumItemSets } from '@/lib/database/domains/gallery/albumSuggestions'
+import { getGalleryMediaFacetRows } from '@/lib/database/domains/gallery/facets'
 import {
   getGalleryLookup,
   pruneGalleryLookups,
@@ -16,6 +17,7 @@ import {
   getGalleryMediaIndex,
   getUnattachedMedia
 } from '@/lib/database/domains/gallery/media'
+import { countGalleryMedia } from '@/lib/database/domains/gallery/mediaFilters'
 import {
   asGalleryGearRow,
   asGallerySettingsRow,
@@ -375,6 +377,8 @@ export const galleryQueries = {
   updateGallerySettings,
   getActorHasGalleryMedia,
   getGalleryMedia,
+  countGalleryMedia,
+  getGalleryMediaFacetRows,
   getGalleryMediaByIds,
   getGalleryMediaIndex,
   getGalleryMapRows,

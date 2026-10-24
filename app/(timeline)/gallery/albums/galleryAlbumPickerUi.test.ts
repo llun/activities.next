@@ -1,9 +1,11 @@
+/** @vitest-environment jsdom */
 import {
   filterPickerItems,
   getPickerBadges,
   getPickerCaption,
   getPickerPlaceNames,
-  getPickerSubjectNames
+  getPickerSubjectNames,
+  scrollToResultsStart
 } from '@/app/(timeline)/gallery/albums/galleryAlbumPickerUi'
 import { buildGalleryItem } from '@/lib/components/gallery/__fixtures__/galleryItems'
 import type { GalleryItemEntity } from '@/lib/services/gallery/galleryEntities'
@@ -193,7 +195,18 @@ describe('getPickerCaption', () => {
       takenAt: null,
       uploadedAt: '2026-09-12T10:00:00Z'
     })
-    expect(getPickerCaption(item)).toBe('Common kingfisher · 12 Sep 2026')
+    expect(getPickerCaption(item)).toBe(
+      'Common kingfisher · Uploaded 12 Sep 2026'
+    )
+  })
+
+  it('returns Uploaded date alone for dateless photo without a species', () => {
+    const item = buildGalleryItem('1', {
+      subject: null,
+      takenAt: null,
+      uploadedAt: '2026-09-12T10:00:00Z'
+    })
+    expect(getPickerCaption(item)).toBe('Uploaded 12 Sep 2026')
   })
 
   it('returns empty string when there is no species and no dates', () => {
@@ -225,5 +238,92 @@ describe('getPickerBadges', () => {
   it('returns empty array when in gallery and not in any album', () => {
     const item = buildGalleryItem('1', { inGallery: true, albumCount: 0 })
     expect(getPickerBadges(item)).toEqual([])
+  })
+})
+
+describe('scrollToResultsStart', () => {
+  const setup = (top: number, scrollMarginTop = '0px') => {
+    const element = document.createElement('div')
+    element.scrollIntoView = vi.fn()
+    element.getBoundingClientRect = () => ({ top }) as DOMRect
+    vi.spyOn(window, 'getComputedStyle').mockReturnValue({
+      scrollMarginTop
+    } as CSSStyleDeclaration)
+    return element
+  }
+  afterEach(() => vi.restoreAllMocks())
+
+  it('scrolls when the bar is above the viewport', () => {
+    const element = setup(-40)
+    scrollToResultsStart(element)
+    expect(element.scrollIntoView).toHaveBeenCalled()
+  })
+
+  it('scrolls when the bar is under the sticky header', () => {
+    const element = setup(40, '96px')
+    scrollToResultsStart(element)
+    expect(element.scrollIntoView).toHaveBeenCalled()
+  })
+
+  it('scrolls when the bar is clipped by the scroll container', () => {
+    const scroller = document.createElement('div')
+    const element = setup(150)
+    scroller.append(element)
+    scroller.getBoundingClientRect = () => ({ top: 200 }) as DOMRect
+    vi.spyOn(window, 'getComputedStyle').mockImplementation(
+      (node) =>
+        ({
+          scrollMarginTop: '0px',
+          overflowY: node === scroller ? 'auto' : 'visible'
+        }) as unknown as CSSStyleDeclaration
+    )
+    scrollToResultsStart(element)
+    expect(element.scrollIntoView).toHaveBeenCalled()
+  })
+
+  it('adds the margin to a scroller top, not the larger of the two', () => {
+    const scroller = document.createElement('div')
+    const element = setup(250, '96px')
+    scroller.append(element)
+    scroller.getBoundingClientRect = () => ({ top: 200 }) as DOMRect
+    vi.spyOn(window, 'getComputedStyle').mockImplementation(
+      (node) =>
+        ({
+          scrollMarginTop: '96px',
+          overflowY: node === scroller ? 'auto' : 'visible'
+        }) as unknown as CSSStyleDeclaration
+    )
+    scrollToResultsStart(element)
+    expect(element.scrollIntoView).toHaveBeenCalled()
+  })
+
+  it('clears the root scroll padding when the document scrolls', () => {
+    const below = setup(40)
+    vi.spyOn(window, 'getComputedStyle').mockImplementation(
+      (node) =>
+        ({
+          scrollMarginTop: '0px',
+          scrollPaddingTop: node === document.documentElement ? '64px' : ''
+        }) as unknown as CSSStyleDeclaration
+    )
+    scrollToResultsStart(below)
+    expect(below.scrollIntoView).toHaveBeenCalled()
+
+    const clear = setup(80)
+    vi.spyOn(window, 'getComputedStyle').mockImplementation(
+      (node) =>
+        ({
+          scrollMarginTop: '0px',
+          scrollPaddingTop: node === document.documentElement ? '64px' : ''
+        }) as unknown as CSSStyleDeclaration
+    )
+    scrollToResultsStart(clear)
+    expect(clear.scrollIntoView).not.toHaveBeenCalled()
+  })
+
+  it('does nothing when the bar is already clear of the header', () => {
+    const element = setup(120, '96px')
+    scrollToResultsStart(element)
+    expect(element.scrollIntoView).not.toHaveBeenCalled()
   })
 })

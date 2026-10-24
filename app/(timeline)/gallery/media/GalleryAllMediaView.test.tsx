@@ -13,12 +13,17 @@ import {
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import {
+  countGalleryMedia,
   deleteUnpostedMedia,
   getGalleryAlbumMembership,
-  getGalleryMedia
+  getGalleryMedia,
+  getGalleryMediaFacets
 } from '@/lib/client'
 import { buildAlbumCard } from '@/lib/components/gallery/__fixtures__/galleryAlbums'
 import { buildGalleryItem } from '@/lib/components/gallery/__fixtures__/galleryItems'
+import type { GalleryMediaFilterBarProps } from '@/lib/components/gallery/filters/GalleryMediaFilterBar'
+import type { GalleryMediaFilterEmptyProps } from '@/lib/components/gallery/filters/GalleryMediaFilterEmpty'
+import { EMPTY_GALLERY_FILTERS } from '@/lib/components/gallery/filters/galleryMediaFilterState'
 import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
 import { GALLERY_ALBUM_FULL_MESSAGE } from '@/lib/types/database/galleryAlbums'
 
@@ -38,9 +43,70 @@ vi.mock('@/lib/client', async () => {
     getGalleryAlbums: albums.getGalleryAlbums,
     addGalleryAlbumItems: albums.addGalleryAlbumItems,
     getGalleryAlbumMembership: vi.fn(),
-    GalleryAlbumAddError: albums.GalleryAlbumAddError
+    GalleryAlbumAddError: albums.GalleryAlbumAddError,
+    getGalleryMediaFacets: vi.fn(),
+    countGalleryMedia: vi.fn()
   }
 })
+
+const filterBarProps = vi.hoisted(() => ({
+  current: null as null | GalleryMediaFilterBarProps
+}))
+
+vi.mock('@/lib/components/gallery/filters/GalleryMediaFilterBar', () => ({
+  GalleryMediaFilterBar: (props: GalleryMediaFilterBarProps) => {
+    filterBarProps.current = props
+    return (
+      <div
+        data-testid="filter-bar"
+        data-total={props.total !== null ? String(props.total) : ''}
+      >
+        {props.leading}
+        <button
+          type="button"
+          onClick={() =>
+            props.onChange({
+              species: 'sci:panthera leo',
+              place: null,
+              date: null,
+              activity: null,
+              notInAlbum: false,
+              sort: 'taken_desc',
+              order: ['species']
+            })
+          }
+        >
+          Filter lions
+        </button>
+      </div>
+    )
+  }
+}))
+
+const filterEmptyProps = vi.hoisted(() => ({
+  current: null as null | GalleryMediaFilterEmptyProps
+}))
+
+vi.mock('@/lib/components/gallery/filters/GalleryMediaFilterEmpty', () => ({
+  GalleryMediaFilterEmpty: (props: GalleryMediaFilterEmptyProps) => {
+    filterEmptyProps.current = props
+    return (
+      <div data-testid="filter-empty">
+        <button
+          type="button"
+          onClick={() =>
+            props.onChange({
+              ...EMPTY_GALLERY_FILTERS,
+              sort: props.filters.sort
+            })
+          }
+        >
+          Clear filters
+        </button>
+      </div>
+    )
+  }
+}))
 
 const router = vi.hoisted(() => ({ push: vi.fn() }))
 vi.mock('next/navigation', () => ({ useRouter: () => router }))
@@ -152,16 +218,32 @@ vi.mock('@/lib/components/gallery/GalleryGrid', () => ({
 const getGalleryMediaMock = getGalleryMedia as jest.Mock
 const deleteUnpostedMediaMock = deleteUnpostedMedia as jest.Mock
 const getGalleryAlbumMembershipMock = getGalleryAlbumMembership as jest.Mock
+const getGalleryMediaFacetsMock = getGalleryMediaFacets as jest.Mock
+const countGalleryMediaMock = countGalleryMedia as jest.Mock
 
 describe('GalleryAllMediaView', () => {
   beforeEach(() => {
     getGalleryMediaMock.mockReset()
     getGalleryAlbumMembershipMock.mockReset()
     getGalleryAlbumMembershipMock.mockResolvedValue({ albums: [] })
+    getGalleryMediaFacetsMock.mockReset()
+    getGalleryMediaFacetsMock.mockResolvedValue({
+      total: 0,
+      species: [],
+      places: [],
+      noPlaceCount: 0,
+      months: [],
+      activities: [],
+      notFromActivityCount: 0
+    })
+    countGalleryMediaMock.mockReset()
+    countGalleryMediaMock.mockResolvedValue(0)
     fetchMock.resetMocks()
     formDialog.current = null
     editDialog.current = null
     addDialog.current = null
+    filterBarProps.current = null
+    filterEmptyProps.current = null
     router.push.mockReset()
     deleteUnpostedMediaMock.mockReset()
   })
@@ -217,10 +299,12 @@ describe('GalleryAllMediaView', () => {
     expect(screen.getByTestId('grid')).not.toHaveTextContent('5')
     expect(getGalleryMediaMock).toHaveBeenCalledWith('actor-1', {
       limit: 24,
+      includeTotal: true,
       maxId: undefined,
       subject: undefined,
       category: 'mammal',
-      show: 'all'
+      show: 'all',
+      sort: 'taken_desc'
     })
   })
 
@@ -260,6 +344,54 @@ describe('GalleryAllMediaView', () => {
     )
   })
 
+  it('scrolls back to the filter bar when a filter changes', async () => {
+    getGalleryMediaMock.mockResolvedValue({ items: [], nextMaxId: null })
+    const scrollIntoView = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoView
+    // The bar has scrolled above the viewport.
+    const rectSpy = vi
+      .spyOn(Element.prototype, 'getBoundingClientRect')
+      .mockReturnValue({ top: -100 } as DOMRect)
+    try {
+      render(
+        <GalleryAllMediaView
+          actorId="actor-1"
+          initialCategory={null}
+          initialShow="all"
+          initialPage={{ items: [buildGalleryItem('5')], nextMaxId: null }}
+        />
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'Filter lions' }))
+      expect(scrollIntoView).toHaveBeenCalledWith(
+        expect.objectContaining({ block: 'start' })
+      )
+      expect(scrollIntoView.mock.instances[0]).toBe(
+        screen.getByTestId('filter-bar').parentElement
+      )
+    } finally {
+      rectSpy.mockRestore()
+      Reflect.deleteProperty(Element.prototype, 'scrollIntoView')
+    }
+  })
+
+  it('refetches the facets when the filter bar asks to retry', async () => {
+    render(
+      <GalleryAllMediaView
+        actorId="actor-1"
+        initialCategory={null}
+        initialShow="all"
+        initialPage={{ items: [buildGalleryItem('5')], nextMaxId: null }}
+      />
+    )
+    await waitFor(() =>
+      expect(getGalleryMediaFacetsMock).toHaveBeenCalledTimes(1)
+    )
+    act(() => filterBarProps.current!.onRetryFacets!())
+    await waitFor(() =>
+      expect(getGalleryMediaFacetsMock).toHaveBeenCalledTimes(2)
+    )
+  })
+
   it('titles the page All media', () => {
     render(
       <GalleryAllMediaView
@@ -273,9 +405,7 @@ describe('GalleryAllMediaView', () => {
       screen.getByRole('heading', { name: 'All media' })
     ).toBeInTheDocument()
     expect(
-      screen.getByText(
-        "Every photo and video you've posted or added, newest first"
-      )
+      screen.getByText("Every photo and video you've posted or added")
     ).toBeInTheDocument()
   })
 
@@ -379,10 +509,12 @@ describe('GalleryAllMediaView', () => {
         )
         expect(getGalleryMediaMock).toHaveBeenCalledWith('actor-1', {
           limit: 24,
+          includeTotal: true,
           maxId: undefined,
           subject: undefined,
           category: 'bird',
-          show
+          show,
+          sort: 'taken_desc'
         })
       }
     )
@@ -1547,6 +1679,214 @@ describe('GalleryAllMediaView', () => {
       await waitFor(() =>
         expect(screen.queryByText(/Added 1 photo/)).not.toBeInTheDocument()
       )
+    })
+  })
+
+  describe('filters and facets', () => {
+    it('sends sort=taken_desc on grid requests by default', async () => {
+      getGalleryMediaMock.mockResolvedValue({
+        items: [buildGalleryItem('10')],
+        nextMaxId: null
+      })
+      render(
+        <GalleryAllMediaView
+          actorId="actor-1"
+          initialCategory={null}
+          initialShow="all"
+          initialPage={{ items: [buildGalleryItem('5')], nextMaxId: null }}
+        />
+      )
+      const nav = screen.getByRole('navigation', { name: 'Category' })
+      fireEvent.keyDown(nav.querySelector('button')!, { key: 'ArrowDown' })
+      fireEvent.click(await screen.findByRole('menuitem', { name: 'Mammals' }))
+
+      await waitFor(() =>
+        expect(getGalleryMediaMock).toHaveBeenCalledWith(
+          'actor-1',
+          expect.objectContaining({ sort: 'taken_desc' })
+        )
+      )
+    })
+
+    it('remounts the grid with the query and keeps selection when filter changes', async () => {
+      getGalleryMediaMock.mockResolvedValue({
+        items: [buildGalleryItem('1'), buildGalleryItem('2')],
+        nextMaxId: null
+      })
+      render(
+        <GalleryAllMediaView
+          actorId="actor-1"
+          initialCategory={null}
+          initialShow="all"
+          initialPage={{
+            items: [buildGalleryItem('1'), buildGalleryItem('2')],
+            nextMaxId: null
+          }}
+        />
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: 'Select' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Select 1' }))
+
+      const bar = screen.getByRole('region', { name: 'Selection' })
+      expect(bar).toHaveTextContent('1 selected')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Filter lions' }))
+
+      await waitFor(() =>
+        expect(getGalleryMediaMock).toHaveBeenCalledWith(
+          'actor-1',
+          expect.objectContaining({
+            subject: 'sci:panthera leo',
+            sort: 'taken_desc'
+          })
+        )
+      )
+
+      expect(bar).toHaveTextContent('1 selected')
+      expect(screen.getByRole('button', { name: 'Select 1' })).toHaveAttribute(
+        'aria-pressed',
+        'true'
+      )
+    })
+
+    it('refetches facets when show changes', async () => {
+      render(
+        <GalleryAllMediaView
+          actorId="actor-1"
+          initialCategory={null}
+          initialShow="all"
+          initialPage={{ items: [buildGalleryItem('5')], nextMaxId: null }}
+        />
+      )
+
+      await waitFor(() =>
+        expect(getGalleryMediaFacetsMock).toHaveBeenCalledWith({ show: 'all' })
+      )
+
+      const group = screen.getByRole('group', { name: 'Show' })
+      fireEvent.keyDown(group.querySelector('button')!, { key: 'ArrowDown' })
+      fireEvent.click(
+        await screen.findByRole('menuitem', { name: /^Hidden from gallery/ })
+      )
+
+      await waitFor(() =>
+        expect(getGalleryMediaFacetsMock).toHaveBeenLastCalledWith({
+          show: 'hidden'
+        })
+      )
+    })
+
+    it('passes total from the first page to the filter bar and wires countDraft', async () => {
+      getGalleryMediaMock.mockResolvedValue({
+        items: [buildGalleryItem('8')],
+        nextMaxId: null,
+        total: 142
+      })
+
+      render(
+        <GalleryAllMediaView
+          actorId="actor-1"
+          initialCategory={null}
+          initialShow="all"
+          initialPage={{
+            items: [buildGalleryItem('5')],
+            nextMaxId: null,
+            total: 42
+          }}
+        />
+      )
+
+      expect(filterBarProps.current?.total).toBe(42)
+      expect(screen.getByTestId('filter-bar')).toHaveAttribute(
+        'data-total',
+        '42'
+      )
+
+      // Reload to verify total updates from subsequent page response
+      const nav = screen.getByRole('navigation', { name: 'Category' })
+      fireEvent.keyDown(nav.querySelector('button')!, { key: 'ArrowDown' })
+      fireEvent.click(await screen.findByRole('menuitem', { name: 'Mammals' }))
+
+      await waitFor(() => {
+        expect(filterBarProps.current?.total).toBe(142)
+        expect(screen.getByTestId('filter-bar')).toHaveAttribute(
+          'data-total',
+          '142'
+        )
+      })
+
+      await filterBarProps.current?.countDraft?.(EMPTY_GALLERY_FILTERS)
+      expect(countGalleryMediaMock).toHaveBeenCalledWith(
+        'actor-1',
+        expect.objectContaining({ show: 'all', category: 'mammal' })
+      )
+    })
+
+    it('renders filtered empty state when items are empty and filters are active', async () => {
+      getGalleryMediaMock.mockResolvedValue({
+        items: [],
+        nextMaxId: null
+      })
+
+      render(
+        <GalleryAllMediaView
+          actorId="actor-1"
+          initialCategory={null}
+          initialShow="all"
+          initialPage={{
+            items: [buildGalleryItem('1')],
+            nextMaxId: null
+          }}
+        />
+      )
+
+      expect(screen.queryByTestId('filter-empty')).not.toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Filter lions' }))
+
+      await waitFor(() => {
+        expect(screen.getByTestId('filter-empty')).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
+
+      await waitFor(() => {
+        expect(screen.queryByTestId('filter-empty')).not.toBeInTheDocument()
+      })
+    })
+
+    it('preserves unfiltered empty titles when hasFilters is false', () => {
+      const { unmount } = render(
+        <GalleryAllMediaView
+          actorId="actor-1"
+          initialCategory={null}
+          initialShow="all"
+          initialPage={{
+            items: [],
+            nextMaxId: null
+          }}
+        />
+      )
+
+      expect(screen.getByText('No photos or videos yet')).toBeInTheDocument()
+      expect(screen.queryByTestId('filter-empty')).not.toBeInTheDocument()
+      unmount()
+
+      render(
+        <GalleryAllMediaView
+          actorId="actor-1"
+          initialCategory="mammal"
+          initialShow="all"
+          initialPage={{
+            items: [],
+            nextMaxId: null
+          }}
+        />
+      )
+
+      expect(screen.getByText('No mammals yet')).toBeInTheDocument()
+      expect(screen.queryByTestId('filter-empty')).not.toBeInTheDocument()
     })
   })
 })

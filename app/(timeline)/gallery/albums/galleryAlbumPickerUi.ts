@@ -70,11 +70,22 @@ export const filterPickerItems = (
   })
 }
 
+const getPickerDateText = (item: GalleryItemEntity): string => {
+  if (item.takenAt) {
+    return formatGalleryDate(item.takenAt)
+  }
+  if (item.uploadedAt) {
+    const formatted = formatGalleryDate(item.uploadedAt)
+    return formatted ? `Uploaded ${formatted}` : ''
+  }
+  return ''
+}
+
 /** "Common kingfisher · 12 Sep 2026", the date alone without a species, the upload date without a capture date. */
-export const getPickerCaption = (item: GalleryItemEntity): string =>
-  [item.subject?.name, formatGalleryDate(item.takenAt ?? item.uploadedAt)]
-    .filter(Boolean)
-    .join(' · ')
+export const getPickerCaption = (item: GalleryItemEntity): string => {
+  const dateText = getPickerDateText(item)
+  return [item.subject?.name, dateText].filter(Boolean).join(' · ')
+}
 
 /** Badge words for the accessible name, in display order. */
 export const getPickerBadges = (item: GalleryItemEntity): string[] => {
@@ -87,4 +98,45 @@ export const getPickerBadges = (item: GalleryItemEntity): string[] => {
     badges.push(`in ${count} ${count === 1 ? 'album' : 'albums'}`)
   }
   return badges
+}
+
+/**
+ * Top of the nearest scrolling ancestor (the dialog body). When the document
+ * scrolls instead, the root's scroll-padding-top (the mobile compact header)
+ * is the line the element must clear.
+ */
+const getScrollParentTop = (element: HTMLElement): number => {
+  for (
+    let parent = element.parentElement;
+    parent;
+    parent = parent.parentElement
+  ) {
+    const { overflowY } = getComputedStyle(parent)
+    if (overflowY === 'auto' || overflowY === 'scroll') {
+      return parent.getBoundingClientRect().top
+    }
+  }
+  return (
+    parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0
+  )
+}
+
+/**
+ * Brings the filter bar (the top of the results) back into view after a
+ * filter or sort change, only when its top is off-screen, under a sticky
+ * header (the element's scroll-margin-top) or clipped by the scroll container
+ * it sits in; no animation when the reader prefers reduced motion.
+ */
+export const scrollToResultsStart = (element: HTMLElement | null) => {
+  if (!element || typeof element.scrollIntoView !== 'function') return
+  const margin = parseFloat(getComputedStyle(element).scrollMarginTop) || 0
+  const top = getScrollParentTop(element) + margin
+  if (element.getBoundingClientRect().top >= top) return
+  const reduce =
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  element.scrollIntoView({
+    block: 'start',
+    behavior: reduce ? 'auto' : 'smooth'
+  })
 }
