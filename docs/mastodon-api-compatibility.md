@@ -590,8 +590,8 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   non-Mastodon `details` object (snake_case on the way in), and
   `/api/v1/gallery/*` and `/api/v1/accounts/:id/gallery/*` serve the gallery.
   `GET /api/v1/accounts/:id/gallery/media` takes an owner-only `show`
-  (`all`, `in_gallery`, `hidden`, `not_posted`; ignored for anyone else) and
-  reports `inGallery` and `posted` on each of the owner's items. Photos the
+  (`all`, `in_gallery`, `hidden`, `not_posted`, `not_in_album`; ignored for anyone else) and
+  reports `inGallery`, `posted`, `uploadedAt` and `albumCount` on each of the owner's items. Photos the
   owner added in Gallery without a post (`POST /api/v1/gallery/media` with
   `{ "media_ids": [...] }`, up to 40, scope `write` or `write:media`, answers
   `{ "media_ids": [...] }` with the ones kept) are listed to the owner only,
@@ -656,7 +656,7 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   `hiddenPlaceCount`) and a top-level `photoCount`, the number of distinct
   photos across them; `POST` creates one (`title`, `description`,
   `visibility` `public` or `private`, `sort_order` `taken_desc`, `taken_asc` or
-  `added_desc`, and up to 100 `media_ids`, created together with the album in one transaction). `GET`, `PATCH` (`cover_media_id` must
+  `added_desc`, optional `cover_media_id` which must be one of `media_ids`, and up to 100 `media_ids`, created together with the album in one transaction). `GET`, `PATCH` (`cover_media_id` must
   be an item, `null` clears it) and `DELETE /api/v1/gallery/albums/:id` read,
   change and remove an album, the `GET` carrying the facts (the public-safe
   numbers, for a private album too), species chips, `mediaIds` (every photo
@@ -696,10 +696,14 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   album menu (taking `read` or `read:statuses`, or the web session). It answers
   `albums` (every album of the caller, last updated first, each with `id`,
   `title`, `visibility` and the `itemCount` the owner sees), `albumIds` (the
-  ones that hold this photo) and `addable` (whether the photo is posted and in
-  the caller's gallery, so it can be added; a photo that is not can still be
-  taken out). Media that does not exist and media that is somebody else's both
-  answer 404. Adding and removing use the album `items` routes above.
+  ones that hold this photo) and `addable` (the owner's posted or Gallery-added
+  media, whatever its gallery switch, or a pending upload; a photo that cannot
+  be added can still be taken out). Media that does not exist and media that is
+  somebody else's both answer 404. Adding and removing use the album `items` routes above.
+- **`POST /api/v1/gallery/albums/membership`** — owner-only, non-Mastodon, taking
+  `read` or `read:statuses` (or the web session). Body: `{ media_ids: [...] }`
+  (1–100 `media_ids`, 422 otherwise); answers `albums: [{ id, mediaIds }]` for
+  the caller's albums only that hold at least one of the ids. Not rate limited.
 - **Gallery album suggestions** — owner-only, non-Mastodon, computed on demand and
   never stored; they take `read` or `read:statuses` (or the web session).
   `GET /api/v1/gallery/albums/suggestions?time_zone=` (an IANA zone name; the day of an

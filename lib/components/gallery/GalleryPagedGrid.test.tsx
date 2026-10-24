@@ -26,7 +26,8 @@ vi.mock('@/lib/components/gallery/GalleryGrid', () => ({
     onItemEdited,
     onViewerClosed,
     onPostItems,
-    onItemsDeleted
+    onItemsDeleted,
+    onAlbumsChanged
   }: {
     items: GalleryItemEntity[]
     selection?: unknown
@@ -35,6 +36,7 @@ vi.mock('@/lib/components/gallery/GalleryGrid', () => ({
     onViewerClosed?: () => void
     onPostItems?: (mediaIds: string[]) => void
     onItemsDeleted?: (mediaIds: string[]) => void
+    onAlbumsChanged?: (albumIds: string[]) => void
   }) => (
     <ul
       data-testid="grid"
@@ -61,6 +63,9 @@ vi.mock('@/lib/components/gallery/GalleryGrid', () => ({
       </button>
       <button onClick={() => onItemsDeleted?.([items[0].mediaId])}>
         Delete first
+      </button>
+      <button onClick={() => onAlbumsChanged?.(['album-1'])}>
+        Change albums
       </button>
       <li data-testid="first-name">{items[0]?.attachment.name}</li>
     </ul>
@@ -354,6 +359,34 @@ describe('GalleryPagedGrid', () => {
       expect(screen.getByTestId('grid')).not.toHaveTextContent('1')
       expect(screen.getByTestId('grid')).not.toHaveTextContent('9')
     })
+    it('drops a tile that joins an album from a Not in an album grid', () => {
+      const controller = createRef<GalleryPagedGridController>()
+      render(
+        <GalleryPagedGrid
+          actorId="actor-1"
+          show="not_in_album"
+          controllerRef={controller}
+          initialPage={{
+            items: [
+              buildGalleryItem('2', { albumCount: 0 }),
+              buildGalleryItem('1', { albumCount: 0 })
+            ],
+            nextMaxId: null
+          }}
+        />
+      )
+
+      act(() =>
+        controller.current?.updateItems([
+          buildGalleryItem('1', { albumCount: 1 })
+        ])
+      )
+
+      // Tile 1 now sits in an album, so it leaves; tile 2 stays.
+      expect(screen.getByTestId('grid')).toHaveTextContent('2')
+      expect(screen.getByTestId('grid')).not.toHaveTextContent('1')
+    })
+
     it('keeps an unposted tile only under the lists it is in', () => {
       const unposted = (mediaId: string) =>
         buildGalleryItem(mediaId, {
@@ -432,6 +465,23 @@ describe('GalleryPagedGrid', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Delete first' }))
       expect(onItemsDeleted).toHaveBeenCalledWith(['2'])
       expect(screen.getByTestId('grid')).not.toHaveTextContent('2')
+    })
+
+    it('passes onAlbumsChanged to GalleryGrid', () => {
+      const onAlbumsChanged = vi.fn()
+      render(
+        <GalleryPagedGrid
+          actorId="actor-1"
+          onAlbumsChanged={onAlbumsChanged}
+          initialPage={{
+            items: [buildGalleryItem('1')],
+            nextMaxId: null
+          }}
+        />
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: 'Change albums' }))
+      expect(onAlbumsChanged).toHaveBeenCalledWith(['album-1'])
     })
   })
 

@@ -2,6 +2,7 @@ import type {
   GalleryAlbumItemSet,
   GetGalleryAlbumItemSetsParams
 } from '@/lib/database/domains/gallery/types'
+import { toMediaRowId } from '@/lib/database/domains/media/rows'
 import type { Db } from '@/lib/database/kysely'
 import { chunkArray, getWhereInBatchSize } from '@/lib/database/kysely/inList'
 
@@ -15,9 +16,12 @@ export const getGalleryAlbumItemSets = async (
   db: Db,
   { actorId, mediaIds }: GetGalleryAlbumItemSetsParams
 ): Promise<GalleryAlbumItemSet[]> => {
+  // Out-of-range ids (above the 32-bit integer column) match nothing, so drop them here.
   const rowIds = [
     ...new Set(
-      mediaIds.filter((id) => /^\d{1,15}$/.test(id)).map((id) => Number(id))
+      mediaIds
+        .map((id) => toMediaRowId(String(id)))
+        .filter((id): id is number => id !== null)
     )
   ]
   const sets = new Map<string, Set<string>>()

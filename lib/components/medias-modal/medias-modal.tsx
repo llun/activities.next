@@ -54,11 +54,11 @@ interface Props {
   ownerName?: string | null
   /**
    * The signed-in viewer's actor id when every photo shown is theirs. With it
-   * the photo gets an "In N albums" pill that opens the add-to-album menu;
+   * the top bar offers an "In N albums" button that opens the add-to-album menu;
    * without it there is none and nothing is requested.
    */
   albumsOwnerId?: string | null
-  /** Called with an album's id after the albums pill changed what it holds. */
+  /** Called with an album's id after the albums button changed what it holds. */
   onAlbumsChange?: (albumId: string) => void
   /**
    * Owner editing. With it the top bar offers an Edit button beside Details,
@@ -94,7 +94,7 @@ export const MediasModal: FC<Props> = ({
     -1 | 0 | 1
   >(0)
   const [mounted, setMounted] = useState(false)
-  // The info overlay (alt text, public details, albums) is hidden whenever the
+  // The info overlay (alt text, public details) is hidden whenever the
   // viewer opens and stays at the owner's choice while moving between photos.
   const [detailsOpen, setDetailsOpen] = useState(false)
   const detailsOverlayId = useId()
@@ -110,8 +110,9 @@ export const MediasModal: FC<Props> = ({
   const closeButtonRef = useRef<HTMLButtonElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
   // True while focus sits inside the overlay, so it can be put back when the
-  // element holding it is removed (the albums pill remounts per photo).
+  // element holding it is removed.
   const focusInOverlay = useRef(false)
+  const focusInAlbums = useRef(false)
   // Public details, keyed by media id, so going back to a photo reuses the
   // answer. The cache belongs to one viewing session: it is dropped whenever
   // the attachment list changes (which includes closing the modal, since the
@@ -139,9 +140,7 @@ export const MediasModal: FC<Props> = ({
     ? loadedDetails
     : null
   const currentAltText = currentMedia?.name?.trim() ?? ''
-  const hasOverlayContent = Boolean(
-    currentAltText || currentDetails || (albumsOwnerId && currentMediaId)
-  )
+  const hasOverlayContent = Boolean(currentAltText || currentDetails)
   // The overlay renders only for a photo with something to show; the toggle
   // keeps its state across photos that have nothing.
   const overlayVisible = detailsOpen && hasOverlayContent
@@ -167,6 +166,13 @@ export const MediasModal: FC<Props> = ({
         : closeButtonRef.current
       target?.focus()
       focusInOverlay.current = false
+    }
+    if (focusInAlbums.current && lostFocus) {
+      const target = hasOverlayContent
+        ? detailsButtonRef.current
+        : closeButtonRef.current
+      target?.focus()
+      focusInAlbums.current = false
     }
   }, [overlayVisible, hasOverlayContent, currentMediaId])
 
@@ -458,6 +464,27 @@ export const MediasModal: FC<Props> = ({
             <Info className="h-5 w-5" aria-hidden="true" />
             Details
           </Button>
+          {albumsOwnerId && currentMediaId ? (
+            <div
+              onFocus={() => {
+                focusInAlbums.current = true
+              }}
+              onBlur={(e) => {
+                const target = e.target
+                queueMicrotask(() => {
+                  if (target.isConnected) focusInAlbums.current = false
+                })
+              }}
+            >
+              <MediaAlbumsControl
+                key={currentMediaId}
+                mediaId={currentMediaId}
+                ownerId={albumsOwnerId}
+                variant="pill"
+                onChange={onAlbumsChange}
+              />
+            </div>
+          ) : null}
           {onEdit &&
           currentMedia &&
           currentMediaId &&
@@ -525,17 +552,6 @@ export const MediasModal: FC<Props> = ({
                 ownerName={ownerName}
                 attachmentUpdatedAt={currentMedia.updatedAt}
                 className="py-3 first:pt-0 last:pb-0"
-              />
-            ) : null}
-            {albumsOwnerId && currentMediaId ? (
-              <MediaAlbumsControl
-                // Its own load and state for each photo.
-                key={currentMediaId}
-                mediaId={currentMediaId}
-                ownerId={albumsOwnerId}
-                variant="pill"
-                onChange={onAlbumsChange}
-                className="items-start py-3 first:pt-0 last:pb-0"
               />
             ) : null}
           </div>

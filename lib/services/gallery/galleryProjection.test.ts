@@ -212,6 +212,44 @@ describe('toGalleryItemEntity gallery membership', () => {
   })
 })
 
+describe('toGalleryItemEntity uploadedAt', () => {
+  it('gives the owner an ISO uploadedAt from the row timestamp', () => {
+    const row = {
+      ...mediaRow(),
+      uploadedAt: 1704067200000
+    }
+    const item = toGalleryItemEntity(row, {
+      viewer: 'owner',
+      settings: settingsWith(),
+      gearNames: {}
+    })
+    expect(item.uploadedAt).toBe('2024-01-01T00:00:00.000Z')
+  })
+
+  it('sets uploadedAt to null for the owner when absent or invalid', () => {
+    const rowWithoutTime = { ...mediaRow(), uploadedAt: null }
+    const item = toGalleryItemEntity(rowWithoutTime, {
+      viewer: 'owner',
+      settings: settingsWith(),
+      gearNames: {}
+    })
+    expect(item.uploadedAt).toBeNull()
+  })
+
+  it('omits uploadedAt completely for the public viewer', () => {
+    const row = {
+      ...mediaRow(),
+      uploadedAt: 1704067200000
+    }
+    const item = toGalleryItemEntity(row, {
+      viewer: 'public',
+      settings: settingsWith(),
+      gearNames: {}
+    })
+    expect('uploadedAt' in item).toBe(false)
+  })
+})
+
 describe('toGalleryItemEntity posted state', () => {
   const unposted = (): GalleryMediaRow => ({
     ...mediaRow({ inGallery: true }),

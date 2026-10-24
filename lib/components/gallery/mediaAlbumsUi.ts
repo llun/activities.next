@@ -1,7 +1,7 @@
 import type { MediaAlbumOptionEntity } from '@/lib/services/gallery/galleryAlbumEntities'
 
 // Pure helpers for the add-to-album menu (the details dialog row, the lightbox
-// pill and All media's multi-select picker): copy and accessible names, so the
+// top-bar button and All media's multi-select picker): copy and accessible names, so the
 // components stay about layout and behaviour.
 
 const pluralPhotos = (count: number) =>
@@ -39,7 +39,7 @@ export const getAlbumsPillLabel = (count: number): string =>
     : `In ${count} ${count === 1 ? 'album' : 'albums'}`
 
 export const NOT_ADDABLE_HINT =
-  'This photo can’t be added to an album until it’s in your gallery and shown there.'
+  'This photo can’t be added to an album until it’s posted or added in Gallery.'
 
 export const albumAddedMessage = (title: string) => `Added to “${title}”`
 export const albumRemovedMessage = (title: string) => `Removed from “${title}”`

@@ -418,6 +418,19 @@ describe('GalleryMediaDatabase', () => {
         expect(row.statusPublicId).toBe(stored?.publicId ?? null)
       })
 
+      it('carries a numeric uploadedAt on every returned row', async () => {
+        const rows = await database.getGalleryMedia({
+          actorId: ownerId,
+          audience: OWNER_GALLERY_AUDIENCE,
+          limit: 10
+        })
+        expect(rows.length).toBeGreaterThan(0)
+        for (const row of rows) {
+          expect(typeof row.uploadedAt).toBe('number')
+          expect(Number.isFinite(row.uploadedAt)).toBe(true)
+        }
+      })
+
       it('pages by maxId, newest first', async () => {
         const first = await database.getGalleryMedia({
           actorId: ownerId,
@@ -551,6 +564,40 @@ describe('GalleryMediaDatabase', () => {
 
         expect(rows).toHaveLength(3)
         expect(both?.statusId).toBe(status('public-2'))
+      })
+
+      it('carries a numeric uploadedAt on every returned row', async () => {
+        const rows = await database.getGalleryMediaByIds({
+          actorId: ownerId,
+          audience: OWNER_GALLERY_AUDIENCE,
+          mediaIds: [ids.public]
+        })
+        expect(rows).toHaveLength(1)
+        expect(typeof rows[0].uploadedAt).toBe('number')
+        expect(Number.isFinite(rows[0].uploadedAt)).toBe(true)
+      })
+
+      it('returns a hidden posted photo when requireInGallery is false, respecting post audience', async () => {
+        const ownerRows = await database.getGalleryMediaByIds({
+          actorId: ownerId,
+          audience: OWNER_GALLERY_AUDIENCE,
+          mediaIds: [ids['not-in-gallery'], ids.followers],
+          requireInGallery: false
+        })
+        expect(namesOf(ownerRows.map((r) => r.media.id))).toEqual([
+          'not-in-gallery',
+          'followers'
+        ])
+
+        const loggedOutRows = await database.getGalleryMediaByIds({
+          actorId: ownerId,
+          audience: PUBLIC_GALLERY_AUDIENCE,
+          mediaIds: [ids['not-in-gallery'], ids.followers],
+          requireInGallery: false
+        })
+        expect(namesOf(loggedOutRows.map((r) => r.media.id))).toEqual([
+          'not-in-gallery'
+        ])
       })
     })
 
@@ -825,10 +872,63 @@ describe('GalleryMediaDatabase', () => {
         expect(inGallery[ids.public]).toBe(true)
       })
 
+      describe('not_in_album', () => {
+        it('lists posted media, hidden included, that are in none of the owner albums', async () => {
+          const rows = await database.getGalleryMedia({
+            actorId: ownerId,
+            audience: OWNER_GALLERY_AUDIENCE,
+            limit: 50,
+            show: 'not_in_album'
+          })
+          expect(namesOf(rows.map((row) => row.media.id))).toEqual(
+            ownerShows.all
+          )
+        })
+
+        it('excludes media in an owner album, while another actor album changes nothing', async () => {
+          const album = await database.createGalleryAlbumWithinLimit({
+            actorId: ownerId,
+            title: 'Owner Album for not_in_album test',
+            mediaIds: [ids.public],
+            limit: 100
+          })
+          if (album.status !== 'created') throw new Error('album not created')
+
+          const otherAlbum = await database.createGalleryAlbumWithinLimit({
+            actorId: otherActorId,
+            title: 'Other Actor Album',
+            mediaIds: [ids.unlisted],
+            limit: 100
+          })
+
+          const rows = await database.getGalleryMedia({
+            actorId: ownerId,
+            audience: OWNER_GALLERY_AUDIENCE,
+            limit: 50,
+            show: 'not_in_album'
+          })
+          const names = namesOf(rows.map((row) => row.media.id))
+          expect(names).not.toContain('public')
+          expect(names).toContain('unlisted')
+          expect(names).toContain('not-in-gallery')
+
+          await database.deleteGalleryAlbum({
+            id: album.album.id,
+            actorId: ownerId
+          })
+          if (otherAlbum.status === 'created') {
+            await database.deleteGalleryAlbum({
+              id: otherAlbum.album.id,
+              actorId: otherActorId
+            })
+          }
+        })
+      })
+
       describe.each(
         audienceNames.filter((name) => name !== 'owner').map((name) => [name])
       )('for the %s', (name) => {
-        it.each(['all', 'hidden', 'in_gallery'] as const)(
+        it.each(['all', 'hidden', 'in_gallery', 'not_in_album'] as const)(
           'ignores show=%s and keeps the gallery',
           async (show) => {
             const audience = audiences[name]
@@ -952,7 +1052,14 @@ describe('GalleryMediaDatabase', () => {
         ],
         in_gallery: ['add-added-posted', 'add-added', 'add-posted'],
         hidden: ['add-added-hidden', 'add-posted-hidden'],
-        not_posted: ['add-added-hidden', 'add-added']
+        not_posted: ['add-added-hidden', 'add-added'],
+        not_in_album: [
+          'add-added-posted',
+          'add-added-hidden',
+          'add-added',
+          'add-posted-hidden',
+          'add-posted'
+        ]
       } as const
       const everyName = [
         'add-posted',
@@ -1024,6 +1131,30 @@ describe('GalleryMediaDatabase', () => {
         expect(byName['add-added-posted'].attachment?.mediaId).toBe(
           ids['add-added-posted']
         )
+      })
+
+      it('excludes media that is in an owner album from show=not_in_album', async () => {
+        const album = await database.createGalleryAlbumWithinLimit({
+          actorId: adder,
+          title: 'Adder Album for not_in_album',
+          mediaIds: [ids['add-added']],
+          limit: 100
+        })
+        if (album.status !== 'created') throw new Error('album not created')
+
+        const rows = await database.getGalleryMedia({
+          actorId: adder,
+          audience: OWNER_GALLERY_AUDIENCE,
+          limit: 50,
+          show: 'not_in_album'
+        })
+        expect(names(rows.map((r) => r.media.id))).not.toContain('add-added')
+        expect(names(rows.map((r) => r.media.id))).toContain('add-added-hidden')
+
+        await database.deleteGalleryAlbum({
+          id: album.album.id,
+          actorId: adder
+        })
       })
 
       it('counts an addition as gallery media for the owner only', async () => {

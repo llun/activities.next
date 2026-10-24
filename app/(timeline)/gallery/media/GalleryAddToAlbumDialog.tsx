@@ -6,6 +6,7 @@ import { FC, useEffect, useState } from 'react'
 import {
   GalleryAlbumAddError,
   addGalleryAlbumItems,
+  getGalleryAlbumMembership,
   getGalleryAlbums
 } from '@/lib/client'
 import { getAlbumOptionNames } from '@/lib/components/gallery/mediaAlbumsUi'
@@ -27,7 +28,11 @@ import type {
 } from '@/lib/services/gallery/galleryAlbumEntities'
 import { cn } from '@/lib/utils'
 
-import { describeAddFailure, describeAddResult } from './galleryAddToAlbumUi'
+import {
+  describeAddFailure,
+  describeAddResult,
+  describeAlreadyIn
+} from './galleryAddToAlbumUi'
 
 interface Props {
   open: boolean
@@ -63,10 +68,13 @@ export const GalleryAddToAlbumDialog: FC<Props> = ({
   onCloseAutoFocus
 }) => {
   const [load, setLoad] = useState<AlbumLoad>({ status: 'loading' })
+  const [counts, setCounts] = useState<ReadonlyMap<string, number> | null>(null)
   const [attempt, setAttempt] = useState(0)
   const [albumId, setAlbumId] = useState('')
   const [isAdding, setIsAdding] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const mediaIdsKey = mediaIds.join(',')
 
   useEffect(() => {
     if (!open) return
@@ -74,6 +82,7 @@ export const GalleryAddToAlbumDialog: FC<Props> = ({
     setLoad({ status: 'loading' })
     setAlbumId('')
     setError(null)
+    setCounts(null)
     getGalleryAlbums()
       .then((response) => {
         if (!cancelled) setLoad({ status: 'ready', albums: response.albums })
@@ -88,15 +97,29 @@ export const GalleryAddToAlbumDialog: FC<Props> = ({
               : 'Failed to load albums.'
         })
       })
+    const ids = mediaIdsKey ? mediaIdsKey.split(',') : []
+    getGalleryAlbumMembership(ids)
+      .then((response) => {
+        if (cancelled) return
+        const map = new Map<string, number>()
+        for (const album of response.albums) {
+          map.set(album.id, album.mediaIds.length)
+        }
+        setCounts(map)
+      })
+      .catch(() => {
+        if (!cancelled) setCounts(null)
+      })
     return () => {
       cancelled = true
     }
-  }, [open, attempt])
+  }, [open, attempt, mediaIdsKey])
 
   const albums = load.status === 'ready' ? load.albums : []
   const names = getAlbumOptionNames(albums)
   const chosen = albums.find((album) => album.id === albumId) ?? null
   const count = mediaIds.length
+  const toAdd = chosen ? count - (counts?.get(chosen.id) ?? 0) : count
 
   const handleAdd = async () => {
     if (!chosen || isAdding) return
@@ -200,6 +223,12 @@ export const GalleryAddToAlbumDialog: FC<Props> = ({
             >
               {albums.map((album, index) => {
                 const id = `add-to-album-${album.id}`
+                const inAlbum = counts?.get(album.id) ?? 0
+                const alreadyIn = describeAlreadyIn(inAlbum, count)
+                const isAllIn = count > 0 && inAlbum >= count
+                const ariaLabel = alreadyIn
+                  ? `${names[index]}, ${alreadyIn}`
+                  : names[index]
                 return (
                   <div
                     key={album.id}
@@ -211,7 +240,8 @@ export const GalleryAddToAlbumDialog: FC<Props> = ({
                     <RadioGroupItem
                       value={album.id}
                       id={id}
-                      aria-label={names[index]}
+                      disabled={isAdding || isAllIn}
+                      aria-label={ariaLabel}
                       className="shrink-0"
                     />
                     {/* The whole row is the label, so a tap anywhere on it
@@ -219,7 +249,10 @@ export const GalleryAddToAlbumDialog: FC<Props> = ({
                     <Label
                       htmlFor={id}
                       aria-hidden="true"
-                      className="min-w-0 flex-1 cursor-pointer gap-3 py-3 pr-3 pl-3 font-medium pointer-coarse:min-h-12"
+                      className={cn(
+                        'min-w-0 flex-1 cursor-pointer gap-3 py-3 pr-3 pl-3 font-medium pointer-coarse:min-h-12',
+                        isAllIn && 'cursor-not-allowed opacity-60'
+                      )}
                     >
                       {album.visibility === 'private' ? (
                         <Lock
@@ -236,7 +269,13 @@ export const GalleryAddToAlbumDialog: FC<Props> = ({
                         {album.title}
                       </span>
                       <span className="text-muted-foreground shrink-0 text-xs font-normal tabular-nums">
-                        {formatCount(album.itemCount)}
+                        {alreadyIn ? (
+                          <>
+                            <span>{alreadyIn}</span>
+                            <span aria-hidden="true"> · </span>
+                          </>
+                        ) : null}
+                        <span>{formatCount(album.itemCount)}</span>
                       </span>
                     </Label>
                   </div>
@@ -248,26 +287,40 @@ export const GalleryAddToAlbumDialog: FC<Props> = ({
 
         {error ? <Alert title={error} /> : null}
 
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            className="pointer-coarse:h-10"
-            onClick={() => handleOpenChange(false)}
-            disabled={isAdding}
+        <DialogFooter className="flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <p
+            aria-live="polite"
+            className="text-muted-foreground min-w-0 text-xs font-normal sm:text-sm"
           >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            className="pointer-coarse:h-10"
-            onClick={() => void handleAdd()}
-            disabled={!chosen || isAdding}
-          >
-            {isAdding
-              ? 'Adding…'
-              : `Add ${formatCount(count)} ${count === 1 ? 'photo' : 'photos'}`}
-          </Button>
+            {chosen && counts !== null
+              ? toAdd <= 0
+                ? 'All selected photos are already in this album'
+                : `${formatCount(toAdd)} will be added`
+              : ''}
+          </p>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              className="pointer-coarse:h-10"
+              onClick={() => handleOpenChange(false)}
+              disabled={isAdding}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="pointer-coarse:h-10"
+              onClick={() => void handleAdd()}
+              disabled={!chosen || isAdding || (counts !== null && toAdd <= 0)}
+            >
+              {isAdding
+                ? 'Adding…'
+                : chosen && counts !== null && toAdd <= 0
+                  ? 'Already in this album'
+                  : `Add ${formatCount(toAdd)} ${toAdd === 1 ? 'photo' : 'photos'}`}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

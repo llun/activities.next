@@ -171,4 +171,93 @@ describe('GalleryAlbumSuggestionList', () => {
     ).toBeInTheDocument()
     expect(screen.queryByRole('img')).not.toBeInTheDocument()
   })
+
+  it('filters out mostly-member suggestions and updates the count and meta when existingIds is provided', () => {
+    const krugerMediaIds = Array.from({ length: 50 }, (_, i) => `kruger-${i}`)
+    const kingfisherMediaIds = Array.from(
+      { length: 10 },
+      (_, i) => `kingfisher-${i}`
+    )
+    const existingIds = [
+      ...krugerMediaIds.slice(0, 12),
+      ...kingfisherMediaIds.slice(0, 8)
+    ]
+
+    const kruger = buildSuggestion('trip:2026-09-12', {
+      title: 'Kruger, September 2026',
+      photoCount: 50,
+      mediaIds: krugerMediaIds
+    })
+    const kingfisher = buildSuggestion('species:sci:alcedo atthis', {
+      kind: 'species',
+      title: 'Common kingfisher',
+      photoCount: 10,
+      mediaIds: kingfisherMediaIds
+    })
+
+    const { onUse } = renderList(
+      { status: 'ready', suggestions: [kruger, kingfisher] },
+      { existingIds }
+    )
+
+    expect(screen.queryByText('Common kingfisher')).not.toBeInTheDocument()
+    expect(screen.getByText('Kruger, September 2026')).toBeVisible()
+    expect(screen.getByText(/38 not in this album/)).toBeVisible()
+
+    const useButton = screen.getByRole('button', {
+      name: 'Use 38 photos from Kruger, September 2026'
+    })
+    expect(useButton).toHaveTextContent('Use 38')
+
+    fireEvent.click(useButton)
+    expect(onUse).toHaveBeenCalledTimes(1)
+    expect(onUse).toHaveBeenCalledWith(kruger)
+  })
+
+  it('shows all suggestions with full counts when existingIds is omitted', () => {
+    const krugerMediaIds = Array.from({ length: 50 }, (_, i) => `kruger-${i}`)
+    const kingfisherMediaIds = Array.from(
+      { length: 10 },
+      (_, i) => `kingfisher-${i}`
+    )
+
+    const kruger = buildSuggestion('trip:2026-09-12', {
+      title: 'Kruger, September 2026',
+      photoCount: 50,
+      mediaIds: krugerMediaIds
+    })
+    const kingfisher = buildSuggestion('species:sci:alcedo atthis', {
+      kind: 'species',
+      title: 'Common kingfisher',
+      photoCount: 10,
+      mediaIds: kingfisherMediaIds
+    })
+
+    renderList({ status: 'ready', suggestions: [kruger, kingfisher] })
+
+    expect(screen.getByText('Common kingfisher')).toBeVisible()
+    expect(screen.getByText('Kruger, September 2026')).toBeVisible()
+    expect(screen.getByText(/50 photos/)).toBeVisible()
+    expect(
+      screen.getByRole('button', {
+        name: 'Use 50 photos from Kruger, September 2026'
+      })
+    ).toHaveTextContent('Use 50')
+  })
+
+  it('shows the empty state when all suggestions are mostly members of the album', () => {
+    const mediaIds = ['photo-1', 'photo-2', 'photo-3', 'photo-4', 'photo-5']
+    const suggestion = buildSuggestion('trip:2026-09-12', {
+      mediaIds,
+      photoCount: 5
+    })
+
+    renderList(
+      { status: 'ready', suggestions: [suggestion] },
+      { existingIds: mediaIds }
+    )
+
+    expect(screen.getByText('No suggestions right now')).toBeInTheDocument()
+    expect(screen.queryByRole('list')).not.toBeInTheDocument()
+  })
 })

@@ -172,6 +172,9 @@ export interface GalleryMediaRow {
   attachment: Attachment | null
   statusId: string | null
   statusPublicId: string | null
+  // When the media was uploaded (`medias.createdAt`, epoch ms); set by the
+  // gallery reads, absent on rows built by hand.
+  uploadedAt?: number | null
 }
 
 /**
@@ -268,6 +271,9 @@ export interface GetGalleryMediaByIdsParams {
   mediaIds: string[]
   // Owner only (ignored for a viewer): the same `show` the ids were found with.
   show?: GalleryShow
+  // `false` skips the gallery switch for every audience (the album reads:
+  // a photo hidden from the gallery stays in its albums). Default true.
+  requireInGallery?: boolean
 }
 
 export interface GetGalleryMediaIndexParams {

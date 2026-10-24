@@ -6,12 +6,14 @@ import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { getGalleryMedia, getGallerySubjects } from '@/lib/client'
 import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
+import { useLoadMoreOnVisible } from '@/lib/components/posts/useLoadMoreOnVisible'
 import { Alert } from '@/lib/components/surface/Alert'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
 import { Select } from '@/lib/components/ui/select'
 import type { GalleryItemEntity } from '@/lib/services/gallery/galleryEntities'
+import { cn } from '@/lib/utils'
 
 import { GalleryAlbumPickerTile } from './GalleryAlbumPickerTile'
 import {
@@ -37,6 +39,7 @@ interface Props {
    */
   seedItems?: readonly GalleryItemEntity[]
   disabled?: boolean
+  columns?: 4 | 5
 }
 
 const PAGE_SIZE = 60
@@ -63,7 +66,8 @@ export const GalleryAlbumPicker: FC<Props> = ({
   capacity,
   existingIds,
   seedItems,
-  disabled = false
+  disabled = false,
+  columns = 4
 }) => {
   const [items, setItems] = useState<GalleryItemEntity[]>([])
   const [nextMaxId, setNextMaxId] = useState<string | null>(null)
@@ -84,16 +88,23 @@ export const GalleryAlbumPicker: FC<Props> = ({
     )
   )
 
+  const isLoadingRef = useRef(isLoading)
+  useEffect(() => {
+    isLoadingRef.current = isLoading
+  }, [isLoading])
+
   const load = useCallback(
     async (restart: boolean, cursor?: string) => {
       const current = restart ? ++generation.current : generation.current
+      isLoadingRef.current = true
       setIsLoading(true)
       setError(null)
       try {
         const page = await getGalleryMedia(ownerId, {
           limit: PAGE_SIZE,
           maxId: cursor,
-          subject: subjectKey || undefined
+          subject: subjectKey || undefined,
+          show: 'all'
         })
         if (current !== generation.current) return
         for (const item of page.items) seen.current.set(item.mediaId, item)
@@ -115,7 +126,10 @@ export const GalleryAlbumPicker: FC<Props> = ({
             : 'Failed to load photos.'
         )
       } finally {
-        if (current === generation.current) setIsLoading(false)
+        if (current === generation.current) {
+          isLoadingRef.current = false
+          setIsLoading(false)
+        }
       }
     },
     [ownerId, subjectKey]
@@ -124,6 +138,23 @@ export const GalleryAlbumPicker: FC<Props> = ({
   useEffect(() => {
     void load(true)
   }, [load])
+
+  const placeNames = useMemo(() => getPickerPlaceNames(items), [items])
+  const visible = useMemo(
+    () => filterPickerItems(items, { place, from, to }),
+    [items, place, from, to]
+  )
+  const isClientFiltered = Boolean(place || from || to)
+  const canObserverLoad = !isClientFiltered || visible.length >= MIN_VISIBLE
+
+  const { loadMoreRef } = useLoadMoreOnVisible({
+    enabled: Boolean(nextMaxId) && !error && !isLoading && canObserverLoad,
+    onLoadMore: useCallback(() => {
+      if (!isLoadingRef.current && nextMaxId && canObserverLoad) {
+        void load(false, nextMaxId)
+      }
+    }, [load, nextMaxId, canObserverLoad])
+  })
 
   useEffect(() => {
     let cancelled = false
@@ -147,22 +178,27 @@ export const GalleryAlbumPicker: FC<Props> = ({
     }
   }, [ownerId])
 
-  const placeNames = useMemo(() => getPickerPlaceNames(items), [items])
-  const visible = useMemo(
-    () => filterPickerItems(items, { place, from, to }),
-    [items, place, from, to]
-  )
-  const isClientFiltered = Boolean(place || from || to)
-
   // Keep reading while a client-side filter leaves the grid nearly empty.
   const autoPages = useRef(0)
+  const prevFilterRef = useRef({ place, from, to, subjectKey })
   useEffect(() => {
+    if (
+      prevFilterRef.current.place !== place ||
+      prevFilterRef.current.from !== from ||
+      prevFilterRef.current.to !== to ||
+      prevFilterRef.current.subjectKey !== subjectKey
+    ) {
+      prevFilterRef.current = { place, from, to, subjectKey }
+      autoPages.current = 0
+    }
     if (!isClientFiltered) {
       autoPages.current = 0
       return
     }
+    // The ref, not the render value: the restart effect above sets it
+    // synchronously, while `isLoading` is still false in this commit.
     if (
-      isLoading ||
+      isLoadingRef.current ||
       error ||
       !nextMaxId ||
       visible.length >= MIN_VISIBLE ||
@@ -172,7 +208,34 @@ export const GalleryAlbumPicker: FC<Props> = ({
     }
     autoPages.current += 1
     void load(false, nextMaxId)
-  }, [isClientFiltered, isLoading, error, nextMaxId, visible.length, load])
+  }, [
+    isClientFiltered,
+    isLoading,
+    error,
+    nextMaxId,
+    visible.length,
+    load,
+    place,
+    from,
+    to,
+    subjectKey
+  ])
+
+  // Auto paging has stopped (budget used up) but older pages remain: let the
+  // user continue by hand. The ref is only updated in the effect above, which
+  // is always followed by a state change, so this render read is current.
+  // While loading, keep the button only if the user's own click started it, so
+  // it stays mounted (focus kept) but does not flash during the last auto page.
+  const [manualClicked, setManualClicked] = useState(false)
+  useEffect(() => {
+    if (!isLoading) setManualClicked(false)
+  }, [isLoading])
+  const showManualLoadMore =
+    Boolean(nextMaxId) &&
+    !error &&
+    !canObserverLoad &&
+    autoPages.current >= MAX_AUTO_PAGES &&
+    (!isLoading || manualClicked)
 
   const firstSelected = selected[0] ?? null
   useEffect(() => {
@@ -224,10 +287,9 @@ export const GalleryAlbumPicker: FC<Props> = ({
           <Images className="text-muted-foreground size-5" />
         </span>
         <div>
-          <p className="text-sm font-semibold">No photos to add yet</p>
+          <p className="text-sm font-semibold">No photos yet</p>
           <p className="text-muted-foreground text-sm">
-            Photos you post with a species or place show up here. You can come
-            back and add them any time.
+            Photos you post, or add in Gallery, show up here.
           </p>
         </div>
         <Button asChild variant="outline" size="sm">
@@ -238,6 +300,8 @@ export const GalleryAlbumPicker: FC<Props> = ({
       </div>
     )
   }
+
+  const skeletonCount = columns === 5 ? 5 : 4
 
   return (
     <div className="space-y-3">
@@ -251,6 +315,7 @@ export const GalleryAlbumPicker: FC<Props> = ({
             value={subjectKey}
             onChange={(event) => setSubjectKey(event.target.value)}
             disabled={disabled}
+            className="pointer-coarse:h-10"
           >
             <option value="">Any species</option>
             {subjects.map((subject) => (
@@ -269,6 +334,7 @@ export const GalleryAlbumPicker: FC<Props> = ({
             value={place}
             onChange={(event) => setPlace(event.target.value)}
             disabled={disabled}
+            className="pointer-coarse:h-10"
           >
             <option value="">Any place</option>
             {placeNames.map((name) => (
@@ -290,6 +356,7 @@ export const GalleryAlbumPicker: FC<Props> = ({
             onChange={(event) => setFrom(event.target.value)}
             onKeyDown={ignoreEnter}
             disabled={disabled}
+            className="pointer-coarse:h-10"
           />
         </div>
         <div className="min-w-0 space-y-1 max-sm:col-span-2">
@@ -304,6 +371,7 @@ export const GalleryAlbumPicker: FC<Props> = ({
             onChange={(event) => setTo(event.target.value)}
             onKeyDown={ignoreEnter}
             disabled={disabled}
+            className="pointer-coarse:h-10"
           />
         </div>
       </div>
@@ -318,7 +386,10 @@ export const GalleryAlbumPicker: FC<Props> = ({
           disabled={
             disabled ||
             isFull ||
-            visible.every((item) => existingSet.has(item.mediaId))
+            visible.every(
+              (item) =>
+                selectedSet.has(item.mediaId) || existingSet.has(item.mediaId)
+            )
           }
         >
           Select all shown
@@ -347,8 +418,18 @@ export const GalleryAlbumPicker: FC<Props> = ({
         ) : null}
       </div>
 
+      <div role="status" className="sr-only">
+        {isLoading && items.length > 0 ? 'Loading more photos' : ''}
+      </div>
+
       {isLoading && items.length === 0 ? (
-        <div className="grid grid-cols-3 gap-1 sm:grid-cols-4" aria-busy="true">
+        <div
+          className={cn(
+            'grid grid-cols-3 gap-1',
+            columns === 5 ? 'sm:grid-cols-5' : 'sm:grid-cols-4'
+          )}
+          aria-busy="true"
+        >
           <span className="sr-only">Loading photos</span>
           {Array.from({ length: 12 }, (_, index) => (
             <div
@@ -360,7 +441,10 @@ export const GalleryAlbumPicker: FC<Props> = ({
         </div>
       ) : visible.length > 0 ? (
         <ul
-          className="grid grid-cols-3 gap-1 sm:grid-cols-4"
+          className={cn(
+            'grid grid-cols-3 gap-1',
+            columns === 5 ? 'sm:grid-cols-5' : 'sm:grid-cols-4'
+          )}
           aria-busy={isLoading}
         >
           {visible.map((item, index) => (
@@ -372,10 +456,22 @@ export const GalleryAlbumPicker: FC<Props> = ({
                 isMember={existingSet.has(item.mediaId)}
                 isBlocked={!selectedSet.has(item.mediaId) && isFull}
                 disabled={disabled}
+                showCaption
                 onToggle={toggle}
               />
             </li>
           ))}
+          {isLoading && items.length > 0
+            ? Array.from({ length: skeletonCount }, (_, index) => (
+                <li
+                  key={`skeleton-${index}`}
+                  aria-hidden="true"
+                  className={index >= 3 ? 'hidden sm:block' : undefined}
+                >
+                  <div className="skeleton aspect-square rounded-md" />
+                </li>
+              ))
+            : null}
         </ul>
       ) : error ? null : (
         <p className="text-muted-foreground py-6 text-center text-sm">
@@ -385,13 +481,28 @@ export const GalleryAlbumPicker: FC<Props> = ({
         </p>
       )}
 
-      {error ? <Alert title={error} /> : null}
-      {nextMaxId ? (
+      {nextMaxId && !error ? (
+        <div ref={loadMoreRef} aria-hidden="true" className="h-px" />
+      ) : null}
+
+      {showManualLoadMore && nextMaxId ? (
         <LoadMoreButton
           isLoading={isLoading}
-          loadingText="Loading more"
-          onClick={() => void load(false, nextMaxId)}
-        />
+          loadingText="Loading more photos"
+          onClick={() => {
+            setManualClicked(true)
+            void load(false, nextMaxId)
+          }}
+        >
+          Load more photos
+        </LoadMoreButton>
+      ) : null}
+
+      {error ? <Alert title={error} /> : null}
+      {error && nextMaxId && items.length > 0 ? (
+        <LoadMoreButton onClick={() => void load(false, nextMaxId)}>
+          Try again
+        </LoadMoreButton>
       ) : error && items.length === 0 ? (
         <LoadMoreButton onClick={() => void load(true)}>
           Try again

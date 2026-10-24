@@ -9,7 +9,12 @@ import {
 } from '@/lib/types/database/galleryAlbums'
 
 // A media id on the wire: the decimal `medias.id`.
-const MediaId = z.string().trim().regex(/^\d+$/).max(10)
+const MediaId = z
+  .string()
+  .trim()
+  .regex(/^\d+$/)
+  .max(10)
+  .transform((value) => String(BigInt(value)))
 
 // 1 to 100 media ids; repeats are harmless (they are de-duplicated).
 const MediaIds = z.array(MediaId).min(1).max(MAX_GALLERY_ALBUM_REQUEST_IDS)
@@ -23,14 +28,22 @@ const Description = z
   .max(MAX_GALLERY_ALBUM_DESCRIPTION_LENGTH)
   .transform((value) => value || null)
 
-export const CreateGalleryAlbumRequest = z.object({
-  title: Title,
-  description: Description.nullish(),
-  visibility: z.enum(GALLERY_ALBUM_VISIBILITIES).optional(),
-  sort_order: z.enum(GALLERY_ALBUM_SORTS).optional(),
-  // Photos to start the album with (the first 100; the client adds the rest).
-  media_ids: MediaIds.optional()
-})
+export const CreateGalleryAlbumRequest = z
+  .object({
+    title: Title,
+    description: Description.nullish(),
+    visibility: z.enum(GALLERY_ALBUM_VISIBILITIES).optional(),
+    sort_order: z.enum(GALLERY_ALBUM_SORTS).optional(),
+    // Photos to start the album with (the first 100; the client adds the rest).
+    media_ids: MediaIds.optional(),
+    cover_media_id: MediaId.optional()
+  })
+  .refine(
+    (v) =>
+      v.cover_media_id === undefined ||
+      (v.media_ids ?? []).includes(v.cover_media_id),
+    { message: 'The cover must be one of media_ids' }
+  )
 export type CreateGalleryAlbumRequest = z.infer<
   typeof CreateGalleryAlbumRequest
 >
@@ -55,6 +68,11 @@ export type UpdateGalleryAlbumRequest = z.infer<
 
 export const GalleryAlbumItemsRequest = z.object({ media_ids: MediaIds })
 export type GalleryAlbumItemsRequest = z.infer<typeof GalleryAlbumItemsRequest>
+
+export const GalleryAlbumMembershipRequest = z.object({ media_ids: MediaIds })
+export type GalleryAlbumMembershipRequest = z.infer<
+  typeof GalleryAlbumMembershipRequest
+>
 
 // Opaque to clients: `<sort key>:<media id>`, as `GalleryAlbumMediaPage`
 // hands it out.

@@ -1,5 +1,7 @@
 import {
   filterPickerItems,
+  getPickerBadges,
+  getPickerCaption,
   getPickerPlaceNames,
   getPickerSubjectNames
 } from '@/app/(timeline)/gallery/albums/galleryAlbumPickerUi'
@@ -78,6 +80,38 @@ describe('filterPickerItems', () => {
       )
     ).toEqual(['2'])
   })
+
+  it('matches an undated photo by uploadedAt and never matches a photo with neither date', () => {
+    const list = [
+      buildGalleryItem('1', {
+        takenAt: null,
+        uploadedAt: '2026-07-15T12:00:00Z'
+      }),
+      buildGalleryItem('2', { takenAt: null, uploadedAt: null }),
+      buildGalleryItem('3', {
+        takenAt: '2026-07-10T12:00:00Z',
+        uploadedAt: '2026-07-20T12:00:00Z'
+      })
+    ]
+    expect(
+      ids(
+        filterPickerItems(list, {
+          place: '',
+          from: '2026-07-14',
+          to: '2026-07-16'
+        })
+      )
+    ).toEqual(['1'])
+    expect(
+      ids(
+        filterPickerItems(list, {
+          place: '',
+          from: '2026-01-01',
+          to: '2026-12-31'
+        })
+      )
+    ).toEqual(['1', '3'])
+  })
 })
 
 describe('species filter', () => {
@@ -133,5 +167,63 @@ describe('species filter', () => {
         })
       )
     ).toEqual([])
+  })
+})
+
+describe('getPickerCaption', () => {
+  it('returns species and date', () => {
+    const item = buildGalleryItem('1', {
+      subject: { name: 'Common kingfisher' } as never,
+      takenAt: '2026-09-12T10:00:00Z'
+    })
+    expect(getPickerCaption(item)).toBe('Common kingfisher · 12 Sep 2026')
+  })
+
+  it('returns date only without a species', () => {
+    const item = buildGalleryItem('1', {
+      subject: null,
+      takenAt: '2026-09-12T10:00:00Z'
+    })
+    expect(getPickerCaption(item)).toBe('12 Sep 2026')
+  })
+
+  it('falls back to uploadedAt when takenAt is missing', () => {
+    const item = buildGalleryItem('1', {
+      subject: { name: 'Common kingfisher' } as never,
+      takenAt: null,
+      uploadedAt: '2026-09-12T10:00:00Z'
+    })
+    expect(getPickerCaption(item)).toBe('Common kingfisher · 12 Sep 2026')
+  })
+
+  it('returns empty string when there is no species and no dates', () => {
+    const item = buildGalleryItem('1', {
+      subject: null,
+      takenAt: null,
+      uploadedAt: null
+    })
+    expect(getPickerCaption(item)).toBe('')
+  })
+})
+
+describe('getPickerBadges', () => {
+  it('returns "not in gallery" when inGallery is false', () => {
+    const item = buildGalleryItem('1', { inGallery: false })
+    expect(getPickerBadges(item)).toEqual(['not in gallery'])
+  })
+
+  it('returns "in 1 album" when albumCount is 1', () => {
+    const item = buildGalleryItem('1', { albumCount: 1 })
+    expect(getPickerBadges(item)).toEqual(['in 1 album'])
+  })
+
+  it('returns "in 3 albums" when albumCount is 3', () => {
+    const item = buildGalleryItem('1', { albumCount: 3 })
+    expect(getPickerBadges(item)).toEqual(['in 3 albums'])
+  })
+
+  it('returns empty array when in gallery and not in any album', () => {
+    const item = buildGalleryItem('1', { inGallery: true, albumCount: 0 })
+    expect(getPickerBadges(item)).toEqual([])
   })
 })

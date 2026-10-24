@@ -43,7 +43,6 @@ import {
   GALLERY_SELECTION_BAR_ID,
   GallerySelectionBar
 } from './GallerySelectionBar'
-import { describeHiddenSkipped } from './galleryAddToAlbumUi'
 
 interface Props {
   actorId: string
@@ -75,7 +74,8 @@ const EMPTY_TITLES: Record<GalleryShow, string> = {
   all: 'No photos or videos yet',
   in_gallery: 'No photos in your gallery yet',
   hidden: 'Nothing is hidden from your gallery',
-  not_posted: 'No photos waiting to be posted'
+  not_posted: 'No photos waiting to be posted',
+  not_in_album: 'Every photo is in an album'
 }
 
 /** What the Add picker and a drop take: the types the composer uploads, minus audio. */
@@ -111,6 +111,9 @@ export const GalleryAllMediaView: FC<Props> = ({
   // In the order they were picked: the first is the cover of a new album.
   const [selected, setSelected] = useState<string[]>([])
   const [loaded, setLoaded] = useState<GalleryItemEntity[]>([])
+  const [seen, setSeen] = useState<ReadonlyMap<string, GalleryItemEntity>>(
+    new Map()
+  )
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [outcome, setOutcome] = useState<Outcome | null>(null)
@@ -137,8 +140,8 @@ export const GalleryAllMediaView: FC<Props> = ({
 
   const selectedSet = useMemo(() => new Set(selected), [selected])
   const selectedItems = useMemo(
-    () => loaded.filter((item) => selectedSet.has(item.mediaId)),
-    [loaded, selectedSet]
+    () => selected.flatMap((id) => seen.get(id) ?? []),
+    [selected, seen]
   )
   // The photos Edit details was opened for: fixed while the dialog is open, so
   // a tile that drops out of the list after a save does not pull the item from
@@ -146,53 +149,39 @@ export const GalleryAllMediaView: FC<Props> = ({
   const [editItems, setEditItems] = useState<GalleryItemEntity[]>([])
 
   const setFilter = (next: Filter) => {
-    // A different filter is a different list: a selection does not carry over.
-    setSelected([])
     setReuseInitialPage(false)
     setFilterState(next)
   }
 
   const setShow = (next: GalleryShow) => {
-    setSelected([])
     setReuseInitialPage(false)
     setShowState(next)
   }
 
-  // The grid reports its photos whenever they change (a page loads, an edit
-  // moves one out of the list). A pick of a photo that is gone is dropped, so
-  // the count and what Add to album sends match what the owner can see.
   const handleItemsChange = useCallback((items: GalleryItemEntity[]) => {
     setLoaded(items)
-    setSelected((current) => {
-      const present = new Set(items.map((item) => item.mediaId))
-      const next = current.filter((id) => present.has(id))
-      return next.length === current.length ? current : next
+    setSeen((current) => {
+      const next = new Map(current)
+      for (const item of items) {
+        next.set(item.mediaId, item)
+      }
+      return next
     })
   }, [])
 
-  // Albums hold only photos shown in the gallery. A hidden one in a selection is
-  // left out of an add or a new album, and the owner is told so.
-  const hiddenIds = useMemo(
-    () =>
-      new Set(
-        selectedItems
-          .filter((item) => item.inGallery === false)
-          .map((item) => item.mediaId)
-      ),
-    [selectedItems]
-  )
-  const addableIds = useMemo(
-    () => selected.filter((id) => !hiddenIds.has(id)),
-    [selected, hiddenIds]
-  )
-  const addableItems = useMemo(
-    () => selectedItems.filter((item) => item.inGallery !== false),
-    [selectedItems]
-  )
-  const withHiddenNote = (message: string) =>
-    hiddenIds.size > 0
-      ? `${message} ${describeHiddenSkipped(hiddenIds.size)}`
-      : message
+  const dropMediaIds = useCallback((ids: string[]) => {
+    if (ids.length === 0) return
+    const dropSet = new Set(ids)
+    setSelected((current) => current.filter((id) => !dropSet.has(id)))
+    setSeen((current) => {
+      let changed = false
+      const next = new Map(current)
+      for (const id of ids) {
+        if (next.delete(id)) changed = true
+      }
+      return changed ? next : current
+    })
+  }, [])
 
   const toggle = useCallback((item: GalleryItemEntity) => {
     setSelected((current) =>
@@ -346,6 +335,7 @@ export const GalleryAllMediaView: FC<Props> = ({
 
   const allUnposted =
     selectedItems.length > 0 &&
+    selectedItems.length === selected.length &&
     selectedItems.every((item) => item.posted === false)
 
   const finish = (result: Outcome) => {
@@ -500,18 +490,29 @@ export const GalleryAllMediaView: FC<Props> = ({
         selection={selection}
         albumsOwnerId={actorId}
         onPostItems={postMedia}
-        onItemsDeleted={(ids) =>
+        onItemsDeleted={(ids) => {
+          dropMediaIds(ids)
           setOutcome({ message: describeDeleted(ids.length) })
-        }
+        }}
         onItemsChange={handleItemsChange}
+        onAlbumsChanged={
+          show === 'not_in_album'
+            ? () => {
+                setReuseInitialPage(false)
+                setGridNonce((nonce) => nonce + 1)
+              }
+            : undefined
+        }
       />
       {isSelecting ? (
         <GallerySelectionBar
           count={selected.length}
           loadedCount={loaded.length}
+          loadedSelectedCount={
+            loaded.filter((item) => selectedSet.has(item.mediaId)).length
+          }
           onSelectAllLoaded={selectAllLoaded}
           onClear={() => setSelected([])}
-          hiddenCount={hiddenIds.size}
           onAddToAlbum={() => setIsAddOpen(true)}
           onEditDetails={() => {
             setEditItems(selectedItems)
@@ -531,6 +532,13 @@ export const GalleryAllMediaView: FC<Props> = ({
           ownerId={actorId}
           onClose={() => setIsEditOpen(false)}
           onSaved={(saved) => {
+            setSeen((current) => {
+              const next = new Map(current)
+              for (const item of saved) {
+                next.set(item.mediaId, item)
+              }
+              return next
+            })
             gridController.current?.updateItems(saved)
             setOutcome({
               message:
@@ -541,6 +549,7 @@ export const GalleryAllMediaView: FC<Props> = ({
           }}
           onPost={postMedia}
           onDeleted={(ids) => {
+            dropMediaIds(ids)
             gridController.current?.removeItems(ids)
             setOutcome({ message: describeDeleted(ids.length) })
           }}
@@ -565,9 +574,11 @@ export const GalleryAllMediaView: FC<Props> = ({
           mediaIds={deleteIds}
           onCancel={() => setDeleteIds(null)}
           onPartlyDeleted={(gone) => {
+            dropMediaIds(gone)
             gridController.current?.removeItems(gone)
           }}
           onDeleted={(gone) => {
+            dropMediaIds(gone)
             gridController.current?.removeItems(gone)
             setDeleteIds(null)
             finish({ message: describeDeleted(gone.length) })
@@ -615,31 +626,39 @@ export const GalleryAllMediaView: FC<Props> = ({
 
       <GalleryAddToAlbumDialog
         open={isAddOpen}
-        mediaIds={addableIds}
+        mediaIds={selected}
         onOpenChange={setIsAddOpen}
         onNewAlbum={() => {
           setIsAddOpen(false)
           setIsCreateOpen(true)
         }}
-        onAdded={(result) =>
-          finish({ ...result, message: withHiddenNote(result.message) })
-        }
+        onAdded={(result) => {
+          if (show === 'not_in_album') {
+            setReuseInitialPage(false)
+            setGridNonce((nonce) => nonce + 1)
+          }
+          finish(result)
+        }}
         onCloseAutoFocus={restoreFocus}
       />
       <GalleryAlbumFormDialog
         open={isCreateOpen}
         ownerId={actorId}
         intent="create"
-        initialMediaIds={addableIds}
-        initialItems={addableItems}
+        initialMediaIds={selected}
+        initialItems={selectedItems}
         onOpenChange={setIsCreateOpen}
         onCloseAutoFocus={restoreFocus}
-        onSaved={(albumId) =>
+        onSaved={(albumId) => {
+          if (show === 'not_in_album') {
+            setReuseInitialPage(false)
+            setGridNonce((nonce) => nonce + 1)
+          }
           finish({
             albumId,
-            message: withHiddenNote('Album created.')
+            message: 'Album created.'
           })
-        }
+        }}
       />
     </div>
   )

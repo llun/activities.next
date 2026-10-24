@@ -13,13 +13,12 @@ const quoted = (title: string) => `“${title}”`
 const endSentence = (text: string) =>
   /[.!?…]$/.test(text.trim()) ? text.trim() : `${text.trim()}.`
 
-/**
- * Said after an add or a new album from a selection that held hidden photos:
- * albums hold only photos shown in the gallery, so those were left out before
- * anything was sent.
- */
-export const describeHiddenSkipped = (hidden: number): string =>
-  `${pluralize(hidden, 'hidden photo')} skipped: turn on Show in my gallery to add ${hidden === 1 ? 'it' : 'them'} to albums.`
+/** "3 of 5 already in" / "All 5 already in" / '' when none. */
+export const describeAlreadyIn = (inAlbum: number, total: number): string => {
+  if (inAlbum <= 0 || total <= 0) return ''
+  if (inAlbum >= total) return `All ${total.toLocaleString('en-US')} already in`
+  return `${inAlbum.toLocaleString('en-US')} of ${total.toLocaleString('en-US')} already in`
+}
 
 /** What a finished add did, one sentence per kind of result. */
 export const describeAddResult = (title: string, outcome: Outcome): string => {
@@ -41,7 +40,7 @@ export const describeAddResult = (title: string, outcome: Outcome): string => {
   }
   if (skipped.length > 0) {
     parts.push(
-      `${pluralize(skipped.length, 'photo')} couldn’t be added: ${skipped.length === 1 ? 'it is' : 'they are'} hidden from your gallery or no longer posted.`
+      `${pluralize(skipped.length, 'photo')} couldn’t be added: ${skipped.length === 1 ? 'it is' : 'they are'} no longer posted or added in Gallery.`
     )
   }
   return parts.join(' ')

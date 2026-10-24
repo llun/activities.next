@@ -64,9 +64,8 @@ type ProfileData = {
   followersCount: number | null
   isInternalAccount: boolean
   hasFitnessData: boolean
-  // Whether the profile shows a Gallery tab, and which subviews it offers.
-  // Both are scoped to the viewer, so the tab's presence discloses nothing.
-  hasGalleryMedia: boolean
+  // Gallery subviews offered to this viewer. Scoped to the viewer, so the
+  // tab's presence discloses nothing.
   gallerySubviews: GallerySubview[]
   // Which profile tabs the owner shows (a local actor's `showReplies`,
   // `showMedia`, `showGallery` and `showFitness` settings, each shown unless
@@ -223,58 +222,71 @@ const getLocalProfileData = async (
   // any of this actor's fitness posts must not be told there are any. The
   // owner's audience carries no filter, which keeps their own tab unchanged.
   // The gallery asks the same question through its own scope (a posted,
-  // in-gallery photo on a status this viewer may read), so the Gallery tab
-  // is offered to exactly the viewers who would find something in it.
+  // in-gallery photo on a status this viewer may read). Albums are independent
+  // of the gallery switch: an album can hold photos hidden from the gallery,
+  // so we check both gallery media and visible gallery albums in parallel.
+  // The Gallery tab is offered to exactly the viewers who would find something
+  // in it (either gallery media or visible albums).
   const galleryAudience = toGalleryAudience(audience)
-  const [scopedStatuses, attachments, hasFitnessData, hasGalleryMedia] =
-    await Promise.all([
-      database.getActorStatuses({
-        actorId: persistedActor.id,
-        currentActorId: currentActor?.id,
-        limit: PER_PAGE_LIMIT,
-        ...visibilityScope
-      }),
-      tabVisibility.media
-        ? database.getAttachmentsForActor({
-            actorId: persistedActor.id,
-            ...visibilityScope
-          })
-        : Promise.resolve([] as Attachment[]),
-      tabVisibility.fitness
-        ? database.getActorHasFitnessData({
-            actorId: persistedActor.id,
-            ...visibilityScope
-          })
-        : Promise.resolve(false),
-      tabVisibility.gallery
-        ? database.getActorHasGalleryMedia({
-            actorId: persistedActor.id,
-            audience: galleryAudience
-          })
-        : Promise.resolve(false)
-    ])
+  const [
+    scopedStatuses,
+    attachments,
+    hasFitnessData,
+    hasGalleryMedia,
+    hasGalleryAlbums
+  ] = await Promise.all([
+    database.getActorStatuses({
+      actorId: persistedActor.id,
+      currentActorId: currentActor?.id,
+      limit: PER_PAGE_LIMIT,
+      ...visibilityScope
+    }),
+    tabVisibility.media
+      ? database.getAttachmentsForActor({
+          actorId: persistedActor.id,
+          ...visibilityScope
+        })
+      : Promise.resolve([] as Attachment[]),
+    tabVisibility.fitness
+      ? database.getActorHasFitnessData({
+          actorId: persistedActor.id,
+          ...visibilityScope
+        })
+      : Promise.resolve(false),
+    tabVisibility.gallery
+      ? database.getActorHasGalleryMedia({
+          actorId: persistedActor.id,
+          audience: galleryAudience
+        })
+      : Promise.resolve(false),
+    tabVisibility.gallery
+      ? database.getActorHasVisibleGalleryAlbums({
+          actorId: persistedActor.id,
+          audience: galleryAudience
+        })
+      : Promise.resolve(false)
+  ])
 
   const gallerySubviews: GallerySubview[] = []
   if (hasGalleryMedia) {
-    const [gallerySettings, hasGalleryAlbums] = await Promise.all([
-      database.getGallerySettings({ actorId: persistedActor.id }),
-      // The Albums chip, by the same audience: offered only to a viewer who
-      // can open at least one album, so it never hints at one they cannot.
-      // Asked only once there is gallery media at all, since an album is
-      // made of it.
-      database.getActorHasVisibleGalleryAlbums({
-        actorId: persistedActor.id,
-        audience: galleryAudience
-      })
-    ])
+    const gallerySettings = await database.getGallerySettings({
+      actorId: persistedActor.id
+    })
     gallerySubviews.push('subjects', 'recent')
-    if (hasGalleryAlbums) gallerySubviews.push('albums')
+    if (hasGalleryAlbums) {
+      gallerySubviews.push('albums')
+    }
     if (audience.isOwner || gallerySettings.mapPublic) {
       gallerySubviews.push('map')
     }
     if (audience.isOwner || gallerySettings.lifeListPublic) {
       gallerySubviews.push('life-list')
     }
+  } else if (hasGalleryAlbums) {
+    // Albums are independent of the gallery switch: an actor with no in-gallery
+    // media who curates hidden-from-gallery photos into albums still offers the
+    // Gallery tab directly at Albums to any viewer who can open at least one.
+    gallerySubviews.push('albums')
   }
 
   // The SQL scope above filters on the status's own recipients, which cannot
@@ -332,7 +344,6 @@ const getLocalProfileData = async (
     followersCount,
     isInternalAccount: true,
     hasFitnessData,
-    hasGalleryMedia,
     gallerySubviews,
     tabVisibility,
     isPixelfed: false,
@@ -605,7 +616,6 @@ const getRemoteProfileData = async (
     isInternalAccount: false,
     hasFitnessData: false,
     // Galleries exist only for local actors.
-    hasGalleryMedia: false,
     gallerySubviews: [],
     isPixelfed,
     isPeerTube,

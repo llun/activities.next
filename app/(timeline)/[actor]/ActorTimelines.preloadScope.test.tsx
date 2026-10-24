@@ -48,7 +48,6 @@ describe('ActorTimelines gallery tab preload', () => {
         attachments={[]}
         currentTime={FIXED_CURRENT_TIME}
         currentActor={currentActorProfile}
-        hasGalleryMedia
         gallerySubviews={['recent']}
         statusPagination={{ nextPageUrl: null, prevPageUrl: null }}
       />

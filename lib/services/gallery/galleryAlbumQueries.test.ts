@@ -889,7 +889,7 @@ describe('gallery album queries', () => {
         expect(result.pending).toBe(true)
       })
 
-      it('is not addable for a photo kept out of the gallery', async () => {
+      it('is addable for a photo kept out of the gallery', async () => {
         const { mediaId } = await makePhoto({
           name: 'not-in-gallery',
           inGallery: false
@@ -901,7 +901,7 @@ describe('gallery album queries', () => {
           mediaId
         })
 
-        expect(result.addable).toBe(false)
+        expect(result.addable).toBe(true)
       })
 
       it('is addable and pending once its post is gone, and an album still holds it', async () => {

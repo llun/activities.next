@@ -18,7 +18,13 @@ const renderBar = (
     onDelete: vi.fn()
   }
   render(
-    <GallerySelectionBar count={2} loadedCount={5} {...handlers} {...props} />
+    <GallerySelectionBar
+      count={2}
+      loadedCount={5}
+      loadedSelectedCount={2}
+      {...handlers}
+      {...props}
+    />
   )
   return handlers
 }
@@ -105,6 +111,51 @@ describe('GallerySelectionBar', () => {
       expect(
         screen.queryByRole('button', { name: 'Delete' })
       ).not.toBeInTheDocument()
+    })
+  })
+
+  describe('Add to album', () => {
+    it('is enabled for any selection, including hidden-only, with no hidden hint', () => {
+      const handlers = renderBar({
+        count: 3,
+        loadedCount: 5,
+        loadedSelectedCount: 3
+      })
+
+      expect(button('Add to album')).not.toHaveAttribute('aria-disabled')
+      expect(
+        screen.getByRole('region', { name: 'Selection' })
+      ).not.toHaveTextContent('hidden')
+
+      fireEvent.click(button('Add to album'))
+      expect(handlers.onAddToAlbum).toHaveBeenCalledTimes(1)
+    })
+
+    it('is disabled when count is 0', () => {
+      renderBar({ count: 0, loadedCount: 5, loadedSelectedCount: 0 })
+      expect(button('Add to album')).toHaveAttribute('aria-disabled', 'true')
+    })
+  })
+
+  describe('Select all loaded', () => {
+    it('is aria-disabled only when every loaded photo is selected', () => {
+      renderBar({ count: 5, loadedCount: 3, loadedSelectedCount: 3 })
+      expect(button('Select all loaded')).toHaveAttribute(
+        'aria-disabled',
+        'true'
+      )
+    })
+
+    it('is enabled when count > loadedCount but not all loaded photos are selected', () => {
+      const handlers = renderBar({
+        count: 5,
+        loadedCount: 3,
+        loadedSelectedCount: 2
+      })
+      expect(button('Select all loaded')).not.toHaveAttribute('aria-disabled')
+
+      fireEvent.click(button('Select all loaded'))
+      expect(handlers.onSelectAllLoaded).toHaveBeenCalledTimes(1)
     })
   })
 

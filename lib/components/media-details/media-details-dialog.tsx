@@ -1676,7 +1676,6 @@ export const MediaDetailsDialog: FC<Props> = ({
                     mediaId={item.id}
                     ownerId={ownerId}
                     variant="row"
-                    galleryOn={draft.inGallery}
                     renderFrame={(content) => (
                       <Section title="Albums">{content}</Section>
                     )}

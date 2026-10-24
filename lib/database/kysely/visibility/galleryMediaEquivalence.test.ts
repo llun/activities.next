@@ -6,13 +6,13 @@ import {
   ACTIVITY_STREAM_PUBLIC_COMPACT
 } from '@/lib/utils/activitystream'
 
-// galleryMediaScope with its default options (no `show`, `inGallery`
-// required), as the album reads (lib/database/domains/gallery/albums.ts) use
-// it on their join of `gallery_album_items` to `medias`. Every media here is
-// an item of one album, so the join must select exactly what a plain read of
-// `medias` selects, for the owner, a missing or unknown audience and every
-// combination of the viewer flags; and the named audiences pin both reads
-// against the media each may see, so a failure says which arm broke.
+// galleryMediaScope with default options and with { requireInGallery: false },
+// as the album reads (lib/database/domains/gallery/albums.ts) use it on their
+// join of `gallery_album_items` to `medias`. Every media here is an item of one
+// album, so the join must select exactly what a plain read of `medias` selects,
+// for the owner, a missing or unknown audience and every combination of the viewer
+// flags; and the named audiences pin both reads against the media each may see,
+// so a failure says which arm broke.
 describe('galleryMediaScope on the album reads’ join', () => {
   const testDb = createTestDatabase()
   const { database } = testDb
@@ -114,7 +114,8 @@ describe('galleryMediaScope on the album reads’ join', () => {
   const selected = async (
     actorId: string,
     audience: GalleryAudience,
-    viaAlbum: boolean
+    viaAlbum: boolean,
+    options?: Parameters<typeof galleryMediaScope>[3]
   ) => {
     const db = testDb.db
     const rows = viaAlbum
@@ -123,12 +124,12 @@ describe('galleryMediaScope on the album reads’ join', () => {
           .innerJoin('medias', 'medias.id', 'album_items.mediaId')
           .select('medias.id')
           .where('album_items.albumId', '=', ALBUM)
-          .where(galleryMediaScope(db, actorId, audience))
+          .where(galleryMediaScope(db, actorId, audience, options))
           .execute()
       : await db
           .selectFrom('medias')
           .select('medias.id')
-          .where(galleryMediaScope(db, actorId, audience))
+          .where(galleryMediaScope(db, actorId, audience, options))
           .execute()
     return rows.map(({ id }) => Number(id)).sort((a, b) => a - b)
   }
@@ -307,21 +308,24 @@ describe('galleryMediaScope on the album reads’ join', () => {
   ])(
     'selects the same media through the album join as from medias for every audience of $name',
     async ({ actorId }) => {
-      let selectedAny = 0
-      for (const audience of audiences) {
-        const [plainIds, albumIds] = await Promise.all([
-          selected(actorId, audience, false),
-          selected(actorId, audience, true)
-        ])
-        expect({ audience, ids: albumIds }).toEqual({
-          audience,
-          ids: plainIds
-        })
-        if (plainIds.length > 0) selectedAny += 1
+      for (const options of [{}, { requireInGallery: false }]) {
+        let selectedAny = 0
+        for (const audience of audiences) {
+          const [plainIds, albumIds] = await Promise.all([
+            selected(actorId, audience, false, options),
+            selected(actorId, audience, true, options)
+          ])
+          expect({ audience, options, ids: albumIds }).toEqual({
+            audience,
+            options,
+            ids: plainIds
+          })
+          if (plainIds.length > 0) selectedAny += 1
+        }
+        // The comparison is not vacuous: for the owner every audience sees at
+        // least the public post's media, and the other actor sees their own.
+        if (actorId !== ghost) expect(selectedAny).toBe(audiences.length)
       }
-      // The comparison is not vacuous: for the owner every audience sees at
-      // least the public post's media, and the other actor sees their own.
-      if (actorId !== ghost) expect(selectedAny).toBe(audiences.length)
     }
   )
 
@@ -410,6 +414,18 @@ describe('galleryMediaScope on the album reads’ join', () => {
       ])
       expect(keysOf(plainIds)).toEqual(expected)
       expect(keysOf(albumIds)).toEqual(expected)
+
+      const expectedUngalleried = [
+        ...expected,
+        'hidden',
+        ...(audience?.kind === 'owner' ? ['added-hidden'] : [])
+      ].sort()
+      const [plainUngalleried, albumUngalleried] = await Promise.all([
+        selected(owner, audience, false, { requireInGallery: false }),
+        selected(owner, audience, true, { requireInGallery: false })
+      ])
+      expect(keysOf(plainUngalleried)).toEqual(expectedUngalleried)
+      expect(keysOf(albumUngalleried)).toEqual(expectedUngalleried)
     }
   )
 })

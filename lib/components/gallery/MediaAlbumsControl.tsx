@@ -58,7 +58,6 @@ interface Props {
   renderFrame?: (content: ReactNode) => ReactNode
   /** Called with the album's id after a change to what an album holds. */
   onChange?: (albumId: string) => void
-  galleryOn?: boolean
   className?: string
 }
 
@@ -106,7 +105,6 @@ export const MediaAlbumsControl: FC<Props> = ({
   variant,
   renderFrame,
   onChange,
-  galleryOn = true,
   className
 }) => {
   const uid = useId()
@@ -127,16 +125,15 @@ export const MediaAlbumsControl: FC<Props> = ({
     pending,
     busyIds,
     toast,
-    writeError
+    writeError,
+    loadError
   } = albums
 
-  const isAddable = pending ? galleryOn : addable
+  const isAddable = pending || addable
 
   const getHint = () => {
     if (pending) {
-      return galleryOn
-        ? 'Albums apply when the post is published.'
-        : 'Turn on Show in my gallery to add this photo to an album.'
+      return 'Albums apply when the post is published.'
     }
     return NOT_ADDABLE_HINT
   }
@@ -167,22 +164,36 @@ export const MediaAlbumsControl: FC<Props> = ({
         </div>
       )
     ) : (
-      <div className={cn('flex flex-col items-center', className)}>
+      <div className={cn('relative dark flex items-center', className)}>
         <p role="status">
           <span className="sr-only">Loading albums</span>
-          <SkeletonBar className="h-9 w-32 rounded-full bg-white/10 pointer-coarse:h-10" />
+          <SkeletonBar className="h-9 w-10 rounded-md bg-white/10 sm:w-32" />
         </p>
       </div>
     )
   }
   if (status === 'error') {
-    // The lightbox pill sits on its always-dark backdrop and is centred; the
-    // `dark` class gives it the dark values of the theme tokens.
-    const onDark = variant === 'pill'
+    if (variant === 'pill') {
+      return (
+        <div className={cn('relative dark flex items-center', className)}>
+          <p role="alert" className="sr-only">
+            {loadError}
+          </p>
+          <button
+            type="button"
+            aria-label={`${loadError} Try again`}
+            onClick={() => void albums.reload()}
+            className="inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-sm font-medium text-white hover:bg-white/20 focus-visible:ring-[3px] focus-visible:ring-ring/60 outline-none pointer-coarse:h-10"
+          >
+            Try again
+          </button>
+        </div>
+      )
+    }
     return frame(
-      <div className={cn('text-xs', onDark && 'dark text-center', className)}>
+      <div className={cn('text-xs', className)}>
         <p role="alert" className="text-destructive-text">
-          {albums.loadError}
+          {loadError}
         </p>
         <Button
           type="button"
@@ -221,6 +232,7 @@ export const MediaAlbumsControl: FC<Props> = ({
     boxes[next]?.focus()
   }
 
+  const n = holding.length
   const trigger =
     variant === 'pill' ? (
       <button
@@ -228,11 +240,13 @@ export const MediaAlbumsControl: FC<Props> = ({
         type="button"
         aria-haspopup="dialog"
         aria-expanded={menuOpen}
-        className="focus-visible:ring-ring/60 relative inline-flex h-9 items-center gap-2 rounded-full bg-white/12 px-3.5 text-sm font-medium text-white outline-none hover:bg-white/20 focus-visible:ring-[3px] pointer-coarse:h-10 pointer-coarse:px-4 aria-expanded:bg-white/20 aria-expanded:ring-2 aria-expanded:ring-primary-text/80"
+        aria-label={getAlbumsPillLabel(n)}
+        className="inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-sm font-medium text-white hover:bg-white/20 focus-visible:ring-[3px] focus-visible:ring-ring/60 outline-none pointer-coarse:h-10 aria-expanded:bg-white/20"
       >
         <Folder className="size-4" aria-hidden="true" />
-        {getAlbumsPillLabel(holding.length)}
-        <ChevronDown className="size-3.5" aria-hidden="true" />
+        <span className="max-sm:hidden">{getAlbumsPillLabel(n)}</span>
+        <span className="sm:hidden tabular-nums">{n > 0 ? n : ''}</span>
+        <ChevronDown className="max-sm:hidden size-3.5" aria-hidden="true" />
       </button>
     ) : (
       <Button
@@ -406,14 +420,19 @@ export const MediaAlbumsControl: FC<Props> = ({
     return (
       <div
         ref={rootRef}
-        className={cn('dark flex flex-col items-center gap-2', className)}
+        className={cn('relative dark flex items-center', className)}
         onTouchStart={stopPortalledTouch}
         onTouchMove={stopPortalledTouch}
         onTouchEnd={stopPortalledTouch}
         onTouchCancel={stopPortalledTouch}
       >
         {menu}
-        {feedback}
+        {!menuOpen && (writeError || toast) ? (
+          <div className="absolute top-full right-0 z-30 mt-2 w-72 max-w-[calc(100vw-2rem)]">
+            {messages}
+          </div>
+        ) : null}
+        {live}
         {createDialog}
       </div>
     )

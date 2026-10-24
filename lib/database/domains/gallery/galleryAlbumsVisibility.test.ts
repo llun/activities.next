@@ -42,7 +42,9 @@ describe('GalleryAlbumDatabase', () => {
   describe.each(table)('%s', (_, database) => {
     const {
       ownerId,
+      followersUrl,
       strangerId,
+      mentionedId,
       otherActorId,
       audiences,
       ids,
@@ -183,7 +185,7 @@ describe('GalleryAlbumDatabase', () => {
         )
       })
 
-      it('also hides a photo taken out of the gallery', async () => {
+      it('keeps a photo taken out of the gallery', async () => {
         const album = await createAlbum(uniqueTitle())
         await addItems(album.id, ['public2', 'public'])
         await database.updateMedia({
@@ -193,6 +195,7 @@ describe('GalleryAlbumDatabase', () => {
         })
 
         expect(await namesIn(album.id, OWNER_GALLERY_AUDIENCE)).toEqual([
+          'public2',
           'public'
         ])
 
@@ -399,6 +402,294 @@ describe('GalleryAlbumDatabase', () => {
       })
     })
 
+    describe('photos switched off in the gallery', () => {
+      let albumId = ''
+      let isolatedPublicActorId = ''
+      let isolatedFollowersActorId = ''
+      let isolatedFollowerAudience: GalleryAudience
+
+      beforeAll(async () => {
+        // Fresh names, all inGallery: false (except ig-public)
+        await createMedia('h-public', {
+          inGallery: false,
+          takenAt: Date.UTC(2024, 1, 1)
+        })
+        await post('h-public', 'h-public', [ACTIVITY_STREAM_PUBLIC])
+
+        await createMedia('h-followers', {
+          inGallery: false,
+          takenAt: Date.UTC(2024, 2, 1)
+        })
+        await post('h-followers', 'h-followers', [followersUrl])
+
+        await createMedia('h-direct', {
+          inGallery: false,
+          takenAt: Date.UTC(2024, 3, 1)
+        })
+        await post('h-direct', 'h-direct', [mentionedId])
+
+        await createMedia('h-deleted', {
+          inGallery: false,
+          takenAt: Date.UTC(2024, 4, 1)
+        })
+        await post('h-deleted', 'h-deleted', [ACTIVITY_STREAM_PUBLIC])
+
+        await createMedia('h-unposted', {
+          inGallery: false,
+          takenAt: Date.UTC(2024, 5, 1)
+        })
+
+        await createMedia('h-added', {
+          inGallery: false,
+          takenAt: Date.UTC(2024, 6, 1)
+        })
+        await database.addMediaToGallery({
+          actorId: ownerId,
+          mediaIds: [ids['h-added']]
+        })
+        await database.updateMedia({
+          mediaId: ids['h-added'],
+          accountId: ownerAccountId,
+          details: { inGallery: false }
+        })
+
+        await createMedia('ig-public', {
+          inGallery: true,
+          takenAt: Date.UTC(2024, 0, 1)
+        })
+        await post('ig-public', 'ig-public', [ACTIVITY_STREAM_PUBLIC])
+
+        const album = await createAlbum(uniqueTitle(), { visibility: 'public' })
+        albumId = album.id
+        await addItems(albumId, [
+          'h-added',
+          'h-unposted',
+          'h-deleted',
+          'h-direct',
+          'h-followers',
+          'h-public',
+          'ig-public'
+        ])
+
+        await database.deleteStatus({ statusId: statusId('h-deleted') })
+
+        // Set explicit cover on followers-only hidden photo
+        await database.updateGalleryAlbum({
+          id: albumId,
+          actorId: ownerId,
+          coverMediaId: ids['h-followers']
+        })
+
+        // Fresh isolated actors whose only album holds one hidden-from-gallery photo
+        const createIsolatedActor = async (tag: string) => {
+          const username = `album-iso-${tag}-${crypto.randomUUID().slice(0, 8)}`
+          const actorId = `https://${TEST_DOMAIN}/users/${username}`
+          await database.createAccount({
+            email: `${username}@${TEST_DOMAIN}`,
+            username,
+            passwordHash: TEST_PASSWORD_HASH,
+            domain: TEST_DOMAIN,
+            privateKey: `privateKey-${username}`,
+            publicKey: `publicKey-${username}`
+          })
+          return actorId
+        }
+
+        isolatedPublicActorId = await createIsolatedActor('pub')
+        await createMedia(
+          'iso-h-public',
+          { inGallery: false, takenAt: Date.UTC(2024, 1, 1) },
+          isolatedPublicActorId
+        )
+        await post(
+          'iso-h-public',
+          'iso-h-public',
+          [ACTIVITY_STREAM_PUBLIC],
+          [],
+          isolatedPublicActorId
+        )
+        const pubAlb = await createAlbum(uniqueTitle(), {
+          visibility: 'public',
+          actorId: isolatedPublicActorId
+        })
+        await database.addGalleryAlbumItems({
+          albumId: pubAlb.id,
+          actorId: isolatedPublicActorId,
+          mediaIds: [ids['iso-h-public']],
+          limit: 2000
+        })
+
+        isolatedFollowersActorId = await createIsolatedActor('fol')
+        await createMedia(
+          'iso-h-followers',
+          { inGallery: false, takenAt: Date.UTC(2024, 2, 1) },
+          isolatedFollowersActorId
+        )
+        await post(
+          'iso-h-followers',
+          'iso-h-followers',
+          [`${isolatedFollowersActorId}/followers`],
+          [],
+          isolatedFollowersActorId
+        )
+        const folAlb = await createAlbum(uniqueTitle(), {
+          visibility: 'public',
+          actorId: isolatedFollowersActorId
+        })
+        await database.addGalleryAlbumItems({
+          albumId: folAlb.id,
+          actorId: isolatedFollowersActorId,
+          mediaIds: [ids['iso-h-followers']],
+          limit: 2000
+        })
+
+        isolatedFollowerAudience = {
+          kind: 'viewer',
+          publicOnly: false,
+          visibleToActorId: strangerId,
+          includeFollowersOnly: true,
+          followersAudience: `${isolatedFollowersActorId}/followers`
+        }
+      })
+
+      const expectedByAudience: Record<string, string[]> = {
+        'logged out': ['h-public', 'ig-public'],
+        stranger: ['h-public', 'ig-public'],
+        follower: ['h-followers', 'h-public', 'ig-public'],
+        'mentioned actor': ['h-direct', 'h-public', 'ig-public'],
+        owner: ['h-added', 'h-direct', 'h-followers', 'h-public', 'ig-public']
+      }
+
+      it.each(Object.keys(expectedByAudience))(
+        'shows the %s expected items in namesIn',
+        async (name) => {
+          expect(await namesIn(albumId, audiences[name])).toEqual(
+            expectedByAudience[name]
+          )
+        }
+      )
+
+      it('computes summaries: itemCount, coverMediaId, previewMediaIds', async () => {
+        const summaries = await database.getGalleryAlbumSummaries({
+          actorId: ownerId,
+          audience: PUBLIC_GALLERY_AUDIENCE
+        })
+        const loggedOutSummary = summaries.find((s) => s.album.id === albumId)!
+
+        expect(loggedOutSummary.itemCount).toBe(2)
+        // Explicit cover set on followers-only hidden photo is NOT visitor's cover
+        expect(loggedOutSummary.coverMediaId).toBe(ids['h-public'])
+        expect(namesOf(loggedOutSummary.previewMediaIds)).toEqual([
+          'h-public',
+          'ig-public'
+        ])
+
+        const followerSummaries = await database.getGalleryAlbumSummaries({
+          actorId: ownerId,
+          audience: audiences.follower
+        })
+        const followerSummary = followerSummaries.find(
+          (s) => s.album.id === albumId
+        )!
+
+        expect(followerSummary.itemCount).toBe(3)
+        expect(followerSummary.coverMediaId).toBe(ids['h-followers'])
+        expect(namesOf(followerSummary.previewMediaIds)).toEqual([
+          'h-followers',
+          'h-public',
+          'ig-public'
+        ])
+
+        const ownerSummaries = await database.getGalleryAlbumSummaries({
+          actorId: ownerId,
+          audience: OWNER_GALLERY_AUDIENCE
+        })
+        const ownerSummary = ownerSummaries.find((s) => s.album.id === albumId)!
+
+        expect(ownerSummary.itemCount).toBe(5)
+        expect(ownerSummary.coverMediaId).toBe(ids['h-followers'])
+        expect(namesOf(ownerSummary.previewMediaIds)).toEqual([
+          'h-followers',
+          'h-added',
+          'h-direct'
+        ])
+      })
+
+      it('counts gallery album media for visitors including hidden public photos', async () => {
+        // On a public post: visible to logged-out visitor
+        expect(
+          await database.countGalleryAlbumMedia({
+            actorId: isolatedPublicActorId,
+            audience: PUBLIC_GALLERY_AUDIENCE
+          })
+        ).toBe(1)
+
+        // On a followers-only post: hidden from logged-out visitor, visible to a follower
+        expect(
+          await database.countGalleryAlbumMedia({
+            actorId: isolatedFollowersActorId,
+            audience: PUBLIC_GALLERY_AUDIENCE
+          })
+        ).toBe(0)
+        expect(
+          await database.countGalleryAlbumMedia({
+            actorId: isolatedFollowersActorId,
+            audience: isolatedFollowerAudience
+          })
+        ).toBe(1)
+      })
+
+      it('evaluates getActorHasVisibleGalleryAlbums for single-photo hidden albums', async () => {
+        // On a public post: true for logged out
+        expect(
+          await database.getActorHasVisibleGalleryAlbums({
+            actorId: isolatedPublicActorId,
+            audience: PUBLIC_GALLERY_AUDIENCE
+          })
+        ).toBe(true)
+
+        // On a followers-only post: false for logged out, true for a follower
+        expect(
+          await database.getActorHasVisibleGalleryAlbums({
+            actorId: isolatedFollowersActorId,
+            audience: PUBLIC_GALLERY_AUDIENCE
+          })
+        ).toBe(false)
+        expect(
+          await database.getActorHasVisibleGalleryAlbums({
+            actorId: isolatedFollowersActorId,
+            audience: isolatedFollowerAudience
+          })
+        ).toBe(true)
+      })
+
+      it('allows visitor to open getGalleryAlbum for album with hidden public photos', async () => {
+        const album = await database.getGalleryAlbum({
+          id: albumId,
+          actorId: ownerId,
+          audience: PUBLIC_GALLERY_AUDIENCE
+        })
+        expect(album).not.toBeNull()
+        expect(album?.id).toBe(albumId)
+      })
+
+      it('regression: an album of in-gallery photos returns exactly what it did before', async () => {
+        const regAlbum = await createAlbum(uniqueTitle(), {
+          visibility: 'public'
+        })
+        await addItems(regAlbum.id, ['ig-public', 'public'])
+
+        expect(await namesIn(regAlbum.id, OWNER_GALLERY_AUDIENCE)).toEqual([
+          'ig-public',
+          'public'
+        ])
+        expect(await namesIn(regAlbum.id, PUBLIC_GALLERY_AUDIENCE)).toEqual([
+          'ig-public',
+          'public'
+        ])
+      })
+    })
+
     describe('countGalleryAlbumMedia', () => {
       it('counts distinct visible media across albums, public albums only for a visitor', async () => {
         // Its own account, so the count starts from nothing.
@@ -556,19 +847,48 @@ describe('GalleryAlbumDatabase', () => {
         expect(await has(actorId, OWNER_GALLERY_AUDIENCE)).toBe(true)
       })
 
+      it('counts a public album whose only photo is hidden in the gallery, but not if followers-only hidden', async () => {
+        const actorId = await createOwner('hidden-only')
+        const owner = await database.getActorFromId({ id: actorId })
+        const accountId = owner!.account!.id
+
+        const pubAlbumId = await albumWith(actorId, 'h-pub-only', [
+          ACTIVITY_STREAM_PUBLIC
+        ])
+        await database.updateMedia({
+          mediaId: ids['h-pub-only'],
+          accountId,
+          details: { inGallery: false }
+        })
+        expect(await has(actorId, PUBLIC_GALLERY_AUDIENCE)).toBe(true)
+
+        await database.deleteGalleryAlbum({ id: pubAlbumId, actorId })
+
+        await albumWith(actorId, 'h-fol-only', [`${actorId}/followers`])
+        await database.updateMedia({
+          mediaId: ids['h-fol-only'],
+          accountId,
+          details: { inGallery: false }
+        })
+        expect(await has(actorId, PUBLIC_GALLERY_AUDIENCE)).toBe(false)
+        expect(
+          await has(actorId, viewer(actorId, { includeFollowersOnly: true }))
+        ).toBe(true)
+      })
+
       it('stops counting an album once its only photo is no longer visible', async () => {
         const actorId = await createOwner('gone')
         await albumWith(actorId, 'has-gone', [ACTIVITY_STREAM_PUBLIC])
         expect(await has(actorId, PUBLIC_GALLERY_AUDIENCE)).toBe(true)
 
-        // Taken out of the gallery.
+        // Taken out of the gallery: still counted because albums ignore the gallery switch.
         const owner = await database.getActorFromId({ id: actorId })
         await database.updateMedia({
           mediaId: ids['has-gone'],
           accountId: owner!.account!.id,
           details: { inGallery: false }
         })
-        expect(await has(actorId, PUBLIC_GALLERY_AUDIENCE)).toBe(false)
+        expect(await has(actorId, PUBLIC_GALLERY_AUDIENCE)).toBe(true)
         await database.updateMedia({
           mediaId: ids['has-gone'],
           accountId: owner!.account!.id,

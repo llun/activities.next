@@ -54,9 +54,9 @@ import type { Attachment } from '@/lib/types/domain/attachment'
 // The gallery's reads. What "gallery media" means is decided in exactly one
 // place, `galleryMediaScope` (lib/database/kysely/visibility/galleryMedia.ts),
 // and every read below goes through it. `show` (`all`, `in_gallery`,
-// `hidden`, `not_posted`) narrows the owner's list; it is read for the owner
-// audience only, so a request parameter can never reach a hidden or an
-// unposted photo for anyone else.
+// `hidden`, `not_posted`, `not_in_album`) narrows the owner's list; it is read
+// for the owner audience only, so a request parameter can never reach a hidden,
+// unposted or unalbumed photo for anyone else.
 
 // Bindings a scoped query spends beyond its `in` list: the actor id a few
 // times, the empty string, and the visibility subquery's own (the public one
@@ -158,8 +158,11 @@ const toGalleryMediaRows = async (
     rows.map((row) => row.id)
   )
   return rows.flatMap((row): GalleryMediaRow[] => {
+    const uploadedAt = parseNullableTime(
+      (row as { galleryUploadedAt?: unknown }).galleryUploadedAt
+    )
     const pick = picked.get(String(row.id))
-    if (pick) return [{ media: parseMediaRow(row), ...pick }]
+    if (pick) return [{ media: parseMediaRow(row), uploadedAt, ...pick }]
     // Only the owner's own Gallery additions are shown without a post.
     // Anything else here lost its last visible post between the two reads,
     // and is dropped rather than shown bare.
@@ -167,6 +170,7 @@ const toGalleryMediaRows = async (
       return [
         {
           media: parseMediaRow(row),
+          uploadedAt,
           attachment: null,
           statusId: null,
           statusPublicId: null
@@ -210,6 +214,7 @@ export const getGalleryMedia = async (
   const rows = await db
     .selectFrom('medias')
     .select(MEDIA_SELECT)
+    .select('medias.createdAt as galleryUploadedAt')
     .where(galleryMediaScope(db, actorId, audience, { show }))
     .$if(maxRowId !== null, (qb) => qb.where('medias.id', '<', maxRowId!))
     .$if(gearId !== undefined, (qb) =>
@@ -229,7 +234,13 @@ export const getGalleryMedia = async (
 
 export const getGalleryMediaByIds = async (
   db: Db,
-  { actorId, audience, mediaIds, show }: GetGalleryMediaByIdsParams
+  {
+    actorId,
+    audience,
+    mediaIds,
+    show,
+    requireInGallery
+  }: GetGalleryMediaByIdsParams
 ): Promise<GalleryMediaRow[]> => {
   const rowIds = toRowIds(mediaIds)
   if (rowIds.length === 0) return []
@@ -242,8 +253,11 @@ export const getGalleryMediaByIds = async (
     const chunkRows = await db
       .selectFrom('medias')
       .select(MEDIA_SELECT)
+      .select('medias.createdAt as galleryUploadedAt')
       .where('medias.id', 'in', chunk)
-      .where(galleryMediaScope(db, actorId, audience, { show }))
+      .where(
+        galleryMediaScope(db, actorId, audience, { show, requireInGallery })
+      )
       .execute()
     rows.push(...chunkRows.map(asMediaRow))
   }

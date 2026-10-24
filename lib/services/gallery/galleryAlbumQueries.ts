@@ -42,9 +42,9 @@ import {
 // The album read services, shared by the owner pages and the album routes
 // (and, later, the visitor side). Each loads the owner's settings once, reads
 // rows through the scoped `GalleryAlbumDatabase` methods (which go through
-// `galleryMediaScope` with the audience), resolves gear names in one batch
-// and projects through `galleryProjection.ts`: nothing here decides what a
-// viewer may see of a photo or its place.
+// `galleryMediaScope` with the audience and `{ requireInGallery: false }`),
+// resolves gear names in one batch and projects through `galleryProjection.ts`:
+// nothing here decides what a viewer may see of a photo or its place.
 
 type AlbumQueryDatabase = Pick<
   Database,
@@ -168,6 +168,7 @@ const projectPreviews = async (
   const rows = await database.getGalleryMediaByIds({
     actorId: owner.id,
     audience,
+    requireInGallery: false,
     mediaIds
   })
   return projectRows(database, rows, audience, settings)
@@ -570,8 +571,9 @@ export const getGalleryAlbumShare = async ({
 
 /**
  * The owner's albums and which of them hold `mediaId`, for the add-to-album
- * menu on a photo. Owner data: the caller has already checked the media is the
- * owner's, and nothing here is computed for any other audience.
+ * menu on a photo. Owner data: the owner's posted or Gallery-added media,
+ * whatever its gallery switch, or a pending upload. Nothing here is computed
+ * for any other audience.
  */
 export const getMediaAlbums = async ({
   database,
@@ -589,6 +591,7 @@ export const getMediaAlbums = async ({
     database.getGalleryMediaByIds({
       actorId: owner.id,
       audience,
+      requireInGallery: false,
       mediaIds: [mediaId]
     }),
     database.getMediaWithAttachedStatusIds({ mediaId })

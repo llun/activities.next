@@ -152,9 +152,9 @@ describe('GET /api/v1/accounts/:id/gallery/albums', () => {
       expect(result.ids).toEqual(
         [matrix.albums.mixed, matrix.albums.places].sort()
       )
-      // Two of the six photos are on posts anyone can read.
-      expect(result.byId[matrix.albums.mixed]).toBe(2)
-      expect(result.photoCount).toBe(2 + 7)
+      // Three of the six photos are on posts anyone can read.
+      expect(result.byId[matrix.albums.mixed]).toBe(3)
+      expect(result.photoCount).toBe(3 + 7)
     })
 
     it.each([
@@ -168,7 +168,7 @@ describe('GET /api/v1/accounts/:id/gallery/albums', () => {
       expect(result.ids).toEqual(
         [matrix.albums.mixed, matrix.albums.places].sort()
       )
-      expect(result.byId[matrix.albums.mixed]).toBe(2)
+      expect(result.byId[matrix.albums.mixed]).toBe(3)
     })
 
     it('adds the followers-only album and photo for a follower', async () => {
@@ -183,7 +183,7 @@ describe('GET /api/v1/accounts/:id/gallery/albums', () => {
           matrix.albums.places
         ].sort()
       )
-      expect(result.byId[matrix.albums.mixed]).toBe(3)
+      expect(result.byId[matrix.albums.mixed]).toBe(4)
       expect(result.byId[matrix.albums.followersOnly]).toBe(1)
     })
 
@@ -223,7 +223,7 @@ describe('GET /api/v1/accounts/:id/gallery/albums', () => {
         // No photo of a post the viewer cannot read, in a cover or a collage.
         expect(text).not.toContain('matrix-direct.jpg')
         expect(text).not.toContain('matrix-deleted.jpg')
-        expect(text).not.toContain('matrix-hidden.jpg')
+        expect(text).toContain('matrix-hidden.jpg')
         if (email !== seedActor3.email) {
           expect(text).not.toContain('matrix-followers.jpg')
         }

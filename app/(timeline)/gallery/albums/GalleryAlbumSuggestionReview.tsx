@@ -22,7 +22,7 @@ import {
   ignoreEnter
 } from './galleryAlbumPickerUi'
 
-interface Props {
+export interface GalleryAlbumSuggestionReviewProps {
   suggestion: GalleryAlbumSuggestionEntity
   /** Media ids in the order they were picked; the first is the cover. */
   selected: string[]
@@ -31,7 +31,10 @@ interface Props {
   onItemsLoaded?: (items: GalleryItemEntity[]) => void
   capacity?: number
   disabled?: boolean
+  existingIds?: readonly string[]
 }
+
+type Props = GalleryAlbumSuggestionReviewProps
 
 // 60 photos a page: a whole number of rows at 3 and 4 across, and at most the
 // 100 ids one request takes.
@@ -49,7 +52,8 @@ export const GalleryAlbumSuggestionReview: FC<Props> = ({
   onChange,
   onItemsLoaded,
   capacity = MAX_GALLERY_ALBUM_ITEMS,
-  disabled = false
+  disabled = false,
+  existingIds
 }) => {
   const [items, setItems] = useState<GalleryItemEntity[]>([])
   const [loadedCount, setLoadedCount] = useState(0)
@@ -110,6 +114,7 @@ export const GalleryAlbumSuggestionReview: FC<Props> = ({
   }, [loadPage])
 
   const selectedSet = useMemo(() => new Set(selected), [selected])
+  const existingSet = useMemo(() => new Set(existingIds ?? []), [existingIds])
   const isFull = selected.length >= capacity
   const hasMore = loadedCount < mediaIds.length
 
@@ -129,13 +134,18 @@ export const GalleryAlbumSuggestionReview: FC<Props> = ({
 
   // Adds to the picks, never replaces them: the owner's other picks and the
   // cover (the first pick) stay as they are. With no filter it is the whole
-  // suggestion, with one only the photos shown.
+  // suggestion, with one only the photos shown. Excludes photos already in the
+  // album.
   const toAdd = (hasFilters ? visible.map((item) => item.mediaId) : mediaIds)
-    .filter((id) => !selectedSet.has(id))
+    .filter((id) => !selectedSet.has(id) && !existingSet.has(id))
     .slice(0, Math.max(capacity - selected.length, 0))
 
+  const handleSelectAll = () => {
+    onChange([...selected, ...toAdd])
+  }
+
   const toggle = (mediaId: string) => {
-    if (disabled) return
+    if (disabled || existingSet.has(mediaId)) return
     if (selectedSet.has(mediaId)) {
       onChange(selected.filter((id) => id !== mediaId))
     } else if (!isFull) {
@@ -164,7 +174,7 @@ export const GalleryAlbumSuggestionReview: FC<Props> = ({
             size="sm"
             className="pointer-coarse:h-10"
             disabled={disabled || toAdd.length === 0}
-            onClick={() => onChange([...selected, ...toAdd])}
+            onClick={handleSelectAll}
           >
             {hasFilters ? 'Select all shown' : 'Select all'}
           </Button>
@@ -191,6 +201,7 @@ export const GalleryAlbumSuggestionReview: FC<Props> = ({
               value={species}
               onChange={(event) => setSpecies(event.target.value)}
               disabled={disabled}
+              className="pointer-coarse:h-10"
             >
               <option value="">Any species</option>
               {speciesNames.map((name) => (
@@ -209,6 +220,7 @@ export const GalleryAlbumSuggestionReview: FC<Props> = ({
               value={place}
               onChange={(event) => setPlace(event.target.value)}
               disabled={disabled}
+              className="pointer-coarse:h-10"
             >
               <option value="">Any place</option>
               {placeNames.map((name) => (
@@ -230,6 +242,7 @@ export const GalleryAlbumSuggestionReview: FC<Props> = ({
               onChange={(event) => setFrom(event.target.value)}
               onKeyDown={ignoreEnter}
               disabled={disabled}
+              className="pointer-coarse:h-10"
             />
           </div>
           <div className="min-w-0 space-y-1 max-sm:col-span-2">
@@ -244,6 +257,7 @@ export const GalleryAlbumSuggestionReview: FC<Props> = ({
               onChange={(event) => setTo(event.target.value)}
               onKeyDown={ignoreEnter}
               disabled={disabled}
+              className="pointer-coarse:h-10"
             />
           </div>
         </div>
@@ -299,6 +313,7 @@ export const GalleryAlbumSuggestionReview: FC<Props> = ({
                 item={item}
                 index={index}
                 isSelected={selectedSet.has(item.mediaId)}
+                isMember={existingSet.has(item.mediaId)}
                 isBlocked={!selectedSet.has(item.mediaId) && isFull}
                 disabled={disabled}
                 onToggle={toggle}

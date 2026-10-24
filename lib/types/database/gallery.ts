@@ -32,15 +32,18 @@ export type MediaPlacePrecision = (typeof MEDIA_PLACE_PRECISIONS)[number]
 /**
  * Which of the owner's media a gallery list shows: `all` is every photo or
  * video they posted or added in Gallery, `in_gallery` the ones shown in the
- * gallery, `hidden` the ones they switched "Show in my gallery" off for, and
- * `not_posted` the ones added in Gallery that no post uses yet. Only the owner
- * may ask for anything but `in_gallery`; for everyone else it is ignored.
+ * gallery, `hidden` the ones they switched "Show in my gallery" off for,
+ * `not_posted` the ones added in Gallery that no post uses yet, and
+ * `not_in_album` every posted or added one that none of the owner's albums
+ * holds. Only the owner may ask for anything but `in_gallery`; for everyone
+ * else it is ignored.
  */
 export const GALLERY_SHOWS = [
   'all',
   'in_gallery',
   'hidden',
-  'not_posted'
+  'not_posted',
+  'not_in_album'
 ] as const
 export type GalleryShow = (typeof GALLERY_SHOWS)[number]
 

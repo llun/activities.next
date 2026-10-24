@@ -4,7 +4,11 @@
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
-import { addGalleryAlbumItems, getGalleryAlbums } from '@/lib/client'
+import {
+  addGalleryAlbumItems,
+  getGalleryAlbumMembership,
+  getGalleryAlbums
+} from '@/lib/client'
 import { GalleryAlbumAddError } from '@/lib/client/galleryAlbums'
 import { buildAlbumCard } from '@/lib/components/gallery/__fixtures__/galleryAlbums'
 import { createDeferred } from '@/lib/testing/deferred'
@@ -19,11 +23,13 @@ vi.mock('@/lib/client', async () => ({
     )
   ).GalleryAlbumAddError,
   addGalleryAlbumItems: vi.fn(),
-  getGalleryAlbums: vi.fn()
+  getGalleryAlbums: vi.fn(),
+  getGalleryAlbumMembership: vi.fn()
 }))
 
 const getAlbumsMock = vi.mocked(getGalleryAlbums)
 const addMock = vi.mocked(addGalleryAlbumItems)
+const getMembershipMock = vi.mocked(getGalleryAlbumMembership)
 
 const albums = [
   buildAlbumCard('a1', { title: 'Kruger', itemCount: 14 }),
@@ -66,7 +72,9 @@ describe('GalleryAddToAlbumDialog', () => {
   beforeEach(() => {
     getAlbumsMock.mockReset()
     addMock.mockReset()
+    getMembershipMock.mockReset()
     getAlbumsMock.mockResolvedValue({ albums, photoCount: 20 })
+    getMembershipMock.mockResolvedValue({ albums: [] })
   })
 
   it('names the count and lists the albums with unique names', async () => {
@@ -136,7 +144,7 @@ describe('GalleryAddToAlbumDialog', () => {
 
     await waitFor(() => expect(onAdded).toHaveBeenCalled())
     expect(onAdded.mock.calls[0][0].message).toBe(
-      'Added 1 photo to “Garden birds”. 1 photo was already there. 1 photo couldn’t be added: it is hidden from your gallery or no longer posted.'
+      'Added 1 photo to “Garden birds”. 1 photo was already there. 1 photo couldn’t be added: it is no longer posted or added in Gallery.'
     )
   })
 
@@ -245,5 +253,147 @@ describe('GalleryAddToAlbumDialog', () => {
   it('pads and offsets the scroll container to prevent highlight clipping', () => {
     renderDialog()
     expect(screen.getByTestId('scroll-container')).toHaveClass('p-1', '-m-1')
+  })
+
+  describe('membership hints and already-in counts', () => {
+    it('formats large counts with separators in the hint and add button', async () => {
+      renderDialog({
+        mediaIds: Array.from({ length: 1200 }, (_, index) => `m${index}`)
+      })
+
+      fireEvent.click((await screen.findAllByRole('radio'))[0])
+      expect(screen.getByText('1,200 will be added')).toBeVisible()
+      expect(
+        screen.getByRole('button', { name: 'Add 1,200 photos' })
+      ).toBeEnabled()
+    })
+
+    it('shows already-in counts, disables all-in rows, and updates add button and hint when partial album chosen', async () => {
+      getMembershipMock.mockResolvedValue({
+        albums: [
+          { id: 'a1', mediaIds: ['m1', 'm2'] },
+          { id: 'a2', mediaIds: ['m1', 'm2', 'm3'] }
+        ]
+      })
+      renderDialog({ mediaIds: ['m1', 'm2', 'm3'] })
+
+      expect(await screen.findByText('2 of 3 already in')).toBeVisible()
+      expect(screen.getByText('All 3 already in')).toBeVisible()
+
+      const radios = screen.getAllByRole('radio')
+      expect(radios[0]).toHaveAttribute(
+        'aria-label',
+        'Kruger, public album, 14 photos, number 1, 2 of 3 already in'
+      )
+      expect(radios[0]).not.toBeDisabled()
+
+      expect(radios[1]).toHaveAttribute(
+        'aria-label',
+        'Garden birds, private album, 1 photo, All 3 already in'
+      )
+      expect(radios[1]).toBeDisabled()
+
+      expect(radios[2]).toHaveAttribute(
+        'aria-label',
+        'Kruger, public album, 14 photos, number 2'
+      )
+      expect(radios[2]).not.toBeDisabled()
+
+      // Choose partial album a1
+      fireEvent.click(radios[0])
+      expect(screen.getByText('1 will be added')).toBeVisible()
+      expect(screen.getByRole('button', { name: 'Add 1 photo' })).toBeEnabled()
+    })
+
+    it('lists albums without hints and allows adding when membership request fails', async () => {
+      getMembershipMock.mockRejectedValue(new Error('Network error'))
+      addMock.mockResolvedValue(outcome())
+      const { onAdded } = renderDialog({ mediaIds: ['m1', 'm2'] })
+
+      const radios = await screen.findAllByRole('radio')
+      expect(screen.queryByText(/already in/)).not.toBeInTheDocument()
+
+      fireEvent.click(radios[0])
+      expect(screen.queryByText(/will be added/)).not.toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'Add 2 photos' }))
+
+      await waitFor(() => expect(onAdded).toHaveBeenCalled())
+    })
+
+    it('disables submit and shows all-already-in hint when chosen album already contains all photos after membership resolves', async () => {
+      const pending = createDeferred<{
+        albums: { id: string; mediaIds: string[] }[]
+      }>()
+      getMembershipMock.mockReturnValue(pending.promise)
+
+      renderDialog({ mediaIds: ['m1', 'm2'] })
+
+      const radio = await screen.findByRole('radio', { name: /^Garden/ })
+      fireEvent.click(radio)
+
+      expect(screen.getByRole('button', { name: 'Add 2 photos' })).toBeEnabled()
+      expect(screen.queryByText(/already in/)).not.toBeInTheDocument()
+
+      pending.resolve({
+        albums: [{ id: 'a2', mediaIds: ['m1', 'm2'] }]
+      })
+
+      expect(
+        await screen.findByText('All selected photos are already in this album')
+      ).toBeVisible()
+      expect(screen.queryByText('0 will be added')).not.toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'Already in this album' })
+      ).toBeDisabled()
+      expect(
+        screen.queryByRole('button', { name: /^Add 0 photos$/ })
+      ).not.toBeInTheDocument()
+    })
+
+    it('disables radio when inAlbum is greater than or equal to count', async () => {
+      getMembershipMock.mockResolvedValue({
+        albums: [{ id: 'a1', mediaIds: ['m1', 'm2', 'm3'] }]
+      })
+      renderDialog({ mediaIds: ['m1', 'm2'] })
+
+      const radios = await screen.findAllByRole('radio')
+      expect(radios[0]).toBeDisabled()
+      expect(radios[0]).toHaveAttribute(
+        'aria-label',
+        expect.stringContaining('All 2 already in')
+      )
+    })
+
+    it('does not reset chosen album or refetch when re-rendered with a new array of the same mediaIds', async () => {
+      const { rerender } = render(
+        <GalleryAddToAlbumDialog
+          open
+          mediaIds={['m1', 'm2']}
+          onOpenChange={vi.fn()}
+          onNewAlbum={vi.fn()}
+          onAdded={vi.fn()}
+        />
+      )
+
+      const radio = await screen.findByRole('radio', { name: /^Garden/ })
+      fireEvent.click(radio)
+      expect(radio).toBeChecked()
+      expect(getAlbumsMock).toHaveBeenCalledTimes(1)
+      expect(getMembershipMock).toHaveBeenCalledTimes(1)
+
+      rerender(
+        <GalleryAddToAlbumDialog
+          open
+          mediaIds={['m1', 'm2']}
+          onOpenChange={vi.fn()}
+          onNewAlbum={vi.fn()}
+          onAdded={vi.fn()}
+        />
+      )
+
+      expect(radio).toBeChecked()
+      expect(getAlbumsMock).toHaveBeenCalledTimes(1)
+      expect(getMembershipMock).toHaveBeenCalledTimes(1)
+    })
   })
 })

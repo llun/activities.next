@@ -1,12 +1,14 @@
 import { NextRequest } from 'next/server'
 
 import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
+import { CreateGalleryAlbumRequest } from '@/lib/services/gallery/galleryAlbumRequests'
 import { seedGalleryRouteFixtures } from '@/lib/services/gallery/galleryRouteFixtures'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { seedActor2 } from '@/lib/stub/seed/actor2'
 import { seedActor3 } from '@/lib/stub/seed/actor3'
 import { MAX_GALLERY_ALBUMS_PER_ACTOR } from '@/lib/types/database/galleryAlbums'
+import { logger } from '@/lib/utils/logger'
 import { ERROR_429 } from '@/lib/utils/response'
 
 import { GET, OPTIONS, POST } from './route'
@@ -187,6 +189,164 @@ describe('/api/v1/gallery/albums', () => {
       expect(body.album.itemCount).toBe(0)
     })
 
+    it('sets the cover to cover_media_id when it is among media_ids', async () => {
+      const response = await create({
+        title: 'With Cover',
+        media_ids: [ids.kingfisher, ids.fox],
+        cover_media_id: ids.fox
+      })
+
+      expect(response.status).toBe(200)
+      const body = await response.json()
+      expect(body.album.coverMediaId).toBe(ids.fox)
+      expect(body.album.cover?.mediaId).toBe(ids.fox)
+    })
+
+    it('sets the cover with canonical id when cover_media_id has leading zeros', async () => {
+      const paddedFoxId = `00${ids.fox}`
+      const response = await create({
+        title: 'With Padded Cover',
+        media_ids: [ids.kingfisher, ids.fox],
+        cover_media_id: paddedFoxId
+      })
+
+      expect(response.status).toBe(200)
+      const body = await response.json()
+      expect(body.album.coverMediaId).toBe(ids.fox)
+      expect(body.album.cover?.mediaId).toBe(ids.fox)
+    })
+
+    it('sets the cover with canonical id when media_ids has leading zeros', async () => {
+      const paddedFoxId = `00${ids.fox}`
+      const paddedKingfisherId = `00${ids.kingfisher}`
+      const response = await create({
+        title: 'With Padded Media and Cover',
+        media_ids: [paddedKingfisherId, paddedFoxId],
+        cover_media_id: paddedFoxId
+      })
+
+      expect(response.status).toBe(200)
+      const body = await response.json()
+      expect(body.added).toContain(ids.fox)
+      expect(body.album.coverMediaId).toBe(ids.fox)
+      expect(body.album.cover?.mediaId).toBe(ids.fox)
+    })
+
+    it('canonicalizes media_ids and cover_media_id in CreateGalleryAlbumRequest', () => {
+      const parsed = CreateGalleryAlbumRequest.safeParse({
+        title: 'Canonical Test',
+        media_ids: ['016', '017'],
+        cover_media_id: '016'
+      })
+      expect(parsed.success).toBe(true)
+      if (parsed.success) {
+        expect(parsed.data.media_ids).toEqual(['16', '17'])
+        expect(parsed.data.cover_media_id).toBe('16')
+      }
+
+      const crossMatched = CreateGalleryAlbumRequest.safeParse({
+        title: 'Canonical Test Cross Match',
+        media_ids: ['16'],
+        cover_media_id: '016'
+      })
+      expect(crossMatched.success).toBe(true)
+      if (crossMatched.success) {
+        expect(crossMatched.data.media_ids).toEqual(['16'])
+        expect(crossMatched.data.cover_media_id).toBe('16')
+      }
+
+      const mismatched = CreateGalleryAlbumRequest.safeParse({
+        title: 'Canonical Test Mismatch',
+        media_ids: ['16'],
+        cover_media_id: '017'
+      })
+      expect(mismatched.success).toBe(false)
+    })
+
+    it('creates album with null coverMediaId when cover_media_id is another actor media', async () => {
+      const actor2 = await database.getActorFromEmail({
+        email: seedActor2.email
+      })
+      const foreignMedia = await database.createMedia({
+        actorId: actor2!.id,
+        original: {
+          path: '/test/route-foreign.jpg',
+          bytes: 1000,
+          mimeType: 'image/jpeg',
+          metaData: { width: 100, height: 100 }
+        }
+      })
+      const foreignId = foreignMedia!.id
+
+      const response = await create({
+        title: 'Foreign Cover',
+        media_ids: [ids.kingfisher, foreignId],
+        cover_media_id: foreignId
+      })
+
+      expect(response.status).toBe(200)
+      const body = await response.json()
+      expect(body.album.coverMediaId).toBeNull()
+      expect(body.added).toContain(ids.kingfisher)
+      expect(body.skipped).toContain(foreignId)
+    })
+
+    it('returns 200 with album and logs warning when updateGalleryAlbum throws', async () => {
+      const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {})
+      const updateSpy = vi
+        .spyOn(database, 'updateGalleryAlbum')
+        .mockRejectedValueOnce(new Error('Update failed'))
+
+      try {
+        const response = await create({
+          title: 'Cover Error',
+          media_ids: [ids.kingfisher],
+          cover_media_id: ids.kingfisher
+        })
+
+        expect(response.status).toBe(200)
+        const body = await response.json()
+        expect(body.album.id).toBeDefined()
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            message: 'Could not set the new album cover',
+            albumId: body.album.id,
+            err: expect.anything()
+          })
+        )
+      } finally {
+        warnSpy.mockRestore()
+        updateSpy.mockRestore()
+      }
+    })
+
+    it('returns 200 with album and logs warning when updateGalleryAlbum returns non-updated status', async () => {
+      const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {})
+      const updateSpy = vi
+        .spyOn(database, 'updateGalleryAlbum')
+        .mockResolvedValueOnce({ status: 'not-found' })
+
+      try {
+        const response = await create({
+          title: 'Cover Non-Updated',
+          media_ids: [ids.kingfisher],
+          cover_media_id: ids.kingfisher
+        })
+
+        expect(response.status).toBe(200)
+        const body = await response.json()
+        expect(body.album.id).toBeDefined()
+        expect(warnSpy).toHaveBeenCalledWith({
+          message: 'Could not set the new album cover',
+          albumId: body.album.id,
+          status: 'not-found'
+        })
+      } finally {
+        warnSpy.mockRestore()
+        updateSpy.mockRestore()
+      }
+    })
+
     it.each([
       ['no title', {}],
       ['a blank title', { title: '   ' }],
@@ -206,6 +366,11 @@ describe('/api/v1/gallery/albums', () => {
         }
       ],
       ['a media id that is not a number', { title: 'T', media_ids: ['abc'] }],
+      [
+        'cover_media_id not in media_ids',
+        { title: 'T', media_ids: ['1'], cover_media_id: '2' }
+      ],
+      ['cover_media_id without media_ids', { title: 'T', cover_media_id: '1' }],
       ['a body that is not JSON', 'not json']
     ])('answers 422 for %s and creates nothing', async (_, body) => {
       const before = (await (await list()).json()).albums.length

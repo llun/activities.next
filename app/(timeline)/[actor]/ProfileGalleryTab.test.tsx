@@ -406,5 +406,33 @@ describe('ProfileGalleryTab', () => {
 
       expect(await screen.findByRole('alert')).toHaveTextContent('Rate limited')
     })
+
+    it('renders the AlbumsPanel directly as the active view when subviews is only albums', async () => {
+      getAlbumsMock.mockResolvedValue({
+        albums: [buildAlbumCard('a1', { title: 'Kruger' })],
+        photoCount: 1
+      })
+
+      renderTab({ subviews: ['albums'] })
+
+      expect(
+        await screen.findByRole('link', { name: /Kruger/ })
+      ).toHaveAttribute('href', '/@llun@llun.test/albums/a1')
+      expect(getAlbumsMock).toHaveBeenCalledWith('actor-1')
+      expect(getGallerySubjectsMock).not.toHaveBeenCalled()
+      expect(
+        screen.queryByRole('navigation', { name: 'Gallery views' })
+      ).toBeNull()
+    })
+  })
+
+  it('returns null when subviews is empty', () => {
+    const { container } = renderTab({ subviews: [] })
+    expect(container).toBeEmptyDOMElement()
+  })
+
+  it('returns null when subviews is only albums but handle is missing', () => {
+    const { container } = renderTab({ subviews: ['albums'], handle: undefined })
+    expect(container).toBeEmptyDOMElement()
   })
 })
