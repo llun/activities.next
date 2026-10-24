@@ -1,0 +1,124 @@
+docs/architecture.md
+  s_f92b4a9beb2361::t_395a8df6cfe881 982,1003,1055,1674-1675,1740,1742,2488-2492,2631
+  s_f92b4a9beb2361::t_d8413806c62459 194,843
+  s_f92b4a9beb2361::t_bf87ebb9a6de3d 866,885,892,894-908,911-938,940-949,952-953
+lib/components/settings/AppearanceSection.tsx
+  s_f92b4a9beb2361::t_b11573be2f7d91 14
+docs/features.md
+  s_f92b4a9beb2361::t_539774426632c8 76-77
+  s_f92b4a9beb2361::t_1330583e7ba3eb 50,53,78-82
+app/globals.css
+  s_f92b4a9beb2361::t_91273f4e5a47a2 95-100
+app/(timeline)/settings/page.tsx
+  s_f92b4a9beb2361::t_22cbf327a9f871 1,6,8,13,21-22,35-36,38-61,63-70,72-95
+lib/components/layout/nav-preferences-context.tsx
+  s_f92b4a9beb2361::t_d2907660c343cb 110
+app/(timeline)/settings/layout.test.tsx
+  s_f92b4a9beb2361::t_86221ff7d9bd71 5,14-16,18-20,22,24-29,31,33-40,42-44,47,49,52-53,56-62,64-68,72,74-76,78-85,88-93,96-100,103-104,106-108,111-112,114-133
+app/(timeline)/settings/sections.tsx
+  s_f92b4a9beb2361::t_e15ecf5a0f5733 1-129
+lib/components/section-nav.test.tsx
+  s_f92b4a9beb2361::t_f3e9ff5c25e010 33-36
+  s_f92b4a9beb2361::t_7c791e6e8bda35 1-32,37-157
+app/(timeline)/settings/privacy/page.tsx
+  s_f92b4a9beb2361::t_8e8348505742b0 1-105,107-109
+  s_f92b4a9beb2361::t_ef881f8cb6dbdf 106,110-117
+lib/components/section-nav.tsx
+  s_f92b4a9beb2361::t_92f53223dd0229 140-144
+  s_f92b4a9beb2361::t_91273f4e5a47a2 325
+  s_f92b4a9beb2361::t_3db4c9d2986162 1-139,145-324,326-334
+app/(timeline)/settings/privacy/page.test.tsx
+  s_f92b4a9beb2361::t_3fde754993a4e1 1-129
+app/(timeline)/settings/loading.tsx
+  s_f92b4a9beb2361::t_3f7353571c5ae8 5-8
+lib/components/settings/ProfileAvatar.tsx
+  s_f92b4a9beb2361::t_92f53223dd0229 1-18
+app/(timeline)/settings/page.test.tsx
+  s_f92b4a9beb2361::t_e5e48d9724c262 5,10,26,37,40-44,46-51,54-55,57-60
+lib/components/sectionNavActive.ts
+  s_f92b4a9beb2361::t_11e8c3cafefc8c 1-16
+lib/components/page-header.tsx
+  s_f92b4a9beb2361::t_91273f4e5a47a2 262-263
+app/(timeline)/layout.tsx
+  s_f92b4a9beb2361::t_d2907660c343cb 146
+  s_f92b4a9beb2361::t_91273f4e5a47a2 193-196
+app/(timeline)/settings/layout.tsx
+  s_f92b4a9beb2361::t_e15ecf5a0f5733 3,9,35
+  s_f92b4a9beb2361::t_b3fc9586b60fb0 4-7,15-26,29-34,36-38
+  s_f92b4a9beb2361::t_7bd523b5907c0b 8
+lib/components/section-nav-dropdown.tsx
+  s_f92b4a9beb2361::t_5e06df4431c5d0 8
+  s_f92b4a9beb2361::t_5e3102653d9798 31-32
+  s_f92b4a9beb2361::t_eb8c77f04db9a7 33-34
+  s_f92b4a9beb2361::t_10e94a3d5d0ae6 46-50
+lib/components/settings/NavigationSettings.tsx
+  s_f92b4a9beb2361::t_fb7d10726d127e 155
+lib/components/layout/nav-items.ts
+  s_f92b4a9beb2361::t_d2907660c343cb 38
+  s_f92b4a9beb2361::t_22ba9c964629d2 138,144
+app/api/v1/accounts/profile/route.ts
+  s_f92b4a9beb2361::t_d8413806c62459 172
+  s_f92b4a9beb2361::t_09e71d1ff71bcd 29-34,46-47,72,167-171
+app/(timeline)/settings/appearance/loading.tsx
+  s_1f1a1efd8db0bf::t_acff9e2a45bac4 1-7
+app/(timeline)/settings/navigation/page.test.tsx
+  s_1f1a1efd8db0bf::t_97450d3b08ab30 1-13
+app/(timeline)/settings/navigation/page.tsx
+  s_1f1a1efd8db0bf::t_21f535145b6685 1,3-6
+app/(timeline)/settings/sidebar/page.tsx
+  s_1f1a1efd8db0bf::t_b3d20d82d2cbae 1-45
+CONTRIBUTING.md
+  s_f92b4a9beb2361::t_6eb5f919409976 1165-1166
+app/(timeline)/sectionLoading.test.tsx
+  s_f92b4a9beb2361::t_d082638b2a21a1 11,13,20,22,31-34
+app/(timeline)/settings/appearance/page.test.tsx
+  s_f92b4a9beb2361::t_769fcf273265d6 1-152
+app/(timeline)/settings/appearance/page.tsx
+  s_f92b4a9beb2361::t_33c6c2c42177b8 1-76
+app/(timeline)/settings/delete/loading.tsx
+  s_f92b4a9beb2361::t_0722da9bc58824 1-7
+app/(timeline)/settings/delete/page.tsx
+  s_f92b4a9beb2361::t_b4d69ff8463dbf 1-51
+app/(timeline)/settings/privacy/loading.tsx
+  s_f92b4a9beb2361::t_6dc439ba9e0f68 1-7
+app/api/v1/accounts/profile/route.test.ts
+  s_f92b4a9beb2361::t_6c3bfc78fe073a 533-566
+lib/components/actor-switcher/ActorSwitcher.tsx
+  s_f92b4a9beb2361::t_97dd6585f256e8 156-157
+lib/components/settings/NotificationSettings.test.tsx
+  s_f92b4a9beb2361::t_be973974b02884 71-86
+lib/components/settings/profile/ProfileEditor.test.tsx
+  s_f92b4a9beb2361::t_6308165b273dff 240
+lib/components/settings/profile/ProfilePreview.test.tsx
+  s_f92b4a9beb2361::t_7e1035cbc4e361 129
+lib/components/settings/profile/ProfilePreview.tsx
+  s_f92b4a9beb2361::t_a5c7f6241fc26d 131
+app/(timeline)/settings/delete/page.test.tsx
+  s_f92b4a9beb2361::t_a23a42105a71b6 1-112
+lib/components/settings/NotificationSettings.tsx
+  s_f92b4a9beb2361::t_a64c0078aeaf72 273
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "33a84261a9a4f6b40aaf653c41accb34bde1a389",
+  "prompts": {},
+  "sessions": {
+    "s_1f1a1efd8db0bf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6f1be9b0-86e0-4f32-9286-3562b40d391e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_f92b4a9beb2361": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ee3acfd9-97dc-47c9-8a2a-2e741f8b14b8",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
