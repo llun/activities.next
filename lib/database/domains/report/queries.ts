@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 
 import {
   type AssignReportParams,
+  type CountOpenReportsParams,
   type CreateReportParams,
   type GetAdminReportsParams,
   type GetReportByIdParams,
@@ -180,6 +181,26 @@ export const getAdminReports = async (
   return (direction === 'asc' ? rows.reverse() : rows).map(toReport)
 }
 
+export const countOpenReports = async (
+  db: Db,
+  { limit }: CountOpenReportsParams
+): Promise<number> => {
+  const result = await db
+    .selectFrom(
+      db
+        .selectFrom('reports')
+        .select('id')
+        .where('actionTaken', '=', false)
+        .limit(limit)
+        .as('openReports')
+    )
+    .select((eb) => eb.fn.countAll().as('count'))
+    .executeTakeFirstOrThrow()
+
+  // PostgreSQL's count returns a bigint string; the count is bounded by limit.
+  return Number(result.count)
+}
+
 export const getReportById = async (
   db: Db,
   { reportId }: GetReportByIdParams
@@ -224,6 +245,7 @@ export const assignReport = async (
 export const reportQueries = {
   createReport,
   getAdminReports,
+  countOpenReports,
   getReportById,
   updateReportCategory,
   assignReport

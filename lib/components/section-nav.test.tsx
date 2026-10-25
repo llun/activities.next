@@ -42,6 +42,21 @@ const footer: SectionNavFooter = {
   item: { name: 'Other', url: '/other', icon: null, description: 'What' }
 }
 
+const reportGroups = (badge?: number): SectionNavGroup[] => [
+  {
+    heading: 'Moderation',
+    items: [
+      {
+        name: 'Reports',
+        url: '/admin/reports',
+        icon: null,
+        ...(badge !== undefined ? { badge } : null),
+        badgeLabel: 'unresolved reports'
+      }
+    ]
+  }
+]
+
 describe('resolveActiveSectionUrl', () => {
   const urls = ['/account', '/account/security']
 
@@ -97,6 +112,21 @@ describe('SectionNav', () => {
     const other = screen.getByRole('link', { name: /Other/ })
     expect(other).toHaveAttribute('href', '/other')
     expect(other).toHaveTextContent('Elsewhere')
+  })
+
+  it('renders a visible decorative badge and screen reader count in the rail', () => {
+    ;(usePathname as jest.Mock).mockReturnValue('/admin/reports')
+    render(<SectionNav label="Admin" groups={reportGroups(7)} />)
+
+    const link = screen.getByRole('link', {
+      name: /Reports\s*\(7 unresolved reports\)/
+    })
+    const badge = link.querySelector('[aria-hidden="true"]')
+    expect(badge).toHaveTextContent('7')
+    expect(badge).toHaveClass('static')
+    expect(link.querySelector('.sr-only')).toHaveTextContent(
+      '(7 unresolved reports)'
+    )
   })
 
   it('scrolls the rail, not the window, to the active row, and again when it changes', () => {
@@ -211,6 +241,38 @@ describe('SectionIndex', () => {
     expect(last?.closest('section')).toBeNull()
     expect(container.querySelectorAll('section')).toHaveLength(3)
   })
+
+  it('renders the report badge and its accessible count in the index row', () => {
+    render(<SectionIndex groups={reportGroups(7)} />)
+
+    const link = screen.getByRole('link', {
+      name: /Reports\s*\(7 unresolved reports\)/
+    })
+    const badge = link.querySelector('[aria-hidden="true"]')
+    expect(badge).toHaveTextContent('7')
+    expect(badge).toHaveClass('static')
+    expect(link.querySelector('.sr-only')).toHaveTextContent(
+      '(7 unresolved reports)'
+    )
+  })
+
+  it('caps the visible count at 99+ and keeps the full screen reader count', () => {
+    render(<SectionIndex groups={reportGroups(103)} />)
+
+    expect(screen.getByText('99+')).toHaveAttribute('aria-hidden', 'true')
+    expect(screen.getByText('(103 unresolved reports)')).toHaveClass('sr-only')
+  })
+
+  it.each([0, undefined])(
+    'does not render a badge for a count of %s',
+    (badge) => {
+      render(<SectionIndex groups={reportGroups(badge)} />)
+
+      expect(screen.getByRole('link', { name: 'Reports' })).toBeInTheDocument()
+      expect(screen.queryByText('0')).not.toBeInTheDocument()
+      expect(screen.queryByText(/unresolved reports/)).not.toBeInTheDocument()
+    }
+  )
 
   // The fixture's blocks: First, Second, the footer card, then the
   // after-footer run (Last).

@@ -7,6 +7,7 @@ import { FC, ReactNode, useEffect, useId, useRef } from 'react'
 
 import { BackLink } from '@/lib/components/back-link'
 import { SECTION_STICKY_TOP_CLASS } from '@/lib/components/layout/chromeLayout'
+import { NotificationBadge } from '@/lib/components/notification-badge/NotificationBadge'
 import {
   PageHeader,
   PageHeaderSectionProvider
@@ -28,6 +29,10 @@ export interface SectionNavItem {
   description?: string
   /** A second line under the name in the rail (the profile's handle). */
   hint?: string
+  /** A count shown beside the row in both the rail and the section index. */
+  badge?: number
+  /** The count's accessible description (for example, "unresolved reports"). */
+  badgeLabel?: string
 }
 
 export interface SectionNavGroup {
@@ -55,6 +60,27 @@ export interface SectionNavFooter {
 }
 
 const ICON_CLASS = 'flex shrink-0 items-center [&>svg]:size-4'
+
+const SectionNavItemBadge: FC<{ count?: number; label?: string }> = ({
+  count,
+  label
+}) => {
+  if (count === undefined || count <= 0) return null
+
+  return (
+    <>
+      <NotificationBadge
+        count={count}
+        aria-hidden="true"
+        className="static ml-auto"
+      />
+      <span className="sr-only">
+        {' '}
+        ({count} {label ?? 'updates'})
+      </span>
+    </>
+  )
+}
 
 /**
  * The section list ("rail") beside a settings-style page from `lg` up: groups
@@ -146,6 +172,10 @@ export const SectionNav: FC<{
                           </span>
                         )}
                       </span>
+                      <SectionNavItemBadge
+                        count={item.badge}
+                        label={item.badgeLabel}
+                      />
                     </Link>
                   </li>
                 )
@@ -235,6 +265,7 @@ const IndexGroup: FC<{
                 </span>
               )}
             </span>
+            <SectionNavItemBadge count={item.badge} label={item.badgeLabel} />
             <ChevronRight
               className="size-4 shrink-0 text-muted-foreground"
               aria-hidden="true"

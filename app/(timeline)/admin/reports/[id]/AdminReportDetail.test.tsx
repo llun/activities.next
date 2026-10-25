@@ -9,6 +9,7 @@ import {
   waitFor,
   within
 } from '@testing-library/react'
+import { useRouter } from 'next/navigation'
 
 import {
   assignAdminReportToSelf,
@@ -22,6 +23,10 @@ import { createDeferred } from '@/lib/testing/deferred'
 import { AdminReport } from '@/lib/types/mastodon/admin/report'
 
 import { AdminReportDetail } from './AdminReportDetail'
+
+vi.mock('next/navigation', () => ({
+  useRouter: vi.fn()
+}))
 
 vi.mock('@/lib/client', () => ({
   getAdminReport: vi.fn(),
@@ -40,6 +45,7 @@ const mockResolve = resolveAdminReport as unknown as ReturnType<typeof vi.fn>
 const mockReopen = reopenAdminReport as unknown as ReturnType<typeof vi.fn>
 const mockUnassign = unassignAdminReport as unknown as ReturnType<typeof vi.fn>
 const mockUpdate = updateAdminReport as unknown as ReturnType<typeof vi.fn>
+const mockRouterRefresh = vi.fn()
 
 const report = (overrides: Partial<AdminReport>): AdminReport =>
   ({
@@ -62,6 +68,10 @@ describe('AdminReportDetail', () => {
     // clearAllMocks keeps implementations: drop the pending promise the
     // category-lock test leaves on the mock so it cannot reach a later test.
     mockUpdate.mockReset()
+    mockRouterRefresh.mockReset()
+    vi.mocked(useRouter).mockReturnValue({
+      refresh: mockRouterRefresh
+    } as never)
   })
 
   it('renders the report and drives assign/resolve', async () => {
@@ -81,6 +91,7 @@ describe('AdminReportDetail', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Resolve' }))
     await waitFor(() => expect(mockResolve).toHaveBeenCalledWith('report-1'))
+    await waitFor(() => expect(mockRouterRefresh).toHaveBeenCalledTimes(1))
   })
 
   it('reopens a resolved report and unassigns an assigned one', async () => {
@@ -100,6 +111,7 @@ describe('AdminReportDetail', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: 'Reopen' }))
     await waitFor(() => expect(mockReopen).toHaveBeenCalledWith('report-1'))
+    await waitFor(() => expect(mockRouterRefresh).toHaveBeenCalledTimes(1))
 
     fireEvent.click(screen.getByRole('button', { name: 'Unassign' }))
     await waitFor(() => expect(mockUnassign).toHaveBeenCalledWith('report-1'))
