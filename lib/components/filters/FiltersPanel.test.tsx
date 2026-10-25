@@ -2,7 +2,13 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 
 import type { ClientFilter, FilterInput } from '@/lib/client'
 import { createDeferred } from '@/lib/testing/deferred'
@@ -65,6 +71,9 @@ const addButton = () => screen.getAllByRole('button', { name: 'Add filter' })[0]
 
 const deleteButton = (title: string) =>
   screen.getByRole('button', { name: `Delete filter ${title}` })
+
+const openFilterMenu = (name: string) =>
+  fireEvent.keyDown(screen.getByRole('button', { name }), { key: 'ArrowDown' })
 
 const fillAndSaveNewFilter = (title: string, keyword: string) => {
   fireEvent.click(addButton())
@@ -496,6 +505,370 @@ describe('FiltersPanel', () => {
       fireEvent.click(deleteButton('Spoilers'))
 
       expect(await screen.findByText(/No filters yet/)).toBeInTheDocument()
+    })
+  })
+
+  describe('server list filters', () => {
+    it('narrows the server list by action', async () => {
+      mockClient.getServerFilters.mockResolvedValue([
+        makeFilter({ id: 's-warn', title: 'Warn rule', filter_action: 'warn' }),
+        makeFilter({ id: 's-blur', title: 'Blur rule', filter_action: 'blur' }),
+        makeFilter({ id: 's-hide', title: 'Hide rule', filter_action: 'hide' })
+      ])
+
+      renderPanel('server')
+      expect(await screen.findByText('Warn rule')).toBeInTheDocument()
+      openFilterMenu('Any action')
+
+      expect(
+        await screen.findByRole('group', { name: 'Action' })
+      ).toBeInTheDocument()
+      fireEvent.click(
+        await screen.findByRole('menuitemradio', { name: 'Blur' })
+      )
+
+      expect(await screen.findByText('Blur rule')).toBeInTheDocument()
+      expect(screen.queryByText('Warn rule')).not.toBeInTheDocument()
+      expect(screen.queryByText('Hide rule')).not.toBeInTheDocument()
+    })
+
+    it('returns focus to a server filter chip after clearing it', async () => {
+      mockClient.getServerFilters.mockResolvedValue([
+        makeFilter({
+          id: 's-expired',
+          title: 'Expired rule',
+          expires_at: '2025-12-31T23:59:59.000Z'
+        })
+      ])
+
+      renderPanel('server')
+      expect(await screen.findByText('Expired rule')).toBeInTheDocument()
+      openFilterMenu('Any status')
+      fireEvent.click(
+        await screen.findByRole('menuitemradio', { name: 'Expired' })
+      )
+
+      const trigger = screen.getByRole('button', { name: 'Status: Expired' })
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Clear Expired filter' })
+      )
+
+      expect(screen.getByRole('button', { name: 'Any status' })).toBe(trigger)
+      expect(document.activeElement).toBe(trigger)
+    })
+
+    it('matches the union of two selected contexts', async () => {
+      mockClient.getServerFilters.mockResolvedValue([
+        makeFilter({
+          id: 's-home',
+          title: 'Home rule',
+          context: ['home']
+        }),
+        makeFilter({
+          id: 's-public',
+          title: 'Public rule',
+          context: ['public']
+        }),
+        makeFilter({
+          id: 's-notifications',
+          title: 'Notification rule',
+          context: ['notifications']
+        })
+      ])
+
+      renderPanel('server')
+      expect(await screen.findByText('Home rule')).toBeInTheDocument()
+      openFilterMenu('Any context')
+
+      fireEvent.click(
+        await screen.findByRole('menuitemcheckbox', { name: 'Home' })
+      )
+      expect(
+        screen.getByRole('menuitemcheckbox', { name: 'Home' })
+      ).toHaveAttribute('aria-checked', 'true')
+      fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Public' }))
+
+      expect(screen.getByText('Home rule')).toBeInTheDocument()
+      expect(screen.getByText('Public rule')).toBeInTheDocument()
+      expect(screen.queryByText('Notification rule')).not.toBeInTheDocument()
+      const menu = screen.getByRole('menu')
+      // Radix names the menu from its trigger; DropdownMenuContent's aria-label
+      // is ignored when aria-labelledby is present.
+      expect(menu).not.toHaveAttribute('aria-label')
+      expect(menu).toHaveAccessibleName('Context: Home, Public')
+      fireEvent.keyDown(menu, { key: 'Escape' })
+      expect(
+        await screen.findByRole('button', { name: 'Clear context filter' })
+      ).toBeInTheDocument()
+    })
+
+    it('uses currentTime to choose expired and active filters', async () => {
+      mockClient.getServerFilters.mockResolvedValue([
+        makeFilter({
+          id: 's-expired',
+          title: 'Expired rule',
+          expires_at: '2025-12-31T23:59:59.000Z'
+        }),
+        makeFilter({
+          id: 's-active',
+          title: 'Active rule',
+          expires_at: '2026-01-01T00:00:01.000Z'
+        }),
+        makeFilter({ id: 's-never', title: 'No expiry rule' })
+      ])
+
+      renderPanel('server')
+      expect(await screen.findByText('Expired rule')).toBeInTheDocument()
+      openFilterMenu('Any status')
+      expect(
+        await screen.findByRole('group', { name: 'Status' })
+      ).toBeInTheDocument()
+      fireEvent.click(
+        await screen.findByRole('menuitemradio', { name: 'Expired' })
+      )
+
+      expect(screen.getByText('Expired rule')).toBeInTheDocument()
+      expect(screen.queryByText('Active rule')).not.toBeInTheDocument()
+      expect(screen.queryByText('No expiry rule')).not.toBeInTheDocument()
+
+      openFilterMenu('Status: Expired')
+      fireEvent.click(
+        await screen.findByRole('menuitemradio', { name: 'Active' })
+      )
+
+      expect(screen.getByText('Active rule')).toBeInTheDocument()
+      expect(screen.getByText('No expiry rule')).toBeInTheDocument()
+      expect(screen.queryByText('Expired rule')).not.toBeInTheDocument()
+    })
+
+    it('clears all criteria and restores the full server list', async () => {
+      mockClient.getServerFilters.mockResolvedValue([
+        makeFilter({
+          id: 's-warn',
+          title: 'Warn home rule',
+          filter_action: 'warn',
+          context: ['home']
+        }),
+        makeFilter({
+          id: 's-hide',
+          title: 'Hide public rule',
+          filter_action: 'hide',
+          context: ['public'],
+          expires_at: '2026-01-02T00:00:00.000Z'
+        }),
+        makeFilter({
+          id: 's-expired',
+          title: 'Expired public rule',
+          filter_action: 'hide',
+          context: ['public'],
+          expires_at: '2025-12-31T23:59:59.000Z'
+        })
+      ])
+
+      renderPanel('server')
+      expect(await screen.findByText('Warn home rule')).toBeInTheDocument()
+      openFilterMenu('Any action')
+      fireEvent.click(
+        await screen.findByRole('menuitemradio', {
+          name: 'Hide completely'
+        })
+      )
+      expect(screen.queryByText('Warn home rule')).not.toBeInTheDocument()
+      expect(screen.getByText('Hide public rule')).toBeInTheDocument()
+      expect(screen.getByText('Expired public rule')).toBeInTheDocument()
+
+      openFilterMenu('Any context')
+      fireEvent.click(
+        await screen.findByRole('menuitemcheckbox', { name: 'Public' })
+      )
+      fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' })
+      openFilterMenu('Any status')
+      fireEvent.click(
+        await screen.findByRole('menuitemradio', { name: 'Active' })
+      )
+
+      expect(screen.getByText('Hide public rule')).toBeInTheDocument()
+      expect(screen.queryByText('Expired public rule')).not.toBeInTheDocument()
+
+      fireEvent.click(
+        screen.getAllByRole('button', { name: 'Clear filters' })[0]
+      )
+
+      expect(screen.getByText('Warn home rule')).toBeInTheDocument()
+      expect(screen.getByText('Hide public rule')).toBeInTheDocument()
+      expect(screen.getByText('Expired public rule')).toBeInTheDocument()
+      expect(screen.queryByText('No filters match')).not.toBeInTheDocument()
+    })
+
+    it('distinguishes no matching filters from an empty server list', async () => {
+      mockClient.getServerFilters.mockResolvedValue([
+        makeFilter({ id: 's-warn', title: 'Warn rule', filter_action: 'warn' })
+      ])
+
+      renderPanel('server')
+      expect(await screen.findByText('Warn rule')).toBeInTheDocument()
+      openFilterMenu('Any action')
+      fireEvent.click(
+        await screen.findByRole('menuitemradio', {
+          name: 'Hide completely'
+        })
+      )
+
+      expect(await screen.findByText('No filters match')).toBeInTheDocument()
+      expect(screen.queryByText('No filters yet')).not.toBeInTheDocument()
+      const emptyState = screen
+        .getByText('No filters match')
+        .closest('[data-slot="empty-state"]')
+      expect(
+        within(emptyState as HTMLElement).getByRole('button', {
+          name: 'Clear filters'
+        })
+      ).toBeInTheDocument()
+      fireEvent.click(
+        within(emptyState as HTMLElement).getByRole('button', {
+          name: 'Clear filters'
+        })
+      )
+      expect(screen.getByText('Warn rule')).toBeInTheDocument()
+    })
+
+    it('resets server filters after deleting the last filter before adding a new one', async () => {
+      mockClient.getServerFilters.mockResolvedValue([
+        makeFilter({
+          id: 's-expired',
+          title: 'Expired rule',
+          expires_at: '2025-12-31T23:59:59.000Z'
+        })
+      ])
+      mockClient.deleteServerFilter.mockResolvedValue(true)
+      mockClient.createServerFilter.mockResolvedValue(
+        makeFilter({
+          id: 's-new',
+          title: 'New active rule',
+          expires_at: '2026-01-02T00:00:00.000Z',
+          server: true
+        })
+      )
+
+      renderPanel('server')
+      expect(await screen.findByText('Expired rule')).toBeInTheDocument()
+      openFilterMenu('Any status')
+      fireEvent.click(
+        await screen.findByRole('menuitemradio', { name: 'Expired' })
+      )
+      fireEvent.click(deleteButton('Expired rule'))
+      expect(await screen.findByText('No filters yet')).toBeInTheDocument()
+      await waitFor(() => expect(addButton()).toBeEnabled())
+
+      fillAndSaveNewFilter('New active rule', 'new keyword')
+
+      expect(await screen.findByText('New active rule')).toBeInTheDocument()
+      expect(screen.queryByText('No filters match')).not.toBeInTheDocument()
+    })
+
+    it('shows a filter created while the list is narrowed', async () => {
+      mockClient.getServerFilters.mockResolvedValue([
+        makeFilter({
+          id: 's-expired',
+          title: 'Expired rule',
+          expires_at: '2025-12-31T23:59:59.000Z'
+        }),
+        makeFilter({ id: 's-never', title: 'No expiry rule' })
+      ])
+      mockClient.createServerFilter.mockResolvedValue(
+        makeFilter({ id: 's-new', title: 'New active rule', server: true })
+      )
+
+      renderPanel('server')
+      expect(await screen.findByText('Expired rule')).toBeInTheDocument()
+      openFilterMenu('Any status')
+      fireEvent.click(
+        await screen.findByRole('menuitemradio', { name: 'Expired' })
+      )
+      expect(screen.queryByText('No expiry rule')).not.toBeInTheDocument()
+
+      fillAndSaveNewFilter('New active rule', 'new keyword')
+
+      expect(await screen.findByText('New active rule')).toBeInTheDocument()
+      expect(screen.getByText('No expiry rule')).toBeInTheDocument()
+    })
+
+    it('shows the same controls in the phone filter sheet', async () => {
+      mockClient.getServerFilters.mockResolvedValue([makeFilter()])
+      renderPanel('server')
+      await screen.findByText('Spoilers')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Filters' }))
+
+      const dialog = await screen.findByRole('dialog', { name: 'Filters' })
+      const actionGroup = within(dialog).getByRole('radiogroup', {
+        name: 'Action'
+      })
+      const anyAction = within(actionGroup).getByRole('radio', { name: 'Any' })
+      const blurAction = within(actionGroup).getByRole('radio', {
+        name: 'Blur'
+      })
+      const anyActionCard = anyAction.closest('[data-slot="radio-card"]')
+      const blurActionCard = blurAction.closest('[data-slot="radio-card"]')
+
+      expect(anyAction).toHaveAttribute('aria-checked', 'true')
+      expect(anyActionCard).toHaveClass(
+        'border',
+        'has-data-[state=checked]:border-primary'
+      )
+      expect(anyActionCard).not.toHaveClass('border-primary')
+      expect(blurAction).toHaveClass('h-4', 'w-4')
+      expect(blurAction).not.toHaveClass('w-full')
+      expect(blurAction.parentElement).toBe(blurActionCard)
+      expect(blurAction.nextElementSibling).toHaveTextContent('Blur')
+      expect(blurActionCard).not.toHaveClass('border-primary')
+      expect(
+        within(dialog).getByRole('checkbox', { name: 'Home' })
+      ).toBeInTheDocument()
+      const statusGroup = within(dialog).getByRole('radiogroup', {
+        name: 'Status'
+      })
+      const expiredStatus = within(statusGroup).getByRole('radio', {
+        name: 'Expired'
+      })
+      const expiredStatusCard = expiredStatus.closest(
+        '[data-slot="radio-card"]'
+      )
+      expect(expiredStatus).toHaveClass('h-4', 'w-4')
+      expect(expiredStatusCard).not.toHaveClass('border-primary')
+
+      fireEvent.click(blurAction)
+      expect(blurAction).toHaveAttribute('aria-checked', 'true')
+      fireEvent.click(
+        within(statusGroup).getByRole('radio', { name: 'Active' })
+      )
+      expect(
+        within(statusGroup).getByRole('radio', { name: 'Active' })
+      ).toHaveAttribute('aria-checked', 'true')
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Apply' }))
+
+      expect(screen.queryByText('Spoilers')).not.toBeInTheDocument()
+      expect(screen.getByText('No filters match')).toBeInTheDocument()
+    })
+
+    it('does not show server filter controls in account scope', async () => {
+      mockClient.getFilters.mockResolvedValue([makeFilter()])
+
+      renderPanel('account')
+      expect(await screen.findByText('Spoilers')).toBeInTheDocument()
+
+      expect(
+        screen.queryByRole('button', { name: 'Any action' })
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Any context' })
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Any status' })
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Filters' })
+      ).not.toBeInTheDocument()
     })
   })
 })

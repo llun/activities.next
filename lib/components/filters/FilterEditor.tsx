@@ -26,6 +26,7 @@ import { cn } from '@/lib/utils'
 
 import {
   EXPIRY_OPTIONS,
+  FILTER_ACTION_LABELS,
   FILTER_CONTEXTS,
   expiresInFromValue,
   expiryOptionForExpiresAt
@@ -48,13 +49,13 @@ const ACTION_CARDS: {
 }[] = [
   {
     id: 'warn',
-    label: 'Hide with a warning',
+    label: FILTER_ACTION_LABELS.warn,
     hint: () =>
       'Matching posts collapse behind the filter title, with a “Show anyway” option.'
   },
   {
     id: 'hide',
-    label: 'Hide completely',
+    label: FILTER_ACTION_LABELS.hide,
     hint: (scope) =>
       scope === 'server'
         ? 'Matching posts are dropped server-side and never delivered.'

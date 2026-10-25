@@ -25,6 +25,12 @@ import { Button } from '@/lib/components/ui/button'
 
 import { FilterEditor, type FilterScope } from './FilterEditor'
 import { FilterRow } from './FilterRow'
+import { ServerFilterBar } from './ServerFilterBar'
+import { isFilterExpired } from './filterConstants'
+import {
+  DEFAULT_SERVER_FILTER_SELECTION,
+  type ServerFilterSelection
+} from './serverFilterControls'
 
 interface ScopeClient {
   list: () => Promise<ClientFilter[]>
@@ -79,6 +85,8 @@ export const FiltersPanel: FC<FiltersPanelProps> = ({ scope, currentTime }) => {
   const [editorError, setEditorError] = useState<string | null>(null)
   const [listError, setListError] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [serverFilterSelection, setServerFilterSelection] =
+    useState<ServerFilterSelection>({ ...DEFAULT_SERVER_FILTER_SELECTION })
 
   const loadFilters = useCallback(() => {
     let active = true
@@ -111,6 +119,9 @@ export const FiltersPanel: FC<FiltersPanelProps> = ({ scope, currentTime }) => {
 
   useEffect(() => loadFilters(), [loadFilters])
 
+  const clearServerFilters = () =>
+    setServerFilterSelection({ ...DEFAULT_SERVER_FILTER_SELECTION })
+
   const handleSave = async (input: FilterInput) => {
     setSaving(true)
     setEditorError(null)
@@ -124,6 +135,8 @@ export const FiltersPanel: FC<FiltersPanelProps> = ({ scope, currentTime }) => {
         }
         // Creation order — newly created filters append at the bottom.
         setFilters((current) => [...current, created])
+        // A narrowed list could hide the filter just created.
+        clearServerFilters()
       } else if (editing) {
         const updated = await client.update(editing, input)
         if (!updated) {
@@ -162,7 +175,11 @@ export const FiltersPanel: FC<FiltersPanelProps> = ({ scope, currentTime }) => {
     }
     try {
       const ok = await client.remove(filter.id)
-      if (!ok) restoreOnFailure()
+      if (!ok) {
+        restoreOnFailure()
+      } else if (scope === 'server' && previous.length === 1) {
+        clearServerFilters()
+      }
     } catch {
       // A network-layer throw (connection drop, etc.) must still roll back.
       restoreOnFailure()
@@ -197,6 +214,26 @@ export const FiltersPanel: FC<FiltersPanelProps> = ({ scope, currentTime }) => {
     setEditing('new')
   }
 
+  const visibleFilters =
+    scope === 'server'
+      ? filters.filter((filter) => {
+          const actionMatches =
+            serverFilterSelection.action === 'any' ||
+            filter.filter_action === serverFilterSelection.action
+          const contextMatches =
+            serverFilterSelection.contexts.length === 0 ||
+            serverFilterSelection.contexts.some((context) =>
+              filter.context.includes(context)
+            )
+          const expired = isFilterExpired(filter.expires_at, currentTime)
+          const statusMatches =
+            serverFilterSelection.status === 'any' ||
+            (serverFilterSelection.status === 'expired' ? expired : !expired)
+
+          return actionMatches && contextMatches && statusMatches
+        })
+      : filters
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -223,6 +260,14 @@ export const FiltersPanel: FC<FiltersPanelProps> = ({ scope, currentTime }) => {
         />
       )}
 
+      {scope === 'server' && !loading && filters.length > 0 ? (
+        <ServerFilterBar
+          selection={serverFilterSelection}
+          onChange={setServerFilterSelection}
+          onClear={clearServerFilters}
+        />
+      ) : null}
+
       {loading ? (
         <Frame className="p-4">
           <SkeletonRows rows={3} rowClassName="h-14" label="Loading filters" />
@@ -242,9 +287,23 @@ export const FiltersPanel: FC<FiltersPanelProps> = ({ scope, currentTime }) => {
         >
           Add one to start hiding unwanted posts.
         </EmptyState>
-      ) : filters.length > 0 ? (
+      ) : scope === 'server' &&
+        filters.length > 0 &&
+        visibleFilters.length === 0 ? (
+        <EmptyState
+          icon={FilterIcon}
+          title="No filters match"
+          action={
+            <Button size="sm" onClick={clearServerFilters}>
+              Clear filters
+            </Button>
+          }
+        >
+          Try changing or clearing your filters.
+        </EmptyState>
+      ) : visibleFilters.length > 0 ? (
         <FramedList aria-label={copy.title}>
-          {filters.map((filter) => (
+          {visibleFilters.map((filter) => (
             <FilterRow
               key={filter.id}
               filter={filter}

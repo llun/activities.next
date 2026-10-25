@@ -62,7 +62,13 @@ describe('FilterRow', () => {
     {
       description: 'hide with warning in the primary tone',
       action: 'warn',
-      label: 'Hide with warning',
+      label: 'Hide with a warning',
+      token: 'text-primary-text'
+    },
+    {
+      description: 'blur in the primary tone',
+      action: 'blur',
+      label: 'Blur',
       token: 'text-primary-text'
     }
   ])('draws $description', ({ action, label, token }) => {
