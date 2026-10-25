@@ -779,6 +779,78 @@ describe('proxy', () => {
     ).toBe(search)
   })
 
+  // The [actor] layout trusts the x-activities-local-handle-* pair to 308 the
+  // captured path, so a client-set value must never reach it on a path the
+  // proxy does not rewrite. Next applies a middleware request-headers
+  // override by DELETING every request header the override list does not
+  // name, so the pair being absent from the list is what strips it.
+  it('drops client-sent local-handle headers on a path it does not rewrite', async () => {
+    const request = new NextRequest('https://public.example.com/about', {
+      headers: {
+        host: 'public.example.com',
+        'x-activities-local-handle-path': '/@bob/../../admin',
+        'x-activities-local-handle-search': '?x=evil'
+      }
+    })
+
+    const response = await proxy(request)
+
+    const overridden =
+      response?.headers.get('x-middleware-override-headers') ?? ''
+    expect(overridden).not.toBe('')
+    expect(overridden.split(',').map((key) => key.trim())).not.toContain(
+      'x-activities-local-handle-path'
+    )
+    expect(overridden.split(',').map((key) => key.trim())).not.toContain(
+      'x-activities-local-handle-search'
+    )
+    expect(
+      response?.headers.get(
+        'x-middleware-request-x-activities-local-handle-path'
+      )
+    ).toBeNull()
+  })
+
+  // On the paths the proxy DOES rewrite to the profile, its own values win
+  // over whatever the client sent.
+  it('overwrites client-sent local-handle headers on the profile rewrite', async () => {
+    const request = new NextRequest('https://public.example.com/@alice', {
+      headers: {
+        host: 'public.example.com',
+        'x-activities-local-handle-path': '/@bob/../../admin',
+        'x-activities-local-handle-search': '?x=evil'
+      }
+    })
+
+    const response = await proxy(request)
+
+    expect(
+      response?.headers.get(
+        'x-middleware-request-x-activities-local-handle-path'
+      )
+    ).toBe('/@alice')
+    expect(
+      response?.headers.get(
+        'x-middleware-request-x-activities-local-handle-search'
+      )
+    ).toBe('')
+  })
+
+  // The first character is anchored the way LOCAL_USERNAME_PATTERN anchors
+  // it: `/@..` must not be rewritten into the API's path (the URL parser
+  // would collapse the dot segments, landing on `/api`).
+  it('does not rewrite /@.. into the users API', async () => {
+    const request = new NextRequest('https://public.example.com/@..', {
+      headers: { Accept: 'application/activity+json' }
+    })
+
+    const response = await proxy(request)
+
+    expect(response?.headers.get('x-middleware-rewrite')).toBe(
+      'https://public.example.com/@..@public.example.com'
+    )
+  })
+
   it('hands a bare handle on HEAD to the app when the host is not in the env', async () => {
     const request = new NextRequest('https://internal.example.com/@alice', {
       method: 'HEAD',

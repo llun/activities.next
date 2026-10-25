@@ -19,6 +19,7 @@ vi.mock('@/lib/services/queue', () => ({
 
 const OLD_PREFIX = 'https://old.example/@al_ce/'
 const NEW_PREFIX = 'https://new.example/@renamed/'
+const RENAMED_AT = Date.parse('2026-01-01T00:00:00.000Z')
 
 const run = (
   database: Database,
@@ -26,10 +27,11 @@ const run = (
   after: string | null = null
 ) =>
   renameStatusUrlsJob(database, {
-    id: renameStatusUrlsJobId('handle-1', after ?? undefined),
+    id: renameStatusUrlsJobId('handle-1', RENAMED_AT, after ?? undefined),
     name: RENAME_STATUS_URLS_JOB_NAME,
     data: {
       handleId: 'handle-1',
+      renamedAt: RENAMED_AT,
       actorId,
       fromPrefix: OLD_PREFIX,
       toPrefix: NEW_PREFIX,
@@ -204,10 +206,11 @@ describe('renameStatusUrlsJob', () => {
       )
       expect(publish).toHaveBeenCalledTimes(1)
       expect(publish).toHaveBeenCalledWith({
-        id: renameStatusUrlsJobId('handle-1', lastFirstPageId),
+        id: renameStatusUrlsJobId('handle-1', RENAMED_AT, lastFirstPageId),
         name: RENAME_STATUS_URLS_JOB_NAME,
         data: {
           handleId: 'handle-1',
+          renamedAt: RENAMED_AT,
           actorId,
           fromPrefix: OLD_PREFIX,
           toPrefix: NEW_PREFIX,
@@ -238,8 +241,124 @@ describe('renameStatusUrlsJob', () => {
   })
 
   it('builds the profile prefix the mint paths embed in statuses.url', () => {
+    // The domain is NOT lowercased: statuses.url is minted from
+    // actor.domain as stored, and a legacy mixed-case domain must match its
+    // own statuses.
     expect(getStatusUrlPrefix({ domain: 'Example.test', username: 'me' })).toBe(
-      'https://example.test/@me/'
+      'https://Example.test/@me/'
+    )
+  })
+
+  it('gives every rename its own job ids, keyed by the rename timestamp', () => {
+    // A rename back reuses the revived ledger row's handleId; without the
+    // timestamp a queue that still holds the earlier job would drop the new
+    // one as a duplicate id.
+    expect(renameStatusUrlsJobId('handle-1', RENAMED_AT)).toBe(
+      `handle-1:${RENAMED_AT}:statusUrls:start`
+    )
+    expect(renameStatusUrlsJobId('handle-1', RENAMED_AT, 'abc')).toBe(
+      `handle-1:${RENAMED_AT}:statusUrls:abc`
+    )
+    expect(renameStatusUrlsJobId('handle-1', RENAMED_AT)).not.toBe(
+      renameStatusUrlsJobId('handle-1', RENAMED_AT + 1)
+    )
+  })
+
+  it('rewrites statuses minted under a handle the actor renamed back to in a new casing', async () => {
+    // alice → bob → ALICE (a rename BACK onto its own retired row, in a new
+    // casing) → carol: the revive must rewrite the ledger row's spelling to
+    // ALICE, and the third rename's `previous` must be the actors row's
+    // stored spelling (ALICE), not the ledger row's retired casing (alice),
+    // or the statuses minted under @ALICE are never matched.
+    const actorId = await createActor('alice')
+    const t0 = Date.parse('2026-01-01T00:00:00.000Z')
+    const rename = (username: string, at: number) =>
+      database.recordActorHandleRename({
+        actorId,
+        username,
+        domain: TEST_DOMAIN,
+        now: new Date(at),
+        cooldownMs: 0
+      })
+    await rename('bob', t0)
+    await rename('ALICE', t0 + 1)
+    const third = await rename('carol', t0 + 2)
+    if (!third.ok) throw new Error(`expected ok, got ${third.status}`)
+    expect(third.previous).toEqual({ username: 'ALICE', domain: TEST_DOMAIN })
+    expect(third.renamedAt).toBe(t0 + 2)
+
+    // The revived row carries the target's exact spelling, so the history
+    // never shows a casing the actor does not hold.
+    const handles = await database.getActorHandles({ actorId })
+    expect(handles.map((row) => row.username).sort()).toEqual([
+      'ALICE',
+      'bob',
+      'carol'
+    ])
+
+    const statusId = `${actorId}/statuses/under-alice`
+    await insertStatus(actorId, `https://${TEST_DOMAIN}/@ALICE/one`, statusId)
+
+    await renameStatusUrlsJob(database, {
+      id: renameStatusUrlsJobId(third.handleId, third.renamedAt),
+      name: RENAME_STATUS_URLS_JOB_NAME,
+      data: {
+        handleId: third.handleId,
+        renamedAt: third.renamedAt,
+        actorId,
+        fromPrefix: getStatusUrlPrefix(third.previous),
+        toPrefix: getStatusUrlPrefix(third.current),
+        after: null
+      }
+    })
+
+    expect(await readStatus(statusId)).toEqual({
+      id: statusId,
+      url: `https://${TEST_DOMAIN}/@carol/one`,
+      urlHash: getHashFromString(`https://${TEST_DOMAIN}/@carol/one`)
+    })
+  })
+
+  it('rewrites statuses minted under a legacy mixed-case stored domain', async () => {
+    const actorId = await createActor('mixedcase')
+    // A legacy actors row whose domain was stored mixed-case, exactly as the
+    // mint paths would have embedded it in statuses.url.
+    await db
+      .updateTable('actors')
+      .set({ domain: 'Mixed.test' })
+      .where('id', '=', actorId)
+      .execute()
+    const statusId = `${actorId}/statuses/mixed`
+    await insertStatus(actorId, 'https://Mixed.test/@mixedcase/one', statusId)
+
+    const result = await database.recordActorHandleRename({
+      actorId,
+      username: 'recased',
+      domain: 'mixed.test',
+      now: new Date(Date.parse('2026-01-01T00:00:00.000Z')),
+      cooldownMs: 0
+    })
+    if (!result.ok) throw new Error(`expected ok, got ${result.status}`)
+    expect(result.previous).toEqual({
+      username: 'mixedcase',
+      domain: 'Mixed.test'
+    })
+
+    await renameStatusUrlsJob(database, {
+      id: renameStatusUrlsJobId(result.handleId, result.renamedAt),
+      name: RENAME_STATUS_URLS_JOB_NAME,
+      data: {
+        handleId: result.handleId,
+        renamedAt: result.renamedAt,
+        actorId,
+        fromPrefix: getStatusUrlPrefix(result.previous),
+        toPrefix: getStatusUrlPrefix(result.current),
+        after: null
+      }
+    })
+
+    expect((await readStatus(statusId)).url).toBe(
+      'https://mixed.test/@recased/one'
     )
   })
 })

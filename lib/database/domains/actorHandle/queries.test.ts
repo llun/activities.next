@@ -1,3 +1,7 @@
+import {
+  getActorIdFromHandle,
+  recordActorHandleRename
+} from '@/lib/database/domains/actorHandle/queries'
 import type { Db } from '@/lib/database/kysely'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import type { Database } from '@/lib/database/types'
@@ -193,6 +197,79 @@ describe('actorHandle domain', () => {
           domain: TEST_DOMAIN
         })
       ).resolves.toMatchObject({ username: 'live', domain: TEST_DOMAIN })
+    }))
+
+  it('a legacy case twin never takes over a renamed actor’s old handle', () =>
+    withFreshDatabase(async (database, db) => {
+      const actorId = await createLocalAccount(database, 'twinholder')
+      const now = new Date('2026-01-01T00:00:00.000Z')
+      // The legacy twin: a live actors row the backfill skipped (no ledger
+      // row of its own), differing from the winner only by case.
+      const twinActorId = `https://${TEST_DOMAIN}/users/TwinHolder`
+      await db
+        .insertInto('actors')
+        .values({
+          id: twinActorId,
+          username: 'TwinHolder',
+          domain: TEST_DOMAIN,
+          accountId: null,
+          publicKey: 'public-key',
+          settings: JSON.stringify({
+            followersUrl: `${twinActorId}/followers`,
+            inboxUrl: `${twinActorId}/inbox`,
+            sharedInboxUrl: `https://${TEST_DOMAIN}/inbox`
+          }),
+          createdAt: now,
+          updatedAt: now
+        })
+        .execute()
+      // The ledger state a pre-fix rename of the winner would leave (the
+      // rename is refused now): the actor holds carol, its old handle is
+      // retired in the ledger.
+      await db
+        .updateTable('actors')
+        .set({ username: 'carol' })
+        .where('id', '=', actorId)
+        .execute()
+      await db
+        .updateTable('actor_handles')
+        .set({ replacedAt: now })
+        .where('actorId', '=', actorId)
+        .where('replacedAt', 'is', null)
+        .execute()
+      await db
+        .insertInto('actor_handles')
+        .values({
+          id: 'carol-row',
+          actorId,
+          username: 'carol',
+          domain: TEST_DOMAIN,
+          createdAt: now,
+          replacedAt: null
+        })
+        .execute()
+
+      // The old id path — /users/twinholder is still the renamed actor's own
+      // id — resolves to the renamed actor in any casing, never to the twin.
+      await expect(
+        database.getActorFromUsername({
+          username: 'twinholder',
+          domain: TEST_DOMAIN
+        })
+      ).resolves.toMatchObject({ id: actorId, username: 'carol' })
+      await expect(
+        database.getActorFromUsername({
+          username: 'TWINHOLDER',
+          domain: TEST_DOMAIN
+        })
+      ).resolves.toMatchObject({ id: actorId })
+      // The twin keeps its own exact spelling.
+      await expect(
+        database.getActorFromUsername({
+          username: 'TwinHolder',
+          domain: TEST_DOMAIN
+        })
+      ).resolves.toMatchObject({ id: twinActorId })
     }))
 
   it('getActorFromUsername returns null for a replaced handle whose actor was deleted', () =>
@@ -454,6 +531,160 @@ describe('actorHandle domain', () => {
         await expect(
           rename(database, actorId, 'something-else', now, 0)
         ).resolves.toEqual({ ok: false, status: 'cannot_rename' })
+      }))
+
+    it('refuses the WINNER of a backfill case pair with cannot_rename too', () =>
+      withFreshDatabase(async (database, db) => {
+        // The backfill gives the older twin the ledger row; the younger twin
+        // is refused by the check above. The winner must be refused as well:
+        // renaming away would leave its old handle's folded lookup to the
+        // twin still sitting in actors.
+        const actorId = await createLocalAccount(database, 'winner')
+        const now = new Date('2026-01-01T00:00:00.000Z')
+        await db
+          .insertInto('actors')
+          .values({
+            id: `https://${TEST_DOMAIN}/users/twin-owner`,
+            username: 'Winner',
+            domain: TEST_DOMAIN,
+            accountId: null,
+            publicKey: 'public-key',
+            createdAt: now,
+            updatedAt: now
+          })
+          .execute()
+
+        await expect(
+          rename(database, actorId, 'somewhere-else', now, 0)
+        ).resolves.toEqual({ ok: false, status: 'cannot_rename' })
+        // The actor keeps its handle: nothing was written.
+        await expect(
+          database.getActorFromId({ id: actorId })
+        ).resolves.toMatchObject({ username: 'winner' })
+      }))
+
+    it('answers taken when a concurrent claim wins the folded unique index', () =>
+      withFreshDatabase(async (database, db) => {
+        const actorId = await createLocalAccount(database, 'racer')
+        const otherId = await createLocalAccount(database, 'claim-owner')
+        const now = new Date('2026-01-01T00:00:00.000Z')
+
+        // A deterministic in-transaction race: the wrapped db intercepts
+        // the FIRST insert the rename makes into actor_handles and, before
+        // that insert runs, inserts another actor's current row for the very
+        // handle being claimed — exactly the row a concurrently committed
+        // sign-up leaves between the taken checks and the write. The folded
+        // unique index then rejects the rename's own insert, which must read
+        // as `taken` rather than a thrown 500.
+        const claim = {
+          id: 'racing-claim',
+          actorId: otherId,
+          username: 'Raced',
+          domain: TEST_DOMAIN,
+          createdAt: now,
+          replacedAt: null
+        }
+        let claimed = false
+        const hookInsert = (trx: Db, builder: object): object =>
+          new Proxy(builder, {
+            get(target: object, prop) {
+              if (prop === 'execute') {
+                return async () => {
+                  if (!claimed) {
+                    claimed = true
+                    await trx
+                      .insertInto('actor_handles')
+                      .values(claim)
+                      .execute()
+                  }
+                  return (
+                    Reflect.get(target, prop, target) as () => Promise<unknown>
+                  ).call(target)
+                }
+              }
+              const value = Reflect.get(target, prop, target)
+              return typeof value === 'function'
+                ? (...args: unknown[]) =>
+                    hookInsert(
+                      trx,
+                      (value as (...fnArgs: unknown[]) => object).apply(
+                        target,
+                        args
+                      )
+                    )
+                : value
+            }
+          })
+        const hookTrx = (trx: Db): Db =>
+          new Proxy(trx, {
+            get(target: Db, prop) {
+              if (prop === 'insertInto') {
+                return (table: string) => {
+                  const builder = (
+                    target.insertInto as unknown as (t: string) => object
+                  )(table)
+                  return table === 'actor_handles'
+                    ? hookInsert(trx, builder)
+                    : builder
+                }
+              }
+              const value = Reflect.get(target, prop, target)
+              return typeof value === 'function'
+                ? (value as (...fnArgs: never[]) => unknown).bind(target)
+                : value
+            }
+          }) as Db
+        const hookedDb = new Proxy(db, {
+          get(target: Db, prop) {
+            if (prop === 'transaction') {
+              return () => {
+                const builder = target.transaction()
+                return new Proxy(builder, {
+                  get(bTarget: object, bProp) {
+                    const value = Reflect.get(bTarget, bProp, bTarget)
+                    if (bProp === 'execute') {
+                      return (callback: (trx: Db) => Promise<unknown>) =>
+                        (
+                          value as (
+                            cb: (trx: Db) => Promise<unknown>
+                          ) => Promise<unknown>
+                        ).call(bTarget, (trx: Db) => callback(hookTrx(trx)))
+                    }
+                    return typeof value === 'function'
+                      ? (value as (...fnArgs: never[]) => unknown).bind(bTarget)
+                      : value
+                  }
+                })
+              }
+            }
+            const value = Reflect.get(target, prop, target)
+            return typeof value === 'function'
+              ? (value as (...fnArgs: never[]) => unknown).bind(target)
+              : value
+          }
+        }) as Db
+
+        await expect(
+          recordActorHandleRename(hookedDb, {
+            actorId,
+            username: 'raced',
+            domain: TEST_DOMAIN,
+            now,
+            cooldownMs: 0
+          })
+        ).resolves.toEqual({ ok: false, status: 'taken' })
+
+        // The transaction rolled back: neither the claim nor the rename
+        // landed, and the actor keeps its handle.
+        await expect(
+          getActorIdFromHandle(db, {
+            username: 'raced',
+            domain: TEST_DOMAIN
+          })
+        ).resolves.toBeNull()
+        await expect(
+          database.getActorFromId({ id: actorId })
+        ).resolves.toMatchObject({ username: 'racer' })
       }))
 
     it('renames back onto its own retired row by reviving it, keeping the row count', () =>

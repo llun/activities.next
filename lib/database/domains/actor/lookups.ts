@@ -27,7 +27,10 @@ import { getActorIdFromReplacedHandle } from '@/lib/database/domains/actorHandle
 import { type Db, inTransaction } from '@/lib/database/kysely'
 import { timestampValue } from '@/lib/database/kysely/dialect'
 import { getWhereInBatchSize } from '@/lib/database/kysely/inList'
-import { findActorRowByUsername } from '@/lib/database/kysely/usernameMatch'
+import {
+  findActorRowByUsernameExact,
+  findActorRowByUsernameFolded
+} from '@/lib/database/kysely/usernameMatch'
 import { getCompatibleJSON } from '@/lib/database/utils/getCompatibleJSON'
 import {
   resolveIdsByPublicIds,
@@ -121,21 +124,31 @@ export const getActorFromUsername = async (
   // Case-insensitive: a handle reaches this from a URL path, a mention, a
   // WebFinger resource and a search box, and none of them control casing.
   // See findActorRowByUsername for why the exact match is still tried first.
-  const row = await findActorRowByUsername(db, { username, domain })
-  if (row) return toActorWithAccount(db, asSQLActor(row))
-  // History arm, on a double miss only: a handle the actor RENAMED AWAY FROM
-  // still resolves to the actor that gave it up (the ledger's folded unique
-  // index allows one row per handle, so a live actor's current handle —
-  // already found above — is never shadowed). Only retired rows match: the
-  // current rows mirror `actors`, and a deleted actor's rows are retired by
-  // its deletion, so a deleted handle resolves to a gone actor and stays
-  // null. Domains fold at read.
+  const exactRow = await findActorRowByUsernameExact(db, { username, domain })
+  if (exactRow) return toActorWithAccount(db, asSQLActor(exactRow))
+  // History arm, before the folded actors arm: a handle the actor RENAMED
+  // AWAY FROM still resolves to the actor that gave it up (the ledger's
+  // folded unique index allows one row per handle, so a live actor's current
+  // handle — already found above — is never shadowed). Only retired rows
+  // match: the current rows mirror `actors`, and a deleted actor's rows are
+  // retired by its deletion, so a deleted handle resolves to a gone actor and
+  // stays null. Domains fold at read.
+  //
+  // The order is what keeps a legacy case twin from taking over a renamed
+  // actor's old id path: when `alice` renames away and a backfill-skipped
+  // `Alice` row sits in `actors`, the folded actors arm below would answer
+  // `alice` with the twin, serving the twin's Person document, inbox and
+  // outbox at the renamed actor's own id path. The retired ledger row is the
+  // reservation that says who `alice` is, so it wins over any live twin. When
+  // the retired row's actor is gone (deleted), the reservation survives but
+  // the resolution does not: null, never the twin.
   const replacedActorId = await getActorIdFromReplacedHandle(db, {
     username,
     domain
   })
-  if (!replacedActorId) return null
-  return getActorFromId(db, { id: replacedActorId })
+  if (replacedActorId) return getActorFromId(db, { id: replacedActorId })
+  const foldedRow = await findActorRowByUsernameFolded(db, { username, domain })
+  return foldedRow ? toActorWithAccount(db, asSQLActor(foldedRow)) : null
 }
 
 export const getActorsFromIds = async (

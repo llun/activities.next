@@ -1,9 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import {
-  LOCAL_HANDLE_REDIRECT_PATH_HEADER,
-  LOCAL_HANDLE_REDIRECT_SEARCH_HEADER
-} from '@/app/(timeline)/[actor]/getLocalHandleRedirect'
 import { getProxyHostConfig } from '@/lib/config/host'
 import { acceptContainsContentTypes } from '@/lib/utils/acceptContainsContentTypes'
 import {
@@ -20,6 +16,10 @@ import {
   getEmbedContentSecurityPolicyHeader,
   getMediaFileContentSecurityPolicyHeader
 } from '@/lib/utils/http-headers/csp'
+import {
+  LOCAL_HANDLE_REDIRECT_PATH_HEADER,
+  LOCAL_HANDLE_REDIRECT_SEARCH_HEADER
+} from '@/lib/utils/http-headers/localHandleRedirect'
 
 // Next buffers the body of every non-GET/HEAD request the proxy runs on, so the
 // proxy and the route handler can both read it, and caps that buffer at
@@ -93,8 +93,21 @@ const hasHostOutsideEnv = (headers: Headers): boolean => {
 
 const HANDLE_REDIRECT_PATH = '/api/handle-redirect'
 
-const getProfileRequestHeaders = (request: NextRequest) => {
+// The request headers every forwarded branch carries: the client-sent
+// `x-activities-local-handle-*` pair is deleted on EVERY request, so a
+// value the client set itself never reaches the [actor] layout on a path
+// the proxy does not rewrite (there it would 308 an attacker-chosen
+// same-origin path). Only the branches that rewrite to the profile set the
+// headers, through getProfileRequestHeaders below.
+const forwardedRequestHeaders = (request: NextRequest) => {
   const headers = new Headers(request.headers)
+  headers.delete(LOCAL_HANDLE_REDIRECT_PATH_HEADER)
+  headers.delete(LOCAL_HANDLE_REDIRECT_SEARCH_HEADER)
+  return headers
+}
+
+const getProfileRequestHeaders = (request: NextRequest) => {
+  const headers = forwardedRequestHeaders(request)
   headers.set(LOCAL_HANDLE_REDIRECT_PATH_HEADER, request.nextUrl.pathname)
   headers.set(LOCAL_HANDLE_REDIRECT_SEARCH_HEADER, request.nextUrl.search)
   return headers
@@ -212,7 +225,12 @@ export async function proxy(request: NextRequest) {
 
   if (request.method === 'GET' || request.method === 'HEAD') {
     if (pathname === '/sw.js') {
-      const response = withContentSecurityPolicy(NextResponse.next(), request)
+      const response = withContentSecurityPolicy(
+        NextResponse.next({
+          request: { headers: forwardedRequestHeaders(request) }
+        }),
+        request
+      )
       response.headers.set(
         'Cache-Control',
         'no-cache, no-store, must-revalidate'
@@ -230,22 +248,36 @@ export async function proxy(request: NextRequest) {
         'application/json'
       ])
     ) {
-      // Actor route
-      if (/^\/@[a-zA-Z0-9._-]+$/.test(pathname)) {
-        const matches = pathname.match(/^\/@(?<username>[a-zA-Z0-9._-]+)$/)
+      // Actor route. The first character is anchored the way
+      // LOCAL_USERNAME_PATTERN anchors it, so `/@..` and `/@.a` are not
+      // rewritten into the API's path.
+      if (/^\/@[a-zA-Z0-9_][a-zA-Z0-9_.-]*$/.test(pathname)) {
+        const matches = pathname.match(
+          /^\/@(?<username>[a-zA-Z0-9_][a-zA-Z0-9_.-]*)$/
+        )
         const apiUrl = request.nextUrl.clone()
         apiUrl.pathname = `/api/users/${matches?.groups?.username}`
-        return withContentSecurityPolicy(NextResponse.rewrite(apiUrl), request)
+        return withContentSecurityPolicy(
+          NextResponse.rewrite(apiUrl, {
+            request: { headers: forwardedRequestHeaders(request) }
+          }),
+          request
+        )
       }
 
       // Actor status route
-      if (/^\/@[a-zA-Z0-9._-]+\/[\w-]+$/.test(pathname)) {
+      if (/^\/@[a-zA-Z0-9_][a-zA-Z0-9_.-]*\/[\w-]+$/.test(pathname)) {
         const matches = pathname.match(
-          /^\/@(?<username>[a-zA-Z0-9._-]+)\/(?<statusId>[\w-]+)$/
+          /^\/@(?<username>[a-zA-Z0-9_][a-zA-Z0-9_.-]*)\/(?<statusId>[\w-]+)$/
         )
         const apiUrl = request.nextUrl.clone()
         apiUrl.pathname = `/api/users/${matches?.groups?.username}/statuses/${matches?.groups?.statusId}`
-        return withContentSecurityPolicy(NextResponse.rewrite(apiUrl), request)
+        return withContentSecurityPolicy(
+          NextResponse.rewrite(apiUrl, {
+            request: { headers: forwardedRequestHeaders(request) }
+          }),
+          request
+        )
       }
     }
 
@@ -273,7 +305,9 @@ export async function proxy(request: NextRequest) {
           query: request.nextUrl.search
         }).toString()
         return withContentSecurityPolicy(
-          NextResponse.rewrite(redirectUrl),
+          NextResponse.rewrite(redirectUrl, {
+            request: { headers: forwardedRequestHeaders(request) }
+          }),
           request
         )
       }
@@ -292,8 +326,18 @@ export async function proxy(request: NextRequest) {
       )
     }
 
-    return withContentSecurityPolicy(NextResponse.next(), request)
+    return withContentSecurityPolicy(
+      NextResponse.next({
+        request: { headers: forwardedRequestHeaders(request) }
+      }),
+      request
+    )
   }
 
-  return withContentSecurityPolicy(NextResponse.next(), request)
+  return withContentSecurityPolicy(
+    NextResponse.next({
+      request: { headers: forwardedRequestHeaders(request) }
+    }),
+    request
+  )
 }

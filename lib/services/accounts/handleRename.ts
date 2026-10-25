@@ -28,12 +28,27 @@ export type HandleState = {
 // The actor-domain pipeline POST /api/v1/actors uses: the rules resolve the
 // requested (or defaulted) domain, and the account's sign-up filter narrows
 // it. Returns null when the domain is not one the account may use.
+//
+// A target that IS the current domain (case-insensitively), whether it was
+// sent explicitly or defaulted, skips the pipeline entirely: the handle
+// already lives there, so a later-narrowed `allowActorDomains` or sign-up
+// filter must not strand a plain username change (GET always offers the
+// current domain for the same reason). Only a domain CHANGE goes through
+// resolveActorDomain + filterActorDomainsForAccount.
 export const resolveAllowedDomain = async (
   database: Database,
   actor: Actor,
   requestedDomain: string | undefined,
   currentHost: string
 ): Promise<string | null> => {
+  const currentDomain = actor.domain ?? ''
+  if (
+    currentDomain &&
+    (requestedDomain === undefined ||
+      requestedDomain.toLowerCase() === currentDomain.toLowerCase())
+  ) {
+    return currentDomain
+  }
   const config = getConfig()
   const [{ federation }, addableDomains] = await Promise.all([
     getResolvedServerSettings(database),

@@ -2292,10 +2292,15 @@ moved` (reject stays allowed). While
   their existing transactions, and a rename mints a missing current row
   lazily. `isUsernameExists` consults the ledger too, so a handle any row
   holds — current or replaced, any actor — can never be registered again, and
-  `getActorFromUsername` gains a third arm (run only on a miss of the two
-  actors arms) that resolves a replaced handle back to the actor that gave it
-  up, so an old handle keeps working everywhere a handle resolves
-  (`OnlyLocalUserGuard`, WebFinger, mentions, lookup, search).
+  `getActorFromUsername` gains a third arm that resolves a replaced handle
+  back to the actor that gave it up, so an old handle keeps working
+  everywhere a handle resolves (`OnlyLocalUserGuard`, WebFinger, mentions,
+  lookup, search). The arm runs after the exact actors match but BEFORE the
+  case-folded one: a retired ledger row is the reservation that says who the
+  handle is, so a legacy case twin still sitting in `actors` (a backfill's
+  skipped younger twin) can never take over a renamed actor's old handle —
+  the id path, WebFinger and mentions keep answering the renamed actor, and
+  null once it is deleted, never the twin.
 - **The rename itself is `recordActorHandleRename`
   (`lib/database/domains/actorHandle/queries.ts`), one transaction under a
   `forUpdate` lock on the actors row** (the actorMigration pattern; a no-op on
@@ -2304,20 +2309,28 @@ moved` (reject stays allowed). While
   (`moved` — `settings.movedTo` is written in the same transaction that
   records an outgoing migration, so the pointer is the active migration); a
   suspended or deleting one (`unavailable`); an actor with no current row
-  whose handle another actor's ledger row occupies (a backfill's skipped case
-  twin, `cannot_rename`); the same handle back, case-only renames included
+  whose handle another actor's ledger row occupies, or any actor — with a
+  current row or without — whose current handle another `actors` row folds
+  to (either side of a backfill case pair, `cannot_rename`: retiring the
+  handle would hand its folded lookup to the twin); the same handle back, case-only renames included
   (`unchanged`); a rename inside the 30-day cooldown measured from the latest
   `replacedAt` (`cooldown`, answering `cooldownUntil`; backfilled and lazily
   minted rows have a null `replacedAt` and never trigger it); and a target
   held by another actor's live actors row or any of its ledger rows
-  (`taken`). The actor's own replaced row for the target is the rename-back
-  case and is revived (`replacedAt` back to null), never duplicated — the
-  folded unique index would refuse a second row anyway. Otherwise a new
+  (`taken`) — including a concurrent claim that commits between the checks
+  and the write: the folded unique index is what stops the double claim, and
+  the collision reads as `taken`, never a thrown 500. The actor's own
+  replaced row for the target is the rename-back case and is revived
+  (`replacedAt` back to null, under the target's exact spelling so the
+  history never shows a casing the actor does not hold), never duplicated —
+  the folded unique index would refuse a second row anyway. Otherwise a new
   current row is minted, the previous current row gets `replacedAt = now`, the
   actors row's `username`, `domain` (lowercased) and `updatedAt` are updated —
   `actors.id` never changes — and the search document is re-indexed in the
   same transaction, so search sees the new handle exactly when the actors row
-  does.
+  does. The result's `previous` is the locked actors row's stored spelling
+  (what the status permalinks were minted from), and `renamedAt` is the
+  rename's timestamp.
 - **Deleting an approved actor keeps its handles reserved (a behaviour
   change).** `deleteActorData` (`lib/database/domains/actor/deletion.ts`) no
   longer frees the username: inside the purge transaction it sets
@@ -2339,8 +2352,13 @@ moved` (reject stays allowed). While
   recomputed, leaving `status_history` alone. The job pages 200 statuses at a
   time by `statuses.id` (keyset), has a 20-second budget checked between
   pages, and publishes a continuation when the budget runs out, under
-  deterministic ids (`${handleId}:statusUrls:start`, then
-  `${handleId}:statusUrls:<lastId>`). Because both prefixes end in `/` and a
+  deterministic ids that embed the rename's timestamp
+  (`${handleId}:${renamedAt}:statusUrls:start`, then
+  `${handleId}:${renamedAt}:statusUrls:<lastId>`) — a rename back reuses the
+  revived row's `handleId`, so without the timestamp its job id would
+  collide with the earlier rename's and a deduplicating queue would drop the
+  rewrite. The prefix keeps the stored domain's casing, because the mint
+  paths build the url from `actor.domain` as stored. Because both prefixes end in `/` and a
   username cannot contain `/`, a rewritten url can never re-match the old
   prefix, so a redelivery or retry re-runs the same page, matches no rows and
   changes nothing. The rename route queues the start job after the commit,
@@ -2360,7 +2378,13 @@ moved` (reject stays allowed). While
   (`app/(timeline)/[actor]/getLocalHandleRedirect.ts`) is a pure helper that
   returns the same path and query under the current handle and falls through
   unchanged for remote and unknown handles, and the actor layout calls
-  `permanentRedirect` with it. `resolveStatusFromPath` builds the legacy
+  `permanentRedirect` with it. The proxy is the only writer of the two
+  request headers the helper reads (`x-activities-local-handle-path` and
+  `-search`, constants in `lib/utils/http-headers/localHandleRedirect.ts`):
+  it deletes a client-sent pair on every request and sets them only on the
+  branches that rewrite to the profile, and the helper itself refuses a
+  captured path whose first segment is not the requested handle or that
+  climbs with `..`, so a forged value can never steer the 308. `resolveStatusFromPath` builds the legacy
   status id from the resolved actor's immutable id, so `/@old/<id>` style
   paths keep resolving across a rename.
 - **The domain admin refusal follows the rename too.** Turning a domain off

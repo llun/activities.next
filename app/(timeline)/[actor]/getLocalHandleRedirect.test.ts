@@ -112,4 +112,53 @@ describe('getLocalHandleRedirect', () => {
       ).toBeNull()
     }
   })
+
+  // The proxy is the only writer of the captured-path headers, and it always
+  // writes the request's own pathname. A first segment that is not the
+  // requested handle means the value did not come from the rewrite this
+  // helper exists for — honouring it would 308 an attacker-chosen
+  // same-origin path.
+  it('refuses a captured path whose first segment is not the requested handle', () => {
+    expect(
+      getLocalHandleRedirect({
+        actor: localActor(),
+        requestedHandle: '@alice@old.example',
+        pathname: '/@bob@evil.example/followers',
+        search: ''
+      })
+    ).toBeNull()
+    expect(
+      getLocalHandleRedirect({
+        actor: localActor(),
+        requestedHandle: '@alice@old.example',
+        pathname: '/@alice@other.example/followers',
+        search: ''
+      })
+    ).toBeNull()
+  })
+
+  it('refuses a captured path that climbs with ..', () => {
+    expect(
+      getLocalHandleRedirect({
+        actor: localActor(),
+        requestedHandle: '@alice@old.example',
+        pathname: '/@alice@old.example/../../admin',
+        search: ''
+      })
+    ).toBeNull()
+  })
+
+  // The proxy rewrites a bare local handle onto the qualified form and
+  // captures the ORIGINAL bare path: the first segment then carries no
+  // domain, and matches the requested handle's username.
+  it('accepts the bare captured path of a rewritten local handle', () => {
+    expect(
+      getLocalHandleRedirect({
+        actor: localActor(),
+        requestedHandle: '@alice@public.example.com',
+        pathname: '/@alice',
+        search: ''
+      })
+    ).toBe('/@new.name@new.example')
+  })
 })

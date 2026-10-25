@@ -18,20 +18,27 @@ import { withSpan } from '@/lib/utils/trace'
 // prefixes carry the trailing slash the publicId hangs off. With it, a
 // rewritten url (new prefix + suffix) can never still match the old prefix:
 // that would need the new username to start with the old one plus a `/`,
-// which a username cannot contain.
+// which a username cannot contain. The domain is NOT lowercased: the mint
+// paths build the url from `actor.domain` as stored, and a legacy
+// mixed-case domain would otherwise never match its own statuses.
 export const getStatusUrlPrefix = ({
   domain,
   username
 }: {
   domain: string
   username: string
-}) => `https://${domain.toLowerCase()}/@${username}/`
+}) => `https://${domain}/@${username}/`
 
 export const RENAME_STATUS_URLS_BUDGET_MS = 20_000
 export const RENAME_STATUS_URLS_PAGE_SIZE = 200
 
 const JobData = z.object({
   handleId: z.string(),
+  // When the rename was recorded. The job ids embed it, so a rename back —
+  // which reuses the revived ledger row's handleId — can never collide with
+  // an earlier rename's job id (the database queue ignores a conflicting id
+  // under the same job name, which would silently drop the rewrite).
+  renamedAt: z.number(),
   actorId: z.string(),
   fromPrefix: z.string(),
   toPrefix: z.string(),
@@ -45,11 +52,12 @@ const JobData = z.object({
 // re-run of an already-rewritten page matches no rows and changes nothing.
 export const renameStatusUrlsJobId = (
   handleId: string,
+  renamedAt: number,
   lastId?: string | null
 ) =>
   lastId === undefined || lastId === null
-    ? `${handleId}:statusUrls:start`
-    : `${handleId}:statusUrls:${lastId}`
+    ? `${handleId}:${renamedAt}:statusUrls:start`
+    : `${handleId}:${renamedAt}:statusUrls:${lastId}`
 
 export const renameStatusUrlsJob: JobHandle = createJobHandle(
   RENAME_STATUS_URLS_JOB_NAME,
@@ -60,7 +68,8 @@ export const renameStatusUrlsJob: JobHandle = createJobHandle(
         span.recordException(new Error('Malformed rename status URLs job'))
         return
       }
-      const { handleId, actorId, fromPrefix, toPrefix, after } = parsed.data
+      const { handleId, renamedAt, actorId, fromPrefix, toPrefix, after } =
+        parsed.data
       span.setAttribute('actorId', actorId)
 
       // The deadline is read through Date.now() on every page, so the suite's
@@ -89,9 +98,16 @@ export const renameStatusUrlsJob: JobHandle = createJobHandle(
         if (rows.length < RENAME_STATUS_URLS_PAGE_SIZE) return
         if (Date.now() >= deadline) {
           await getQueue().publish({
-            id: renameStatusUrlsJobId(handleId, cursor),
+            id: renameStatusUrlsJobId(handleId, renamedAt, cursor),
             name: RENAME_STATUS_URLS_JOB_NAME,
-            data: { handleId, actorId, fromPrefix, toPrefix, after: cursor }
+            data: {
+              handleId,
+              renamedAt,
+              actorId,
+              fromPrefix,
+              toPrefix,
+              after: cursor
+            }
           })
           return
         }

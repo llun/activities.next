@@ -66,20 +66,23 @@ import type { Db } from '@/lib/database/kysely'
  * There is no MySQL branch: the Kysely layer runs on SQLite and PostgreSQL
  * only.
  */
-export const findActorRowByUsername = async (
+export const findActorRowByUsernameExact = async (
   db: Db,
   { username, domain }: { username: string; domain: string }
-) => {
-  const exactMatch = await db
+) =>
+  db
     .selectFrom('actors')
     .selectAll()
     .where('username', '=', username)
     .where('domain', '=', domain)
     .limit(1)
     .executeTakeFirst()
-  if (exactMatch) return exactMatch
 
-  return db
+export const findActorRowByUsernameFolded = async (
+  db: Db,
+  { username, domain }: { username: string; domain: string }
+) =>
+  db
     .selectFrom('actors')
     .selectAll()
     .where(sql`lower(${sql.ref('username')})`, '=', username.toLowerCase())
@@ -88,4 +91,13 @@ export const findActorRowByUsername = async (
     .orderBy('id', 'asc')
     .limit(1)
     .executeTakeFirst()
+
+export const findActorRowByUsername = async (
+  db: Db,
+  { username, domain }: { username: string; domain: string }
+) => {
+  const exactMatch = await findActorRowByUsernameExact(db, { username, domain })
+  if (exactMatch) return exactMatch
+
+  return findActorRowByUsernameFolded(db, { username, domain })
 }

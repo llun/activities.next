@@ -308,7 +308,8 @@ describe('Account handle API route', () => {
         ok: true,
         previous: { username: 'llun', domain: 'llun.test' },
         current: { username: 'renamed', domain: 'llun.test' },
-        handleId: 'handle-1'
+        handleId: 'handle-1',
+        renamedAt: Date.parse('2026-01-01T00:00:00.000Z')
       }
     })
 
@@ -405,12 +406,15 @@ describe('Account handle API route', () => {
   })
 
   describe('POST success', () => {
+    const RENAMED_AT = Date.parse('2026-01-01T00:00:00.000Z')
+
     beforeEach(() => {
       renameResult = {
         ok: true,
         previous: { username: 'llun', domain: 'llun.test' },
         current: { username: 'renamed', domain: 'new.test' },
-        handleId: 'handle-1'
+        handleId: 'handle-1',
+        renamedAt: RENAMED_AT
       }
     })
 
@@ -425,10 +429,11 @@ describe('Account handle API route', () => {
       expect(publishActorUpdate).toHaveBeenCalledWith({ actorId: ME })
       expect(publish).toHaveBeenCalledTimes(1)
       expect(publish).toHaveBeenCalledWith({
-        id: 'handle-1:statusUrls:start',
+        id: `handle-1:${RENAMED_AT}:statusUrls:start`,
         name: 'RenameStatusUrlsJob',
         data: {
           handleId: 'handle-1',
+          renamedAt: RENAMED_AT,
           actorId: ME,
           fromPrefix: 'https://llun.test/@llun/',
           toPrefix: 'https://new.test/@renamed/',

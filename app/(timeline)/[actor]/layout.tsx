@@ -7,12 +7,12 @@ import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { parseAccountHandle } from '@/lib/utils/accountHandle'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
-
 import {
   LOCAL_HANDLE_REDIRECT_PATH_HEADER,
-  LOCAL_HANDLE_REDIRECT_SEARCH_HEADER,
-  getLocalHandleRedirect
-} from './getLocalHandleRedirect'
+  LOCAL_HANDLE_REDIRECT_SEARCH_HEADER
+} from '@/lib/utils/http-headers/localHandleRedirect'
+
+import { getLocalHandleRedirect } from './getLocalHandleRedirect'
 
 interface LayoutProps {
   children: ReactNode

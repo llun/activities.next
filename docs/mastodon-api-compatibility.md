@@ -1125,14 +1125,17 @@ ActivityPub objects are **JSON-LD**, so the same logical object can arrive in ma
   the CURRENT username for a passwordless account (`currentUsername` holds the
   old name; `username` is the new one, validated by `localUsernameSchema`; the
   optional `domain` goes through the actor-domain pipeline, else 400 `Domain
-is not allowed`). The rename costs the actor nothing it keeps: the ActivityPub
+is not allowed` — except a target that IS the actor's current domain,
+  case-insensitively, whether sent or defaulted, which skips the pipeline:
+  the handle already lives there, so a later-narrowed `allowActorDomains` or
+  sign-up filter cannot strand a plain username change). The rename costs the actor nothing it keeps: the ActivityPub
   id and every id-derived URL stay, `Update(Person)` goes out, old handles
   keep resolving and stay reserved forever. Status codes: 200; 400 for
   unparseable JSON or a disallowed domain; 403 for the federation signing
   actor; 404 for a missing record; 409 for an `actorId` that is not the
   session actor's; 422 `{ error }` for an invalid request or username, `Nothing
 to change` (a case-only rename included), `Username already exists`, `This
-profile cannot be renamed` (a backfill case twin), the moved error, and
+profile cannot be renamed` (either side of a legacy case pair), the moved error, and
   `This account is not available` (suspended or
   deleting); 429 `{ error, cooldownUntil }` inside the 30-day rename cooldown,
   which is measured from the actor's own handle history and is separate from

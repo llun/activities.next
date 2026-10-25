@@ -10,12 +10,15 @@ import { getConfiguredActorDomain } from '@/lib/database/domains/actor/rows'
 // The actor's domain is already carried by the account we built — the domain
 // of a qualified `acct`, which is the stored handle and need not be the host of
 // the actor id (a remote actor whose host redirected WebFinger to another
-// handle domain), or else the host of its `url`, the canonical actor id (e.g.
-// `https://llun.dev/users/null`) — and the access domain only exists in the
-// request. So this is a pure PRESENTATION transform of
-// (already-built account, access domain) — the database layer never needs the
-// per-request host. Callers apply it at the route boundary where the access
-// domain (from headerHost) is available.
+// handle domain); a BARE `acct` (a local actor on the configured primary
+// domain, whose `url` is the canonical actor id on a host it may have renamed
+// away from, e.g. `https://olddomain/users/oldname`) means the configured
+// primary domain — the one the serializer omitted the `@domain` for — and
+// never the `url`'s host; only a missing or empty `acct` falls back to the
+// host of its `url`. The access domain only exists in the request. So this is
+// a pure PRESENTATION transform of (already-built account, access domain) —
+// the database layer never needs the per-request host. Callers apply it at
+// the route boundary where the access domain (from headerHost) is available.
 
 type LocalizableAccount = { username: string; acct: string; url: string }
 

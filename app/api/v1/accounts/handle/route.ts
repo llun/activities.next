@@ -179,13 +179,15 @@ export const POST = traceApiRoute(
     await publishActorUpdate({ actorId: actor.id })
 
     // The permalink rewrite is best effort: the rename is already committed,
-    // and the job's deterministic id lets a later retry requeue it.
+    // and the job's deterministic id makes a redelivery re-run the same page
+    // as a no-op rather than duplicating it.
     try {
       await getQueue().publish({
-        id: renameStatusUrlsJobId(result.handleId),
+        id: renameStatusUrlsJobId(result.handleId, result.renamedAt),
         name: RENAME_STATUS_URLS_JOB_NAME,
         data: {
           handleId: result.handleId,
+          renamedAt: result.renamedAt,
           actorId: actor.id,
           fromPrefix: getStatusUrlPrefix(result.previous),
           toPrefix: getStatusUrlPrefix(result.current),

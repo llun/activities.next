@@ -146,6 +146,47 @@ describe('handleRename service', () => {
         )
       ).resolves.toBe(TEST_DOMAIN)
     })
+
+    // A username-only rename (or one that names the current domain again)
+    // must not go through the domain pipeline: the handle already lives
+    // there, so a later-narrowed allowActorDomains or sign-up filter must
+    // not strand it with 400 `Domain is not allowed`.
+    it('skips the domain filter for a username-only rename onto a domain the rules refuse', async () => {
+      const { actor } = await createLocalAccount('stranded-domain')
+      const stranded = { ...actor, domain: 'unlisted.example' }
+
+      await expect(
+        resolveAllowedDomain(database, stranded, undefined, TEST_DOMAIN)
+      ).resolves.toBe('unlisted.example')
+    })
+
+    it('skips the domain filter for the current domain in any casing', async () => {
+      const { actor } = await createLocalAccount('stranded-cased')
+      const stranded = { ...actor, domain: 'unlisted.example' }
+
+      await expect(
+        resolveAllowedDomain(
+          database,
+          stranded,
+          'UNLISTED.EXAMPLE',
+          TEST_DOMAIN
+        )
+      ).resolves.toBe('unlisted.example')
+    })
+
+    it('still refuses a domain change onto a domain the rules refuse', async () => {
+      const { actor } = await createLocalAccount('stranded-change')
+      const stranded = { ...actor, domain: 'unlisted.example' }
+
+      await expect(
+        resolveAllowedDomain(
+          database,
+          stranded,
+          'elsewhere.example',
+          TEST_DOMAIN
+        )
+      ).resolves.toBeNull()
+    })
   })
 
   it('leaves the status rows alone (no url rewrite here)', async () => {

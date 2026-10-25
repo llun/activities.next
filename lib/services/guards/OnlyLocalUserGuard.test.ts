@@ -202,6 +202,85 @@ describe('OnlyLocalUserGuard', () => {
     ).rejects.toThrow()
   })
 
+  // A backfill-skipped case twin sitting in `actors` must never take over a
+  // renamed actor's old id path: `/users/<old>` is still the renamed actor's
+  // own id, and the ledger's retired row — not the twin's live actors row —
+  // is what the folded lookup answers with.
+  it('resolves the old /users path to the renamed actor, never to a legacy case twin', async () => {
+    const originalUsername = `twinned-${crypto.randomUUID()}`
+    const accountId = await database.createAccount({
+      email: `twin-owner-${crypto.randomUUID()}@${TEST_DOMAIN}`,
+      username: originalUsername,
+      domain: TEST_DOMAIN,
+      passwordHash: 'hash',
+      privateKey: 'private-key',
+      publicKey: 'public-key'
+    })
+    const [actor] = await database.getActorsForAccount({ accountId })
+    const actorId = actor.id
+    const now = new Date('2026-10-25T00:00:00.000Z')
+
+    // The twin: a live actors row the backfill skipped, differing only by
+    // case, with no account behind it — if the folded arm answered with it,
+    // the guard's `actor?.account` check would 404 the actor's own id path.
+    const twinUsername = originalUsername.replace(/^t/, 'T')
+    const twinActorId = `https://${TEST_DOMAIN}/users/${twinUsername}`
+    await db
+      .insertInto('actors')
+      .values({
+        id: twinActorId,
+        username: twinUsername,
+        domain: TEST_DOMAIN,
+        accountId: null,
+        publicKey: 'public-key',
+        settings: JSON.stringify({
+          followersUrl: `${twinActorId}/followers`,
+          inboxUrl: `${twinActorId}/inbox`,
+          sharedInboxUrl: `https://${TEST_DOMAIN}/inbox`
+        }),
+        createdAt: now,
+        updatedAt: now
+      })
+      .execute()
+    // The ledger state a pre-fix rename would leave: the actor holds a new
+    // handle, its old one is retired in the ledger.
+    const newUsername = `moved-on-${crypto.randomUUID()}`
+    await db
+      .updateTable('actors')
+      .set({ username: newUsername })
+      .where('id', '=', actorId)
+      .execute()
+    await db
+      .updateTable('actor_handles')
+      .set({ replacedAt: now })
+      .where('actorId', '=', actorId)
+      .where('replacedAt', 'is', null)
+      .execute()
+    await db
+      .insertInto('actor_handles')
+      .values({
+        id: `twin-current-${crypto.randomUUID()}`,
+        actorId,
+        username: newUsername,
+        domain: TEST_DOMAIN,
+        createdAt: now,
+        replacedAt: null
+      })
+      .execute()
+
+    const response = await OnlyLocalUserGuard(mockHandler)(
+      createRequest(TEST_DOMAIN),
+      { params: Promise.resolve({ username: originalUsername }) }
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockHandler).toHaveBeenCalled()
+    expect(mockHandler.mock.calls[0][1]).toMatchObject({
+      id: actorId,
+      username: newUsername
+    })
+  })
+
   // Resolving by username is what made this reachable. `__INSTANCE__` was
   // registerable before the reserved-name refine folded casing, and the folded
   // arm then answers a request for `__instance__` with that account's actor —

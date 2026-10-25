@@ -46,6 +46,11 @@ export type RecordActorHandleRenameResult =
       // The id of the ledger row that just became current (the revived row on
       // a rename back, the new row otherwise).
       handleId: string
+      // When the rename was recorded — the `replacedAt` the retired row
+      // carries. The status-URL job's ids embed it, so a rename back (which
+      // reuses the revived row's handleId) never collides with an earlier
+      // job id.
+      renamedAt: number
     }
   | { ok: false; status: 'not_found' }
   | { ok: false; status: 'moved' }
