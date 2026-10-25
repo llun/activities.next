@@ -1,0 +1,31 @@
+app/(timeline)/gallery/albums/GalleryAlbumPicker.test.tsx
+  s_1f1a1efd8db0bf::t_10a8f1f72b03f2 5-12,19-20,40-41,136,185,212,222,487-495,603-604,865-1443
+app/(timeline)/gallery/albums/GalleryAlbumPicker.tsx
+  s_1f1a1efd8db0bf::t_3e2e1be59db73c 7-13,23-29,34-38,118-122,145-149,161-184,199-201,207,219-221,251,258-280,305-327,330-331,334-335,399,445-450,452-458,479-542
+app/(timeline)/gallery/albums/GalleryAlbumPickerTile.test.tsx
+  s_1f1a1efd8db0bf::t_52f4e39c26e4af 5,141,155-156,164-319
+app/(timeline)/gallery/albums/GalleryAlbumPickerTile.tsx
+  s_1f1a1efd8db0bf::t_086c4bbd89b4d8 10-14,19,28-35,47-50,53-61,64-65,72-73,80,84-98,100-105
+app/(timeline)/gallery/albums/GalleryAlbumSuggestionReview.test.tsx
+  s_1f1a1efd8db0bf::t_59ee742ea2fd3c 167-168,225,232
+app/(timeline)/gallery/albums/galleryAlbumPickerUi.test.ts
+  s_1f1a1efd8db0bf::t_d9852d5e9cada7 8,185-192,201-208,239-277
+app/(timeline)/gallery/albums/galleryAlbumPickerUi.ts
+  s_1f1a1efd8db0bf::t_f262460613fe76 85-89,93-108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f81882824a83fd88504c3639b224f6f330ef7280",
+  "prompts": {},
+  "sessions": {
+    "s_1f1a1efd8db0bf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6f1be9b0-86e0-4f32-9286-3562b40d391e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
