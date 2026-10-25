@@ -1,6 +1,10 @@
 import type { FilterAction, FilterContext } from '@/lib/types/domain/filter'
 
-import { CONTEXT_SHORT, FILTER_CONTEXTS } from './filterConstants'
+import {
+  CONTEXT_SHORT,
+  FILTER_ACTION_LABELS,
+  FILTER_CONTEXTS
+} from './filterConstants'
 
 export type ServerFilterAction = FilterAction | 'any'
 export type ServerFilterStatus = 'any' | 'active' | 'expired'
@@ -22,9 +26,9 @@ export const SERVER_FILTER_ACTION_OPTIONS: {
   label: string
 }[] = [
   { value: 'any', label: 'Any' },
-  { value: 'warn', label: 'Hide with warning' },
-  { value: 'blur', label: 'Blur' },
-  { value: 'hide', label: 'Hide completely' }
+  { value: 'warn', label: FILTER_ACTION_LABELS.warn },
+  { value: 'blur', label: FILTER_ACTION_LABELS.blur },
+  { value: 'hide', label: FILTER_ACTION_LABELS.hide }
 ]
 
 export const SERVER_FILTER_STATUS_OPTIONS: {

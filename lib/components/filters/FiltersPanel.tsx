@@ -119,6 +119,9 @@ export const FiltersPanel: FC<FiltersPanelProps> = ({ scope, currentTime }) => {
 
   useEffect(() => loadFilters(), [loadFilters])
 
+  const clearServerFilters = () =>
+    setServerFilterSelection({ ...DEFAULT_SERVER_FILTER_SELECTION })
+
   const handleSave = async (input: FilterInput) => {
     setSaving(true)
     setEditorError(null)
@@ -170,7 +173,11 @@ export const FiltersPanel: FC<FiltersPanelProps> = ({ scope, currentTime }) => {
     }
     try {
       const ok = await client.remove(filter.id)
-      if (!ok) restoreOnFailure()
+      if (!ok) {
+        restoreOnFailure()
+      } else if (scope === 'server' && previous.length === 1) {
+        clearServerFilters()
+      }
     } catch {
       // A network-layer throw (connection drop, etc.) must still roll back.
       restoreOnFailure()
@@ -224,9 +231,6 @@ export const FiltersPanel: FC<FiltersPanelProps> = ({ scope, currentTime }) => {
           return actionMatches && contextMatches && statusMatches
         })
       : filters
-
-  const clearServerFilters = () =>
-    setServerFilterSelection({ ...DEFAULT_SERVER_FILTER_SELECTION })
 
   return (
     <div className="space-y-6">

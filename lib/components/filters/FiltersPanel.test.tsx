@@ -529,6 +529,31 @@ describe('FiltersPanel', () => {
       expect(screen.queryByText('Hide rule')).not.toBeInTheDocument()
     })
 
+    it('returns focus to a server filter chip after clearing it', async () => {
+      mockClient.getServerFilters.mockResolvedValue([
+        makeFilter({
+          id: 's-expired',
+          title: 'Expired rule',
+          expires_at: '2025-12-31T23:59:59.000Z'
+        })
+      ])
+
+      renderPanel('server')
+      expect(await screen.findByText('Expired rule')).toBeInTheDocument()
+      openFilterMenu('Any status')
+      fireEvent.click(
+        await screen.findByRole('menuitemradio', { name: 'Expired' })
+      )
+
+      const trigger = screen.getByRole('button', { name: 'Status: Expired' })
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Clear Expired filter' })
+      )
+
+      expect(screen.getByRole('button', { name: 'Any status' })).toBe(trigger)
+      expect(document.activeElement).toBe(trigger)
+    })
+
     it('matches the union of two selected contexts', async () => {
       mockClient.getServerFilters.mockResolvedValue([
         makeFilter({
@@ -563,9 +588,11 @@ describe('FiltersPanel', () => {
       expect(screen.getByText('Home rule')).toBeInTheDocument()
       expect(screen.getByText('Public rule')).toBeInTheDocument()
       expect(screen.queryByText('Notification rule')).not.toBeInTheDocument()
-      expect(screen.getByRole('menu')).toHaveAccessibleName(
-        'Context: Home, Public'
-      )
+      const menu = screen.getByRole('menu')
+      // Radix names the menu from its trigger; DropdownMenuContent's aria-label
+      // is ignored when aria-labelledby is present.
+      expect(menu).not.toHaveAttribute('aria-label')
+      expect(menu).toHaveAccessibleName('Context: Home, Public')
     })
 
     it('uses currentTime to choose expired and active filters', async () => {
@@ -693,6 +720,40 @@ describe('FiltersPanel', () => {
         })
       )
       expect(screen.getByText('Warn rule')).toBeInTheDocument()
+    })
+
+    it('resets server filters after deleting the last filter before adding a new one', async () => {
+      mockClient.getServerFilters.mockResolvedValue([
+        makeFilter({
+          id: 's-expired',
+          title: 'Expired rule',
+          expires_at: '2025-12-31T23:59:59.000Z'
+        })
+      ])
+      mockClient.deleteServerFilter.mockResolvedValue(true)
+      mockClient.createServerFilter.mockResolvedValue(
+        makeFilter({
+          id: 's-new',
+          title: 'New active rule',
+          expires_at: '2026-01-02T00:00:00.000Z',
+          server: true
+        })
+      )
+
+      renderPanel('server')
+      expect(await screen.findByText('Expired rule')).toBeInTheDocument()
+      openFilterMenu('Any status')
+      fireEvent.click(
+        await screen.findByRole('menuitemradio', { name: 'Expired' })
+      )
+      fireEvent.click(deleteButton('Expired rule'))
+      expect(await screen.findByText('No filters yet')).toBeInTheDocument()
+      await waitFor(() => expect(addButton()).toBeEnabled())
+
+      fillAndSaveNewFilter('New active rule', 'new keyword')
+
+      expect(await screen.findByText('New active rule')).toBeInTheDocument()
+      expect(screen.queryByText('No filters match')).not.toBeInTheDocument()
     })
 
     it('shows the same controls in the phone filter sheet', async () => {

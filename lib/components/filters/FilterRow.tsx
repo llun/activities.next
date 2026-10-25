@@ -11,6 +11,7 @@ import type { FilterContext } from '@/lib/types/domain/filter'
 
 import {
   CONTEXT_SHORT,
+  FILTER_ACTION_LABELS,
   FILTER_CONTEXTS,
   formatExpiry,
   isFilterExpired
@@ -65,9 +66,9 @@ export const FilterRow: FC<FilterRowProps> = ({
               Badge (token labels, dark fills): a hand-rolled gray pill with no
               dark variant glared on the dark card. */}
           {filter.filter_action === 'hide' ? (
-            <Badge tone="destructive">Hide completely</Badge>
+            <Badge tone="destructive">{FILTER_ACTION_LABELS.hide}</Badge>
           ) : (
-            <Badge tone="primary">Hide with warning</Badge>
+            <Badge tone="primary">{FILTER_ACTION_LABELS.warn}</Badge>
           )}
           {expired && <Badge tone="gray">Expired</Badge>}
         </div>

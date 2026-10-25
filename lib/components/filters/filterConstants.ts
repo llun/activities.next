@@ -1,7 +1,13 @@
 import { format } from 'date-fns/format'
 import { formatDistance } from 'date-fns/formatDistance'
 
-import type { FilterContext } from '@/lib/types/domain/filter'
+import type { FilterAction, FilterContext } from '@/lib/types/domain/filter'
+
+export const FILTER_ACTION_LABELS: Record<FilterAction, string> = {
+  warn: 'Hide with a warning',
+  blur: 'Blur',
+  hide: 'Hide completely'
+}
 
 export interface FilterContextOption {
   id: FilterContext
