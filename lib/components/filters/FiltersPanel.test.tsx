@@ -770,16 +770,50 @@ describe('FiltersPanel', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Filters' }))
 
       const dialog = await screen.findByRole('dialog', { name: 'Filters' })
-      expect(
-        within(dialog).getByRole('radiogroup', { name: 'Action' })
-      ).toBeInTheDocument()
+      const actionGroup = within(dialog).getByRole('radiogroup', {
+        name: 'Action'
+      })
+      const anyAction = within(actionGroup).getByRole('radio', { name: 'Any' })
+      const blurAction = within(actionGroup).getByRole('radio', {
+        name: 'Blur'
+      })
+      const anyActionCard = anyAction.closest('[data-slot="radio-card"]')
+      const blurActionCard = blurAction.closest('[data-slot="radio-card"]')
+
+      expect(anyAction).toHaveAttribute('aria-checked', 'true')
+      expect(anyActionCard).toHaveClass(
+        'border',
+        'has-data-[state=checked]:border-primary'
+      )
+      expect(anyActionCard).not.toHaveClass('border-primary')
+      expect(blurAction).toHaveClass('h-4', 'w-4')
+      expect(blurAction).not.toHaveClass('w-full')
+      expect(blurAction.parentElement).toBe(blurActionCard)
+      expect(blurAction.nextElementSibling).toHaveTextContent('Blur')
+      expect(blurActionCard).not.toHaveClass('border-primary')
       expect(
         within(dialog).getByRole('checkbox', { name: 'Home' })
       ).toBeInTheDocument()
+      const statusGroup = within(dialog).getByRole('radiogroup', {
+        name: 'Status'
+      })
+      const expiredStatus = within(statusGroup).getByRole('radio', {
+        name: 'Expired'
+      })
+      const expiredStatusCard = expiredStatus.closest(
+        '[data-slot="radio-card"]'
+      )
+      expect(expiredStatus).toHaveClass('h-4', 'w-4')
+      expect(expiredStatusCard).not.toHaveClass('border-primary')
+
+      fireEvent.click(blurAction)
+      expect(blurAction).toHaveAttribute('aria-checked', 'true')
+      fireEvent.click(
+        within(statusGroup).getByRole('radio', { name: 'Active' })
+      )
       expect(
-        within(dialog).getByRole('radiogroup', { name: 'Status' })
-      ).toBeInTheDocument()
-      fireEvent.click(within(dialog).getByRole('radio', { name: 'Blur' }))
+        within(statusGroup).getByRole('radio', { name: 'Active' })
+      ).toHaveAttribute('aria-checked', 'true')
       fireEvent.click(within(dialog).getByRole('button', { name: 'Apply' }))
 
       expect(screen.queryByText('Spoilers')).not.toBeInTheDocument()

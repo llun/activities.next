@@ -3,6 +3,7 @@
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { type FC, useEffect, useRef, useState } from 'react'
 
+import { RadioCard } from '@/lib/components/surface/RadioCard'
 import { Button } from '@/lib/components/ui/button'
 import { Checkbox } from '@/lib/components/ui/checkbox'
 import {
@@ -11,7 +12,7 @@ import {
   DialogPortal,
   DialogTitle
 } from '@/lib/components/ui/dialog'
-import { RadioGroup, RadioGroupItem } from '@/lib/components/ui/radio-group'
+import { RadioGroup } from '@/lib/components/ui/radio-group'
 import type { FilterContext } from '@/lib/types/domain/filter'
 
 import {
@@ -111,14 +112,12 @@ export const ServerFilterSheet: FC<ServerFilterSheetProps> = ({
                   className="grid grid-cols-2 gap-1"
                 >
                   {SERVER_FILTER_ACTION_OPTIONS.map((option) => (
-                    <RadioGroupItem
+                    <RadioCard
                       key={option.value}
                       value={option.value}
-                      aria-label={option.label}
-                      className="flex h-11 w-full items-center gap-3 rounded-md px-2 text-left text-sm"
-                    >
-                      <span className="text-foreground">{option.label}</span>
-                    </RadioGroupItem>
+                      title={option.label}
+                      className="min-h-11 items-center rounded-md px-2 py-2 text-sm"
+                    />
                   ))}
                 </RadioGroup>
               </fieldset>
@@ -162,14 +161,12 @@ export const ServerFilterSheet: FC<ServerFilterSheetProps> = ({
                   className="grid grid-cols-3 gap-1"
                 >
                   {SERVER_FILTER_STATUS_OPTIONS.map((option) => (
-                    <RadioGroupItem
+                    <RadioCard
                       key={option.value}
                       value={option.value}
-                      aria-label={option.label}
-                      className="flex h-11 w-full items-center gap-3 rounded-md px-2 text-left text-sm"
-                    >
-                      <span className="text-foreground">{option.label}</span>
-                    </RadioGroupItem>
+                      title={option.label}
+                      className="min-h-11 items-center rounded-md px-2 py-2 text-sm"
+                    />
                   ))}
                 </RadioGroup>
               </fieldset>
