@@ -1,5 +1,6 @@
 import { AccountArchiveDatabase } from '@/lib/database/domains/accountArchive/types'
 import { AccountExportDatabase } from '@/lib/database/domains/accountExport/types'
+import { ActorHandleDatabase } from '@/lib/database/domains/actorHandle/types'
 import { ActorMigrationDatabase } from '@/lib/database/domains/actorMigration/types'
 import { BulkImportDatabase } from '@/lib/database/domains/bulkImport/types'
 import { FitnessFileDatabase } from '@/lib/database/domains/fitnessFile/types'
@@ -98,6 +99,7 @@ export type Database = AccountDatabase &
   WahooImportDatabase &
   BulkImportDatabase &
   ActorMigrationDatabase &
+  ActorHandleDatabase &
   BlockDatabase &
   MuteDatabase &
   EndorsementDatabase &

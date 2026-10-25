@@ -23,6 +23,7 @@ import type {
   GetActorsScheduledForDeletionParams,
   IsCurrentActorFollowingParams
 } from '@/lib/database/domains/actor/types'
+import { getActorIdFromReplacedHandle } from '@/lib/database/domains/actorHandle/queries'
 import { type Db, inTransaction } from '@/lib/database/kysely'
 import { timestampValue } from '@/lib/database/kysely/dialect'
 import { getWhereInBatchSize } from '@/lib/database/kysely/inList'
@@ -121,8 +122,20 @@ export const getActorFromUsername = async (
   // WebFinger resource and a search box, and none of them control casing.
   // See findActorRowByUsername for why the exact match is still tried first.
   const row = await findActorRowByUsername(db, { username, domain })
-  if (!row) return null
-  return toActorWithAccount(db, asSQLActor(row))
+  if (row) return toActorWithAccount(db, asSQLActor(row))
+  // History arm, on a double miss only: a handle the actor RENAMED AWAY FROM
+  // still resolves to the actor that gave it up (the ledger's folded unique
+  // index allows one row per handle, so a live actor's current handle —
+  // already found above — is never shadowed). Only retired rows match: the
+  // current rows mirror `actors`, and a deleted actor's rows are retired by
+  // its deletion, so a deleted handle resolves to a gone actor and stays
+  // null. Domains fold at read.
+  const replacedActorId = await getActorIdFromReplacedHandle(db, {
+    username,
+    domain
+  })
+  if (!replacedActorId) return null
+  return getActorFromId(db, { id: replacedActorId })
 }
 
 export const getActorsFromIds = async (

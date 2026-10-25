@@ -89,6 +89,15 @@ CREATE TABLE public.actor_domain_blocks (
     "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE public.actor_handles (
+    id character varying(255) NOT NULL,
+    "actorId" character varying(255) NOT NULL,
+    username character varying(255) NOT NULL,
+    domain character varying(255) NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "replacedAt" timestamp with time zone
+);
+
 CREATE TABLE public.actor_migrations (
     id character varying(255) NOT NULL,
     "actorId" character varying(255) NOT NULL,
@@ -1588,6 +1597,9 @@ ALTER TABLE ONLY public.actor_domain_blocks
 ALTER TABLE ONLY public.actor_domain_blocks
     ADD CONSTRAINT actor_domain_blocks_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY public.actor_handles
+    ADD CONSTRAINT actor_handles_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY public.actor_migrations
     ADD CONSTRAINT actor_migrations_pkey PRIMARY KEY (id);
 
@@ -2048,6 +2060,10 @@ CREATE INDEX "account_providers_accountId_provider_providerId_idx" ON public.acc
 CREATE INDEX "accountsIndex" ON public.accounts USING btree (email, "createdAt", "updatedAt");
 
 CREATE INDEX actor_domain_blocks_actor_created ON public.actor_domain_blocks USING btree ("actorId", "createdAt");
+
+CREATE INDEX "actor_handles_actorId_replacedAt_idx" ON public.actor_handles USING btree ("actorId", "replacedAt");
+
+CREATE UNIQUE INDEX actor_handles_lower_username_domain_unique ON public.actor_handles USING btree (lower((username)::text), domain);
 
 CREATE INDEX actor_migrations_actor_created_idx ON public.actor_migrations USING btree ("actorId", "createdAt");
 

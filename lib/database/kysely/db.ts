@@ -113,6 +113,15 @@ export interface ActorDomainBlocks {
   updatedAt: WithDefault<Nullable<Timestamp>>
 }
 
+export interface ActorHandles {
+  actorId: string
+  createdAt: WithDefault<Timestamp>
+  domain: string
+  id: string
+  replacedAt: Nullable<Timestamp>
+  username: string
+}
+
 export interface ActorMigrations {
   actorId: string
   createdAt: WithDefault<Timestamp>
@@ -1451,6 +1460,7 @@ export interface DB {
   account_providers: AccountProviders
   accounts: Accounts
   actor_domain_blocks: ActorDomainBlocks
+  actor_handles: ActorHandles
   actor_migrations: ActorMigrations
   actors: Actors
   announcement_reactions: AnnouncementReactions

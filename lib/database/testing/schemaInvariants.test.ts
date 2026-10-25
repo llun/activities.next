@@ -180,6 +180,26 @@ describe('schema invariants', () => {
         'actors_username_domain_unique',
         { table: 'actors', unique: true, columns: ['username', 'domain'] }
       ],
+      // The handle ledger: at most one row per folded handle across every
+      // actor, current or retired, so a handle is reserved exactly once.
+      [
+        'actor_handles_lower_username_domain_unique',
+        {
+          table: 'actor_handles',
+          unique: true,
+          columns: ['lower(username)', 'domain']
+        }
+      ],
+      // A handle's history and its rename cooldown read by actor, newest
+      // replacement first.
+      [
+        'actor_handles_actorId_replacedAt_idx',
+        {
+          table: 'actor_handles',
+          unique: false,
+          columns: ['actorId', 'replacedAt']
+        }
+      ],
       // GET /api/v1/favourites pages `likes` by actor, newest first.
       [
         'likes_actor_created_at_status_idx',
@@ -333,6 +353,37 @@ describe('schema invariants', () => {
         'Alice',
         'alice'
       ])
+    })
+
+    // The ledger's folded unique index: a case twin of a held handle is
+    // refused, current or retired, so no actor can mint or rename onto a
+    // handle another row holds.
+    it('refuses a second actor_handles row whose username differs only by case', async () => {
+      const now = new Date()
+      await db
+        .insertInto('actor_handles')
+        .values({
+          id: 'invariants-handle-1',
+          actorId: 'https://invariants.test/users/Alice',
+          username: 'Alice',
+          domain: 'invariants.test',
+          createdAt: now,
+          replacedAt: null
+        })
+        .execute()
+      await expect(
+        db
+          .insertInto('actor_handles')
+          .values({
+            id: 'invariants-handle-2',
+            actorId: 'https://invariants.test/users/alice',
+            username: 'alice',
+            domain: 'invariants.test',
+            createdAt: now,
+            replacedAt: null
+          })
+          .execute()
+      ).rejects.toThrow()
     })
 
     it('refuses a second period with the same install sequence for a component', async () => {

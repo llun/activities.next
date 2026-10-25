@@ -1353,6 +1353,9 @@ describe('statements', () => {
       'delete counters ×6',
       'delete notifications by actorId',
       'delete notifications by sourceActorId',
+      // The handle ledger survives the actor: its current row is retired, so
+      // the handles and the id path are never reissued.
+      'update actor_handles by actorId',
       // The actor row and its search document last.
       'delete actors by id',
       'delete search_documents by entityType',

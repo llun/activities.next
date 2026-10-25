@@ -732,9 +732,14 @@ describe('ActorDatabase mastodon actors', () => {
             email: `${username}@${TEST_DOMAIN}`
           })
           // Same domain as the configured host but in a different letter case.
+          // A different username: the handle ledger folds domains, so the
+          // account cannot hold two actors with one username on case-variant
+          // spellings of a domain any more — the point here is that the
+          // upper-case domain still reads as local.
+          const upperUsername = `${username}-upper`
           const upperActorId = await database.createActorForAccount({
             accountId: account!.id,
-            username,
+            username: upperUsername,
             domain: TEST_DOMAIN.toUpperCase(),
             privateKey: `upperPriv-${suffix}`,
             publicKey: `upperPub-${suffix}`
@@ -744,7 +749,7 @@ describe('ActorDatabase mastodon actors', () => {
             id: upperActorId
           })
           // Domains are case-insensitive, so this is still a local actor → bare.
-          expect(actor?.acct).toBe(username)
+          expect(actor?.acct).toBe(upperUsername)
         })
       })
 
