@@ -4,7 +4,7 @@ import { Database } from '@/lib/database/types'
 
 import { GET } from './route'
 
-type MockDatabase = Pick<Database, 'getActorFromUsername'>
+type MockDatabase = Pick<Database, 'getActorFromId' | 'getActorFromUsername'>
 
 let mockDatabase: MockDatabase | null = null
 
@@ -14,11 +14,13 @@ vi.mock('@/lib/database', () => ({
 
 describe('GET /api/well-known/webfinger', () => {
   const database: jest.Mocked<MockDatabase> = {
+    getActorFromId: vi.fn(),
     getActorFromUsername: vi.fn()
   }
 
   beforeEach(() => {
     vi.clearAllMocks()
+    database.getActorFromId.mockResolvedValue(null)
     mockDatabase = database
   })
 
@@ -53,6 +55,51 @@ describe('GET /api/well-known/webfinger', () => {
         template: 'https://test.llun.dev/authorize_interaction?uri={uri}'
       })
     )
+  })
+
+  it('returns the current handle for a renamed actor queried by its old handle', async () => {
+    const actorId = 'https://old.example/users/alice'
+    database.getActorFromUsername.mockResolvedValue({
+      id: actorId,
+      username: 'bob',
+      domain: 'new.example',
+      privateKey: 'key'
+    } as never)
+
+    const response = await GET(
+      new NextRequest(
+        'https://old.example/.well-known/webfinger?resource=acct%3Aalice%40old.example'
+      ),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    expect(data).toMatchObject({
+      subject: 'acct:bob@new.example',
+      aliases: expect.arrayContaining([
+        'https://old.example/@alice',
+        'https://old.example/users/alice'
+      ])
+    })
+    expect(data.links).toContainEqual(
+      expect.objectContaining({
+        rel: 'self',
+        type: 'application/activity+json',
+        href: actorId
+      })
+    )
+    expect(data.links).toContainEqual(
+      expect.objectContaining({
+        rel: 'self',
+        type: 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
+        href: actorId
+      })
+    )
+    expect(database.getActorFromUsername).toHaveBeenCalledWith({
+      username: 'alice',
+      domain: 'old.example'
+    })
   })
 
   it('returns WebFinger JRD for the headless instance actor without a profile page link', async () => {
@@ -132,10 +179,49 @@ describe('GET /api/well-known/webfinger', () => {
       username: 'test',
       domain: 'example.com'
     })
+    expect(database.getActorFromId).toHaveBeenCalledWith({
+      id: 'https://example.com/users/test'
+    })
     const data = await response.json()
     expect(data).toMatchObject({
       subject: 'acct:test@example.com',
       aliases: ['https://example.com/@test', 'https://example.com/users/test']
     })
+  })
+
+  it('resolves an actor URL by its exact immutable id before parsing a handle', async () => {
+    const actorId = 'https://old.example/users/alice'
+    database.getActorFromId.mockResolvedValue({
+      id: actorId,
+      username: 'bob',
+      domain: 'new.example',
+      privateKey: 'key'
+    } as never)
+    database.getActorFromUsername.mockResolvedValue({
+      id: 'https://wrong.example/users/alice',
+      username: 'alice',
+      domain: 'old.example',
+      privateKey: 'wrong-key'
+    } as never)
+
+    const response = await GET(
+      new NextRequest(
+        'https://old.example/.well-known/webfinger?resource=https%3A%2F%2Fold.example%2Fusers%2Falice'
+      ),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    expect(data.subject).toBe('acct:bob@new.example')
+    expect(data.links).toContainEqual(
+      expect.objectContaining({
+        rel: 'self',
+        type: 'application/activity+json',
+        href: actorId
+      })
+    )
+    expect(database.getActorFromId).toHaveBeenCalledWith({ id: actorId })
+    expect(database.getActorFromUsername).not.toHaveBeenCalled()
   })
 })

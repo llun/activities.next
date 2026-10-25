@@ -157,6 +157,51 @@ describe('OnlyLocalUserGuard', () => {
     })
   })
 
+  it('resolves the old /users path after rename and keeps that handle reserved', async () => {
+    const originalUsername = `before-${crypto.randomUUID()}`
+    const accountId = await database.createAccount({
+      email: `rename-owner-${crypto.randomUUID()}@${TEST_DOMAIN}`,
+      username: originalUsername,
+      domain: TEST_DOMAIN,
+      passwordHash: 'hash',
+      privateKey: 'private-key',
+      publicKey: 'public-key'
+    })
+    const [actor] = await database.getActorsForAccount({ accountId })
+    const actorId = actor.id
+
+    const renameResult = await database.recordActorHandleRename({
+      actorId,
+      username: `after-${crypto.randomUUID()}`,
+      domain: TEST_DOMAIN,
+      now: new Date('2026-10-25T00:00:00.000Z'),
+      cooldownMs: 30 * 24 * 60 * 60 * 1000
+    })
+    expect(renameResult.ok).toBe(true)
+
+    const response = await OnlyLocalUserGuard(mockHandler)(
+      createRequest(TEST_DOMAIN),
+      { params: Promise.resolve({ username: originalUsername }) }
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockHandler).toHaveBeenCalled()
+    expect(mockHandler.mock.calls[0][1]).toMatchObject({
+      id: actorId,
+      username: renameResult.ok ? renameResult.current.username : ''
+    })
+    await expect(
+      database.createAccount({
+        email: `replacement-${crypto.randomUUID()}@${TEST_DOMAIN}`,
+        username: originalUsername,
+        domain: TEST_DOMAIN,
+        passwordHash: 'hash',
+        privateKey: 'replacement-private-key',
+        publicKey: 'replacement-public-key'
+      })
+    ).rejects.toThrow()
+  })
+
   // Resolving by username is what made this reachable. `__INSTANCE__` was
   // registerable before the reserved-name refine folded casing, and the folded
   // arm then answers a request for `__instance__` with that account's actor —

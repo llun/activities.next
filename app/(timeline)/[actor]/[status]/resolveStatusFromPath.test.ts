@@ -351,6 +351,53 @@ describe('resolveStatusFromPath', () => {
     })
   })
 
+  it('resolves a status minted before rename through both current and old handles', async () => {
+    const database = createDatabase()
+    const renamedActor = {
+      id: originalActorId,
+      username: 'new-name',
+      domain: 'new.example'
+    }
+    database.getActorFromUsername.mockResolvedValue(renamedActor)
+    database.getStatus
+      .mockResolvedValueOnce(originalStatus)
+      .mockResolvedValueOnce(originalStatus)
+
+    const results = await runInReactCacheScope(() =>
+      Promise.all(
+        ['@new-name@new.example', '@original@remote.example'].map(
+          (actorParam) =>
+            resolveStatusFromPath({
+              database,
+              actorParam,
+              statusParam: '123'
+            })
+        )
+      )
+    )
+
+    expect(results).toEqual(
+      [
+        { actorParam: '@new-name@new.example' },
+        { actorParam: '@original@remote.example' }
+      ].map(({ actorParam }) => ({
+        pathActor: parseActorPathParam(actorParam),
+        fullStatusId: `${originalActorId}/statuses/123`,
+        isStatusHash: false,
+        status: originalStatus,
+        statusId: originalStatus.id
+      }))
+    )
+    expect(database.getStatus).toHaveBeenNthCalledWith(1, {
+      statusId: `${originalActorId}/statuses/123`,
+      withReplies: false
+    })
+    expect(database.getStatus).toHaveBeenNthCalledWith(2, {
+      statusId: `${originalActorId}/statuses/123`,
+      withReplies: false
+    })
+  })
+
   describe('publicId status params', () => {
     it('resolves a publicId param through the publicId lookup', async () => {
       const database = createDatabase()

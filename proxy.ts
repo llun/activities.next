@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+import {
+  LOCAL_HANDLE_REDIRECT_PATH_HEADER,
+  LOCAL_HANDLE_REDIRECT_SEARCH_HEADER
+} from '@/app/(timeline)/[actor]/getLocalHandleRedirect'
 import { getProxyHostConfig } from '@/lib/config/host'
 import { acceptContainsContentTypes } from '@/lib/utils/acceptContainsContentTypes'
 import {
@@ -88,6 +92,13 @@ const hasHostOutsideEnv = (headers: Headers): boolean => {
 }
 
 const HANDLE_REDIRECT_PATH = '/api/handle-redirect'
+
+const getProfileRequestHeaders = (request: NextRequest) => {
+  const headers = new Headers(request.headers)
+  headers.set(LOCAL_HANDLE_REDIRECT_PATH_HEADER, request.nextUrl.pathname)
+  headers.set(LOCAL_HANDLE_REDIRECT_SEARCH_HEADER, request.nextUrl.search)
+  return headers
+}
 
 const withContentSecurityPolicy = (
   response: NextResponse,
@@ -220,17 +231,17 @@ export async function proxy(request: NextRequest) {
       ])
     ) {
       // Actor route
-      if (/^\/@\w+$/.test(pathname)) {
-        const matches = pathname.match(/^\/@(?<username>\w+)/)
+      if (/^\/@[a-zA-Z0-9._-]+$/.test(pathname)) {
+        const matches = pathname.match(/^\/@(?<username>[a-zA-Z0-9._-]+)$/)
         const apiUrl = request.nextUrl.clone()
         apiUrl.pathname = `/api/users/${matches?.groups?.username}`
         return withContentSecurityPolicy(NextResponse.rewrite(apiUrl), request)
       }
 
       // Actor status route
-      if (/^\/@\w+\/[\w-]+$/.test(pathname)) {
+      if (/^\/@[a-zA-Z0-9._-]+\/[\w-]+$/.test(pathname)) {
         const matches = pathname.match(
-          /^\/@(?<username>\w+)\/(?<statusId>[\w-]+)/
+          /^\/@(?<username>[a-zA-Z0-9._-]+)\/(?<statusId>[\w-]+)$/
         )
         const apiUrl = request.nextUrl.clone()
         apiUrl.pathname = `/api/users/${matches?.groups?.username}/statuses/${matches?.groups?.statusId}`
@@ -243,7 +254,12 @@ export async function proxy(request: NextRequest) {
       const pathname = request.nextUrl.pathname
       const totalAt = pathname.split('@').length - 1
       if (totalAt === 2) {
-        return withContentSecurityPolicy(NextResponse.next(), request)
+        return withContentSecurityPolicy(
+          NextResponse.next({
+            request: { headers: getProfileRequestHeaders(request) }
+          }),
+          request
+        )
       }
 
       // On a host the env does not list (an added domain, or one we do not
@@ -268,7 +284,12 @@ export async function proxy(request: NextRequest) {
 
       const cloneUrl = request.nextUrl.clone()
       cloneUrl.pathname = `/${pathItems.join('/')}`
-      return withContentSecurityPolicy(NextResponse.rewrite(cloneUrl), request)
+      return withContentSecurityPolicy(
+        NextResponse.rewrite(cloneUrl, {
+          request: { headers: getProfileRequestHeaders(request) }
+        }),
+        request
+      )
     }
 
     return withContentSecurityPolicy(NextResponse.next(), request)

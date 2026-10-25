@@ -1,5 +1,6 @@
 import { getBaseURL } from '@/lib/config'
 import { Database } from '@/lib/database/types'
+import type { Actor } from '@/lib/types/domain/actor'
 import { parseAccountUrlHandle } from '@/lib/utils/accountHandle'
 
 // Standard OStatus rel other servers look for to discover where to send a
@@ -86,10 +87,22 @@ export const getWebFingerResponse = async ({
   fallbackDomain
 }: GetWebFingerParams): Promise<WebFingerResponse | null> => {
   const trimmedResource = resource.trim()
-  const account = getAccountFromResource(trimmedResource, fallbackDomain)
+  let actor: Actor | null = null
+  if (
+    /^https?:\/\//i.test(trimmedResource) &&
+    'getActorFromId' in database &&
+    typeof database.getActorFromId === 'function'
+  ) {
+    actor = await database.getActorFromId({ id: trimmedResource })
+  }
 
-  let actor = account
-    ? ((await database.getActorFromUsername({
+  // Try a URL as the immutable actor id before interpreting its path as a
+  // handle. After a rename the URL still identifies the actor even when its
+  // username and domain no longer match the current profile.
+  const account = getAccountFromResource(trimmedResource, fallbackDomain)
+  if (!actor && account) {
+    actor =
+      (await database.getActorFromUsername({
         username: account.username,
         domain: account.domain
       })) ??
@@ -98,16 +111,7 @@ export const getWebFingerResponse = async ({
         : await database.getActorFromUsername({
             username: account.username,
             domain: account.normalizedDomain
-          })))
-    : null
-
-  if (
-    !actor &&
-    'getActorFromId' in database &&
-    typeof database.getActorFromId === 'function' &&
-    /^https?:\/\//i.test(trimmedResource)
-  ) {
-    actor = await database.getActorFromId({ id: trimmedResource })
+          }))
   }
 
   // This is not local actors
@@ -128,9 +132,26 @@ export const getWebFingerResponse = async ({
           }
         ]
 
+  const isHistoricalHandle = Boolean(
+    account &&
+    (account.username.toLowerCase() !== actor.username.toLowerCase() ||
+      account.normalizedDomain !== actor.domain.toLowerCase())
+  )
+  const historicalAliases =
+    account && isHistoricalHandle
+      ? [
+          `https://${account.domain}/@${account.username}`,
+          `acct:${account.username}@${account.normalizedDomain}`
+        ]
+      : []
+
   return {
     subject: `acct:${actor.username}@${actor.domain}`,
-    aliases: actor.type === 'Service' ? [actor.id] : [profilePageUrl, actor.id],
+    aliases: [
+      ...(actor.type === 'Service' ? [] : [profilePageUrl]),
+      actor.id,
+      ...historicalAliases
+    ],
     links: [
       ...profilePageLink,
       {
