@@ -1,4 +1,10 @@
-import { toSubjectKey } from '@/lib/services/gallery/galleryEntities'
+import {
+  UPLOADED_DAY_PREFIX,
+  parseGalleryDayKey,
+  toGalleryDayKey,
+  toSubjectKey,
+  toUtcDay
+} from '@/lib/services/gallery/galleryEntities'
 
 describe('toSubjectKey', () => {
   it.each([
@@ -55,5 +61,98 @@ describe('toSubjectKey', () => {
     { description: 'is null for no subject', subject: null, expected: null }
   ])('$description', ({ subject, expected }) => {
     expect(toSubjectKey(subject)).toBe(expected)
+  })
+})
+
+describe('toUtcDay', () => {
+  it.each([
+    {
+      description: 'an ISO date-time in UTC',
+      value: '2025-10-04T12:30:00Z',
+      expected: '2025-10-04'
+    },
+    {
+      description: 'an ISO date-time in another zone, by its UTC day',
+      value: '2025-10-05T01:30:00+14:00',
+      expected: '2025-10-04'
+    },
+    {
+      description: 'a bare ISO date',
+      value: '2025-02-28',
+      expected: '2025-02-28'
+    },
+    {
+      description: 'epoch milliseconds',
+      value: 1760000000000,
+      expected: '2025-10-09'
+    },
+    { description: 'epoch zero', value: 0, expected: '1970-01-01' },
+    { description: 'null', value: null, expected: null },
+    { description: 'undefined', value: undefined, expected: null },
+    { description: 'garbage', value: 'not a date', expected: null },
+    { description: 'an empty string', value: '', expected: null }
+  ])('$description', ({ value, expected }) => {
+    expect(toUtcDay(value)).toBe(expected)
+  })
+})
+
+describe('toGalleryDayKey', () => {
+  it.each([
+    { description: 'a dated day', day: '2025-10-04', uploaded: false },
+    { description: 'an uploaded day', day: '2025-10-04', uploaded: true }
+  ])('builds $description', ({ day, uploaded }) => {
+    const key = toGalleryDayKey(day, uploaded)
+    expect(key).toBe(uploaded ? `${UPLOADED_DAY_PREFIX}${day}` : day)
+    expect(parseGalleryDayKey(key)).toEqual({ day, uploaded })
+  })
+})
+
+describe('parseGalleryDayKey', () => {
+  it.each([
+    {
+      description: 'a dated key',
+      key: '2025-10-04',
+      expected: { day: '2025-10-04', uploaded: false }
+    },
+    {
+      description: 'an uploaded key',
+      key: 'uploaded:2025-10-04',
+      expected: { day: '2025-10-04', uploaded: true }
+    },
+    {
+      description: 'a leap day',
+      key: '2024-02-29',
+      expected: { day: '2024-02-29', uploaded: false }
+    },
+    {
+      description: 'a day that does not exist',
+      key: '2025-02-30',
+      expected: null
+    },
+    {
+      description: 'a leap day in a non-leap year',
+      key: '2025-02-29',
+      expected: null
+    },
+    { description: 'the prefix alone', key: 'uploaded:', expected: null },
+    {
+      description: 'the prefix without a day',
+      key: 'uploaded:2025-10',
+      expected: null
+    },
+    { description: 'a month alone', key: '2025-10', expected: null },
+    {
+      description: 'a full timestamp',
+      key: '2025-10-04T00:00:00Z',
+      expected: null
+    },
+    { description: 'a leading space', key: ' 2025-10-04', expected: null },
+    {
+      description: 'an unknown prefix',
+      key: 'taken:2025-10-04',
+      expected: null
+    }
+  ])('parses $description', ({ key, expected }) => {
+    expect(parseGalleryDayKey(key)).toEqual(expected)
   })
 })

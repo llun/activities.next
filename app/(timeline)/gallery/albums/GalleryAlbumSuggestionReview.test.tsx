@@ -164,8 +164,8 @@ describe('GalleryAlbumSuggestionReview', () => {
       name: /^Select Photo \d+$/
     })
 
-    expect(tiles[1]).toBeDisabled()
-    expect(tiles[0]).toBeEnabled()
+    expect(tiles[1]).toHaveAttribute('aria-disabled', 'true')
+    expect(tiles[0]).not.toHaveAttribute('aria-disabled')
   })
 
   it('shows the error and tries the first page again', async () => {
@@ -222,14 +222,56 @@ describe('GalleryAlbumSuggestionReview', () => {
     const member = await screen.findByRole('button', {
       name: 'Photo 2, already in the album'
     })
-    expect(member).toBeDisabled()
+    expect(member).toHaveAttribute('aria-disabled', 'true')
     expect(member).toHaveTextContent('In album')
     expect(member).not.toHaveAttribute('aria-pressed')
 
     const nonMember = screen.getByRole('button', {
       name: 'Select Photo 1'
     })
-    expect(nonMember).toBeEnabled()
+    expect(nonMember).not.toHaveAttribute('aria-disabled')
+  })
+
+  it('never toggles an in-album tile by click, Space or Enter', async () => {
+    render(
+      <Harness
+        suggestion={buildSuggestion('s', { photoCount: 3 })}
+        existingIds={['s-2']}
+        initial={[]}
+      />
+    )
+
+    const member = await screen.findByRole('button', {
+      name: 'Photo 2, already in the album'
+    })
+    expect(member).toHaveAttribute('aria-disabled', 'true')
+    expect(member).not.toBeDisabled()
+
+    fireEvent.click(member)
+    fireEvent.keyDown(member, { key: ' ' })
+    fireEvent.keyDown(member, { key: 'Enter' })
+    expect(screen.getByTestId('selected')).toHaveTextContent('')
+  })
+
+  it('never toggles a blocked tile (the album is full) by click, Space or Enter', async () => {
+    render(
+      <Harness
+        suggestion={buildSuggestion('s', { photoCount: 3 })}
+        capacity={1}
+        initial={['s-1']}
+      />
+    )
+
+    const blocked = await screen.findByRole('button', {
+      name: 'Select Photo 2'
+    })
+    expect(blocked).toHaveAttribute('aria-disabled', 'true')
+    expect(blocked).not.toBeDisabled()
+
+    fireEvent.click(blocked)
+    fireEvent.keyDown(blocked, { key: ' ' })
+    fireEvent.keyDown(blocked, { key: 'Enter' })
+    expect(screen.getByTestId('selected')).toHaveTextContent('s-1')
   })
 
   describe('Select all', () => {

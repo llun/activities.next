@@ -7,12 +7,16 @@ import type { GalleryItemEntity } from '@/lib/services/gallery/galleryEntities'
 import { cn } from '@/lib/utils'
 
 import { GalleryAlbumThumb } from './GalleryAlbumThumb'
-import { getPickerBadges, getPickerCaption } from './galleryAlbumPickerUi'
+import {
+  getPickerBadges,
+  getPickerCaption,
+  getPickerTileDate
+} from './galleryAlbumPickerUi'
 import { getAlbumTileLabel } from './galleryAlbumsUi'
 
 interface Props {
   item: GalleryItemEntity
-  /** Its place in the grid, for the accessible name. */
+  /** Its place in the grid (flat, across day groups), for the name and roving. */
   index: number
   isSelected: boolean
   /** Already in the album: shown as such and not pickable. */
@@ -21,7 +25,14 @@ interface Props {
   isBlocked?: boolean
   disabled?: boolean
   showCaption?: boolean
-  onToggle: (mediaId: string) => void
+  /** False: the caption and accessible name drop the date (the picker). */
+  showCaptionDate?: boolean
+  /** Roving tab stop: 0 on the active tile, -1 on the rest. */
+  tabIndex?: number
+  onFocus?: () => void
+  /** The range anchor: a dark ring, whether or not it is selected. */
+  isAnchor?: boolean
+  onToggle: (mediaId: string, modifiers: { shiftKey: boolean }) => void
 }
 
 /** One photo of a picker grid: a toggle with a check, or an "In album" badge. */
@@ -33,33 +44,82 @@ export const GalleryAlbumPickerTile: FC<Props> = ({
   isBlocked = false,
   disabled = false,
   showCaption = false,
+  showCaptionDate = true,
+  tabIndex,
+  onFocus,
+  isAnchor = false,
   onToggle
 }) => {
-  const caption = getPickerCaption(item)
+  const caption = getPickerCaption(item, { date: showCaptionDate })
+  const tileDate =
+    showCaption && !showCaptionDate ? getPickerTileDate(item) : ''
+  const captionForLabel =
+    showCaption && showCaptionDate
+      ? caption
+      : item.attachment.name?.trim() && item.subject?.name
+        ? item.subject.name
+        : ''
   const parts = [
     getAlbumTileLabel(item, index),
-    showCaption ? caption : '',
+    captionForLabel,
+    tileDate,
     ...getPickerBadges(item)
   ]
     .filter(Boolean)
     .join(', ')
 
   const albumCount = item.albumCount ?? 0
+  const notPickable = isMember || isBlocked
+  // A shift-modified activation on a not-pickable tile still reaches the
+  // host: a range ending on the tile applies up to it (the tile itself
+  // stays unpicked), like ranges already skip blocked tiles in the middle.
+  const canActivate = (shiftKey: boolean) =>
+    !disabled && (!notPickable || shiftKey)
 
   return (
     <div className="min-w-0">
       <button
         type="button"
         aria-pressed={isMember ? undefined : isSelected}
+        aria-disabled={notPickable || undefined}
         aria-label={
           isMember ? `${parts}, already in the album` : `Select ${parts}`
         }
-        disabled={disabled || isMember || isBlocked}
-        onClick={() => onToggle(item.mediaId)}
+        disabled={disabled}
+        data-grid-index={index}
+        tabIndex={tabIndex}
+        onFocus={onFocus}
+        onClick={(event) => {
+          if (!canActivate(event.shiftKey)) return
+          onToggle(item.mediaId, { shiftKey: event.shiftKey })
+        }}
+        onKeyDown={(event) => {
+          if (event.key === ' ' || event.key === 'Spacebar') {
+            event.preventDefault()
+            if (event.repeat) return
+            if (!canActivate(event.shiftKey)) return
+            onToggle(item.mediaId, { shiftKey: event.shiftKey })
+          }
+        }}
+        onKeyUp={(event) => {
+          if (event.key === ' ' || event.key === 'Spacebar') {
+            event.preventDefault()
+          }
+        }}
         className={cn(
-          'focus-visible:outline-primary bg-muted/20 relative block aspect-square w-full cursor-pointer overflow-hidden rounded-md focus-visible:outline-2 focus-visible:-outline-offset-2 disabled:cursor-not-allowed',
-          isMember ? 'disabled:opacity-60' : 'disabled:opacity-40',
-          isSelected && 'ring-primary ring-2 ring-inset'
+          // The focus outline sits outside the tile in the foreground
+          // colour: the inset primary ring already marks a selected tile,
+          // and an inset primary outline on top of it is invisible. The
+          // pick ring is an inset ring and the anchor ring an offset one,
+          // so a selected anchor shows both: the primary band inside, the
+          // dark anchor ring outside it.
+          'focus-visible:outline-foreground bg-muted/20 relative block aspect-square w-full cursor-pointer scroll-mt-12 overflow-hidden rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed aria-disabled:cursor-not-allowed',
+          isMember
+            ? 'disabled:opacity-60 aria-disabled:opacity-60'
+            : 'disabled:opacity-40 aria-disabled:opacity-40',
+          isSelected && 'inset-ring-primary inset-ring-2',
+          isAnchor &&
+            'ring-2 ring-foreground ring-offset-2 ring-offset-background'
         )}
       >
         <GalleryAlbumThumb item={item} />

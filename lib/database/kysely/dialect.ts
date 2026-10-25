@@ -99,6 +99,21 @@ export const utcYearMonth = (
     : sql<string>`to_char(${target} at time zone 'UTC', 'YYYY-MM')`
 }
 
+// The UTC calendar day of a timestamp column as 'YYYY-MM-DD'. SQLite's
+// datetime columns hold epoch ms INTEGER (app writes) or
+// 'YYYY-MM-DD HH:MM:SS' TEXT (the CURRENT_TIMESTAMP default, read as UTC like
+// toEpochMilliseconds does), so the expression branches on typeof();
+// PostgreSQL is one to_char().
+export const utcDay = (
+  db: Db,
+  ref: string | Expression<unknown>
+): RawBuilder<string> => {
+  const target = typeof ref === 'string' ? sql.ref(ref) : ref
+  return getDialectName(db) === 'sqlite'
+    ? sql<string>`case when typeof(${target}) in ('integer', 'real') then strftime('%Y-%m-%d', ${target} / 1000.0, 'unixepoch') else strftime('%Y-%m-%d', ${target}) end`
+    : sql<string>`to_char(${target} at time zone 'UTC', 'YYYY-MM-DD')`
+}
+
 // Keeps the `search_documents` rows whose documentText contains every token as
 // a word prefix. `query` must select from `search_documents` and `tokens` must
 // be non-empty and made of letters, digits and underscores (getSearchTokens()

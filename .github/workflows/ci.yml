@@ -416,6 +416,8 @@ jobs:
             lib/database/migrate/addMediaSortAt.test.ts \
             lib/database/domains/media/mediaSortAt.test.ts \
             lib/database/domains/gallery/galleryMediaFilters.test.ts \
+            lib/database/domains/gallery/galleryDayStats.test.ts \
+            lib/database/kysely/dialect.test.ts \
             lib/database/domains/gallery/galleryMediaFacets.test.ts \
             lib/services/gallery/galleryMediaFacets.test.ts \
             'app/api/v1/gallery/media/facets/route.test.ts' \

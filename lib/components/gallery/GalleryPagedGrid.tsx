@@ -8,6 +8,7 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
   useState
 } from 'react'
@@ -15,10 +16,11 @@ import {
 import { getGalleryMedia } from '@/lib/client'
 import {
   GalleryGrid,
+  type GalleryGridGroup,
   type GalleryGridSelection
 } from '@/lib/components/gallery/GalleryGrid'
 import { GalleryGridSkeleton } from '@/lib/components/gallery/GalleryGridSkeleton'
-import type { GalleryMediaQuery } from '@/lib/components/gallery/filters/galleryMediaFilterState'
+import type { GalleryMediaQuery } from '@/lib/components/gallery/galleryMediaQuery'
 import {
   LOAD_MORE_CONTAINER_CLASS,
   LoadMoreButton
@@ -27,6 +29,8 @@ import { useLoadMoreOnVisible } from '@/lib/components/posts/useLoadMoreOnVisibl
 import { Alert } from '@/lib/components/surface/Alert'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
 import type {
+  GalleryDayKey,
+  GalleryDayStats,
   GalleryItemEntity,
   GalleryMediaPage
 } from '@/lib/services/gallery/galleryEntities'
@@ -71,6 +75,16 @@ export interface GalleryPagedGridProps {
   showCaption?: boolean
   /** Select mode (owner views): tiles toggle instead of opening the viewer. */
   selection?: GalleryGridSelection
+  /** Owner only: ask for per-day stats (`days`) on every page request. */
+  includeDays?: boolean
+  /**
+   * Renders the loaded items as day groups (headers included). When given,
+   * the grid receives the groups and their items flattened in order.
+   */
+  renderGroups?: (
+    items: GalleryItemEntity[],
+    days: Record<GalleryDayKey, GalleryDayStats>
+  ) => GalleryGridGroup[]
   /** The signed-in owner's actor id when these are their own photos. */
   albumsOwnerId?: string | null
   /** Owner views: Post… from Edit details over the viewer (see `GalleryGrid`). */
@@ -101,6 +115,39 @@ const appendUnique = (
   return [...current, ...next.filter((item) => !seen.has(item.mediaId))]
 }
 
+// The UTC calendar day of an ISO timestamp; null when unparsable. The
+// day-key rule lives in the gallery's day-grouping module, but the route JS
+// budget keeps the module out of this file, so the few lines the edit path
+// needs are local.
+const utcDayOf = (value: string | null | undefined): string | null => {
+  if (value === null || value === undefined) return null
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  const pad = (part: number) => String(part).padStart(2, '0')
+  return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(
+    date.getUTCDate()
+  )}`
+}
+
+// The day key one item is grouped under (see `GalleryDayKey`): the UTC
+// camera day of a dated photo under a date sort, otherwise its UTC upload
+// day with the `uploaded:` prefix.
+const dayKeyOfItem = (
+  item: GalleryItemEntity,
+  sort: GalleryMediaSort
+): GalleryDayKey | null => {
+  if (
+    sort !== 'uploaded' &&
+    item.takenAt !== null &&
+    item.takenAt !== undefined
+  ) {
+    const day = utcDayOf(item.takenAt)
+    if (day) return day
+  }
+  const uploadedDay = utcDayOf(item.uploadedAt ?? null)
+  return uploadedDay ? `uploaded:${uploadedDay}` : null
+}
+
 /**
  * A gallery grid that pages through `getGalleryMedia` with `nextMaxId`. The
  * query is fixed for the life of the component: mount it with a `key` that
@@ -120,6 +167,8 @@ export const GalleryPagedGrid: FC<GalleryPagedGridProps> = ({
   emptyState,
   showCaption = true,
   selection,
+  includeDays = false,
+  renderGroups,
   albumsOwnerId,
   onPostItems,
   onItemsDeleted,
@@ -139,7 +188,20 @@ export const GalleryPagedGrid: FC<GalleryPagedGridProps> = ({
   )
   const [isLoading, setIsLoading] = useState(!initialPage)
   const [error, setError] = useState<string | null>(null)
+  // Per-day stats, seeded from the server page and merged as pages land; a
+  // day that spans pages is answered twice with the same numbers.
+  const [days, setDays] = useState<Record<GalleryDayKey, GalleryDayStats>>(
+    initialPage?.days ?? {}
+  )
+  // The sort the server orders and day-keys this grid's reads by; All media
+  // carries its filter state's sort inside `query`.
+  const effectiveSort: GalleryMediaSort = query?.sort ?? sort ?? 'uploaded'
   const isMounted = useRef(true)
+
+  // The items as last rendered: an edit compares its copy against these to
+  // learn the day it moved from.
+  const itemsRef = useRef(items)
+  itemsRef.current = items
 
   const isLoadingRef = useRef(false)
 
@@ -168,6 +230,7 @@ export const GalleryPagedGrid: FC<GalleryPagedGridProps> = ({
             ...(isFirstPage && onTotalChangeRef.current
               ? { includeTotal: true }
               : {}),
+            ...(includeDays ? { includeDays: true } : {}),
             ...(cursor ? { cursor } : {}),
             ...(maxId ? { maxId } : {}),
             subject,
@@ -181,6 +244,9 @@ export const GalleryPagedGrid: FC<GalleryPagedGridProps> = ({
           if (!isMounted.current) return
           if (isFirstPage) {
             onTotalChangeRef.current?.(page.total ?? null)
+          }
+          if (page.days) {
+            setDays((current) => ({ ...current, ...page.days }))
           }
           const append = !replace
           setItems((current) =>
@@ -221,6 +287,55 @@ export const GalleryPagedGrid: FC<GalleryPagedGridProps> = ({
         }
       }
     },
+    [
+      actorId,
+      subject,
+      category,
+      gearId,
+      show,
+      sort,
+      albumId,
+      query,
+      includeDays
+    ]
+  )
+
+  // An edit that changes a photo's day or place changes the server's day
+  // stats for both the day it left and the day it joined. The owner's list
+  // read answers one day's stats (`day_key` with `include_days`), so ask
+  // for each affected key and merge what it returns into `days`; a key the
+  // response no longer reports is dropped and its header falls back to the
+  // loaded count. Best effort: a failed refresh keeps the stats it had.
+  const refreshDayStats = useCallback(
+    async (dayKey: GalleryDayKey) => {
+      try {
+        const page = await getGalleryMedia(actorId, {
+          limit: 1,
+          includeDays: true,
+          dayKey,
+          subject,
+          category,
+          gearId,
+          show,
+          sort,
+          albumId,
+          ...query
+        })
+        if (!isMounted.current) return
+        setDays((current) => {
+          const stats = page.days?.[dayKey]
+          if (stats === undefined) {
+            if (!(dayKey in current)) return current
+            const next = { ...current }
+            delete next[dayKey]
+            return next
+          }
+          return { ...current, [dayKey]: stats }
+        })
+      } catch {
+        // Keep the stats the last page carried.
+      }
+    },
     [actorId, subject, category, gearId, show, sort, albumId, query]
   )
 
@@ -245,14 +360,57 @@ export const GalleryPagedGrid: FC<GalleryPagedGridProps> = ({
     },
     [show]
   )
-  const replaceItems = useCallback((edited: GalleryItemEntity[]) => {
-    const byId = new Map(edited.map((item) => [item.mediaId, item]))
-    setItems((current) => current.map((item) => byId.get(item.mediaId) ?? item))
-  }, [])
-  const removeItems = useCallback((mediaIds: string[]) => {
-    const gone = new Set(mediaIds)
-    setItems((current) => current.filter((item) => !gone.has(item.mediaId)))
-  }, [])
+  const replaceItems = useCallback(
+    (edited: GalleryItemEntity[]) => {
+      const byId = new Map(edited.map((item) => [item.mediaId, item]))
+      // Only the owner's day-grouped grids carry server day stats, and only
+      // an edit that changes a photo's day or place name changes them. A
+      // photo the grid has not loaded has no old day to refresh.
+      if (includeDays) {
+        const touched = new Set<GalleryDayKey>()
+        for (const item of edited) {
+          const previous = itemsRef.current.find(
+            (loaded) => loaded.mediaId === item.mediaId
+          )
+          if (!previous) continue
+          const placeChanged =
+            (previous.place?.name ?? null) !== (item.place?.name ?? null)
+          if (previous.takenAt === item.takenAt && !placeChanged) continue
+          for (const key of [
+            dayKeyOfItem(previous, effectiveSort),
+            dayKeyOfItem(item, effectiveSort)
+          ]) {
+            if (key !== null) touched.add(key)
+          }
+        }
+        for (const key of touched) void refreshDayStats(key)
+      }
+      setItems((current) =>
+        current.map((item) => byId.get(item.mediaId) ?? item)
+      )
+    },
+    [includeDays, effectiveSort, refreshDayStats]
+  )
+  const removeItems = useCallback(
+    (mediaIds: string[]) => {
+      const gone = new Set(mediaIds)
+      // A deleted photo changes the server's day stats for its day (the
+      // count, and possibly the place or activity that leads it). Refresh
+      // each removed photo's day like the edit path does; only the owner's
+      // day-grouped grids carry server day stats.
+      if (includeDays) {
+        const touched = new Set<GalleryDayKey>()
+        for (const item of itemsRef.current) {
+          if (!gone.has(item.mediaId)) continue
+          const key = dayKeyOfItem(item, effectiveSort)
+          if (key !== null) touched.add(key)
+        }
+        for (const key of touched) void refreshDayStats(key)
+      }
+      setItems((current) => current.filter((item) => !gone.has(item.mediaId)))
+    },
+    [includeDays, effectiveSort, refreshDayStats]
+  )
   const dropMisfiled = useCallback(
     () =>
       setItems((current) =>
@@ -297,6 +455,19 @@ export const GalleryPagedGrid: FC<GalleryPagedGridProps> = ({
 
   const hasNext = Boolean(nextCursor || nextMaxId)
 
+  // Memoised by the host: a new callback each render would re-render the grid
+  // on every tick.
+  const groups = useMemo(
+    () => (renderGroups ? renderGroups(items, days) : undefined),
+    [renderGroups, items, days]
+  )
+  // Stable across renders while the groups are, so the grid can tie its
+  // in-place edits to this list.
+  const gridItems = useMemo(
+    () => (groups ? groups.flatMap((group) => group.items) : items),
+    [groups, items]
+  )
+
   const loadMore = useCallback(() => {
     if (isLoadingRef.current) return
     if (nextCursor) {
@@ -319,7 +490,8 @@ export const GalleryPagedGrid: FC<GalleryPagedGridProps> = ({
     <div className="space-y-4">
       {items.length > 0 ? (
         <GalleryGrid
-          items={items}
+          items={gridItems}
+          groups={groups}
           showCaption={showCaption}
           selection={selection}
           albumsOwnerId={albumsOwnerId}

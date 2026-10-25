@@ -1,21 +1,18 @@
-import { formatActivityTypeLabel } from '@/lib/services/fitness-files/activityPresentation'
-import {
-  SPORT_LABELS,
-  normalizeActivityTypeToSportKey
-} from '@/lib/services/fitness-files/sportTypes'
+import { formatActivityTitle } from '@/lib/components/gallery/galleryActivityLabel'
 import type {
   GalleryActivityFacet,
   GalleryMediaFacetsResponse,
   GallerySpeciesFacet
 } from '@/lib/services/gallery/galleryEntities'
 import { GALLERY_FILTER_NONE } from '@/lib/types/database/gallery'
-import { formatFitnessDistance } from '@/lib/utils/fitness'
 
 import type {
   GalleryDateFilter,
   GalleryFilterKey,
   GalleryMediaFilterState
 } from './galleryMediaFilterState'
+
+export { formatActivityTitle }
 
 const EN_DASH = ' \u2013 '
 
@@ -125,6 +122,9 @@ export const formatDateFilterChipLabel = (
       return SHORT_MONTH_YEAR_FORMATTER.format(d)
     }
     case 'custom': {
+      if (date.label) {
+        return date.label
+      }
       const fromDate = date.from ? parseUtcDay(date.from) : null
       const toDate = date.to ? parseUtcDay(date.to) : null
 
@@ -150,40 +150,6 @@ export const formatDateFilterChipLabel = (
       return 'Any time'
     }
   }
-}
-
-export const formatActivityTitle = (
-  facet: GalleryActivityFacet | undefined,
-  activityId: string | null
-): string => {
-  if (activityId === GALLERY_FILTER_NONE) {
-    return 'Not from an activity'
-  }
-  if (facet) {
-    let sportLabel = 'Activity'
-    if (facet.activityType) {
-      const sportKey = normalizeActivityTypeToSportKey(facet.activityType)
-      if (sportKey && SPORT_LABELS[sportKey]) {
-        sportLabel = SPORT_LABELS[sportKey]
-      } else {
-        sportLabel = formatActivityTypeLabel(facet.activityType)
-      }
-    }
-
-    const distance =
-      typeof facet.distanceMeters === 'number' && facet.distanceMeters > 0
-        ? formatFitnessDistance(facet.distanceMeters)
-        : null
-
-    if (distance) {
-      return `${sportLabel} · ${distance}`
-    }
-    return sportLabel
-  }
-  if (activityId) {
-    return 'Activity'
-  }
-  return 'Any activity'
 }
 
 export const formatActivitySubtitle = (

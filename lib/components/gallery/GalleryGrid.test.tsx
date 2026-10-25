@@ -2,7 +2,13 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import {
+  act,
+  createEvent,
+  fireEvent,
+  render,
+  screen
+} from '@testing-library/react'
 
 import { buildGalleryItem } from '@/lib/components/gallery/__fixtures__/galleryItems'
 import type { Attachment } from '@/lib/types/domain/attachment'
@@ -320,7 +326,7 @@ describe('GalleryGrid', () => {
       expect(screen.queryByTestId('only-you-badge')).not.toBeInTheDocument()
     })
 
-    it('passes Post… and Delete from Edit details to the page, closing the viewer on a delete', () => {
+    it('passes Post… and Delete from Edit details to the page, closing the viewer on a delete', async () => {
       const onPostItems = vi.fn()
       const onItemsDeleted = vi.fn()
       render(
@@ -333,6 +339,7 @@ describe('GalleryGrid', () => {
       )
       fireEvent.click(screen.getByRole('button', { name: /^Open media/ }))
       fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+      await screen.findByRole('dialog', { name: 'Edit details' })
 
       act(() => editorProps.current?.onPost?.(['4']))
       expect(onPostItems).toHaveBeenCalledWith(['4'])
@@ -344,10 +351,11 @@ describe('GalleryGrid', () => {
       ).not.toBeInTheDocument()
     })
 
-    it('offers neither action unless the page handles them', () => {
+    it('offers neither action unless the page handles them', async () => {
       render(<GalleryGrid items={[unposted]} albumsOwnerId="owner-1" />)
       fireEvent.click(screen.getByRole('button', { name: /^Open media/ }))
       fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+      await screen.findByRole('dialog', { name: 'Edit details' })
 
       expect(editorProps.current?.onPost).toBeUndefined()
       expect(editorProps.current?.onDeleted).toBeUndefined()
@@ -368,7 +376,7 @@ describe('GalleryGrid', () => {
       expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument()
     })
 
-    it('opens Edit details over the viewer for the photo on screen alone', () => {
+    it('opens Edit details over the viewer for the photo on screen alone', async () => {
       render(<GalleryGrid items={items} albumsOwnerId="owner-1" />)
       fireEvent.click(screen.getByRole('button', { name: 'Open media 2' }))
       expect(
@@ -377,9 +385,7 @@ describe('GalleryGrid', () => {
 
       fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
 
-      expect(
-        screen.getByRole('dialog', { name: 'Edit details' })
-      ).toBeInTheDocument()
+      await screen.findByRole('dialog', { name: 'Edit details' })
       expect(editorProps.current?.items.map((item) => item.mediaId)).toEqual([
         '2'
       ])
@@ -396,7 +402,7 @@ describe('GalleryGrid', () => {
       ).not.toBeInTheDocument()
     })
 
-    it('shows the saved details on the tile and in the viewer, and tells the page', () => {
+    it('shows the saved details on the tile and in the viewer, and tells the page', async () => {
       const onItemEdited = vi.fn()
       render(
         <GalleryGrid
@@ -407,6 +413,7 @@ describe('GalleryGrid', () => {
       )
       fireEvent.click(screen.getByRole('button', { name: 'Open media 2' }))
       fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+      await screen.findByRole('dialog', { name: 'Edit details' })
 
       const saved = buildGalleryItem('2', { inGallery: false })
       saved.attachment.name = 'A new alt text'
@@ -446,7 +453,7 @@ describe('GalleryGrid', () => {
 
       fireEvent.click(screen.getByRole('button', { name: 'Select media 2' }))
 
-      expect(onToggle).toHaveBeenCalledWith(items[1])
+      expect(onToggle).toHaveBeenCalledWith(items[1], { shiftKey: false })
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
       expect(
         screen.queryByRole('button', { name: /^Open/ })
@@ -573,6 +580,331 @@ describe('GalleryGrid', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Close viewer' }))
 
       expect(screen.queryByTestId('modal-ids')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('day groups', () => {
+    const dayItems = [
+      buildGalleryItem('1', {
+        takenAt: '2025-10-04T09:30:00.000Z',
+        subject: {
+          name: 'Red Fox',
+          scientificName: null,
+          category: 'mammal',
+          taxonKey: null,
+          taxonPath: null
+        }
+      }),
+      buildGalleryItem('2', { takenAt: '2025-10-04T10:30:00.000Z' }),
+      buildGalleryItem('3', { takenAt: '2025-10-03T09:30:00.000Z' })
+    ]
+    const groups = [
+      {
+        key: '2025-10-04',
+        header: <h2>Sat 4 Oct 2025</h2>,
+        items: [dayItems[0], dayItems[1]]
+      },
+      {
+        key: '2025-10-03',
+        header: <h2>Fri 3 Oct 2025</h2>,
+        items: [dayItems[2]]
+      }
+    ]
+    const flatItems = groups.flatMap((group) => group.items)
+
+    it('renders one section per group, header then tiles, in order', () => {
+      const { container } = render(
+        <GalleryGrid items={flatItems} groups={groups} />
+      )
+
+      expect(container.querySelectorAll('section')).toHaveLength(2)
+      expect(
+        screen.getByRole('heading', { name: 'Sat 4 Oct 2025' })
+      ).toBeInTheDocument()
+      expect(
+        screen.getByRole('heading', { name: 'Fri 3 Oct 2025' })
+      ).toBeInTheDocument()
+      // The tiles keep their flat order across the groups, and each group
+      // carries its own grid.
+      expect(
+        screen
+          .getAllByRole('button')
+          .map((button) => button.getAttribute('aria-label'))
+      ).toEqual([
+        'Open media: Red Fox, taken 4 Oct 2025',
+        'Open media 2, taken 4 Oct 2025',
+        'Open media 3, taken 3 Oct 2025'
+      ])
+      const lists = container.querySelectorAll('ul[data-grid]')
+      expect(lists).toHaveLength(2)
+      expect(lists[0].querySelectorAll('li')).toHaveLength(2)
+      expect(lists[1].querySelectorAll('li')).toHaveLength(1)
+    })
+
+    it('drops the date from the caption only when grouped', () => {
+      const { container, rerender } = render(
+        <GalleryGrid items={flatItems} groups={groups} showCaption />
+      )
+      const captions = () =>
+        Array.from(container.querySelectorAll('li > p')).map(
+          (caption) => caption.textContent
+        )
+      expect(captions()).toEqual(['Red Fox'])
+
+      rerender(<GalleryGrid items={flatItems} showCaption />)
+      expect(captions()).toEqual([
+        'Red Fox · 4 Oct 2025',
+        '4 Oct 2025',
+        '3 Oct 2025'
+      ])
+    })
+
+    it('keeps the date in the accessible name of a grouped tile', () => {
+      render(<GalleryGrid items={flatItems} groups={groups} />)
+
+      expect(
+        screen.getByRole('button', {
+          name: 'Open media: Red Fox, taken 4 Oct 2025'
+        })
+      ).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'Open media 3, taken 3 Oct 2025' })
+      ).toBeInTheDocument()
+    })
+
+    it('scrolls a grouped tile clear of the sticky header stack on phones', () => {
+      render(<GalleryGrid items={flatItems} groups={groups} />)
+
+      const tile = screen.getByRole('button', {
+        name: 'Open media: Red Fox, taken 4 Oct 2025'
+      })
+      expect(tile).toHaveClass(
+        'max-md:scroll-mt-[calc(56px+env(safe-area-inset-top,0px)+var(--status-strip-h,0px)+3rem)]'
+      )
+      expect(tile).toHaveClass('md:scroll-mt-[calc(79px+3rem)]')
+      expect(tile).not.toHaveClass('scroll-mt-12')
+    })
+
+    it('opens the viewer at the flat index of a tile in the second group', () => {
+      render(<GalleryGrid items={flatItems} groups={groups} />)
+
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Open media 3, taken 3 Oct 2025' })
+      )
+
+      expect(screen.getByTestId('modal-ids')).toHaveTextContent('1,2,3')
+      expect(screen.getByTestId('modal-selection')).toHaveTextContent('2')
+    })
+
+    it('shows an owner edit on a grouped tile', () => {
+      render(
+        <GalleryGrid
+          items={flatItems}
+          groups={groups}
+          albumsOwnerId="owner-1"
+        />
+      )
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: 'Open media: Red Fox, taken 4 Oct 2025'
+        })
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+
+      const saved = buildGalleryItem('1', {
+        takenAt: '2025-10-04T09:30:00.000Z'
+      })
+      saved.attachment.name = 'A new alt text'
+      act(() => editorProps.current?.onSaved([saved]))
+      act(() => editorProps.current?.onClose())
+      fireEvent.click(screen.getByRole('button', { name: 'Close viewer' }))
+
+      expect(
+        screen.getByRole('button', {
+          name: 'Open media: A new alt text, taken 4 Oct 2025'
+        })
+      ).toBeInTheDocument()
+    })
+
+    it('leaves the markup unchanged without groups', () => {
+      const { container } = render(<GalleryGrid items={items} />)
+
+      expect(container.querySelector('section')).toBeNull()
+      expect(container.querySelectorAll('ul')).toHaveLength(1)
+      expect(container.querySelector('ul')).not.toHaveAttribute('data-grid')
+      expect(container.querySelector('[data-grid-index]')).toBeNull()
+      expect(
+        screen.getByRole('button', { name: 'Open media 2' })
+      ).not.toHaveAttribute('tabindex')
+    })
+
+    describe('in select mode', () => {
+      const selection = () => ({
+        selected: new Set<string>(),
+        onToggle: vi.fn()
+      })
+
+      it('gives the grid one roving tab stop and moves it with the arrows', () => {
+        const { container } = render(
+          <GalleryGrid
+            items={flatItems}
+            groups={groups}
+            selection={selection()}
+          />
+        )
+
+        const tiles = Array.from(
+          container.querySelectorAll<HTMLButtonElement>('[data-grid-index]')
+        )
+        expect(tiles.map((tile) => tile.tabIndex)).toEqual([0, -1, -1])
+
+        // Across the group boundary: the flat index, not the row, moves.
+        fireEvent.keyDown(tiles[1], { key: 'ArrowRight' })
+        expect(tiles[2]).toHaveFocus()
+        expect(tiles.map((tile) => tile.tabIndex)).toEqual([-1, -1, 0])
+
+        fireEvent.keyDown(tiles[2], { key: 'ArrowLeft' })
+        expect(tiles[1]).toHaveFocus()
+      })
+
+      it('passes Shift through a click and a Shift+Space key press', () => {
+        const onToggle = vi.fn()
+        render(
+          <GalleryGrid
+            items={flatItems}
+            groups={groups}
+            selection={{ selected: new Set(), onToggle }}
+          />
+        )
+        const tile = screen.getByRole('button', {
+          name: 'Select media 2, taken 4 Oct 2025'
+        })
+
+        fireEvent.click(tile, { shiftKey: true })
+        expect(onToggle).toHaveBeenLastCalledWith(dayItems[1], {
+          shiftKey: true
+        })
+
+        fireEvent.keyDown(tile, { key: ' ', shiftKey: true })
+        expect(onToggle).toHaveBeenLastCalledWith(dayItems[1], {
+          shiftKey: true
+        })
+        fireEvent.keyDown(tile, { key: ' ', shiftKey: false })
+        expect(onToggle).toHaveBeenLastCalledWith(dayItems[1], {
+          shiftKey: false
+        })
+        expect(onToggle).toHaveBeenCalledTimes(3)
+      })
+
+      it.each([false, true])(
+        'ignores repeated Space and cancels native keyup click (shift=%s)',
+        (shiftKey) => {
+          const onToggle = vi.fn()
+          render(
+            <GalleryGrid
+              items={flatItems}
+              groups={groups}
+              selection={{ selected: new Set(), onToggle }}
+            />
+          )
+          const tile = screen.getByRole('button', {
+            name: 'Select media 2, taken 4 Oct 2025'
+          })
+
+          fireEvent.keyDown(tile, { key: ' ', shiftKey, repeat: false })
+          fireEvent.keyDown(tile, { key: ' ', shiftKey, repeat: true })
+          const keyUp = createEvent.keyUp(tile, { key: ' ', shiftKey })
+          fireEvent(tile, keyUp)
+
+          expect(keyUp.defaultPrevented).toBe(true)
+          expect(onToggle).toHaveBeenCalledTimes(1)
+          expect(onToggle).toHaveBeenCalledWith(dayItems[1], { shiftKey })
+        }
+      )
+
+      it('draws the anchor ring on the anchor tile, and the pick ring on a picked one', () => {
+        render(
+          <GalleryGrid
+            items={flatItems}
+            groups={groups}
+            selection={{
+              selected: new Set(['1']),
+              onToggle: vi.fn(),
+              anchorId: '2'
+            }}
+          />
+        )
+
+        const anchor = screen.getByRole('button', {
+          name: 'Select media 2, taken 4 Oct 2025'
+        })
+        expect(anchor).toHaveClass(
+          'ring-2 ring-foreground ring-offset-2 ring-offset-background'
+        )
+        expect(anchor).not.toHaveClass('inset-ring-primary')
+        const picked = screen.getByRole('button', {
+          name: 'Select media: Red Fox, taken 4 Oct 2025'
+        })
+        expect(picked).toHaveClass('inset-ring-primary inset-ring-3')
+        expect(picked).not.toHaveClass('ring-foreground')
+      })
+
+      it('draws the anchor ring on a selected anchor too, around the pick ring', () => {
+        render(
+          <GalleryGrid
+            items={flatItems}
+            groups={groups}
+            selection={{
+              selected: new Set(['2']),
+              onToggle: vi.fn(),
+              anchorId: '2'
+            }}
+          />
+        )
+
+        const anchor = screen.getByRole('button', {
+          name: 'Select media 2, taken 4 Oct 2025'
+        })
+        expect(anchor).toHaveClass('inset-ring-primary inset-ring-3')
+        expect(anchor).toHaveClass(
+          'ring-2 ring-foreground ring-offset-2 ring-offset-background'
+        )
+      })
+
+      it('draws the focus outline outside a select tile and inside a viewer tile', () => {
+        const { rerender } = render(
+          <GalleryGrid
+            items={flatItems}
+            groups={groups}
+            selection={{ selected: new Set(['1']), onToggle: vi.fn() }}
+          />
+        )
+
+        // The pick ring is the inset primary band; the focus outline must be
+        // distinct from it, so it sits outside the tile in the foreground.
+        const picked = screen.getByRole('button', {
+          name: 'Select media: Red Fox, taken 4 Oct 2025'
+        })
+        expect(picked).toHaveClass(
+          'focus-visible:outline-foreground',
+          'focus-visible:outline-2',
+          'focus-visible:outline-offset-2'
+        )
+        expect(picked).not.toHaveClass('focus-visible:outline-primary')
+        expect(picked).not.toHaveClass('focus-visible:-outline-offset-2')
+
+        rerender(<GalleryGrid items={flatItems} groups={groups} />)
+        const viewerTile = screen.getByRole('button', {
+          name: 'Open media: Red Fox, taken 4 Oct 2025'
+        })
+        expect(viewerTile).toHaveClass(
+          'focus-visible:outline-primary',
+          'focus-visible:outline-2',
+          'focus-visible:-outline-offset-2'
+        )
+        expect(viewerTile).not.toHaveClass('focus-visible:outline-foreground')
+        expect(viewerTile).not.toHaveClass('focus-visible:outline-offset-2')
+      })
     })
   })
 })

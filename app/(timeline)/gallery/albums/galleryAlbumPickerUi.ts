@@ -82,9 +82,28 @@ const getPickerDateText = (item: GalleryItemEntity): string => {
 }
 
 /** "Common kingfisher · 12 Sep 2026", the date alone without a species, the upload date without a capture date. */
-export const getPickerCaption = (item: GalleryItemEntity): string => {
-  const dateText = getPickerDateText(item)
+export const getPickerCaption = (
+  item: GalleryItemEntity,
+  { date = true }: { date?: boolean } = {}
+): string => {
+  const dateText = date ? getPickerDateText(item) : ''
   return [item.subject?.name, dateText].filter(Boolean).join(' · ')
+}
+
+/**
+ * The tile's date for the accessible name: "taken 12 Sep 2026" or, without a
+ * capture date, "uploaded 3 Oct 2025"; '' when neither date parses.
+ */
+export const getPickerTileDate = (item: GalleryItemEntity): string => {
+  if (item.takenAt) {
+    const formatted = formatGalleryDate(item.takenAt)
+    if (formatted) return `taken ${formatted}`
+  }
+  if (item.uploadedAt) {
+    const formatted = formatGalleryDate(item.uploadedAt)
+    if (formatted) return `uploaded ${formatted}`
+  }
+  return ''
 }
 
 /** Badge words for the accessible name, in display order. */

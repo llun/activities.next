@@ -307,6 +307,28 @@ describe('galleryMediaFilterLabels', () => {
         )
       })
     })
+
+    it('returns the label of a custom range when one is set', () => {
+      expect(
+        formatDateFilterChipLabel({
+          kind: 'custom',
+          from: '2025-10-04',
+          to: '2025-10-12',
+          label: 'Album dates · 4–12 Oct 2025'
+        })
+      ).toBe('Album dates · 4–12 Oct 2025')
+    })
+
+    it('computes a custom range without a label as before', () => {
+      expect(
+        formatDateFilterChipLabel({
+          kind: 'custom',
+          from: '2025-10-04',
+          to: '2025-10-12',
+          label: undefined
+        })
+      ).toBe('4 Oct \u2013 12 Oct 2025')
+    })
   })
 
   describe('formatActivityTitle', () => {
@@ -474,6 +496,15 @@ describe('galleryMediaFilterLabels', () => {
         expect(formatActivityTitle(facet, activityId)).toBe(expected)
       }
     )
+
+    it('accepts a day activity with only the type and the distance', () => {
+      expect(
+        formatActivityTitle(
+          { activityType: 'ride', distanceMeters: 64200 },
+          'act-day'
+        )
+      ).toBe('Ride · 64.2 km')
+    })
   })
 
   describe('formatActivitySubtitle', () => {

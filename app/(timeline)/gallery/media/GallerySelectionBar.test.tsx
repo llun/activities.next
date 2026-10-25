@@ -14,6 +14,7 @@ const renderBar = (
     onClear: vi.fn(),
     onAddToAlbum: vi.fn(),
     onEditDetails: vi.fn(),
+    onRetryLoading: vi.fn(),
     onPost: vi.fn(),
     onDelete: vi.fn()
   }
@@ -135,6 +136,61 @@ describe('GallerySelectionBar', () => {
       renderBar({ count: 0, loadedCount: 5, loadedSelectedCount: 0 })
       expect(button('Add to album')).toHaveAttribute('aria-disabled', 'true')
     })
+  })
+
+  it('disables entity actions but keeps Add enabled while photos hydrate', () => {
+    const handlers = renderBar({
+      count: 4,
+      actionCount: 2,
+      allUnposted: true,
+      selectionIncomplete: true,
+      hydrationPending: true,
+      hydrationMessage: 'Loading 2 selected photos…'
+    })
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Loading 2 selected photos…'
+    )
+    for (const name of ['Edit details', 'Post', 'Delete']) {
+      fireEvent.click(button(name))
+      expect(button(name)).toHaveAttribute('aria-disabled', 'true')
+    }
+    expect(handlers.onEditDetails).not.toHaveBeenCalled()
+    expect(button('Add to album')).not.toHaveAttribute('aria-disabled')
+    fireEvent.click(button('Add to album'))
+    expect(handlers.onAddToAlbum).toHaveBeenCalledOnce()
+    expect(handlers.onPost).not.toHaveBeenCalled()
+    expect(handlers.onDelete).not.toHaveBeenCalled()
+  })
+
+  it('keeps entity actions disabled after short hydration and offers Retry loading', () => {
+    const handlers = renderBar({
+      count: 4,
+      actionCount: 2,
+      allUnposted: true,
+      maxPostAttachments: 2,
+      selectionIncomplete: true,
+      hydrationMessage: "Some selected photos couldn't be loaded"
+    })
+
+    fireEvent.click(button('Edit details'))
+    fireEvent.click(button('Add to album'))
+    fireEvent.click(button('Post'))
+    fireEvent.click(button('Delete'))
+    fireEvent.click(button('Retry loading'))
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      "Some selected photos couldn't be loaded"
+    )
+    expect(button('Edit details')).toHaveAttribute('aria-disabled', 'true')
+    expect(button('Post')).toHaveAttribute('aria-disabled', 'true')
+    expect(button('Delete')).toHaveAttribute('aria-disabled', 'true')
+    expect(button('Add to album')).not.toHaveAttribute('aria-disabled')
+    expect(handlers.onEditDetails).not.toHaveBeenCalled()
+    expect(handlers.onAddToAlbum).toHaveBeenCalledOnce()
+    expect(handlers.onPost).not.toHaveBeenCalled()
+    expect(handlers.onDelete).not.toHaveBeenCalled()
+    expect(handlers.onRetryLoading).toHaveBeenCalledOnce()
   })
 
   describe('Select all loaded', () => {

@@ -1,5 +1,6 @@
 import { sql } from 'kysely'
 
+import { galleryDayKeyBound } from '@/lib/database/domains/gallery/dayStats'
 import { galleryMediaFilter } from '@/lib/database/domains/gallery/mediaFilters'
 import {
   type GalleryAttachmentRow,
@@ -221,6 +222,7 @@ export const getGalleryMedia = async (
     show,
     sort,
     cursor,
+    dayKey,
     filters
   }: GetGalleryMediaParams
 ): Promise<GalleryMediaRow[]> => {
@@ -229,6 +231,12 @@ export const getGalleryMedia = async (
 
   const isOwner = audience?.kind === 'owner'
   const effectiveSort = isOwner ? (sort ?? 'uploaded') : 'uploaded'
+  const effectiveDayKey = isOwner ? dayKey : undefined
+  const dayBound =
+    effectiveDayKey !== undefined
+      ? galleryDayKeyBound(db, effectiveSort, effectiveDayKey)
+      : null
+  if (effectiveDayKey !== undefined && dayBound === null) return []
   const effectiveCursor =
     isOwner && (effectiveSort === 'taken_desc' || effectiveSort === 'taken_asc')
       ? cursor
@@ -260,6 +268,7 @@ export const getGalleryMedia = async (
   if (filterExpr !== null) {
     qb = qb.where(filterExpr)
   }
+  if (dayBound !== null) qb = qb.where(dayBound)
 
   // A row an old build inserted keeps a NULL sortAt until the backfill script
   // runs; NULLs sort first on SQLite and last on PostgreSQL, so date orders

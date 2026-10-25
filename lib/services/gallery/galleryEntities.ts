@@ -155,6 +155,82 @@ export interface GalleryItemEntity {
     | null
 }
 
+// ---------------------------------------------------------------------------
+// Day keys and day stats (album picker step 3)
+// ---------------------------------------------------------------------------
+
+/**
+ * The group a gallery photo is shown under. 'YYYY-MM-DD' (UTC day of
+ * `takenAt`) for a dated photo under a date sort; 'uploaded:YYYY-MM-DD' (UTC
+ * day of `createdAt`) for a dateless photo under a date sort and for every
+ * photo under sort=uploaded. Same day rule as the Date taken filter: the day
+ * of `medias.sortAt`.
+ */
+export type GalleryDayKey = string
+
+export const UPLOADED_DAY_PREFIX = 'uploaded:'
+
+const padUtc = (value: number, width = 2) => String(value).padStart(width, '0')
+
+/** 'YYYY-MM-DD' in UTC from an ISO string or epoch ms; null when unparsable. */
+export const toUtcDay = (
+  value: string | number | null | undefined
+): string | null => {
+  if (value === null || value === undefined) return null
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  return `${padUtc(date.getUTCFullYear(), 4)}-${padUtc(
+    date.getUTCMonth() + 1
+  )}-${padUtc(date.getUTCDate())}`
+}
+
+export const toGalleryDayKey = (
+  day: string,
+  uploaded: boolean
+): GalleryDayKey => (uploaded ? `${UPLOADED_DAY_PREFIX}${day}` : day)
+
+const GALLERY_DAY_KEY_PATTERN = /^(uploaded:)?(\d{4}-\d{2}-\d{2})$/
+
+/**
+ * Parses a key; null unless it is `^(uploaded:)?\d{4}-\d{2}-\d{2}$` with a real
+ * calendar date.
+ */
+export const parseGalleryDayKey = (
+  key: string
+): { day: string; uploaded: boolean } | null => {
+  const match = GALLERY_DAY_KEY_PATTERN.exec(key)
+  if (!match) return null
+  const day = match[2]
+  const [year, month, date] = day.split('-').map(Number)
+  const utc = new Date(Date.UTC(year, month - 1, date))
+  if (
+    utc.getUTCFullYear() !== year ||
+    utc.getUTCMonth() !== month - 1 ||
+    utc.getUTCDate() !== date
+  ) {
+    return null
+  }
+  return { day, uploaded: match[1] === UPLOADED_DAY_PREFIX }
+}
+
+export interface GalleryDayStats {
+  // Matches in the page's scope and filters that day (every page carries
+  // full-day numbers).
+  count: number
+  // With `album_id`: how many of them are already in that album.
+  inAlbum?: number
+  // The day's most common place: the most-used raw spelling of the top
+  // `toPlaceKey`; null when none.
+  placeName: string | null
+  // The countable activity with the most matching photos that day (step 2
+  // attachment rule, no route map).
+  activity: {
+    id: string
+    activityType: string | null
+    distanceMeters: number | null
+  } | null
+}
+
 export interface GalleryMediaPage {
   items: GalleryItemEntity[]
   // `uploaded` order: pass back as `max_id` for the next page; null on the
@@ -166,6 +242,13 @@ export interface GalleryMediaPage {
   total?: number
   // Owner, first page, with `album_id`: matches already in that album.
   inAlbumTotal?: number
+  // Owner, `include_days=true`: the days present in this page, keyed by
+  // `GalleryDayKey`.
+  days?: Record<GalleryDayKey, GalleryDayStats>
+}
+
+export interface GalleryMediaIdsResponse {
+  mediaIds: string[]
 }
 
 export interface GallerySubjectEntry {

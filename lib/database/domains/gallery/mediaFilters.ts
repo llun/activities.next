@@ -1,6 +1,7 @@
 import { type Expression, type SqlBool, expressionBuilder, sql } from 'kysely'
 
 import { activityPhotoAttachments } from '@/lib/database/domains/gallery/activityPhotos'
+import { galleryDayKeyBound } from '@/lib/database/domains/gallery/dayStats'
 import type {
   CountGalleryMediaParams,
   GalleryMediaCount,
@@ -19,7 +20,7 @@ import {
 } from '@/lib/services/gallery/galleryEntities'
 import { GALLERY_FILTER_NONE } from '@/lib/types/database/gallery'
 
-const parseDateBound = (
+export const parseDateBound = (
   dateStr: string
 ): { year: number; month: number; day: number } | null => {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr)
@@ -227,11 +228,30 @@ export const galleryMediaFilter = async (
   return eb.and(conditions)
 }
 
+/**
+ * The `gallery_album_items ⨝ gallery_albums` subquery selecting `sql.lit(1)`
+ * that says "this media is in that album of the owner": reused by the album
+ * count and the day stats' `inAlbum` sums and the `ids_only` exclusion.
+ */
+export const inAlbumExists = (db: Db, actorId: string, albumId: string) =>
+  db
+    .selectFrom('gallery_album_items')
+    .innerJoin(
+      'gallery_albums',
+      'gallery_albums.id',
+      'gallery_album_items.albumId'
+    )
+    .select(sql.lit(1).as('one'))
+    .where('gallery_album_items.albumId', '=', albumId)
+    .where('gallery_albums.actorId', '=', actorId)
+    .where('gallery_album_items.mediaId', '=', galleryMediaIdRef)
+
 export const countGalleryMedia = async (
   db: Db,
   params: CountGalleryMediaParams
 ): Promise<GalleryMediaCount> => {
-  const { actorId, audience, show, gearId, filters, albumId, sort } = params
+  const { actorId, audience, show, gearId, filters, albumId, sort, dayKey } =
+    params
 
   const filterExpr = await galleryMediaFilter(
     db,
@@ -244,12 +264,30 @@ export const countGalleryMedia = async (
     return { total: 0, inAlbum: albumId !== undefined ? 0 : null }
   }
 
+  // The same day bound the list applies (owner only): a count for a
+  // day-restricted list covers that day alone, and an unparsable key counts
+  // the nothing the list reads for it.
+  const isOwner = audience?.kind === 'owner'
+  const effectiveSort = isOwner ? (sort ?? 'uploaded') : 'uploaded'
+  const effectiveDayKey = isOwner ? dayKey : undefined
+  const dayBound =
+    effectiveDayKey !== undefined
+      ? galleryDayKeyBound(db, effectiveSort, effectiveDayKey)
+      : null
+  if (effectiveDayKey !== undefined && dayBound === null) {
+    return { total: 0, inAlbum: albumId !== undefined ? 0 : null }
+  }
+
   let baseQuery = db
     .selectFrom('medias')
     .where(galleryMediaScope(db, actorId, audience, { show }))
 
   if (filterExpr !== null) {
     baseQuery = baseQuery.where(filterExpr)
+  }
+
+  if (dayBound !== null) {
+    baseQuery = baseQuery.where(dayBound)
   }
 
   // Same rule as getGalleryMedia: date orders skip rows with no sortAt.
@@ -266,17 +304,7 @@ export const countGalleryMedia = async (
     return { total, inAlbum: null }
   }
 
-  const subquery = db
-    .selectFrom('gallery_album_items')
-    .innerJoin(
-      'gallery_albums',
-      'gallery_albums.id',
-      'gallery_album_items.albumId'
-    )
-    .select(sql.lit(1).as('one'))
-    .where('gallery_album_items.albumId', '=', albumId)
-    .where('gallery_albums.actorId', '=', actorId)
-    .where('gallery_album_items.mediaId', '=', galleryMediaIdRef)
+  const subquery = inAlbumExists(db, actorId, albumId)
 
   const inAlbumRow = await baseQuery
     .where((eb) => eb.exists(subquery))

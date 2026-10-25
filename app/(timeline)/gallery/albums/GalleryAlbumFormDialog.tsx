@@ -2,15 +2,30 @@
 
 import { Folder, Globe, Lock, Sparkles } from 'lucide-react'
 import dynamic from 'next/dynamic'
-import { FC, FormEvent, useCallback, useEffect, useRef, useState } from 'react'
+import {
+  FC,
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 
 import {
   addGalleryAlbumItems,
   createGalleryAlbum,
   updateGalleryAlbum
 } from '@/lib/client'
-import { GALLERY_ALBUM_ITEMS_BATCH } from '@/lib/client/galleryAlbums'
+import {
+  GALLERY_ALBUM_ITEMS_BATCH,
+  GalleryAlbumAddError
+} from '@/lib/client/galleryAlbums'
 import { AlbumUndoToast } from '@/lib/components/gallery/AlbumUndoToast'
+import {
+  EMPTY_GALLERY_FILTERS,
+  setGalleryFilter
+} from '@/lib/components/gallery/filters/galleryMediaFilterState'
 import { pluralize } from '@/lib/components/gallery/galleryCategories'
 import type { AlbumToast } from '@/lib/components/gallery/useMediaAlbums'
 import { Alert } from '@/lib/components/surface/Alert'
@@ -36,7 +51,10 @@ import {
 import { Textarea } from '@/lib/components/ui/textarea'
 import type { GalleryAlbumCardEntity } from '@/lib/services/gallery/galleryAlbumEntities'
 import type { GalleryAlbumSuggestionEntity } from '@/lib/services/gallery/galleryAlbumSuggestionEntities'
-import type { GalleryItemEntity } from '@/lib/services/gallery/galleryEntities'
+import {
+  type GalleryItemEntity,
+  toUtcDay
+} from '@/lib/services/gallery/galleryEntities'
 import {
   DEFAULT_GALLERY_ALBUM_VISIBILITY,
   GALLERY_ALBUM_VISIBILITIES,
@@ -50,6 +68,7 @@ import { cn } from '@/lib/utils'
 import { GalleryAlbumSuggestionList } from './GalleryAlbumSuggestionList'
 import { GalleryAlbumSuggestionReview } from './GalleryAlbumSuggestionReview'
 import { GalleryAlbumThumb } from './GalleryAlbumThumb'
+import { formatAlbumDateRange } from './galleryAlbumsUi'
 import type { GalleryAlbumSuggestionsState } from './useGalleryAlbumSuggestions'
 
 /**
@@ -67,6 +86,21 @@ const GalleryAlbumPicker = dynamic(
     ssr: false,
     loading: () => (
       <div className="skeleton h-40 rounded-md" aria-hidden="true" />
+    )
+  }
+)
+
+// The picks strip (and the phone sheet it opens) is only needed once the
+// dialog is open: keep it out of every page that merely links to the dialog.
+const GalleryAlbumPicksStrip = dynamic(
+  () =>
+    import('./GalleryAlbumPicksStrip').then(
+      (module) => module.GalleryAlbumPicksStrip
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="skeleton h-10 rounded-md" aria-hidden="true" />
     )
   }
 )
@@ -150,6 +184,24 @@ const TABS: {
 
 const formatCount = (count: number) => count.toLocaleString('en-US')
 
+/**
+ * The seeded Date taken chip's label: the album's range in the mockup's
+ * unspaced form ("Album dates · 4–12 Oct 2025") for a same-month range, and
+ * the hero's spelling everywhere else.
+ */
+export const formatAlbumDatesChipLabel = (
+  firstAt: string,
+  lastAt: string
+): string => {
+  const range = formatAlbumDateRange(firstAt, lastAt)
+  if (!range) return ''
+  const from = toUtcDay(firstAt)
+  const to = toUtcDay(lastAt)
+  const sameMonth =
+    from !== null && to !== null && from.slice(0, 7) === to.slice(0, 7)
+  return `Album dates · ${sameMonth ? range.replace(' – ', '–') : range}`
+}
+
 export const GalleryAlbumFormDialog: FC<Props> = ({
   open,
   ownerId,
@@ -173,11 +225,17 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
   const [selected, setSelected] = useState<string[]>([])
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [titleError, setTitleError] = useState<string | null>(null)
   const [photosError, setPhotosError] = useState<string | null>(null)
   // Set once the album exists but a later step failed, so a retry opens it
-  // instead of creating a second one.
+  // instead of creating a second one. It also stands for "added": once the
+  // photos are in the album, the form is only a way to open it.
   const [createdId, setCreatedId] = useState<string | null>(null)
+  const changedAlbumIdRef = useRef<string | null>(null)
+  // The cover the owner starred on a pick; null until then (the create
+  // default is the first pick, the add default is the album's own cover).
+  const [coverId, setCoverId] = useState<string | null>(null)
   // The cover the picker knows (it has shown that photo); a photo chosen from a
   // suggestion is known from the review grid instead.
   const [pickerCover, setPickerCover] =
@@ -188,7 +246,7 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
   // Bumped by every Use, so the review grid starts afresh (filters cleared)
   // for a different suggestion and for the same one used again.
   const [reviewRun, setReviewRun] = useState(0)
-  const [reviewItems, setReviewItems] = useState<
+  const [knownItems, setKnownItems] = useState<
     ReadonlyMap<string, GalleryItemEntity>
   >(new Map())
   const [toast, setToast] = useState<AlbumToast | null>(null)
@@ -207,19 +265,48 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
     setVisibility(album?.visibility ?? DEFAULT_GALLERY_ALBUM_VISIBILITY)
     setSelected(intent === 'create' ? (initialMediaIds ?? []) : [])
     setError(null)
+    setNotice(null)
     setTitleError(null)
     setPhotosError(null)
     setCreatedId(null)
+    changedAlbumIdRef.current = null
+    setCoverId(null)
     setPickerCover(null)
     setTab(initialTab)
     setActiveSuggestion(null)
-    setReviewItems(new Map())
+    setKnownItems(
+      new Map((initialItems ?? []).map((item) => [item.mediaId, item]))
+    )
     setToast(null)
     titleEdited.current = false
     // `initialMediaIds` seeds the picker once per opening (the effect runs on
     // open or a new album only): a parent that builds a new array on every
     // render must not reset what was ticked since.
   }, [open, album, initialTab])
+
+  // The host keeps hydrating the seeded photos while the dialog is open
+  // (All media loads them in the background): merge the newly loaded
+  // entities into `knownItems` so the strip and the Cover field show their
+  // real thumbnails. Only ids not known yet are added; entries already
+  // known (picked, ticked or hydrated here) are never dropped.
+  useEffect(() => {
+    if (!open) return
+    setKnownItems((current) => {
+      let changed = false
+      const next = new Map(current)
+      for (const item of initialItems ?? []) {
+        if (next.has(item.mediaId)) continue
+        next.set(item.mediaId, item)
+        changed = true
+      }
+      return changed ? next : current
+    })
+  }, [open, initialItems])
+
+  // The star only names a photo that is still picked.
+  useEffect(() => {
+    if (coverId && !selected.includes(coverId)) setCoverId(null)
+  }, [coverId, selected])
 
   // Once the album exists the form is only a way to open it: edits made after
   // that point would be dropped, so the fields stop taking them.
@@ -235,18 +322,52 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
           0
         )
       : MAX_GALLERY_ALBUM_ITEMS
+  const room = Math.max(capacity - selected.length, 0)
+  // A selection seeded from All media can exceed the cap (the picker itself
+  // never picks past it): the owner removes the overflow from the strip
+  // before the album can be created or added to.
+  const overCapCount = Math.max(selected.length - capacity, 0)
 
-  const coverItem = selected[0]
-    ? (reviewItems.get(selected[0]) ?? pickerCover)
+  // The starred pick: the owner's ★, or the first pick when creating.
+  const starId = coverId ?? (intent === 'create' ? (selected[0] ?? null) : null)
+  const starName = starId
+    ? (knownItems.get(starId)?.subject?.name ?? 'Photo')
     : null
 
+  // The picker's cover is the first pick it has shown: it only stands in
+  // for the starred photo when they are the same photo.
+  const coverItem = starId
+    ? (knownItems.get(starId) ??
+      (pickerCover?.mediaId === starId ? pickerCover : null))
+    : null
+
+  // Add photos opens on the album's dates, as one clearable chip.
+  const pickerInitialFilters = useMemo(() => {
+    if (intent !== 'add' || !album?.firstAt || !album.lastAt) return undefined
+    const from = toUtcDay(album.firstAt)
+    const to = toUtcDay(album.lastAt)
+    if (!from || !to) return undefined
+    return setGalleryFilter(EMPTY_GALLERY_FILTERS, 'date', {
+      kind: 'custom',
+      from,
+      to,
+      label: formatAlbumDatesChipLabel(album.firstAt, album.lastAt)
+    })
+  }, [intent, album])
+
   const handleItemsLoaded = useCallback((items: GalleryItemEntity[]) => {
-    setReviewItems((current) => {
+    setKnownItems((current) => {
       const next = new Map(current)
       for (const item of items) next.set(item.mediaId, item)
       return next
     })
   }, [])
+
+  const handleRemovePick = useCallback((id: string) => {
+    setSelected((current) => current.filter((entry) => entry !== id))
+  }, [])
+
+  const handleClearPicks = useCallback(() => setSelected([]), [])
 
   const handleUseSuggestion = (suggestion: GalleryAlbumSuggestionEntity) => {
     const skip = new Set([
@@ -296,6 +417,7 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
       return
     }
 
+    setNotice(null)
     setTitleError(null)
     setPhotosError(null)
     const trimmedTitle = title.trim()
@@ -309,23 +431,103 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
       setPhotosError('Choose at least one photo.')
       return
     }
+    // The strip's ✕ / Clear brings the selection back within the cap; the
+    // rule line under the strip says by how much.
+    if (overCapCount > 0) return
 
     setError(null)
     setIsSaving(true)
     let albumId = album?.id ?? null
     try {
       if (intent === 'create') {
+        const firstBatch = selected.slice(0, GALLERY_ALBUM_ITEMS_BATCH)
+        const rest = selected.slice(GALLERY_ALBUM_ITEMS_BATCH)
+        const starredInFirstBatch =
+          starId !== null && firstBatch.includes(starId)
         const created = await createGalleryAlbum({
           title: trimmedTitle,
           description: description.trim() || null,
           visibility,
-          mediaIds: selected.slice(0, GALLERY_ALBUM_ITEMS_BATCH),
-          coverMediaId: selected[0]
+          mediaIds: firstBatch,
+          coverMediaId: starredInFirstBatch ? starId : undefined
         })
         albumId = created.album.id
         setCreatedId(created.album.id)
-        const rest = selected.slice(GALLERY_ALBUM_ITEMS_BATCH)
-        if (rest.length > 0) await addGalleryAlbumItems(created.album.id, rest)
+        const starInFirstBatch =
+          starId !== null &&
+          (created.added.includes(starId) || created.existing.includes(starId))
+        let restResult: Awaited<
+          ReturnType<typeof addGalleryAlbumItems>
+        > | null = null
+        if (rest.length > 0) {
+          try {
+            restResult = await addGalleryAlbumItems(created.album.id, rest)
+          } catch (restError) {
+            const starInPartialResult =
+              starId !== null &&
+              restError instanceof GalleryAlbumAddError &&
+              restError.result !== null &&
+              (restError.result.added.includes(starId) ||
+                restError.result.existing.includes(starId))
+            if (starInPartialResult) {
+              try {
+                await updateGalleryAlbum(created.album.id, {
+                  coverMediaId: starId
+                })
+              } catch (coverError) {
+                const message =
+                  coverError instanceof Error
+                    ? coverError.message
+                    : 'Failed to save.'
+                setError(
+                  `The album was created, but not everything was added and the cover wasn’t changed: ${message}`
+                )
+                return
+              }
+            } else if (
+              starId !== null &&
+              !starInFirstBatch &&
+              restError instanceof GalleryAlbumAddError
+            ) {
+              const name = knownItems.get(starId)?.subject?.name ?? 'Photo'
+              setNotice(
+                `The album was created, but ${name} wasn’t added, so the cover is unchanged.`
+              )
+            }
+            throw restError
+          }
+        }
+        if (starId) {
+          const starInRest =
+            restResult !== null &&
+            (restResult.added.includes(starId) ||
+              restResult.existing.includes(starId))
+          if (!starInFirstBatch && !starInRest) {
+            if (coverId !== null) {
+              const name = knownItems.get(starId)?.subject?.name ?? 'Photo'
+              setNotice(
+                `The album was created, but ${name} wasn’t added, so the cover is unchanged.`
+              )
+              return
+            }
+          }
+          if (!starredInFirstBatch && coverId !== null && starInRest) {
+            try {
+              await updateGalleryAlbum(created.album.id, {
+                coverMediaId: starId
+              })
+            } catch (coverError) {
+              const message =
+                coverError instanceof Error
+                  ? coverError.message
+                  : 'Failed to save.'
+              setError(
+                `Added ${pluralize(selected.length, 'photo')}, but the cover wasn’t changed: ${message}`
+              )
+              return
+            }
+          }
+        }
       } else if (intent === 'edit' && album) {
         await updateGalleryAlbum(album.id, {
           title: trimmedTitle,
@@ -333,13 +535,80 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
           visibility
         })
       } else if (album) {
-        await addGalleryAlbumItems(album.id, selected)
+        const result = await addGalleryAlbumItems(album.id, selected)
+        // A retry after a partial batch failure reports the batches that
+        // already made it in as existing: either way the starred photo is in
+        // the album now.
+        const coverInAlbum =
+          coverId !== null &&
+          (result.added.includes(coverId) || result.existing.includes(coverId))
+        if (coverId && coverInAlbum) {
+          try {
+            await updateGalleryAlbum(album.id, { coverMediaId: coverId })
+          } catch (coverError) {
+            const message =
+              coverError instanceof Error
+                ? coverError.message
+                : 'Failed to save.'
+            setCreatedId(album.id)
+            setError(
+              `Added ${pluralize(result.added.length, 'photo')}, but the cover wasn’t changed: ${message}`
+            )
+            return
+          }
+        }
+        if (coverId && !coverInAlbum) {
+          const name = knownItems.get(coverId)?.subject?.name ?? 'Photo'
+          setCreatedId(album.id)
+          setNotice(
+            `Added ${pluralize(result.added.length, 'photo')}, but ${name} wasn’t added, so the cover is unchanged.`
+          )
+          return
+        }
       }
       if (albumId) onSaved(albumId)
       onOpenChange(false)
     } catch (saveError) {
       const message =
         saveError instanceof Error ? saveError.message : 'Failed to save.'
+      if (
+        intent === 'add' &&
+        album &&
+        saveError instanceof GalleryAlbumAddError &&
+        saveError.result !== null
+      ) {
+        if ((saveError.result.added.length ?? 0) > 0) {
+          changedAlbumIdRef.current = album.id
+        }
+        // Reconcile the starred pick against the partial result, like the
+        // create path: a star that made it into the album still becomes the
+        // cover; one that did not leaves the album's cover unchanged, and
+        // the notice says so next to the batch error.
+        if (coverId !== null) {
+          const starInPartialResult =
+            saveError.result.added.includes(coverId) ||
+            saveError.result.existing.includes(coverId)
+          if (starInPartialResult) {
+            try {
+              await updateGalleryAlbum(album.id, { coverMediaId: coverId })
+            } catch (coverError) {
+              const coverMessage =
+                coverError instanceof Error
+                  ? coverError.message
+                  : 'Failed to save.'
+              setError(
+                `Added ${pluralize(saveError.result.added.length, 'photo')}, but the cover wasn’t changed: ${coverMessage}`
+              )
+              return
+            }
+          } else {
+            const name = knownItems.get(coverId)?.subject?.name ?? 'Photo'
+            setNotice(
+              `Added ${pluralize(saveError.result.added.length, 'photo')}, but ${name} wasn’t added, so the cover is unchanged.`
+            )
+          }
+        }
+      }
       setError(
         intent === 'create' && albumId
           ? `The album was created, but not everything was added: ${message}`
@@ -353,7 +622,10 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
   const handleOpenChange = (next: boolean) => {
     if (isSaving) return
     // The album exists already; closing is as good as opening it.
-    if (!next && createdId) onSaved(createdId)
+    if (!next) {
+      const savedId = createdId ?? changedAlbumIdRef.current
+      if (savedId) onSaved(savedId)
+    }
     onOpenChange(next)
   }
 
@@ -377,6 +649,8 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
         capacity={capacity}
         existingIds={existingMediaIds}
         disabled={isLocked}
+        initialFilters={pickerInitialFilters}
+        onItemsLoaded={handleItemsLoaded}
       />
     </>
   )
@@ -514,7 +788,7 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
                     stacked
                     className="p-0"
                     label="Cover"
-                    hint="First selected photo. Change later from the album."
+                    hint="Tap ☆ on a pick to change it"
                   >
                     {({ labelledBy, describedBy }) => (
                       <div
@@ -639,12 +913,32 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
             ) : null}
           </div>
 
+          {showPicker ? (
+            <GalleryAlbumPicksStrip
+              selected={selected}
+              items={knownItems}
+              starId={starId}
+              intent={intent === 'add' ? 'add' : 'create'}
+              room={room}
+              onRemove={handleRemovePick}
+              onSetCover={setCoverId}
+              onClear={handleClearPicks}
+              disabled={isLocked}
+            />
+          ) : null}
+
+          {overCapCount > 0 ? (
+            <p role="alert" className="text-destructive-text text-xs">
+              {`Albums hold up to ${formatCount(MAX_GALLERY_ALBUM_ITEMS)} photos. Remove ${formatCount(overCapCount)} to continue.`}
+            </p>
+          ) : null}
           {photosError ? (
             <p role="alert" className="text-destructive-text text-xs">
               {photosError}
             </p>
           ) : null}
           {error ? <Alert title={error} /> : null}
+          {notice ? <Alert tone="warning" title={notice} /> : null}
 
           {/* This content is `p-4` on phones (`sm:p-6` above), so the separated
               footer's bleed matches each. */}
@@ -655,12 +949,22 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
             {showPicker ? (
               <p
                 className="text-muted-foreground text-sm"
-                aria-live="polite"
                 data-testid="album-selection-count"
               >
-                {intent === 'add'
-                  ? `${formatCount(selected.length)} selected · can add up to ${formatCount(Math.max(capacity - selected.length, 0))} more`
-                  : `${formatCount(selected.length)} selected · max ${formatCount(capacity)} per album`}
+                {intent === 'add' ? (
+                  <>
+                    <span className="hidden sm:inline">
+                      {starId && starName
+                        ? `★ ${starName} becomes the cover`
+                        : ''}
+                    </span>
+                    <span className="sm:hidden">
+                      Room for {formatCount(room)}
+                    </span>
+                  </>
+                ) : (
+                  `${formatCount(selected.length)} selected`
+                )}
               </p>
             ) : (
               <span />
@@ -674,12 +978,26 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
               >
                 {createdId ? 'Close' : 'Cancel'}
               </Button>
-              <Button type="submit" disabled={isSaving}>
-                {createdId
-                  ? 'Open album'
-                  : isSaving
-                    ? 'Saving…'
-                    : SUBMIT_LABELS[intent]}
+              <Button
+                type="submit"
+                disabled={isSaving || (createdId === null && overCapCount > 0)}
+              >
+                {createdId ? (
+                  'Open album'
+                ) : isSaving ? (
+                  'Saving…'
+                ) : intent === 'add' && selected.length > 0 ? (
+                  <>
+                    <span className="hidden sm:inline">
+                      Add {pluralize(selected.length, 'photo')}
+                    </span>
+                    <span className="sm:hidden">
+                      Add {formatCount(selected.length)}
+                    </span>
+                  </>
+                ) : (
+                  SUBMIT_LABELS[intent]
+                )}
               </Button>
             </div>
           </DialogFooter>

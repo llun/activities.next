@@ -1,5 +1,7 @@
-import type { GetGalleryMediaOptions } from '@/lib/client/galleryMedia'
+import type { GalleryMediaQuery } from '@/lib/components/gallery/galleryMediaQuery'
 import type { GalleryMediaSort } from '@/lib/types/database/gallery'
+
+export type { GalleryMediaQuery }
 
 // The filter state of the gallery photo pickers, as pure data (no 'use client':
 // hosts and tests import it freely). `place` and `activity` hold
@@ -12,7 +14,7 @@ export type GalleryDateFilter =
   // 'YYYY-MM'
   | { kind: 'month'; month: string }
   // YYYY-MM-DD, '' = open end
-  | { kind: 'custom'; from: string; to: string }
+  | { kind: 'custom'; from: string; to: string; label?: string }
 
 export type GalleryFilterKey =
   'species' | 'place' | 'date' | 'activity' | 'notInAlbum'
@@ -98,11 +100,6 @@ export const getDateRange = (
       }
   }
 }
-
-export type GalleryMediaQuery = Pick<
-  GetGalleryMediaOptions,
-  'sort' | 'subject' | 'place' | 'takenFrom' | 'takenTo' | 'activityId'
->
 
 /** The media-list options a filter state stands for; `notInAlbum` is the host's. */
 export const toGalleryMediaQuery = (

@@ -95,6 +95,27 @@ describe('gallery media filter state', () => {
         })
       })
     })
+
+    it('ignores a custom range label', () => {
+      const date = {
+        kind: 'custom' as const,
+        from: '2026-03-01',
+        to: '2026-03-09',
+        label: 'Album dates · 1–9 Mar 2026'
+      }
+
+      expect(getDateRange(date, today)).toEqual({
+        takenFrom: '2026-03-01',
+        takenTo: '2026-03-09'
+      })
+      expect(
+        toGalleryMediaQuery({ ...EMPTY_GALLERY_FILTERS, date }, today)
+      ).toEqual({
+        sort: 'taken_desc',
+        takenFrom: '2026-03-01',
+        takenTo: '2026-03-09'
+      })
+    })
   })
 
   describe('toGalleryMediaQuery', () => {

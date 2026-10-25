@@ -1277,5 +1277,74 @@ describe('gallery media filters and ordering', () => {
       expect(m2).toBeDefined()
       expect(m3).toBeDefined()
     })
+
+    it('counts only the rows the day key bounds, and nothing for an unparsable key', async () => {
+      const actorId = await newActor()
+      const statusId = await createPublicNote(actorId)
+
+      const day1 = await seedMedia(actorId, {
+        takenAt: new Date(Date.UTC(2025, 9, 4, 9))
+      })
+      await seedAttachment(day1, statusId, actorId)
+      const day2 = await seedMedia(actorId, {
+        takenAt: new Date(Date.UTC(2025, 9, 5, 9))
+      })
+      await seedAttachment(day2, statusId, actorId)
+      // Dateless: grouped by its upload day under sort=uploaded.
+      const undated = await seedMedia(actorId, {
+        createdAt: new Date(Date.UTC(2025, 9, 6))
+      })
+      await seedAttachment(undated, statusId, actorId)
+
+      const albumResult = await database.createGalleryAlbumWithinLimit({
+        actorId,
+        title: 'Day Album',
+        limit: 10,
+        mediaIds: [day1, day2]
+      })
+      expect(albumResult.status).toBe('created')
+      const albumId =
+        albumResult.status === 'created' ? albumResult.album.id : ''
+
+      // Without a day key the count covers every row.
+      const countAll = await database.countGalleryMedia({
+        actorId,
+        audience: OWNER_GALLERY_AUDIENCE,
+        sort: 'taken_desc',
+        albumId
+      })
+      expect(countAll).toEqual({ total: 3, inAlbum: 2 })
+
+      // A dated key under a date sort counts that camera day alone, and the
+      // album count inside it is day-bound too.
+      const countDay = await database.countGalleryMedia({
+        actorId,
+        audience: OWNER_GALLERY_AUDIENCE,
+        sort: 'taken_desc',
+        dayKey: '2025-10-04',
+        albumId
+      })
+      expect(countDay).toEqual({ total: 1, inAlbum: 1 })
+
+      // An uploaded key under sort=uploaded counts the dateless uploads of
+      // that upload day.
+      const countUploaded = await database.countGalleryMedia({
+        actorId,
+        audience: OWNER_GALLERY_AUDIENCE,
+        sort: 'uploaded',
+        dayKey: 'uploaded:2025-10-06'
+      })
+      expect(countUploaded).toEqual({ total: 1, inAlbum: null })
+
+      // An unparsable key counts the nothing the list reads for it.
+      const countBadKey = await database.countGalleryMedia({
+        actorId,
+        audience: OWNER_GALLERY_AUDIENCE,
+        sort: 'taken_desc',
+        dayKey: 'not-a-day',
+        albumId
+      })
+      expect(countBadKey).toEqual({ total: 0, inAlbum: 0 })
+    })
   })
 })

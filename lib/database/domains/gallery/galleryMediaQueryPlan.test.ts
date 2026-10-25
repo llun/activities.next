@@ -158,6 +158,81 @@ describe('gallery statements on SQLite', () => {
       await destroy()
     }
   })
+
+  it('uses medias_actorId_sortAt_id_idx for the date-sort day stats read', async () => {
+    const { database, db, captureQueries, destroy } = createTestDatabase({
+      backend: 'sqlite'
+    })
+    try {
+      await database.migrate()
+
+      const statements = await captureQueries(async () => {
+        await database.getGalleryDayStats({
+          actorId: 'actor',
+          audience: OWNER_GALLERY_AUDIENCE,
+          sort: 'taken_desc',
+          fromDay: '2025-10-01',
+          toDay: '2025-10-04'
+        })
+      })
+
+      // The places read bounds sortAt directly; the activities read reaches
+      // medias through the attachments join instead.
+      const bounded = statements.filter(
+        (statement) =>
+          statement.sql.includes('from "medias"') &&
+          statement.sql.includes('"sortAt" >=')
+      )
+      expect(bounded).toHaveLength(1)
+      for (const statement of bounded) {
+        const plan = await db.executeQuery<{ detail: string }>(
+          CompiledQuery.raw(
+            `explain query plan ${statement.sql}`,
+            statement.bindings
+          )
+        )
+        expect(plan.rows.map((row) => row.detail).join('\n')).toContain(
+          'medias_actorId_sortAt_id_idx'
+        )
+      }
+    } finally {
+      await destroy()
+    }
+  })
+
+  it('uses medias_actorId_sortAt_id_idx for dated day-key ids', async () => {
+    const { database, db, captureQueries, destroy } = createTestDatabase({
+      backend: 'sqlite'
+    })
+    try {
+      await database.migrate()
+
+      const statements = await captureQueries(async () => {
+        await database.getGalleryMediaIds({
+          actorId: 'actor',
+          audience: OWNER_GALLERY_AUDIENCE,
+          sort: 'taken_desc',
+          dayKey: '2025-10-04',
+          limit: 2000
+        })
+      })
+      const query = statements.find(
+        (statement) =>
+          statement.sql.includes('from "medias"') &&
+          statement.sql.includes('"sortAt" >=')
+      )
+      expect(query).toBeDefined()
+
+      const plan = await db.executeQuery<{ detail: string }>(
+        CompiledQuery.raw(`explain query plan ${query!.sql}`, query!.bindings)
+      )
+      expect(plan.rows.map((row) => row.detail).join('\n')).toContain(
+        'medias_actorId_sortAt_id_idx'
+      )
+    } finally {
+      await destroy()
+    }
+  })
 })
 
 // `attachments.mediaId` holds the media row's integer id, however the caller

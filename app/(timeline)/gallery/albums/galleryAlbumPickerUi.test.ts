@@ -5,6 +5,7 @@ import {
   getPickerCaption,
   getPickerPlaceNames,
   getPickerSubjectNames,
+  getPickerTileDate,
   scrollToResultsStart
 } from '@/app/(timeline)/gallery/albums/galleryAlbumPickerUi'
 import { buildGalleryItem } from '@/lib/components/gallery/__fixtures__/galleryItems'
@@ -181,12 +182,28 @@ describe('getPickerCaption', () => {
     expect(getPickerCaption(item)).toBe('Common kingfisher · 12 Sep 2026')
   })
 
+  it('returns species only when date is false', () => {
+    const item = buildGalleryItem('1', {
+      subject: { name: 'Common kingfisher' } as never,
+      takenAt: '2026-09-12T10:00:00Z'
+    })
+    expect(getPickerCaption(item, { date: false })).toBe('Common kingfisher')
+  })
+
   it('returns date only without a species', () => {
     const item = buildGalleryItem('1', {
       subject: null,
       takenAt: '2026-09-12T10:00:00Z'
     })
     expect(getPickerCaption(item)).toBe('12 Sep 2026')
+  })
+
+  it('returns empty string without species when date is false', () => {
+    const item = buildGalleryItem('1', {
+      subject: null,
+      takenAt: '2026-09-12T10:00:00Z'
+    })
+    expect(getPickerCaption(item, { date: false })).toBe('')
   })
 
   it('falls back to uploadedAt when takenAt is missing', () => {
@@ -216,6 +233,45 @@ describe('getPickerCaption', () => {
       uploadedAt: null
     })
     expect(getPickerCaption(item)).toBe('')
+  })
+})
+
+describe('getPickerTileDate', () => {
+  it('returns "taken <date>" when takenAt is present', () => {
+    const item = buildGalleryItem('1', {
+      takenAt: '2026-09-12T10:00:00Z'
+    })
+    expect(getPickerTileDate(item)).toBe('taken 12 Sep 2026')
+  })
+
+  it('returns "uploaded <date>" when takenAt is missing and uploadedAt is present', () => {
+    const item = buildGalleryItem('1', {
+      takenAt: null,
+      uploadedAt: '2025-10-03T10:00:00Z'
+    })
+    expect(getPickerTileDate(item)).toBe('uploaded 3 Oct 2025')
+  })
+
+  it('prefers takenAt over uploadedAt', () => {
+    const item = buildGalleryItem('1', {
+      takenAt: '2026-09-12T10:00:00Z',
+      uploadedAt: '2025-10-03T10:00:00Z'
+    })
+    expect(getPickerTileDate(item)).toBe('taken 12 Sep 2026')
+  })
+
+  it('returns empty string when neither date is present or parses', () => {
+    const noDates = buildGalleryItem('1', {
+      takenAt: null,
+      uploadedAt: null
+    })
+    expect(getPickerTileDate(noDates)).toBe('')
+
+    const invalidDate = buildGalleryItem('2', {
+      takenAt: 'invalid-date',
+      uploadedAt: null
+    })
+    expect(getPickerTileDate(invalidDate)).toBe('')
   })
 })
 

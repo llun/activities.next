@@ -17,7 +17,8 @@ import {
   deleteUnpostedMedia,
   getGalleryAlbumMembership,
   getGalleryMedia,
-  getGalleryMediaFacets
+  getGalleryMediaFacets,
+  getGalleryMediaIds
 } from '@/lib/client'
 import { buildAlbumCard } from '@/lib/components/gallery/__fixtures__/galleryAlbums'
 import { buildGalleryItem } from '@/lib/components/gallery/__fixtures__/galleryItems'
@@ -25,6 +26,8 @@ import type { GalleryMediaFilterBarProps } from '@/lib/components/gallery/filter
 import type { GalleryMediaFilterEmptyProps } from '@/lib/components/gallery/filters/GalleryMediaFilterEmpty'
 import { EMPTY_GALLERY_FILTERS } from '@/lib/components/gallery/filters/galleryMediaFilterState'
 import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
+import type { GalleryMediaPage } from '@/lib/services/gallery/galleryEntities'
+import { createDeferred } from '@/lib/testing/deferred'
 import { GALLERY_ALBUM_FULL_MESSAGE } from '@/lib/types/database/galleryAlbums'
 
 import { GalleryAllMediaView } from './GalleryAllMediaView'
@@ -45,7 +48,8 @@ vi.mock('@/lib/client', async () => {
     getGalleryAlbumMembership: vi.fn(),
     GalleryAlbumAddError: albums.GalleryAlbumAddError,
     getGalleryMediaFacets: vi.fn(),
-    countGalleryMedia: vi.fn()
+    countGalleryMedia: vi.fn(),
+    getGalleryMediaIds: vi.fn()
   }
 })
 
@@ -77,6 +81,22 @@ vi.mock('@/lib/components/gallery/filters/GalleryMediaFilterBar', () => ({
           }
         >
           Filter lions
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            props.onChange({
+              species: 'sci:fratercula arctica',
+              place: null,
+              date: null,
+              activity: null,
+              notInAlbum: false,
+              sort: 'uploaded',
+              order: ['species']
+            })
+          }
+        >
+          Filter puffins and sort uploaded
         </button>
       </div>
     )
@@ -174,32 +194,75 @@ vi.mock('@/lib/components/gallery/GalleryEditDetailsDialog', () => ({
 vi.mock('@/lib/components/gallery/GalleryGrid', () => ({
   GalleryGrid: ({
     items,
+    groups,
     selection,
     onAlbumsChanged
   }: {
     items: { mediaId: string }[]
+    groups?: {
+      key: string
+      header: React.ReactNode
+      items: { mediaId: string }[]
+    }[]
     selection?: {
       selected: ReadonlySet<string>
-      onToggle: (item: { mediaId: string }) => void
+      onToggle: (
+        item: { mediaId: string },
+        modifiers?: { shiftKey: boolean }
+      ) => void
+      anchorId?: string | null
     }
     onAlbumsChanged?: (albumIds: string[]) => void
   }) => (
-    <ul data-testid="grid" data-selecting={selection ? 'yes' : 'no'}>
-      {items.map((item) => (
-        <li key={item.mediaId}>
-          {selection ? (
-            <button
-              type="button"
-              aria-pressed={selection.selected.has(item.mediaId)}
-              onClick={() => selection.onToggle(item)}
-            >
-              Select {item.mediaId}
-            </button>
-          ) : (
-            item.mediaId
-          )}
-        </li>
-      ))}
+    <div data-testid="grid" data-selecting={selection ? 'yes' : 'no'}>
+      {groups
+        ? groups.map((group) => (
+            <section key={group.key}>
+              {group.header}
+              <ul data-testid="grid-tiles">
+                {group.items.map((item) => (
+                  <li key={item.mediaId}>
+                    {selection ? (
+                      <button
+                        type="button"
+                        aria-pressed={selection.selected.has(item.mediaId)}
+                        onClick={() => selection.onToggle(item)}
+                      >
+                        Select {item.mediaId}
+                      </button>
+                    ) : (
+                      item.mediaId
+                    )}
+                    {selection ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          selection.onToggle(item, { shiftKey: true })
+                        }
+                      >
+                        Shift-select {item.mediaId}
+                      </button>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))
+        : items.map((item) => (
+            <li key={item.mediaId}>
+              {selection ? (
+                <button
+                  type="button"
+                  aria-pressed={selection.selected.has(item.mediaId)}
+                  onClick={() => selection.onToggle(item)}
+                >
+                  Select {item.mediaId}
+                </button>
+              ) : (
+                item.mediaId
+              )}
+            </li>
+          ))}
       <button type="button" onClick={() => onAlbumsChanged?.(['album-1'])}>
         Change albums
       </button>
@@ -211,15 +274,23 @@ vi.mock('@/lib/components/gallery/GalleryGrid', () => ({
           Select missing
         </button>
       ) : null}
-    </ul>
+    </div>
   )
 }))
 
 const getGalleryMediaMock = getGalleryMedia as jest.Mock
+const getGalleryMediaIdsMock = getGalleryMediaIds as jest.Mock
 const deleteUnpostedMediaMock = deleteUnpostedMedia as jest.Mock
 const getGalleryAlbumMembershipMock = getGalleryAlbumMembership as jest.Mock
 const getGalleryMediaFacetsMock = getGalleryMediaFacets as jest.Mock
 const countGalleryMediaMock = countGalleryMedia as jest.Mock
+
+// The text of the tiles alone, without the day headers the grid now renders.
+const gridTileText = () =>
+  screen
+    .getAllByTestId('grid-tiles')
+    .map((list) => list.textContent ?? '')
+    .join('')
 
 describe('GalleryAllMediaView', () => {
   beforeEach(() => {
@@ -238,6 +309,7 @@ describe('GalleryAllMediaView', () => {
     })
     countGalleryMediaMock.mockReset()
     countGalleryMediaMock.mockResolvedValue(0)
+    getGalleryMediaIdsMock.mockReset()
     fetchMock.resetMocks()
     formDialog.current = null
     editDialog.current = null
@@ -296,10 +368,11 @@ describe('GalleryAllMediaView', () => {
     await waitFor(() =>
       expect(screen.getByTestId('grid')).toHaveTextContent('8')
     )
-    expect(screen.getByTestId('grid')).not.toHaveTextContent('5')
+    expect(gridTileText()).not.toContain('5')
     expect(getGalleryMediaMock).toHaveBeenCalledWith('actor-1', {
       limit: 24,
       includeTotal: true,
+      includeDays: true,
       maxId: undefined,
       subject: undefined,
       category: 'mammal',
@@ -510,6 +583,7 @@ describe('GalleryAllMediaView', () => {
         expect(getGalleryMediaMock).toHaveBeenCalledWith('actor-1', {
           limit: 24,
           includeTotal: true,
+          includeDays: true,
           maxId: undefined,
           subject: undefined,
           category: 'bird',
@@ -1367,6 +1441,8 @@ describe('GalleryAllMediaView', () => {
       })
 
       it('removes the pick when a photo is deleted', async () => {
+        // The delete refreshes the deleted photo's day stats.
+        getGalleryMediaMock.mockResolvedValue({ items: [], nextMaxId: null })
         renderMixed()
         startSelecting()
         pick('1', '4')
@@ -1514,7 +1590,7 @@ describe('GalleryAllMediaView', () => {
         ).not.toBeInTheDocument()
       })
 
-      it('turns Post and Delete off when some selected ids are missing from seen items', () => {
+      it('keeps item actions off when a selected id has no entity', async () => {
         renderMixed()
         pickPhotos('1')
         expect(
@@ -1523,16 +1599,27 @@ describe('GalleryAllMediaView', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Select missing' }))
 
-        expect(bar()).toHaveTextContent('Only photos you haven’t posted')
+        expect(bar()).toHaveTextContent(
+          "Some selected photos couldn't be loaded"
+        )
         for (const name of ['Post', 'Delete']) {
-          const button = within(bar()).getByRole('button', { name })
-          expect(button).toHaveAttribute('aria-disabled', 'true')
-          fireEvent.click(button)
+          const action = within(bar()).getByRole('button', { name })
+          expect(action).toHaveAttribute('aria-disabled', 'true')
+          expect(
+            document.getElementById(action.getAttribute('aria-describedby')!)
+          ).toHaveTextContent("Some selected photos couldn't be loaded")
+          fireEvent.click(action)
         }
         expect(router.push).not.toHaveBeenCalled()
         expect(
           screen.queryByRole('dialog', { name: /^Delete/ })
         ).not.toBeInTheDocument()
+        expect(
+          within(bar()).getByRole('button', { name: 'Add to album' })
+        ).not.toHaveAttribute('aria-disabled')
+        expect(
+          within(bar()).getByRole('button', { name: 'Retry loading' })
+        ).toBeInTheDocument()
       })
 
       it('turns Post off above the instance limit, and says it', () => {
@@ -1552,6 +1639,8 @@ describe('GalleryAllMediaView', () => {
 
       it('asks before deleting, then removes the photos', async () => {
         deleteUnpostedMediaMock.mockResolvedValue(undefined)
+        // The delete refreshes the deleted photos' day stats.
+        getGalleryMediaMock.mockResolvedValue({ items: [], nextMaxId: null })
         renderMixed()
         pickPhotos('1', '2')
 
@@ -1573,7 +1662,7 @@ describe('GalleryAllMediaView', () => {
           ])
         )
         expect(await screen.findByText('Deleted 2 photos.')).toBeVisible()
-        expect(screen.getByTestId('grid')).not.toHaveTextContent(/[12]/)
+        expect(gridTileText()).not.toMatch(/[12]/)
         expect(screen.getByTestId('grid')).toHaveTextContent('3')
         // Select mode is over, with focus back on Select.
         expect(
@@ -1618,6 +1707,8 @@ describe('GalleryAllMediaView', () => {
       })
 
       it('hands Post and Delete from Edit details to the page', async () => {
+        // The delete refreshes the deleted photo's day stats.
+        getGalleryMediaMock.mockResolvedValue({ items: [], nextMaxId: null })
         renderMixed()
         pickPhotos('1')
         fireEvent.click(
@@ -1630,7 +1721,7 @@ describe('GalleryAllMediaView', () => {
 
         await act(async () => editDialog.current?.onDeleted?.(['1']))
         expect(await screen.findByText('Deleted 1 photo.')).toBeVisible()
-        expect(screen.getByTestId('grid')).not.toHaveTextContent('1')
+        expect(gridTileText()).not.toContain('1')
       })
     })
 
@@ -1678,6 +1769,939 @@ describe('GalleryAllMediaView', () => {
 
       await waitFor(() =>
         expect(screen.queryByText(/Added 1 photo/)).not.toBeInTheDocument()
+      )
+    })
+  })
+
+  describe('day headers and Select day', () => {
+    const dayPhotos = () => [
+      buildGalleryItem('1', { takenAt: '2025-10-04T09:30:00.000Z' }),
+      buildGalleryItem('2', { takenAt: '2025-10-04T10:30:00.000Z' }),
+      buildGalleryItem('3', { takenAt: '2025-10-03T09:30:00.000Z' })
+    ]
+    const dayStats = (count: number, placeName: string | null = null) => ({
+      count,
+      placeName,
+      activity: null
+    })
+    const renderGrouped = (
+      days: Record<string, ReturnType<typeof dayStats>> = {
+        '2025-10-04': dayStats(2, 'Box Hill, Surrey'),
+        '2025-10-03': dayStats(1)
+      }
+    ) =>
+      render(
+        <GalleryAllMediaView
+          actorId="actor-1"
+          initialCategory={null}
+          initialShow="all"
+          initialPage={{ items: dayPhotos(), nextMaxId: null, days }}
+        />
+      )
+    const bar = () => screen.getByRole('region', { name: 'Selection' })
+    const startSelecting = () =>
+      fireEvent.click(screen.getByRole('button', { name: 'Select' }))
+    const uploadPhoto = (id: string) =>
+      buildGalleryItem(id, {
+        takenAt: null,
+        uploadedAt: '2025-10-04T10:00:00.000Z',
+        attachment: {
+          ...buildGalleryItem(id).attachment,
+          createdAt: new Date('2025-10-04T10:00:00.000Z').getTime()
+        }
+      })
+
+    it('groups the photos under day headers carrying the server counts', () => {
+      renderGrouped({
+        // A half-loaded day shows its full count, not the loaded one.
+        '2025-10-04': dayStats(14, 'Box Hill, Surrey'),
+        '2025-10-03': dayStats(1)
+      })
+
+      expect(
+        screen.getByRole('heading', { name: /Sat 4 Oct 2025/ })
+      ).toBeInTheDocument()
+      expect(
+        screen.getByRole('heading', { name: /Fri 3 Oct 2025/ })
+      ).toBeInTheDocument()
+      expect(
+        screen.getByText('Box Hill, Surrey · 14 photos')
+      ).toBeInTheDocument()
+      expect(screen.getByText('1 photo')).toBeInTheDocument()
+      // Out of Select mode the headers carry no Select day button.
+      expect(
+        screen.queryByRole('button', { name: /Select day/ })
+      ).not.toBeInTheDocument()
+    })
+
+    it('does not re-note old items when sort and species change while selecting', async () => {
+      const oldPhoto = buildGalleryItem('1', {
+        takenAt: '2025-10-04T09:30:00.000Z',
+        uploadedAt: '2025-10-04T10:00:00.000Z',
+        attachment: {
+          ...buildGalleryItem('1').attachment,
+          createdAt: new Date('2025-10-04T10:00:00.000Z').getTime()
+        }
+      })
+      getGalleryMediaMock.mockResolvedValueOnce({
+        items: [uploadPhoto('2')],
+        days: { 'uploaded:2025-10-04': dayStats(1) },
+        nextMaxId: null,
+        nextCursor: null
+      })
+      render(
+        <GalleryAllMediaView
+          actorId="actor-1"
+          initialCategory={null}
+          initialShow="all"
+          initialPage={{
+            items: [oldPhoto],
+            days: { '2025-10-04': dayStats(1) },
+            nextMaxId: null
+          }}
+        />
+      )
+      startSelecting()
+      fireEvent.click(screen.getByRole('button', { name: 'Select 1' }))
+
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: 'Filter puffins and sort uploaded'
+        })
+      )
+
+      const dayButton = await screen.findByRole('button', {
+        name: 'Select day, Uploaded Sat 4 Oct 2025'
+      })
+      expect(dayButton).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', {
+          name: 'Deselect day, Uploaded Sat 4 Oct 2025'
+        })
+      ).not.toBeInTheDocument()
+    })
+
+    it('counts a hand pick in the day header after Select mode starts', () => {
+      renderGrouped()
+      startSelecting()
+
+      // Select mode is a resetKey change that clears the learned days
+      // without reloading the grid: the loaded tiles are re-noted, so the
+      // header counts the pick.
+      fireEvent.click(screen.getByRole('button', { name: 'Select 1' }))
+
+      expect(
+        screen.getByText('Box Hill, Surrey · 2 photos · 1 picked')
+      ).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'Select 1 more, Sat 4 Oct 2025' })
+      ).toBeInTheDocument()
+    })
+
+    it('selects a whole day from its header, with a toast and Undo', async () => {
+      getGalleryMediaIdsMock.mockResolvedValue(['1', '2'])
+      renderGrouped()
+      startSelecting()
+
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Select day, Sat 4 Oct 2025' })
+      )
+
+      await waitFor(() => expect(bar()).toHaveTextContent('2 selected'))
+      expect(getGalleryMediaIdsMock).toHaveBeenCalledWith(
+        'actor-1',
+        expect.objectContaining({
+          dayKey: '2025-10-04',
+          limit: 2000,
+          offset: 0,
+          show: 'all',
+          sort: 'taken_desc'
+        })
+      )
+      expect(screen.getByTestId('album-toast')).toHaveTextContent(
+        'Selected 2 photos from Sat 4 Oct 2025'
+      )
+      expect(screen.getByTestId('day-undo-toast-container')).toHaveClass(
+        'pointer-events-none'
+      )
+      const stack = screen.getByTestId('day-selection-stack')
+      expect(stack).toHaveClass('sticky')
+      expect(stack).toContainElement(bar())
+      expect(
+        screen.getByTestId('day-selection-feedback').nextElementSibling
+      ).toBe(bar())
+      expect(screen.getByTestId('added-announcement')).toHaveTextContent(
+        'Selected 2 photos'
+      )
+
+      fireEvent.click(
+        within(screen.getByTestId('album-toast')).getByRole('button', {
+          name: 'Undo'
+        })
+      )
+      expect(bar()).toHaveTextContent('0 selected')
+    })
+
+    it('keeps Select day feedback in one sticky stack directly above the selection bar', async () => {
+      getGalleryMediaIdsMock
+        .mockResolvedValueOnce(['1', '2'])
+        .mockRejectedValueOnce(new Error('Day fetch failed'))
+      renderGrouped()
+      startSelecting()
+
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Select day, Sat 4 Oct 2025' })
+      )
+      await screen.findByTestId('album-toast')
+
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Select day, Fri 3 Oct 2025' })
+      )
+      await screen.findByRole('alert')
+
+      const stack = screen.getByTestId('day-selection-stack')
+      const feedback = screen.getByTestId('day-selection-feedback')
+      expect(stack).toHaveClass('sticky')
+      expect(feedback).toContainElement(screen.getByTestId('album-toast'))
+      expect(feedback).toContainElement(screen.getByRole('alert'))
+      expect(stack).toContainElement(bar())
+      expect(feedback.nextElementSibling).toBe(bar())
+    })
+
+    it('hydrates unloaded Select day photos for Edit details and new albums', async () => {
+      const dayItems = [
+        buildGalleryItem('1', { takenAt: '2025-10-04T09:30:00.000Z' }),
+        buildGalleryItem('2', { takenAt: '2025-10-04T10:30:00.000Z' })
+      ]
+      getGalleryMediaIdsMock.mockResolvedValueOnce(['1', '2', '4', '5'])
+      getGalleryMediaMock
+        .mockResolvedValueOnce({
+          items: [
+            buildGalleryItem('4', { takenAt: '2025-10-04T11:30:00.000Z' })
+          ],
+          nextCursor: 'day-page-2',
+          nextMaxId: null
+        })
+        .mockResolvedValueOnce({
+          items: [
+            buildGalleryItem('5', { takenAt: '2025-10-04T12:30:00.000Z' })
+          ],
+          nextCursor: null,
+          nextMaxId: null
+        })
+
+      render(
+        <GalleryAllMediaView
+          actorId="actor-1"
+          initialCategory={null}
+          initialShow="all"
+          initialPage={{
+            items: dayItems,
+            nextMaxId: null,
+            days: { '2025-10-04': dayStats(4) }
+          }}
+        />
+      )
+      startSelecting()
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Select day, Sat 4 Oct 2025' })
+      )
+
+      await waitFor(() => expect(bar()).toHaveTextContent('4 selected'))
+      await waitFor(() => expect(getGalleryMediaMock).toHaveBeenCalledTimes(2))
+      expect(getGalleryMediaMock).toHaveBeenNthCalledWith(
+        1,
+        'actor-1',
+        expect.objectContaining({
+          dayKey: '2025-10-04',
+          limit: 60
+        })
+      )
+      expect(getGalleryMediaMock).toHaveBeenNthCalledWith(
+        2,
+        'actor-1',
+        expect.objectContaining({ cursor: 'day-page-2' })
+      )
+
+      fireEvent.click(
+        within(bar()).getByRole('button', { name: 'Edit details' })
+      )
+      await screen.findByRole('dialog', { name: 'Edit details' })
+      expect(editDialog.current?.items.map((item) => item.mediaId)).toEqual([
+        '1',
+        '2',
+        '4',
+        '5'
+      ])
+      await act(async () => editDialog.current?.onClose())
+
+      fireEvent.click(
+        within(bar()).getByRole('button', { name: 'Add to album' })
+      )
+      fireEvent.click(
+        await screen.findByRole('button', {
+          name: 'New album with these photos'
+        })
+      )
+      expect(formDialog.current?.initialMediaIds).toEqual(['1', '2', '4', '5'])
+      expect(
+        formDialog.current?.initialItems?.map((item) => item.mediaId)
+      ).toEqual(['1', '2', '4', '5'])
+    })
+
+    const selectPartiallyHydratedDay = async () => {
+      getGalleryMediaIdsMock.mockResolvedValueOnce(['1', '2', '4', '5'])
+      getGalleryMediaMock.mockResolvedValueOnce({
+        items: [buildGalleryItem('4', { takenAt: '2025-10-04T11:30:00.000Z' })],
+        nextCursor: null,
+        nextMaxId: null
+      })
+      render(
+        <GalleryAllMediaView
+          actorId="actor-1"
+          initialCategory={null}
+          initialShow="all"
+          initialPage={{
+            items: dayPhotos().slice(0, 2),
+            nextMaxId: null,
+            days: { '2025-10-04': dayStats(4, 'Box Hill, Surrey') }
+          }}
+        />
+      )
+      startSelecting()
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Select day, Sat 4 Oct 2025' })
+      )
+      await waitFor(() =>
+        expect(bar()).toHaveTextContent(
+          "Some selected photos couldn't be loaded"
+        )
+      )
+    }
+
+    const answerAlbumAdd = () => {
+      const albums = [buildAlbumCard('a1', { title: 'Kruger', itemCount: 4 })]
+      fetchMock.mockResponse(async (request) => {
+        if (request.method === 'GET') {
+          return JSON.stringify({ albums, photoCount: 5 })
+        }
+        const body = (await request.json()) as { media_ids: string[] }
+        return {
+          body: JSON.stringify({
+            added: body.media_ids,
+            existing: [],
+            skipped: [],
+            album: albums[0]
+          })
+        }
+      })
+    }
+
+    it('adds every selected id to an album when some selected photos are still unloaded', async () => {
+      answerAlbumAdd()
+      await selectPartiallyHydratedDay()
+
+      expect(bar()).toHaveTextContent('4 selected')
+      expect(bar()).toHaveTextContent("Some selected photos couldn't be loaded")
+      for (const name of ['Edit details', 'Post', 'Delete']) {
+        expect(within(bar()).getByRole('button', { name })).toHaveAttribute(
+          'aria-disabled',
+          'true'
+        )
+      }
+      expect(
+        within(bar()).getByRole('button', { name: 'Add to album' })
+      ).not.toHaveAttribute('aria-disabled')
+
+      fireEvent.click(
+        within(bar()).getByRole('button', { name: 'Add to album' })
+      )
+      fireEvent.click(await screen.findByRole('radio', { name: /^Kruger/ }))
+      fireEvent.click(screen.getByRole('button', { name: 'Add 4 photos' }))
+      await screen.findByText(/Added 4 photos to “Kruger”/)
+
+      const posts = fetchMock.mock.calls.filter(
+        ([, init]) => init?.method === 'POST'
+      )
+      expect(JSON.parse(String(posts[0][1]?.body))).toEqual({
+        media_ids: ['1', '2', '4', '5']
+      })
+    })
+
+    it('passes every selected id to New album when some selected photos are unloaded', async () => {
+      answerAlbumAdd()
+      await selectPartiallyHydratedDay()
+
+      fireEvent.click(
+        within(bar()).getByRole('button', { name: 'Add to album' })
+      )
+      fireEvent.click(
+        await screen.findByRole('button', {
+          name: 'New album with these photos'
+        })
+      )
+
+      expect(formDialog.current?.initialMediaIds).toEqual(['1', '2', '4', '5'])
+      expect(
+        formDialog.current?.initialItems?.map((item) => item.mediaId)
+      ).toEqual(['1', '2', '4'])
+    })
+
+    it('retries hydration for the remaining selected ids in their day', async () => {
+      getGalleryMediaIdsMock.mockResolvedValueOnce(['1', '2', '4', '5'])
+      getGalleryMediaMock
+        .mockResolvedValueOnce({
+          items: [
+            buildGalleryItem('4', { takenAt: '2025-10-04T11:30:00.000Z' })
+          ],
+          nextCursor: null,
+          nextMaxId: null
+        })
+        .mockResolvedValueOnce({
+          items: [
+            buildGalleryItem('5', { takenAt: '2025-10-04T12:30:00.000Z' })
+          ],
+          nextCursor: null,
+          nextMaxId: null
+        })
+      render(
+        <GalleryAllMediaView
+          actorId="actor-1"
+          initialCategory={null}
+          initialShow="all"
+          initialPage={{
+            items: dayPhotos().slice(0, 2),
+            nextMaxId: null,
+            days: { '2025-10-04': dayStats(4, 'Box Hill, Surrey') }
+          }}
+        />
+      )
+      startSelecting()
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Select day, Sat 4 Oct 2025' })
+      )
+      await waitFor(() =>
+        expect(bar()).toHaveTextContent(
+          "Some selected photos couldn't be loaded"
+        )
+      )
+
+      fireEvent.click(
+        within(bar()).getByRole('button', { name: 'Retry loading' })
+      )
+
+      await waitFor(() =>
+        expect(bar()).not.toHaveTextContent(
+          "Some selected photos couldn't be loaded"
+        )
+      )
+      expect(getGalleryMediaMock).toHaveBeenNthCalledWith(
+        2,
+        'actor-1',
+        expect.objectContaining({ dayKey: '2025-10-04' })
+      )
+      expect(
+        within(bar()).getByRole('button', { name: 'Edit details' })
+      ).not.toHaveAttribute('aria-disabled')
+    })
+
+    it('hydrates a Retry loading with the sort the pick was selected under', async () => {
+      getGalleryMediaIdsMock.mockResolvedValueOnce(['1', '2', '4', '5'])
+      getGalleryMediaMock
+        .mockResolvedValueOnce({
+          items: [
+            buildGalleryItem('4', { takenAt: '2025-10-04T11:30:00.000Z' })
+          ],
+          nextCursor: null,
+          nextMaxId: null
+        })
+        .mockResolvedValue({
+          items: [],
+          nextCursor: null,
+          nextMaxId: null
+        })
+      render(
+        <GalleryAllMediaView
+          actorId="actor-1"
+          initialCategory={null}
+          initialShow="all"
+          initialPage={{
+            items: dayPhotos().slice(0, 2),
+            nextMaxId: null,
+            days: { '2025-10-04': dayStats(4, 'Box Hill, Surrey') }
+          }}
+        />
+      )
+      startSelecting()
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Select day, Sat 4 Oct 2025' })
+      )
+      await waitFor(() =>
+        expect(bar()).toHaveTextContent(
+          "Some selected photos couldn't be loaded"
+        )
+      )
+
+      // The owner switches to Recently uploaded; the pick keeps its dated
+      // day key, so the retry must hydrate with the sort it was selected
+      // under, never the new sort with the old key.
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Filter puffins and sort uploaded' })
+      )
+      await waitFor(() =>
+        expect(bar()).toHaveTextContent(
+          "Some selected photos couldn't be loaded"
+        )
+      )
+
+      fireEvent.click(
+        within(bar()).getByRole('button', { name: 'Retry loading' })
+      )
+
+      await waitFor(() =>
+        expect(getGalleryMediaMock).toHaveBeenLastCalledWith(
+          'actor-1',
+          expect.objectContaining({
+            sort: 'taken_desc',
+            dayKey: '2025-10-04'
+          })
+        )
+      )
+    })
+
+    it('hydrates a Retry loading with the query the pick was selected under', async () => {
+      getGalleryMediaIdsMock.mockResolvedValueOnce(['1', '2', '4', '5'])
+      getGalleryMediaMock.mockImplementation(async (_actorId, options) => {
+        // The day's hydration pages never find the missing picks and
+        // always offer another page, so the read stops at the 50-page
+        // bound and saves its cursor.
+        if (options?.dayKey) {
+          return {
+            items: [],
+            nextCursor: 'day-page-next',
+            nextMaxId: null
+          }
+        }
+        return {
+          items: dayPhotos(),
+          days: {
+            '2025-10-04': dayStats(4, 'Box Hill, Surrey'),
+            '2025-10-03': dayStats(1)
+          },
+          nextCursor: null,
+          nextMaxId: null
+        }
+      })
+      renderGrouped({
+        '2025-10-04': dayStats(4, 'Box Hill, Surrey'),
+        '2025-10-03': dayStats(1)
+      })
+      startSelecting()
+
+      // The day is selected under a species filter (species A).
+      fireEvent.click(screen.getByRole('button', { name: 'Filter lions' }))
+      fireEvent.click(
+        await screen.findByRole('button', {
+          name: 'Select day, Sat 4 Oct 2025'
+        })
+      )
+      await waitFor(() =>
+        expect(bar()).toHaveTextContent(
+          "Some selected photos couldn't be loaded"
+        )
+      )
+      const hydrationCalls = () =>
+        getGalleryMediaMock.mock.calls.filter(([, options]) => options?.dayKey)
+      expect(hydrationCalls()).toHaveLength(50)
+      expect(hydrationCalls()[0][1]).toEqual(
+        expect.objectContaining({
+          sort: 'taken_desc',
+          subject: 'sci:panthera leo',
+          dayKey: '2025-10-04'
+        })
+      )
+
+      // The owner switches species and sort; the retry must keep paging
+      // the query the picks were selected under, from the cursor the
+      // first read saved.
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Filter puffins and sort uploaded' })
+      )
+      await waitFor(() =>
+        expect(bar()).toHaveTextContent(
+          "Some selected photos couldn't be loaded"
+        )
+      )
+      fireEvent.click(
+        within(bar()).getByRole('button', { name: 'Retry loading' })
+      )
+
+      await waitFor(() => expect(hydrationCalls().length).toBeGreaterThan(50))
+      expect(hydrationCalls()[50][1]).toEqual(
+        expect.objectContaining({
+          sort: 'taken_desc',
+          subject: 'sci:panthera leo',
+          dayKey: '2025-10-04',
+          cursor: 'day-page-next',
+          limit: 60
+        })
+      )
+    })
+
+    it('filters dateless hydration by upload day under a date sort', async () => {
+      getGalleryMediaMock.mockResolvedValueOnce({
+        items: [],
+        nextCursor: null,
+        nextMaxId: null
+      })
+      getGalleryMediaIdsMock.mockResolvedValueOnce(['missing'])
+      render(
+        <GalleryAllMediaView
+          actorId="actor-1"
+          initialCategory={null}
+          initialShow="all"
+          initialPage={{
+            items: [uploadPhoto('1')],
+            days: { 'uploaded:2025-10-04': dayStats(1) },
+            nextMaxId: null
+          }}
+        />
+      )
+      startSelecting()
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: 'Select day, Uploaded Sat 4 Oct 2025'
+        })
+      )
+
+      await waitFor(() => expect(getGalleryMediaMock).toHaveBeenCalledTimes(1))
+      expect(getGalleryMediaMock).toHaveBeenCalledWith(
+        'actor-1',
+        expect.objectContaining({
+          sort: 'taken_desc',
+          dayKey: 'uploaded:2025-10-04',
+          limit: 60
+        })
+      )
+    })
+
+    it('stops requesting hydration pages after unmount', async () => {
+      const nextPage = createDeferred<GalleryMediaPage>()
+      getGalleryMediaMock.mockReturnValueOnce(nextPage.promise)
+      getGalleryMediaIdsMock.mockResolvedValueOnce(['2', '3', '4'])
+      const { unmount } = renderGrouped({ '2025-10-04': dayStats(3) })
+      startSelecting()
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Select day, Sat 4 Oct 2025' })
+      )
+      await waitFor(() => expect(getGalleryMediaMock).toHaveBeenCalledTimes(1))
+      const signal = getGalleryMediaMock.mock.calls[0][1].signal
+
+      unmount()
+      expect(signal.aborted).toBe(true)
+      await act(async () => {
+        nextPage.resolve({
+          items: [buildGalleryItem('2')],
+          nextCursor: 'day-page-2',
+          nextMaxId: null
+        })
+        await nextPage.promise
+      })
+
+      expect(getGalleryMediaMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('day-bounds uploaded hydration and stops after 50 pages', async () => {
+      getGalleryMediaMock.mockResolvedValueOnce({
+        items: [uploadPhoto('2')],
+        days: { 'uploaded:2025-10-04': dayStats(2) },
+        nextMaxId: null,
+        nextCursor: null
+      })
+      for (let page = 1; page <= 50; page += 1) {
+        getGalleryMediaMock.mockResolvedValueOnce({
+          items: page === 49 ? [uploadPhoto('target')] : [],
+          nextMaxId: `page-${page + 1}`,
+          nextCursor: null
+        })
+      }
+      getGalleryMediaIdsMock.mockResolvedValueOnce(['target', 'still-missing'])
+      renderGrouped()
+      startSelecting()
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Filter puffins and sort uploaded' })
+      )
+      await screen.findByRole('button', {
+        name: 'Select day, Uploaded Sat 4 Oct 2025'
+      })
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: 'Select day, Uploaded Sat 4 Oct 2025'
+        })
+      )
+
+      await waitFor(() => expect(getGalleryMediaMock).toHaveBeenCalledTimes(51))
+      await waitFor(() =>
+        expect(bar()).toHaveTextContent(
+          "Some selected photos couldn't be loaded"
+        )
+      )
+      expect(
+        within(bar()).getByRole('button', { name: 'Edit details' })
+      ).toHaveAttribute('aria-disabled', 'true')
+      expect(
+        within(bar()).getByRole('button', { name: 'Retry loading' })
+      ).toBeInTheDocument()
+      expect(getGalleryMediaMock).toHaveBeenCalledTimes(51)
+      for (const [, options] of getGalleryMediaMock.mock.calls.slice(1)) {
+        expect(options).not.toHaveProperty('takenFrom')
+        expect(options).not.toHaveProperty('takenTo')
+        expect(options).toHaveProperty('sort', 'uploaded')
+        expect(options).toHaveProperty('dayKey', 'uploaded:2025-10-04')
+        expect(options).toHaveProperty('limit', 60)
+      }
+    })
+
+    it('disables item actions during and after short hydration while Add keeps all ids', async () => {
+      const pendingPage = createDeferred<GalleryMediaPage>()
+      getGalleryMediaIdsMock.mockResolvedValueOnce(['2', 'missing'])
+      getGalleryMediaMock.mockReturnValueOnce(pendingPage.promise)
+      render(
+        <GalleryAllMediaView
+          actorId="actor-1"
+          initialCategory={null}
+          initialShow="all"
+          initialPage={{
+            items: [
+              buildGalleryItem('2', {
+                takenAt: '2025-10-04T10:30:00.000Z',
+                posted: false
+              })
+            ],
+            nextMaxId: null,
+            days: { '2025-10-04': dayStats(2) }
+          }}
+        />
+      )
+      startSelecting()
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Select day, Sat 4 Oct 2025' })
+      )
+
+      await waitFor(() => expect(getGalleryMediaMock).toHaveBeenCalledTimes(1))
+      const selection = bar()
+      expect(selection).toHaveTextContent('Loading 1 selected photos…')
+      for (const name of ['Edit details', 'Post', 'Delete']) {
+        expect(within(selection).getByRole('button', { name })).toHaveAttribute(
+          'aria-disabled',
+          'true'
+        )
+      }
+      expect(
+        within(selection).getByRole('button', { name: 'Add to album' })
+      ).not.toHaveAttribute('aria-disabled')
+
+      await act(async () => {
+        pendingPage.resolve({
+          items: [],
+          nextCursor: null,
+          nextMaxId: null
+        })
+        await pendingPage.promise
+      })
+      await waitFor(() =>
+        expect(selection).toHaveTextContent(
+          "Some selected photos couldn't be loaded"
+        )
+      )
+      for (const name of ['Edit details', 'Post', 'Delete']) {
+        expect(within(selection).getByRole('button', { name })).toHaveAttribute(
+          'aria-disabled',
+          'true'
+        )
+      }
+      expect(
+        within(selection).getByRole('button', { name: 'Retry loading' })
+      ).toBeInTheDocument()
+
+      fireEvent.click(
+        within(selection).getByRole('button', { name: 'Add to album' })
+      )
+      await screen.findByRole('dialog', { name: 'Add 2 photos to an album' })
+      fireEvent.click(
+        screen.getByRole('button', { name: 'New album with these photos' })
+      )
+      await screen.findByRole('dialog', { name: 'New album' })
+      expect(formDialog.current?.initialMediaIds).toEqual(['2', 'missing'])
+      expect(
+        formDialog.current?.initialItems?.map((item) => item.mediaId)
+      ).toEqual(['2'])
+      await act(async () => formDialog.current?.onOpenChange(false))
+
+      fireEvent.click(within(selection).getByRole('button', { name: 'Delete' }))
+      expect(
+        screen.queryByRole('dialog', { name: /^Delete/ })
+      ).not.toBeInTheDocument()
+
+      fireEvent.click(within(selection).getByRole('button', { name: 'Post' }))
+      expect(router.push).not.toHaveBeenCalled()
+    })
+
+    it('deselects the day from its header', async () => {
+      getGalleryMediaIdsMock.mockResolvedValue(['1', '2'])
+      renderGrouped()
+      startSelecting()
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Select day, Sat 4 Oct 2025' })
+      )
+      await waitFor(() => expect(bar()).toHaveTextContent('2 selected'))
+
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Deselect day, Sat 4 Oct 2025' })
+      )
+
+      await waitFor(() => expect(bar()).toHaveTextContent('0 selected'))
+      // The deselect read the day's ids from the server again.
+      expect(getGalleryMediaIdsMock).toHaveBeenLastCalledWith(
+        'actor-1',
+        expect.objectContaining({
+          dayKey: '2025-10-04',
+          limit: 2000,
+          offset: 0
+        })
+      )
+      expect(screen.getByTestId('album-toast')).toHaveTextContent(
+        'Deselected 2 photos from Sat 4 Oct 2025'
+      )
+      expect(screen.getByTestId('added-announcement')).toHaveTextContent(
+        'Deselected 2 photos'
+      )
+    })
+
+    it('deselects the day including picks no loaded tile knows', async () => {
+      // Only two of the day's three photos are loaded: Select day picked the
+      // third from the ids read, but no loaded tile knows it. Deselect day
+      // asks the server for the day's ids again, so it goes too.
+      getGalleryMediaIdsMock.mockResolvedValue(['1', '2', '4'])
+      getGalleryMediaMock.mockResolvedValue({
+        items: [buildGalleryItem('4', { takenAt: '2025-10-04T11:30:00.000Z' })],
+        days: { '2025-10-04': dayStats(3) },
+        nextCursor: null,
+        nextMaxId: null
+      })
+      render(
+        <GalleryAllMediaView
+          actorId="actor-1"
+          initialCategory={null}
+          initialShow="all"
+          initialPage={{
+            items: dayPhotos().slice(0, 2),
+            nextMaxId: null,
+            days: { '2025-10-04': dayStats(3, 'Box Hill, Surrey') }
+          }}
+        />
+      )
+      startSelecting()
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Select day, Sat 4 Oct 2025' })
+      )
+      await waitFor(() => expect(bar()).toHaveTextContent('3 selected'))
+
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Deselect day, Sat 4 Oct 2025' })
+      )
+
+      await waitFor(() => expect(bar()).toHaveTextContent('0 selected'))
+      expect(getGalleryMediaIdsMock).toHaveBeenCalledTimes(2)
+      expect(getGalleryMediaIdsMock).toHaveBeenLastCalledWith(
+        'actor-1',
+        expect.objectContaining({
+          dayKey: '2025-10-04',
+          limit: 2000,
+          offset: 0
+        })
+      )
+      expect(screen.getByTestId('album-toast')).toHaveTextContent(
+        'Deselected 3 photos from Sat 4 Oct 2025'
+      )
+
+      fireEvent.click(
+        within(screen.getByTestId('album-toast')).getByRole('button', {
+          name: 'Undo'
+        })
+      )
+      await waitFor(() => expect(bar()).toHaveTextContent('3 selected'))
+    })
+
+    it('shows an alert and keeps the selection when Select day fails', async () => {
+      getGalleryMediaIdsMock.mockRejectedValue(new Error('Boom'))
+      renderGrouped()
+      startSelecting()
+
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Select day, Sat 4 Oct 2025' })
+      )
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Boom')
+      expect(bar()).toHaveTextContent('0 selected')
+      expect(screen.queryByTestId('album-toast')).not.toBeInTheDocument()
+    })
+
+    it('retries the failed Select day from the alert', async () => {
+      getGalleryMediaIdsMock.mockRejectedValueOnce(new Error('Boom'))
+      getGalleryMediaIdsMock.mockResolvedValue(['1', '2'])
+      renderGrouped()
+      startSelecting()
+
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Select day, Sat 4 Oct 2025' })
+      )
+      expect(await screen.findByRole('alert')).toHaveTextContent('Boom')
+
+      fireEvent.click(
+        within(screen.getByRole('alert')).getByRole('button', {
+          name: 'Retry'
+        })
+      )
+
+      await waitFor(() => expect(bar()).toHaveTextContent('2 selected'))
+      expect(getGalleryMediaIdsMock).toHaveBeenCalledTimes(2)
+      expect(screen.getByTestId('album-toast')).toHaveTextContent(
+        'Selected 2 photos from Sat 4 Oct 2025'
+      )
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+
+    it('range-selects across two day groups with Shift', () => {
+      renderGrouped()
+      startSelecting()
+
+      // The anchor is the first tile of the first day.
+      fireEvent.click(screen.getByRole('button', { name: 'Select 1' }))
+      // Shift-clicking the only tile of the second day spans both headers.
+      fireEvent.click(screen.getByRole('button', { name: 'Shift-select 3' }))
+
+      expect(bar()).toHaveTextContent('3 selected')
+      expect(screen.getByTestId('added-announcement')).toHaveTextContent(
+        'Selected 2 photos'
+      )
+    })
+
+    it('unpicks a run across two day groups when the anchor was unpicked', () => {
+      renderGrouped()
+      startSelecting()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Select 1' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Select 3' }))
+      // Unpick the anchor: a Shift-toggle from it now unpicks the run.
+      fireEvent.click(screen.getByRole('button', { name: 'Select 1' }))
+      expect(bar()).toHaveTextContent('1 selected')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Shift-select 3' }))
+
+      expect(bar()).toHaveTextContent('0 selected')
+      expect(screen.getByTestId('added-announcement')).toHaveTextContent(
+        'Deselected 1 photo'
       )
     })
   })

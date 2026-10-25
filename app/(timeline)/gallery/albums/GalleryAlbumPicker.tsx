@@ -2,9 +2,24 @@
 
 import { Images } from 'lucide-react'
 import Link from 'next/link'
-import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  type Dispatch,
+  type FC,
+  type SetStateAction,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 
-import { countGalleryMedia, getGalleryMedia } from '@/lib/client'
+import {
+  countGalleryMedia,
+  getGalleryMedia,
+  getGalleryMediaIds
+} from '@/lib/client'
+import { AlbumUndoToast } from '@/lib/components/gallery/AlbumUndoToast'
+import { GalleryDayHeader } from '@/lib/components/gallery/GalleryDayHeader'
 import { GalleryMediaFilterBar } from '@/lib/components/gallery/filters/GalleryMediaFilterBar'
 import { GalleryMediaFilterEmpty } from '@/lib/components/gallery/filters/GalleryMediaFilterEmpty'
 import {
@@ -14,12 +29,29 @@ import {
   toGalleryMediaQuery
 } from '@/lib/components/gallery/filters/galleryMediaFilterState'
 import { useGalleryMediaFacets } from '@/lib/components/gallery/filters/useGalleryMediaFacets'
+import { groupGalleryItemsByDay } from '@/lib/components/gallery/galleryDayGroups'
+import {
+  applyRangeSelection,
+  describeRangeResult
+} from '@/lib/components/gallery/gallerySelectionKeys'
+import {
+  type GalleryHydrationResume,
+  useDaySelection
+} from '@/lib/components/gallery/useDaySelection'
+import { useRovingGridFocus } from '@/lib/components/gallery/useRovingGridFocus'
 import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
 import { useLoadMoreOnVisible } from '@/lib/components/posts/useLoadMoreOnVisible'
 import { Alert } from '@/lib/components/surface/Alert'
 import { Button } from '@/lib/components/ui/button'
-import type { GalleryItemEntity } from '@/lib/services/gallery/galleryEntities'
-import type { GalleryShow } from '@/lib/types/database/gallery'
+import type {
+  GalleryDayKey,
+  GalleryDayStats,
+  GalleryItemEntity
+} from '@/lib/services/gallery/galleryEntities'
+import type {
+  GalleryMediaSort,
+  GalleryShow
+} from '@/lib/types/database/gallery'
 import { cn } from '@/lib/utils'
 
 import { GalleryAlbumPickerTile } from './GalleryAlbumPickerTile'
@@ -29,7 +61,7 @@ export interface GalleryAlbumPickerProps {
   ownerId: string
   /** Media ids in the order they were picked; the first is the cover. */
   selected: string[]
-  onChange: (selected: string[]) => void
+  onChange: Dispatch<SetStateAction<string[]>>
   /** The first picked photo (the cover), or null when none is picked. */
   onFirstItemChange?: (item: GalleryItemEntity | null) => void
   /** How many more photos the album can take. */
@@ -44,9 +76,25 @@ export interface GalleryAlbumPickerProps {
   disabled?: boolean
   columns?: 4 | 5
   albumId?: string
+  /** The filters the picker opens with (Add photos seeds the album's dates). */
+  initialFilters?: GalleryMediaFilterState
+  /** Every photo the picker has loaded, as pages land (the dialog's strip shows thumbs from these). */
+  onItemsLoaded?: (items: GalleryItemEntity[]) => void
 }
 
 const PAGE_SIZE = 60
+
+/**
+ * The query context a day's hydration pages with (whatever `loadDayItems`
+ * reads). The day selection snapshots it when a hydration starts and hands
+ * it back on every retry, so a later filter or sort change never moves the
+ * read to a query the picked ids do not match.
+ */
+interface DayHydrationQuery {
+  filters: GalleryMediaFilterState
+  show: GalleryShow
+  albumId?: string
+}
 
 /**
  * The "From gallery" picker: the owner's own photos, filtered and sorted by
@@ -62,10 +110,12 @@ export const GalleryAlbumPicker: FC<GalleryAlbumPickerProps> = ({
   seedItems,
   disabled = false,
   columns = 4,
-  albumId
+  albumId,
+  initialFilters,
+  onItemsLoaded
 }) => {
   const [filters, setFilters] = useState<GalleryMediaFilterState>(
-    EMPTY_GALLERY_FILTERS
+    initialFilters ?? EMPTY_GALLERY_FILTERS
   )
   const show: GalleryShow = filters.notInAlbum ? 'not_in_album' : 'all'
   const [facetsReloadKey, setFacetsReloadKey] = useState(0)
@@ -92,6 +142,11 @@ export const GalleryAlbumPicker: FC<GalleryAlbumPickerProps> = ({
   const [error, setError] = useState<string | null>(null)
   // The query the items on screen answer; null until the first answer lands.
   const [loadedKey, setLoadedKey] = useState<string | null>(null)
+  // Per-day server stats (owner, include_days), merged across pages.
+  const [days, setDays] = useState<Record<GalleryDayKey, GalleryDayStats>>({})
+  // The range anchor and the live-region message of the last range change.
+  const [anchor, setAnchor] = useState<string | null>(null)
+  const [rangeAnnouncement, setRangeAnnouncement] = useState('')
 
   // Bumped by every restart so a slow answer to an older query is dropped.
   const generation = useRef(0)
@@ -114,6 +169,11 @@ export const GalleryAlbumPicker: FC<GalleryAlbumPickerProps> = ({
     isLoadingRef.current = isLoading
   }, [isLoading])
 
+  const existingSet = useMemo(() => new Set(existingIds), [existingIds])
+  // Never negative: room 0 means "Album full", a negative room would read as
+  // "Select -N (room left)".
+  const room = Math.max(capacity - selected.length, 0)
+
   const queryKey = useMemo(
     () =>
       JSON.stringify({
@@ -124,6 +184,107 @@ export const GalleryAlbumPicker: FC<GalleryAlbumPickerProps> = ({
       }),
     [filters, show, ownerId, albumId]
   )
+
+  const loadDayItems = useCallback(
+    async (
+      dayKey: GalleryDayKey,
+      mediaIds: string[],
+      isStale: () => boolean,
+      signal: AbortSignal,
+      resume?: GalleryHydrationResume,
+      sortOverride?: GalleryMediaSort,
+      queryOverride?: DayHydrationQuery
+    ) => {
+      // A retry hydrates with the query context the day key was learned
+      // under, so a filter or sort change since the pick cannot move the
+      // read to a query the picked ids do not match.
+      const hydrateSort = sortOverride ?? filters.sort
+      const hydrateFilters = queryOverride?.filters ?? filters
+      const hydrateShow = queryOverride?.show ?? show
+      const hydrateAlbumId = queryOverride?.albumId ?? albumId
+      const wanted = new Set(mediaIds)
+      const found = new Map<string, GalleryItemEntity>()
+      const query = toGalleryMediaQuery(
+        { ...hydrateFilters, sort: hydrateSort },
+        new Date()
+      )
+      // A retry continues from where the last read stopped, not page 1.
+      let cursor: string | undefined = resume?.from
+      let hasMore = true
+      let pages = 0
+      // shortcut: A requested photo can sit beyond the current loaded pages.
+      while (hasMore && found.size < wanted.size && pages < 50) {
+        if (isStale()) break
+        const page = await getGalleryMedia(ownerId, {
+          limit: PAGE_SIZE,
+          show: hydrateShow,
+          albumId: hydrateAlbumId,
+          dayKey,
+          signal,
+          ...query,
+          ...(hydrateSort === 'uploaded' ? { maxId: cursor } : { cursor })
+        })
+        if (isStale()) break
+        pages += 1
+        for (const item of page.items) {
+          if (wanted.has(item.mediaId)) found.set(item.mediaId, item)
+        }
+        cursor =
+          hydrateSort === 'uploaded'
+            ? (page.nextMaxId ?? undefined)
+            : (page.nextCursor ?? undefined)
+        hasMore = Boolean(cursor)
+      }
+      // The page bound stopped the read: report the cursor a retry
+      // continues from, so it does not re-scan the pages before it.
+      if (resume && pages === 50 && hasMore && found.size < wanted.size) {
+        resume.stoppedAt = cursor
+      }
+      return mediaIds.flatMap((id) => {
+        const item = found.get(id)
+        return item ? [item] : []
+      })
+    },
+    [filters, ownerId, show, albumId]
+  )
+
+  const handleDayItemsLoaded = useCallback(
+    (items: GalleryItemEntity[]) => {
+      for (const item of items) seen.current.set(item.mediaId, item)
+      onItemsLoaded?.(items)
+    },
+    [onItemsLoaded]
+  )
+
+  const day = useDaySelection({
+    selected,
+    onChange,
+    sort: filters.sort,
+    existingIds: existingSet,
+    room,
+    ownerKey: ownerId,
+    fetchIds: (dayKey, limit, offset) =>
+      getGalleryMediaIds(ownerId, {
+        ...toGalleryMediaQuery(filters, new Date()),
+        show,
+        albumId,
+        dayKey,
+        limit,
+        ...(offset !== undefined ? { offset } : null)
+      }),
+    loadItems: loadDayItems,
+    querySnapshot: (): DayHydrationQuery => ({ filters, show, albumId }),
+    onItemsLoaded: handleDayItemsLoaded,
+    resetKey: queryKey,
+    disabled
+  })
+  const { noteItems } = day
+
+  // Pre-seeded photos (Add photos) count towards their day before their page
+  // loads.
+  useEffect(() => {
+    if (seedItems && seedItems.length > 0) noteItems([...seedItems])
+  }, [noteItems, seedItems])
 
   const load = useCallback(
     async (restart: boolean, cursorParam?: string) => {
@@ -139,11 +300,15 @@ export const GalleryAlbumPicker: FC<GalleryAlbumPickerProps> = ({
         setNextMaxId(null)
         setTotal(null)
         setInAlbumTotal(null)
+        setDays({})
+        setAnchor(null)
+        setRangeAnnouncement('')
       }
       try {
         const query = toGalleryMediaQuery(filters, new Date())
         const page = await getGalleryMedia(ownerId, {
           limit: PAGE_SIZE,
+          includeDays: true,
           ...(restart ? { includeTotal: true } : {}),
           show,
           ...(albumId ? { albumId } : {}),
@@ -154,6 +319,10 @@ export const GalleryAlbumPicker: FC<GalleryAlbumPickerProps> = ({
         })
         if (current !== generation.current) return
         for (const item of page.items) seen.current.set(item.mediaId, item)
+        onItemsLoaded?.(page.items)
+        noteItems(page.items)
+        const pageDays = page.days
+        if (pageDays) setDays((current) => ({ ...current, ...pageDays }))
         setItems((existing) => {
           const base = restart ? [] : existing
           const seenIds = new Set(base.map((item) => item.mediaId))
@@ -183,12 +352,40 @@ export const GalleryAlbumPicker: FC<GalleryAlbumPickerProps> = ({
         }
       }
     },
-    [ownerId, show, albumId, filters, queryKey]
+    [ownerId, show, albumId, filters, noteItems, queryKey, onItemsLoaded]
   )
 
   useEffect(() => {
     void load(true)
   }, [load])
+
+  const groups = useMemo(
+    () => groupGalleryItemsByDay(items, filters.sort),
+    [items, filters.sort]
+  )
+  const groupSizes = useMemo(
+    () => groups.map((group) => group.items.length),
+    [groups]
+  )
+  const groupStarts = useMemo(() => {
+    const starts: number[] = []
+    let offset = 0
+    for (const group of groups) {
+      starts.push(offset)
+      offset += group.items.length
+    }
+    return starts
+  }, [groups])
+  // Display (grouped) order: what the range and roving navigation use.
+  const displayIds = useMemo(
+    () => groups.flatMap((group) => group.items.map((item) => item.mediaId)),
+    [groups]
+  )
+  const roving = useRovingGridFocus({
+    enabled: !disabled,
+    count: displayIds.length,
+    groupSizes
+  })
 
   const hasMore =
     filters.sort === 'uploaded' ? Boolean(nextMaxId) : Boolean(nextCursor)
@@ -212,15 +409,45 @@ export const GalleryAlbumPicker: FC<GalleryAlbumPickerProps> = ({
   }, [firstSelected, onFirstItemChange])
 
   const selectedSet = useMemo(() => new Set(selected), [selected])
-  const existingSet = useMemo(() => new Set(existingIds), [existingIds])
   const isFull = selected.length >= capacity
 
-  const toggle = (mediaId: string) => {
+  const toggle = (
+    mediaId: string,
+    modifiers: { shiftKey: boolean } = { shiftKey: false }
+  ) => {
     if (disabled) return
+    if (modifiers.shiftKey && anchor !== null && displayIds.includes(anchor)) {
+      // The target may itself be blocked (in album, or the album is full):
+      // the range still applies up to it — the blocked target stays
+      // unpicked and the anchor does not move — like ranges already skip
+      // blocked tiles in the middle.
+      const result = applyRangeSelection({
+        order: displayIds,
+        anchorId: anchor,
+        targetId: mediaId,
+        select: selectedSet.has(anchor),
+        selected: selectedSet,
+        blocked: existingSet,
+        room
+      })
+      const removedSet = new Set(result.removed)
+      onChange(
+        [...selected, ...result.added].filter((id) => !removedSet.has(id))
+      )
+      setRangeAnnouncement(describeRangeResult(result))
+      return
+    }
+
+    if (existingSet.has(mediaId)) return
+
     if (selectedSet.has(mediaId)) {
       onChange(selected.filter((id) => id !== mediaId))
+      setAnchor(mediaId)
+      setRangeAnnouncement('')
     } else if (!isFull) {
       onChange([...selected, mediaId])
+      setAnchor(mediaId)
+      setRangeAnnouncement('')
     }
   }
 
@@ -284,7 +511,7 @@ export const GalleryAlbumPicker: FC<GalleryAlbumPickerProps> = ({
   const skeletonCount = columns === 5 ? 5 : 4
 
   return (
-    <div ref={rootRef} className="space-y-3">
+    <div ref={rootRef} onKeyDown={roving.onKeyDown} className="space-y-3">
       <GalleryMediaFilterBar
         idPrefix="album-picker"
         filters={filters}
@@ -331,7 +558,13 @@ export const GalleryAlbumPicker: FC<GalleryAlbumPickerProps> = ({
       </div>
 
       <div role="status" className="sr-only">
-        {isLoading && items.length > 0 ? 'Loading more photos' : ''}
+        {[
+          isLoading && items.length > 0 ? 'Loading more photos' : '',
+          day.announcement,
+          rangeAnnouncement
+        ]
+          .filter(Boolean)
+          .join('. ')}
       </div>
 
       {items.length === 0 && !error && (isLoading || !isCurrent) ? (
@@ -352,39 +585,71 @@ export const GalleryAlbumPicker: FC<GalleryAlbumPickerProps> = ({
           ))}
         </div>
       ) : items.length > 0 ? (
-        <ul
-          className={cn(
-            'grid grid-cols-3 gap-1',
-            columns === 5 ? 'sm:grid-cols-5' : 'sm:grid-cols-4'
-          )}
-          aria-busy={isLoading}
-        >
-          {items.map((item, index) => (
-            <li key={item.mediaId} className="min-w-0">
-              <GalleryAlbumPickerTile
-                item={item}
-                index={index}
-                isSelected={selectedSet.has(item.mediaId)}
-                isMember={existingSet.has(item.mediaId)}
-                isBlocked={!selectedSet.has(item.mediaId) && isFull}
-                disabled={disabled}
-                showCaption
-                onToggle={toggle}
-              />
-            </li>
-          ))}
-          {isLoading && items.length > 0
-            ? Array.from({ length: skeletonCount }, (_, index) => (
-                <li
-                  key={`skeleton-${index}`}
-                  aria-hidden="true"
-                  className={index >= 3 ? 'hidden sm:block' : undefined}
-                >
-                  <div className="skeleton aspect-square rounded-md" />
-                </li>
-              ))
-            : null}
-        </ul>
+        groups.map((group, groupIndex) => (
+          <section key={group.key} className="space-y-2">
+            <GalleryDayHeader
+              dayKey={group.key}
+              stats={days[group.key]}
+              loadedCount={group.items.length}
+              loadedInAlbum={
+                group.items.filter((item) => existingSet.has(item.mediaId))
+                  .length
+              }
+              picked={day.pickedInDay(group.key)}
+              selecting
+              hasAlbum={Boolean(albumId)}
+              room={room}
+              busyKey={day.busyKey}
+              busyCount={day.busyKey === group.key ? day.busyCount : 0}
+              disabled={disabled}
+              onSelectDay={day.selectDay}
+              onDeselectDay={day.deselectDay}
+              as="h3"
+              className="-top-1 bg-background dark:bg-card"
+            />
+            <ul
+              className={cn(
+                'grid grid-cols-3 gap-1',
+                columns === 5 ? 'sm:grid-cols-5' : 'sm:grid-cols-4'
+              )}
+              data-grid
+              aria-busy={isLoading}
+            >
+              {group.items.map((item, itemIndex) => {
+                const flatIndex = groupStarts[groupIndex] + itemIndex
+                return (
+                  <li key={item.mediaId} className="min-w-0">
+                    <GalleryAlbumPickerTile
+                      item={item}
+                      index={flatIndex}
+                      isSelected={selectedSet.has(item.mediaId)}
+                      isMember={existingSet.has(item.mediaId)}
+                      isBlocked={!selectedSet.has(item.mediaId) && isFull}
+                      disabled={disabled}
+                      showCaption
+                      showCaptionDate={false}
+                      tabIndex={roving.getTabIndex(flatIndex)}
+                      onFocus={() => roving.onFocusTile(flatIndex)}
+                      isAnchor={anchor === item.mediaId}
+                      onToggle={toggle}
+                    />
+                  </li>
+                )
+              })}
+              {isLoading && items.length > 0 && groupIndex === groups.length - 1
+                ? Array.from({ length: skeletonCount }, (_, index) => (
+                    <li
+                      key={`skeleton-${index}`}
+                      aria-hidden="true"
+                      className={index >= 3 ? 'hidden sm:block' : undefined}
+                    >
+                      <div className="skeleton aspect-square rounded-md" />
+                    </li>
+                  ))
+                : null}
+            </ul>
+          </section>
+        ))
       ) : error ? null : (
         <GalleryMediaFilterEmpty
           filters={filters}
@@ -406,6 +671,22 @@ export const GalleryAlbumPicker: FC<GalleryAlbumPickerProps> = ({
         <LoadMoreButton onClick={() => void load(true)}>
           Try again
         </LoadMoreButton>
+      ) : null}
+
+      {day.toast || day.error ? (
+        <div
+          data-testid="day-feedback-container"
+          className="sticky bottom-0 z-20 space-y-2 border-t bg-background p-2 dark:bg-card"
+        >
+          {day.toast ? (
+            <AlbumUndoToast
+              toast={day.toast}
+              onDismiss={day.dismissToast}
+              className="w-fit max-w-full"
+            />
+          ) : null}
+          {day.error ? <Alert title={day.error} onRetry={day.retry} /> : null}
+        </div>
       ) : null}
     </div>
   )

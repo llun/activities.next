@@ -1,6 +1,10 @@
 import crypto from 'crypto'
 
 import { getGalleryAlbumItemSets } from '@/lib/database/domains/gallery/albumSuggestions'
+import {
+  getGalleryDayStats,
+  getGalleryMediaIds
+} from '@/lib/database/domains/gallery/dayStats'
 import { getGalleryMediaFacetRows } from '@/lib/database/domains/gallery/facets'
 import {
   getGalleryLookup,
@@ -379,6 +383,8 @@ export const galleryQueries = {
   getGalleryMedia,
   countGalleryMedia,
   getGalleryMediaFacetRows,
+  getGalleryDayStats,
+  getGalleryMediaIds,
   getGalleryMediaByIds,
   getGalleryMediaIndex,
   getGalleryMapRows,

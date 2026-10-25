@@ -34,6 +34,11 @@ export const MAX_GALLERY_ALBUM_REQUEST_IDS = 100
 // its cap. The client matches it to tell "album is full" from other failures.
 export const GALLERY_ALBUM_FULL_MESSAGE = 'Too many photos in this album'
 
+// The highest `offset` the gallery media route's ids read (`ids_only=true`)
+// accepts. The client's whole-day continuation stops here, so it never sends
+// an offset the route would reject with 422.
+export const MAX_GALLERY_IDS_OFFSET = 100_000
+
 export interface SQLGalleryAlbum {
   id: string
   actorId: string
