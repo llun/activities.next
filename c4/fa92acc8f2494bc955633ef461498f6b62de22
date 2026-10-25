@@ -1,0 +1,78 @@
+lib/components/admin/domains/DomainFeaturesBox.tsx
+  s_f92b4a9beb2361::t_61e277add055e1 84
+app/api/v1/admin/domains/[domain]/route.ts
+  s_f92b4a9beb2361::t_21ea42ccd60507 194
+lib/services/domains/adminDomainTypes.ts
+  s_f92b4a9beb2361::t_61e277add055e1 116,119
+lib/components/admin/domains/DomainSettings.test.tsx
+  s_f92b4a9beb2361::t_61e277add055e1 479,486,564,672
+lib/components/admin/domains/DomainSettings.tsx
+  s_f92b4a9beb2361::t_04af566bfe6125 906-907
+  s_f92b4a9beb2361::t_61e277add055e1 701
+lib/components/admin/domains/DomainFeaturesBox.test.tsx
+  s_f92b4a9beb2361::t_61e277add055e1 186
+CONTRIBUTING.md
+  s_f92b4a9beb2361::t_51af860cc6e6b4 1166
+app/(timeline)/admin/adminLoading.test.tsx
+  s_279e7012f36c5f::t_ba6e823df4f4a1 15,30
+app/(timeline)/admin/layout.test.tsx
+  s_279e7012f36c5f::t_76597fc2d05b2f 30-33,48-49,52-57,63,65,67-68,71-72,75-76,82-83,85-88,91,94-97,100-101,103-106,109,112-114,116-130,133-139,141,143,145,147-148,150-154
+app/(timeline)/admin/layout.tsx
+  s_279e7012f36c5f::t_c61be4f17d9d94 4-5,11-12,19-21
+app/(timeline)/admin/overview/page.tsx
+  s_279e7012f36c5f::t_e958cf1027b07b 1-41
+app/(timeline)/admin/page.test.tsx
+  s_279e7012f36c5f::t_d829e244a23d24 1-47
+app/(timeline)/admin/sections.tsx
+  s_279e7012f36c5f::t_6a3aea2423ae29 1-127
+docs/features.md
+  s_f92b4a9beb2361::t_5b34c3e1dbfa9c 130,145
+lib/components/section-nav.tsx
+  s_279e7012f36c5f::t_d74ccb029ebbe3 6,72,78-86,88-92,245-246,251-256,282-283,295,299-300,302,312-314,321,326-333,343,349,368,379-387
+app/(timeline)/admin/domains/page.tsx
+  s_a4602728d76aee::t_556e6ce7ab5be2 70
+app/(timeline)/admin/overview/loading.tsx
+  s_a4602728d76aee::t_d1055b1ad3b233 7,9-11
+app/(timeline)/admin/page.tsx
+  s_a4602728d76aee::t_0a561fe51127fe 7-8,11,20
+lib/components/admin/StatsOverview.tsx
+  s_a4602728d76aee::t_37aed5c9b3419d 235
+lib/components/admin/settings/InstanceSettingsForm.tsx
+  s_a4602728d76aee::t_4bd3510d3add56 161
+lib/components/section-nav.test.tsx
+  s_279e7012f36c5f::t_d39c79711ba197 101-118,187-219,278,281,295-387
+docs/architecture.md
+  s_279e7012f36c5f::t_035f0830575a66 85-99,187,192-194,900,1117-1119,1122,1204,1225,1278,1354,2899-2900
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c4fa92acc8f2494bc955633ef461498f6b62de22",
+  "prompts": {},
+  "sessions": {
+    "s_279e7012f36c5f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0410f49d-2e94-45e1-bd1f-237e6f7747bc",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_a4602728d76aee": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "db8f3ba5-5d7e-49c4-9ccf-b18dfa6028ac",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_f92b4a9beb2361": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ee3acfd9-97dc-47c9-8a2a-2e741f8b14b8",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
