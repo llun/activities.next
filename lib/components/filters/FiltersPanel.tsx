@@ -135,6 +135,8 @@ export const FiltersPanel: FC<FiltersPanelProps> = ({ scope, currentTime }) => {
         }
         // Creation order — newly created filters append at the bottom.
         setFilters((current) => [...current, created])
+        // A narrowed list could hide the filter just created.
+        clearServerFilters()
       } else if (editing) {
         const updated = await client.update(editing, input)
         if (!updated) {

@@ -76,7 +76,11 @@ export const ServerFilterMenu: FC<ServerFilterMenuProps> = ({
         activeLabel={activeLabel}
         inactiveTriggerText={`Any ${kind}`}
         triggerAriaLabel={triggerLabel}
-        clearAriaLabel={`Clear ${activeLabel} filter`}
+        clearAriaLabel={
+          kind === 'context'
+            ? 'Clear context filter'
+            : `Clear ${activeLabel} filter`
+        }
         onClear={onClear}
         renderTrigger={(trigger) => (
           <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>

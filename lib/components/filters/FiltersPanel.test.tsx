@@ -596,6 +596,10 @@ describe('FiltersPanel', () => {
       // is ignored when aria-labelledby is present.
       expect(menu).not.toHaveAttribute('aria-label')
       expect(menu).toHaveAccessibleName('Context: Home, Public')
+      fireEvent.keyDown(menu, { key: 'Escape' })
+      expect(
+        await screen.findByRole('button', { name: 'Clear context filter' })
+      ).toBeInTheDocument()
     })
 
     it('uses currentTime to choose expired and active filters', async () => {
@@ -760,6 +764,33 @@ describe('FiltersPanel', () => {
 
       expect(await screen.findByText('New active rule')).toBeInTheDocument()
       expect(screen.queryByText('No filters match')).not.toBeInTheDocument()
+    })
+
+    it('shows a filter created while the list is narrowed', async () => {
+      mockClient.getServerFilters.mockResolvedValue([
+        makeFilter({
+          id: 's-expired',
+          title: 'Expired rule',
+          expires_at: '2025-12-31T23:59:59.000Z'
+        }),
+        makeFilter({ id: 's-never', title: 'No expiry rule' })
+      ])
+      mockClient.createServerFilter.mockResolvedValue(
+        makeFilter({ id: 's-new', title: 'New active rule', server: true })
+      )
+
+      renderPanel('server')
+      expect(await screen.findByText('Expired rule')).toBeInTheDocument()
+      openFilterMenu('Any status')
+      fireEvent.click(
+        await screen.findByRole('menuitemradio', { name: 'Expired' })
+      )
+      expect(screen.queryByText('No expiry rule')).not.toBeInTheDocument()
+
+      fillAndSaveNewFilter('New active rule', 'new keyword')
+
+      expect(await screen.findByText('New active rule')).toBeInTheDocument()
+      expect(screen.getByText('No expiry rule')).toBeInTheDocument()
     })
 
     it('shows the same controls in the phone filter sheet', async () => {
