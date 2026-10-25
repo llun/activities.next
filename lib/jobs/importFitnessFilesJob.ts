@@ -533,14 +533,28 @@ export const importFitnessFiles = async (
   // marked `createdWhileMoved` and stays a hidden local-only record after the
   // redirect is cleared, so a new import needs its own published status. The
   // rule (including the moved-now side) lives in isIsolatedFromFitnessImport.
+  // A revision of an already-imported workout (Wahoo resending edited FIT
+  // bytes) is not a new recording: it names the status it must land on
+  // (expectedExistingStatusId) or the file whose status it replaces
+  // (replacePrimaryFileId), and that status is exempt from isolation so the
+  // revision stays on it across the move boundary.
   const isolatedStatusIds = new Set<string>()
   const moved = isMovedActor(actor)
+  const revisionStatusIds = new Set(
+    [
+      expectedExistingStatusId,
+      replacePrimaryFileId
+        ? fitnessFileById.get(replacePrimaryFileId)?.statusId
+        : undefined
+    ].filter((id): id is string => Boolean(id))
+  )
   const statusIds = new Set(
     parsedFiles
       .map((item) => item.fitnessFile.statusId)
       .filter((id): id is string => Boolean(id))
   )
   for (const statusId of statusIds) {
+    if (revisionStatusIds.has(statusId)) continue
     const status = await database.getStatus({
       statusId,
       withReplies: false

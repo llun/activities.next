@@ -266,6 +266,75 @@ describe('importFitnessFilesJob', () => {
     }
   })
 
+  it('lands a Wahoo revision on the hidden status a moved-time import left behind', async () => {
+    const earlierFile = await createFitnessFile(
+      'fit',
+      'fitness/wahoo-revision-hidden-earlier.fit',
+      'wahoo-revision-hidden'
+    )
+    const latestFile = await createFitnessFile(
+      'fit',
+      'fitness/wahoo-revision-hidden-latest.fit',
+      'wahoo-revision-hidden'
+    )
+    mockParseFitnessFile.mockResolvedValue(routedActivity)
+    await database.updateActor({
+      actorId: actor.id,
+      movedTo: 'https://destination.test/users/athlete'
+    })
+    try {
+      const [hidden] = await importFitnessFiles(database, {
+        actorId: actor.id,
+        batchId: 'wahoo-revision-hidden',
+        fitnessFileIds: [earlierFile!.id],
+        visibility: 'public',
+        publishSendNote: true
+      })
+      await processFitnessFileJob(database, hidden.processJob!)
+      expect(await database.getStatus({ statusId: hidden.statusId })).toEqual(
+        expect.objectContaining({ to: [], cc: [] })
+      )
+
+      await database.updateActor({ actorId: actor.id, movedTo: null })
+      // Wahoo resends edited FIT bytes for the same workout: the previous
+      // file rides along as an overlap candidate, and the revision names the
+      // status it must land on. It is not a new recording, so the hidden
+      // status is not isolated from it.
+      const groups = await importFitnessFiles(database, {
+        actorId: actor.id,
+        batchId: 'wahoo-revision-hidden',
+        fitnessFileIds: [latestFile!.id],
+        overlapFitnessFileIds: [earlierFile!.id],
+        visibility: 'public',
+        publishSendNote: true,
+        replacePrimaryFileId: earlierFile!.id,
+        expectedExistingStatusId: hidden.statusId
+      })
+      expect(groups).toHaveLength(1)
+      const [revision] = groups
+      expect(revision.statusId).toBe(hidden.statusId)
+      expect(revision.statusCreated).toBe(false)
+      expect(revision.primaryFitnessFileId).toBe(latestFile!.id)
+      expect(await database.getFitnessFile({ id: latestFile!.id })).toEqual(
+        expect.objectContaining({
+          statusId: hidden.statusId,
+          isPrimary: true
+        })
+      )
+      expect(await database.getFitnessFile({ id: earlierFile!.id })).toEqual(
+        expect.objectContaining({
+          statusId: hidden.statusId,
+          isPrimary: false
+        })
+      )
+      expect(await database.getStatus({ statusId: hidden.statusId })).toEqual(
+        expect.objectContaining({ to: [], cc: [] })
+      )
+    } finally {
+      await database.updateActor({ actorId: actor.id, movedTo: null })
+    }
+  })
+
   it('merges a later import into a moved-time status the owner published after the clear', async () => {
     const hiddenFile = await createFitnessFile(
       'fit',
@@ -472,6 +541,83 @@ describe('importFitnessFilesJob', () => {
       }
     }
   )
+
+  it('lands a Wahoo revision on a pre-move post while the account is moved without publishing', async () => {
+    const earlierFile = await createFitnessFile(
+      'fit',
+      'fitness/wahoo-revision-premove-earlier.fit',
+      'wahoo-revision-premove'
+    )
+    const latestFile = await createFitnessFile(
+      'fit',
+      'fitness/wahoo-revision-premove-latest.fit',
+      'wahoo-revision-premove'
+    )
+    mockParseFitnessFile.mockResolvedValue(routedActivity)
+    const [published] = await importFitnessFiles(database, {
+      actorId: actor.id,
+      batchId: 'wahoo-revision-premove',
+      fitnessFileIds: [earlierFile!.id],
+      visibility: 'public'
+    })
+    expect(await database.getStatus({ statusId: published.statusId })).toEqual(
+      expect.objectContaining({ to: [ACTIVITY_STREAM_PUBLIC] })
+    )
+
+    await database.updateActor({
+      actorId: actor.id,
+      movedTo: 'https://destination.test/users/athlete'
+    })
+    try {
+      ;(getQueue().publish as jest.Mock).mockClear()
+      // The revision is the same workout as the pre-move post, not a new
+      // recording, so it stays on that post instead of being isolated into
+      // its own group.
+      const [revision] = await importFitnessFiles(database, {
+        actorId: actor.id,
+        batchId: 'wahoo-revision-premove',
+        fitnessFileIds: [latestFile!.id],
+        overlapFitnessFileIds: [earlierFile!.id],
+        visibility: 'public',
+        publishSendNote: true,
+        replacePrimaryFileId: earlierFile!.id,
+        expectedExistingStatusId: published.statusId
+      })
+      expect(revision.statusId).toBe(published.statusId)
+      expect(revision.statusCreated).toBe(false)
+      expect(revision.primaryFitnessFileId).toBe(latestFile!.id)
+      expect(revision.processJob?.data).toEqual(
+        expect.objectContaining({ publishSendNote: false })
+      )
+      expect(await database.getFitnessFile({ id: latestFile!.id })).toEqual(
+        expect.objectContaining({
+          statusId: published.statusId,
+          isPrimary: true
+        })
+      )
+      expect(await database.getFitnessFile({ id: earlierFile!.id })).toEqual(
+        expect.objectContaining({
+          statusId: published.statusId,
+          isPrimary: false
+        })
+      )
+
+      await processFitnessFileJob(database, revision.processJob!)
+      expect(getQueue().publish).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: SEND_NOTE_JOB_NAME,
+          data: expect.objectContaining({ statusId: published.statusId })
+        })
+      )
+      // The revision exposes nothing new through the post: its audience is
+      // untouched.
+      expect(
+        await database.getStatus({ statusId: published.statusId })
+      ).toEqual(expect.objectContaining({ to: [ACTIVITY_STREAM_PUBLIC] }))
+    } finally {
+      await database.updateActor({ actorId: actor.id, movedTo: null })
+    }
+  })
 
   it('merges two direct imports from an account that never moved', async () => {
     const firstFile = await createFitnessFile(

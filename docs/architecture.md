@@ -2258,6 +2258,9 @@ moved` (reject stays allowed). While
   marked one that is still hidden, while unmarked statuses — including
   direct imports from an account that never moved — merge as before
   (`isIsolatedFromFitnessImport` in `lib/jobs/fitnessImportIsolation.ts`).
+  A Wahoo revision of an already-imported workout is not a new recording, so
+  it stays on its existing status across the move boundary instead of being
+  isolated into a new one.
   CSV and archive export, migration GET/POST/DELETE, and
   timeline and notification reads remain available. Posting and follow-request
   refusals are explicit here. Mastodon's API base skips the
