@@ -36,6 +36,7 @@ import {
   formatBucketHour,
   truncateToHour
 } from '@/lib/database/utils/counterBucket'
+import { getCompatibleJSON } from '@/lib/database/utils/getCompatibleJSON'
 import { StatusNote, StatusPoll, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
@@ -2227,6 +2228,80 @@ describe('updateNoteVisibility', () => {
       ).resolves.toBeNull()
     }
     expect(await dumpTables()).toEqual(before)
+  })
+
+  it('drops the moved-time marker from the content, keeping every other field', async () => {
+    const p = nextPrefix()
+    const author = await seedActor(`${p}-author`)
+    const id = `${author}/statuses/1`
+    await seedStatus({
+      id,
+      actorId: author,
+      to: [],
+      cc: [],
+      content: JSON.stringify({
+        url: id,
+        text: 'ride',
+        summary: 'spoiler',
+        sensitive: true,
+        language: 'de',
+        createdWhileMoved: true
+      })
+    })
+
+    const status = await updateNoteVisibility(db, hydration, {
+      statusId: id,
+      to: [],
+      cc: []
+    })
+
+    // The owner picked an audience, so the status is an ordinary post now.
+    expect(status).not.toHaveProperty('createdWhileMoved')
+    expect(
+      getCompatibleJSON(
+        (
+          await db
+            .selectFrom('statuses')
+            .select('content')
+            .where('id', '=', id)
+            .executeTakeFirstOrThrow()
+        ).content
+      )
+    ).toEqual({
+      url: id,
+      text: 'ride',
+      summary: 'spoiler',
+      sensitive: true,
+      language: 'de'
+    })
+  })
+
+  it('writes no content update for a status without the marker', async () => {
+    const p = nextPrefix()
+    const author = await seedActor(`${p}-author`)
+    const id = await seedStatus({
+      id: `${author}/statuses/1`,
+      actorId: author,
+      to: [],
+      cc: []
+    })
+    const { statements } = await capture(() =>
+      updateNoteVisibility(db, hydration, {
+        statusId: id,
+        to: [],
+        cc: []
+      })
+    )
+    expect(statements.map(describeStatement)).not.toContain('update status')
+    expect(
+      (
+        await db
+          .selectFrom('statuses')
+          .select('content')
+          .where('id', '=', id)
+          .executeTakeFirstOrThrow()
+      ).content
+    ).toBe(noteContent(id))
   })
 })
 

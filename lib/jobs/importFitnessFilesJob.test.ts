@@ -297,19 +297,20 @@ describe('importFitnessFilesJob', () => {
 
       await database.updateActor({ actorId: actor.id, movedTo: null })
       // The post menu's visibility control (PUT /api/v1/statuses/:id) runs
-      // updateNoteVisibility: the status gains recipients and keeps its
-      // createdWhileMoved marker.
+      // updateNoteVisibility: any visibility change clears the
+      // createdWhileMoved marker, so the status is an ordinary post.
       await database.updateNoteVisibility({
         statusId: hidden.statusId,
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: []
       })
-      expect(await database.getStatus({ statusId: hidden.statusId })).toEqual(
-        expect.objectContaining({
-          to: [ACTIVITY_STREAM_PUBLIC],
-          createdWhileMoved: true
-        })
+      const published = await database.getStatus({
+        statusId: hidden.statusId
+      })
+      expect(published).toEqual(
+        expect.objectContaining({ to: [ACTIVITY_STREAM_PUBLIC] })
       )
+      expect(published).not.toHaveProperty('createdWhileMoved')
 
       const [merged] = await importFitnessFiles(database, {
         actorId: actor.id,
@@ -325,6 +326,86 @@ describe('importFitnessFilesJob', () => {
       expect(merged.statusCreated).toBe(false)
       expect(await database.getFitnessFile({ id: newFile!.id })).toEqual(
         expect.objectContaining({ statusId: hidden.statusId })
+      )
+    } finally {
+      await database.updateActor({ actorId: actor.id, movedTo: null })
+    }
+  })
+
+  it('merges a later public import into a moved-time status the owner set to direct after the clear', async () => {
+    const hiddenFile = await createFitnessFile(
+      'fit',
+      'fitness/hidden-set-direct-after-clear.fit',
+      'hidden-set-direct-after-clear'
+    )
+    const newFile = await createFitnessFile(
+      'fit',
+      'fitness/public-overlap-into-direct.fit',
+      'public-overlap-into-direct'
+    )
+    mockParseFitnessFile.mockResolvedValue(routedActivity)
+    await database.updateActor({
+      actorId: actor.id,
+      movedTo: 'https://destination.test/users/athlete'
+    })
+    try {
+      const [hidden] = await importFitnessFiles(database, {
+        actorId: actor.id,
+        batchId: 'hidden-set-direct-after-clear',
+        fitnessFileIds: [hiddenFile!.id],
+        visibility: 'public',
+        publishSendNote: true
+      })
+      await processFitnessFileJob(database, hidden.processJob!)
+      expect(await database.getStatus({ statusId: hidden.statusId })).toEqual(
+        expect.objectContaining({ to: [], cc: [] })
+      )
+
+      await database.updateActor({ actorId: actor.id, movedTo: null })
+      // Publishing, then changing the mind to direct, both run
+      // updateNoteVisibility — and any visibility change clears the marker,
+      // so the status is an ordinary direct post, not a still-hidden
+      // moved-time record.
+      await database.updateNoteVisibility({
+        statusId: hidden.statusId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.updateNoteVisibility({
+        statusId: hidden.statusId,
+        to: [],
+        cc: []
+      })
+      const direct = await database.getStatus({
+        statusId: hidden.statusId
+      })
+      expect(direct).toEqual(expect.objectContaining({ to: [], cc: [] }))
+      expect(direct).not.toHaveProperty('createdWhileMoved')
+
+      const [merged] = await importFitnessFiles(database, {
+        actorId: actor.id,
+        batchId: 'public-overlap-into-direct',
+        fitnessFileIds: [newFile!.id],
+        overlapFitnessFileIds: [hiddenFile!.id],
+        visibility: 'public',
+        publishSendNote: true
+      })
+      // The direct status merges like any direct import: the overlapping
+      // public import attaches to it instead of creating a second, public
+      // post for a ride the owner made private.
+      expect(merged.statusId).toBe(hidden.statusId)
+      expect(merged.statusCreated).toBe(false)
+      expect(await database.getStatus({ statusId: hidden.statusId })).toEqual(
+        expect.objectContaining({ to: [], cc: [] })
+      )
+      expect(await database.getFitnessFile({ id: newFile!.id })).toEqual(
+        expect.objectContaining({ statusId: hidden.statusId })
+      )
+      expect(getQueue().publish).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: SEND_NOTE_JOB_NAME,
+          data: expect.objectContaining({ statusId: hidden.statusId })
+        })
       )
     } finally {
       await database.updateActor({ actorId: actor.id, movedTo: null })

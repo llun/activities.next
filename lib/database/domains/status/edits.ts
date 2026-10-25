@@ -265,6 +265,20 @@ export const updateNoteVisibility = async (
   if (!status) return null
   if (status.type !== StatusType.enum.Note) return null
 
+  // An explicit visibility choice turns a moved-time status into an ordinary
+  // post: the owner has picked its audience, so the `createdWhileMoved`
+  // marker that keeps the status isolated from fitness imports must go (a
+  // text edit keeps it; see updateNote). Only that key is dropped from the
+  // content blob — every other field is kept — and a status without the
+  // marker is left untouched.
+  const existingRow = status.createdWhileMoved
+    ? await selectStatusRow(db, status.id)
+    : undefined
+  const movedTimeContent =
+    existingRow !== undefined && existingRow !== null
+      ? getCompatibleJSON<Record<string, unknown>>(existingRow.content ?? {})
+      : null
+
   let affectedHashtags: string[] = []
   const currentTime = new Date()
   const searchStatus: StatusSearchRow = {
@@ -282,6 +296,15 @@ export const updateNoteVisibility = async (
   // widensStatusAudience for why a widening change drops them.
   const widensAudience = widensStatusAudience(status, { to, cc })
   await inTransaction(db, async (trx) => {
+    if (movedTimeContent !== null && 'createdWhileMoved' in movedTimeContent) {
+      const content = { ...movedTimeContent }
+      delete content.createdWhileMoved
+      await trx
+        .updateTable('statuses')
+        .set({ content: JSON.stringify(content) })
+        .where('id', '=', status.id)
+        .execute()
+    }
     if (widensAudience) {
       await trx
         .deleteFrom('status_history')
