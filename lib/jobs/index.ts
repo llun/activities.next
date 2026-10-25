@@ -59,6 +59,7 @@ import {
   RECEIVE_FLAG_JOB_NAME,
   REGENERATE_FITNESS_MAPS_JOB_NAME,
   RELAY_ANNOUNCE_JOB_NAME,
+  RENAME_STATUS_URLS_JOB_NAME,
   RESOLVE_MEDIA_PLACE_JOB_NAME,
   RESOLVE_MEDIA_SUBJECT_JOB_NAME,
   SEND_ANNOUNCE_JOB_NAME,
@@ -86,6 +87,7 @@ import { processForwardedActivityJob } from './processForwardedActivityJob'
 import { publishScheduledStatusJob } from './publishScheduledStatusJob'
 import { receiveFlagJob } from './receiveFlagJob'
 import { regenerateFitnessMapsJob } from './regenerateFitnessMapsJob'
+import { renameStatusUrlsJob } from './renameStatusUrlsJob'
 import { resolveMediaPlaceJob } from './resolveMediaPlaceJob'
 import { resolveMediaSubjectJob } from './resolveMediaSubjectJob'
 import { sendAnnounceJob } from './sendAnnounceJob'
@@ -270,5 +272,8 @@ export const JOBS: Record<string, JobHandle> = {
   },
   get [RESOLVE_MEDIA_PLACE_JOB_NAME]() {
     return resolveMediaPlaceJob
+  },
+  get [RENAME_STATUS_URLS_JOB_NAME]() {
+    return renameStatusUrlsJob
   }
 }
