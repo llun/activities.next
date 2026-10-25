@@ -219,6 +219,7 @@ lib/components/gallery/filters/galleryMediaFilterState.ts
   s_1f1a1efd8db0bf::t_4c1a8a1de07ad0 1,4-5
 lib/components/gallery/filters/GalleryFilterMenu.tsx
   s_f75311230544ab::t_b6dd7aedc71399 18,33
+  s_1f1a1efd8db0bf::t_b22a05a3de1af8 52
 lib/database/domains/gallery/galleryDayStats.test.ts
   s_35fa0d7477be79::t_81c7900ce50d73 645-693
   s_1f1a1efd8db0bf::t_e80897792b3203 505-508
@@ -389,6 +390,8 @@ app/(timeline)/gallery/albums/GalleryAlbumFormDialog.tsx
   s_1f1a1efd8db0bf::t_761a2d2230e8ab 5-13,25-28,54-57,71,187-191,196-204,228,232-233,236-238,249,268,273,277-279,306-310,325,331-334,337-357,359,366-371,420,443-446,451-452,530,538-567,652-653,791,916-929,941,954-967,985-1000
   h_580a04e334fef4 93-107,192-195,287-305,326-329,434-436,578,580-610,930-934,981-984
   s_d237589e182cae::t_6a24547ff060f7 459-461
+lib/components/gallery/filters/GalleryFilterChip.tsx
+  s_1f1a1efd8db0bf::t_b22a05a3de1af8 13,28,66-72
 ---
 {
   "schema_version": "authorship/3.0.0",
