@@ -2,10 +2,12 @@ import { Database } from '@/lib/database/types'
 import { importStravaActivityJob } from '@/lib/jobs/importStravaActivityJob'
 import {
   IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+  PROCESS_FITNESS_FILE_JOB_NAME,
   SEND_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
 import { Visibility } from '@/lib/types/mastodon/visibility'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
+import { logger } from '@/lib/utils/logger'
 
 import {
   createMockStravaDatabase,
@@ -83,6 +85,99 @@ describe('importStravaActivityJob', () => {
     resetStravaImportMocks(database)
   })
 
+  it('stores moved actor exports and processes them without publishing', async () => {
+    database.getActorFromId.mockResolvedValue({
+      id: 'actor-1',
+      username: 'testuser',
+      domain: 'llun.test',
+      movedTo: 'https://destination.test/users/athlete'
+    } as never)
+    const processJob = {
+      id: 'moved-process',
+      name: PROCESS_FITNESS_FILE_JOB_NAME,
+      data: {
+        actorId: 'actor-1',
+        statusId: 'status-1',
+        fitnessFileId: 'new-file',
+        publishSendNote: false,
+        notifyOnComplete: false
+      }
+    }
+    mockImportFitnessFiles.mockResolvedValueOnce([
+      {
+        statusId: 'status-1',
+        statusCreated: true,
+        primaryFitnessFileId: 'new-file',
+        processJob
+      }
+    ])
+    mockGetStravaActivityPhotos.mockResolvedValueOnce([
+      { id: 'photo-1', url: 'https://images.example.com/photo-1.jpg' }
+    ])
+    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(
+      new Response(Buffer.from('jpg'), {
+        headers: { 'content-type': 'image/jpeg', 'content-length': '3' }
+      })
+    )
+    try {
+      await importStravaActivityJob(database as unknown as Database, {
+        id: 'moved-strava',
+        name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+        data: {
+          actorId: 'actor-1',
+          stravaActivityId: '123',
+          publishSendNote: true,
+          notifyOnComplete: true
+        }
+      })
+    } finally {
+      fetchSpy.mockRestore()
+    }
+    expect(database.createAttachment).toHaveBeenCalledOnce()
+    expect(mockSaveFitnessFile).toHaveBeenCalledOnce()
+    expect(mockImportFitnessFiles).toHaveBeenCalledWith(
+      database,
+      expect.objectContaining({
+        publishSendNote: false,
+        notifyOnComplete: false
+      }),
+      { deferProcessJobPublishes: true }
+    )
+    expect(mockGetQueue().publish).toHaveBeenCalledTimes(1)
+    expect(mockGetQueue().publish).toHaveBeenCalledWith(processJob)
+    expect(mockAddStatusToTimelines).not.toHaveBeenCalled()
+  })
+
+  it('does not create a fallback post for a moved actor without exportable streams', async () => {
+    database.getActorFromId.mockResolvedValue({
+      id: 'actor-1',
+      movedTo: 'https://destination.test/users/athlete'
+    } as never)
+    mockBuildGpxFromStravaStreams.mockReturnValueOnce(null)
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'moved-streamless',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: {
+        actorId: 'actor-1',
+        stravaActivityId: '123',
+        publishSendNote: true,
+        notifyOnComplete: true
+      }
+    })
+    expect(database.createNote).not.toHaveBeenCalled()
+    expect(mockAddStatusToTimelines).not.toHaveBeenCalled()
+    expect(mockGetQueue().publish).not.toHaveBeenCalled()
+    expect(database.createNotification).not.toHaveBeenCalled()
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message:
+          'Skipping Strava activity for moved actor without exportable file',
+        actorId: 'actor-1',
+        stravaActivityId: '123'
+      })
+    )
+  })
+
   it('imports Strava activity via streams and forwards overlap context to fitness import', async () => {
     await importStravaActivityJob(database as unknown as Database, {
       id: 'job-1',
@@ -147,6 +242,64 @@ describe('importStravaActivityJob', () => {
       expect.objectContaining({
         fitnessFileIds: ['new-file'],
         overlapFitnessFileIds: ['wahoo-file']
+      }),
+      { deferProcessJobPublishes: true }
+    )
+  })
+
+  it('passes a moved-time hidden overlap file through to importFitnessFiles', async () => {
+    database.getFitnessFilesByActor.mockResolvedValue([
+      {
+        id: 'hidden-wahoo-file',
+        actorId: 'actor-1',
+        statusId: 'hidden-wahoo-status',
+        activityStartTime: Date.parse('2026-01-01T00:10:00.000Z'),
+        totalDurationSeconds: 1_200
+      },
+      {
+        id: 'public-wahoo-file',
+        actorId: 'actor-1',
+        statusId: 'public-wahoo-status',
+        activityStartTime: Date.parse('2026-01-01T00:10:00.000Z'),
+        totalDurationSeconds: 1_200
+      }
+    ] as never)
+    // The hidden status carries the createdWhileMoved marker with empty
+    // recipients, so a duplicate of the isolation rule here would drop the
+    // file.
+    database.getStatus.mockImplementation(async ({ statusId }) => {
+      if (statusId === 'hidden-wahoo-status') {
+        return {
+          id: statusId,
+          to: [],
+          cc: [],
+          createdWhileMoved: true
+        } as never
+      }
+      if (statusId === 'public-wahoo-status') {
+        return {
+          id: statusId,
+          to: ['https://www.w3.org/ns/activitystreams#Public'],
+          cc: []
+        } as never
+      }
+      return { id: statusId, type: 'Note', text: '' } as never
+    })
+
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'job-hidden-wahoo-overlap',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: { actorId: 'actor-1', stravaActivityId: '123' }
+    })
+
+    // The isolation rule (isIsolatedFromFitnessImport) belongs to
+    // importFitnessFiles alone; this job must not pre-filter overlap
+    // candidates on its own copy of it.
+    expect(mockImportFitnessFiles).toHaveBeenCalledWith(
+      database,
+      expect.objectContaining({
+        fitnessFileIds: ['new-file'],
+        overlapFitnessFileIds: ['hidden-wahoo-file', 'public-wahoo-file']
       }),
       { deferProcessJobPublishes: true }
     )

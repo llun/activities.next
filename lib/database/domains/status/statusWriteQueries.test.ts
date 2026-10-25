@@ -36,6 +36,7 @@ import {
   formatBucketHour,
   truncateToHour
 } from '@/lib/database/utils/counterBucket'
+import { getCompatibleJSON } from '@/lib/database/utils/getCompatibleJSON'
 import { StatusNote, StatusPoll, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
@@ -493,10 +494,10 @@ const describeStatement = ({ sql: text, bindings }: Statement) => {
 }
 
 // The statements of the first transaction among `statements` that writes,
-// from its begin to its commit or rollback, described. Hydration runs outside
-// it, and may read in a transaction of its own; reindexing a hashtag for
-// search writes in one after it.
-const transactionSteps = (statements: Statement[]) => {
+// from its begin to its commit or rollback. Hydration runs outside it, and
+// may read in a transaction of its own; reindexing a hashtag for search
+// writes in one after it.
+const writingTransaction = (statements: Statement[]) => {
   const transactions: Statement[][] = []
   let current: Statement[] | null = null
   for (const statement of statements) {
@@ -516,7 +517,32 @@ const transactionSteps = (statements: Statement[]) => {
     )
   )
   expect(writing.length, 'a writing transaction').toBeGreaterThan(0)
-  return writing[0].map(describeStatement)
+  return writing[0]
+}
+
+const transactionSteps = (statements: Statement[]) =>
+  writingTransaction(statements).map(describeStatement)
+
+// The row lock an edit takes: the `select * from "statuses"` read of its
+// transaction, taken before anything is written. PostgreSQL appends
+// `for update`; SQLite has no row locks, so the same statement reads
+// without it.
+const statusRowLock = (statements: Statement[]) => {
+  const transaction = writingTransaction(statements)
+  const lock = transaction.find(({ sql: text }) =>
+    /^select \* from "statuses" where "id" = (\$1|\?) limit (\$2|\?)( for update)?$/.test(
+      text
+    )
+  )
+  const firstWrite = transaction.findIndex(
+    ({ sql: text }) => !/^(begin|select) ?/.test(text)
+  )
+  expect(lock, 'the status row lock').toBeDefined()
+  expect(
+    lock && transaction.indexOf(lock) < firstWrite,
+    'the lock is taken before the first write'
+  ).toBe(true)
+  return lock
 }
 
 beforeAll(async () => {
@@ -1876,6 +1902,108 @@ describe('updateNote', () => {
     }
     expect(await dumpTables()).toEqual(before)
   })
+
+  it('does not put back a marker a concurrent visibility change cleared', async () => {
+    const p = nextPrefix()
+    const author = await seedActor(`${p}-author`)
+    const id = `${author}/statuses/1`
+    await seedStatus({
+      id,
+      actorId: author,
+      to: [],
+      cc: [],
+      content: JSON.stringify({
+        url: id,
+        text: 'ride',
+        summary: '',
+        sensitive: false,
+        language: null,
+        createdWhileMoved: true
+      })
+    })
+    // The visibility change commits after updateNote's hydrated read: the
+    // row no longer carries the marker, but the read that raced it still
+    // does. Only that first read is doctored — the re-read updateNote
+    // returns must see the row as it is.
+    await db
+      .updateTable('statuses')
+      .set({
+        content: JSON.stringify({
+          url: id,
+          text: 'ride',
+          summary: '',
+          sensitive: false,
+          language: null
+        })
+      })
+      .where('id', '=', id)
+      .execute()
+    let reads = 0
+    const racedHydration: StatusHydration = {
+      ...hydration,
+      getStatus: (params) => {
+        reads += 1
+        return reads === 1
+          ? hydration
+              .getStatus(params)
+              .then((status) =>
+                status ? { ...status, createdWhileMoved: true } : status
+              )
+          : hydration.getStatus(params)
+      }
+    }
+    const status = await updateNote(db, racedHydration, {
+      statusId: id,
+      text: 'after',
+      summary: ''
+    })
+    expect(
+      getCompatibleJSON(
+        (
+          await db
+            .selectFrom('statuses')
+            .select('content')
+            .where('id', '=', id)
+            .executeTakeFirstOrThrow()
+        ).content
+      )
+    ).toEqual({
+      url: id,
+      text: 'after',
+      summary: '',
+      sensitive: false,
+      language: null
+    })
+    expect(status).not.toHaveProperty('createdWhileMoved')
+  })
+
+  it('locks the status row before writing an edit of a marked status', async () => {
+    const p = nextPrefix()
+    const author = await seedActor(`${p}-author`)
+    const id = `${author}/statuses/1`
+    await seedStatus({
+      id,
+      actorId: author,
+      to: [],
+      cc: [],
+      content: JSON.stringify({
+        url: id,
+        text: 'ride',
+        summary: '',
+        sensitive: false,
+        language: null,
+        createdWhileMoved: true
+      })
+    })
+    const { statements } = await capture(() =>
+      updateNote(db, hydration, { statusId: id, text: 'after', summary: '' })
+    )
+    // The in-transaction re-read that keeps the marker honest is a row lock:
+    // it waits for a concurrent visibility change on PostgreSQL. SQLite has
+    // no row locks, so the same statement reads without one.
+    const lock = statusRowLock(statements)
+    expect(lock?.sql.endsWith(' for update')).toBe(testDb.backend === 'pg')
+  })
 })
 
 describe('updateNoteVisibility', () => {
@@ -2227,6 +2355,195 @@ describe('updateNoteVisibility', () => {
       ).resolves.toBeNull()
     }
     expect(await dumpTables()).toEqual(before)
+  })
+
+  it('drops the moved-time marker from the content, keeping every other field', async () => {
+    const p = nextPrefix()
+    const author = await seedActor(`${p}-author`)
+    const id = `${author}/statuses/1`
+    await seedStatus({
+      id,
+      actorId: author,
+      to: [],
+      cc: [],
+      content: JSON.stringify({
+        url: id,
+        text: 'ride',
+        summary: 'spoiler',
+        sensitive: true,
+        language: 'de',
+        createdWhileMoved: true
+      })
+    })
+
+    // The owner picked a new audience (followers), so the status is an
+    // ordinary post now.
+    const status = await updateNoteVisibility(db, hydration, {
+      statusId: id,
+      ...FOLLOWERS_ONLY(author)
+    })
+    expect(status).not.toHaveProperty('createdWhileMoved')
+    expect(
+      getCompatibleJSON(
+        (
+          await db
+            .selectFrom('statuses')
+            .select('content')
+            .where('id', '=', id)
+            .executeTakeFirstOrThrow()
+        ).content
+      )
+    ).toEqual({
+      url: id,
+      text: 'ride',
+      summary: 'spoiler',
+      sensitive: true,
+      language: 'de'
+    })
+  })
+
+  it('clears the marker when a duplicated mention is replaced by a new one', async () => {
+    const p = nextPrefix()
+    const author = await seedActor(`${p}-author`)
+    const id = `${author}/statuses/1`
+    const mention = (name: string) => actorIn(`${p}-${name}`)
+    await seedStatus({
+      id,
+      actorId: author,
+      to: [],
+      // A private note's cc keeps the mention hrefs as written, duplicates
+      // included, so [alice, alice] and [alice, bob] are different
+      // audiences even though both lists have two entries.
+      cc: [mention('alice'), mention('alice')],
+      content: JSON.stringify({
+        url: id,
+        text: 'ride',
+        summary: '',
+        sensitive: false,
+        language: null,
+        createdWhileMoved: true
+      })
+    })
+    const status = await updateNoteVisibility(db, hydration, {
+      statusId: id,
+      to: [],
+      cc: [mention('alice'), mention('bob')]
+    })
+    expect(status).not.toHaveProperty('createdWhileMoved')
+    expect(
+      getCompatibleJSON(
+        (
+          await db
+            .selectFrom('statuses')
+            .select('content')
+            .where('id', '=', id)
+            .executeTakeFirstOrThrow()
+        ).content
+      )
+    ).toEqual({
+      url: id,
+      text: 'ride',
+      summary: '',
+      sensitive: false,
+      language: null
+    })
+  })
+
+  it('writes no content update for a status without the marker', async () => {
+    const p = nextPrefix()
+    const author = await seedActor(`${p}-author`)
+    const id = await seedStatus({
+      id: `${author}/statuses/1`,
+      actorId: author,
+      to: [],
+      cc: []
+    })
+    const { statements } = await capture(() =>
+      updateNoteVisibility(db, hydration, {
+        statusId: id,
+        ...FOLLOWERS_ONLY(author)
+      })
+    )
+    // An audience change on an unmarked status rewrites the recipients but
+    // never the content: there is no marker to clear.
+    expect(statements.map(describeStatement)).not.toContain('update status')
+    expect(
+      (
+        await db
+          .selectFrom('statuses')
+          .select('content')
+          .where('id', '=', id)
+          .executeTakeFirstOrThrow()
+      ).content
+    ).toBe(noteContent(id))
+  })
+
+  it('keeps the marker when the resent visibility is the current one', async () => {
+    const p = nextPrefix()
+    const author = await seedActor(`${p}-author`)
+    const id = `${author}/statuses/1`
+    const content = JSON.stringify({
+      url: id,
+      text: 'ride',
+      summary: '',
+      sensitive: false,
+      language: null,
+      createdWhileMoved: true
+    })
+    await seedStatus({ id, actorId: author, to: [], cc: [], content })
+    const { result: status, statements } = await capture(() =>
+      updateNoteVisibility(db, hydration, {
+        statusId: id,
+        to: [],
+        cc: []
+      })
+    )
+    // A hidden status reads back as `direct`, so a client reusing its draft
+    // settings on a text edit resends to: [], cc: [] — the status's current
+    // audience. That is not a visibility change: the marker stays and no
+    // content write runs.
+    expect(statements.map(describeStatement)).not.toContain('update status')
+    expect((status as StatusNote | null)?.createdWhileMoved).toBe(true)
+    expect(
+      (
+        await db
+          .selectFrom('statuses')
+          .select('content')
+          .where('id', '=', id)
+          .executeTakeFirstOrThrow()
+      ).content
+    ).toBe(content)
+  })
+
+  it('locks the status row before clearing the marker', async () => {
+    const p = nextPrefix()
+    const author = await seedActor(`${p}-author`)
+    const id = `${author}/statuses/1`
+    await seedStatus({
+      id,
+      actorId: author,
+      to: [],
+      cc: [],
+      content: JSON.stringify({
+        url: id,
+        text: 'ride',
+        summary: '',
+        sensitive: false,
+        language: null,
+        createdWhileMoved: true
+      })
+    })
+    const { statements } = await capture(() =>
+      updateNoteVisibility(db, hydration, {
+        statusId: id,
+        ...FOLLOWERS_ONLY(author)
+      })
+    )
+    // The marker clear reads the row before the audience is rewritten, so a
+    // concurrent edit is waited for on PostgreSQL. SQLite has no row locks,
+    // so the same statement reads without one.
+    const lock = statusRowLock(statements)
+    expect(lock?.sql.endsWith(' for update')).toBe(testDb.backend === 'pg')
   })
 })
 

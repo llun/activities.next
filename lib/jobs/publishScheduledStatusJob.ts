@@ -60,7 +60,7 @@ export const publishScheduledStatusJob = createJobHandle(
     // Too early: re-enqueue with the remaining delay and skip publishing. This
     // is the path the in-process NoQueue always takes (it ignores delays).
     const remainingMs = row.scheduledAt - Date.now()
-    if (remainingMs > EARLY_THRESHOLD_MS) {
+    const reenqueue = async () => {
       // Derive the replacement job's ID from the current message and scheduled
       // timestamp so it cannot collide with the job currently executing.
       // Repeated early deliveries produce distinct, non-colliding IDs, while
@@ -69,8 +69,11 @@ export const publishScheduledStatusJob = createJobHandle(
         id: getHashFromString(`${message.id}:${row.scheduledAt}:reenqueue`),
         name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
         data: { scheduledStatusId: row.id, scheduledAt: row.scheduledAt },
-        delaySeconds: scheduledDelaySeconds(row.scheduledAt)
+        delaySeconds: Math.max(1, scheduledDelaySeconds(row.scheduledAt))
       })
+    }
+    if (remainingMs > EARLY_THRESHOLD_MS) {
+      await reenqueue()
       return
     }
 
@@ -85,14 +88,12 @@ export const publishScheduledStatusJob = createJobHandle(
       return
     }
 
-    // A moved account can no longer post: drop the row like any other
-    // terminal failure so it is not retried or published later.
+    // A moved account can no longer post. Keep the row visible to its owner;
+    // clearing the redirect will enqueue any statuses that became due.
     if (isMovedActor(actor)) {
-      logger.warn(
-        { scheduledStatusId: row.id, actorId: row.actorId },
-        'publishScheduledStatusJob: author has moved, dropping scheduled status'
-      )
-      await database.deleteScheduledStatus({ id: row.id, actorId: row.actorId })
+      // Jobs may arrive up to 60 seconds early. If the redirect clears before
+      // the due time, a delivery must still exist for that future status.
+      if (remainingMs > 0) await reenqueue()
       return
     }
 

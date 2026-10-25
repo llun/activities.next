@@ -5,13 +5,16 @@ import {
 } from '@/lib/jobs/importFitnessFilesJob'
 import {
   IMPORT_FITNESS_FILES_JOB_NAME,
-  PROCESS_FITNESS_FILE_JOB_NAME
+  PROCESS_FITNESS_FILE_JOB_NAME,
+  SEND_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
+import { processFitnessFileJob } from '@/lib/jobs/processFitnessFileJob'
 import { getFitnessFileBuffer } from '@/lib/services/fitness-files'
 import type { FitnessActivityData } from '@/lib/services/fitness-files/parseFitnessFile'
 import { parseFitnessFile } from '@/lib/services/fitness-files/parseFitnessFile'
 import { deleteMediaFile } from '@/lib/services/medias'
 import { getQueue } from '@/lib/services/queue'
+import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { Actor } from '@/lib/types/domain/actor'
@@ -54,7 +57,7 @@ const mockDeleteMediaFile = deleteMediaFile as jest.MockedFunction<
 >
 
 describe('importFitnessFilesJob', () => {
-  const { database, prepare } = createTestDatabase()
+  const { database, db, prepare } = createTestDatabase()
   let actor: Actor
 
   beforeAll(async () => {
@@ -84,6 +87,908 @@ describe('importFitnessFilesJob', () => {
     database,
     () => actor
   )
+
+  it('keeps a moved actor import in fitness without publishing a post', async () => {
+    const file = await createFitnessFile('fit', 'fitness/moved.fit', 'moved')
+    mockParseFitnessFile.mockResolvedValue({
+      ...routedActivity,
+      coordinates: [],
+      activityType: 'Running'
+    })
+    // The queued import carries only the id; the move happens after enqueue.
+    const data = {
+      actorId: actor.id,
+      batchId: 'moved',
+      fitnessFileIds: [file!.id],
+      visibility: 'public' as const,
+      publishSendNote: true,
+      notifyOnComplete: true
+    }
+    await database.updateActor({
+      actorId: actor.id,
+      movedTo: 'https://destination.test/users/athlete'
+    })
+    try {
+      const [group] = await importFitnessFiles(database, data)
+      expect(group.processJob).toEqual(
+        expect.objectContaining({
+          name: PROCESS_FITNESS_FILE_JOB_NAME,
+          data: expect.objectContaining({
+            publishSendNote: false,
+            notifyOnComplete: false
+          })
+        })
+      )
+      await processFitnessFileJob(database, group.processJob!)
+
+      const imported = await database.getFitnessFile({ id: file!.id })
+      expect(imported).toEqual(
+        expect.objectContaining({
+          statusId: group.statusId,
+          importStatus: 'completed',
+          processingStatus: 'completed',
+          totalDistanceMeters: routedActivity.totalDistanceMeters
+        })
+      )
+      const status = await database.getStatus({ statusId: group.statusId })
+      expect(status).toEqual(expect.objectContaining({ to: [], cc: [] }))
+      expect(
+        await canActorReadStatus({
+          database,
+          status: status!,
+          currentActor: null
+        })
+      ).toBe(false)
+      expect(
+        await canActorReadStatus({
+          database,
+          status: status!,
+          currentActor: actor
+        })
+      ).toBe(true)
+      expect(
+        await canActorReadStatus({
+          database,
+          status: status!,
+          currentActor: { ...actor, id: 'https://follower.test/users/friend' },
+          isFollower: true
+        })
+      ).toBe(false)
+      expect(
+        await database.getActorStatuses({ actorId: actor.id, publicOnly: true })
+      ).not.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: group.statusId })
+        ])
+      )
+      expect(
+        await db
+          .selectFrom('timelines')
+          .selectAll()
+          .where('statusId', '=', group.statusId)
+          .execute()
+      ).toEqual([])
+      const page = await database.getFitnessActivitiesInWindow({
+        actorId: actor.id,
+        startDate: Date.parse('2026-02-01T00:00:00Z'),
+        endDate: Date.parse('2026-02-02T00:00:00Z'),
+        limit: 100,
+        offset: 0
+      })
+      expect(page.activities).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: file!.id, statusId: group.statusId })
+        ])
+      )
+      expect(getQueue().publish).toHaveBeenCalledTimes(1)
+      expect(getQueue().publish).toHaveBeenCalledWith(group.processJob)
+    } finally {
+      await database.updateActor({ actorId: actor.id, movedTo: null })
+    }
+  })
+
+  it('posts an overlapping import after a redirect is cleared and leaves the moved import hidden', async () => {
+    const hiddenFile = await createFitnessFile(
+      'fit',
+      'fitness/hidden-overlap-before-clear.fit',
+      'hidden-overlap-before-clear'
+    )
+    const newFile = await createFitnessFile(
+      'fit',
+      'fitness/public-overlap-after-clear.fit',
+      'public-overlap-after-clear'
+    )
+    mockParseFitnessFile.mockResolvedValue(routedActivity)
+    await database.updateActor({
+      actorId: actor.id,
+      movedTo: 'https://destination.test/users/athlete'
+    })
+    try {
+      const [hidden] = await importFitnessFiles(database, {
+        actorId: actor.id,
+        batchId: 'hidden-overlap-before-clear',
+        fitnessFileIds: [hiddenFile!.id],
+        visibility: 'public',
+        publishSendNote: true
+      })
+      await processFitnessFileJob(database, hidden.processJob!)
+      expect(await database.getStatus({ statusId: hidden.statusId })).toEqual(
+        expect.objectContaining({ to: [], cc: [] })
+      )
+
+      await database.updateActor({ actorId: actor.id, movedTo: null })
+      const [published] = await importFitnessFiles(database, {
+        actorId: actor.id,
+        batchId: 'public-overlap-after-clear',
+        fitnessFileIds: [newFile!.id],
+        overlapFitnessFileIds: [hiddenFile!.id],
+        visibility: 'public',
+        publishSendNote: true
+      })
+      expect(published.statusId).not.toBe(hidden.statusId)
+      expect(published.statusCreated).toBe(true)
+      expect(published.processJob?.data).toEqual(
+        expect.objectContaining({ publishSendNote: true })
+      )
+      await processFitnessFileJob(database, published.processJob!)
+
+      expect(await database.getFitnessFile({ id: hiddenFile!.id })).toEqual(
+        expect.objectContaining({ statusId: hidden.statusId })
+      )
+      expect(await database.getStatus({ statusId: hidden.statusId })).toEqual(
+        expect.objectContaining({ to: [], cc: [] })
+      )
+      expect(
+        await db
+          .selectFrom('timelines')
+          .selectAll()
+          .where('statusId', '=', hidden.statusId)
+          .execute()
+      ).toEqual([])
+      expect(
+        await database.getStatus({ statusId: published.statusId })
+      ).toEqual(expect.objectContaining({ to: [ACTIVITY_STREAM_PUBLIC] }))
+      expect(
+        await db
+          .selectFrom('timelines')
+          .selectAll()
+          .where('statusId', '=', published.statusId)
+          .execute()
+      ).not.toEqual([])
+      expect(getQueue().publish).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: SEND_NOTE_JOB_NAME,
+          data: expect.objectContaining({ statusId: published.statusId })
+        })
+      )
+    } finally {
+      await database.updateActor({ actorId: actor.id, movedTo: null })
+    }
+  })
+
+  it('lands a Wahoo revision on the hidden status a moved-time import left behind', async () => {
+    const earlierFile = await createFitnessFile(
+      'fit',
+      'fitness/wahoo-revision-hidden-earlier.fit',
+      'wahoo-revision-hidden'
+    )
+    const latestFile = await createFitnessFile(
+      'fit',
+      'fitness/wahoo-revision-hidden-latest.fit',
+      'wahoo-revision-hidden'
+    )
+    mockParseFitnessFile.mockResolvedValue(routedActivity)
+    await database.updateActor({
+      actorId: actor.id,
+      movedTo: 'https://destination.test/users/athlete'
+    })
+    try {
+      const [hidden] = await importFitnessFiles(database, {
+        actorId: actor.id,
+        batchId: 'wahoo-revision-hidden',
+        fitnessFileIds: [earlierFile!.id],
+        visibility: 'public',
+        publishSendNote: true
+      })
+      await processFitnessFileJob(database, hidden.processJob!)
+      expect(await database.getStatus({ statusId: hidden.statusId })).toEqual(
+        expect.objectContaining({ to: [], cc: [] })
+      )
+
+      await database.updateActor({ actorId: actor.id, movedTo: null })
+      // Wahoo resends edited FIT bytes for the same workout: the previous
+      // file rides along as an overlap candidate, and the revision names the
+      // status it must land on. It is not a new recording, so the hidden
+      // status is not isolated from it.
+      const groups = await importFitnessFiles(database, {
+        actorId: actor.id,
+        batchId: 'wahoo-revision-hidden',
+        fitnessFileIds: [latestFile!.id],
+        overlapFitnessFileIds: [earlierFile!.id],
+        visibility: 'public',
+        publishSendNote: true,
+        replacePrimaryFileId: earlierFile!.id,
+        expectedExistingStatusId: hidden.statusId
+      })
+      expect(groups).toHaveLength(1)
+      const [revision] = groups
+      expect(revision.statusId).toBe(hidden.statusId)
+      expect(revision.statusCreated).toBe(false)
+      expect(revision.primaryFitnessFileId).toBe(latestFile!.id)
+      expect(await database.getFitnessFile({ id: latestFile!.id })).toEqual(
+        expect.objectContaining({
+          statusId: hidden.statusId,
+          isPrimary: true
+        })
+      )
+      expect(await database.getFitnessFile({ id: earlierFile!.id })).toEqual(
+        expect.objectContaining({
+          statusId: hidden.statusId,
+          isPrimary: false
+        })
+      )
+      expect(await database.getStatus({ statusId: hidden.statusId })).toEqual(
+        expect.objectContaining({ to: [], cc: [] })
+      )
+    } finally {
+      await database.updateActor({ actorId: actor.id, movedTo: null })
+    }
+  })
+
+  it('lands a replacePrimaryFileId-only revision on the hidden status a moved-time import left behind', async () => {
+    const earlierFile = await createFitnessFile(
+      'fit',
+      'fitness/wahoo-revision-replace-only-earlier.fit',
+      'wahoo-revision-replace-only'
+    )
+    const latestFile = await createFitnessFile(
+      'fit',
+      'fitness/wahoo-revision-replace-only-latest.fit',
+      'wahoo-revision-replace-only'
+    )
+    mockParseFitnessFile.mockResolvedValue(routedActivity)
+    await database.updateActor({
+      actorId: actor.id,
+      movedTo: 'https://destination.test/users/athlete'
+    })
+    try {
+      const [hidden] = await importFitnessFiles(database, {
+        actorId: actor.id,
+        batchId: 'wahoo-revision-replace-only',
+        fitnessFileIds: [earlierFile!.id],
+        visibility: 'public',
+        publishSendNote: true
+      })
+      await processFitnessFileJob(database, hidden.processJob!)
+
+      await database.updateActor({ actorId: actor.id, movedTo: null })
+      // The Wahoo job crashed after the status was assigned but before it
+      // recorded the import, so the retry knows only the file whose status
+      // the revision replaces — no expectedExistingStatusId. The hidden
+      // status must still be exempt from isolation, or the revision would
+      // publish a duplicate post for the same ride.
+      const groups = await importFitnessFiles(database, {
+        actorId: actor.id,
+        batchId: 'wahoo-revision-replace-only',
+        fitnessFileIds: [latestFile!.id],
+        overlapFitnessFileIds: [earlierFile!.id],
+        visibility: 'public',
+        publishSendNote: true,
+        replacePrimaryFileId: earlierFile!.id
+      })
+      expect(groups).toHaveLength(1)
+      const [revision] = groups
+      expect(revision.statusId).toBe(hidden.statusId)
+      expect(revision.statusCreated).toBe(false)
+      expect(revision.primaryFitnessFileId).toBe(latestFile!.id)
+      expect(await database.getFitnessFile({ id: latestFile!.id })).toEqual(
+        expect.objectContaining({
+          statusId: hidden.statusId,
+          isPrimary: true
+        })
+      )
+      expect(await database.getFitnessFile({ id: earlierFile!.id })).toEqual(
+        expect.objectContaining({
+          statusId: hidden.statusId,
+          isPrimary: false
+        })
+      )
+      expect(await database.getStatus({ statusId: hidden.statusId })).toEqual(
+        expect.objectContaining({ to: [], cc: [] })
+      )
+    } finally {
+      await database.updateActor({ actorId: actor.id, movedTo: null })
+    }
+  })
+
+  it('merges a later import into a moved-time status the owner published after the clear', async () => {
+    const hiddenFile = await createFitnessFile(
+      'fit',
+      'fitness/hidden-published-after-clear.fit',
+      'hidden-published-after-clear'
+    )
+    const newFile = await createFitnessFile(
+      'fit',
+      'fitness/overlap-into-published.fit',
+      'overlap-into-published'
+    )
+    mockParseFitnessFile.mockResolvedValue(routedActivity)
+    await database.updateActor({
+      actorId: actor.id,
+      movedTo: 'https://destination.test/users/athlete'
+    })
+    try {
+      const [hidden] = await importFitnessFiles(database, {
+        actorId: actor.id,
+        batchId: 'hidden-published-after-clear',
+        fitnessFileIds: [hiddenFile!.id],
+        visibility: 'public',
+        publishSendNote: true
+      })
+      await processFitnessFileJob(database, hidden.processJob!)
+      expect(await database.getStatus({ statusId: hidden.statusId })).toEqual(
+        expect.objectContaining({ to: [], cc: [] })
+      )
+
+      await database.updateActor({ actorId: actor.id, movedTo: null })
+      // The post menu's visibility control (PUT /api/v1/statuses/:id) runs
+      // updateNoteVisibility: a visibility change that changes the audience
+      // clears the createdWhileMoved marker, so the status is an ordinary
+      // post.
+      await database.updateNoteVisibility({
+        statusId: hidden.statusId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const published = await database.getStatus({
+        statusId: hidden.statusId
+      })
+      expect(published).toEqual(
+        expect.objectContaining({ to: [ACTIVITY_STREAM_PUBLIC] })
+      )
+      expect(published).not.toHaveProperty('createdWhileMoved')
+
+      const [merged] = await importFitnessFiles(database, {
+        actorId: actor.id,
+        batchId: 'overlap-into-published',
+        fitnessFileIds: [newFile!.id],
+        overlapFitnessFileIds: [hiddenFile!.id],
+        visibility: 'public',
+        publishSendNote: true
+      })
+      // The published status merges like any post: the overlapping import
+      // attaches to it instead of creating a second public post for the ride.
+      expect(merged.statusId).toBe(hidden.statusId)
+      expect(merged.statusCreated).toBe(false)
+      expect(await database.getFitnessFile({ id: newFile!.id })).toEqual(
+        expect.objectContaining({ statusId: hidden.statusId })
+      )
+    } finally {
+      await database.updateActor({ actorId: actor.id, movedTo: null })
+    }
+  })
+
+  it('merges a later public import into a moved-time status the owner set to direct after the clear', async () => {
+    const hiddenFile = await createFitnessFile(
+      'fit',
+      'fitness/hidden-set-direct-after-clear.fit',
+      'hidden-set-direct-after-clear'
+    )
+    const newFile = await createFitnessFile(
+      'fit',
+      'fitness/public-overlap-into-direct.fit',
+      'public-overlap-into-direct'
+    )
+    mockParseFitnessFile.mockResolvedValue(routedActivity)
+    await database.updateActor({
+      actorId: actor.id,
+      movedTo: 'https://destination.test/users/athlete'
+    })
+    try {
+      const [hidden] = await importFitnessFiles(database, {
+        actorId: actor.id,
+        batchId: 'hidden-set-direct-after-clear',
+        fitnessFileIds: [hiddenFile!.id],
+        visibility: 'public',
+        publishSendNote: true
+      })
+      await processFitnessFileJob(database, hidden.processJob!)
+      expect(await database.getStatus({ statusId: hidden.statusId })).toEqual(
+        expect.objectContaining({ to: [], cc: [] })
+      )
+
+      await database.updateActor({ actorId: actor.id, movedTo: null })
+      // Publishing, then changing the mind to direct, both run
+      // updateNoteVisibility — and each changes the audience, which clears
+      // the marker, so the status is an ordinary direct post, not a
+      // still-hidden moved-time record.
+      await database.updateNoteVisibility({
+        statusId: hidden.statusId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.updateNoteVisibility({
+        statusId: hidden.statusId,
+        to: [],
+        cc: []
+      })
+      const direct = await database.getStatus({
+        statusId: hidden.statusId
+      })
+      expect(direct).toEqual(expect.objectContaining({ to: [], cc: [] }))
+      expect(direct).not.toHaveProperty('createdWhileMoved')
+
+      const [merged] = await importFitnessFiles(database, {
+        actorId: actor.id,
+        batchId: 'public-overlap-into-direct',
+        fitnessFileIds: [newFile!.id],
+        overlapFitnessFileIds: [hiddenFile!.id],
+        visibility: 'public',
+        publishSendNote: true
+      })
+      // The direct status merges like any direct import: the overlapping
+      // public import attaches to it instead of creating a second, public
+      // post for a ride the owner made private.
+      expect(merged.statusId).toBe(hidden.statusId)
+      expect(merged.statusCreated).toBe(false)
+      expect(await database.getStatus({ statusId: hidden.statusId })).toEqual(
+        expect.objectContaining({ to: [], cc: [] })
+      )
+      expect(await database.getFitnessFile({ id: newFile!.id })).toEqual(
+        expect.objectContaining({ statusId: hidden.statusId })
+      )
+      expect(getQueue().publish).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: SEND_NOTE_JOB_NAME,
+          data: expect.objectContaining({ statusId: hidden.statusId })
+        })
+      )
+    } finally {
+      await database.updateActor({ actorId: actor.id, movedTo: null })
+    }
+  })
+
+  it.each([false, true])(
+    'does not expose a moved actor new file through a pre-move post (reprocess original: %s)',
+    async (reprocessOriginal) => {
+      const original = await createFitnessFile(
+        'fit',
+        `fitness/before-move-${reprocessOriginal}.fit`,
+        'before-move'
+      )
+      mockParseFitnessFile.mockResolvedValue(routedActivity)
+      const [published] = await importFitnessFiles(database, {
+        actorId: actor.id,
+        batchId: 'before-move',
+        fitnessFileIds: [original!.id],
+        visibility: 'public'
+      })
+      const additional = await createFitnessFile(
+        'fit',
+        `fitness/after-move-${reprocessOriginal}.fit`,
+        'after-move'
+      )
+      await database.updateActor({
+        actorId: actor.id,
+        movedTo: 'https://destination.test/users/athlete'
+      })
+      try {
+        const [imported] = await importFitnessFiles(database, {
+          actorId: actor.id,
+          batchId: 'after-move',
+          fitnessFileIds: reprocessOriginal
+            ? [original!.id, additional!.id]
+            : [additional!.id],
+          overlapFitnessFileIds: [original!.id],
+          visibility: 'public',
+          publishSendNote: true
+        })
+        expect(imported.statusId).not.toBe(published.statusId)
+        expect(
+          await database.getStatus({ statusId: imported.statusId })
+        ).toEqual(expect.objectContaining({ to: [], cc: [] }))
+        expect(await database.getFitnessFile({ id: original!.id })).toEqual(
+          expect.objectContaining({ statusId: published.statusId })
+        )
+        // Reprocessing the historical recording preserves its original post.
+        const [reprocessed] = await importFitnessFiles(database, {
+          actorId: actor.id,
+          batchId: 'before-move',
+          fitnessFileIds: [original!.id],
+          visibility: 'public',
+          publishSendNote: true
+        })
+        expect(reprocessed.statusId).toBe(published.statusId)
+        expect(reprocessed.processJob?.data).toEqual(
+          expect.objectContaining({ publishSendNote: false })
+        )
+      } finally {
+        await database.updateActor({ actorId: actor.id, movedTo: null })
+      }
+    }
+  )
+
+  it('lands a Wahoo revision on a pre-move post while the account is moved without publishing', async () => {
+    const earlierFile = await createFitnessFile(
+      'fit',
+      'fitness/wahoo-revision-premove-earlier.fit',
+      'wahoo-revision-premove'
+    )
+    const latestFile = await createFitnessFile(
+      'fit',
+      'fitness/wahoo-revision-premove-latest.fit',
+      'wahoo-revision-premove'
+    )
+    mockParseFitnessFile.mockResolvedValue(routedActivity)
+    const [published] = await importFitnessFiles(database, {
+      actorId: actor.id,
+      batchId: 'wahoo-revision-premove',
+      fitnessFileIds: [earlierFile!.id],
+      visibility: 'public'
+    })
+    expect(await database.getStatus({ statusId: published.statusId })).toEqual(
+      expect.objectContaining({ to: [ACTIVITY_STREAM_PUBLIC] })
+    )
+
+    await database.updateActor({
+      actorId: actor.id,
+      movedTo: 'https://destination.test/users/athlete'
+    })
+    try {
+      ;(getQueue().publish as jest.Mock).mockClear()
+      // The revision is the same workout as the pre-move post, not a new
+      // recording, so it stays on that post instead of being isolated into
+      // its own group.
+      const [revision] = await importFitnessFiles(database, {
+        actorId: actor.id,
+        batchId: 'wahoo-revision-premove',
+        fitnessFileIds: [latestFile!.id],
+        overlapFitnessFileIds: [earlierFile!.id],
+        visibility: 'public',
+        publishSendNote: true,
+        replacePrimaryFileId: earlierFile!.id,
+        expectedExistingStatusId: published.statusId
+      })
+      expect(revision.statusId).toBe(published.statusId)
+      expect(revision.statusCreated).toBe(false)
+      expect(revision.primaryFitnessFileId).toBe(latestFile!.id)
+      expect(revision.processJob?.data).toEqual(
+        expect.objectContaining({ publishSendNote: false })
+      )
+      expect(await database.getFitnessFile({ id: latestFile!.id })).toEqual(
+        expect.objectContaining({
+          statusId: published.statusId,
+          isPrimary: true
+        })
+      )
+      expect(await database.getFitnessFile({ id: earlierFile!.id })).toEqual(
+        expect.objectContaining({
+          statusId: published.statusId,
+          isPrimary: false
+        })
+      )
+
+      await processFitnessFileJob(database, revision.processJob!)
+      expect(getQueue().publish).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: SEND_NOTE_JOB_NAME,
+          data: expect.objectContaining({ statusId: published.statusId })
+        })
+      )
+      // The revision exposes nothing new through the post: its audience is
+      // untouched.
+      expect(
+        await database.getStatus({ statusId: published.statusId })
+      ).toEqual(expect.objectContaining({ to: [ACTIVITY_STREAM_PUBLIC] }))
+    } finally {
+      await database.updateActor({ actorId: actor.id, movedTo: null })
+    }
+  })
+
+  it('lands a revision on its hidden status when a pre-move post of the same ride overlaps it', async () => {
+    const preMoveFile = await createFitnessFile(
+      'fit',
+      'fitness/revision-overlapping-statuses-premove.fit',
+      'revision-overlapping-statuses-premove'
+    )
+    const movedFile = await createFitnessFile(
+      'fit',
+      'fitness/revision-overlapping-statuses-moved.fit',
+      'revision-overlapping-statuses-moved'
+    )
+    const latestFile = await createFitnessFile(
+      'fit',
+      'fitness/revision-overlapping-statuses-latest.fit',
+      'revision-overlapping-statuses-latest'
+    )
+    // The pre-move recording starts ten minutes before the moved-time one;
+    // both overlap by >=80%, so after the clear they are one overlap group.
+    const movedTimeActivity = {
+      ...routedActivity,
+      startTime: new Date('2026-02-01T08:10:00.000Z')
+    }
+    mockParseFitnessFile.mockResolvedValue(routedActivity)
+    const [published] = await importFitnessFiles(database, {
+      actorId: actor.id,
+      batchId: 'revision-overlapping-statuses-premove',
+      fitnessFileIds: [preMoveFile!.id],
+      visibility: 'public',
+      publishSendNote: true
+    })
+    expect(await database.getStatus({ statusId: published.statusId })).toEqual(
+      expect.objectContaining({ to: [ACTIVITY_STREAM_PUBLIC] })
+    )
+
+    await database.updateActor({
+      actorId: actor.id,
+      movedTo: 'https://destination.test/users/athlete'
+    })
+    try {
+      mockParseFitnessFile.mockResolvedValue(movedTimeActivity)
+      const [hidden] = await importFitnessFiles(database, {
+        actorId: actor.id,
+        batchId: 'revision-overlapping-statuses-moved',
+        fitnessFileIds: [movedFile!.id],
+        overlapFitnessFileIds: [preMoveFile!.id],
+        visibility: 'public',
+        publishSendNote: true
+      })
+      expect(hidden.statusId).not.toBe(published.statusId)
+      await processFitnessFileJob(database, hidden.processJob!)
+      expect(await database.getStatus({ statusId: hidden.statusId })).toEqual(
+        expect.objectContaining({ to: [], cc: [] })
+      )
+
+      await database.updateActor({ actorId: actor.id, movedTo: null })
+      // The revision names the hidden status, and the pre-move post's file
+      // starts earlier — the group must still pick the revision's status, not
+      // the earliest file's, or the revision would fail instead of landing.
+      const groups = await importFitnessFiles(database, {
+        actorId: actor.id,
+        batchId: 'revision-overlapping-statuses-latest',
+        fitnessFileIds: [latestFile!.id],
+        overlapFitnessFileIds: [preMoveFile!.id, movedFile!.id],
+        visibility: 'public',
+        publishSendNote: true,
+        replacePrimaryFileId: movedFile!.id,
+        expectedExistingStatusId: hidden.statusId
+      })
+      expect(groups).toHaveLength(1)
+      const [revision] = groups
+      expect(revision.statusId).toBe(hidden.statusId)
+      expect(revision.statusCreated).toBe(false)
+      expect(revision.primaryFitnessFileId).toBe(latestFile!.id)
+      expect(await database.getFitnessFile({ id: latestFile!.id })).toEqual(
+        expect.objectContaining({
+          statusId: hidden.statusId,
+          isPrimary: true
+        })
+      )
+      expect(await database.getFitnessFile({ id: movedFile!.id })).toEqual(
+        expect.objectContaining({
+          statusId: hidden.statusId,
+          isPrimary: false
+        })
+      )
+      // The pre-move post is untouched: its file keeps its status and stays
+      // primary, and the post keeps its audience.
+      expect(await database.getFitnessFile({ id: preMoveFile!.id })).toEqual(
+        expect.objectContaining({
+          statusId: published.statusId,
+          isPrimary: true
+        })
+      )
+      expect(
+        await database.getStatus({ statusId: published.statusId })
+      ).toEqual(expect.objectContaining({ to: [ACTIVITY_STREAM_PUBLIC] }))
+      expect(await database.getStatus({ statusId: hidden.statusId })).toEqual(
+        expect.objectContaining({ to: [], cc: [] })
+      )
+    } finally {
+      await database.updateActor({ actorId: actor.id, movedTo: null })
+    }
+  })
+
+  it('lands a revision on its pre-move post while moved when a hidden moved-time record of the same ride overlaps it', async () => {
+    const preMoveFile = await createFitnessFile(
+      'fit',
+      'fitness/revision-overlapping-moved-premove.fit',
+      'revision-overlapping-moved-premove'
+    )
+    const movedFile = await createFitnessFile(
+      'fit',
+      'fitness/revision-overlapping-moved-record.fit',
+      'revision-overlapping-moved-record'
+    )
+    const latestFile = await createFitnessFile(
+      'fit',
+      'fitness/revision-overlapping-moved-latest.fit',
+      'revision-overlapping-moved-latest'
+    )
+    // The moved-time recording starts five minutes before the pre-move post;
+    // both overlap by >=80%, so while moved they are one overlap group once the
+    // revision exempts the post it names.
+    const earlierMovedActivity = {
+      ...routedActivity,
+      startTime: new Date('2026-02-01T07:55:00.000Z')
+    }
+    mockParseFitnessFile.mockResolvedValue(routedActivity)
+    const [published] = await importFitnessFiles(database, {
+      actorId: actor.id,
+      batchId: 'revision-overlapping-moved-premove',
+      fitnessFileIds: [preMoveFile!.id],
+      visibility: 'public'
+    })
+    expect(await database.getStatus({ statusId: published.statusId })).toEqual(
+      expect.objectContaining({ to: [ACTIVITY_STREAM_PUBLIC] })
+    )
+
+    await database.updateActor({
+      actorId: actor.id,
+      movedTo: 'https://destination.test/users/athlete'
+    })
+    try {
+      mockParseFitnessFile.mockResolvedValue(earlierMovedActivity)
+      const [hidden] = await importFitnessFiles(database, {
+        actorId: actor.id,
+        batchId: 'revision-overlapping-moved-record',
+        fitnessFileIds: [movedFile!.id],
+        overlapFitnessFileIds: [preMoveFile!.id],
+        visibility: 'public',
+        publishSendNote: true
+      })
+      expect(hidden.statusId).not.toBe(published.statusId)
+      await processFitnessFileJob(database, hidden.processJob!)
+      expect(await database.getStatus({ statusId: hidden.statusId })).toEqual(
+        expect.objectContaining({ to: [], cc: [] })
+      )
+
+      ;(getQueue().publish as jest.Mock).mockClear()
+      mockParseFitnessFile.mockResolvedValue(routedActivity)
+      // Still moved: the revision names the pre-move post, and the hidden
+      // record's file starts earlier — the group must still pick the
+      // revision's status, and the revision must publish nothing new.
+      const groups = await importFitnessFiles(database, {
+        actorId: actor.id,
+        batchId: 'revision-overlapping-moved-latest',
+        fitnessFileIds: [latestFile!.id],
+        overlapFitnessFileIds: [preMoveFile!.id, movedFile!.id],
+        visibility: 'public',
+        publishSendNote: true,
+        replacePrimaryFileId: preMoveFile!.id,
+        expectedExistingStatusId: published.statusId
+      })
+      expect(groups).toHaveLength(1)
+      const [revision] = groups
+      expect(revision.statusId).toBe(published.statusId)
+      expect(revision.statusCreated).toBe(false)
+      expect(revision.primaryFitnessFileId).toBe(latestFile!.id)
+      expect(revision.processJob?.data).toEqual(
+        expect.objectContaining({ publishSendNote: false })
+      )
+      expect(await database.getFitnessFile({ id: latestFile!.id })).toEqual(
+        expect.objectContaining({
+          statusId: published.statusId,
+          isPrimary: true
+        })
+      )
+      expect(await database.getFitnessFile({ id: preMoveFile!.id })).toEqual(
+        expect.objectContaining({
+          statusId: published.statusId,
+          isPrimary: false
+        })
+      )
+      // The hidden moved-time record is untouched.
+      expect(await database.getFitnessFile({ id: movedFile!.id })).toEqual(
+        expect.objectContaining({
+          statusId: hidden.statusId,
+          isPrimary: true
+        })
+      )
+      expect(await database.getStatus({ statusId: hidden.statusId })).toEqual(
+        expect.objectContaining({ to: [], cc: [] })
+      )
+
+      await processFitnessFileJob(database, revision.processJob!)
+      expect(getQueue().publish).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: SEND_NOTE_JOB_NAME,
+          data: expect.objectContaining({ statusId: published.statusId })
+        })
+      )
+      expect(
+        await database.getStatus({ statusId: published.statusId })
+      ).toEqual(expect.objectContaining({ to: [ACTIVITY_STREAM_PUBLIC] }))
+    } finally {
+      await database.updateActor({ actorId: actor.id, movedTo: null })
+    }
+  })
+
+  it('merges two direct imports from an account that never moved', async () => {
+    const firstFile = await createFitnessFile(
+      'fit',
+      'fitness/direct-merge-first.fit',
+      'direct-merge-first'
+    )
+    const secondFile = await createFitnessFile(
+      'fit',
+      'fitness/direct-merge-second.fit',
+      'direct-merge-second'
+    )
+    mockParseFitnessFile.mockResolvedValue(routedActivity)
+
+    const [first] = await importFitnessFiles(database, {
+      actorId: actor.id,
+      batchId: 'direct-merge-first',
+      fitnessFileIds: [firstFile!.id],
+      visibility: 'direct'
+    })
+    // A direct import with no mentions addresses nobody, exactly like a
+    // moved-time hidden status; only the createdWhileMoved marker separates
+    // the two, and this account never moved.
+    expect(await database.getStatus({ statusId: first.statusId })).toEqual(
+      expect.objectContaining({ to: [], cc: [] })
+    )
+
+    const [second] = await importFitnessFiles(database, {
+      actorId: actor.id,
+      batchId: 'direct-merge-second',
+      fitnessFileIds: [secondFile!.id],
+      overlapFitnessFileIds: [firstFile!.id],
+      visibility: 'direct'
+    })
+    expect(second.statusId).toBe(first.statusId)
+    expect(second.statusCreated).toBe(false)
+    expect(await database.getFitnessFile({ id: secondFile!.id })).toEqual(
+      expect.objectContaining({ statusId: first.statusId })
+    )
+  })
+
+  it('merges a later public import into an older direct import of the same ride', async () => {
+    const directFile = await createFitnessFile(
+      'fit',
+      'fitness/direct-before-public.fit',
+      'direct-before-public'
+    )
+    const publicFile = await createFitnessFile(
+      'fit',
+      'fitness/public-after-direct.fit',
+      'public-after-direct'
+    )
+    mockParseFitnessFile.mockResolvedValue(routedActivity)
+
+    const [direct] = await importFitnessFiles(database, {
+      actorId: actor.id,
+      batchId: 'direct-before-public',
+      fitnessFileIds: [directFile!.id],
+      visibility: 'direct'
+    })
+
+    const [merged] = await importFitnessFiles(database, {
+      actorId: actor.id,
+      batchId: 'public-after-direct',
+      fitnessFileIds: [publicFile!.id],
+      overlapFitnessFileIds: [directFile!.id],
+      visibility: 'public',
+      publishSendNote: true
+    })
+    // The ride the user kept private stays on its one direct status: no
+    // separate public post is created for the later import.
+    expect(merged.statusId).toBe(direct.statusId)
+    expect(merged.statusCreated).toBe(false)
+    expect(await database.getStatus({ statusId: direct.statusId })).toEqual(
+      expect.objectContaining({ to: [], cc: [] })
+    )
+    expect(await database.getFitnessFile({ id: publicFile!.id })).toEqual(
+      expect.objectContaining({ statusId: direct.statusId })
+    )
+    expect(getQueue().publish).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: SEND_NOTE_JOB_NAME,
+        data: expect.objectContaining({ statusId: direct.statusId })
+      })
+    )
+  })
 
   it('records a reason when status creation rejects with a non-Error', async () => {
     const file = await database.createFitnessFile({

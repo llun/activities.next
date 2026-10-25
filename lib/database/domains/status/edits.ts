@@ -20,21 +20,27 @@ import {
   decreaseCounterValue,
   increaseCounterValue
 } from '@/lib/database/kysely/counter'
+import { forUpdate } from '@/lib/database/kysely/dialect'
 import { CounterKey } from '@/lib/database/utils/counter'
 import { getCompatibleJSON } from '@/lib/database/utils/getCompatibleJSON'
 import { Attachment, isFitnessAttachment } from '@/lib/types/domain/attachment'
 import { type Status, StatusType } from '@/lib/types/domain/status'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
+import { logger } from '@/lib/utils/logger'
 import { widensStatusAudience } from '@/lib/utils/widensStatusAudience'
 
 // The status edits: a note's text and media, a note's audience, a poll's
 // content, options and tallies, and a status's quote-approval policy. The edits
 // that keep a revision write it to `status_history` in the same transaction as
 // the change. updateNote and updateNoteVisibility read the status they edit
-// through the injected hydration before their transaction (updatePoll and
-// updateStatusQuoteApprovalPolicy read its row here), and each edit returns it
-// re-read through that hydration after. The three that open a transaction
-// reindex search after it.
+// through the injected hydration before their transactions, and each reads the
+// raw row inside its own transaction only around the moved-time marker:
+// updateNote drops a marker a concurrent visibility change cleared, and
+// updateNoteVisibility — in clearMovedTimeMarker, only when the status is
+// marked and the audience changed — clears it as a compare-and-set on the
+// content. updatePoll and updateStatusQuoteApprovalPolicy read its row here,
+// and each edit returns it re-read through that hydration after. The three
+// that open a transaction reindex search after it.
 
 const isReplaceableMediaAttachment = (
   attachment: Attachment
@@ -77,9 +83,13 @@ export const updateNote = async (
     summary,
     // Preserve the existing flags unless the caller explicitly overrides them.
     sensitive: sensitive === undefined ? status.sensitive : sensitive,
-    language: language === undefined ? status.language : language
+    language: language === undefined ? status.language : language,
+    // The blob is rebuilt here, so the moved-time marker must be re-added or
+    // an edit would strip it — and the fitness processing job itself edits
+    // the caption right after creating the status.
+    ...(status.createdWhileMoved ? { createdWhileMoved: true } : {})
   }
-  const statusContent = JSON.stringify(content)
+  let statusContent = JSON.stringify(content)
   const searchStatus: StatusSearchRow = {
     id: status.id,
     actorId: status.actorId,
@@ -88,6 +98,25 @@ export const updateNote = async (
     createdAt: status.createdAt
   }
   await inTransaction(db, async (trx) => {
+    // The hydrated read above may predate a visibility change that cleared
+    // the marker; keep it only while the row inside this transaction still
+    // has it, or the edit would put it back on an ordinary post. The read
+    // locks the row (a no-op on SQLite), so on PostgreSQL it waits for a
+    // concurrent visibility change to commit and reads its content.
+    if (status.createdWhileMoved) {
+      const existingRow = await selectStatusRowForUpdate(trx, status.id)
+      const existingContent = getCompatibleJSON<Record<string, unknown>>(
+        existingRow?.content ?? {}
+      )
+      if (
+        existingContent === null ||
+        !('createdWhileMoved' in existingContent)
+      ) {
+        delete content.createdWhileMoved
+        statusContent = JSON.stringify(content)
+        searchStatus.content = statusContent
+      }
+    }
     await trx
       .insertInto('status_history')
       .values({
@@ -261,6 +290,17 @@ export const updateNoteVisibility = async (
   if (!status) return null
   if (status.type !== StatusType.enum.Note) return null
 
+  // An explicit visibility choice turns a moved-time status into an ordinary
+  // post: the owner has picked its audience, so the `createdWhileMoved`
+  // marker that keeps the status isolated from fitness imports must go (a
+  // text edit keeps it; see updateNote). Only an audience change counts,
+  // though: a hidden status reads back as `direct`, so a client reusing its
+  // draft settings on a text edit resends `to: [], cc: []` — the status's
+  // current audience — and that must keep the marker like any other text
+  // edit.
+  const sameAudience =
+    sameRecipients(status.to, to) && sameRecipients(status.cc, cc)
+
   let affectedHashtags: string[] = []
   const currentTime = new Date()
   const searchStatus: StatusSearchRow = {
@@ -278,6 +318,15 @@ export const updateNoteVisibility = async (
   // widensStatusAudience for why a widening change drops them.
   const widensAudience = widensStatusAudience(status, { to, cc })
   await inTransaction(db, async (trx) => {
+    if (status.createdWhileMoved && !sameAudience) {
+      const cleared = await clearMovedTimeMarker(trx, status.id)
+      if (!cleared) {
+        logger.warn(
+          { statusId: status.id },
+          'updateNoteVisibility kept the createdWhileMoved marker: the status content changed concurrently'
+        )
+      }
+    }
     if (widensAudience) {
       await trx
         .deleteFrom('status_history')
@@ -349,6 +398,63 @@ const selectStatusRow = (db: Db, statusId: string) =>
     .where('id', '=', statusId)
     .limit(1)
     .executeTakeFirst()
+
+// The same row, locked for the surrounding transaction on PostgreSQL (a
+// no-op on SQLite): a concurrent writer's commit is waited for and its
+// committed content is read.
+const selectStatusRowForUpdate = (db: Db, statusId: string) =>
+  forUpdate(
+    db,
+    db.selectFrom('statuses').selectAll().where('id', '=', statusId).limit(1)
+  ).executeTakeFirst()
+
+// Whether two recipient lists address the same actors, as sets: duplicates
+// (a private note's cc keeps the mention hrefs as written) are one member.
+const sameRecipients = (left: string[], right: string[]) => {
+  const leftSet = new Set(left)
+  const rightSet = new Set(right)
+  return (
+    leftSet.size === rightSet.size &&
+    [...leftSet].every((actorId) => rightSet.has(actorId))
+  )
+}
+
+// Drops the `createdWhileMoved` marker from the content blob, keeping every
+// other field, as a compare-and-set: the write lands only while the content
+// is still the one that was read inside this transaction, so a concurrent
+// edit that rebuilt the blob (updateNote) is never overwritten with a stale
+// copy. The row lock (PostgreSQL) and the serialized transactions (SQLite)
+// mean no other writer can commit between that read and this write, so the
+// compare-and-set always matches on the first attempt; the conditional
+// update and the one retry are kept only as a second guard. A miss keeps
+// the marker, which has no effect: by then the status has recipients, so it
+// is not isolated, and the next audience change — including a change to
+// direct — clears it.
+const clearMovedTimeMarker = async (trx: Db, statusId: string) => {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const existingRow = await selectStatusRowForUpdate(trx, statusId)
+    if (!existingRow) return true
+    const movedTimeContent = getCompatibleJSON<Record<string, unknown>>(
+      existingRow.content ?? {}
+    )
+    if (
+      movedTimeContent === null ||
+      !('createdWhileMoved' in movedTimeContent)
+    ) {
+      return true
+    }
+    const content = { ...movedTimeContent }
+    delete content.createdWhileMoved
+    const result = await trx
+      .updateTable('statuses')
+      .set({ content: JSON.stringify(content) })
+      .where('id', '=', statusId)
+      .where('content', '=', existingRow.content)
+      .executeTakeFirst()
+    if (Number(result?.numUpdatedRows ?? 0n) > 0) return true
+  }
+  return false
+}
 
 export const updatePoll = async (
   db: Db,

@@ -312,7 +312,8 @@ export const createNoteWithResult = async (
     applicationWebsite = null,
     createdAt,
     publicId,
-    idempotency
+    idempotency,
+    createdWhileMoved
   }: CreateNoteParams
 ): Promise<CreateStatusResult> => {
   const currentTime = new Date()
@@ -327,7 +328,10 @@ export const createNoteWithResult = async (
     language,
     // Persisted in the blob (no column). JSON.stringify drops it when
     // undefined, so non-quotable-policy statuses store nothing extra.
-    ...(quoteApprovalPolicy ? { quoteApprovalPolicy } : {})
+    ...(quoteApprovalPolicy ? { quoteApprovalPolicy } : {}),
+    // Same: only a status created while the account was moved stores it, so
+    // the marker identifies exactly those statuses.
+    ...(createdWhileMoved ? { createdWhileMoved: true } : {})
   }
   const statusContent = JSON.stringify(content)
   const searchStatus: StatusSearchRow = {
@@ -407,6 +411,7 @@ export const createNoteWithResult = async (
     sensitive,
     language,
     ...(quoteApprovalPolicy ? { quoteApprovalPolicy } : {}),
+    ...(createdWhileMoved ? { createdWhileMoved: true } : {}),
     // Content detection runs after this insert (in the actions/jobs layer
     // that called createNote), so the row this function just wrote has no
     // detected language yet — matches what a hydrated re-fetch would show
