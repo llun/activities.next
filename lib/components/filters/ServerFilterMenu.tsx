@@ -87,6 +87,7 @@ export const ServerFilterMenu: FC<ServerFilterMenuProps> = ({
         <DropdownMenuLabel>{label}</DropdownMenuLabel>
         {kind === 'action' ? (
           <DropdownMenuRadioGroup
+            aria-label={label}
             value={selection.action}
             onValueChange={(action) =>
               onChange({
@@ -128,6 +129,7 @@ export const ServerFilterMenu: FC<ServerFilterMenuProps> = ({
 
         {kind === 'status' ? (
           <DropdownMenuRadioGroup
+            aria-label={label}
             value={selection.status}
             onValueChange={(status) =>
               onChange({

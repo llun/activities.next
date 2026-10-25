@@ -520,6 +520,9 @@ describe('FiltersPanel', () => {
       expect(await screen.findByText('Warn rule')).toBeInTheDocument()
       openFilterMenu('Any action')
 
+      expect(
+        await screen.findByRole('group', { name: 'Action' })
+      ).toBeInTheDocument()
       fireEvent.click(
         await screen.findByRole('menuitemradio', { name: 'Blur' })
       )
