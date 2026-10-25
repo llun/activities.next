@@ -23,7 +23,7 @@ import { getEnvironmentList } from './utils'
 
 // Which admin tab a field belongs to. Drives grouping in the admin UI/API; note
 // it is coarser than the dotted key prefix (registrations.* live on the
-// Instance tab; polls.*/media.* live on the Posts & media tab).
+// Server settings tab; polls.*/media.* live on the Posts & media tab).
 export type ServerSettingTab = 'instance' | 'posts' | 'network' | 'federation'
 
 // Maximum poll expiration (~1 month). Uses the value the create/edit routes
