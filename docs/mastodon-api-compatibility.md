@@ -1126,9 +1126,10 @@ ActivityPub objects are **JSON-LD**, so the same logical object can arrive in ma
   re-federates it), and the deprecated `accounts/outbox` and `accounts/repost`
   routes. `DELETE` on the migration route clears the pointer and lifts the
   posting restriction; a due scheduled status is held while the account is
-  moved, and clearing a redirect requeues already-due statuses. Repeating
-  `DELETE` retries any due statuses left after a partial queue failure with
-  deterministic queue IDs scoped to the latest migration. Other API
+  moved. `DELETE` requeues already-due statuses only when it observed `movedTo`
+  set before clearing it, with deterministic queue IDs scoped to the latest
+  migration. A later `DELETE` with no current redirect does not replay them,
+  including after a partial queue failure. Other API
   actions retain their ordinary permissions: follow-request rejection, status
   deletion, favourites, bookmarks, poll votes, reactions, quote revocation,
   following an account that has not moved, unfollowing even a moved target,

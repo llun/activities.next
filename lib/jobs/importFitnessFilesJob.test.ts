@@ -5,7 +5,8 @@ import {
 } from '@/lib/jobs/importFitnessFilesJob'
 import {
   IMPORT_FITNESS_FILES_JOB_NAME,
-  PROCESS_FITNESS_FILE_JOB_NAME
+  PROCESS_FITNESS_FILE_JOB_NAME,
+  SEND_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
 import { processFitnessFileJob } from '@/lib/jobs/processFitnessFileJob'
 import { getFitnessFileBuffer } from '@/lib/services/fitness-files'
@@ -181,6 +182,85 @@ describe('importFitnessFilesJob', () => {
       )
       expect(getQueue().publish).toHaveBeenCalledTimes(1)
       expect(getQueue().publish).toHaveBeenCalledWith(group.processJob)
+    } finally {
+      await database.updateActor({ actorId: actor.id, movedTo: null })
+    }
+  })
+
+  it('posts an overlapping import after a redirect is cleared and leaves the moved import hidden', async () => {
+    const hiddenFile = await createFitnessFile(
+      'fit',
+      'fitness/hidden-overlap-before-clear.fit',
+      'hidden-overlap-before-clear'
+    )
+    const newFile = await createFitnessFile(
+      'fit',
+      'fitness/public-overlap-after-clear.fit',
+      'public-overlap-after-clear'
+    )
+    mockParseFitnessFile.mockResolvedValue(routedActivity)
+    await database.updateActor({
+      actorId: actor.id,
+      movedTo: 'https://destination.test/users/athlete'
+    })
+    try {
+      const [hidden] = await importFitnessFiles(database, {
+        actorId: actor.id,
+        batchId: 'hidden-overlap-before-clear',
+        fitnessFileIds: [hiddenFile!.id],
+        visibility: 'public',
+        publishSendNote: true
+      })
+      await processFitnessFileJob(database, hidden.processJob!)
+      expect(await database.getStatus({ statusId: hidden.statusId })).toEqual(
+        expect.objectContaining({ to: [], cc: [] })
+      )
+
+      await database.updateActor({ actorId: actor.id, movedTo: null })
+      const [published] = await importFitnessFiles(database, {
+        actorId: actor.id,
+        batchId: 'public-overlap-after-clear',
+        fitnessFileIds: [newFile!.id],
+        overlapFitnessFileIds: [hiddenFile!.id],
+        visibility: 'public',
+        publishSendNote: true
+      })
+      expect(published.statusId).not.toBe(hidden.statusId)
+      expect(published.statusCreated).toBe(true)
+      expect(published.processJob?.data).toEqual(
+        expect.objectContaining({ publishSendNote: true })
+      )
+      await processFitnessFileJob(database, published.processJob!)
+
+      expect(await database.getFitnessFile({ id: hiddenFile!.id })).toEqual(
+        expect.objectContaining({ statusId: hidden.statusId })
+      )
+      expect(await database.getStatus({ statusId: hidden.statusId })).toEqual(
+        expect.objectContaining({ to: [], cc: [] })
+      )
+      expect(
+        await db
+          .selectFrom('timelines')
+          .selectAll()
+          .where('statusId', '=', hidden.statusId)
+          .execute()
+      ).toEqual([])
+      expect(
+        await database.getStatus({ statusId: published.statusId })
+      ).toEqual(expect.objectContaining({ to: [ACTIVITY_STREAM_PUBLIC] }))
+      expect(
+        await db
+          .selectFrom('timelines')
+          .selectAll()
+          .where('statusId', '=', published.statusId)
+          .execute()
+      ).not.toEqual([])
+      expect(getQueue().publish).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: SEND_NOTE_JOB_NAME,
+          data: expect.objectContaining({ statusId: published.statusId })
+        })
+      )
     } finally {
       await database.updateActor({ actorId: actor.id, movedTo: null })
     }

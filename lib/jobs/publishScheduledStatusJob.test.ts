@@ -232,6 +232,42 @@ describe('publishScheduledStatusJob', () => {
     }
   })
 
+  it('delays a moved delivery by at least one second when its due time is less than a second away', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-25T12:00:00.000Z'))
+    const scheduledAt = Date.now() + 500
+    const scheduled = await database.createScheduledStatus({
+      actorId: actor1.id,
+      scheduledAt,
+      params: baseParams({ text: 'Moved near-due scheduled note' })
+    })
+    await database.updateActor({ actorId: actor1.id, movedTo: ACTOR2_ID })
+
+    try {
+      await publishScheduledStatusJob(database, {
+        id: 'job-moved-near-due',
+        name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+        data: { scheduledStatusId: scheduled.id, scheduledAt }
+      })
+
+      expect(getQueue().publish).toHaveBeenCalledTimes(1)
+      expect((getQueue().publish as jest.Mock).mock.calls[0][0]).toMatchObject({
+        delaySeconds: 1,
+        data: { scheduledStatusId: scheduled.id, scheduledAt }
+      })
+      expect(
+        await database.getScheduledStatusById({ id: scheduled.id })
+      ).toMatchObject({ id: scheduled.id })
+    } finally {
+      await database.updateActor({ actorId: actor1.id, movedTo: null })
+      await database.deleteScheduledStatus({
+        id: scheduled.id,
+        actorId: actor1.id
+      })
+      vi.useRealTimers()
+    }
+  })
+
   describe('in_reply_to_id resolution', () => {
     // Regression coverage for the pre-existing bug: the stored params carry
     // whatever id form the client originally posted, and

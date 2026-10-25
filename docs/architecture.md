@@ -2240,7 +2240,10 @@ moved` (reject stays allowed). While
   retries; settings and account deletion; and `PUT /api/v1/scheduled_statuses/:id`.
   Fitness imports retain the backing status needed to link activity data, but
   do not insert a new post in timelines, notify followers or federate it while
-  the author is moved. CSV and archive export, migration GET/POST/DELETE, and
+  the author is moved. Clearing the redirect does not publish a status created
+  during the move: its recipients stay empty even when it is edited. A later
+  overlapping fitness import creates a separate published status rather than
+  merging into that hidden one. CSV and archive export, migration GET/POST/DELETE, and
   timeline and notification reads remain available. Posting and follow-request
   refusals are explicit here. Mastodon's API base skips the
   inherited `require_functional!` gate except in limited federation mode, and

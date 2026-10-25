@@ -705,6 +705,79 @@ describe('Account migration API route', () => {
       expect(publish).not.toHaveBeenCalled()
     })
 
+    it('does not replay due statuses for an account that never moved', async () => {
+      scheduledStatuses.push({
+        id: 'due',
+        actorId: ME,
+        scheduledAt: Date.now() - 1_000
+      })
+
+      expect((await del()).status).toBe(HTTP_STATUS.OK)
+      expect(mockDatabase.getScheduledStatuses).not.toHaveBeenCalled()
+      expect(publish).not.toHaveBeenCalled()
+    })
+
+    it('does not replay an already-cleared account with migration history', async () => {
+      migrations.push({
+        id: 'old-migration',
+        actorId: ME,
+        targetActorId: 'https://old.test/users/llun',
+        targetAcct: 'llun@old.test',
+        kind: 'redirect',
+        followersCount: 0,
+        createdAt: Date.now() - DAY
+      })
+      scheduledStatuses.push({
+        id: 'due',
+        actorId: ME,
+        scheduledAt: Date.now() - 1_000
+      })
+
+      expect((await del()).status).toBe(HTTP_STATUS.OK)
+      expect(mockDatabase.getScheduledStatuses).not.toHaveBeenCalled()
+      expect(publish).not.toHaveBeenCalled()
+    })
+
+    it('reads the previous migration before clearing the redirect', async () => {
+      storedActor = { ...storedActor, movedTo: 'https://new.test/users/llun' }
+
+      expect((await del()).status).toBe(HTTP_STATUS.OK)
+      expect(
+        mockDatabase.getActorMigrations.mock.invocationCallOrder[0]
+      ).toBeLessThan(mockDatabase.updateActor.mock.invocationCallOrder[0])
+    })
+
+    it('skips replay if another redirect is set during the due-status scan', async () => {
+      storedActor = { ...storedActor, movedTo: 'https://old.test/users/llun' }
+      migrations.push({
+        id: 'old-migration',
+        actorId: ME,
+        targetActorId: 'https://old.test/users/llun',
+        targetAcct: 'llun@old.test',
+        kind: 'redirect',
+        followersCount: 0,
+        createdAt: Date.now() - DAY
+      })
+      scheduledStatuses.push({
+        id: 'due',
+        actorId: ME,
+        scheduledAt: Date.now() - 1_000
+      })
+      mockDatabase.getScheduledStatuses.mockImplementationOnce(async () => {
+        storedActor = { ...storedActor, movedTo: 'https://new.test/users/llun' }
+        return scheduledStatuses
+      })
+
+      const res = await del()
+      expect(res.status).toBe(HTTP_STATUS.OK)
+      expect((await res.json()).movedTo).toEqual({
+        id: 'https://new.test/users/llun',
+        acct: null
+      })
+      expect(mockDatabase.getScheduledStatuses).toHaveBeenCalledOnce()
+      expect(publish).not.toHaveBeenCalled()
+    })
+
     it('requeues every due status for the actor and skips future and other-actor statuses', async () => {
       const now = Date.now()
       storedActor = { ...storedActor, movedTo: 'https://new.test/users/llun' }
@@ -754,52 +827,26 @@ describe('Account migration API route', () => {
       ])
     })
 
-    it('retries a partial replay with stable job ids after the redirect was cleared', async () => {
+    it('does not replay again after a partial queue failure cleared the redirect', async () => {
       const now = Date.now()
       await post({ ...goodBody, kind: 'redirect' })
-      const migrationId = migrations[0].id
       scheduledStatuses.push(
         { id: 'due-one', actorId: ME, scheduledAt: now - 1_000 },
         { id: 'due-two', actorId: ME, scheduledAt: now - 2_000 },
-        { id: 'due-three', actorId: ME, scheduledAt: now - 3_000 },
-        { id: 'future', actorId: ME, scheduledAt: now + DAY },
-        { id: 'other-due', actorId: 'other', scheduledAt: now - 1_000 }
+        { id: 'due-three', actorId: ME, scheduledAt: now - 3_000 }
       )
-      const accepted = new Map<string, string>()
-      let failOnce = true
       publish.mockImplementation(async (message) => {
-        if (message.data.scheduledStatusId === 'due-two' && failOnce) {
-          failOnce = false
+        if (message.data.scheduledStatusId === 'due-two') {
           throw new Error('queue down')
-        }
-        // A durable queue accepts each deterministic message id only once.
-        if (!accepted.has(message.id)) {
-          accepted.set(message.id, message.data.scheduledStatusId)
         }
       })
 
       await expect(del()).rejects.toThrow('queue down')
       expect(storedActor.movedTo).toBeUndefined()
-      expect([...accepted.values()]).toEqual(['due-one'])
-      // Both clearing the pointer and unrelated profile writes change updatedAt.
-      storedActor = { ...storedActor, updatedAt: now + 1_000 }
+      expect(publish).toHaveBeenCalledTimes(2)
       expect((await del()).status).toBe(HTTP_STATUS.OK)
-      expect([...accepted.values()]).toEqual([
-        'due-one',
-        'due-two',
-        'due-three'
-      ])
-      expect(publish.mock.calls[2][0].id).toBe(publish.mock.calls[0][0].id)
-      expect(publish.mock.calls[3][0].id).toBe(publish.mock.calls[1][0].id)
-      expect([...accepted.keys()]).toEqual(
-        scheduledStatuses
-          .slice(0, 3)
-          .map((row) =>
-            getHashFromString(
-              `${row.id}-${row.scheduledAt}:redirect-cleared:${migrationId}`
-            )
-          )
-      )
+      expect(publish).toHaveBeenCalledTimes(2)
+      expect(mockDatabase.getScheduledStatuses).toHaveBeenCalledTimes(1)
       expect(mockDatabase.updateActor).toHaveBeenCalledTimes(1)
     })
 

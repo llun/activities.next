@@ -69,7 +69,7 @@ export const publishScheduledStatusJob = createJobHandle(
         id: getHashFromString(`${message.id}:${row.scheduledAt}:reenqueue`),
         name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
         data: { scheduledStatusId: row.id, scheduledAt: row.scheduledAt },
-        delaySeconds: scheduledDelaySeconds(row.scheduledAt)
+        delaySeconds: Math.max(1, scheduledDelaySeconds(row.scheduledAt))
       })
     }
     if (remainingMs > EARLY_THRESHOLD_MS) {

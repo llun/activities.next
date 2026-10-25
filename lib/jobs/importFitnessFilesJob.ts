@@ -523,32 +523,34 @@ export const importFitnessFiles = async (
     return importedGroups
   }
 
-  // Keep historical posts on reprocessing, but do not merge new recordings
-  // into them after a move. Recipient-free backing records may still merge.
-  const publishedStatusIds = new Set<string>()
-  if (isMovedActor(actor)) {
-    const statusIds = new Set(
-      parsedFiles
-        .map((item) => item.fitnessFile.statusId)
-        .filter((id): id is string => Boolean(id))
-    )
-    for (const statusId of statusIds) {
-      const status = await database.getStatus({
-        statusId,
-        withReplies: false
-      })
-      if (status && (status.to.length > 0 || status.cc.length > 0)) {
-        publishedStatusIds.add(status.id)
-      }
+  // Reprocessing preserves a file's status, but a new recording cannot cross
+  // the move boundary in either direction. Recipient-free statuses stay hidden
+  // after a redirect is cleared, so a new import needs its own public status.
+  const isolatedStatusIds = new Set<string>()
+  const moved = isMovedActor(actor)
+  const statusIds = new Set(
+    parsedFiles
+      .map((item) => item.fitnessFile.statusId)
+      .filter((id): id is string => Boolean(id))
+  )
+  for (const statusId of statusIds) {
+    const status = await database.getStatus({
+      statusId,
+      withReplies: false
+    })
+    if (!status) continue
+    const hasRecipients = status.to.length > 0 || status.cc.length > 0
+    if (moved ? hasRecipients : !hasRecipients) {
+      isolatedStatusIds.add(status.id)
     }
   }
   const groups = [
     ...groupFilesByOverlap(
       parsedFiles.filter(
-        (item) => !publishedStatusIds.has(item.fitnessFile.statusId ?? '')
+        (item) => !isolatedStatusIds.has(item.fitnessFile.statusId ?? '')
       )
     ),
-    ...Array.from(publishedStatusIds, (statusId) =>
+    ...Array.from(isolatedStatusIds, (statusId) =>
       parsedFiles.filter((item) => item.fitnessFile.statusId === statusId)
     )
   ]

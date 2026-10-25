@@ -443,7 +443,16 @@ export const importStravaActivityJob = createJobHandle(
 
       if (!exportFile) {
         // There is no fitness data to retain in this branch, only a post.
-        if (moved) return
+        if (moved) {
+          logger.info({
+            message:
+              'Skipping Strava activity for moved actor without exportable file',
+            actorId,
+            stravaActivityId,
+            sourceUrl: getStravaActivityUrl(stravaActivityId)
+          })
+          return
+        }
 
         // This branch only runs for a degenerate activity with no positive
         // duration and no streams (buildTcxFromStravaStreams otherwise falls
@@ -700,13 +709,36 @@ export const importStravaActivityJob = createJobHandle(
             actorId,
             limit: OVERLAP_CONTEXT_SCAN_LIMIT
           })
-          const overlapFitnessFileIds = getOverlapContextFitnessFileIds({
+          let overlapFitnessFileIds = getOverlapContextFitnessFileIds({
             actorId,
             fitnessFileId: targetFitnessFile.id,
             activityStartTime: getStravaActivityStartTimeMs(activity),
             activityDurationSeconds: getStravaActivityDurationSeconds(activity),
             files: actorFitnessFiles
           })
+          if (!moved) {
+            const overlapFiles = new Map(
+              actorFitnessFiles.map((file) => [file.id, file])
+            )
+            const statusIds = new Set(
+              overlapFitnessFileIds
+                .map((id) => overlapFiles.get(id)?.statusId)
+                .filter((id): id is string => Boolean(id))
+            )
+            const hiddenStatusIds = new Set<string>()
+            for (const statusId of statusIds) {
+              const status = await database.getStatus({
+                statusId,
+                withReplies: false
+              })
+              if (status && status.to.length === 0 && status.cc.length === 0) {
+                hiddenStatusIds.add(statusId)
+              }
+            }
+            overlapFitnessFileIds = overlapFitnessFileIds.filter(
+              (id) => !hiddenStatusIds.has(overlapFiles.get(id)?.statusId ?? '')
+            )
+          }
 
           return importFitnessFiles(
             database,

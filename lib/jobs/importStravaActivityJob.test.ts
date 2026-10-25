@@ -7,6 +7,7 @@ import {
 } from '@/lib/jobs/names'
 import { Visibility } from '@/lib/types/mastodon/visibility'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
+import { logger } from '@/lib/utils/logger'
 
 import {
   createMockStravaDatabase,
@@ -167,6 +168,14 @@ describe('importStravaActivityJob', () => {
     expect(mockAddStatusToTimelines).not.toHaveBeenCalled()
     expect(mockGetQueue().publish).not.toHaveBeenCalled()
     expect(database.createNotification).not.toHaveBeenCalled()
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message:
+          'Skipping Strava activity for moved actor without exportable file',
+        actorId: 'actor-1',
+        stravaActivityId: '123'
+      })
+    )
   })
 
   it('imports Strava activity via streams and forwards overlap context to fitness import', async () => {
@@ -233,6 +242,53 @@ describe('importStravaActivityJob', () => {
       expect.objectContaining({
         fitnessFileIds: ['new-file'],
         overlapFitnessFileIds: ['wahoo-file']
+      }),
+      { deferProcessJobPublishes: true }
+    )
+  })
+
+  it('excludes a moved-time hidden Wahoo status from overlap after the redirect is cleared', async () => {
+    database.getFitnessFilesByActor.mockResolvedValue([
+      {
+        id: 'hidden-wahoo-file',
+        actorId: 'actor-1',
+        statusId: 'hidden-wahoo-status',
+        activityStartTime: Date.parse('2026-01-01T00:10:00.000Z'),
+        totalDurationSeconds: 1_200
+      },
+      {
+        id: 'public-wahoo-file',
+        actorId: 'actor-1',
+        statusId: 'public-wahoo-status',
+        activityStartTime: Date.parse('2026-01-01T00:10:00.000Z'),
+        totalDurationSeconds: 1_200
+      }
+    ] as never)
+    database.getStatus.mockImplementation(async ({ statusId }) => {
+      if (statusId === 'hidden-wahoo-status') {
+        return { id: statusId, to: [], cc: [] } as never
+      }
+      if (statusId === 'public-wahoo-status') {
+        return {
+          id: statusId,
+          to: ['https://www.w3.org/ns/activitystreams#Public'],
+          cc: []
+        } as never
+      }
+      return { id: statusId, type: 'Note', text: '' } as never
+    })
+
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'job-hidden-wahoo-overlap',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: { actorId: 'actor-1', stravaActivityId: '123' }
+    })
+
+    expect(mockImportFitnessFiles).toHaveBeenCalledWith(
+      database,
+      expect.objectContaining({
+        fitnessFileIds: ['new-file'],
+        overlapFitnessFileIds: ['public-wahoo-file']
       }),
       { deferProcessJobPublishes: true }
     )
