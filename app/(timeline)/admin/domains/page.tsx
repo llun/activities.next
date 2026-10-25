@@ -67,7 +67,7 @@ const Page = async () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Domains"
+        title="Served domains"
         description="Domains this server answers on."
         actions={
           <Button asChild>

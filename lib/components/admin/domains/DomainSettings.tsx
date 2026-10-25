@@ -698,7 +698,7 @@ const ServerPolicyNote: FC<{
       href="/admin/instance"
       className="text-primary-text font-medium underline"
     >
-      Edit on Instance
+      Edit in Server settings
     </Link>
   </p>
 )
@@ -903,7 +903,8 @@ export const DomainSettings: FC<Props> = ({
             </Button>
           }
         >
-          Edit them on Admin › Instance, and the rules on Admin › Server rules.
+          Edit them on Admin › Server settings, and the rules on Admin › Server
+          rules.
         </Alert>
       ) : null}
 

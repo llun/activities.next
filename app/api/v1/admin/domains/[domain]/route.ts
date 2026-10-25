@@ -191,7 +191,7 @@ export const PATCH = traceApiRoute(
             ? PRIMARY_DOMAIN_FEATURES_ERROR
             : hasIdentityOrPolicyFields(parsed.data)
               ? PRIMARY_DOMAIN_IDENTITY_ERROR
-              : 'The primary domain’s sign-ups are set in Admin › Instance.'
+              : 'The primary domain’s sign-ups are set in Admin › Server settings.'
         )
       case 'updated':
         return apiResponse({

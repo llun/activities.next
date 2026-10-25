@@ -113,10 +113,10 @@ export const ADMIN_DOMAIN_FIELD_LIMITS = {
 } as const
 
 export const PRIMARY_DOMAIN_IDENTITY_ERROR =
-  'The primary domain’s identity and policies are set in Admin › Instance.'
+  'The primary domain’s identity and policies are set in Admin › Server settings.'
 
 export const PRIMARY_DOMAIN_FEATURES_ERROR =
-  'The primary domain’s features are set in Admin › Instance.'
+  'The primary domain’s features are set in Admin › Server settings.'
 
 // A wildcard ACTIVITIES_TRUSTED_HOSTS entry: shown as an info row only.
 export type AdminDomainWildcard = {

@@ -476,14 +476,14 @@ describe('DomainSettings', () => {
           (_, el) =>
             el?.tagName === 'P' &&
             el.textContent ===
-              'Using the server terms of service. Last updated 12 Oct 2026. Edit on Instance'
+              'Using the server terms of service. Last updated 12 Oct 2026. Edit in Server settings'
         )
       ).toBeInTheDocument()
       expect(
         screen.getByText(/The server has no privacy policy\./)
       ).toBeInTheDocument()
       expect(
-        screen.getAllByRole('link', { name: 'Edit on Instance' })
+        screen.getAllByRole('link', { name: 'Edit in Server settings' })
       ).toHaveLength(2)
       expect(
         screen.getByRole('button', { name: 'Save policies' })
@@ -561,7 +561,7 @@ describe('DomainSettings', () => {
       )
       expect(
         screen.getByText(
-          'Edit them on Admin › Instance, and the rules on Admin › Server rules.'
+          'Edit them on Admin › Server settings, and the rules on Admin › Server rules.'
         )
       ).toBeInTheDocument()
       const identity = screen.getByRole('heading', { name: 'Identity' })
@@ -669,7 +669,7 @@ describe('DomainSettings', () => {
       expect(screen.queryByRole('button', { name: 'Save rules' })).toBeNull()
       expect(screen.queryByRole('button', { name: 'Save features' })).toBeNull()
       expect(
-        screen.getAllByRole('link', { name: 'Edit on Instance' }).length
+        screen.getAllByRole('link', { name: 'Edit in Server settings' }).length
       ).toBeGreaterThan(0)
       // Announcements and Reports stay available on the primary.
       expect(

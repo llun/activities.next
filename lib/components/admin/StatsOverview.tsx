@@ -232,7 +232,7 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Overview"
+        title="Dashboard"
         description="Service usage statistics."
         stackActionsOnMobile
         actions={

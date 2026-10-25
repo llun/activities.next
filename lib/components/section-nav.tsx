@@ -3,7 +3,7 @@
 import { ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { FC, ReactNode, useId } from 'react'
+import { FC, ReactNode, useEffect, useId, useRef } from 'react'
 
 import { BackLink } from '@/lib/components/back-link'
 import { SECTION_STICKY_TOP_CLASS } from '@/lib/components/layout/chromeLayout'
@@ -69,13 +69,27 @@ export const SectionNav: FC<{
 }> = ({ label, groups, footer, className }) => {
   const pathname = usePathname()
   const id = useId()
+  const navRef = useRef<HTMLElement>(null)
   const activeUrl = resolveActiveSectionUrl(
     pathname,
     groups.flatMap((group) => group.items.map((item) => item.url))
   )
 
+  useEffect(() => {
+    // A long rail mounts with the active row possibly below the fold; bring
+    // it into view. jsdom has no scrollIntoView, hence the guard.
+    const active = navRef.current?.querySelector('[aria-current="page"]')
+    if (active && typeof active.scrollIntoView === 'function') {
+      active.scrollIntoView({ block: 'nearest' })
+    }
+  }, [])
+
   return (
-    <nav aria-label={label} className={cn('flex flex-col gap-4', className)}>
+    <nav
+      ref={navRef}
+      aria-label={label}
+      className={cn('flex flex-col gap-4', className)}
+    >
       {groups.map((group, index) => {
         const headingId = `${id}-${index}`
         return (
@@ -228,13 +242,18 @@ const IndexGroup: FC<{
  * The section's index: the list page on phones and the described cards on
  * desktop, one component at every width. Groups that are not `railOnly`
  * render in order, then the footer card, then the `afterFooter` groups; from
- * `lg` up the first block fills the left column and the rest stack on the
- * right.
+ * `lg` up the first `splitAt` blocks fill the left column and the rest stack
+ * on the right.
  */
 export const SectionIndex: FC<{
   groups: SectionNavGroup[]
   footer?: SectionNavFooter
-}> = ({ groups, footer }) => {
+  /**
+   * How many blocks fill the left column from `lg` up; the rest stack on
+   * the right. Default 1: the first block left, the rest right.
+   */
+  splitAt?: number
+}> = ({ groups, footer, splitAt = 1 }) => {
   const listed = groups.filter((group) => !group.railOnly)
   const toBlock = (group: SectionNavGroup) => (
     <IndexGroup
@@ -260,8 +279,8 @@ export const SectionIndex: FC<{
 
   return (
     <div className="grid gap-6 lg:grid-cols-2 lg:items-start lg:gap-x-4">
-      <div className="space-y-6">{blocks.slice(0, 1)}</div>
-      <div className="space-y-6">{blocks.slice(1)}</div>
+      <div className="space-y-6">{blocks.slice(0, splitAt)}</div>
+      <div className="space-y-6">{blocks.slice(splitAt)}</div>
     </div>
   )
 }
@@ -273,13 +292,14 @@ interface SectionLayoutProps {
   description?: ReactNode
   /**
    * The index route; the rail and the Back row are hidden there. A section
-   * without one (Admin, whose root is its Overview page) has no Back row.
+   * without one has no Back row.
    */
   indexUrl?: string
   /**
-   * Below `lg`, in place of the Back row: Admin keeps its dropdown there.
+   * How many index blocks fill the left column from `lg` up (default 1);
+   * passed to `SectionIndex`.
    */
-  mobileNav?: ReactNode
+  splitAt?: number
   groups: SectionNavGroup[]
   footer?: SectionNavFooter
   children: ReactNode
@@ -289,25 +309,28 @@ interface SectionLayoutProps {
  * The chrome of a settings-style section (Settings, Account & security,
  * Admin): the sticky section header, the wider `--container-section` column
  * (the `[data-section-layout]` hook in the (timeline) layout), the rail from
- * `lg` up, and below `lg` either `mobileNav` (Admin's dropdown) or a
- * "Back to …" row on every page but the index, which renders `SectionIndex`
- * after the page. Fitness and Gallery are content sections and keep
- * `SectionNavDropdown`.
+ * `lg` up, and below `lg` a "Back to …" row on the section's own pages,
+ * which renders `SectionIndex` after the page on the index. Fitness and
+ * Gallery are content sections and keep `SectionNavDropdown`.
  */
 export const SectionLayout: FC<SectionLayoutProps> = ({
   label,
   title,
   description,
   indexUrl,
+  splitAt,
   groups,
   footer,
-  mobileNav,
   children
 }) => {
-  const isIndex = usePathname() === indexUrl
-  // A section with an index opens its pages on the Back row below `md`; one
-  // without (Admin) keeps its header box and dropdown there.
-  const headerOnPhone = isIndex || !indexUrl
+  const pathname = usePathname()
+  const isIndex = pathname === indexUrl
+  // The Back row leads a section's own pages — one of the rail's item urls.
+  // A detail page under an item (an account's page in Admin) renders its own
+  // Back link, so the section stays out of the way there.
+  const isItemPage = groups.some((group) =>
+    group.items.some((item) => item.url === pathname)
+  )
 
   return (
     <div data-section-layout="">
@@ -317,13 +340,13 @@ export const SectionLayout: FC<SectionLayoutProps> = ({
       <PageHeader
         title={title}
         description={description}
-        className={headerOnPhone ? undefined : 'max-md:hidden'}
+        className={isIndex ? undefined : 'max-md:hidden'}
       />
       <PageHeaderSectionProvider>
         <div
           className={cn(
             'flex w-full gap-6 pt-6 xl:gap-8',
-            headerOnPhone ? 'max-md:pt-0' : 'max-md:pt-2'
+            isIndex ? 'max-md:pt-0' : 'max-md:pt-2'
           )}
         >
           {!isIndex && (groups.length > 0 || footer) && (
@@ -342,8 +365,7 @@ export const SectionLayout: FC<SectionLayoutProps> = ({
             />
           )}
           <div className="min-w-0 flex-1">
-            {mobileNav ? <div className="lg:hidden">{mobileNav}</div> : null}
-            {!isIndex && !mobileNav && indexUrl && (
+            {!isIndex && indexUrl && isItemPage && (
               <BackLink
                 href={indexUrl}
                 label={`Back to ${label}`}
@@ -354,8 +376,15 @@ export const SectionLayout: FC<SectionLayoutProps> = ({
             )}
             {children}
             {isIndex && (
-              <div className="mt-6">
-                <SectionIndex groups={groups} footer={footer} />
+              // The top margin only when the page above rendered something: a
+              // page that returns null leaves this wrapper the column's first
+              // child, so the list sits flush under the header.
+              <div className="[&:not(:first-child)]:mt-6">
+                <SectionIndex
+                  groups={groups}
+                  footer={footer}
+                  splitAt={splitAt}
+                />
               </div>
             )}
           </div>

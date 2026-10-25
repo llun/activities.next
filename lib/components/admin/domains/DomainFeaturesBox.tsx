@@ -81,7 +81,7 @@ export const DomainFeaturesBox: FC<Props> = ({
               href="/admin/instance"
               className="text-primary-text text-sm font-medium underline"
             >
-              Edit on Instance
+              Edit in Server settings
             </Link>
           </div>
         }

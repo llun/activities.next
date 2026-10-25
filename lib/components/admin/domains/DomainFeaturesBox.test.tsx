@@ -183,7 +183,7 @@ describe('DomainFeaturesBox', () => {
         screen.getByText('The primary domain follows the server’s switches.')
       ).toBeInTheDocument()
       expect(
-        screen.getByRole('link', { name: 'Edit on Instance' })
+        screen.getByRole('link', { name: 'Edit in Server settings' })
       ).toHaveAttribute('href', '/admin/instance')
     })
   })

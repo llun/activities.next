@@ -27,14 +27,10 @@ const getRailNav = () => {
   return rail!
 }
 
-const getDropdownNav = () => {
-  const navs = screen.getAllByRole('navigation', { name: 'Admin' })
-  const dropdown = navs.find((nav) =>
-    nav.parentElement?.classList.contains('lg:hidden')
-  )
-  expect(dropdown).toBeDefined()
-  return dropdown!
-}
+const activeLinksIn = (scope: HTMLElement) =>
+  within(scope)
+    .getAllByRole('link')
+    .filter((link) => link.getAttribute('aria-current') === 'page')
 
 describe('Admin Layout', () => {
   it('renders the header title and description', () => {
@@ -49,93 +45,112 @@ describe('Admin Layout', () => {
     expect(screen.getByText('content')).toBeInTheDocument()
   })
 
-  it('renders the rail navigation from lg up listing all 16 items in order with their hrefs', () => {
-    renderAt('/admin')
+  it('lists the five groups in order in the rail, with item hrefs', () => {
+    renderAt('/admin/reports')
 
     const rail = getRailNav()
-    expect(rail).toHaveClass('max-lg:hidden')
+    // The headless first run holds Dashboard; the four headed groups follow.
+    expect(
+      within(rail)
+        .getAllByRole('group')
+        .map((group) => group.querySelector('p')?.textContent)
+    ).toEqual(['Moderation', 'Community', 'Server', 'Maintenance'])
 
     const links = within(rail).getAllByRole('link')
-    expect(links).toHaveLength(16)
     expect(
       links.map((link) => [link.textContent, link.getAttribute('href')])
     ).toEqual([
-      ['Overview', '/admin'],
-      ['Accounts', '/admin/accounts'],
+      ['Dashboard', '/admin/overview'],
       ['Reports', '/admin/reports'],
-      ['Server rules', '/admin/rules'],
+      ['Accounts', '/admin/accounts'],
       ['Hashtags', '/admin/tags'],
-      ['Announcements', '/admin/announcements'],
-      ['Filters', '/admin/filters'],
-      ['Custom emojis', '/admin/emojis'],
+      ['Server filters', '/admin/filters'],
       ['Federation', '/admin/federation'],
-      ['Relays', '/admin/relays'],
-      ['Domains', '/admin/domains'],
+      ['Announcements', '/admin/announcements'],
+      ['Custom emojis', '/admin/emojis'],
+      ['Server settings', '/admin/instance'],
+      ['Server rules', '/admin/rules'],
       ['Posts & media', '/admin/posts'],
       ['Network', '/admin/network'],
-      ['Instance', '/admin/instance'],
+      ['Served domains', '/admin/domains'],
+      ['Relays', '/admin/relays'],
       ['Queues', '/admin/queues'],
       ['System', '/admin/system']
     ])
   })
 
-  it('marks only Overview as active in the rail when at /admin', () => {
-    renderAt('/admin')
+  it('marks Dashboard active at /admin/overview', () => {
+    renderAt('/admin/overview')
 
-    const rail = getRailNav()
-    const activeLinks = within(rail)
-      .getAllByRole('link')
-      .filter((link) => link.getAttribute('aria-current') === 'page')
-
-    expect(activeLinks).toHaveLength(1)
-    expect(activeLinks[0]).toHaveTextContent('Overview')
-    expect(activeLinks[0]).toHaveAttribute('href', '/admin')
+    const active = activeLinksIn(getRailNav())
+    expect(active).toHaveLength(1)
+    expect(active[0]).toHaveTextContent('Dashboard')
+    expect(active[0]).toHaveAttribute('href', '/admin/overview')
   })
 
-  it('marks Reports as active in the rail when at a nested path like /admin/reports/123', () => {
+  it('marks Reports active at a nested path like /admin/reports/123', () => {
     renderAt('/admin/reports/123')
 
-    const rail = getRailNav()
-    const activeLinks = within(rail)
-      .getAllByRole('link')
-      .filter((link) => link.getAttribute('aria-current') === 'page')
-
-    expect(activeLinks).toHaveLength(1)
-    expect(activeLinks[0]).toHaveTextContent('Reports')
-    expect(activeLinks[0]).toHaveAttribute('href', '/admin/reports')
+    const active = activeLinksIn(getRailNav())
+    expect(active).toHaveLength(1)
+    expect(active[0]).toHaveTextContent('Reports')
+    expect(active[0]).toHaveAttribute('href', '/admin/reports')
   })
 
-  it('renders the dropdown inside an lg:hidden wrapper and displays the active tab name on the trigger', () => {
-    renderAt('/admin/reports/123')
+  it('marks Served domains active at a nested path like /admin/domains/example.com', () => {
+    renderAt('/admin/domains/example.com')
 
-    const dropdown = getDropdownNav()
-    expect(dropdown.parentElement).toHaveClass('lg:hidden')
-
-    const trigger = within(dropdown).getByRole('button')
-    expect(trigger).toHaveTextContent('Reports')
+    const active = activeLinksIn(getRailNav())
+    expect(active).toHaveLength(1)
+    expect(active[0]).toHaveTextContent('Served domains')
+    expect(active[0]).toHaveAttribute('href', '/admin/domains')
   })
 
-  it('shows Overview on the dropdown trigger when on /admin', () => {
-    renderAt('/admin')
-
-    const dropdown = getDropdownNav()
-    expect(dropdown.parentElement).toHaveClass('lg:hidden')
-
-    const trigger = within(dropdown).getByRole('button')
-    expect(trigger).toHaveTextContent('Overview')
-  })
-
-  it('does not render a "Back to" link because Admin has no indexUrl and uses mobileNav', () => {
-    renderAt('/admin/reports')
-
-    expect(
-      screen.queryByRole('link', { name: /^Back to/i })
-    ).not.toBeInTheDocument()
-
+  it('renders the grouped index at /admin: no rail, one card run per group', () => {
     renderAt('/admin')
 
     expect(
-      screen.queryByRole('link', { name: /^Back to/i })
+      screen.queryByRole('navigation', { name: 'Admin' })
     ).not.toBeInTheDocument()
+
+    for (const heading of [
+      'Moderation',
+      'Community',
+      'Server',
+      'Maintenance'
+    ]) {
+      expect(
+        screen.getByRole('heading', { level: 2, name: heading })
+      ).toBeInTheDocument()
+    }
+    // The headless Dashboard group lists its item without a heading.
+    expect(screen.getByRole('link', { name: /Dashboard/ })).toHaveAttribute(
+      'href',
+      '/admin/overview'
+    )
+  })
+
+  it('shows a "Back to admin" row below lg on direct item pages but not on detail pages', () => {
+    const { unmount } = renderAt('/admin/reports')
+    expect(screen.getByRole('link', { name: 'Back to admin' })).toHaveAttribute(
+      'href',
+      '/admin'
+    )
+    unmount()
+
+    renderAt('/admin/reports/123')
+    expect(
+      screen.queryByRole('link', { name: 'Back to admin' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('renders no dropdown navigation', () => {
+    renderAt('/admin/reports/123')
+
+    // Only the rail carries the section's name.
+    const navs = screen.getAllByRole('navigation', { name: 'Admin' })
+    expect(navs).toHaveLength(1)
+    expect(navs[0]).toHaveClass('max-lg:hidden')
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 })
