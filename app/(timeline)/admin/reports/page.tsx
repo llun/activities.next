@@ -1,3 +1,4 @@
+import { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 
 import { PageHeader } from '@/lib/components/page-header'
@@ -14,6 +15,10 @@ import { normalizeServedDomainChoice } from '@/lib/utils/host'
 import { AdminReportsList } from './AdminReportsList'
 
 export const dynamic = 'force-dynamic'
+
+export const metadata: Metadata = {
+  title: 'Reports'
+}
 
 interface Props {
   searchParams: Promise<{ domain?: string | string[] }>

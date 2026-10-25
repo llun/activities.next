@@ -1,3 +1,4 @@
+import { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 
 import { InstanceSettingsForm } from '@/lib/components/admin/settings/InstanceSettingsForm'
@@ -7,6 +8,10 @@ import { getServerSettingsView } from '@/lib/services/serverSettings'
 import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
 
 export const dynamic = 'force-dynamic'
+
+export const metadata: Metadata = {
+  title: 'Server settings'
+}
 
 const Page = async () => {
   const database = getDatabase()

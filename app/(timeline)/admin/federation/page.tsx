@@ -1,4 +1,5 @@
 import { Download, Layers, ShieldBan, ShieldCheck, Trash2 } from 'lucide-react'
+import { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 
 import {
@@ -34,6 +35,10 @@ import { getServerSettingsView } from '@/lib/services/serverSettings'
 import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
 
 export const dynamic = 'force-dynamic'
+
+export const metadata: Metadata = {
+  title: 'Federation'
+}
 
 interface Props {
   searchParams: Promise<Record<string, string | undefined>>
