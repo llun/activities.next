@@ -1,0 +1,55 @@
+instrumentation.ts
+  s_f92b4a9beb2361::t_5d04d8a102ef21 11
+scripts/backup/actorArchive.ts
+  s_f92b4a9beb2361::t_5d04d8a102ef21 226
+migrations/20261018170047_add_domains.ts
+  s_f92b4a9beb2361::t_5d04d8a102ef21 3
+app/api/nodeinfo/2.1/route.test.ts
+  s_f92b4a9beb2361::t_5d04d8a102ef21 40
+proxy.ts
+  s_f92b4a9beb2361::t_5d04d8a102ef21 73
+lib/components/admin/domains/DomainSettings.test.tsx
+  s_f92b4a9beb2361::t_5d04d8a102ef21 464
+app/api/nodeinfo/2.0/route.test.ts
+  s_f92b4a9beb2361::t_5d04d8a102ef21 40
+lib/components/admin/domains/DomainFeaturesBox.test.tsx
+  s_f92b4a9beb2361::t_5d04d8a102ef21 169
+scripts/maintenance/backfillMissingLikeActors.ts
+  s_f92b4a9beb2361::t_5d04d8a102ef21 205
+scripts/maintenance/importRemoteStatus.ts
+  s_f92b4a9beb2361::t_5d04d8a102ef21 183
+lib/services/wellknown/nodeinfo.test.ts
+  s_f92b4a9beb2361::t_5d04d8a102ef21 36
+scripts/backup/actorArchiveExport.test.ts
+  s_f92b4a9beb2361::t_5d04d8a102ef21 296
+scripts/maintenance/runQueueWorker.test.ts
+  s_f92b4a9beb2361::t_5d04d8a102ef21 37
+scripts/maintenance/runQueueWorker.ts
+  s_f92b4a9beb2361::t_5d04d8a102ef21 30
+test/instrumentation.test.ts
+  s_f92b4a9beb2361::t_5d04d8a102ef21 82
+lib/services/domains/adminDomains.ts
+  s_f92b4a9beb2361::t_5d04d8a102ef21 200
+app/api/well-known/activities-domain-check/route.ts
+  s_f92b4a9beb2361::t_5d04d8a102ef21 19
+app/layout.tsx
+  s_f92b4a9beb2361::t_5d04d8a102ef21 46
+test/proxy.test.ts
+  s_f92b4a9beb2361::t_5d04d8a102ef21 166
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c4f92a1e11ed7bb1cf0a620c870dc4b9571bfac9",
+  "prompts": {},
+  "sessions": {
+    "s_f92b4a9beb2361": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ee3acfd9-97dc-47c9-8a2a-2e741f8b14b8",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
