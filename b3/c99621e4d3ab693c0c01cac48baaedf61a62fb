@@ -1,0 +1,35 @@
+app/api/v1/accounts/[id]/gallery/media/route.test.ts
+  s_1f1a1efd8db0bf::t_9fee6e3e918af2 1000-1014
+app/api/v1/accounts/[id]/gallery/media/route.ts
+  s_1f1a1efd8db0bf::t_66c3c45078ee05 219-251,271-273
+lib/components/gallery/galleryDayGroups.test.ts
+  s_1f1a1efd8db0bf::t_ab661970d8b192 12,447-476
+lib/components/gallery/useDaySelection.test.tsx
+  s_1f1a1efd8db0bf::t_886e960cc0980b 22,31,37,44,53-54,58-63,70-71,77-78,82,294-372
+lib/components/gallery/useDaySelection.ts
+  s_1f1a1efd8db0bf::t_a1e3e9ac86411d 26-32,49-50,64-72,91-104,130,137-139,147,183-184,191-198,228
+lib/components/gallery/useRovingGridFocus.test.tsx
+  s_1f1a1efd8db0bf::t_d13f6ffe941979 11-15,29,103-116
+lib/database/domains/gallery/dayStats.ts
+  s_1f1a1efd8db0bf::t_c40bd710cf7266 155-159,194-196
+lib/services/gallery/galleryQueries.test.ts
+  s_1f1a1efd8db0bf::t_1782b50c4e9828 2-4,26-27,1514-1583
+lib/services/gallery/galleryQueries.ts
+  s_1f1a1efd8db0bf::t_0b19f6a01466a0 189-192,200-203,207,272-276,278-290,293-298
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b3c99621e4d3ab693c0c01cac48baaedf61a62fb",
+  "prompts": {},
+  "sessions": {
+    "s_1f1a1efd8db0bf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6f1be9b0-86e0-4f32-9286-3562b40d391e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
