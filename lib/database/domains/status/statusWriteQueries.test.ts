@@ -523,16 +523,26 @@ const writingTransaction = (statements: Statement[]) => {
 const transactionSteps = (statements: Statement[]) =>
   writingTransaction(statements).map(describeStatement)
 
-// The row lock an edit takes: the first `select ... from "statuses"` of its
-// transaction, read before anything is written. PostgreSQL appends
+// The row lock an edit takes: the `select * from "statuses"` read of its
+// transaction, taken before anything is written. PostgreSQL appends
 // `for update`; SQLite has no row locks, so the same statement reads
 // without it.
-const statusRowLock = (statements: Statement[]) =>
-  writingTransaction(statements).find(({ sql: text }) =>
-    /^select .* from "statuses" where "id" = (\$1|\?) limit (\$2|\?)( for update)?$/.test(
+const statusRowLock = (statements: Statement[]) => {
+  const transaction = writingTransaction(statements)
+  const lock = transaction.find(({ sql: text }) =>
+    /^select \* from "statuses" where "id" = (\$1|\?) limit (\$2|\?)( for update)?$/.test(
       text
     )
   )
+  const firstWrite = transaction.findIndex(
+    ({ sql: text }) => !/^(begin|select) ?/.test(text)
+  )
+  expect(
+    lock && transaction.indexOf(lock) < firstWrite,
+    'the lock is taken before the first write'
+  ).toBe(true)
+  return lock
+}
 
 beforeAll(async () => {
   await testDb.prepare()
@@ -1991,6 +2001,7 @@ describe('updateNote', () => {
     // it waits for a concurrent visibility change on PostgreSQL. SQLite has
     // no row locks, so the same statement reads without one.
     const lock = statusRowLock(statements)
+    expect(lock).toBeDefined()
     expect(lock?.sql.endsWith(' for update')).toBe(testDb.backend === 'pg')
   })
 })
@@ -2532,6 +2543,7 @@ describe('updateNoteVisibility', () => {
     // concurrent edit is waited for on PostgreSQL. SQLite has no row locks,
     // so the same statement reads without one.
     const lock = statusRowLock(statements)
+    expect(lock).toBeDefined()
     expect(lock?.sql.endsWith(' for update')).toBe(testDb.backend === 'pg')
   })
 })
