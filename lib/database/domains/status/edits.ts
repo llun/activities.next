@@ -20,6 +20,7 @@ import {
   decreaseCounterValue,
   increaseCounterValue
 } from '@/lib/database/kysely/counter'
+import { forUpdate } from '@/lib/database/kysely/dialect'
 import { CounterKey } from '@/lib/database/utils/counter'
 import { getCompatibleJSON } from '@/lib/database/utils/getCompatibleJSON'
 import { Attachment, isFitnessAttachment } from '@/lib/types/domain/attachment'
@@ -99,9 +100,11 @@ export const updateNote = async (
   await inTransaction(db, async (trx) => {
     // The hydrated read above may predate a visibility change that cleared
     // the marker; keep it only while the row inside this transaction still
-    // has it, or the edit would put it back on an ordinary post.
+    // has it, or the edit would put it back on an ordinary post. The read
+    // locks the row (a no-op on SQLite), so on PostgreSQL it waits for a
+    // concurrent visibility change to commit and reads its content.
     if (status.createdWhileMoved) {
-      const existingRow = await selectStatusRow(trx, status.id)
+      const existingRow = await selectStatusRowForUpdate(trx, status.id)
       const existingContent = getCompatibleJSON<Record<string, unknown>>(
         existingRow?.content ?? {}
       )
@@ -396,6 +399,15 @@ const selectStatusRow = (db: Db, statusId: string) =>
     .limit(1)
     .executeTakeFirst()
 
+// The same row, locked for the surrounding transaction on PostgreSQL (a
+// no-op on SQLite): a concurrent writer's commit is waited for and its
+// committed content is read.
+const selectStatusRowForUpdate = (db: Db, statusId: string) =>
+  forUpdate(
+    db,
+    db.selectFrom('statuses').selectAll().where('id', '=', statusId).limit(1)
+  ).executeTakeFirst()
+
 // Whether two recipient lists address the same actors, as sets: duplicates
 // (a private note's cc keeps the mention hrefs as written) are one member.
 const sameRecipients = (left: string[], right: string[]) => {
@@ -412,12 +424,12 @@ const sameRecipients = (left: string[], right: string[]) => {
 // is still the one that was read inside this transaction, so a concurrent
 // edit that rebuilt the blob (updateNote) is never overwritten with a stale
 // copy. One re-read and one retry cover a change that committed in between;
-// a second miss keeps the marker. By then the new audience has given the
-// status recipients, so it is not isolated anyway — the only effect is on
-// a later bare-direct change, which would isolate it again.
+// a second miss keeps the marker, which has no effect: by then the status
+// has recipients, so it is not isolated, and the next audience change —
+// including a change to direct — clears it.
 const clearMovedTimeMarker = async (trx: Db, statusId: string) => {
   for (let attempt = 0; attempt < 2; attempt++) {
-    const existingRow = await selectStatusRow(trx, statusId)
+    const existingRow = await selectStatusRowForUpdate(trx, statusId)
     if (!existingRow) return true
     const movedTimeContent = getCompatibleJSON<Record<string, unknown>>(
       existingRow.content ?? {}
