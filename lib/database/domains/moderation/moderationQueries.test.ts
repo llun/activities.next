@@ -312,6 +312,69 @@ describe('rejectPendingAccount', () => {
     )
   })
 
+  // A never-approved account never federated, so its handle rows go with the
+  // actors and the username becomes free again — unlike an approved actor's
+  // deletion, which retires its rows to keep the federated id path reserved.
+  it("frees a rejected sign-up's handles: the username is registerable again and no ledger row remains", async () => {
+    const target = await newAccount('reject-handles')
+    await patchAccount(target.accountId, { approvedAt: null })
+
+    expect(
+      await database.rejectPendingAccount({ accountId: target.accountId })
+    ).toBe(true)
+    expect(
+      await db()
+        .selectFrom('actor_handles')
+        .selectAll()
+        .where('actorId', '=', target.actorId)
+        .execute()
+    ).toEqual([])
+
+    const again = await database.createAccount({
+      email: `again-${target.username}@${DOMAIN}`,
+      username: target.username,
+      passwordHash: 'hash',
+      domain: DOMAIN,
+      privateKey: 'private',
+      publicKey: 'public'
+    })
+    const actors = await database.getActorsForAccount({ accountId: again })
+    expect(actors[0].username).toBe(target.username)
+    // The only ledger row for the handle (and its id path, which the mint
+    // derives deterministically) is the new account's own freshly minted
+    // row — the rejected sign-up's row is gone.
+    const handles = await database.getActorHandles({ actorId: actors[0].id })
+    expect(handles).toHaveLength(1)
+    expect(handles[0].replacedAt).toBeNull()
+    expect(handles[0].id.startsWith('backfill-')).toBe(false)
+  })
+
+  it("keeps an approved account's handle rows when its actor is deleted later", async () => {
+    const target = await newAccount('delete-approved')
+    await database.approveAccount({ accountId: target.accountId })
+
+    await database.deleteActorData({ actorId: target.actorId })
+
+    const rows = await db()
+      .selectFrom('actor_handles')
+      .selectAll()
+      .where('actorId', '=', target.actorId)
+      .execute()
+    expect(rows).toHaveLength(1)
+    expect(rows[0].replacedAt).not.toBeNull()
+    // The reservation holds: the username cannot be registered again.
+    await expect(
+      database.createAccount({
+        email: `late-${target.username}@${DOMAIN}`,
+        username: target.username,
+        passwordHash: 'hash',
+        domain: DOMAIN,
+        privateKey: 'private',
+        publicKey: 'public'
+      })
+    ).rejects.toThrow()
+  })
+
   it('keeps everything when its final delete fails', async () => {
     const target = await newAccount('reject-fail')
     await patchAccount(target.accountId, { approvedAt: null })

@@ -1,15 +1,16 @@
+import type { Db } from '@/lib/database/kysely'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import { logger } from '@/lib/utils/logger'
 
 const withFreshDatabase = async (
-  test: (database: Database) => Promise<void>
+  test: (database: Database, db: Db) => Promise<void>
 ) => {
   const testDb = createTestDatabase()
   await testDb.prepare()
   await testDb.database.migrate()
   try {
-    await test(testDb.database)
+    await test(testDb.database, testDb.db)
   } finally {
     await testDb.destroy()
   }
@@ -391,6 +392,165 @@ describe('countLocalActorsByDomain', () => {
       expect(await database.countLocalActorsByDomain({ domains: [] })).toEqual(
         {}
       )
+    })
+  })
+})
+
+// The actors that block turning a domain off or removing it: a local
+// account-backed actor matches by its current handle's domain OR by the host
+// of its immutable actor id, so a renamed actor blocks both its old and its
+// new domain.
+describe('getLocalActorsOnDomain', () => {
+  const createLocalAccount = async (
+    database: Database,
+    username: string,
+    domain: string
+  ) => {
+    const accountId = await database.createAccount({
+      email: `${username}-${crypto.randomUUID()}@mail.example`,
+      username,
+      passwordHash: 'hash',
+      domain,
+      privateKey: `private-${username}`,
+      publicKey: `public-${username}`
+    })
+    const actors = await database.getActorsForAccount({ accountId })
+    return actors[0]
+  }
+
+  const createRemoteActor = async (
+    database: Database,
+    username: string,
+    domain: string
+  ) => {
+    const actorId = `https://${domain}/users/${username}`
+    await database.createActor({
+      actorId,
+      username,
+      domain,
+      followersUrl: `${actorId}/followers`,
+      inboxUrl: `${actorId}/inbox`,
+      sharedInboxUrl: `https://${domain}/inbox`,
+      publicKey: 'public-key',
+      createdAt: Date.now()
+    })
+    return actorId
+  }
+
+  const renameTo = (
+    database: Database,
+    actorId: string,
+    username: string,
+    domain: string
+  ) =>
+    database.recordActorHandleRename({
+      actorId,
+      username,
+      domain,
+      now: new Date('2026-01-01T00:00:00.000Z'),
+      cooldownMs: 30 * 24 * 60 * 60 * 1000
+    })
+
+  it('matches the id host after a rename away and the handle domain, and excludes remote actors', async () => {
+    await withFreshDatabase(async (database) => {
+      const alice = await createLocalAccount(database, 'alice', 'old.example')
+      await renameTo(database, alice.id, 'alice', 'new.example')
+      await createLocalAccount(database, 'ben', 'other.example')
+      await createRemoteActor(database, 'visitor', 'old.example')
+
+      // The actor renamed AWAY: its handle is on new.example now, but its
+      // id still names old.example, so both domains are blocked.
+      expect(
+        await database.getLocalActorsOnDomain({ domain: 'old.example' })
+      ).toEqual([{ id: alice.id, username: 'alice', domain: 'new.example' }])
+      expect(
+        await database.getLocalActorsOnDomain({ domain: 'new.example' })
+      ).toEqual([{ id: alice.id, username: 'alice', domain: 'new.example' }])
+      expect(
+        await database.getLocalActorsOnDomain({ domain: 'empty.example' })
+      ).toEqual([])
+    })
+  })
+
+  it('matches an actor renamed ONTO the domain by both arms, once', async () => {
+    await withFreshDatabase(async (database) => {
+      const bob = await createLocalAccount(database, 'bob', 'old.example')
+      await renameTo(database, bob.id, 'bob', 'new.example')
+
+      // Handle domain and id host are both new.example here; the actor is
+      // returned once.
+      expect(
+        await database.getLocalActorsOnDomain({ domain: 'new.example' })
+      ).toEqual([{ id: bob.id, username: 'bob', domain: 'new.example' }])
+    })
+  })
+
+  it('orders by username then id', async () => {
+    await withFreshDatabase(async (database) => {
+      await createLocalAccount(database, 'zoe', 'run.example')
+      await createLocalAccount(database, 'ana', 'run.example')
+
+      expect(
+        (await database.getLocalActorsOnDomain({ domain: 'run.example' })).map(
+          (actor) => actor.username
+        )
+      ).toEqual(['ana', 'zoe'])
+    })
+  })
+
+  it('escapes LIKE wildcards in the domain and folds case on both arms', async () => {
+    await withFreshDatabase(async (database, db) => {
+      const underscore = await createLocalAccount(
+        database,
+        'carol',
+        'a_b.example'
+      )
+      await createLocalAccount(database, 'dan', 'axb.example')
+
+      // Without escaping, the `_` wildcard would make `a_b.example` match
+      // dan's id host too.
+      expect(
+        await database.getLocalActorsOnDomain({ domain: 'a_b.example' })
+      ).toEqual([
+        { id: underscore.id, username: 'carol', domain: 'a_b.example' }
+      ])
+
+      // The query folds, and so does the stored data: an id or a handle
+      // stored in another case still matches its lowercase spelling. The
+      // domain update targets the id just written.
+      await db
+        .updateTable('actors')
+        .set({ id: 'https://a_b.EXAMPLE/users/carol' })
+        .where('id', '=', underscore.id)
+        .execute()
+      await db
+        .updateTable('actors')
+        .set({ domain: 'A_B.example' })
+        .where('id', '=', 'https://a_b.EXAMPLE/users/carol')
+        .execute()
+      expect(
+        await database.getLocalActorsOnDomain({ domain: 'A_B.EXAMPLE' })
+      ).toEqual([
+        {
+          id: 'https://a_b.EXAMPLE/users/carol',
+          username: 'carol',
+          domain: 'A_B.example'
+        }
+      ])
+    })
+  })
+
+  it('counts on the same match the refusal uses', async () => {
+    await withFreshDatabase(async (database) => {
+      const alice = await createLocalAccount(database, 'alice', 'old.example')
+      await renameTo(database, alice.id, 'alice', 'new.example')
+      await createRemoteActor(database, 'visitor', 'old.example')
+
+      expect(
+        await database.countLocalActorsByDomain({
+          domains: ['old.example', 'new.example', 'empty.example']
+        })
+      ).toEqual({ 'old.example': 1, 'new.example': 1 })
     })
   })
 })

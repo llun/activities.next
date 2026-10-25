@@ -105,7 +105,20 @@ export const rejectPendingAccount = (
     for (const { id } of actors) {
       await deleteActorSearchDocument(trx, { id })
     }
+    // A never-approved account never federated, so its handles carry no
+    // history a remote server could still point at: the rows go with the
+    // actors and the usernames become free again. (Unlike deleteActorData,
+    // which RETIRES an approved actor's rows so a federated id path is never
+    // reissued.)
     if (actors.length > 0) {
+      await trx
+        .deleteFrom('actor_handles')
+        .where(
+          'actorId',
+          'in',
+          actors.map((actor) => actor.id)
+        )
+        .execute()
       await trx
         .deleteFrom('actors')
         .where(
