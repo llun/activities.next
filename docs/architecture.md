@@ -2278,6 +2278,123 @@ moved` (reject stays allowed). While
   (null until the Move job is queued). The cooldown
   reads only the newest `move` row (`getLastActorMove`), so a redirect never
   starts one.
+- **A local actor can rename in place, and the `actor_handles` ledger is what
+  makes that safe.** `actor_handles` (migration `20261025141323_add_actor_handles`)
+  holds one row per handle the actor has ever had: the current row
+  (`replacedAt` null) plus one row per replaced handle. A unique index on
+  `(lower(username), domain)` means at most one row per handle across every
+  actor, current or retired; a second index on `(actorId, replacedAt)` serves
+  the history and cooldown reads. Domains fold at write and at read. The
+  migration backfills one current row per account-backed local actor
+  (`privateKey` non-empty, keyset pages, the oldest of a case-colliding pair
+  wins, idempotent through `WHERE NOT EXISTS` on the actor id);
+  `createAccount` and `createActorForAccount` insert the current row inside
+  their existing transactions, and a rename mints a missing current row
+  lazily. `isUsernameExists` consults the ledger too, so a handle any row
+  holds — current or replaced, any actor — can never be registered again, and
+  `getActorFromUsername` gains a third arm (run only on a miss of the two
+  actors arms) that resolves a replaced handle back to the actor that gave it
+  up, so an old handle keeps working everywhere a handle resolves
+  (`OnlyLocalUserGuard`, WebFinger, mentions, lookup, search).
+- **The rename itself is `recordActorHandleRename`
+  (`lib/database/domains/actorHandle/queries.ts`), one transaction under a
+  `forUpdate` lock on the actors row** (the actorMigration pattern; a no-op on
+  SQLite). It refuses, as a discriminated result rather than a throw: a
+  missing or non-local actor (`not_found`); a moved or redirecting one
+  (`moved` — `settings.movedTo` is written in the same transaction that
+  records an outgoing migration, so the pointer is the active migration); a
+  suspended or deleting one (`unavailable`); an actor with no current row
+  whose handle another actor's ledger row occupies (a backfill's skipped case
+  twin, `cannot_rename`); the same handle back, case-only renames included
+  (`unchanged`); a rename inside the 30-day cooldown measured from the latest
+  `replacedAt` (`cooldown`, answering `cooldownUntil`; backfilled and lazily
+  minted rows have a null `replacedAt` and never trigger it); and a target
+  held by another actor's live actors row or any of its ledger rows
+  (`taken`). The actor's own replaced row for the target is the rename-back
+  case and is revived (`replacedAt` back to null), never duplicated — the
+  folded unique index would refuse a second row anyway. Otherwise a new
+  current row is minted, the previous current row gets `replacedAt = now`, the
+  actors row's `username`, `domain` (lowercased) and `updatedAt` are updated —
+  `actors.id` never changes — and the search document is re-indexed in the
+  same transaction, so search sees the new handle exactly when the actors row
+  does.
+- **Deleting an approved actor keeps its handles reserved (a behaviour
+  change).** `deleteActorData` (`lib/database/domains/actor/deletion.ts`) no
+  longer frees the username: inside the purge transaction it sets
+  `replacedAt = now` on the actor's current ledger row and deletes nothing
+  from `actor_handles`, so the handle — and the username path inside the
+  federated id — can never be re-issued on that domain, as in Mastodon. A
+  REJECTED never-approved sign-up is the exception: `rejectPendingAccount`
+  (`lib/database/domains/moderation/queries.ts`) deletes those actors'
+  `actor_handles` rows in the same transaction, because a never-approved
+  account never federated and its handles were never observable. The retired
+  rows keep resolving only while an actor row exists — the deletion removes
+  the actor, so the reservation is what survives, not the resolution.
+- **`RenameStatusUrlsJob` (`lib/jobs/renameStatusUrlsJob.ts`) rewrites the
+  renamed actor's status permalinks in the background.** `statuses.url` and
+  its `urlHash` twin embed the handle the status was minted with
+  (`https://<domain>/@<username>/<publicId>`; `createNote`, `createPoll` and
+  the fitness imports all build it that way), so after a rename every url
+  under the old profile prefix is rewritten to the new one and `urlHash` is
+  recomputed, leaving `status_history` alone. The job pages 200 statuses at a
+  time by `statuses.id` (keyset), has a 20-second budget checked between
+  pages, and publishes a continuation when the budget runs out, under
+  deterministic ids (`${handleId}:statusUrls:start`, then
+  `${handleId}:statusUrls:<lastId>`). Because both prefixes end in `/` and a
+  username cannot contain `/`, a rewritten url can never re-match the old
+  prefix, so a redelivery or retry re-runs the same page, matches no rows and
+  changes nothing. The rename route queues the start job after the commit,
+  best effort.
+- **Old handles keep answering everywhere.** WebFinger tries an http(s)
+  resource as the immutable actor id first, then reads its path as a handle;
+  a historical handle answers 200 with the CURRENT handle as the `subject`,
+  the same actor id verbatim in both `self` links, and the requested old
+  profile URL and `acct:` URI among the aliases — never 404, 410 or a
+  redirect (`lib/services/wellknown/webfinger.ts`). The Person document
+  (`lib/utils/getPersonFromActor.ts`) carries the FEP-2c59 `webfinger`
+  property — the bare `username@domain` string, Mastodon's form — and adds
+  `https://purl.archive.org/socialweb/webfinger` to `@context` as a plain
+  context URL. On the web, a profile page (or a nested status, followers or
+  album path) reached under an old handle 308-redirects to the same page
+  under the current handle: `getLocalHandleRedirect`
+  (`app/(timeline)/[actor]/getLocalHandleRedirect.ts`) is a pure helper that
+  returns the same path and query under the current handle and falls through
+  unchanged for remote and unknown handles, and the actor layout calls
+  `permanentRedirect` with it. `resolveStatusFromPath` builds the legacy
+  status id from the resolved actor's immutable id, so `/@old/<id>` style
+  paths keep resolving across a rename.
+- **The domain admin refusal follows the rename too.** Turning a domain off
+  (`setDomainStatus` with status `off`) or removing it (`removeDomain`) is
+  refused with `has-profiles` while any local actor still uses it — by handle
+  (`actors.domain`) or by id host (`actors.id LIKE 'https://<domain>/users/%'`,
+  escaped), via `getLocalActorsOnDomain`
+  (`lib/database/domains/servedDomain/queries.ts`) — so an actor renamed away
+  from the domain still blocks it through its id, and one renamed onto it
+  blocks it through its handle. The admin route answers 409 with the blocking
+  actors listed (`{ id, acct }` each, the acct always fully qualified).
+- **A remote actor's rename is followed only when WebFinger confirms it.**
+  Mastodon has no REST rename either: it applies a remote account's rename
+  when an `Update(Person)` changes the handle, verified by `check_webfinger!`.
+  Here the refresh branch of `recordActorIfNeeded`
+  (`lib/actions/utils.ts`) runs `confirmRemoteHandleChange` before the profile
+  write: the handle the document claims (`getClaimedActorHandle` in
+  `lib/activities/confirmActorHandle.ts` — the FEP-2c59 `webfinger` property
+  when it parses, else `preferredUsername` on the actor id's host, Mastodon's
+  `extract_username_and_domain!`) is compared with the stored one, and when it
+  differs `confirmActorHandle` must confirm it: a WebFinger `self` link must
+  name the actor's id (normalized), the cross-domain question goes to exactly
+  one domain (the one the property names, else the `subject` the id host
+  answered with, Mastodon's subject redirect — never a second hop, the lookup
+  does not follow cross-host redirects), and that domain's answer must carry
+  the same handle as its `subject`. On confirmation
+  `updateRemoteActorHandle` (`lib/database/domains/actor/writes.ts`) rewrites
+  the stored row in one locked transaction; another STALE REMOTE row still
+  holding the handle is displaced with Mastodon's `invalidate_username!`
+  tombstone (`!` + the row id tail, unmatchable by every lookup), while a
+  LOCAL holder or a handle another actor's ledger row reserves refuses the
+  write (null, nothing changed), and both rows' search documents are
+  re-indexed. A claim that does not confirm aborts the whole refresh — the
+  stored profile is never written under an unconfirmed handle.
 - **Profile links (`fields`) are plain text in storage and HTML everywhere
   they leave.** `formatProfileFieldValue`
   (`lib/utils/text/formatProfileFieldValue.ts`) is the one formatter, a
@@ -2321,8 +2438,11 @@ moved` (reject stays allowed). While
   redirects, which are followed for the page itself) and tokenizes it with
   `htmlparser2`'s `Parser` (linear, no tree) looking for an `<a>` or `<link>`
   whose `rel` has the token `me` and whose `href` equals, case-insensitively,
-  the profile URL (`https://<domain>/@<username>`, `getActorProfileUrl`) or the
-  actor id. The link back itself is never fetched or resolved. Every failure is
+  the profile URL (`https://<domain>/@<username>`, `getActorProfileUrl`), the
+  actor id, or — since the in-place rename — the profile URL of any REPLACED
+  handle in the actor's `actor_handles` ledger, so a page linking to the
+  previous profile keeps its verification after a rename. The link back itself
+  is never fetched or resolved. Every failure is
   just "not verified". A remote actor's own `url` is not stored, so its profile
   URL is derived the same way (`/@username`) plus its id, and at most four
   fields are checked.
