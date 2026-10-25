@@ -1,0 +1,31 @@
+docs/architecture.md
+  s_997918f9ed7495::t_00485706f564de 2249-2253
+docs/fitness-file-storage.md
+  s_997918f9ed7495::t_d87597e26edecd 11
+lib/database/domains/status/edits.ts
+  s_997918f9ed7495::t_85e0ee74c1eb98 28,34-39,273-279,298-305,379-416
+lib/database/domains/status/statusWriteQueries.test.ts
+  s_997918f9ed7495::t_092ddc97bd3cc7 2252-2253,2256,2305-2340
+lib/jobs/fitnessImportIsolation.test.ts
+  s_997918f9ed7495::t_dea95d4f90bbde 37-41
+lib/jobs/fitnessImportIsolation.ts
+  s_997918f9ed7495::t_2a0938f716f81a 22-26
+lib/jobs/importFitnessFilesJob.test.ts
+  s_997918f9ed7495::t_7e295ad4b86aab 300-302,367-369
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6244c1f886e8f8b030c3a60ec3cf8c8ffd6f7d0b",
+  "prompts": {},
+  "sessions": {
+    "s_997918f9ed7495": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8790bc1a-c94f-477a-9c6a-4273ef9fe28e",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
