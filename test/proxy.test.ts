@@ -754,6 +754,38 @@ describe('proxy', () => {
     }
   )
 
+  // Legacy usernames minted before normalization may START with `.` or
+  // `-`; their content negotiation must keep working.
+  it.each([
+    {
+      pathname: '/@.legacy',
+      expected: 'https://llun.social/api/users/.legacy'
+    },
+    {
+      pathname: '/@-legacy',
+      expected: 'https://llun.social/api/users/-legacy'
+    },
+    {
+      pathname: '/@.legacy/123',
+      expected: 'https://llun.social/api/users/.legacy/statuses/123'
+    },
+    {
+      pathname: '/@-legacy/123',
+      expected: 'https://llun.social/api/users/-legacy/statuses/123'
+    }
+  ])(
+    'rewrites legacy handles that start with a dot or dash: $pathname',
+    async ({ pathname, expected }) => {
+      const request = new NextRequest(`https://llun.social${pathname}`, {
+        headers: { Accept: 'application/activity+json' }
+      })
+
+      const response = await proxy(request)
+
+      expect(response?.headers.get('x-middleware-rewrite')).toBe(expected)
+    }
+  )
+
   it('forwards the original profile path and query to the layout redirect', async () => {
     const pathname = '/@alice/albums/album%2Fone'
     const search = '?tab=photos&cursor=a%2Fb'
@@ -811,6 +843,19 @@ describe('proxy', () => {
     ).toBeNull()
   })
 
+  // The override is built only when there is a pair to strip: a request that
+  // sent neither local-handle header is forwarded untouched, without the
+  // request-header override Next would apply on every request otherwise.
+  it('forwards a request without local-handle headers untouched', async () => {
+    const request = new NextRequest('https://public.example.com/about', {
+      headers: { host: 'public.example.com' }
+    })
+
+    const response = await proxy(request)
+
+    expect(response?.headers.get('x-middleware-override-headers')).toBeNull()
+  })
+
   // On the paths the proxy DOES rewrite to the profile, its own values win
   // over whatever the client sent.
   it('overwrites client-sent local-handle headers on the profile rewrite', async () => {
@@ -836,20 +881,22 @@ describe('proxy', () => {
     ).toBe('')
   })
 
-  // The first character is anchored the way LOCAL_USERNAME_PATTERN anchors
-  // it: `/@..` must not be rewritten into the API's path (the URL parser
-  // would collapse the dot segments, landing on `/api`).
-  it('does not rewrite /@.. into the users API', async () => {
-    const request = new NextRequest('https://public.example.com/@..', {
-      headers: { Accept: 'application/activity+json' }
-    })
+  // Only the dot segments are refused: a rewrite to `/api/users/.` or
+  // `/api/users/..` would be collapsed by the URL parser onto `/api`.
+  it.each(['/@..', '/@.'])(
+    'does not rewrite the dot segment $pathname into the users API',
+    async (pathname) => {
+      const request = new NextRequest(`https://public.example.com${pathname}`, {
+        headers: { Accept: 'application/activity+json' }
+      })
 
-    const response = await proxy(request)
+      const response = await proxy(request)
 
-    expect(response?.headers.get('x-middleware-rewrite')).toBe(
-      'https://public.example.com/@..@public.example.com'
-    )
-  })
+      expect(response?.headers.get('x-middleware-rewrite')).toBe(
+        `https://public.example.com${pathname}@public.example.com`
+      )
+    }
+  )
 
   it('hands a bare handle on HEAD to the app when the host is not in the env', async () => {
     const request = new NextRequest('https://internal.example.com/@alice', {

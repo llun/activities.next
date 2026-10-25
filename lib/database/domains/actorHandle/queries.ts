@@ -102,25 +102,20 @@ const findHandleRow = async (
 
 // The actorId a ledger row reserves for a handle, or null when the handle is
 // not in the ledger. Every row counts: a CURRENT row names the actor that
-// holds the handle now, a REPLACED one the actor that gave it up.
+// holds the handle now, a REPLACED one the actor that gave it up. This is
+// the ledger arm of getActorFromUsername, which runs after the exact actors
+// arm and BEFORE the folded actors arm: a current row answers a casing miss
+// with its holder — `ALICE` resolves to the ledger's holder `alice`, never
+// to a folded twin `Alice` — and a replaced row resolves a renamed actor
+// through the handle it gave up. A deleted actor's rows are retired by its
+// deletion, so the caller's actor load turns them into null, never into a
+// twin.
 export const getActorIdFromHandle = async (
   db: Db,
   handle: ActorHandleName
 ): Promise<string | null> => {
   const row = await findHandleRow(db, handle)
   return row?.actorId ?? null
-}
-
-// The actorId a REPLACED ledger row points at — the third arm of
-// getActorFromUsername, which resolves a renamed actor through the handle it
-// gave up. Runs only on a miss of the actors arms, so it can never shadow a
-// live actor's current handle.
-export const getActorIdFromReplacedHandle = async (
-  db: Db,
-  handle: ActorHandleName
-): Promise<string | null> => {
-  const row = await findHandleRow(db, handle)
-  return row && row.replacedAt !== null ? row.actorId : null
 }
 
 export const recordActorHandleRename = async (
@@ -256,6 +251,23 @@ export const recordActorHandleRename = async (
         return { ok: false, status: 'taken' }
       }
 
+      // The actors row is written BEFORE any ledger row: the mint paths
+      // insert `actors` first and the ledger second (createAccount,
+      // createActorForAccount), and on PostgreSQL two transactions that
+      // touch the two unique indexes in opposite orders can deadlock — a
+      // sign-up racing a rename onto the same handle would abort with 40P01
+      // and surface as a 500 instead of the `taken` the catch maps a unique
+      // violation to. Both orders now take `actors` first.
+      await trx
+        .updateTable('actors')
+        .set({
+          username: targetUsername,
+          domain: targetDomain,
+          updatedAt: now
+        })
+        .where('id', '=', actorId)
+        .execute()
+
       // Lazily mint the current row the actor is missing, from the actor's own
       // row (the backfill's twin rule means that is safe exactly when the check
       // above passed). An own replaced row for the current handle is revived
@@ -353,16 +365,6 @@ export const recordActorHandleRename = async (
         // The revived rename-back row IS the row that just became current; do
         // not retire what was just revived.
         .where('id', '!=', handleId)
-        .execute()
-
-      await trx
-        .updateTable('actors')
-        .set({
-          username: targetUsername,
-          domain: targetDomain,
-          updatedAt: now
-        })
-        .where('id', '=', actorId)
         .execute()
 
       // The search document carries the handle: re-index it in the same

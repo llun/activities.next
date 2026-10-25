@@ -272,6 +272,41 @@ describe('actorHandle domain', () => {
       ).resolves.toMatchObject({ id: twinActorId })
     }))
 
+  it('a current ledger row answers a casing miss with its holder, never a folded twin', () =>
+    withFreshDatabase(async (database, db) => {
+      const actorId = await createLocalAccount(database, 'alice')
+      // The legacy twin: a live actors row the backfill skipped (no ledger
+      // row of its own), OLDER than the holder so the folded actors arm
+      // alone would pick it.
+      const twinActorId = `https://${TEST_DOMAIN}/users/Alice`
+      await db
+        .insertInto('actors')
+        .values({
+          id: twinActorId,
+          username: 'Alice',
+          domain: TEST_DOMAIN,
+          accountId: null,
+          publicKey: 'public-key',
+          settings: JSON.stringify({
+            followersUrl: `${twinActorId}/followers`,
+            inboxUrl: `${twinActorId}/inbox`,
+            sharedInboxUrl: `https://${TEST_DOMAIN}/inbox`
+          }),
+          createdAt: new Date(1000),
+          updatedAt: new Date(1000)
+        })
+        .execute()
+
+      // `ALICE` matches neither actor exactly; the holder's CURRENT ledger
+      // row must win over the older folded twin.
+      await expect(
+        database.getActorFromUsername({
+          username: 'ALICE',
+          domain: TEST_DOMAIN
+        })
+      ).resolves.toMatchObject({ id: actorId, username: 'alice' })
+    }))
+
   it('getActorFromUsername returns null for a replaced handle whose actor was deleted', () =>
     withFreshDatabase(async (database) => {
       const actorId = await createLocalAccount(database, 'departed')

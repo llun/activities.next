@@ -2381,10 +2381,14 @@ moved` (reject stays allowed). While
   `permanentRedirect` with it. The proxy is the only writer of the two
   request headers the helper reads (`x-activities-local-handle-path` and
   `-search`, constants in `lib/utils/http-headers/localHandleRedirect.ts`):
-  it deletes a client-sent pair on every request and sets them only on the
-  branches that rewrite to the profile, and the helper itself refuses a
-  captured path whose first segment is not the requested handle or that
-  climbs with `..`, so a forged value can never steer the 308. `resolveStatusFromPath` builds the legacy
+  it deletes a client-sent pair on every request the proxy runs on and sets
+  them only on the branches that rewrite to the profile — the matcher skips
+  multipart `/api/*` requests, which can fall through to the
+  `[actor]`/`[status]` pages with the client's headers intact — and the
+  helper itself refuses a captured path whose first segment is not the
+  requested handle or that climbs with `..`, so a forged value can never
+  steer the 308; that first-segment check is the backstop for the requests
+  the proxy never runs on. `resolveStatusFromPath` builds the legacy
   status id from the resolved actor's immutable id, so `/@old/<id>` style
   paths keep resolving across a rename.
 - **The domain admin refusal follows the rename too.** Turning a domain off

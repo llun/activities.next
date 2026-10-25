@@ -94,17 +94,30 @@ const hasHostOutsideEnv = (headers: Headers): boolean => {
 const HANDLE_REDIRECT_PATH = '/api/handle-redirect'
 
 // The request headers every forwarded branch carries: the client-sent
-// `x-activities-local-handle-*` pair is deleted on EVERY request, so a
-// value the client set itself never reaches the [actor] layout on a path
-// the proxy does not rewrite (there it would 308 an attacker-chosen
-// same-origin path). Only the branches that rewrite to the profile set the
-// headers, through getProfileRequestHeaders below.
+// `x-activities-local-handle-*` pair is deleted on EVERY request the proxy
+// runs on, so a value the client set itself never reaches the [actor] layout
+// on a path the proxy does not rewrite (there it would 308 an
+// attacker-chosen same-origin path). Only the branches that rewrite to the
+// profile set the headers, through getProfileRequestHeaders below.
 const forwardedRequestHeaders = (request: NextRequest) => {
   const headers = new Headers(request.headers)
   headers.delete(LOCAL_HANDLE_REDIRECT_PATH_HEADER)
   headers.delete(LOCAL_HANDLE_REDIRECT_SEARCH_HEADER)
   return headers
 }
+
+// The request-header override a forwarding branch passes, or undefined when
+// the request is forwarded untouched. Next applies the override by deleting
+// every request header the override list does not name, so building one on
+// every request (inbox POSTs, uploads, every page view) rebuilds the whole
+// header set for nothing; it is built only when the client actually sent a
+// pair to strip. The profile branches always build theirs through
+// getProfileRequestHeaders.
+const forwardedRequestInit = (request: NextRequest) =>
+  request.headers.has(LOCAL_HANDLE_REDIRECT_PATH_HEADER) ||
+  request.headers.has(LOCAL_HANDLE_REDIRECT_SEARCH_HEADER)
+    ? { request: { headers: forwardedRequestHeaders(request) } }
+    : undefined
 
 const getProfileRequestHeaders = (request: NextRequest) => {
   const headers = forwardedRequestHeaders(request)
@@ -226,9 +239,7 @@ export async function proxy(request: NextRequest) {
   if (request.method === 'GET' || request.method === 'HEAD') {
     if (pathname === '/sw.js') {
       const response = withContentSecurityPolicy(
-        NextResponse.next({
-          request: { headers: forwardedRequestHeaders(request) }
-        }),
+        NextResponse.next(forwardedRequestInit(request)),
         request
       )
       response.headers.set(
@@ -248,34 +259,31 @@ export async function proxy(request: NextRequest) {
         'application/json'
       ])
     ) {
-      // Actor route. The first character is anchored the way
-      // LOCAL_USERNAME_PATTERN anchors it, so `/@..` and `/@.a` are not
-      // rewritten into the API's path.
-      if (/^\/@[a-zA-Z0-9_][a-zA-Z0-9_.-]*$/.test(pathname)) {
+      // Actor route. The character class is the permissive historical one —
+      // legacy usernames may start with `.` or `-` — and only the dot
+      // segments `.` and `..` are refused: a rewrite to `/api/users/.` or
+      // `/api/users/..` would be collapsed by the URL parser onto `/api`.
+      if (/^\/@(?!\.\.?(?:\/|$))[a-zA-Z0-9._-]+$/.test(pathname)) {
         const matches = pathname.match(
-          /^\/@(?<username>[a-zA-Z0-9_][a-zA-Z0-9_.-]*)$/
+          /^\/@(?!\.\.?(?:\/|$))(?<username>[a-zA-Z0-9._-]+)$/
         )
         const apiUrl = request.nextUrl.clone()
         apiUrl.pathname = `/api/users/${matches?.groups?.username}`
         return withContentSecurityPolicy(
-          NextResponse.rewrite(apiUrl, {
-            request: { headers: forwardedRequestHeaders(request) }
-          }),
+          NextResponse.rewrite(apiUrl, forwardedRequestInit(request)),
           request
         )
       }
 
       // Actor status route
-      if (/^\/@[a-zA-Z0-9_][a-zA-Z0-9_.-]*\/[\w-]+$/.test(pathname)) {
+      if (/^\/@(?!\.\.?(?:\/|$))[a-zA-Z0-9._-]+\/[\w-]+$/.test(pathname)) {
         const matches = pathname.match(
-          /^\/@(?<username>[a-zA-Z0-9_][a-zA-Z0-9_.-]*)\/(?<statusId>[\w-]+)$/
+          /^\/@(?!\.\.?(?:\/|$))(?<username>[a-zA-Z0-9._-]+)\/(?<statusId>[\w-]+)$/
         )
         const apiUrl = request.nextUrl.clone()
         apiUrl.pathname = `/api/users/${matches?.groups?.username}/statuses/${matches?.groups?.statusId}`
         return withContentSecurityPolicy(
-          NextResponse.rewrite(apiUrl, {
-            request: { headers: forwardedRequestHeaders(request) }
-          }),
+          NextResponse.rewrite(apiUrl, forwardedRequestInit(request)),
           request
         )
       }
@@ -305,9 +313,7 @@ export async function proxy(request: NextRequest) {
           query: request.nextUrl.search
         }).toString()
         return withContentSecurityPolicy(
-          NextResponse.rewrite(redirectUrl, {
-            request: { headers: forwardedRequestHeaders(request) }
-          }),
+          NextResponse.rewrite(redirectUrl, forwardedRequestInit(request)),
           request
         )
       }
@@ -327,17 +333,13 @@ export async function proxy(request: NextRequest) {
     }
 
     return withContentSecurityPolicy(
-      NextResponse.next({
-        request: { headers: forwardedRequestHeaders(request) }
-      }),
+      NextResponse.next(forwardedRequestInit(request)),
       request
     )
   }
 
   return withContentSecurityPolicy(
-    NextResponse.next({
-      request: { headers: forwardedRequestHeaders(request) }
-    }),
+    NextResponse.next(forwardedRequestInit(request)),
     request
   )
 }
