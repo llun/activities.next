@@ -15,8 +15,9 @@ interface Props {
 // Dashboard, Moderation and Community fill its left column.
 const Layout: FC<Props> = async ({ children }) => {
   const database = getDatabase()
-  const session = await getServerAuthSession()
-  const admin = database ? await getAdminFromSession(database, session) : null
+  const admin = database
+    ? await getAdminFromSession(database, await getServerAuthSession())
+    : null
   const groups =
     database && admin
       ? adminGroups(await database.countOpenReports({ limit: 100 }))
