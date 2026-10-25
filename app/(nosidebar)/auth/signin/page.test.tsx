@@ -205,7 +205,7 @@ describe('/auth/signin heading', () => {
       props: { title: string; children: { props: { providerName: string } } }
     }
 
-  // The visited domain's name (Admin › Domains, else Admin › Instance), not
+  // The visited domain's name (Admin › Served domains, else Admin › Server settings), not
   // ACTIVITIES_SERVICE_NAME, which only seeds the server setting.
   it.each([
     {

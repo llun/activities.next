@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic'
 // Resolve the auth instance for the domain the request arrived on so passkey
 // ceremonies (register/authenticate) use the matching WebAuthn rpID/origin,
 // enabling per-domain passkeys across ACTIVITIES_HOST, ACTIVITIES_TRUSTED_HOSTS
-// and the active Admin › Domains rows. The snapshot of those rows is brought up
+// and the active Admin › Served domains rows. The snapshot of those rows is brought up
 // to date first, so a domain turned off on another instance stops getting its
 // own auth instance (and trusted origin) here too. The instance also carries
 // that domain's name, as the passkey rpName and the 2FA issuer.

@@ -60,7 +60,7 @@ const importPrivateKey = async (privateKey: string): Promise<CryptoKey> => {
  * scheme has to match how the app is actually served. `buildBaseURL` applies the
  * configured auth scheme (`http` only under the local-dev-only
  * `ACTIVITIES_INSECURE_AUTH`, `https` everywhere else) and leaves hosts that
- * already carry a scheme untouched. The active Admin › Domains rows count too:
+ * already carry a scheme untouched. The active Admin › Served domains rows count too:
  * a map on one of them sends that domain as its `Origin`.
  */
 const getAllowedOrigins = async (): Promise<string> => {

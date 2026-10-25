@@ -6,7 +6,7 @@ import { buildBaseURL, getBaseURL, getConfig } from '@/lib/config'
  * as the primary host's, as it always did.
  */
 export interface EmailBrand {
-  /** The wordmark, the domain's name (Admin › Domains, else Admin › Instance). */
+  /** The wordmark, the domain's name (Admin › Served domains, else Admin › Server settings). */
   name: string
   /** The domain the email's header, links and copy name. */
   domain: string

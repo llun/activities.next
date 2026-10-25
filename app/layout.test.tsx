@@ -79,7 +79,7 @@ describe('generateMetadata', () => {
   // still leads with the page ("Timeline · Run Club").
   it.each([
     {
-      description: 'the primary, named in Admin › Instance',
+      description: 'the primary, named in Admin › Server settings',
       identity: anIdentity('test.llun.dev', 'Activities.next'),
       expected: 'Activities.next'
     },

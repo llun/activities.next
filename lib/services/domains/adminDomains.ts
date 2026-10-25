@@ -167,7 +167,7 @@ export const getAdminDomainList = async (
 /**
  * One domain's page, with its own identity and policies; null when the domain
  * is neither in the env nor a row. On the primary, description, contact email
- * and policies are null (it uses the server's, Admin › Instance); its name
+ * and policies are null (it uses the server's, Admin › Server settings); its name
  * mirrors the server's name.
  */
 export const getAdminDomain = async (
@@ -197,7 +197,7 @@ export const getAdminDomain = async (
 
 /**
  * The server's identity as a domain page shows it beside "Same as server":
- * Admin › Instance's resolved values, and whether the server has terms and a
+ * Admin › Server settings's resolved values, and whether the server has terms and a
  * privacy policy (never their text).
  */
 export const getServerIdentityView = async (
@@ -364,7 +364,7 @@ const policyValues = (
  * carries, the rest stays. Null on an identity or policy field means "Same as
  * server". A concrete env domain gets a row the first time (stored off: its
  * trust comes from the env, never from the row). The primary's settings are
- * Admin › Instance.
+ * Admin › Server settings.
  */
 export const updateDomainSettings = async (
   database: Database,

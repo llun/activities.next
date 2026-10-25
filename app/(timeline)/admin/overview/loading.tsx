@@ -27,7 +27,7 @@ const Loading: FC = () => (
     data-slot="section-skeleton"
     className="space-y-6"
   >
-    <span className="sr-only">Loading overview</span>
+    <span className="sr-only">Loading dashboard</span>
     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
       <div className="space-y-2">
         <SkeletonBar className="h-7 w-32" />

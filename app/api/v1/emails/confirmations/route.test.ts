@@ -454,7 +454,7 @@ describe('POST /api/v1/emails/confirmations', () => {
     expect(mockSendMail).not.toHaveBeenCalled()
   })
 
-  // A pending account that signed up on club.example (an Admin › Domains row)
+  // A pending account that signed up on club.example (an Admin › Served domains row)
   // is held to club.example's list, even though the server's own list is
   // empty and so lets anyone in on the primary.
   it.each([

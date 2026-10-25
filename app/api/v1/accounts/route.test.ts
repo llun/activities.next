@@ -63,7 +63,7 @@ vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
-// run.example is a domain an admin added in Admin › Domains and turned on.
+// run.example is a domain an admin added in Admin › Served domains and turned on.
 const runExampleRow = (signupsOpen: boolean) => ({
   id: 'run',
   domain: 'run.example',
@@ -921,7 +921,7 @@ describe('POST /api/v1/accounts with a Bearer app token', () => {
     expect(verify.status).toBe(403)
   })
 
-  describe('on a domain added in Admin › Domains', () => {
+  describe('on a domain added in Admin › Served domains', () => {
     const body = `username=runner&email=runner@llun.test&password=password123&agreement=true`
     const postOnRunExample = () =>
       POST(

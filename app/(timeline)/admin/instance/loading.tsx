@@ -8,7 +8,7 @@ const Loading: FC = () => (
     // The terms box holds two 16-row Markdown textareas.
     tallSections={[1]}
     form
-    label="Loading instance settings"
+    label="Loading server settings"
   />
 )
 

@@ -22,7 +22,7 @@ const Page = async () => {
       <div className="flex items-start gap-3 max-md:flex-col max-md:gap-1">
         <BackLink
           href="/admin/domains"
-          accessibleName="Back to domains"
+          accessibleName="Back to served domains"
           iconOnlyFrom="md"
           className="md:rounded-lg md:p-2 md:hover:bg-muted"
         />

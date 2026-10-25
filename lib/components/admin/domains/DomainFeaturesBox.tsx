@@ -37,7 +37,7 @@ const sameFeatures = (a: DomainFeature[], b: DomainFeature[]) =>
 
 interface Props {
   domain: AdminDomainDetail
-  /** The server's own switches (Admin › Instance). */
+  /** The server's own switches (Admin › Server settings). */
   serverFeatures: FeatureFlags
   onSaved: (domain: AdminDomainDetail) => void
 }
@@ -187,7 +187,8 @@ export const DomainFeaturesBox: FC<Props> = ({
                 description
               ) : (
                 <>
-                  Turn it on in <InstanceLink>Instance</InstanceLink> first.
+                  Turn it on in <InstanceLink>Server settings</InstanceLink>{' '}
+                  first.
                 </>
               )
             }

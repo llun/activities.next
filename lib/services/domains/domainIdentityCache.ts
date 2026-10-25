@@ -3,7 +3,7 @@ import { Database } from '@/lib/database/types'
 
 /**
  * A served domain's own identity and policy overrides, as stored on its
- * Admin › Domains row. Null in a field means "Same as server". The disabled
+ * Admin › Served domains row. Null in a field means "Same as server". The disabled
  * features ride along: they come from the same row and are invalidated by the
  * same admin writes.
  */

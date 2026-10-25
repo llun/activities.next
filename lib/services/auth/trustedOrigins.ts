@@ -69,7 +69,7 @@ export const buildTrustedOrigins = (
 /**
  * better-auth's `trustedOrigins` as a function it calls per request: the env
  * origins (built once, so a bad entry is warned about once) plus an origin for
- * each active Admin › Domains row, on the base URL's scheme. The rows are
+ * each active Admin › Served domains row, on the base URL's scheme. The rows are
  * plain normalised domains (never a wildcard), so a domain turned off drops
  * out as soon as `getServedDomains` stops returning it, without rebuilding the
  * cached better-auth instances.

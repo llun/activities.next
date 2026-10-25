@@ -18,7 +18,7 @@ import {
 } from '@/lib/utils/safeRemoteFetch'
 
 /**
- * "Does this domain reach THIS server?" for Admin › Domains.
+ * "Does this domain reach THIS server?" for Admin › Served domains.
  *
  * The admin page asks `https://<domain>/.well-known/activities-domain-check`
  * with a fresh random nonce. The route answers with an HMAC of the nonce and

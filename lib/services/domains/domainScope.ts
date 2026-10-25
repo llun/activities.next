@@ -13,7 +13,7 @@ export type AdminDomainScope =
   // Not a domain name.
   | { type: 'invalid' }
   // A well-formed domain that is neither the primary, an env domain nor a row
-  // of Admin › Domains.
+  // of Admin › Served domains.
   | { type: 'unknown' }
   // The primary domain, for a scope that does not take it (it has no own
   // rules: its rules are the server rules).
@@ -29,7 +29,7 @@ export const ADMIN_DOMAIN_SCOPE_MESSAGES = {
 /**
  * Validates `raw` as the scope of a rule or an announcement. A served domain is
  * the primary host, a concrete `ACTIVITIES_TRUSTED_HOSTS` entry or a row of
- * Admin › Domains (on or off: an admin may prepare an off domain). Blank or
+ * Admin › Served domains (on or off: an admin may prepare an off domain). Blank or
  * null is "every domain". `allowPrimary` is false for rules (the primary has
  * none of its own) and true for announcements (a primary-only announcement is
  * a valid audience).

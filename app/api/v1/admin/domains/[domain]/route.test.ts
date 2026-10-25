@@ -213,12 +213,21 @@ describe('/api/v1/admin/domains/:domain identity and policies', () => {
     }
   )
 
-  it('sends the primary’s identity to Admin › Instance', async () => {
+  it('sends the primary’s identity to Admin › Server settings', async () => {
     const response = await patch('social.example', { name: 'Social' })
     expect(response.status).toBe(422)
     await expect(response.json()).resolves.toEqual({
       code: 'primary',
       error: PRIMARY_DOMAIN_IDENTITY_ERROR
+    })
+  })
+
+  it('sends the primary’s sign-ups to Admin › Server settings', async () => {
+    const response = await patch('social.example', { signupsOpen: false })
+    expect(response.status).toBe(422)
+    await expect(response.json()).resolves.toEqual({
+      code: 'primary',
+      error: 'The primary domain’s sign-ups are set in Admin › Server settings.'
     })
   })
 

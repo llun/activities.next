@@ -13,7 +13,7 @@ const ALLOWED_METHODS = [HttpMethod.enum.GET, HttpMethod.enum.HEAD]
 // not list. `proxy.ts` rewrites those here because it cannot read the
 // `domains` table: this answers with a RELATIVE redirect to the full
 // `/@user@<domain>` path, where the domain is `headerHost` — the visited host
-// when it is an active Admin › Domains row, the primary host otherwise (what
+// when it is an active Admin › Served domains row, the primary host otherwise (what
 // the proxy itself does for every other untrusted host). The request's host is
 // never echoed unless it is one of ours. The username is any local username
 // (`LOCAL_USERNAME_PATTERN`, so `jane.doe` and `jane-doe` too).

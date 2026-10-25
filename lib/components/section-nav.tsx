@@ -76,13 +76,21 @@ export const SectionNav: FC<{
   )
 
   useEffect(() => {
-    // A long rail mounts with the active row possibly below the fold; bring
-    // it into view. jsdom has no scrollIntoView, hence the guard.
-    const active = navRef.current?.querySelector('[aria-current="page"]')
-    if (active && typeof active.scrollIntoView === 'function') {
-      active.scrollIntoView({ block: 'nearest' })
-    }
-  }, [])
+    // A long rail mounts with the active row possibly below the fold, and the
+    // layout persists across the section's navigations, so re-run whenever
+    // the active url changes. Scroll the rail itself — its `overflow-y-auto`
+    // makes it the scroll container; `scrollIntoView` could move the window
+    // too, and jsdom has no layout for it anyway.
+    const nav = navRef.current
+    const active = nav?.querySelector<HTMLElement>('[aria-current="page"]')
+    if (!nav || !active) return
+    const navRect = nav.getBoundingClientRect()
+    const activeRect = active.getBoundingClientRect()
+    if (activeRect.bottom > navRect.bottom)
+      nav.scrollTop += activeRect.bottom - navRect.bottom
+    else if (activeRect.top < navRect.top)
+      nav.scrollTop -= navRect.top - activeRect.top
+  }, [activeUrl])
 
   return (
     <nav
@@ -325,28 +333,31 @@ export const SectionLayout: FC<SectionLayoutProps> = ({
 }) => {
   const pathname = usePathname()
   const isIndex = pathname === indexUrl
-  // The Back row leads a section's own pages — one of the rail's item urls.
-  // A detail page under an item (an account's page in Admin) renders its own
-  // Back link, so the section stays out of the way there.
-  const isItemPage = groups.some((group) =>
-    group.items.some((item) => item.url === pathname)
+  // The Back row leads the section's own pages and any other page of the
+  // section that has no Back of its own (a signed-in verify-email). A page
+  // nested under an item (an account's page in Admin, a domain's page) renders
+  // its own Back link, so the section stays out of the way there.
+  const isNestedUnderItem = groups.some((group) =>
+    group.items.some((item) => pathname.startsWith(`${item.url}/`))
   )
+  const backUrl = !isIndex && !isNestedUnderItem ? indexUrl : undefined
 
   return (
     <div data-section-layout="">
       {/* Below `md` the compact bar names the section; the header box with
-          its "For @handle" line shows only on the index there, so a section
-          page opens on its Back row. */}
+          its "For @handle" line shows only on the index there — except in a
+          section without an index (a signed-out Account), which has no Back
+          row to open a page on and keeps its header box. */}
       <PageHeader
         title={title}
         description={description}
-        className={isIndex ? undefined : 'max-md:hidden'}
+        className={indexUrl && !isIndex ? 'max-md:hidden' : undefined}
       />
       <PageHeaderSectionProvider>
         <div
           className={cn(
             'flex w-full gap-6 pt-6 xl:gap-8',
-            isIndex ? 'max-md:pt-0' : 'max-md:pt-2'
+            isIndex || !indexUrl ? 'max-md:pt-0' : 'max-md:pt-2'
           )}
         >
           {!isIndex && (groups.length > 0 || footer) && (
@@ -365,9 +376,9 @@ export const SectionLayout: FC<SectionLayoutProps> = ({
             />
           )}
           <div className="min-w-0 flex-1">
-            {!isIndex && indexUrl && isItemPage && (
+            {backUrl && (
               <BackLink
-                href={indexUrl}
+                href={backUrl}
                 label={`Back to ${label}`}
                 accessibleName={`Back to ${label.toLowerCase()}`}
                 className="mb-4 min-h-11 gap-2 text-sm font-medium lg:hidden"

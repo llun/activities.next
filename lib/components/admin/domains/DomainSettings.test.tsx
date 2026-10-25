@@ -211,10 +211,10 @@ describe('DomainSettings', () => {
     expect(mockUpdate.mock.calls[0][1]).not.toHaveProperty('allowExistingUsers')
   })
 
-  it('sends the primary to Instance and says it cannot be turned off', () => {
+  it('sends the primary to Server settings and says it cannot be turned off', () => {
     renderPage({ ...RUN, domain: 'social.example', source: 'primary' })
     for (const link of screen.getAllByRole('link', {
-      name: 'Open Instance'
+      name: 'Open Server settings'
     })) {
       expect(link).toHaveAttribute('href', '/admin/instance')
     }

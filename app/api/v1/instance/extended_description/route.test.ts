@@ -61,7 +61,7 @@ describe('GET /api/v1/instance/extended_description', () => {
     invalidateDomainIdentityCache(database)
   })
 
-  it('serves the server description from Admin › Instance, escaped', async () => {
+  it('serves the server description from Admin › Server settings, escaped', async () => {
     await database.setServerSettings([
       { key: 'instance.description', value: 'Runs & rides <here>' }
     ])

@@ -13,7 +13,7 @@ export interface SendConfirmationEmailParams {
   /**
    * The domain of the account's actor. The link is built on it when this
    * server answers on that domain (the primary host, an
-   * `ACTIVITIES_TRUSTED_HOSTS` entry or an active Admin › Domains row), and on
+   * `ACTIVITIES_TRUSTED_HOSTS` entry or an active Admin › Served domains row), and on
    * the primary host otherwise.
    */
   actorDomain?: string | null

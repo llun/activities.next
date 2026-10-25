@@ -4,10 +4,10 @@ import type {
   AdminDomainCheckItem
 } from '@/lib/services/domains/adminDomainTypes'
 
-// The words and badge tones Admin › Domains shows for a domain. Pure, so the
+// The words and badge tones Admin › Served domains shows for a domain. Pure, so the
 // list page (a server component) and the client forms say the same thing.
 
-/** A domain's page in Admin › Domains. */
+/** A domain's page in Admin › Served domains. */
 export const domainSettingsHref = (domain: string) =>
   `/admin/domains/${encodeURIComponent(domain)}`
 
@@ -59,7 +59,7 @@ export const getSignupsBadge = (domain: AdminDomain): DomainBadge => {
 export const getDomainSourceNote = (domain: AdminDomain): string | null => {
   switch (domain.source) {
     case 'primary':
-      return 'From ACTIVITIES_HOST. The server name and sign-up settings are in Instance.'
+      return 'From ACTIVITIES_HOST. The server name and sign-up settings are in Server settings.'
     case 'env':
       return 'From ACTIVITIES_TRUSTED_HOSTS. Remove it from the env to turn it off.'
     case 'database':

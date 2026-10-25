@@ -192,8 +192,8 @@ describe('GET /api/v1/fitness/apple-maps-token', () => {
     ])
   })
 
-  // A map on a domain added in Admin › Domains sends that domain as its Origin.
-  it('includes the active Admin › Domains rows in the token origin', async () => {
+  // A map on a domain added in Admin › Served domains sends that domain as its Origin.
+  it('includes the active Admin › Served domains rows in the token origin', async () => {
     setServedDomainsForTests(['run.example'])
     state.mapProvider = {
       type: 'apple',

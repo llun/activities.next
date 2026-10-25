@@ -130,6 +130,32 @@ describe('Admin Layout', () => {
     )
   })
 
+  it('splits the grouped index: Dashboard, Moderation and Community left; Server and Maintenance right', () => {
+    renderAt('/admin')
+
+    const grid = screen
+      .getByRole('heading', { level: 2, name: 'Moderation' })
+      .closest('.grid')!
+    const columns = Array.from(grid.children).map((column) =>
+      Array.from(column.querySelectorAll('h2')).map((h) => h.textContent)
+    )
+    expect(columns).toEqual([
+      ['Moderation', 'Community'],
+      ['Server', 'Maintenance']
+    ])
+    // The headless Dashboard run leads the left column without a heading.
+    expect(
+      within(grid.children[0] as HTMLElement).getByRole('link', {
+        name: /Dashboard/
+      })
+    ).toHaveAttribute('href', '/admin/overview')
+    expect(
+      within(grid.children[1] as HTMLElement).queryByRole('link', {
+        name: /Dashboard/
+      })
+    ).toBeNull()
+  })
+
   it('shows a "Back to admin" row below lg on direct item pages but not on detail pages', () => {
     const { unmount } = renderAt('/admin/reports')
     expect(screen.getByRole('link', { name: 'Back to admin' })).toHaveAttribute(

@@ -118,10 +118,9 @@ describe('DomainFeaturesBox', () => {
     expect(messages).toBeDisabled()
     expect(screen.getByText('Turned off on the server')).toBeInTheDocument()
     expect(screen.getByText(/Turn it on in/)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Instance' })).toHaveAttribute(
-      'href',
-      '/admin/instance'
-    )
+    expect(
+      screen.getByRole('link', { name: 'Server settings' })
+    ).toHaveAttribute('href', '/admin/instance')
     // The other two stay editable and the server-off one is never sent.
     fireEvent.click(screen.getByRole('switch', { name: /Fitness/ }))
     expect(screen.getByRole('switch', { name: /Explore/ })).toBeEnabled()

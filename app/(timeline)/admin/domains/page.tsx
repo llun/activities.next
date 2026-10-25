@@ -36,9 +36,9 @@ const DomainAction = ({ domain }: { domain: AdminDomain }) => {
       <Link
         href="/admin/instance"
         className="text-primary-text text-sm font-medium hover:underline"
-        aria-label={`Open Instance settings for ${domain.domain}`}
+        aria-label={`Open Server settings for ${domain.domain}`}
       >
-        Instance
+        Server settings
       </Link>
     )
   }
@@ -86,7 +86,7 @@ const Page = async () => {
         </Alert>
       ) : null}
 
-      <TableFrame aria-label="Domains" tableClassName="sm:min-w-[40rem]">
+      <TableFrame aria-label="Served domains" tableClassName="sm:min-w-[40rem]">
         <thead>
           <tr className={TABLE_HEAD_ROW_CLASS}>
             <th scope="col" className={HEAD_CELL_CLASS}>

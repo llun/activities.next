@@ -356,7 +356,7 @@ Every gear endpoint is owner-scoped, and answers `404` rather than `403` for any
 
 - `GET /api/v1/fitness/apple-maps-token` returns a short-lived (30 minute) signed MapKit JS token used to initialise Apple Maps in the browser. It responds `404` unless `ACTIVITIES_FITNESS_MAP_PROVIDER=apple`.
 
-This endpoint is **anonymous / unauthenticated** on purpose: public embeds and shared heatmap pages render maps for logged-out visitors, so there is no session to authenticate against. Abuse of a leaked token is bounded by the token's `origin` claim, which is restricted to this instance's own origins (`ACTIVITIES_HOST`, any trusted hosts and the domains turned on in Admin › Domains) and compared by MapKit against the browser's `Origin` header. Responses are sent with `Cache-Control: no-store` so no intermediary cache or CDN stores and replays the credential.
+This endpoint is **anonymous / unauthenticated** on purpose: public embeds and shared heatmap pages render maps for logged-out visitors, so there is no session to authenticate against. Abuse of a leaked token is bounded by the token's `origin` claim, which is restricted to this instance's own origins (`ACTIVITIES_HOST`, any trusted hosts and the domains turned on in Admin › Served domains) and compared by MapKit against the browser's `Origin` header. Responses are sent with `Cache-Control: no-store` so no intermediary cache or CDN stores and replays the credential.
 
 ## Processing Pipeline
 

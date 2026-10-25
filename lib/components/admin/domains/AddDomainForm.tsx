@@ -28,7 +28,7 @@ const errorMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback
 
 /**
- * Admin › Domains › Add domain. One box that walks through the states of the
+ * Admin › Served domains › Add domain. One box that walks through the states of the
  * design: ready, checking, check failed (what to fix, then Check again) and
  * check passed (Turn on, or open the domain's settings). The domain is saved
  * as off by the first check, whatever its result.

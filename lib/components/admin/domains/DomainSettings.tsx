@@ -66,7 +66,7 @@ export interface DomainPageScope {
   announcements: AdminAnnouncement[]
   /** Published announcements for every domain showing now, which also show here. */
   allDomainsAnnouncements: number
-  /** The server's own feature switches (Admin › Instance). */
+  /** The server's own feature switches (Admin › Server settings). */
   serverFeatures: FeatureFlags
   /** Open reports about profiles on this domain. */
   openReports: number
@@ -844,7 +844,7 @@ const PoliciesBox: FC<{
 }
 
 /**
- * Admin › Domains › one domain: the header, Registrations, Identity, Terms and
+ * Admin › Served domains › one domain: the header, Registrations, Identity, Terms and
  * privacy, Rules, Announcements, Features, Reports and the Turn off box.
  */
 export const DomainSettings: FC<Props> = ({
@@ -865,7 +865,7 @@ export const DomainSettings: FC<Props> = ({
       <div className="flex items-start gap-3 max-md:flex-col max-md:gap-1">
         <BackLink
           href="/admin/domains"
-          accessibleName="Back to domains"
+          accessibleName="Back to served domains"
           iconOnlyFrom="md"
           className="md:rounded-lg md:p-2 md:hover:bg-muted"
         />
@@ -899,7 +899,7 @@ export const DomainSettings: FC<Props> = ({
           live={false}
           action={
             <Button variant="outline" size="sm" asChild>
-              <Link href="/admin/instance">Open Instance</Link>
+              <Link href="/admin/instance">Open Server settings</Link>
             </Button>
           }
         >
@@ -931,14 +931,14 @@ export const DomainSettings: FC<Props> = ({
             footer={
               <div className="flex justify-end">
                 <Button variant="outline" size="sm" asChild>
-                  <Link href="/admin/instance">Open Instance</Link>
+                  <Link href="/admin/instance">Open Server settings</Link>
                 </Button>
               </div>
             }
           >
             <p className="text-muted-foreground px-4 py-4 text-sm">
               The primary domain’s sign-ups and allowed email addresses are the
-              server’s, set in Instance.
+              server’s, set in Server settings.
             </p>
           </Frame>
         ) : (

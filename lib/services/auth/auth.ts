@@ -38,7 +38,7 @@ const buildAuth = (baseURL: string, serviceName: string) => {
 
   const rpID = new URL(baseURL).hostname
   // The env origins are built (and any bad ACTIVITIES_TRUSTED_HOSTS entry
-  // warned about) once here; the active Admin › Domains rows are added per
+  // warned about) once here; the active Admin › Served domains rows are added per
   // request.
   const trustedOrigins = createTrustedOriginsResolver(
     getBaseURL(),
@@ -82,7 +82,7 @@ const buildAuth = (baseURL: string, serviceName: string) => {
     secret: config.secretPhase,
     baseURL,
     // Trust the configured host, any ACTIVITIES_TRUSTED_HOSTS and the active
-    // Admin › Domains rows so a Mastodon client logging into a served
+    // Admin › Served domains rows so a Mastodon client logging into a served
     // alias/custom domain isn't rejected with `403 Invalid origin` on
     // credential sign-in. The union is the same for every per-host instance (it
     // already contains this instance's origin) so a request handled by any

@@ -421,7 +421,7 @@ describe('GET /api/v2/instance', () => {
     }
   })
 
-  // A stale snapshot would not trust the visited Admin › Domains host yet and
+  // A stale snapshot would not trust the visited Admin › Served domains host yet and
   // describe the primary instead.
   it('refreshes a stale snapshot before reading the visited host', async () => {
     // Loaded before photos.llun.test was turned on, so it does not list it.

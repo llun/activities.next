@@ -9,7 +9,7 @@ export type HostRuleConfig = {
   host?: string | null
   trustedHosts?: readonly string[] | null
   /**
-   * The active domains an admin added in Admin › Domains (the `domains` table),
+   * The active domains an admin added in Admin › Served domains (the `domains` table),
    * as the in-process snapshot holds them (`getServedHostConfig` in
    * `@/lib/services/domains/servedDomainSnapshot`). Concrete, normalised
    * authorities only — the snapshot drops anything else — so they behave
@@ -359,7 +359,7 @@ export const createHostRulesMatcher = (
  * search, quotes, forwarding and emoji from reaching them. The federation
  * policy adds it to its own exemption set (`domainPolicy.ts`).
  *
- * The active rows of the `domains` table (Admin › Domains) are the third
+ * The active rows of the `domains` table (Admin › Served domains) are the third
  * source, `servedDomains`, spread by `getTrustedHostRules`; request-time
  * callers get all three from `getServedHostConfig()`
  * (`@/lib/services/domains/servedDomainSnapshot`).

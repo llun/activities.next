@@ -99,21 +99,48 @@ describe('SectionNav', () => {
     expect(other).toHaveTextContent('Elsewhere')
   })
 
-  it('scrolls the active row into view on mount', () => {
-    const original = Element.prototype.scrollIntoView
-    const scrollIntoView = vi.fn()
-    Element.prototype.scrollIntoView = scrollIntoView
+  it('scrolls the rail, not the window, to the active row, and again when it changes', () => {
+    // The nav is the scroll container (`overflow-y-auto`); jsdom has no
+    // layout, so the rects are mocked: the nav spans 0..100, the active row
+    // first sits below the fold, then above it.
+    const rectSpy = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(function (this: HTMLElement) {
+        if (this.tagName === 'NAV') return { top: 0, bottom: 100 } as DOMRect
+        if (this.getAttribute('aria-current') === 'page')
+          return { top: 150, bottom: 180 } as DOMRect
+        return { top: 0, bottom: 0 } as DOMRect
+      })
     try {
       ;(usePathname as jest.Mock).mockReturnValue('/s/two')
-      render(<SectionNav label="Things" groups={groups} footer={footer} />)
+      const { rerender } = render(
+        <SectionNav label="Things" groups={groups} footer={footer} />
+      )
 
-      const active = screen.getByRole('link', { name: 'Two' })
-      expect(active).toHaveAttribute('aria-current', 'page')
-      expect(scrollIntoView).toHaveBeenCalledTimes(1)
-      expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' })
-      expect(scrollIntoView.mock.instances[0]).toBe(active)
+      const nav = screen.getByRole('navigation', { name: 'Things' })
+      expect(screen.getByRole('link', { name: 'Two' })).toHaveAttribute(
+        'aria-current',
+        'page'
+      )
+      expect(nav.scrollTop).toBe(80)
+
+      // Navigating within the section re-runs the effect with the new row.
+      rectSpy.mockImplementation(function (this: HTMLElement) {
+        if (this.tagName === 'NAV') return { top: 0, bottom: 100 } as DOMRect
+        if (this.getAttribute('aria-current') === 'page')
+          return { top: -30, bottom: 0 } as DOMRect
+        return { top: 0, bottom: 0 } as DOMRect
+      })
+      ;(usePathname as jest.Mock).mockReturnValue('/s/three')
+      rerender(<SectionNav label="Things" groups={groups} footer={footer} />)
+
+      expect(screen.getByRole('link', { name: 'Three' })).toHaveAttribute(
+        'aria-current',
+        'page'
+      )
+      expect(nav.scrollTop).toBe(50)
     } finally {
-      Element.prototype.scrollIntoView = original
+      rectSpy.mockRestore()
     }
   })
 })
@@ -292,20 +319,41 @@ describe('SectionLayout', () => {
     ).toBeInTheDocument()
   })
 
-  it('shows the section header box below md only on the index', () => {
+  it('shows the section header box below md only on the index, or without an index', () => {
     const headerBox = () =>
       screen
         .getByRole('heading', { level: 1, name: 'Things' })
         .closest('.max-w-content')!.parentElement!
+    const row = () =>
+      screen.getByText('content').closest('.gap-6') as HTMLElement
 
     ;(usePathname as jest.Mock).mockReturnValue('/s/one')
     const { unmount } = renderLayout()
     expect(headerBox()).toHaveClass('max-md:hidden')
+    expect(row()).toHaveClass('max-md:pt-2')
     unmount()
 
     ;(usePathname as jest.Mock).mockReturnValue('/s')
     renderLayout()
     expect(headerBox()).not.toHaveClass('max-md:hidden')
+    expect(row()).toHaveClass('max-md:pt-0')
+  })
+
+  it('keeps the header box below md in a section without an index', () => {
+    ;(usePathname as jest.Mock).mockReturnValue('/s/one')
+    render(
+      <SectionLayout label="Things" title="Things" groups={groups}>
+        <div>content</div>
+      </SectionLayout>
+    )
+
+    const headerBox = screen
+      .getByRole('heading', { level: 1, name: 'Things' })
+      .closest('.max-w-content')!.parentElement!
+    expect(headerBox).not.toHaveClass('max-md:hidden')
+    const row = screen.getByText('content').closest('.gap-6') as HTMLElement
+    expect(row).toHaveClass('max-md:pt-0')
+    expect(row).not.toHaveClass('max-md:pt-2')
   })
 
   it('hides the Back row on a detail page under an item, which renders its own Back', () => {
@@ -320,6 +368,14 @@ describe('SectionLayout', () => {
       'aria-current',
       'page'
     )
+  })
+
+  it('shows the Back row on a page that is neither an item nor nested under one', () => {
+    ;(usePathname as jest.Mock).mockReturnValue('/s/verify-email')
+    renderLayout()
+
+    const back = screen.getByRole('link', { name: 'Back to things' })
+    expect(back).toHaveAttribute('href', '/s')
   })
 
   it('leaves no top-margin gap above the index when the page renders nothing', () => {

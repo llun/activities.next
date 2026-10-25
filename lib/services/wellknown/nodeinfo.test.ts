@@ -33,7 +33,7 @@ beforeEach(() => {
   )
 })
 
-// Admin › Instance's name and description, which name the node.
+// Admin › Server settings's name and description, which name the node.
 const INSTANCE_SETTINGS = [
   { key: 'instance.name', value: 'Test Service', createdAt: 0, updatedAt: 0 },
   {

@@ -16,7 +16,7 @@ const bareAddress = (value: string): string => {
   return (match ? match[1] : value).trim()
 }
 
-// Only a served secondary domain (env or Admin › Domains) is branded. The
+// Only a served secondary domain (env or Admin › Served domains) is branded. The
 // primary, and any other source (a wildcard preview host, the DB-failure
 // fallback), is the primary: its From and links stay as configured.
 const isSecondary = (identity: DomainIdentity): boolean =>

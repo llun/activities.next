@@ -140,7 +140,7 @@ describe('domainIdentity', () => {
         source: 'env'
       },
       {
-        name: 'an active Admin › Domains row',
+        name: 'an active Admin › Served domains row',
         host: 'run.example',
         active: ['run.example'],
         source: 'database'

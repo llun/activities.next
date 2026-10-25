@@ -37,9 +37,9 @@ describe('getAuth trustedOrigins', () => {
     await holder.testDb?.destroy()
   })
 
-  // Asked per request, so a domain turned on or off in Admin › Domains is
+  // Asked per request, so a domain turned on or off in Admin › Served domains is
   // trusted, or not, without rebuilding the cached instance.
-  it('follows the active Admin › Domains rows', async () => {
+  it('follows the active Admin › Served domains rows', async () => {
     const { getAuth } = await import('@/lib/services/auth/auth')
     const { trustedOrigins } = getAuth('https://test.example.com').options
     if (typeof trustedOrigins !== 'function') {

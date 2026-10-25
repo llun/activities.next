@@ -1,5 +1,5 @@
 // Parameter and result types of the served-domain domain: the `domains` table
-// behind Admin › Domains. lib/types/database/operations.ts re-exports them.
+// behind Admin › Served domains. lib/types/database/operations.ts re-exports them.
 import type { DomainFeature } from '@/lib/services/domains/domainFeatures'
 
 export type ServedDomainStatus = 'on' | 'off'
@@ -33,7 +33,7 @@ export type ServedDomainData = {
   // Normalized authority (`normalizeServedDomainChoice`).
   domain: string
   status: ServedDomainStatus
-  // The domain's own identity; null means "Same as server" (Admin › Instance).
+  // The domain's own identity; null means "Same as server" (Admin › Server settings).
   name: string | null
   description: string | null
   contactEmail: string | null
