@@ -195,7 +195,12 @@ export const StatusNote = StatusBase.extend({
   linkPreview: StatusLinkPreview.nullable().optional(),
   // Who may quote THIS status. Stored in the content JSON blob, not a column;
   // defaults to `public` at consumption when absent.
-  quoteApprovalPolicy: QuoteApprovalPolicy.optional()
+  quoteApprovalPolicy: QuoteApprovalPolicy.optional(),
+  // True on a status created as a hidden local-only record because the
+  // account was moved at the time (a fitness import's backing status).
+  // Stored in the content JSON blob, not a column. Optional so existing
+  // status literals and statuses that predate the marker remain valid.
+  createdWhileMoved: z.boolean().optional()
 })
 export type StatusNote = z.infer<typeof StatusNote>
 

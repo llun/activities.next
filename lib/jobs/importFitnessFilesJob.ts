@@ -5,8 +5,10 @@ import {
   statusRecipientsTo
 } from '@/lib/actions/createNote'
 import { Database } from '@/lib/database/types'
+import { isIsolatedFromFitnessImport } from '@/lib/jobs/fitnessImportIsolation'
 import { groupFitnessActivitiesByOverlap } from '@/lib/jobs/fitnessImportOverlap'
 import { PROCESS_FITNESS_FILE_JOB_NAME } from '@/lib/jobs/names'
+import { isMovedActor } from '@/lib/services/accounts/movedAccount'
 import { getFitnessFileBuffer } from '@/lib/services/fitness-files'
 import { deleteEmailMapImage } from '@/lib/services/fitness-files/emailMapImage'
 import { toImportErrorMessage } from '@/lib/services/fitness-files/importError'
@@ -261,8 +263,11 @@ const createLocalOnlyFitnessStatus = async ({
   database: Database
 }) => {
   const mentions: Mention[] = []
-  const to = statusRecipientsTo(actor, mentions, null, visibility)
-  const cc = statusRecipientsCC(actor, mentions, null, visibility)
+  // Processing and fitness detail links need a backing status. A moved
+  // account keeps that owner-readable record without publishing it to anyone.
+  const moved = isMovedActor(actor)
+  const to = moved ? [] : statusRecipientsTo(actor, mentions, null, visibility)
+  const cc = moved ? [] : statusRecipientsCC(actor, mentions, null, visibility)
   // Minted from the resolved createdAt — the activity's start time for a
   // historical import, the moment of import when the caller asked for that — so
   // the URI tail always sorts with the post, matching the createdAt passed to
@@ -280,10 +285,16 @@ const createLocalOnlyFitnessStatus = async ({
     to,
     cc,
     reply: '',
-    createdAt
+    createdAt,
+    // The marker that separates this hidden record from an ordinary `direct`
+    // status (which also has no recipients): it is what later imports isolate
+    // on, so it must be recorded rather than inferred from the recipients.
+    createdWhileMoved: moved
   })
 
-  await addStatusToTimelines(database, createdStatus)
+  if (!moved) {
+    await addStatusToTimelines(database, createdStatus)
+  }
 
   return createdStatus
 }
@@ -517,7 +528,52 @@ export const importFitnessFiles = async (
     return importedGroups
   }
 
-  const groups = groupFilesByOverlap(parsedFiles)
+  // Reprocessing preserves a file's status, but a new recording cannot cross
+  // the move boundary in either direction. A status created while moved is
+  // marked `createdWhileMoved` and stays a hidden local-only record after the
+  // redirect is cleared, so a new import needs its own published status. The
+  // rule (including the moved-now side) lives in isIsolatedFromFitnessImport.
+  // A revision of an already-imported workout (Wahoo resending edited FIT
+  // bytes) is not a new recording: it names the status it must land on
+  // (expectedExistingStatusId) or the file whose status it replaces
+  // (replacePrimaryFileId), and that status is exempt from isolation so the
+  // revision stays on it across the move boundary.
+  const isolatedStatusIds = new Set<string>()
+  const moved = isMovedActor(actor)
+  const revisionStatusIds = new Set(
+    [
+      expectedExistingStatusId,
+      replacePrimaryFileId
+        ? fitnessFileById.get(replacePrimaryFileId)?.statusId
+        : undefined
+    ].filter((id): id is string => Boolean(id))
+  )
+  const statusIds = new Set(
+    parsedFiles
+      .map((item) => item.fitnessFile.statusId)
+      .filter((id): id is string => Boolean(id))
+  )
+  for (const statusId of statusIds) {
+    if (revisionStatusIds.has(statusId)) continue
+    const status = await database.getStatus({
+      statusId,
+      withReplies: false
+    })
+    if (!status) continue
+    if (isIsolatedFromFitnessImport({ moved, status })) {
+      isolatedStatusIds.add(status.id)
+    }
+  }
+  const groups = [
+    ...groupFilesByOverlap(
+      parsedFiles.filter(
+        (item) => !isolatedStatusIds.has(item.fitnessFile.statusId ?? '')
+      )
+    ),
+    ...Array.from(isolatedStatusIds, (statusId) =>
+      parsedFiles.filter((item) => item.fitnessFile.statusId === statusId)
+    )
+  ]
 
   for (const group of groups) {
     const orderedGroup = sortFilesByActivityStart(group)
@@ -545,9 +601,24 @@ export const importFitnessFiles = async (
     let createdStatusId: string | null = null
 
     try {
+      // A revision names the status it must land on, and the moved-account
+      // isolation above can leave that status overlapping another one (a
+      // pre-move post plus a hidden moved-time record of the same ride). When
+      // the group holds a file of a revision status, that status wins over the
+      // earliest-file rule; without this, a revision whose status is not the
+      // earliest file's would throw or quietly land on the wrong post.
       const existingStatusId =
+        (revisionStatusIds.size > 0
+          ? orderedGroup.find(
+              (item) =>
+                item.fitnessFile.statusId != null &&
+                revisionStatusIds.has(item.fitnessFile.statusId)
+            )
+          : undefined
+        )?.fitnessFile.statusId ??
         orderedGroup.find((item) => item.fitnessFile.statusId)?.fitnessFile
-          .statusId ?? null
+          .statusId ??
+        null
 
       const existingStatus = existingStatusId
         ? await database.getStatus({
@@ -651,11 +722,13 @@ export const importFitnessFiles = async (
               // status this run created. Retries and the recovery scripts
               // re-run over statuses that are already live, whose Create (if
               // there was one) has already been delivered.
-              publishSendNote: publishSendNote && !existingStatus,
+              publishSendNote:
+                publishSendNote && !existingStatus && !isMovedActor(actor),
               // Both conditions: the caller has to be one that emails at all,
               // AND this has to be a genuine first import rather than a
               // reprocess of a status that already exists.
-              notifyOnComplete: notifyOnComplete && !existingStatus
+              notifyOnComplete:
+                notifyOnComplete && !existingStatus && !isMovedActor(actor)
             }
           }
         : null

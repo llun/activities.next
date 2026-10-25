@@ -55,6 +55,12 @@ const toOverlapActivity = (
  * Works out — without writing anything — which targets join an existing post and
  * which need a new one, mirroring how importFitnessFilesJob groups them.
  *
+ * The preview does NOT apply the moved-account isolation rule
+ * (lib/jobs/fitnessImportIsolation.ts): it groups purely by overlap, so for a
+ * moved account the real run can differ — a status the job isolates (a
+ * pre-move post while moved, or a hidden `createdWhileMoved` record after the
+ * clear) gets its own status instead of the merge predicted here.
+ *
  * `overlapFitnessFileIds` is the sibling context handed to that job: files that
  * ALREADY own a status. When a target overlaps one of them by >=80% on start +
  * duration, the job reuses the sibling's status (the sibling stays primary and

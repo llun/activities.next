@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
+import { PUBLISH_SCHEDULED_STATUS_JOB_NAME } from '@/lib/jobs/names'
 import {
   getMigrationState,
   performOutgoingMove,
@@ -9,6 +10,8 @@ import {
 import { publishActorUpdate } from '@/lib/services/actors/actorUpdate'
 import { resolveAccountTarget } from '@/lib/services/actors/resolveAccountTarget'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import { getQueue } from '@/lib/services/queue'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   HTTP_STATUS,
@@ -157,6 +160,13 @@ export const DELETE = traceApiRoute(
       return errorResponse(req, 'Record not found', HTTP_STATUS.NOT_FOUND)
     }
 
+    // Capture the replay scope before clearing the pointer so a concurrent
+    // redirect cannot supply a newer migration id for this replay.
+    const [migration] = await database.getActorMigrations({
+      actorId: actor.id,
+      limit: 1
+    })
+
     // A performed move cannot be undone: followers already moved and keep
     // their new follow. Only the redirect pointer is cleared.
     let current = actor
@@ -164,6 +174,47 @@ export const DELETE = traceApiRoute(
       await database.updateActor({ actorId: actor.id, movedTo: null })
       await publishActorUpdate({ actorId: actor.id })
       current = { ...actor, movedTo: undefined }
+    }
+
+    // Only clearing an active redirect replays posts held while moved.
+    if (actor.movedTo) {
+      const replayId = migration?.id ?? 'legacy'
+      const now = Date.now()
+      const due: { id: string; scheduledAt: number }[] = []
+      let maxId: string | undefined
+      while (true) {
+        const page = await database.getScheduledStatuses({
+          actorId: actor.id,
+          limit: 100,
+          maxId
+        })
+        for (const scheduled of page) {
+          if (scheduled.scheduledAt <= now) {
+            due.push({ id: scheduled.id, scheduledAt: scheduled.scheduledAt })
+          }
+        }
+        if (page.length < 100) break
+        maxId = page[page.length - 1].id
+      }
+
+      // A concurrent redirect may have set movedTo during the scan. Snapshot
+      // before publishing: NoQueue runs inline and deletes cursor rows.
+      const replayActor = await database.getActorFromId({ id: actor.id })
+      current = replayActor ?? current
+      if (replayActor && !replayActor.movedTo) {
+        for (const scheduled of due) {
+          await getQueue().publish({
+            id: getHashFromString(
+              `${scheduled.id}-${scheduled.scheduledAt}:redirect-cleared:${replayId}`
+            ),
+            name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+            data: {
+              scheduledStatusId: scheduled.id,
+              scheduledAt: scheduled.scheduledAt
+            }
+          })
+        }
+      }
     }
     return apiResponse({
       req,

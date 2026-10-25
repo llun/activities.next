@@ -193,6 +193,12 @@ interface BaseCreateStatusParams {
   // consumption).
   quoteApprovalPolicy?: QuoteApprovalPolicy
 
+  // True when this status is created as a hidden local-only record because the
+  // account is moved (a fitness import's backing status). Persisted in the
+  // status content blob, not a column, and read back as the domain status's
+  // `createdWhileMoved`. Omit for every ordinary status.
+  createdWhileMoved?: boolean
+
   // The registered OAuth client (Mastodon "application") that authored the
   // status. Null when created through the web session.
   applicationName?: string | null
