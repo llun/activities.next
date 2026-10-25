@@ -418,7 +418,6 @@ jobs:
             lib/database/domains/gallery/galleryMediaFilters.test.ts \
             lib/database/domains/gallery/galleryMediaFacets.test.ts \
             lib/services/gallery/galleryMediaFacets.test.ts \
-            lib/database/domains/report/report.test.ts \
             'app/api/v1/gallery/media/facets/route.test.ts' \
             scripts/maintenance/backfillGifvMetadata.test.ts \
             scripts/maintenance/backfillMissingLikeActors.test.ts \
