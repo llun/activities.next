@@ -537,6 +537,7 @@ const statusRowLock = (statements: Statement[]) => {
   const firstWrite = transaction.findIndex(
     ({ sql: text }) => !/^(begin|select) ?/.test(text)
   )
+  expect(lock, 'the status row lock').toBeDefined()
   expect(
     lock && transaction.indexOf(lock) < firstWrite,
     'the lock is taken before the first write'
@@ -2001,7 +2002,6 @@ describe('updateNote', () => {
     // it waits for a concurrent visibility change on PostgreSQL. SQLite has
     // no row locks, so the same statement reads without one.
     const lock = statusRowLock(statements)
-    expect(lock).toBeDefined()
     expect(lock?.sql.endsWith(' for update')).toBe(testDb.backend === 'pg')
   })
 })
@@ -2543,7 +2543,6 @@ describe('updateNoteVisibility', () => {
     // concurrent edit is waited for on PostgreSQL. SQLite has no row locks,
     // so the same statement reads without one.
     const lock = statusRowLock(statements)
-    expect(lock).toBeDefined()
     expect(lock?.sql.endsWith(' for update')).toBe(testDb.backend === 'pg')
   })
 })

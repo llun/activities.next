@@ -2203,11 +2203,10 @@ move, try again later`, but nothing is rolled back: the row, `movedTo` and the
 - **Clearing a move, posting, and deletion.** `DELETE
 /api/v1/accounts/migration` (`actorId` from the query or a JSON body; 409 on a
   mismatch) clears `movedTo`, publishes `Update(Person)`, and requeues the
-  account's scheduled statuses that are already due. A repeated `DELETE` also
-  retries due statuses if an earlier call cleared the pointer but failed partway
-  through queueing. Each replay job uses a deterministic ID scoped to the
-  latest migration row (or a legacy fallback when no row exists), so a partial
-  retry reuses its queue IDs. A redirect set again during the replay scan
+  account's scheduled statuses that are already due. Each replay job uses a
+  deterministic ID scoped to the latest migration row (or a legacy fallback
+  when no row exists), so concurrent or redelivered publishes within one
+  replay de-duplicate on their queue IDs. A redirect set again during the replay scan
   cancels that replay; the next `DELETE`, scoped to the new migration, replays
   those posts. A partial queue failure can still leave due posts unpublished
   with no `DELETE` left to retry them: `PUT /api/v1/scheduled_statuses/:id` is
