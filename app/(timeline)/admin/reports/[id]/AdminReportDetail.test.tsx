@@ -240,6 +240,32 @@ describe('AdminReportDetail', () => {
     expect(mockGetAdminReport).toHaveBeenCalledTimes(2)
   })
 
+  it('shows a resolve failure without refreshing the layout', async () => {
+    mockGetAdminReport.mockResolvedValue(report({}))
+    mockResolve.mockRejectedValue(new Error('Could not resolve'))
+
+    render(<AdminReportDetail reportId="report-1" />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Resolve' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Could not resolve'
+    )
+    expect(mockRouterRefresh).not.toHaveBeenCalled()
+  })
+
+  it('shows a reopen failure without refreshing the layout', async () => {
+    mockGetAdminReport.mockResolvedValue(report({ action_taken: true }))
+    mockReopen.mockRejectedValue(new Error('Could not reopen'))
+
+    render(<AdminReportDetail reportId="report-1" />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Reopen' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Could not reopen'
+    )
+    expect(mockRouterRefresh).not.toHaveBeenCalled()
+  })
+
   it('keeps the report and shows an alert when an action fails', async () => {
     mockGetAdminReport.mockResolvedValue(report({}))
     mockResolve.mockRejectedValue(new Error('Could not resolve'))

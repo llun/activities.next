@@ -234,4 +234,16 @@ describe('Admin Layout', () => {
     expect(screen.getByText('content')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Reports/ })).toBeInTheDocument()
   })
+
+  it('renders without counting reports when the database is unavailable', async () => {
+    vi.mocked(getDatabase).mockReturnValue(null as never)
+    await renderAt('/admin/reports')
+
+    expect(screen.getByText('content')).toBeInTheDocument()
+    expect(getAdminFromSession).not.toHaveBeenCalled()
+    expect(countOpenReports).not.toHaveBeenCalled()
+
+    const reports = screen.getByRole('link', { name: 'Reports' })
+    expect(within(reports).queryByText(/^\d+$/)).not.toBeInTheDocument()
+  })
 })
