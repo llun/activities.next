@@ -225,6 +225,15 @@ describe('Admin Layout', () => {
     expect(countOpenReports).toHaveBeenCalledTimes(2)
   })
 
+  it('uses the singular for one open report', async () => {
+    countOpenReports.mockResolvedValue(1)
+    await renderAt('/admin/reports')
+
+    expect(
+      screen.getByRole('link', { name: /Reports\s*\(1 unresolved report\)/ })
+    ).toBeInTheDocument()
+  })
+
   it('does not count reports for a non-admin viewer', async () => {
     vi.mocked(getAdminFromSession).mockResolvedValue(null)
     await renderAt('/admin')

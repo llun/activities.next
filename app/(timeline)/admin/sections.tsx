@@ -22,7 +22,8 @@ export const adminGroups = (openReports = 0): SectionNavGroup[] => [
         url: '/admin/reports',
         icon: <ADMIN_ICONS.reports />,
         badge: openReports,
-        badgeLabel: 'unresolved reports',
+        badgeLabel:
+          openReports === 1 ? 'unresolved report' : 'unresolved reports',
         description: 'Review and resolve reports about accounts and posts.'
       },
       {
