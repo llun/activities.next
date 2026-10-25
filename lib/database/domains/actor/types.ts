@@ -213,6 +213,12 @@ export type UpdateActorAliasesResult =
   | { status: 'not-found' }
   | { status: 'no-actor' }
 
+export interface UpdateRemoteActorHandleParams {
+  actorId: string
+  username: string
+  domain: string
+}
+
 export type ScheduleActorDeletionParams = {
   actorId: string
   scheduledAt: Date | null // null means immediate deletion
@@ -271,6 +277,15 @@ export interface ActorDatabase {
   updateActorAliases(
     params: UpdateActorAliasesParams
   ): Promise<UpdateActorAliasesResult>
+  // Remote rename (Mastodon's rename_account!): moves a REMOTE actor row to a
+  // WebFinger-confirmed handle in one transaction, displacing a stale remote
+  // row that still holds the handle. Returns the updated actor, the unchanged
+  // one when the handle is already stored, or null when the write is refused:
+  // an unknown actor, a LOCAL actor (a local handle never comes from the
+  // network), or a handle a local actor's ledger row reserves.
+  updateRemoteActorHandle(
+    params: UpdateRemoteActorHandleParams
+  ): Promise<Actor | null>
   // Atomically claims the actor for one inbound Move (Mastodon's nx key):
   // false when a different activity claimed it within `windowMs`.
   claimActorMove(params: ClaimActorMoveParams): Promise<boolean>

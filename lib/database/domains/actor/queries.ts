@@ -42,7 +42,8 @@ import {
   updateActor,
   updateActorAliases,
   updateActorWithPrevious,
-  updateNotificationPolicy
+  updateNotificationPolicy,
+  updateRemoteActorHandle
 } from '@/lib/database/domains/actor/writes'
 
 // The facade getSQLDatabase binds with bindDb(). The row mapper getActor
@@ -66,6 +67,7 @@ export const actorQueries = {
   updateActor,
   updateActorAliases,
   updateActorWithPrevious,
+  updateRemoteActorHandle,
   claimActorMove,
   clearActorMove,
   markActorMoveVerified,

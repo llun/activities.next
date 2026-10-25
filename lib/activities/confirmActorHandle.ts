@@ -44,6 +44,30 @@ const parseAcct = (
   return { username, domain: host }
 }
 
+// The handle the actor document itself claims, before any WebFinger check:
+// the FEP-2c59 `webfinger` property when it parses, else `preferredUsername`
+// on the actor id's host — Mastodon's `extract_username_and_domain!`. The
+// refresh path uses it to skip the WebFinger round-trip when a document
+// carries no handle change, and to detect one when it does.
+export const getClaimedActorHandle = ({
+  actorId,
+  username,
+  webfinger
+}: {
+  actorId: string
+  username: string | undefined
+  webfinger?: string
+}): ConfirmedActorHandle | null => {
+  const claimed = parseAcct(webfinger)
+  if (claimed) return claimed
+  const host = URL.canParse(actorId) ? new URL(actorId).host : ''
+  if (!host) return null
+  const squished = squishUsername(username)
+  return isValidRemoteUsername(squished)
+    ? { username: squished, domain: host }
+    : null
+}
+
 const sameHandle = (left: ConfirmedActorHandle, right: ConfirmedActorHandle) =>
   left.username.toLowerCase() === right.username.toLowerCase() &&
   left.domain === right.domain
