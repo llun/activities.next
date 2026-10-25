@@ -91,7 +91,7 @@ describe('/api/v1/admin/server_settings', () => {
 
     const data = await response.json()
     expect(data.settings.posts.maxCharacters).toBe(1500)
-    // The Instance form shows when the policies last changed from this.
+    // The Server settings form shows when the policies last changed from this.
     expect(data.updatedAt['posts.maxCharacters']).toEqual(expect.any(Number))
     expect(data.updatedAt['policies.termsOfService']).toBeNull()
     expect(
