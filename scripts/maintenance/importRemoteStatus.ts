@@ -180,7 +180,7 @@ async function main() {
     console.error('importRemoteStatus: Database is not available')
     process.exit(1)
   }
-  // The local-domain guard counts the active Admin › Domains rows as ours.
+  // The local-domain guard counts the active Admin › Served domains rows as ours.
   await refreshServedDomains(database)
 
   console.log(`Fetching remote status from ${options.statusUrl}...`)

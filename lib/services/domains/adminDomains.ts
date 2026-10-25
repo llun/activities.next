@@ -197,7 +197,7 @@ export const getAdminDomain = async (
 
 /**
  * The server's identity as a domain page shows it beside "Same as server":
- * Admin › Server settings's resolved values, and whether the server has terms and a
+ * Admin › Server settings' resolved values, and whether the server has terms and a
  * privacy policy (never their text).
  */
 export const getServerIdentityView = async (

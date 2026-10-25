@@ -166,7 +166,7 @@ describe('DomainFeaturesBox', () => {
       source: 'primary' as const
     }
 
-    it('shows On and Off badges with no switches or save bar, and points to Instance', () => {
+    it('shows On and Off badges with no switches or save bar, and points to Server settings', () => {
       render(
         <DomainFeaturesBox
           domain={PRIMARY}

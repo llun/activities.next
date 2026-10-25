@@ -8,7 +8,7 @@ export async function register() {
     const { getDatabase, getKysely } = await import('@/lib/database')
     const database = getDatabase()
     if (database) {
-      // Host trust reads the active Admin › Domains rows from an in-process
+      // Host trust reads the active Admin › Served domains rows from an in-process
       // snapshot (synchronous callers cannot query); load it now and keep it
       // fresh. See lib/services/domains/servedDomainSnapshot.ts.
       const { startServedDomainRefresher } =

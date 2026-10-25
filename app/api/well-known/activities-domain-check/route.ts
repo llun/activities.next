@@ -16,7 +16,7 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 // GET /.well-known/activities-domain-check?nonce=<n> — the answer Admin ›
-// Domains looks for when it checks that a domain reaches this server: an HMAC
+// Served domains looks for when it checks that a domain reaches this server: an HMAC
 // of the nonce and the host this request arrived with, under a key derived
 // from the server secret (see lib/services/domains/domainCheck.ts). Public and
 // stateless; it reveals nothing about the secret or the request.

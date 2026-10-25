@@ -223,7 +223,7 @@ export const exportActorArchive = async (
     return 1
   }
 
-  // Attachment and image URLs on an Admin › Domains row are ours too.
+  // Attachment and image URLs on an Admin › Served domains row are ours too.
   await refreshServedDomains(database)
   const hostConfig = getServedHostConfig(config)
 

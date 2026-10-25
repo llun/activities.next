@@ -1,6 +1,6 @@
 import { type Kysely, SqliteAdapter, sql } from 'kysely'
 
-// Adds `domains`: the domains an admin added in Admin › Domains, each with its
+// Adds `domains`: the domains an admin added in Admin › Served domains, each with its
 // own on/off status, sign-up settings and the result of the last reachability
 // check. Active rows join the primary host and the concrete
 // ACTIVITIES_TRUSTED_HOSTS entries as domains this server serves. A concrete

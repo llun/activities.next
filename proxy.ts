@@ -70,7 +70,7 @@ const proxyHeaderHost = (headers: Headers): string => {
 
 // The header `selectHeaderHost` reads first, when it names a host the ENV does
 // not trust. The proxy has no database, so it cannot tell an active Admin ›
-// Domains row from an unknown host; for those it hands the decision to the app
+// Served domains row from an unknown host; for those it hands the decision to the app
 // (`/api/handle-redirect`) instead of rewriting onto the primary host. It never
 // puts the value in a path or header itself.
 const hasHostOutsideEnv = (headers: Headers): boolean => {

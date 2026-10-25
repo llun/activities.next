@@ -43,7 +43,7 @@ const icons: Metadata['icons'] = {
 
 // Pages set only their own name ("Timeline", "Notifications") and the
 // template appends the name of the domain the page is visited on (Admin ›
-// Domains, else Admin › Server settings), so a narrow tab leads with the page. Safari
+// Served domains, else Admin › Server settings), so a narrow tab leads with the page. Safari
 // trims a leading site name from tab titles, so the old "Activities.next: App"
 // on the home shell showed as a bare "App". Reading the visited host makes
 // every page request-time, which they already were (see `yarn build`'s route

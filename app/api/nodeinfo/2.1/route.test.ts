@@ -37,7 +37,7 @@ describe('GET /nodeinfo/2.1', () => {
 
   beforeAll(async () => {
     await database.migrate()
-    // Admin › Server settings's name names the node (no longer the config's
+    // Admin › Server settings' name names the node (no longer the config's
     // serviceName).
     await database.setServerSettings([
       { key: 'instance.name', value: 'llun test' }

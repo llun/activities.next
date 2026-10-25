@@ -202,7 +202,7 @@ async function main() {
     process.exit(1)
   }
   // Recording an actor checks whether it is local, which includes the active
-  // Admin › Domains rows.
+  // Admin › Served domains rows.
   await refreshServedDomains(database)
 
   const db = getKysely()

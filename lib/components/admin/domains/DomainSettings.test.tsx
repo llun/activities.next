@@ -461,7 +461,7 @@ describe('DomainSettings', () => {
   })
 
   describe('Terms and privacy', () => {
-    it('says what the server has and links to Instance', () => {
+    it('says what the server has and links to Server settings', () => {
       renderPage(RUN)
       expect(
         screen.getByText(
