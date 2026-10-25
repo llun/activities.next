@@ -116,7 +116,7 @@ export const ServerFilterSheet: FC<ServerFilterSheetProps> = ({
                       key={option.value}
                       value={option.value}
                       title={option.label}
-                      className="min-h-11 items-center rounded-md px-2 py-2 text-sm"
+                      className="min-h-11 items-center rounded-md px-2 py-2"
                     />
                   ))}
                 </RadioGroup>
@@ -165,7 +165,7 @@ export const ServerFilterSheet: FC<ServerFilterSheetProps> = ({
                       key={option.value}
                       value={option.value}
                       title={option.label}
-                      className="min-h-11 items-center rounded-md px-2 py-2 text-sm"
+                      className="min-h-11 items-center rounded-md px-2 py-2"
                     />
                   ))}
                 </RadioGroup>
