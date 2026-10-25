@@ -1,0 +1,16 @@
+lib/components/gallery/useDaySelection.test.tsx
+  h_580a04e334fef4 826-933
+lib/components/gallery/useDaySelection.ts
+  h_580a04e334fef4 43-56,58-63,111-113,197-206,263-265,323,331,373-374,382-388,392-397,415,636-642,663-667,669-670,677-681,683,685-692
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "20d2e6872211393d883c9f23ee4cea0e179d23c6",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
