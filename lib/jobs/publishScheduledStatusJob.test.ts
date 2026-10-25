@@ -139,7 +139,7 @@ describe('publishScheduledStatusJob', () => {
     expect(row).toBeNull()
   })
 
-  it('drops a due scheduled status whose author has moved since scheduling', async () => {
+  it('keeps a due scheduled status queued without publishing when its author has moved', async () => {
     const text = `Scheduled before the move ${Date.now()}`
     const scheduled = await database.createScheduledStatus({
       actorId: actor1.id,
@@ -161,7 +161,75 @@ describe('publishScheduledStatusJob', () => {
     expect(statuses.find((status) => hasText(status, text))).toBeUndefined()
     expect(
       await database.getScheduledStatusById({ id: scheduled.id })
-    ).toBeNull()
+    ).toMatchObject({ id: scheduled.id, actorId: actor1.id })
+    expect(
+      await database.getScheduledStatuses({ actorId: actor1.id, limit: 100 })
+    ).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: scheduled.id })])
+    )
+    expect(getQueue().publish).not.toHaveBeenCalled()
+    await database.deleteScheduledStatus({
+      id: scheduled.id,
+      actorId: actor1.id
+    })
+  })
+
+  it('re-enqueues an early moved delivery so it publishes after the redirect clears', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-25T12:00:00.000Z'))
+    const text = 'Scheduled within the early delivery window'
+    const scheduledAt = Date.now() + 30_000
+    const scheduled = await database.createScheduledStatus({
+      actorId: actor1.id,
+      scheduledAt,
+      params: baseParams({ text })
+    })
+    await database.updateActor({ actorId: actor1.id, movedTo: ACTOR2_ID })
+
+    try {
+      await publishScheduledStatusJob(database, {
+        id: 'job-moved-early',
+        name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+        data: { scheduledStatusId: scheduled.id, scheduledAt }
+      })
+
+      expect(
+        await database.getScheduledStatusById({ id: scheduled.id })
+      ).toMatchObject({ id: scheduled.id, scheduledAt })
+      expect(
+        (await database.getActorStatuses({ actorId: actor1.id })).some(
+          (status) => hasText(status, text)
+        )
+      ).toBe(false)
+      expect(getQueue().publish).toHaveBeenCalledTimes(1)
+      const replacement = (getQueue().publish as jest.Mock).mock.calls[0][0]
+      expect(replacement).toMatchObject({
+        id: getHashFromString(`job-moved-early:${scheduledAt}:reenqueue`),
+        name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+        data: { scheduledStatusId: scheduled.id, scheduledAt }
+      })
+      expect(replacement.delaySeconds).toBeGreaterThan(0)
+
+      await database.updateActor({ actorId: actor1.id, movedTo: null })
+      vi.setSystemTime(new Date(scheduledAt + 1_000))
+      await publishScheduledStatusJob(database, replacement)
+
+      expect(
+        (await database.getActorStatuses({ actorId: actor1.id })).filter(
+          (status) => hasText(status, text)
+        )
+      ).toHaveLength(1)
+      await expect(
+        database.getScheduledStatusById({ id: scheduled.id })
+      ).resolves.toBeNull()
+    } finally {
+      await database.updateActor({ actorId: actor1.id, movedTo: null })
+      await database.deleteScheduledStatus({
+        id: scheduled.id,
+        actorId: actor1.id
+      })
+      vi.useRealTimers()
+    }
   })
 
   describe('in_reply_to_id resolution', () => {

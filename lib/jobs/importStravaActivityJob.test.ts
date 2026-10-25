@@ -2,6 +2,7 @@ import { Database } from '@/lib/database/types'
 import { importStravaActivityJob } from '@/lib/jobs/importStravaActivityJob'
 import {
   IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+  PROCESS_FITNESS_FILE_JOB_NAME,
   SEND_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
 import { Visibility } from '@/lib/types/mastodon/visibility'
@@ -81,6 +82,91 @@ describe('importStravaActivityJob', () => {
 
   beforeEach(() => {
     resetStravaImportMocks(database)
+  })
+
+  it('stores moved actor exports and processes them without publishing', async () => {
+    database.getActorFromId.mockResolvedValue({
+      id: 'actor-1',
+      username: 'testuser',
+      domain: 'llun.test',
+      movedTo: 'https://destination.test/users/athlete'
+    } as never)
+    const processJob = {
+      id: 'moved-process',
+      name: PROCESS_FITNESS_FILE_JOB_NAME,
+      data: {
+        actorId: 'actor-1',
+        statusId: 'status-1',
+        fitnessFileId: 'new-file',
+        publishSendNote: false,
+        notifyOnComplete: false
+      }
+    }
+    mockImportFitnessFiles.mockResolvedValueOnce([
+      {
+        statusId: 'status-1',
+        statusCreated: true,
+        primaryFitnessFileId: 'new-file',
+        processJob
+      }
+    ])
+    mockGetStravaActivityPhotos.mockResolvedValueOnce([
+      { id: 'photo-1', url: 'https://images.example.com/photo-1.jpg' }
+    ])
+    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(
+      new Response(Buffer.from('jpg'), {
+        headers: { 'content-type': 'image/jpeg', 'content-length': '3' }
+      })
+    )
+    try {
+      await importStravaActivityJob(database as unknown as Database, {
+        id: 'moved-strava',
+        name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+        data: {
+          actorId: 'actor-1',
+          stravaActivityId: '123',
+          publishSendNote: true,
+          notifyOnComplete: true
+        }
+      })
+    } finally {
+      fetchSpy.mockRestore()
+    }
+    expect(database.createAttachment).toHaveBeenCalledOnce()
+    expect(mockSaveFitnessFile).toHaveBeenCalledOnce()
+    expect(mockImportFitnessFiles).toHaveBeenCalledWith(
+      database,
+      expect.objectContaining({
+        publishSendNote: false,
+        notifyOnComplete: false
+      }),
+      { deferProcessJobPublishes: true }
+    )
+    expect(mockGetQueue().publish).toHaveBeenCalledTimes(1)
+    expect(mockGetQueue().publish).toHaveBeenCalledWith(processJob)
+    expect(mockAddStatusToTimelines).not.toHaveBeenCalled()
+  })
+
+  it('does not create a fallback post for a moved actor without exportable streams', async () => {
+    database.getActorFromId.mockResolvedValue({
+      id: 'actor-1',
+      movedTo: 'https://destination.test/users/athlete'
+    } as never)
+    mockBuildGpxFromStravaStreams.mockReturnValueOnce(null)
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'moved-streamless',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: {
+        actorId: 'actor-1',
+        stravaActivityId: '123',
+        publishSendNote: true,
+        notifyOnComplete: true
+      }
+    })
+    expect(database.createNote).not.toHaveBeenCalled()
+    expect(mockAddStatusToTimelines).not.toHaveBeenCalled()
+    expect(mockGetQueue().publish).not.toHaveBeenCalled()
+    expect(database.createNotification).not.toHaveBeenCalled()
   })
 
   it('imports Strava activity via streams and forwards overlap context to fitness import', async () => {

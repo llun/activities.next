@@ -1117,19 +1117,32 @@ ActivityPub objects are **JSON-LD**, so the same logical object can arrive in ma
   moved local or remote target, where Mastodon's `FollowService` raises
   `NotPermittedError`. `POST /api/v1/follow_requests/:id/authorize` from a
   moved account is 422 `This account has moved` (`reject` stays allowed). An
-  existing follow can still have its preferences updated.
+  existing follow can still have its preferences updated. Unfollowing an
+  existing target is allowed even after that target moves.
 - **Posting and editing from a moved account gets 422 `This account has moved`.**
   The check covers `POST /api/v1/statuses` (polls, replies and scheduled posts
-  included), reblogs, the edit `PUT /api/v1/statuses/:id`, `PUT /api/v1/statuses/:id/interaction_policy`
-  (it rewrites the note and re-federates it), and the deprecated
-  `accounts/outbox` and `accounts/repost` routes. `DELETE` on the migration route
-  lifts it, since it clears only the pointer. The other write routes stay open to
-  a moved account, deliberately: `PUT /api/v1/scheduled_statuses/:id` (harmless,
-  the publish job drops the post at its due time), quote revoke, retry-fitness,
-  media uploads, favourites, bookmarks, poll votes (`POST /api/v1/polls/:id/votes`),
-  follows, settings and `DELETE` of its own statuses. Mastodon differs: `require_user!` refuses most of the API for a moved
-  (non-functional) account with 403. Known gap: a fitness import still creates
-  its post for a moved account, because the post is part of the import.
+  included), reblogs, the edit `PUT /api/v1/statuses/:id`,
+  `PUT /api/v1/statuses/:id/interaction_policy` (it rewrites the note and
+  re-federates it), and the deprecated `accounts/outbox` and `accounts/repost`
+  routes. `DELETE` on the migration route clears the pointer and lifts the
+  posting restriction; a due scheduled status is held while the account is
+  moved, and clearing a redirect requeues already-due statuses. Repeating
+  `DELETE` retries any due statuses left after a partial queue failure with
+  deterministic queue IDs scoped to the latest migration. Other API
+  actions retain their ordinary permissions: follow-request rejection, status
+  deletion, favourites, bookmarks, poll votes, reactions, quote revocation,
+  following an account that has not moved, unfollowing even a moved target,
+  media, lists, filters, reports, mutes, blocks, notes, pins, tags,
+  endorsements, gallery and albums, fitness uploads and retries, settings,
+  exports, account deletion, and reads. A fitness import can still keep a
+  backing status for its activity without inserting a timeline post, notifying
+  followers or federating a new post while the author is moved. These posting
+  and follow-request refusals are explicit here. Mastodon's API base skips the
+  inherited `require_functional!` gate except in limited federation mode, and
+  its `require_user!` checks `User#nonfunctional_reason`, which does not include
+  a moved account. Its signed-in web path checks `User#functional?`, which does
+  exclude moved accounts; individual Mastodon API actions can have their own
+  checks.
 - **A failed verification against a stored remote key triggers one throttled refresh.** When `ActivityPubVerifyGuard` cannot verify a request with the key it holds (non-empty), it calls `refreshSenderPublicKeyDetails`, which re-fetches the `keyId` through `fetchSenderPublicKeyDetails` (3 s, no retries, no cross-host redirects, owner-validated) and returns the key only if its owner equals the stored owner and the key differs. It never refreshes a local actor, a key with no stored row, or a row updated within 5 minutes, and records the attempt per owner before fetching (in memory, so a failing peer is throttled too). The happy path makes no network call. Only a key that came from the stored actor row is refreshed (a key just fetched, such as a path-based GoToSocial key, is already fresh). The attempt map is capped; when full it drops only entries outside the window and otherwise refuses to refresh. The stored key is replaced (`persistRefreshedSenderPublicKey`) only after this very request verifies with the fresh key, and only when that key is the actor's default key (the single key, or the array's `#main-key`/first entry): a request signed with another key of a multi-key actor is accepted but leaves the stored default key alone. A failed write is logged and the verified request continues. It deliberately does not call `recordActorIfNeeded`: that is a slow, multi-fetch path, wrong for an unauthenticated inbox request.
 - **Do not change `http://schema.org#` to `https`.** Mastodon maps the `schema` prefix to the non-standard `http://schema.org#` base in actor `@context`; the canonical context must use the same IRI so profile fields (`PropertyValue`/`value`) compact correctly.
 - **Account `fields[].verified_at` is the time `VerifyProfileLinksJob` saw the field's page link back with `rel="me"`, or `null`; `source.fields` carries the same value.** It follows Mastodon's `VerifyLinkService` (single https URL values only, as `Account::Field`'s `ACCEPTED_SCHEMES = %w(https)`, so an `http://` value is not verified there either and shows no status; an `<a>` or `<link>` with the `me` rel token and an `href` equal, case-insensitively, to the profile URL) and its `requires_verification?` re-queue of an unverified link on every save. Deviations: the page is fetched through `safeRemoteFetch` (HTTPS only, SSRF guard, 1 MiB, HTML only, two redirects, 5 s connect + 5 s read per hop, so about 30 s per link at most); **the actor id is also accepted as a link-back target**, where Mastodon matches only `url_for(account)`; a remote actor's profile URL is derived as `https://<domain>/@<username>` because its own `url` is not stored; at most four fields are checked; and a verified link is not checked again until its value changes. The job stamps `linksCheckedAt` in the actor's settings on every run (internal, never federated, not in the API), and a remote profile render queues a check only when that stamp is older than 1 hour (changed values) or 3 days (unchanged unverified values); local saves and real refreshes always queue. The time is never federated: the `PropertyValue` attachments carry no verification, and each server verifies for itself.

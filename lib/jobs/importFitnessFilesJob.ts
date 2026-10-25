@@ -7,6 +7,7 @@ import {
 import { Database } from '@/lib/database/types'
 import { groupFitnessActivitiesByOverlap } from '@/lib/jobs/fitnessImportOverlap'
 import { PROCESS_FITNESS_FILE_JOB_NAME } from '@/lib/jobs/names'
+import { isMovedActor } from '@/lib/services/accounts/movedAccount'
 import { getFitnessFileBuffer } from '@/lib/services/fitness-files'
 import { deleteEmailMapImage } from '@/lib/services/fitness-files/emailMapImage'
 import { toImportErrorMessage } from '@/lib/services/fitness-files/importError'
@@ -261,8 +262,11 @@ const createLocalOnlyFitnessStatus = async ({
   database: Database
 }) => {
   const mentions: Mention[] = []
-  const to = statusRecipientsTo(actor, mentions, null, visibility)
-  const cc = statusRecipientsCC(actor, mentions, null, visibility)
+  // Processing and fitness detail links need a backing status. A moved
+  // account keeps that owner-readable record without publishing it to anyone.
+  const moved = isMovedActor(actor)
+  const to = moved ? [] : statusRecipientsTo(actor, mentions, null, visibility)
+  const cc = moved ? [] : statusRecipientsCC(actor, mentions, null, visibility)
   // Minted from the resolved createdAt — the activity's start time for a
   // historical import, the moment of import when the caller asked for that — so
   // the URI tail always sorts with the post, matching the createdAt passed to
@@ -283,7 +287,9 @@ const createLocalOnlyFitnessStatus = async ({
     createdAt
   })
 
-  await addStatusToTimelines(database, createdStatus)
+  if (!moved) {
+    await addStatusToTimelines(database, createdStatus)
+  }
 
   return createdStatus
 }
@@ -517,7 +523,35 @@ export const importFitnessFiles = async (
     return importedGroups
   }
 
-  const groups = groupFilesByOverlap(parsedFiles)
+  // Keep historical posts on reprocessing, but do not merge new recordings
+  // into them after a move. Recipient-free backing records may still merge.
+  const publishedStatusIds = new Set<string>()
+  if (isMovedActor(actor)) {
+    const statusIds = new Set(
+      parsedFiles
+        .map((item) => item.fitnessFile.statusId)
+        .filter((id): id is string => Boolean(id))
+    )
+    for (const statusId of statusIds) {
+      const status = await database.getStatus({
+        statusId,
+        withReplies: false
+      })
+      if (status && (status.to.length > 0 || status.cc.length > 0)) {
+        publishedStatusIds.add(status.id)
+      }
+    }
+  }
+  const groups = [
+    ...groupFilesByOverlap(
+      parsedFiles.filter(
+        (item) => !publishedStatusIds.has(item.fitnessFile.statusId ?? '')
+      )
+    ),
+    ...Array.from(publishedStatusIds, (statusId) =>
+      parsedFiles.filter((item) => item.fitnessFile.statusId === statusId)
+    )
+  ]
 
   for (const group of groups) {
     const orderedGroup = sortFilesByActivityStart(group)
@@ -651,11 +685,13 @@ export const importFitnessFiles = async (
               // status this run created. Retries and the recovery scripts
               // re-run over statuses that are already live, whose Create (if
               // there was one) has already been delivered.
-              publishSendNote: publishSendNote && !existingStatus,
+              publishSendNote:
+                publishSendNote && !existingStatus && !isMovedActor(actor),
               // Both conditions: the caller has to be one that emails at all,
               // AND this has to be a genuine first import rather than a
               // reprocess of a status that already exists.
-              notifyOnComplete: notifyOnComplete && !existingStatus
+              notifyOnComplete:
+                notifyOnComplete && !existingStatus && !isMovedActor(actor)
             }
           }
         : null

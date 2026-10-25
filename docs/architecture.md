@@ -2202,8 +2202,13 @@ move, try again later`, but nothing is rolled back: the row, `movedTo` and the
   pending.
 - **Clearing a move, posting, and deletion.** `DELETE
 /api/v1/accounts/migration` (`actorId` from the query or a JSON body; 409 on a
-  mismatch) clears `movedTo` and publishes `Update(Person)`, and nothing else
-  (Mastodon's `RedirectsController#destroy` does the same). It cancels a
+  mismatch) clears `movedTo`, publishes `Update(Person)`, and requeues the
+  account's scheduled statuses that are already due. A repeated `DELETE` also
+  retries due statuses if an earlier call cleared the pointer but failed partway
+  through queueing. Each replay job uses a deterministic ID scoped to the
+  latest migration row (or a legacy fallback when no row exists), so a partial
+  retry reuses its queue IDs. Mastodon's
+  `RedirectsController#destroy` clears the redirect. It cancels a
   redirect, but a performed move is not undone and an in-flight one still
   completes: the queued `SendMoveJob` continuations and follower jobs go on, the
   followers already moved keep their new follows, and the `actor_migrations`
@@ -2220,19 +2225,29 @@ moved` (reject stays allowed). While
   scheduled posts are refused too), on `POST /api/v1/statuses/:id/reblog`, and
   on the deprecated `POST /api/v1/accounts/outbox` and `POST
 /api/v1/accounts/repost`. A scheduled status whose author has moved when it is
-  due is deleted by `publishScheduledStatusJob` without being published. This also
-  happens during a temporary redirect (`movedTo` set, then cleared): clearing the
-  redirect later does not bring the deleted scheduled post back.
+  due remains queued without being published; clearing a redirect requeues
+  already-due statuses for the publish job.
   Editing a status (`PUT /api/v1/statuses/:id`) and its interaction policy
   (`PUT /api/v1/statuses/:id/interaction_policy`) are refused the same way (see
   `app/api/v1/statuses/[id]/route.ts` and `.../interaction_policy/route.ts`).
-  **Every other write route stays open to a moved account, deliberately**:
-  `PUT /api/v1/scheduled_statuses/:id` (harmless, the publish job drops the post
-  at its due time), quote revoke, retry-fitness, media uploads, favourites,
-  bookmarks, poll votes (`POST /api/v1/polls/:id/votes`), follows, settings and `DELETE` of its own statuses. Known gap:
-  Fitness imports (`importFitnessFilesJob`, `importStravaActivityJob`)
-  still create their post for a moved account through `database.createNote`
-  without that check, because the post is part of the import. The profile response
+  **The other API write routes remain available to a moved author under their
+  ordinary permission checks**: deleting its own statuses; rejecting follow
+  requests; favourites, bookmarks, poll votes, reactions and quote revocation;
+  following accounts that have not moved and unfollowing accounts regardless
+  of whether the target has moved; media upload and update; lists, filters,
+  reports, mutes, blocks, account notes, pins, featured
+  and followed tags, endorsements, gallery and albums; fitness uploads and
+  retries; settings and account deletion; and `PUT /api/v1/scheduled_statuses/:id`.
+  Fitness imports retain the backing status needed to link activity data, but
+  do not insert a new post in timelines, notify followers or federate it while
+  the author is moved. CSV and archive export, migration GET/POST/DELETE, and
+  timeline and notification reads remain available. Posting and follow-request
+  refusals are explicit here. Mastodon's API base skips the
+  inherited `require_functional!` gate except in limited federation mode, and
+  its `require_user!` checks `User#nonfunctional_reason`, which does not include
+  a moved account. Its signed-in web path checks `User#functional?`, which does
+  exclude moved accounts; individual Mastodon API actions can have their own
+  checks. The profile response
   (`lib/services/accounts/profile.ts`) carries `moved: true` while `movedTo` is
   set. `deleteActorData` (`lib/database/domains/actor/deletion.ts`) removes the
   account's `actor_migrations` rows with the rest of its data.

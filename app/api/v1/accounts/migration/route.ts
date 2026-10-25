@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
+import { PUBLISH_SCHEDULED_STATUS_JOB_NAME } from '@/lib/jobs/names'
 import {
   getMigrationState,
   performOutgoingMove,
@@ -9,6 +10,8 @@ import {
 import { publishActorUpdate } from '@/lib/services/actors/actorUpdate'
 import { resolveAccountTarget } from '@/lib/services/actors/resolveAccountTarget'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import { getQueue } from '@/lib/services/queue'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   HTTP_STATUS,
@@ -164,6 +167,47 @@ export const DELETE = traceApiRoute(
       await database.updateActor({ actorId: actor.id, movedTo: null })
       await publishActorUpdate({ actorId: actor.id })
       current = { ...actor, movedTo: undefined }
+    }
+
+    // Retry even after an earlier request cleared movedTo but failed to queue
+    // every due status. A migration id survives actor updates and changes only
+    // for a new move/redirect, so partial retries reuse the same queue ids.
+    const [migration] = await database.getActorMigrations({
+      actorId: actor.id,
+      limit: 1
+    })
+    const replayId = migration?.id ?? 'legacy'
+    const now = Date.now()
+    const due: { id: string; scheduledAt: number }[] = []
+    let maxId: string | undefined
+    while (true) {
+      const page = await database.getScheduledStatuses({
+        actorId: actor.id,
+        limit: 100,
+        maxId
+      })
+      for (const scheduled of page) {
+        if (scheduled.scheduledAt <= now) {
+          due.push({ id: scheduled.id, scheduledAt: scheduled.scheduledAt })
+        }
+      }
+      if (page.length < 100) break
+      maxId = page[page.length - 1].id
+    }
+
+    // Snapshot before publishing: NoQueue runs inline and deletes the row
+    // used by getScheduledStatuses to resolve the next page's cursor.
+    for (const scheduled of due) {
+      await getQueue().publish({
+        id: getHashFromString(
+          `${scheduled.id}-${scheduled.scheduledAt}:redirect-cleared:${replayId}`
+        ),
+        name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+        data: {
+          scheduledStatusId: scheduled.id,
+          scheduledAt: scheduled.scheduledAt
+        }
+      })
     }
     return apiResponse({
       req,

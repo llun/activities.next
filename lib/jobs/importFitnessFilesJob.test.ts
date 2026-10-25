@@ -7,11 +7,13 @@ import {
   IMPORT_FITNESS_FILES_JOB_NAME,
   PROCESS_FITNESS_FILE_JOB_NAME
 } from '@/lib/jobs/names'
+import { processFitnessFileJob } from '@/lib/jobs/processFitnessFileJob'
 import { getFitnessFileBuffer } from '@/lib/services/fitness-files'
 import type { FitnessActivityData } from '@/lib/services/fitness-files/parseFitnessFile'
 import { parseFitnessFile } from '@/lib/services/fitness-files/parseFitnessFile'
 import { deleteMediaFile } from '@/lib/services/medias'
 import { getQueue } from '@/lib/services/queue'
+import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { Actor } from '@/lib/types/domain/actor'
@@ -54,7 +56,7 @@ const mockDeleteMediaFile = deleteMediaFile as jest.MockedFunction<
 >
 
 describe('importFitnessFilesJob', () => {
-  const { database, prepare } = createTestDatabase()
+  const { database, db, prepare } = createTestDatabase()
   let actor: Actor
 
   beforeAll(async () => {
@@ -83,6 +85,165 @@ describe('importFitnessFilesJob', () => {
   const { createFitnessFile, routedActivity } = createImportFileHelpers(
     database,
     () => actor
+  )
+
+  it('keeps a moved actor import in fitness without publishing a post', async () => {
+    const file = await createFitnessFile('fit', 'fitness/moved.fit', 'moved')
+    mockParseFitnessFile.mockResolvedValue({
+      ...routedActivity,
+      coordinates: [],
+      activityType: 'Running'
+    })
+    // The queued import carries only the id; the move happens after enqueue.
+    const data = {
+      actorId: actor.id,
+      batchId: 'moved',
+      fitnessFileIds: [file!.id],
+      visibility: 'public' as const,
+      publishSendNote: true,
+      notifyOnComplete: true
+    }
+    await database.updateActor({
+      actorId: actor.id,
+      movedTo: 'https://destination.test/users/athlete'
+    })
+    try {
+      const [group] = await importFitnessFiles(database, data)
+      expect(group.processJob).toEqual(
+        expect.objectContaining({
+          name: PROCESS_FITNESS_FILE_JOB_NAME,
+          data: expect.objectContaining({
+            publishSendNote: false,
+            notifyOnComplete: false
+          })
+        })
+      )
+      await processFitnessFileJob(database, group.processJob!)
+
+      const imported = await database.getFitnessFile({ id: file!.id })
+      expect(imported).toEqual(
+        expect.objectContaining({
+          statusId: group.statusId,
+          importStatus: 'completed',
+          processingStatus: 'completed',
+          totalDistanceMeters: routedActivity.totalDistanceMeters
+        })
+      )
+      const status = await database.getStatus({ statusId: group.statusId })
+      expect(status).toEqual(expect.objectContaining({ to: [], cc: [] }))
+      expect(
+        await canActorReadStatus({
+          database,
+          status: status!,
+          currentActor: null
+        })
+      ).toBe(false)
+      expect(
+        await canActorReadStatus({
+          database,
+          status: status!,
+          currentActor: actor
+        })
+      ).toBe(true)
+      expect(
+        await canActorReadStatus({
+          database,
+          status: status!,
+          currentActor: { ...actor, id: 'https://follower.test/users/friend' },
+          isFollower: true
+        })
+      ).toBe(false)
+      expect(
+        await database.getActorStatuses({ actorId: actor.id, publicOnly: true })
+      ).not.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: group.statusId })
+        ])
+      )
+      expect(
+        await db
+          .selectFrom('timelines')
+          .selectAll()
+          .where('statusId', '=', group.statusId)
+          .execute()
+      ).toEqual([])
+      const page = await database.getFitnessActivitiesInWindow({
+        actorId: actor.id,
+        startDate: Date.parse('2026-02-01T00:00:00Z'),
+        endDate: Date.parse('2026-02-02T00:00:00Z'),
+        limit: 100,
+        offset: 0
+      })
+      expect(page.activities).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: file!.id, statusId: group.statusId })
+        ])
+      )
+      expect(getQueue().publish).toHaveBeenCalledTimes(1)
+      expect(getQueue().publish).toHaveBeenCalledWith(group.processJob)
+    } finally {
+      await database.updateActor({ actorId: actor.id, movedTo: null })
+    }
+  })
+
+  it.each([false, true])(
+    'does not expose a moved actor new file through a pre-move post (reprocess original: %s)',
+    async (reprocessOriginal) => {
+      const original = await createFitnessFile(
+        'fit',
+        `fitness/before-move-${reprocessOriginal}.fit`,
+        'before-move'
+      )
+      mockParseFitnessFile.mockResolvedValue(routedActivity)
+      const [published] = await importFitnessFiles(database, {
+        actorId: actor.id,
+        batchId: 'before-move',
+        fitnessFileIds: [original!.id],
+        visibility: 'public'
+      })
+      const additional = await createFitnessFile(
+        'fit',
+        `fitness/after-move-${reprocessOriginal}.fit`,
+        'after-move'
+      )
+      await database.updateActor({
+        actorId: actor.id,
+        movedTo: 'https://destination.test/users/athlete'
+      })
+      try {
+        const [imported] = await importFitnessFiles(database, {
+          actorId: actor.id,
+          batchId: 'after-move',
+          fitnessFileIds: reprocessOriginal
+            ? [original!.id, additional!.id]
+            : [additional!.id],
+          overlapFitnessFileIds: [original!.id],
+          visibility: 'public',
+          publishSendNote: true
+        })
+        expect(imported.statusId).not.toBe(published.statusId)
+        expect(
+          await database.getStatus({ statusId: imported.statusId })
+        ).toEqual(expect.objectContaining({ to: [], cc: [] }))
+        expect(await database.getFitnessFile({ id: original!.id })).toEqual(
+          expect.objectContaining({ statusId: published.statusId })
+        )
+        // Reprocessing the historical recording preserves its original post.
+        const [reprocessed] = await importFitnessFiles(database, {
+          actorId: actor.id,
+          batchId: 'before-move',
+          fitnessFileIds: [original!.id],
+          visibility: 'public',
+          publishSendNote: true
+        })
+        expect(reprocessed.statusId).toBe(published.statusId)
+        expect(reprocessed.processJob?.data).toEqual(
+          expect.objectContaining({ publishSendNote: false })
+        )
+      } finally {
+        await database.updateActor({ actorId: actor.id, movedTo: null })
+      }
+    }
   )
 
   it('records a reason when status creation rejects with a non-Error', async () => {

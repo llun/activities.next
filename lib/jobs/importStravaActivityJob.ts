@@ -17,6 +17,7 @@ import {
   SEND_NOTE_JOB_NAME,
   SEND_UPDATE_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
+import { isMovedActor } from '@/lib/services/accounts/movedAccount'
 import { resolveActorEmailBrand } from '@/lib/services/email/sender'
 import { buildActivityImportEmail } from '@/lib/services/email/templates/activityImport'
 import { saveFitnessFile } from '@/lib/services/fitness-files'
@@ -339,8 +340,8 @@ export const importStravaActivityJob = createJobHandle(
       stravaActivityId,
       stravaAuth,
       visibility,
-      notifyOnComplete,
-      publishSendNote,
+      notifyOnComplete: requestedNotifyOnComplete,
+      publishSendNote: requestedPublishSendNote,
       postAtImportTime
     } = JobData.parse(message.data)
 
@@ -370,6 +371,10 @@ export const importStravaActivityJob = createJobHandle(
       })
       return
     }
+
+    const moved = isMovedActor(actor)
+    const notifyOnComplete = requestedNotifyOnComplete && !moved
+    const publishSendNote = requestedPublishSendNote && !moved
 
     const accessToken = await getValidStravaAccessToken({
       database,
@@ -437,6 +442,9 @@ export const importStravaActivityJob = createJobHandle(
       }
 
       if (!exportFile) {
+        // There is no fitness data to retain in this branch, only a post.
+        if (moved) return
+
         // This branch only runs for a degenerate activity with no positive
         // duration and no streams (buildTcxFromStravaStreams otherwise falls
         // back to the activity's elapsed/moving time). Such a status gets no

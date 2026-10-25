@@ -2,13 +2,17 @@ import bcrypt from 'bcrypt'
 import { NextRequest } from 'next/server'
 
 import { getActorPerson } from '@/lib/activities/getActorPerson'
-import { SEND_MOVE_JOB_NAME } from '@/lib/jobs/names'
+import {
+  PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+  SEND_MOVE_JOB_NAME
+} from '@/lib/jobs/names'
 import { publishActorUpdate } from '@/lib/services/actors/actorUpdate'
 import { resolveAccountTarget } from '@/lib/services/actors/resolveAccountTarget'
 import { getFederationSigningActorSafe } from '@/lib/services/federation/getFederationSigningActor'
 import { getQueue } from '@/lib/services/queue'
 import { MockActor } from '@/lib/stub/actor'
 import { Actor } from '@/lib/types/domain/actor'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { HTTP_STATUS } from '@/lib/utils/response'
 
 import { DELETE, GET, OPTIONS, POST } from './route'
@@ -28,6 +32,11 @@ const migrations: {
   followersCount: number
   createdAt: number
   startedAt?: number | null
+}[] = []
+const scheduledStatuses: {
+  id: string
+  actorId: string
+  scheduledAt: number
 }[] = []
 let suspended = new Set<string>()
 let recordOutcome:
@@ -62,6 +71,26 @@ const mockDatabase = {
       )
   ),
   getActorFollowersCount: vi.fn(async () => 42),
+  getScheduledStatuses: vi.fn(
+    async ({
+      actorId,
+      limit,
+      maxId
+    }: {
+      actorId: string
+      limit: number
+      maxId?: string
+    }) => {
+      const rows = scheduledStatuses
+        .filter((row) => row.actorId === actorId)
+        .sort(
+          (a, b) => b.scheduledAt - a.scheduledAt || b.id.localeCompare(a.id)
+        )
+      const cursor = maxId ? rows.findIndex((row) => row.id === maxId) : -1
+      if (maxId && cursor < 0) return []
+      return rows.slice(cursor + 1, cursor + 1 + limit)
+    }
+  ),
   // The retry and cooldown rule lives in recordActorMigration and is covered
   // by actorMigration.test.ts and outgoingMove.test.ts against real databases;
   // each route test here sets the outcome it needs.
@@ -205,6 +234,7 @@ describe('Account migration API route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     migrations.length = 0
+    scheduledStatuses.length = 0
     suspended = new Set()
     recordOutcome = { status: 'created' }
     storedActor = MockActor({ id: ME })
@@ -667,11 +697,157 @@ describe('Account migration API route', () => {
       expect(publish).not.toHaveBeenCalled()
     })
 
-    it('does nothing when there is no redirect', async () => {
+    it('keeps an already-cleared redirect unchanged when no statuses are due', async () => {
       const res = await del()
       expect(res.status).toBe(HTTP_STATUS.OK)
       expect(mockDatabase.updateActor).not.toHaveBeenCalled()
       expect(publishActorUpdate).not.toHaveBeenCalled()
+      expect(publish).not.toHaveBeenCalled()
+    })
+
+    it('requeues every due status for the actor and skips future and other-actor statuses', async () => {
+      const now = Date.now()
+      storedActor = { ...storedActor, movedTo: 'https://new.test/users/llun' }
+      scheduledStatuses.push(
+        ...Array.from({ length: 101 }, (_, index) => ({
+          id: `future-${index}`,
+          actorId: ME,
+          scheduledAt: now + 60_000 + index
+        })),
+        { id: 'due-one', actorId: ME, scheduledAt: now - 2_000 },
+        { id: 'due-two', actorId: ME, scheduledAt: now - 1_000 },
+        {
+          id: 'other-due',
+          actorId: 'https://llun.test/users/other',
+          scheduledAt: now - 3_000
+        }
+      )
+
+      const res = await del()
+
+      expect(res.status).toBe(HTTP_STATUS.OK)
+      expect(mockDatabase.getScheduledStatuses).toHaveBeenCalledTimes(2)
+      expect(mockDatabase.getScheduledStatuses).toHaveBeenCalledWith({
+        actorId: ME,
+        limit: 100,
+        maxId: undefined
+      })
+      expect(publish).toHaveBeenCalledTimes(2)
+      expect(publish.mock.calls[0][0].id).not.toBe(
+        getHashFromString(`due-two-${now - 1_000}`)
+      )
+      expect(publish.mock.calls.map(([message]) => message)).toEqual([
+        {
+          id: getHashFromString(
+            `due-two-${now - 1_000}:redirect-cleared:legacy`
+          ),
+          name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+          data: { scheduledStatusId: 'due-two', scheduledAt: now - 1_000 }
+        },
+        {
+          id: getHashFromString(
+            `due-one-${now - 2_000}:redirect-cleared:legacy`
+          ),
+          name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+          data: { scheduledStatusId: 'due-one', scheduledAt: now - 2_000 }
+        }
+      ])
+    })
+
+    it('retries a partial replay with stable job ids after the redirect was cleared', async () => {
+      const now = Date.now()
+      await post({ ...goodBody, kind: 'redirect' })
+      const migrationId = migrations[0].id
+      scheduledStatuses.push(
+        { id: 'due-one', actorId: ME, scheduledAt: now - 1_000 },
+        { id: 'due-two', actorId: ME, scheduledAt: now - 2_000 },
+        { id: 'due-three', actorId: ME, scheduledAt: now - 3_000 },
+        { id: 'future', actorId: ME, scheduledAt: now + DAY },
+        { id: 'other-due', actorId: 'other', scheduledAt: now - 1_000 }
+      )
+      const accepted = new Map<string, string>()
+      let failOnce = true
+      publish.mockImplementation(async (message) => {
+        if (message.data.scheduledStatusId === 'due-two' && failOnce) {
+          failOnce = false
+          throw new Error('queue down')
+        }
+        // A durable queue accepts each deterministic message id only once.
+        if (!accepted.has(message.id)) {
+          accepted.set(message.id, message.data.scheduledStatusId)
+        }
+      })
+
+      await expect(del()).rejects.toThrow('queue down')
+      expect(storedActor.movedTo).toBeUndefined()
+      expect([...accepted.values()]).toEqual(['due-one'])
+      // Both clearing the pointer and unrelated profile writes change updatedAt.
+      storedActor = { ...storedActor, updatedAt: now + 1_000 }
+      expect((await del()).status).toBe(HTTP_STATUS.OK)
+      expect([...accepted.values()]).toEqual([
+        'due-one',
+        'due-two',
+        'due-three'
+      ])
+      expect(publish.mock.calls[2][0].id).toBe(publish.mock.calls[0][0].id)
+      expect(publish.mock.calls[3][0].id).toBe(publish.mock.calls[1][0].id)
+      expect([...accepted.keys()]).toEqual(
+        scheduledStatuses
+          .slice(0, 3)
+          .map((row) =>
+            getHashFromString(
+              `${row.id}-${row.scheduledAt}:redirect-cleared:${migrationId}`
+            )
+          )
+      )
+      expect(mockDatabase.updateActor).toHaveBeenCalledTimes(1)
+    })
+
+    it('uses a fresh replay id after another redirect even for the same scheduled row', async () => {
+      scheduledStatuses.push({
+        id: 'due',
+        actorId: ME,
+        scheduledAt: Date.now() - 1_000
+      })
+      await post({ ...goodBody, kind: 'redirect' })
+      await del()
+      const firstId = publish.mock.calls[0][0].id
+      await post({ ...goodBody, kind: 'redirect' })
+      await del()
+      expect(publish).toHaveBeenCalledTimes(2)
+      expect(publish.mock.calls[1][0].id).not.toBe(firstId)
+    })
+
+    it('snapshots every page before inline publishing deletes the cursor rows', async () => {
+      const now = Date.now()
+      storedActor = { ...storedActor, movedTo: 'https://new.test/users/llun' }
+      const due = Array.from({ length: 101 }, (_, index) => ({
+        id: `due-${index}`,
+        actorId: ME,
+        scheduledAt: now - 1_000 - index
+      }))
+      scheduledStatuses.push(
+        ...due,
+        { id: 'future', actorId: ME, scheduledAt: now + DAY },
+        { id: 'other-due', actorId: 'other', scheduledAt: now - 1_000 }
+      )
+      publish.mockImplementation(async (message) => {
+        const index = scheduledStatuses.findIndex(
+          (row) => row.id === message.data.scheduledStatusId
+        )
+        expect(index).toBeGreaterThanOrEqual(0)
+        scheduledStatuses.splice(index, 1)
+      })
+
+      expect((await del()).status).toBe(HTTP_STATUS.OK)
+      expect(
+        publish.mock.calls.map(([message]) => message.data.scheduledStatusId)
+      ).toEqual(due.map((row) => row.id))
+      expect(scheduledStatuses.map((row) => row.id)).toEqual([
+        'future',
+        'other-due'
+      ])
+      expect(mockDatabase.getScheduledStatuses).toHaveBeenCalledTimes(2)
     })
 
     it('keeps the move history', async () => {
@@ -698,6 +874,8 @@ describe('Account migration API route', () => {
         HTTP_STATUS.CONFLICT
       )
       expect(mockDatabase.updateActor).not.toHaveBeenCalled()
+      expect(mockDatabase.getScheduledStatuses).not.toHaveBeenCalled()
+      expect(publish).not.toHaveBeenCalled()
     })
   })
 
