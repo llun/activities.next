@@ -616,6 +616,9 @@ describe('FiltersPanel', () => {
       renderPanel('server')
       expect(await screen.findByText('Expired rule')).toBeInTheDocument()
       openFilterMenu('Any status')
+      expect(
+        await screen.findByRole('group', { name: 'Status' })
+      ).toBeInTheDocument()
       fireEvent.click(
         await screen.findByRole('menuitemradio', { name: 'Expired' })
       )
