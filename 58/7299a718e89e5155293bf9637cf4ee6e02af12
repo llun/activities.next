@@ -1,0 +1,36 @@
+lib/database/domains/gallery/galleryDayStats.test.ts
+  s_7ba8a69fd06c70::t_5ba81efc1aa752 226-271
+lib/database/domains/gallery/dayStats.ts
+  s_7ba8a69fd06c70::t_f9c89ed0110161 68-70,82-87,123-125
+  s_7ba8a69fd06c70::t_369b708466aa27 90
+lib/components/gallery/useDaySelection.ts
+  s_7ba8a69fd06c70::t_f9c89ed0110161 116-117,465-476,496-498,500
+lib/database/domains/gallery/galleryMediaQueryPlan.test.ts
+  s_7ba8a69fd06c70::t_5ba81efc1aa752 202-235
+lib/components/gallery/useDaySelection.test.tsx
+  s_7ba8a69fd06c70::t_5ba81efc1aa752 1395,1399,1409,1416-1418,1425-1426,1428,1431
+  s_7ba8a69fd06c70::t_369b708466aa27 1427
+lib/components/gallery/GalleryDayHeader.test.tsx
+  s_7ba8a69fd06c70::t_f9c89ed0110161 142,145
+  s_7ba8a69fd06c70::t_5ba81efc1aa752 127-141,144,146-148
+  s_7ba8a69fd06c70::t_90ebd48a305173 143
+lib/components/gallery/GalleryDayHeader.tsx
+  s_7ba8a69fd06c70::t_2febe256923065 124-125
+  s_7ba8a69fd06c70::t_f9c89ed0110161 127-139
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "587299a718e89e5155293bf9637cf4ee6e02af12",
+  "prompts": {},
+  "sessions": {
+    "s_7ba8a69fd06c70": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a17426-d0ae-7652-92c9-54e3138d2e70",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
