@@ -4,6 +4,7 @@ import type {
   StatusDeletionDatabase,
   StatusLookupDatabase,
   StatusReadDatabase,
+  StatusUrlRewriteDatabase,
   StatusWriteDatabase
 } from '@/lib/database/domains/status/types'
 
@@ -155,6 +156,7 @@ export interface StatusDatabase
     StatusLookupDatabase,
     StatusWriteDatabase,
     StatusReadDatabase,
+    StatusUrlRewriteDatabase,
     StatusDeletionDatabase {}
 
 // ============================================================================
@@ -168,6 +170,13 @@ export type {
   SetDetectedLanguageParams,
   StatusDetectedLanguageDatabase
 } from '@/lib/database/domains/statusDetectedLanguage/types'
+
+export type {
+  GetStatusesForUrlRewriteParams,
+  RewriteStatusUrlParams,
+  StatusUrlRewriteDatabase,
+  StatusUrlRewriteRow
+} from '@/lib/database/domains/status/types'
 
 // ============================================================================
 // Search Database

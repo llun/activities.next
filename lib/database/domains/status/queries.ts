@@ -82,6 +82,10 @@ import type {
   UpdateStatusQuoteApprovalPolicyParams
 } from '@/lib/database/domains/status/types'
 import {
+  getStatusesForUrlRewrite,
+  rewriteStatusUrl
+} from '@/lib/database/domains/status/urlRewrite'
+import {
   createAnnounce,
   createNote,
   createNoteWithResult,
@@ -189,7 +193,9 @@ export const createStatusQueries = (
   deleteStatusEditHistory,
   deleteStatus,
   deleteStatusWithQueueJob,
-  discardUnpublishedStatus
+  discardUnpublishedStatus,
+  getStatusesForUrlRewrite,
+  rewriteStatusUrl
 })
 
 export const statusQueries = createStatusQueries(statusHydrationFor)
