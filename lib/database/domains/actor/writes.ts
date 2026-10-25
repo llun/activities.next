@@ -1,6 +1,8 @@
 // Writing actors: creation, profile and settings updates, removal of the row,
 // and the deletion state. Every write that changes what account search shows
 // re-indexes the actor's search document in the same transaction.
+import { sql } from 'kysely'
+
 import {
   getActorFromId,
   getNotificationPolicy
@@ -22,8 +24,10 @@ import type {
   StartActorDeletionParams,
   UpdateActorAliasesParams,
   UpdateActorAliasesResult,
-  UpdateActorParams
+  UpdateActorParams,
+  UpdateRemoteActorHandleParams
 } from '@/lib/database/domains/actor/types'
+import { getActorIdFromHandle } from '@/lib/database/domains/actorHandle/queries'
 import {
   deleteActorSearchDocument,
   indexActorSearchDocument
@@ -381,6 +385,79 @@ export const updateActor = async (
   db: Db,
   params: UpdateActorParams
 ): Promise<Actor | null> => (await applyActorUpdate(db, false, params)).after
+
+// Remote rename in place (Mastodon's `rename_account!`): a WebFinger-confirmed
+// new handle for the same actor id. One transaction under the actor row lock.
+// Another stale REMOTE row that still holds the handle must not fail the
+// `actors_username_domain_unique` index, so its handle is displaced the way
+// Mastodon's `invalidate_username!` does — an invalid tombstone built from its
+// id, which no lookup or re-record can ever match. A LOCAL holder, or a
+// handle another actor's ledger row reserves, refuses the write instead: a
+// local actor's handle never comes from the network. The search documents of
+// both rows are re-indexed in the same transaction.
+export const updateRemoteActorHandle = async (
+  db: Db,
+  { actorId, username, domain }: UpdateRemoteActorHandleParams
+): Promise<Actor | null> => {
+  const targetDomain = domain.toLowerCase()
+  const written = await inTransaction(db, async (trx) => {
+    const row = await forUpdate(
+      trx,
+      trx.selectFrom('actors').selectAll().where('id', '=', actorId).limit(1)
+    ).executeTakeFirst()
+    if (!row?.id) return false
+    if (row.privateKey) return false
+    const sameHandle =
+      String(row.username ?? '').toLowerCase() === username.toLowerCase() &&
+      String(row.domain ?? '').toLowerCase() === targetDomain
+    if (sameHandle) return true
+
+    // The ledger reserves retired (and current) handles for the actor that
+    // holds them: a remote rename never takes one.
+    const ledgerActorId = await getActorIdFromHandle(trx, {
+      username,
+      domain: targetDomain
+    })
+    if (ledgerActorId && ledgerActorId !== actorId) return false
+
+    const staleRow = await forUpdate(
+      trx,
+      trx
+        .selectFrom('actors')
+        .selectAll()
+        .where(sql`lower(${sql.ref('username')})`, '=', username.toLowerCase())
+        .where(sql`lower(${sql.ref('domain')})`, '=', targetDomain)
+        .where('id', '!=', actorId)
+        .limit(1)
+    ).executeTakeFirst()
+    if (staleRow?.id) {
+      if (staleRow.privateKey) return false
+      // The leading `!` keeps the tombstone outside every valid remote
+      // username; the id tail keeps it under the column limit and distinct
+      // from any other displaced row.
+      const invalidatedUsername = `!${staleRow.id.slice(-254)}`
+      await trx
+        .updateTable('actors')
+        .set({ username: invalidatedUsername, updatedAt: new Date() })
+        .where('id', '=', staleRow.id)
+        .execute()
+      await indexActorSearchDocument(trx, { id: staleRow.id })
+    }
+
+    await trx
+      .updateTable('actors')
+      .set({
+        username,
+        domain: targetDomain,
+        updatedAt: new Date()
+      })
+      .where('id', '=', actorId)
+      .execute()
+    await indexActorSearchDocument(trx, { id: actorId })
+    return true
+  })
+  return written ? getActorFromId(db, { id: actorId }) : null
+}
 
 // updateActor that also returns the actor as it was under the write's row lock
 // (`before`, null when the actor is gone) next to the result (`after`), both
