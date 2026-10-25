@@ -647,8 +647,8 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   `ids_only`). Anyone else's copies of these owner-only
   parameters are ignored, even malformed ones (only `gear_id` and `ids_only` answer 422 to a
   non-owner); `max_id` still pages the `uploaded` order. `ids_only=true&day_key=<GalleryDayKey>`
-  is an owner-only read answered as `{ mediaIds }` — the ids of that day's matches, `limit` at
-  most (capped at the album item cap, not the page's 60), in `sort` order, minus the `album_id`
+  is an owner-only read answered as `{ mediaIds }` — the ids of that day's matches from
+  `offset` (an integer from 0 to 100,000, default 0), `limit` at most (capped at the album item cap, not the page's 60), in `sort` order, minus the `album_id`
   album's members (`album_id` excludes here rather than counting) — and it answers 422
   `{ error: 'ids_only is only available to the owner' }` to anyone else, checked before the
   owner-only strip so it is never silently honoured, like `gear_id`; the owner's 422s include an
