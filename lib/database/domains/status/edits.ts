@@ -31,12 +31,15 @@ import { widensStatusAudience } from '@/lib/utils/widensStatusAudience'
 // The status edits: a note's text and media, a note's audience, a poll's
 // content, options and tallies, and a status's quote-approval policy. The edits
 // that keep a revision write it to `status_history` in the same transaction as
-// the change. updateNote reads the status it edits through the injected
-// hydration before its transaction; updateNoteVisibility, updatePoll and
-// updateStatusQuoteApprovalPolicy read its row here (updateNoteVisibility
-// inside its transaction, as a compare-and-set on the content), and each edit
-// returns it re-read through that hydration after. The three that open a
-// transaction reindex search after it.
+// the change. updateNote and updateNoteVisibility read the status they edit
+// through the injected hydration before their transactions, and each reads the
+// raw row inside its own transaction only around the moved-time marker:
+// updateNote drops a marker a concurrent visibility change cleared, and
+// updateNoteVisibility — in clearMovedTimeMarker, only when the status is
+// marked and the audience changed — clears it as a compare-and-set on the
+// content. updatePoll and updateStatusQuoteApprovalPolicy read its row here,
+// and each edit returns it re-read through that hydration after. The three
+// that open a transaction reindex search after it.
 
 const isReplaceableMediaAttachment = (
   attachment: Attachment
@@ -85,7 +88,7 @@ export const updateNote = async (
     // the caption right after creating the status.
     ...(status.createdWhileMoved ? { createdWhileMoved: true } : {})
   }
-  const statusContent = JSON.stringify(content)
+  let statusContent = JSON.stringify(content)
   const searchStatus: StatusSearchRow = {
     id: status.id,
     actorId: status.actorId,
@@ -94,6 +97,23 @@ export const updateNote = async (
     createdAt: status.createdAt
   }
   await inTransaction(db, async (trx) => {
+    // The hydrated read above may predate a visibility change that cleared
+    // the marker; keep it only while the row inside this transaction still
+    // has it, or the edit would put it back on an ordinary post.
+    if (status.createdWhileMoved) {
+      const existingRow = await selectStatusRow(trx, status.id)
+      const existingContent = getCompatibleJSON<Record<string, unknown>>(
+        existingRow?.content ?? {}
+      )
+      if (
+        existingContent === null ||
+        !('createdWhileMoved' in existingContent)
+      ) {
+        delete content.createdWhileMoved
+        statusContent = JSON.stringify(content)
+        searchStatus.content = statusContent
+      }
+    }
     await trx
       .insertInto('status_history')
       .values({
@@ -376,18 +396,25 @@ const selectStatusRow = (db: Db, statusId: string) =>
     .limit(1)
     .executeTakeFirst()
 
-// Whether two recipient lists address the same actors, as sets.
-const sameRecipients = (left: string[], right: string[]) =>
-  left.length === right.length &&
-  left.every((actorId) => right.includes(actorId))
+// Whether two recipient lists address the same actors, as sets: duplicates
+// (a private note's cc keeps the mention hrefs as written) are one member.
+const sameRecipients = (left: string[], right: string[]) => {
+  const leftSet = new Set(left)
+  const rightSet = new Set(right)
+  return (
+    leftSet.size === rightSet.size &&
+    [...leftSet].every((actorId) => rightSet.has(actorId))
+  )
+}
 
 // Drops the `createdWhileMoved` marker from the content blob, keeping every
 // other field, as a compare-and-set: the write lands only while the content
 // is still the one that was read inside this transaction, so a concurrent
 // edit that rebuilt the blob (updateNote) is never overwritten with a stale
 // copy. One re-read and one retry cover a change that committed in between;
-// a second miss leaves the content alone — the marker stays and the status
-// keeps its isolation, which is the safe side.
+// a second miss keeps the marker. By then the new audience has given the
+// status recipients, so it is not isolated anyway — the only effect is on
+// a later bare-direct change, which would isolate it again.
 const clearMovedTimeMarker = async (trx: Db, statusId: string) => {
   for (let attempt = 0; attempt < 2; attempt++) {
     const existingRow = await selectStatusRow(trx, statusId)

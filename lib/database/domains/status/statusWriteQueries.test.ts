@@ -1877,6 +1877,80 @@ describe('updateNote', () => {
     }
     expect(await dumpTables()).toEqual(before)
   })
+
+  it('does not put back a marker a concurrent visibility change cleared', async () => {
+    const p = nextPrefix()
+    const author = await seedActor(`${p}-author`)
+    const id = `${author}/statuses/1`
+    await seedStatus({
+      id,
+      actorId: author,
+      to: [],
+      cc: [],
+      content: JSON.stringify({
+        url: id,
+        text: 'ride',
+        summary: '',
+        sensitive: false,
+        language: null,
+        createdWhileMoved: true
+      })
+    })
+    // The visibility change commits after updateNote's hydrated read: the
+    // row no longer carries the marker, but the read that raced it still
+    // does. Only that first read is doctored — the re-read updateNote
+    // returns must see the row as it is.
+    await db
+      .updateTable('statuses')
+      .set({
+        content: JSON.stringify({
+          url: id,
+          text: 'ride',
+          summary: '',
+          sensitive: false,
+          language: null
+        })
+      })
+      .where('id', '=', id)
+      .execute()
+    let reads = 0
+    const racedHydration: StatusHydration = {
+      ...hydration,
+      getStatus: (params) => {
+        reads += 1
+        return reads === 1
+          ? hydration
+              .getStatus(params)
+              .then((status) =>
+                status ? { ...status, createdWhileMoved: true } : status
+              )
+          : hydration.getStatus(params)
+      }
+    }
+    const status = await updateNote(db, racedHydration, {
+      statusId: id,
+      text: 'after',
+      summary: ''
+    })
+    expect(
+      getCompatibleJSON(
+        (
+          await db
+            .selectFrom('statuses')
+            .select('content')
+            .where('id', '=', id)
+            .executeTakeFirstOrThrow()
+        ).content
+      )
+    ).toEqual({
+      url: id,
+      text: 'after',
+      summary: '',
+      sensitive: false,
+      language: null
+    })
+    expect(status).not.toHaveProperty('createdWhileMoved')
+  })
 })
 
 describe('updateNoteVisibility', () => {
@@ -2275,6 +2349,53 @@ describe('updateNoteVisibility', () => {
     })
   })
 
+  it('clears the marker when a duplicated mention is replaced by a new one', async () => {
+    const p = nextPrefix()
+    const author = await seedActor(`${p}-author`)
+    const id = `${author}/statuses/1`
+    const mention = (name: string) => actorIn(`${p}-${name}`)
+    await seedStatus({
+      id,
+      actorId: author,
+      to: [],
+      // A private note's cc keeps the mention hrefs as written, duplicates
+      // included, so [alice, alice] and [alice, bob] are different
+      // audiences even though both lists have two entries.
+      cc: [mention('alice'), mention('alice')],
+      content: JSON.stringify({
+        url: id,
+        text: 'ride',
+        summary: '',
+        sensitive: false,
+        language: null,
+        createdWhileMoved: true
+      })
+    })
+    const status = await updateNoteVisibility(db, hydration, {
+      statusId: id,
+      to: [],
+      cc: [mention('alice'), mention('bob')]
+    })
+    expect(status).not.toHaveProperty('createdWhileMoved')
+    expect(
+      getCompatibleJSON(
+        (
+          await db
+            .selectFrom('statuses')
+            .select('content')
+            .where('id', '=', id)
+            .executeTakeFirstOrThrow()
+        ).content
+      )
+    ).toEqual({
+      url: id,
+      text: 'ride',
+      summary: '',
+      sensitive: false,
+      language: null
+    })
+  })
+
   it('writes no content update for a status without the marker', async () => {
     const p = nextPrefix()
     const author = await seedActor(`${p}-author`)
@@ -2287,10 +2408,11 @@ describe('updateNoteVisibility', () => {
     const { statements } = await capture(() =>
       updateNoteVisibility(db, hydration, {
         statusId: id,
-        to: [],
-        cc: []
+        ...FOLLOWERS_ONLY(author)
       })
     )
+    // An audience change on an unmarked status rewrites the recipients but
+    // never the content: there is no marker to clear.
     expect(statements.map(describeStatement)).not.toContain('update status')
     expect(
       (
@@ -2316,7 +2438,7 @@ describe('updateNoteVisibility', () => {
       createdWhileMoved: true
     })
     await seedStatus({ id, actorId: author, to: [], cc: [], content })
-    const { statements } = await capture(() =>
+    const { result: status, statements } = await capture(() =>
       updateNoteVisibility(db, hydration, {
         statusId: id,
         to: [],
@@ -2328,6 +2450,7 @@ describe('updateNoteVisibility', () => {
     // audience. That is not a visibility change: the marker stays and no
     // content write runs.
     expect(statements.map(describeStatement)).not.toContain('update status')
+    expect((status as StatusNote | null)?.createdWhileMoved).toBe(true)
     expect(
       (
         await db

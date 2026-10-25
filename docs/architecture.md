@@ -2246,11 +2246,13 @@ moved` (reject stays allowed). While
   Fitness imports retain the backing status needed to link activity data, but
   do not insert a new post in timelines, notify followers or federate it while
   the author is moved. Clearing the redirect does not publish a status created
-  during the move: a text edit keeps it hidden, while a visibility change
-  that changes the audience — including a change to `direct` — clears the
-  marker and makes it an ordinary post that merges with later imports like
-  any other; resending the same visibility does not clear it. Such a status
-  is marked
+  during the move: a text edit keeps it hidden, and only a visibility change
+  whose audience differs from the current one clears the marker and makes it
+  an ordinary post that merges with later imports like any other. Choosing
+  `direct` on a still-hidden status with no mentions is the same audience and
+  keeps it, so the status stays isolated; a change to `direct` clears the
+  marker only when the status had another audience before, or when mentions
+  are added. Such a status is marked
   `createdWhileMoved` (in the status content blob), because an ordinary
   `direct` import also has empty recipients; a later overlapping fitness
   import creates a separate published status rather than merging into a
