@@ -326,6 +326,92 @@ describe('importFitnessFilesJob', () => {
     }
   )
 
+  it('merges two direct imports from an account that never moved', async () => {
+    const firstFile = await createFitnessFile(
+      'fit',
+      'fitness/direct-merge-first.fit',
+      'direct-merge-first'
+    )
+    const secondFile = await createFitnessFile(
+      'fit',
+      'fitness/direct-merge-second.fit',
+      'direct-merge-second'
+    )
+    mockParseFitnessFile.mockResolvedValue(routedActivity)
+
+    const [first] = await importFitnessFiles(database, {
+      actorId: actor.id,
+      batchId: 'direct-merge-first',
+      fitnessFileIds: [firstFile!.id],
+      visibility: 'direct'
+    })
+    // A direct import with no mentions addresses nobody, exactly like a
+    // moved-time hidden status; only the createdWhileMoved marker separates
+    // the two, and this account never moved.
+    expect(await database.getStatus({ statusId: first.statusId })).toEqual(
+      expect.objectContaining({ to: [], cc: [] })
+    )
+
+    const [second] = await importFitnessFiles(database, {
+      actorId: actor.id,
+      batchId: 'direct-merge-second',
+      fitnessFileIds: [secondFile!.id],
+      overlapFitnessFileIds: [firstFile!.id],
+      visibility: 'direct'
+    })
+    expect(second.statusId).toBe(first.statusId)
+    expect(second.statusCreated).toBe(false)
+    expect(await database.getFitnessFile({ id: secondFile!.id })).toEqual(
+      expect.objectContaining({ statusId: first.statusId })
+    )
+  })
+
+  it('merges a later public import into an older direct import of the same ride', async () => {
+    const directFile = await createFitnessFile(
+      'fit',
+      'fitness/direct-before-public.fit',
+      'direct-before-public'
+    )
+    const publicFile = await createFitnessFile(
+      'fit',
+      'fitness/public-after-direct.fit',
+      'public-after-direct'
+    )
+    mockParseFitnessFile.mockResolvedValue(routedActivity)
+
+    const [direct] = await importFitnessFiles(database, {
+      actorId: actor.id,
+      batchId: 'direct-before-public',
+      fitnessFileIds: [directFile!.id],
+      visibility: 'direct'
+    })
+
+    const [merged] = await importFitnessFiles(database, {
+      actorId: actor.id,
+      batchId: 'public-after-direct',
+      fitnessFileIds: [publicFile!.id],
+      overlapFitnessFileIds: [directFile!.id],
+      visibility: 'public',
+      publishSendNote: true
+    })
+    // The ride the user kept private stays on its one direct status: no
+    // separate public post is created for the later import.
+    expect(merged.statusId).toBe(direct.statusId)
+    expect(merged.statusCreated).toBe(false)
+    expect(await database.getStatus({ statusId: direct.statusId })).toEqual(
+      expect.objectContaining({ to: [], cc: [] })
+    )
+    expect(await database.getFitnessFile({ id: publicFile!.id })).toEqual(
+      expect.objectContaining({ statusId: direct.statusId })
+    )
+    expect(getQueue().publish).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: SEND_NOTE_JOB_NAME,
+        data: expect.objectContaining({ statusId: direct.statusId })
+      })
+    )
+  })
+
   it('records a reason when status creation rejects with a non-Error', async () => {
     const file = await database.createFitnessFile({
       actorId: actor.id,

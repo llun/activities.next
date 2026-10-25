@@ -1128,8 +1128,12 @@ ActivityPub objects are **JSON-LD**, so the same logical object can arrive in ma
   posting restriction; a due scheduled status is held while the account is
   moved. `DELETE` requeues already-due statuses only when it observed `movedTo`
   set before clearing it, with deterministic queue IDs scoped to the latest
-  migration. A later `DELETE` with no current redirect does not replay them,
-  including after a partial queue failure. Other API
+  migration. A redirect set again during the replay scan cancels that replay;
+  the next `DELETE`, scoped to the new migration, replays those posts. A later
+  `DELETE` with no current redirect does not replay them, including after a
+  partial queue failure, so `PUT /api/v1/scheduled_statuses/:id` is the
+  recovery path for due posts a partial queue failure left unpublished: it
+  requeues a post, and its minimum-ahead check is the only gate. Other API
   actions retain their ordinary permissions: follow-request rejection, status
   deletion, favourites, bookmarks, poll votes, reactions, quote revocation,
   following an account that has not moved, unfollowing even a moved target,

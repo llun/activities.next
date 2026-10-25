@@ -5,6 +5,7 @@ import {
   statusRecipientsTo
 } from '@/lib/actions/createNote'
 import { Database } from '@/lib/database/types'
+import { isIsolatedFromFitnessImport } from '@/lib/jobs/fitnessImportIsolation'
 import { groupFitnessActivitiesByOverlap } from '@/lib/jobs/fitnessImportOverlap'
 import { PROCESS_FITNESS_FILE_JOB_NAME } from '@/lib/jobs/names'
 import { isMovedActor } from '@/lib/services/accounts/movedAccount'
@@ -284,7 +285,11 @@ const createLocalOnlyFitnessStatus = async ({
     to,
     cc,
     reply: '',
-    createdAt
+    createdAt,
+    // The marker that separates this hidden record from an ordinary `direct`
+    // status (which also has no recipients): it is what later imports isolate
+    // on, so it must be recorded rather than inferred from the recipients.
+    createdWhileMoved: moved
   })
 
   if (!moved) {
@@ -524,8 +529,10 @@ export const importFitnessFiles = async (
   }
 
   // Reprocessing preserves a file's status, but a new recording cannot cross
-  // the move boundary in either direction. Recipient-free statuses stay hidden
-  // after a redirect is cleared, so a new import needs its own public status.
+  // the move boundary in either direction. A status created while moved is
+  // marked `createdWhileMoved` and stays a hidden local-only record after the
+  // redirect is cleared, so a new import needs its own published status. The
+  // rule (including the moved-now side) lives in isIsolatedFromFitnessImport.
   const isolatedStatusIds = new Set<string>()
   const moved = isMovedActor(actor)
   const statusIds = new Set(
@@ -539,8 +546,7 @@ export const importFitnessFiles = async (
       withReplies: false
     })
     if (!status) continue
-    const hasRecipients = status.to.length > 0 || status.cc.length > 0
-    if (moved ? hasRecipients : !hasRecipients) {
+    if (isIsolatedFromFitnessImport({ moved, status })) {
       isolatedStatusIds.add(status.id)
     }
   }

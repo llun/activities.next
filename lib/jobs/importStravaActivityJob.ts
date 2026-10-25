@@ -709,36 +709,16 @@ export const importStravaActivityJob = createJobHandle(
             actorId,
             limit: OVERLAP_CONTEXT_SCAN_LIMIT
           })
-          let overlapFitnessFileIds = getOverlapContextFitnessFileIds({
+          // Every overlap candidate is passed through: the hidden-status
+          // isolation rule belongs to importFitnessFiles alone (through
+          // isIsolatedFromFitnessImport), so the two paths cannot drift.
+          const overlapFitnessFileIds = getOverlapContextFitnessFileIds({
             actorId,
             fitnessFileId: targetFitnessFile.id,
             activityStartTime: getStravaActivityStartTimeMs(activity),
             activityDurationSeconds: getStravaActivityDurationSeconds(activity),
             files: actorFitnessFiles
           })
-          if (!moved) {
-            const overlapFiles = new Map(
-              actorFitnessFiles.map((file) => [file.id, file])
-            )
-            const statusIds = new Set(
-              overlapFitnessFileIds
-                .map((id) => overlapFiles.get(id)?.statusId)
-                .filter((id): id is string => Boolean(id))
-            )
-            const hiddenStatusIds = new Set<string>()
-            for (const statusId of statusIds) {
-              const status = await database.getStatus({
-                statusId,
-                withReplies: false
-              })
-              if (status && status.to.length === 0 && status.cc.length === 0) {
-                hiddenStatusIds.add(statusId)
-              }
-            }
-            overlapFitnessFileIds = overlapFitnessFileIds.filter(
-              (id) => !hiddenStatusIds.has(overlapFiles.get(id)?.statusId ?? '')
-            )
-          }
 
           return importFitnessFiles(
             database,

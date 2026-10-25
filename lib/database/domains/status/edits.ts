@@ -77,7 +77,11 @@ export const updateNote = async (
     summary,
     // Preserve the existing flags unless the caller explicitly overrides them.
     sensitive: sensitive === undefined ? status.sensitive : sensitive,
-    language: language === undefined ? status.language : language
+    language: language === undefined ? status.language : language,
+    // The blob is rebuilt here, so the moved-time marker must be re-added or
+    // an edit would strip it — and the fitness processing job itself edits
+    // the caption right after creating the status.
+    ...(status.createdWhileMoved ? { createdWhileMoved: true } : {})
   }
   const statusContent = JSON.stringify(content)
   const searchStatus: StatusSearchRow = {

@@ -740,11 +740,43 @@ describe('Account migration API route', () => {
 
     it('reads the previous migration before clearing the redirect', async () => {
       storedActor = { ...storedActor, movedTo: 'https://new.test/users/llun' }
+      const scheduledAt = Date.now() - 1_000
+      scheduledStatuses.push({ id: 'due', actorId: ME, scheduledAt })
+      // A redirect landing right after the clear would be the newer row a
+      // late read would see; the replay must use the row read BEFORE clearing.
+      migrations.push({
+        id: 'newer-redirect',
+        actorId: ME,
+        targetActorId: 'https://newer.test/users/llun',
+        targetAcct: 'llun@newer.test',
+        kind: 'redirect',
+        followersCount: 0,
+        createdAt: Date.now() - DAY
+      })
+      mockDatabase.getActorMigrations.mockImplementationOnce(async () => [
+        {
+          id: 'pre-clear-migration',
+          actorId: ME,
+          targetActorId: 'https://old.test/users/llun',
+          targetAcct: 'llun@old.test',
+          kind: 'redirect' as const,
+          followersCount: 0,
+          createdAt: Date.now() - DAY,
+          startedAt: null
+        }
+      ])
 
       expect((await del()).status).toBe(HTTP_STATUS.OK)
       expect(
         mockDatabase.getActorMigrations.mock.invocationCallOrder[0]
       ).toBeLessThan(mockDatabase.updateActor.mock.invocationCallOrder[0])
+      expect(publish).toHaveBeenCalledWith({
+        id: getHashFromString(
+          `due-${scheduledAt}:redirect-cleared:pre-clear-migration`
+        ),
+        name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+        data: { scheduledStatusId: 'due', scheduledAt }
+      })
     })
 
     it('skips replay if another redirect is set during the due-status scan', async () => {

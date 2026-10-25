@@ -2207,7 +2207,12 @@ move, try again later`, but nothing is rolled back: the row, `movedTo` and the
   retries due statuses if an earlier call cleared the pointer but failed partway
   through queueing. Each replay job uses a deterministic ID scoped to the
   latest migration row (or a legacy fallback when no row exists), so a partial
-  retry reuses its queue IDs. Mastodon's
+  retry reuses its queue IDs. A redirect set again during the replay scan
+  cancels that replay; the next `DELETE`, scoped to the new migration, replays
+  those posts. A partial queue failure can still leave due posts unpublished
+  with no `DELETE` left to retry them: `PUT /api/v1/scheduled_statuses/:id` is
+  the recovery path, as its minimum-ahead check is the only gate on
+  rescheduling. Mastodon's
   `RedirectsController#destroy` clears the redirect. It cancels a
   redirect, but a performed move is not undone and an in-flight one still
   completes: the queued `SendMoveJob` continuations and follower jobs go on, the
@@ -2241,9 +2246,14 @@ moved` (reject stays allowed). While
   Fitness imports retain the backing status needed to link activity data, but
   do not insert a new post in timelines, notify followers or federate it while
   the author is moved. Clearing the redirect does not publish a status created
-  during the move: its recipients stay empty even when it is edited. A later
-  overlapping fitness import creates a separate published status rather than
-  merging into that hidden one. CSV and archive export, migration GET/POST/DELETE, and
+  during the move: its recipients stay empty even when it is edited. Such a
+  status is marked `createdWhileMoved` (in the status content blob), because an
+  ordinary `direct` import also has empty recipients; a later overlapping
+  fitness import creates a separate published status rather than merging into
+  a marked one, while unmarked statuses — including direct imports from an
+  account that never moved — merge as before
+  (`isIsolatedFromFitnessImport` in `lib/jobs/fitnessImportIsolation.ts`).
+  CSV and archive export, migration GET/POST/DELETE, and
   timeline and notification reads remain available. Posting and follow-request
   refusals are explicit here. Mastodon's API base skips the
   inherited `require_functional!` gate except in limited federation mode, and

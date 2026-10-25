@@ -693,6 +693,9 @@ export const hydrateStatusRow = async (
     ...(content.quoteApprovalPolicy
       ? { quoteApprovalPolicy: content.quoteApprovalPolicy }
       : {}),
+    // Read back from the content blob: true only on a status created as a
+    // hidden local-only record while the account was moved.
+    ...(content.createdWhileMoved ? { createdWhileMoved: true } : {}),
     totalLikes,
     totalShares,
     reactions,

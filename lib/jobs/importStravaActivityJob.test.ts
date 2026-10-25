@@ -247,7 +247,7 @@ describe('importStravaActivityJob', () => {
     )
   })
 
-  it('excludes a moved-time hidden Wahoo status from overlap after the redirect is cleared', async () => {
+  it('passes a moved-time hidden overlap file through to importFitnessFiles', async () => {
     database.getFitnessFilesByActor.mockResolvedValue([
       {
         id: 'hidden-wahoo-file',
@@ -264,6 +264,8 @@ describe('importStravaActivityJob', () => {
         totalDurationSeconds: 1_200
       }
     ] as never)
+    // The hidden status is recognizable by its empty recipients, so a
+    // duplicate of the isolation rule here would drop the file.
     database.getStatus.mockImplementation(async ({ statusId }) => {
       if (statusId === 'hidden-wahoo-status') {
         return { id: statusId, to: [], cc: [] } as never
@@ -284,11 +286,14 @@ describe('importStravaActivityJob', () => {
       data: { actorId: 'actor-1', stravaActivityId: '123' }
     })
 
+    // The isolation rule (isIsolatedFromFitnessImport) belongs to
+    // importFitnessFiles alone; this job must not pre-filter overlap
+    // candidates on its own copy of it.
     expect(mockImportFitnessFiles).toHaveBeenCalledWith(
       database,
       expect.objectContaining({
         fitnessFileIds: ['new-file'],
-        overlapFitnessFileIds: ['public-wahoo-file']
+        overlapFitnessFileIds: ['hidden-wahoo-file', 'public-wahoo-file']
       }),
       { deferProcessJobPublishes: true }
     )
