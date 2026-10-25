@@ -1,3 +1,4 @@
+import { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 
 import { Pagination } from '@/lib/components/admin/Pagination'
@@ -15,6 +16,10 @@ import { AdminQueuesList } from './AdminQueuesList'
 import { AdminQueuesToolbar } from './AdminQueuesToolbar'
 
 export const dynamic = 'force-dynamic'
+
+export const metadata: Metadata = {
+  title: 'Queues'
+}
 
 const ITEMS_PER_PAGE = 20
 

@@ -1,4 +1,5 @@
 import { Bell, Tag } from 'lucide-react'
+import { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 
 import { PageHeader } from '@/lib/components/page-header'
@@ -13,6 +14,10 @@ import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
 import packageJson from '@/package.json'
 
 export const dynamic = 'force-dynamic'
+
+export const metadata: Metadata = {
+  title: 'System'
+}
 
 const Page = async () => {
   const database = getDatabase()

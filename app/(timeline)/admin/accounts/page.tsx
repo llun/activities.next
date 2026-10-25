@@ -1,3 +1,4 @@
+import { Metadata } from 'next'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 
@@ -20,6 +21,10 @@ import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
 
 export const dynamic = 'force-dynamic'
+
+export const metadata: Metadata = {
+  title: 'Accounts'
+}
 
 const ITEMS_PER_PAGE = 20
 
