@@ -5,6 +5,7 @@ import {
   UpdateDomainRequest,
   hasIdentityOrPolicyFields
 } from '@/app/api/v1/admin/domains/schema'
+import type { LocalActorOnDomain } from '@/lib/database/domains/servedDomain/types'
 import {
   PRIMARY_DOMAIN_FEATURES_ERROR,
   PRIMARY_DOMAIN_IDENTITY_ERROR,
@@ -106,6 +107,15 @@ const describeInvalidRequest = (
   return { field, message: `${label} is not valid.` }
 }
 
+// The blocking actors of a has-profiles refusal, as the body lists them:
+// `{ id, acct }` per actor, with the acct always fully qualified (`user@domain`)
+// so the list stays unambiguous across the server's domains.
+const blockingActors = (actors: LocalActorOnDomain[]) =>
+  actors.map(({ id, username, domain }) => ({
+    id,
+    acct: `${username}@${domain}`
+  }))
+
 const readDomain = async (params: Promise<Params>) =>
   normalizeServedDomainChoice(readDomainRouteParam((await params).domain))
 
@@ -168,6 +178,14 @@ export const PATCH = traceApiRoute(
             'check-failed',
             'The domain did not pass the check, so it stays off.',
             { domain: result.domain }
+          )
+        case 'has-profiles':
+          return failure(
+            req,
+            HTTP_STATUS.CONFLICT,
+            'has-profiles',
+            'Profiles still use this domain, so it cannot be turned off.',
+            { actors: blockingActors(result.actors) }
           )
         case 'updated':
           return apiResponse({
@@ -232,7 +250,8 @@ export const DELETE = traceApiRoute(
           req,
           HTTP_STATUS.CONFLICT,
           'has-profiles',
-          'Profiles still use this domain, so it can only be turned off.'
+          'Profiles still use this domain, so it can only be turned off.',
+          { actors: blockingActors(result.actors) }
         )
       case 'removed':
         return apiResponse({

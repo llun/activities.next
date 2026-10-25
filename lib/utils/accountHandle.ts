@@ -6,6 +6,21 @@ export const parseAccountHandle = (value: string) => {
 }
 
 /**
+ * Whether a handle IS the actor's current one, case-insensitively: the
+ * username folds both sides, the domain folds both sides (a current handle
+ * may have been stored before domains were normalized). A current handle and
+ * a retired one can both resolve to the same actor; only the current one
+ * answers true here, which is what decides whether a resolved URL needs
+ * redirecting to the canonical profile path.
+ */
+export const isCurrentHandle = (
+  actor: { username: string; domain: string },
+  { username, domain }: { username: string; domain: string }
+) =>
+  actor.username.toLowerCase() === username.toLowerCase() &&
+  actor.domain.toLowerCase() === domain.toLowerCase()
+
+/**
  * Drops a case-insensitive `acct:` URI scheme prefix. WebFinger resources and
  * the `uri` other servers hand to `/authorize_interaction` both arrive in that
  * form, and `parseAccountHandle` splits on `@`, so `acct:user@domain` would

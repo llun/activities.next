@@ -79,7 +79,9 @@ describe('GET /api/v1/accounts/search', () => {
       referenceId: oauthActor.id,
       scopes: 'read:accounts'
     })
-    mockGetActorFromId.mockResolvedValue(oauthActor)
+    mockGetActorFromId.mockImplementation(({ id }) =>
+      Promise.resolve(id === oauthActor.id ? oauthActor : null)
+    )
     mockGetActorFromUsername.mockResolvedValue(null)
     mockSearchAccountIds.mockResolvedValue([
       'https://remote.test/users/alice',
@@ -150,6 +152,72 @@ describe('GET /api/v1/accounts/search', () => {
     expect(mockGetMastodonActorsFromIds).toHaveBeenCalledWith({
       ids: [resolvedActor.id, 'https://remote.test/users/alice']
     })
+  })
+
+  it('searches the renamed account by its old handle and immutable actor URL', async () => {
+    const actor = {
+      id: 'https://old.example/users/original',
+      username: 'current-name',
+      domain: 'llun.test',
+      privateKey: 'private-key',
+      account: { id: 'account-id' }
+    }
+    const account = {
+      id: actor.id,
+      username: 'current-name',
+      acct: 'current-name',
+      url: actor.id
+    }
+    mockGetActorFromUsername.mockResolvedValue(actor)
+    mockSearchAccountIds.mockResolvedValue([actor.id])
+    mockGetMastodonActorsFromIds.mockResolvedValue([account])
+
+    const oldHandleResponse = await GET(
+      new NextRequest(
+        'https://llun.test/api/v1/accounts/search?q=original%40old.example&resolve=true',
+        { headers: { Authorization: 'Bearer read-accounts-token' } }
+      ),
+      context
+    )
+
+    expect(oldHandleResponse.status).toBe(200)
+    expect(await oldHandleResponse.json()).toMatchObject([
+      { username: 'current-name' }
+    ])
+    expect(mockGetActorFromUsername).toHaveBeenCalledWith({
+      username: 'original',
+      domain: 'old.example'
+    })
+    expect(mockSearchAccountIds).toHaveBeenCalledWith(
+      expect.objectContaining({ exactActorIds: [actor.id] })
+    )
+
+    mockGetActorFromUsername.mockReset()
+    mockGetActorFromId.mockImplementation(({ id }) =>
+      Promise.resolve(
+        id === actor.id ? actor : id === oauthActor.id ? oauthActor : null
+      )
+    )
+    mockSearchAccountIds.mockClear()
+    mockGetMastodonActorsFromIds.mockResolvedValue([account])
+
+    const actorUrlResponse = await GET(
+      new NextRequest(
+        'https://llun.test/api/v1/accounts/search?q=https%3A%2F%2Fold.example%2Fusers%2Foriginal&resolve=true',
+        { headers: { Authorization: 'Bearer read-accounts-token' } }
+      ),
+      context
+    )
+
+    expect(actorUrlResponse.status).toBe(200)
+    expect(await actorUrlResponse.json()).toMatchObject([
+      { username: 'current-name' }
+    ])
+    expect(mockGetActorFromId).toHaveBeenCalledWith({ id: actor.id })
+    expect(mockGetActorFromUsername).not.toHaveBeenCalled()
+    expect(mockSearchAccountIds).toHaveBeenCalledWith(
+      expect.objectContaining({ exactActorIds: [actor.id] })
+    )
   })
 
   it('refreshes a known remote handle instead of webfingering it', async () => {

@@ -1,4 +1,5 @@
 import {
+  isCurrentHandle,
   parseAccountHandle,
   parseAccountUrlHandle,
   parseActorUrlAccountHandle,
@@ -207,5 +208,33 @@ describe('parseAccountUrlHandle', () => {
       parseAccountUrlHandle('https://example.com/users/test/statuses/1')
     ).toBeNull()
     expect(parseAccountUrlHandle('user@example.com')).toBeNull()
+  })
+})
+
+describe('isCurrentHandle', () => {
+  const actor = { username: 'renamed', domain: 'Example.test' }
+
+  it('answers true for the actor current handle in any casing', () => {
+    expect(
+      isCurrentHandle(actor, { username: 'renamed', domain: 'example.test' })
+    ).toBe(true)
+    expect(
+      isCurrentHandle(actor, { username: 'RENAMED', domain: 'EXAMPLE.TEST' })
+    ).toBe(true)
+  })
+
+  it('answers false for a retired handle of the same actor', () => {
+    expect(
+      isCurrentHandle(actor, { username: 'previous', domain: 'example.test' })
+    ).toBe(false)
+  })
+
+  it('answers false for another actor handle on the same domain', () => {
+    expect(
+      isCurrentHandle(actor, {
+        username: 'someoneelse',
+        domain: 'example.test'
+      })
+    ).toBe(false)
   })
 })

@@ -716,6 +716,18 @@ export const deleteActorData = async (
       // Table might not exist in older migrations
     }
 
+    // The handle ledger survives the actor: its current row is retired, not
+    // deleted, so the deleted actor's handles — and the username path inside
+    // its federated id — can never be re-registered on this domain, as in
+    // Mastodon. The retired rows keep resolving only while an actor row
+    // exists, which this deletion removes; the reservation is what stays.
+    await trx
+      .updateTable('actor_handles')
+      .set({ replacedAt: currentTime })
+      .where('actorId', '=', actorId)
+      .where('replacedAt', 'is', null)
+      .execute()
+
     // Finally delete the actor
     await trx.deleteFrom('actors').where('id', '=', actorId).execute()
     // Called through searchQueries, so a test can stand in for it.

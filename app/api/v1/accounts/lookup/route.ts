@@ -106,9 +106,14 @@ export const GET = traceApiRoute('lookupAccount', async (req: NextRequest) => {
     })
 
   const host = headerHost(req.headers)
-  const handle = parseAccountHandle(acct, host)
+  const trimmedAcct = acct.trim()
+  const actorFromId = /^https?:\/\//i.test(trimmedAcct)
+    ? await database.getActorFromId({ id: trimmedAcct })
+    : null
+  const handle = actorFromId ? null : parseAccountHandle(trimmedAcct, host)
+  const handleOrActor = handle ?? actorFromId
 
-  if (!handle)
+  if (!handleOrActor)
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
@@ -116,7 +121,7 @@ export const GET = traceApiRoute('lookupAccount', async (req: NextRequest) => {
       responseStatusCode: 400
     })
 
-  const { username, domain } = handle
+  const { username, domain } = handleOrActor
 
   // Remote fetches (resolving an unknown handle, or refreshing a known remote
   // actor) require an authenticated viewer: the web session, or a bearer token
@@ -172,7 +177,8 @@ export const GET = traceApiRoute('lookupAccount', async (req: NextRequest) => {
     if (!auth.authorized && auth.bearerResponse) return auth.bearerResponse
   }
 
-  let actor = await database.getActorFromUsername({ username, domain })
+  let actor =
+    actorFromId ?? (await database.getActorFromUsername({ username, domain }))
 
   if (actor) {
     // Profile headers are commonly built from this endpoint's response, so a

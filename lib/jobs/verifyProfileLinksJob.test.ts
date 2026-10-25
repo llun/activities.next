@@ -175,4 +175,36 @@ describe('verifyProfileLinksJob', () => {
 
     expect(mockedVerify).not.toHaveBeenCalled()
   })
+
+  // A rename keeps the actor id and retires the old handle, so a page still
+  // linking to the previous profile URL keeps its verification.
+  it('accepts the previous profile URL as a link back after a rename', async () => {
+    await database.recordActorHandleRename({
+      actorId: ACTOR1_ID,
+      username: 'renamed1',
+      domain: 'llun.test',
+      now: new Date('2026-01-01T00:00:00.000Z'),
+      cooldownMs: 30 * 24 * 60 * 60 * 1000
+    })
+    await database.updateActor({
+      actorId: ACTOR1_ID,
+      fields: [{ name: 'Blog', value: 'https://blog.example' }]
+    })
+    mockedVerify.mockImplementation(async ({ linkBacks }) =>
+      linkBacks.includes('https://llun.test/@test1')
+    )
+
+    await run(database, ACTOR1_ID)
+
+    expect(mockedVerify).toHaveBeenCalledWith({
+      url: 'https://blog.example',
+      linkBacks: [
+        'https://llun.test/@renamed1',
+        ACTOR1_ID,
+        'https://llun.test/@test1'
+      ]
+    })
+    const actor = await database.getActorFromId({ id: ACTOR1_ID })
+    expect(actor?.fields?.[0].verifiedAt).toEqual(expect.any(Number))
+  })
 })

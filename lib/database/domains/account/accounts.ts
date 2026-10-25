@@ -15,6 +15,7 @@ import type {
   UpdateAccountNameParams,
   VerifyAccountParams
 } from '@/lib/database/domains/account/types'
+import { getActorIdFromHandle } from '@/lib/database/domains/actorHandle/queries'
 import { indexActorSearchDocument } from '@/lib/database/domains/search/accounts'
 import { type Db, inTransaction } from '@/lib/database/kysely'
 import {
@@ -109,7 +110,16 @@ export const isUsernameExists = async (
   // Case-insensitive, so an existing `Alice` refuses a new `alice`. Without
   // this the two creation paths would mint a second actor whose handle is
   // indistinguishable from the first one's to every case-insensitive client.
-  Boolean(await findActorRowByUsername(db, { username, domain }))
+  // The handle ledger counts too — every row, current or replaced, of any
+  // actor — because a renamed or deleted actor's handle stays reserved
+  // forever, and both username and domain fold here.
+  Boolean(await findActorRowByUsername(db, { username, domain })) ||
+  Boolean(
+    await getActorIdFromHandle(db, {
+      username,
+      domain: domain.toLowerCase()
+    })
+  )
 
 export const createAccount = async (
   db: Db,
@@ -182,6 +192,22 @@ export const createAccount = async (
       })
       .execute()
     await trx.insertInto('actors').values(actor).execute()
+    // The current handle ledger row commits with the actor. A handle any
+    // ledger row already holds — current or retired, of any actor — refuses
+    // the mint here exactly the way the actors unique index refuses an
+    // existing actor: the folded unique index rejects the insert and the
+    // transaction rolls back.
+    await trx
+      .insertInto('actor_handles')
+      .values({
+        id: generatePublicId(),
+        actorId: actor.id,
+        username,
+        domain: domain.toLowerCase(),
+        createdAt: currentTime,
+        replacedAt: null
+      })
+      .execute()
     await trx
       .insertInto('account_providers')
       .values({
@@ -307,6 +333,19 @@ export const createActorForAccount = async (
 
   await inTransaction(db, async (trx) => {
     await trx.insertInto('actors').values(actor).execute()
+    // See createAccount: the current ledger row commits with the actor and
+    // its folded unique index refuses a handle any ledger row holds.
+    await trx
+      .insertInto('actor_handles')
+      .values({
+        id: generatePublicId(),
+        actorId: actor.id,
+        username,
+        domain: domain.toLowerCase(),
+        createdAt: currentTime,
+        replacedAt: null
+      })
+      .execute()
     await increaseCounterValue(
       trx,
       CounterKey.serviceTotalActors(),

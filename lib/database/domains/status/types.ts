@@ -589,3 +589,39 @@ export interface StatusDeletionDatabase {
     params: DeleteStatusWithQueueJobParams
   ): Promise<boolean>
 }
+
+export type GetStatusesForUrlRewriteParams = {
+  actorId: string
+  // The full URL prefix the statuses to rewrite start with, e.g.
+  // `https://old.example/@oldname/`. The caller embeds the handle in it.
+  urlPrefix: string
+  // Keyset cursor: the last statuses.id of the previous page, or null/absent
+  // for the first page.
+  after?: string | null
+  limit: number
+}
+
+export type StatusUrlRewriteRow = {
+  id: string
+  url: string
+}
+
+export type RewriteStatusUrlParams = {
+  statusId: string
+  url: string
+  urlHash: string
+}
+
+/** The URL rewrite behind RenameStatusUrlsJob; StatusDatabase extends it. */
+export interface StatusUrlRewriteDatabase {
+  // One keyset page, ordered by statuses.id ascending, of the actor's
+  // statuses whose url starts with `urlPrefix`. Announces (a null url) never
+  // match. No hydration: the job reads and rewrites the two columns only.
+  getStatusesForUrlRewrite(
+    params: GetStatusesForUrlRewriteParams
+  ): Promise<StatusUrlRewriteRow[]>
+  // Rewrites one status's url and urlHash in place. Deliberately NOT a
+  // status edit: no status_history row and no updatedAt bump, because the
+  // rename only changes the handle embedded in the permalink.
+  rewriteStatusUrl(params: RewriteStatusUrlParams): Promise<void>
+}

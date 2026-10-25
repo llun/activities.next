@@ -23,10 +23,14 @@ import type {
   GetActorsScheduledForDeletionParams,
   IsCurrentActorFollowingParams
 } from '@/lib/database/domains/actor/types'
+import { getActorIdFromHandle } from '@/lib/database/domains/actorHandle/queries'
 import { type Db, inTransaction } from '@/lib/database/kysely'
 import { timestampValue } from '@/lib/database/kysely/dialect'
 import { getWhereInBatchSize } from '@/lib/database/kysely/inList'
-import { findActorRowByUsername } from '@/lib/database/kysely/usernameMatch'
+import {
+  findActorRowByUsernameExact,
+  findActorRowByUsernameFolded
+} from '@/lib/database/kysely/usernameMatch'
 import { getCompatibleJSON } from '@/lib/database/utils/getCompatibleJSON'
 import {
   resolveIdsByPublicIds,
@@ -120,9 +124,25 @@ export const getActorFromUsername = async (
   // Case-insensitive: a handle reaches this from a URL path, a mention, a
   // WebFinger resource and a search box, and none of them control casing.
   // See findActorRowByUsername for why the exact match is still tried first.
-  const row = await findActorRowByUsername(db, { username, domain })
-  if (!row) return null
-  return toActorWithAccount(db, asSQLActor(row))
+  const exactRow = await findActorRowByUsernameExact(db, { username, domain })
+  if (exactRow) return toActorWithAccount(db, asSQLActor(exactRow))
+  // Ledger arm, before the folded actors arm: every ledger row for the
+  // folded handle names the actor the handle belongs to (the folded unique
+  // index allows one row per handle, so a lookup is never ambiguous). A
+  // REPLACED row resolves a renamed actor through the handle it gave up; a
+  // CURRENT row answers a casing miss with its holder, so `ALICE` resolves
+  // to the ledger's holder `alice`, never to a folded twin `Alice` — the
+  // reservation says who the handle is, and it wins over any live twin.
+  // A deleted actor's rows are retired by its deletion, so the load below
+  // turns them into null: a deleted handle resolves to a gone actor and
+  // stays null, never the twin. Domains fold at read.
+  const ledgerActorId = await getActorIdFromHandle(db, {
+    username,
+    domain
+  })
+  if (ledgerActorId) return getActorFromId(db, { id: ledgerActorId })
+  const foldedRow = await findActorRowByUsernameFolded(db, { username, domain })
+  return foldedRow ? toActorWithAccount(db, asSQLActor(foldedRow)) : null
 }
 
 export const getActorsFromIds = async (

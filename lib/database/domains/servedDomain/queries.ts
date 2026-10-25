@@ -1,12 +1,16 @@
-import type { Selectable } from 'kysely'
+import type { Selectable, SqlBool } from 'kysely'
+import { sql } from 'kysely'
 import { randomUUID } from 'node:crypto'
 
+import { escapeLikePattern } from '@/lib/database/domains/search/rows'
 import type {
   CountLocalActorsByDomainParams,
   CreateServedDomainParams,
   DeleteServedDomainParams,
   DomainCheckResult,
+  GetLocalActorsOnDomainParams,
   GetServedDomainParams,
+  LocalActorOnDomain,
   ServedDomainData,
   ServedDomainWithPoliciesData,
   UpdateServedDomainParams
@@ -316,22 +320,53 @@ export const deleteServedDomainWithScopes = (
     return Number(numDeletedRows) > 0
   })
 
+// The two ways a local actor can use a domain: as its current handle's
+// domain, or as the host of its immutable actor id (`https://<domain>/users/…`
+// — the id survives a rename, so a renamed-away actor still blocks its old
+// domain, and a renamed-onto actor blocks its new one from the id as well).
+// Case-folded both ways, with the domain escaped for LIKE.
+const usesDomain = (normalized: string) =>
+  sql<SqlBool>`(lower(${sql.ref('domain')}) = ${normalized} or lower(${sql.ref('id')}) like ${`https://${escapeLikePattern(normalized)}/users/%`} escape '\\')`
+
+export const getLocalActorsOnDomain = async (
+  db: Db,
+  { domain }: GetLocalActorsOnDomainParams
+): Promise<LocalActorOnDomain[]> => {
+  const normalized = domain.trim().toLowerCase()
+  if (!normalized) return []
+  return db
+    .selectFrom('actors')
+    .select(['id', 'username', 'domain'])
+    .$narrowType<{ id: string; username: string; domain: string }>()
+    .where('accountId', 'is not', null)
+    .where(isLocalActor)
+    .where(usesDomain(normalized))
+    .orderBy('username', 'asc')
+    .orderBy('id', 'asc')
+    .execute()
+}
+
 export const countLocalActorsByDomain = async (
   db: Db,
   { domains }: CountLocalActorsByDomainParams
 ): Promise<Record<string, number>> => {
   if (domains.length === 0) return {}
-  const rows = await db
-    .selectFrom('actors')
-    .select((eb) => ['domain', eb.fn.countAll<number | string>().as('total')])
-    .where('domain', 'in', domains)
-    .where('accountId', 'is not', null)
-    .where(isLocalActor)
-    .groupBy('domain')
-    .execute()
+  // One count per domain, on the same match the refusal uses, so the list's
+  // profile count never disagrees with what turning the domain off would be
+  // refused for. A domain with none stays absent from the map.
   const counts: Record<string, number> = {}
-  for (const row of rows) {
-    if (row.domain) counts[row.domain] = Number(row.total)
+  for (const domain of domains) {
+    const normalized = domain.trim().toLowerCase()
+    if (!normalized) continue
+    const row = await db
+      .selectFrom('actors')
+      .select((eb) => eb.fn.countAll<number>().as('total'))
+      .where('accountId', 'is not', null)
+      .where(isLocalActor)
+      .where(usesDomain(normalized))
+      .executeTakeFirst()
+    const total = Number(row?.total ?? 0)
+    if (total > 0) counts[normalized] = total
   }
   return counts
 }
@@ -345,5 +380,6 @@ export const servedDomainQueries = {
   getActiveServedDomains,
   deleteServedDomain,
   deleteServedDomainWithScopes,
-  countLocalActorsByDomain
+  countLocalActorsByDomain,
+  getLocalActorsOnDomain
 }

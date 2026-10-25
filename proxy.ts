@@ -16,6 +16,10 @@ import {
   getEmbedContentSecurityPolicyHeader,
   getMediaFileContentSecurityPolicyHeader
 } from '@/lib/utils/http-headers/csp'
+import {
+  LOCAL_HANDLE_REDIRECT_PATH_HEADER,
+  LOCAL_HANDLE_REDIRECT_SEARCH_HEADER
+} from '@/lib/utils/http-headers/localHandleRedirect'
 
 // Next buffers the body of every non-GET/HEAD request the proxy runs on, so the
 // proxy and the route handler can both read it, and caps that buffer at
@@ -88,6 +92,39 @@ const hasHostOutsideEnv = (headers: Headers): boolean => {
 }
 
 const HANDLE_REDIRECT_PATH = '/api/handle-redirect'
+
+// The request headers every forwarded branch carries: the client-sent
+// `x-activities-local-handle-*` pair is deleted on EVERY request the proxy
+// runs on, so a value the client set itself never reaches the [actor] layout
+// on a path the proxy does not rewrite (there it would 308 an
+// attacker-chosen same-origin path). Only the branches that rewrite to the
+// profile set the headers, through getProfileRequestHeaders below.
+const forwardedRequestHeaders = (request: NextRequest) => {
+  const headers = new Headers(request.headers)
+  headers.delete(LOCAL_HANDLE_REDIRECT_PATH_HEADER)
+  headers.delete(LOCAL_HANDLE_REDIRECT_SEARCH_HEADER)
+  return headers
+}
+
+// The request-header override a forwarding branch passes, or undefined when
+// the request is forwarded untouched. Next applies the override by deleting
+// every request header the override list does not name, so building one on
+// every request (inbox POSTs, uploads, every page view) rebuilds the whole
+// header set for nothing; it is built only when the client actually sent a
+// pair to strip. The profile branches always build theirs through
+// getProfileRequestHeaders.
+const forwardedRequestInit = (request: NextRequest) =>
+  request.headers.has(LOCAL_HANDLE_REDIRECT_PATH_HEADER) ||
+  request.headers.has(LOCAL_HANDLE_REDIRECT_SEARCH_HEADER)
+    ? { request: { headers: forwardedRequestHeaders(request) } }
+    : undefined
+
+const getProfileRequestHeaders = (request: NextRequest) => {
+  const headers = forwardedRequestHeaders(request)
+  headers.set(LOCAL_HANDLE_REDIRECT_PATH_HEADER, request.nextUrl.pathname)
+  headers.set(LOCAL_HANDLE_REDIRECT_SEARCH_HEADER, request.nextUrl.search)
+  return headers
+}
 
 const withContentSecurityPolicy = (
   response: NextResponse,
@@ -201,7 +238,10 @@ export async function proxy(request: NextRequest) {
 
   if (request.method === 'GET' || request.method === 'HEAD') {
     if (pathname === '/sw.js') {
-      const response = withContentSecurityPolicy(NextResponse.next(), request)
+      const response = withContentSecurityPolicy(
+        NextResponse.next(forwardedRequestInit(request)),
+        request
+      )
       response.headers.set(
         'Cache-Control',
         'no-cache, no-store, must-revalidate'
@@ -219,22 +259,33 @@ export async function proxy(request: NextRequest) {
         'application/json'
       ])
     ) {
-      // Actor route
-      if (/^\/@\w+$/.test(pathname)) {
-        const matches = pathname.match(/^\/@(?<username>\w+)/)
+      // Actor route. The character class is the permissive historical one —
+      // legacy usernames may start with `.` or `-` — and only the dot
+      // segments `.` and `..` are refused: a rewrite to `/api/users/.` or
+      // `/api/users/..` would be collapsed by the URL parser onto `/api`.
+      if (/^\/@(?!\.\.?(?:\/|$))[a-zA-Z0-9._-]+$/.test(pathname)) {
+        const matches = pathname.match(
+          /^\/@(?!\.\.?(?:\/|$))(?<username>[a-zA-Z0-9._-]+)$/
+        )
         const apiUrl = request.nextUrl.clone()
         apiUrl.pathname = `/api/users/${matches?.groups?.username}`
-        return withContentSecurityPolicy(NextResponse.rewrite(apiUrl), request)
+        return withContentSecurityPolicy(
+          NextResponse.rewrite(apiUrl, forwardedRequestInit(request)),
+          request
+        )
       }
 
       // Actor status route
-      if (/^\/@\w+\/[\w-]+$/.test(pathname)) {
+      if (/^\/@(?!\.\.?(?:\/|$))[a-zA-Z0-9._-]+\/[\w-]+$/.test(pathname)) {
         const matches = pathname.match(
-          /^\/@(?<username>\w+)\/(?<statusId>[\w-]+)/
+          /^\/@(?!\.\.?(?:\/|$))(?<username>[a-zA-Z0-9._-]+)\/(?<statusId>[\w-]+)$/
         )
         const apiUrl = request.nextUrl.clone()
         apiUrl.pathname = `/api/users/${matches?.groups?.username}/statuses/${matches?.groups?.statusId}`
-        return withContentSecurityPolicy(NextResponse.rewrite(apiUrl), request)
+        return withContentSecurityPolicy(
+          NextResponse.rewrite(apiUrl, forwardedRequestInit(request)),
+          request
+        )
       }
     }
 
@@ -243,7 +294,12 @@ export async function proxy(request: NextRequest) {
       const pathname = request.nextUrl.pathname
       const totalAt = pathname.split('@').length - 1
       if (totalAt === 2) {
-        return withContentSecurityPolicy(NextResponse.next(), request)
+        return withContentSecurityPolicy(
+          NextResponse.next({
+            request: { headers: getProfileRequestHeaders(request) }
+          }),
+          request
+        )
       }
 
       // On a host the env does not list (an added domain, or one we do not
@@ -257,7 +313,7 @@ export async function proxy(request: NextRequest) {
           query: request.nextUrl.search
         }).toString()
         return withContentSecurityPolicy(
-          NextResponse.rewrite(redirectUrl),
+          NextResponse.rewrite(redirectUrl, forwardedRequestInit(request)),
           request
         )
       }
@@ -268,11 +324,22 @@ export async function proxy(request: NextRequest) {
 
       const cloneUrl = request.nextUrl.clone()
       cloneUrl.pathname = `/${pathItems.join('/')}`
-      return withContentSecurityPolicy(NextResponse.rewrite(cloneUrl), request)
+      return withContentSecurityPolicy(
+        NextResponse.rewrite(cloneUrl, {
+          request: { headers: getProfileRequestHeaders(request) }
+        }),
+        request
+      )
     }
 
-    return withContentSecurityPolicy(NextResponse.next(), request)
+    return withContentSecurityPolicy(
+      NextResponse.next(forwardedRequestInit(request)),
+      request
+    )
   }
 
-  return withContentSecurityPolicy(NextResponse.next(), request)
+  return withContentSecurityPolicy(
+    NextResponse.next(forwardedRequestInit(request)),
+    request
+  )
 }

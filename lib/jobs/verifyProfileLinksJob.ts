@@ -42,7 +42,19 @@ export const verifyProfileLinksJob: JobHandle = createJobHandle(
       const remote = !actor.privateKey
       // A remote actor's own `url` is not stored; Mastodon-compatible servers
       // serve the profile at /@username, and the actor id covers the rest.
-      const linkBacks = [getActorProfileUrl(actor), actor.id]
+      // A rename retires the old handle but keeps the actor id, so every
+      // replaced ledger row's profile URL still counts as a link back: a page
+      // linking to the previous profile keeps its verification.
+      const previousProfileUrls = (
+        await database.getActorHandles({ actorId: actor.id })
+      )
+        .filter((handle) => handle.replacedAt !== null)
+        .map((handle) => `https://${handle.domain}/@${handle.username}`)
+      const linkBacks = [
+        getActorProfileUrl(actor),
+        actor.id,
+        ...previousProfileUrls
+      ]
 
       // Only the first four fields are checked, even for a remote actor that keeps
       // more (Mastodon keeps 50): this bounds the outbound fetches per run.

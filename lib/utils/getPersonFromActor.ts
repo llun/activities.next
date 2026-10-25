@@ -92,6 +92,7 @@ export const getPersonFromActor = (
     featured: getLocalActorFeaturedCollectionId(actor.id),
     featuredTags: getLocalActorFeaturedTagsCollectionId(actor.id),
     preferredUsername: actor.username,
+    webfinger: `${actor.username}@${actor.domain}`,
     name: actor.name || '',
     summary: actor.summary || '',
     url: profileUrl,
@@ -127,6 +128,7 @@ export const getPersonFromActor = (
     '@context': [
       'https://www.w3.org/ns/activitystreams',
       'https://w3id.org/security/v1',
+      'https://purl.archive.org/socialweb/webfinger',
       {
         // Not in the ActivityStreams context document; Mastodon declares it
         // the same way so compacting peers keep the term.

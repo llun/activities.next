@@ -14,7 +14,7 @@ import {
 } from '@/lib/services/domains/servedDomainSnapshot'
 import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
 
-import { GET, PATCH } from './route'
+import { DELETE, GET, PATCH } from './route'
 
 const holder = vi.hoisted(() => ({ db: null as Database | null }))
 
@@ -61,6 +61,15 @@ const get = (domain: string) =>
   GET(new NextRequest(url(domain)), {
     params: Promise.resolve({ domain: encodeURIComponent(domain) })
   })
+
+const del = (domain: string) =>
+  DELETE(
+    new NextRequest(url(domain), {
+      method: 'DELETE',
+      headers: { Origin: ORIGIN }
+    }),
+    { params: Promise.resolve({ domain: encodeURIComponent(domain) }) }
+  )
 
 describe('/api/v1/admin/domains/:domain identity and policies', () => {
   beforeEach(async () => {
@@ -373,6 +382,69 @@ describe('/api/v1/admin/domains/:domain identity and policies', () => {
         disabledFeatures: ['fitness']
       })
       expect(response.status).toBe(422)
+    })
+  })
+
+  // A rename keeps the actor id, so an actor renamed away from the domain
+  // still blocks it, and one renamed onto it blocks it too.
+  describe('has-profiles refusal with a renamed actor', () => {
+    const createActorOnDomain = async (username: string, domain: string) => {
+      const accountId = await holder.db!.createAccount({
+        email: `${username}-${crypto.randomUUID()}@mail.example`,
+        username,
+        passwordHash: 'hash',
+        domain,
+        privateKey: `private-${username}`,
+        publicKey: `public-${username}`
+      })
+      const actors = await holder.db!.getActorsForAccount({ accountId })
+      return actors[0].id
+    }
+
+    it('answers 409 with the blocking actors for a status change', async () => {
+      const actorId = await createActorOnDomain('mover', 'run.example')
+      await holder.db!.recordActorHandleRename({
+        actorId,
+        username: 'moved',
+        domain: 'new.example',
+        now: new Date('2026-01-01T00:00:00.000Z'),
+        cooldownMs: 30 * 24 * 60 * 60 * 1000
+      })
+
+      const response = await patch('run.example', { status: 'off' })
+      expect(response.status).toBe(409)
+      await expect(response.json()).resolves.toEqual({
+        error: 'Profiles still use this domain, so it cannot be turned off.',
+        code: 'has-profiles',
+        actors: [{ id: actorId, acct: 'moved@new.example' }]
+      })
+      // The domain row is untouched.
+      expect(
+        (await holder.db!.getServedDomain({ domain: 'run.example' }))?.status
+      ).toBe('on')
+    })
+
+    it('answers 409 with the blocking actors for a removal', async () => {
+      // Off first: the actor created below would refuse the turn-off itself.
+      await patch('run.example', { status: 'off' })
+      const actorId = await createActorOnDomain('stayer', 'run.example')
+
+      const response = await del('run.example')
+      expect(response.status).toBe(409)
+      await expect(response.json()).resolves.toEqual({
+        error: 'Profiles still use this domain, so it can only be turned off.',
+        code: 'has-profiles',
+        actors: [{ id: actorId, acct: 'stayer@run.example' }]
+      })
+      await expect(
+        holder.db!.getServedDomain({ domain: 'run.example' })
+      ).resolves.toMatchObject({ domain: 'run.example' })
+    })
+
+    it('turns a domain with no local actors off', async () => {
+      const response = await patch('run.example', { status: 'off' })
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toMatchObject({ status: 'off' })
     })
   })
 })

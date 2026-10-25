@@ -7,6 +7,7 @@ import { accountNoteQueries } from '@/lib/database/domains/accountNote/queries'
 import { actorQueries } from '@/lib/database/domains/actor/queries'
 import type { SQLActorDatabase } from '@/lib/database/domains/actor/types'
 import { actorDomainBlockQueries } from '@/lib/database/domains/actorDomainBlock/queries'
+import { actorHandleQueries } from '@/lib/database/domains/actorHandle/queries'
 import { actorMigrationQueries } from '@/lib/database/domains/actorMigration/queries'
 import { adminQueries } from '@/lib/database/domains/admin/queries'
 import { announcementQueries } from '@/lib/database/domains/announcement/queries'
@@ -173,6 +174,7 @@ export const getSQLDatabase = (
     ...bindDb(kysely, wahooImportQueries),
     ...bindDb(kysely, bulkImportQueries),
     ...bindDb(kysely, actorMigrationQueries),
+    ...bindDb(kysely, actorHandleQueries),
     ...bindDb(kysely, suggestionQueries),
     ...bindDb(kysely, trendsQueries),
     ...statusDatabase,

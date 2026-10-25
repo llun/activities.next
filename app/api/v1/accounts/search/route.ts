@@ -95,16 +95,22 @@ export const GET = traceApiRoute(
       // hand, so its refresh only has to finish before serialization and runs
       // alongside the index search. This route is always authenticated
       // (OAuthGuardAnyScope).
+      const actorFromId =
+        resolve && offset === 0 && /^https?:\/\//i.test(query)
+          ? await database.getActorFromId({ id: query })
+          : null
       const handle =
-        resolve && offset === 0
+        resolve && offset === 0 && !actorFromId
           ? (parseAccountHandle(query) ?? parseAccountUrlHandle(query))
           : null
-      const storedExactActor = handle
-        ? await database.getActorFromUsername({
-            username: handle.username,
-            domain: handle.domain
-          })
-        : null
+      const storedExactActor =
+        actorFromId ??
+        (handle
+          ? await database.getActorFromUsername({
+              username: handle.username,
+              domain: handle.domain
+            })
+          : null)
       let exactActorId = storedExactActor?.id ?? null
       let exactActorRefresh: Promise<unknown> = Promise.resolve()
       if (handle) {

@@ -1,4 +1,5 @@
 import { compactActivityPub } from '@/lib/activities/jsonld'
+import { hasFederatedProfileChange } from '@/lib/services/actors/hasFederatedProfileChange'
 import { MockActor } from '@/lib/stub/actor'
 import { Actor as ActivityPubActor } from '@/lib/types/activitypub'
 import { getActorProfileFields } from '@/lib/utils/activitypubActor'
@@ -11,6 +12,7 @@ describe('getPersonFromActor', () => {
       '@context': [
         'https://www.w3.org/ns/activitystreams',
         'https://w3id.org/security/v1',
+        'https://purl.archive.org/socialweb/webfinger',
         {
           manuallyApprovesFollowers: 'as:manuallyApprovesFollowers',
           toot: 'http://joinmastodon.org/ns#',
@@ -27,6 +29,7 @@ describe('getPersonFromActor', () => {
       featured: `https://chat.llun.dev/users/me/collections/featured`,
       featuredTags: `https://chat.llun.dev/users/me/collections/tags`,
       preferredUsername: 'me',
+      webfinger: 'me@chat.llun.dev',
       name: '',
       summary: '',
       url: `https://chat.llun.dev/@me`,
@@ -43,6 +46,50 @@ describe('getPersonFromActor', () => {
         sharedInbox: `https://chat.llun.dev/inbox`
       }
     })
+  })
+
+  it.each(['Person', 'Service'] as const)(
+    'emits the current bare WebFinger handle for a local %s',
+    async (type) => {
+      const actor = {
+        ...MockActor({}),
+        id: 'https://old.example/users/alice',
+        username: 'new.name',
+        domain: 'new.example',
+        type
+      }
+
+      const person = getPersonFromActor(actor)
+      expect(person.id).toBe('https://old.example/users/alice')
+      expect(person.preferredUsername).toBe('new.name')
+      expect(person.webfinger).toBe('new.name@new.example')
+      expect(person['@context']).toContain(
+        'https://purl.archive.org/socialweb/webfinger'
+      )
+
+      const compacted = await compactActivityPub(
+        JSON.parse(JSON.stringify(person))
+      )
+      expect(compacted.webfinger).toBe('new.name@new.example')
+    }
+  )
+
+  it('counts username and domain renames as federated profile changes', () => {
+    const before = {
+      ...MockActor({}),
+      type: 'Service' as const,
+      id: 'https://old.example/users/alice',
+      username: 'alice',
+      domain: 'old.example'
+    }
+
+    expect(hasFederatedProfileChange(before, before)).toBe(false)
+    expect(
+      hasFederatedProfileChange(before, { ...before, username: 'bob' })
+    ).toBe(true)
+    expect(
+      hasFederatedProfileChange(before, { ...before, domain: 'new.example' })
+    ).toBe(true)
   })
 
   it('serializes custom emoji tags and includes toot:Emoji in @context', () => {

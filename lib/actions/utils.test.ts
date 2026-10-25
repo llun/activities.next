@@ -4,7 +4,10 @@ import { compactActivityPub } from '@/lib/activities/jsonld'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { mockRequests } from '@/lib/stub/activities'
+import { JRD_JSON_HEADERS } from '@/lib/stub/activities'
 import { MockActor } from '@/lib/stub/actor'
+import { TEST_DOMAIN, TEST_PASSWORD_HASH } from '@/lib/stub/const'
+import { MockWebfinger } from '@/lib/stub/webfinger'
 import { Actor as ActivityPubActor } from '@/lib/types/activitypub'
 import { getPersonFromActor } from '@/lib/utils/getPersonFromActor'
 
@@ -380,6 +383,262 @@ describe('recordActorIfNeeded', () => {
     })
 
     expect(actor).toMatchObject({ id: actorId, name: 'Kept Name' })
+  })
+
+  describe('remote rename on refresh (same id, new handle)', () => {
+    // Answers WebFinger for each `account` on the host its domain names, and
+    // 404s everything else, so a lookup on the wrong host or handle fails.
+    const serveWebfinger = (
+      accounts: Record<string, { self: string; subject?: string }>
+    ) => {
+      fetchMock.resetMocks()
+      fetchMock.mockResponse(async (req) => {
+        const url = new URL(req.url)
+        const account = url.searchParams.get('resource')?.replace(/^acct:/, '')
+        const served = account ? accounts[account] : undefined
+        if (
+          url.pathname !== '/.well-known/webfinger' ||
+          !account ||
+          !served ||
+          url.host !== account.split('@')[1]
+        ) {
+          return { status: 404, body: 'Not Found' }
+        }
+        const document = MockWebfinger({ account, userUrl: served.self })
+        return {
+          status: 200,
+          headers: JRD_JSON_HEADERS,
+          body: JSON.stringify({
+            ...document,
+            subject: served.subject ?? document.subject
+          })
+        }
+      })
+    }
+
+    const askedAccounts = () =>
+      fetchMock.mock.calls.map(([input]) =>
+        new URL(String(input)).searchParams.get('resource')
+      )
+
+    const createStoredRemoteActor = async (
+      actorId: string,
+      username: string,
+      domain: string,
+      overrides: Record<string, unknown> = {}
+    ) => {
+      await database.createActor({
+        actorId,
+        type: 'Person',
+        username,
+        domain,
+        followersUrl: `${actorId}/followers`,
+        inboxUrl: `${actorId}/inbox`,
+        sharedInboxUrl: `https://${domain}/inbox`,
+        publicKey: 'public-key',
+        createdAt: Date.now(),
+        ...overrides
+      })
+      return database.getActorFromId({ id: actorId })
+    }
+
+    const renamePerson = (actorId: string, webfinger: string) =>
+      mockGetActorPerson.mockResolvedValue(
+        mockPerson(actorId, {
+          name: 'New Name',
+          preferredUsername: webfinger.split('@')[0],
+          webfinger
+        })
+      )
+
+    it('updates the stored row when the same-domain rename confirms', async () => {
+      const actorId = 'https://remote-rename.test/users/alice'
+      await createStoredRemoteActor(actorId, 'alice', 'remote-rename.test', {
+        name: 'Old Name'
+      })
+      renamePerson(actorId, 'bob@remote-rename.test')
+      serveWebfinger({ 'bob@remote-rename.test': { self: actorId } })
+
+      const actor = await recordActorIfNeeded({
+        actorId,
+        database,
+        forceRefresh: true
+      })
+
+      expect(actor).toMatchObject({
+        id: actorId,
+        username: 'bob',
+        domain: 'remote-rename.test'
+      })
+      await expect(
+        database.getActorFromId({ id: actorId })
+      ).resolves.toMatchObject({
+        username: 'bob',
+        domain: 'remote-rename.test'
+      })
+      await expect(
+        database.getActorFromUsername({
+          username: 'alice',
+          domain: 'remote-rename.test'
+        })
+      ).resolves.toBeNull()
+    })
+
+    it('updates the stored row onto the domain the webfinger property names', async () => {
+      const actorId = 'https://old.remote-rename.test/users/alice'
+      await createStoredRemoteActor(actorId, 'alice', 'old.remote-rename.test')
+      renamePerson(actorId, 'bob@new.remote-rename.test')
+      serveWebfinger({ 'bob@new.remote-rename.test': { self: actorId } })
+
+      const actor = await recordActorIfNeeded({
+        actorId,
+        database,
+        forceRefresh: true
+      })
+
+      expect(actor).toMatchObject({
+        id: actorId,
+        username: 'bob',
+        domain: 'new.remote-rename.test'
+      })
+    })
+
+    it('keeps the stored row when the claimed domain points at another actor', async () => {
+      const actorId = 'https://wrong.remote-rename.test/users/alice'
+      await createStoredRemoteActor(
+        actorId,
+        'alice',
+        'wrong.remote-rename.test',
+        {
+          name: 'Old Name'
+        }
+      )
+      renamePerson(actorId, 'bob@wrong-new.remote-rename.test')
+      serveWebfinger({
+        'bob@wrong-new.remote-rename.test': {
+          self: 'https://wrong.remote-rename.test/users/mallory'
+        }
+      })
+
+      const actor = await recordActorIfNeeded({
+        actorId,
+        database,
+        forceRefresh: true
+      })
+
+      expect(actor).toMatchObject({
+        username: 'alice',
+        domain: 'wrong.remote-rename.test',
+        name: 'Old Name'
+      })
+      await expect(
+        database.getActorFromId({ id: actorId })
+      ).resolves.toMatchObject({
+        username: 'alice',
+        domain: 'wrong.remote-rename.test',
+        name: 'Old Name'
+      })
+    })
+
+    it('keeps the stored row when the claimed domain loops back to the old handle', async () => {
+      const actorId = 'https://loop.remote-rename.test/users/alice'
+      await createStoredRemoteActor(actorId, 'alice', 'loop.remote-rename.test')
+      renamePerson(actorId, 'bob@loop-new.remote-rename.test')
+      serveWebfinger({
+        'bob@loop-new.remote-rename.test': {
+          self: actorId,
+          subject: 'acct:alice@loop.remote-rename.test'
+        }
+      })
+
+      await expect(
+        recordActorIfNeeded({ actorId, database, forceRefresh: true })
+      ).resolves.toMatchObject({
+        username: 'alice',
+        domain: 'loop.remote-rename.test'
+      })
+      await expect(
+        database.getActorFromId({ id: actorId })
+      ).resolves.toMatchObject({ username: 'alice' })
+    })
+
+    it('follows one subject hop and refuses a second', async () => {
+      const actorId = 'https://hop.remote-rename.test/users/alice'
+      await createStoredRemoteActor(actorId, 'alice', 'hop.remote-rename.test')
+      renamePerson(actorId, 'bob@hop-new.remote-rename.test')
+      serveWebfinger({
+        'bob@hop-new.remote-rename.test': {
+          self: actorId,
+          subject: 'acct:bob@third.remote-rename.test'
+        }
+      })
+
+      await expect(
+        recordActorIfNeeded({ actorId, database, forceRefresh: true })
+      ).resolves.toMatchObject({
+        username: 'alice',
+        domain: 'hop.remote-rename.test'
+      })
+      await expect(
+        database.getActorFromId({ id: actorId })
+      ).resolves.toMatchObject({ username: 'alice' })
+      expect(askedAccounts()).toEqual([
+        'acct:bob@hop.remote-rename.test',
+        'acct:bob@hop-new.remote-rename.test'
+      ])
+    })
+
+    it('displaces a stale remote row that already holds the confirmed handle', async () => {
+      const actorId = 'https://move.remote-rename.test/users/alice'
+      const squatterId = 'https://squat.remote-rename.test/users/ghost'
+      await createStoredRemoteActor(actorId, 'alice', 'move.remote-rename.test')
+      await createStoredRemoteActor(
+        squatterId,
+        'bob',
+        'squat-domain.remote-rename.test'
+      )
+      renamePerson(actorId, 'bob@squat-domain.remote-rename.test')
+      serveWebfinger({
+        'bob@squat-domain.remote-rename.test': { self: actorId }
+      })
+
+      await expect(
+        recordActorIfNeeded({ actorId, database, forceRefresh: true })
+      ).resolves.toMatchObject({
+        id: actorId,
+        username: 'bob',
+        domain: 'squat-domain.remote-rename.test'
+      })
+
+      const squatter = await database.getActorFromId({ id: squatterId })
+      expect(squatter).not.toBeNull()
+      expect(squatter?.username).not.toBe('bob')
+    })
+
+    it('never changes a local actor, whatever the refresh claims', async () => {
+      const accountId = await database.createAccount({
+        email: `local-${crypto.randomUUID()}@${TEST_DOMAIN}`,
+        username: 'local',
+        passwordHash: TEST_PASSWORD_HASH,
+        domain: TEST_DOMAIN,
+        privateKey: 'private-key-local',
+        publicKey: 'public-key-local'
+      })
+      const actors = await database.getActorsForAccount({ accountId })
+      const localId = actors[0].id
+      renamePerson(localId, 'hijacked@remote.test')
+      serveWebfinger({
+        'hijacked@remote.test': { self: localId }
+      })
+
+      await expect(
+        recordActorIfNeeded({ actorId: localId, database, forceRefresh: true })
+      ).resolves.toMatchObject({ username: 'local', domain: TEST_DOMAIN })
+      await expect(
+        database.getActorFromId({ id: localId })
+      ).resolves.toMatchObject({ username: 'local', domain: TEST_DOMAIN })
+      expect(mockGetActorPerson).not.toHaveBeenCalled()
+    })
   })
 
   it('refreshes the persisted actor type for stale remote actors', async () => {

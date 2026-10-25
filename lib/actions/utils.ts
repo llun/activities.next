@@ -1,4 +1,7 @@
-import { confirmActorHandle } from '@/lib/activities/confirmActorHandle'
+import {
+  confirmActorHandle,
+  getClaimedActorHandle
+} from '@/lib/activities/confirmActorHandle'
 import { getActorCollectionCounts } from '@/lib/activities/getActorCollectionCounts'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { Database } from '@/lib/database/types'
@@ -217,6 +220,80 @@ export const getPersistableActorPerson = async ({
   return canonicalPerson
 }
 
+// A remote actor may rename in place: the same id arrives with a new
+// `preferredUsername` and/or an FEP-2c59 `webfinger` naming another domain.
+// Mastodon takes the handle the document claims, confirms it with WebFinger
+// (`extract_username_and_domain!` + `check_webfinger!`), renames the stored
+// row only then — and applies nothing at all when the confirmation fails.
+// 'unchanged': the document claims the stored handle; 'confirmed': the
+// confirmed handle differs from the stored one and the row was rewritten;
+// 'refused': the claim does not confirm (or the confirmed handle cannot be
+// taken), so the caller must not write the refresh either.
+const confirmRemoteHandleChange = async ({
+  database,
+  actorId,
+  person,
+  existingActor
+}: {
+  database: Database
+  actorId: string
+  person: ActivityPubActor
+  existingActor: Actor
+}): Promise<'unchanged' | 'confirmed' | 'refused'> => {
+  const claimedHandle = getClaimedActorHandle({
+    actorId,
+    username: person.preferredUsername,
+    webfinger: person.webfinger
+  })
+  // The stored username keeps the remote server's casing, so only an exact
+  // match (and the folded domain) means "no handle change claimed".
+  if (
+    !claimedHandle ||
+    (claimedHandle.username === existingActor.username &&
+      claimedHandle.domain === existingActor.domain.toLowerCase())
+  ) {
+    return 'unchanged'
+  }
+  const confirmed = await confirmActorHandle({
+    database,
+    actorId,
+    username: person.preferredUsername,
+    webfinger: person.webfinger
+  })
+  if (!confirmed) {
+    logger.warn({
+      message:
+        'Skipped a remote actor refresh whose renamed handle does not confirm',
+      actorId,
+      account: `${existingActor.username}@${existingActor.domain}`,
+      claimedHandle: `${claimedHandle.username}@${claimedHandle.domain}`
+    })
+    return 'refused'
+  }
+  if (
+    confirmed.username === existingActor.username &&
+    confirmed.domain === existingActor.domain.toLowerCase()
+  ) {
+    return 'unchanged'
+  }
+  const renamed = await database.updateRemoteActorHandle({
+    actorId,
+    username: confirmed.username,
+    domain: confirmed.domain
+  })
+  if (!renamed) {
+    logger.warn({
+      message:
+        'Skipped a remote actor rename whose confirmed handle cannot be taken',
+      actorId,
+      account: `${existingActor.username}@${existingActor.domain}`,
+      confirmedHandle: `${confirmed.username}@${confirmed.domain}`
+    })
+    return 'refused'
+  }
+  return 'confirmed'
+}
+
 export const recordActorIfNeeded = async ({
   actorId,
   database,
@@ -366,6 +443,20 @@ export const recordActorIfNeeded = async ({
     }
     return existingActor
   }
+  // The rename check runs before the profile write: a claimed handle that
+  // does not confirm aborts the whole refresh, as Mastodon's check_webfinger!
+  // error does, so a profile is never recorded under an unconfirmed handle.
+  if (
+    (await confirmRemoteHandleChange({
+      database,
+      actorId,
+      person,
+      existingActor
+    })) === 'refused'
+  ) {
+    return existingActor
+  }
+
   const persistableProfile = getPersistableProfile(person)
   const actor = await database.updateActor({
     actorId,

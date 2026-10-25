@@ -89,6 +89,9 @@ const sessionViewer = {
 describe('GET /api/v1/accounts/lookup', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockGetActorFromId.mockReset()
+    mockGetActorFromId.mockResolvedValue(null)
+    mockGetActorFromUsername.mockReset()
     resetRefreshRemoteActorStateForTesting()
     mockGetAllServerSettings.mockReset()
     mockGetAllServerSettings.mockResolvedValue([])
@@ -134,6 +137,55 @@ describe('GET /api/v1/accounts/lookup', () => {
       username: 'null',
       domain: 'custom.llun.test'
     })
+  })
+
+  it('returns the current account for a replaced handle and its immutable actor URL', async () => {
+    const actor = {
+      id: 'https://old.example/users/original',
+      username: 'current-name',
+      domain: 'llun.test',
+      privateKey: 'private-key',
+      account: { id: 'account-id' }
+    }
+    const account = {
+      id: 'current-public-id',
+      username: 'current-name',
+      acct: 'current-name',
+      url: actor.id
+    }
+    mockGetActorFromUsername.mockResolvedValue(actor)
+    mockGetMastodonActorFromId.mockResolvedValue(account)
+
+    const oldHandleResponse = await GET(
+      new NextRequest(
+        'https://llun.test/api/v1/accounts/lookup?acct=original%40old.example'
+      )
+    )
+
+    expect(oldHandleResponse.status).toBe(200)
+    expect(await oldHandleResponse.json()).toMatchObject({
+      username: 'current-name'
+    })
+    expect(mockGetActorFromUsername).toHaveBeenCalledWith({
+      username: 'original',
+      domain: 'old.example'
+    })
+
+    mockGetActorFromUsername.mockReset()
+    mockGetActorFromId.mockResolvedValue(actor)
+
+    const actorUrlResponse = await GET(
+      new NextRequest(
+        'https://llun.test/api/v1/accounts/lookup?acct=https%3A%2F%2Fold.example%2Fusers%2Foriginal'
+      )
+    )
+
+    expect(actorUrlResponse.status).toBe(200)
+    expect(await actorUrlResponse.json()).toMatchObject({
+      username: 'current-name'
+    })
+    expect(mockGetActorFromId).toHaveBeenCalledWith({ id: actor.id })
+    expect(mockGetActorFromUsername).not.toHaveBeenCalled()
   })
 
   it('resolves lookup when acct is an ActivityPub actor URL', async () => {

@@ -3,6 +3,7 @@ import type { DomainCheckResult } from '@/lib/database/domains/servedDomain/type
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import { createDeferred } from '@/lib/testing/deferred'
+import { getLocalActorId } from '@/lib/utils/activitypubId'
 import { safeRemoteFetch } from '@/lib/utils/safeRemoteFetch'
 
 import {
@@ -259,6 +260,93 @@ describe('adminDomains', () => {
       await expect(
         setDomainStatus(database, 'nope.example', 'on', passes)
       ).resolves.toEqual({ type: 'not-found' })
+    })
+  })
+
+  // A rename keeps the actor's id, so an actor blocks BOTH its old domain (by
+  // id host) and its new one (by handle): neither can be turned off or
+  // removed while the actor exists.
+  describe('renamed actors block their old and new domain', () => {
+    const rename = (
+      database: Database,
+      actorId: string,
+      username: string,
+      domain: string
+    ) =>
+      database.recordActorHandleRename({
+        actorId,
+        username,
+        domain,
+        now: new Date('2026-01-01T00:00:00.000Z'),
+        cooldownMs: 30 * 24 * 60 * 60 * 1000
+      })
+
+    it('refuses turning off and removing the id-host domain after a rename away', async () => {
+      await createLocalActor(database, 'alice', 'old.example')
+      const actorId = getLocalActorId({
+        domain: 'old.example',
+        username: 'alice'
+      })
+      await rename(database, actorId, 'bob', 'new.example')
+      await addDomain(database, 'old.example', passes)
+      await addDomain(database, 'new.example', passes)
+
+      const blocking = [
+        {
+          id: 'https://old.example/users/alice',
+          username: 'bob',
+          domain: 'new.example'
+        }
+      ]
+      await expect(
+        setDomainStatus(database, 'old.example', 'off', passes)
+      ).resolves.toEqual({ type: 'has-profiles', actors: blocking })
+      await expect(removeDomain(database, 'old.example')).resolves.toEqual({
+        type: 'has-profiles',
+        actors: blocking
+      })
+      // The domain row is untouched by either refusal.
+      expect(
+        (await database.getServedDomain({ domain: 'old.example' }))?.status
+      ).toBe('off')
+    })
+
+    it('refuses turning off and removing the handle domain of a renamed actor', async () => {
+      await createLocalActor(database, 'alice', 'old.example')
+      const actorId = getLocalActorId({
+        domain: 'old.example',
+        username: 'alice'
+      })
+      await rename(database, actorId, 'bob', 'new.example')
+      await addDomain(database, 'new.example', passes)
+
+      const blocking = [
+        {
+          id: 'https://old.example/users/alice',
+          username: 'bob',
+          domain: 'new.example'
+        }
+      ]
+      await expect(
+        setDomainStatus(database, 'new.example', 'off', passes)
+      ).resolves.toEqual({ type: 'has-profiles', actors: blocking })
+      await expect(removeDomain(database, 'new.example')).resolves.toEqual({
+        type: 'has-profiles',
+        actors: blocking
+      })
+    })
+
+    it('leaves a domain without local actors free to turn off and remove', async () => {
+      await createLocalActor(database, 'alice', 'old.example')
+      await addDomain(database, 'empty.example', passes)
+
+      await expect(
+        setDomainStatus(database, 'empty.example', 'off', passes)
+      ).resolves.toMatchObject({ type: 'updated' })
+      await addDomain(database, 'spare.example', passes)
+      await expect(removeDomain(database, 'spare.example')).resolves.toEqual({
+        type: 'removed'
+      })
     })
   })
 
@@ -595,7 +683,14 @@ describe('adminDomains', () => {
       await setDomainStatus(database, 'photos.example', 'off', passes)
       await createLocalActor(database, 'pat', 'photos.example')
       await expect(removeDomain(database, 'photos.example')).resolves.toEqual({
-        type: 'has-profiles'
+        type: 'has-profiles',
+        actors: [
+          {
+            id: 'https://photos.example/users/pat',
+            username: 'pat',
+            domain: 'photos.example'
+          }
+        ]
       })
 
       await expect(removeDomain(database, 'club.example')).resolves.toEqual({
