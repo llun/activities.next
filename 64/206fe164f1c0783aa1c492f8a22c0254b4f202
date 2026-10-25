@@ -1,0 +1,23 @@
+docs/architecture.md
+  s_98d06e57ae2bf0::t_b674b1115874bf 2281-2397,2441-2445
+docs/features.md
+  s_98d06e57ae2bf0::t_4e73b027899682 13
+docs/mastodon-api-compatibility.md
+  s_98d06e57ae2bf0::t_6ef1a407e886d9 1112-1161,1203,1246,1252,1597,1702-1707,1719-1723
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "64206fe164f1c0783aa1c492f8a22c0254b4f202",
+  "prompts": {},
+  "sessions": {
+    "s_98d06e57ae2bf0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1739e-9e29-7cb2-9c6e-34ebbe7924be",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
