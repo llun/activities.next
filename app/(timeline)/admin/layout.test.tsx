@@ -240,6 +240,7 @@ describe('Admin Layout', () => {
     await renderAt('/admin/reports')
 
     expect(screen.getByText('content')).toBeInTheDocument()
+    expect(getServerAuthSession).not.toHaveBeenCalled()
     expect(getAdminFromSession).not.toHaveBeenCalled()
     expect(countOpenReports).not.toHaveBeenCalled()
 
