@@ -20,7 +20,7 @@ type ActorDomainConfig = Pick<Config, 'host' | 'trustedHosts'>
  *   remote servers and a user must not mint a local actor on someone else's
  *   subdomain. A list holding only wildcards is still "non-empty": it
  *   approves nothing and does not fall back.
- * - Otherwise the list is the Admin › Domains list: the primary host, the
+ * - Otherwise the list is the Admin › Served domains list: the primary host, the
  *   CONCRETE `ACTIVITIES_TRUSTED_HOSTS` entries (always on, and existing users
  *   can add profiles there, except as `filterActorDomainsForAccount` narrows
  *   for an account that signed up on another domain), and `addableDomains`, the domains an admin
@@ -45,7 +45,7 @@ export const getActorDomainRules = (
       ]
 
 /**
- * The domains an admin added in Admin › Domains that new actors of existing
+ * The domains an admin added in Admin › Served domains that new actors of existing
  * users may live on: on, with "Existing users can add profiles here" on.
  */
 export const getAddableActorDomains = async (

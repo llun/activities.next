@@ -79,7 +79,7 @@ describe('register', () => {
     expect(startActorDeletionSweep).toHaveBeenCalledWith(database)
   })
 
-  // Without it the process never trusts a domain added in Admin › Domains.
+  // Without it the process never trusts a domain added in Admin › Served domains.
   it('starts the served-domain refresher on the database', async () => {
     mockGetConfig.mockReturnValue({} as ReturnType<typeof getConfig>)
 

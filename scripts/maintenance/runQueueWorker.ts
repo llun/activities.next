@@ -27,7 +27,7 @@ async function runQueueWorker() {
   )
 
   // Jobs decide what is local (forwarding, relays, reactions) from the served
-  // domains, which include the active Admin › Domains rows.
+  // domains, which include the active Admin › Served domains rows.
   startServedDomainRefresher(database)
   const runner = startDatabaseQueueRunner(database, {
     pollIntervalMs

@@ -230,7 +230,7 @@ describe('GET /api/v1/actors/domains', () => {
     expect(data.host).toBe('alias.main.test')
   })
 
-  // With allowActorDomains empty, the Admin › Domains list decides: an added
+  // With allowActorDomains empty, the Admin › Served domains list decides: an added
   // domain is offered only while it is on and lets existing users add
   // profiles.
   it('offers an added domain only while it is on with existing users allowed', async () => {

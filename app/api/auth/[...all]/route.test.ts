@@ -41,7 +41,7 @@ describe('/api/auth/[...all]', () => {
   // The global config mock serves test.llun.dev.
   it.each([
     {
-      description: 'a domain turned on in Admin › Domains',
+      description: 'a domain turned on in Admin › Served domains',
       host: 'run.example',
       expected: 'https://run.example',
       name: 'Run Club'

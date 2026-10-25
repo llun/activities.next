@@ -118,10 +118,9 @@ describe('DomainFeaturesBox', () => {
     expect(messages).toBeDisabled()
     expect(screen.getByText('Turned off on the server')).toBeInTheDocument()
     expect(screen.getByText(/Turn it on in/)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Instance' })).toHaveAttribute(
-      'href',
-      '/admin/instance'
-    )
+    expect(
+      screen.getByRole('link', { name: 'Server settings' })
+    ).toHaveAttribute('href', '/admin/instance')
     // The other two stay editable and the server-off one is never sent.
     fireEvent.click(screen.getByRole('switch', { name: /Fitness/ }))
     expect(screen.getByRole('switch', { name: /Explore/ })).toBeEnabled()
@@ -167,7 +166,7 @@ describe('DomainFeaturesBox', () => {
       source: 'primary' as const
     }
 
-    it('shows On and Off badges with no switches or save bar, and points to Instance', () => {
+    it('shows On and Off badges with no switches or save bar, and points to Server settings', () => {
       render(
         <DomainFeaturesBox
           domain={PRIMARY}
@@ -183,7 +182,7 @@ describe('DomainFeaturesBox', () => {
         screen.getByText('The primary domain follows the server’s switches.')
       ).toBeInTheDocument()
       expect(
-        screen.getByRole('link', { name: 'Edit on Instance' })
+        screen.getByRole('link', { name: 'Edit in Server settings' })
       ).toHaveAttribute('href', '/admin/instance')
     })
   })

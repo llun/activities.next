@@ -15,7 +15,7 @@ import { ensureServedDomainsFresh } from './servedDomainSnapshot'
  *
  * - The primary domain (ACTIVITIES_HOST) uses the server's own
  *   `registrations.open` / `registrations.allowEmails`, as before.
- * - Any other served domain uses its Admin › Domains row: an
+ * - Any other served domain uses its Admin › Served domains row: an
  *   ACTIVITIES_TRUSTED_HOSTS entry or an active row an admin added. Without a
  *   row, or with sign-ups off on it, sign-up on that domain is closed. There
  *   is no fallback to the primary: a visitor on run.example never ends up

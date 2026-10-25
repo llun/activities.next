@@ -12,8 +12,8 @@ import { headerHost } from '@/lib/services/guards/headerHost'
 
 /**
  * The optional features on for the domain a page request arrived on, for
- * server components: the server's switches (Admin › Instance) minus what the
- * visited domain turned off (Admin › Domains). Nav and bootstrap only, like the
+ * server components: the server's switches (Admin › Server settings) minus what the
+ * visited domain turned off (Admin › Served domains). Nav and bootstrap only, like the
  * server switches: the routes keep working.
  */
 export const getVisitedFeatures = async (

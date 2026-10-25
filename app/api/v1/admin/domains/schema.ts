@@ -4,7 +4,7 @@ import { ADMIN_DOMAIN_FIELD_LIMITS } from '@/lib/services/domains/adminDomainTyp
 import { DOMAIN_FEATURES } from '@/lib/services/domains/domainFeatures'
 import { normalizeEmail } from '@/lib/utils/normalizeEmail'
 
-// Request bodies of the Admin › Domains API.
+// Request bodies of the Admin › Served domains API.
 
 export const AddDomainRequest = z.object({
   domain: z.string().trim().min(1).max(255)

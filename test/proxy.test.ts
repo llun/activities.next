@@ -163,7 +163,7 @@ describe('proxy', () => {
     }
   })
 
-  // The proxy cannot read Admin › Domains, so a bare handle on a host the env
+  // The proxy cannot read Admin › Served domains, so a bare handle on a host the env
   // does not list goes to the app, which redirects onto the visited domain
   // when it is an active row and onto the primary host otherwise
   // (app/api/handle-redirect). The untrusted host is never put in the path.

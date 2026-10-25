@@ -39,7 +39,7 @@ export type PolicyDocument = {
 /**
  * What a visitor to one served domain sees as "this server": its name,
  * description, contact email and policies. Every field falls back to the
- * server's own setting (Admin › Instance) when the domain sets none.
+ * server's own setting (Admin › Server settings) when the domain sets none.
  */
 export type DomainIdentity = {
   // The normalised visited domain; the primary when the host names none.
@@ -134,8 +134,8 @@ const configuredHost = () => {
  * `headerHost` (trust-filtered); anything it does not name falls back to the
  * primary.
  *
- * Each field is the domain's own override (Admin › Domains) while its row is
- * usable, else the resolved server setting (Admin › Instance: env → database
+ * Each field is the domain's own override (Admin › Served domains) while its row is
+ * usable, else the resolved server setting (Admin › Server settings: env → database
  * → default). Only an env domain (ACTIVITIES_TRUSTED_HOSTS) or an active row
  * in the served-domain snapshot can carry overrides; the primary, a wildcard
  * preview host and an off or removed domain use the server identity. Never

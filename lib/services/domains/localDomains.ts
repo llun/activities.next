@@ -26,7 +26,7 @@ const matcherCache = new WeakMap<LocalDomainConfig, LocalDomainMatcher>()
 
 /**
  * The served-domain matcher for `config`: the primary host, the concrete
- * `ACTIVITIES_TRUSTED_HOSTS` entries and the active Admin › Domains rows (see
+ * `ACTIVITIES_TRUSTED_HOSTS` entries and the active Admin › Served domains rows (see
  * `ServedDomainSources` in `@/lib/utils/host`). Synchronous, with the rules prepared once, so it can run
  * inside per-URL loops.
  */
@@ -68,7 +68,7 @@ export const isLocalDomain = async (
  * The domain a user-facing link (a confirmation email, say) should be built on
  * for an account whose actor lives on `domain`: that domain, normalised, when
  * this server answers on it — the primary host, any `ACTIVITIES_TRUSTED_HOSTS`
- * entry (wildcards included) or an active Admin › Domains row, the same set
+ * entry (wildcards included) or an active Admin › Served domains row, the same set
  * better-auth trusts as origins and `selectHeaderHost` accepts — so the link
  * opens where the account's actor is.
  * Null — meaning "use the primary host" — for the primary host itself, a

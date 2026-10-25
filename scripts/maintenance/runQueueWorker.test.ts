@@ -34,7 +34,7 @@ describe('runQueueWorker', () => {
       })
 
       // Jobs decide what is local from the served domains, which include the
-      // active Admin › Domains rows only once the refresher has loaded them.
+      // active Admin › Served domains rows only once the refresher has loaded them.
       expect(startServedDomainRefresher).toHaveBeenCalledWith(database)
     } finally {
       processOn.mockRestore()

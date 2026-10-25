@@ -3,7 +3,7 @@
 // the database layer, the admin API and client components all import it.
 //
 // A domain can only turn off what the server has on: the effective switch on
-// a domain is the server switch (Admin › Instance) AND the domain not listing
+// a domain is the server switch (Admin › Server settings) AND the domain not listing
 // the feature in its `disabledFeatures`. Like the server switches, it hides
 // the navigation entries and the bootstrap flags; the routes keep working.
 

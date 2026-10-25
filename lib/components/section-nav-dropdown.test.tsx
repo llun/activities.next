@@ -124,9 +124,9 @@ describe('SectionNavDropdown', () => {
   it('renders the menu as one flat run even for tabs carrying a group', async () => {
     ;(usePathname as jest.Mock).mockReturnValue('/admin')
     const groupedTabs = [
-      { name: 'Overview', url: '/admin', icon: Activity },
+      { name: 'Dashboard', url: '/admin', icon: Activity },
       {
-        name: 'Instance',
+        name: 'Server settings',
         url: '/admin/instance',
         icon: Globe,
         group: 'Settings'

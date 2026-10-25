@@ -54,7 +54,7 @@ describe('isLocalDomain', () => {
     await expect(isLocalDomain(database, value)).resolves.toBe(expected)
   })
 
-  it('counts a domain turned on in Admin › Domains as local', async () => {
+  it('counts a domain turned on in Admin › Served domains as local', async () => {
     setServedDomainsForTests(['run.example'])
     try {
       await expect(

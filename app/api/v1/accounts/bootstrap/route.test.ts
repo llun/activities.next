@@ -39,7 +39,7 @@ vi.mock('@/lib/services/serverSettings', () => ({
   getResolvedServerSettings: vi.fn(async () => mockServerSettings)
 }))
 
-// The visited domain's own switches (Admin › Domains): none turned off unless
+// The visited domain's own switches (Admin › Served domains): none turned off unless
 // a test says so.
 const mockDisabledFeatures = vi.hoisted(() => ({ list: [] as string[] }))
 vi.mock('@/lib/services/domains/domainIdentity', () => ({

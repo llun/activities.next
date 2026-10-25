@@ -37,7 +37,7 @@ describe('GET /nodeinfo/2.1', () => {
 
   beforeAll(async () => {
     await database.migrate()
-    // Admin › Instance's name names the node (no longer the config's
+    // Admin › Server settings' name names the node (no longer the config's
     // serviceName).
     await database.setServerSettings([
       { key: 'instance.name', value: 'llun test' }
@@ -128,7 +128,7 @@ describe('GET /nodeinfo/2.1', () => {
     }
   })
 
-  // A stale snapshot would not trust the visited Admin › Domains host yet and
+  // A stale snapshot would not trust the visited Admin › Served domains host yet and
   // report the (open) primary's sign-ups instead.
   it('refreshes a stale snapshot before reading the visited host', async () => {
     // Loaded before photos.llun.test was turned on, so it does not list it.

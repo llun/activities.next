@@ -22,7 +22,7 @@ export const isTrustedHeaderHost = (
 export function headerHost(
   headers: IncomingHttpHeaders | Headers | NextAuthHeaders
 ): string {
-  // The env domains plus the active Admin › Domains rows (see
+  // The env domains plus the active Admin › Served domains rows (see
   // `servedDomainSnapshot`); anything else falls back to the primary host.
   return selectHeaderHost(headers, getServedHostConfig())
 }

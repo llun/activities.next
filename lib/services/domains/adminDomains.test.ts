@@ -321,7 +321,7 @@ describe('adminDomains', () => {
       expect(await database.getActiveServedDomains()).toEqual([])
     })
 
-    it('sends the primary to Admin › Instance', async () => {
+    it('sends the primary to Admin › Server settings', async () => {
       await expect(
         updateDomainSettings(database, 'social.example', {
           signupsOpen: false

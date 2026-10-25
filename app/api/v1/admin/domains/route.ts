@@ -18,7 +18,7 @@ import {
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
-// Admin › Domains: the domains this server answers on. GET lists the primary,
+// Admin › Served domains: the domains this server answers on. GET lists the primary,
 // the ACTIVITIES_TRUSTED_HOSTS entries (locked) and the domains an admin added;
 // POST adds one, runs the reachability check and saves it as off.
 const CORS_HEADERS = [

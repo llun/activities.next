@@ -211,10 +211,10 @@ describe('DomainSettings', () => {
     expect(mockUpdate.mock.calls[0][1]).not.toHaveProperty('allowExistingUsers')
   })
 
-  it('sends the primary to Instance and says it cannot be turned off', () => {
+  it('sends the primary to Server settings and says it cannot be turned off', () => {
     renderPage({ ...RUN, domain: 'social.example', source: 'primary' })
     for (const link of screen.getAllByRole('link', {
-      name: 'Open Instance'
+      name: 'Open Server settings'
     })) {
       expect(link).toHaveAttribute('href', '/admin/instance')
     }
@@ -461,7 +461,7 @@ describe('DomainSettings', () => {
   })
 
   describe('Terms and privacy', () => {
-    it('says what the server has and links to Instance', () => {
+    it('says what the server has and links to Server settings', () => {
       renderPage(RUN)
       expect(
         screen.getByText(
@@ -476,14 +476,14 @@ describe('DomainSettings', () => {
           (_, el) =>
             el?.tagName === 'P' &&
             el.textContent ===
-              'Using the server terms of service. Last updated 12 Oct 2026. Edit on Instance'
+              'Using the server terms of service. Last updated 12 Oct 2026. Edit in Server settings'
         )
       ).toBeInTheDocument()
       expect(
         screen.getByText(/The server has no privacy policy\./)
       ).toBeInTheDocument()
       expect(
-        screen.getAllByRole('link', { name: 'Edit on Instance' })
+        screen.getAllByRole('link', { name: 'Edit in Server settings' })
       ).toHaveLength(2)
       expect(
         screen.getByRole('button', { name: 'Save policies' })
@@ -561,7 +561,7 @@ describe('DomainSettings', () => {
       )
       expect(
         screen.getByText(
-          'Edit them on Admin › Instance, and the rules on Admin › Server rules.'
+          'Edit them on Admin › Server settings, and the rules on Admin › Server rules.'
         )
       ).toBeInTheDocument()
       const identity = screen.getByRole('heading', { name: 'Identity' })
@@ -669,7 +669,7 @@ describe('DomainSettings', () => {
       expect(screen.queryByRole('button', { name: 'Save rules' })).toBeNull()
       expect(screen.queryByRole('button', { name: 'Save features' })).toBeNull()
       expect(
-        screen.getAllByRole('link', { name: 'Edit on Instance' }).length
+        screen.getAllByRole('link', { name: 'Edit in Server settings' }).length
       ).toBeGreaterThan(0)
       // Announcements and Reports stay available on the primary.
       expect(

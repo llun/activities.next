@@ -4,10 +4,11 @@ import { Frame } from '@/lib/components/surface/Frame'
 import { SkeletonBar } from '@/lib/components/surface/Skeleton'
 import { StatStrip } from '@/lib/components/surface/StatStrip'
 
-// The overview's shape while it loads: the title, the two stat strips (the
+// The dashboard's shape while it loads: the title, the two stat strips (the
 // real `StatStrip`, so the columns follow the same container queries as the
-// loaded page and nothing jumps) and the chart's heading over its frame. Every other admin route draws its own
-// `SectionSkeleton`; this one is for `/admin` itself.
+// loaded page and nothing jumps) and the chart's heading over its frame.
+// Every other admin route draws its own `SectionSkeleton`; this one is for
+// `/admin/overview`.
 const StripSkeleton: FC<{ cells: 3 | 4 }> = ({ cells }) => (
   <StatStrip columns={cells}>
     {Array.from({ length: cells }, (_, index) => (
@@ -26,7 +27,7 @@ const Loading: FC = () => (
     data-slot="section-skeleton"
     className="space-y-6"
   >
-    <span className="sr-only">Loading overview</span>
+    <span className="sr-only">Loading dashboard</span>
     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
       <div className="space-y-2">
         <SkeletonBar className="h-7 w-32" />

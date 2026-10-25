@@ -293,7 +293,7 @@ describe('exportActorArchive remote fetch budget', () => {
 })
 
 describe('exportActorArchive served domains', () => {
-  // An Admin › Domains row is this instance too: its file URLs are local media,
+  // An Admin › Served domains row is this instance too: its file URLs are local media,
   // not remote attachments, or an account on an added domain loses its own
   // photos and avatar from the archive.
   it('archives an attachment and icon on an active added domain as local media', async () => {

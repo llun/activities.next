@@ -117,6 +117,16 @@ describe('Account Layout', () => {
     expect(back).toHaveClass('lg:hidden')
   })
 
+  it('leads a signed-in verify-email page with Back to Account & security below lg', async () => {
+    await renderLayout('/account/verify-email')
+
+    const back = screen.getByRole('link', {
+      name: 'Back to account & security'
+    })
+    expect(back).toHaveAttribute('href', '/account')
+    expect(back).toHaveClass('lg:hidden')
+  })
+
   it('renders the index list instead of the rail on /account', async () => {
     await renderLayout('/account')
 

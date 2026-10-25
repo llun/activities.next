@@ -137,7 +137,7 @@ export const runCollectionSlice = async ({
   if (progress.phase === 'assemble')
     return { outcome: 'collected', progress, saver }
 
-  // Attachment and image URLs on an Admin > Domains row are ours too.
+  // Attachment and image URLs on an Admin > Served domains row are ours too.
   await refreshServedDomains(database)
   const hostConfig = getServedHostConfig(getConfig())
 

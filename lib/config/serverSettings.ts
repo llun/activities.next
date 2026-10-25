@@ -23,7 +23,7 @@ import { getEnvironmentList } from './utils'
 
 // Which admin tab a field belongs to. Drives grouping in the admin UI/API; note
 // it is coarser than the dotted key prefix (registrations.* live on the
-// Instance tab; polls.*/media.* live on the Posts & media tab).
+// Server settings tab; polls.*/media.* live on the Posts & media tab).
 export type ServerSettingTab = 'instance' | 'posts' | 'network' | 'federation'
 
 // Maximum poll expiration (~1 month). Uses the value the create/edit routes
@@ -343,8 +343,8 @@ export const SERVER_SETTING_FIELDS: ServerSettingField[] = [
   }),
 
   // Optional features. No env vars: these are meant to be flipped from the
-  // admin UI, and an env pin would lock the switch. They live on the Instance
-  // tab with the other whole-instance choices.
+  // admin UI, and an env pin would lock the switch. They live on the Server
+  // settings tab with the other whole-instance choices.
   field<boolean>({
     key: 'features.fitness',
     group: 'instance',

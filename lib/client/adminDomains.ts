@@ -7,7 +7,7 @@ import type {
   AdminDomainPoliciesPatch
 } from '@/lib/services/domains/adminDomainTypes'
 
-// Admin › Domains. Every call throws an Error carrying the server's message,
+// Admin › Served domains. Every call throws an Error carrying the server's message,
 // which the forms show as is.
 
 export class AdminDomainRequestError extends Error {

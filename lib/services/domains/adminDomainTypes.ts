@@ -1,4 +1,4 @@
-// What Admin › Domains shows, shared by the API routes, the server pages and the
+// What Admin › Served domains shows, shared by the API routes, the server pages and the
 // client components. Dependency-free (type-only imports): client modules
 // import it.
 import type {
@@ -8,7 +8,7 @@ import type {
 import type { DomainFeature } from '@/lib/services/domains/domainFeatures'
 
 export type AdminDomainSource =
-  // ACTIVITIES_HOST: always on, its sign-up settings are Admin › Instance.
+  // ACTIVITIES_HOST: always on, its sign-up settings are Admin › Server settings.
   | 'primary'
   // A concrete ACTIVITIES_TRUSTED_HOSTS entry: always on, sign-ups editable.
   | 'env'
@@ -34,7 +34,7 @@ export type AdminDomain = {
 
 /**
  * One domain's page: the list row plus its own identity and policies. Null in
- * any of these means "Same as server" (Admin › Instance); on the primary the
+ * any of these means "Same as server" (Admin › Server settings); on the primary the
  * description, contact email and policies are null, as it uses the server's
  * own, and the name mirrors the server's name. The `*UpdatedAt`
  * dates are epoch ms, null while the domain sets no text of its own.
@@ -47,12 +47,12 @@ export type AdminDomainDetail = AdminDomain & {
   termsOfServiceUpdatedAt: number | null
   privacyPolicyUpdatedAt: number | null
   // The optional features this domain turns off ([] = none; always [] on the
-  // primary, which has no switches of its own: Admin › Instance).
+  // primary, which has no switches of its own: Admin › Server settings).
   disabledFeatures: DomainFeature[]
 }
 
 /**
- * The server's own identity (Admin › Instance) as a domain page shows it
+ * The server's own identity (Admin › Server settings) as a domain page shows it
  * beside "Same as server". The terms and privacy texts are left out on
  * purpose: the domain page only says whether they are set and when they last
  * changed.
@@ -113,10 +113,10 @@ export const ADMIN_DOMAIN_FIELD_LIMITS = {
 } as const
 
 export const PRIMARY_DOMAIN_IDENTITY_ERROR =
-  'The primary domain’s identity and policies are set in Admin › Instance.'
+  'The primary domain’s identity and policies are set in Admin › Server settings.'
 
 export const PRIMARY_DOMAIN_FEATURES_ERROR =
-  'The primary domain’s features are set in Admin › Instance.'
+  'The primary domain’s features are set in Admin › Server settings.'
 
 // A wildcard ACTIVITIES_TRUSTED_HOSTS entry: shown as an info row only.
 export type AdminDomainWildcard = {

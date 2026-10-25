@@ -158,7 +158,7 @@ export const InstanceSettingsForm: FC<InstanceSettingsFormProps> = ({
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Instance"
+        title="Server settings"
         description="Who this instance is and who may join. Values pinned by an environment variable are locked until the variable is removed."
       />
 

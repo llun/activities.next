@@ -98,6 +98,51 @@ describe('SectionNav', () => {
     expect(other).toHaveAttribute('href', '/other')
     expect(other).toHaveTextContent('Elsewhere')
   })
+
+  it('scrolls the rail, not the window, to the active row, and again when it changes', () => {
+    // The nav is the scroll container (`overflow-y-auto`); jsdom has no
+    // layout, so the rects are mocked: the nav spans 0..100, the active row
+    // first sits below the fold, then above it.
+    const rectSpy = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(function (this: HTMLElement) {
+        if (this.tagName === 'NAV') return { top: 0, bottom: 100 } as DOMRect
+        if (this.getAttribute('aria-current') === 'page')
+          return { top: 150, bottom: 180 } as DOMRect
+        return { top: 0, bottom: 0 } as DOMRect
+      })
+    try {
+      ;(usePathname as jest.Mock).mockReturnValue('/s/two')
+      const { rerender } = render(
+        <SectionNav label="Things" groups={groups} footer={footer} />
+      )
+
+      const nav = screen.getByRole('navigation', { name: 'Things' })
+      expect(screen.getByRole('link', { name: 'Two' })).toHaveAttribute(
+        'aria-current',
+        'page'
+      )
+      expect(nav.scrollTop).toBe(80)
+
+      // Navigating within the section re-runs the effect with the new row.
+      rectSpy.mockImplementation(function (this: HTMLElement) {
+        if (this.tagName === 'NAV') return { top: 0, bottom: 100 } as DOMRect
+        if (this.getAttribute('aria-current') === 'page')
+          return { top: -30, bottom: 0 } as DOMRect
+        return { top: 0, bottom: 0 } as DOMRect
+      })
+      ;(usePathname as jest.Mock).mockReturnValue('/s/three')
+      rerender(<SectionNav label="Things" groups={groups} footer={footer} />)
+
+      expect(screen.getByRole('link', { name: 'Three' })).toHaveAttribute(
+        'aria-current',
+        'page'
+      )
+      expect(nav.scrollTop).toBe(50)
+    } finally {
+      rectSpy.mockRestore()
+    }
+  })
 })
 
 describe('long names', () => {
@@ -166,6 +211,39 @@ describe('SectionIndex', () => {
     expect(last?.closest('section')).toBeNull()
     expect(container.querySelectorAll('section')).toHaveLength(3)
   })
+
+  // The fixture's blocks: First, Second, the footer card, then the
+  // after-footer run (Last).
+  const columnHrefs = (container: HTMLElement) => {
+    const grid = container.firstElementChild as HTMLElement
+    return Array.from(grid.children).map((column) =>
+      Array.from(column.querySelectorAll('a')).map((link) =>
+        link.getAttribute('href')
+      )
+    )
+  }
+
+  it('keeps the first block in the left column by default', () => {
+    const { container } = render(
+      <SectionIndex groups={groups} footer={footer} />
+    )
+
+    expect(columnHrefs(container)).toEqual([
+      ['/s/one', '/s/two'],
+      ['/s/three', '/other', '/s/last']
+    ])
+  })
+
+  it('puts the first splitAt blocks in the left column', () => {
+    const { container } = render(
+      <SectionIndex groups={groups} footer={footer} splitAt={3} />
+    )
+
+    expect(columnHrefs(container)).toEqual([
+      ['/s/one', '/s/two', '/s/three', '/other'],
+      ['/s/last']
+    ])
+  })
 })
 
 describe('SectionLayout', () => {
@@ -224,20 +302,14 @@ describe('SectionLayout', () => {
       '[[data-section-layout]_&]:max-w-section'
     )
   })
-  it('puts mobileNav where the Back row would be, and has no Back without an index', () => {
+  it('has no Back row without an index', () => {
     ;(usePathname as jest.Mock).mockReturnValue('/s/one')
     render(
-      <SectionLayout
-        label="Things"
-        title="Things"
-        groups={groups}
-        mobileNav={<div>dropdown</div>}
-      >
+      <SectionLayout label="Things" title="Things" groups={groups}>
         <div>content</div>
       </SectionLayout>
     )
 
-    expect(screen.getByText('dropdown').parentElement).toHaveClass('lg:hidden')
     expect(
       screen.queryByRole('link', { name: /^Back/ })
     ).not.toBeInTheDocument()
@@ -245,6 +317,128 @@ describe('SectionLayout', () => {
     expect(
       screen.getByRole('navigation', { name: 'Things' })
     ).toBeInTheDocument()
+  })
+
+  it('shows the section header box below md only on the index, or without an index', () => {
+    const headerBox = () =>
+      screen
+        .getByRole('heading', { level: 1, name: 'Things' })
+        .closest('.max-w-content')!.parentElement!
+    const row = () =>
+      screen.getByText('content').closest('.gap-6') as HTMLElement
+
+    ;(usePathname as jest.Mock).mockReturnValue('/s/one')
+    const { unmount } = renderLayout()
+    expect(headerBox()).toHaveClass('max-md:hidden')
+    expect(row()).toHaveClass('max-md:pt-2')
+    unmount()
+
+    ;(usePathname as jest.Mock).mockReturnValue('/s')
+    renderLayout()
+    expect(headerBox()).not.toHaveClass('max-md:hidden')
+    expect(row()).toHaveClass('max-md:pt-0')
+  })
+
+  it('keeps the header box below md in a section without an index', () => {
+    ;(usePathname as jest.Mock).mockReturnValue('/s/one')
+    render(
+      <SectionLayout label="Things" title="Things" groups={groups}>
+        <div>content</div>
+      </SectionLayout>
+    )
+
+    const headerBox = screen
+      .getByRole('heading', { level: 1, name: 'Things' })
+      .closest('.max-w-content')!.parentElement!
+    expect(headerBox).not.toHaveClass('max-md:hidden')
+    const row = screen.getByText('content').closest('.gap-6') as HTMLElement
+    expect(row).toHaveClass('max-md:pt-0')
+    expect(row).not.toHaveClass('max-md:pt-2')
+  })
+
+  it('hides the Back row on a detail page under an item, which renders its own Back', () => {
+    ;(usePathname as jest.Mock).mockReturnValue('/s/one/detail')
+    renderLayout()
+
+    expect(
+      screen.queryByRole('link', { name: 'Back to things' })
+    ).not.toBeInTheDocument()
+    // The rail still marks the item the detail page sits under.
+    expect(screen.getByRole('link', { name: 'One' })).toHaveAttribute(
+      'aria-current',
+      'page'
+    )
+  })
+
+  it('shows the Back row on a page that is neither an item nor nested under one', () => {
+    ;(usePathname as jest.Mock).mockReturnValue('/s/verify-email')
+    renderLayout()
+
+    const back = screen.getByRole('link', { name: 'Back to things' })
+    expect(back).toHaveAttribute('href', '/s')
+  })
+
+  it('leaves no top-margin gap above the index when the page renders nothing', () => {
+    ;(usePathname as jest.Mock).mockReturnValue('/s')
+    const NullPage = () => null
+    render(
+      <SectionLayout
+        label="Things"
+        title="Things"
+        indexUrl="/s"
+        groups={groups}
+        footer={footer}
+      >
+        <NullPage />
+      </SectionLayout>
+    )
+
+    const wrapper = screen
+      .getByRole('heading', { name: 'First' })
+      .closest('.grid')!.parentElement!
+    // The margin is conditional: a null page leaves the wrapper the column's
+    // first child, so `[&:not(:first-child)]:mt-6` does not apply.
+    expect(wrapper).toHaveClass('[&:not(:first-child)]:mt-6')
+    expect(wrapper.parentElement!.firstElementChild).toBe(wrapper)
+  })
+
+  it('keeps the top margin above the index when the page renders content', () => {
+    ;(usePathname as jest.Mock).mockReturnValue('/s')
+    renderLayout()
+
+    const wrapper = screen
+      .getByRole('heading', { name: 'First' })
+      .closest('.grid')!.parentElement!
+    expect(wrapper.previousElementSibling).toHaveTextContent('content')
+  })
+
+  it('passes splitAt through to the index', () => {
+    ;(usePathname as jest.Mock).mockReturnValue('/s')
+    render(
+      <SectionLayout
+        label="Things"
+        title="Things"
+        indexUrl="/s"
+        groups={groups}
+        footer={footer}
+        splitAt={3}
+      >
+        <div>content</div>
+      </SectionLayout>
+    )
+
+    const grid = screen
+      .getByRole('heading', { name: 'First' })
+      .closest('.grid')!
+    const columns = Array.from(grid.children).map((column) =>
+      Array.from(column.querySelectorAll('a')).map((link) =>
+        link.getAttribute('href')
+      )
+    )
+    expect(columns).toEqual([
+      ['/s/one', '/s/two', '/s/three', '/other'],
+      ['/s/last']
+    ])
   })
 
   it('uses the footer hint for the rail card when given', () => {

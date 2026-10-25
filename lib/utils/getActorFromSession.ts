@@ -39,7 +39,7 @@ export const getAccountFromSession = async (
   }
 
   // Not on the server's list: still allowed when a domain one of the
-  // account's profiles lives on allows the address (Admin › Domains).
+  // account's profiles lives on allows the address (Admin › Served domains).
   const account = await database.getAccountFromEmail({ email })
   if (!account) return null
   return (await isEmailAllowedForAccount(database, email, account.id))

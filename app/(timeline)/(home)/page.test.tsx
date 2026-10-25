@@ -50,7 +50,7 @@ vi.mock('@/lib/services/domains/visitedSignUpDomain', () => ({
 }))
 
 // The landing names the domain it is visited on; answer for the primary,
-// named in Admin › Instance (not ACTIVITIES_SERVICE_NAME, see getConfig below).
+// named in Admin › Server settings (not ACTIVITIES_SERVICE_NAME, see getConfig below).
 vi.mock('@/lib/services/domains/domainIdentity', () => ({
   getVisitedDomainIdentity: vi.fn(async () => ({
     domain: 'test.llun.dev',
