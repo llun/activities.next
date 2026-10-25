@@ -2249,13 +2249,12 @@ describe('updateNoteVisibility', () => {
       })
     })
 
+    // The owner picked a new audience (followers), so the status is an
+    // ordinary post now.
     const status = await updateNoteVisibility(db, hydration, {
       statusId: id,
-      to: [],
-      cc: []
+      ...FOLLOWERS_ONLY(author)
     })
-
-    // The owner picked an audience, so the status is an ordinary post now.
     expect(status).not.toHaveProperty('createdWhileMoved')
     expect(
       getCompatibleJSON(
@@ -2302,6 +2301,42 @@ describe('updateNoteVisibility', () => {
           .executeTakeFirstOrThrow()
       ).content
     ).toBe(noteContent(id))
+  })
+
+  it('keeps the marker when the resent visibility is the current one', async () => {
+    const p = nextPrefix()
+    const author = await seedActor(`${p}-author`)
+    const id = `${author}/statuses/1`
+    const content = JSON.stringify({
+      url: id,
+      text: 'ride',
+      summary: '',
+      sensitive: false,
+      language: null,
+      createdWhileMoved: true
+    })
+    await seedStatus({ id, actorId: author, to: [], cc: [], content })
+    const { statements } = await capture(() =>
+      updateNoteVisibility(db, hydration, {
+        statusId: id,
+        to: [],
+        cc: []
+      })
+    )
+    // A hidden status reads back as `direct`, so a client reusing its draft
+    // settings on a text edit resends to: [], cc: [] — the status's current
+    // audience. That is not a visibility change: the marker stays and no
+    // content write runs.
+    expect(statements.map(describeStatement)).not.toContain('update status')
+    expect(
+      (
+        await db
+          .selectFrom('statuses')
+          .select('content')
+          .where('id', '=', id)
+          .executeTakeFirstOrThrow()
+      ).content
+    ).toBe(content)
   })
 })
 

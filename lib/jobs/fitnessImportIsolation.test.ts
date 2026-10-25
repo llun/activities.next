@@ -34,9 +34,11 @@ describe('isIsolatedFromFitnessImport', () => {
 
   it('merges a marked but now public status after the clear', () => {
     // The owner published the moved-time status through the post menu's
-    // visibility control: updateNoteVisibility gives it recipients and keeps
-    // the marker. A published post merges like any other, so a later
-    // overlapping import attaches to it instead of creating a second post.
+    // visibility control: updateNoteVisibility clears the marker when the
+    // audience changes, so a published status no longer carries it. This
+    // checks the predicate for a marked status that has recipients anyway:
+    // a published post merges like any other, so a later overlapping import
+    // attaches to it instead of creating a second post.
     expect(
       isIsolatedFromFitnessImport({
         moved: false,

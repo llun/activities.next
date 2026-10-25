@@ -25,16 +25,18 @@ import { getCompatibleJSON } from '@/lib/database/utils/getCompatibleJSON'
 import { Attachment, isFitnessAttachment } from '@/lib/types/domain/attachment'
 import { type Status, StatusType } from '@/lib/types/domain/status'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
+import { logger } from '@/lib/utils/logger'
 import { widensStatusAudience } from '@/lib/utils/widensStatusAudience'
 
 // The status edits: a note's text and media, a note's audience, a poll's
 // content, options and tallies, and a status's quote-approval policy. The edits
 // that keep a revision write it to `status_history` in the same transaction as
-// the change. updateNote and updateNoteVisibility read the status they edit
-// through the injected hydration before their transaction (updatePoll and
-// updateStatusQuoteApprovalPolicy read its row here), and each edit returns it
-// re-read through that hydration after. The three that open a transaction
-// reindex search after it.
+// the change. updateNote reads the status it edits through the injected
+// hydration before its transaction; updateNoteVisibility, updatePoll and
+// updateStatusQuoteApprovalPolicy read its row here (updateNoteVisibility
+// inside its transaction, as a compare-and-set on the content), and each edit
+// returns it re-read through that hydration after. The three that open a
+// transaction reindex search after it.
 
 const isReplaceableMediaAttachment = (
   attachment: Attachment
@@ -268,16 +270,13 @@ export const updateNoteVisibility = async (
   // An explicit visibility choice turns a moved-time status into an ordinary
   // post: the owner has picked its audience, so the `createdWhileMoved`
   // marker that keeps the status isolated from fitness imports must go (a
-  // text edit keeps it; see updateNote). Only that key is dropped from the
-  // content blob — every other field is kept — and a status without the
-  // marker is left untouched.
-  const existingRow = status.createdWhileMoved
-    ? await selectStatusRow(db, status.id)
-    : undefined
-  const movedTimeContent =
-    existingRow !== undefined && existingRow !== null
-      ? getCompatibleJSON<Record<string, unknown>>(existingRow.content ?? {})
-      : null
+  // text edit keeps it; see updateNote). Only an audience change counts,
+  // though: a hidden status reads back as `direct`, so a client reusing its
+  // draft settings on a text edit resends `to: [], cc: []` — the status's
+  // current audience — and that must keep the marker like any other text
+  // edit.
+  const sameAudience =
+    sameRecipients(status.to, to) && sameRecipients(status.cc, cc)
 
   let affectedHashtags: string[] = []
   const currentTime = new Date()
@@ -296,14 +295,14 @@ export const updateNoteVisibility = async (
   // widensStatusAudience for why a widening change drops them.
   const widensAudience = widensStatusAudience(status, { to, cc })
   await inTransaction(db, async (trx) => {
-    if (movedTimeContent !== null && 'createdWhileMoved' in movedTimeContent) {
-      const content = { ...movedTimeContent }
-      delete content.createdWhileMoved
-      await trx
-        .updateTable('statuses')
-        .set({ content: JSON.stringify(content) })
-        .where('id', '=', status.id)
-        .execute()
+    if (status.createdWhileMoved && !sameAudience) {
+      const cleared = await clearMovedTimeMarker(trx, status.id)
+      if (!cleared) {
+        logger.warn(
+          { statusId: status.id },
+          'updateNoteVisibility kept the createdWhileMoved marker: the status content changed concurrently'
+        )
+      }
     }
     if (widensAudience) {
       await trx
@@ -376,6 +375,44 @@ const selectStatusRow = (db: Db, statusId: string) =>
     .where('id', '=', statusId)
     .limit(1)
     .executeTakeFirst()
+
+// Whether two recipient lists address the same actors, as sets.
+const sameRecipients = (left: string[], right: string[]) =>
+  left.length === right.length &&
+  left.every((actorId) => right.includes(actorId))
+
+// Drops the `createdWhileMoved` marker from the content blob, keeping every
+// other field, as a compare-and-set: the write lands only while the content
+// is still the one that was read inside this transaction, so a concurrent
+// edit that rebuilt the blob (updateNote) is never overwritten with a stale
+// copy. One re-read and one retry cover a change that committed in between;
+// a second miss leaves the content alone — the marker stays and the status
+// keeps its isolation, which is the safe side.
+const clearMovedTimeMarker = async (trx: Db, statusId: string) => {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const existingRow = await selectStatusRow(trx, statusId)
+    if (!existingRow) return true
+    const movedTimeContent = getCompatibleJSON<Record<string, unknown>>(
+      existingRow.content ?? {}
+    )
+    if (
+      movedTimeContent === null ||
+      !('createdWhileMoved' in movedTimeContent)
+    ) {
+      return true
+    }
+    const content = { ...movedTimeContent }
+    delete content.createdWhileMoved
+    const result = await trx
+      .updateTable('statuses')
+      .set({ content: JSON.stringify(content) })
+      .where('id', '=', statusId)
+      .where('content', '=', existingRow.content)
+      .executeTakeFirst()
+    if (Number(result?.numUpdatedRows ?? 0n) > 0) return true
+  }
+  return false
+}
 
 export const updatePoll = async (
   db: Db,

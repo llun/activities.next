@@ -19,10 +19,11 @@ type IsolationStatus = {
 //   hidden (no recipients). It was created as a hidden local-only record
 //   while the account was moved and stays one after the redirect is cleared,
 //   so a later import publishes its own post rather than attaching to a
-//   status nobody but the owner can see. Any visibility change through the
-//   post menu (`updateNoteVisibility`) clears the marker, so the status is
-//   an ordinary post — `direct` included — that merges like any other; a
-//   text edit keeps it hidden and isolated.
+//   status nobody but the owner can see. A visibility change through the
+//   post menu (`updateNoteVisibility`) that changes the audience clears the
+//   marker, so the status is an ordinary post — `direct` included — that
+//   merges like any other; resending the current visibility (a hidden status
+//   reads back as `direct`) and a text edit keep it hidden and isolated.
 //
 // A status with no recipients and no marker is an ordinary `direct` import —
 // direct visibility with no mentions addresses nobody — and merges as before.

@@ -297,8 +297,9 @@ describe('importFitnessFilesJob', () => {
 
       await database.updateActor({ actorId: actor.id, movedTo: null })
       // The post menu's visibility control (PUT /api/v1/statuses/:id) runs
-      // updateNoteVisibility: any visibility change clears the
-      // createdWhileMoved marker, so the status is an ordinary post.
+      // updateNoteVisibility: a visibility change that changes the audience
+      // clears the createdWhileMoved marker, so the status is an ordinary
+      // post.
       await database.updateNoteVisibility({
         statusId: hidden.statusId,
         to: [ACTIVITY_STREAM_PUBLIC],
@@ -363,9 +364,9 @@ describe('importFitnessFilesJob', () => {
 
       await database.updateActor({ actorId: actor.id, movedTo: null })
       // Publishing, then changing the mind to direct, both run
-      // updateNoteVisibility — and any visibility change clears the marker,
-      // so the status is an ordinary direct post, not a still-hidden
-      // moved-time record.
+      // updateNoteVisibility — and each changes the audience, which clears
+      // the marker, so the status is an ordinary direct post, not a
+      // still-hidden moved-time record.
       await database.updateNoteVisibility({
         statusId: hidden.statusId,
         to: [ACTIVITY_STREAM_PUBLIC],
