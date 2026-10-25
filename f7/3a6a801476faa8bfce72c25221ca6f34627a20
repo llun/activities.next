@@ -1,0 +1,69 @@
+app/(timeline)/[actor]/getLocalHandleRedirect.test.ts
+  s_0ea077db726df9::t_5b7aea78dc1f4a 115-163
+app/(timeline)/[actor]/getLocalHandleRedirect.ts
+  s_0ea077db726df9::t_89e7e2161f6c03 20-48,51-53,68-76
+app/api/well-known/webfinger/route.test.ts
+  s_0ea077db726df9::t_d00f2ce0b98053 3,5,229-319
+docs/architecture.md
+  s_0ea077db726df9::t_f5efa6a29d4d11 2295-2303,2312-2315,2320-2326,2331-2333,2355-2361,2381-2387
+docs/mastodon-api-compatibility.md
+  s_0ea077db726df9::t_43fc0e137c2fdc 1128-1131,1138
+lib/database/domains/actor/lookups.ts
+  s_0ea077db726df9::t_90e9f27ff1c1b4 30-33,127-144,149-151
+lib/database/domains/actorHandle/queries.test.ts
+  s_0ea077db726df9::t_738c8d5b0b597e 1-4,202-274,536-689
+lib/database/domains/actorHandle/queries.ts
+  s_0ea077db726df9::t_61399c62098058 19,129-155,157-167,169-187,191-199,201-207,210-231,233-319,322-331,333,335,339,341-343,351-355,357,359-360,363,365,368-371,373-394,396-398
+lib/jobs/renameStatusUrlsJob.test.ts
+  s_0ea077db726df9::t_4854a1ed33d306 22,30,34,209,213,244-246,248-361
+lib/jobs/renameStatusUrlsJob.ts
+  s_0ea077db726df9::t_2c663699adfbb1 21-23,30,37-41,55,59-60,71-72,101,103-110
+lib/services/accounts/handleRename.test.ts
+  s_0ea077db726df9::t_065c349f89e926 149-189
+lib/services/accounts/handleRename.ts
+  s_0ea077db726df9::t_13adac3efd2e74 31-37,44-51
+lib/services/guards/OnlyLocalUserGuard.test.ts
+  s_0ea077db726df9::t_8f597ff13c05e7 205-283
+proxy.ts
+  s_0ea077db726df9::t_f2dae130dd64e5 19-22,96-102,104-110,228-233,251-257,260-265,269,271,275-280,308-310,329-334,337-342
+test/proxy.test.ts
+  s_0ea077db726df9::t_50ee1f9406c63c 782-853
+app/(timeline)/[actor]/layout.tsx
+  s_f92b4a9beb2361::t_9d4bce24b52b7a 12-15
+app/api/v1/accounts/handle/route.test.ts
+  s_f92b4a9beb2361::t_3256e421b65c31 311-312,409-410,416-417,432,436
+app/api/v1/accounts/handle/route.ts
+  s_f92b4a9beb2361::t_358432ccd52637 182-183,186,190
+lib/database/domains/actorHandle/types.ts
+  s_f92b4a9beb2361::t_5113de5e8ef2af 49-53
+lib/database/kysely/usernameMatch.ts
+  s_f92b4a9beb2361::t_3537ed25c6e762 69,72-73,81-85,94-102
+lib/services/accounts/localizeAccount.ts
+  s_f92b4a9beb2361::t_2e5a06faa9b398 13-21
+lib/utils/http-headers/localHandleRedirect.ts
+  s_f92b4a9beb2361::t_74e9899892b2e0 1-12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f73a6a801476faa8bfce72c25221ca6f34627a20",
+  "prompts": {},
+  "sessions": {
+    "s_0ea077db726df9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a173c5-fa2f-76a1-a6e1-b28fba926fa9",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_f92b4a9beb2361": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ee3acfd9-97dc-47c9-8a2a-2e741f8b14b8",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
