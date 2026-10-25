@@ -601,9 +601,24 @@ export const importFitnessFiles = async (
     let createdStatusId: string | null = null
 
     try {
+      // A revision names the status it must land on, and the moved-account
+      // isolation above can leave that status overlapping another one (a
+      // pre-move post plus a hidden moved-time record of the same ride). When
+      // the group holds a file of a revision status, that status wins over the
+      // earliest-file rule; without this, a revision whose status is not the
+      // earliest file's would throw or quietly land on the wrong post.
       const existingStatusId =
+        (revisionStatusIds.size > 0
+          ? orderedGroup.find(
+              (item) =>
+                item.fitnessFile.statusId != null &&
+                revisionStatusIds.has(item.fitnessFile.statusId)
+            )
+          : undefined
+        )?.fitnessFile.statusId ??
         orderedGroup.find((item) => item.fitnessFile.statusId)?.fitnessFile
-          .statusId ?? null
+          .statusId ??
+        null
 
       const existingStatus = existingStatusId
         ? await database.getStatus({

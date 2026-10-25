@@ -335,6 +335,72 @@ describe('importFitnessFilesJob', () => {
     }
   })
 
+  it('lands a replacePrimaryFileId-only revision on the hidden status a moved-time import left behind', async () => {
+    const earlierFile = await createFitnessFile(
+      'fit',
+      'fitness/wahoo-revision-replace-only-earlier.fit',
+      'wahoo-revision-replace-only'
+    )
+    const latestFile = await createFitnessFile(
+      'fit',
+      'fitness/wahoo-revision-replace-only-latest.fit',
+      'wahoo-revision-replace-only'
+    )
+    mockParseFitnessFile.mockResolvedValue(routedActivity)
+    await database.updateActor({
+      actorId: actor.id,
+      movedTo: 'https://destination.test/users/athlete'
+    })
+    try {
+      const [hidden] = await importFitnessFiles(database, {
+        actorId: actor.id,
+        batchId: 'wahoo-revision-replace-only',
+        fitnessFileIds: [earlierFile!.id],
+        visibility: 'public',
+        publishSendNote: true
+      })
+      await processFitnessFileJob(database, hidden.processJob!)
+
+      await database.updateActor({ actorId: actor.id, movedTo: null })
+      // The Wahoo job crashed after the status was assigned but before it
+      // recorded the import, so the retry knows only the file whose status
+      // the revision replaces — no expectedExistingStatusId. The hidden
+      // status must still be exempt from isolation, or the revision would
+      // publish a duplicate post for the same ride.
+      const groups = await importFitnessFiles(database, {
+        actorId: actor.id,
+        batchId: 'wahoo-revision-replace-only',
+        fitnessFileIds: [latestFile!.id],
+        overlapFitnessFileIds: [earlierFile!.id],
+        visibility: 'public',
+        publishSendNote: true,
+        replacePrimaryFileId: earlierFile!.id
+      })
+      expect(groups).toHaveLength(1)
+      const [revision] = groups
+      expect(revision.statusId).toBe(hidden.statusId)
+      expect(revision.statusCreated).toBe(false)
+      expect(revision.primaryFitnessFileId).toBe(latestFile!.id)
+      expect(await database.getFitnessFile({ id: latestFile!.id })).toEqual(
+        expect.objectContaining({
+          statusId: hidden.statusId,
+          isPrimary: true
+        })
+      )
+      expect(await database.getFitnessFile({ id: earlierFile!.id })).toEqual(
+        expect.objectContaining({
+          statusId: hidden.statusId,
+          isPrimary: false
+        })
+      )
+      expect(await database.getStatus({ statusId: hidden.statusId })).toEqual(
+        expect.objectContaining({ to: [], cc: [] })
+      )
+    } finally {
+      await database.updateActor({ actorId: actor.id, movedTo: null })
+    }
+  })
+
   it('merges a later import into a moved-time status the owner published after the clear', async () => {
     const hiddenFile = await createFitnessFile(
       'fit',
@@ -611,6 +677,225 @@ describe('importFitnessFilesJob', () => {
       )
       // The revision exposes nothing new through the post: its audience is
       // untouched.
+      expect(
+        await database.getStatus({ statusId: published.statusId })
+      ).toEqual(expect.objectContaining({ to: [ACTIVITY_STREAM_PUBLIC] }))
+    } finally {
+      await database.updateActor({ actorId: actor.id, movedTo: null })
+    }
+  })
+
+  it('lands a revision on its hidden status when a pre-move post of the same ride overlaps it', async () => {
+    const preMoveFile = await createFitnessFile(
+      'fit',
+      'fitness/revision-overlapping-statuses-premove.fit',
+      'revision-overlapping-statuses-premove'
+    )
+    const movedFile = await createFitnessFile(
+      'fit',
+      'fitness/revision-overlapping-statuses-moved.fit',
+      'revision-overlapping-statuses-moved'
+    )
+    const latestFile = await createFitnessFile(
+      'fit',
+      'fitness/revision-overlapping-statuses-latest.fit',
+      'revision-overlapping-statuses-latest'
+    )
+    // The pre-move recording starts ten minutes before the moved-time one;
+    // both overlap by >=80%, so after the clear they are one overlap group.
+    const movedTimeActivity = {
+      ...routedActivity,
+      startTime: new Date('2026-02-01T08:10:00.000Z')
+    }
+    mockParseFitnessFile.mockResolvedValue(routedActivity)
+    const [published] = await importFitnessFiles(database, {
+      actorId: actor.id,
+      batchId: 'revision-overlapping-statuses-premove',
+      fitnessFileIds: [preMoveFile!.id],
+      visibility: 'public',
+      publishSendNote: true
+    })
+    expect(await database.getStatus({ statusId: published.statusId })).toEqual(
+      expect.objectContaining({ to: [ACTIVITY_STREAM_PUBLIC] })
+    )
+
+    await database.updateActor({
+      actorId: actor.id,
+      movedTo: 'https://destination.test/users/athlete'
+    })
+    try {
+      mockParseFitnessFile.mockResolvedValue(movedTimeActivity)
+      const [hidden] = await importFitnessFiles(database, {
+        actorId: actor.id,
+        batchId: 'revision-overlapping-statuses-moved',
+        fitnessFileIds: [movedFile!.id],
+        overlapFitnessFileIds: [preMoveFile!.id],
+        visibility: 'public',
+        publishSendNote: true
+      })
+      expect(hidden.statusId).not.toBe(published.statusId)
+      await processFitnessFileJob(database, hidden.processJob!)
+      expect(await database.getStatus({ statusId: hidden.statusId })).toEqual(
+        expect.objectContaining({ to: [], cc: [] })
+      )
+
+      await database.updateActor({ actorId: actor.id, movedTo: null })
+      // The revision names the hidden status, and the pre-move post's file
+      // starts earlier — the group must still pick the revision's status, not
+      // the earliest file's, or the revision would fail instead of landing.
+      const groups = await importFitnessFiles(database, {
+        actorId: actor.id,
+        batchId: 'revision-overlapping-statuses-latest',
+        fitnessFileIds: [latestFile!.id],
+        overlapFitnessFileIds: [preMoveFile!.id, movedFile!.id],
+        visibility: 'public',
+        publishSendNote: true,
+        replacePrimaryFileId: movedFile!.id,
+        expectedExistingStatusId: hidden.statusId
+      })
+      expect(groups).toHaveLength(1)
+      const [revision] = groups
+      expect(revision.statusId).toBe(hidden.statusId)
+      expect(revision.statusCreated).toBe(false)
+      expect(revision.primaryFitnessFileId).toBe(latestFile!.id)
+      expect(await database.getFitnessFile({ id: latestFile!.id })).toEqual(
+        expect.objectContaining({
+          statusId: hidden.statusId,
+          isPrimary: true
+        })
+      )
+      expect(await database.getFitnessFile({ id: movedFile!.id })).toEqual(
+        expect.objectContaining({
+          statusId: hidden.statusId,
+          isPrimary: false
+        })
+      )
+      // The pre-move post is untouched: its file keeps its status and stays
+      // primary, and the post keeps its audience.
+      expect(await database.getFitnessFile({ id: preMoveFile!.id })).toEqual(
+        expect.objectContaining({
+          statusId: published.statusId,
+          isPrimary: true
+        })
+      )
+      expect(
+        await database.getStatus({ statusId: published.statusId })
+      ).toEqual(expect.objectContaining({ to: [ACTIVITY_STREAM_PUBLIC] }))
+      expect(await database.getStatus({ statusId: hidden.statusId })).toEqual(
+        expect.objectContaining({ to: [], cc: [] })
+      )
+    } finally {
+      await database.updateActor({ actorId: actor.id, movedTo: null })
+    }
+  })
+
+  it('lands a revision on its pre-move post while moved when a hidden moved-time record of the same ride overlaps it', async () => {
+    const preMoveFile = await createFitnessFile(
+      'fit',
+      'fitness/revision-overlapping-moved-premove.fit',
+      'revision-overlapping-moved-premove'
+    )
+    const movedFile = await createFitnessFile(
+      'fit',
+      'fitness/revision-overlapping-moved-record.fit',
+      'revision-overlapping-moved-record'
+    )
+    const latestFile = await createFitnessFile(
+      'fit',
+      'fitness/revision-overlapping-moved-latest.fit',
+      'revision-overlapping-moved-latest'
+    )
+    // The moved-time recording starts five minutes before the pre-move post;
+    // both overlap by >=80%, so while moved they are one overlap group once the
+    // revision exempts the post it names.
+    const earlierMovedActivity = {
+      ...routedActivity,
+      startTime: new Date('2026-02-01T07:55:00.000Z')
+    }
+    mockParseFitnessFile.mockResolvedValue(routedActivity)
+    const [published] = await importFitnessFiles(database, {
+      actorId: actor.id,
+      batchId: 'revision-overlapping-moved-premove',
+      fitnessFileIds: [preMoveFile!.id],
+      visibility: 'public'
+    })
+    expect(await database.getStatus({ statusId: published.statusId })).toEqual(
+      expect.objectContaining({ to: [ACTIVITY_STREAM_PUBLIC] })
+    )
+
+    await database.updateActor({
+      actorId: actor.id,
+      movedTo: 'https://destination.test/users/athlete'
+    })
+    try {
+      mockParseFitnessFile.mockResolvedValue(earlierMovedActivity)
+      const [hidden] = await importFitnessFiles(database, {
+        actorId: actor.id,
+        batchId: 'revision-overlapping-moved-record',
+        fitnessFileIds: [movedFile!.id],
+        overlapFitnessFileIds: [preMoveFile!.id],
+        visibility: 'public',
+        publishSendNote: true
+      })
+      expect(hidden.statusId).not.toBe(published.statusId)
+      await processFitnessFileJob(database, hidden.processJob!)
+      expect(await database.getStatus({ statusId: hidden.statusId })).toEqual(
+        expect.objectContaining({ to: [], cc: [] })
+      )
+
+      ;(getQueue().publish as jest.Mock).mockClear()
+      mockParseFitnessFile.mockResolvedValue(routedActivity)
+      // Still moved: the revision names the pre-move post, and the hidden
+      // record's file starts earlier — the group must still pick the
+      // revision's status, and the revision must publish nothing new.
+      const groups = await importFitnessFiles(database, {
+        actorId: actor.id,
+        batchId: 'revision-overlapping-moved-latest',
+        fitnessFileIds: [latestFile!.id],
+        overlapFitnessFileIds: [preMoveFile!.id, movedFile!.id],
+        visibility: 'public',
+        publishSendNote: true,
+        replacePrimaryFileId: preMoveFile!.id,
+        expectedExistingStatusId: published.statusId
+      })
+      expect(groups).toHaveLength(1)
+      const [revision] = groups
+      expect(revision.statusId).toBe(published.statusId)
+      expect(revision.statusCreated).toBe(false)
+      expect(revision.primaryFitnessFileId).toBe(latestFile!.id)
+      expect(revision.processJob?.data).toEqual(
+        expect.objectContaining({ publishSendNote: false })
+      )
+      expect(await database.getFitnessFile({ id: latestFile!.id })).toEqual(
+        expect.objectContaining({
+          statusId: published.statusId,
+          isPrimary: true
+        })
+      )
+      expect(await database.getFitnessFile({ id: preMoveFile!.id })).toEqual(
+        expect.objectContaining({
+          statusId: published.statusId,
+          isPrimary: false
+        })
+      )
+      // The hidden moved-time record is untouched.
+      expect(await database.getFitnessFile({ id: movedFile!.id })).toEqual(
+        expect.objectContaining({
+          statusId: hidden.statusId,
+          isPrimary: true
+        })
+      )
+      expect(await database.getStatus({ statusId: hidden.statusId })).toEqual(
+        expect.objectContaining({ to: [], cc: [] })
+      )
+
+      await processFitnessFileJob(database, revision.processJob!)
+      expect(getQueue().publish).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: SEND_NOTE_JOB_NAME,
+          data: expect.objectContaining({ statusId: published.statusId })
+        })
+      )
       expect(
         await database.getStatus({ statusId: published.statusId })
       ).toEqual(expect.objectContaining({ to: [ACTIVITY_STREAM_PUBLIC] }))
