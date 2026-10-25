@@ -423,10 +423,13 @@ const sameRecipients = (left: string[], right: string[]) => {
 // other field, as a compare-and-set: the write lands only while the content
 // is still the one that was read inside this transaction, so a concurrent
 // edit that rebuilt the blob (updateNote) is never overwritten with a stale
-// copy. One re-read and one retry cover a change that committed in between;
-// a second miss keeps the marker, which has no effect: by then the status
-// has recipients, so it is not isolated, and the next audience change —
-// including a change to direct — clears it.
+// copy. The row lock (PostgreSQL) and the serialized transactions (SQLite)
+// mean no other writer can commit between that read and this write, so the
+// compare-and-set always matches on the first attempt; the conditional
+// update and the one retry are kept only as a second guard. A miss keeps
+// the marker, which has no effect: by then the status has recipients, so it
+// is not isolated, and the next audience change — including a change to
+// direct — clears it.
 const clearMovedTimeMarker = async (trx: Db, statusId: string) => {
   for (let attempt = 0; attempt < 2; attempt++) {
     const existingRow = await selectStatusRowForUpdate(trx, statusId)

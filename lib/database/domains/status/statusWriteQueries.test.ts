@@ -494,10 +494,10 @@ const describeStatement = ({ sql: text, bindings }: Statement) => {
 }
 
 // The statements of the first transaction among `statements` that writes,
-// from its begin to its commit or rollback, described. Hydration runs outside
-// it, and may read in a transaction of its own; reindexing a hashtag for
-// search writes in one after it.
-const transactionSteps = (statements: Statement[]) => {
+// from its begin to its commit or rollback. Hydration runs outside it, and
+// may read in a transaction of its own; reindexing a hashtag for search
+// writes in one after it.
+const writingTransaction = (statements: Statement[]) => {
   const transactions: Statement[][] = []
   let current: Statement[] | null = null
   for (const statement of statements) {
@@ -517,8 +517,22 @@ const transactionSteps = (statements: Statement[]) => {
     )
   )
   expect(writing.length, 'a writing transaction').toBeGreaterThan(0)
-  return writing[0].map(describeStatement)
+  return writing[0]
 }
+
+const transactionSteps = (statements: Statement[]) =>
+  writingTransaction(statements).map(describeStatement)
+
+// The row lock an edit takes: the first `select ... from "statuses"` of its
+// transaction, read before anything is written. PostgreSQL appends
+// `for update`; SQLite has no row locks, so the same statement reads
+// without it.
+const statusRowLock = (statements: Statement[]) =>
+  writingTransaction(statements).find(({ sql: text }) =>
+    /^select .* from "statuses" where "id" = (\$1|\?) limit (\$2|\?)( for update)?$/.test(
+      text
+    )
+  )
 
 beforeAll(async () => {
   await testDb.prepare()
@@ -1951,6 +1965,34 @@ describe('updateNote', () => {
     })
     expect(status).not.toHaveProperty('createdWhileMoved')
   })
+
+  it('locks the status row before writing an edit of a marked status', async () => {
+    const p = nextPrefix()
+    const author = await seedActor(`${p}-author`)
+    const id = `${author}/statuses/1`
+    await seedStatus({
+      id,
+      actorId: author,
+      to: [],
+      cc: [],
+      content: JSON.stringify({
+        url: id,
+        text: 'ride',
+        summary: '',
+        sensitive: false,
+        language: null,
+        createdWhileMoved: true
+      })
+    })
+    const { statements } = await capture(() =>
+      updateNote(db, hydration, { statusId: id, text: 'after', summary: '' })
+    )
+    // The in-transaction re-read that keeps the marker honest is a row lock:
+    // it waits for a concurrent visibility change on PostgreSQL. SQLite has
+    // no row locks, so the same statement reads without one.
+    const lock = statusRowLock(statements)
+    expect(lock?.sql.endsWith(' for update')).toBe(testDb.backend === 'pg')
+  })
 })
 
 describe('updateNoteVisibility', () => {
@@ -2460,6 +2502,37 @@ describe('updateNoteVisibility', () => {
           .executeTakeFirstOrThrow()
       ).content
     ).toBe(content)
+  })
+
+  it('locks the status row before clearing the marker', async () => {
+    const p = nextPrefix()
+    const author = await seedActor(`${p}-author`)
+    const id = `${author}/statuses/1`
+    await seedStatus({
+      id,
+      actorId: author,
+      to: [],
+      cc: [],
+      content: JSON.stringify({
+        url: id,
+        text: 'ride',
+        summary: '',
+        sensitive: false,
+        language: null,
+        createdWhileMoved: true
+      })
+    })
+    const { statements } = await capture(() =>
+      updateNoteVisibility(db, hydration, {
+        statusId: id,
+        ...FOLLOWERS_ONLY(author)
+      })
+    )
+    // The marker clear reads the row before the audience is rewritten, so a
+    // concurrent edit is waited for on PostgreSQL. SQLite has no row locks,
+    // so the same statement reads without one.
+    const lock = statusRowLock(statements)
+    expect(lock?.sql.endsWith(' for update')).toBe(testDb.backend === 'pg')
   })
 })
 
