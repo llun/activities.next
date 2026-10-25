@@ -1,0 +1,29 @@
+lib/jobs/fitnessImportIsolation.ts
+  s_279e7012f36c5f::t_01e3d355ad73aa 18-25,38-40
+docs/architecture.md
+  s_279e7012f36c5f::t_72250ef6bea1b7 2249-2250,2254-2255
+docs/fitness-file-storage.md
+  s_279e7012f36c5f::t_f5e3cf9d0d58d8 11
+lib/jobs/fitnessImportIsolation.test.ts
+  s_279e7012f36c5f::t_6d614eed137886 35-51
+lib/jobs/importFitnessFilesJob.test.ts
+  s_279e7012f36c5f::t_e091d599484993 268-332
+lib/jobs/importStravaActivityJob.test.ts
+  s_279e7012f36c5f::t_15f82d3314d366 267-269,272-277
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f5c37b3cf335508779696f1f26064af87166ed62",
+  "prompts": {},
+  "sessions": {
+    "s_279e7012f36c5f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0410f49d-2e94-45e1-bd1f-237e6f7747bc",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
