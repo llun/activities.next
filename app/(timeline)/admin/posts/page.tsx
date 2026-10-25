@@ -1,3 +1,4 @@
+import { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 
 import { PostsMediaSettingsForm } from '@/lib/components/admin/settings/PostsMediaSettingsForm'
@@ -9,6 +10,10 @@ import { getServerSettingsView } from '@/lib/services/serverSettings'
 import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
 
 export const dynamic = 'force-dynamic'
+
+export const metadata: Metadata = {
+  title: 'Posts & media'
+}
 
 const Page = async () => {
   const database = getDatabase()

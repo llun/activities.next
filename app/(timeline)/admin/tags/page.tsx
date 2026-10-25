@@ -1,3 +1,4 @@
+import { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 
 import { PageHeader } from '@/lib/components/page-header'
@@ -9,6 +10,10 @@ import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
 import { AdminHashtagsContent } from './AdminHashtagsContent'
 
 export const dynamic = 'force-dynamic'
+
+export const metadata: Metadata = {
+  title: 'Hashtags'
+}
 
 const ITEMS_PER_PAGE = 20
 

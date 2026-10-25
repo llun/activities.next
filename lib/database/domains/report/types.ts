@@ -52,6 +52,7 @@ export type GetAdminReportsParams = {
   minId?: string | null
   sinceId?: string | null
 }
+export type CountOpenReportsParams = { limit: number }
 export type GetReportByIdParams = { reportId: string }
 export type UpdateReportCategoryParams = {
   reportId: string
@@ -68,6 +69,8 @@ export interface ReportDatabase {
   createReport(params: CreateReportParams): Promise<Report>
   // Filter/keyset-paginated admin report listing (newest first).
   getAdminReports(params: GetAdminReportsParams): Promise<Report[]>
+  // Count unresolved reports, examining no more than the requested limit.
+  countOpenReports(params: CountOpenReportsParams): Promise<number>
   getReportById(params: GetReportByIdParams): Promise<Report | null>
   // Update the report category and/or rule ids; returns the updated report.
   updateReportCategory(

@@ -1,3 +1,4 @@
+import { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 
 import { CustomEmojiManager } from '@/lib/components/admin/CustomEmojiManager'
@@ -8,6 +9,10 @@ import { toAdminCustomEmoji } from '@/lib/types/domain/customEmoji'
 import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
 
 export const dynamic = 'force-dynamic'
+
+export const metadata: Metadata = {
+  title: 'Custom emojis'
+}
 
 const Page = async () => {
   const database = getDatabase()

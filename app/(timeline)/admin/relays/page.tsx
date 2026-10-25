@@ -1,4 +1,5 @@
 import { Trash2 } from 'lucide-react'
+import { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { ComponentProps } from 'react'
 
@@ -23,6 +24,10 @@ import { RelayState } from '@/lib/types/domain/relay'
 import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
 
 export const dynamic = 'force-dynamic'
+
+export const metadata: Metadata = {
+  title: 'Relays'
+}
 
 type BadgeTone = ComponentProps<typeof Badge>['tone']
 

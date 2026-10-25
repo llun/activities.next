@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
 
 import {
@@ -30,6 +31,7 @@ const acct = (account: AdminReport['account']) =>
   account.domain ? `${account.username}@${account.domain}` : account.username
 
 export const AdminReportDetail = ({ reportId }: { reportId: string }) => {
+  const router = useRouter()
   const [report, setReport] = useState<AdminReport | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -50,11 +52,12 @@ export const AdminReportDetail = ({ reportId }: { reportId: string }) => {
     load()
   }, [load])
 
-  const run = async (fn: () => Promise<unknown>) => {
+  const run = async (fn: () => Promise<unknown>, refreshLayout = false) => {
     setBusy(true)
     setError(null)
     try {
       await fn()
+      if (refreshLayout) router.refresh()
       await load()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Action failed')
@@ -213,7 +216,7 @@ export const AdminReportDetail = ({ reportId }: { reportId: string }) => {
                 type="button"
                 variant="outline"
                 disabled={busy}
-                onClick={() => run(() => reopenAdminReport(reportId))}
+                onClick={() => run(() => reopenAdminReport(reportId), true)}
               >
                 Reopen
               </Button>
@@ -221,7 +224,7 @@ export const AdminReportDetail = ({ reportId }: { reportId: string }) => {
               <Button
                 type="button"
                 disabled={busy}
-                onClick={() => run(() => resolveAdminReport(reportId))}
+                onClick={() => run(() => resolveAdminReport(reportId), true)}
               >
                 Resolve
               </Button>

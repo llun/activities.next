@@ -1,3 +1,4 @@
+import { Metadata } from 'next'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 
@@ -27,6 +28,10 @@ import { getAdminDomainList } from '@/lib/services/domains/adminDomains'
 import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
 
 export const dynamic = 'force-dynamic'
+
+export const metadata: Metadata = {
+  title: 'Served domains'
+}
 
 const HEAD_CELL_CLASS = 'px-3 py-2.5 font-medium'
 
