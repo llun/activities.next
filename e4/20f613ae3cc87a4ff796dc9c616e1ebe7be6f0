@@ -1,0 +1,24 @@
+lib/components/gallery/GalleryDayHeader.test.tsx
+  h_580a04e334fef4 88-95,98-125,146-148
+lib/components/gallery/GalleryDayHeader.tsx
+  h_580a04e334fef4 113-120,122-125,127
+lib/components/gallery/GalleryPagedGrid.test.tsx
+  h_580a04e334fef4 854-1033
+lib/components/gallery/GalleryPagedGrid.tsx
+  h_580a04e334fef4 118-150,196-198,201-205,303-341,363-393
+lib/components/gallery/useDaySelection.test.tsx
+  h_580a04e334fef4 192-260
+lib/components/gallery/useDaySelection.ts
+  h_580a04e334fef4 85-88,144-147,202,221,228,328-331,334,349,374-376,378-382,421-422,424
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e420f613ae3cc87a4ff796dc9c616e1ebe7be6f0",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
