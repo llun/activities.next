@@ -2246,11 +2246,13 @@ moved` (reject stays allowed). While
   Fitness imports retain the backing status needed to link activity data, but
   do not insert a new post in timelines, notify followers or federate it while
   the author is moved. Clearing the redirect does not publish a status created
-  during the move: its recipients stay empty even when it is edited. Such a
+  during the move: a text edit keeps it hidden, while changing its visibility
+  publishes it, and it then merges with later imports like any post. Such a
   status is marked `createdWhileMoved` (in the status content blob), because an
   ordinary `direct` import also has empty recipients; a later overlapping
   fitness import creates a separate published status rather than merging into
-  a marked one, while unmarked statuses — including direct imports from an
+  a marked one that is still hidden, while unmarked statuses — including direct
+  imports from an
   account that never moved — merge as before
   (`isIsolatedFromFitnessImport` in `lib/jobs/fitnessImportIsolation.ts`).
   CSV and archive export, migration GET/POST/DELETE, and

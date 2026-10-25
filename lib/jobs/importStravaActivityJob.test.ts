@@ -264,11 +264,17 @@ describe('importStravaActivityJob', () => {
         totalDurationSeconds: 1_200
       }
     ] as never)
-    // The hidden status is recognizable by its empty recipients, so a
-    // duplicate of the isolation rule here would drop the file.
+    // The hidden status carries the createdWhileMoved marker with empty
+    // recipients, so a duplicate of the isolation rule here would drop the
+    // file.
     database.getStatus.mockImplementation(async ({ statusId }) => {
       if (statusId === 'hidden-wahoo-status') {
-        return { id: statusId, to: [], cc: [] } as never
+        return {
+          id: statusId,
+          to: [],
+          cc: [],
+          createdWhileMoved: true
+        } as never
       }
       if (statusId === 'public-wahoo-status') {
         return {

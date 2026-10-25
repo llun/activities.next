@@ -15,10 +15,14 @@ type IsolationStatus = {
 //   an import running while moved must not expose new activity data through
 //   it. Hidden statuses (marked or an ordinary `direct` one) merge, so two
 //   files of one ride imported while moved share one hidden record.
-// - Not moved: a status carrying the `createdWhileMoved` marker. It was
-//   created as a hidden local-only record while the account was moved and
-//   stays one after the redirect is cleared, so a later import publishes its
-//   own post rather than attaching to a status nobody but the owner can see.
+// - Not moved: a status carrying the `createdWhileMoved` marker that is still
+//   hidden (no recipients). It was created as a hidden local-only record
+//   while the account was moved and stays one after the redirect is cleared,
+//   so a later import publishes its own post rather than attaching to a
+//   status nobody but the owner can see. The owner can still publish it
+//   through the post menu's visibility control (`updateNoteVisibility` gives
+//   it recipients and keeps the marker); a marked status with recipients is
+//   a published post and merges like any other.
 //
 // A status with no recipients and no marker is an ordinary `direct` import —
 // direct visibility with no mentions addresses nobody — and merges as before.
@@ -31,4 +35,6 @@ export const isIsolatedFromFitnessImport = ({
 }) =>
   moved
     ? status.to.length > 0 || status.cc.length > 0
-    : status.createdWhileMoved === true
+    : status.createdWhileMoved === true &&
+      status.to.length === 0 &&
+      status.cc.length === 0

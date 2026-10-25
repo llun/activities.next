@@ -266,6 +266,71 @@ describe('importFitnessFilesJob', () => {
     }
   })
 
+  it('merges a later import into a moved-time status the owner published after the clear', async () => {
+    const hiddenFile = await createFitnessFile(
+      'fit',
+      'fitness/hidden-published-after-clear.fit',
+      'hidden-published-after-clear'
+    )
+    const newFile = await createFitnessFile(
+      'fit',
+      'fitness/overlap-into-published.fit',
+      'overlap-into-published'
+    )
+    mockParseFitnessFile.mockResolvedValue(routedActivity)
+    await database.updateActor({
+      actorId: actor.id,
+      movedTo: 'https://destination.test/users/athlete'
+    })
+    try {
+      const [hidden] = await importFitnessFiles(database, {
+        actorId: actor.id,
+        batchId: 'hidden-published-after-clear',
+        fitnessFileIds: [hiddenFile!.id],
+        visibility: 'public',
+        publishSendNote: true
+      })
+      await processFitnessFileJob(database, hidden.processJob!)
+      expect(await database.getStatus({ statusId: hidden.statusId })).toEqual(
+        expect.objectContaining({ to: [], cc: [] })
+      )
+
+      await database.updateActor({ actorId: actor.id, movedTo: null })
+      // The post menu's visibility control (PUT /api/v1/statuses/:id) runs
+      // updateNoteVisibility: the status gains recipients and keeps its
+      // createdWhileMoved marker.
+      await database.updateNoteVisibility({
+        statusId: hidden.statusId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      expect(await database.getStatus({ statusId: hidden.statusId })).toEqual(
+        expect.objectContaining({
+          to: [ACTIVITY_STREAM_PUBLIC],
+          createdWhileMoved: true
+        })
+      )
+
+      const [merged] = await importFitnessFiles(database, {
+        actorId: actor.id,
+        batchId: 'overlap-into-published',
+        fitnessFileIds: [newFile!.id],
+        overlapFitnessFileIds: [hiddenFile!.id],
+        visibility: 'public',
+        publishSendNote: true
+      })
+      // The published status merges like any post: the overlapping import
+      // attaches to it instead of creating a second public post for the ride.
+      expect(merged.statusId).toBe(hidden.statusId)
+      expect(merged.statusCreated).toBe(false)
+      expect(await database.getFitnessFile({ id: newFile!.id })).toEqual(
+        expect.objectContaining({ statusId: hidden.statusId })
+      )
+    } finally {
+      await database.updateActor({ actorId: actor.id, movedTo: null })
+    }
+  })
+
   it.each([false, true])(
     'does not expose a moved actor new file through a pre-move post (reprocess original: %s)',
     async (reprocessOriginal) => {
