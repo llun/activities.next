@@ -245,7 +245,7 @@ describe('/api/v1/admin/domains', () => {
     }
   })
 
-  it('keeps env domains locked on and sends the primary to Instance', async () => {
+  it('keeps env domains locked on and sends the primary to Server settings', async () => {
     const locked = await PATCH_ONE(
       jsonRequest(`${LIST_URL}/club.example`, 'PATCH', { status: 'off' }),
       one('club.example')

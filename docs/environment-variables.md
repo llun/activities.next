@@ -11,7 +11,7 @@ Application configuration is provided through environment variables. Root-level 
 ## Database-backed server settings (env → database → default)
 
 Some instance policy is also editable at runtime from the admin area
-(**Admin → Instance / Posts & media / Network**, and the **Federation** tab),
+(**Admin → Server settings / Posts & media / Network**, and the **Federation** tab),
 stored in the `server_settings` table. Each such value is resolved with the
 precedence **environment variable → database → built-in default**: an
 environment variable always wins and locks the field in the admin UI with a
@@ -48,7 +48,7 @@ default. They gate the gallery lookups described under
 [Gallery Lookups](#gallery-lookups); queued jobs re-check them when they run.
 
 The `features.*` settings (`features.fitness`, `features.explore`,
-`features.messages`) are edited on **Admin → Instance** under **Optional
+`features.messages`) are edited on **Admin → Server settings** under **Optional
 features** and have no environment variable, so they are never locked. Turning
 one off removes that section from every account's navigation — sidebar, rail
 and mobile drawer. Settings → Sidebar still lists it, greyed out and marked
@@ -57,7 +57,7 @@ where a nav item went. It does **not** disable the
 section: its pages and API keep working, so an existing link or bookmark still
 resolves, and nobody's saved navigation is deleted, so re-enabling a feature
 restores each account's layout exactly as they left it. A served domain
-(**Admin → Domains**) can turn off, for its own visitors, a feature the server
+(**Admin → Served domains**) can turn off, for its own visitors, a feature the server
 has on; it can never turn on one the server has off.
 
 `posts.maxMediaAttachments` is the exception to the status-limit enforcement
