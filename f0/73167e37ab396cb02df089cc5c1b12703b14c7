@@ -1,0 +1,43 @@
+app/(timeline)/admin/accounts/page.tsx
+  s_6c5badf312b5f6::t_d6416c0fe9f5cd 1,25-28
+app/(timeline)/admin/domains/page.tsx
+  s_6c5badf312b5f6::t_f8065f3eafb99a 1,32-35
+app/(timeline)/admin/emojis/page.tsx
+  s_6c5badf312b5f6::t_56b9299c48f243 1,13-16
+app/(timeline)/admin/federation/page.tsx
+  s_6c5badf312b5f6::t_9aa4330d6d2db8 2,39-42
+app/(timeline)/admin/instance/page.tsx
+  s_6c5badf312b5f6::t_bec3b35e3fbc16 1,12-15
+app/(timeline)/admin/metadata.test.tsx
+  s_6c5badf312b5f6::t_8da00eda75d4cc 1-64
+app/(timeline)/admin/network/page.tsx
+  s_6c5badf312b5f6::t_786222df019b19 1,12-15
+app/(timeline)/admin/posts/page.tsx
+  s_6c5badf312b5f6::t_7708459b761e9f 1,14-17
+app/(timeline)/admin/queues/page.tsx
+  s_6c5badf312b5f6::t_8b56df7f0122d0 1,20-23
+app/(timeline)/admin/relays/page.tsx
+  s_6c5badf312b5f6::t_1d52831ec139fc 2,28-31
+app/(timeline)/admin/reports/page.tsx
+  s_6c5badf312b5f6::t_98a6dd361711d0 1,19-22
+app/(timeline)/admin/system/page.tsx
+  s_6c5badf312b5f6::t_b0833ab829b394 2,18-21
+app/(timeline)/admin/tags/page.tsx
+  s_6c5badf312b5f6::t_4747e600adea8b 1,14-17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f073167e37ab396cb02df089cc5c1b12703b14c7",
+  "prompts": {},
+  "sessions": {
+    "s_6c5badf312b5f6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a17346-1e5e-7771-b889-7602ab298ce4",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
