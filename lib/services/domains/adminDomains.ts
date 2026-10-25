@@ -1,6 +1,7 @@
 import { type Config, getConfig } from '@/lib/config'
 import type {
   DomainCheckResult,
+  LocalActorOnDomain,
   ServedDomainData,
   UpdateServedDomainParams
 } from '@/lib/database/domains/servedDomain/types'
@@ -293,11 +294,14 @@ export type SetDomainStatusResult =
   | { type: 'not-found' }
   | { type: 'locked' }
   | { type: 'check-failed'; domain: AdminDomainDetail }
+  | { type: 'has-profiles'; actors: LocalActorOnDomain[] }
 
 /**
  * Turns a database domain on or off. Turning on runs the check again and only
  * turns the domain on when it passes, so a stale "passed" cannot put a domain
- * that has since moved away back into trust.
+ * that has since moved away back into trust. Turning off is refused while any
+ * local actor uses the domain as its handle or its identity host: their
+ * profile URLs and federated ids would stop resolving.
  */
 export const setDomainStatus = async (
   database: Database,
@@ -322,6 +326,8 @@ export const setDomainStatus = async (
     }
     await database.updateServedDomain({ domain, status: 'on', check: result })
   } else {
+    const actors = await database.getLocalActorsOnDomain({ domain })
+    if (actors.length > 0) return { type: 'has-profiles', actors }
     await database.updateServedDomain({ domain, status: 'off' })
   }
   await refreshServedDomainsAfterWrite(database)
@@ -432,7 +438,7 @@ export type RemoveDomainResult =
   | { type: 'not-found' }
   | { type: 'locked' }
   | { type: 'on' }
-  | { type: 'has-profiles' }
+  | { type: 'has-profiles'; actors: LocalActorOnDomain[] }
 
 /** Removes a database domain that is off and has no profiles. */
 export const removeDomain = async (
@@ -443,8 +449,10 @@ export const removeDomain = async (
   const existing = await database.getServedDomain({ domain })
   if (!existing) return { type: 'not-found' }
   if (existing.status === 'on') return { type: 'on' }
-  const counts = await database.countLocalActorsByDomain({ domains: [domain] })
-  if ((counts[domain] ?? 0) > 0) return { type: 'has-profiles' }
+  // The same match turning the domain off refuses: a handle on the domain, or
+  // an id host on it (a renamed actor's id never changes).
+  const actors = await database.getLocalActorsOnDomain({ domain })
+  if (actors.length > 0) return { type: 'has-profiles', actors }
   // The domain's own rules and announcements go with it, in one transaction;
   // nothing could show them any more.
   await database.deleteServedDomainWithScopes({ domain })

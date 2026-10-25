@@ -103,6 +103,17 @@ export type GetServedDomainParams = { domain: string }
 export type DeleteServedDomainParams = { domain: string }
 export type CountLocalActorsByDomainParams = { domains: string[] }
 
+// A local actor that blocks turning a domain off or removing it: either its
+// current handle is on the domain, or its immutable actor id still names it
+// (a rename never changes the id).
+export type LocalActorOnDomain = {
+  id: string
+  username: string
+  domain: string
+}
+
+export type GetLocalActorsOnDomainParams = { domain: string }
+
 export interface ServedDomainDatabase {
   // Inserts a row (status `off` unless given). Throws on a duplicate domain.
   createServedDomain(
@@ -132,8 +143,17 @@ export interface ServedDomainDatabase {
     params: DeleteServedDomainParams
   ): Promise<boolean>
   // Local actors (with an account) per domain, for the given domains only.
-  // A domain with none is absent from the map.
+  // A domain with none is absent from the map. A domain is counted by the
+  // same match `getLocalActorsOnDomain` refuses on, so the list's profile
+  // count agrees with the refusal.
   countLocalActorsByDomain(
     params: CountLocalActorsByDomainParams
   ): Promise<Record<string, number>>
+  // The local account-backed actors whose current handle is on the domain or
+  // whose immutable actor id names it (a rename keeps the id), ordered by
+  // username then id. These are the actors that block turning the domain off
+  // or removing it.
+  getLocalActorsOnDomain(
+    params: GetLocalActorsOnDomainParams
+  ): Promise<LocalActorOnDomain[]>
 }
