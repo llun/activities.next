@@ -493,6 +493,7 @@ export type {
 export { ReportCategory } from '@/lib/database/domains/report/types'
 export type {
   AssignReportParams,
+  CountOpenReportsParams,
   CreateReportParams,
   GetAdminReportsParams,
   GetReportByIdParams,

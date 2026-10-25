@@ -3,7 +3,7 @@ import type { SectionNavGroup } from '@/lib/components/section-nav'
 
 // Grouped like Settings and Account: moderation and community tools first,
 // then the server's own configuration, then maintenance.
-export const adminGroups: SectionNavGroup[] = [
+export const adminGroups = (openReports = 0): SectionNavGroup[] => [
   {
     items: [
       {
@@ -21,6 +21,9 @@ export const adminGroups: SectionNavGroup[] = [
         name: 'Reports',
         url: '/admin/reports',
         icon: <ADMIN_ICONS.reports />,
+        badge: openReports,
+        badgeLabel:
+          openReports === 1 ? 'unresolved report' : 'unresolved reports',
         description: 'Review and resolve reports about accounts and posts.'
       },
       {

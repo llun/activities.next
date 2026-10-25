@@ -5,19 +5,44 @@ import '@testing-library/jest-dom'
 import { render, screen, within } from '@testing-library/react'
 import { usePathname } from 'next/navigation'
 
+import { getDatabase } from '@/lib/database'
+import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
+
 import Layout from './layout'
 
 vi.mock('next/navigation', () => ({
   usePathname: vi.fn()
 }))
 
-const renderAt = (pathname: string) => {
+vi.mock('@/lib/database', () => ({
+  getDatabase: vi.fn()
+}))
+
+vi.mock('@/lib/services/auth/getSession', () => ({
+  getServerAuthSession: vi.fn()
+}))
+
+vi.mock('@/lib/utils/getAdminFromSession', () => ({
+  getAdminFromSession: vi.fn()
+}))
+
+const countOpenReports = vi.fn()
+const database = { countOpenReports }
+const session = { user: { id: 'admin' } } as never
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  countOpenReports.mockReset()
+  countOpenReports.mockResolvedValue(4)
+  vi.mocked(getDatabase).mockReturnValue(database as never)
+  vi.mocked(getServerAuthSession).mockResolvedValue(session)
+  vi.mocked(getAdminFromSession).mockResolvedValue({} as never)
+})
+
+const renderAt = async (pathname: string) => {
   vi.mocked(usePathname).mockReturnValue(pathname)
-  return render(
-    <Layout>
-      <div>content</div>
-    </Layout>
-  )
+  return render(await Layout({ children: <div>content</div> }))
 }
 
 const getRailNav = () => {
@@ -33,8 +58,8 @@ const activeLinksIn = (scope: HTMLElement) =>
     .filter((link) => link.getAttribute('aria-current') === 'page')
 
 describe('Admin Layout', () => {
-  it('renders the header title and description', () => {
-    renderAt('/admin')
+  it('renders the header title and description', async () => {
+    await renderAt('/admin')
 
     expect(
       screen.getByRole('heading', { level: 1, name: 'Admin' })
@@ -45,8 +70,8 @@ describe('Admin Layout', () => {
     expect(screen.getByText('content')).toBeInTheDocument()
   })
 
-  it('lists the five groups in order in the rail, with item hrefs', () => {
-    renderAt('/admin/reports')
+  it('lists the five groups in order in the rail, with item hrefs', async () => {
+    await renderAt('/admin/reports')
 
     const rail = getRailNav()
     // The headless first run holds Dashboard; the four headed groups follow.
@@ -58,7 +83,10 @@ describe('Admin Layout', () => {
 
     const links = within(rail).getAllByRole('link')
     expect(
-      links.map((link) => [link.textContent, link.getAttribute('href')])
+      links.map((link) => [
+        link.querySelector('.min-w-0 > span')?.textContent,
+        link.getAttribute('href')
+      ])
     ).toEqual([
       ['Dashboard', '/admin/overview'],
       ['Reports', '/admin/reports'],
@@ -79,8 +107,8 @@ describe('Admin Layout', () => {
     ])
   })
 
-  it('marks Dashboard active at /admin/overview', () => {
-    renderAt('/admin/overview')
+  it('marks Dashboard active at /admin/overview', async () => {
+    await renderAt('/admin/overview')
 
     const active = activeLinksIn(getRailNav())
     expect(active).toHaveLength(1)
@@ -88,8 +116,8 @@ describe('Admin Layout', () => {
     expect(active[0]).toHaveAttribute('href', '/admin/overview')
   })
 
-  it('marks Reports active at a nested path like /admin/reports/123', () => {
-    renderAt('/admin/reports/123')
+  it('marks Reports active at a nested path like /admin/reports/123', async () => {
+    await renderAt('/admin/reports/123')
 
     const active = activeLinksIn(getRailNav())
     expect(active).toHaveLength(1)
@@ -97,8 +125,8 @@ describe('Admin Layout', () => {
     expect(active[0]).toHaveAttribute('href', '/admin/reports')
   })
 
-  it('marks Served domains active at a nested path like /admin/domains/example.com', () => {
-    renderAt('/admin/domains/example.com')
+  it('marks Served domains active at a nested path like /admin/domains/example.com', async () => {
+    await renderAt('/admin/domains/example.com')
 
     const active = activeLinksIn(getRailNav())
     expect(active).toHaveLength(1)
@@ -106,8 +134,8 @@ describe('Admin Layout', () => {
     expect(active[0]).toHaveAttribute('href', '/admin/domains')
   })
 
-  it('renders the grouped index at /admin: no rail, one card run per group', () => {
-    renderAt('/admin')
+  it('renders the grouped index at /admin: no rail, one card run per group', async () => {
+    await renderAt('/admin')
 
     expect(
       screen.queryByRole('navigation', { name: 'Admin' })
@@ -130,8 +158,8 @@ describe('Admin Layout', () => {
     )
   })
 
-  it('splits the grouped index: Dashboard, Moderation and Community left; Server and Maintenance right', () => {
-    renderAt('/admin')
+  it('splits the grouped index: Dashboard, Moderation and Community left; Server and Maintenance right', async () => {
+    await renderAt('/admin')
 
     const grid = screen
       .getByRole('heading', { level: 2, name: 'Moderation' })
@@ -156,27 +184,76 @@ describe('Admin Layout', () => {
     ).toBeNull()
   })
 
-  it('shows a "Back to admin" row below lg on direct item pages but not on detail pages', () => {
-    const { unmount } = renderAt('/admin/reports')
+  it('shows a "Back to admin" row below lg on direct item pages but not on detail pages', async () => {
+    const { unmount } = await renderAt('/admin/reports')
     expect(screen.getByRole('link', { name: 'Back to admin' })).toHaveAttribute(
       'href',
       '/admin'
     )
     unmount()
 
-    renderAt('/admin/reports/123')
+    await renderAt('/admin/reports/123')
     expect(
       screen.queryByRole('link', { name: 'Back to admin' })
     ).not.toBeInTheDocument()
   })
 
-  it('renders no dropdown navigation', () => {
-    renderAt('/admin/reports/123')
+  it('renders no dropdown navigation', async () => {
+    await renderAt('/admin/reports/123')
 
     // Only the rail carries the section's name.
     const navs = screen.getAllByRole('navigation', { name: 'Admin' })
     expect(navs).toHaveLength(1)
     expect(navs[0]).toHaveClass('max-lg:hidden')
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
+  })
+
+  it('shows the open report count in the rail and index for admins', async () => {
+    const { unmount } = await renderAt('/admin/reports')
+
+    expect(countOpenReports).toHaveBeenCalledWith({ limit: 100 })
+    expect(
+      screen.getByRole('link', { name: /Reports\s*\(4 unresolved reports\)/ })
+    ).toBeInTheDocument()
+
+    unmount()
+    await renderAt('/admin')
+
+    expect(
+      screen.getByRole('link', { name: /Reports.*4 unresolved reports/ })
+    ).toBeInTheDocument()
+    expect(countOpenReports).toHaveBeenCalledTimes(2)
+  })
+
+  it('uses the singular for one open report', async () => {
+    countOpenReports.mockResolvedValue(1)
+    await renderAt('/admin/reports')
+
+    expect(
+      screen.getByRole('link', { name: /Reports\s*\(1 unresolved report\)/ })
+    ).toBeInTheDocument()
+  })
+
+  it('does not count reports for a non-admin viewer', async () => {
+    vi.mocked(getAdminFromSession).mockResolvedValue(null)
+    await renderAt('/admin')
+
+    expect(getAdminFromSession).toHaveBeenCalledWith(database, session)
+    expect(countOpenReports).not.toHaveBeenCalled()
+    expect(screen.getByText('content')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Reports/ })).toBeInTheDocument()
+  })
+
+  it('renders without counting reports when the database is unavailable', async () => {
+    vi.mocked(getDatabase).mockReturnValue(null as never)
+    await renderAt('/admin/reports')
+
+    expect(screen.getByText('content')).toBeInTheDocument()
+    expect(getServerAuthSession).not.toHaveBeenCalled()
+    expect(getAdminFromSession).not.toHaveBeenCalled()
+    expect(countOpenReports).not.toHaveBeenCalled()
+
+    const reports = screen.getByRole('link', { name: 'Reports' })
+    expect(within(reports).queryByText(/^\d+$/)).not.toBeInTheDocument()
   })
 })

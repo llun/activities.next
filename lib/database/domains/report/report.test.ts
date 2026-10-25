@@ -319,6 +319,52 @@ describe('ReportDatabase', () => {
     })
   })
 
+  describe('countOpenReports', () => {
+    it('returns zero when there are no reports', async () => {
+      await withFreshDatabase(async (database) => {
+        await expect(database.countOpenReports({ limit: 100 })).resolves.toBe(0)
+      })
+    })
+
+    it('counts unresolved reports and excludes resolved reports', async () => {
+      await withFreshDatabase(async (database) => {
+        await database.createReport({
+          actorId: REPORTER,
+          targetActorId: TARGET
+        })
+        const resolved = await database.createReport({
+          actorId: REPORTER,
+          targetActorId: TARGET
+        })
+        await database.createReport({
+          actorId: REPORTER,
+          targetActorId: TARGET
+        })
+        await database.setReportResolution({
+          reportId: resolved.id,
+          resolved: true,
+          actionTakenByActorId: REPORTER
+        })
+
+        await expect(database.countOpenReports({ limit: 100 })).resolves.toBe(2)
+      })
+    })
+
+    it('caps the count at the requested limit', async () => {
+      await withFreshDatabase(async (database) => {
+        const limit = 100
+        for (let i = 0; i <= limit; i++) {
+          await database.createReport({
+            actorId: REPORTER,
+            targetActorId: TARGET
+          })
+        }
+
+        await expect(database.countOpenReports({ limit })).resolves.toBe(limit)
+      })
+    })
+  })
+
   describe('getReportById / updateReportCategory / assignReport', () => {
     it('reads, updates category/rule_ids, and assigns/unassigns', async () => {
       await withFreshDatabase(async (database) => {
