@@ -108,7 +108,7 @@ const resolveStatusFromPathCached = cache(
       ? ''
       : isFullStatusUrl
         ? decodedStatusParam
-        : `${protocol}://${domain}/users/${username}/statuses/${decodedStatusParam}`
+        : `${actorFromPath?.id ?? `${protocol}://${domain}/users/${username}`}/statuses/${decodedStatusParam}`
 
     let status: Status | null = null
 

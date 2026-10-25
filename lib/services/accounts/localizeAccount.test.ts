@@ -1,3 +1,5 @@
+import { getConfiguredActorDomain } from '@/lib/database/domains/actor/rows'
+
 import { localizeAccount, localizeAccounts } from './localizeAccount'
 
 const account = (
@@ -27,7 +29,7 @@ describe('localizeAccount', () => {
       'qualified from a bare stored acct when the access domain differs',
       'llun.social',
       { acct: 'null' },
-      'null@llun.dev'
+      `null@${getConfiguredActorDomain()}`
     ],
     ['bare when the domains match case-insensitively', 'LLUN.DEV', {}, 'null'],
     [
@@ -65,6 +67,36 @@ describe('localizeAccount', () => {
     )
   })
 
+  it('uses the configured domain for a bare acct and the url host for an empty acct', () => {
+    const configuredDomain = getConfiguredActorDomain()
+    const bareAcct = account({
+      username: 'bob',
+      acct: 'bob',
+      url: 'https://secondary.example/users/alice'
+    })
+    const emptyAcct = account({
+      username: 'bob',
+      acct: '',
+      url: 'https://secondary.example/users/alice'
+    })
+    const missingAcct = {
+      username: 'bob',
+      acct: undefined as never,
+      url: 'https://secondary.example/users/alice'
+    }
+
+    expect(localizeAccount(bareAcct, configuredDomain).acct).toBe('bob')
+    expect(localizeAccount(bareAcct, 'other.example').acct).toBe(
+      `bob@${configuredDomain}`
+    )
+    expect(localizeAccount(emptyAcct, configuredDomain).acct).toBe(
+      'bob@secondary.example'
+    )
+    expect(localizeAccount(missingAcct, configuredDomain).acct).toBe(
+      'bob@secondary.example'
+    )
+  })
+
   it('returns the account unchanged when no access domain is given', () => {
     const input = account()
     const result = localizeAccount(input, undefined)
@@ -73,7 +105,7 @@ describe('localizeAccount', () => {
   })
 
   it('returns the account unchanged when url is not a parseable URL', () => {
-    const input = account({ url: 'not-a-url' })
+    const input = account({ acct: '', url: 'not-a-url' })
     const result = localizeAccount(input, 'llun.dev')
     expect(result).toBe(input)
   })
@@ -89,7 +121,7 @@ describe('localizeAccount', () => {
         account({
           url: 'https://llun.social/users/b',
           username: 'b',
-          acct: 'b'
+          acct: 'b@llun.social'
         })
       ],
       'llun.dev'

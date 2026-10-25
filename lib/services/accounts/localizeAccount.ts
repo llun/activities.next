@@ -1,3 +1,5 @@
+import { getConfiguredActorDomain } from '@/lib/database/domains/actor/rows'
+
 // Mastodon's `acct` is RELATIVE to the domain the client connected through: a
 // bare username means "this account is on the instance you're talking to", while
 // `username@domain` means "on some other host". This instance answers on
@@ -21,11 +23,11 @@ const toBareHost = (host: string) =>
   host.includes('://') ? new URL(host).host : host
 
 const getAccountDomain = ({ acct, url }: LocalizableAccount) => {
-  const urlHost = new URL(url).host
-  // Callers outside the typed path (partial account objects) may carry no
-  // `acct`; the url's host is then the only domain there is.
-  const acctDomain = typeof acct === 'string' ? acct.split('@')[1] : undefined
-  return acctDomain || urlHost
+  if (typeof acct === 'string' && acct.length > 0) {
+    const acctDomain = acct.split('@')[1]
+    return acctDomain || getConfiguredActorDomain()
+  }
+  return new URL(url).host
 }
 
 /**

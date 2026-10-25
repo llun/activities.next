@@ -732,6 +732,53 @@ describe('proxy', () => {
     )
   })
 
+  it.each([
+    {
+      pathname: '/@alice.name-test',
+      expected: 'https://llun.social/api/users/alice.name-test'
+    },
+    {
+      pathname: '/@alice.name-test/123',
+      expected: 'https://llun.social/api/users/alice.name-test/statuses/123'
+    }
+  ])(
+    'rewrites local ActivityPub handles with dot and dash: $pathname',
+    async ({ pathname, expected }) => {
+      const request = new NextRequest(`https://llun.social${pathname}`, {
+        headers: { Accept: 'application/activity+json' }
+      })
+
+      const response = await proxy(request)
+
+      expect(response?.headers.get('x-middleware-rewrite')).toBe(expected)
+    }
+  )
+
+  it('forwards the original profile path and query to the layout redirect', async () => {
+    const pathname = '/@alice/albums/album%2Fone'
+    const search = '?tab=photos&cursor=a%2Fb'
+    const request = new NextRequest(
+      `https://public.example.com${pathname}${search}`,
+      { headers: { host: 'public.example.com' } }
+    )
+
+    const response = await proxy(request)
+
+    expect(response?.headers.get('x-middleware-rewrite')).toBe(
+      'https://public.example.com/@alice@public.example.com/albums/album%2Fone?tab=photos&cursor=a%2Fb'
+    )
+    expect(
+      response?.headers.get(
+        'x-middleware-request-x-activities-local-handle-path'
+      )
+    ).toBe(pathname)
+    expect(
+      response?.headers.get(
+        'x-middleware-request-x-activities-local-handle-search'
+      )
+    ).toBe(search)
+  })
+
   it('hands a bare handle on HEAD to the app when the host is not in the env', async () => {
     const request = new NextRequest('https://internal.example.com/@alice', {
       method: 'HEAD',
