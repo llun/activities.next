@@ -343,8 +343,8 @@ export const SERVER_SETTING_FIELDS: ServerSettingField[] = [
   }),
 
   // Optional features. No env vars: these are meant to be flipped from the
-  // admin UI, and an env pin would lock the switch. They live on the Instance
-  // tab with the other whole-instance choices.
+  // admin UI, and an env pin would lock the switch. They live on the Server
+  // settings tab with the other whole-instance choices.
   field<boolean>({
     key: 'features.fitness',
     group: 'instance',

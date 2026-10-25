@@ -40,7 +40,7 @@ describe('Admin Layout', () => {
       screen.getByRole('heading', { level: 1, name: 'Admin' })
     ).toBeInTheDocument()
     expect(
-      screen.getByText('Moderate accounts, reports, and instance settings')
+      screen.getByText('Moderate accounts, reports, and server settings')
     ).toBeInTheDocument()
     expect(screen.getByText('content')).toBeInTheDocument()
   })

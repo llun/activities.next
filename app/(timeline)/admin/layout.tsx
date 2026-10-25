@@ -15,7 +15,7 @@ const Layout: FC<Props> = ({ children }) => {
     <SectionLayout
       label="Admin"
       title="Admin"
-      description="Moderate accounts, reports, and instance settings"
+      description="Moderate accounts, reports, and server settings"
       indexUrl="/admin"
       groups={adminGroups}
       splitAt={3}
