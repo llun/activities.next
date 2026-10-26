@@ -9,24 +9,12 @@ import { Post } from './post'
 import { currentTime, status } from './post.testUtils'
 
 vi.mock('./collapsible-content', () => ({
-  CollapsibleContent: ({
-    children,
-    onReadMore
-  }: {
-    children: ReactNode
-    onReadMore?: () => void
-  }) => (
+  CollapsibleContent: ({ children }: { children: ReactNode }) => (
     <div data-testid="collapsible-content">
       {children}
-      {onReadMore && (
-        <button
-          type="button"
-          data-testid="read-more-button"
-          onClick={onReadMore}
-        >
-          Read full post
-        </button>
-      )}
+      <button type="button" data-testid="show-more-button">
+        Show more
+      </button>
     </div>
   )
 }))
@@ -92,7 +80,7 @@ describe('Post', () => {
     expect(screen.queryByTestId('collapsible-content')).not.toBeInTheDocument()
   })
 
-  it('wires onReadMore to onOpenStatus when collapsible and postLineLimit are enabled', () => {
+  it('expands a collapsible post in place with Show more instead of navigating', () => {
     const handleOpenStatus = vi.fn()
     render(
       <Post
@@ -106,15 +94,14 @@ describe('Post', () => {
       />
     )
 
-    const readMoreBtn = screen.getByTestId('read-more-button')
-    expect(readMoreBtn).toBeInTheDocument()
-    fireEvent.click(readMoreBtn)
-    expect(handleOpenStatus).toHaveBeenCalledWith(
-      expect.objectContaining({ id: status.id })
-    )
+    const showMoreBtn = screen.getByTestId('show-more-button')
+    expect(showMoreBtn).toBeInTheDocument()
+    fireEvent.click(showMoreBtn)
+    expect(handleOpenStatus).not.toHaveBeenCalled()
   })
 
-  it('omits onReadMore when onOpenStatus is not provided', () => {
+  it('still opens the status from the header timestamp of a collapsible post', () => {
+    const handleOpenStatus = vi.fn()
     render(
       <Post
         host="activities.local"
@@ -122,12 +109,15 @@ describe('Post', () => {
         status={{ ...status, summary: null }}
         collapsible
         postLineLimit={5}
+        onOpenStatus={handleOpenStatus}
         onShowAttachment={vi.fn()}
       />
     )
 
-    expect(screen.getByTestId('collapsible-content')).toBeInTheDocument()
-    expect(screen.queryByTestId('read-more-button')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Open status/ }))
+    expect(handleOpenStatus).toHaveBeenCalledWith(
+      expect.objectContaining({ id: status.id })
+    )
   })
 
   describe('quote-inline RE: fallback', () => {

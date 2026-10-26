@@ -164,30 +164,7 @@ describe('CollapsibleContent', () => {
     )
   })
 
-  it('renders a Read full post button when onReadMore is provided and invokes it on click', async () => {
-    const handleReadMore = vi.fn()
-    render(
-      <CollapsibleContent maxLines={5} onReadMore={handleReadMore}>
-        Long status content that exceeds the timeline line limit.
-      </CollapsibleContent>
-    )
-
-    await waitFor(() => {
-      expect(
-        screen.getByRole('button', { name: 'Read full post' })
-      ).toBeInTheDocument()
-    })
-
-    const button = screen.getByRole('button', { name: 'Read full post' })
-    expect(button).toHaveAttribute('data-slot', 'button')
-    expect(button).toHaveAttribute('data-variant', 'pill')
-    expect(button).toHaveAttribute('data-size', 'default')
-    fireEvent.click(button)
-
-    expect(handleReadMore).toHaveBeenCalledTimes(1)
-  })
-
-  it('renders a Show more button when onReadMore is omitted and expands content on click', async () => {
+  it('renders a Show more button for overflowing content and expands in place on click', async () => {
     render(
       <CollapsibleContent maxLines={5}>
         Long status content that exceeds the timeline line limit.
@@ -220,6 +197,8 @@ describe('CollapsibleContent', () => {
     })
     expect(content?.style.height).toBe('')
     expect(content?.className).not.toContain('[mask-image')
+    // Expanding unmounts the button that had focus; the content receives it.
+    expect(content).toHaveFocus()
   })
 
   it('does not collapse or show a button for content that fits within the line limit', async () => {
@@ -229,16 +208,11 @@ describe('CollapsibleContent', () => {
     })
 
     render(
-      <CollapsibleContent maxLines={5} onReadMore={vi.fn()}>
+      <CollapsibleContent maxLines={5}>
         Short status content.
       </CollapsibleContent>
     )
 
-    await waitFor(() => {
-      expect(
-        screen.queryByRole('button', { name: 'Read full post' })
-      ).not.toBeInTheDocument()
-    })
     expect(
       screen.queryByRole('button', { name: 'Show more content' })
     ).not.toBeInTheDocument()

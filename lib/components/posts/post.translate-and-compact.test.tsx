@@ -24,25 +24,8 @@ import { Post } from './post'
 import { currentTime, status } from './post.testUtils'
 
 vi.mock('./collapsible-content', () => ({
-  CollapsibleContent: ({
-    children,
-    onReadMore
-  }: {
-    children: ReactNode
-    onReadMore?: () => void
-  }) => (
-    <div data-testid="collapsible-content">
-      {children}
-      {onReadMore && (
-        <button
-          type="button"
-          data-testid="read-more-button"
-          onClick={onReadMore}
-        >
-          Read full post
-        </button>
-      )}
-    </div>
+  CollapsibleContent: ({ children }: { children: ReactNode }) => (
+    <div data-testid="collapsible-content">{children}</div>
   )
 }))
 

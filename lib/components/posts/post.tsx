@@ -137,8 +137,7 @@ export const Post: FC<PostProps> = (props) => {
     status,
     onShowAttachment = () => {},
     collapsible,
-    postLineLimit,
-    onOpenStatus
+    postLineLimit
   } = props
   const actualStatus = getActualStatus(status)
   // Held here because the chips and the action-row trigger are two halves of
@@ -200,7 +199,6 @@ export const Post: FC<PostProps> = (props) => {
               currentActor={props.currentActor}
               collapsible={collapsible}
               postLineLimit={postLineLimit}
-              onOpenStatus={onOpenStatus}
               onShowAttachment={onShowAttachment}
               prioritizeMedia={Boolean(props.focused || props.prioritizeMedia)}
             />
