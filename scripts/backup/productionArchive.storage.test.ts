@@ -289,7 +289,7 @@ describe('production archive scripts', () => {
 
       expect(plan[0]).toMatchObject({
         destination: 'media',
-        excludePrefixes: ['archives', 'fitness']
+        excludePrefixes: ['archives', 'fitness', 'imports']
       })
     })
 
@@ -305,10 +305,15 @@ describe('production archive scripts', () => {
           scope: 'all',
           mediaStorage
         })[0]
-      ).toMatchObject({ excludePrefixes: ['archives'] })
+      ).toMatchObject({ excludePrefixes: ['archives', 'imports'] })
+      // Import uploads staged under imports/ are transient and never backed up.
       const referenced = buildStoragePlan({
         fitnessFilePaths: [],
-        mediaFilePaths: ['medias/a.jpg', 'archives/x/t/archive-1.zip'],
+        mediaFilePaths: [
+          'medias/a.jpg',
+          'archives/x/t/archive-1.zip',
+          'imports/x/t/upload-1.zip'
+        ],
         scope: 'referenced',
         mediaStorage
       })

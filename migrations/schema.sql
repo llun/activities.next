@@ -1614,10 +1614,8 @@ ALTER TABLE ONLY public.account_providers
 ALTER TABLE ONLY public.account_archives
     ADD CONSTRAINT account_archives_pkey PRIMARY KEY (id);
 
-
 ALTER TABLE ONLY public.account_import_items
     ADD CONSTRAINT account_import_items_pkey PRIMARY KEY (id);
-
 
 ALTER TABLE ONLY public.account_imports
     ADD CONSTRAINT account_imports_pkey PRIMARY KEY (id);
@@ -2421,10 +2419,8 @@ CREATE INDEX wahoo_imports_history_idx ON public.wahoo_imports USING btree ("his
 ALTER TABLE ONLY public.account_archives
     ADD CONSTRAINT "account_archives_accountId_fkey" FOREIGN KEY ("accountId") REFERENCES public.accounts(id) ON DELETE CASCADE;
 
-
 ALTER TABLE ONLY public.account_import_items
     ADD CONSTRAINT "account_import_items_importId_fkey" FOREIGN KEY ("importId") REFERENCES public.account_imports(id) ON DELETE CASCADE;
-
 
 ALTER TABLE ONLY public.account_imports
     ADD CONSTRAINT "account_imports_accountId_fkey" FOREIGN KEY ("accountId") REFERENCES public.accounts(id) ON DELETE CASCADE;
