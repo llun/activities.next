@@ -2,21 +2,24 @@ import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
-import { PROCESS_FITNESS_FILE_JOB_NAME } from '@/lib/jobs/names'
+import { importAccountArchiveJob } from '@/lib/jobs/importAccountArchiveJob'
+import {
+  IMPORT_ACCOUNT_ARCHIVE_JOB_NAME,
+  PROCESS_FITNESS_FILE_JOB_NAME
+} from '@/lib/jobs/names'
+import { planArchiveActors } from '@/lib/services/accountArchive/layout'
 import { FileArchiveObjectStore } from '@/lib/services/accountArchive/objectStore'
 import {
   ACCOUNT_IMPORT_ALBUM_POSITION,
   ACCOUNT_IMPORT_FITNESS_FILE_POSITION,
   ACCOUNT_IMPORT_FITNESS_GEAR_POSITION,
   ACCOUNT_IMPORT_GALLERY_GEAR_POSITION,
-  ACCOUNT_IMPORT_GALLERY_SETTINGS_POSITION,
   ACCOUNT_IMPORT_OWN_MEDIA_POSITION
 } from '@/lib/services/accountImport/constants'
 import { createAccountImportObjectStore } from '@/lib/services/accountImport/objectStore'
 import {
   runAlbumsPhase,
   runFitnessPhase,
-  runGalleryPhase,
   runGearsPhase,
   runOwnArchiveMediaPhase
 } from '@/lib/services/accountImport/phases'
@@ -292,8 +295,8 @@ describe('own archive import phases', () => {
     const importId = 'media-gear-current-' + randomUUID()
     const accountImport = await createImport(importId)
     const archivePath = 'media_attachments/301.png'
-    await objectStore.store.put(
-      objectStore.getUploadKey(accountImport),
+    const stagedImport = await stageArchive(
+      accountImport,
       buildZip([{ name: archivePath, data: PNG }])
     )
     await upsertItems(importId, [
@@ -309,7 +312,7 @@ describe('own archive import phases', () => {
     ])
 
     await runOwnArchiveMediaPhase(
-      contextFor(accountImport),
+      contextFor(stagedImport),
       createInitialImportProgress(),
       null
     )
@@ -485,32 +488,81 @@ describe('own archive import phases', () => {
     createSpy.mockRestore()
   })
 
-  it('maps old galleryDefault booleans and drops invalid values', async () => {
-    const cases: [unknown, string][] = [
-      [true, 'always'],
-      [false, 'never'],
-      ['subject', 'subject'],
-      ['unexpected', 'always']
-    ]
-    for (const [value, expected] of cases) {
-      await db.deleteFrom('account_import_items').execute()
-      await db.deleteFrom('account_imports').execute()
-      const importId = 'gallery-setting-' + randomUUID()
-      const accountImport = await createImport(importId)
-      await database.updateGallerySettings({
-        actorId: actor.id,
-        galleryDefault: 'always'
-      })
-      await upsertItems(importId, [
-        {
-          kind: 'gallery-settings',
-          sourceId: 'gallery-settings',
-          position: ACCOUNT_IMPORT_GALLERY_SETTINGS_POSITION,
-          data: JSON.stringify({
+  it('writes no gear when the lease is lost', async () => {
+    const importId = 'gear-lost-lease-' + randomUUID()
+    const accountImport = await createImport(importId)
+    await upsertItems(importId, [
+      {
+        kind: 'gallery-gear',
+        sourceId: 'source-camera',
+        position: ACCOUNT_IMPORT_GALLERY_GEAR_POSITION,
+        data: JSON.stringify({
+          id: 'source-camera',
+          kind: 'camera',
+          name: 'Lost lease camera',
+          brand: null,
+          model: null,
+          productUrl: null,
+          deviceKey: null,
+          retiredAt: null,
+          createdAt: 1,
+          updatedAt: 1
+        })
+      }
+    ])
+    const context = {
+      ...contextFor(accountImport),
+      renew: vi.fn().mockRejectedValue(new Error('import lease lost'))
+    }
+
+    await expect(
+      runGearsPhase(context, createInitialImportProgress(), null)
+    ).rejects.toThrow('import lease lost')
+
+    const gear = await db
+      .selectFrom('gallery_gears')
+      .select('id')
+      .where('actorId', '=', actor.id)
+      .where('name', '=', 'Lost lease camera')
+      .executeTakeFirst()
+    expect(gear).toBeUndefined()
+    const item = (
+      await database.getAccountImportItems({ importId, limit: 1 })
+    )[0]
+    expect(item).toMatchObject({ state: 'pending', targetId: null })
+  })
+
+  it('leaves gallery settings untouched when the settings option is off', async () => {
+    const sourceActorId = 'https://source.test/users/archive'
+    const sourceExtrasDir = planArchiveActors(
+      [{ id: sourceActorId, username: 'archive', domain: 'source.test' }],
+      sourceActorId
+    )[0].dir
+    const archive = buildZip([
+      {
+        name: 'actor.json',
+        data: Buffer.from(
+          JSON.stringify({
+            id: sourceActorId,
+            preferredUsername: 'archive',
+            followers: `${sourceActorId}/followers`
+          })
+        )
+      },
+      {
+        name: `${sourceExtrasDir}/profile.json`,
+        data: Buffer.from(
+          JSON.stringify({ id: sourceActorId, isDefault: true })
+        )
+      },
+      {
+        name: `${sourceExtrasDir}/gallery/settings.json`,
+        data: Buffer.from(
+          JSON.stringify({
             autoDescribe: true,
             allowEmptyDescription: true,
             subjectHashtags: false,
-            galleryDefault: value,
+            galleryDefault: 'never',
             defaultPlacePrecision: 'area',
             showGear: true,
             mapPublic: false,
@@ -523,20 +575,60 @@ describe('own archive import phases', () => {
             createdAt: 1,
             updatedAt: 1
           })
-        }
-      ])
+        )
+      }
+    ])
+    const importId = 'gallery-gating-' + randomUUID()
+    const accountImport = await createImport(importId)
+    // The job reads the archive through the config-derived object store
+    // (mediaStorage path), so stage it there.
+    const jobObjectStore = createAccountImportObjectStore(
+      new FileArchiveObjectStore({
+        type: 'fs' as never,
+        path: mocks.storageRoot + '/media'
+      })
+    )!
+    await jobObjectStore.store.put(
+      jobObjectStore.getUploadKey(accountImport),
+      archive
+    )
+    await database.updateAccountImport({
+      id: importId,
+      uploadedBytes: archive.length
+    })
+    await database.updateGallerySettings({
+      actorId: actor.id,
+      galleryDefault: 'always'
+    })
 
-      await runGalleryPhase(
-        contextFor(accountImport),
-        createInitialImportProgress(),
-        null
-      )
-
-      expect(
-        (await database.getGallerySettings({ actorId: actor.id }))
-          .galleryDefault
-      ).toBe(expected)
+    for (let slice = 0; slice < 20; slice += 1) {
+      await importAccountArchiveJob(database, {
+        id: 'gallery-gating-job-' + randomUUID(),
+        name: IMPORT_ACCOUNT_ARCHIVE_JOB_NAME,
+        data: { importId, actorId: actor.id }
+      })
+      const current = await database.getAccountImport({
+        id: importId,
+        actorId: actor.id
+      })
+      if (current?.status !== 'running') break
     }
+
+    const completed = (await database.getAccountImport({
+      id: importId,
+      actorId: actor.id
+    }))!
+    expect(completed.status).toBe('done')
+    expect(
+      (await database.getGallerySettings({ actorId: actor.id })).galleryDefault
+    ).toBe('always')
+    const items = await database.getAccountImportItems({
+      importId,
+      limit: 100
+    })
+    expect(
+      items.filter((item) => item.kind === 'gallery-settings')
+    ).toHaveLength(0)
   })
 
   it('links imported fitness files and queues ProcessFitnessFileJob with both quiet flags', async () => {

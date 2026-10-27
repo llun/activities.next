@@ -491,4 +491,100 @@ describe('account import profile and settings phases', () => {
     const gallery = await database.getGallerySettings({ actorId })
     expect(gallery.autoDescribe).toBe(galleryBefore.autoDescribe)
   })
+
+  it('maps old boolean galleryDefault safely and restores only enum values', async () => {
+    const sourceActorId = 'https://source.test/users/archive'
+    const sourceExtrasDir = planArchiveActors(
+      [{ id: sourceActorId, username: 'archive', domain: 'source.test' }],
+      sourceActorId
+    )[0].dir
+    const archiveOf = (galleryDefault: unknown) =>
+      buildZip([
+        {
+          name: `${sourceExtrasDir}/profile.json`,
+          data: Buffer.from(
+            JSON.stringify({ id: sourceActorId, isDefault: true })
+          )
+        },
+        {
+          name: `${sourceExtrasDir}/gallery/settings.json`,
+          data: Buffer.from(JSON.stringify({ galleryDefault }))
+        }
+      ])
+    const run = async (id: string, galleryDefault: unknown) => {
+      const accountImport = await createImport(
+        id,
+        '{"settings":true}',
+        'activities.next'
+      )
+      await runSettingsPhase(
+        makeContext(accountImport, archiveOf(galleryDefault)),
+        {
+          ...createInitialImportProgress(),
+          sourceActorId
+        }
+      )
+      // One queued or running import per actor: close this one before the
+      // next run creates another.
+      await database.updateAccountImport({ id, status: 'done' })
+    }
+
+    // The old exporter wrote booleans: every enum value is truthy, so `true`
+    // carries none of the owner's intent and must not overwrite anything.
+    await database.updateGallerySettings({ actorId, galleryDefault: 'subject' })
+    await run('import-gallery-boolean', true)
+    expect(
+      (await database.getGallerySettings({ actorId })).galleryDefault
+    ).toBe('subject')
+
+    await run('import-gallery-enum', 'never')
+    expect(
+      (await database.getGallerySettings({ actorId })).galleryDefault
+    ).toBe('never')
+
+    await run('import-gallery-invalid', 'sometimes')
+    expect(
+      (await database.getGallerySettings({ actorId })).galleryDefault
+    ).toBe('never')
+  })
+
+  it('rejects an oversized settings document instead of parsing it whole', async () => {
+    const sourceActorId = 'https://source.test/users/archive'
+    const sourceExtrasDir = planArchiveActors(
+      [{ id: sourceActorId, username: 'archive', domain: 'source.test' }],
+      sourceActorId
+    )[0].dir
+    const archive = buildZip([
+      {
+        name: `${sourceExtrasDir}/profile.json`,
+        data: Buffer.from(
+          JSON.stringify({ id: sourceActorId, isDefault: true })
+        )
+      },
+      {
+        name: `${sourceExtrasDir}/gallery/settings.json`,
+        data: Buffer.concat([
+          Buffer.from('{"padding":"'),
+          Buffer.alloc(5 * 1024 * 1024, 0x61),
+          Buffer.from('","galleryDefault":"never"}')
+        ])
+      }
+    ])
+    const accountImport = await createImport(
+      'import-settings-oversized',
+      '{"settings":true}',
+      'activities.next'
+    )
+    const galleryBefore = await database.getGallerySettings({ actorId })
+
+    await expect(
+      runSettingsPhase(makeContext(accountImport, archive), {
+        ...createInitialImportProgress(),
+        sourceActorId
+      })
+    ).rejects.toMatchObject({ reason: 'entry_too_large' })
+
+    const gallery = await database.getGallerySettings({ actorId })
+    expect(gallery.galleryDefault).toBe(galleryBefore.galleryDefault)
+  })
 })

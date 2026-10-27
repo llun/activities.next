@@ -29,7 +29,7 @@ export const importAccountArchiveJob = createJobHandle(
     const cursor = `${result.phase}:${result.cursor ?? ''}`
     try {
       await queue.publish({
-        id: getAccountImportContinuationJobId(importId, cursor),
+        id: getAccountImportContinuationJobId(importId, cursor, result.pass),
         name: IMPORT_ACCOUNT_ARCHIVE_JOB_NAME,
         data: { importId, actorId }
       })

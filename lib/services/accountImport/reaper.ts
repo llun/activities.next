@@ -7,6 +7,10 @@ import {
 } from '@/lib/services/accountImport/constants'
 import { getAccountImportObjectStore } from '@/lib/services/accountImport/objectStore'
 import {
+  parseImportProgress,
+  serializeImportProgress
+} from '@/lib/services/accountImport/progress'
+import {
   getAccountImportContinuationJobId,
   isAccountImportActorUnavailable
 } from '@/lib/services/accountImport/runner'
@@ -121,9 +125,24 @@ const reapOne = async (
     }
 
     if (!schedule || runsInline) return false
+    // The requeue must never repeat a queue id the import has already used
+    // for this phase and cursor, so the reaper takes the next continuation
+    // pass for itself and persists it before it publishes: a later sweep of
+    // the same stuck row derives a fresh id the same way.
+    const progress = parseImportProgress(accountImport.progress)
+    const pass = progress.continuationCount + 1
+    const marked = await database.updateAccountImport({
+      id: accountImport.id,
+      onlyIfStatus: ['running'],
+      progress: serializeImportProgress({
+        ...progress,
+        continuationCount: pass
+      })
+    })
+    if (!marked) return false
     const cursor = `${accountImport.phase ?? 'inspect'}:${accountImport.cursor ?? ''}`
     await schedule({
-      id: getAccountImportContinuationJobId(accountImport.id, cursor),
+      id: getAccountImportContinuationJobId(accountImport.id, cursor, pass),
       name: IMPORT_ACCOUNT_ARCHIVE_JOB_NAME,
       data: { importId: accountImport.id, actorId: accountImport.actorId }
     })

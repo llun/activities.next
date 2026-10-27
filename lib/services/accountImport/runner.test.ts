@@ -20,8 +20,15 @@ import {
   inspectAccountArchive,
   runStatusesPhase
 } from '@/lib/services/accountImport/phases'
+import {
+  parseImportProgress,
+  serializeImportProgress
+} from '@/lib/services/accountImport/progress'
 import { sweepStuckAccountImports } from '@/lib/services/accountImport/reaper'
-import { runAccountImport } from '@/lib/services/accountImport/runner'
+import {
+  getAccountImportContinuationJobId,
+  runAccountImport
+} from '@/lib/services/accountImport/runner'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 
@@ -39,7 +46,6 @@ vi.mock('@/lib/services/accountImport/phases', () => ({
   runCatalogPhase: vi.fn(),
   runCollectionsNoopPhase: vi.fn(),
   runFitnessPhase: vi.fn(),
-  runGalleryPhase: vi.fn(),
   runGearsPhase: vi.fn(),
   runMastodonMediaPhase: vi.fn(),
   runOwnArchiveMediaPhase: vi.fn(),
@@ -386,5 +392,102 @@ describe('account import runner payload cleanup', () => {
           command.input.IfMatch === '"version-1"'
       )
     ).toBe(true)
+  })
+
+  it('continues a second pass over the same cursor with a fresh queue id', async () => {
+    const accountImport = await createImportWithItem('import-runner-pass-ids')
+    await database.updateAccountImport({
+      id: accountImport.id,
+      status: 'running',
+      phase: 'statuses',
+      cursor: 'X'
+    })
+
+    const first = await runAccountImport(database, accountImport.id, {
+      actorId,
+      runToken: 'pass-first',
+      now: () => 1,
+      runsInline: false
+    })
+    const second = await runAccountImport(database, accountImport.id, {
+      actorId,
+      runToken: 'pass-second',
+      now: () => 1,
+      runsInline: false
+    })
+
+    expect(first).toEqual({
+      type: 'continued',
+      phase: 'statuses',
+      cursor: 'X',
+      pass: 1
+    })
+    expect(second).toEqual({
+      type: 'continued',
+      phase: 'statuses',
+      cursor: 'X',
+      pass: 2
+    })
+    const row = await database.getAccountImport({
+      id: accountImport.id,
+      actorId
+    })
+    expect(parseImportProgress(row?.progress).continuationCount).toBe(2)
+    // The queue ids the job would publish differ for the two passes.
+    expect(
+      getAccountImportContinuationJobId(accountImport.id, 'statuses:X', 1)
+    ).not.toBe(
+      getAccountImportContinuationJobId(accountImport.id, 'statuses:X', 2)
+    )
+  })
+
+  it('requeues a stale run with a fresh continuation id on every sweep', async () => {
+    const accountImport = await createImportWithItem('import-runner-reap-ids')
+    const now = Date.now()
+    await database.updateAccountImport({
+      id: accountImport.id,
+      status: 'running',
+      phase: 'statuses',
+      cursor: 'X',
+      progress: serializeImportProgress({
+        ...parseImportProgress(null),
+        continuationCount: 0
+      })
+    })
+    const stale = async () => {
+      await db
+        .updateTable('account_imports')
+        .set({
+          updatedAt: new Date(now - ACCOUNT_IMPORT_STUCK_AFTER_MS - 1),
+          claimedUntil: null
+        })
+        .where('id', '=', accountImport.id)
+        .execute()
+    }
+    await stale()
+    const firstSchedule = vi.fn().mockResolvedValue(undefined)
+    expect(
+      await sweepStuckAccountImports(database, now, firstSchedule, false)
+    ).toBe(1)
+    await stale()
+    const secondSchedule = vi.fn().mockResolvedValue(undefined)
+    expect(
+      await sweepStuckAccountImports(database, now, secondSchedule, false)
+    ).toBe(1)
+
+    const firstId = firstSchedule.mock.calls[0][0].id
+    const secondId = secondSchedule.mock.calls[0][0].id
+    expect(firstId).toBe(
+      getAccountImportContinuationJobId(accountImport.id, 'statuses:X', 1)
+    )
+    expect(secondId).toBe(
+      getAccountImportContinuationJobId(accountImport.id, 'statuses:X', 2)
+    )
+    expect(firstId).not.toBe(secondId)
+    const row = await database.getAccountImport({
+      id: accountImport.id,
+      actorId
+    })
+    expect(parseImportProgress(row?.progress).continuationCount).toBe(2)
   })
 })

@@ -258,4 +258,40 @@ describe('mapMastodonItem', () => {
     )
     expect(invalid).toEqual({ ok: false, reason: 'invalid' })
   })
+
+  it('clamps tags and kept reply uris to the database column limit', () => {
+    const longName = '#'.padEnd(300, 'a')
+    const longHref = 'https://old.test/tags/'.padEnd(300, 'b')
+    const tagged = mapMastodonItem(
+      item({
+        object: {
+          ...(item().object as Record<string, unknown>),
+          tag: [{ type: 'Hashtag', name: longName, href: longHref }]
+        }
+      }),
+      context()
+    )
+    expect(tagged.ok).toBe(true)
+    if (!tagged.ok) return
+    expect(tagged.input.tags).toHaveLength(1)
+    expect(tagged.input.tags[0]).toEqual({
+      type: 'hashtag',
+      name: longName.slice(0, 255),
+      value: longHref.slice(0, 255)
+    })
+
+    const longParent = 'https://elsewhere.test/statuses/'.padEnd(300, 'c')
+    const reply = mapMastodonItem(
+      item({
+        object: {
+          ...(item().object as Record<string, unknown>),
+          inReplyTo: longParent
+        }
+      }),
+      context({ repliesToOthers: 'keep' })
+    )
+    expect(reply.ok).toBe(true)
+    if (!reply.ok) return
+    expect(reply.input.externalReplyUri).toBe(longParent.slice(0, 255))
+  })
 })

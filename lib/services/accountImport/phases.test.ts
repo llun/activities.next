@@ -384,6 +384,111 @@ describe('account import phases', () => {
     expect(String(attachment?.mediaId)).toBe(String(media!.id))
   })
 
+  it('marks one item failed after a database error and still imports the next', async () => {
+    const sourceActorId = 'https://source.test/users/archive'
+    const accountImport = await database.createAccountImport({
+      id: 'import-item-failure',
+      accountId,
+      actorId,
+      options: '{}'
+    })
+    await database.updateAccountImport({
+      id: accountImport.id,
+      status: 'running',
+      kind: 'mastodon'
+    })
+    const rawNote = (sourceId: string) =>
+      JSON.stringify({
+        id: `${sourceActorId}/activities/${sourceId}`,
+        type: 'Create',
+        actor: sourceActorId,
+        published: '2024-02-03T04:05:06.000Z',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [`${sourceActorId}/followers`],
+        object: {
+          id: `${sourceActorId}/statuses/${sourceId}`,
+          type: 'Note',
+          attributedTo: sourceActorId,
+          content: `Note ${sourceId}`,
+          published: '2024-02-03T04:05:06.000Z',
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [`${sourceActorId}/followers`]
+        }
+      })
+    await database.upsertAccountImportItems({
+      importId: accountImport.id,
+      actorId,
+      items: [
+        {
+          kind: 'status',
+          sourceId: `${sourceActorId}/statuses/first`,
+          position: 1,
+          data: rawNote('first')
+        },
+        {
+          kind: 'status',
+          sourceId: `${sourceActorId}/statuses/second`,
+          position: 2,
+          data: rawNote('second')
+        }
+      ]
+    })
+    const current = (await database.getAccountImport({
+      id: accountImport.id,
+      actorId
+    }))!
+    const context: AccountImportPhaseContext = {
+      database,
+      objectStore: {
+        openSource: vi.fn()
+      } as unknown as AccountImportObjectStore,
+      accountImport: current,
+      now: () => Date.parse('2024-02-03T04:05:07.000Z'),
+      deadline: Number.MAX_SAFE_INTEGER,
+      renew: async () => {}
+    }
+    const createNoteSpy = vi
+      .spyOn(database, 'createNoteWithResult')
+      .mockRejectedValueOnce(new Error('database exploded'))
+
+    const result = await runStatusesPhase(
+      context,
+      {
+        ...createInitialImportProgress(),
+        sourceActorId,
+        sourceFollowersUrl: `${sourceActorId}/followers`
+      },
+      null
+    )
+
+    expect(result.result).toBe('done')
+    expect(createNoteSpy).toHaveBeenCalledTimes(2)
+    const items = await database.getAccountImportItems({
+      importId: accountImport.id,
+      limit: 10
+    })
+    const first = items.find(
+      (item) => item.sourceId === `${sourceActorId}/statuses/first`
+    )!
+    const second = items.find(
+      (item) => item.sourceId === `${sourceActorId}/statuses/second`
+    )!
+    expect(first).toMatchObject({
+      state: 'failed',
+      reason: 'item_failed',
+      targetId: null
+    })
+    expect(first.data).not.toBeNull()
+    expect(second).toMatchObject({ state: 'done', reason: null })
+    expect(second.targetId).toBeTruthy()
+    const failedStatus = await db
+      .selectFrom('statuses')
+      .select('id')
+      .where('id', '=', first.targetId ?? '')
+      .executeTakeFirst()
+    expect(failedStatus).toBeUndefined()
+  })
+
   it('caps cataloged item count at an injected limit', async () => {
     const accountImport = await database.createAccountImport({
       id: 'import-catalog-item-cap',

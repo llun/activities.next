@@ -45,7 +45,7 @@ const stripAllowedBookmarkImportRow = (source: string) =>
 const stripAllowedFitnessProcessingJob = (source: string) =>
   source
     .replace(
-      /\/\/ This is the only queue publication allowed inside the quiet importer\.\s*await getQueue\(\)\.publish\(\{\s*id: getHashFromString\(\s*`\$\{context\.accountImport\.id\}:fitness:\$\{item\.sourceId\}`\s*\),\s*name: PROCESS_FITNESS_FILE_JOB_NAME,\s*data: \{\s*actorId: actor\.id,\s*statusId: targetStatusId,\s*fitnessFileId: saved\.id,\s*publishSendNote: false,\s*notifyOnComplete: false\s*\}\s*\}\)/m,
+      /\/\/ This is the only queue publication allowed inside the quiet importer\.\s*await leasedWrite\(context, \(\) =>\s*getQueue\(\)\.publish\(\{\s*id: getHashFromString\(\s*`\$\{context\.accountImport\.id\}:fitness:\$\{item\.sourceId\}`\s*\),\s*name: PROCESS_FITNESS_FILE_JOB_NAME,\s*data: \{\s*actorId: actor\.id,\s*statusId: targetStatusId,\s*fitnessFileId: saved\.id,\s*publishSendNote: false,\s*notifyOnComplete: false\s*\}\s*\}\)\s*\)/m,
       ''
     )
     .replace(/import \{ getQueue \} from '@\/lib\/services\/queue'/g, '')

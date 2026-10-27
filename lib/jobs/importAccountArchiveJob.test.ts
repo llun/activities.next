@@ -362,7 +362,8 @@ describe('ImportAccountArchiveJob', () => {
     await importAccountArchiveJob(database, {
       id: getAccountImportContinuationJobId(
         row.id,
-        `${first.phase}:${first.cursor ?? ''}`
+        `${first.phase}:${first.cursor ?? ''}`,
+        first.pass
       ),
       name: IMPORT_ACCOUNT_ARCHIVE_JOB_NAME,
       data: { importId: row.id, actorId: actor.id }
@@ -476,13 +477,17 @@ describe('ImportAccountArchiveJob', () => {
     expect(await importObjectStore.store.size(key)).toBeNull()
   })
 
-  it('derives a continuation id only from the import id and cursor', () => {
-    expect(getAccountImportContinuationJobId('import-a', 'statuses:10')).toBe(
-      getAccountImportContinuationJobId('import-a', 'statuses:10')
-    )
+  it('derives a continuation id from the import id, cursor and pass', () => {
     expect(
-      getAccountImportContinuationJobId('import-a', 'statuses:10')
-    ).not.toBe(getAccountImportContinuationJobId('import-a', 'statuses:11'))
+      getAccountImportContinuationJobId('import-a', 'statuses:10', 1)
+    ).toBe(getAccountImportContinuationJobId('import-a', 'statuses:10', 1))
+    expect(
+      getAccountImportContinuationJobId('import-a', 'statuses:10', 1)
+    ).not.toBe(getAccountImportContinuationJobId('import-a', 'statuses:11', 1))
+    // A second pass over the same phase and cursor must get a fresh id.
+    expect(
+      getAccountImportContinuationJobId('import-a', 'statuses:10', 1)
+    ).not.toBe(getAccountImportContinuationJobId('import-a', 'statuses:10', 2))
   })
 
   it('requeues an expired running import through the sweep callback', async () => {
@@ -529,7 +534,7 @@ describe('ImportAccountArchiveJob', () => {
       expect(count).toBe(1)
       expect(schedule).toHaveBeenCalledWith(
         expect.objectContaining({
-          id: getAccountImportContinuationJobId(row.id, 'inspect:'),
+          id: getAccountImportContinuationJobId(row.id, 'inspect:', 1),
           name: IMPORT_ACCOUNT_ARCHIVE_JOB_NAME,
           data: { importId: row.id, actorId: actor.id }
         })

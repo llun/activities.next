@@ -4,7 +4,6 @@ export type CatalogStage =
   | 'likes'
   | 'bookmarks'
   | 'ownMedia'
-  | 'gallerySettings'
   | 'galleryGears'
   | 'fitnessGears'
   | 'albums'
@@ -23,6 +22,13 @@ export interface AccountImportProgress {
   totalItems: number
   completedItems: number
   skippedItems: number
+  /**
+   * How many continuations this import has already published. The runner and
+   * the reaper put it in every continuation queue id, so a later pass over the
+   * same phase and cursor can never repeat an id the queue has already
+   * consumed. Deterministic: it only ever counts up, never reads the clock.
+   */
+  continuationCount: number
   /** Selected by the owner at start; stored here because the row's initial
    * options column is immutable in the slice-1 database contract. */
   selectedOptions?: {
@@ -43,7 +49,8 @@ export const createInitialImportProgress = (): AccountImportProgress => ({
   catalogIndex: 0,
   totalItems: 0,
   completedItems: 0,
-  skippedItems: 0
+  skippedItems: 0,
+  continuationCount: 0
 })
 
 export const parseImportProgress = (
@@ -60,7 +67,6 @@ export const parseImportProgress = (
       'likes',
       'bookmarks',
       'ownMedia',
-      'gallerySettings',
       'galleryGears',
       'fitnessGears',
       'albums',
@@ -104,6 +110,12 @@ export const parseImportProgress = (
       skippedItems:
         typeof record.skippedItems === 'number' && record.skippedItems >= 0
           ? record.skippedItems
+          : 0,
+      continuationCount:
+        typeof record.continuationCount === 'number' &&
+        Number.isInteger(record.continuationCount) &&
+        record.continuationCount >= 0
+          ? record.continuationCount
           : 0,
       ...(record.selectedOptions && typeof record.selectedOptions === 'object'
         ? {

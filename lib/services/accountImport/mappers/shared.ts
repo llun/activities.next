@@ -19,6 +19,18 @@ import {
 
 import { MAX_FUTURE_SKEW_MS } from './timeSkew'
 
+// The tags table's name and value columns are varchar(255) on PostgreSQL.
+// The archive schemas allow more (a tag name up to 1,024 characters, an href
+// up to 4,096), so an over-long tag would fail the whole status write. The
+// mapper truncates to the column size instead.
+const TAG_COLUMN_MAX_LENGTH = 255
+// statuses.reply is varchar(255) too; a kept external parent URI is clamped
+// to what the column can hold rather than failing the write.
+const REPLY_COLUMN_MAX_LENGTH = 255
+
+const clampToColumn = (value: string, maxLength: number) =>
+  value.length <= maxLength ? value : value.slice(0, maxLength)
+
 export const normalizeRecipients = (
   value: string | string[] | null | undefined
 ) =>
@@ -117,7 +129,7 @@ export const replyReference = (
     return {
       ok: true,
       replyToStatusId: null,
-      externalReplyUri: parentId
+      externalReplyUri: clampToColumn(parentId, REPLY_COLUMN_MAX_LENGTH)
     }
   }
   return { ok: false, reason: 'reply-to-other' }
@@ -137,8 +149,11 @@ export const buildTags = (
       return [
         {
           type: 'hashtag' as const,
-          name: tag.name,
-          value: tag.href ?? tag.value ?? ''
+          name: clampToColumn(tag.name, TAG_COLUMN_MAX_LENGTH),
+          value: clampToColumn(
+            tag.href ?? tag.value ?? '',
+            TAG_COLUMN_MAX_LENGTH
+          )
         }
       ]
     }
@@ -146,8 +161,11 @@ export const buildTags = (
       return [
         {
           type: 'mention' as const,
-          name: tag.name,
-          value: tag.href ?? tag.value ?? ''
+          name: clampToColumn(tag.name, TAG_COLUMN_MAX_LENGTH),
+          value: clampToColumn(
+            tag.href ?? tag.value ?? '',
+            TAG_COLUMN_MAX_LENGTH
+          )
         }
       ]
     }
@@ -155,8 +173,11 @@ export const buildTags = (
       return [
         {
           type: 'emoji' as const,
-          name: tag.name,
-          value: tag.iconUrl ?? tag.value ?? ''
+          name: clampToColumn(tag.name, TAG_COLUMN_MAX_LENGTH),
+          value: clampToColumn(
+            tag.iconUrl ?? tag.value ?? '',
+            TAG_COLUMN_MAX_LENGTH
+          )
         }
       ]
     }

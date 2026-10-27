@@ -286,4 +286,68 @@ describe('createImportedStatus', () => {
     expect(queueMock.getQueue).not.toHaveBeenCalled()
     expect(queueMock.publish).not.toHaveBeenCalled()
   })
+
+  it('stores a kept foreign reply parent as data without fetching it', async () => {
+    const externalReplyUri = 'https://elsewhere.test/users/someone/statuses/99'
+    const created = await createImportedStatus(
+      database,
+      actor,
+      makeInput('018d0000-0000-7000-8000-000000000004', {
+        externalReplyUri
+      })
+    )
+
+    const row = await db
+      .selectFrom('statuses')
+      .select('reply')
+      .where('id', '=', created.id)
+      .executeTakeFirst()
+    expect(row?.reply).toBe(externalReplyUri)
+    expect(queueMock.getQueue).not.toHaveBeenCalled()
+    expect(queueMock.publish).not.toHaveBeenCalled()
+  })
+
+  it('leaves no partial status behind when a dependent write fails mid-way', async () => {
+    const statusesBefore = (
+      await db
+        .selectFrom('statuses')
+        .select('id')
+        .where('actorId', '=', actor.id)
+        .execute()
+    ).map((row) => row.id)
+    vi.spyOn(database, 'createTag').mockRejectedValueOnce(
+      new Error('tag write exploded')
+    )
+
+    await expect(
+      createImportedStatus(
+        database,
+        actor,
+        makeInput('018d0000-0000-7000-8000-000000000005', {
+          tags: [
+            {
+              type: 'hashtag',
+              name: '#rollback',
+              value: 'https://archive.test/tags/rollback'
+            }
+          ]
+        })
+      )
+    ).rejects.toThrow('tag write exploded')
+
+    const statusesAfter = await db
+      .selectFrom('statuses')
+      .select('id')
+      .where('actorId', '=', actor.id)
+      .execute()
+    expect(statusesAfter.map((row) => row.id).sort()).toEqual(
+      [...statusesBefore].sort()
+    )
+    const danglingTags = await db
+      .selectFrom('tags')
+      .select('statusId')
+      .where('name', '=', '#rollback')
+      .execute()
+    expect(danglingTags).toHaveLength(0)
+  })
 })

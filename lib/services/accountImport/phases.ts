@@ -8,6 +8,7 @@ import { DEFAULT_FITNESS_MAX_FILE_SIZE } from '@/lib/config/fitnessStorage'
 import type { UpdateActorParams } from '@/lib/database/domains/actor/types'
 import type { Database } from '@/lib/database/types'
 import { PROCESS_FITNESS_FILE_JOB_NAME } from '@/lib/jobs/names'
+import { toArchiveLoggableError } from '@/lib/services/accountArchive/redact'
 import {
   ACCOUNT_IMPORT_CATALOG_PAGE_SIZE,
   ACCOUNT_IMPORT_ITEM_PAGE_SIZE,
@@ -40,7 +41,6 @@ import {
   ownFitnessFileLineSchema,
   ownFitnessGearSchema,
   ownGalleryGearSchema,
-  ownGallerySettingsSchema,
   ownMediaLineSchema,
   ownStatusRecordSchema
 } from '@/lib/services/accountImport/schemas'
@@ -74,9 +74,7 @@ import { getQueue } from '@/lib/services/queue'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
 import {
-  GALLERY_DEFAULTS,
   GALLERY_GEAR_KINDS,
-  type GalleryDefault,
   type GalleryGearKind
 } from '@/lib/types/database/gallery'
 import {
@@ -96,6 +94,7 @@ import type { Actor } from '@/lib/types/domain/actor'
 import { QuoteApprovalPolicy } from '@/lib/types/domain/status'
 import { Visibility } from '@/lib/types/mastodon/visibility'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
+import { logger } from '@/lib/utils/logger'
 import { readAsyncIterableToBufferWithLimit } from '@/lib/utils/streamLimit'
 
 export type AccountArchiveKind = 'mastodon' | 'activities.next'
@@ -436,10 +435,6 @@ const gallerySettingsFields = [
   'updatedAt'
 ] as const
 
-const singleEvent = async function* (raw: string) {
-  yield { index: 0, raw }
-}
-
 const listEventStream = async (
   archive: ZipArchive,
   kind: AccountArchiveKind,
@@ -472,15 +467,6 @@ const listEventStream = async (
         : `${sourceExtrasDir}/fitness/files.jsonl`
     if (!requiredEntry(archive.entries, name)) return null
     return iterateJsonlLines(chunksOf(await archive.openEntryStream(name)))
-  }
-  if (stage === 'gallerySettings') {
-    const name = `${sourceExtrasDir}/gallery/settings.json`
-    if (!requiredEntry(archive.entries, name)) return null
-    const fields = await readTopLevelJsonFields(
-      chunksOf(await archive.openEntryStream(name)),
-      gallerySettingsFields
-    )
-    return singleEvent(JSON.stringify(fields))
   }
   const name =
     stage === 'galleryGears'
@@ -676,20 +662,6 @@ export const runCatalogPhase = async (
                 data: JSON.stringify(parsed.data)
               })
             }
-          } else if (stage === 'gallerySettings') {
-            const parsed = ownGallerySettingsSchema.safeParse(value)
-            if (parsed.success) {
-              addItem({
-                kind: 'gallery-settings',
-                sourceId: 'gallery-settings',
-                position: getAccountImportItemPosition(
-                  'gallery-settings',
-                  event.index,
-                  maxItems
-                ),
-                data: event.raw
-              })
-            }
           } else if (stage === 'galleryGears') {
             const parsed = ownGalleryGearSchema.safeParse(value)
             if (parsed.success) {
@@ -793,7 +765,6 @@ const nextCatalogStage = (
     'likes',
     'bookmarks',
     'ownMedia',
-    'gallerySettings',
     'galleryGears',
     'fitnessGears',
     'albums',
@@ -916,7 +887,7 @@ const terminalItemState = async (
   context: AccountImportPhaseContext,
   progress: AccountImportProgress,
   item: AccountImportItem,
-  state: 'done' | 'skipped',
+  state: 'done' | 'skipped' | 'failed',
   reason?: string,
   targetId?: string | null
 ) => {
@@ -924,18 +895,50 @@ const terminalItemState = async (
   const marked = await context.database.markAccountImportItem({
     id: item.id,
     state,
+    ...(state === 'failed' ? { retryable: true } : {}),
     ...(reason ? { reason } : {}),
     ...(targetId !== undefined ? { targetId } : {})
   })
   if (!marked) throw new Error('import_item_missing')
   if (state === 'done') progress.completedItems += 1
-  else progress.skippedItems += 1
+  else if (state === 'skipped') progress.skippedItems += 1
   await context.renew()
   await context.database.updateAccountImport({
     id: context.accountImport.id,
     progress: serializeImportProgress(progress),
     cursor: serializeImportCursor(item.position)
   })
+}
+
+// One item's own database error must not fail the whole import: the item is
+// marked failed with a fixed reason code (never the exception text) and the
+// phase moves on to the next item. A lost lease or a cancellation still stops
+// the phase, because the renew inside rethrows those.
+const handleItemError = async (
+  context: AccountImportPhaseContext,
+  progress: AccountImportProgress,
+  item: AccountImportItem,
+  error: unknown
+) => {
+  await context.renew()
+  await terminalItemState(context, progress, item, 'failed', 'item_failed')
+  logger.error({
+    message: 'Account import item failed',
+    importId: context.accountImport.id,
+    itemKind: item.kind,
+    err: toArchiveLoggableError(error)
+  })
+}
+
+// Every database write in the item phases runs with the lease in hand: the
+// renew happens immediately before the write, so a run that has lost its
+// lease writes nothing.
+const leasedWrite = async <T>(
+  context: AccountImportPhaseContext,
+  write: () => Promise<T>
+): Promise<T> => {
+  await context.renew()
+  return write()
 }
 
 const sniffSupportedMediaType = (bytes: Buffer): string | null => {
@@ -1330,32 +1333,36 @@ export const runStatusesPhase = async (
         return { result: 'cancelled', progress, cursor: null }
       }
       if (item.state === 'pending') {
-        if (item.kind === 'status') {
-          const record = parseCatalogedItem(item.data)
-          if (record === null) {
-            await terminalItemState(
-              context,
-              progress,
-              item,
-              'skipped',
-              'archive_item_invalid'
-            )
-          } else {
-            await importStatusItem(
-              context,
-              progress,
-              actor,
-              item,
-              record,
-              ownStatusIds,
-              mediaByArchivePath,
-              targetBySourceId
-            )
+        try {
+          if (item.kind === 'status') {
+            const record = parseCatalogedItem(item.data)
+            if (record === null) {
+              await terminalItemState(
+                context,
+                progress,
+                item,
+                'skipped',
+                'archive_item_invalid'
+              )
+            } else {
+              await importStatusItem(
+                context,
+                progress,
+                actor,
+                item,
+                record,
+                ownStatusIds,
+                mediaByArchivePath,
+                targetBySourceId
+              )
+            }
+          } else if (item.kind === 'like') {
+            await importLikeItem(context, progress, actor, item)
+          } else if (item.kind === 'bookmark') {
+            await importBookmarkItem(context, progress, actor, item)
           }
-        } else if (item.kind === 'like') {
-          await importLikeItem(context, progress, actor, item)
-        } else if (item.kind === 'bookmark') {
-          await importBookmarkItem(context, progress, actor, item)
+        } catch (error) {
+          await handleItemError(context, progress, item, error)
         }
       }
       afterPosition = item.position
@@ -1430,7 +1437,11 @@ const runCatalogedItems = async (
       if (await checkCancelled(context)) {
         return { result: 'cancelled', progress, cursor: null }
       }
-      await process(item)
+      try {
+        await process(item)
+      } catch (error) {
+        await handleItemError(context, progress, item, error)
+      }
       afterPosition = item.position
       if (context.now() >= context.deadline) {
         return {
@@ -1477,21 +1488,25 @@ const importGalleryGear = async (
     : null
   const gear =
     existing ??
-    (await context.database.createGalleryGear({
-      actorId: actor.id,
-      kind: row.kind as GalleryGearKind,
-      name: row.name,
-      brand: row.brand,
-      model: row.model,
-      productUrl: row.productUrl,
-      deviceKey: row.deviceKey
-    }))
+    (await leasedWrite(context, () =>
+      context.database.createGalleryGear({
+        actorId: actor.id,
+        kind: row.kind as GalleryGearKind,
+        name: row.name,
+        brand: row.brand,
+        model: row.model,
+        productUrl: row.productUrl,
+        deviceKey: row.deviceKey
+      })
+    ))
   if (!existing && row.retiredAt !== null) {
-    await context.database.setGalleryGearRetired({
-      id: gear.id,
-      actorId: actor.id,
-      retired: true
-    })
+    await leasedWrite(context, () =>
+      context.database.setGalleryGearRetired({
+        id: gear.id,
+        actorId: actor.id,
+        retired: true
+      })
+    )
   }
   await terminalItemState(context, progress, item, 'done', undefined, gear.id)
 }
@@ -1519,47 +1534,53 @@ const importFitnessGear = async (
     : null
   const gear =
     existing ??
-    (await context.database.createFitnessGear({
-      actorId: actor.id,
-      kind: row.kind as FitnessGearKind,
-      name: row.name,
-      brand: row.brand,
-      model: row.model,
-      bikeType: row.bikeType,
-      weightKilograms: row.weightKilograms,
-      defaultSports: row.defaultSports ?? undefined,
-      alertDistanceMeters: row.alertDistanceMeters,
-      notes: row.notes,
-      deviceKey: row.deviceKey,
-      productUrl: row.productUrl
-    }))
+    (await leasedWrite(context, () =>
+      context.database.createFitnessGear({
+        actorId: actor.id,
+        kind: row.kind as FitnessGearKind,
+        name: row.name,
+        brand: row.brand,
+        model: row.model,
+        bikeType: row.bikeType,
+        weightKilograms: row.weightKilograms,
+        defaultSports: row.defaultSports ?? undefined,
+        alertDistanceMeters: row.alertDistanceMeters,
+        notes: row.notes,
+        deviceKey: row.deviceKey,
+        productUrl: row.productUrl
+      })
+    ))
   if (!existing) {
     for (const component of row.components) {
       const period = [...component.periods].sort(
         (a, b) => a.installSequence - b.installSequence
       )[0]
-      await context.database.createFitnessGearComponent({
-        gearId: gear.id,
-        actorId: actor.id,
-        componentType: component.componentType,
-        brand: component.brand,
-        model: component.model,
-        serviceDistanceMeters: component.serviceDistanceMeters,
-        productUrl: component.productUrl,
-        addedAt: archiveTimestamp(period?.addedAt)
-          ? new Date(archiveTimestamp(period?.addedAt) as number)
-          : null,
-        removedAt: archiveTimestamp(period?.removedAt)
-          ? new Date(archiveTimestamp(period?.removedAt) as number)
-          : null
-      })
+      await leasedWrite(context, () =>
+        context.database.createFitnessGearComponent({
+          gearId: gear.id,
+          actorId: actor.id,
+          componentType: component.componentType,
+          brand: component.brand,
+          model: component.model,
+          serviceDistanceMeters: component.serviceDistanceMeters,
+          productUrl: component.productUrl,
+          addedAt: archiveTimestamp(period?.addedAt)
+            ? new Date(archiveTimestamp(period?.addedAt) as number)
+            : null,
+          removedAt: archiveTimestamp(period?.removedAt)
+            ? new Date(archiveTimestamp(period?.removedAt) as number)
+            : null
+        })
+      )
     }
     if (row.retiredAt !== null) {
-      await context.database.setFitnessGearRetired({
-        id: gear.id,
-        actorId: actor.id,
-        retired: true
-      })
+      await leasedWrite(context, () =>
+        context.database.setFitnessGearRetired({
+          id: gear.id,
+          actorId: actor.id,
+          retired: true
+        })
+      )
     }
   }
   await terminalItemState(context, progress, item, 'done', undefined, gear.id)
@@ -1656,74 +1677,84 @@ const readOwnMediaFile = async (
     data.focusX !== null && data.focusY !== null
       ? { x: data.focusX, y: data.focusY }
       : undefined
-  await context.database.updateMedia({
-    mediaId: saved.id,
-    accountId: actor.account!.id,
-    actorId: actor.id,
-    description: data.description,
-    ...(focus ? { focus } : null),
-    blurhash: data.blurhash,
-    details: {
-      subjectName: data.subjectName,
-      subjectScientificName: data.subjectScientificName,
-      subjectCategory: data.subjectCategory,
-      takenAt: archiveTimestamp(data.takenAt),
-      cameraGearId,
-      lensGearId,
-      exposure: data.exposure,
-      placeName: data.placeNameSource === 'geocoder' ? null : data.placeName,
-      placeLatitude: data.placeLatitude ?? null,
-      placeLongitude: data.placeLongitude ?? null,
-      placePrecision: data.placePrecision,
-      inGallery: data.inGallery,
-      subjectTaxonKey: data.subjectTaxonKey
-    }
-  })
-  if (data.inGallery && data.galleryAddedAt !== null) {
-    await context.database.addMediaToGallery({
+  await leasedWrite(context, () =>
+    context.database.updateMedia({
+      mediaId: saved.id,
+      accountId: actor.account!.id,
       actorId: actor.id,
-      mediaIds: [saved.id]
+      description: data.description,
+      ...(focus ? { focus } : null),
+      blurhash: data.blurhash,
+      details: {
+        subjectName: data.subjectName,
+        subjectScientificName: data.subjectScientificName,
+        subjectCategory: data.subjectCategory,
+        takenAt: archiveTimestamp(data.takenAt),
+        cameraGearId,
+        lensGearId,
+        exposure: data.exposure,
+        placeName: data.placeNameSource === 'geocoder' ? null : data.placeName,
+        placeLatitude: data.placeLatitude ?? null,
+        placeLongitude: data.placeLongitude ?? null,
+        placePrecision: data.placePrecision,
+        inGallery: data.inGallery,
+        subjectTaxonKey: data.subjectTaxonKey
+      }
     })
+  )
+  if (data.inGallery && data.galleryAddedAt !== null) {
+    await leasedWrite(context, () =>
+      context.database.addMediaToGallery({
+        actorId: actor.id,
+        mediaIds: [saved.id]
+      })
+    )
   }
-  await context.database.setMediaSubjectLookup({
-    mediaId: saved.id,
-    expect: {
-      subjectName: data.subjectName,
-      subjectScientificName: data.subjectScientificName,
-      subjectTaxonKey: data.subjectTaxonKey,
-      subjectCategory: data.subjectCategory
-    },
-    patch: {
-      subjectLookupStatus:
-        data.subjectTaxonPath !== null || data.subjectIucnCategory !== null
-          ? 'resolved'
-          : null,
-      subjectTaxonKey: data.subjectTaxonKey,
-      subjectTaxonPath: data.subjectTaxonPath,
-      subjectIucnCategory: data.subjectIucnCategory
-    }
-  })
-  await context.database.setMediaPlaceLookup({
-    mediaId: saved.id,
-    expect: {
-      placeLatitude: data.placeLatitude ?? null,
-      placeLongitude: data.placeLongitude ?? null
-    },
-    patch: {
-      placeLookupStatus:
-        data.placeCountryCode !== null || data.placeNameSource === 'geocoder'
-          ? 'resolved'
-          : null,
-      placeCountryCode: data.placeCountryCode,
-      ...(data.placeNameSource === 'geocoder'
-        ? { placeName: data.placeName }
-        : null)
-    }
-  })
-  await context.database.setMediaSubjectSuggestions({
-    mediaId: saved.id,
-    suggestions: data.subjectSuggestions
-  })
+  await leasedWrite(context, () =>
+    context.database.setMediaSubjectLookup({
+      mediaId: saved.id,
+      expect: {
+        subjectName: data.subjectName,
+        subjectScientificName: data.subjectScientificName,
+        subjectTaxonKey: data.subjectTaxonKey,
+        subjectCategory: data.subjectCategory
+      },
+      patch: {
+        subjectLookupStatus:
+          data.subjectTaxonPath !== null || data.subjectIucnCategory !== null
+            ? 'resolved'
+            : null,
+        subjectTaxonKey: data.subjectTaxonKey,
+        subjectTaxonPath: data.subjectTaxonPath,
+        subjectIucnCategory: data.subjectIucnCategory
+      }
+    })
+  )
+  await leasedWrite(context, () =>
+    context.database.setMediaPlaceLookup({
+      mediaId: saved.id,
+      expect: {
+        placeLatitude: data.placeLatitude ?? null,
+        placeLongitude: data.placeLongitude ?? null
+      },
+      patch: {
+        placeLookupStatus:
+          data.placeCountryCode !== null || data.placeNameSource === 'geocoder'
+            ? 'resolved'
+            : null,
+        placeCountryCode: data.placeCountryCode,
+        ...(data.placeNameSource === 'geocoder'
+          ? { placeName: data.placeName }
+          : null)
+      }
+    })
+  )
+  await leasedWrite(context, () =>
+    context.database.setMediaSubjectSuggestions({
+      mediaId: saved.id,
+      suggestions: data.subjectSuggestions
+    })
+  )
   return { state: 'done' as const, targetId: saved.id }
 }
 
@@ -1791,53 +1822,6 @@ export const runOwnArchiveMediaPhase = async (
   }
 }
 
-const normalizeGalleryDefault = (
-  value: unknown
-): GalleryDefault | undefined => {
-  if (typeof value === 'boolean') return value ? 'always' : 'never'
-  return GALLERY_DEFAULTS.includes(value as GalleryDefault)
-    ? (value as GalleryDefault)
-    : undefined
-}
-
-export const runGalleryPhase = async (
-  context: AccountImportPhaseContext,
-  progress: AccountImportProgress,
-  cursorText: string | null
-) =>
-  runCatalogedItems(
-    context,
-    progress,
-    cursorText,
-    new Set(['gallery-settings']),
-    async (item) => {
-      const parsed = sourceRecord(ownGallerySettingsSchema, item)
-      if (!parsed.success) {
-        await terminalItemState(
-          context,
-          progress,
-          item,
-          'skipped',
-          'gallery_settings_invalid'
-        )
-        return
-      }
-      const {
-        galleryDefault: sourceDefault,
-        createdAt: _createdAt,
-        updatedAt: _updatedAt,
-        ...settings
-      } = parsed.data
-      const galleryDefault = normalizeGalleryDefault(sourceDefault)
-      await context.database.updateGallerySettings({
-        actorId: context.accountImport.actorId,
-        ...settings,
-        ...(galleryDefault ? { galleryDefault } : null)
-      })
-      await terminalItemState(context, progress, item, 'done')
-    }
-  )
-
 const importAlbum = async (
   context: AccountImportPhaseContext,
   progress: AccountImportProgress,
@@ -1857,18 +1841,22 @@ const importAlbum = async (
   const sortOrder = GALLERY_ALBUM_SORTS.includes(parsed.data.sortOrder)
     ? parsed.data.sortOrder
     : 'taken_desc'
-  const created = await context.database.createGalleryAlbumWithinLimit({
-    actorId: actor.id,
-    title: parsed.data.title.slice(0, MAX_GALLERY_ALBUM_TITLE_LENGTH),
-    description:
-      parsed.data.description?.slice(0, MAX_GALLERY_ALBUM_DESCRIPTION_LENGTH) ??
-      null,
-    visibility: parsed.data.visibility,
-    sortOrder,
-    limit: MAX_GALLERY_ALBUMS_PER_ACTOR,
-    itemLimit: MAX_GALLERY_ALBUM_ITEMS,
-    mediaIds
-  })
+  const created = await leasedWrite(context, () =>
+    context.database.createGalleryAlbumWithinLimit({
+      actorId: actor.id,
+      title: parsed.data.title.slice(0, MAX_GALLERY_ALBUM_TITLE_LENGTH),
+      description:
+        parsed.data.description?.slice(
+          0,
+          MAX_GALLERY_ALBUM_DESCRIPTION_LENGTH
+        ) ?? null,
+      visibility: parsed.data.visibility,
+      sortOrder,
+      limit: MAX_GALLERY_ALBUMS_PER_ACTOR,
+      itemLimit: MAX_GALLERY_ALBUM_ITEMS,
+      mediaIds
+    })
+  )
   if (created.status !== 'created') {
     await terminalItemState(context, progress, item, 'skipped', 'album_limit')
     return
@@ -1878,11 +1866,13 @@ const importAlbum = async (
       ? null
       : (mediaMap.get(String(parsed.data.coverMediaId)) ?? null)
   if (coverMediaId) {
-    await context.database.updateGalleryAlbum({
-      id: created.album.id,
-      actorId: actor.id,
-      coverMediaId
-    })
+    await leasedWrite(context, () =>
+      context.database.updateGalleryAlbum({
+        id: created.album.id,
+        actorId: actor.id,
+        coverMediaId
+      })
+    )
   }
   await terminalItemState(
     context,
@@ -2041,49 +2031,59 @@ const importFitnessFile = async (
       )
       return
     }
-    await context.database.updateFitnessFileStatus(saved.id, targetStatusId)
-    await context.database.updateFitnessFileActivityData(saved.id, {
-      activityType: source.activityType,
-      activityStartTime: source.activityStartTime
-        ? new Date(source.activityStartTime)
-        : null,
-      totalDistanceMeters: source.totalDistanceMeters,
-      totalDurationSeconds: source.totalDurationSeconds,
-      movingTimeSeconds: source.movingTimeSeconds,
-      elevationGainMeters: source.elevationGainMeters,
-      deviceManufacturer: source.deviceManufacturer,
-      deviceName: source.deviceName,
-      sourceUrl: source.sourceUrl,
-      deviceGearId: source.deviceGearId
-        ? (targetGear.get(source.deviceGearId) ?? null)
-        : null
-    })
+    await leasedWrite(context, () =>
+      context.database.updateFitnessFileStatus(saved.id, targetStatusId)
+    )
+    await leasedWrite(context, () =>
+      context.database.updateFitnessFileActivityData(saved.id, {
+        activityType: source.activityType,
+        activityStartTime: source.activityStartTime
+          ? new Date(source.activityStartTime)
+          : null,
+        totalDistanceMeters: source.totalDistanceMeters,
+        totalDurationSeconds: source.totalDurationSeconds,
+        movingTimeSeconds: source.movingTimeSeconds,
+        elevationGainMeters: source.elevationGainMeters,
+        deviceManufacturer: source.deviceManufacturer,
+        deviceName: source.deviceName,
+        sourceUrl: source.sourceUrl,
+        deviceGearId: source.deviceGearId
+          ? (targetGear.get(source.deviceGearId) ?? null)
+          : null
+      })
+    )
     const targetGearId = source.gearId
       ? (targetGear.get(source.gearId) ?? null)
       : null
     if (targetGearId) {
-      await context.database.setFitnessFileGear({
-        fitnessFileId: saved.id,
-        actorId: actor.id,
-        gearId: targetGearId
-      })
+      await leasedWrite(context, () =>
+        context.database.setFitnessFileGear({
+          fitnessFileId: saved.id,
+          actorId: actor.id,
+          gearId: targetGearId
+        })
+      )
     }
     if (source.isPrimary)
-      await context.database.updateFitnessFilePrimary(saved.id, true)
+      await leasedWrite(context, () =>
+        context.database.updateFitnessFilePrimary(saved.id, true)
+      )
     // This is the only queue publication allowed inside the quiet importer.
-    await getQueue().publish({
-      id: getHashFromString(
-        `${context.accountImport.id}:fitness:${item.sourceId}`
-      ),
-      name: PROCESS_FITNESS_FILE_JOB_NAME,
-      data: {
-        actorId: actor.id,
-        statusId: targetStatusId,
-        fitnessFileId: saved.id,
-        publishSendNote: false,
-        notifyOnComplete: false
-      }
-    })
+    await leasedWrite(context, () =>
+      getQueue().publish({
+        id: getHashFromString(
+          `${context.accountImport.id}:fitness:${item.sourceId}`
+        ),
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: {
+          actorId: actor.id,
+          statusId: targetStatusId,
+          fitnessFileId: saved.id,
+          publishSendNote: false,
+          notifyOnComplete: false
+        }
+      })
+    )
     await terminalItemState(
       context,
       progress,

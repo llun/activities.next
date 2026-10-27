@@ -18,7 +18,6 @@ import {
   runCatalogPhase,
   runCollectionsNoopPhase,
   runFitnessPhase,
-  runGalleryPhase,
   runGearsPhase,
   runMastodonMediaPhase,
   runOwnArchiveMediaPhase,
@@ -53,8 +52,9 @@ export type AccountImportPhase = (typeof PHASES)[number]
 
 export const getAccountImportContinuationJobId = (
   importId: string,
-  cursor: string | null
-) => getHashFromString(`${importId}:continue:${cursor ?? ''}`)
+  cursor: string | null,
+  pass: number
+) => getHashFromString(`${importId}:continue:${cursor ?? ''}:${pass}`)
 
 class LostAccountImportLeaseError extends Error {}
 class AccountImportCancelledError extends Error {}
@@ -82,7 +82,13 @@ const failureCode = (error: unknown) =>
         : 'import_failed'
 
 export type AccountImportRunResult =
-  | { type: 'continued'; phase: AccountImportPhase; cursor: string | null }
+  | {
+      type: 'continued'
+      phase: AccountImportPhase
+      cursor: string | null
+      /** The persisted continuation pass this slice published; see progress. */
+      pass: number
+    }
   | { type: 'busy' | 'done' | 'cancelled' | 'failed' }
 
 /** Runs one leased, resumable slice. Queue publication is owned by the job. */
@@ -288,12 +294,6 @@ export const runAccountImport = async (
         progress = mediaResult.progress
         phaseResult = mediaResult.result
         cursor = mediaResult.cursor
-        if (kind === 'activities.next' && phaseResult === 'done') {
-          const galleryResult = await runGalleryPhase(context, progress, null)
-          progress = galleryResult.progress
-          phaseResult = galleryResult.result
-          cursor = galleryResult.cursor
-        }
       } else if (phase === 'statuses') {
         const result = await runStatusesPhase(context, progress, cursor)
         progress = result.progress
@@ -344,6 +344,8 @@ export const runAccountImport = async (
         return { type: 'cancelled' }
       }
       if (phaseResult === 'budget') {
+        const pass = progress.continuationCount + 1
+        progress = { ...progress, continuationCount: pass }
         await renew()
         await database.updateAccountImport({
           id: importId,
@@ -352,7 +354,7 @@ export const runAccountImport = async (
           phase,
           cursor
         })
-        return { type: 'continued', phase, cursor }
+        return { type: 'continued', phase, cursor, pass }
       }
 
       const next = nextPhase(phase)
@@ -373,7 +375,17 @@ export const runAccountImport = async (
       phase = next
       cursor = null
       if (!runsInline && now() >= deadline) {
-        return { type: 'continued', phase, cursor }
+        const pass = progress.continuationCount + 1
+        progress = { ...progress, continuationCount: pass }
+        await renew()
+        await database.updateAccountImport({
+          id: importId,
+          onlyIfStatus: ['running'],
+          progress: serializeImportProgress(progress),
+          phase,
+          cursor
+        })
+        return { type: 'continued', phase, cursor, pass }
       }
     }
   } catch (error) {

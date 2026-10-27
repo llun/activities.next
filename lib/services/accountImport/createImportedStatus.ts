@@ -1,5 +1,6 @@
 import type { AppendStatusHistoryRevision } from '@/lib/database/domains/status/types'
 import { Database } from '@/lib/database/types'
+import { toArchiveLoggableError } from '@/lib/services/accountArchive/redact'
 import type {
   ImportedAttachment,
   ImportedEdit,
@@ -11,6 +12,7 @@ import { getMention } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import type { Status } from '@/lib/types/domain/status'
 import { getLocalStatusId } from '@/lib/utils/activitypubId'
+import { logger } from '@/lib/utils/logger'
 import { generatePublicId } from '@/lib/utils/publicId'
 
 const createStatusAttachment = async ({
@@ -226,6 +228,11 @@ export const createImportedStatus = async (
   if (input.replyToStatusId) {
     const parent = await database.getStatus({ statusId: input.replyToStatusId })
     if (parent?.actorId === actor.id) reply = parent.id
+  } else if (input.externalReplyUri) {
+    // repliesToOthers 'keep': the parent URI is stored as data on the status
+    // (statuses.reply also names parents by url). It is never fetched: the
+    // read path resolves it from the database or not at all.
+    reply = input.externalReplyUri
   }
   const statusId = getLocalStatusId({
     actorId: actor.id,
@@ -257,27 +264,45 @@ export const createImportedStatus = async (
     : await database.createNoteWithResult(createParams)
   if (!result.isNew) return result.status
 
-  await addTags(database, statusId, input)
-  await addAttachments(
-    database,
-    actor,
-    statusId,
-    input.attachments,
-    input.published
-  )
-  await appendStatusHistory(database, actor, statusId, input.edits)
+  // The status and everything hanging off it (tags, attachments, history,
+  // pin, quote) must appear together or not at all, so a retry never finds a
+  // half-written status and marks it done. The facade exposes no cross-domain
+  // transaction, so a failure rolls the partial write back through the status
+  // domain's own transactional deleteStatus instead.
+  try {
+    await addTags(database, statusId, input)
+    await addAttachments(
+      database,
+      actor,
+      statusId,
+      input.attachments,
+      input.published
+    )
+    await appendStatusHistory(database, actor, statusId, input.edits)
 
-  if (input.pinned) await database.pinStatus({ actorId: actor.id, statusId })
+    if (input.pinned) await database.pinStatus({ actorId: actor.id, statusId })
 
-  if (input.quoteStatusId) {
-    const quoted = await database.getStatus({ statusId: input.quoteStatusId })
-    if (quoted?.actorId === actor.id) {
-      await database.createStatusQuote({
-        statusId,
-        quotedStatusId: quoted.id,
-        state: 'accepted'
-      })
+    if (input.quoteStatusId) {
+      const quoted = await database.getStatus({ statusId: input.quoteStatusId })
+      if (quoted?.actorId === actor.id) {
+        await database.createStatusQuote({
+          statusId,
+          quotedStatusId: quoted.id,
+          state: 'accepted'
+        })
+      }
     }
+  } catch (error) {
+    await database
+      .deleteStatus({ actorId: actor.id, statusId })
+      .catch((deleteError: unknown) => {
+        logger.error({
+          message: 'Could not roll back a partial imported status',
+          statusId,
+          err: toArchiveLoggableError(deleteError)
+        })
+      })
+    throw error
   }
 
   return (await database.getStatus({ statusId })) ?? result.status
