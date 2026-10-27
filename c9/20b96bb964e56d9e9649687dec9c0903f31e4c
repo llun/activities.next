@@ -1,0 +1,41 @@
+app/(timeline)/gallery/albums/GalleryAlbumFormDialog.test.tsx
+  s_1f1a1efd8db0bf::t_d737ba873d84be 911-937
+app/(timeline)/gallery/albums/GalleryAlbumPickerTile.test.tsx
+  s_1f1a1efd8db0bf::t_3c2096a44c4ec1 297,310
+app/(timeline)/gallery/albums/GalleryAlbumPickerTile.tsx
+  s_1f1a1efd8db0bf::t_35e71bd737b474 111-114,120
+app/(timeline)/gallery/albums/GalleryAlbumPicksSheet.test.tsx
+  s_1f1a1efd8db0bf::t_34cffa3e254fd0 119-120,126,138-149
+app/(timeline)/gallery/albums/GalleryAlbumPicksSheet.tsx
+  s_1f1a1efd8db0bf::t_2f0fb58d29529b 29-30,141-145
+app/(timeline)/gallery/albums/GalleryAlbumPicksStrip.test.tsx
+  s_1f1a1efd8db0bf::t_5d74647b2c1c9c 32,201-202,214,226-238
+app/(timeline)/gallery/albums/GalleryAlbumPicksStrip.tsx
+  s_1f1a1efd8db0bf::t_3cac8c4a8e0461 30-31,162-165
+lib/components/gallery/GalleryGrid.test.tsx
+  s_1f1a1efd8db0bf::t_2833a93a073760 841,867
+lib/components/gallery/GalleryGrid.tsx
+  s_1f1a1efd8db0bf::t_c751c585f39d44 233-236,241
+lib/components/gallery/useDaySelection.test.tsx
+  s_1f1a1efd8db0bf::t_b4bf7e616174ab 1214-1231
+lib/components/gallery/useDaySelection.ts
+  s_1f1a1efd8db0bf::t_06bfb334d79df1 161-165,356-358,373
+lib/components/gallery/useDaySelectionHeaders.test.tsx
+  s_1f1a1efd8db0bf::t_35b5a119f22db6 1-151
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c920b96bb964e56d9e9649687dec9c0903f31e4c",
+  "prompts": {},
+  "sessions": {
+    "s_1f1a1efd8db0bf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6f1be9b0-86e0-4f32-9286-3562b40d391e",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
