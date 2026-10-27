@@ -1,5 +1,15 @@
 export type ArchiveStatusOrder = 'oldest-first' | 'newest-first'
-export type CatalogStage = 'statuses' | 'likes' | 'bookmarks' | 'done'
+export type CatalogStage =
+  | 'statuses'
+  | 'likes'
+  | 'bookmarks'
+  | 'ownMedia'
+  | 'gallerySettings'
+  | 'galleryGears'
+  | 'fitnessGears'
+  | 'albums'
+  | 'fitnessFiles'
+  | 'done'
 
 export interface AccountImportProgress {
   version: 1
@@ -43,7 +53,18 @@ export const parseImportProgress = (
     if (!parsed || typeof parsed !== 'object')
       return createInitialImportProgress()
     const record = parsed as Record<string, unknown>
-    const stages: CatalogStage[] = ['statuses', 'likes', 'bookmarks', 'done']
+    const stages: CatalogStage[] = [
+      'statuses',
+      'likes',
+      'bookmarks',
+      'ownMedia',
+      'gallerySettings',
+      'galleryGears',
+      'fitnessGears',
+      'albums',
+      'fitnessFiles',
+      'done'
+    ]
     return {
       version: 1,
       sourceActorId:

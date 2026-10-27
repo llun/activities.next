@@ -322,7 +322,6 @@ export const ACCOUNT_EXPORT_TABLES: Record<
       'autoDescribe',
       'allowEmptyDescription',
       'subjectHashtags',
-      'galleryDefault',
       'showGear',
       'mapPublic',
       'lifeListPublic',

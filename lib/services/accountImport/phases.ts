@@ -2,10 +2,18 @@ import { basename } from 'node:path'
 import { Readable } from 'node:stream'
 import { z } from 'zod'
 
+import { getConfig } from '@/lib/config'
+import { DEFAULT_FITNESS_MAX_FILE_SIZE } from '@/lib/config/fitnessStorage'
 import type { Database } from '@/lib/database/types'
+import { PROCESS_FITNESS_FILE_JOB_NAME } from '@/lib/jobs/names'
 import {
+  ACCOUNT_IMPORT_ALBUM_POSITION,
   ACCOUNT_IMPORT_BOOKMARK_POSITION,
   ACCOUNT_IMPORT_CATALOG_PAGE_SIZE,
+  ACCOUNT_IMPORT_FITNESS_FILE_POSITION,
+  ACCOUNT_IMPORT_FITNESS_GEAR_POSITION,
+  ACCOUNT_IMPORT_GALLERY_GEAR_POSITION,
+  ACCOUNT_IMPORT_GALLERY_SETTINGS_POSITION,
   ACCOUNT_IMPORT_ITEM_PAGE_SIZE,
   ACCOUNT_IMPORT_LIKE_POSITION,
   ACCOUNT_IMPORT_MAX_ATTACHMENTS_PER_STATUS,
@@ -14,8 +22,10 @@ import {
 } from '@/lib/services/accountImport/constants'
 import { createImportedStatus } from '@/lib/services/accountImport/createImportedStatus'
 import { detectArchiveKind } from '@/lib/services/accountImport/detectArchiveKind'
+import { iterateArrayItems } from '@/lib/services/accountImport/json/arrayItems'
 import { iterateJsonlLines } from '@/lib/services/accountImport/json/jsonl'
 import { iterateOrderedItems } from '@/lib/services/accountImport/json/orderedItems'
+import { readTopLevelJsonFields } from '@/lib/services/accountImport/json/topLevelJsonFields'
 import { readTopLevelStringFields } from '@/lib/services/accountImport/json/topLevelStringFields'
 import { mapMastodonItem } from '@/lib/services/accountImport/mappers/mapMastodonItem'
 import { mapOwnStatus } from '@/lib/services/accountImport/mappers/mapOwnStatus'
@@ -32,6 +42,12 @@ import {
 import {
   mastodonActivitySchema,
   mastodonActorSchema,
+  ownAlbumSchema,
+  ownFitnessFileLineSchema,
+  ownFitnessGearSchema,
+  ownGalleryGearSchema,
+  ownGallerySettingsSchema,
+  ownMediaLineSchema,
   ownStatusRecordSchema
 } from '@/lib/services/accountImport/schemas'
 import {
@@ -41,17 +57,39 @@ import {
   openZipArchive
 } from '@/lib/services/accountImport/zip/reader'
 import { isLocalFederationDomain } from '@/lib/services/federation/domainPolicy'
+import { saveFitnessFile } from '@/lib/services/fitness-files'
+import {
+  FITNESS_GEAR_KINDS,
+  type FitnessGearKind
+} from '@/lib/services/fitness-files/sportTypes'
+import { FitnessFileUploadSchema } from '@/lib/services/fitness-files/types'
 import { importRow } from '@/lib/services/imports/importRow'
 import { saveMedia } from '@/lib/services/medias'
+import { ACCEPTED_FILE_TYPES } from '@/lib/services/medias/constants'
 import { sanitizeStoredFileName } from '@/lib/services/medias/fileName'
 import { MediaSchema } from '@/lib/services/medias/types'
+import { getQueue } from '@/lib/services/queue'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
+import {
+  GALLERY_DEFAULTS,
+  GALLERY_GEAR_KINDS,
+  type GalleryDefault,
+  type GalleryGearKind
+} from '@/lib/types/database/gallery'
+import {
+  GALLERY_ALBUM_SORTS,
+  MAX_GALLERY_ALBUMS_PER_ACTOR,
+  MAX_GALLERY_ALBUM_DESCRIPTION_LENGTH,
+  MAX_GALLERY_ALBUM_ITEMS,
+  MAX_GALLERY_ALBUM_TITLE_LENGTH
+} from '@/lib/types/database/galleryAlbums'
 import type {
   AccountImport,
   AccountImportItem
 } from '@/lib/types/domain/accountImport'
 import type { Actor } from '@/lib/types/domain/actor'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { readAsyncIterableToBufferWithLimit } from '@/lib/utils/streamLimit'
 
 export type AccountArchiveKind = 'mastodon' | 'activities.next'
@@ -116,6 +154,29 @@ const chunksOf = (stream: Readable) => stream as AsyncIterable<Buffer>
 const requiredEntry = (entries: readonly ZipCatalogEntry[], name: string) =>
   entries.some((entry) => entry.name === name)
 
+/** Resolve the default actor's extras directory without reading profiles whole. */
+const getOwnArchiveExtrasDir = async (
+  archive: ZipArchive,
+  sourceActorId: string
+): Promise<string | null> => {
+  for (const entry of archive.entries) {
+    if (
+      !entry.name.startsWith('activities.next/actors/') ||
+      !entry.name.endsWith('/profile.json')
+    ) {
+      continue
+    }
+    const fields = await readTopLevelJsonFields(
+      chunksOf(await archive.openEntryStream(entry.name)),
+      ['id', 'isDefault']
+    )
+    if (fields.id === sourceActorId && fields.isDefault === true) {
+      return entry.name.slice(0, -'/profile.json'.length)
+    }
+  }
+  return null
+}
+
 const getActorEntryName = (kind: AccountArchiveKind) =>
   kind === 'activities.next' ? 'actor.json' : 'actor.json'
 
@@ -164,10 +225,19 @@ const getEventPublishedAt = (raw: string, kind: AccountArchiveKind) => {
 
 const inferStatusOrder = async (
   archive: ZipArchive,
-  kind: AccountArchiveKind
+  kind: AccountArchiveKind,
+  sourceActorId: string
 ): Promise<ArchiveStatusOrder> => {
+  const ownExtrasDir =
+    kind === 'activities.next'
+      ? await getOwnArchiveExtrasDir(archive, sourceActorId)
+      : null
   const name =
-    kind === 'mastodon' ? 'outbox.json' : 'activities.next/statuses.jsonl'
+    kind === 'mastodon'
+      ? 'outbox.json'
+      : ownExtrasDir
+        ? `${ownExtrasDir}/statuses.jsonl`
+        : ''
   if (!requiredEntry(archive.entries, name)) return 'newest-first'
   const dates: number[] = []
   const stream = await archive.openEntryStream(name)
@@ -259,22 +329,83 @@ const sourceIdForAttachment = (attachment: { url: string }) =>
 
 const parseJsonItem = (raw: string): unknown => JSON.parse(raw)
 
+const gallerySettingsFields = [
+  'autoDescribe',
+  'allowEmptyDescription',
+  'subjectHashtags',
+  'galleryDefault',
+  'defaultPlacePrecision',
+  'showGear',
+  'mapPublic',
+  'lifeListPublic',
+  'hiddenLocations',
+  'hideThreatenedPlaces',
+  'subjectSuggestionMode',
+  'subjectConfidenceThreshold',
+  'photoEnhance',
+  'createdAt',
+  'updatedAt'
+] as const
+
+const singleEvent = async function* (raw: string) {
+  yield { index: 0, raw }
+}
+
 const listEventStream = async (
   archive: ZipArchive,
   kind: AccountArchiveKind,
-  stage: Exclude<CatalogStage, 'done'>
+  stage: Exclude<CatalogStage, 'done'>,
+  sourceActorId: string
 ) => {
   if (stage === 'statuses') {
+    const ownExtrasDir =
+      kind === 'activities.next'
+        ? await getOwnArchiveExtrasDir(archive, sourceActorId)
+        : null
     const name =
-      kind === 'mastodon' ? 'outbox.json' : 'activities.next/statuses.jsonl'
+      kind === 'mastodon'
+        ? 'outbox.json'
+        : ownExtrasDir
+          ? `${ownExtrasDir}/statuses.jsonl`
+          : ''
     if (!requiredEntry(archive.entries, name)) return null
     return kind === 'mastodon'
       ? iterateOrderedItems(chunksOf(await archive.openEntryStream(name)))
       : iterateJsonlLines(chunksOf(await archive.openEntryStream(name)))
   }
-  const name = stage === 'likes' ? 'likes.json' : 'bookmarks.json'
+  if (stage === 'likes' || stage === 'bookmarks') {
+    const name = stage === 'likes' ? 'likes.json' : 'bookmarks.json'
+    if (!requiredEntry(archive.entries, name)) return null
+    return iterateOrderedItems(chunksOf(await archive.openEntryStream(name)))
+  }
+  if (kind !== 'activities.next') return null
+  const ownExtrasDir = await getOwnArchiveExtrasDir(archive, sourceActorId)
+  if (!ownExtrasDir) return null
+  if (stage === 'ownMedia' || stage === 'fitnessFiles') {
+    const name =
+      stage === 'ownMedia'
+        ? `${ownExtrasDir}/medias.jsonl`
+        : `${ownExtrasDir}/fitness/files.jsonl`
+    if (!requiredEntry(archive.entries, name)) return null
+    return iterateJsonlLines(chunksOf(await archive.openEntryStream(name)))
+  }
+  if (stage === 'gallerySettings') {
+    const name = `${ownExtrasDir}/gallery/settings.json`
+    if (!requiredEntry(archive.entries, name)) return null
+    const fields = await readTopLevelJsonFields(
+      chunksOf(await archive.openEntryStream(name)),
+      gallerySettingsFields
+    )
+    return singleEvent(JSON.stringify(fields))
+  }
+  const name =
+    stage === 'galleryGears'
+      ? `${ownExtrasDir}/gallery/gears.json`
+      : stage === 'fitnessGears'
+        ? `${ownExtrasDir}/fitness/gears.json`
+        : `${ownExtrasDir}/gallery/albums.json`
   if (!requiredEntry(archive.entries, name)) return null
-  return iterateOrderedItems(chunksOf(await archive.openEntryStream(name)))
+  return iterateArrayItems(chunksOf(await archive.openEntryStream(name)))
 }
 
 export const runCatalogPhase = async (
@@ -293,11 +424,20 @@ export const runCatalogPhase = async (
       progress.statusOrder !== 'oldest-first' &&
       progress.catalogIndex === 0
     ) {
-      progress.statusOrder = await inferStatusOrder(archive, kind)
+      progress.statusOrder = await inferStatusOrder(
+        archive,
+        kind,
+        progress.sourceActorId ?? ''
+      )
     }
     while (progress.catalogStage !== 'done') {
       const stage = progress.catalogStage
-      const events = await listEventStream(archive, kind, stage)
+      const events = await listEventStream(
+        archive,
+        kind,
+        stage,
+        progress.sourceActorId ?? ''
+      )
       if (!events) {
         progress.catalogStage = nextCatalogStage(stage)
         progress.catalogIndex = 0
@@ -350,7 +490,7 @@ export const runCatalogPhase = async (
               }
             }
           } else if (
-            stage !== 'statuses' &&
+            (stage === 'likes' || stage === 'bookmarks') &&
             typeof value === 'string' &&
             value.length <= 512
           ) {
@@ -363,6 +503,68 @@ export const runCatalogPhase = async (
                   : ACCOUNT_IMPORT_BOOKMARK_POSITION) + event.index,
               data: event.raw
             })
+          } else if (stage === 'ownMedia') {
+            const parsed = ownMediaLineSchema.safeParse(
+              normalizeOwnMediaRecord(value)
+            )
+            if (parsed.success) {
+              items.push({
+                kind: 'own-media',
+                sourceId: String(parsed.data.id),
+                position: ACCOUNT_IMPORT_MEDIA_POSITION + event.index,
+                data: JSON.stringify(parsed.data)
+              })
+            }
+          } else if (stage === 'gallerySettings') {
+            const parsed = ownGallerySettingsSchema.safeParse(value)
+            if (parsed.success) {
+              items.push({
+                kind: 'gallery-settings',
+                sourceId: 'gallery-settings',
+                position: ACCOUNT_IMPORT_GALLERY_SETTINGS_POSITION,
+                data: event.raw
+              })
+            }
+          } else if (stage === 'galleryGears') {
+            const parsed = ownGalleryGearSchema.safeParse(value)
+            if (parsed.success) {
+              items.push({
+                kind: 'gallery-gear',
+                sourceId: parsed.data.id,
+                position: ACCOUNT_IMPORT_GALLERY_GEAR_POSITION + event.index,
+                data: event.raw
+              })
+            }
+          } else if (stage === 'fitnessGears') {
+            const parsed = ownFitnessGearSchema.safeParse(value)
+            if (parsed.success) {
+              items.push({
+                kind: 'fitness-gear',
+                sourceId: parsed.data.id,
+                position: ACCOUNT_IMPORT_FITNESS_GEAR_POSITION + event.index,
+                data: event.raw
+              })
+            }
+          } else if (stage === 'albums') {
+            const parsed = ownAlbumSchema.safeParse(value)
+            if (parsed.success) {
+              items.push({
+                kind: 'album',
+                sourceId: parsed.data.id,
+                position: ACCOUNT_IMPORT_ALBUM_POSITION + event.index,
+                data: event.raw
+              })
+            }
+          } else if (stage === 'fitnessFiles') {
+            const parsed = ownFitnessFileLineSchema.safeParse(value)
+            if (parsed.success) {
+              items.push({
+                kind: 'fitness-file',
+                sourceId: parsed.data.id,
+                position: ACCOUNT_IMPORT_FITNESS_FILE_POSITION + event.index,
+                data: event.raw
+              })
+            }
           }
         }
         if (items.length >= ACCOUNT_IMPORT_CATALOG_PAGE_SIZE) {
@@ -425,8 +627,21 @@ export const runCatalogPhase = async (
 
 const nextCatalogStage = (
   stage: Exclude<CatalogStage, 'done'>
-): CatalogStage =>
-  stage === 'statuses' ? 'likes' : stage === 'likes' ? 'bookmarks' : 'done'
+): CatalogStage => {
+  const stages: CatalogStage[] = [
+    'statuses',
+    'likes',
+    'bookmarks',
+    'ownMedia',
+    'gallerySettings',
+    'galleryGears',
+    'fitnessGears',
+    'albums',
+    'fitnessFiles',
+    'done'
+  ]
+  return stages[stages.indexOf(stage) + 1]
+}
 
 const accountImportItems = async (
   database: Database,
@@ -455,11 +670,34 @@ const parseCatalogedItem = (data: string | null): unknown => {
   }
 }
 
+const normalizeOwnMediaRecord = (value: unknown): unknown => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value
+  const record = value as Record<string, unknown>
+  if (typeof record.subjectTaxonPath !== 'string') return value
+  try {
+    return {
+      ...record,
+      subjectTaxonPath: JSON.parse(record.subjectTaxonPath) as unknown
+    }
+  } catch {
+    return value
+  }
+}
+
 const readMediaMap = async (database: Database, importId: string) => {
   const media = new Map<string, string>()
   for (const item of await accountImportItems(database, importId)) {
     if (item.kind === 'media' && item.targetId)
       media.set(item.sourceId, item.targetId)
+    if (item.kind === 'own-media' && item.targetId) {
+      media.set(item.sourceId, item.targetId)
+      const record = ownMediaLineSchema.safeParse(
+        normalizeOwnMediaRecord(parseCatalogedItem(item.data))
+      )
+      if (record.success && record.data.archivePath) {
+        media.set(record.data.archivePath, item.targetId)
+      }
+    }
   }
   return media
 }
@@ -493,7 +731,10 @@ const statusInputWithTargetReferences = (
     mediaId:
       mediaByArchivePath.get(
         mediaArchivePathFromUrl(attachment.sourceUrl) ?? ''
-      ) ?? null
+      ) ??
+      (attachment.mediaId
+        ? (mediaByArchivePath.get(attachment.mediaId) ?? null)
+        : null)
   }))
 })
 
@@ -537,6 +778,13 @@ const sniffSupportedMediaType = (bytes: Buffer): string | null => {
     bytes[2] === 0xff
   ) {
     return 'image/jpeg'
+  }
+  if (
+    bytes.length >= 12 &&
+    bytes.toString('ascii', 0, 4) === 'RIFF' &&
+    bytes.toString('ascii', 8, 12) === 'WEBP'
+  ) {
+    return 'image/webp'
   }
   if (bytes.length >= 12 && bytes.toString('ascii', 4, 8) === 'ftyp') {
     const brand = bytes.toString('ascii', 8, 12)
@@ -935,13 +1183,706 @@ export const runStatusesPhase = async (
   }
 }
 
+const runCatalogedItems = async (
+  context: AccountImportPhaseContext,
+  progress: AccountImportProgress,
+  cursorText: string | null,
+  kinds: ReadonlySet<string>,
+  process: (item: AccountImportItem) => Promise<void>
+): Promise<{
+  result: PhaseResult
+  progress: AccountImportProgress
+  cursor: string | null
+}> => {
+  let afterPosition = parseImportCursor(cursorText).afterPosition ?? undefined
+  for (;;) {
+    const page = await context.database.getAccountImportItems({
+      importId: context.accountImport.id,
+      ...(afterPosition === undefined ? {} : { afterPosition }),
+      limit: ACCOUNT_IMPORT_ITEM_PAGE_SIZE
+    })
+    if (page.length === 0) return { result: 'done', progress, cursor: null }
+    for (const item of page) {
+      if (await checkCancelled(context)) {
+        return { result: 'cancelled', progress, cursor: null }
+      }
+      if (item.state === 'pending' && kinds.has(item.kind)) await process(item)
+      afterPosition = item.position
+      if (context.now() >= context.deadline) {
+        return {
+          result: 'budget',
+          progress,
+          cursor: serializeImportCursor(afterPosition)
+        }
+      }
+    }
+  }
+}
+
+const sourceRecord = <Schema extends z.ZodTypeAny>(
+  schema: Schema,
+  item: AccountImportItem
+) => schema.safeParse(parseCatalogedItem(item.data))
+
+const archiveTimestamp = (value: number | string | null | undefined) => {
+  if (value === null || value === undefined) return null
+  const parsed = typeof value === 'number' ? value : Date.parse(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+const importGalleryGear = async (
+  context: AccountImportPhaseContext,
+  progress: AccountImportProgress,
+  item: AccountImportItem
+) => {
+  const parsed = sourceRecord(ownGalleryGearSchema, item)
+  if (
+    !parsed.success ||
+    !GALLERY_GEAR_KINDS.includes(parsed.data.kind as GalleryGearKind)
+  ) {
+    await terminalItemState(context, progress, item, 'skipped', 'gear_invalid')
+    return
+  }
+  const actor = await requireActor(context)
+  const row = parsed.data
+  const existing = row.deviceKey
+    ? await context.database.findGalleryGearByDeviceKey({
+        actorId: actor.id,
+        deviceKey: row.deviceKey
+      })
+    : null
+  const gear =
+    existing ??
+    (await context.database.createGalleryGear({
+      actorId: actor.id,
+      kind: row.kind as GalleryGearKind,
+      name: row.name,
+      brand: row.brand,
+      model: row.model,
+      productUrl: row.productUrl,
+      deviceKey: row.deviceKey
+    }))
+  if (!existing && row.retiredAt !== null) {
+    await context.database.setGalleryGearRetired({
+      id: gear.id,
+      actorId: actor.id,
+      retired: true
+    })
+  }
+  await terminalItemState(context, progress, item, 'done', undefined, gear.id)
+}
+
+const importFitnessGear = async (
+  context: AccountImportPhaseContext,
+  progress: AccountImportProgress,
+  item: AccountImportItem
+) => {
+  const parsed = sourceRecord(ownFitnessGearSchema, item)
+  if (
+    !parsed.success ||
+    !FITNESS_GEAR_KINDS.includes(parsed.data.kind as FitnessGearKind)
+  ) {
+    await terminalItemState(context, progress, item, 'skipped', 'gear_invalid')
+    return
+  }
+  const actor = await requireActor(context)
+  const row = parsed.data
+  const existing = row.deviceKey
+    ? await context.database.findFitnessGearByDeviceKey({
+        actorId: actor.id,
+        deviceKey: row.deviceKey
+      })
+    : null
+  const gear =
+    existing ??
+    (await context.database.createFitnessGear({
+      actorId: actor.id,
+      kind: row.kind as FitnessGearKind,
+      name: row.name,
+      brand: row.brand,
+      model: row.model,
+      bikeType: row.bikeType,
+      weightKilograms: row.weightKilograms,
+      defaultSports: row.defaultSports ?? undefined,
+      alertDistanceMeters: row.alertDistanceMeters,
+      notes: row.notes,
+      deviceKey: row.deviceKey,
+      productUrl: row.productUrl
+    }))
+  if (!existing) {
+    for (const component of row.components) {
+      const period = [...component.periods].sort(
+        (a, b) => a.installSequence - b.installSequence
+      )[0]
+      await context.database.createFitnessGearComponent({
+        gearId: gear.id,
+        actorId: actor.id,
+        componentType: component.componentType,
+        brand: component.brand,
+        model: component.model,
+        serviceDistanceMeters: component.serviceDistanceMeters,
+        productUrl: component.productUrl,
+        addedAt: archiveTimestamp(period?.addedAt)
+          ? new Date(archiveTimestamp(period?.addedAt) as number)
+          : null,
+        removedAt: archiveTimestamp(period?.removedAt)
+          ? new Date(archiveTimestamp(period?.removedAt) as number)
+          : null
+      })
+    }
+    if (row.retiredAt !== null) {
+      await context.database.setFitnessGearRetired({
+        id: gear.id,
+        actorId: actor.id,
+        retired: true
+      })
+    }
+  }
+  await terminalItemState(context, progress, item, 'done', undefined, gear.id)
+}
+
+export const runGearsPhase = async (
+  context: AccountImportPhaseContext,
+  progress: AccountImportProgress,
+  cursorText: string | null
+) =>
+  runCatalogedItems(
+    context,
+    progress,
+    cursorText,
+    new Set(['gallery-gear', 'fitness-gear']),
+    async (item) => {
+      if (item.kind === 'gallery-gear') {
+        await importGalleryGear(context, progress, item)
+      } else {
+        await importFitnessGear(context, progress, item)
+      }
+    }
+  )
+
+const archiveMediaFileName = (id: number, mediaType: string) => {
+  const extension: Record<string, string> = {
+    'image/jpeg': 'jpg',
+    'image/png': 'png',
+    'video/quicktime': 'mov',
+    'video/mp4': 'mp4',
+    'video/webm': 'webm',
+    'audio/mp4': 'm4a'
+  }
+  return `archive-media-${id}.${extension[mediaType] ?? 'bin'}`
+}
+
+const readTargetGalleryGearMap = async (
+  database: Database,
+  importId: string
+) => {
+  const gear = new Map<string, string>()
+  for (const item of await accountImportItems(database, importId)) {
+    if (item.kind === 'gallery-gear' && item.targetId) {
+      gear.set(item.sourceId, item.targetId)
+    }
+  }
+  return gear
+}
+
+const readOwnMediaFile = async (
+  context: AccountImportPhaseContext,
+  archive: ZipArchive,
+  item: AccountImportItem,
+  maxBytes: number,
+  galleryGears: ReadonlyMap<string, string>
+) => {
+  const parsed = ownMediaLineSchema.safeParse(
+    normalizeOwnMediaRecord(parseCatalogedItem(item.data))
+  )
+  if (!parsed.success || !parsed.data.archivePath) {
+    return { state: 'skipped' as const, reason: 'media_missing' }
+  }
+  const entry = archive.entries.find(
+    (candidate) => candidate.name === parsed.data.archivePath
+  )
+  if (!entry) return { state: 'skipped' as const, reason: 'media_missing' }
+  if (entry.uncompressedSize > maxBytes) {
+    return { state: 'skipped' as const, reason: 'media_too_large' }
+  }
+  const bytes = await readAsyncIterableToBufferWithLimit(
+    chunksOf(await archive.openEntryStream(entry.name)),
+    maxBytes,
+    'Archived media'
+  )
+  const sniffedType = sniffSupportedMediaType(bytes)
+  if (!sniffedType) {
+    return { state: 'skipped' as const, reason: 'media_type_unsupported' }
+  }
+  if (!ACCEPTED_FILE_TYPES.includes(sniffedType)) {
+    return { state: 'skipped' as const, reason: 'media_type_unsupported' }
+  }
+  const file = new File(
+    [new Uint8Array(bytes)],
+    archiveMediaFileName(parsed.data.id, sniffedType),
+    { type: sniffedType }
+  )
+  const mediaInput = MediaSchema.safeParse({ file })
+  if (!mediaInput.success) {
+    return { state: 'skipped' as const, reason: 'media_invalid' }
+  }
+  const actor = await requireActor(context)
+  await context.renew()
+  const saved = await saveMedia(context.database, actor, mediaInput.data, {
+    withGalleryDetails: false
+  })
+  if (!saved)
+    return { state: 'skipped' as const, reason: 'storage_unavailable' }
+
+  const data = parsed.data
+  const cameraGearId = data.cameraGearId
+    ? (galleryGears.get(data.cameraGearId) ?? null)
+    : null
+  const lensGearId = data.lensGearId
+    ? (galleryGears.get(data.lensGearId) ?? null)
+    : null
+  const focus =
+    data.focusX !== null && data.focusY !== null
+      ? { x: data.focusX, y: data.focusY }
+      : undefined
+  await context.database.updateMedia({
+    mediaId: saved.id,
+    accountId: actor.account!.id,
+    actorId: actor.id,
+    description: data.description,
+    ...(focus ? { focus } : null),
+    blurhash: data.blurhash,
+    details: {
+      subjectName: data.subjectName,
+      subjectScientificName: data.subjectScientificName,
+      subjectCategory: data.subjectCategory,
+      takenAt: archiveTimestamp(data.takenAt),
+      cameraGearId,
+      lensGearId,
+      exposure: data.exposure,
+      placeName: data.placeNameSource === 'geocoder' ? null : data.placeName,
+      placeLatitude: data.placeLatitude ?? null,
+      placeLongitude: data.placeLongitude ?? null,
+      placePrecision: data.placePrecision,
+      inGallery: data.inGallery,
+      subjectTaxonKey: data.subjectTaxonKey
+    }
+  })
+  if (data.inGallery && data.galleryAddedAt !== null) {
+    await context.database.addMediaToGallery({
+      actorId: actor.id,
+      mediaIds: [saved.id]
+    })
+  }
+  await context.database.setMediaSubjectLookup({
+    mediaId: saved.id,
+    expect: {
+      subjectName: data.subjectName,
+      subjectScientificName: data.subjectScientificName,
+      subjectTaxonKey: data.subjectTaxonKey,
+      subjectCategory: data.subjectCategory
+    },
+    patch: {
+      subjectLookupStatus:
+        data.subjectTaxonPath !== null || data.subjectIucnCategory !== null
+          ? 'resolved'
+          : null,
+      subjectTaxonKey: data.subjectTaxonKey,
+      subjectTaxonPath: data.subjectTaxonPath,
+      subjectIucnCategory: data.subjectIucnCategory
+    }
+  })
+  await context.database.setMediaPlaceLookup({
+    mediaId: saved.id,
+    expect: {
+      placeLatitude: data.placeLatitude ?? null,
+      placeLongitude: data.placeLongitude ?? null
+    },
+    patch: {
+      placeLookupStatus:
+        data.placeCountryCode !== null || data.placeNameSource === 'geocoder'
+          ? 'resolved'
+          : null,
+      placeCountryCode: data.placeCountryCode,
+      ...(data.placeNameSource === 'geocoder'
+        ? { placeName: data.placeName }
+        : null)
+    }
+  })
+  await context.database.setMediaSubjectSuggestions({
+    mediaId: saved.id,
+    suggestions: data.subjectSuggestions
+  })
+  return { state: 'done' as const, targetId: saved.id }
+}
+
+export const runOwnArchiveMediaPhase = async (
+  context: AccountImportPhaseContext,
+  progress: AccountImportProgress,
+  cursorText: string | null
+) => {
+  const archive = await openArchive(context.objectStore, context.accountImport)
+  try {
+    const { media } = await getResolvedServerSettings(context.database)
+    const galleryGears = await readTargetGalleryGearMap(
+      context.database,
+      context.accountImport.id
+    )
+    return await runCatalogedItems(
+      context,
+      progress,
+      cursorText,
+      new Set(['own-media']),
+      async (item) => {
+        try {
+          const result = await readOwnMediaFile(
+            context,
+            archive,
+            item,
+            media.maxFileSize,
+            galleryGears
+          )
+          await terminalItemState(
+            context,
+            progress,
+            item,
+            result.state,
+            result.state === 'skipped' ? result.reason : undefined,
+            result.state === 'done' ? result.targetId : null
+          )
+        } catch (error) {
+          if ((error as Error)?.message === 'import_actor_missing') throw error
+          await terminalItemState(
+            context,
+            progress,
+            item,
+            'skipped',
+            'media_invalid'
+          )
+        }
+      }
+    )
+  } finally {
+    await archive.close()
+  }
+}
+
+const normalizeGalleryDefault = (
+  value: unknown
+): GalleryDefault | undefined => {
+  if (typeof value === 'boolean') return value ? 'always' : 'never'
+  return GALLERY_DEFAULTS.includes(value as GalleryDefault)
+    ? (value as GalleryDefault)
+    : undefined
+}
+
+export const runGalleryPhase = async (
+  context: AccountImportPhaseContext,
+  progress: AccountImportProgress,
+  cursorText: string | null
+) =>
+  runCatalogedItems(
+    context,
+    progress,
+    cursorText,
+    new Set(['gallery-settings']),
+    async (item) => {
+      const parsed = sourceRecord(ownGallerySettingsSchema, item)
+      if (!parsed.success) {
+        await terminalItemState(
+          context,
+          progress,
+          item,
+          'skipped',
+          'gallery_settings_invalid'
+        )
+        return
+      }
+      const {
+        galleryDefault: sourceDefault,
+        createdAt: _createdAt,
+        updatedAt: _updatedAt,
+        ...settings
+      } = parsed.data
+      const galleryDefault = normalizeGalleryDefault(sourceDefault)
+      await context.database.updateGallerySettings({
+        actorId: context.accountImport.actorId,
+        ...settings,
+        ...(galleryDefault ? { galleryDefault } : null)
+      })
+      await terminalItemState(context, progress, item, 'done')
+    }
+  )
+
+const importAlbum = async (
+  context: AccountImportPhaseContext,
+  progress: AccountImportProgress,
+  item: AccountImportItem
+) => {
+  const parsed = sourceRecord(ownAlbumSchema, item)
+  if (!parsed.success) {
+    await terminalItemState(context, progress, item, 'skipped', 'album_invalid')
+    return
+  }
+  const actor = await requireActor(context)
+  const mediaMap = await readMediaMap(
+    context.database,
+    context.accountImport.id
+  )
+  const mediaIds = parsed.data.items
+    .map(({ mediaId }) => mediaMap.get(String(mediaId)))
+    .filter((id): id is string => Boolean(id))
+    .slice(0, MAX_GALLERY_ALBUM_ITEMS)
+  const sortOrder = GALLERY_ALBUM_SORTS.includes(parsed.data.sortOrder)
+    ? parsed.data.sortOrder
+    : 'taken_desc'
+  const created = await context.database.createGalleryAlbumWithinLimit({
+    actorId: actor.id,
+    title: parsed.data.title.slice(0, MAX_GALLERY_ALBUM_TITLE_LENGTH),
+    description:
+      parsed.data.description?.slice(0, MAX_GALLERY_ALBUM_DESCRIPTION_LENGTH) ??
+      null,
+    visibility: parsed.data.visibility,
+    sortOrder,
+    limit: MAX_GALLERY_ALBUMS_PER_ACTOR,
+    itemLimit: MAX_GALLERY_ALBUM_ITEMS,
+    mediaIds
+  })
+  if (created.status !== 'created') {
+    await terminalItemState(context, progress, item, 'skipped', 'album_limit')
+    return
+  }
+  const coverMediaId =
+    parsed.data.coverMediaId === null
+      ? null
+      : (mediaMap.get(String(parsed.data.coverMediaId)) ?? null)
+  if (coverMediaId) {
+    await context.database.updateGalleryAlbum({
+      id: created.album.id,
+      actorId: actor.id,
+      coverMediaId
+    })
+  }
+  await terminalItemState(
+    context,
+    progress,
+    item,
+    'done',
+    undefined,
+    created.album.id
+  )
+}
+
+export const runAlbumsPhase = async (
+  context: AccountImportPhaseContext,
+  progress: AccountImportProgress,
+  cursorText: string | null
+) =>
+  runCatalogedItems(context, progress, cursorText, new Set(['album']), (item) =>
+    importAlbum(context, progress, item)
+  )
+
+const importFitnessFile = async (
+  context: AccountImportPhaseContext,
+  progress: AccountImportProgress,
+  item: AccountImportItem
+) => {
+  const parsed = sourceRecord(ownFitnessFileLineSchema, item)
+  if (
+    !parsed.success ||
+    !['fit', 'gpx', 'tcx'].includes(parsed.data.fileType)
+  ) {
+    await terminalItemState(
+      context,
+      progress,
+      item,
+      'skipped',
+      'fitness_invalid'
+    )
+    return
+  }
+  const source = parsed.data
+  const targetStatusId = source.statusId
+    ? (
+        await readTargetStatusMap(context.database, context.accountImport.id)
+      ).get(source.statusId)
+    : null
+  if (!targetStatusId) {
+    await terminalItemState(
+      context,
+      progress,
+      item,
+      'skipped',
+      'status_unavailable'
+    )
+    return
+  }
+  const archive = await openArchive(context.objectStore, context.accountImport)
+  try {
+    const entry = archive.entries.find(
+      ({ name }) => name === source.archivePath
+    )
+    if (!entry) {
+      await terminalItemState(
+        context,
+        progress,
+        item,
+        'skipped',
+        'fitness_missing'
+      )
+      return
+    }
+    const configuredLimit = getConfig().fitnessStorage?.maxFileSize
+    const maxBytes = configuredLimit ?? DEFAULT_FITNESS_MAX_FILE_SIZE
+    if (entry.uncompressedSize > maxBytes) {
+      await terminalItemState(
+        context,
+        progress,
+        item,
+        'skipped',
+        'fitness_too_large'
+      )
+      return
+    }
+    const bytes = await readAsyncIterableToBufferWithLimit(
+      chunksOf(await archive.openEntryStream(entry.name)),
+      maxBytes,
+      'Archived fitness file'
+    )
+    const fileType = source.fileType as 'fit' | 'gpx' | 'tcx'
+    const mimeType =
+      fileType === 'fit'
+        ? 'application/vnd.ant.fit'
+        : fileType === 'gpx'
+          ? 'application/gpx+xml'
+          : 'application/tcx+xml'
+    const fileName = sanitizeStoredFileName(`${source.id}.${fileType}`)
+    const file = new File([new Uint8Array(bytes)], fileName, { type: mimeType })
+    const upload = FitnessFileUploadSchema.safeParse({
+      file,
+      description: source.description ?? undefined
+    })
+    if (!upload.success) {
+      await terminalItemState(
+        context,
+        progress,
+        item,
+        'skipped',
+        'fitness_invalid'
+      )
+      return
+    }
+    const actor = await requireActor(context)
+    await context.renew()
+    const saved = await saveFitnessFile(context.database, actor, upload.data)
+    if (!saved) {
+      await terminalItemState(
+        context,
+        progress,
+        item,
+        'skipped',
+        'storage_unavailable'
+      )
+      return
+    }
+    await context.database.updateFitnessFileStatus(saved.id, targetStatusId)
+    await context.database.updateFitnessFileActivityData(saved.id, {
+      activityType: source.activityType,
+      activityStartTime: source.activityStartTime
+        ? new Date(source.activityStartTime)
+        : null,
+      totalDistanceMeters: source.totalDistanceMeters,
+      totalDurationSeconds: source.totalDurationSeconds,
+      movingTimeSeconds: source.movingTimeSeconds,
+      elevationGainMeters: source.elevationGainMeters,
+      deviceManufacturer: source.deviceManufacturer,
+      deviceName: source.deviceName,
+      sourceUrl: source.sourceUrl,
+      deviceGearId: source.deviceGearId
+        ? ((
+            await readTargetFitnessGearMap(
+              context.database,
+              context.accountImport.id
+            )
+          ).get(source.deviceGearId) ?? null)
+        : null
+    })
+    const targetGearId = source.gearId
+      ? ((
+          await readTargetFitnessGearMap(
+            context.database,
+            context.accountImport.id
+          )
+        ).get(source.gearId) ?? null)
+      : null
+    if (targetGearId) {
+      await context.database.setFitnessFileGear({
+        fitnessFileId: saved.id,
+        actorId: actor.id,
+        gearId: targetGearId
+      })
+    }
+    if (source.isPrimary)
+      await context.database.updateFitnessFilePrimary(saved.id, true)
+    // This is the only queue publication allowed inside the quiet importer.
+    await getQueue().publish({
+      id: getHashFromString(
+        `${context.accountImport.id}:fitness:${item.sourceId}`
+      ),
+      name: PROCESS_FITNESS_FILE_JOB_NAME,
+      data: {
+        actorId: actor.id,
+        statusId: targetStatusId,
+        fitnessFileId: saved.id,
+        publishSendNote: false,
+        notifyOnComplete: false
+      }
+    })
+    await terminalItemState(
+      context,
+      progress,
+      item,
+      'done',
+      undefined,
+      saved.id
+    )
+  } finally {
+    await archive.close()
+  }
+}
+
+const readTargetFitnessGearMap = async (
+  database: Database,
+  importId: string
+) => {
+  const gear = new Map<string, string>()
+  for (const item of await accountImportItems(database, importId)) {
+    if (item.kind === 'fitness-gear' && item.targetId)
+      gear.set(item.sourceId, item.targetId)
+  }
+  return gear
+}
+
+export const runFitnessPhase = async (
+  context: AccountImportPhaseContext,
+  progress: AccountImportProgress,
+  cursorText: string | null
+) =>
+  runCatalogedItems(
+    context,
+    progress,
+    cursorText,
+    new Set(['fitness-file']),
+    (item) => importFitnessFile(context, progress, item)
+  )
+
 export const runProfileNoopPhase = async () => 'done' as const
+export const runSettingsNoopPhase = async () => 'done' as const
+export const runCollectionsNoopPhase = async () => 'done' as const
 export const runGearsNoopPhase = async () => 'done' as const
 export const runOwnArchiveMediaNoopPhase = async () => 'done' as const
 export const runGalleryNoopPhase = async () => 'done' as const
 export const runFitnessNoopPhase = async () => 'done' as const
-export const runSettingsNoopPhase = async () => 'done' as const
 export const runAlbumsNoopPhase = async () => 'done' as const
-export const runCollectionsNoopPhase = async () => 'done' as const
 
 export const sourceIndexFromPosition = statusIndex

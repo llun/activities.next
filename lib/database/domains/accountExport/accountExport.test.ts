@@ -76,6 +76,20 @@ describe('account export readers', () => {
     }
   })
 
+  it('exports galleryDefault as its string enum rather than a boolean', async () => {
+    await database.updateGallerySettings({
+      actorId: ACTOR1_ID,
+      galleryDefault: 'subject'
+    })
+
+    const [settings] = await readAll('gallery_settings')
+
+    expect(settings.galleryDefault).toBe('subject')
+    expect(ACCOUNT_EXPORT_TABLES.gallery_settings.booleans).not.toContain(
+      'galleryDefault'
+    )
+  })
+
   it('reads the account without credentials', async () => {
     const account = await database.getAccountExportAccount({ accountId })
     expect(account).toMatchObject({

@@ -17,14 +17,14 @@ vi.mock('@/lib/services/accountImport/objectStore', () => ({
 
 vi.mock('@/lib/services/accountImport/phases', () => ({
   inspectAccountArchive: vi.fn(),
-  runAlbumsNoopPhase: vi.fn(),
+  runAlbumsPhase: vi.fn(),
   runCatalogPhase: vi.fn(),
   runCollectionsNoopPhase: vi.fn(),
-  runFitnessNoopPhase: vi.fn(),
-  runGalleryNoopPhase: vi.fn(),
-  runGearsNoopPhase: vi.fn(),
+  runFitnessPhase: vi.fn(),
+  runGalleryPhase: vi.fn(),
+  runGearsPhase: vi.fn(),
   runMastodonMediaPhase: vi.fn(),
-  runOwnArchiveMediaNoopPhase: vi.fn(),
+  runOwnArchiveMediaPhase: vi.fn(),
   runProfileNoopPhase: vi.fn(),
   runSettingsNoopPhase: vi.fn(),
   runStatusesPhase: vi.fn()

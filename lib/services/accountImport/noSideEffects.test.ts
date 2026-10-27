@@ -42,10 +42,26 @@ const stripAllowedBookmarkImportRow = (source: string) =>
       ''
     )
 
+const stripAllowedFitnessProcessingJob = (source: string) =>
+  source
+    .replace(
+      /\/\/ This is the only queue publication allowed inside the quiet importer\.\s*await getQueue\(\)\.publish\(\{\s*id: getHashFromString\(\s*`\$\{context\.accountImport\.id\}:fitness:\$\{item\.sourceId\}`\s*\),\s*name: PROCESS_FITNESS_FILE_JOB_NAME,\s*data: \{\s*actorId: actor\.id,\s*statusId: targetStatusId,\s*fitnessFileId: saved\.id,\s*publishSendNote: false,\s*notifyOnComplete: false\s*\}\s*\}\)/m,
+      ''
+    )
+    .replace(/import \{ getQueue \} from '@\/lib\/services\/queue'/g, '')
+    .replace(
+      /import \{ PROCESS_FITNESS_FILE_JOB_NAME \} from '@\/lib\/jobs\/names'/g,
+      ''
+    )
+
 const findViolations = (source: string) =>
   forbiddenPatterns.flatMap(([name, pattern]) =>
     pattern.test(
-      name === 'importRow' ? stripAllowedBookmarkImportRow(source) : source
+      name === 'importRow'
+        ? stripAllowedBookmarkImportRow(source)
+        : name === 'queue access or publish'
+          ? stripAllowedFitnessProcessingJob(source)
+          : source
     )
       ? [name]
       : []
