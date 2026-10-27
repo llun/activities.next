@@ -15,6 +15,7 @@ export interface GalleryFilterMenuProps {
   inactiveTriggerText: string
   active: boolean
   activeLabel: string
+  activeLabelClassName?: string
   onClear: () => void
   disabled?: boolean
   children: (controls: { close: () => void }) => ReactNode
@@ -29,6 +30,7 @@ export const GalleryFilterMenu: FC<GalleryFilterMenuProps> = ({
   inactiveTriggerText,
   active,
   activeLabel,
+  activeLabelClassName,
   onClear,
   disabled = false,
   children,
@@ -47,6 +49,7 @@ export const GalleryFilterMenu: FC<GalleryFilterMenuProps> = ({
         label={label}
         active={active}
         activeLabel={activeLabel}
+        activeLabelClassName={activeLabelClassName}
         inactiveTriggerText={inactiveTriggerText}
         triggerAriaLabel={`${label}: ${active ? activeLabel : inactiveTriggerText}`}
         clearAriaLabel={`Clear ${activeLabel} filter`}

@@ -10,6 +10,7 @@ export interface GalleryFilterChipProps {
   label: string
   active: boolean
   activeLabel: string
+  activeLabelClassName?: string
   inactiveTriggerText: string
   triggerAriaLabel: string
   clearAriaLabel: string
@@ -24,6 +25,7 @@ export const GalleryFilterChip: FC<GalleryFilterChipProps> = ({
   label,
   active,
   activeLabel,
+  activeLabelClassName,
   inactiveTriggerText,
   triggerAriaLabel,
   clearAriaLabel,
@@ -61,7 +63,13 @@ export const GalleryFilterChip: FC<GalleryFilterChipProps> = ({
               'hover:bg-primary/15 hover:text-primary-text gap-1.5 rounded-r-none px-3 font-medium'
           )}
         >
-          <span className={cn('truncate', active && 'max-w-[180px]')}>
+          <span
+            className={cn(
+              'truncate',
+              active && 'max-w-[180px]',
+              active && activeLabelClassName
+            )}
+          >
             {active ? activeLabel : inactiveTriggerText}
           </span>
           <ChevronDown

@@ -1,7 +1,9 @@
 import type {
+  GalleryDayKey,
   GalleryLifeListResponse,
   GalleryMapResponse,
   GalleryMediaFacetsResponse,
+  GalleryMediaIdsResponse,
   GalleryMediaPage,
   GallerySubjectsResponse
 } from '@/lib/services/gallery/galleryEntities'
@@ -17,6 +19,10 @@ import { parseApiError } from './http'
 export interface GetGalleryMediaOptions {
   maxId?: string
   limit?: number
+  /** Owner only: limit a page to one gallery day. */
+  dayKey?: GalleryDayKey
+  /** Cancel a page read when its host or query goes away. */
+  signal?: AbortSignal
   /** A `toSubjectKey` key, sent verbatim. */
   subject?: string
   category?: MediaSubjectCategory
@@ -41,6 +47,8 @@ export interface GetGalleryMediaOptions {
   albumId?: string
   /** Owner only: ask for `total` (and `inAlbumTotal`) on the first page. */
   includeTotal?: boolean
+  /** Owner only: ask for per-day stats (`days`) on each page. */
+  includeDays?: boolean
 }
 
 const galleryUrl = (
@@ -56,11 +64,13 @@ const galleryUrl = (
 
 const readGallery = async <T>(
   url: string,
-  fallbackMessage: string
+  fallbackMessage: string,
+  signal?: AbortSignal
 ): Promise<T> => {
   const response = await fetch(url, {
     method: 'GET',
-    headers: { Accept: 'application/json' }
+    headers: { Accept: 'application/json' },
+    ...(signal ? { signal } : null)
   })
   if (!response.ok) {
     throw new Error(await parseApiError(response, fallbackMessage))
@@ -91,6 +101,8 @@ export const getGalleryMedia = async (
   {
     maxId,
     limit,
+    dayKey,
+    signal,
     subject,
     category,
     gearId,
@@ -102,12 +114,14 @@ export const getGalleryMedia = async (
     takenTo,
     activityId,
     albumId,
-    includeTotal
+    includeTotal,
+    includeDays
   }: GetGalleryMediaOptions = {}
 ): Promise<GalleryMediaPage> => {
   const query = new URLSearchParams()
   if (maxId !== undefined) query.set('max_id', maxId)
   if (limit !== undefined) query.set('limit', String(limit))
+  if (dayKey !== undefined) query.set('day_key', dayKey)
   if (subject !== undefined) query.set('subject', subject)
   if (category !== undefined) query.set('category', category)
   if (gearId !== undefined) query.set('gear_id', gearId)
@@ -120,10 +134,59 @@ export const getGalleryMedia = async (
   if (activityId !== undefined) query.set('activity_id', activityId)
   if (albumId !== undefined) query.set('album_id', albumId)
   if (includeTotal) query.set('include_total', 'true')
+  if (includeDays) query.set('include_days', 'true')
   return readGallery<GalleryMediaPage>(
+    galleryUrl(actorId, 'media', query),
+    'Failed to load photos.',
+    signal
+  )
+}
+
+/**
+ * Owner only: the ids of one day's matches, `limit` at most, in `sort` order,
+ * minus `albumId` members.
+ */
+export const getGalleryMediaIds = async (
+  actorId: string,
+  {
+    subject,
+    category,
+    gearId,
+    show,
+    sort,
+    place,
+    takenFrom,
+    takenTo,
+    activityId,
+    albumId,
+    dayKey,
+    limit,
+    offset
+  }: Omit<
+    GetGalleryMediaOptions,
+    'maxId' | 'cursor' | 'includeTotal' | 'includeDays'
+  > & { dayKey: GalleryDayKey; limit: number; offset?: number }
+): Promise<string[]> => {
+  const query = new URLSearchParams()
+  query.set('ids_only', 'true')
+  query.set('day_key', dayKey)
+  query.set('limit', String(limit))
+  if (offset !== undefined) query.set('offset', String(offset))
+  if (subject !== undefined) query.set('subject', subject)
+  if (category !== undefined) query.set('category', category)
+  if (gearId !== undefined) query.set('gear_id', gearId)
+  if (show !== undefined) query.set('show', show)
+  if (sort !== undefined) query.set('sort', sort)
+  if (place !== undefined) query.set('place', place)
+  if (takenFrom !== undefined) query.set('taken_from', takenFrom)
+  if (takenTo !== undefined) query.set('taken_to', takenTo)
+  if (activityId !== undefined) query.set('activity_id', activityId)
+  if (albumId !== undefined) query.set('album_id', albumId)
+  const body = await readGallery<GalleryMediaIdsResponse>(
     galleryUrl(actorId, 'media', query),
     'Failed to load photos.'
   )
+  return body.mediaIds
 }
 
 /** How many photos match (owner only): the media route with `limit=1`. */

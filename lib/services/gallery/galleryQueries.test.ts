@@ -1,4 +1,7 @@
 import type {
+  GalleryDayActivityRow,
+  GalleryDayPlaceRow,
+  GalleryDayStatsRows,
   GalleryIndexRow,
   GalleryMapRow,
   GalleryMediaCount,
@@ -18,8 +21,10 @@ import {
   GALLERY_INDEX_CAP,
   getGalleryLifeList,
   getGalleryMapPoints,
+  getGalleryMediaIds,
   getGalleryMediaPage,
-  getGallerySubjects
+  getGallerySubjects,
+  reduceGalleryDayStats
 } from '@/lib/services/gallery/galleryQueries'
 import { seedDatabase } from '@/lib/stub/database'
 import { DatabaseSeed } from '@/lib/stub/scenarios/database'
@@ -1235,6 +1240,344 @@ describe('gallery queries', () => {
         )
       })
     })
+
+    describe('days and day ids', () => {
+      // Photos of the owner's own, on days nothing else uses, so the day
+      // stats below see only what this describe seeds.
+      const dayStatusId = `${owner.id}/statuses/queries-days-public`
+      const activityFileIds: Record<string, string> = {}
+
+      beforeAll(async () => {
+        await database.createNote({
+          id: dayStatusId,
+          url: dayStatusId,
+          actorId: owner.id,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'days'
+        })
+
+        // Two spellings of one place (one used twice) and another place.
+        await createPostedMedia('days-box-hill-a', dayStatusId, {
+          takenAt: Date.UTC(2025, 6, 1, 9, 0, 0),
+          placeName: 'Box Hill, Surrey'
+        })
+        await createPostedMedia('days-box-hill-b', dayStatusId, {
+          takenAt: Date.UTC(2025, 6, 1, 10, 0, 0),
+          placeName: 'Box Hill, Surrey'
+        })
+        await createPostedMedia('days-box-lower', dayStatusId, {
+          takenAt: Date.UTC(2025, 6, 1, 11, 0, 0),
+          placeName: 'box hill, surrey'
+        })
+        await createPostedMedia('days-wimbledon', dayStatusId, {
+          takenAt: Date.UTC(2025, 6, 1, 12, 0, 0),
+          placeName: 'Wimbledon Common'
+        })
+
+        // One photo per activity, equal counts: the earliest start wins.
+        const seedActivity = async (
+          name: string,
+          day: number,
+          hour: number,
+          activityType: string,
+          photos: number
+        ) => {
+          const statusId = `${owner.id}/statuses/queries-days-${name}`
+          await database.createNote({
+            id: statusId,
+            url: statusId,
+            actorId: owner.id,
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: [],
+            text: name
+          })
+          const file = await database.createFitnessFile({
+            actorId: owner.id,
+            statusId,
+            path: `fitness/queries-days-${name}.fit`,
+            fileName: `queries-days-${name}.fit`,
+            fileType: 'fit',
+            mimeType: 'application/vnd.ant.fit',
+            bytes: 1024
+          })
+          await database.updateFitnessFileProcessingStatus(
+            file!.id,
+            'completed'
+          )
+          await database.updateFitnessFileActivityData(file!.id, {
+            activityType,
+            activityStartTime: new Date(Date.UTC(2025, 6, day, hour, 0, 0)),
+            totalDistanceMeters: activityType === 'Ride' ? 64200 : null
+          })
+          activityFileIds[name] = file!.id
+          for (let index = 0; index < photos; index += 1) {
+            await createPostedMedia(`days-${name}-${index}`, statusId, {
+              takenAt: Date.UTC(2025, 6, day, 8, index, 0)
+            })
+          }
+        }
+        await seedActivity('ride', 2, 8, 'Ride', 1)
+        await seedActivity('run', 2, 10, 'Run', 1)
+        await seedActivity('walk', 3, 9, 'Walk', 2)
+        await seedActivity('hike', 3, 9, 'Hike', 1)
+      })
+
+      it('adds days only for the owner who asks for them', async () => {
+        const base = {
+          database,
+          owner,
+          limit: 30
+        }
+        const ownerPage = await getGalleryMediaPage({
+          ...base,
+          audience: OWNER_GALLERY_AUDIENCE,
+          sort: 'taken_desc'
+        })
+        expect(ownerPage).not.toHaveProperty('days')
+
+        const withDays = await getGalleryMediaPage({
+          ...base,
+          audience: OWNER_GALLERY_AUDIENCE,
+          sort: 'taken_desc',
+          includeDays: true
+        })
+        expect(withDays.days).toBeDefined()
+
+        for (const audience of [PUBLIC_GALLERY_AUDIENCE, follower]) {
+          const page = await getGalleryMediaPage({
+            ...base,
+            audience,
+            includeDays: true
+          })
+          expect(page).not.toHaveProperty('days')
+        }
+      })
+
+      it('keys dated and dateless days under a date sort', async () => {
+        const page = await getGalleryMediaPage({
+          database,
+          owner,
+          audience: OWNER_GALLERY_AUDIENCE,
+          limit: 30,
+          sort: 'taken_desc',
+          includeDays: true
+        })
+        const days = page.days!
+
+        expect(
+          Object.keys(days)
+            .filter((key) => !key.startsWith('uploaded:'))
+            .sort()
+        ).toEqual([
+          '2022-01-01',
+          '2023-06-01',
+          '2024-01-01',
+          '2024-03-01',
+          '2024-05-01',
+          '2025-07-01',
+          '2025-07-02',
+          '2025-07-03'
+        ])
+        // The dateless photos share the day of their upload.
+        const uploadedKeys = Object.keys(days).filter((key) =>
+          key.startsWith('uploaded:')
+        )
+        expect(uploadedKeys).toHaveLength(1)
+        expect(days[uploadedKeys[0]].count).toBe(2)
+        expect(days['2024-03-01']).toEqual({
+          count: 1,
+          placeName: 'River',
+          activity: null
+        })
+      })
+
+      it('keys every day uploaded under sort=uploaded', async () => {
+        const page = await getGalleryMediaPage({
+          database,
+          owner,
+          audience: OWNER_GALLERY_AUDIENCE,
+          limit: 30,
+          sort: 'uploaded',
+          includeDays: true
+        })
+        const days = page.days!
+
+        expect(Object.keys(days).length).toBeGreaterThan(0)
+        for (const key of Object.keys(days)) {
+          expect(key.startsWith('uploaded:')).toBe(true)
+        }
+        const total = Object.values(days).reduce(
+          (sum, day) => sum + day.count,
+          0
+        )
+        expect(total).toBe(page.items.length)
+      })
+
+      it('sums inAlbum only with albumId', async () => {
+        const album = await database.createGalleryAlbumWithinLimit({
+          actorId: owner.id,
+          title: 'Days album',
+          mediaIds: [ids['kingfisher-1']],
+          limit: 100,
+          itemLimit: 100
+        })
+        expect(album.status).toBe('created')
+
+        const page = await getGalleryMediaPage({
+          database,
+          owner,
+          audience: OWNER_GALLERY_AUDIENCE,
+          limit: 30,
+          sort: 'taken_desc',
+          includeDays: true,
+          albumId: album.status === 'created' ? album.album.id : 'missing'
+        })
+        expect(page.days!['2024-03-01'].inAlbum).toBe(1)
+        expect(page.days!['2022-01-01'].inAlbum).toBe(0)
+
+        const plain = await getGalleryMediaPage({
+          database,
+          owner,
+          audience: OWNER_GALLERY_AUDIENCE,
+          limit: 30,
+          sort: 'taken_desc',
+          includeDays: true
+        })
+        expect(plain.days!['2024-03-01']).not.toHaveProperty('inAlbum')
+      })
+
+      it('picks the busiest place by its most-used spelling', async () => {
+        const page = await getGalleryMediaPage({
+          database,
+          owner,
+          audience: OWNER_GALLERY_AUDIENCE,
+          limit: 30,
+          sort: 'taken_desc',
+          includeDays: true
+        })
+
+        expect(page.days!['2025-07-01']).toEqual({
+          count: 4,
+          placeName: 'Box Hill, Surrey',
+          activity: null
+        })
+      })
+
+      it('picks the activity with the most photos, the earliest start breaking ties', async () => {
+        const page = await getGalleryMediaPage({
+          database,
+          owner,
+          audience: OWNER_GALLERY_AUDIENCE,
+          limit: 30,
+          sort: 'taken_desc',
+          includeDays: true
+        })
+
+        // One photo each: the earlier start wins.
+        expect(page.days!['2025-07-02'].activity).toEqual({
+          id: activityFileIds.ride,
+          activityType: 'Ride',
+          distanceMeters: 64200
+        })
+        // Two photos against one: the count wins.
+        expect(page.days!['2025-07-03'].activity).toEqual({
+          id: activityFileIds.walk,
+          activityType: 'Walk',
+          distanceMeters: null
+        })
+      })
+
+      it('answers the day ids for the owner and an empty list for anyone else', async () => {
+        const params = {
+          database,
+          owner,
+          audience: OWNER_GALLERY_AUDIENCE,
+          limit: 2000,
+          dayKey: '2024-03-01',
+          sort: 'taken_desc' as const
+        }
+        expect(await getGalleryMediaIds(params)).toEqual({
+          mediaIds: [ids['kingfisher-1']]
+        })
+
+        for (const audience of [PUBLIC_GALLERY_AUDIENCE, follower]) {
+          expect(await getGalleryMediaIds({ ...params, audience })).toEqual({
+            mediaIds: []
+          })
+        }
+      })
+    })
+  })
+})
+
+// The day stats merge is pure, so its tie-breaking is tested against the row
+// lists directly: SQLite and PostgreSQL hand the same grouped rows back in
+// different orders, and the merge must not care.
+describe('reduceGalleryDayStats tie-breaking', () => {
+  const placeRow = (placeName: string, count: number): GalleryDayPlaceRow => ({
+    day: '2025-08-01',
+    dateless: false,
+    placeName,
+    count,
+    inAlbum: null
+  })
+
+  const activityRow = (
+    fitnessFileId: string,
+    count: number
+  ): GalleryDayActivityRow => ({
+    day: '2025-08-01',
+    dateless: false,
+    fitnessFileId,
+    activityType: 'Ride',
+    totalDistanceMeters: null,
+    activityStartTime: Date.UTC(2025, 7, 1, 9, 0, 0),
+    count
+  })
+
+  it('breaks place ties by the normalised key, and spelling ties by its text, whatever the row order', () => {
+    // 'Wimbledon Common' and 'Box Hill, Surrey' tie on total; the Box Hill
+    // key is the code-unit-first one, and its two spellings tie on count.
+    const first: GalleryDayStatsRows = {
+      places: [
+        placeRow('Wimbledon Common', 2),
+        placeRow('Box Hill, Surrey', 1),
+        placeRow('box hill, surrey', 1)
+      ],
+      activities: []
+    }
+    const second: GalleryDayStatsRows = {
+      places: [...first.places].reverse(),
+      activities: []
+    }
+
+    const fromFirst = reduceGalleryDayStats(first, 'taken_desc', false)
+    const fromSecond = reduceGalleryDayStats(second, 'taken_desc', false)
+
+    expect(fromSecond).toEqual(fromFirst)
+    expect(fromFirst['2025-08-01'].placeName).toBe('Box Hill, Surrey')
+  })
+
+  it('breaks activity ties on the id, whatever the row order', () => {
+    const first: GalleryDayStatsRows = {
+      places: [],
+      activities: [activityRow('b-file', 1), activityRow('a-file', 1)]
+    }
+    const second: GalleryDayStatsRows = {
+      places: [],
+      activities: [activityRow('a-file', 1), activityRow('b-file', 1)]
+    }
+
+    const fromFirst = reduceGalleryDayStats(first, 'taken_desc', false)
+    const fromSecond = reduceGalleryDayStats(second, 'taken_desc', false)
+
+    expect(fromSecond).toEqual(fromFirst)
+    expect(fromFirst['2025-08-01'].activity).toEqual({
+      id: 'a-file',
+      activityType: 'Ride',
+      distanceMeters: null
+    })
   })
 })
 
@@ -1277,7 +1620,9 @@ describe('gallery queries at the index cap', () => {
     countGalleryMedia: vi.fn(async (): Promise<GalleryMediaCount> => ({
       total: 0,
       inAlbum: null
-    }))
+    })),
+    getGalleryDayStats: vi.fn(async () => ({ places: [], activities: [] })),
+    getGalleryMediaIds: vi.fn(async () => [])
   })
 
   it.each([
@@ -1509,6 +1854,33 @@ describe('gallery queries at the index cap', () => {
     expect(database.countGalleryMedia).not.toHaveBeenCalled()
     expect(pageWithoutTotal).not.toHaveProperty('total')
     expect(pageWithoutTotal).not.toHaveProperty('inAlbumTotal')
+  })
+
+  it('passes the day key into the count so the totals cover the day the list is bound to', async () => {
+    const database = fakeDatabase([])
+    database.countGalleryMedia.mockResolvedValueOnce({ total: 2, inAlbum: 1 })
+
+    const page = await getGalleryMediaPage({
+      database,
+      owner: { id: 'owner' },
+      audience: OWNER_GALLERY_AUDIENCE,
+      limit: 2,
+      sort: 'taken_desc',
+      dayKey: '2025-10-04',
+      albumId: 'album-1',
+      includeTotal: true
+    })
+
+    expect(database.countGalleryMedia).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: 'owner',
+        albumId: 'album-1',
+        sort: 'taken_desc',
+        dayKey: '2025-10-04'
+      })
+    )
+    expect(page.total).toBe(2)
+    expect(page.inAlbumTotal).toBe(1)
   })
 
   it('never gives non-owner total, inAlbumTotal, nextCursor, or owner filters', async () => {

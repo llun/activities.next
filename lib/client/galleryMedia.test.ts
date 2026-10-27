@@ -8,6 +8,7 @@ import {
   getGalleryMap,
   getGalleryMedia,
   getGalleryMediaFacets,
+  getGalleryMediaIds,
   getGallerySubjects
 } from './galleryMedia'
 
@@ -101,6 +102,42 @@ describe('gallery media client module', () => {
       )
     })
 
+    it('sends include_days only when asked', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ items: [], nextMaxId: null }))
+
+      await getGalleryMedia(ACTOR_ID, { includeDays: true })
+
+      const withDays = new URL(
+        fetchMock.mock.calls[0][0] as string,
+        'https://x.test'
+      )
+      expect(withDays.searchParams.get('include_days')).toBe('true')
+
+      fetchMock.mockResponseOnce(JSON.stringify({ items: [], nextMaxId: null }))
+
+      await getGalleryMedia(ACTOR_ID, { includeDays: false })
+
+      expect(fetchMock.mock.calls[1][0] as string).not.toContain('include_days')
+    })
+
+    it('sends a day key and forwards an AbortSignal', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ items: [], nextMaxId: null }))
+      const signal = new AbortController().signal
+
+      await getGalleryMedia(ACTOR_ID, {
+        sort: 'uploaded',
+        dayKey: 'uploaded:2025-10-04',
+        signal
+      })
+
+      const url = new URL(
+        fetchMock.mock.calls[0][0] as string,
+        'https://x.test'
+      )
+      expect(url.searchParams.get('day_key')).toBe('uploaded:2025-10-04')
+      expect(fetchMock.mock.calls[0][1]).toEqual({ ...READ_INIT, signal })
+    })
+
     it('throws the API error message', async () => {
       fetchMock.mockResponseOnce(
         JSON.stringify({ error: 'gear_id is only available to the owner' }),
@@ -136,6 +173,84 @@ describe('gallery media client module', () => {
       fetchMock.mockResponseOnce(JSON.stringify({ items: [], nextMaxId: null }))
 
       expect(await countGalleryMedia(ACTOR_ID, {})).toBe(0)
+    })
+  })
+
+  describe('getGalleryMediaIds', () => {
+    it('sends ids_only, the day key, the limit and every filter', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ mediaIds: ['9', '8', '7'] }))
+
+      expect(
+        await getGalleryMediaIds(ACTOR_ID, {
+          dayKey: 'uploaded:2025-10-04',
+          limit: 2000,
+          offset: 2000,
+          subject: 'sci:alcedo atthis',
+          category: 'bird',
+          gearId: 'gear-1',
+          show: 'all',
+          sort: 'uploaded',
+          place: 'none',
+          takenFrom: '2025-10-04',
+          takenTo: '2025-10-04',
+          activityId: 'file-1',
+          albumId: 'album-1'
+        })
+      ).toEqual(['9', '8', '7'])
+
+      const url = new URL(
+        fetchMock.mock.calls[0][0] as string,
+        'https://x.test'
+      )
+      expect(url.pathname).toBe(`/api/v1/accounts/${SEGMENT}/gallery/media`)
+      expect(Object.fromEntries(url.searchParams)).toEqual({
+        ids_only: 'true',
+        day_key: 'uploaded:2025-10-04',
+        limit: '2000',
+        offset: '2000',
+        subject: 'sci:alcedo atthis',
+        category: 'bird',
+        gear_id: 'gear-1',
+        show: 'all',
+        sort: 'uploaded',
+        place: 'none',
+        taken_from: '2025-10-04',
+        taken_to: '2025-10-04',
+        activity_id: 'file-1',
+        album_id: 'album-1'
+      })
+    })
+
+    it('leaves the optional filters off', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ mediaIds: [] }))
+
+      expect(
+        await getGalleryMediaIds(ACTOR_ID, {
+          dayKey: '2025-10-04',
+          limit: 40
+        })
+      ).toEqual([])
+
+      const url = new URL(
+        fetchMock.mock.calls[0][0] as string,
+        'https://x.test'
+      )
+      expect(Object.fromEntries(url.searchParams)).toEqual({
+        ids_only: 'true',
+        day_key: '2025-10-04',
+        limit: '40'
+      })
+    })
+
+    it('throws the API error message', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({ error: 'ids_only is only available to the owner' }),
+        { status: 422 }
+      )
+
+      await expect(
+        getGalleryMediaIds(ACTOR_ID, { dayKey: '2025-10-04', limit: 40 })
+      ).rejects.toThrow('ids_only is only available to the owner')
     })
   })
 

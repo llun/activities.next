@@ -3,16 +3,20 @@
  */
 import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { createRef } from 'react'
+import { type ReactNode, createRef } from 'react'
 
 import { getGalleryMedia } from '@/lib/client'
 import { buildGalleryItem } from '@/lib/components/gallery/__fixtures__/galleryItems'
-import type { GalleryItemEntity } from '@/lib/services/gallery/galleryEntities'
+import type {
+  GalleryDayStats,
+  GalleryItemEntity
+} from '@/lib/services/gallery/galleryEntities'
 
 import {
   GalleryPagedGrid,
   type GalleryPagedGridController
 } from './GalleryPagedGrid'
+import { groupGalleryItemsByDay } from './galleryDayGroups'
 
 vi.mock('@/lib/client', () => ({
   getGalleryMedia: vi.fn()
@@ -21,6 +25,7 @@ vi.mock('@/lib/client', () => ({
 vi.mock('@/lib/components/gallery/GalleryGrid', () => ({
   GalleryGrid: ({
     items,
+    groups,
     selection,
     albumsOwnerId,
     onItemEdited,
@@ -30,6 +35,11 @@ vi.mock('@/lib/components/gallery/GalleryGrid', () => ({
     onAlbumsChanged
   }: {
     items: GalleryItemEntity[]
+    groups?: {
+      key: string
+      header: ReactNode
+      items: GalleryItemEntity[]
+    }[]
     selection?: unknown
     albumsOwnerId?: string | null
     onItemEdited?: (item: GalleryItemEntity) => void
@@ -38,14 +48,24 @@ vi.mock('@/lib/components/gallery/GalleryGrid', () => ({
     onItemsDeleted?: (mediaIds: string[]) => void
     onAlbumsChanged?: (albumIds: string[]) => void
   }) => (
-    <ul
+    <div
       data-testid="grid"
       data-selecting={selection ? 'yes' : 'no'}
       data-owner={albumsOwnerId ?? ''}
+      data-groups={groups ? groups.map((group) => group.key).join(',') : ''}
     >
-      {items.map((item) => (
-        <li key={item.mediaId}>{item.mediaId}</li>
-      ))}
+      {groups
+        ? groups.map((group) => (
+            <section key={group.key}>
+              {group.header}
+              <ul>
+                {group.items.map((item) => (
+                  <li key={item.mediaId}>{item.mediaId}</li>
+                ))}
+              </ul>
+            </section>
+          ))
+        : items.map((item) => <li key={item.mediaId}>{item.mediaId}</li>)}
       <button
         onClick={() =>
           onItemEdited?.({
@@ -68,7 +88,7 @@ vi.mock('@/lib/components/gallery/GalleryGrid', () => ({
         Change albums
       </button>
       <li data-testid="first-name">{items[0]?.attachment.name}</li>
-    </ul>
+    </div>
   )
 }))
 
@@ -660,6 +680,407 @@ describe('GalleryPagedGrid', () => {
 
       fireEvent.click(screen.getByRole('button', { name: 'Change albums' }))
       expect(onAlbumsChanged).toHaveBeenCalledWith(['album-1'])
+    })
+  })
+
+  describe('day groups', () => {
+    const dayStats = (
+      count: number,
+      placeName: string | null = null
+    ): GalleryDayStats => ({ count, placeName, activity: null })
+
+    const renderGroups = vi.fn(
+      (items: GalleryItemEntity[], _days: Record<string, GalleryDayStats>) =>
+        groupGalleryItemsByDay(items, 'taken_desc').map((group) => ({
+          key: group.key,
+          items: group.items,
+          header: <h2>{group.key}</h2>
+        }))
+    )
+
+    beforeEach(() => {
+      renderGroups.mockClear()
+    })
+
+    it('asks for day stats on the first and later pages when includeDays is set', async () => {
+      getGalleryMediaMock.mockResolvedValue({
+        items: [buildGalleryItem('2')],
+        nextMaxId: null
+      })
+      render(
+        <GalleryPagedGrid
+          actorId="actor-1"
+          includeDays
+          initialPage={{
+            items: [buildGalleryItem('1')],
+            nextMaxId: '1'
+          }}
+        />
+      )
+      expect(getGalleryMediaMock).not.toHaveBeenCalled()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+      await waitFor(() =>
+        expect(screen.getByTestId('grid')).toHaveTextContent('12')
+      )
+      expect(getGalleryMediaMock).toHaveBeenCalledTimes(1)
+      expect(getGalleryMediaMock).toHaveBeenCalledWith(
+        'actor-1',
+        expect.objectContaining({ includeDays: true, maxId: '1' })
+      )
+    })
+
+    it('asks for day stats on a grid that loads its own first page', async () => {
+      getGalleryMediaMock.mockResolvedValue({
+        items: [buildGalleryItem('1')],
+        nextMaxId: null
+      })
+      render(<GalleryPagedGrid actorId="actor-1" includeDays />)
+      await waitFor(() =>
+        expect(screen.getByTestId('grid')).toHaveTextContent('1')
+      )
+      expect(getGalleryMediaMock).toHaveBeenCalledWith(
+        'actor-1',
+        expect.objectContaining({ includeDays: true })
+      )
+    })
+
+    it('never asks for day stats without includeDays, and renders as before', async () => {
+      getGalleryMediaMock.mockResolvedValue({
+        items: [buildGalleryItem('1')],
+        nextMaxId: null
+      })
+      render(<GalleryPagedGrid actorId="actor-1" />)
+      await waitFor(() =>
+        expect(screen.getByTestId('grid')).toHaveTextContent('1')
+      )
+      expect(getGalleryMediaMock.mock.calls[0][1]).not.toHaveProperty(
+        'includeDays'
+      )
+      expect(screen.getByTestId('grid')).toHaveAttribute('data-groups', '')
+      expect(screen.queryByRole('heading')).not.toBeInTheDocument()
+    })
+
+    it('seeds the days from the server page and merges them as pages land', async () => {
+      getGalleryMediaMock.mockResolvedValue({
+        items: [buildGalleryItem('2', { takenAt: '2025-10-03T09:30:00.000Z' })],
+        nextMaxId: null,
+        days: { '2025-10-03': dayStats(5, 'Box Hill') }
+      })
+      render(
+        <GalleryPagedGrid
+          actorId="actor-1"
+          includeDays
+          renderGroups={renderGroups}
+          initialPage={{
+            items: [
+              buildGalleryItem('1', { takenAt: '2025-10-04T09:30:00.000Z' })
+            ],
+            nextMaxId: '1',
+            days: { '2025-10-04': dayStats(3) }
+          }}
+        />
+      )
+
+      // The server page's days reach the first render.
+      expect(renderGroups).toHaveBeenLastCalledWith(
+        [expect.objectContaining({ mediaId: '1' })],
+        { '2025-10-04': dayStats(3) }
+      )
+      expect(
+        screen.getByRole('heading', { name: '2025-10-04' })
+      ).toBeInTheDocument()
+      expect(screen.getByTestId('grid')).toHaveAttribute(
+        'data-groups',
+        '2025-10-04'
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+
+      await waitFor(() =>
+        expect(
+          screen.getByRole('heading', { name: '2025-10-03' })
+        ).toBeInTheDocument()
+      )
+      // The later page's days merge with the first page's, and the grid gets
+      // the groups' items flattened in order.
+      expect(renderGroups).toHaveBeenLastCalledWith(
+        [
+          expect.objectContaining({ mediaId: '1' }),
+          expect.objectContaining({ mediaId: '2' })
+        ],
+        {
+          '2025-10-04': dayStats(3),
+          '2025-10-03': dayStats(5, 'Box Hill')
+        }
+      )
+      expect(screen.getByTestId('grid')).toHaveAttribute(
+        'data-groups',
+        '2025-10-04,2025-10-03'
+      )
+      expect(screen.getByTestId('grid')).toHaveTextContent('12')
+    })
+
+    it('still reports the raw items to onItemsChange when grouping', async () => {
+      const onItemsChange = vi.fn()
+      getGalleryMediaMock.mockResolvedValue({
+        items: [buildGalleryItem('2')],
+        nextMaxId: null
+      })
+      render(
+        <GalleryPagedGrid
+          actorId="actor-1"
+          includeDays
+          renderGroups={renderGroups}
+          onItemsChange={onItemsChange}
+          initialPage={{
+            items: [buildGalleryItem('1')],
+            nextMaxId: '1'
+          }}
+        />
+      )
+      expect(onItemsChange).toHaveBeenLastCalledWith([
+        expect.objectContaining({ mediaId: '1' })
+      ])
+
+      fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+      await waitFor(() =>
+        expect(onItemsChange).toHaveBeenLastCalledWith([
+          expect.objectContaining({ mediaId: '1' }),
+          expect.objectContaining({ mediaId: '2' })
+        ])
+      )
+    })
+
+    // Headers that show the server count, so a stats refresh is visible.
+    const countingRenderGroups = vi.fn(
+      (items: GalleryItemEntity[], days: Record<string, GalleryDayStats>) =>
+        groupGalleryItemsByDay(items, 'taken_desc').map((group) => ({
+          key: group.key,
+          items: group.items,
+          header: (
+            <h2>
+              {`${group.key} ${days[group.key]?.count ?? group.items.length}`}
+            </h2>
+          )
+        }))
+    )
+
+    it('refreshes the old and new day stats when an edit moves a photo', async () => {
+      getGalleryMediaMock.mockImplementation(async (_actorId, options) => ({
+        items: [],
+        nextMaxId: null,
+        days:
+          options.dayKey === '2025-10-04'
+            ? { '2025-10-04': dayStats(2, 'Box Hill') }
+            : { '2025-10-05': dayStats(1, 'Leith Hill') }
+      }))
+      const controller = createRef<GalleryPagedGridController>()
+      render(
+        <GalleryPagedGrid
+          actorId="actor-1"
+          sort="taken_desc"
+          includeDays
+          renderGroups={countingRenderGroups}
+          controllerRef={controller}
+          initialPage={{
+            items: [
+              buildGalleryItem('1', { takenAt: '2025-10-04T09:30:00.000Z' }),
+              buildGalleryItem('2', { takenAt: '2025-10-04T10:30:00.000Z' })
+            ],
+            nextMaxId: null,
+            days: { '2025-10-04': dayStats(3, 'Box Hill') }
+          }}
+        />
+      )
+      expect(
+        screen.getByRole('heading', { name: '2025-10-04 3' })
+      ).toBeInTheDocument()
+
+      act(() =>
+        controller.current?.updateItems([
+          buildGalleryItem('1', { takenAt: '2025-10-05T09:30:00.000Z' })
+        ])
+      )
+
+      // Both the day the photo left and the day it joined are re-read.
+      await waitFor(() => expect(getGalleryMediaMock).toHaveBeenCalledTimes(2))
+      expect(getGalleryMediaMock).toHaveBeenCalledWith(
+        'actor-1',
+        expect.objectContaining({
+          limit: 1,
+          includeDays: true,
+          dayKey: '2025-10-04'
+        })
+      )
+      expect(getGalleryMediaMock).toHaveBeenCalledWith(
+        'actor-1',
+        expect.objectContaining({
+          limit: 1,
+          includeDays: true,
+          dayKey: '2025-10-05'
+        })
+      )
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole('heading', { name: '2025-10-04 2' })
+        ).toBeInTheDocument()
+        expect(
+          screen.getByRole('heading', { name: '2025-10-05 1' })
+        ).toBeInTheDocument()
+      })
+    })
+
+    it('drops a day key the refreshed stats no longer report', async () => {
+      getGalleryMediaMock.mockResolvedValue({ items: [], nextMaxId: null })
+      const controller = createRef<GalleryPagedGridController>()
+      render(
+        <GalleryPagedGrid
+          actorId="actor-1"
+          sort="taken_desc"
+          includeDays
+          renderGroups={countingRenderGroups}
+          controllerRef={controller}
+          initialPage={{
+            items: [
+              buildGalleryItem('1', { takenAt: '2025-10-04T09:30:00.000Z' }),
+              buildGalleryItem('2', { takenAt: '2025-10-04T10:30:00.000Z' })
+            ],
+            nextMaxId: null,
+            days: { '2025-10-04': dayStats(3, 'Box Hill') }
+          }}
+        />
+      )
+      expect(
+        screen.getByRole('heading', { name: '2025-10-04 3' })
+      ).toBeInTheDocument()
+
+      // A place rename on the same day: one key re-read, and the response
+      // carries no stats for it, so the header falls back to the loaded count.
+      act(() =>
+        controller.current?.updateItems([
+          buildGalleryItem('1', {
+            takenAt: '2025-10-04T09:30:00.000Z',
+            place: {
+              name: 'Leith Hill',
+              precision: null,
+              latitude: null,
+              longitude: null,
+              countryCode: null
+            }
+          })
+        ])
+      )
+
+      await waitFor(() => expect(getGalleryMediaMock).toHaveBeenCalledTimes(1))
+      expect(getGalleryMediaMock).toHaveBeenCalledWith(
+        'actor-1',
+        expect.objectContaining({ dayKey: '2025-10-04' })
+      )
+      await waitFor(() => {
+        expect(
+          screen.getByRole('heading', { name: '2025-10-04 2' })
+        ).toBeInTheDocument()
+      })
+    })
+
+    it('refreshes the day stats of the removed photos when items are deleted', async () => {
+      getGalleryMediaMock.mockImplementation(async (_actorId, options) => ({
+        items: [],
+        nextMaxId: null,
+        days:
+          options.dayKey === '2025-10-04'
+            ? { '2025-10-04': dayStats(2, 'Box Hill') }
+            : {}
+      }))
+      const controller = createRef<GalleryPagedGridController>()
+      render(
+        <GalleryPagedGrid
+          actorId="actor-1"
+          sort="taken_desc"
+          includeDays
+          renderGroups={countingRenderGroups}
+          controllerRef={controller}
+          initialPage={{
+            items: [
+              buildGalleryItem('1', { takenAt: '2025-10-04T09:30:00.000Z' }),
+              buildGalleryItem('2', { takenAt: '2025-10-04T10:30:00.000Z' })
+            ],
+            nextMaxId: null,
+            days: { '2025-10-04': dayStats(3, 'Box Hill') }
+          }}
+        />
+      )
+      expect(
+        screen.getByRole('heading', { name: '2025-10-04 3' })
+      ).toBeInTheDocument()
+
+      act(() => controller.current?.removeItems(['1']))
+
+      // The deleted photo's day is re-read the way an edit re-reads it, and
+      // the header shows the server's count (2), not the loaded one (1).
+      await waitFor(() => expect(getGalleryMediaMock).toHaveBeenCalledTimes(1))
+      expect(getGalleryMediaMock).toHaveBeenCalledWith(
+        'actor-1',
+        expect.objectContaining({
+          limit: 1,
+          includeDays: true,
+          dayKey: '2025-10-04'
+        })
+      )
+      await waitFor(() => {
+        expect(
+          screen.getByRole('heading', { name: '2025-10-04 2' })
+        ).toBeInTheDocument()
+      })
+    })
+
+    it('does not refresh day stats for edits that change neither day nor place', () => {
+      const controller = createRef<GalleryPagedGridController>()
+      const { unmount } = render(
+        <GalleryPagedGrid
+          actorId="actor-1"
+          sort="taken_desc"
+          includeDays
+          renderGroups={renderGroups}
+          controllerRef={controller}
+          initialPage={{
+            items: [
+              buildGalleryItem('1', { takenAt: '2025-10-04T09:30:00.000Z' })
+            ],
+            nextMaxId: null,
+            days: { '2025-10-04': dayStats(1) }
+          }}
+        />
+      )
+
+      // The shared grid mock's edit changes the alt text and the gallery flag.
+      fireEvent.click(screen.getByRole('button', { name: 'Edit first' }))
+      expect(getGalleryMediaMock).not.toHaveBeenCalled()
+
+      unmount()
+
+      // A grid without includeDays never refreshes, even for a moved photo.
+      const plainController = createRef<GalleryPagedGridController>()
+      render(
+        <GalleryPagedGrid
+          actorId="actor-1"
+          controllerRef={plainController}
+          initialPage={{
+            items: [
+              buildGalleryItem('1', { takenAt: '2025-10-04T09:30:00.000Z' })
+            ],
+            nextMaxId: null
+          }}
+        />
+      )
+      act(() =>
+        plainController.current?.updateItems([
+          buildGalleryItem('1', { takenAt: '2025-10-05T09:30:00.000Z' })
+        ])
+      )
+      expect(getGalleryMediaMock).not.toHaveBeenCalled()
     })
   })
 

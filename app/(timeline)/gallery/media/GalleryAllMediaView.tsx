@@ -7,10 +7,16 @@ import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { GalleryAlbumFormDialog } from '@/app/(timeline)/gallery/albums/GalleryAlbumFormDialog'
 import { scrollToResultsStart } from '@/app/(timeline)/gallery/albums/galleryAlbumPickerUi'
-import { countGalleryMedia } from '@/lib/client'
+import {
+  countGalleryMedia,
+  getGalleryMedia,
+  getGalleryMediaIds
+} from '@/lib/client'
 import { AddToGalleryDialog } from '@/lib/components/gallery/AddToGalleryDialog'
+import { AlbumUndoToast } from '@/lib/components/gallery/AlbumUndoToast'
 import { ConfirmDeleteMediaDialog } from '@/lib/components/gallery/ConfirmDeleteMediaDialog'
 import { GalleryAddedToast } from '@/lib/components/gallery/GalleryAddedToast'
+import { GalleryDayHeader } from '@/lib/components/gallery/GalleryDayHeader'
 import { GalleryEditDetailsDialog } from '@/lib/components/gallery/GalleryEditDetailsDialog'
 import {
   GalleryPagedGrid,
@@ -31,20 +37,33 @@ import {
   GALLERY_CATEGORY_ICONS,
   GALLERY_CATEGORY_LABELS
 } from '@/lib/components/gallery/galleryCategories'
+import { groupGalleryItemsByDay } from '@/lib/components/gallery/galleryDayGroups'
+import {
+  applyRangeSelection,
+  describeRangeResult
+} from '@/lib/components/gallery/gallerySelectionKeys'
+import {
+  type GalleryHydrationResume,
+  useDaySelection
+} from '@/lib/components/gallery/useDaySelection'
 import { useInstanceLimits } from '@/lib/components/instance-limits'
 import { PageHeader } from '@/lib/components/page-header'
 import {
   SectionNavSelect,
   type SectionNavSelectTab
 } from '@/lib/components/section-nav-select'
+import { Alert } from '@/lib/components/surface/Alert'
 import { Button } from '@/lib/components/ui/button'
 import type {
+  GalleryDayKey,
+  GalleryDayStats,
   GalleryItemEntity,
   GalleryMediaPage
 } from '@/lib/services/gallery/galleryEntities'
 import { MAX_ADD_TO_GALLERY_MEDIA } from '@/lib/services/gallery/galleryRequests'
 import { ACCEPTED_FILE_TYPES } from '@/lib/services/medias/constants'
 import {
+  type GalleryMediaSort,
   type GalleryShow,
   MEDIA_SUBJECT_CATEGORIES,
   type MediaSubjectCategory
@@ -107,6 +126,21 @@ const hasFiles = (event: DragEvent) =>
 const describeDeleted = (count: number) =>
   count === 1 ? 'Deleted 1 photo.' : `Deleted ${count} photos.`
 
+/** All media has no album to skip: nothing is blocked from a range. */
+const NO_BLOCKED: ReadonlySet<string> = new Set()
+
+/**
+ * The query context a day's hydration pages with (whatever `loadDayItems`
+ * reads). The day selection snapshots it when a hydration starts and hands
+ * it back on every retry, so a later filter or sort change never moves the
+ * read to a query the picked ids do not match.
+ */
+interface DayHydrationQuery {
+  query: GalleryMediaQuery
+  filter: Filter
+  show: GalleryShow
+}
+
 export const GalleryAllMediaView: FC<Props> = ({
   actorId,
   initialCategory,
@@ -121,12 +155,17 @@ export const GalleryAllMediaView: FC<Props> = ({
     EMPTY_GALLERY_FILTERS
   )
   const [query, setQuery] = useState<GalleryMediaQuery>({ sort: 'taken_desc' })
+  // The grid's day grouping and the Select day fetches follow this sort.
+  const sort = query.sort ?? 'taken_desc'
   const [total, setTotal] = useState<number | null>(initialPage?.total ?? null)
   const [isEditOpen, setIsEditOpen] = useState(false)
   const gridController = useRef<GalleryPagedGridController | null>(null)
   const [isSelecting, setIsSelecting] = useState(false)
   // In the order they were picked: the first is the cover of a new album.
   const [selected, setSelected] = useState<string[]>([])
+  const [hydratingIds, setHydratingIds] = useState<ReadonlySet<string>>(
+    new Set()
+  )
   const [loaded, setLoaded] = useState<GalleryItemEntity[]>([])
   const [seen, setSeen] = useState<ReadonlyMap<string, GalleryItemEntity>>(
     new Map()
@@ -196,6 +235,152 @@ export const GalleryAllMediaView: FC<Props> = ({
   // under it.
   const [editItems, setEditItems] = useState<GalleryItemEntity[]>([])
 
+  const loadDayItems = useCallback(
+    async (
+      dayKey: GalleryDayKey,
+      mediaIds: string[],
+      isStale: () => boolean,
+      signal: AbortSignal,
+      resume?: GalleryHydrationResume,
+      sortOverride?: GalleryMediaSort,
+      queryOverride?: DayHydrationQuery
+    ) => {
+      // A retry hydrates with the query context the day key was learned
+      // under, so a filter or sort change since the pick cannot move the
+      // read to a query the picked ids do not match.
+      const hydrateSort = sortOverride ?? sort
+      const hydrateQuery = queryOverride?.query ?? query
+      const hydrateFilter = queryOverride?.filter ?? filter
+      const hydrateShow = queryOverride?.show ?? show
+      const wanted = new Set(mediaIds)
+      const found = new Map<string, GalleryItemEntity>()
+      setHydratingIds((current) => new Set([...current, ...mediaIds]))
+      // A retry continues from where the last read stopped, not page 1.
+      let cursor: string | undefined = resume?.from
+      let hasMore = true
+      let pages = 0
+      // shortcut: A requested photo can sit beyond the current loaded pages.
+      try {
+        while (hasMore && found.size < wanted.size && pages < 50) {
+          if (isStale()) break
+          const page = await getGalleryMedia(actorId, {
+            limit: 60,
+            ...hydrateQuery,
+            sort: hydrateSort,
+            category: hydrateFilter === 'all' ? undefined : hydrateFilter,
+            show: hydrateShow,
+            dayKey,
+            signal,
+            ...(hydrateSort === 'uploaded' ? { maxId: cursor } : { cursor })
+          })
+          if (isStale()) break
+          pages += 1
+          for (const item of page.items) {
+            if (wanted.has(item.mediaId)) found.set(item.mediaId, item)
+          }
+          cursor =
+            hydrateSort === 'uploaded'
+              ? (page.nextMaxId ?? undefined)
+              : (page.nextCursor ?? undefined)
+          hasMore = Boolean(cursor)
+        }
+        // The page bound stopped the read: report the cursor a retry
+        // continues from, so it does not re-scan the pages before it.
+        if (resume && pages === 50 && hasMore && found.size < wanted.size) {
+          resume.stoppedAt = cursor
+        }
+        const items = mediaIds.flatMap((id) => {
+          const item = found.get(id)
+          return item ? [item] : []
+        })
+        if (!isStale()) {
+          setSeen((current) => {
+            const next = new Map(current)
+            for (const item of items) next.set(item.mediaId, item)
+            return next
+          })
+        }
+        return items
+      } finally {
+        setHydratingIds((current) => {
+          const next = new Set(current)
+          for (const id of mediaIds) next.delete(id)
+          return next
+        })
+      }
+    },
+    [actorId, query, filter, show, sort]
+  )
+  const handleDayItemsLoaded = useCallback((items: GalleryItemEntity[]) => {
+    setSeen((current) => {
+      const next = new Map(current)
+      for (const item of items) next.set(item.mediaId, item)
+      return next
+    })
+  }, [])
+
+  // Select day / Deselect day for the day headers. All media has no album
+  // capacity, so `room` is null. A context change (selection mode, sort,
+  // filters, list) drops pending day-id reads and the stale toast and error.
+  const day = useDaySelection({
+    selected,
+    onChange: setSelected,
+    sort,
+    room: null,
+    ownerKey: actorId,
+    resetKey: [
+      actorId,
+      isSelecting ? 'select' : 'view',
+      sort,
+      show,
+      filter,
+      JSON.stringify(query)
+    ].join('|'),
+    fetchIds: (dayKey, limit, offset) =>
+      getGalleryMediaIds(actorId, {
+        ...query,
+        category: filter === 'all' ? undefined : filter,
+        show,
+        dayKey,
+        limit,
+        ...(offset !== undefined ? { offset } : null)
+      }),
+    loadItems: loadDayItems,
+    querySnapshot: (): DayHydrationQuery => ({ query, filter, show }),
+    onItemsLoaded: handleDayItemsLoaded
+  })
+  // The range anchor for Shift-click / Shift+Space, and the announcement the
+  // sr-only live region reads after a range.
+  const [anchor, setAnchor] = useState<string | null>(null)
+  const [rangeAnnouncement, setRangeAnnouncement] = useState('')
+
+  // Entering Select mode changes the day selection's resetKey, which clears
+  // what it has learned about the loaded tiles, without reloading the grid:
+  // re-learn them so the day headers keep counting picks per day.
+  const loadedRef = useRef(loaded)
+  useEffect(() => {
+    loadedRef.current = loaded
+  }, [loaded])
+  const noteItemsRef = useRef(day.noteItems)
+  noteItemsRef.current = day.noteItems
+  const wasSelectingRef = useRef(isSelecting)
+  useEffect(() => {
+    if (isSelecting && !wasSelectingRef.current) {
+      noteItemsRef.current(loadedRef.current)
+    }
+    wasSelectingRef.current = isSelecting
+  }, [isSelecting])
+
+  // Display order of the loaded tiles, grouped by day exactly as the grid
+  // groups them, so a range spans the same tiles the owner sees.
+  const displayIds = useMemo(
+    () =>
+      groupGalleryItemsByDay(loaded, sort).flatMap((group) =>
+        group.items.map((item) => item.mediaId)
+      ),
+    [loaded, sort]
+  )
+
   const setFilter = (next: Filter) => {
     setReuseInitialPage(false)
     setFilterState(next)
@@ -208,16 +393,21 @@ export const GalleryAllMediaView: FC<Props> = ({
     scrollToTop()
   }
 
-  const handleItemsChange = useCallback((items: GalleryItemEntity[]) => {
-    setLoaded(items)
-    setSeen((current) => {
-      const next = new Map(current)
-      for (const item of items) {
-        next.set(item.mediaId, item)
-      }
-      return next
-    })
-  }, [])
+  const handleItemsChange = useCallback(
+    (items: GalleryItemEntity[]) => {
+      setLoaded(items)
+      // Select day counts picks per day from the tiles it has seen.
+      day.noteItems(items)
+      setSeen((current) => {
+        const next = new Map(current)
+        for (const item of items) {
+          next.set(item.mediaId, item)
+        }
+        return next
+      })
+    },
+    [day.noteItems]
+  )
 
   const dropMediaIds = useCallback((ids: string[]) => {
     if (ids.length === 0) return
@@ -233,22 +423,56 @@ export const GalleryAllMediaView: FC<Props> = ({
     })
   }, [])
 
-  const toggle = useCallback((item: GalleryItemEntity) => {
-    setSelected((current) =>
-      current.includes(item.mediaId)
-        ? current.filter((id) => id !== item.mediaId)
-        : [...current, item.mediaId]
-    )
-  }, [])
+  const toggle = useCallback(
+    (item: GalleryItemEntity, modifiers?: { shiftKey: boolean }) => {
+      // A range needs an anchor still on screen: after a filter change the
+      // old anchor is gone, and a Shift-toggle then flips one tile and
+      // becomes the anchor itself.
+      if (
+        modifiers?.shiftKey &&
+        anchor !== null &&
+        displayIds.includes(anchor)
+      ) {
+        const result = applyRangeSelection({
+          order: displayIds,
+          anchorId: anchor,
+          targetId: item.mediaId,
+          // The anchor's state after its own toggle decides the range's.
+          select: selectedSet.has(anchor),
+          selected: selectedSet,
+          blocked: NO_BLOCKED,
+          room: Infinity
+        })
+        const removed = new Set(result.removed)
+        setSelected((current) =>
+          [...current, ...result.added].filter((id) => !removed.has(id))
+        )
+        setRangeAnnouncement(describeRangeResult(result))
+        return
+      }
+      setSelected((current) =>
+        current.includes(item.mediaId)
+          ? current.filter((id) => id !== item.mediaId)
+          : [...current, item.mediaId]
+      )
+      setAnchor(item.mediaId)
+    },
+    [anchor, displayIds, selectedSet]
+  )
   const selection = useMemo(
     () =>
-      isSelecting ? { selected: selectedSet, onToggle: toggle } : undefined,
-    [isSelecting, selectedSet, toggle]
+      isSelecting
+        ? { selected: selectedSet, onToggle: toggle, anchorId: anchor }
+        : undefined,
+    [isSelecting, selectedSet, toggle, anchor]
   )
 
   const stopSelecting = () => {
     setIsSelecting(false)
     setSelected([])
+    setAnchor(null)
+    day.dismissToast()
+    setRangeAnnouncement('')
   }
 
   const selectAllLoaded = () =>
@@ -387,14 +611,63 @@ export const GalleryAllMediaView: FC<Props> = ({
 
   const allUnposted =
     selectedItems.length > 0 &&
-    selectedItems.length === selected.length &&
     selectedItems.every((item) => item.posted === false)
+  const missingSelectedCount = selected.length - selectedItems.length
+  const isHydratingSelected = selected.some(
+    (id) => !seen.has(id) && hydratingIds.has(id)
+  )
+  const hydrationMessage =
+    missingSelectedCount === 0
+      ? undefined
+      : isHydratingSelected
+        ? `Loading ${missingSelectedCount} selected photos…`
+        : "Some selected photos couldn't be loaded"
 
   const finish = (result: Outcome) => {
     finished.current = true
     setOutcome(result)
     stopSelecting()
   }
+
+  // One sticky header per day, with the Select day button in Select mode.
+  // Memoised: the grid re-renders on every tick otherwise.
+  const renderGroups = useCallback(
+    (
+      items: GalleryItemEntity[],
+      days: Record<GalleryDayKey, GalleryDayStats>
+    ) =>
+      groupGalleryItemsByDay(items, sort).map((group) => ({
+        key: group.key,
+        items: group.items,
+        header: (
+          <GalleryDayHeader
+            as="h2"
+            dayKey={group.key}
+            stats={days[group.key]}
+            loadedCount={group.items.length}
+            loadedInAlbum={0}
+            picked={day.pickedInDay(group.key)}
+            selecting={isSelecting}
+            hasAlbum={false}
+            room={null}
+            busyKey={day.busyKey}
+            busyCount={day.busyKey === group.key ? day.busyCount : 0}
+            onSelectDay={day.selectDay}
+            onDeselectDay={day.deselectDay}
+            className="bg-background top-[calc(56px+env(safe-area-inset-top,0px)+var(--status-strip-h,0px))] md:top-[79px]"
+          />
+        )
+      })),
+    [
+      sort,
+      isSelecting,
+      day.pickedInDay,
+      day.selectDay,
+      day.deselectDay,
+      day.busyKey,
+      day.busyCount
+    ]
+  )
 
   const hasFilters = countActiveFilters(filters) > 0
   const isDefaultFiltersAndSort = !hasFilters && filters.sort === 'taken_desc'
@@ -522,11 +795,17 @@ export const GalleryAllMediaView: FC<Props> = ({
         data-testid="added-announcement"
         className="sr-only"
       >
-        {toast
-          ? toast.mediaIds.length > maxMediaAttachments
-            ? `${toast.message} Up to ${maxMediaAttachments} per post: select some to post.`
-            : toast.message
-          : ''}
+        {[
+          toast
+            ? toast.mediaIds.length > maxMediaAttachments
+              ? `${toast.message} Up to ${maxMediaAttachments} per post: select some to post.`
+              : toast.message
+            : '',
+          day.announcement,
+          rangeAnnouncement
+        ]
+          .filter(Boolean)
+          .join(' ')}
       </div>
       {isSelecting ? (
         <button
@@ -546,6 +825,8 @@ export const GalleryAllMediaView: FC<Props> = ({
         category={filter === 'all' ? undefined : filter}
         show={show}
         query={query}
+        includeDays
+        renderGroups={renderGroups}
         initialPage={
           reuseInitialPage &&
           filter === startFilter &&
@@ -588,24 +869,59 @@ export const GalleryAllMediaView: FC<Props> = ({
         }
       />
       {isSelecting ? (
-        <GallerySelectionBar
-          count={selected.length}
-          loadedCount={loaded.length}
-          loadedSelectedCount={
-            loaded.filter((item) => selectedSet.has(item.mediaId)).length
-          }
-          onSelectAllLoaded={selectAllLoaded}
-          onClear={() => setSelected([])}
-          onAddToAlbum={() => setIsAddOpen(true)}
-          onEditDetails={() => {
-            setEditItems(selectedItems)
-            setIsEditOpen(true)
-          }}
-          allUnposted={allUnposted}
-          maxPostAttachments={maxMediaAttachments}
-          onPost={() => postMedia(selected)}
-          onDelete={() => setDeleteIds(selected)}
-        />
+        <div
+          data-testid="day-selection-stack"
+          className="sticky bottom-3 z-20 flex flex-col gap-2 max-sm:bottom-[calc(env(safe-area-inset-bottom,0px)+0.75rem)]"
+        >
+          {day.toast || day.error ? (
+            <div
+              data-testid="day-selection-feedback"
+              className="flex w-full flex-col gap-2"
+            >
+              {day.toast ? (
+                <div
+                  data-testid="day-undo-toast-container"
+                  className="pointer-events-none flex justify-center px-4"
+                >
+                  <AlbumUndoToast
+                    toast={day.toast}
+                    onDismiss={day.dismissToast}
+                    className="pointer-events-auto max-w-full"
+                  />
+                </div>
+              ) : null}
+              {day.error ? (
+                <Alert title={day.error} onRetry={day.retry} />
+              ) : null}
+            </div>
+          ) : null}
+          <GallerySelectionBar
+            sticky={false}
+            count={selected.length}
+            loadedCount={loaded.length}
+            loadedSelectedCount={
+              loaded.filter((item) => selectedSet.has(item.mediaId)).length
+            }
+            onSelectAllLoaded={selectAllLoaded}
+            onClear={() => setSelected([])}
+            onAddToAlbum={() => setIsAddOpen(true)}
+            onEditDetails={() => {
+              setEditItems(selectedItems)
+              setIsEditOpen(true)
+            }}
+            allUnposted={allUnposted}
+            maxPostAttachments={maxMediaAttachments}
+            onPost={() => postMedia(selectedItems.map((item) => item.mediaId))}
+            onDelete={() =>
+              setDeleteIds(selectedItems.map((item) => item.mediaId))
+            }
+            actionCount={selectedItems.length}
+            selectionIncomplete={missingSelectedCount > 0}
+            hydrationPending={missingSelectedCount > 0 && isHydratingSelected}
+            hydrationMessage={hydrationMessage}
+            onRetryLoading={day.retryHydration}
+          />
+        </div>
       ) : null}
 
       {isEditOpen && editItems.length > 0 ? (

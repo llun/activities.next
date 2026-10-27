@@ -1,10 +1,11 @@
 'use client'
 
 import { Check, EyeOff, Lock, Video } from 'lucide-react'
-import { FC, useCallback, useMemo, useRef, useState } from 'react'
+import dynamic from 'next/dynamic'
+import { FC, ReactNode, useCallback, useMemo, useRef, useState } from 'react'
 
-import { GalleryEditDetailsDialog } from '@/lib/components/gallery/GalleryEditDetailsDialog'
 import { formatGalleryDate } from '@/lib/components/gallery/galleryCategories'
+import { useRovingGridFocus } from '@/lib/components/gallery/useRovingGridFocus'
 import { MediasModal } from '@/lib/components/medias-modal/medias-modal'
 import { Media } from '@/lib/components/posts/media'
 import type { GalleryItemEntity } from '@/lib/services/gallery/galleryEntities'
@@ -13,7 +14,16 @@ import { cn } from '@/lib/utils'
 /** Select mode: a tile toggles instead of opening the viewer. */
 export interface GalleryGridSelection {
   selected: ReadonlySet<string>
-  onToggle: (item: GalleryItemEntity) => void
+  onToggle: (item: GalleryItemEntity, modifiers?: { shiftKey: boolean }) => void
+  /** The range anchor: drawn with a dark ring. */
+  anchorId?: string | null
+}
+
+/** One day's slice of a grouped grid: its sticky header and its tiles. */
+export interface GalleryGridGroup {
+  key: string
+  header: ReactNode
+  items: GalleryItemEntity[]
 }
 
 interface Props {
@@ -51,6 +61,11 @@ interface Props {
    */
   onAlbumsChanged?: (albumIds: string[]) => void
   /**
+   * Day groups: one section per group, each with its header and its tiles.
+   * When given, `items` must be the groups' items flattened in order.
+   */
+  groups?: GalleryGridGroup[]
+  /**
    * The grid is the page's primary content: its first tile is revealed
    * without the hydration fade (eager only where it would otherwise be lazy)
    * and the rest stay lazy.
@@ -63,9 +78,25 @@ const isVideo = (item: GalleryItemEntity) =>
   item.attachment.mediaType.startsWith('video') ||
   /\.(mp4|webm|m3u8)(?:[?#]|$)/i.test(item.attachment.url)
 
+// Rendered only while the owner is editing a photo, so keep it (and the album
+// dialogs behind it) out of every page that shows a grid to visitors too.
+const GalleryEditDetailsDialog = dynamic(
+  () =>
+    import('@/lib/components/gallery/GalleryEditDetailsDialog').then(
+      (module) => module.GalleryEditDetailsDialog
+    ),
+  { ssr: false }
+)
+
 // The media type is part of the button's own name: a badge inside a labelled
-// button is never announced.
-const itemLabel = (item: GalleryItemEntity, index: number, verb = 'Open') => {
+// button is never announced. A grouped tile also names its date, since the
+// caption under it drops it.
+const itemLabel = (
+  item: GalleryItemEntity,
+  index: number,
+  verb = 'Open',
+  withDate = false
+) => {
   const noun = isVideo(item) ? 'video' : 'media'
   const alt = item.attachment.name?.trim()
   // Only the owner is told (`inGallery` is omitted for everyone else). Spoken
@@ -74,12 +105,17 @@ const itemLabel = (item: GalleryItemEntity, index: number, verb = 'Open') => {
     item.posted === false ? 'only you can see it, not posted' : '',
     item.inGallery === false ? 'hidden from your gallery' : ''
   ]
+  const taken = withDate ? formatGalleryDate(item.takenAt) : ''
+  const uploaded = withDate ? formatGalleryDate(item.uploadedAt) : ''
+  const date = taken ? `taken ${taken}` : uploaded ? `uploaded ${uploaded}` : ''
+  const extras = [...state, date]
     .filter(Boolean)
     .map((part) => `, ${part}`)
     .join('')
-  if (alt) return `${verb} ${noun}: ${alt}${state}`
-  if (item.subject?.name) return `${verb} ${noun}: ${item.subject.name}${state}`
-  return `${verb} ${noun} ${index + 1}${state}`
+  if (alt) return `${verb} ${noun}: ${alt}${extras}`
+  if (item.subject?.name)
+    return `${verb} ${noun}: ${item.subject.name}${extras}`
+  return `${verb} ${noun} ${index + 1}${extras}`
 }
 
 const EMPTY_EDITS: Record<string, GalleryItemEntity> = {}
@@ -98,6 +134,7 @@ export const GalleryGrid: FC<Props> = ({
   onItemsDeleted,
   onViewerClosed,
   onAlbumsChanged,
+  groups,
   prioritizeFirst = false,
   className
 }) => {
@@ -154,109 +191,200 @@ export const GalleryGrid: FC<Props> = ({
     [shownItems]
   )
 
+  const groupSizes = useMemo(
+    () => groups?.map((group) => group.items.length),
+    [groups]
+  )
+  // One roving tab stop for the grid while tiles toggle (Select mode).
+  const roving = useRovingGridFocus({
+    enabled: Boolean(selection),
+    count: items.length,
+    groupSizes
+  })
+  // The flat tile index across groups: the position in `items`, which a
+  // grouped host passes as the groups' items flattened in order.
+  const indexById = useMemo(
+    () => new Map(items.map((item, index) => [item.mediaId, index])),
+    [items]
+  )
+
+  const renderTile = (item: GalleryItemEntity, index: number) => {
+    // A grouped tile drops the date from its caption (the day header carries
+    // it) but keeps it in its accessible name.
+    const caption = [
+      item.subject?.name,
+      groups ? '' : formatGalleryDate(item.takenAt)
+    ]
+      .filter(Boolean)
+      .join(' · ')
+    const isSelected = selection?.selected.has(item.mediaId) ?? false
+    const isAnchor = selection?.anchorId === item.mediaId
+    const isPriorityTile = prioritizeFirst && index === 0 && !isVideo(item)
+    return (
+      <li key={item.mediaId} className="min-w-0">
+        <button
+          type="button"
+          className={cn(
+            'group bg-muted/20 relative block aspect-square w-full cursor-pointer overflow-hidden rounded-md',
+            // Select mode draws a dashed focus outline outside the tile in
+            // the foreground colour, further out than the anchor's solid
+            // offset ring, so focus never looks like the anchor. Viewer
+            // tiles keep the inset primary outline. A focused tile is
+            // raised so the next tile can't paint over its outline.
+            selection
+              ? 'focus-visible:outline-foreground focus-visible:outline-dashed focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:z-1'
+              : 'focus-visible:outline-primary focus-visible:outline-2 focus-visible:-outline-offset-2',
+            isSelected && 'inset-ring-primary inset-ring-3',
+            isAnchor &&
+              'ring-2 ring-foreground ring-offset-2 ring-offset-background',
+            groups &&
+              'max-md:scroll-mt-[calc(56px+env(safe-area-inset-top,0px)+var(--status-strip-h,0px)+3rem)] md:scroll-mt-[calc(79px+3rem)]'
+          )}
+          onClick={(event) =>
+            selection
+              ? selection.onToggle(item, { shiftKey: event.shiftKey })
+              : setModalIndex(index)
+          }
+          onKeyDown={
+            selection
+              ? (event) => {
+                  // A native button fires its click on Space keyup in some
+                  // browsers and not at all under jsdom: handle the key here
+                  // and suppress the later native click for the full key press.
+                  if (event.key === ' ' || event.key === 'Spacebar') {
+                    event.preventDefault()
+                    if (event.repeat) return
+                    selection.onToggle(item, { shiftKey: event.shiftKey })
+                  }
+                }
+              : undefined
+          }
+          onKeyUp={
+            selection
+              ? (event) => {
+                  if (event.key === ' ' || event.key === 'Spacebar') {
+                    event.preventDefault()
+                  }
+                }
+              : undefined
+          }
+          tabIndex={roving.getTabIndex(index)}
+          data-grid-index={selection ? index : undefined}
+          onFocus={selection ? () => roving.onFocusTile(index) : undefined}
+          aria-label={itemLabel(
+            item,
+            index,
+            selection ? 'Select' : 'Open',
+            Boolean(groups)
+          )}
+          aria-pressed={selection ? isSelected : undefined}
+        >
+          <Media
+            attachment={
+              item.attachment.thumbnailUrl
+                ? {
+                    ...item.attachment,
+                    mediaType: 'image/jpeg',
+                    url: item.attachment.thumbnailUrl
+                  }
+                : item.attachment
+            }
+            loading={isPriorityTile ? 'eager' : 'lazy'}
+            revealImmediately={isPriorityTile}
+            className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
+          />
+          {item.inGallery === false ? (
+            <span
+              data-testid="hidden-badge"
+              aria-hidden="true"
+              className={cn(
+                'pointer-events-none absolute top-1.5 flex items-center gap-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[11px] leading-4 font-medium text-white backdrop-blur-xs',
+                // Clear of the select mark that sits in the same corner.
+                selection ? 'left-9' : 'left-1.5'
+              )}
+            >
+              <EyeOff className="size-3" aria-hidden="true" />
+              Hidden
+            </span>
+          ) : null}
+          {item.posted === false ? (
+            <span
+              data-testid="only-you-badge"
+              aria-hidden="true"
+              className={cn(
+                'pointer-events-none absolute bottom-1.5 left-1.5 flex items-center gap-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[11px] leading-4 font-medium text-white backdrop-blur-xs'
+              )}
+            >
+              <Lock className="size-3" aria-hidden="true" />
+              Only you
+            </span>
+          ) : null}
+          {selection ? (
+            <span
+              aria-hidden="true"
+              data-testid="select-mark"
+              className={cn(
+                'pointer-events-none absolute top-1.5 left-1.5 flex size-6 items-center justify-center rounded-full border-2 border-white text-white shadow-sm',
+                isSelected ? 'bg-primary' : 'bg-black/30'
+              )}
+            >
+              {isSelected ? <Check className="size-3.5" /> : null}
+            </span>
+          ) : null}
+          {isVideo(item) ? (
+            <span
+              className="pointer-events-none absolute top-1.5 right-1.5 flex items-center rounded bg-black/60 p-1 text-white"
+              aria-hidden="true"
+            >
+              <Video className="size-3.5" aria-hidden="true" />
+            </span>
+          ) : null}
+        </button>
+        {showCaption && caption ? (
+          <p className="text-muted-foreground mt-1 truncate text-xs">
+            {caption}
+          </p>
+        ) : null}
+      </li>
+    )
+  }
+
   return (
     <>
-      <ul
-        className={cn(
-          'grid grid-cols-3 gap-1 sm:grid-cols-4 sm:gap-2',
-          className
-        )}
-      >
-        {shownItems.map((item, index) => {
-          const caption = [item.subject?.name, formatGalleryDate(item.takenAt)]
-            .filter(Boolean)
-            .join(' · ')
-          const isSelected = selection?.selected.has(item.mediaId) ?? false
-          const isPriorityTile =
-            prioritizeFirst && index === 0 && !isVideo(item)
-          return (
-            <li key={item.mediaId} className="min-w-0">
-              <button
-                type="button"
+      {groups ? (
+        <div onKeyDown={roving.onKeyDown}>
+          {groups.map((group) => (
+            <section key={group.key}>
+              {group.header}
+              <ul
                 className={cn(
-                  'group bg-muted/20 focus-visible:outline-primary relative block aspect-square w-full cursor-pointer overflow-hidden rounded-md focus-visible:outline-2 focus-visible:-outline-offset-2',
-                  isSelected && 'ring-primary ring-3 ring-inset'
+                  'grid grid-cols-3 gap-1 sm:grid-cols-4 sm:gap-2',
+                  className
                 )}
-                onClick={() =>
-                  selection ? selection.onToggle(item) : setModalIndex(index)
-                }
-                aria-label={itemLabel(
-                  item,
-                  index,
-                  selection ? 'Select' : 'Open'
-                )}
-                aria-pressed={selection ? isSelected : undefined}
+                data-grid
               >
-                <Media
-                  attachment={
-                    item.attachment.thumbnailUrl
-                      ? {
-                          ...item.attachment,
-                          mediaType: 'image/jpeg',
-                          url: item.attachment.thumbnailUrl
-                        }
-                      : item.attachment
-                  }
-                  loading={isPriorityTile ? 'eager' : 'lazy'}
-                  revealImmediately={isPriorityTile}
-                  className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
-                />
-                {item.inGallery === false ? (
-                  <span
-                    data-testid="hidden-badge"
-                    aria-hidden="true"
-                    className={cn(
-                      'pointer-events-none absolute top-1.5 flex items-center gap-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[11px] leading-4 font-medium text-white backdrop-blur-xs',
-                      // Clear of the select mark that sits in the same corner.
-                      selection ? 'left-9' : 'left-1.5'
-                    )}
-                  >
-                    <EyeOff className="size-3" aria-hidden="true" />
-                    Hidden
-                  </span>
-                ) : null}
-                {item.posted === false ? (
-                  <span
-                    data-testid="only-you-badge"
-                    aria-hidden="true"
-                    className={cn(
-                      'pointer-events-none absolute bottom-1.5 left-1.5 flex items-center gap-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[11px] leading-4 font-medium text-white backdrop-blur-xs'
-                    )}
-                  >
-                    <Lock className="size-3" aria-hidden="true" />
-                    Only you
-                  </span>
-                ) : null}
-                {selection ? (
-                  <span
-                    aria-hidden="true"
-                    data-testid="select-mark"
-                    className={cn(
-                      'pointer-events-none absolute top-1.5 left-1.5 flex size-6 items-center justify-center rounded-full border-2 border-white text-white shadow-sm',
-                      isSelected ? 'bg-primary' : 'bg-black/30'
-                    )}
-                  >
-                    {isSelected ? <Check className="size-3.5" /> : null}
-                  </span>
-                ) : null}
-                {isVideo(item) ? (
-                  <span
-                    className="pointer-events-none absolute top-1.5 right-1.5 flex items-center rounded bg-black/60 p-1 text-white"
-                    aria-hidden="true"
-                  >
-                    <Video className="size-3.5" aria-hidden="true" />
-                  </span>
-                ) : null}
-              </button>
-              {showCaption && caption ? (
-                <p className="text-muted-foreground mt-1 truncate text-xs">
-                  {caption}
-                </p>
-              ) : null}
-            </li>
-          )
-        })}
-      </ul>
+                {group.items.map((item) =>
+                  renderTile(
+                    editedById[item.mediaId] ?? item,
+                    indexById.get(item.mediaId) ?? 0
+                  )
+                )}
+              </ul>
+            </section>
+          ))}
+        </div>
+      ) : (
+        <ul
+          className={cn(
+            'grid grid-cols-3 gap-1 sm:grid-cols-4 sm:gap-2',
+            className
+          )}
+          data-grid={selection ? true : undefined}
+          onKeyDown={selection ? roving.onKeyDown : undefined}
+        >
+          {shownItems.map((item, index) => renderTile(item, index))}
+        </ul>
+      )}
 
       <MediasModal
         medias={modalIndex === null ? null : attachments}

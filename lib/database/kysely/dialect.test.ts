@@ -9,6 +9,7 @@ import {
   jsonText,
   normalizedHashtagName,
   timestampValue,
+  utcDay,
   utcYearMonth
 } from '@/lib/database/kysely/dialect'
 import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
@@ -310,5 +311,140 @@ describe('utcYearMonth', () => {
         expect(row.ymExpr).toBe(expected)
       }
     )
+  })
+})
+
+describe('utcDay', () => {
+  it.each([
+    {
+      name: 'sqlite',
+      instance: sqlite,
+      sql: `select case when typeof("likes"."createdAt") in ('integer', 'real') then strftime('%Y-%m-%d', "likes"."createdAt" / 1000.0, 'unixepoch') else strftime('%Y-%m-%d', "likes"."createdAt") end as "day" from "likes"`
+    },
+    {
+      name: 'postgres',
+      instance: postgres,
+      sql: `select to_char("likes"."createdAt" at time zone 'UTC', 'YYYY-MM-DD') as "day" from "likes"`
+    }
+  ])('compiles string column reference ($name)', (item) => {
+    const db = item.instance
+    const compiled = db
+      .selectFrom('likes')
+      .select(utcDay(db, 'likes.createdAt').as('day'))
+      .compile()
+    expect(compiled.sql).toBe(item.sql)
+    expect(compiled.parameters).toEqual([])
+  })
+
+  it.each([
+    {
+      name: 'sqlite',
+      instance: sqlite,
+      sql: `select case when typeof("likes"."createdAt") in ('integer', 'real') then strftime('%Y-%m-%d', "likes"."createdAt" / 1000.0, 'unixepoch') else strftime('%Y-%m-%d', "likes"."createdAt") end as "day" from "likes"`
+    },
+    {
+      name: 'postgres',
+      instance: postgres,
+      sql: `select to_char("likes"."createdAt" at time zone 'UTC', 'YYYY-MM-DD') as "day" from "likes"`
+    }
+  ])('compiles Expression reference ($name)', (item) => {
+    const db = item.instance
+    const compiled = db
+      .selectFrom('likes')
+      .select(utcDay(db, sql.ref('likes.createdAt')).as('day'))
+      .compile()
+    expect(compiled.sql).toBe(item.sql)
+    expect(compiled.parameters).toEqual([])
+  })
+
+  describe('real database execution', () => {
+    let database: Database
+    let db: Db
+
+    beforeAll(async () => {
+      const test = getTestDatabaseWithInstance()
+      database = test.database
+      db = test.db
+      await test.prepare()
+      await database.migrate()
+    })
+
+    afterAll(async () => {
+      await database.destroy()
+    })
+
+    it.each([
+      {
+        description: 'pre-1970 date',
+        date: new Date('1965-06-15T12:00:00.000Z'),
+        expected: '1965-06-15'
+      },
+      {
+        description: '23:59:59.999 date',
+        date: new Date('2026-03-31T23:59:59.999Z'),
+        expected: '2026-03-31'
+      },
+      {
+        description: '00:00:00 date',
+        date: new Date('2026-04-01T00:00:00.000Z'),
+        expected: '2026-04-01'
+      }
+    ])(
+      'extracts the UTC calendar day on active database backend ($description)',
+      async ({ date, expected }) => {
+        const id = `counter-day-${date.getTime()}`
+        await db
+          .insertInto('counters')
+          .values({
+            id,
+            value: 1,
+            createdAt: date,
+            updatedAt: date
+          })
+          .execute()
+
+        const row = await db
+          .selectFrom('counters')
+          .select([
+            utcDay(db, 'counters.createdAt').as('dayString'),
+            utcDay(db, sql.ref('counters.createdAt')).as('dayExpr')
+          ])
+          .where('id', '=', id)
+          .executeTakeFirstOrThrow()
+
+        expect(row.dayString).toBe(expected)
+        expect(row.dayExpr).toBe(expected)
+      }
+    )
+
+    // SQLite's datetime columns also hold the CURRENT_TIMESTAMP default's
+    // 'YYYY-MM-DD HH:MM:SS' TEXT (and ISO strings), which the integer branch
+    // would divide as text.
+    it('reads TEXT timestamps on SQLite', async () => {
+      if (getDialectName(db) !== 'sqlite') return
+
+      const insertText = async (id: string, text: string) => {
+        await db
+          .insertInto('counters')
+          .values({
+            id,
+            value: 1,
+            createdAt: sql<Date>`${text}`,
+            updatedAt: sql<Date>`${text}`
+          })
+          .execute()
+      }
+      await insertText('counter-day-text-space', '2025-10-04 23:30:00')
+      await insertText('counter-day-text-iso', '2025-10-04T23:30:00.000Z')
+
+      for (const id of ['counter-day-text-space', 'counter-day-text-iso']) {
+        const row = await db
+          .selectFrom('counters')
+          .select(utcDay(db, 'counters.createdAt').as('day'))
+          .where('id', '=', id)
+          .executeTakeFirstOrThrow()
+        expect(row.day).toBe('2025-10-04')
+      }
+    })
   })
 })

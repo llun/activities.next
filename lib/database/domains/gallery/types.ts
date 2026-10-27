@@ -286,6 +286,8 @@ export interface GetGalleryMediaParams {
   sort?: GalleryMediaSort
   // Date sorts only.
   cursor?: GalleryMediaCursor
+  // Owner only: restrict the list to this GalleryDayKey.
+  dayKey?: string
   filters?: GalleryMediaFilters
 }
 
@@ -299,6 +301,9 @@ export interface CountGalleryMediaParams {
   // The list's sort: a date sort leaves out rows without a `sortAt`, so the
   // count must too.
   sort?: GalleryMediaSort
+  // Owner only: the list's day bound — the count must cover the same rows
+  // the day-restricted list pages through.
+  dayKey?: string
 }
 
 // `inAlbum` is null without `albumId`.
@@ -333,6 +338,59 @@ export interface GalleryMediaFacetRows {
     mediaId: string
     placeName: string | null
   }>
+}
+
+export interface GetGalleryDayStatsParams {
+  actorId: string
+  audience: GalleryAudience
+  show?: GalleryShow
+  gearId?: string
+  filters?: GalleryMediaFilters
+  sort: GalleryMediaSort
+  // Inclusive UTC days ('YYYY-MM-DD') the page spans, in the sort's day column
+  // (sortAt; createdAt for `uploaded`).
+  fromDay: string
+  toDay: string
+  // Adds `inAlbum` per group: how many of the group's photos this album of the
+  // owner holds.
+  albumId?: string
+}
+
+export interface GalleryDayPlaceRow {
+  day: string
+  dateless: boolean
+  placeName: string | null
+  count: number
+  inAlbum: number | null
+}
+
+export interface GalleryDayActivityRow {
+  day: string
+  dateless: boolean
+  fitnessFileId: string
+  activityType: string | null
+  totalDistanceMeters: number | null
+  activityStartTime: number | null
+  count: number
+}
+
+export interface GalleryDayStatsRows {
+  places: GalleryDayPlaceRow[]
+  activities: GalleryDayActivityRow[]
+}
+
+export interface GetGalleryMediaIdsParams {
+  actorId: string
+  audience: GalleryAudience
+  show?: GalleryShow
+  gearId?: string
+  filters?: GalleryMediaFilters
+  sort: GalleryMediaSort
+  dayKey: string
+  limit: number
+  offset?: number
+  // Leave out photos this album of the owner already holds.
+  excludeAlbumId?: string
 }
 
 export interface GetGalleryMediaByIdsParams {
@@ -387,6 +445,14 @@ export interface GalleryMediaDatabase {
   getGalleryMediaFacetRows(
     params: GetGalleryMediaFacetRowsParams
   ): Promise<GalleryMediaFacetRows>
+  // Owner only (the `include_days` read): per-day stats for the days a page
+  // spans, in the page's scope and filters.
+  getGalleryDayStats(
+    params: GetGalleryDayStatsParams
+  ): Promise<GalleryDayStatsRows>
+  // Owner only (`ids_only`): one page of a day's matches in `sort` order,
+  // minus the album's members.
+  getGalleryMediaIds(params: GetGalleryMediaIdsParams): Promise<string[]>
   // Re-applies the whole scope: an id outside it is simply absent. Newest
   // first.
   getGalleryMediaByIds(

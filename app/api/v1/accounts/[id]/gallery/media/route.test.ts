@@ -817,4 +817,444 @@ describe('GET /api/v1/accounts/:id/gallery/media', () => {
       expect((await call(ACTOR1_ID, '?gear_id=x')).status).toBe(422)
     })
   })
+
+  describe('day stats and day ids', () => {
+    // 61 photos on the kingfisher's day (62 matches with it), so limit=61
+    // tells the page cap of 60 from the ids read's cap.
+    const bulkDay = new Date(Date.UTC(2024, 2, 1, 12, 0, 0))
+    let bulkIds: string[] = []
+    let bulkDatelessId = ''
+
+    beforeAll(async () => {
+      for (let index = 0; index < 61; index += 1) {
+        const row = await db
+          .insertInto('medias')
+          .values({
+            actorId: ACTOR1_ID,
+            original: `medias/ids-only-bulk-${index}.jpg`,
+            originalBytes: 1000,
+            originalMimeType: 'image/jpeg',
+            originalMetaData: JSON.stringify({ width: 100, height: 100 }),
+            inGallery: true,
+            galleryAddedAt: new Date(1000),
+            createdAt: bulkDay,
+            updatedAt: bulkDay,
+            sortAt: bulkDay,
+            takenAt: bulkDay
+          })
+          .returning('id')
+          .executeTakeFirstOrThrow()
+        bulkIds.push(String(row.id))
+      }
+
+      const datelessRow = await db
+        .insertInto('medias')
+        .values({
+          actorId: ACTOR1_ID,
+          original: 'medias/ids-only-bulk-dateless.jpg',
+          originalBytes: 1000,
+          originalMimeType: 'image/jpeg',
+          originalMetaData: JSON.stringify({ width: 100, height: 100 }),
+          inGallery: true,
+          galleryAddedAt: new Date(1000),
+          createdAt: bulkDay,
+          updatedAt: bulkDay,
+          sortAt: bulkDay,
+          takenAt: null
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow()
+      bulkDatelessId = String(datelessRow.id)
+    })
+
+    afterAll(async () => {
+      await db
+        .deleteFrom('medias')
+        .where('original', 'like', 'medias/ids-only-bulk-%')
+        .execute()
+    })
+
+    it('gives the owner the days the page spans with include_days=true', async () => {
+      signIn(seedActor1.email)
+
+      const body = await (
+        await call(ACTOR1_ID, '?sort=taken_desc&include_days=true')
+      ).json()
+
+      // The page holds 24 rows; the day's count is the full-day number.
+      expect(body.items).toHaveLength(24)
+      expect(body.days['2024-03-01']).toEqual({
+        count: 62,
+        placeName: 'River',
+        activity: null
+      })
+      expect(body.days['2024-05-01']).toEqual({
+        count: 1,
+        placeName: null,
+        activity: null
+      })
+      // The dateless addition shares the day of its upload; the days the page
+      // does not span are absent.
+      const uploadedKeys = Object.keys(body.days).filter((key) =>
+        key.startsWith('uploaded:')
+      )
+      expect(uploadedKeys).toHaveLength(2)
+      expect(body.days['uploaded:2024-03-01'].count).toBe(1)
+      expect(uploadedKeys.every((key) => body.days[key].count === 1)).toBe(true)
+      expect(Object.keys(body.days)).not.toContain('2023-06-01')
+      expect(Object.keys(body.days)).not.toContain('2022-01-01')
+    })
+
+    it.each([
+      ['a follower', seedActor3.email],
+      ['a logged-out caller', null]
+    ])('ignores include_days for %s', async (_, email) => {
+      signIn(email)
+      const baseline = await (await call(ACTOR1_ID)).json()
+
+      const body = await (
+        await call(ACTOR1_ID, '?sort=taken_desc&include_days=true')
+      ).json()
+
+      expect(body).toEqual(baseline)
+      expect(body).not.toHaveProperty('days')
+    })
+
+    it.each([
+      ['a follower', seedActor3.email],
+      ['a logged-out caller', null]
+    ])('strips day_key from a normal read for %s', async (_, email) => {
+      signIn(email)
+      const baseline = await (await call(ACTOR1_ID, '?limit=2')).json()
+
+      const body = await (
+        await call(ACTOR1_ID, '?limit=2&sort=taken_desc&day_key=not-a-day')
+      ).json()
+
+      expect(body).toEqual(baseline)
+    })
+
+    it.each([
+      ['a follower', seedActor3.email],
+      ['a logged-out caller', null]
+    ])('answers 422 to ids_only from %s', async (_, email) => {
+      signIn(email)
+
+      const response = await call(
+        ACTOR1_ID,
+        '?ids_only=true&day_key=2024-03-01&offset=1'
+      )
+
+      expect(response.status).toBe(422)
+      expect(await response.json()).toEqual({
+        error: 'ids_only is only available to the owner'
+      })
+
+      // The offset bound cannot soften it: ids_only is rejected before
+      // the params are even validated.
+      const beyond = await call(
+        ACTOR1_ID,
+        '?ids_only=true&day_key=2024-03-01&offset=100001'
+      )
+
+      expect(beyond.status).toBe(422)
+      expect(await beyond.json()).toEqual({
+        error: 'ids_only is only available to the owner'
+      })
+    })
+
+    it('answers the day ids for the owner, honouring limit past the page cap', async () => {
+      signIn(seedActor1.email)
+
+      const limited = await (
+        await call(
+          ACTOR1_ID,
+          '?ids_only=true&day_key=2024-03-01&sort=taken_asc&limit=61'
+        )
+      ).json()
+      expect(limited.mediaIds).toEqual([
+        ids.kingfisher,
+        ...bulkIds.slice(0, 60)
+      ])
+
+      const all = await (
+        await call(
+          ACTOR1_ID,
+          '?ids_only=true&day_key=2024-03-01&sort=taken_asc'
+        )
+      ).json()
+      expect(all.mediaIds).toEqual([ids.kingfisher, ...bulkIds])
+
+      const offsetPage = await (
+        await call(
+          ACTOR1_ID,
+          '?ids_only=true&day_key=2024-03-01&sort=taken_asc&limit=2&offset=1'
+        )
+      ).json()
+      expect(offsetPage.mediaIds).toEqual(bulkIds.slice(0, 2))
+
+      // The uploaded: key under sort=uploaded reads the createdAt day.
+      const uploaded = await (
+        await call(
+          ACTOR1_ID,
+          '?ids_only=true&sort=uploaded&day_key=uploaded:2024-03-01'
+        )
+      ).json()
+      expect(uploaded.mediaIds).toEqual([
+        bulkDatelessId,
+        ...[...bulkIds].reverse()
+      ])
+    })
+
+    it('pages normal owner reads within dated, dateless-uploaded, and upload days', async () => {
+      signIn(seedActor1.email)
+
+      const datedFirst = await (
+        await call(ACTOR1_ID, '?sort=taken_asc&day_key=2024-03-01&limit=60')
+      ).json()
+      expect(
+        datedFirst.items.map((item: { mediaId: string }) => item.mediaId)
+      ).toEqual([ids.kingfisher, ...bulkIds.slice(0, 59)])
+      expect(datedFirst.nextCursor).toEqual(expect.any(String))
+
+      const datedSecond = await (
+        await call(
+          ACTOR1_ID,
+          `?sort=taken_asc&day_key=2024-03-01&limit=60&cursor=${datedFirst.nextCursor}`
+        )
+      ).json()
+      expect(
+        datedSecond.items.map((item: { mediaId: string }) => item.mediaId)
+      ).toEqual(bulkIds.slice(59))
+      expect(datedSecond.nextCursor).toBeNull()
+
+      const dateless = await (
+        await call(ACTOR1_ID, '?sort=taken_desc&day_key=uploaded:2024-03-01')
+      ).json()
+      expect(
+        dateless.items.map((item: { mediaId: string }) => item.mediaId)
+      ).toEqual([bulkDatelessId])
+
+      const uploadedFirst = await (
+        await call(
+          ACTOR1_ID,
+          '?sort=uploaded&day_key=uploaded:2024-03-01&limit=60'
+        )
+      ).json()
+      expect(
+        uploadedFirst.items.map((item: { mediaId: string }) => item.mediaId)
+      ).toEqual([bulkDatelessId, ...bulkIds.slice().reverse().slice(0, 59)])
+      expect(uploadedFirst.nextMaxId).toEqual(expect.any(String))
+
+      const uploadedSecond = await (
+        await call(
+          ACTOR1_ID,
+          `?sort=uploaded&day_key=uploaded:2024-03-01&limit=60&max_id=${uploadedFirst.nextMaxId}`
+        )
+      ).json()
+      expect(
+        uploadedSecond.items.map((item: { mediaId: string }) => item.mediaId)
+      ).toEqual(bulkIds.slice().reverse().slice(59))
+      expect(uploadedSecond.nextMaxId).toBeNull()
+    })
+
+    it('leaves the album members out of the day ids', async () => {
+      const album = await database.createGalleryAlbumWithinLimit({
+        actorId: ACTOR1_ID,
+        title: 'Ids exclusion album',
+        mediaIds: [ids.kingfisher],
+        limit: 100
+      })
+      if (album.status !== 'created') throw new Error('album not created')
+
+      try {
+        signIn(seedActor1.email)
+
+        const body = await (
+          await call(
+            ACTOR1_ID,
+            `?ids_only=true&day_key=2024-03-01&sort=taken_asc&album_id=${album.album.id}`
+          )
+        ).json()
+
+        expect(body.mediaIds).toEqual(bulkIds)
+      } finally {
+        await database.deleteGalleryAlbum({
+          id: album.album.id,
+          actorId: ACTOR1_ID
+        })
+      }
+    })
+
+    it.each([
+      [
+        'ids_only without day_key',
+        '?ids_only=true',
+        'day_key is required with ids_only'
+      ],
+      [
+        'ids_only with an unparsable day_key',
+        '?ids_only=true&day_key=not-a-day',
+        'Invalid day_key'
+      ],
+      [
+        'ids_only with an impossible calendar date',
+        '?ids_only=true&day_key=2025-02-30',
+        'Invalid day_key'
+      ],
+      [
+        'a plain day_key under sort=uploaded',
+        '?ids_only=true&sort=uploaded&day_key=2025-10-04',
+        'day_key does not match sort'
+      ],
+      [
+        'a plain day_key with the sort defaulted to uploaded',
+        '?ids_only=true&day_key=2025-10-04',
+        'day_key does not match sort'
+      ],
+      [
+        'a normal list with a plain day_key under sort=uploaded',
+        '?sort=uploaded&day_key=2025-10-04',
+        'day_key does not match sort'
+      ],
+      [
+        'a normal list with a plain day_key and default sort',
+        '?day_key=2025-10-04',
+        'day_key does not match sort'
+      ],
+      [
+        'a normal list with an invalid day_key',
+        '?sort=taken_desc&day_key=not-a-day',
+        'Invalid day_key'
+      ],
+      [
+        'ids_only with an invalid taken_from',
+        '?ids_only=true&day_key=2024-03-01&sort=taken_asc&taken_from=not-a-date',
+        'Invalid taken_from date'
+      ],
+      [
+        'ids_only with an invalid taken_to',
+        '?ids_only=true&day_key=2024-03-01&sort=taken_asc&taken_to=not-a-date',
+        'Invalid taken_to date'
+      ],
+      [
+        'ids_only with a cursor',
+        '?ids_only=true&day_key=2024-03-01&sort=taken_desc&cursor=1000:1',
+        'ids_only takes no cursor'
+      ],
+      [
+        'ids_only with max_id',
+        '?ids_only=true&day_key=2024-03-01&sort=taken_desc&max_id=123',
+        'ids_only takes no cursor'
+      ]
+    ])('answers 422 for %s', async (_, query, error) => {
+      signIn(seedActor1.email)
+
+      const response = await call(ACTOR1_ID, query)
+
+      expect(response.status).toBe(422)
+      expect(await response.json()).toEqual({ error })
+    })
+
+    it.each([
+      ['a negative offset', 'offset=-1'],
+      ['a non-integer offset', 'offset=1.5'],
+      ['a non-numeric offset', 'offset=invalid'],
+      ['an offset past the cap', 'offset=100001']
+    ])('answers 422 for %s on ids_only', async (_, offset) => {
+      signIn(seedActor1.email)
+
+      const response = await call(
+        ACTOR1_ID,
+        `?ids_only=true&day_key=2024-03-01&sort=taken_asc&${offset}`
+      )
+
+      expect(response.status).toBe(422)
+    })
+
+    describe('a dateless upload whose sortAt day differs from its upload day', () => {
+      // A dateless upload is stamped sortAt just before createdAt, so it can
+      // sort at the very end of one UTC day while its upload day is the next.
+      // These are the suite's newest photos, so taken_desc pages them first.
+      const straddleSortAt = new Date(Date.UTC(2099, 9, 3, 23, 59, 59, 900))
+      const straddleCreatedAt = new Date(Date.UTC(2099, 9, 4, 0, 0, 0, 100))
+      const uploadNoon = new Date(Date.UTC(2099, 9, 4, 12, 0, 0))
+      const datedSortAt = new Date(Date.UTC(2099, 9, 3, 12, 0, 0))
+      let straddleId = ''
+
+      const seed = async (
+        name: string,
+        values: { sortAt: Date; createdAt: Date; takenAt?: Date }
+      ) => {
+        const row = await db
+          .insertInto('medias')
+          .values({
+            actorId: ACTOR1_ID,
+            original: `medias/day-stats-straddle-${name}.jpg`,
+            originalBytes: 1000,
+            originalMimeType: 'image/jpeg',
+            originalMetaData: JSON.stringify({ width: 100, height: 100 }),
+            inGallery: true,
+            galleryAddedAt: new Date(1000),
+            createdAt: values.createdAt,
+            updatedAt: values.createdAt,
+            sortAt: values.sortAt,
+            takenAt: values.takenAt ?? null
+          })
+          .returning('id')
+          .executeTakeFirstOrThrow()
+        return String(row.id)
+      }
+
+      beforeAll(async () => {
+        straddleId = await seed('midnight', {
+          sortAt: straddleSortAt,
+          createdAt: straddleCreatedAt
+        })
+        await seed('upload-a', { sortAt: uploadNoon, createdAt: uploadNoon })
+        await seed('upload-b', { sortAt: uploadNoon, createdAt: uploadNoon })
+        // A dated photo inside the widened stats window, but not on the page.
+        await seed('dated', {
+          sortAt: datedSortAt,
+          createdAt: datedSortAt,
+          takenAt: datedSortAt
+        })
+      })
+
+      afterAll(async () => {
+        await db
+          .deleteFrom('medias')
+          .where('original', 'like', 'medias/day-stats-straddle-%')
+          .execute()
+      })
+
+      it('counts the whole upload day on a page that holds only the straddling row', async () => {
+        signIn(seedActor1.email)
+
+        // The two plain 4 Oct uploads sort first; the next page holds only
+        // the row whose sortAt is on 3 Oct.
+        const first = await (
+          await call(ACTOR1_ID, '?sort=taken_desc&include_days=true&limit=2')
+        ).json()
+        expect(first.items).toHaveLength(2)
+
+        const second = await (
+          await call(
+            ACTOR1_ID,
+            `?sort=taken_desc&include_days=true&limit=1&cursor=${first.nextCursor}`
+          )
+        ).json()
+        expect(
+          second.items.map((item: { mediaId: string }) => item.mediaId)
+        ).toEqual([straddleId])
+
+        // The page spans only 3 Oct by sortAt, but its one row groups under
+        // 4 Oct's upload day: that day counts every 4 Oct dateless upload,
+        // and no other day is returned.
+        expect(second.days).toEqual({
+          'uploaded:2099-10-04': { count: 3, placeName: null, activity: null }
+        })
+      })
+    })
+  })
 })

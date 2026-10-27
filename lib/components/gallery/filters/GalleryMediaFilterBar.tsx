@@ -226,6 +226,12 @@ export const GalleryMediaFilterBar: FC<GalleryMediaFilterBarProps> = ({
               inactiveTriggerText="Any time"
               active={Boolean(filters.date)}
               activeLabel={formatDateFilterChipLabel(filters.date)}
+              activeLabelClassName={
+                filters.date?.kind === 'custom' &&
+                filters.date.label?.startsWith('Album dates ·')
+                  ? 'sm:max-w-none'
+                  : undefined
+              }
               onClear={() => onChange(setGalleryFilter(filters, 'date', null))}
               disabled={menusDisabled}
               portalContainer={portalContainer}

@@ -389,6 +389,41 @@ describe('GalleryMediaFilterBar', () => {
       })
     })
 
+    it('widens only the labelled custom date chip', () => {
+      render(
+        <GalleryMediaFilterBar
+          idPrefix="test"
+          filters={{
+            ...EMPTY_GALLERY_FILTERS,
+            species: 'name:Red Fox',
+            date: {
+              kind: 'custom',
+              from: '2025-10-04',
+              to: '2025-10-12',
+              label: 'Album dates · 4–12 Oct 2025'
+            },
+            order: ['species', 'date']
+          }}
+          onChange={vi.fn()}
+          facets={mockFacets}
+          total={10}
+        />
+      )
+
+      const desktop = screen.getByTestId('test-desktop-filters')
+      const species = within(
+        within(desktop).getByRole('group', { name: 'Species filter' })
+      ).getByText('Red Fox')
+      const date = within(
+        within(desktop).getByRole('group', { name: 'Date taken filter' })
+      ).getByText('Album dates · 4–12 Oct 2025')
+
+      expect(species).toHaveClass('max-w-[180px]')
+      expect(species).not.toHaveClass('sm:max-w-none')
+      expect(date).toHaveClass('max-w-[180px]')
+      expect(date).toHaveClass('sm:max-w-none')
+    })
+
     it('toggles "Not in an album" button state', () => {
       const onChange = vi.fn()
       const { rerender } = render(

@@ -62,7 +62,8 @@ const Page = async ({ searchParams }: PageProps) => {
     category,
     show,
     sort: 'taken_desc',
-    includeTotal: true
+    includeTotal: true,
+    includeDays: true
   })
 
   return (

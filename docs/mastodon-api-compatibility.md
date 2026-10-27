@@ -639,13 +639,26 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   `cursor` (opaque keyset date cursor `<sortAt ms>:<mediaId>` for date sorts),
   `taken_from` and `taken_to` (`YYYY-MM-DD` inclusive UTC date range),
   `place` (place name or `none`), `activity_id` (fitness file id or `none`; the activity's route map image, found by the file's recorded `mapImagePath` and so still after a post edit renames it, is not one of its photos), and `album_id`
-  (calculates membership for album pickers), and `include_total=true`. Anyone else's copies of
-  these owner-only parameters are ignored, even malformed ones (only `gear_id` answers 422 to a
-  non-owner); `max_id` still pages the `uploaded` order. The response adds `nextCursor` for date
-  pagination (while `nextMaxId` is used for `uploaded`), `total` (matching photos across all pages,
-  on the owner's first page when `include_total=true`), and `inAlbumTotal` (when `album_id` is
-  supplied), and reports `inGallery`, `posted`, `uploadedAt` and `albumCount` on each of the
-  owner's items. Photos with no `sortAt` (inserted by a build older than the migration) are left
+  (calculates membership for album pickers), `include_total=true`, `include_days=true` (the
+  owner's page then also carries `days`, per-day stats keyed by the day a photo is shown under:
+  `YYYY-MM-DD` of `sortAt` for a dated photo under a date sort, `uploaded:YYYY-MM-DD` of
+  `createdAt` for a dateless photo under a date sort and for every photo under `sort=uploaded`),
+  and `day_key` (restricts a normal list page to one matching day, or is required with
+  `ids_only`). Anyone else's copies of these owner-only
+  parameters are ignored, even malformed ones (only `gear_id` and `ids_only` answer 422 to a
+  non-owner); `max_id` still pages the `uploaded` order. `ids_only=true&day_key=<GalleryDayKey>`
+  is an owner-only read answered as `{ mediaIds }` — the ids of that day's matches from
+  `offset` (an integer from 0 to 100,000, default 0), `limit` at most (capped at the album item cap, not the page's 60), in `sort` order, minus the `album_id`
+  album's members (`album_id` excludes here rather than counting) — and it answers 422
+  `{ error: 'ids_only is only available to the owner' }` to anyone else, checked before the
+  owner-only strip so it is never silently honoured, like `gear_id`; the owner's 422s include an
+  invalid `day_key` on either read, `ids_only` without `day_key`, a `day_key` that does not match
+  `sort`, and `ids_only` with `cursor` or `max_id`. On a normal read, `day_key` filters the list
+  page to that day and keeps normal cursor or `max_id` pagination. The response adds
+  `nextCursor` for date pagination (while `nextMaxId` is used for `uploaded`), `total` (matching
+  photos across all pages, on the owner's first page when `include_total=true`), `inAlbumTotal`
+  (when `album_id` is supplied), `days` (when `include_days=true`), and reports `inGallery`,
+  `posted`, `uploadedAt` and `albumCount` on each of the owner's items. Photos with no `sortAt` (inserted by a build older than the migration) are left
   out of the date sorts until `scripts/maintenance/backfillMediaSortAt.ts` fills them.
   `place=none` and `activity_id=none` are reserved values meaning "no place" and "not from an
   activity" (any media on an activity's post counts as from it, the route map included); a place literally named "none" cannot be selected by name (accepted limitation).

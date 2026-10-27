@@ -104,8 +104,8 @@ const create = vi.mocked(createGalleryAlbum)
 const add = vi.mocked(addGalleryAlbumItems)
 const update = vi.mocked(updateGalleryAlbum)
 
-const result = (id: string) =>
-  ({ added: [], existing: [], skipped: [], album: buildAlbumCard(id) }) as never
+const result = (id: string, added: string[] = []) =>
+  ({ added, existing: [], skipped: [], album: buildAlbumCard(id) }) as never
 
 class ResizeObserverStub {
   observe() {}
@@ -259,7 +259,7 @@ describe('GalleryAlbumFormDialog suggestions', () => {
   })
 
   it('lets the owner trim the photos before creating the album', async () => {
-    create.mockResolvedValue(result('new'))
+    create.mockResolvedValue(result('new', trip.mediaIds.slice(1)))
     update.mockResolvedValue(buildAlbumCard('new'))
     const { onSaved } = renderDialog({ initialTab: 'suggestions' })
 
