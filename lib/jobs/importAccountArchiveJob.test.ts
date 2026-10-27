@@ -500,9 +500,12 @@ describe('ImportAccountArchiveJob', () => {
     expect(
       await database.getActiveAccountImport({ actorId: actor.id })
     ).toMatchObject({ id: row.id, status: 'running' })
+    // A silenced actor is still hidden from the directory listing, but silence
+    // is not a moderation block: the actor stays available to the import, so
+    // the sweep must requeue the expired run rather than fail it.
     await db
       .updateTable('actors')
-      .set({ suspendedAt: new Date() })
+      .set({ silencedAt: new Date() })
       .where('id', '=', actor.id)
       .execute()
     try {
@@ -534,7 +537,7 @@ describe('ImportAccountArchiveJob', () => {
     } finally {
       await db
         .updateTable('actors')
-        .set({ suspendedAt: null })
+        .set({ silencedAt: null })
         .where('id', '=', actor.id)
         .execute()
     }
