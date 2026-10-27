@@ -2102,11 +2102,11 @@ CREATE UNIQUE INDEX account_import_items_actor_source_unique ON public.account_i
 
 CREATE INDEX account_import_items_import_state_position_idx ON public.account_import_items USING btree ("importId", state, "position");
 
+CREATE INDEX account_imports_account_started_idx ON public.account_imports USING btree ("accountId", "startedAt");
+
 CREATE UNIQUE INDEX account_imports_actor_active_idx ON public.account_imports USING btree ("actorId") WHERE (((status)::text = 'queued'::text) OR ((status)::text = 'running'::text));
 
 CREATE INDEX account_imports_actor_created_idx ON public.account_imports USING btree ("actorId", "createdAt");
-
-CREATE INDEX account_imports_actor_started_idx ON public.account_imports USING btree ("actorId", "startedAt");
 
 CREATE INDEX "account_providers_accountId_provider_providerId_idx" ON public.account_providers USING btree ("accountId", provider, "providerId");
 

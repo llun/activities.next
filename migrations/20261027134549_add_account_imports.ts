@@ -76,9 +76,9 @@ export const up = async (db: Kysely<any>): Promise<void> => {
     .execute()
 
   await db.schema
-    .createIndex('account_imports_actor_started_idx')
+    .createIndex('account_imports_account_started_idx')
     .on('account_imports')
-    .columns(['actorId', 'startedAt'])
+    .columns(['accountId', 'startedAt'])
     .execute()
 
   await db.schema
