@@ -15,6 +15,8 @@ export interface AccountImportProgress {
   version: 1
   sourceActorId: string | null
   sourceFollowersUrl: string | null
+  /** Resolved from the archive's own profile.json and reused across phases. */
+  sourceExtrasDir?: string | null
   statusOrder: ArchiveStatusOrder
   catalogStage: CatalogStage
   catalogIndex: number
@@ -73,6 +75,13 @@ export const parseImportProgress = (
         typeof record.sourceFollowersUrl === 'string'
           ? record.sourceFollowersUrl
           : null,
+      ...(record.sourceExtrasDir === null ||
+      (typeof record.sourceExtrasDir === 'string' &&
+        record.sourceExtrasDir.startsWith('activities.next/actors/') &&
+        !record.sourceExtrasDir.includes('\\') &&
+        !record.sourceExtrasDir.split('/').some((part) => part === '..'))
+        ? { sourceExtrasDir: record.sourceExtrasDir as string | null }
+        : null),
       statusOrder:
         record.statusOrder === 'oldest-first' ? 'oldest-first' : 'newest-first',
       catalogStage: stages.includes(record.catalogStage as CatalogStage)

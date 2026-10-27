@@ -15,9 +15,11 @@ import type {
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 import type {
+  AccountImportItemReference,
   ClaimAccountImportRunParams,
   ClaimAccountImportRunResult,
   CreateAccountImportParams,
+  GetAccountImportItemReferencesParams,
   GetAccountImportItemsParams,
   GetStaleAccountImportsParams,
   ListAccountImportsParams,
@@ -301,6 +303,20 @@ export const getAccountImportItemId = (
   sourceId: string
 ): string => `${importId}:${kind}:${getHashFromString(sourceId)}`
 
+/**
+ * Skip reasons that depend on an option the owner chose at start (likes or
+ * bookmarks off, replies to others left out) or on a size limit (media,
+ * fitness), not on the item itself: a later import that turns the option on,
+ * or that runs after the limit was raised, must be able to claim the row
+ * again. Every other skipped row keeps its verdict.
+ */
+export const RECLAIMABLE_SKIPPED_ITEM_REASONS = [
+  'option_disabled',
+  'reply-to-other',
+  'media_too_large',
+  'fitness_too_large'
+] as const
+
 export const upsertAccountImportItems = async (
   db: Db,
   params: UpsertAccountImportItemsParams
@@ -339,7 +355,17 @@ export const upsertAccountImportItems = async (
           targetId: null,
           updatedAt: eb.ref('excluded.updatedAt')
         }))
-        .where('account_import_items.state', 'in', ['pending', 'failed'])
+        .where((eb) =>
+          eb.or([
+            eb('account_import_items.state', 'in', ['pending', 'failed']),
+            eb.and([
+              eb('account_import_items.state', '=', 'skipped'),
+              eb('account_import_items.reason', 'in', [
+                ...RECLAIMABLE_SKIPPED_ITEM_REASONS
+              ])
+            ])
+          ])
+        )
     )
     .execute()
 }
@@ -353,11 +379,47 @@ export const getAccountImportItems = async (
     .selectAll()
     .where('importId', '=', params.importId)
     .orderBy('position', 'asc')
+  if (params.states !== undefined) {
+    query = query.where('state', 'in', [...params.states])
+  }
+  if (params.kinds !== undefined) {
+    query = query.where('kind', 'in', [...params.kinds])
+  }
   if (params.afterPosition !== undefined) {
     query = query.where('position', '>', params.afterPosition)
   }
   const rows = await query.limit(params.limit).execute()
   return rows.map(toItem)
+}
+
+// Resolve only references on the current item page. Keeping the key list
+// bounded also stays below SQLite's bind-variable limit for large collections.
+// The actor/kind/sourceId filter follows the unique actor source-key index.
+export const getAccountImportItemReferences = async (
+  db: Db,
+  params: GetAccountImportItemReferencesParams
+): Promise<AccountImportItemReference[]> => {
+  if (params.kinds.length === 0 || params.sourceIds.length === 0) return []
+  const sourceIds = [...new Set(params.sourceIds)]
+  const result: AccountImportItemReference[] = []
+  for (let offset = 0; offset < sourceIds.length; offset += 300) {
+    const rows = await db
+      .selectFrom('account_import_items')
+      .select(['kind', 'sourceId', 'state', 'targetId'])
+      .where('actorId', '=', params.actorId)
+      .where('kind', 'in', params.kinds)
+      .where('sourceId', 'in', sourceIds.slice(offset, offset + 300))
+      .execute()
+    result.push(
+      ...rows.map((row) => ({
+        kind: row.kind,
+        sourceId: row.sourceId,
+        state: row.state as AccountImportItemReference['state'],
+        targetId: row.targetId
+      }))
+    )
+  }
+  return result
 }
 
 export const markAccountImportItem = async (
@@ -438,6 +500,7 @@ export const accountImportQueries = {
   releaseAccountImportRun,
   upsertAccountImportItems,
   getAccountImportItems,
+  getAccountImportItemReferences,
   markAccountImportItem,
   resetRetryableAccountImportItems,
   deleteAccountImportsForActor
