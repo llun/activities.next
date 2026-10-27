@@ -1,4 +1,5 @@
 import {
+  ArrowRightLeft,
   Ban,
   Bell,
   Filter,
@@ -107,6 +108,12 @@ export const getSettingsGroups = (
   {
     afterFooter: true,
     items: [
+      {
+        name: 'Moving',
+        url: '/settings/moving',
+        icon: <ArrowRightLeft />,
+        description: 'Change your handle, or move to another account'
+      },
       {
         name: 'Delete this profile',
         url: '/settings/delete',

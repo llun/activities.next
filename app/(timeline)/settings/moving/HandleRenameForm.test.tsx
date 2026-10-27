@@ -1,0 +1,339 @@
+/**
+ * @vitest-environment jsdom
+ */
+import '@testing-library/jest-dom'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
+
+import type { AccountHandleState } from '@/lib/client'
+import * as client from '@/lib/client'
+
+import { HandleRenameForm } from './HandleRenameForm'
+
+vi.mock('@/lib/client', () => {
+  class ApiRequestError extends Error {
+    status: number
+    constructor(message: string, status: number) {
+      super(message)
+      this.name = 'ApiRequestError'
+      this.status = status
+    }
+  }
+  return {
+    ApiRequestError,
+    getAccountHandle: vi.fn(),
+    renameAccountHandle: vi.fn()
+  }
+})
+
+const mockGetAccountHandle = vi.mocked(client.getAccountHandle)
+const mockRename = vi.mocked(client.renameAccountHandle)
+
+const handleState = (
+  overrides: Partial<AccountHandleState> = {}
+): AccountHandleState => ({
+  actorId: 'https://llun.test/users/anna',
+  username: 'anna',
+  domain: 'llun.test',
+  acct: 'anna@llun.test',
+  history: [
+    {
+      id: 'h1',
+      actorId: 'https://llun.test/users/anna',
+      username: 'anna',
+      domain: 'llun.test',
+      createdAt: 1700000000000,
+      replacedAt: null
+    }
+  ],
+  cooldownUntil: null,
+  domains: ['llun.test'],
+  ...overrides
+})
+
+const submit = async () => {
+  fireEvent.click(screen.getByRole('button', { name: 'Change handle' }))
+  const dialog = await screen.findByRole('dialog', {
+    name: 'Change your handle'
+  })
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Change handle' }))
+}
+
+describe('HandleRenameForm', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('shows the current handle and no domain picker with a single domain', () => {
+    render(
+      <HandleRenameForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        initialHandle={handleState()}
+      />
+    )
+
+    // The handle also heads the live preview, so it is on the page twice.
+    expect(screen.getAllByText('@anna@llun.test').length).toBeGreaterThan(0)
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+  })
+
+  it('offers a domain Select only when there is more than one domain', () => {
+    render(
+      <HandleRenameForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        initialHandle={handleState({ domains: ['llun.test', 'run.llun.dev'] })}
+      />
+    )
+
+    const select = screen.getByRole('combobox', { name: 'Domain' })
+    expect(select).toHaveValue('llun.test')
+    expect(
+      within(select)
+        .getAllByRole('option')
+        .map((option) => option.textContent)
+    ).toEqual(['llun.test', 'run.llun.dev'])
+  })
+
+  it('previews the new handle live', () => {
+    render(
+      <HandleRenameForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        initialHandle={handleState({ domains: ['llun.test', 'run.llun.dev'] })}
+      />
+    )
+
+    expect(screen.getAllByText('@anna@llun.test').length).toBeGreaterThan(0)
+    fireEvent.change(screen.getByLabelText('New handle'), {
+      target: { value: 'may' }
+    })
+    fireEvent.change(screen.getByRole('combobox', { name: 'Domain' }), {
+      target: { value: 'run.llun.dev' }
+    })
+
+    expect(screen.getByText('@may@run.llun.dev')).toBeInTheDocument()
+  })
+
+  it('asks for the password on an account that has one', async () => {
+    mockRename.mockResolvedValueOnce(handleState({ username: 'may' }))
+
+    render(
+      <HandleRenameForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        initialHandle={handleState()}
+      />
+    )
+
+    expect(screen.getByLabelText('Password')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Current username')).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('New handle'), {
+      target: { value: 'may' }
+    })
+    // The action stays off until the password confirms it is the owner.
+    expect(screen.getByRole('button', { name: 'Change handle' })).toBeDisabled()
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'secret' }
+    })
+
+    await submit()
+
+    await waitFor(() => {
+      expect(mockRename).toHaveBeenCalledWith({
+        actorId: 'https://llun.test/users/anna',
+        username: 'may',
+        password: 'secret'
+      })
+    })
+  })
+
+  it('asks for the current username on a passwordless account', async () => {
+    mockRename.mockResolvedValueOnce(handleState({ username: 'may' }))
+
+    render(
+      <HandleRenameForm
+        actorId="https://llun.test/users/anna"
+        hasPassword={false}
+        initialHandle={handleState()}
+      />
+    )
+
+    expect(screen.queryByLabelText('Password')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Current username')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('New handle'), {
+      target: { value: 'may' }
+    })
+    fireEvent.change(screen.getByLabelText('Current username'), {
+      target: { value: 'anna' }
+    })
+
+    await submit()
+
+    await waitFor(() => {
+      expect(mockRename).toHaveBeenCalledWith({
+        actorId: 'https://llun.test/users/anna',
+        username: 'may',
+        currentUsername: 'anna'
+      })
+    })
+  })
+
+  it('confirms before the rename is sent, and Cancel sends nothing', async () => {
+    render(
+      <HandleRenameForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        initialHandle={handleState()}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('New handle'), {
+      target: { value: 'may' }
+    })
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'secret' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Change handle' }))
+
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Change your handle'
+    })
+    expect(
+      within(dialog).getByText(/Your new handle will be/)
+    ).toBeInTheDocument()
+    expect(within(dialog).getByText('@may@llun.test')).toBeInTheDocument()
+    expect(mockRename).not.toHaveBeenCalled()
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+
+    expect(mockRename).not.toHaveBeenCalled()
+    expect(
+      screen.queryByRole('dialog', { name: 'Change your handle' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('maps "Username already exists" to the field error', async () => {
+    mockRename.mockRejectedValueOnce(
+      new client.ApiRequestError('Username already exists', 422)
+    )
+
+    render(
+      <HandleRenameForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        initialHandle={handleState()}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('New handle'), {
+      target: { value: 'taken' }
+    })
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'secret' }
+    })
+
+    await submit()
+
+    await waitFor(() => {
+      expect(screen.getByText('That username is taken')).toBeInTheDocument()
+    })
+    expect(screen.getByLabelText('New handle')).toHaveAccessibleDescription(
+      /That username is taken/
+    )
+  })
+
+  it('replaces the form with the date while the cooldown runs', () => {
+    render(
+      <HandleRenameForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        initialHandle={handleState({
+          cooldownUntil: '2026-11-23T00:00:00.000Z'
+        })}
+      />
+    )
+
+    expect(
+      screen.getByText(/You can change your handle again on/)
+    ).toBeInTheDocument()
+    expect(screen.getByText('23 Nov 2026')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Change handle' })).toBeDisabled()
+    expect(screen.queryByLabelText('New handle')).not.toBeInTheDocument()
+  })
+
+  it('picks the cooldown back up from a 429 and shows the date', async () => {
+    mockRename.mockRejectedValueOnce(
+      new client.ApiRequestError('Too many handle changes', 429)
+    )
+    mockGetAccountHandle.mockResolvedValueOnce(
+      handleState({ cooldownUntil: '2026-11-23T00:00:00.000Z' })
+    )
+
+    render(
+      <HandleRenameForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        initialHandle={handleState()}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('New handle'), {
+      target: { value: 'may' }
+    })
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'secret' }
+    })
+
+    await submit()
+
+    await waitFor(() => {
+      expect(mockGetAccountHandle).toHaveBeenCalledWith({
+        actorId: 'https://llun.test/users/anna'
+      })
+      expect(
+        screen.getByText(/You can change your handle again on/)
+      ).toBeInTheDocument()
+    })
+  })
+
+  it('shows the last change date once there is history', () => {
+    render(
+      <HandleRenameForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        initialHandle={handleState({
+          history: [
+            {
+              id: 'h2',
+              actorId: 'https://llun.test/users/anna',
+              username: 'anna',
+              domain: 'llun.test',
+              createdAt: 1700000000000,
+              replacedAt: null
+            },
+            {
+              id: 'h1',
+              actorId: 'https://llun.test/users/anna',
+              username: 'old',
+              domain: 'llun.test',
+              createdAt: 1600000000000,
+              replacedAt: 1700000000000
+            }
+          ]
+        })}
+      />
+    )
+
+    expect(screen.getByText(/Last changed:/)).toBeInTheDocument()
+    expect(screen.getByText('14 Nov 2023')).toBeInTheDocument()
+  })
+})

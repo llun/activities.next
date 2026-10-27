@@ -16,7 +16,9 @@ import Page from './page'
 const mockDatabase = {
   getFeaturedTags: vi.fn().mockResolvedValue([]),
   getActorSettings: vi.fn().mockResolvedValue(undefined),
-  getActorsForAccount: vi.fn().mockResolvedValue([])
+  getActorsForAccount: vi.fn().mockResolvedValue([]),
+  getActorFromId: vi.fn(),
+  getActorMigrations: vi.fn().mockResolvedValue([])
 }
 
 vi.mock('@/lib/config', () => ({
@@ -77,8 +79,12 @@ vi.mock('./ProfileHeaderImage', () => ({
   ProfileHeaderImage: () => <div data-testid="header-image" />
 }))
 
+const mockRelationshipActionsProps = vi.fn()
 vi.mock('./ProfileRelationshipActions', () => ({
-  ProfileRelationshipActions: () => <div data-testid="relationship-actions" />
+  ProfileRelationshipActions: (props: unknown) => {
+    mockRelationshipActionsProps(props)
+    return <div data-testid="relationship-actions" />
+  }
 }))
 
 vi.mock('@/lib/services/accounts/relationship', () => ({
@@ -776,5 +782,143 @@ describe('[actor] page avatar description', () => {
 
     expect(mockDatabase.getActorSettings).toHaveBeenCalledTimes(1) // the viewer's
     expect(screen.getByTestId('avatar-image')).toHaveAttribute('alt', '')
+  })
+})
+
+describe('[actor] page moved banner', () => {
+  const person = (movedTo: string | undefined) =>
+    ({
+      id: 'https://llun.social/users/main',
+      type: 'Person',
+      preferredUsername: 'main',
+      name: 'Main',
+      summary: '',
+      movedTo
+    }) as unknown as Actor
+
+  const profile = (p: Actor) => ({
+    person: p,
+    profileFields: [],
+    statuses: [],
+    statusesCount: 0,
+    statusPagination: { nextPageUrl: null, prevPageUrl: null },
+    attachments: [],
+    followingCount: 0,
+    followersCount: 0,
+    isInternalAccount: true,
+    hasFitnessData: false,
+    gallerySubviews: [],
+    isPixelfed: false
+  })
+
+  const viewer = {
+    id: 'https://llun.social/users/viewer',
+    account: { id: 'a' }
+  }
+
+  const renderPage = async () =>
+    render(
+      await Page({ params: Promise.resolve({ actor: '@main@llun.social' }) })
+    )
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetServerAuthSession.mockResolvedValue({
+      user: { email: 'viewer@llun.social' }
+    } as never)
+    mockGetActorFromSession.mockResolvedValue(viewer as never)
+    mockIsLocalFederationDomain.mockResolvedValue(true)
+    mockDatabase.getActorsForAccount.mockResolvedValue([])
+    mockDatabase.getActorSettings.mockResolvedValue(undefined)
+    mockDatabase.getActorFromId.mockResolvedValue({
+      id: 'https://new.example/users/may',
+      username: 'may',
+      domain: 'new.example'
+    })
+    mockDatabase.getActorMigrations.mockResolvedValue([])
+  })
+
+  it('renders the banner from the stored target, without fetching it', async () => {
+    mockGetProfileData.mockResolvedValue(
+      profile(person('https://new.example/users/may'))
+    )
+
+    await renderPage()
+
+    expect(mockDatabase.getActorFromId).toHaveBeenCalledWith({
+      id: 'https://new.example/users/may'
+    })
+    expect(screen.getByText('This profile has moved to')).toBeInTheDocument()
+    expect(screen.getByText('@may@new.example')).toBeInTheDocument()
+    const go = screen.getByRole('link', { name: /Go to new profile/ })
+    expect(go).toHaveAttribute('href', 'https://new.example/users/may')
+    expect(go).toHaveAttribute('target', '_blank')
+    // The badge beside the name says the profile moved.
+    expect(screen.getByText('moved')).toBeInTheDocument()
+    // A viewer never gets the owner's way in.
+    expect(
+      screen.queryByRole('link', { name: /Manage/ })
+    ).not.toBeInTheDocument()
+    // The follow button is told the profile moved.
+    expect(mockRelationshipActionsProps).toHaveBeenCalledWith(
+      expect.objectContaining({ targetMoved: true })
+    )
+  })
+
+  it('soft-links a target that lives on this server', async () => {
+    mockGetProfileData.mockResolvedValue(
+      profile(person('https://llun.social/users/may'))
+    )
+    mockDatabase.getActorFromId.mockResolvedValue({
+      id: 'https://llun.social/users/may',
+      username: 'may',
+      domain: 'llun.social',
+      account: { id: 'acct-2' }
+    })
+
+    await renderPage()
+
+    const go = screen.getByRole('link', { name: /Go to new profile/ })
+    expect(go).toHaveAttribute('href', '/@may@llun.social')
+    expect(go).not.toHaveAttribute('target')
+  })
+
+  it('gives the owner the Manage link and the redirect wording', async () => {
+    mockGetActorFromSession.mockResolvedValue({
+      ...viewer,
+      id: 'https://llun.social/users/main'
+    } as never)
+    mockGetProfileData.mockResolvedValue(
+      profile(person('https://new.example/users/may'))
+    )
+    mockDatabase.getActorMigrations.mockResolvedValue([
+      { targetActorId: 'https://new.example/users/may', kind: 'redirect' }
+    ])
+
+    await renderPage()
+
+    expect(screen.getByRole('link', { name: /Manage/ })).toHaveAttribute(
+      'href',
+      '/settings/moving'
+    )
+    expect(
+      screen.getByText(
+        'You are redirecting from this profile. Followers have not been moved.'
+      )
+    ).toBeInTheDocument()
+  })
+
+  it('draws no banner when the profile has not moved', async () => {
+    mockGetProfileData.mockResolvedValue(profile(person(undefined)))
+
+    await renderPage()
+
+    expect(
+      screen.queryByText('This profile has moved to')
+    ).not.toBeInTheDocument()
+    expect(mockDatabase.getActorFromId).not.toHaveBeenCalled()
+    expect(mockRelationshipActionsProps).toHaveBeenCalledWith(
+      expect.objectContaining({ targetMoved: false })
+    )
   })
 })

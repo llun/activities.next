@@ -1,4 +1,5 @@
 import {
+  ArrowRightLeft,
   ExternalLink,
   FileText,
   Info,
@@ -38,6 +39,7 @@ import { ActorTimelines } from './ActorTimelines'
 import { EditOwnedProfileButton } from './EditOwnedProfileButton'
 import { ProfileCover } from './ProfileCover'
 import { ProfileHeaderImage } from './ProfileHeaderImage'
+import { ProfileMovedBanner } from './ProfileMovedBanner'
 import { ProfileRelationshipActions } from './ProfileRelationshipActions'
 import { getProfileData } from './getProfileData'
 import { getNonLocalActorRedirectTarget } from './resolveActorRedirect'
@@ -192,6 +194,19 @@ const Page: FC<Props> = async ({ params }) => {
         })
       : null
 
+  // A profile that moved points at its new account. The target is resolved
+  // from the stored actor row only — never fetched — and the migration row
+  // for that target tells a cancellable redirect from a performed move. A
+  // pointer whose row is gone is a legacy move and reads as one.
+  const movedTarget = person.movedTo
+    ? await database.getActorFromId({ id: person.movedTo })
+    : null
+  const movedKind = movedTarget
+    ? ((await database.getActorMigrations({ actorId: person.id })).find(
+        (migration) => migration.targetActorId === person.movedTo
+      )?.kind ?? 'move')
+    : null
+
   // A local profile of the signed-in account that is not the active actor gets
   // "Edit profile" in place of the relationship actions: the button switches to
   // it first. Remote profiles and the active actor never read the account's
@@ -336,6 +351,19 @@ const Page: FC<Props> = async ({ params }) => {
     // layout's mobile navigation and render nothing there.
     <div className={cn('flex flex-col gap-6', isLoggedIn && 'md:pt-8')}>
       <MobileNavigationTrigger variant="floating" />
+      {movedTarget ? (
+        <ProfileMovedBanner
+          acct={`${movedTarget.username}@${movedTarget.domain}`}
+          href={
+            movedTarget.account
+              ? `/@${movedTarget.username}@${movedTarget.domain}`
+              : movedTarget.id
+          }
+          external={!movedTarget.account}
+          isOwner={isCurrentUser}
+          isRedirect={movedKind === 'redirect'}
+        />
+      ) : null}
       {/* The profile header is not a card: the cover, then the avatar, name,
           handle and bio on the page itself, then the counts as a stat strip
           whose cells open the lists. */}
@@ -367,6 +395,12 @@ const Page: FC<Props> = async ({ params }) => {
                   name={person.name || person.preferredUsername}
                   tags={getActorEmojiTags(person)}
                 />
+                {movedTarget ? (
+                  <span className="text-info-text bg-info-surface ml-2 inline-flex items-center gap-1 rounded-full border border-info/30 px-2 py-0.5 align-middle text-xs font-medium">
+                    <ArrowRightLeft className="size-3" aria-hidden="true" />
+                    moved
+                  </span>
+                ) : null}
               </h1>
               <p className="text-sm text-muted-foreground">
                 {/* `max-w-full` + a truncating, shrinkable handle: a handle
@@ -400,6 +434,7 @@ const Page: FC<Props> = async ({ params }) => {
                 targetHandle={`${person.preferredUsername}@${actorDomain}`}
                 isLoggedIn={isLoggedIn}
                 relationship={relationship}
+                targetMoved={Boolean(movedTarget)}
               />
             )}
           </div>
