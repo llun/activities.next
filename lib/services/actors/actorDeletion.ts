@@ -2,6 +2,7 @@ import { Database } from '@/lib/database/types'
 import { DELETE_ACTOR_JOB_NAME } from '@/lib/jobs/names'
 import { sweepExpiredAccountArchives } from '@/lib/services/accountArchive/expiry'
 import { sweepStuckAccountArchives } from '@/lib/services/accountArchive/reaper'
+import { sweepStuckAccountImports } from '@/lib/services/accountImport/reaper'
 import { getQueue } from '@/lib/services/queue'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
@@ -194,6 +195,12 @@ export const startActorDeletionSweep = (
         err: toLoggableError(error)
       })
     }
+    await sweepStuckAccountImports(
+      database,
+      Date.now(),
+      (message) => getQueue().publish(message),
+      getQueue().runsInline
+    )
     schedule(intervalMs)
   }
 

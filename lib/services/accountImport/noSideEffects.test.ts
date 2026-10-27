@@ -18,6 +18,7 @@ const forbiddenPatterns: [string, RegExp][] = [
     /\b(?:SEND_NOTE_JOB_NAME|SEND_QUOTE_REQUEST_JOB_NAME|LIKE_JOB_NAME|FETCH_LINK_PREVIEW_JOB_NAME|SendNoteJob|SendQuoteRequestJob|LikeJob|FetchLinkPreviewJob)\b/
   ],
   ['fetch', /\bfetch\b/],
+  ['importRow', /\bimportRow\b/],
   [
     'HTTP module',
     /(?:from\s*|import\s*\(|require\s*\()\s*['"](?:node:)?(?:http|https|undici)(?:\/[^'"]*)?['"]|\bhttps?\.(?:request|get|Agent)\b|\bundici\b/
@@ -29,9 +30,25 @@ const forbiddenPatterns: [string, RegExp][] = [
   ['queue access or publish', /\bgetQueue\b|\.publish\s*\(|\bcreateQueueJob\b/]
 ]
 
+const stripAllowedBookmarkImportRow = (source: string) =>
+  source
+    // The sole allowed importRow use is the bookmarks CSV importer path.
+    .replace(
+      /\/\/ Allowed side effect: bookmarks use the same importRow path as a bookmarks CSV row\.\s*const result = await importRow\(\{\s*database: context\.database,\s*actor,\s*type: 'bookmarks',\s*data: \{ uri: item\.sourceId \}\s*\}\)/m,
+      ''
+    )
+    .replace(
+      /import \{ importRow \} from '@\/lib\/services\/imports\/importRow'/g,
+      ''
+    )
+
 const findViolations = (source: string) =>
   forbiddenPatterns.flatMap(([name, pattern]) =>
-    pattern.test(source) ? [name] : []
+    pattern.test(
+      name === 'importRow' ? stripAllowedBookmarkImportRow(source) : source
+    )
+      ? [name]
+      : []
   )
 
 const sourceFilesUnder = async (root: string): Promise<string[]> => {
@@ -84,5 +101,22 @@ describe('account importer side-effect boundary', () => {
         'queue access or publish'
       ])
     )
+  })
+
+  it('rejects importRow outside the one documented bookmarks path', () => {
+    expect(findViolations("await importRow({ type: 'following' })")).toEqual([
+      'importRow'
+    ])
+    expect(
+      findViolations(`
+        // Allowed side effect: bookmarks use the same importRow path as a bookmarks CSV row.
+        const result = await importRow({
+          database: context.database,
+          actor,
+          type: 'bookmarks',
+          data: { uri: item.sourceId }
+        })
+      `)
+    ).toEqual([])
   })
 })

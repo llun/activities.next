@@ -48,6 +48,7 @@ export interface AccountImportItem {
   kind: string
   sourceId: string
   position: number
+  data: string | null
   state: 'pending' | 'done' | 'skipped' | 'failed'
   reason: string | null
   targetId: string | null

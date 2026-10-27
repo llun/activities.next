@@ -19,6 +19,7 @@ import type {
   ClaimAccountImportRunResult,
   CreateAccountImportParams,
   GetAccountImportItemsParams,
+  GetStaleAccountImportsParams,
   ListAccountImportsParams,
   MarkAccountImportItemParams,
   ReleaseAccountImportRunParams,
@@ -108,6 +109,28 @@ export const getActiveAccountImport = async (
   return row ? toImport(row) : null
 }
 
+export const getStaleAccountImports = async (
+  db: Db,
+  params: GetStaleAccountImportsParams
+): Promise<AccountImport[]> => {
+  let query = db
+    .selectFrom('account_imports')
+    .selectAll()
+    .where('status', '=', 'running')
+    .where('updatedAt', '<=', timestampValue(params.before))
+    .where((eb) =>
+      eb.or([
+        eb('claimedUntil', 'is', null),
+        eb('claimedUntil', '<=', timestampValue(params.now))
+      ])
+    )
+  if (params.afterId !== undefined) {
+    query = query.where('id', '>', params.afterId)
+  }
+  const rows = await query.orderBy('id', 'asc').limit(params.limit).execute()
+  return rows.map(toImport)
+}
+
 export const listAccountImports = async (
   db: Db,
   params: ListAccountImportsParams
@@ -131,9 +154,22 @@ export const countAccountImportStartsSince = async (
     .selectFrom('account_imports')
     .select((eb) => eb.fn.countAll<number>().as('count'))
     .where('actorId', '=', params.actorId)
-    .where('createdAt', '>=', timestampValue(params.since))
+    .where('startedAt', '>=', timestampValue(params.since))
     .executeTakeFirstOrThrow()
   return Number(count)
+}
+
+export const getOldestAccountImportStartSince = async (
+  db: Db,
+  params: { actorId: string; since: number }
+): Promise<number | null> => {
+  const { oldestStartedAt } = await db
+    .selectFrom('account_imports')
+    .select((eb) => eb.fn.min('startedAt').as('oldestStartedAt'))
+    .where('actorId', '=', params.actorId)
+    .where('startedAt', '>=', timestampValue(params.since))
+    .executeTakeFirstOrThrow()
+  return oldestStartedAt === null ? null : new Date(oldestStartedAt).getTime()
 }
 
 export const updateAccountImport = async (
@@ -160,15 +196,31 @@ export const updateAccountImport = async (
   if (params.startedAt !== undefined) values.startedAt = params.startedAt
   if (params.finishedAt !== undefined) values.finishedAt = params.finishedAt
 
-  let query = db
-    .updateTable('account_imports')
-    .set(values)
-    .where('id', '=', params.id)
-  if (params.onlyIfStatus) {
-    query = query.where('status', 'in', params.onlyIfStatus)
+  const terminal =
+    params.status === 'done' ||
+    params.status === 'failed' ||
+    params.status === 'cancelled'
+  const update = async (connection: Db) => {
+    let query = connection
+      .updateTable('account_imports')
+      .set(values)
+      .where('id', '=', params.id)
+    if (params.onlyIfStatus) {
+      query = query.where('status', 'in', params.onlyIfStatus)
+    }
+    const result = await query.executeTakeFirst()
+    if (Number(result.numUpdatedRows) === 0) return false
+    if (terminal) {
+      await connection
+        .updateTable('account_import_items')
+        .set({ data: null })
+        .where('importId', '=', params.id)
+        .execute()
+    }
+    return true
   }
-  const result = await query.executeTakeFirst()
-  return Number(result.numUpdatedRows) > 0
+
+  return terminal ? inTransaction(db, update) : update(db)
 }
 
 // The lease is computed and compared with the app server's clock, not the
@@ -240,9 +292,9 @@ export const releaseAccountImportRun = async (
     .execute()
 }
 
-// The item id is a deterministic function of the import and the source key, so
-// a re-run that inserts the same items again lands on the unique key
-// (actorId, kind, sourceId) and is ignored, not duplicated.
+// The item id is a deterministic function of the import and the source key.
+// The actor-wide source key reuses completed items and lets pending or failed
+// items move to the new import without creating duplicates.
 export const getAccountImportItemId = (
   importId: string,
   kind: string,
@@ -254,19 +306,41 @@ export const upsertAccountImportItems = async (
   params: UpsertAccountImportItemsParams
 ): Promise<void> => {
   if (params.items.length === 0) return
+  const items = [
+    ...new Map(
+      params.items.map((item) => [
+        JSON.stringify([item.kind, item.sourceId]),
+        item
+      ])
+    ).values()
+  ]
   await db
     .insertInto('account_import_items')
     .values(
-      params.items.map((item) => ({
+      items.map((item) => ({
         id: getAccountImportItemId(params.importId, item.kind, item.sourceId),
         importId: params.importId,
         actorId: params.actorId,
         kind: item.kind,
         sourceId: item.sourceId,
-        position: item.position
+        position: item.position,
+        data: item.data ?? null
       }))
     )
-    .onConflict((oc) => oc.columns(['actorId', 'kind', 'sourceId']).doNothing())
+    .onConflict((oc) =>
+      oc
+        .columns(['actorId', 'kind', 'sourceId'])
+        .doUpdateSet((eb) => ({
+          importId: eb.ref('excluded.importId'),
+          position: eb.ref('excluded.position'),
+          data: eb.ref('excluded.data'),
+          state: 'pending',
+          reason: null,
+          targetId: null,
+          updatedAt: eb.ref('excluded.updatedAt')
+        }))
+        .where('account_import_items.state', 'in', ['pending', 'failed'])
+    )
     .execute()
 }
 
@@ -294,6 +368,13 @@ export const markAccountImportItem = async (
     state: params.state,
     updatedAt: new Date()
   }
+  if (
+    params.state === 'done' ||
+    params.state === 'skipped' ||
+    (params.state === 'failed' && !params.retryable)
+  ) {
+    values.data = null
+  }
   if (params.reason !== undefined) values.reason = params.reason
   if (params.targetId !== undefined) values.targetId = params.targetId
   const result = await db
@@ -314,6 +395,7 @@ export const resetRetryableAccountImportItems = async (
     .where('importId', '=', params.importId)
     .where('state', '=', 'failed')
     .where('reason', 'in', params.reasons)
+    .where('data', 'is not', null)
     .executeTakeFirst()
   return Number(result.numUpdatedRows)
 }
@@ -346,8 +428,10 @@ export const accountImportQueries = {
   createAccountImport,
   getAccountImport,
   getActiveAccountImport,
+  getStaleAccountImports,
   listAccountImports,
   countAccountImportStartsSince,
+  getOldestAccountImportStartSince,
   updateAccountImport,
   claimAccountImportRun,
   renewAccountImportRun,

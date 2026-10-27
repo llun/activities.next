@@ -237,8 +237,8 @@ describe('account import queries', () => {
       importId: 'import-retry',
       actorId: 'actor-1',
       items: [
-        { kind: 'status', sourceId: 'r1', position: 0 },
-        { kind: 'status', sourceId: 'r2', position: 1 }
+        { kind: 'status', sourceId: 'r1', position: 0, data: '{"v":1}' },
+        { kind: 'status', sourceId: 'r2', position: 1, data: '{"v":2}' }
       ]
     })
     await database.markAccountImportItem({
@@ -249,7 +249,8 @@ describe('account import queries', () => {
         })
       )[0].id,
       state: 'failed',
-      reason: 'transient'
+      reason: 'transient',
+      retryable: true
     })
     expect(
       await database.resetRetryableAccountImportItems({
@@ -263,6 +264,14 @@ describe('account import queries', () => {
         reasons: ['transient']
       })
     ).toBe(0)
+    expect(
+      (
+        await database.getAccountImportItems({
+          importId: 'import-retry',
+          limit: 10
+        })
+      )[0].data
+    ).toBe('{"v":1}')
   })
 
   it('deletes every import of an actor', async () => {
@@ -279,17 +288,445 @@ describe('account import queries', () => {
   })
 
   it('counts starts since a point in time', async () => {
-    await database.createAccountImport({
+    const started = await database.createAccountImport({
       id: 'import-count',
       accountId,
       actorId: 'actor-count',
       options: '{}'
     })
+    await testDb.db
+      .updateTable('account_imports')
+      .set({ startedAt: new Date() })
+      .where('id', '=', started.id)
+      .execute()
     expect(
       await database.countAccountImportStartsSince({
         actorId: 'actor-count',
         since: 0
       })
     ).toBeGreaterThanOrEqual(1)
+  })
+
+  it('counts starts by startedAt and ignores recent uploads that never started', async () => {
+    const now = Date.now()
+    const since = now - 24 * 60 * 60 * 1000
+    const unstarted = await database.createAccountImport({
+      id: 'import-unstarted-count',
+      accountId,
+      actorId: 'actor-unstarted-count',
+      options: '{}'
+    })
+    const started = await database.createAccountImport({
+      id: 'import-started-count',
+      accountId,
+      actorId: 'actor-started-count',
+      options: '{}'
+    })
+    await database.updateAccountImport({
+      id: started.id,
+      status: 'done'
+    })
+    await testDb.db
+      .updateTable('account_imports')
+      .set({
+        createdAt: new Date(since - 1000),
+        startedAt: new Date(since + 1000)
+      })
+      .where('id', '=', started.id)
+      .execute()
+
+    expect(
+      await database.countAccountImportStartsSince({
+        actorId: unstarted.actorId,
+        since
+      })
+    ).toBe(0)
+    expect(
+      await database.countAccountImportStartsSince({
+        actorId: started.actorId,
+        since
+      })
+    ).toBe(1)
+  })
+
+  it('returns the oldest start in the window for retry timing', async () => {
+    const now = Date.now()
+    const since = now - 24 * 60 * 60 * 1000
+    const accountImport = await database.createAccountImport({
+      id: 'import-oldest-start',
+      accountId,
+      actorId: 'actor-oldest-start',
+      options: '{}'
+    })
+    await testDb.db
+      .updateTable('account_imports')
+      .set({ startedAt: new Date(since + 10_000) })
+      .where('id', '=', accountImport.id)
+      .execute()
+
+    expect(
+      await database.getOldestAccountImportStartSince({
+        actorId: accountImport.actorId,
+        since
+      })
+    ).toBe(since + 10_000)
+    expect(
+      await database.getOldestAccountImportStartSince({
+        actorId: 'actor-without-starts',
+        since
+      })
+    ).toBeNull()
+  })
+
+  it('counts all started imports without a scan cap', async () => {
+    const now = Date.now()
+    const since = now - 24 * 60 * 60 * 1000
+    const count = 1005
+    const rows = Array.from({ length: count }, (_, index) => ({
+      id: `import-start-count-${index}`,
+      accountId,
+      actorId: 'actor-start-count-many',
+      status: 'done',
+      options: '{}',
+      storageToken: `token-${index}`,
+      createdAt: new Date(since - 1000),
+      startedAt: new Date(since + 1000),
+      updatedAt: new Date(since - 1000)
+    }))
+    for (let offset = 0; offset < rows.length; offset += 40) {
+      await testDb.db
+        .insertInto('account_imports')
+        .values(rows.slice(offset, offset + 40))
+        .execute()
+    }
+
+    expect(
+      await database.countAccountImportStartsSince({
+        actorId: 'actor-start-count-many',
+        since
+      })
+    ).toBe(count)
+  })
+
+  it('selects stale running imports with expired leases across actors', async () => {
+    const now = Date.now()
+    const before = now - 60 * 60 * 1000
+    const stale = await database.createAccountImport({
+      id: 'import-stale-query',
+      accountId,
+      actorId: 'actor-stale-query',
+      options: '{}'
+    })
+    await database.updateAccountImport({
+      id: stale.id,
+      status: 'running',
+      claimedUntil: now - 1000
+    })
+    await testDb.db
+      .updateTable('account_imports')
+      .set({ updatedAt: new Date(before - 1000) })
+      .where('id', '=', stale.id)
+      .execute()
+
+    const leased = await database.createAccountImport({
+      id: 'import-live-lease-query',
+      accountId,
+      actorId: 'actor-live-lease-query',
+      options: '{}'
+    })
+    await database.updateAccountImport({
+      id: leased.id,
+      status: 'running',
+      claimedUntil: now + 60_000
+    })
+    await testDb.db
+      .updateTable('account_imports')
+      .set({ updatedAt: new Date(before - 1000) })
+      .where('id', '=', leased.id)
+      .execute()
+
+    const fresh = await database.createAccountImport({
+      id: 'import-fresh-query',
+      accountId,
+      actorId: 'actor-fresh-query',
+      options: '{}'
+    })
+    await database.updateAccountImport({ id: fresh.id, status: 'running' })
+
+    const found = await database.getStaleAccountImports({
+      now,
+      before,
+      limit: 100
+    })
+    expect(found.map((row) => row.id)).toEqual([stale.id])
+  })
+
+  it('clears cataloged item data when an item becomes done, skipped, or permanently failed', async () => {
+    const accountImport = await database.createAccountImport({
+      id: 'import-clear-data',
+      accountId,
+      actorId: 'actor-clear-data',
+      options: '{}'
+    })
+    await database.upsertAccountImportItems({
+      importId: accountImport.id,
+      actorId: accountImport.actorId,
+      items: [
+        { kind: 'status', sourceId: 'done-data', position: 1 },
+        { kind: 'status', sourceId: 'skipped-data', position: 2 },
+        { kind: 'status', sourceId: 'failed-data', position: 3 }
+      ]
+    })
+    const items = await database.getAccountImportItems({
+      importId: accountImport.id,
+      limit: 10
+    })
+    for (const item of items) {
+      await testDb.db
+        .updateTable('account_import_items')
+        .set({ data: '{"raw":true}' })
+        .where('id', '=', item.id)
+        .execute()
+      await database.markAccountImportItem({
+        id: item.id,
+        state:
+          item.sourceId === 'done-data'
+            ? 'done'
+            : item.sourceId === 'skipped-data'
+              ? 'skipped'
+              : 'failed',
+        ...(item.sourceId === 'failed-data' ? { reason: 'invalid' } : {})
+      })
+    }
+    expect(
+      await database.resetRetryableAccountImportItems({
+        importId: accountImport.id,
+        reasons: ['invalid']
+      })
+    ).toBe(0)
+
+    expect(
+      (
+        await database.getAccountImportItems({
+          importId: accountImport.id,
+          limit: 10
+        })
+      ).map((item) => item.data)
+    ).toEqual([null, null, null])
+  })
+
+  it.each(['done', 'cancelled', 'failed'] as const)(
+    'clears all remaining item data when an import becomes %s',
+    async (status) => {
+      const accountImport = await database.createAccountImport({
+        id: `import-terminal-${status}`,
+        accountId,
+        actorId: `actor-terminal-${status}`,
+        options: '{}'
+      })
+      await database.upsertAccountImportItems({
+        importId: accountImport.id,
+        actorId: accountImport.actorId,
+        items: [
+          {
+            kind: 'status',
+            sourceId: `pending-${status}`,
+            position: 1,
+            data: '{"raw":"pending"}'
+          },
+          {
+            kind: 'like',
+            sourceId: `failed-${status}`,
+            position: 2,
+            data: '{"raw":"failed"}'
+          }
+        ]
+      })
+      const failedItem = (
+        await database.getAccountImportItems({
+          importId: accountImport.id,
+          limit: 10
+        })
+      )[1]
+      await database.markAccountImportItem({
+        id: failedItem.id,
+        state: 'failed',
+        reason: 'transient',
+        retryable: true
+      })
+
+      await database.updateAccountImport({ id: accountImport.id, status })
+
+      expect(
+        (
+          await database.getAccountImportItems({
+            importId: accountImport.id,
+            limit: 10
+          })
+        ).map((item) => item.data)
+      ).toEqual([null, null])
+    }
+  )
+
+  it('reclaims pending and failed items while preserving terminal items', async () => {
+    const previous = await database.createAccountImport({
+      id: 'import-reclaim-previous',
+      accountId,
+      actorId: 'actor-reclaim',
+      options: '{}'
+    })
+    await database.upsertAccountImportItems({
+      importId: previous.id,
+      actorId: previous.actorId,
+      items: [
+        {
+          kind: 'status',
+          sourceId: 'pending-source',
+          position: 1,
+          data: '{"v":1}'
+        },
+        {
+          kind: 'status',
+          sourceId: 'failed-source',
+          position: 2,
+          data: '{"v":2}'
+        },
+        {
+          kind: 'status',
+          sourceId: 'done-source',
+          position: 3,
+          data: '{"v":3}'
+        },
+        {
+          kind: 'status',
+          sourceId: 'skipped-source',
+          position: 4,
+          data: '{"v":4}'
+        }
+      ]
+    })
+    const previousItems = await database.getAccountImportItems({
+      importId: previous.id,
+      limit: 10
+    })
+    for (const [sourceId, state] of [
+      ['failed-source', 'failed'],
+      ['done-source', 'done'],
+      ['skipped-source', 'skipped']
+    ] as const) {
+      await database.markAccountImportItem({
+        id: previousItems.find((item) => item.sourceId === sourceId)!.id,
+        state,
+        ...(state === 'failed' ? { retryable: true } : {}),
+        reason: state === 'failed' ? 'transient' : undefined,
+        targetId: state === 'done' ? 'target-done' : undefined
+      })
+    }
+    const doneBefore = (
+      await database.getAccountImportItems({
+        importId: previous.id,
+        limit: 10
+      })
+    ).find((item) => item.sourceId === 'done-source')
+    const skippedBefore = (
+      await database.getAccountImportItems({
+        importId: previous.id,
+        limit: 10
+      })
+    ).find((item) => item.sourceId === 'skipped-source')
+    expect(doneBefore?.data).toBeNull()
+    expect(skippedBefore?.data).toBeNull()
+
+    await database.updateAccountImport({
+      id: previous.id,
+      status: 'cancelled'
+    })
+    const next = await database.createAccountImport({
+      id: 'import-reclaim-next',
+      accountId,
+      actorId: previous.actorId,
+      options: '{}'
+    })
+    await database.upsertAccountImportItems({
+      importId: next.id,
+      actorId: next.actorId,
+      items: [
+        {
+          kind: 'status',
+          sourceId: 'pending-source',
+          position: 11,
+          data: '{"v":11}'
+        },
+        {
+          kind: 'status',
+          sourceId: 'failed-source',
+          position: 12,
+          data: '{"v":12}'
+        },
+        {
+          kind: 'status',
+          sourceId: 'done-source',
+          position: 13,
+          data: '{"v":13}'
+        },
+        {
+          kind: 'status',
+          sourceId: 'skipped-source',
+          position: 14,
+          data: '{"v":14}'
+        }
+      ]
+    })
+
+    const oldItems = await database.getAccountImportItems({
+      importId: previous.id,
+      limit: 10
+    })
+    expect(oldItems.map((item) => item.sourceId).sort()).toEqual([
+      'done-source',
+      'skipped-source'
+    ])
+    expect(
+      oldItems.find((item) => item.sourceId === 'done-source')
+    ).toMatchObject({
+      state: 'done',
+      position: 3,
+      targetId: 'target-done',
+      data: null
+    })
+    expect(
+      oldItems.find((item) => item.sourceId === 'skipped-source')
+    ).toMatchObject({
+      state: 'skipped',
+      position: 4,
+      data: null
+    })
+    const newItems = await database.getAccountImportItems({
+      importId: next.id,
+      limit: 10
+    })
+    expect(newItems.map((item) => item.sourceId).sort()).toEqual([
+      'failed-source',
+      'pending-source'
+    ])
+    expect(newItems).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          sourceId: 'pending-source',
+          state: 'pending',
+          position: 11,
+          data: '{"v":11}',
+          reason: null
+        }),
+        expect.objectContaining({
+          sourceId: 'failed-source',
+          state: 'pending',
+          position: 12,
+          data: '{"v":12}',
+          reason: null,
+          targetId: null
+        })
+      ])
+    )
   })
 })

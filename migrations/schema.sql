@@ -34,6 +34,7 @@ CREATE TABLE public.account_import_items (
     kind character varying(64) NOT NULL,
     "sourceId" character varying(512) NOT NULL,
     "position" integer NOT NULL,
+    data text,
     state character varying(16) DEFAULT 'pending'::character varying NOT NULL,
     reason text,
     "targetId" character varying(255),
@@ -2103,6 +2104,8 @@ CREATE INDEX account_import_items_import_state_position_idx ON public.account_im
 CREATE UNIQUE INDEX account_imports_actor_active_idx ON public.account_imports USING btree ("actorId") WHERE (((status)::text = 'queued'::text) OR ((status)::text = 'running'::text));
 
 CREATE INDEX account_imports_actor_created_idx ON public.account_imports USING btree ("actorId", "createdAt");
+
+CREATE INDEX account_imports_actor_started_idx ON public.account_imports USING btree ("actorId", "startedAt");
 
 CREATE INDEX "account_providers_accountId_provider_providerId_idx" ON public.account_providers USING btree ("accountId", provider, "providerId");
 
