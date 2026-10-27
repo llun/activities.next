@@ -110,8 +110,9 @@ export const GalleryAlbumPickerTile: FC<Props> = ({
           // The anchor is a solid foreground ring offset outside the tile;
           // the keyboard focus outline is a dashed foreground outline
           // further out, so the two never look alike; a focused tile is
-          // raised so the next tile can't paint over its outline.
-          'focus-visible:outline-foreground bg-muted/20 relative block aspect-square w-full cursor-pointer scroll-mt-12 overflow-hidden rounded-md focus-visible:outline-dashed focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:z-1 disabled:cursor-not-allowed aria-disabled:cursor-not-allowed',
+          // raised so the next tile can't paint over its outline. Phones
+          // clear the taller two-row selecting day header.
+          'focus-visible:outline-foreground bg-muted/20 relative block aspect-square w-full cursor-pointer scroll-mt-12 max-sm:scroll-mt-20 overflow-hidden rounded-md focus-visible:outline-dashed focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:z-1 disabled:cursor-not-allowed aria-disabled:cursor-not-allowed',
           isMember
             ? 'disabled:opacity-60 aria-disabled:opacity-60'
             : 'disabled:opacity-40 aria-disabled:opacity-40',

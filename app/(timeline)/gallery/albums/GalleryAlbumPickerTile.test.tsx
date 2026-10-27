@@ -431,6 +431,8 @@ describe('GalleryAlbumPickerTile', () => {
     expect(button).toHaveAttribute('data-grid-index', '3')
     expect(button).toHaveAttribute('tabindex', '0')
     expect(button).toHaveClass('scroll-mt-12')
+    // Phones clear the taller two-row selecting day header.
+    expect(button).toHaveClass('max-sm:scroll-mt-20')
     fireEvent.focus(button)
     expect(onFocus).toHaveBeenCalledTimes(1)
   })

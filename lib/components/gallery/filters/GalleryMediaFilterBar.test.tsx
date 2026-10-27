@@ -669,6 +669,39 @@ describe('GalleryMediaFilterBar', () => {
         order: ['place']
       })
     })
+
+    it('caps a long active chip at the row width, truncating its label while the ✕ stays', () => {
+      render(
+        <GalleryMediaFilterBar
+          idPrefix="test"
+          filters={{
+            ...EMPTY_GALLERY_FILTERS,
+            date: {
+              kind: 'custom',
+              from: '2025-10-04',
+              to: '2025-10-12',
+              label: 'Album dates · 4–12 Oct 2025'
+            },
+            order: ['date']
+          }}
+          onChange={vi.fn()}
+          facets={mockFacets}
+          total={10}
+        />
+      )
+
+      const mobile = screen.getByTestId('test-mobile-filters')
+      const label = within(mobile).getByText('Album dates · 4–12 Oct 2025')
+      const chip = label.parentElement
+      expect(chip).not.toBeNull()
+      expect(chip).toHaveClass('max-w-full')
+      expect(label).toHaveClass('min-w-0', 'truncate')
+
+      const clearButton = within(chip as HTMLElement).getByRole('button', {
+        name: 'Clear Album dates · 4–12 Oct 2025 filter'
+      })
+      expect(clearButton).toHaveClass('shrink-0')
+    })
   })
 
   describe('Count line', () => {
@@ -735,6 +768,27 @@ describe('GalleryMediaFilterBar', () => {
       fireEvent.click(clearButton)
 
       expect(onChange).toHaveBeenCalledWith(EMPTY_GALLERY_FILTERS)
+    })
+
+    it('wraps so Clear filters is never cut at the right edge', () => {
+      render(
+        <GalleryMediaFilterBar
+          idPrefix="test"
+          filters={{
+            ...EMPTY_GALLERY_FILTERS,
+            species: 'name:Red Fox',
+            order: ['species']
+          }}
+          onChange={vi.fn()}
+          facets={mockFacets}
+          total={19}
+          inAlbumTotal={4}
+        />
+      )
+
+      const countLine = screen.getByTestId('test-count-line')
+      expect(countLine).toHaveClass('flex-wrap', 'gap-2')
+      expect(within(countLine).getByText('Clear filters')).toBeInTheDocument()
     })
   })
 })

@@ -95,52 +95,88 @@ export const GalleryDayHeader: FC<GalleryDayHeaderProps> = ({
   // The busy label follows the pending action, so a Deselect day read
   // never says "Selecting…" on a button named "Deselect day, <date>".
   const busyLabel = action?.kind === 'deselect' ? 'Deselecting…' : 'Selecting…'
+  // The two-row phone layout exists to give the Select day button its
+  // own corner; without one, phones keep the single flex row.
+  const twoRow = action !== null
 
   return (
+    // With an action, phones lay out in two grid rows — the heading and
+    // the Select day button on row 1, the meta line and the activity
+    // chip on row 2 — so the button can never be pushed past the row's
+    // right edge. At sm and up the single flex row renders as before.
     <div
-      className={cn('sticky z-10 flex items-center gap-2 py-1.5', className)}
+      className={cn(
+        'sticky z-10 py-1.5',
+        twoRow
+          ? 'max-sm:grid max-sm:grid-cols-[minmax(0,1fr)_auto] max-sm:items-center max-sm:gap-x-2 max-sm:gap-y-1'
+          : 'flex items-center gap-2',
+        'sm:flex sm:items-center sm:gap-2',
+        className
+      )}
     >
-      <Heading className="text-sm font-semibold shrink-0">
+      <Heading
+        className={cn(
+          'text-sm font-semibold shrink-0',
+          twoRow && 'max-sm:min-w-0 max-sm:truncate'
+        )}
+      >
         <span className="max-sm:hidden">{formatDayHeading(dayKey)}</span>
         <span className="sm:hidden">
           {formatDayHeading(dayKey, { short: true })}
         </span>
       </Heading>
-      <p className="text-muted-foreground max-sm:shrink-0 min-w-0 text-xs sm:truncate">
-        <span className="max-sm:hidden">{formatDayMeta(meta)}</span>
-        <span className="sm:hidden whitespace-nowrap">
-          {formatDayMeta({ ...meta, placeName: null, short: true })}
-        </span>
-      </p>
-      {activity && activityTitle ? (
-        <>
-          <span className="hidden items-center rounded-full border px-2 py-0.5 text-xs whitespace-nowrap sm:inline-flex">
-            {activityEmoji ? (
-              <span aria-hidden="true">{activityEmoji} </span>
-            ) : null}
-            {activityTitle}
+      {/* Row 2 below sm when there is an action; `contents` keeps the
+          one-row layout's flat structure everywhere else. The meta line
+          may wrap, and pieces that cannot wrap truncate through
+          min-w-0. */}
+      <div
+        className={
+          twoRow
+            ? 'max-sm:col-span-2 max-sm:row-start-2 max-sm:flex max-sm:min-w-0 max-sm:flex-wrap max-sm:items-center max-sm:gap-2 sm:contents'
+            : 'contents'
+        }
+      >
+        <p
+          className={cn(
+            'text-muted-foreground min-w-0 text-xs',
+            twoRow ? 'truncate' : 'max-sm:shrink-0 sm:truncate'
+          )}
+        >
+          <span className="max-sm:hidden">{formatDayMeta(meta)}</span>
+          <span className="sm:hidden whitespace-nowrap">
+            {formatDayMeta({ ...meta, placeName: null, short: true })}
           </span>
-          {/* Phones show the emoji and the title (activity name and
-              distance) like the wider chip, truncating first so the
-              count · picked meta is never cut off. */}
-          <span className="inline-block min-w-0 truncate rounded-full border px-2 py-0.5 text-xs sm:hidden">
-            {activityEmoji ? (
-              <>
+        </p>
+        {activity && activityTitle ? (
+          <>
+            <span className="hidden items-center rounded-full border px-2 py-0.5 text-xs whitespace-nowrap sm:inline-flex">
+              {activityEmoji ? (
                 <span aria-hidden="true">{activityEmoji} </span>
-                {activityTitle}
-              </>
-            ) : (
-              activityTitle
-            )}
-          </span>
-        </>
-      ) : null}
+              ) : null}
+              {activityTitle}
+            </span>
+            {/* Phones show the emoji and the title (activity name and
+              distance) like the wider chip, truncating via min-w-0
+              when the row cannot fit them. */}
+            <span className="inline-block min-w-0 truncate rounded-full border px-2 py-0.5 text-xs sm:hidden">
+              {activityEmoji ? (
+                <>
+                  <span aria-hidden="true">{activityEmoji} </span>
+                  {activityTitle}
+                </>
+              ) : (
+                activityTitle
+              )}
+            </span>
+          </>
+        ) : null}
+      </div>
       {action ? (
         <Button
           type="button"
           size="sm"
           variant="outline"
-          className="pointer-coarse:h-10 ml-auto shrink-0 aria-disabled:pointer-events-none aria-disabled:opacity-50"
+          className="pointer-coarse:h-10 ml-auto shrink-0 max-sm:col-start-2 max-sm:row-start-1 aria-disabled:pointer-events-none aria-disabled:opacity-50"
           disabled={disabled}
           aria-disabled={action.disabled || busyKey !== null || undefined}
           aria-label={`${action.label}, ${formatDayHeading(dayKey)}`}
