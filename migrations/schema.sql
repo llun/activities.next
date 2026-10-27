@@ -51,6 +51,7 @@ CREATE TABLE public.account_imports (
     options text DEFAULT '{}'::text NOT NULL,
     "storageToken" character varying(64) NOT NULL,
     "uploadedBytes" bigint DEFAULT 0 NOT NULL,
+    "archiveETag" text,
     progress text,
     phase character varying(64),
     cursor text,

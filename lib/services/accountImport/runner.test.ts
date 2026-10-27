@@ -1,19 +1,37 @@
+import {
+  GetObjectCommand,
+  HeadObjectCommand,
+  type S3Client
+} from '@aws-sdk/client-s3'
+
+import { MediaStorageType } from '@/lib/config/mediaStorage'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import { S3ArchiveObjectStore } from '@/lib/services/accountArchive/objectStore'
 import {
   ACCOUNT_IMPORT_MAX_STUCK_MS,
   ACCOUNT_IMPORT_STUCK_AFTER_MS
 } from '@/lib/services/accountImport/constants'
-import { getAccountImportObjectStore } from '@/lib/services/accountImport/objectStore'
+import {
+  createAccountImportObjectStore,
+  getAccountImportObjectStore
+} from '@/lib/services/accountImport/objectStore'
 import type { AccountImportObjectStore } from '@/lib/services/accountImport/objectStore'
-import { runStatusesPhase } from '@/lib/services/accountImport/phases'
+import {
+  inspectAccountArchive,
+  runStatusesPhase
+} from '@/lib/services/accountImport/phases'
 import { sweepStuckAccountImports } from '@/lib/services/accountImport/reaper'
 import { runAccountImport } from '@/lib/services/accountImport/runner'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 
-vi.mock('@/lib/services/accountImport/objectStore', () => ({
-  getAccountImportObjectStore: vi.fn()
-}))
+vi.mock('@/lib/services/accountImport/objectStore', async (importOriginal) => {
+  const original =
+    await importOriginal<
+      typeof import('@/lib/services/accountImport/objectStore')
+    >()
+  return { ...original, getAccountImportObjectStore: vi.fn() }
+})
 
 vi.mock('@/lib/services/accountImport/phases', () => ({
   inspectAccountArchive: vi.fn(),
@@ -72,6 +90,7 @@ describe('account import runner payload cleanup', () => {
         progress,
         cursor
       }))
+    vi.mocked(inspectAccountArchive).mockReset()
   })
 
   const createImportWithItem = async (id: string) => {
@@ -295,5 +314,77 @@ describe('account import runner payload cleanup', () => {
     expect(deleteUpload).toHaveBeenCalledWith(
       expect.objectContaining({ id: accountImport.id })
     )
+  })
+
+  it('fails an import as archive_changed when S3 rejects its pinned ETag', async () => {
+    const archive = Buffer.from('archive-bytes')
+    const s3Send = vi.fn(async (command: unknown) => {
+      if (command instanceof HeadObjectCommand) {
+        return { ContentLength: archive.length, ETag: '"version-2"' }
+      }
+      if (command instanceof GetObjectCommand) {
+        if (command.input.IfMatch === '"version-1"') {
+          throw Object.assign(new Error('object changed'), {
+            name: 'PreconditionFailed',
+            $metadata: { httpStatusCode: 412 }
+          })
+        }
+        return {
+          ContentRange: `bytes 0-3/${archive.length}`,
+          Body: { transformToByteArray: async () => Buffer.from('arch') }
+        }
+      }
+      return {}
+    })
+    const s3Store = new S3ArchiveObjectStore(
+      {
+        type: MediaStorageType.S3Storage,
+        bucket: 'bucket',
+        region: 'us-east-1'
+      },
+      { send: s3Send } as unknown as S3Client
+    )
+    const importStore = createAccountImportObjectStore(s3Store)!
+    vi.mocked(getAccountImportObjectStore).mockReturnValue(importStore)
+
+    const accountImport = await createImportWithItem(
+      'import-runner-archive-changed'
+    )
+    await database.updateAccountImport({
+      id: accountImport.id,
+      status: 'running',
+      phase: 'inspect',
+      uploadedBytes: archive.length,
+      archiveETag: '"version-1"'
+    })
+    vi.mocked(inspectAccountArchive).mockImplementationOnce(
+      async ({ objectStore: sourceStore, accountImport: current }) => {
+        const source = await sourceStore.openSource(current)
+        await source!.read(0, 3)
+        return {
+          kind: 'mastodon',
+          sourceActorId: 'https://source.test/users/owner',
+          sourceFollowersUrl: null
+        }
+      }
+    )
+
+    const result = await runAccountImport(database, accountImport.id, {
+      actorId,
+      runToken: 'archive-changed-run',
+      runsInline: true
+    })
+
+    expect(result).toEqual({ type: 'failed' })
+    expect(
+      await database.getAccountImport({ id: accountImport.id, actorId })
+    ).toMatchObject({ status: 'failed', lastErrorCode: 'archive_changed' })
+    expect(
+      s3Send.mock.calls.some(
+        ([command]) =>
+          command instanceof GetObjectCommand &&
+          command.input.IfMatch === '"version-1"'
+      )
+    ).toBe(true)
   })
 })

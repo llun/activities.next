@@ -44,6 +44,7 @@ export const uploadAccountImport = async ({
   now?: () => number
 }): Promise<AccountImportUploadResult> => {
   const limit = getAccountImportConfig().maxFileSize
+  const declaredSize = accountImport.uploadedBytes || undefined
   if (!body) {
     await failUpload(
       database,
@@ -54,7 +55,12 @@ export const uploadAccountImport = async ({
     )
     return { type: 'invalid' }
   }
-  if (contentLength !== undefined && contentLength > limit) {
+  if (
+    (contentLength !== undefined && contentLength > limit) ||
+    (declaredSize !== undefined &&
+      contentLength !== undefined &&
+      contentLength !== declaredSize)
+  ) {
     await failUpload(
       database,
       objectStore,
@@ -74,7 +80,10 @@ export const uploadAccountImport = async ({
       const { done, value } = await reader.read()
       if (done) break
       bytes += value.byteLength
-      if (bytes > limit) {
+      if (
+        bytes > limit ||
+        (declaredSize !== undefined && bytes > declaredSize)
+      ) {
         await reader.cancel()
         await sink.abort()
         await failUpload(
@@ -87,6 +96,18 @@ export const uploadAccountImport = async ({
         return { type: 'too-large' }
       }
       await sink.write(Buffer.from(value))
+    }
+
+    if (declaredSize !== undefined && bytes !== declaredSize) {
+      await sink.abort()
+      await failUpload(
+        database,
+        objectStore,
+        accountImport,
+        'file_too_large',
+        now()
+      )
+      return { type: 'too-large' }
     }
 
     await sink.finish()

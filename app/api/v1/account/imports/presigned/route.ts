@@ -20,7 +20,12 @@ import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const METHODS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 export const OPTIONS = defaultOptions(METHODS)
-const RequestBody = z.object({ actorId: z.string().optional() }).strip()
+const RequestBody = z
+  .object({
+    actorId: z.string().optional(),
+    size: z.number().int().positive().safe()
+  })
+  .strip()
 
 const error = (req: NextRequest, message: string, status: StatusCode) =>
   apiResponse({
@@ -65,6 +70,10 @@ export const POST = traceApiRoute(
     if (parsed.data.actorId && parsed.data.actorId !== currentActor.id) {
       return error(req, 'Actor changed', HTTP_STATUS.CONFLICT)
     }
+    const maxFileSize = getAccountImportConfig().maxFileSize
+    if (parsed.data.size > maxFileSize) {
+      return error(req, 'File is too large', HTTP_STATUS.PAYLOAD_TOO_LARGE)
+    }
     const accountId = currentActor.account?.id
     if (!accountId)
       return error(req, 'Account not found', HTTP_STATUS.NOT_FOUND)
@@ -79,7 +88,8 @@ export const POST = traceApiRoute(
     const created = await createQueuedAccountImport({
       database,
       actorId: currentActor.id,
-      accountId
+      accountId,
+      uploadedBytes: parsed.data.size
     })
     if (created.type === 'active') {
       return error(req, 'An import is already active', HTTP_STATUS.CONFLICT)
@@ -88,7 +98,7 @@ export const POST = traceApiRoute(
     try {
       const uploadUrl = await objectStore.store.getUploadUrl(
         objectStore.getUploadKey(created.accountImport),
-        getAccountImportConfig().maxFileSize,
+        parsed.data.size,
         ACCOUNT_IMPORT_PRESIGNED_URL_TTL_SECONDS
       )
       return apiResponse({

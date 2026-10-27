@@ -21,6 +21,7 @@ export interface AccountImport {
   actorId: string
   status: AccountImportStatus
   kind: string | null
+  archiveETag: string | null
   options: string
   storageToken: string
   uploadedBytes: number
