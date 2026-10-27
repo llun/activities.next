@@ -610,11 +610,14 @@ describe('ProfileEditor', () => {
       expect(
         screen.getByText('Couldn’t save your profile.')
       ).not.toHaveAttribute('role')
-      // Focus moves to the Alert like for a failed save.
-      expect(document.activeElement).toBe(
-        screen
-          .getByText(/You switched to another profile/)
-          .closest('[tabindex]')
+      // Focus moves to the Alert like for a failed save, from an effect that
+      // can run after the text appears.
+      await waitFor(() =>
+        expect(document.activeElement).toBe(
+          screen
+            .getByText(/You switched to another profile/)
+            .closest('[tabindex]')
+        )
       )
 
       // The notice stays through further typing.
