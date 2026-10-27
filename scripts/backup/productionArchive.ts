@@ -38,7 +38,10 @@ import {
   normalizeMigrationNames
 } from '@/lib/database/migrate'
 import { openScriptDatabase } from '@/lib/database/scriptDatabase'
-import { ARCHIVE_STORAGE_PREFIX } from '@/lib/services/accountArchive/constants'
+import {
+  ARCHIVE_STORAGE_PREFIX,
+  IMPORT_STORAGE_PREFIX
+} from '@/lib/services/accountArchive/constants'
 
 const execFileAsync = promisify(execFile)
 
@@ -426,11 +429,13 @@ export const buildStoragePlan = ({
   )
   // Account exports (archives/) are short-lived downloads of data the backup
   // already holds in the database and media; they are never backed up, like the
-  // fitness files that share the media storage.
+  // fitness files that share the media storage. Import uploads (imports/) are
+  // the same kind of transient staging the import job manages itself.
   const sharedFitnessPrefixes = uniqueSortedPaths([
     sharedLocalFitnessPrefix,
     sharedS3FitnessPrefix,
-    ARCHIVE_STORAGE_PREFIX
+    ARCHIVE_STORAGE_PREFIX,
+    IMPORT_STORAGE_PREFIX
   ])
 
   if (mediaStorage) {

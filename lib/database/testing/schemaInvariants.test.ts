@@ -301,6 +301,40 @@ describe('schema invariants', () => {
           unique: true,
           columns: ['componentId', 'installSequence']
         }
+      ],
+      // One queued or running archive import per actor: the partial unique
+      // index enforces it on both backends.
+      [
+        'account_imports_actor_active_idx',
+        {
+          table: 'account_imports',
+          unique: true,
+          columns: ['actorId']
+        }
+      ],
+      [
+        'account_imports_actor_created_idx',
+        {
+          table: 'account_imports',
+          unique: false,
+          columns: ['actorId', 'createdAt']
+        }
+      ],
+      [
+        'account_import_items_actor_source_unique',
+        {
+          table: 'account_import_items',
+          unique: true,
+          columns: ['actorId', 'kind', 'sourceId']
+        }
+      ],
+      [
+        'account_import_items_import_state_position_idx',
+        {
+          table: 'account_import_items',
+          unique: false,
+          columns: ['importId', 'state', 'position']
+        }
       ]
     ])('keeps %s', async (name, expected) => {
       expect(await getIndex(name)).toEqual(expected)
@@ -439,12 +473,17 @@ describe('schema invariants', () => {
 
   describe('foreign keys', () => {
     // An account delete must detach or remove what refers to it: better-auth's
-    // passkeys, two-factor rows and account exports go with it, the others
-    // block it.
-    it('keeps the eight foreign keys to accounts and their delete rules', async () => {
+    // passkeys, two-factor rows, account exports and archive imports go with
+    // it, the others block it.
+    it('keeps the nine foreign keys to accounts and their delete rules', async () => {
       expect(await getForeignKeysTo('accounts')).toEqual(
         [
           { table: 'account_archives', from: 'accountId', onDelete: 'CASCADE' },
+          {
+            table: 'account_imports',
+            from: 'accountId',
+            onDelete: 'CASCADE'
+          },
           { table: 'actors', from: 'accountId', onDelete: 'NO ACTION' },
           { table: 'oauthAccessToken', from: 'userId', onDelete: 'NO ACTION' },
           { table: 'oauthClient', from: 'userId', onDelete: 'NO ACTION' },

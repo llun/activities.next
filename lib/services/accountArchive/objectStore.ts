@@ -31,7 +31,7 @@ import { assertStorageFilePath } from '@/lib/services/medias/storagePath'
 import { createStorageS3Client } from '@/lib/services/storage/s3Client'
 import { logger } from '@/lib/utils/logger'
 
-import { ARCHIVE_STORAGE_PREFIX } from './constants'
+import { ARCHIVE_STORAGE_PREFIX, IMPORT_STORAGE_PREFIX } from './constants'
 import { toArchiveLoggableError } from './redact'
 
 /** A short-lived link to the finished file on object storage. */
@@ -70,9 +70,11 @@ const isNotImplemented = (error: unknown) => {
   return e?.name === 'NotImplemented' || e?.$metadata?.httpStatusCode === 501
 }
 
-const KEY_PATTERN = new RegExp(`^${ARCHIVE_STORAGE_PREFIX}(/[A-Za-z0-9._-]+)+$`)
+const KEY_PATTERN = new RegExp(
+  `^(${ARCHIVE_STORAGE_PREFIX}|${IMPORT_STORAGE_PREFIX})(/[A-Za-z0-9._-]+)+$`
+)
 const PREFIX_PATTERN = new RegExp(
-  `^${ARCHIVE_STORAGE_PREFIX}(/[A-Za-z0-9._-]+)*/?$`
+  `^(${ARCHIVE_STORAGE_PREFIX}|${IMPORT_STORAGE_PREFIX})(/[A-Za-z0-9._-]+)*/?$`
 )
 
 /**
@@ -158,6 +160,25 @@ export interface ArchiveObjectStore {
   getDownloadUrl(
     key: string,
     options: { fileName: string }
+  ): Promise<string | null>
+  /**
+   * Reads one byte range (both ends inclusive) without streaming the whole
+   * object; null when the object does not exist.
+   */
+  readRange(
+    key: string,
+    start: number,
+    endInclusive: number
+  ): Promise<Buffer | null>
+  /**
+   * A short-lived presigned PUT URL for a direct upload of at most `maxBytes`
+   * bytes, or null when this store cannot serve one (the caller uploads
+   * through the server instead).
+   */
+  getUploadUrl(
+    key: string,
+    maxBytes: number,
+    expiresInSec: number
   ): Promise<string | null>
 }
 
@@ -288,6 +309,38 @@ export class FileArchiveObjectStore implements ArchiveObjectStore {
   }
 
   async getDownloadUrl() {
+    return null
+  }
+
+  async readRange(
+    key: string,
+    start: number,
+    endInclusive: number
+  ): Promise<Buffer | null> {
+    const target = this.resolve(key)
+    try {
+      await fs.access(target)
+    } catch (error) {
+      if (isNotFound(error)) return null
+      throw error
+    }
+    const handle = await fs.open(target, 'r')
+    try {
+      const length = Math.max(0, endInclusive - start + 1)
+      const buffer = Buffer.alloc(length)
+      const { bytesRead } = await handle.read(buffer, 0, length, start)
+      return buffer.subarray(0, bytesRead)
+    } finally {
+      await handle.close()
+    }
+  }
+
+  async getUploadUrl(
+    _key: string,
+    _maxBytes: number,
+    _expiresInSec: number
+  ): Promise<string | null> {
+    // The local disk needs no presigned link: the caller uploads directly.
     return null
   }
 }
@@ -685,6 +738,50 @@ export class S3ArchiveObjectStore implements ArchiveObjectStore {
       if ((error as Error).name === 'NotFound') return null
       throw error
     }
+  }
+
+  async readRange(
+    key: string,
+    start: number,
+    endInclusive: number
+  ): Promise<Buffer | null> {
+    try {
+      assertArchiveKey(key)
+      const object = await this.client.send(
+        new GetObjectCommand({
+          Bucket: this.config.bucket,
+          Key: assertArchiveKey(key),
+          Range: `bytes=${start}-${endInclusive}`
+        })
+      )
+      if (!object.Body) return null
+      return Buffer.from(await object.Body.transformToByteArray())
+    } catch (error) {
+      if ((error as Error).name === 'NoSuchKey') return null
+      throw error
+    }
+  }
+
+  /**
+   * A presigned PUT for a direct browser upload of at most `maxBytes` bytes
+   * (the ContentLength the signature pins, so an over-large body is refused
+   * by the bucket itself).
+   */
+  async getUploadUrl(
+    key: string,
+    maxBytes: number,
+    expiresInSec: number
+  ): Promise<string | null> {
+    assertArchiveKey(key)
+    return getSignedUrl(
+      this.client,
+      new PutObjectCommand({
+        Bucket: this.config.bucket,
+        Key: assertArchiveKey(key),
+        ContentLength: maxBytes
+      }),
+      { expiresIn: expiresInSec }
+    )
   }
 
   async getDownloadUrl(key: string, { fileName }: { fileName: string }) {

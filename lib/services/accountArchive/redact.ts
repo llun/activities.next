@@ -1,12 +1,14 @@
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
-// `archives/<id>/<secret>` as it appears in a path or a key: the secret segment
-// is the only thing that guards an export on public storage, so it never goes
-// to a log (a failed fs call names the whole path in its message).
-const ARCHIVE_ROOT = /archives([\\/])[A-Za-z0-9._-]+[\\/][A-Za-z0-9_-]{20,}/g
+// `archives/<id>/<secret>` and `imports/<id>/<token>` as they appear in a path
+// or a key: the secret segment is the only thing that guards an export or an
+// import upload on public storage, so it never goes to a log (a failed fs call
+// names the whole path in its message).
+const ARCHIVE_ROOT =
+  /(archives|imports)([\\/])[A-Za-z0-9._-]+[\\/][A-Za-z0-9_-]{20,}/g
 
 export const redactArchiveRoot = (text: string) =>
-  text.replace(ARCHIVE_ROOT, 'archives$1<redacted>')
+  text.replace(ARCHIVE_ROOT, '$1$2<redacted>')
 
 /** An error for the logs with every archive root removed from it. */
 export const toArchiveLoggableError = (error: unknown): Error => {

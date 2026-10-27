@@ -51,6 +51,41 @@ export interface AccountArchives {
   storageToken: string
 }
 
+export interface AccountImportItems {
+  actorId: string
+  createdAt: WithDefault<Timestamp>
+  id: string
+  importId: string
+  kind: string
+  position: number
+  reason: Nullable<string>
+  sourceId: string
+  state: WithDefault<string>
+  targetId: Nullable<string>
+  updatedAt: WithDefault<Timestamp>
+}
+
+export interface AccountImports {
+  accountId: string
+  actorId: string
+  claimedUntil: Nullable<Timestamp>
+  createdAt: WithDefault<Timestamp>
+  cursor: Nullable<string>
+  finishedAt: Nullable<Timestamp>
+  id: string
+  kind: Nullable<string>
+  lastErrorCode: Nullable<string>
+  options: WithDefault<string>
+  phase: Nullable<string>
+  progress: Nullable<string>
+  runToken: Nullable<string>
+  startedAt: Nullable<Timestamp>
+  status: WithDefault<string>
+  storageToken: string
+  updatedAt: WithDefault<Timestamp>
+  uploadedBytes: WithDefault<number>
+}
+
 export interface AccountNotes {
   actorHost: string
   actorId: string
@@ -1456,6 +1491,8 @@ export interface WahooImports {
 
 export interface DB {
   account_archives: AccountArchives
+  account_import_items: AccountImportItems
+  account_imports: AccountImports
   account_notes: AccountNotes
   account_providers: AccountProviders
   accounts: Accounts

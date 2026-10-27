@@ -1,5 +1,6 @@
 import { sql } from 'kysely'
 
+import { deleteAccountImportsForActor } from '@/lib/database/domains/accountImport/queries'
 import type { DeleteActorDataParams } from '@/lib/database/domains/actor/types'
 import { searchQueries } from '@/lib/database/domains/search/queries'
 import { normalizeHashtagSearchName } from '@/lib/database/domains/search/rows'
@@ -521,6 +522,10 @@ export const deleteActorData = async (
       .deleteFrom('bulk_imports')
       .where('actorId', '=', actorId)
       .execute()
+
+    // The actor's archive imports (and their items, by the cascade) never
+    // outlive the profile they belonged to.
+    await deleteAccountImportsForActor(trx, { actorId })
 
     await trx
       .deleteFrom('actor_migrations')
