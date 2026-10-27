@@ -17,6 +17,7 @@ import { followTimelineBackfillJob } from './followTimelineBackfillJob'
 import { forwardActivityJob } from './forwardActivityJob'
 import { generateFitnessRouteHeatmapJob } from './generateFitnessRouteHeatmapJob'
 import { handleQuoteRequestJob } from './handleQuoteRequestJob'
+import { importAccountArchiveJob } from './importAccountArchiveJob'
 import { importFitnessFilesJob } from './importFitnessFilesJob'
 import { importStravaActivityJob } from './importStravaActivityJob'
 import { importStravaArchiveJob } from './importStravaArchiveJob'
@@ -44,6 +45,7 @@ import {
   GENERATE_FITNESS_HEATMAP_JOB_NAME,
   GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
   HANDLE_QUOTE_REQUEST_JOB_NAME,
+  IMPORT_ACCOUNT_ARCHIVE_JOB_NAME,
   IMPORT_FITNESS_FILES_JOB_NAME,
   IMPORT_STRAVA_ACTIVITY_JOB_NAME,
   IMPORT_STRAVA_ARCHIVE_JOB_NAME,
@@ -170,6 +172,9 @@ export const JOBS: Record<string, JobHandle> = {
   },
   get [EXPORT_ACCOUNT_ARCHIVE_JOB_NAME]() {
     return exportAccountArchiveJob
+  },
+  get [IMPORT_ACCOUNT_ARCHIVE_JOB_NAME]() {
+    return importAccountArchiveJob
   },
   get [IMPORT_STRAVA_ARCHIVE_JOB_NAME]() {
     return importStravaArchiveJob
