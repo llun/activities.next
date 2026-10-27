@@ -231,4 +231,46 @@ describe('startAccountImport', () => {
       ).toMatchObject({ status: 'queued' })
     }
   )
+
+  // A storage fault while start reads the archive is transient: the row
+  // stays queued, the upload is kept and the owner can retry, so it must
+  // answer with the route's storage-unavailable verdict, not a bare 500.
+  it('answers storage-unavailable when reading the upload metadata fails', async () => {
+    const accountImport = await createImport()
+    getMetadata.mockReset().mockRejectedValue(new Error('S3 unavailable'))
+
+    const result = await startAccountImport({
+      database,
+      objectStore,
+      accountImport,
+      options
+    })
+
+    expect(result).toEqual({ type: 'storage-unavailable' })
+    expect(deleteUpload).not.toHaveBeenCalled()
+    expect(inspectAccountArchive).not.toHaveBeenCalled()
+    expect(
+      await database.getAccountImport({ id: accountImport.id, actorId })
+    ).toMatchObject({ status: 'queued' })
+  })
+
+  it('answers storage-unavailable when inspecting the archive hits a storage fault', async () => {
+    const accountImport = await createImport()
+    vi.mocked(inspectAccountArchive).mockRejectedValue(
+      new Error('S3 unavailable')
+    )
+
+    const result = await startAccountImport({
+      database,
+      objectStore,
+      accountImport,
+      options
+    })
+
+    expect(result).toEqual({ type: 'storage-unavailable' })
+    expect(deleteUpload).not.toHaveBeenCalled()
+    expect(
+      await database.getAccountImport({ id: accountImport.id, actorId })
+    ).toMatchObject({ status: 'queued' })
+  })
 })

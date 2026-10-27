@@ -2173,7 +2173,7 @@ const profileImageEntryName = (
 /**
  * Why a profile image was refused instead of saved. The same reason codes
  * the media phase writes to an item row; the profile phase has no item
- * rows, so its skips are reported on the phase result instead.
+ * rows, so its skips are recorded on the import's progress instead.
  */
 export type ProfileImageSkipReason = 'media_quota_exceeded' | 'media_invalid'
 
@@ -2190,7 +2190,8 @@ type ProfileImageResult =
  * the entry name or the archive's claim. Every refusal the bytes earn — not a
  * stored png or jpeg, a failed media schema, a failed decode, or the media
  * path's own verdict — is a skip carrying its reason, so the owner can see
- * why an image did not land; only a missing or over-size entry is absent.
+ * why an image did not land; a missing, over-size or unreadable entry, or
+ * a store that saved nothing, is absent.
  */
 const importProfileImage = async (
   context: AccountImportPhaseContext,

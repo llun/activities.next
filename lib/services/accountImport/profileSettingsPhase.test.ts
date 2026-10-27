@@ -36,6 +36,25 @@ vi.mock('@/lib/services/medias', async (importOriginal) => ({
   saveMedia: vi.fn()
 }))
 
+// The real MediaSchema cannot refuse a file the importer has already
+// sniffed into ACCEPTED_IMAGE_TYPES, so its refusal branch in
+// importProfileImage is pinned through a marked file name the schema
+// refuses; every other parse delegates to the real schema.
+vi.mock('@/lib/services/medias/types', async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import('@/lib/services/medias/types')>()
+  return {
+    ...original,
+    MediaSchema: {
+      safeParse: (data: unknown) =>
+        (data as { file?: { name?: string } })?.file?.name ===
+        'avatar-schema-refused.png'
+          ? { success: false }
+          : original.MediaSchema.safeParse(data)
+    }
+  }
+})
+
 const SAVED_AVATAR_URL = 'https://llun.test/media/avatar-saved.png'
 const SAVED_HEADER_URL = 'https://llun.test/media/header-saved.png'
 
@@ -458,6 +477,94 @@ describe('account import profile and settings phases', () => {
     expect(actor.name).toBe('Invalid Skipped')
     expect(actor.iconUrl).toBeUndefined()
     expect(actor.headerImageUrl).toBeUndefined()
+  })
+
+  // A PNG signature followed by garbage sniffs as image/png and passes the
+  // media schema, but the decode check refuses it: the skip must carry its
+  // reason on the progress, not disappear as absent.
+  it('skips a truncated avatar with media_invalid when the decode check refuses it', async () => {
+    const archive = buildZip([
+      {
+        name: 'actor.json',
+        data: Buffer.from(
+          JSON.stringify({
+            id: 'https://source.test/users/archive',
+            type: 'Person',
+            preferredUsername: 'archive',
+            name: 'Truncated Avatar',
+            icon: { type: 'Image', mediaType: 'image/png', url: 'avatar.png' }
+          })
+        )
+      },
+      {
+        name: 'avatar.png',
+        data: Buffer.concat([
+          Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+          Buffer.from('truncated after the signature')
+        ])
+      }
+    ])
+    const accountImport = await createImport(
+      'import-profile-decode-refused',
+      '{"profile":true}',
+      'mastodon'
+    )
+
+    const result = await runProfilePhase(
+      makeContext(accountImport, archive),
+      createInitialImportProgress()
+    )
+
+    expect(result.result).toBe('done')
+    expect(result.imageSkipReasons).toEqual(['media_invalid'])
+    expect(result.progress.profileImageSkips).toEqual(['media_invalid'])
+    expect(vi.mocked(saveMedia)).not.toHaveBeenCalled()
+    const actor = (await database.getActorFromId({ id: actorId }))!
+    expect(actor.name).toBe('Truncated Avatar')
+    expect(actor.iconUrl).toBeUndefined()
+  })
+
+  // The media schema's own refusal (pinned through the marked file name the
+  // types mock refuses) skips the image with its reason on the progress
+  // instead of disappearing as absent.
+  it('skips an avatar with media_invalid when the media schema refuses it', async () => {
+    const archive = buildZip([
+      {
+        name: 'actor.json',
+        data: Buffer.from(
+          JSON.stringify({
+            id: 'https://source.test/users/archive',
+            type: 'Person',
+            preferredUsername: 'archive',
+            name: 'Schema Refused',
+            icon: {
+              type: 'Image',
+              mediaType: 'image/png',
+              url: 'avatar-schema-refused.png'
+            }
+          })
+        )
+      },
+      { name: 'avatar-schema-refused.png', data: await imageBytes('png') }
+    ])
+    const accountImport = await createImport(
+      'import-profile-schema-refused',
+      '{"profile":true}',
+      'mastodon'
+    )
+
+    const result = await runProfilePhase(
+      makeContext(accountImport, archive),
+      createInitialImportProgress()
+    )
+
+    expect(result.result).toBe('done')
+    expect(result.imageSkipReasons).toEqual(['media_invalid'])
+    expect(result.progress.profileImageSkips).toEqual(['media_invalid'])
+    expect(vi.mocked(saveMedia)).not.toHaveBeenCalled()
+    const actor = (await database.getActorFromId({ id: actorId }))!
+    expect(actor.name).toBe('Schema Refused')
+    expect(actor.iconUrl).toBeUndefined()
   })
 
   // Both images stored, then the run is cancelled at the renew before the

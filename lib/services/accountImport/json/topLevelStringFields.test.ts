@@ -30,4 +30,30 @@ describe('readTopLevelStringFields', () => {
       readTopLevelStringFields(chunks, ['id'])
     ).rejects.toMatchObject({ reason: 'entry_too_large' })
   })
+
+  // Each shape reaches a different fixed throw site in the scanner: a key
+  // that is not a string, a key that does not parse, a missing colon and a
+  // bad separator after a value. All of them must leave as the typed
+  // archive verdict, so start answers unrecognised instead of a 500.
+  it.each([
+    ['a key that is not a string', '{1:2}'],
+    ['a key that does not parse', '{"a\u0001":"b"}'],
+    ['a missing colon', '{"a" "b"}'],
+    ['a bad separator after a value', '{"a":"b" "c"}']
+  ] as const)(
+    'refuses actor JSON with %s as a not_a_zip archive error',
+    async (_description, document) => {
+      const chunks: AsyncIterable<Buffer> = {
+        async *[Symbol.asyncIterator]() {
+          yield Buffer.from(document, 'utf8')
+        }
+      }
+
+      const rejection = readTopLevelStringFields(chunks, ['id'])
+      await expect(rejection).rejects.toMatchObject({
+        name: 'ZipArchiveError',
+        reason: 'not_a_zip'
+      })
+    }
+  )
 })

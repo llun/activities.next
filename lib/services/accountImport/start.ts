@@ -1,5 +1,6 @@
 import { getAccountImportConfig } from '@/lib/config/accountImport'
 import type { Database } from '@/lib/database/types'
+import { toArchiveLoggableError } from '@/lib/services/accountArchive/redact'
 import { AccountImportArchiveChangedError } from '@/lib/services/accountImport/objectStore'
 import type { AccountImportObjectStore } from '@/lib/services/accountImport/objectStore'
 import {
@@ -13,6 +14,7 @@ import {
 } from '@/lib/services/accountImport/progress'
 import { ZipArchiveError } from '@/lib/services/accountImport/zip/reader'
 import type { AccountImport } from '@/lib/types/domain/accountImport'
+import { logger } from '@/lib/utils/logger'
 
 export type StartAccountImportResult =
   | { type: 'started'; accountImport: AccountImport }
@@ -48,9 +50,22 @@ export const startAccountImport = async ({
   })
   if (active && active.id !== accountImport.id) return { type: 'active' }
 
-  const metadata = await objectStore.store.getMetadata(
-    objectStore.getUploadKey(accountImport)
-  )
+  let metadata: Awaited<ReturnType<typeof objectStore.store.getMetadata>>
+  try {
+    metadata = await objectStore.store.getMetadata(
+      objectStore.getUploadKey(accountImport)
+    )
+  } catch (error) {
+    // A storage fault while reading the upload is transient: the row stays
+    // queued and the owner can retry, so it answers with the route's
+    // storage-unavailable verdict instead of an unhandled 500.
+    logger.warn({
+      message: 'Account import storage is unavailable',
+      importId: accountImport.id,
+      err: toArchiveLoggableError(error)
+    })
+    return { type: 'storage-unavailable' }
+  }
   // A missing, empty or size-mismatched object is an upload that has not
   // (fully) arrived, which is not the same verdict as an over-cap file.
   if (
@@ -78,7 +93,16 @@ export const startAccountImport = async ({
       return { type: 'archive-changed' }
     }
     if (error instanceof ZipArchiveError) return { type: 'unrecognised' }
-    throw error
+    // Anything else out of the archive read is a storage fault, not a
+    // verdict on the archive: transient, the row stays queued and the
+    // owner can retry, so it answers with the route's storage-unavailable
+    // verdict instead of an unhandled 500.
+    logger.warn({
+      message: 'Account import storage is unavailable',
+      importId: accountImport.id,
+      err: toArchiveLoggableError(error)
+    })
+    return { type: 'storage-unavailable' }
   }
   if (!inspected) return { type: 'unrecognised' }
 

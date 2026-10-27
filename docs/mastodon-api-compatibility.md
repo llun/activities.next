@@ -533,7 +533,9 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   `id`, `status`, `kind`, `phase`, `progress`, `createdAt`, `startedAt`,
   `finishedAt` and `lastErrorCode`. `progress` contains source actor/followers
   identifiers, status order, catalog stage/index, total/completed/skipped item
-  counts and, after start, the selected options. It does not expose upload
+  counts and, after start, the selected options; when the profile option
+  skipped the avatar or header, it also carries `profileImageSkips`
+  (`media_quota_exceeded` or `media_invalid`). It does not expose upload
   tokens or lease data.
 
   The presigned request requires `size` because the S3 PUT URL signs that exact
