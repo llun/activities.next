@@ -99,7 +99,7 @@
     "lucide-react": "1.59.0",
     "marked": "^18.1.1",
     "mime-types": "^3.0.2",
-    "next": "16.4.2",
+    "next": "16.4.3",
     "onnxruntime-web": "1.30.0",
     "pino": "^10.4.0",
     "qrcode": "^1.5.4",
