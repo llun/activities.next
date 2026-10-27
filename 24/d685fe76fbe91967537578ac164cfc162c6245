@@ -1,0 +1,95 @@
+migrations/schema.sql
+  s_50783debe9bf9d::t_5c2d9d44210679 30-64,1617-1624,2101-2108,2423-2430
+scripts/maintenance/cleanupMediaStorage.ts
+  s_50783debe9bf9d::t_825505cd14a66c 31-33,507-517
+docs/environment-variables.md
+  s_50783debe9bf9d::t_672b0341bcf87d 401-409
+lib/config/accountImport.test.ts
+  s_50783debe9bf9d::t_bdaef0e93c1344 1-32
+lib/config/accountImport.ts
+  s_6c3f0f796bdae5::t_c3acad73efdb01 1-25
+lib/database/domains/accountImport/queries.ts
+  s_50783debe9bf9d::t_89ebcb493a2116 1-360
+lib/database/domains/accountImport/types.ts
+  s_50783debe9bf9d::t_14775c2a0f4044 1-122
+lib/database/domains/actor/deletion.ts
+  s_6c3f0f796bdae5::t_89532a097b01c2 3,526-529
+lib/database/getSQLDatabase.ts
+  s_50783debe9bf9d::t_42615b34b3c69e 6,118
+lib/database/kysely/db.ts
+  s_50783debe9bf9d::t_8a03a9fe0d6248 54-88,1494-1495
+lib/database/testing/schemaInvariants.test.ts
+  s_50783debe9bf9d::t_d739b2cb9029ad 304-337,476-478,482-486
+lib/database/types.ts
+  s_50783debe9bf9d::t_b57e1dd227e269 3,78
+lib/services/accountArchive/constants.ts
+  s_50783debe9bf9d::t_9da0a4a5ebfd48 17-32
+lib/services/accountArchive/redact.test.ts
+  s_715ead86655551::t_34cd7786324880 13-15
+lib/services/accountArchive/redact.ts
+  s_50783debe9bf9d::t_9610c8a4d49823 3-8,11
+lib/services/medias/reservedPaths.test.ts
+  s_50783debe9bf9d::t_4f50467e1c5740 23-26
+lib/services/medias/reservedPaths.ts
+  s_e4808f36d87330::t_0f8571f5e5a2c2 2-5,104-105
+lib/types/domain/accountImport.ts
+  s_50783debe9bf9d::t_9bc57938761eb1 1-56
+migrations/index.ts
+  s_50783debe9bf9d::t_296ea6ad689709 19,44-45
+migrations/names.ts
+  s_50783debe9bf9d::t_0c3cd78e8a6bcd 19-20
+migrations/schema.sqlite.sql
+  s_6c3f0f796bdae5::t_5b4dde016095f2 339-344
+scripts/backup/productionArchive.ts
+  s_50783debe9bf9d::t_1ef081b5fc1b3d 41-44,432-433,437-438
+lib/database/domains/accountImport/accountImport.test.ts
+  s_6c3f0f796bdae5::t_4f80a0bdf76ab8 1-295
+lib/database/domains/actor/actorDeletion.test.ts
+  s_6c3f0f796bdae5::t_a210d9a1fca8a1 553-624
+lib/services/accountArchive/objectStore.test.ts
+  s_6c3f0f796bdae5::t_dd50af076ac989 63-70,144-164,868-938
+lib/services/accountArchive/objectStore.ts
+  s_6c3f0f796bdae5::t_2fdd1430f42377 34,73-75,77,164-182,314-345,743-786
+migrations/20261027134549_add_account_imports.ts
+  s_6c3f0f796bdae5::t_72c5983028ab01 1-107
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "24d685fe76fbe91967537578ac164cfc162c6245",
+  "prompts": {},
+  "sessions": {
+    "s_50783debe9bf9d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a17d98-532a-7743-a0cb-5438dbdf5c71",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_6c3f0f796bdae5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5f18ecaa-41e0-4af5-a9b2-08fa3905f518",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_715ead86655551": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a9403dafa29faef9b",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_e4808f36d87330": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "54586d5d-628a-452f-a8e9-88a67ae4fbe7",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,45 @@
+lib/services/accountImport/json/jsonl.test.ts
+  s_279e7012f36c5f::t_b8bef3b1f1ab55 1-73
+lib/services/accountImport/json/orderedItems.test.ts
+  s_279e7012f36c5f::t_b8bef3b1f1ab55 1-117
+lib/services/accountImport/json/orderedItems.ts
+  s_279e7012f36c5f::t_b8bef3b1f1ab55 1-216
+lib/services/accountImport/zip/reader.test.ts
+  s_279e7012f36c5f::t_b8bef3b1f1ab55 1-118
+lib/services/accountImport/zip/testing/fixtures.ts
+  s_279e7012f36c5f::t_b8bef3b1f1ab55 1-79
+lib/services/accountImport/detectArchiveKind.test.ts
+  s_279e7012f36c5f::t_b8bef3b1f1ab55 1-46
+lib/services/accountImport/detectArchiveKind.ts
+  s_279e7012f36c5f::t_b8bef3b1f1ab55 1-35
+lib/services/accountImport/zip/reader.ts
+  s_279e7012f36c5f::t_5badf75301e950 1-279
+lib/services/accountImport/json/jsonl.ts
+  s_50783debe9bf9d::t_69d802fccf9a96 1-92
+lib/services/accountImport/zip/source.ts
+  s_50783debe9bf9d::t_805a8b57039112 1-70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2052f5055c033696f31cc9c5ed725760df17cb24",
+  "prompts": {},
+  "sessions": {
+    "s_279e7012f36c5f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0410f49d-2e94-45e1-bd1f-237e6f7747bc",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_50783debe9bf9d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a17d98-532a-7743-a0cb-5438dbdf5c71",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

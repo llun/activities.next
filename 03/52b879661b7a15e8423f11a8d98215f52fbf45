@@ -1,0 +1,29 @@
+lib/database/domains/status/edits.ts
+  s_279e7012f36c5f::t_c30c429aacda20 27,619-632
+lib/database/domains/status/statusWriteQueries.test.ts
+  s_279e7012f36c5f::t_f37a140404f5c2 41,3135-3158
+lib/services/accountImport/mappers/mapOwnStatus.test.ts
+  s_279e7012f36c5f::t_83955eb5ade617 217-281
+lib/services/accountImport/mappers/mapOwnStatus.ts
+  s_279e7012f36c5f::t_9ce686228c28ab 90
+lib/services/accountImport/mappers/shared.ts
+  s_279e7012f36c5f::t_470f2727f7993e 20,192-196,205-207,209-230
+lib/services/accountImport/mappers/timeSkew.ts
+  s_279e7012f36c5f::t_ba3e39250597d8 1-6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0352b879661b7a15e8423f11a8d98215f52fbf45",
+  "prompts": {},
+  "sessions": {
+    "s_279e7012f36c5f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0410f49d-2e94-45e1-bd1f-237e6f7747bc",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

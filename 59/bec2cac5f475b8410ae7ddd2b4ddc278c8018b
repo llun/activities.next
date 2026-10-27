@@ -1,0 +1,36 @@
+app/api/v1/account/imports/route.test.ts
+  s_ad97e05832a764::t_42a827cce46435 324-351,495-517
+  s_ad97e05832a764::t_4946cd9387d5e3 518
+lib/services/accountArchive/objectStore.ts
+  s_ad97e05832a764::t_399f53269f0607 174-176,766-767,775,780
+lib/services/accountArchive/objectStore.test.ts
+  s_ad97e05832a764::t_49ab6ff0e2255d 918
+  s_ad97e05832a764::t_e98cc753455568 931-934,942-961
+  s_ad97e05832a764::t_7dfc273ea5ecaf 935-941
+lib/services/accountImport/zip/reader.test.ts
+  s_ad97e05832a764::t_d5b25be747dec8 7-37,148
+  s_ad97e05832a764::t_3e2c9301844684 167
+  s_ad97e05832a764::t_45a3fe14c4ac96 155,159,162
+  s_ad97e05832a764::t_2c363b6e33b891 136,139-147,149-154,156-158,160,165-166,168-194
+lib/services/accountImport/zip/reader.ts
+  s_ad97e05832a764::t_3beab6fddae64f 482-483
+  s_ad97e05832a764::t_f3d3a7122408c8 327
+  s_ad97e05832a764::t_dfb1cb01fe678c 1-2,137-326,328-335,338,356,359-375,382,436,461-481,484
+  s_ad97e05832a764::t_c222c2a3630691 485
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "59bec2cac5f475b8410ae7ddd2b4ddc278c8018b",
+  "prompts": {},
+  "sessions": {
+    "s_ad97e05832a764": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a17ed3-5c93-79c3-b4a6-04c4d2dd7035",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
