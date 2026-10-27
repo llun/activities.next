@@ -5,6 +5,7 @@
 
 // --- Accounts & Preferences ---
 export * from './client/accountPreferences'
+export * from './client/accountArchives'
 export * from './client/accounts'
 export * from './client/accountSettings'
 export * from './client/profile'
