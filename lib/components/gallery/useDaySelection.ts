@@ -5,6 +5,7 @@ import {
   type SetStateAction,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState
 } from 'react'
@@ -234,7 +235,9 @@ export const useDaySelection = <Q = unknown>({
   } | null>(null)
   const toastId = useRef(0)
 
-  useEffect(() => {
+  // Layout effects, not passive ones: an Undo or a click right after a
+  // commit must already see this render's selection and room.
+  useLayoutEffect(() => {
     selectedRef.current = selected
     const selectedSet = new Set(selected)
     // A saved whole-day offset assumes the ids before it are still
@@ -287,7 +290,7 @@ export const useDaySelection = <Q = unknown>({
   useEffect(() => {
     onItemsLoadedRef.current = onItemsLoaded
   }, [onItemsLoaded])
-  useEffect(() => {
+  useLayoutEffect(() => {
     roomRef.current = room
   }, [room])
 
