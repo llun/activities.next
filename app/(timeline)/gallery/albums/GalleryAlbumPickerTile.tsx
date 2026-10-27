@@ -108,18 +108,16 @@ export const GalleryAlbumPickerTile: FC<Props> = ({
         }}
         className={cn(
           // The focus outline sits outside the tile in the foreground
-          // colour: the inset primary ring already marks a selected tile,
-          // and an inset primary outline on top of it is invisible. The
-          // pick ring is an inset ring and the anchor ring an offset one,
-          // so a selected anchor shows both: the primary band inside, the
-          // dark anchor ring outside it.
+          // colour; the anchor is an inset foreground ring inside the tile,
+          // so the two never look alike. The pick ring is an inset primary
+          // ring painted over the anchor's, so a selected anchor shows both:
+          // the primary band inside, the anchor ring around it.
           'focus-visible:outline-foreground bg-muted/20 relative block aspect-square w-full cursor-pointer scroll-mt-12 overflow-hidden rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed aria-disabled:cursor-not-allowed',
           isMember
             ? 'disabled:opacity-60 aria-disabled:opacity-60'
             : 'disabled:opacity-40 aria-disabled:opacity-40',
           isSelected && 'inset-ring-primary inset-ring-2',
-          isAnchor &&
-            'ring-2 ring-foreground ring-offset-2 ring-offset-background'
+          isAnchor && 'ring-4 ring-inset ring-foreground'
         )}
       >
         <GalleryAlbumThumb item={item} />

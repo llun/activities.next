@@ -230,15 +230,15 @@ export const GalleryGrid: FC<Props> = ({
             // foreground colour: the inset primary ring already marks the
             // selected tile, and an inset primary outline on top of it is
             // invisible. Viewer tiles keep the inset primary outline.
-            // The pick ring is an inset ring and the anchor ring an offset
-            // one, so a selected anchor shows both: the primary band inside,
-            // the dark anchor ring outside it.
+            // The anchor is an inset foreground ring inside the tile, so
+            // it never looks like the focus outline; the pick ring is
+            // painted over it, so a selected anchor shows both: the
+            // primary band inside, the anchor ring around it.
             selection
               ? 'focus-visible:outline-foreground focus-visible:outline-2 focus-visible:outline-offset-2'
               : 'focus-visible:outline-primary focus-visible:outline-2 focus-visible:-outline-offset-2',
             isSelected && 'inset-ring-primary inset-ring-3',
-            isAnchor &&
-              'ring-2 ring-foreground ring-offset-2 ring-offset-background',
+            isAnchor && 'ring-4 ring-inset ring-foreground',
             groups &&
               'max-md:scroll-mt-[calc(56px+env(safe-area-inset-top,0px)+var(--status-strip-h,0px)+3rem)] md:scroll-mt-[calc(79px+3rem)]'
           )}

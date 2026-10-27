@@ -1211,6 +1211,24 @@ describe('useDaySelection', () => {
     expect(result.current.pickedInDay(DAY)).toBe(3)
   })
 
+  it('gives pickedInDay a new identity after noteItems, so memoised headers recompute', async () => {
+    const { result } = setup({ selected: ['p1'] })
+
+    // The day map is empty until the host notes its loaded tiles.
+    expect(result.current.pickedInDay(DAY)).toBe(0)
+    const beforeNoting = result.current.pickedInDay
+
+    await act(async () => {
+      result.current.noteItems([dayItem('p1', `${DAY}T09:00:00Z`)])
+    })
+
+    // A host keys its day headers on pickedInDay's identity: after a
+    // filter or sort reset the re-noted tiles must produce a new one, or
+    // the memoised headers keep the counts they computed before (zero).
+    expect(result.current.pickedInDay).not.toBe(beforeNoting)
+    expect(result.current.pickedInDay(DAY)).toBe(1)
+  })
+
   it('exposes busyKey while the fetch is pending', async () => {
     const deferred = createDeferred<string[]>()
     const fetchIds = vi.fn().mockReturnValue(deferred.promise)

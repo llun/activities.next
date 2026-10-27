@@ -158,6 +158,11 @@ export const useDaySelection = <Q = unknown>({
   const [busyKey, setBusyKey] = useState<GalleryDayKey | null>(null)
   // The ids fetched so far for the busy key's read (its progress label).
   const [busyCount, setBusyCount] = useState(0)
+  // Bumped by every noteItems: pickedInDay reads the day map through a
+  // ref, so without a new identity per noting the hosts' memoised day
+  // headers would keep the counts they computed before the items were
+  // noted (after a resetKey change, before the re-noting, that is zero).
+  const [notedVersion, setNotedVersion] = useState(0)
   const [announcement, setAnnouncement] = useState('')
   const [error, setError] = useState<string | null>(null)
   // The fetch is async: read the selection through a ref, not the closure.
@@ -348,6 +353,9 @@ export const useDaySelection = <Q = unknown>({
           }
         }
       }
+      // A new pickedInDay identity per noting, so every host that keys its
+      // day headers on it recomputes them from the tiles just noted.
+      setNotedVersion((version) => version + 1)
     },
     [sort]
   )
@@ -362,7 +370,7 @@ export const useDaySelection = <Q = unknown>({
         (count, id) => (dayOf.current.get(id) === key ? count + 1 : count),
         0
       ),
-    [selected]
+    [selected, notedVersion]
   )
 
   const hydrateItems = useCallback(

@@ -116,13 +116,14 @@ describe('GalleryAlbumPicksSheet', () => {
     }
   })
 
-  it('marks the starred pick and moves the star', () => {
-    const { onSetCover } = renderSheet({ starId: 'p2' })
+  it('marks the starred pick and moves the star (create)', () => {
+    const { onSetCover } = renderSheet({ starId: 'p2', intent: 'create' })
     const starred = screen.getByRole('button', {
       name: 'Heron, photo 2 of 3, is the cover'
     })
     expect(starred).toHaveAttribute('aria-pressed', 'true')
 
+    // Create always keeps exactly one star: the starred ★ does nothing.
     fireEvent.click(starred)
     expect(onSetCover).not.toHaveBeenCalled()
 
@@ -132,6 +133,18 @@ describe('GalleryAlbumPicksSheet', () => {
       })
     )
     expect(onSetCover).toHaveBeenCalledWith('p3')
+  })
+
+  it('clears the star from the starred pick in the add intent', () => {
+    const { onSetCover } = renderSheet({ starId: 'p2' })
+    const starred = screen.getByRole('button', {
+      name: 'Heron, photo 2 of 3, is the cover'
+    })
+    expect(starred).toHaveAttribute('aria-pressed', 'true')
+
+    // Add photos has no default star: the ★ is a real toggle.
+    fireEvent.click(starred)
+    expect(onSetCover).toHaveBeenCalledWith(null)
   })
 
   it('removes a pick from its ✕ button', () => {

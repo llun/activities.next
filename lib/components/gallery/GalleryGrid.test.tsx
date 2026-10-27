@@ -838,9 +838,7 @@ describe('GalleryGrid', () => {
         const anchor = screen.getByRole('button', {
           name: 'Select media 2, taken 4 Oct 2025'
         })
-        expect(anchor).toHaveClass(
-          'ring-2 ring-foreground ring-offset-2 ring-offset-background'
-        )
+        expect(anchor).toHaveClass('ring-4 ring-inset ring-foreground')
         expect(anchor).not.toHaveClass('inset-ring-primary')
         const picked = screen.getByRole('button', {
           name: 'Select media: Red Fox, taken 4 Oct 2025'
@@ -866,9 +864,7 @@ describe('GalleryGrid', () => {
           name: 'Select media 2, taken 4 Oct 2025'
         })
         expect(anchor).toHaveClass('inset-ring-primary inset-ring-3')
-        expect(anchor).toHaveClass(
-          'ring-2 ring-foreground ring-offset-2 ring-offset-background'
-        )
+        expect(anchor).toHaveClass('ring-4 ring-inset ring-foreground')
       })
 
       it('draws the focus outline outside a select tile and inside a viewer tile', () => {

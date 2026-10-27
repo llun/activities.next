@@ -29,7 +29,7 @@ vi.mock('@/app/(timeline)/gallery/albums/GalleryAlbumPicksSheet', () => ({
     open: boolean
     onOpenChange: (open: boolean) => void
     selected: string[]
-    onSetCover: (id: string) => void
+    onSetCover: (id: string | null) => void
   }) => (
     <div data-testid="picks-sheet-stub">
       <span>{open ? 'open' : 'closed'}</span>
@@ -198,8 +198,8 @@ describe('GalleryAlbumPicksStrip', () => {
     expect(onRemove).toHaveBeenCalledWith('p2')
   })
 
-  it('stars exactly one pick and moves the star with ☆', () => {
-    const { onSetCover } = renderStrip({ starId: 'p2' })
+  it('stars exactly one pick and moves the star with ☆ (create)', () => {
+    const { onSetCover } = renderStrip({ starId: 'p2', intent: 'create' })
     const desktop = within(screen.getByTestId('album-picks-desktop'))
     const starred = desktop.getByRole('button', {
       name: 'Heron, photo 2 of 3, is the cover'
@@ -211,7 +211,7 @@ describe('GalleryAlbumPicksStrip', () => {
       })
     ).toHaveAttribute('aria-pressed', 'false')
 
-    // Clicking the starred ★ again does not unset it.
+    // Create always keeps exactly one star: the starred ★ does nothing.
     fireEvent.click(starred)
     expect(onSetCover).not.toHaveBeenCalled()
 
@@ -221,6 +221,19 @@ describe('GalleryAlbumPicksStrip', () => {
       })
     )
     expect(onSetCover).toHaveBeenCalledWith('p3')
+  })
+
+  it('clears the star from the starred pick in the add intent', () => {
+    const { onSetCover } = renderStrip({ starId: 'p2' })
+    const desktop = within(screen.getByTestId('album-picks-desktop'))
+    const starred = desktop.getByRole('button', {
+      name: 'Heron, photo 2 of 3, is the cover'
+    })
+    expect(starred).toHaveAttribute('aria-pressed', 'true')
+
+    // Add photos has no default star: the ★ is a real toggle.
+    fireEvent.click(starred)
+    expect(onSetCover).toHaveBeenCalledWith(null)
   })
 
   it('draws a placeholder for a pick it has no photo for', () => {

@@ -27,7 +27,8 @@ interface Props {
   intent: 'create' | 'add'
   room: number
   onRemove: (id: string) => void
-  onSetCover: (id: string) => void
+  /** The starred pick; null clears the star (the add intent only). */
+  onSetCover: (id: string | null) => void
   onClear: () => void
   disabled?: boolean
 }
@@ -158,6 +159,10 @@ export const GalleryAlbumPicksStrip: FC<Props> = ({
                   }
                   onClick={() => {
                     if (!isStar) onSetCover(id)
+                    // Add photos: the ★ is a real toggle, so pressing it on
+                    // the starred pick clears the star again (the album keeps
+                    // its cover). Create always keeps exactly one star.
+                    else if (intent === 'add') onSetCover(null)
                   }}
                   disabled={disabled}
                   className="bg-black/60 text-white absolute bottom-0.5 left-0.5 flex size-5 cursor-pointer items-center justify-center rounded-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 pointer-coarse:size-11"

@@ -908,6 +908,33 @@ describe('GalleryAlbumFormDialog', () => {
       expect(update).toHaveBeenCalledWith('a1', { coverMediaId: 'm2' })
     })
 
+    it('unstars the cover in the add intent and adds without patching the cover', async () => {
+      add.mockResolvedValue(result('a1', { added: ['m1', 'm2', 'm3'] }))
+      const { onSaved } = renderDialog({
+        intent: 'add',
+        album: buildAlbumCard('a1')
+      })
+
+      fireEvent.click(await screen.findByText('pick three'))
+      fireEvent.click(setCoverButton('Heron'))
+      expect(screen.getByTestId('album-selection-count')).toHaveTextContent(
+        '★ Heron becomes the cover'
+      )
+
+      // Pressing ★ on the starred pick clears the star again: the footer
+      // note goes and no cover PATCH follows the add.
+      fireEvent.click(coverStatusButton('Heron'))
+      expect(screen.getByTestId('album-selection-count')).toHaveTextContent(
+        'Room for 1,994'
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: /Add 3 photos/ }))
+      await waitFor(() => expect(onSaved).toHaveBeenCalledWith('a1'))
+
+      expect(add).toHaveBeenCalledWith('a1', ['m1', 'm2', 'm3'])
+      expect(update).not.toHaveBeenCalled()
+    })
+
     it('calls onSaved when closing after a partial add failure', async () => {
       add.mockRejectedValue(
         new GalleryAlbumAddError(

@@ -294,9 +294,7 @@ describe('GalleryAlbumPickerTile', () => {
       />
     )
     const button = screen.getByRole('button')
-    expect(button).toHaveClass(
-      'ring-2 ring-foreground ring-offset-2 ring-offset-background'
-    )
+    expect(button).toHaveClass('ring-4 ring-inset ring-foreground')
     expect(button).not.toHaveClass('inset-ring-primary')
 
     rerender(
@@ -309,9 +307,7 @@ describe('GalleryAlbumPickerTile', () => {
       />
     )
     expect(button).toHaveClass('inset-ring-primary inset-ring-2')
-    expect(button).toHaveClass(
-      'ring-2 ring-foreground ring-offset-2 ring-offset-background'
-    )
+    expect(button).toHaveClass('ring-4 ring-inset ring-foreground')
   })
 
   it('draws the focus outline outside the tile, clear of the pick ring', () => {

@@ -26,7 +26,8 @@ export interface GalleryAlbumPicksSheetProps {
   intent: 'create' | 'add'
   room: number
   onRemove: (id: string) => void
-  onSetCover: (id: string) => void
+  /** The starred pick; null clears the star (the add intent only). */
+  onSetCover: (id: string | null) => void
   onClear: () => void
 }
 
@@ -137,6 +138,11 @@ export const GalleryAlbumPicksSheet: FC<GalleryAlbumPicksSheetProps> = ({
                       }
                       onClick={() => {
                         if (!isStar) onSetCover(id)
+                        // Add photos: the ★ is a real toggle, so pressing it
+                        // on the starred pick clears the star again (the
+                        // album keeps its cover). Create always keeps exactly
+                        // one star.
+                        else if (intent === 'add') onSetCover(null)
                       }}
                       className="bg-black/60 text-white absolute bottom-1 left-1 flex size-6 cursor-pointer items-center justify-center rounded-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 pointer-coarse:size-11"
                     >
