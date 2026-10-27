@@ -4,6 +4,7 @@ import { z } from 'zod'
 
 import { getConfig } from '@/lib/config'
 import { DEFAULT_FITNESS_MAX_FILE_SIZE } from '@/lib/config/fitnessStorage'
+import type { UpdateActorParams } from '@/lib/database/domains/actor/types'
 import type { Database } from '@/lib/database/types'
 import { PROCESS_FITNESS_FILE_JOB_NAME } from '@/lib/jobs/names'
 import {
@@ -56,6 +57,9 @@ import {
   type ZipCatalogEntry,
   openZipArchive
 } from '@/lib/services/accountImport/zip/reader'
+import { normalizeProfileFieldRows } from '@/lib/services/accounts/profileFields'
+import { publishActorUpdate } from '@/lib/services/actors/actorUpdate'
+import { hasFederatedProfileChange } from '@/lib/services/actors/hasFederatedProfileChange'
 import { isLocalFederationDomain } from '@/lib/services/federation/domainPolicy'
 import { saveFitnessFile } from '@/lib/services/fitness-files'
 import {
@@ -63,10 +67,15 @@ import {
   type FitnessGearKind
 } from '@/lib/services/fitness-files/sportTypes'
 import { FitnessFileUploadSchema } from '@/lib/services/fitness-files/types'
+import { UpdateGallerySettingsRequest } from '@/lib/services/gallery/galleryRequests'
 import { importRow } from '@/lib/services/imports/importRow'
 import { saveMedia } from '@/lib/services/medias'
-import { ACCEPTED_FILE_TYPES } from '@/lib/services/medias/constants'
+import {
+  ACCEPTED_FILE_TYPES,
+  ACCEPTED_IMAGE_TYPES
+} from '@/lib/services/medias/constants'
 import { sanitizeStoredFileName } from '@/lib/services/medias/fileName'
+import { readValidThumbnail } from '@/lib/services/medias/thumbnailInput'
 import { MediaSchema } from '@/lib/services/medias/types'
 import { getQueue } from '@/lib/services/queue'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
@@ -84,11 +93,15 @@ import {
   MAX_GALLERY_ALBUM_ITEMS,
   MAX_GALLERY_ALBUM_TITLE_LENGTH
 } from '@/lib/types/database/galleryAlbums'
+import { NotificationPolicyValue } from '@/lib/types/database/operations'
+import { POST_LINE_LIMIT_VALUES } from '@/lib/types/database/rows'
 import type {
   AccountImport,
   AccountImportItem
 } from '@/lib/types/domain/accountImport'
 import type { Actor } from '@/lib/types/domain/actor'
+import { QuoteApprovalPolicy } from '@/lib/types/domain/status'
+import { Visibility } from '@/lib/types/mastodon/visibility'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { readAsyncIterableToBufferWithLimit } from '@/lib/utils/streamLimit'
 
@@ -1851,6 +1864,207 @@ const importFitnessFile = async (
   }
 }
 
+// A single small JSON document of the archive (actor.json, profile.json, a
+// settings row), read whole under a byte cap. The plan's "never parse a whole
+// entry" rule is about the collections (outbox.json holds up to 200,000
+// items); these documents are one bounded object each, and the cap keeps a
+// padded one from costing more than the read itself.
+const readArchiveJsonDocument = async (
+  archive: ZipArchive,
+  name: string,
+  maxBytes: number
+): Promise<unknown> => {
+  if (!requiredEntry(archive.entries, name)) return null
+  const stream = await archive.openEntryStream(name)
+  const bytes = await readAsyncIterableToBufferWithLimit(
+    chunksOf(stream),
+    maxBytes,
+    'Archived JSON document'
+  )
+  try {
+    return JSON.parse(bytes.toString('utf8')) as unknown
+  } catch {
+    return null
+  }
+}
+
+// The same caps the profile route's PATCH applies to a name and a bio it did
+// not already have stored (NAME_MAX_LENGTH / SUMMARY_MAX_LENGTH there).
+const PROFILE_NAME_MAX_LENGTH = 255
+const PROFILE_SUMMARY_MAX_LENGTH = 500
+// The actor document cap of the inspect phase's scanner, reused so both reads
+// of actor.json cost the same ceiling.
+const PROFILE_ACTOR_DOCUMENT_MAX_BYTES = 4 * 1024 * 1024
+const SETTINGS_DOCUMENT_MAX_BYTES = 1024 * 1024
+
+/**
+ * The archive entry an actor.json image URL names, or null. The URL is never
+ * retrieved: only a name the archive itself carries is used, so a Mastodon
+ * archive whose icon points at a remote file simply has no image to import.
+ */
+const profileImageEntryName = (
+  url: string,
+  entries: readonly ZipCatalogEntry[]
+): string | null => {
+  let candidate = url
+  try {
+    if (URL.canParse(url)) {
+      candidate = decodeURIComponent(new URL(url).pathname).replace(/^\/+/, '')
+    }
+  } catch {
+    return null
+  }
+  if (candidate.includes('\\') || candidate.includes('\0')) return null
+  if (
+    candidate.split('/').some((segment) => segment === '' || segment === '..')
+  ) {
+    return null
+  }
+  return entries.some((entry) => entry.name === candidate) ? candidate : null
+}
+
+/**
+ * Saves one profile image from the archive's own bytes through the same media
+ * path the profile routes use (MediaSchema, the image type check, the decode
+ * check, saveMedia). The MIME type is sniffed from the bytes, never taken from
+ * the entry name or the archive's claim; anything that is not a stored png or
+ * jpeg is skipped, and so is a save the storage cannot take.
+ */
+const importProfileImage = async (
+  context: AccountImportPhaseContext,
+  archive: ZipArchive,
+  actor: Actor,
+  url: string | undefined,
+  maxBytes: number
+): Promise<string | null> => {
+  const entryName = url ? profileImageEntryName(url, archive.entries) : null
+  if (!entryName) return null
+  const entry = archive.entries.find(
+    (candidate) => candidate.name === entryName
+  )
+  if (!entry || entry.uncompressedSize > maxBytes) return null
+  let bytes: Buffer
+  try {
+    const stream = await archive.openEntryStream(entryName)
+    bytes = await readAsyncIterableToBufferWithLimit(
+      chunksOf(stream),
+      maxBytes,
+      'Archived profile image'
+    )
+  } catch {
+    return null
+  }
+  const mediaType = sniffSupportedMediaType(bytes)
+  if (!mediaType || !ACCEPTED_IMAGE_TYPES.includes(mediaType)) return null
+  const file = new File(
+    [new Uint8Array(bytes)],
+    sanitizeStoredFileName(basename(entryName)),
+    { type: mediaType }
+  )
+  const parsed = MediaSchema.safeParse({ file })
+  if (!parsed.success) return null
+  try {
+    await readValidThumbnail(file)
+  } catch {
+    return null
+  }
+  await context.renew()
+  const saved = await saveMedia(context.database, actor, parsed.data)
+  return saved ? saved.url : null
+}
+
+export interface ProfileSettingsPhaseResult {
+  result: PhaseResult
+  progress: AccountImportProgress
+}
+
+/**
+ * The profile option: the display name, bio, fields, avatar and header of the
+ * archive's actor document, applied with the profile route's own validation
+ * (its field normalizer and its length caps). movedTo, alsoKnownAs, verifiedAt
+ * and every key outside the profile route's schema are ignored, and the images
+ * come only from the archive's own files. At most one publishActorUpdate leaves
+ * the phase, and only when the stored profile actually changed.
+ */
+export const runProfilePhase = async (
+  context: AccountImportPhaseContext,
+  progress: AccountImportProgress
+): Promise<ProfileSettingsPhaseResult> => {
+  if (!selectedOptions(context, progress).profile) {
+    return { result: 'done', progress }
+  }
+  const archive = await openArchive(context.objectStore, context.accountImport)
+  try {
+    const document = await readArchiveJsonDocument(
+      archive,
+      'actor.json',
+      PROFILE_ACTOR_DOCUMENT_MAX_BYTES
+    )
+    const actorDocument = mastodonActorSchema.safeParse(document)
+    if (!actorDocument.success) return { result: 'done', progress }
+    const source = actorDocument.data
+    const actor = await requireActor(context)
+    const patch: Pick<
+      UpdateActorParams,
+      'name' | 'summary' | 'fields' | 'iconUrl' | 'headerImageUrl'
+    > = {}
+    if (
+      source.name !== undefined &&
+      source.name.length <= PROFILE_NAME_MAX_LENGTH
+    ) {
+      patch.name = source.name
+    }
+    if (
+      source.summary !== undefined &&
+      source.summary.length <= PROFILE_SUMMARY_MAX_LENGTH
+    ) {
+      patch.summary = source.summary
+    }
+    if (source.attachment !== undefined) {
+      // The profile route's own field schema: the same trim, limits and
+      // at-most-four rule the JSON editor's save applies.
+      const fields = normalizeProfileFieldRows(
+        source.attachment.map((field) => ({
+          name: field.name,
+          value: field.value
+        }))
+      )
+      if (fields.status === 'ok') patch.fields = fields.fields
+    }
+    const { media } = await getResolvedServerSettings(context.database)
+    const iconUrl = await importProfileImage(
+      context,
+      archive,
+      actor,
+      source.icon?.url,
+      media.maxFileSize
+    )
+    if (iconUrl) patch.iconUrl = iconUrl
+    const headerImageUrl = await importProfileImage(
+      context,
+      archive,
+      actor,
+      source.image?.url,
+      media.maxFileSize
+    )
+    if (headerImageUrl) patch.headerImageUrl = headerImageUrl
+    if (Object.keys(patch).length === 0) return { result: 'done', progress }
+    await context.renew()
+    const { before, after } = await context.database.updateActorWithPrevious({
+      actorId: context.accountImport.actorId,
+      ...patch
+    })
+    // The one federated side effect the importer is allowed: a single
+    // Update(Person), and only for a change to what the Person carries.
+    if (after && (!before || hasFederatedProfileChange(before, after))) {
+      await publishActorUpdate({ actorId: context.accountImport.actorId })
+    }
+    return { result: 'done', progress }
+  } finally {
+    await archive.close()
+  }
+}
+
 const readTargetFitnessGearMap = async (
   database: Database,
   importId: string
@@ -1876,13 +2090,172 @@ export const runFitnessPhase = async (
     (item) => importFitnessFile(context, progress, item)
   )
 
-export const runProfileNoopPhase = async () => 'done' as const
-export const runSettingsNoopPhase = async () => 'done' as const
 export const runCollectionsNoopPhase = async () => 'done' as const
-export const runGearsNoopPhase = async () => 'done' as const
-export const runOwnArchiveMediaNoopPhase = async () => 'done' as const
-export const runGalleryNoopPhase = async () => 'done' as const
-export const runFitnessNoopPhase = async () => 'done' as const
-export const runAlbumsNoopPhase = async () => 'done' as const
+// The actor settings the settings option may restore, each validated with the
+// schema the app's own write path for that key uses. An explicit allowlist:
+// a key added to the export later stays out until someone opts it in here.
+// Deliberately NOT importable, with why:
+// - iconUrl, headerImageUrl, fields, avatarDescription, headerDescription:
+//   profile data, which only the profile option restores (images from the
+//   archive's own files, never a URL).
+// - movedTo, alsoKnownAs: moved state.
+// - attributionDomains: which domains may credit this account (anti-spoofing
+//   trust, i.e. identity).
+// - bot: account identity.
+// - tags: profile decoration.
+// - emailNotifications, pushNotifications: delivery channel toggles for the
+//   account's own email/push endpoints.
+// - notificationAcceptedSenders: a per-sender moderation list.
+const ACTOR_SETTING_IMPORT_KEYS: Record<string, z.ZodTypeAny> = {
+  // Posting defaults (update_credentials `source.*`).
+  defaultPrivacy: Visibility,
+  defaultSensitive: z.boolean(),
+  defaultLanguage: z.string().max(20),
+  defaultQuotePolicy: QuoteApprovalPolicy,
+  // The profile form's post line limit values.
+  postLineLimit: z
+    .number()
+    .int()
+    .refine((value) =>
+      (POST_LINE_LIMIT_VALUES as readonly number[]).includes(value)
+    ),
+  // The reading-preferences route's enum and booleans.
+  readingExpandMedia: z.enum(['default', 'show_all', 'hide_all']),
+  readingExpandSpoilers: z.boolean(),
+  readingAutoplayGifs: z.boolean(),
+  // The notification policy the v2 policy route writes, as one whole object.
+  notificationPolicy: z.object({
+    for_not_following: NotificationPolicyValue,
+    for_not_followers: NotificationPolicyValue,
+    for_new_accounts: NotificationPolicyValue,
+    for_private_mentions: NotificationPolicyValue,
+    for_limited_accounts: NotificationPolicyValue
+  }),
+  // Profile tab visibility flags (PATCH /api/v1/profile).
+  showMedia: z.boolean(),
+  showMediaReplies: z.boolean(),
+  showFeatured: z.boolean(),
+  // Discovery and follow-policy preferences.
+  discoverable: z.boolean(),
+  indexable: z.boolean(),
+  hideCollections: z.boolean(),
+  manuallyApprovesFollowers: z.boolean()
+}
+
+// The gallery settings the settings option may restore, each with the key's
+// own validator in UpdateGallerySettingsRequest (the gallery settings route's
+// schema). The row's bookkeeping (actorId, createdAt, updatedAt) is not
+// listed and never written. Fitness settings are not restored at all: a
+// fitness_settings row belongs to an OAuth provider link (client id and
+// secret, access tokens), which is exactly the auth material the importer
+// must never touch.
+const GALLERY_SETTING_IMPORT_KEYS: Record<string, z.ZodTypeAny> = {
+  autoDescribe: UpdateGallerySettingsRequest.shape.autoDescribe,
+  allowEmptyDescription:
+    UpdateGallerySettingsRequest.shape.allowEmptyDescription,
+  subjectHashtags: UpdateGallerySettingsRequest.shape.subjectHashtags,
+  galleryDefault: UpdateGallerySettingsRequest.shape.galleryDefault,
+  defaultPlacePrecision:
+    UpdateGallerySettingsRequest.shape.defaultPlacePrecision,
+  showGear: UpdateGallerySettingsRequest.shape.showGear,
+  mapPublic: UpdateGallerySettingsRequest.shape.mapPublic,
+  lifeListPublic: UpdateGallerySettingsRequest.shape.lifeListPublic,
+  // The owner's own privacy zones; the export may already carry them emptied.
+  hiddenLocations: UpdateGallerySettingsRequest.shape.hiddenLocations,
+  hideThreatenedPlaces: UpdateGallerySettingsRequest.shape.hideThreatenedPlaces,
+  subjectSuggestionMode:
+    UpdateGallerySettingsRequest.shape.subjectSuggestionMode,
+  subjectConfidenceThreshold:
+    UpdateGallerySettingsRequest.shape.subjectConfidenceThreshold,
+  photoEnhance: UpdateGallerySettingsRequest.shape.photoEnhance
+}
+
+const importAllowlistedSettings = (
+  values: Record<string, unknown>,
+  schemas: Record<string, z.ZodTypeAny>
+): Record<string, unknown> => {
+  const patch: Record<string, unknown> = {}
+  for (const [key, schema] of Object.entries(schemas)) {
+    if (!(key in values)) continue
+    const parsed = schema.safeParse(values[key])
+    // A value the schema refuses is dropped, key and all; the rest of the
+    // restore goes on.
+    if (parsed.success) patch[key] = parsed.data
+  }
+  return patch
+}
+
+/**
+ * The settings option: the preference settings of this server's own export
+ * (a Mastodon archive carries none), restored key by key through the
+ * explicit allowlists above. Nothing here federates or notifies.
+ */
+export const runSettingsPhase = async (
+  context: AccountImportPhaseContext,
+  progress: AccountImportProgress
+): Promise<ProfileSettingsPhaseResult> => {
+  if (!selectedOptions(context, progress).settings) {
+    return { result: 'done', progress }
+  }
+  if (
+    (context.accountImport.kind as AccountArchiveKind) !== 'activities.next'
+  ) {
+    return { result: 'done', progress }
+  }
+  const archive = await openArchive(context.objectStore, context.accountImport)
+  try {
+    const profileDocument = await readArchiveJsonDocument(
+      archive,
+      'activities.next/profile.json',
+      SETTINGS_DOCUMENT_MAX_BYTES
+    )
+    const settings =
+      profileDocument &&
+      typeof profileDocument === 'object' &&
+      'settings' in profileDocument &&
+      typeof (profileDocument as Record<string, unknown>).settings === 'object'
+        ? ((profileDocument as Record<string, unknown>).settings as Record<
+            string,
+            unknown
+          >)
+        : null
+    if (settings) {
+      const patch = importAllowlistedSettings(
+        settings,
+        ACTOR_SETTING_IMPORT_KEYS
+      )
+      if (Object.keys(patch).length > 0) {
+        await context.renew()
+        await context.database.updateActor({
+          actorId: context.accountImport.actorId,
+          ...(patch as Partial<UpdateActorParams>)
+        })
+      }
+    }
+    const galleryRow = await readArchiveJsonDocument(
+      archive,
+      'activities.next/gallery/settings.json',
+      SETTINGS_DOCUMENT_MAX_BYTES
+    )
+    if (galleryRow && typeof galleryRow === 'object') {
+      const patch = importAllowlistedSettings(
+        galleryRow as Record<string, unknown>,
+        GALLERY_SETTING_IMPORT_KEYS
+      )
+      if (Object.keys(patch).length > 0) {
+        await context.renew()
+        await context.database.updateGallerySettings({
+          actorId: context.accountImport.actorId,
+          ...(patch as Partial<
+            Parameters<Database['updateGallerySettings']>[0]
+          >)
+        })
+      }
+    }
+    return { result: 'done', progress }
+  } finally {
+    await archive.close()
+  }
+}
 
 export const sourceIndexFromPosition = statusIndex

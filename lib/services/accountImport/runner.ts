@@ -19,8 +19,8 @@ import {
   runGearsPhase,
   runMastodonMediaPhase,
   runOwnArchiveMediaPhase,
-  runProfileNoopPhase,
-  runSettingsNoopPhase,
+  runProfilePhase,
+  runSettingsPhase,
   runStatusesPhase
 } from '@/lib/services/accountImport/phases'
 import {
@@ -253,9 +253,18 @@ export const runAccountImport = async (
         phaseResult = result.result
         cursor = result.cursor
       } else if (phase === 'profile') {
-        await runProfileNoopPhase()
-        await runSettingsNoopPhase()
-        phaseResult = 'done'
+        // The profile and settings options share this phase; both are bounded
+        // single-pass reads, so neither carries a cursor.
+        const profileResult = await runProfilePhase(context, progress)
+        progress = profileResult.progress
+        if (profileResult.result === 'done') {
+          const settingsResult = await runSettingsPhase(context, progress)
+          progress = settingsResult.progress
+          phaseResult = settingsResult.result
+        } else {
+          phaseResult = profileResult.result
+        }
+        cursor = null
       } else if (phase === 'gears') {
         if ((accountImport.kind as AccountArchiveKind) === 'activities.next') {
           const result = await runGearsPhase(context, progress, cursor)
