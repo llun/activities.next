@@ -18,6 +18,7 @@ describe('http client utilities', () => {
       expect(error.name).toBe('ApiRequestError')
       expect(error.message).toBe('Not found')
       expect(error.status).toBe(404)
+      expect(error.details).toBeUndefined()
     })
   })
 
@@ -211,6 +212,26 @@ describe('http client utilities', () => {
       await expect(throwApiError(response, 'Default failure')).rejects.toThrow(
         'Default failure'
       )
+    })
+
+    it('keeps structured error details from the response body', async () => {
+      const details = {
+        error: 'An archive was requested in the last 7 days',
+        nextAllowedAt: '2026-11-04T12:00:00.000Z'
+      }
+      const response = new Response(JSON.stringify(details), {
+        status: 429,
+        headers: { 'Content-Type': 'application/json' }
+      })
+
+      await expect(
+        throwApiError(response, 'Default failure')
+      ).rejects.toMatchObject({
+        name: 'ApiRequestError',
+        status: 429,
+        message: 'An archive was requested in the last 7 days',
+        details
+      })
     })
   })
 
