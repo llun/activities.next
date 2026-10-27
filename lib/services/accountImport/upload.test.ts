@@ -124,6 +124,79 @@ describe('uploadAccountImport', () => {
     expect(calls).not.toContain('abort')
   })
 
+  it('deletes the stored object when the row is cancelled between the write and the update', async () => {
+    // The row reads as queued right before the bytes are stored, but the
+    // conditional update matches nothing: a cancel landed in between and
+    // its cleanup may already have run, so the object this upload just
+    // wrote must not be left behind.
+    const row = accountImport('queued')
+    const database = {
+      getAccountImport: vi
+        .fn()
+        .mockResolvedValueOnce(row)
+        .mockResolvedValueOnce({ ...row, status: 'cancelled' }),
+      updateAccountImport: vi.fn().mockResolvedValue(false)
+    } as unknown as Database
+    const { sink, calls } = makeSink()
+    let deleted = false
+    const objectStore = makeObjectStore(sink, () => {
+      deleted = true
+    })
+
+    const result = await uploadAccountImport({
+      database,
+      objectStore,
+      accountImport: row,
+      body: new ReadableStream<Uint8Array>({
+        start: (controller) => {
+          controller.enqueue(new Uint8Array(8))
+          controller.close()
+        }
+      }),
+      now: () => 0
+    })
+
+    expect(result).toEqual({ type: 'not-queued' })
+    expect(calls).toContain('finish')
+    expect(deleted).toBe(true)
+  })
+
+  it('keeps the stored object when the row started between the write and the update', async () => {
+    // A row that started meanwhile owns the key: its start accepted this
+    // very object, so the late upload's cleanup must not delete the
+    // running import's archive.
+    const row = accountImport('queued')
+    const database = {
+      getAccountImport: vi
+        .fn()
+        .mockResolvedValueOnce(row)
+        .mockResolvedValueOnce({ ...row, status: 'running' }),
+      updateAccountImport: vi.fn().mockResolvedValue(false)
+    } as unknown as Database
+    const { sink, calls } = makeSink()
+    let deleted = false
+    const objectStore = makeObjectStore(sink, () => {
+      deleted = true
+    })
+
+    const result = await uploadAccountImport({
+      database,
+      objectStore,
+      accountImport: row,
+      body: new ReadableStream<Uint8Array>({
+        start: (controller) => {
+          controller.enqueue(new Uint8Array(8))
+          controller.close()
+        }
+      }),
+      now: () => 0
+    })
+
+    expect(result).toEqual({ type: 'not-queued' })
+    expect(calls).toContain('finish')
+    expect(deleted).toBe(false)
+  })
+
   it('keeps the archive when a failed upload no longer owns its row', async () => {
     // failUpload must not delete the staged archive of a row that already
     // left queued: its conditional update matches nothing.

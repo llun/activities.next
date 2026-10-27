@@ -493,6 +493,12 @@ export const openZipArchive = async (
     }
   } catch (error) {
     await closeQuietly(zipfile)
+    // This code's own verdicts on the archive pass through unchanged, and a
+    // read the source refused leaves as the original error (a changed
+    // archive, a storage failure), never masked as not_a_zip. The message
+    // checks come after both, so a verdict raised here is never re-tagged.
+    if (error instanceof ZipArchiveError) throw error
+    if (error instanceof ZipSourceReadError) throw unwrapSourceReadError(error)
     // yauzl's own name validation rejects an unsafe name before the catalog
     // loop sees it; map that to the same reason code the loop would use.
     const message = error instanceof Error ? error.message : String(error)
@@ -506,7 +512,11 @@ export const openZipArchive = async (
     if (message.includes('size mismatch')) {
       throw new ZipArchiveError('entry_too_large', message)
     }
-    throw error
+    // Every other failure while yauzl walks the central directory is its own
+    // verdict on the archive's bytes (a bad record signature, an unexpected
+    // EOF, unsupported encryption, a broken zip64 extra field): the importer
+    // treats it as a defective archive, never as a storage fault.
+    throw new ZipArchiveError('not_a_zip', 'Archive directory is invalid')
   }
 }
 

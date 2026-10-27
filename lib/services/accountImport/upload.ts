@@ -134,9 +134,18 @@ export const uploadAccountImport = async ({
       uploadedBytes: bytes
     })
     if (!updated) {
-      // The row left `queued` between the check and the update: the upload
-      // is refused, and the archive is left alone for the same reason as
-      // above.
+      // The row left `queued` between the check and the update. A row that
+      // started meanwhile owns the key: its start accepted this very object,
+      // so it is kept. Any other state is terminal, and its cleanup may
+      // already have run before this write landed, so the object is deleted
+      // here rather than left behind under `imports/`.
+      const current = await database.getAccountImport({
+        id: accountImport.id,
+        actorId: accountImport.actorId
+      })
+      if (!current || current.status !== 'running') {
+        await objectStore.deleteUpload(accountImport)
+      }
       return { type: 'not-queued' }
     }
     return { type: 'stored', bytes }

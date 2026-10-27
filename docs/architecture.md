@@ -619,13 +619,23 @@ Import-level failures use fixed reason codes. `archive_changed` means a
 previously started archive changed during a later read; the start endpoint
 returns `409` if it detects a changed archive during inspection. `upload_expired`
 means a queued upload was not started within 24 hours; the sweep marks it
-failed and deletes its staged upload. An individual catalog item that errors
-is marked `failed` with reason `item_failed`, while the rest of the import
-continues and can still finish with status `done`. Failed items do not increase
-`completedItems` or `skippedItems`, so those progress counts may not add up to
-`totalItems`. When the same actor imports the same source again, pending or
-failed rows can be claimed again, as can skipped rows whose reason depends on
-an option or size limit (`option_disabled`, `reply-to-other`,
+failed and deletes its staged upload. An upload that cannot be stored fails
+the queued row with `upload_empty` (an empty body), `file_too_large` (over the
+configured cap or the declared size) or `upload_failed` (the store refused the
+streamed bytes); a presigned URL that cannot be created fails it with
+`upload_url_failed`, and a start that cannot queue its job fails the running
+row with `queue_failed`. A ZIP-level refusal fails the import with `archive_`
+plus the reader's reason: `archive_not_a_zip`, `archive_unsafe_name`,
+`archive_entry_too_large`, `archive_ratio_too_high` and
+`archive_total_too_large` (the entry-count cap and the 200,000-item catalog
+cap share `archive_too_many_entries`, described with the bounds below). Any
+other error fails the import with `import_failed`. An individual catalog item
+that errors is marked `failed` with reason `item_failed`, while the rest of the
+import continues and can still finish with status `done`. Failed items do not
+increase `completedItems` or `skippedItems`, so those progress counts may not
+add up to `totalItems`. When the same actor imports the same source again,
+pending or failed rows can be claimed again, as can skipped rows whose reason
+depends on an option or size limit (`option_disabled`, `reply-to-other`,
 `media_too_large`, `media_quota_exceeded` or `fitness_too_large`). Other
 skipped verdicts remain settled.
 
@@ -643,8 +653,16 @@ usable; `media_missing` a media file absent from the archive;
 `media_type_unsupported` a media type the importer does not accept;
 `media_too_large` and `fitness_too_large` content over its size limit;
 `media_invalid` media bytes that fail validation or decoding;
-`media_quota_exceeded` media that would exceed the owner's storage quota; and
-`storage_unavailable` a transient storage error during a media read.
+`media_quota_exceeded` media that would exceed the owner's storage quota;
+`gear_invalid` a gallery or fitness gear record that fails validation;
+`album_invalid` an album record that fails validation; `album_limit` an album
+over the per-actor album limit; `fitness_invalid` a fitness file whose record
+or bytes fail validation; `fitness_missing` a fitness file absent from the
+archive; `status_unavailable` a fitness file whose status was not imported;
+and `storage_unavailable` a media or fitness save no store accepted anything
+for (no storage configured). `storage_unavailable` is a settled skip: the row
+is not re-claimed on a later import, unlike the option- and size-limit
+verdicts above.
 
 #### Archive and document bounds
 
@@ -719,7 +737,14 @@ processed with `publishSendNote: false` and `notifyOnComplete: false`, so
 processing does not publish a fitness note or send a completion notification.
 
 The optional profile restore allowlist includes display name, bio, profile
-fields, avatar and header images. The settings option
+fields, avatar and header images. A profile image the media path refuses —
+the account is over its storage quota, or the bytes fail its validation — is
+skipped with `media_quota_exceeded` or `media_invalid` and the rest of the
+profile still applies; the profile phase keeps no item rows, so these skips
+are reported on the phase result and logged rather than recorded on the
+catalog. If the header's read fails after the avatar was stored, the stored
+avatar is deleted instead of left orphaned, and the phase fails for the
+header's own reason. The settings option
 reads only this server's own export. Its actor-settings allowlist is
 `defaultPrivacy`, `defaultSensitive`, `defaultLanguage`, `defaultQuotePolicy`,
 `postLineLimit`, `readingExpandMedia`, `readingExpandSpoilers`,

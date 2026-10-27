@@ -282,4 +282,60 @@ describe('the zip reader', () => {
       await opened.close()
     }
   })
+
+  it('rejects a corrupted central-directory record with a reason code', async () => {
+    // The first central record is intact, so the catalog loop starts and
+    // only the second record's damaged signature stops it: yauzl's own
+    // verdict on the directory must leave as a zip verdict, never as a
+    // plain error the start route would answer with a 500.
+    const archive = buildZip([
+      { name: 'actor.json', data: Buffer.from('{}') },
+      { name: 'outbox.json', data: Buffer.from('[]') }
+    ])
+    const signature = Buffer.from([0x50, 0x4b, 0x01, 0x02])
+    const firstRecord = archive.indexOf(signature)
+    const secondRecord = archive.indexOf(signature, firstRecord + 1)
+    archive[secondRecord + 3] ^= 0xff
+    await expect(openZipArchive(sourceOf(archive))).rejects.toMatchObject({
+      reason: 'not_a_zip'
+    })
+  })
+
+  it('passes a source error from the central-directory read through unchanged', async () => {
+    // The central directory is normally served without touching the source:
+    // it is prefetched whole, and whatever the prefetch missed is inside the
+    // cached end-record trailer (the last 64 KiB). Long entry names push
+    // the directory's start out of that trailer window, and a prefetch that
+    // comes back short keeps it uncached, so yauzl walks the directory
+    // through the source's read-ahead blocks: only there can a source
+    // failure (a changed archive, a storage fault) strike while the
+    // directory is being walked. It must surface as itself.
+    const archive = buildZip([
+      {
+        name: `${'a'.repeat(40000)}.json`,
+        data: Buffer.from('{}')
+      },
+      {
+        name: `${'b'.repeat(40000)}.json`,
+        data: Buffer.from('[]')
+      }
+    ])
+    const directoryOffset = archive.indexOf(
+      Buffer.from([0x50, 0x4b, 0x01, 0x02])
+    )
+    const failure = new Error('archive changed underneath')
+    const source = {
+      size: archive.length,
+      read: async (start: number, endInclusive: number) => {
+        // The catalog loop's read-ahead block covers the whole archive.
+        if (start === 0) throw failure
+        // The prefetch must not cache the directory.
+        if (start === directoryOffset) {
+          return Buffer.from(archive.subarray(start, endInclusive))
+        }
+        return Buffer.from(archive.subarray(start, endInclusive + 1))
+      }
+    }
+    await expect(openZipArchive(source)).rejects.toBe(failure)
+  })
 })

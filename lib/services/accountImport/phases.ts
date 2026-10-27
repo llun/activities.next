@@ -63,7 +63,7 @@ import {
 import { FitnessFileUploadSchema } from '@/lib/services/fitness-files/types'
 import { UpdateGallerySettingsRequest } from '@/lib/services/gallery/galleryRequests'
 import { importRow } from '@/lib/services/imports/importRow'
-import { saveMedia } from '@/lib/services/medias'
+import { deleteMediaFile, saveMedia } from '@/lib/services/medias'
 import {
   ACCEPTED_FILE_TYPES,
   ACCEPTED_IMAGE_TYPES
@@ -2171,6 +2171,19 @@ const profileImageEntryName = (
 }
 
 /**
+ * Why a profile image was refused instead of saved. The same reason codes
+ * the media phase writes to an item row; the profile phase has no item
+ * rows, so its skips are reported on the phase result instead.
+ */
+export type ProfileImageSkipReason = 'media_quota_exceeded' | 'media_invalid'
+
+/** One profile image's outcome: saved, refused with a reason, or absent. */
+type ProfileImageResult =
+  | { state: 'saved'; url: string; mediaId: string }
+  | { state: 'skipped'; reason: ProfileImageSkipReason }
+  | { state: 'absent' }
+
+/**
  * Saves one profile image from the archive's own bytes through the same media
  * path the profile routes use (MediaSchema, the image type check, the decode
  * check, saveMedia). The MIME type is sniffed from the bytes, never taken from
@@ -2183,13 +2196,13 @@ const importProfileImage = async (
   actor: Actor,
   url: string | undefined,
   maxBytes: number
-): Promise<string | null> => {
+): Promise<ProfileImageResult> => {
   const entryName = url ? profileImageEntryName(url, archive.entries) : null
-  if (!entryName) return null
+  if (!entryName) return { state: 'absent' }
   const entry = archive.entries.find(
     (candidate) => candidate.name === entryName
   )
-  if (!entry || entry.uncompressedSize > maxBytes) return null
+  if (!entry || entry.uncompressedSize > maxBytes) return { state: 'absent' }
   let bytes: Buffer
   try {
     const stream = await archive.openEntryStream(entryName)
@@ -2204,32 +2217,83 @@ const importProfileImage = async (
     // terminal for the import and a storage failure must not be silently
     // forgotten, so both reach the caller the way the media phase treats
     // them.
-    if (error instanceof ZipArchiveError) return null
-    if (error instanceof StreamByteLimitError) return null
+    if (error instanceof ZipArchiveError) return { state: 'absent' }
+    if (error instanceof StreamByteLimitError) return { state: 'absent' }
     throw error
   }
   const mediaType = sniffSupportedMediaType(bytes)
-  if (!mediaType || !ACCEPTED_IMAGE_TYPES.includes(mediaType)) return null
+  if (!mediaType || !ACCEPTED_IMAGE_TYPES.includes(mediaType)) {
+    return { state: 'absent' }
+  }
   const file = new File(
     [new Uint8Array(bytes)],
     sanitizeStoredFileName(basename(entryName)),
     { type: mediaType }
   )
   const parsed = MediaSchema.safeParse({ file })
-  if (!parsed.success) return null
+  if (!parsed.success) return { state: 'absent' }
   try {
     await readValidThumbnail(file)
   } catch {
-    return null
+    return { state: 'absent' }
   }
   await context.renew()
-  const saved = await saveMedia(context.database, actor, parsed.data)
-  return saved ? saved.url : null
+  let saved: Awaited<ReturnType<typeof saveMedia>>
+  try {
+    saved = await saveMedia(context.database, actor, parsed.data)
+  } catch (error) {
+    // The media path's own verdict on the image — the account is over its
+    // storage quota, or the bytes fail its validation — skips the image
+    // the way the media phase skips an item, instead of failing the whole
+    // import. Anything else (a storage fault) still reaches the caller.
+    if (error instanceof MediaValidationError) {
+      return {
+        state: 'skipped',
+        reason: isQuotaExceededError(error)
+          ? 'media_quota_exceeded'
+          : 'media_invalid'
+      }
+    }
+    throw error
+  }
+  if (!saved) return { state: 'absent' }
+  return { state: 'saved', url: saved.url, mediaId: saved.id }
+}
+
+/**
+ * Best-effort cleanup of a profile image the phase stored but will not
+ * apply: the row goes first and reports its storage paths, then each file
+ * is deleted, the way a replaced map media is cleaned up. A failure is
+ * logged, never thrown — the phase is already failing for its own reason.
+ */
+const deleteSavedProfileImage = async (
+  context: AccountImportPhaseContext,
+  mediaId: string
+) => {
+  try {
+    const deleted = await context.database.deleteMediaWithFiles({ mediaId })
+    if (deleted.status !== 'deleted') return
+    await Promise.allSettled(
+      deleted.files.map((path) => deleteMediaFile(context.database, path))
+    )
+  } catch (error) {
+    logger.warn({
+      message: 'Failed to delete an orphaned imported profile image',
+      importId: context.accountImport.id,
+      err: toArchiveLoggableError(error)
+    })
+  }
 }
 
 export interface ProfileSettingsPhaseResult {
   result: PhaseResult
   progress: AccountImportProgress
+  /**
+   * Why the avatar or header was refused instead of saved, if either was.
+   * The profile phase has no item rows, so these skips are reported here
+   * and logged rather than recorded on the catalog.
+   */
+  imageSkipReasons?: readonly ProfileImageSkipReason[]
 }
 
 /**
@@ -2295,23 +2359,48 @@ export const runProfilePhase = async (
       if (fields.status === 'ok') patch.fields = fields.fields
     }
     const { media } = await getResolvedServerSettings(context.database)
-    const iconUrl = await importProfileImage(
+    const imageSkipReasons: ProfileImageSkipReason[] = []
+    const icon = await importProfileImage(
       context,
       archive,
       actor,
       source.icon?.url,
       media.maxFileSize
     )
-    if (iconUrl) patch.iconUrl = iconUrl
-    const headerImageUrl = await importProfileImage(
-      context,
-      archive,
-      actor,
-      source.image?.url,
-      media.maxFileSize
-    )
-    if (headerImageUrl) patch.headerImageUrl = headerImageUrl
-    if (Object.keys(patch).length === 0) return { result: 'done', progress }
+    if (icon.state === 'saved') patch.iconUrl = icon.url
+    else if (icon.state === 'skipped') imageSkipReasons.push(icon.reason)
+    let header: ProfileImageResult
+    try {
+      header = await importProfileImage(
+        context,
+        archive,
+        actor,
+        source.image?.url,
+        media.maxFileSize
+      )
+    } catch (error) {
+      // The avatar was stored but the phase is failing before the profile
+      // points at it. It is deleted rather than left behind: nothing
+      // references it, and its bytes still count against the quota. A row
+      // that started meanwhile owns the key, so this only runs when the
+      // header's own read or save failed.
+      if (icon.state === 'saved') {
+        await deleteSavedProfileImage(context, icon.mediaId)
+      }
+      throw error
+    }
+    if (header.state === 'saved') patch.headerImageUrl = header.url
+    else if (header.state === 'skipped') imageSkipReasons.push(header.reason)
+    for (const reason of imageSkipReasons) {
+      logger.info({
+        message: 'Account import skipped a profile image',
+        importId: context.accountImport.id,
+        reason
+      })
+    }
+    if (Object.keys(patch).length === 0) {
+      return { result: 'done', progress, imageSkipReasons }
+    }
     await context.renew()
     const { before, after } = await context.database.updateActorWithPrevious({
       actorId: context.accountImport.actorId,
@@ -2322,7 +2411,7 @@ export const runProfilePhase = async (
     if (after && (!before || hasFederatedProfileChange(before, after))) {
       await publishActorUpdate({ actorId: context.accountImport.actorId })
     }
-    return { result: 'done', progress }
+    return { result: 'done', progress, imageSkipReasons }
   } finally {
     await archive.close()
   }

@@ -18,6 +18,7 @@ import {
 } from '@/lib/services/accountImport/zip/testing/fixtures'
 import { publishActorUpdate } from '@/lib/services/actors/actorUpdate'
 import { saveMedia } from '@/lib/services/medias'
+import { MediaValidationError } from '@/lib/services/medias/errors'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import type { AccountImport } from '@/lib/types/domain/accountImport'
@@ -348,6 +349,113 @@ describe('account import profile and settings phases', () => {
     ).rejects.toBe(failure)
     const actor = (await database.getActorFromId({ id: actorId }))!
     expect(actor.name ?? null).toBeNull()
+  })
+
+  it('skips the avatar and header on a quota error and keeps the other fields', async () => {
+    const archive = buildZip([
+      {
+        name: 'actor.json',
+        data: Buffer.from(
+          JSON.stringify({
+            id: 'https://source.test/users/archive',
+            type: 'Person',
+            preferredUsername: 'archive',
+            name: 'Quota Skipped',
+            icon: { type: 'Image', mediaType: 'image/png', url: 'avatar.png' },
+            image: { type: 'Image', mediaType: 'image/png', url: 'header.png' }
+          })
+        )
+      },
+      { name: 'avatar.png', data: await imageBytes('png') },
+      { name: 'header.png', data: await imageBytes('png') }
+    ])
+    const accountImport = await createImport(
+      'import-profile-quota',
+      '{"profile":true}',
+      'mastodon'
+    )
+    vi.mocked(saveMedia)
+      .mockReset()
+      .mockRejectedValue(
+        new MediaValidationError(
+          'Storage quota exceeded. Used: 1 bytes, Limit: 0 bytes'
+        )
+      )
+
+    const result = await runProfilePhase(
+      makeContext(accountImport, archive),
+      createInitialImportProgress()
+    )
+
+    // The quota verdict skips both images with their reason codes; the
+    // rest of the profile still applies.
+    expect(result.result).toBe('done')
+    expect(result.imageSkipReasons).toEqual([
+      'media_quota_exceeded',
+      'media_quota_exceeded'
+    ])
+    const actor = (await database.getActorFromId({ id: actorId }))!
+    expect(actor.name).toBe('Quota Skipped')
+    expect(actor.iconUrl).toBeUndefined()
+    expect(actor.headerImageUrl).toBeUndefined()
+    expect(vi.mocked(publishActorUpdate)).toHaveBeenCalledTimes(1)
+  })
+
+  it('deletes the avatar when the header read fails after it was saved', async () => {
+    // The avatar is small and reads from the first block; the header's
+    // data spans past it, so only the header's read hits the failing range.
+    const archive = buildZip([
+      {
+        name: 'actor.json',
+        data: Buffer.from(
+          JSON.stringify({
+            id: 'https://source.test/users/archive',
+            type: 'Person',
+            preferredUsername: 'archive',
+            name: 'Orphan Cleanup',
+            icon: { type: 'Image', mediaType: 'image/png', url: 'avatar.png' },
+            image: { type: 'Image', mediaType: 'image/png', url: 'header.png' }
+          })
+        )
+      },
+      { name: 'avatar.png', data: await imageBytes('png') },
+      {
+        name: 'header.png',
+        data: Buffer.concat([
+          await imageBytes('png'),
+          Buffer.alloc(5 * 1024 * 1024)
+        ])
+      }
+    ])
+    const failure = new AccountImportArchiveChangedError()
+    const accountImport = await createImport(
+      'import-profile-orphan',
+      '{"profile":true}',
+      'mastodon'
+    )
+    const context: AccountImportPhaseContext = {
+      ...makeContext(accountImport, archive),
+      objectStore: {
+        openSource: async () => failingAvatarSource(archive, failure)
+      } as unknown as AccountImportObjectStore
+    }
+    const deleteMediaWithFiles = vi.spyOn(database, 'deleteMediaWithFiles')
+
+    try {
+      await expect(
+        runProfilePhase(context, createInitialImportProgress())
+      ).rejects.toBe(failure)
+
+      // The avatar the phase stored is deleted, not left orphaned.
+      expect(deleteMediaWithFiles).toHaveBeenCalledWith({
+        mediaId: 'saved-profile-image'
+      })
+      const actor = (await database.getActorFromId({ id: actorId }))!
+      expect(actor.name ?? null).toBeNull()
+      expect(vi.mocked(publishActorUpdate)).not.toHaveBeenCalled()
+    } finally {
+      deleteMediaWithFiles.mockRestore()
+    }
   })
 
   it('publishes nothing when nothing changed or the option is off', async () => {
