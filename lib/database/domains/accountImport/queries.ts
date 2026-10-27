@@ -38,6 +38,7 @@ const toImport = (row: Row): AccountImport => ({
   actorId: row.actorId,
   status: row.status as AccountImport['status'],
   kind: row.kind ?? null,
+  archiveETag: row.archiveETag ?? null,
   options: row.options,
   storageToken: row.storageToken,
   uploadedBytes: Number(row.uploadedBytes),
@@ -71,6 +72,9 @@ export const createAccountImport = async (
       actorId: params.actorId,
       status: 'queued',
       options: params.options,
+      ...(params.uploadedBytes === undefined
+        ? null
+        : { uploadedBytes: params.uploadedBytes }),
       storageToken: randomBytes(32).toString('base64url'),
       createdAt: now,
       updatedAt: now
@@ -182,6 +186,9 @@ export const updateAccountImport = async (
   if (params.progress !== undefined) values.progress = params.progress
   if (params.phase !== undefined) values.phase = params.phase
   if (params.cursor !== undefined) values.cursor = params.cursor
+  if (params.archiveETag !== undefined) {
+    values.archiveETag = params.archiveETag
+  }
   if (params.uploadedBytes !== undefined) {
     values.uploadedBytes = params.uploadedBytes
   }

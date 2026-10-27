@@ -11,6 +11,8 @@ export type CreateAccountImportParams = {
   actorId: string
   /** Raw JSON text the request carried; the row keeps it verbatim. */
   options: string
+  /** Declared upload size for presigned uploads; streamed uploads set it later. */
+  uploadedBytes?: number
 }
 
 export type GetAccountImportParams = { id: string; actorId: string }
@@ -46,6 +48,7 @@ export type UpdateAccountImportParams = {
   progress?: string | null
   phase?: string | null
   cursor?: string | null
+  archiveETag?: string | null
   uploadedBytes?: number
   runToken?: string | null
   claimedUntil?: number | null

@@ -11,11 +11,13 @@ export type CreateImportResult =
 export const createQueuedAccountImport = async ({
   database,
   actorId,
-  accountId
+  accountId,
+  uploadedBytes
 }: {
   database: Database
   actorId: string
   accountId: string
+  uploadedBytes?: number
 }): Promise<CreateImportResult> => {
   const active = await database.getActiveAccountImport({ actorId })
   if (active) return { type: 'active', accountImport: active }
@@ -25,7 +27,8 @@ export const createQueuedAccountImport = async ({
       id: randomUUID(),
       actorId,
       accountId,
-      options: '{}'
+      options: '{}',
+      ...(uploadedBytes === undefined ? null : { uploadedBytes })
     })
     return { type: 'created', accountImport }
   } catch (error) {

@@ -1,5 +1,6 @@
 import { getAccountImportConfig } from '@/lib/config/accountImport'
 import type { Database } from '@/lib/database/types'
+import { AccountImportArchiveChangedError } from '@/lib/services/accountImport/objectStore'
 import type { AccountImportObjectStore } from '@/lib/services/accountImport/objectStore'
 import {
   type AccountImportOptions,
@@ -16,7 +17,13 @@ import type { AccountImport } from '@/lib/types/domain/accountImport'
 export type StartAccountImportResult =
   | { type: 'started'; accountImport: AccountImport }
   | {
-      type: 'not-found' | 'not-queued' | 'active' | 'too-large' | 'unrecognised'
+      type:
+        | 'not-found'
+        | 'not-queued'
+        | 'active'
+        | 'too-large'
+        | 'unrecognised'
+        | 'archive-changed'
     }
   | { type: 'storage-unavailable' }
 
@@ -40,16 +47,30 @@ export const startAccountImport = async ({
   })
   if (active && active.id !== accountImport.id) return { type: 'active' }
 
-  const size = await objectStore.store.size(
+  const metadata = await objectStore.store.getMetadata(
     objectStore.getUploadKey(accountImport)
   )
-  if (size === null || size === 0) return { type: 'unrecognised' }
-  if (size > getAccountImportConfig().maxFileSize) return { type: 'too-large' }
+  if (
+    !metadata ||
+    metadata.size <= 0 ||
+    metadata.size !== accountImport.uploadedBytes ||
+    metadata.size > getAccountImportConfig().maxFileSize
+  ) {
+    await objectStore.deleteUpload(accountImport)
+    return { type: 'too-large' }
+  }
 
   let inspected
   try {
-    inspected = await inspectAccountArchive({ objectStore, accountImport })
+    inspected = await inspectAccountArchive({
+      objectStore,
+      accountImport: { ...accountImport, archiveETag: metadata.etag }
+    })
   } catch (error) {
+    if (error instanceof AccountImportArchiveChangedError) {
+      await objectStore.deleteUpload(accountImport)
+      return { type: 'archive-changed' }
+    }
     if (error instanceof ZipArchiveError) return { type: 'unrecognised' }
     throw error
   }
@@ -70,7 +91,8 @@ export const startAccountImport = async ({
     progress: serializeImportProgress(progress),
     phase: 'inspect',
     cursor: null,
-    uploadedBytes: size,
+    uploadedBytes: metadata.size,
+    archiveETag: metadata.etag,
     startedAt
   })
   if (!updated) return { type: 'not-queued' }

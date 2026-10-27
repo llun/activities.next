@@ -28,6 +28,7 @@ export const up = async (db: Kysely<any>): Promise<void> => {
     .addColumn('options', 'text', (col) => col.notNull().defaultTo('{}'))
     .addColumn('storageToken', 'varchar(64)', (col) => col.notNull())
     .addColumn('uploadedBytes', 'bigint', (col) => col.notNull().defaultTo(0))
+    .addColumn('archiveETag', 'text')
     .addColumn('progress', 'text')
     .addColumn('phase', 'varchar(64)')
     .addColumn('cursor', 'text')

@@ -181,6 +181,12 @@ export const POST = traceApiRoute(
               'File is too large',
               HTTP_STATUS.PAYLOAD_TOO_LARGE
             )
+          case 'archive-changed':
+            return error(
+              req,
+              'Archive changed; upload it again',
+              HTTP_STATUS.CONFLICT
+            )
           case 'unrecognised':
             return error(
               req,

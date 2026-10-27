@@ -69,6 +69,7 @@ export interface AccountImportItems {
 export interface AccountImports {
   accountId: string
   actorId: string
+  archiveETag: Nullable<string>
   claimedUntil: Nullable<Timestamp>
   createdAt: WithDefault<Timestamp>
   cursor: Nullable<string>

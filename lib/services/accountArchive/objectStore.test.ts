@@ -234,39 +234,41 @@ describe('FileArchiveObjectStore', () => {
 
 describe('S3ArchiveObjectStore', () => {
   const objects = new Map<string, string>()
-  const send = vi.fn(async (command: unknown) => {
-    if (command instanceof PutObjectCommand) {
-      objects.set(command.input.Key!, String(command.input.Body))
+  const send = vi.fn(
+    async (command: unknown): Promise<Record<string, unknown>> => {
+      if (command instanceof PutObjectCommand) {
+        objects.set(command.input.Key!, String(command.input.Body))
+        return {}
+      }
+      if (command instanceof GetObjectCommand) {
+        const body = objects.get(command.input.Key!)
+        if (body === undefined) {
+          throw Object.assign(new Error('missing'), { name: 'NoSuchKey' })
+        }
+        return {
+          Body: Object.assign(Readable.from([Buffer.from(body)]), {
+            transformToByteArray: async () => Buffer.from(body)
+          })
+        }
+      }
+      if (command instanceof ListObjectsV2Command) {
+        const prefix = command.input.Prefix!
+        return {
+          Contents: [...objects.keys()]
+            .filter((key) => key.startsWith(prefix))
+            .map((Key) => ({ Key })),
+          IsTruncated: false
+        }
+      }
+      if (command instanceof DeleteObjectsCommand) {
+        for (const { Key } of command.input.Delete!.Objects!) {
+          objects.delete(Key!)
+        }
+        return {}
+      }
       return {}
     }
-    if (command instanceof GetObjectCommand) {
-      const body = objects.get(command.input.Key!)
-      if (body === undefined) {
-        throw Object.assign(new Error('missing'), { name: 'NoSuchKey' })
-      }
-      return {
-        Body: Object.assign(Readable.from([Buffer.from(body)]), {
-          transformToByteArray: async () => Buffer.from(body)
-        })
-      }
-    }
-    if (command instanceof ListObjectsV2Command) {
-      const prefix = command.input.Prefix!
-      return {
-        Contents: [...objects.keys()]
-          .filter((key) => key.startsWith(prefix))
-          .map((Key) => ({ Key })),
-        IsTruncated: false
-      }
-    }
-    if (command instanceof DeleteObjectsCommand) {
-      for (const { Key } of command.input.Delete!.Objects!) {
-        objects.delete(Key!)
-      }
-      return {}
-    }
-    return {}
-  })
+  )
   const store = new S3ArchiveObjectStore(
     {
       type: MediaStorageType.S3Storage,
@@ -871,7 +873,9 @@ describe('S3 range reads and presigned upload URLs', () => {
     ['archives/a/t/archive-1.zip', 'ZIPDATA'],
     ['imports/a/t/archive-1.zip', 'IMPORTDATA']
   ])
-  const send = vi.fn(async (command: unknown) => {
+  const defaultSend = async (
+    command: unknown
+  ): Promise<Record<string, unknown>> => {
     if (command instanceof GetObjectCommand) {
       const body = objects.get(command.input.Key!)
       if (body === undefined) {
@@ -893,7 +897,8 @@ describe('S3 range reads and presigned upload URLs', () => {
       return {}
     }
     return {}
-  })
+  }
+  const send = vi.fn(defaultSend)
   const store = new S3ArchiveObjectStore(
     { type: MediaStorageType.S3Storage, bucket: 'bucket', region: 'us-east-1' },
     { send } as unknown as S3Client
@@ -909,13 +914,54 @@ describe('S3 range reads and presigned upload URLs', () => {
     )
   })
 
+  it('returns size and ETag from an S3 HEAD request', async () => {
+    send.mockClear()
+    send.mockImplementationOnce(async () => ({
+      ContentLength: 10,
+      ETag: '"version-1"'
+    }))
+    expect(await store.getMetadata('imports/a/t/archive-1.zip')).toEqual({
+      size: 10,
+      etag: '"version-1"'
+    })
+    expect(send.mock.calls[0][0]).toBeInstanceOf(HeadObjectCommand)
+  })
+
   it('reads a byte range from the import root too', async () => {
     expect(await store.readRange('imports/a/t/archive-1.zip', 6, 10)).toEqual(
       Buffer.from('DATA')
     )
   })
 
-  it('presigns a direct upload without signing its content length', async () => {
+  it('pins range reads to the expected ETag and object size', async () => {
+    send.mockReset().mockImplementation(defaultSend)
+    send.mockImplementationOnce(async () => ({
+      ContentRange: 'bytes 0-3/10',
+      Body: { transformToByteArray: async () => Buffer.from('ZIPD') }
+    }))
+    expect(
+      await store.readRange('imports/a/t/archive-1.zip', 0, 3, {
+        ifMatch: '"version-1"',
+        expectedSize: 10
+      })
+    ).toEqual(Buffer.from('ZIPD'))
+    expect((send.mock.calls[0][0] as GetObjectCommand).input.IfMatch).toBe(
+      '"version-1"'
+    )
+
+    send.mockImplementationOnce(async () => ({
+      ContentRange: 'bytes 0-3/11',
+      Body: { transformToByteArray: async () => Buffer.from('ZIPD') }
+    }))
+    await expect(
+      store.readRange('imports/a/t/archive-1.zip', 0, 3, {
+        ifMatch: '"version-1"',
+        expectedSize: 10
+      })
+    ).rejects.toMatchObject({ name: 'PreconditionFailed' })
+  })
+
+  it('presigns a direct upload with its exact content length', async () => {
     const signing = new S3ArchiveObjectStore(
       {
         type: MediaStorageType.S3Storage,
@@ -927,18 +973,38 @@ describe('S3 range reads and presigned upload URLs', () => {
         credentials: { accessKeyId: 'AK', secretAccessKey: 'SK' }
       })
     )
-    const url = await signing.getUploadUrl('archives/a/t/upload.zip', 100, 60)
-    const signedUrl = new URL(url!)
-    expect(signedUrl.searchParams.get('X-Amz-Expires')).toBe('60')
-    expect(signedUrl.searchParams.get('X-Amz-Signature')).toBeTruthy()
-    expect(signedUrl.searchParams.get('X-Amz-SignedHeaders')).toBe('host')
-    expect(
-      await signing.getUploadUrl(
-        'archives/a/t/at-limit.zip',
-        5 * 1024 * 1024 * 1024,
-        60
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-10-27T00:00:00.000Z'))
+    try {
+      const url = await signing.getUploadUrl(
+        'archives/a/t/upload.zip',
+        100,
+        15 * 60
       )
-    ).toBeTruthy()
+      const differentSizeUrl = await signing.getUploadUrl(
+        'archives/a/t/upload.zip',
+        101,
+        15 * 60
+      )
+      const signedUrl = new URL(url!)
+      expect(signedUrl.searchParams.get('X-Amz-Expires')).toBe('900')
+      expect(signedUrl.searchParams.get('X-Amz-Signature')).toBeTruthy()
+      expect(signedUrl.searchParams.get('X-Amz-SignedHeaders')).toContain(
+        'content-length'
+      )
+      expect(signedUrl.searchParams.get('X-Amz-Signature')).not.toBe(
+        new URL(differentSizeUrl!).searchParams.get('X-Amz-Signature')
+      )
+      expect(
+        await signing.getUploadUrl(
+          'archives/a/t/at-limit.zip',
+          5 * 1024 * 1024 * 1024,
+          60
+        )
+      ).toBeTruthy()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('does not presign a single PUT whose configured cap exceeds five GiB', async () => {

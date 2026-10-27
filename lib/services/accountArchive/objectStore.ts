@@ -102,6 +102,18 @@ export const getArchiveStorageKey = (archiveId: string, ...rest: string[]) =>
 /** What a resumable sink needs to be reopened by a later job slice. */
 export type SinkState = Record<string, unknown>
 
+export interface ArchiveObjectMetadata {
+  size: number
+  etag: string | null
+}
+
+export interface ArchiveRangeReadOptions {
+  /** Pins an S3 read to the object version recorded when an import started. */
+  ifMatch?: string
+  /** The full object size observed when the archive was opened. */
+  expectedSize?: number
+}
+
 /**
  * A file written in pieces across job slices. `checkpoint` makes everything
  * written so far durable and returns the state a later slice reopens it with;
@@ -151,6 +163,8 @@ export interface ArchiveObjectStore {
   delete(key: string): Promise<void>
   /** Deletes every object under `prefix` (`archives/<id>/` for one export). */
   deletePrefix(prefix: string): Promise<void>
+  /** Reads the object's current size and version marker, or null if missing. */
+  getMetadata(key: string): Promise<ArchiveObjectMetadata | null>
   size(key: string): Promise<number | null>
   /**
    * A signed, short-lived URL for the object when the storage can serve one
@@ -168,16 +182,16 @@ export interface ArchiveObjectStore {
   readRange(
     key: string,
     start: number,
-    endInclusive: number
+    endInclusive: number,
+    options?: ArchiveRangeReadOptions
   ): Promise<Buffer | null>
   /**
-   * A short-lived presigned PUT URL when this store supports the configured
-   * upload cap, or null when the caller must upload through the server. The
-   * URL does not enforce `maxBytes`; the start route checks the stored size.
+   * A short-lived presigned PUT URL for an exact upload size when this store
+   * supports it, or null when the caller must upload through the server.
    */
   getUploadUrl(
     key: string,
-    maxBytes: number,
+    size: number,
     expiresInSec: number
   ): Promise<string | null>
 }
@@ -299,13 +313,18 @@ export class FileArchiveObjectStore implements ArchiveObjectStore {
     await fs.rm(target, { recursive: true, force: true })
   }
 
-  async size(key: string) {
+  async getMetadata(key: string): Promise<ArchiveObjectMetadata | null> {
     try {
-      return (await fs.stat(this.resolve(key))).size
+      const stat = await fs.stat(this.resolve(key))
+      return { size: stat.size, etag: null }
     } catch (error) {
       if (isNotFound(error)) return null
       throw error
     }
+  }
+
+  async size(key: string) {
+    return (await this.getMetadata(key))?.size ?? null
   }
 
   async getDownloadUrl() {
@@ -315,7 +334,8 @@ export class FileArchiveObjectStore implements ArchiveObjectStore {
   async readRange(
     key: string,
     start: number,
-    endInclusive: number
+    endInclusive: number,
+    _options?: ArchiveRangeReadOptions
   ): Promise<Buffer | null> {
     const target = this.resolve(key)
     try {
@@ -337,7 +357,7 @@ export class FileArchiveObjectStore implements ArchiveObjectStore {
 
   async getUploadUrl(
     _key: string,
-    _maxBytes: number,
+    _size: number,
     _expiresInSec: number
   ): Promise<string | null> {
     // The local disk needs no presigned link: the caller uploads directly.
@@ -381,7 +401,17 @@ export class S3ArchiveObjectStore implements ArchiveObjectStore {
       if (!object.Body) return null
       return Buffer.from(await object.Body.transformToByteArray())
     } catch (error) {
-      if ((error as Error).name === 'NoSuchKey') return null
+      const e = error as {
+        name?: string
+        $metadata?: { httpStatusCode?: number }
+      }
+      if (
+        e?.name === 'NoSuchKey' ||
+        e?.name === 'NotFound' ||
+        e?.$metadata?.httpStatusCode === 404
+      ) {
+        return null
+      }
       throw error
     }
   }
@@ -725,7 +755,7 @@ export class S3ArchiveObjectStore implements ArchiveObjectStore {
     } while (continuationToken)
   }
 
-  async size(key: string) {
+  async getMetadata(key: string): Promise<ArchiveObjectMetadata | null> {
     try {
       const head = await this.client.send(
         new HeadObjectCommand({
@@ -733,17 +763,34 @@ export class S3ArchiveObjectStore implements ArchiveObjectStore {
           Key: assertArchiveKey(key)
         })
       )
-      return head.ContentLength ?? null
+      if (head.ContentLength === undefined) return null
+      if (!head.ETag) throw new Error('S3 archive object has no ETag')
+      return { size: head.ContentLength, etag: head.ETag }
     } catch (error) {
-      if ((error as Error).name === 'NotFound') return null
+      const e = error as {
+        name?: string
+        $metadata?: { httpStatusCode?: number }
+      }
+      if (
+        e?.name === 'NotFound' ||
+        e?.name === 'NoSuchKey' ||
+        e?.$metadata?.httpStatusCode === 404
+      ) {
+        return null
+      }
       throw error
     }
+  }
+
+  async size(key: string) {
+    return (await this.getMetadata(key))?.size ?? null
   }
 
   async readRange(
     key: string,
     start: number,
-    endInclusive: number
+    endInclusive: number,
+    options?: ArchiveRangeReadOptions
   ): Promise<Buffer | null> {
     try {
       assertArchiveKey(key)
@@ -751,33 +798,59 @@ export class S3ArchiveObjectStore implements ArchiveObjectStore {
         new GetObjectCommand({
           Bucket: this.config.bucket,
           Key: assertArchiveKey(key),
-          Range: `bytes=${start}-${endInclusive}`
+          Range: `bytes=${start}-${endInclusive}`,
+          ...(options?.ifMatch ? { IfMatch: options.ifMatch } : null)
         })
       )
+      if (options?.expectedSize !== undefined) {
+        const totalSize = Number(
+          /\/(\d+)$/.exec(object.ContentRange ?? '')?.[1]
+        )
+        if (
+          !Number.isSafeInteger(totalSize) ||
+          totalSize !== options.expectedSize
+        ) {
+          throw Object.assign(new Error('Archive object size changed'), {
+            name: 'PreconditionFailed',
+            $metadata: { httpStatusCode: 412 }
+          })
+        }
+      }
       if (!object.Body) return null
       return Buffer.from(await object.Body.transformToByteArray())
     } catch (error) {
-      if ((error as Error).name === 'NoSuchKey') return null
+      const e = error as {
+        name?: string
+        $metadata?: { httpStatusCode?: number }
+      }
+      if (
+        e?.name === 'NoSuchKey' ||
+        e?.name === 'NotFound' ||
+        e?.$metadata?.httpStatusCode === 404
+      ) {
+        return null
+      }
       throw error
     }
   }
 
   /**
-   * A presigned PUT for direct browser uploads when the configured cap fits
-   * S3's single-PUT limit. The start route checks the stored object's size.
+   * A presigned PUT for an exact browser upload size when it fits S3's
+   * single-PUT limit. The signed content length makes S3 reject other sizes.
    */
   async getUploadUrl(
     key: string,
-    maxBytes: number,
+    size: number,
     expiresInSec: number
   ): Promise<string | null> {
     assertArchiveKey(key)
-    if (maxBytes > 5 * 1024 * 1024 * 1024) return null
+    if (size > 5 * 1024 * 1024 * 1024) return null
     return getSignedUrl(
       this.client,
       new PutObjectCommand({
         Bucket: this.config.bucket,
-        Key: assertArchiveKey(key)
+        Key: assertArchiveKey(key),
+        ContentLength: size
       }),
       { expiresIn: expiresInSec }
     )

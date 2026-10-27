@@ -295,7 +295,7 @@ describe('account import routes', () => {
       request(
         'https://llun.test/api/v1/account/imports/presigned',
         'POST',
-        JSON.stringify({ actorId }),
+        JSON.stringify({ actorId, size: 100 }),
         { 'content-type': 'application/json' }
       ),
       { params: Promise.resolve({}) }
@@ -308,7 +308,7 @@ describe('account import routes', () => {
       request(
         'https://llun.test/api/v1/account/imports/presigned',
         'POST',
-        JSON.stringify({ actorId }),
+        JSON.stringify({ actorId, size: 100 }),
         { 'content-type': 'application/json' }
       ),
       { params: Promise.resolve({}) }
@@ -319,7 +319,72 @@ describe('account import routes', () => {
       uploadUrl: null,
       directUploadPath: expect.stringMatching(/^\/api\/v1\/account\/imports\//)
     })
+    const created = await database.getActiveAccountImport({ actorId })
+    expect(created?.uploadedBytes).toBe(100)
   })
+
+  it('enforces the declared size when a presigned request falls back to direct upload', async () => {
+    const archive = validZip()
+    const presigned = await presign(
+      request(
+        'https://llun.test/api/v1/account/imports/presigned',
+        'POST',
+        JSON.stringify({ actorId, size: archive.length + 1 }),
+        { 'content-type': 'application/json' }
+      ),
+      { params: Promise.resolve({}) }
+    )
+    const queued = await presigned.json()
+    const response = await uploadById(
+      request(
+        `https://llun.test/api/v1/account/imports/${queued.id}`,
+        'POST',
+        new Uint8Array(archive),
+        { 'content-type': 'application/zip' }
+      ),
+      routeContext(queued.id)
+    )
+
+    expect(presigned.status).toBe(HTTP_STATUS.ACCEPTED)
+    expect(response.status).toBe(HTTP_STATUS.PAYLOAD_TOO_LARGE)
+    expect(
+      await database.getAccountImport({ id: queued.id, actorId })
+    ).toMatchObject({ status: 'failed', lastErrorCode: 'file_too_large' })
+  })
+
+  it('rejects presigned uploads over the configured size cap', async () => {
+    mocks.maxFileSize = 100
+    const response = await presign(
+      request(
+        'https://llun.test/api/v1/account/imports/presigned',
+        'POST',
+        JSON.stringify({ actorId, size: 101 }),
+        { 'content-type': 'application/json' }
+      ),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(HTTP_STATUS.PAYLOAD_TOO_LARGE)
+    expect(await database.getActiveAccountImport({ actorId })).toBeNull()
+  })
+
+  it.each([0, -1, 1.5, '100'])(
+    'requires a positive integer size: %s',
+    async (size) => {
+      const response = await presign(
+        request(
+          'https://llun.test/api/v1/account/imports/presigned',
+          'POST',
+          JSON.stringify({ actorId, size }),
+          { 'content-type': 'application/json' }
+        ),
+        { params: Promise.resolve({}) }
+      )
+
+      expect(response.status).toBe(HTTP_STATUS.BAD_REQUEST)
+      expect(await database.getActiveAccountImport({ actorId })).toBeNull()
+    }
+  )
 
   it('uses direct streaming when an S3 upload cap exceeds five GiB', async () => {
     mocks.maxFileSize = 5 * 1024 * 1024 * 1024 + 1
@@ -336,7 +401,7 @@ describe('account import routes', () => {
       request(
         'https://llun.test/api/v1/account/imports/presigned',
         'POST',
-        JSON.stringify({ actorId }),
+        JSON.stringify({ actorId, size: 5 * 1024 * 1024 * 1024 + 1 }),
         { 'content-type': 'application/json' }
       ),
       { params: Promise.resolve({}) }
@@ -495,7 +560,7 @@ describe('account import routes', () => {
   it('refuses a stored upload over the configured cap before inspecting it', async () => {
     const row = await createRow()
     const archive = validZip()
-    await saveZip(row, archive)
+    const store = await saveZip(row, archive)
     mocks.maxFileSize = archive.length - 1
 
     const response = await startImport(
@@ -513,6 +578,31 @@ describe('account import routes', () => {
     expect(
       (await database.getAccountImport({ id: row.id, actorId }))?.status
     ).toBe('queued')
+    expect(await store.store.size(store.getUploadKey(row))).toBeNull()
+    expect(mocks.publish).not.toHaveBeenCalled()
+  })
+
+  it('rejects a stored upload whose size differs from the declared size and deletes it', async () => {
+    const row = await createRow()
+    const archive = validZip()
+    const store = await saveZip(row, archive)
+    await database.updateAccountImport({
+      id: row.id,
+      uploadedBytes: archive.length + 1
+    })
+
+    const response = await startImport(
+      request(
+        `https://llun.test/api/v1/account/imports/${row.id}/start`,
+        'POST',
+        JSON.stringify({ options: {} }),
+        { 'content-type': 'application/json' }
+      ),
+      routeContext(row.id)
+    )
+
+    expect(response.status).toBe(HTTP_STATUS.PAYLOAD_TOO_LARGE)
+    expect(await store.store.size(store.getUploadKey(row))).toBeNull()
     expect(mocks.publish).not.toHaveBeenCalled()
   })
 

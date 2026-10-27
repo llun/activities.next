@@ -12,7 +12,8 @@ export interface AccountImportObjectStore {
     accountImport: Pick<AccountImport, 'id' | 'storageToken'>
   ): string
   openSource(
-    accountImport: Pick<AccountImport, 'id' | 'storageToken'>
+    accountImport: Pick<AccountImport, 'id' | 'storageToken'> &
+      Partial<Pick<AccountImport, 'archiveETag' | 'uploadedBytes'>>
   ): Promise<RandomAccessSource | null>
   deleteUpload(
     accountImport: Pick<AccountImport, 'id' | 'storageToken'>
@@ -20,6 +21,23 @@ export interface AccountImportObjectStore {
 }
 
 const assertImportKey = (key: string) => assertArchiveKey(key)
+
+export class AccountImportArchiveChangedError extends Error {
+  constructor() {
+    super('Account import archive changed')
+    this.name = 'AccountImportArchiveChangedError'
+  }
+}
+
+const isPreconditionFailed = (error: unknown) => {
+  const e = error as {
+    name?: string
+    $metadata?: { httpStatusCode?: number }
+  }
+  return (
+    e?.name === 'PreconditionFailed' || e?.$metadata?.httpStatusCode === 412
+  )
+}
 
 export const getAccountImportUploadKey = (
   accountImport: Pick<AccountImport, 'id' | 'storageToken'>
@@ -32,12 +50,26 @@ class StoreRandomAccessSource implements RandomAccessSource {
   constructor(
     private readonly store: ArchiveObjectStore,
     private readonly key: string,
-    readonly size: number
+    readonly size: number,
+    private readonly etag: string | null
   ) {}
 
   async read(start: number, endInclusive: number): Promise<Buffer> {
-    const bytes = await this.store.readRange(this.key, start, endInclusive)
-    if (!bytes) throw new Error('Import archive is missing')
+    let bytes: Buffer | null
+    try {
+      bytes = await this.store.readRange(this.key, start, endInclusive, {
+        ...(this.etag ? { ifMatch: this.etag } : null),
+        expectedSize: this.size
+      })
+    } catch (error) {
+      if (isPreconditionFailed(error)) {
+        throw new AccountImportArchiveChangedError()
+      }
+      throw error
+    }
+    if (!bytes || bytes.length !== endInclusive - start + 1) {
+      throw new AccountImportArchiveChangedError()
+    }
     return bytes
   }
 }
@@ -51,10 +83,20 @@ export const createAccountImportObjectStore = (
     getUploadKey: getAccountImportUploadKey,
     async openSource(accountImport) {
       const key = getAccountImportUploadKey(accountImport)
-      const size = await store.size(key)
-      return size === null
-        ? null
-        : new StoreRandomAccessSource(store, key, size)
+      const metadata = await store.getMetadata(key)
+      if (!metadata) throw new AccountImportArchiveChangedError()
+      if (
+        accountImport.uploadedBytes !== undefined &&
+        metadata.size !== accountImport.uploadedBytes
+      ) {
+        throw new AccountImportArchiveChangedError()
+      }
+      return new StoreRandomAccessSource(
+        store,
+        key,
+        metadata.size,
+        accountImport.archiveETag ?? null
+      )
     },
     async deleteUpload(accountImport) {
       await store.deletePrefix(

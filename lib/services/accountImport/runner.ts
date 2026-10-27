@@ -6,7 +6,10 @@ import {
   ACCOUNT_IMPORT_LEASE_GRACE_MS,
   ACCOUNT_IMPORT_SLICE_BUDGET_MS
 } from '@/lib/services/accountImport/constants'
-import { getAccountImportObjectStore } from '@/lib/services/accountImport/objectStore'
+import {
+  AccountImportArchiveChangedError,
+  getAccountImportObjectStore
+} from '@/lib/services/accountImport/objectStore'
 import {
   type AccountArchiveKind,
   type AccountImportPhaseContext,
@@ -70,11 +73,13 @@ const nextPhase = (phase: AccountImportPhase): AccountImportPhase =>
   PHASES[PHASES.indexOf(phase) + 1] ?? 'finish'
 
 const failureCode = (error: unknown) =>
-  error instanceof AccountImportActorUnavailableError
-    ? 'actor_unavailable'
-    : error instanceof ZipArchiveError
-      ? `archive_${error.reason}`
-      : 'import_failed'
+  error instanceof AccountImportArchiveChangedError
+    ? 'archive_changed'
+    : error instanceof AccountImportActorUnavailableError
+      ? 'actor_unavailable'
+      : error instanceof ZipArchiveError
+        ? `archive_${error.reason}`
+        : 'import_failed'
 
 export type AccountImportRunResult =
   | { type: 'continued'; phase: AccountImportPhase; cursor: string | null }

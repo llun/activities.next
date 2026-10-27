@@ -1,0 +1,126 @@
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import type { ArchiveObjectStore } from '@/lib/services/accountArchive/objectStore'
+import type { AccountImportObjectStore } from '@/lib/services/accountImport/objectStore'
+import { inspectAccountArchive } from '@/lib/services/accountImport/phases'
+import { startAccountImport } from '@/lib/services/accountImport/start'
+import { seedDatabase } from '@/lib/stub/database'
+import { seedActor1 } from '@/lib/stub/seed/actor1'
+
+vi.mock('@/lib/config/accountImport', () => ({
+  getAccountImportConfig: () => ({ maxFileSize: 1_000 })
+}))
+
+vi.mock('@/lib/services/accountImport/phases', async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import('@/lib/services/accountImport/phases')>()
+  return { ...original, inspectAccountArchive: vi.fn() }
+})
+
+describe('startAccountImport', () => {
+  const testDb = createTestDatabase({ backend: 'sqlite' })
+  const { database, db, prepare, destroy } = testDb
+  const getMetadata = vi.fn()
+  const getSize = vi.fn()
+  const deleteUpload = vi.fn()
+  const objectStore = {
+    store: {
+      getMetadata,
+      size: getSize
+    } as unknown as ArchiveObjectStore,
+    getUploadKey: () => 'imports/import-id/token/upload.zip',
+    openSource: vi.fn(),
+    deleteUpload
+  } as unknown as AccountImportObjectStore
+  const options = {
+    likes: false,
+    bookmarks: false,
+    repliesToOthers: 'skip' as const,
+    profile: false,
+    settings: false
+  }
+  let actorId: string
+  let accountId: string
+
+  beforeAll(async () => {
+    await prepare()
+    await database.migrate()
+    await seedDatabase(database)
+    const actor = await database.getActorFromEmail({ email: seedActor1.email })
+    actorId = actor!.id
+    accountId = actor!.account!.id
+  })
+
+  afterAll(async () => {
+    await destroy()
+  })
+
+  beforeEach(async () => {
+    await db.deleteFrom('account_import_items').execute()
+    await db.deleteFrom('account_imports').execute()
+    getMetadata.mockReset().mockResolvedValue({
+      size: 100,
+      etag: '"archive-version-1"'
+    })
+    getSize.mockReset().mockResolvedValue(100)
+    deleteUpload.mockReset().mockResolvedValue(undefined)
+    vi.mocked(inspectAccountArchive).mockReset().mockResolvedValue({
+      kind: 'mastodon',
+      sourceActorId: 'https://source.test/users/owner',
+      sourceFollowersUrl: null
+    })
+  })
+
+  const createImport = async (uploadedBytes = 100) => {
+    const accountImport = await database.createAccountImport({
+      id: 'start-account-import',
+      accountId,
+      actorId,
+      options: '{}',
+      uploadedBytes
+    })
+    return accountImport
+  }
+
+  it('stores the inspected object ETag on the import row', async () => {
+    const accountImport = await createImport()
+    const result = await startAccountImport({
+      database,
+      objectStore,
+      accountImport,
+      options
+    })
+
+    expect(result).toMatchObject({ type: 'started' })
+    expect(
+      await database.getAccountImport({ id: accountImport.id, actorId })
+    ).toMatchObject({
+      status: 'running',
+      uploadedBytes: 100,
+      archiveETag: '"archive-version-1"'
+    })
+    expect(inspectAccountArchive).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accountImport: expect.objectContaining({
+          archiveETag: '"archive-version-1"'
+        })
+      })
+    )
+  })
+
+  it('rejects and deletes an upload whose size differs from the declared size', async () => {
+    const accountImport = await createImport()
+    getMetadata.mockResolvedValue({ size: 99, etag: '"archive-version-1"' })
+    getSize.mockResolvedValue(99)
+
+    const result = await startAccountImport({
+      database,
+      objectStore,
+      accountImport,
+      options
+    })
+
+    expect(result).toEqual({ type: 'too-large' })
+    expect(deleteUpload).toHaveBeenCalledWith(accountImport)
+    expect(inspectAccountArchive).not.toHaveBeenCalled()
+  })
+})
