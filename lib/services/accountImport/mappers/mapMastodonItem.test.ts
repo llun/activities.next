@@ -159,6 +159,47 @@ describe('mapMastodonItem', () => {
     }
   )
 
+  it('skips an item authored by anyone other than the archive actor', () => {
+    expect(
+      mapMastodonItem(
+        item({ actor: 'https://elsewhere.test/users/impostor' }),
+        context()
+      )
+    ).toEqual({ ok: false, reason: 'foreign-author' })
+    expect(
+      mapMastodonItem(
+        item({
+          object: {
+            ...(item().object as Record<string, unknown>),
+            attributedTo: 'https://elsewhere.test/users/impostor'
+          }
+        }),
+        context()
+      )
+    ).toEqual({ ok: false, reason: 'foreign-author' })
+    // An archive whose own actor id is unknown cannot be verified at all.
+    expect(
+      mapMastodonItem(item(), context({ sourceActorId: undefined }))
+    ).toEqual({ ok: false, reason: 'foreign-author' })
+  })
+
+  it('binds the deterministic publicId to the importing actor', () => {
+    const otherActor = {
+      ...actor,
+      id: 'https://local.test/users/other',
+      username: 'other'
+    } as Actor
+    const mine = mapMastodonItem(item(), context())
+    const mineAgain = mapMastodonItem(item(), context())
+    const theirs = mapMastodonItem(item(), context({ actor: otherActor }))
+    const theirsAgain = mapMastodonItem(item(), context({ actor: otherActor }))
+    expect(mine.ok && mineAgain.ok && theirs.ok && theirsAgain.ok).toBe(true)
+    if (!mine.ok || !mineAgain.ok || !theirs.ok || !theirsAgain.ok) return
+    expect(mine.input.publicId).toBe(mineAgain.input.publicId)
+    expect(theirs.input.publicId).toBe(theirsAgain.input.publicId)
+    expect(theirs.input.publicId).not.toBe(mine.input.publicId)
+  })
+
   it('keeps an external reply as data only when requested', () => {
     const result = mapMastodonItem(
       item({

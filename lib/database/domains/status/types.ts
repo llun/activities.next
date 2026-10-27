@@ -293,6 +293,31 @@ export type UpdatePollParams = Pick<CreatePollParams, 'text' | 'summary'> & {
   resetVotes?: boolean
 }
 
+/**
+ * One superseded revision of a status, as an archive import replays it: the
+ * content `updateNote`/`updatePoll` snapshot into `status_history.data` (the
+ * same five keys, `attachments` in the hydrated `Attachment` shape), plus the
+ * archived time the revision was superseded at. `summary`, `sensitive`,
+ * `attachments` and `pollOptions` may be null exactly where a snapshot written
+ * by the edit paths could not be: the history reader treats those as unknown,
+ * the way it treats rows written before per-revision snapshotting.
+ */
+export type AppendStatusHistoryRevision = {
+  text: string
+  summary: string | null
+  sensitive: boolean | null
+  attachments: Attachment[] | null
+  pollOptions: string[] | null
+  // When this revision was superseded (epoch milliseconds).
+  supersededAt: number
+}
+
+export type AppendStatusHistoryParams = {
+  statusId: string
+  // Any order; they are written in `supersededAt` order.
+  revisions: AppendStatusHistoryRevision[]
+}
+
 export type CreateTagParams = {
   statusId: string
   name: string
@@ -562,6 +587,12 @@ export interface StatusWriteDatabase {
     params: UpdateNoteVisibilityParams
   ): Promise<Status | null>
   updatePoll(params: UpdatePollParams): Promise<Status | null>
+  // Appends superseded revisions to status_history with their own archived
+  // transition times (createdAt/updatedAt = supersededAt) and bumps
+  // statuses.updatedAt to the newest one, so the Mastodon API shows the
+  // archived edited_at. Archive-import only: it changes no status content and
+  // federates, notifies and reindexes nothing.
+  appendStatusHistory(params: AppendStatusHistoryParams): Promise<void>
   createTag(params: CreateTagParams): Promise<Tag>
   deleteStatusTagsByType(params: DeleteStatusTagsByTypeParams): Promise<void>
   increaseHashtagCounter(params: IncreaseHashtagCounterParams): Promise<void>

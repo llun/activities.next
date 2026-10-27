@@ -88,6 +88,8 @@ export type {
 // ============================================================================
 
 export type {
+  AppendStatusHistoryParams,
+  AppendStatusHistoryRevision,
   CreateAnnounceParams,
   CreateNoteParams,
   CreatePollAnswerParams,

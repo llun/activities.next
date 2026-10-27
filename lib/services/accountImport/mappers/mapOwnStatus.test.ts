@@ -10,12 +10,14 @@ const actor = {
   followersUrl: 'https://local.test/users/me/followers'
 } as Actor
 const published = '2024-02-03T04:05:06.000Z'
+const sourceActorId = 'https://old.test/users/owner'
 const context = (
   overrides: Partial<ImportMapperContext> = {}
 ): ImportMapperContext => ({
   actor,
   ownStatusIds: new Set(),
   nowMs: Date.parse('2025-01-01T00:00:00Z'),
+  sourceActorId,
   ...overrides
 })
 
@@ -158,6 +160,37 @@ describe('mapOwnStatus', () => {
     expect(result.input.cc).not.toContain(
       'https://old.test/users/owner/followers'
     )
+  })
+
+  it('skips a row authored by anyone other than the archive actor', () => {
+    expect(
+      mapOwnStatus(
+        row({ actorId: 'https://elsewhere.test/users/impostor' }),
+        context()
+      )
+    ).toEqual({ ok: false, reason: 'foreign-author' })
+    // An archive whose own actor id is unknown cannot be verified at all.
+    expect(mapOwnStatus(row(), context({ sourceActorId: undefined }))).toEqual({
+      ok: false,
+      reason: 'foreign-author'
+    })
+  })
+
+  it('binds the deterministic publicId to the importing actor', () => {
+    const otherActor = {
+      ...actor,
+      id: 'https://local.test/users/other',
+      username: 'other'
+    } as Actor
+    const mine = mapOwnStatus(row(), context())
+    const mineAgain = mapOwnStatus(row(), context())
+    const theirs = mapOwnStatus(row(), context({ actor: otherActor }))
+    const theirsAgain = mapOwnStatus(row(), context({ actor: otherActor }))
+    expect(mine.ok && mineAgain.ok && theirs.ok && theirsAgain.ok).toBe(true)
+    if (!mine.ok || !mineAgain.ok || !theirs.ok || !theirsAgain.ok) return
+    expect(mine.input.publicId).toBe(mineAgain.input.publicId)
+    expect(theirs.input.publicId).toBe(theirsAgain.input.publicId)
+    expect(theirs.input.publicId).not.toBe(mine.input.publicId)
   })
 
   it('derives a stable time ordered UUIDv7 and strips unknown keys', () => {

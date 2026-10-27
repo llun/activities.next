@@ -1,11 +1,14 @@
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { createImportedStatus } from '@/lib/services/accountImport/createImportedStatus'
 import type { ImportedStatusInput } from '@/lib/services/accountImport/mappers/types'
+import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
+import { getMastodonStatusEdits } from '@/lib/services/mastodon/getMastodonStatusEdits'
 import { seedDatabase } from '@/lib/stub/database'
 import { DatabaseSeed } from '@/lib/stub/scenarios/database'
 import type { Actor } from '@/lib/types/domain/actor'
-import { StatusType } from '@/lib/types/domain/status'
+import { StatusNote, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 const queueMock = vi.hoisted(() => {
   const publish = vi.fn()
@@ -158,6 +161,28 @@ describe('createImportedStatus', () => {
       ])
     )
 
+    // The archived edit times survive into the Mastodon API: the edit
+    // timeline carries them, and edited_at is the newest supersede time.
+    const edits = await getMastodonStatusEdits(
+      database,
+      created as StatusNote,
+      actor.id
+    )
+    expect(edits.map((edit) => edit.created_at)).toEqual([
+      getISOTimeUTC(published),
+      getISOTimeUTC(published + 1),
+      getISOTimeUTC(published + 2)
+    ])
+    expect(edits[0].content).toContain('old version')
+    expect(edits[1].content).toContain('middle version')
+    expect(edits[2].content).toContain('current version')
+    const mastodonStatus = await getMastodonStatus(
+      database,
+      created as StatusNote,
+      actor.id
+    )
+    expect(mastodonStatus?.edited_at).toBe(getISOTimeUTC(published + 2))
+
     const tags = await database.getTags({ statusId: created.id })
     expect(tags.map((tag) => tag.type)).toEqual(
       expect.arrayContaining(['hashtag', 'mention'])
@@ -216,6 +241,48 @@ describe('createImportedStatus', () => {
         'no'
       ])
     }
+    expect(queueMock.getQueue).not.toHaveBeenCalled()
+    expect(queueMock.publish).not.toHaveBeenCalled()
+  })
+
+  it('imports under a fresh publicId when another actor already owns the deterministic one', async () => {
+    const publicId = '018d0000-0000-7000-8000-000000000003'
+    const otherStatus = await database.createNote({
+      id: `${otherActorId}/statuses/import-collision`,
+      url: `${otherActorId}/statuses/import-collision`,
+      actorId: otherActorId,
+      publicId,
+      text: 'someone else status',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+    const otherRowBefore = await database.getStatus({
+      statusId: otherStatus.id
+    })
+
+    const created = await createImportedStatus(
+      database,
+      actor,
+      makeInput(publicId)
+    )
+    // A fresh random UUIDv7, not the contested deterministic id, and never
+    // the other actor's row.
+    expect(created.id).not.toBe(otherStatus.id)
+    expect(created.actorId).toBe(actor.id)
+    expect(created.publicId).not.toBe(publicId)
+    expect(created.publicId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+    )
+    expect(
+      await database.getStatusFromPublicId({
+        publicId: created.publicId as string,
+        currentActorId: actor.id
+      })
+    ).toMatchObject({ id: created.id, actorId: actor.id })
+    // The other actor's row is untouched.
+    expect(await database.getStatus({ statusId: otherStatus.id })).toEqual(
+      otherRowBefore
+    )
     expect(queueMock.getQueue).not.toHaveBeenCalled()
     expect(queueMock.publish).not.toHaveBeenCalled()
   })

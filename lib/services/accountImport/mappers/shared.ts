@@ -40,7 +40,12 @@ export const parsePublished = (
   return published
 }
 
+// The hash input binds the id to the IMPORTING actor as well as the source:
+// sha256(actorId + '\0' + sourceId). Without the actor id, an archive carrying
+// another account's source ids would let its importer pre-empt that account's
+// own publicIds (the unique index then breaks the rightful owner's import).
 export const deterministicPublicId = (
+  actorId: string,
   sourceId: string,
   published: number
 ): string => {
@@ -48,7 +53,11 @@ export const deterministicPublicId = (
     ? Math.max(0, Math.min(Math.floor(published), 0xffffffffffff))
     : 0
   const timestampHex = timestamp.toString(16).padStart(12, '0')
-  const hash = createHash('sha256').update(sourceId).digest('hex')
+  const hash = createHash('sha256')
+    .update(actorId)
+    .update('\0')
+    .update(sourceId)
+    .digest('hex')
   const randA = hash.slice(0, 3)
   const variant = (0x8 | (Number.parseInt(hash[3], 16) & 0x3)).toString(16)
   const randBHead = hash.slice(4, 7)

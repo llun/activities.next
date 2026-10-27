@@ -62,13 +62,19 @@ export type ImportMapperContext = {
   actor: Actor
   ownStatusIds: ReadonlySet<string>
   nowMs: number
+  /** The archive's own actor id (its actor.json / profile id). */
   sourceActorId?: string
   sourceFollowersUrl?: string | null
   repliesToOthers?: 'skip' | 'keep'
 }
 
 export type ImportSkipReason =
-  'boost' | 'reply-to-other' | 'direct' | 'bad-date' | 'invalid'
+  | 'boost'
+  | 'reply-to-other'
+  | 'direct'
+  | 'bad-date'
+  | 'invalid'
+  | 'foreign-author'
 
 export type ImportMapperResult =
   | { ok: true; input: ImportedStatusInput }

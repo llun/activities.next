@@ -1,3 +1,4 @@
+import type { AppendStatusHistoryRevision } from '@/lib/database/domains/status/types'
 import { Database } from '@/lib/database/types'
 import type {
   ImportedAttachment,
@@ -7,17 +8,10 @@ import type {
 import { resolveOwnedAttachments } from '@/lib/services/medias/attachmentMediaMetadata'
 import type { Actor } from '@/lib/types/domain/actor'
 import { getMention } from '@/lib/types/domain/actor'
-import type { PostBoxAttachment } from '@/lib/types/domain/attachment'
+import { Attachment } from '@/lib/types/domain/attachment'
 import type { Status } from '@/lib/types/domain/status'
 import { getLocalStatusId } from '@/lib/utils/activitypubId'
-
-type StatusVersion = {
-  text: string
-  summary: string | null
-  sensitive: boolean | null
-  attachments: ImportedAttachment[] | null
-  pollOptions: string[] | null
-}
+import { generatePublicId } from '@/lib/utils/publicId'
 
 const createStatusAttachment = async ({
   database,
@@ -64,15 +58,21 @@ const createStatusAttachment = async ({
   })
 }
 
-const resolveHistoryAttachments = async (
+// One archived revision's attachments, as the hydrated Attachment rows the
+// live status's own edit history snapshots: the owned media's current url and
+// metadata, dated at the archived supersede time. No attachment rows are
+// written — a superseded version's media lives on only in its snapshot.
+const historyAttachments = async (
   database: Database,
   actor: Actor,
-  attachments: ImportedAttachment[]
+  statusId: string,
+  attachments: ImportedAttachment[],
+  supersededAt: number
 ) => {
-  const candidates: PostBoxAttachment[] = attachments
+  const candidates = attachments
     .filter((attachment) => Boolean(attachment.mediaId))
     .map((attachment) => ({
-      type: 'upload',
+      type: 'upload' as const,
       id: attachment.mediaId as string,
       mediaType: attachment.mediaType,
       url: attachment.sourceUrl,
@@ -86,104 +86,63 @@ const resolveHistoryAttachments = async (
     attachments: candidates
   })
   return owned.flatMap(({ attachment, metadata }) =>
-    metadata ? [{ ...attachment, ...metadata }] : []
+    metadata
+      ? [
+          Attachment.parse({
+            id: crypto.randomUUID(),
+            actorId: actor.id,
+            statusId,
+            type: 'Document',
+            mediaType: attachment.mediaType,
+            url: attachment.url,
+            width: attachment.width,
+            height: attachment.height,
+            name: attachment.name ?? '',
+            mediaId: attachment.id,
+            blurhash: metadata.blurhash,
+            focus: metadata.focus,
+            thumbnailUrl: metadata.thumbnailUrl,
+            createdAt: supersededAt,
+            updatedAt: supersededAt
+          })
+        ]
+      : []
   )
 }
 
-const appendStatusHistory = async ({
-  database,
-  actor,
-  statusId,
-  input,
-  edits
-}: {
-  database: Database
-  actor: Actor
-  statusId: string
-  input: ImportedStatusInput
+// Records the archived edits as status_history revisions with their original
+// supersede times, through the database's own appendStatusHistory: replaying
+// them through updateNote/updatePoll would stamp every transition at import
+// time and lose the archived edit times.
+const appendStatusHistory = async (
+  database: Database,
+  actor: Actor,
+  statusId: string,
   edits: ImportedEdit[]
-}) => {
+) => {
   if (edits.length === 0) return
-  const ordered = [...edits].sort(
+  const revisions: AppendStatusHistoryRevision[] = []
+  for (const edit of [...edits].sort(
     (left, right) => left.supersededAt - right.supersededAt
-  )
-  const finalVersion: StatusVersion = {
-    text: input.text,
-    summary: input.summary,
-    sensitive: input.sensitive,
-    attachments: input.attachments,
-    pollOptions: input.poll?.choices.map((choice) => choice.title) ?? null
+  )) {
+    revisions.push({
+      text: edit.text,
+      summary: edit.summary,
+      sensitive: edit.sensitive,
+      attachments: edit.attachments
+        ? await historyAttachments(
+            database,
+            actor,
+            statusId,
+            edit.attachments,
+            edit.supersededAt
+          )
+        : null,
+      pollOptions: edit.pollOptions,
+      supersededAt: edit.supersededAt
+    })
   }
-  const priorVersions: StatusVersion[] = ordered.map((edit) => ({
-    text: edit.text,
-    summary: edit.summary,
-    sensitive: edit.sensitive,
-    attachments: edit.attachments,
-    pollOptions: edit.pollOptions
-  }))
-  const transitions = [...priorVersions.slice(1), finalVersion]
-
-  for (const revision of transitions) {
-    if (input.poll) {
-      await database.updatePoll({
-        statusId,
-        text: revision.text,
-        summary: revision.summary,
-        choices: (revision.pollOptions ?? finalVersion.pollOptions ?? []).map(
-          (title) => ({ title, totalVotes: 0 })
-        ),
-        endAt: input.published,
-        pollType: input.poll.pollType,
-        hideTotals: input.poll.hideTotals,
-        resetVotes: true,
-        ...(revision.sensitive === null
-          ? null
-          : { sensitive: revision.sensitive })
-      })
-    } else {
-      await database.updateNote({
-        statusId,
-        text: revision.text,
-        summary: revision.summary,
-        ...(revision.sensitive === null
-          ? null
-          : { sensitive: revision.sensitive }),
-        ...(revision.attachments === null
-          ? null
-          : {
-              attachments: await resolveHistoryAttachments(
-                database,
-                actor,
-                revision.attachments
-              )
-            })
-      })
-    }
-    // Each update records the superseded row as a status_history revision. The
-    // database API timestamps that transition at write time; the archive's
-    // supersededAt value is retained for ordering but cannot be supplied to it.
-  }
-}
-
-const makeInitialVersion = (input: ImportedStatusInput): StatusVersion => {
-  const first = [...input.edits].sort(
-    (left, right) => left.supersededAt - right.supersededAt
-  )[0]
-  return first
-    ? {
-        text: first.text,
-        summary: first.summary,
-        sensitive: first.sensitive,
-        attachments: first.attachments,
-        pollOptions: first.pollOptions
-      }
-    : {
-        text: input.text,
-        summary: input.summary,
-        sensitive: input.sensitive,
-        attachments: input.attachments,
-        pollOptions: input.poll?.choices.map((choice) => choice.title) ?? null
-      }
+  await database.appendStatusHistory({ statusId, revisions })
 }
 
 const addTags = async (
@@ -256,8 +215,13 @@ export const createImportedStatus = async (
     currentActorId: actor.id
   })
   if (existing?.actorId === actor.id) return existing
+  // The deterministic publicId already belongs to another actor's status
+  // (a pre-fix import or a crafted archive that pre-empted it): never insert
+  // with it and never return that row. A fresh random UUIDv7 keeps the write
+  // quiet and local; the importing actor's own re-run still finds its own row
+  // through the deterministic id whenever no other actor owns it.
+  const publicId = existing ? generatePublicId() : input.publicId
 
-  const initial = makeInitialVersion(input)
   let reply = ''
   if (input.replyToStatusId) {
     const parent = await database.getStatus({ statusId: input.replyToStatusId })
@@ -265,25 +229,19 @@ export const createImportedStatus = async (
   }
   const statusId = getLocalStatusId({
     actorId: actor.id,
-    statusId: input.publicId
+    statusId: publicId
   })
-  const initialAttachments = initial.attachments ?? input.attachments
-  const initialPollChoices = input.poll
-    ? (
-        initial.pollOptions ?? input.poll.choices.map((choice) => choice.title)
-      ).map((title) => ({ title, totalVotes: 0 }))
-    : []
   const createParams = {
     id: statusId,
-    url: `https://${actor.domain}/${getMention(actor)}/${input.publicId}`,
-    publicId: input.publicId,
+    url: `https://${actor.domain}/${getMention(actor)}/${publicId}`,
+    publicId,
     actorId: actor.id,
-    text: initial.text,
-    summary: initial.summary,
+    text: input.text,
+    summary: input.summary,
     to: input.to,
     cc: input.cc,
     reply,
-    sensitive: initial.sensitive ?? input.sensitive,
+    sensitive: input.sensitive,
     language: input.language,
     quoteApprovalPolicy: input.quoteApprovalPolicy,
     createdAt: input.published
@@ -291,7 +249,7 @@ export const createImportedStatus = async (
   const result = input.poll
     ? await database.createPollWithResult({
         ...createParams,
-        choices: initialPollChoices,
+        choices: input.poll.choices,
         endAt: input.published,
         pollType: input.poll.pollType,
         hideTotals: input.poll.hideTotals
@@ -304,16 +262,10 @@ export const createImportedStatus = async (
     database,
     actor,
     statusId,
-    initialAttachments,
+    input.attachments,
     input.published
   )
-  await appendStatusHistory({
-    database,
-    actor,
-    statusId,
-    input,
-    edits: input.edits
-  })
+  await appendStatusHistory(database, actor, statusId, input.edits)
 
   if (input.pinned) await database.pinStatus({ actorId: actor.id, statusId })
 

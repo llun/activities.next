@@ -5,6 +5,7 @@ import {
   discardUnpublishedStatus
 } from '@/lib/database/domains/status/deletion'
 import {
+  appendStatusHistory,
   updateNote,
   updateNoteVisibility,
   updatePoll,
@@ -65,6 +66,7 @@ import {
   getStatusesByIds
 } from '@/lib/database/domains/status/reads'
 import type {
+  AppendStatusHistoryParams,
   CreateAnnounceParams,
   CreateNoteParams,
   CreatePollParams,
@@ -173,6 +175,8 @@ export const createStatusQueries = (
     updateNoteVisibility(db, hydrationFor(db), params),
   updatePoll: (db: Db, params: UpdatePollParams) =>
     updatePoll(db, hydrationFor(db), params),
+  appendStatusHistory: (db: Db, params: AppendStatusHistoryParams) =>
+    appendStatusHistory(db, params),
   createTag,
   deleteStatusTagsByType,
   increaseHashtagCounter,

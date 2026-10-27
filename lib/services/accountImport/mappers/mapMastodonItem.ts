@@ -32,6 +32,19 @@ export const mapMastodonItem = (
   if (activity.type === 'Announce') return { ok: false, reason: 'boost' }
 
   const note = activity.object
+  // The item must be the archive's own authorship: both the activity actor
+  // and, when the note carries one, the note's attributedTo must be the
+  // archive's actor.json id. An untrusted archive can carry anyone's source
+  // ids; without this check a foreign item would import into the target
+  // account under the archive's forged authorship.
+  if (
+    activity.actor !== context.sourceActorId ||
+    (note.attributedTo !== undefined &&
+      note.attributedTo !== context.sourceActorId)
+  ) {
+    return { ok: false, reason: 'foreign-author' }
+  }
+
   const published = parsePublished(
     note.published ?? activity.published,
     context.nowMs
@@ -104,7 +117,7 @@ export const mapMastodonItem = (
             ? ((note.url.find((part) => typeof part === 'string') as
                 string | undefined) ?? null)
             : (note.url?.href ?? null),
-      publicId: deterministicPublicId(note.id, published),
+      publicId: deterministicPublicId(context.actor.id, note.id, published),
       published,
       visibility,
       ...targetRecipients,

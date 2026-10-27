@@ -23,6 +23,13 @@ export const mapOwnStatus = (
   const status = parsed.data
   if (status.type === 'Announce') return { ok: false, reason: 'boost' }
 
+  // The export writes the archive actor's id on every status row; a row
+  // carrying any other author was not authored by this archive's account and
+  // must not import under the target account's identity.
+  if (status.actorId !== context.sourceActorId) {
+    return { ok: false, reason: 'foreign-author' }
+  }
+
   const published = parsePublished(status.createdAt, context.nowMs)
   if (published === null) return { ok: false, reason: 'bad-date' }
 
@@ -55,7 +62,7 @@ export const mapOwnStatus = (
     input: {
       sourceId: status.id,
       sourceUrl: status.url,
-      publicId: deterministicPublicId(status.id, published),
+      publicId: deterministicPublicId(context.actor.id, status.id, published),
       published,
       visibility: status.visibility,
       ...recipients,
