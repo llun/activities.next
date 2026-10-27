@@ -440,6 +440,33 @@ describe('GalleryDayHeader', () => {
     expect(button).not.toHaveAttribute('aria-disabled')
   })
 
+  it('keeps the one-row phone layout when there is no action button', () => {
+    const { rerender } = render(
+      <GalleryDayHeader {...baseProps} selecting={false} />
+    )
+
+    const heading = screen.getByRole('heading')
+    const root = heading.parentElement
+    expect(root).toHaveClass('flex', 'items-center', 'gap-2')
+    expect(root).not.toHaveClass('max-sm:grid')
+    expect(heading).not.toHaveClass('max-sm:truncate')
+
+    // The meta line and the activity chip stay flat siblings of the
+    // heading, and the meta does not shrink below sm.
+    const meta = screen.getByText('14 photos')
+    const p = meta.parentElement
+    expect(p).toHaveClass('max-sm:shrink-0')
+    const row = p?.parentElement
+    expect(row).toHaveClass('contents')
+    expect(row).not.toHaveClass('max-sm:flex-wrap')
+
+    // The Undated day has no action either, even while selecting.
+    rerender(<GalleryDayHeader {...baseProps} dayKey="undated" />)
+    expect(screen.getByRole('heading').parentElement).not.toHaveClass(
+      'max-sm:grid'
+    )
+  })
+
   it('renders no button when not selecting', () => {
     render(<GalleryDayHeader {...baseProps} selecting={false} />)
 

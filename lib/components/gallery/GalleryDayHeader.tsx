@@ -95,31 +95,53 @@ export const GalleryDayHeader: FC<GalleryDayHeaderProps> = ({
   // The busy label follows the pending action, so a Deselect day read
   // never says "Selecting…" on a button named "Deselect day, <date>".
   const busyLabel = action?.kind === 'deselect' ? 'Deselecting…' : 'Selecting…'
+  // The two-row phone layout exists to give the Select day button its
+  // own corner; without one, phones keep the single flex row.
+  const twoRow = action !== null
 
   return (
-    // Phones lay out in two grid rows — the heading and the Select day
-    // button on row 1, the meta line and the activity chip on row 2 — so
-    // the button can never be pushed past the row's right edge. At sm and
-    // up the single flex row renders exactly as before.
+    // With an action, phones lay out in two grid rows — the heading and
+    // the Select day button on row 1, the meta line and the activity
+    // chip on row 2 — so the button can never be pushed past the row's
+    // right edge. At sm and up the single flex row renders as before.
     <div
       className={cn(
         'sticky z-10 py-1.5',
-        'max-sm:grid max-sm:grid-cols-[minmax(0,1fr)_auto] max-sm:items-center max-sm:gap-x-2 max-sm:gap-y-1',
+        twoRow
+          ? 'max-sm:grid max-sm:grid-cols-[minmax(0,1fr)_auto] max-sm:items-center max-sm:gap-x-2 max-sm:gap-y-1'
+          : 'flex items-center gap-2',
         'sm:flex sm:items-center sm:gap-2',
         className
       )}
     >
-      <Heading className="text-sm font-semibold shrink-0 max-sm:min-w-0 max-sm:truncate">
+      <Heading
+        className={cn(
+          'text-sm font-semibold shrink-0',
+          twoRow && 'max-sm:min-w-0 max-sm:truncate'
+        )}
+      >
         <span className="max-sm:hidden">{formatDayHeading(dayKey)}</span>
         <span className="sm:hidden">
           {formatDayHeading(dayKey, { short: true })}
         </span>
       </Heading>
-      {/* Row 2 below sm; `contents` at sm and up keeps the one-row
-          layout's flat structure. The meta line may wrap, and pieces
-          that cannot wrap truncate through min-w-0. */}
-      <div className="max-sm:col-span-2 max-sm:row-start-2 max-sm:flex max-sm:min-w-0 max-sm:flex-wrap max-sm:items-center max-sm:gap-2 sm:contents">
-        <p className="text-muted-foreground min-w-0 truncate text-xs">
+      {/* Row 2 below sm when there is an action; `contents` keeps the
+          one-row layout's flat structure everywhere else. The meta line
+          may wrap, and pieces that cannot wrap truncate through
+          min-w-0. */}
+      <div
+        className={
+          twoRow
+            ? 'max-sm:col-span-2 max-sm:row-start-2 max-sm:flex max-sm:min-w-0 max-sm:flex-wrap max-sm:items-center max-sm:gap-2 sm:contents'
+            : 'contents'
+        }
+      >
+        <p
+          className={cn(
+            'text-muted-foreground min-w-0 text-xs',
+            twoRow ? 'truncate' : 'max-sm:shrink-0 sm:truncate'
+          )}
+        >
           <span className="max-sm:hidden">{formatDayMeta(meta)}</span>
           <span className="sm:hidden whitespace-nowrap">
             {formatDayMeta({ ...meta, placeName: null, short: true })}

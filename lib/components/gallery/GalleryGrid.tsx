@@ -238,7 +238,7 @@ export const GalleryGrid: FC<Props> = ({
             isAnchor &&
               'ring-2 ring-foreground ring-offset-2 ring-offset-background',
             groups &&
-              'max-md:scroll-mt-[calc(56px+env(safe-area-inset-top,0px)+var(--status-strip-h,0px)+3rem)] md:scroll-mt-[calc(79px+3rem)]'
+              'max-md:scroll-mt-[calc(56px+env(safe-area-inset-top,0px)+var(--status-strip-h,0px)+3rem)] max-sm:scroll-mt-[calc(56px+env(safe-area-inset-top,0px)+var(--status-strip-h,0px)+5rem)] md:scroll-mt-[calc(79px+3rem)]'
           )}
           onClick={(event) =>
             selection

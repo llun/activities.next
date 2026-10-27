@@ -681,6 +681,10 @@ describe('GalleryGrid', () => {
       expect(tile).toHaveClass(
         'max-md:scroll-mt-[calc(56px+env(safe-area-inset-top,0px)+var(--status-strip-h,0px)+3rem)]'
       )
+      // Phones clear the taller two-row selecting day header.
+      expect(tile).toHaveClass(
+        'max-sm:scroll-mt-[calc(56px+env(safe-area-inset-top,0px)+var(--status-strip-h,0px)+5rem)]'
+      )
       expect(tile).toHaveClass('md:scroll-mt-[calc(79px+3rem)]')
       expect(tile).not.toHaveClass('scroll-mt-12')
     })
