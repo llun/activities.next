@@ -97,10 +97,24 @@ describe('Settings Layout', () => {
     expect(within(nav).queryByRole('button')).not.toBeInTheDocument()
   })
 
+  it('lists Moving just before Delete this profile', async () => {
+    await renderLayout('/settings/moving')
+
+    const nav = screen.getByRole('navigation', { name: 'Settings' })
+    const links = within(nav).getAllByRole('link')
+    const moving = links.find((link) => link.textContent?.startsWith('Moving'))
+    expect(moving).toHaveAttribute('href', '/settings/moving')
+    expect(moving).toHaveTextContent('Moving')
+    // Moving sits in the ungrouped footer list, directly above the delete row.
+    const movingIndex = links.indexOf(moving!)
+    expect(links[movingIndex + 1]).toHaveTextContent(/^Delete this profile/)
+  })
+
   it.each([
     ['/settings/preferences', 'Posting & reading'],
     ['/settings/sidebar', 'Sidebar'],
-    ['/settings/profile', 'Edit profile@anna@llun.test']
+    ['/settings/profile', 'Edit profile@anna@llun.test'],
+    ['/settings/moving', 'Moving']
   ])('marks %s current as %s', async (pathname, name) => {
     await renderLayout(pathname)
 
@@ -138,6 +152,14 @@ describe('Settings Layout', () => {
     ])
     expect(
       screen.getByText('Remove @anna and its posts from this server')
+    ).toBeInTheDocument()
+    // The index rows carry each section's description.
+    expect(screen.getByRole('link', { name: /Moving/ })).toHaveAttribute(
+      'href',
+      '/settings/moving'
+    )
+    expect(
+      screen.getByText('Change your handle, or move to another account')
     ).toBeInTheDocument()
     // Edit profile is the page's own card on the index, not a list row.
     expect(

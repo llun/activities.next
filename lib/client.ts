@@ -4,6 +4,7 @@
 // ============================================================================
 
 // --- Accounts & Preferences ---
+export * from './client/accountMigration'
 export * from './client/accountPreferences'
 export * from './client/accounts'
 export * from './client/accountSettings'

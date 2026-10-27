@@ -1,0 +1,91 @@
+/**
+ * @vitest-environment jsdom
+ */
+import '@testing-library/jest-dom'
+import { render, screen } from '@testing-library/react'
+
+import { ProfileMovedBanner } from './ProfileMovedBanner'
+
+describe('ProfileMovedBanner', () => {
+  it('points a visitor at the new profile', () => {
+    render(
+      <ProfileMovedBanner
+        acct="may@new.example"
+        href="https://new.example/users/may"
+        external
+        isOwner={false}
+        isRedirect={false}
+      />
+    )
+
+    expect(screen.getByText('This profile has moved to')).toBeInTheDocument()
+    expect(screen.getByText('@may@new.example')).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Follow them at their new profile. Posts here stay as they were.'
+      )
+    ).toBeInTheDocument()
+
+    const go = screen.getByRole('link', { name: /Go to new profile/ })
+    expect(go).toHaveAttribute('href', 'https://new.example/users/may')
+    expect(go).toHaveAttribute('target', '_blank')
+    // A visitor never gets the owner's way in.
+    expect(
+      screen.queryByRole('link', { name: /Manage/ })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /Cancel redirect/ })
+    ).not.toBeInTheDocument()
+  })
+
+  it('soft-links to a target on this server', () => {
+    render(
+      <ProfileMovedBanner
+        acct="may@llun.test"
+        href="/@may@llun.test"
+        external={false}
+        isOwner={false}
+        isRedirect={false}
+      />
+    )
+
+    const go = screen.getByRole('link', { name: /Go to new profile/ })
+    expect(go).toHaveAttribute('href', '/@may@llun.test')
+    expect(go).not.toHaveAttribute('target')
+  })
+
+  it('gives the owner the Manage way into the Moving settings', () => {
+    render(
+      <ProfileMovedBanner
+        acct="may@new.example"
+        href="https://new.example/users/may"
+        external
+        isOwner
+        isRedirect={false}
+      />
+    )
+
+    expect(screen.getByRole('link', { name: /Manage/ })).toHaveAttribute(
+      'href',
+      '/settings/moving'
+    )
+  })
+
+  it('tells the owner of a redirect that followers have not moved', () => {
+    render(
+      <ProfileMovedBanner
+        acct="may@new.example"
+        href="https://new.example/users/may"
+        external
+        isOwner
+        isRedirect
+      />
+    )
+
+    expect(
+      screen.getByText(
+        'You are redirecting from this profile. Followers have not been moved.'
+      )
+    ).toBeInTheDocument()
+  })
+})
