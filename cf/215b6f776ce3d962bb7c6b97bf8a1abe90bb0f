@@ -1,0 +1,20 @@
+lib/components/gallery/useDaySelection.ts
+  s_1f1a1efd8db0bf::t_cc155b56cad427 238-240,293
+  s_1f1a1efd8db0bf::t_27250898f0d37a 8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cf215b6f776ce3d962bb7c6b97bf8a1abe90bb0f",
+  "prompts": {},
+  "sessions": {
+    "s_1f1a1efd8db0bf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6f1be9b0-86e0-4f32-9286-3562b40d391e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
