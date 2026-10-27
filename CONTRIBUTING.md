@@ -1030,9 +1030,16 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
   has the shape of `OAuthAccessTokenRecord`, `expiresAt` in epoch milliseconds.
 - **Assert what the user or caller sees.** Query by role, label or text rather
   than `toHaveClass`/`querySelector`, unless the class is the contract (a
-  design-system token such as `.skeleton`). Use `toHaveBeenCalledTimes` only
-  when the count itself is the behaviour. Both break on refactors that change
-  nothing a user can observe.
+  design-system token such as `.skeleton`). When asserting class absence, note
+  that `.not.toHaveClass('a', 'b')` negates the conjunction and passes when
+  _either_ class is absent — assert `.not.toHaveClass('a')` and
+  `.not.toHaveClass('b')` separately when neither class may be present. Use
+  `toHaveBeenCalledTimes` only when the count itself is the behaviour. Both
+  break on refactors that change nothing a user can observe. Never assert exact
+  call counts inside `waitFor`: `waitFor` retries on failure, so an assertion
+  that was briefly true and then became false can never recover and flakes in
+  CI; wait for the settled state inside `waitFor`, then assert the count once
+  outside it.
 - All tests run in parallel using isolated SQLite in-memory databases. The
   schema is loaded from the committed reference dumps (`migrations/schema*.sql`)
   via `lib/database/testing/schema.ts` rather than by running the migrations,
@@ -1044,8 +1051,16 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
   (`it('returns null when actor is missing', …)`).
 - For tests whose cases differ only by input and expected output, prefer a
   table-driven `it.each([...])('$description', …)` with a `description` column
-  instead of repeating near-identical `it` blocks. Reserve standalone `it`
-  blocks for cases with distinct setup or assertion shapes.
+  instead of repeating near-identical `it` blocks (keep `$description` strings
+  under ~40 chars, since Vitest truncates longer values in test titles).
+  Reserve standalone `it` blocks for cases with distinct setup or assertion
+  shapes.
+- **Prove every bug-fix or guard test against the reverted fix.** Temporarily
+  revert the production fix (or introduce the mutant under test), confirm the
+  new test fails for the expected reason, and restore the code before
+  committing. When running manual mutation checks in a worktree, always
+  `git checkout -- <file>` before finishing and verify `git status --short` is
+  clean so a surviving mutant is never left on disk.
 - Client components that fan out to children which render relative timestamps
   (e.g. `Posts`/`Post`) must receive `currentTime: number` from a Server
   Component and forward it. Add a regression test that renders the component
@@ -1053,6 +1068,14 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
   asserts the rendered relative time (for example `posted 5 minutes ago`). If
   the component calls `Date.now()` internally instead, the assertion fails. See
   `app/(timeline)/MainPageTimeline.test.tsx` for the pattern.
+
+<a id="agents-known-failure-classes"></a>
+
+### Known failure classes
+
+- **"Shard 4 OOM" in CI was `@radix-ui/react-focus-scope` ↔ jsdom focus-event recursion (stack overflow), not a heap leak.** The CI test matrix runs 4 shards with `NODE_OPTIONS="--max-old-space-size=8192"`; mounting Radix `Dialog` or `AlertDialog` per list row (e.g. inside `TimelineFollowList`) overflows the stack or exhausts memory under jsdom focus management.
+- **Probabilistic crypto chi-square tests (`lib/utils/crypto.test.ts`) flake at `alpha = 1e-4` by design and pass on re-run.** Do not "fix" a flake by shrinking the sample size — under the null hypothesis the test statistic stays `~chi-square(61)` regardless of sample size.
+- **Worker `SIGABRT` in production is heatmap fan-out × Cloud Run concurrency, not a single-job code fault.** Recover crash-orphaned fitness imports (`pending` with `statusId = NULL`) with `scripts/fitness/repairFailedFitnessImports.ts`.
 
 <a id="local-manual-browser-testing"></a>
 
@@ -1271,7 +1294,7 @@ chore: update dependencies                            ← patch
   4. `yarn build` to ensure no build errors—**must be green before commit**.
   5. `yarn test` to ensure no test errors—**must be green before commit**.
 - A husky pre-commit hook (`.husky/pre-commit`) runs on every commit: first `lint-staged` (configured in `package.json`), which runs `prettier --write` on the staged files and re-stages the formatted result, then `yarn lint`, which blocks the commit on lint errors. It does **not** run build or tests — run those yourself per the checklist above.
-- The `prettier` / `prettier:check` package scripts only cover `app migrations lib lint`; the trailing `.` in `yarn run prettier --write .` is what extends formatting to the whole tree. CI's format gate (`yarn prettier:check`) does not check `scripts/`, `docs/`, or `.github/`.
+- The `prettier` / `prettier:check` package scripts only cover `app migrations lib lint`; the trailing `.` in `yarn run prettier --write .` is what extends formatting to the whole tree. Note that `yarn run prettier` always **writes** (`"prettier": "prettier --write ..."` in `package.json`, so even `yarn prettier --check` writes); use `yarn prettier:check` for a read-only check. CI's format gate (`yarn prettier:check`) does not check `scripts/`, `docs/`, or `.github/`. Always `git fetch` before pushing to a PR branch, because the maintainer sometimes rebases open PR branches.
 - The **sub-agent code-review loop below is the project's review process.** The `gemini-code-assist` bot has been **removed** and no external review bot currently runs on PRs, so do **not** post `/gemini review` (or any other bot trigger) and do not wait on a bot. `REVIEW.md` at the repo root is the project's review checklist and documents recurring reviewer false-flags (e.g. claims that `vi.importMock` does not exist) — read it before acting on review feedback.
 
 <a id="agents-code-review-loop-sub-agents"></a>
@@ -1284,6 +1307,18 @@ chore: update dependencies                            ← patch
 
 - Spawn **sub-agents** (the Task/Agent tool; to use the `code-review` skill, run it inside a reviewer sub-agent rather than from the main thread) to review **all** of the PR's code — correctness bugs plus the project invariants in this file and `REVIEW.md`, security, tests, and style. Use `REVIEW.md` as the checklist. For a sizeable diff, fan several sub-agents out in parallel across different files/dimensions instead of a single pass, then consolidate their findings. Each reviewer must be a **separate sub-agent that did not write the change** (never the main thread, and never the implementer reviewing its own work). The main thread chooses each reviewer's model and effort explicitly per the table in [AGENTS.md](AGENTS.md#working-with-sub-agents-always); fixes go to a separate implementer sub-agent.
 - **Post every finding as a comment on the PR** — an inline review comment anchored to the offending file and line wherever possible, not just a summary in chat. The `code-review` skill's `--comment` flag posts inline comments directly; otherwise open a pending review with `pull_request_review_write` (method `create`), attach comments with `add_comment_to_pending_review`, and submit with `pull_request_review_write` (method `submit_pending`). The PR threads are the source of truth for what still needs addressing.
+
+### Where findings come from
+
+In multi-round reviews, **review the previous round's fix range (`git diff <prev-sha>..HEAD`) hardest, then finish with one pass over the full diff.** Nearly every serious finding after round 1 in past PRs was a regression introduced by the previous round's fix:
+
+- **Ordering fix that opens a permanent-stranding window when the step between throws** (e.g. stamping `completedAt` before the scan finishes refuses the rebuild that would heal it; marking an actor `deleting` before `Delete(actor)` fan-out strands the account on retry).
+- **Privacy or visibility fix whose companion `Update` or publish job still fires and leaks** (`sendNoteJob` and `sendUpdateNoteJob` apply **no** visibility or opt-in checks of their own — if you publish to them, they federate; and because Mastodon synthesises a `Create` when it receives an `Update` for an unseen object younger than ~a day, sending an ungated `Update` after attaching media publishes a status that stayed local or private).
+- **Failure-handling fix that writes a status-column combination that strands a row forever** (e.g. `pending` + `statusId = NULL`, or setting `processingStatus = 'failed'` for a map-only error so every downstream reader, rollup, or repair script skips or hides the row).
+- **Relocated statement whose failures are now owned by a different `try`/`catch`** (e.g. moving a courtesy read inside an outer `catch` that marks the primary work `failed`).
+- **Fix that is a no-op at the caller** (updating a shared helper in a way the caller's own branch never reaches, or checking a column like `accounts.verifiedAt` whose historical `DEFAULT CURRENT_TIMESTAMP` makes `whereNotNull` always true).
+- **When adding a guard, check every other writer and enqueued job** that touches the same column, endpoint, or status transition; when accepting or writing a factual claim in a comment or doc (e.g. TS diagnostic codes, whether a route reads a flag), verify it against the actual code and compiler.
+- **Do not report or "fix" documented deliberate oddities:** UTC calendar-day math in `ActorFitnessDashboard` / `lib/fitness/calendar/localDay.ts` (`Date.UTC` on date keys is zone-independent calendar math, while day boundaries use `localDayWindow`), `attachments.mediaId` historical backend-conditional migrations across schema dumps, unclipped tile storage in `fitness_heatmap_tiles` (clipped at serve time), `createAttachment` throwing on non-row ids (routes validate with `toMediaRowId` first), and `getFitnessFileType` reading the raw file name before the 200-byte sanitization cap.
 
 ### Address → reply → resolve, in rounds
 
@@ -1363,8 +1398,12 @@ attachment ref guard` is exactly that: it passed with the bug present until
   hook.
 - **No test may depend on which test in its file ran first.** Flag tests that
   queue `mock…Once` values under a `beforeEach` that relies on
-  `vi.clearAllMocks()` alone (it keeps the queue), a test that mutates rows a
-  `beforeAll` seeded for the whole file, and a test that reads state "the
+  `vi.clearAllMocks()` alone (it clears call history and `mock…Once` queues, but
+  keeps persistent `mockImplementation` / `mockReturnValue` state — in mutation
+  testing, a leaked `mockImplementation` shows up as a single mutation failing
+  several tests in the file instead of the one test it should; use `mockReset()`
+  on the mock when a test overrides its implementation), a test that mutates
+  rows a `beforeAll` seeded for the whole file, and a test that reads state "the
   previous case" left. Shuffled runs (`--sequence.shuffle --sequence.seed=<n>`)
   catch what CI's fixed order cannot.
 - **`toHaveBeenCalledWith` is "was ever called", not "was the only call".** A

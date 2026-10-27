@@ -1016,7 +1016,7 @@ Read the applicable rules and review checks below before changing this subsystem
 - **Server-side outbound JSON and text HTTP requests MUST go through `safeRemoteFetch` (`@/lib/utils/safeRemoteFetch`).** Binary downloads use the guarded helper below.
 - Never call raw `fetch()` directly in server-side services or utilities.
 - `safeRemoteFetch` is backed by `got` and applies standard SSRF protection (requiring HTTPS, blocking private IP ranges such as loopback and RFC 1918 subnets), streaming response-size limits, timeout bounds, DNS pinning, and redirect handling.
-- A fetch whose response is trusted because of the host it came from — an ActivityPub object fetched to authenticate it (`getNote`, the forwarded-Delete confirmation, a `QuoteAuthorization` stamp) — passes `allowCrossHostRedirects: false`, so an open redirect on that host cannot hand the answer to another one. See [A Fetched Document's Own `id` Is Not Evidence](mastodon-api-compatibility.md#agents-a-fetched-document-s-own-id-is-not-evidence).
+- A fetch whose response is trusted because of the host it came from — an ActivityPub object fetched to authenticate it (`getNote`, the forwarded-Delete confirmation, a `QuoteAuthorization` stamp) — passes `allowCrossHostRedirects: false`, so an open redirect on that host cannot hand the answer to another one. See [A Fetched Document's Own `id` Is Not Evidence](mastodon-api-compatibility.md#agents-a-fetched-document-s-own-id-is-not-evidence). Remote servers running in `AUTHORIZED_FETCH` / secure mode also reject unsigned ActivityPub GETs, so server-to-server fetches that resolve remote actors or statuses (`getActorPerson`, `getActorPosts`, `getNote`, search, remote statuses, profiles, status detail, Move target verification) sign the request with the acting local actor or `getFederationSigningActor`.
 - Binary FIT and image downloads use `safeImageFetch` with `readResponseArrayBufferWithLimit` because the text response of `safeRemoteFetch` would corrupt those bytes. The binary helper checks each redirect and destination address; callers apply an overall timeout and byte cap and do not forward provider bearer tokens to file hosts.
 - Web Push delivery (`web-push`) is the one outbound POST to a URL a client chose. The subscribe routes refuse any endpoint `isAllowedPushEndpoint` rejects (`lib/services/notifications/pushEndpoint.ts`: HTTPS, no credentials, no local names, public addresses only), delivery skips a stored endpoint `isDeliverablePushEndpoint` rejects and connects through `pushDeliveryAgent`, whose lookup refuses a restricted address at connect time (so a rebound record is caught), with a per-request timeout. `createPushSubscription` keeps at most `MAX_PUSH_SUBSCRIPTIONS_PER_ACTOR` per actor (oldest dropped), which bounds the per-notification fan-out.
 - External cloud integrations (e.g. translation providers like DeepL, OpenAI, or Gemini, and alt-text vision generation) must target public HTTPS endpoints. Internal or self-hosted HTTP services running on private IP addresses are not supported.
@@ -3134,7 +3134,8 @@ moved` (reject stays allowed). While
   `text-primary` on purpose: icon-only controls (a toggle button holding just an
   icon or glyph, the collapsed rail) and the large display numeral on the 404/500
   card, which the design draws in the brand orange. `app/globals.contrast.test.ts`
-  guards the tokens.
+  guards the token values in `globals.css`, not whether a component used
+  `text-primary-text` vs `text-primary`.
 - Destructive **text** and link labels use `text-destructive-text`
   (or `text-destructive`, which maps to it in `@layer utilities`; note that
   variant modifiers such as `hover:text-destructive-text` and
