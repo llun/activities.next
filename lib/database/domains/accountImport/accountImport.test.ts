@@ -998,4 +998,129 @@ describe('account import queries', () => {
       )
     ).toBe(true)
   })
+
+  it('counts items by outcome for one import in a single query', async () => {
+    const outcome = await database.createAccountImport({
+      id: 'import-outcome',
+      accountId,
+      actorId: 'actor-outcome',
+      options: '{}'
+    })
+    await database.upsertAccountImportItems({
+      importId: outcome.id,
+      actorId: outcome.actorId,
+      items: [
+        { kind: 'status', sourceId: 's1', position: 0 },
+        { kind: 'status', sourceId: 's2', position: 1 },
+        { kind: 'media', sourceId: 'm1', position: 2 },
+        { kind: 'like', sourceId: 'l1', position: 3 },
+        { kind: 'bookmark', sourceId: 'b1', position: 4 },
+        { kind: 'bookmark', sourceId: 'b2', position: 5 },
+        { kind: 'fitness-file', sourceId: 'f1', position: 6 },
+        { kind: 'fitness-file', sourceId: 'f2', position: 7 },
+        { kind: 'status', sourceId: 'p1', position: 8 }
+      ]
+    })
+    // Another import's items must not leak into the report.
+    const other = await database.createAccountImport({
+      id: 'import-outcome-other',
+      accountId,
+      actorId: 'actor-outcome-other',
+      options: '{}'
+    })
+    await database.upsertAccountImportItems({
+      importId: other.id,
+      actorId: other.actorId,
+      items: [
+        { kind: 'status', sourceId: 'other-1', position: 0 },
+        { kind: 'status', sourceId: 'other-2', position: 1 }
+      ]
+    })
+    const otherItems = await database.getAccountImportItems({
+      importId: other.id,
+      limit: 10
+    })
+    for (const item of otherItems) {
+      await database.markAccountImportItem({
+        id: item.id,
+        state: 'done',
+        targetId: 'other-target'
+      })
+    }
+    const items = await database.getAccountImportItems({
+      importId: outcome.id,
+      limit: 10
+    })
+    const bySource = (sourceId: string) =>
+      items.find((item) => item.sourceId === sourceId)!
+    await database.markAccountImportItem({
+      id: bySource('s1').id,
+      state: 'done',
+      targetId: 't1'
+    })
+    await database.markAccountImportItem({
+      id: bySource('s2').id,
+      state: 'done',
+      targetId: 't2'
+    })
+    // A done item that still carries the reason of a failed first attempt
+    // counts once under its kind; the stale reason must not split it.
+    await database.markAccountImportItem({
+      id: bySource('m1').id,
+      state: 'failed',
+      reason: 'item_failed'
+    })
+    await database.markAccountImportItem({
+      id: bySource('m1').id,
+      state: 'done',
+      targetId: 't3'
+    })
+    await database.markAccountImportItem({
+      id: bySource('l1').id,
+      state: 'skipped',
+      reason: 'option_disabled'
+    })
+    await database.markAccountImportItem({
+      id: bySource('b1').id,
+      state: 'skipped',
+      reason: 'media_too_large'
+    })
+    await database.markAccountImportItem({
+      id: bySource('b2').id,
+      state: 'skipped',
+      reason: 'option_disabled'
+    })
+    await database.markAccountImportItem({
+      id: bySource('f1').id,
+      state: 'failed',
+      reason: 'item_failed'
+    })
+    // A failed row without a reason counts under `unknown`.
+    await database.markAccountImportItem({
+      id: bySource('f2').id,
+      state: 'failed'
+    })
+    // p1 stays pending: no outcome, so it is not counted anywhere.
+
+    const queries = await testDb.captureQueries(() =>
+      database.countAccountImportItemsByOutcome({ importId: outcome.id })
+    )
+    expect(queries).toHaveLength(1)
+
+    expect(
+      await database.countAccountImportItemsByOutcome({ importId: outcome.id })
+    ).toEqual({
+      done: { status: 2, media: 1 },
+      skipped: { option_disabled: 2, media_too_large: 1 },
+      failed: { item_failed: 1, unknown: 1 }
+    })
+    // The other import's done items are its own report, not this one's.
+    expect(
+      await database.countAccountImportItemsByOutcome({ importId: other.id })
+    ).toEqual({
+      done: { status: 2 },
+      skipped: {},
+      failed: {}
+    })
+  })
 })

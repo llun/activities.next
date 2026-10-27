@@ -10,7 +10,8 @@ import type {
 import { timestampValue } from '@/lib/database/kysely/dialect'
 import type {
   AccountImport,
-  AccountImportItem
+  AccountImportItem,
+  AccountImportOutcomeReport
 } from '@/lib/types/domain/accountImport'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
@@ -454,6 +455,45 @@ export const getAccountImportItemReferences = async (
   return result
 }
 
+// One grouped scan over the item catalog, filtered on the (importId, state,
+// position) index. Done items count by kind whatever reason a reclaimed row
+// still carries; skipped and failed items count by reason code, with
+// `unknown` standing in for a row that has none. Pending items are not part
+// of any outcome and are left out.
+export const countAccountImportItemsByOutcome = async (
+  db: Db,
+  params: { importId: string }
+): Promise<AccountImportOutcomeReport> => {
+  const rows = await db
+    .selectFrom('account_import_items')
+    .select((eb) => [
+      'state',
+      'kind',
+      'reason',
+      eb.fn.countAll<number>().as('count')
+    ])
+    .where('importId', '=', params.importId)
+    .where('state', 'in', ['done', 'skipped', 'failed'])
+    .groupBy(['state', 'kind', 'reason'])
+    .execute()
+  const report: AccountImportOutcomeReport = {
+    done: {},
+    skipped: {},
+    failed: {}
+  }
+  for (const row of rows) {
+    const count = Number(row.count)
+    if (row.state === 'done') {
+      report.done[row.kind] = (report.done[row.kind] ?? 0) + count
+      continue
+    }
+    const reason = row.reason ?? 'unknown'
+    const byReason = row.state === 'skipped' ? report.skipped : report.failed
+    byReason[reason] = (byReason[reason] ?? 0) + count
+  }
+  return report
+}
+
 export const markAccountImportItem = async (
   db: Db,
   params: MarkAccountImportItemParams
@@ -534,6 +574,7 @@ export const accountImportQueries = {
   upsertAccountImportItems,
   getAccountImportItems,
   getAccountImportItemReferences,
+  countAccountImportItemsByOutcome,
   markAccountImportItem,
   resetRetryableAccountImportItems,
   deleteAccountImportsForActor

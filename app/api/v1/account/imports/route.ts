@@ -66,7 +66,7 @@ export const GET = traceApiRoute(
       req,
       imports
         .filter((accountImport) => accountImport.accountId === accountId)
-        .map(serializeAccountImport)
+        .map((accountImport) => serializeAccountImport(accountImport))
     )
   })
 )

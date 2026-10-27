@@ -56,3 +56,14 @@ export interface AccountImportItem {
   createdAt: number
   updatedAt: number
 }
+
+/**
+ * Item counts of one import grouped by outcome: done items by kind, skipped
+ * and failed items by reason code (`unknown` stands in for a row without
+ * one). Served as the import object's `report` once the import is terminal.
+ */
+export interface AccountImportOutcomeReport {
+  done: Record<string, number>
+  skipped: Record<string, number>
+  failed: Record<string, number>
+}

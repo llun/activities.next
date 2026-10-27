@@ -95,7 +95,18 @@ export const GET = traceApiRoute(
     }
     const result = await ownedImport(req, context)
     if (result.type === 'response') return result.response
-    return respond(req, serializeAccountImport(result.accountImport))
+    const { accountImport } = result
+    // The report only exists once the import can no longer change: while it
+    // is queued or running the counts would be a moving target.
+    const report =
+      accountImport.status === 'done' ||
+      accountImport.status === 'failed' ||
+      accountImport.status === 'cancelled'
+        ? await context.database.countAccountImportItemsByOutcome({
+            importId: accountImport.id
+          })
+        : undefined
+    return respond(req, serializeAccountImport(accountImport, report))
   })
 )
 
