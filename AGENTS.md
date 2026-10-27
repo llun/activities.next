@@ -411,7 +411,7 @@ The durable rule source lives in [CONTRIBUTING.md](CONTRIBUTING.md#agents-design
 
 ## Testing Guidelines
 
-The durable rule source moved to [CONTRIBUTING.md](CONTRIBUTING.md#agents-testing-guidelines); read it before changing this subsystem.
+The durable rule source moved to [CONTRIBUTING.md](CONTRIBUTING.md#agents-testing-guidelines) (including [Known failure classes](CONTRIBUTING.md#agents-known-failure-classes)); read it before changing this subsystem.
 
 ## Task Recipes
 
