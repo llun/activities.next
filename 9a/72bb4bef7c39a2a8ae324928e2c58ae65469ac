@@ -1,0 +1,31 @@
+docs/architecture.md
+  s_c41a8cc69af7d2::t_e6ad137ccd6072 643-645
+  s_c41a8cc69af7d2::t_3d0bb218a1932f 585-588,591-596,598-602,618-631,642,650-656,668-671
+  s_c41a8cc69af7d2::t_1693c61cd71c8d 715-718
+docs/setup.md
+  s_c41a8cc69af7d2::t_2579f3e64328c4 153-156
+docs/mastodon-api-compatibility.md
+  s_c41a8cc69af7d2::t_a3aeeec506ec85 519-525,527
+  s_c41a8cc69af7d2::t_6897ad09de76ec 515-517,526,539-543,547-556
+  s_c41a8cc69af7d2::t_9bd4fbc5b3aecf 518
+docs/features.md
+  s_c41a8cc69af7d2::t_bf4316ac03f2f8 69
+docs/maintenance.md
+  s_c41a8cc69af7d2::t_f868c96ad4000e 283-288
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9a72bb4bef7c39a2a8ae324928e2c58ae65469ac",
+  "prompts": {},
+  "sessions": {
+    "s_c41a8cc69af7d2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a17f28-a63d-75c0-a843-d792e7e72f88",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
