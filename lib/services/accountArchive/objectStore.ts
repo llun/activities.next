@@ -171,9 +171,9 @@ export interface ArchiveObjectStore {
     endInclusive: number
   ): Promise<Buffer | null>
   /**
-   * A short-lived presigned PUT URL for a direct upload of at most `maxBytes`
-   * bytes, or null when this store cannot serve one (the caller uploads
-   * through the server instead).
+   * A short-lived presigned PUT URL when this store supports the configured
+   * upload cap, or null when the caller must upload through the server. The
+   * URL does not enforce `maxBytes`; the start route checks the stored size.
    */
   getUploadUrl(
     key: string,
@@ -763,9 +763,8 @@ export class S3ArchiveObjectStore implements ArchiveObjectStore {
   }
 
   /**
-   * A presigned PUT for a direct browser upload of at most `maxBytes` bytes
-   * (the ContentLength the signature pins, so an over-large body is refused
-   * by the bucket itself).
+   * A presigned PUT for direct browser uploads when the configured cap fits
+   * S3's single-PUT limit. The start route checks the stored object's size.
    */
   async getUploadUrl(
     key: string,
@@ -773,12 +772,12 @@ export class S3ArchiveObjectStore implements ArchiveObjectStore {
     expiresInSec: number
   ): Promise<string | null> {
     assertArchiveKey(key)
+    if (maxBytes > 5 * 1024 * 1024 * 1024) return null
     return getSignedUrl(
       this.client,
       new PutObjectCommand({
         Bucket: this.config.bucket,
-        Key: assertArchiveKey(key),
-        ContentLength: maxBytes
+        Key: assertArchiveKey(key)
       }),
       { expiresIn: expiresInSec }
     )

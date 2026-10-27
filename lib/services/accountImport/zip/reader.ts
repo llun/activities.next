@@ -1,4 +1,5 @@
-import { Readable, Transform } from 'stream'
+import { PassThrough, Readable, Transform } from 'stream'
+import { pipeline } from 'stream/promises'
 import yauzl from 'yauzl'
 
 import type { RandomAccessSource } from './source'
@@ -133,9 +134,208 @@ const rangeReadable = (
 
 /** How many bytes one pull of the range reader moves. */
 const RANGE_CHUNK = 1024 * 1024
+const READ_AHEAD_BLOCK_SIZE = 4 * 1024 * 1024
+const MAX_CACHED_BLOCKS = 4
+const MAX_CACHED_CENTRAL_DIRECTORY_SIZE = 64 * 1024 * 1024
+const ZIP_EOCD_SIZE = 22
+const ZIP_EOCD_MAX_COMMENT_SIZE = 0xffff
+const ZIP64_EOCD_LOCATOR_SIZE = 20
+
+interface CachedRange {
+  start: number
+  bytes: Buffer
+}
+
+interface CentralDirectoryInfo {
+  entryCount: number
+  offset: number
+  size: number
+}
+
+interface EndRecordInfo {
+  trailer: CachedRange | null
+  centralDirectory: CentralDirectoryInfo | null
+}
+
+const safeNumberFromBigInt = (value: bigint): number | null =>
+  value >= 0n && value <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(value) : null
+
+/**
+ * Reads the bounded end-record trailer once so the random-access reader can
+ * reuse it, then extracts the central-directory range for a single prefetch.
+ * Invalid or unsupported records are left for yauzl to reject itself.
+ */
+const readEndRecordInfo = async (
+  source: RandomAccessSource
+): Promise<EndRecordInfo> => {
+  const trailerSize = Math.min(
+    source.size,
+    ZIP64_EOCD_LOCATOR_SIZE + ZIP_EOCD_SIZE + ZIP_EOCD_MAX_COMMENT_SIZE
+  )
+  if (trailerSize < ZIP_EOCD_SIZE) {
+    return { trailer: null, centralDirectory: null }
+  }
+
+  const trailerStart = source.size - trailerSize
+  const trailerBytes = await source.read(trailerStart, source.size - 1)
+  if (trailerBytes.length !== trailerSize) {
+    return { trailer: null, centralDirectory: null }
+  }
+  const trailer = { start: trailerStart, bytes: trailerBytes }
+
+  for (
+    let eocdOffset = trailerBytes.length - ZIP_EOCD_SIZE;
+    eocdOffset >= 0;
+    eocdOffset -= 1
+  ) {
+    if (trailerBytes.readUInt32LE(eocdOffset) !== 0x06054b50) continue
+    const commentLength = trailerBytes.readUInt16LE(eocdOffset + 20)
+    if (eocdOffset + ZIP_EOCD_SIZE + commentLength !== trailerBytes.length) {
+      continue
+    }
+
+    let entryCount = trailerBytes.readUInt16LE(eocdOffset + 10)
+    let offset = trailerBytes.readUInt32LE(eocdOffset + 16)
+    let size = trailerBytes.readUInt32LE(eocdOffset + 12)
+    const locatorOffset = eocdOffset - ZIP64_EOCD_LOCATOR_SIZE
+    if (
+      locatorOffset >= 0 &&
+      trailerBytes.readUInt32LE(locatorOffset) === 0x07064b50
+    ) {
+      const zip64Offset = safeNumberFromBigInt(
+        trailerBytes.readBigUInt64LE(locatorOffset + 8)
+      )
+      if (zip64Offset === null || zip64Offset + 56 > source.size) {
+        return { trailer, centralDirectory: null }
+      }
+      const zip64End = await source.read(zip64Offset, zip64Offset + 55)
+      if (zip64End.length !== 56 || zip64End.readUInt32LE(0) !== 0x06064b50) {
+        return { trailer, centralDirectory: null }
+      }
+      const zip64EntryCount = safeNumberFromBigInt(zip64End.readBigUInt64LE(32))
+      const zip64Size = safeNumberFromBigInt(zip64End.readBigUInt64LE(40))
+      const zip64DirectoryOffset = safeNumberFromBigInt(
+        zip64End.readBigUInt64LE(48)
+      )
+      if (
+        zip64EntryCount === null ||
+        zip64Size === null ||
+        zip64DirectoryOffset === null
+      ) {
+        return {
+          trailer,
+          centralDirectory: {
+            entryCount: Number.POSITIVE_INFINITY,
+            offset: 0,
+            size: 0
+          }
+        }
+      }
+      entryCount = zip64EntryCount
+      size = zip64Size
+      offset = zip64DirectoryOffset
+    }
+
+    if (
+      entryCount === 0xffff ||
+      size === 0xffffffff ||
+      offset === 0xffffffff ||
+      !Number.isSafeInteger(offset + size) ||
+      offset + size > source.size
+    ) {
+      return { trailer, centralDirectory: null }
+    }
+    return { trailer, centralDirectory: { entryCount, offset, size } }
+  }
+
+  return { trailer, centralDirectory: null }
+}
+
+/**
+ * Serves cached end-record and central-directory ranges, and reads local
+ * headers through a small aligned LRU. This turns yauzl's two reads per
+ * central-directory entry into one or a few large range requests.
+ */
+class ReadAheadSource implements RandomAccessSource {
+  private centralDirectory: CachedRange | null = null
+  private readonly blocks = new Map<number, Buffer>()
+
+  constructor(
+    private readonly source: RandomAccessSource,
+    private readonly trailer: CachedRange | null
+  ) {}
+
+  async prefetchCentralDirectory({ offset, size }: CentralDirectoryInfo) {
+    if (size === 0 || size > MAX_CACHED_CENTRAL_DIRECTORY_SIZE) return
+    const bytes = await this.source.read(offset, offset + size - 1)
+    if (bytes.length === size) this.centralDirectory = { start: offset, bytes }
+  }
+
+  get size() {
+    return this.source.size
+  }
+
+  async read(start: number, endInclusive: number): Promise<Buffer> {
+    if (endInclusive < start) return Buffer.alloc(0)
+    if (start < 0 || endInclusive >= this.source.size) {
+      throw new Error('ZIP range is outside the source')
+    }
+
+    for (const cached of [this.centralDirectory, this.trailer]) {
+      if (
+        cached &&
+        start >= cached.start &&
+        endInclusive < cached.start + cached.bytes.length
+      ) {
+        return cached.bytes.subarray(
+          start - cached.start,
+          endInclusive - cached.start + 1
+        )
+      }
+    }
+    return this.readFromBlocks(start, endInclusive)
+  }
+
+  private async readFromBlocks(
+    start: number,
+    endInclusive: number
+  ): Promise<Buffer> {
+    const chunks: Buffer[] = []
+    let position = start
+    while (position <= endInclusive) {
+      const blockStart =
+        Math.floor(position / READ_AHEAD_BLOCK_SIZE) * READ_AHEAD_BLOCK_SIZE
+      let block = this.blocks.get(blockStart)
+      if (!block) {
+        const blockEnd = Math.min(
+          blockStart + READ_AHEAD_BLOCK_SIZE,
+          this.source.size
+        )
+        block = await this.source.read(blockStart, blockEnd - 1)
+        if (block.length !== blockEnd - blockStart) {
+          throw new Error('ZIP range read returned an incomplete block')
+        }
+      }
+      this.blocks.delete(blockStart)
+      this.blocks.set(blockStart, block)
+      const chunkEnd = Math.min(endInclusive, blockStart + block.length - 1)
+      chunks.push(
+        block.subarray(position - blockStart, chunkEnd - blockStart + 1)
+      )
+      position = chunkEnd + 1
+    }
+
+    while (this.blocks.size > MAX_CACHED_BLOCKS) {
+      const oldest = this.blocks.keys().next().value
+      if (oldest === undefined) break
+      this.blocks.delete(oldest)
+    }
+    return Buffer.concat(chunks, endInclusive - start + 1)
+  }
+}
 
 class SourceRandomAccessReader extends yauzl.RandomAccessReader {
-  constructor(private readonly source: RandomAccessSource) {
+  constructor(private readonly source: ReadAheadSource) {
     super()
   }
 
@@ -153,15 +353,33 @@ export const openZipArchive = async (
   caps: Partial<ZipOpenCaps> = {}
 ): Promise<ZipArchive> => {
   const limits = { ...DEFAULT_ZIP_CAPS, ...caps }
-  const reader = new SourceRandomAccessReader(source)
+  let reader: SourceRandomAccessReader
   let zipfile: yauzl.ZipFile
   try {
+    const endRecordInfo = await readEndRecordInfo(source)
+    if (
+      endRecordInfo.centralDirectory &&
+      endRecordInfo.centralDirectory.entryCount > limits.maxEntries
+    ) {
+      throw new ZipArchiveError(
+        'too_many_entries',
+        `archive holds ${endRecordInfo.centralDirectory.entryCount} entries`
+      )
+    }
+    const readAheadSource = new ReadAheadSource(source, endRecordInfo.trailer)
+    if (endRecordInfo.centralDirectory) {
+      await readAheadSource.prefetchCentralDirectory(
+        endRecordInfo.centralDirectory
+      )
+    }
+    reader = new SourceRandomAccessReader(readAheadSource)
     zipfile = await yauzl.fromRandomAccessReaderPromise(reader, source.size, {
       lazyEntries: true,
       validateEntrySizes: true,
       autoClose: false
     })
   } catch (error) {
+    if (error instanceof ZipArchiveError) throw error
     throw new ZipArchiveError(
       'not_a_zip',
       error instanceof Error ? error.message : 'unreadable archive'
@@ -215,7 +433,7 @@ export const openZipArchive = async (
           )
         }
         const raw = await zipfile.openReadStreamPromise(yauzlEntry)
-        return raw.pipe(byteLimitTransform(yauzlEntry))
+        return streamEntryWithErrors(raw, yauzlEntry)
       },
       close: async () => {
         await closeQuietly(zipfile)
@@ -239,6 +457,31 @@ export const openZipArchive = async (
     throw error
   }
 }
+
+/** Pipeline errors from yauzl's inflater and size validator to the consumer. */
+const streamEntryWithErrors = (raw: Readable, entry: yauzl.Entry): Readable =>
+  Readable.from(
+    (async function* () {
+      const output = new PassThrough()
+      const completed = pipeline(raw, byteLimitTransform(entry), output)
+      // The async iterator below receives and maps this failure from output.
+      void completed.catch(() => undefined)
+      try {
+        for await (const chunk of output) yield chunk
+      } catch (error) {
+        if (error instanceof ZipArchiveError) throw error
+        const message = error instanceof Error ? error.message : ''
+        if (/too many bytes|byte count|size mismatch/i.test(message)) {
+          throw new ZipArchiveError(
+            'entry_too_large',
+            'Entry data exceeds its declared size'
+          )
+        }
+        throw new ZipArchiveError('not_a_zip', 'Entry data is invalid')
+      }
+    })(),
+    { objectMode: false }
+  )
 
 /**
  * Errors once an entry's bytes pass its declared size, so a local header

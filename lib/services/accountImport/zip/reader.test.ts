@@ -4,6 +4,37 @@ import { deflateRawSync } from 'zlib'
 import { type ZipOpenCaps, openZipArchive } from './reader'
 import { buildZip, sourceOf } from './testing/fixtures'
 
+const expectStreamFailure = async (
+  archive: Awaited<ReturnType<typeof openZipArchive>>,
+  entryName: string,
+  reason: string
+) => {
+  let resolveUncaught!: (error: Error) => void
+  const uncaught = new Promise<Error>((resolve) => {
+    resolveUncaught = resolve
+  })
+  const onUncaught = (error: Error) => resolveUncaught(error)
+  process.once('uncaughtException', onUncaught)
+  try {
+    const reading = (async () => {
+      const stream = await archive.openEntryStream(entryName)
+      for await (const _chunk of stream) {
+        // Consume the stream so validation and inflater errors reach the caller.
+      }
+    })().then(
+      () => ({ type: 'resolved' as const }),
+      (error: unknown) => ({ type: 'rejected' as const, error })
+    )
+    const outcome = await Promise.race([
+      reading,
+      uncaught.then((error) => ({ type: 'uncaught' as const, error }))
+    ])
+    expect(outcome).toMatchObject({ type: 'rejected', error: { reason } })
+  } finally {
+    process.off('uncaughtException', onUncaught)
+  }
+}
+
 describe('the zip reader', () => {
   it('opens an archive and lists every entry', async () => {
     const archive = buildZip([
@@ -102,17 +133,64 @@ describe('the zip reader', () => {
     await opened.close()
   })
 
-  it('cuts an entry stream off once it passes its declared size', async () => {
+  it('rejects a corrupt deflated entry stream with a reason code', async () => {
     const archive = buildZip([
       {
-        name: 'lying.json',
-        data: Buffer.alloc(128, 0x61),
-        declaredSize: 8,
-        declaredCompressedSize: 128
+        name: 'corrupt.json',
+        data: Buffer.alloc(60, 0xff),
+        method: 8,
+        declaredSize: 100,
+        declaredCompressedSize: 60
       }
     ])
-    await expect(openZipArchive(sourceOf(archive))).rejects.toMatchObject({
-      reason: 'entry_too_large'
-    })
+    const opened = await openZipArchive(sourceOf(archive))
+    try {
+      await expectStreamFailure(opened, 'corrupt.json', 'not_a_zip')
+    } finally {
+      await opened.close()
+    }
+  })
+
+  it('rejects a deflated entry stream that exceeds its declared byte limit', async () => {
+    const compressed = deflateRawSync(Buffer.alloc(128, 0x61))
+    const archive = buildZip([
+      {
+        name: 'oversized.json',
+        data: compressed,
+        method: 8,
+        declaredSize: 8,
+        declaredCompressedSize: compressed.length
+      }
+    ])
+    const opened = await openZipArchive(sourceOf(archive))
+    try {
+      await expectStreamFailure(opened, 'oversized.json', 'entry_too_large')
+    } finally {
+      await opened.close()
+    }
+  })
+
+  it('opens a two-thousand-entry archive with a small constant number of range reads', async () => {
+    const archive = buildZip(
+      Array.from({ length: 2000 }, (_, index) => ({
+        name: `entry-${index}.txt`,
+        data: Buffer.from('x')
+      }))
+    )
+    let reads = 0
+    const source = {
+      size: archive.length,
+      async read(start: number, endInclusive: number) {
+        reads += 1
+        return Buffer.from(archive.subarray(start, endInclusive + 1))
+      }
+    }
+    const opened = await openZipArchive(source)
+    try {
+      expect(opened.entries).toHaveLength(2000)
+      expect(reads).toBeLessThanOrEqual(4)
+    } finally {
+      await opened.close()
+    }
   })
 })

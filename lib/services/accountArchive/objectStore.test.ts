@@ -915,7 +915,7 @@ describe('S3 range reads and presigned upload URLs', () => {
     )
   })
 
-  it('presigns a direct upload of at most maxBytes', async () => {
+  it('presigns a direct upload without signing its content length', async () => {
     const signing = new S3ArchiveObjectStore(
       {
         type: MediaStorageType.S3Storage,
@@ -928,8 +928,37 @@ describe('S3 range reads and presigned upload URLs', () => {
       })
     )
     const url = await signing.getUploadUrl('archives/a/t/upload.zip', 100, 60)
-    expect(new URL(url!).searchParams.get('X-Amz-Expires')).toBe('60')
-    expect(new URL(url!).searchParams.get('X-Amz-Signature')).toBeTruthy()
+    const signedUrl = new URL(url!)
+    expect(signedUrl.searchParams.get('X-Amz-Expires')).toBe('60')
+    expect(signedUrl.searchParams.get('X-Amz-Signature')).toBeTruthy()
+    expect(signedUrl.searchParams.get('X-Amz-SignedHeaders')).toBe('host')
+    expect(
+      await signing.getUploadUrl(
+        'archives/a/t/at-limit.zip',
+        5 * 1024 * 1024 * 1024,
+        60
+      )
+    ).toBeTruthy()
+  })
+
+  it('does not presign a single PUT whose configured cap exceeds five GiB', async () => {
+    const signing = new S3ArchiveObjectStore(
+      {
+        type: MediaStorageType.S3Storage,
+        bucket: 'bucket',
+        region: 'us-east-1'
+      },
+      new RealS3Client({
+        region: 'us-east-1',
+        credentials: { accessKeyId: 'AK', secretAccessKey: 'SK' }
+      })
+    )
+    const url = await signing.getUploadUrl(
+      'archives/a/t/upload.zip',
+      5 * 1024 * 1024 * 1024 + 1,
+      60
+    )
+    expect(url).toBeNull()
   })
 
   it('refuses a presigned upload URL for a key outside the archive roots', async () => {

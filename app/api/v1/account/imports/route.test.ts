@@ -321,6 +321,34 @@ describe('account import routes', () => {
     })
   })
 
+  it('uses direct streaming when an S3 upload cap exceeds five GiB', async () => {
+    mocks.maxFileSize = 5 * 1024 * 1024 * 1024 + 1
+    mocks.getConfig.mockReturnValue({
+      host: 'llun.test',
+      allowEmails: [],
+      mediaStorage: {
+        type: MediaStorageType.S3Storage,
+        bucket: 'bucket',
+        region: 'us-east-1'
+      }
+    })
+    const response = await presign(
+      request(
+        'https://llun.test/api/v1/account/imports/presigned',
+        'POST',
+        JSON.stringify({ actorId }),
+        { 'content-type': 'application/json' }
+      ),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(HTTP_STATUS.ACCEPTED)
+    expect(await response.json()).toMatchObject({
+      uploadUrl: null,
+      directUploadPath: expect.stringMatching(/^\/api\/v1\/account\/imports\//)
+    })
+  })
+
   it('rejects moved accounts and unrecognised archives with 422', async () => {
     const movedRow = await createRow()
     mocks.moved = true
@@ -462,6 +490,30 @@ describe('account import routes', () => {
       bookmarks: false,
       repliesToOthers: 'keep'
     })
+  })
+
+  it('refuses a stored upload over the configured cap before inspecting it', async () => {
+    const row = await createRow()
+    const archive = validZip()
+    await saveZip(row, archive)
+    mocks.maxFileSize = archive.length - 1
+
+    const response = await startImport(
+      request(
+        `https://llun.test/api/v1/account/imports/${row.id}/start`,
+        'POST',
+        JSON.stringify({ options: {} }),
+        { 'content-type': 'application/json' }
+      ),
+      routeContext(row.id)
+    )
+
+    expect(response.status).toBe(HTTP_STATUS.PAYLOAD_TOO_LARGE)
+    expect(await response.json()).toMatchObject({ error: 'File is too large' })
+    expect(
+      (await database.getAccountImport({ id: row.id, actorId }))?.status
+    ).toBe('queued')
+    expect(mocks.publish).not.toHaveBeenCalled()
   })
 
   it('cancels a queued upload and queues a worker to remove it', async () => {
