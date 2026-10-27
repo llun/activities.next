@@ -8,6 +8,7 @@ import {
 import { selectHashtagTagsByStatusIds } from '@/lib/database/domains/status/hashtags'
 import { isPubliclyAddressed } from '@/lib/database/domains/status/status'
 import type {
+  AppendStatusHistoryParams,
   StatusHydration,
   UpdateNoteParams,
   UpdateNoteVisibilityParams,
@@ -41,6 +42,12 @@ import { widensStatusAudience } from '@/lib/utils/widensStatusAudience'
 // content. updatePoll and updateStatusQuoteApprovalPolicy read its row here,
 // and each edit returns it re-read through that hydration after. The three
 // that open a transaction reindex search after it.
+//
+// appendStatusHistory is the one edit that edits nothing: the archive import's
+// quiet replay of a status's superseded revisions. It writes the rows
+// updateNote/updatePoll would have written (the same previousData shape) with
+// the archived transition times instead of now, and never federates, notifies
+// or reindexes anything.
 
 const isReplaceableMediaAttachment = (
   attachment: Attachment
@@ -596,6 +603,54 @@ export const updatePoll = async (
   })
   await indexStatusSearchDocument(db, { status: searchStatus })
   return hydration.getStatus({ statusId })
+}
+
+// Appends a status's superseded revisions to status_history with their
+// archived transition times, then bumps statuses.updatedAt to the newest one
+// so the Mastodon API reports it as edited_at. One transaction, no content
+// rewrite, no search reindex: the status itself was written by the importer
+// with its final content, and this only records what it superseded.
+export const appendStatusHistory = async (
+  db: Db,
+  { statusId, revisions }: AppendStatusHistoryParams
+): Promise<void> => {
+  if (revisions.length === 0) return
+  const ordered = [...revisions].sort(
+    (left, right) => left.supersededAt - right.supersededAt
+  )
+  const newestSupersededAt = ordered[ordered.length - 1].supersededAt
+  await inTransaction(db, async (trx) => {
+    for (const revision of ordered) {
+      // The archived supersede time is the row's own timestamp on both
+      // columns: updatedAt is what the history reader reports as the
+      // revision's supersededAt (the edit timeline and the export derive
+      // every later version's creation time from it), and createdAt keeps
+      // the row self-describing when no other time is known for it.
+      const supersededAt = new Date(revision.supersededAt)
+      await trx
+        .insertInto('status_history')
+        .values({
+          statusId,
+          // The exact previousData shape updateNote writes: the five keys,
+          // attachments as the hydrated Attachment rows they were.
+          data: JSON.stringify({
+            text: revision.text,
+            summary: revision.summary,
+            sensitive: revision.sensitive,
+            attachments: revision.attachments,
+            pollOptions: revision.pollOptions
+          }),
+          createdAt: supersededAt,
+          updatedAt: supersededAt
+        })
+        .execute()
+    }
+    await trx
+      .updateTable('statuses')
+      .set({ updatedAt: new Date(newestSupersededAt) })
+      .where('id', '=', statusId)
+      .execute()
+  })
 }
 
 export const updateStatusQuoteApprovalPolicy = async (
