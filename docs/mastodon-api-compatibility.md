@@ -521,7 +521,7 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   | `GET /api/v1/account/imports`            | Optional `actorId` query parameter                                                 | `200`: array of at most 20 import objects                                                    | `403`, `404`, `409`                                    |
   | `POST /api/v1/account/imports`           | Optional `actorId` query parameter; raw ZIP body                                   | `202`: import object                                                                         | `400`, `403`, `404`, `409`, `413`, `422`, `503`        |
   | `POST /api/v1/account/imports/presigned` | Required JSON `size` (positive safe integer); optional `actorId` in query or JSON  | `202`: import object plus `uploadUrl: string \| null` and `directUploadPath: string \| null` | `400`, `403`, `404`, `409`, `413`, `422`, `503`        |
-  | `GET /api/v1/account/imports/:id`        | Optional `actorId` query parameter                                                 | `200`: import object                                                                         | `403`, `404`, `409`                                    |
+  | `GET /api/v1/account/imports/:id`        | Optional `actorId` query parameter                                                 | `200`: import object, plus `report` when the import is `done`, `failed` or `cancelled`       | `403`, `404`, `409`                                    |
   | `POST /api/v1/account/imports/:id`       | Optional `actorId` query parameter; raw ZIP body                                   | `202`: import object                                                                         | `400`, `403`, `404`, `409`, `413`, `422`, `503`        |
   | `POST /api/v1/account/imports/:id/start` | JSON `{ "actorId"?: string, "options"?: ImportOptions }`; optional `actorId` query | `202`: import object                                                                         | `400`, `403`, `404`, `409`, `413`, `422`, `429`, `503` |
   | `DELETE /api/v1/account/imports/:id`     | Optional `actorId` query parameter                                                 | `202`: import object with `status: "cancelled"`                                              | `403`, `404`, `409`                                    |
@@ -536,7 +536,12 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   counts and, after start, the selected options; when the profile option
   skipped the avatar or header, it also carries `profileImageSkips`
   (`media_quota_exceeded` or `media_invalid`). It does not expose upload
-  tokens or lease data.
+  tokens or lease data. `GET /api/v1/account/imports/:id` adds a `report`
+  field, but only once the import is `done`, `failed` or `cancelled` — never
+  while it is `queued` or `running`, and never in the list route's objects.
+  `report` groups the import's catalog items by outcome: `done` counts by
+  item kind, `skipped` and `failed` count by reason code (`unknown` for a
+  row without one), each as `{ [kind or reason]: count }`.
 
   The presigned request requires `size` because the S3 PUT URL signs that exact
   content length and expires after 15 minutes. When storage cannot provide a

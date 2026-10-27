@@ -615,6 +615,13 @@ database transaction; processed, skipped and non-retryable failed items also
 clear their raw data as they finish. Retryable failed items retain it until
 they are retried or the import becomes terminal.
 
+`GET /api/v1/account/imports/:id` serves an outcome `report` once an import
+is terminal (`done`, `failed` or `cancelled`): one grouped query over the item
+catalog counts done items by kind and skipped and failed items by reason code
+(`unknown` for a row without one). While an import is queued or running the
+field is absent, so a moving count is never served; the list route never
+includes it.
+
 Import-level failures use fixed reason codes. `archive_changed` means a
 previously started archive changed during a later read; the start endpoint
 returns `409` if it detects a changed archive during inspection. `upload_expired`
