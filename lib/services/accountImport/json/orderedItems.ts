@@ -18,14 +18,31 @@ export type OrderedItemsEvent = OrderedItem | OrderedItemsError
 export const ITEM_MAX_BYTES = 512 * 1024
 
 /**
+ * No key may buffer past this. A depth-1 key longer than `orderedItems` can
+ * never match, so the scanner stops buffering it instead of letting a
+ * crafted document exhaust memory before the item cap applies.
+ */
+export const KEY_MAX_CHARS = 'orderedItems'.length
+
+/** Options for {@link iterateOrderedItems}. */
+export interface IterateOrderedItemsOptions {
+  /**
+   * Longest key prefix buffered while seeking `orderedItems`. Only tests
+   * inject a non-default value, to prove the cap is enforced.
+   */
+  maxKeyLength?: number
+}
+
+/**
  * Walks the bytes of an ActivityStreams document, finds the top-level
  * `orderedItems` array and yields the raw text of each element, one at a
  * time, so the whole document is never parsed.
  */
 export async function* iterateOrderedItems(
-  chunks: AsyncIterable<Buffer>
+  chunks: AsyncIterable<Buffer>,
+  options: IterateOrderedItemsOptions = {}
 ): AsyncGenerator<OrderedItemsEvent> {
-  const scanner = new OrderedItemsScanner()
+  const scanner = new OrderedItemsScanner(options.maxKeyLength)
   const decoder = new StringDecoder('utf8')
   for await (const chunk of chunks) {
     for (const event of scanner.push(decoder.write(chunk))) yield event
@@ -43,21 +60,34 @@ const isWhitespace = (ch: string): boolean =>
  * opens right after the root object's `{` or `,` can be the
  * `orderedItems` key, so a same-named key or value inside a nested object
  * is never mistaken for the top-level one. Inside the array it buffers one
- * element at a time, and never past `ITEM_MAX_BYTES`.
+ * element at a time, and never past `ITEM_MAX_BYTES`; while seeking it
+ * buffers a key only up to `maxKeyLength` and never buffers a value at
+ * all.
  */
-class OrderedItemsScanner {
+export class OrderedItemsScanner {
   private state: 'seek' | 'expectValue' | 'collect' | 'done' = 'seek'
   private depth = 0
   private lastSignificant = ''
   private inString = false
   private escape = false
   private keyBuffer: string | null = null
+  private maxKeyCharsBuffered = 0
+  private readonly maxKeyLength: number
   private elementChars: string[] = []
   private elementBytes = 0
   private elementDepth = 0
   private oversized = false
   private index = 0
   private events: OrderedItemsEvent[] = []
+
+  constructor(maxKeyLength: number = KEY_MAX_CHARS) {
+    this.maxKeyLength = maxKeyLength
+  }
+
+  /** The longest key prefix buffered so far; pins the memory cap in tests. */
+  get peakKeyChars(): number {
+    return this.maxKeyCharsBuffered
+  }
 
   push(text: string): OrderedItemsEvent[] {
     for (const ch of text) this.feed(ch)
@@ -86,12 +116,12 @@ class OrderedItemsScanner {
       }
       if (this.escape) {
         this.escape = false
-        if (this.keyBuffer !== null) this.keyBuffer += ch
+        this.appendKeyChar(ch)
         return
       }
       if (ch === '\\') {
         this.escape = true
-        if (this.keyBuffer !== null) this.keyBuffer += ch
+        this.appendKeyChar(ch)
         return
       }
       if (ch === '"') {
@@ -99,7 +129,7 @@ class OrderedItemsScanner {
         this.closeString()
         return
       }
-      if (this.keyBuffer !== null) this.keyBuffer += ch
+      this.appendKeyChar(ch)
       return
     }
     if (ch === '"') {
@@ -178,6 +208,21 @@ class OrderedItemsScanner {
     this.lastSignificant = '"'
     if (this.state === 'seek' && this.depth === 1 && key === 'orderedItems') {
       this.state = 'expectValue'
+    }
+  }
+
+  private appendKeyChar(ch: string): void {
+    if (this.keyBuffer === null) return
+    if (this.keyBuffer.length >= this.maxKeyLength) {
+      // The key has grown past `orderedItems`: it can never match, so stop
+      // buffering it. String and escape state keep being tracked, so the
+      // closing quote is still found.
+      this.keyBuffer = null
+      return
+    }
+    this.keyBuffer += ch
+    if (this.keyBuffer.length > this.maxKeyCharsBuffered) {
+      this.maxKeyCharsBuffered = this.keyBuffer.length
     }
   }
 

@@ -1,5 +1,4 @@
 import { Readable, Transform } from 'stream'
-
 import yauzl from 'yauzl'
 
 import type { RandomAccessSource } from './source'
@@ -76,8 +75,7 @@ const isSafeEntryName = (name: string): boolean => {
 }
 
 const isDirectory = (entry: yauzl.Entry): boolean =>
-  entry.fileName.endsWith('/') ||
-  (entryFileType(entry) & 0o170000) === S_IFDIR
+  entry.fileName.endsWith('/') || (entryFileType(entry) & 0o170000) === S_IFDIR
 
 const isSymlink = (entry: yauzl.Entry): boolean =>
   (entryFileType(entry) & 0o170000) === S_IFLNK

@@ -2,19 +2,27 @@ import { describe, expect, it } from 'vitest'
 
 import {
   ITEM_MAX_BYTES,
+  type IterateOrderedItemsOptions,
+  KEY_MAX_CHARS,
   type OrderedItemsEvent,
+  OrderedItemsScanner,
   iterateOrderedItems
 } from './orderedItems'
 
 /** Collects one iterator's events, in order. */
-const collect = async (chunks: Buffer[]): Promise<OrderedItemsEvent[]> => {
+const collect = async (
+  chunks: Buffer[],
+  options?: IterateOrderedItemsOptions
+): Promise<OrderedItemsEvent[]> => {
   const events: OrderedItemsEvent[] = []
   const source: AsyncIterable<Buffer> = {
     [Symbol.asyncIterator]: async function* () {
       for (const chunk of chunks) yield chunk
     }
   }
-  for await (const event of iterateOrderedItems(source)) events.push(event)
+  for await (const event of iterateOrderedItems(source, options)) {
+    events.push(event)
+  }
   return events
 }
 
@@ -113,5 +121,40 @@ describe('iterateOrderedItems', () => {
         (event, i) => 'raw' in event && JSON.parse(event.raw).id === i
       )
     ).toBe(true)
+  })
+
+  it('does not buffer a multi-megabyte top-level key past the cap', () => {
+    const scanner = new OrderedItemsScanner()
+    const longKey = 'k'.repeat(4 * 1024 * 1024)
+    const events = scanner.push(
+      `{"${longKey}": 1, "orderedItems": [${JSON.stringify({ id: 1 })}]}`
+    )
+    expect(scanner.peakKeyChars).toBeLessThanOrEqual(KEY_MAX_CHARS)
+    expect(events).toEqual([{ index: 0, raw: '{"id":1}' }])
+  })
+
+  it('still finds orderedItems after a multi-megabyte top-level key', async () => {
+    const longKey = 'k'.repeat(4 * 1024 * 1024)
+    const document = `{"${longKey}": 1, "orderedItems": [${JSON.stringify({ id: 1 })}, ${JSON.stringify({ id: 2 })}]}`
+    const events = await collect(chunked(document, 4096))
+    expect(events).toEqual([
+      { index: 0, raw: '{"id":1}' },
+      { index: 1, raw: '{"id":2}' }
+    ])
+  })
+
+  it('does not match a key that starts with orderedItems but is longer', async () => {
+    const document =
+      '{"orderedItemsButLonger": [{"id": 1}], "orderedItems": [{"id": 2}]}'
+    const events = await collect([Buffer.from(document)])
+    expect(events).toEqual([{ index: 0, raw: '{"id": 2}' }])
+  })
+
+  it('enforces an injected smaller key cap', async () => {
+    const document = '{"orderedItems": [{"id": 1}]}'
+    const events = await collect([Buffer.from(document)], {
+      maxKeyLength: 4
+    })
+    expect(events).toEqual([])
   })
 })
