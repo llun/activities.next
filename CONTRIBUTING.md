@@ -1073,7 +1073,7 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
 
 ### Known failure classes
 
-- **"Shard 4 OOM" in CI was `@radix-ui/react-focus-scope` ↔ jsdom focus-event recursion (stack overflow), not a heap leak.** The CI test matrix runs 4 shards with `NODE_OPTIONS="--max-old-space-size=8192"`; mounting Radix `Dialog` or `AlertDialog` per list row (e.g. inside `TimelineFollowList`) overflows the stack or exhausts memory under jsdom focus management.
+- **"Shard 4 OOM" in CI was `@radix-ui/react-focus-scope` ↔ jsdom focus-event recursion (stack overflow), not a heap leak.** The CI test matrix runs 4 shards with `NODE_OPTIONS="--max-old-space-size=8192"`; when a Radix menu closes while a dialog opens (the ⋯ post menu's Delete / Report / Mute / Block confirmations), the two focus scopes hand focus back and forth through jsdom's synchronous focus events until the stack overflows, and the piled-up errors surfaced as an intermittent heap OOM. `test/setup/vitest.setup.ts` bounds that re-entry; a new OOM in a test that opens a dialog from a menu is this class first.
 - **Probabilistic crypto chi-square tests (`lib/utils/crypto.test.ts`) flake at `alpha = 1e-4` by design and pass on re-run.** Do not "fix" a flake by shrinking the sample size — under the null hypothesis the test statistic stays `~chi-square(61)` regardless of sample size.
 - **Worker `SIGABRT` in production is heatmap fan-out × Cloud Run concurrency, not a single-job code fault.** Recover crash-orphaned fitness imports (`pending` with `statusId = NULL`) with `scripts/fitness/repairFailedFitnessImports.ts`.
 
