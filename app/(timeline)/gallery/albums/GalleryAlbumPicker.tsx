@@ -605,7 +605,7 @@ export const GalleryAlbumPicker: FC<GalleryAlbumPickerProps> = ({
               onSelectDay={day.selectDay}
               onDeselectDay={day.deselectDay}
               as="h3"
-              className="-top-1 bg-background dark:bg-card"
+              className="-top-1.5 bg-background dark:bg-card"
             />
             <ul
               className={cn(
@@ -676,7 +676,7 @@ export const GalleryAlbumPicker: FC<GalleryAlbumPickerProps> = ({
       {day.toast || day.error ? (
         <div
           data-testid="day-feedback-container"
-          className="sticky bottom-0 z-20 space-y-2 border-t bg-background p-2 dark:bg-card"
+          className="sticky -bottom-1.5 z-20 space-y-2 border-t bg-background p-2 dark:bg-card"
         >
           {day.toast ? (
             <AlbumUndoToast

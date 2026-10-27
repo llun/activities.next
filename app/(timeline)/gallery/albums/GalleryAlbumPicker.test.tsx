@@ -1228,7 +1228,7 @@ describe('GalleryAlbumPicker', () => {
       )
       expect(screen.getByTestId('album-toast')).toHaveClass('max-w-full')
       const feedback = screen.getByTestId('day-feedback-container')
-      expect(feedback).toHaveClass('sticky', 'bottom-0', 'bg-background')
+      expect(feedback).toHaveClass('sticky', '-bottom-1.5', 'bg-background')
       expect(feedback).toContainElement(screen.getByTestId('album-toast'))
       expect(feedback.parentElement?.lastElementChild).toBe(feedback)
 
@@ -1541,7 +1541,7 @@ describe('GalleryAlbumPicker', () => {
         'Day fetch failed'
       )
       const feedback = screen.getByTestId('day-feedback-container')
-      expect(feedback).toHaveClass('sticky', 'bottom-0', 'bg-background')
+      expect(feedback).toHaveClass('sticky', '-bottom-1.5', 'bg-background')
       expect(feedback).toContainElement(screen.getByRole('alert'))
       expect(feedback.parentElement?.lastElementChild).toBe(feedback)
       expect(screen.getByTestId('selected')).toHaveTextContent('initial')

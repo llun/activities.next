@@ -229,13 +229,10 @@ export const GalleryGrid: FC<Props> = ({
             // Select mode draws a dashed focus outline outside the tile in
             // the foreground colour, further out than the anchor's solid
             // offset ring, so focus never looks like the anchor. Viewer
-            // tiles keep the inset primary outline. The pick ring is an
-            // inset primary ring painted over the photo; the anchor ring
-            // is a solid offset ring around the tile, so a selected
-            // anchor shows both: the primary band inside, the anchor
-            // ring around it.
+            // tiles keep the inset primary outline. A focused tile is
+            // raised so the next tile can't paint over its outline.
             selection
-              ? 'focus-visible:outline-foreground focus-visible:outline-dashed focus-visible:outline-2 focus-visible:outline-offset-4'
+              ? 'focus-visible:outline-foreground focus-visible:outline-dashed focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:z-1'
               : 'focus-visible:outline-primary focus-visible:outline-2 focus-visible:-outline-offset-2',
             isSelected && 'inset-ring-primary inset-ring-3',
             isAnchor &&
