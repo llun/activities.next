@@ -1,0 +1,29 @@
+docs/architecture.md
+  s_279e7012f36c5f::t_b857da43676b42 624,645-646,740-750
+lib/services/accountImport/json/topLevelStringFields.ts
+  s_279e7012f36c5f::t_d8d1ebedf0e9da 98-99,110-111,132,140-141,192
+lib/services/accountImport/phases.ts
+  s_279e7012f36c5f::t_f2c40a42189ca3 2190-2193,2228,2236,2240,2295-2297,2375-2378,2387-2406,2408-2412,2416-2418,2421
+lib/services/accountImport/profileSettingsPhase.test.ts
+  s_279e7012f36c5f::t_3f80ffa64d53c1 14-18,261,272-280,417-604
+lib/services/accountImport/progress.ts
+  s_279e7012f36c5f::t_e42b332f57b363 1-2,42-47,141-150
+lib/services/accountImport/start.test.ts
+  s_279e7012f36c5f::t_319cab0f1bf037 9-12,192-233
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7e231b7c323a04b1cac8ee8d759a9f094b33a454",
+  "prompts": {},
+  "sessions": {
+    "s_279e7012f36c5f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0410f49d-2e94-45e1-bd1f-237e6f7747bc",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
