@@ -783,7 +783,18 @@ export class S3ArchiveObjectStore implements ArchiveObjectStore {
   }
 
   async size(key: string) {
-    return (await this.getMetadata(key))?.size ?? null
+    try {
+      const head = await this.client.send(
+        new HeadObjectCommand({
+          Bucket: this.config.bucket,
+          Key: assertArchiveKey(key)
+        })
+      )
+      return head.ContentLength ?? null
+    } catch (error) {
+      if ((error as Error).name === 'NotFound') return null
+      throw error
+    }
   }
 
   async readRange(

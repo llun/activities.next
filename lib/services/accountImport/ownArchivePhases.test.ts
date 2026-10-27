@@ -121,6 +121,24 @@ describe('own archive import phases', () => {
     return (await database.getAccountImport({ id, actorId: actor.id }))!
   }
 
+  const stageArchive = async (
+    accountImport: Awaited<ReturnType<typeof createImport>>,
+    archive: Buffer
+  ) => {
+    await objectStore.store.put(
+      objectStore.getUploadKey(accountImport),
+      archive
+    )
+    await database.updateAccountImport({
+      id: accountImport.id,
+      uploadedBytes: archive.length
+    })
+    return (await database.getAccountImport({
+      id: accountImport.id,
+      actorId: actor.id
+    }))!
+  }
+
   const contextFor = (
     accountImport: Awaited<ReturnType<typeof createImport>>
   ) => ({
@@ -195,7 +213,7 @@ describe('own archive import phases', () => {
       { name: goodPath, data: PNG },
       { name: badPath, data: Buffer.from('%PDF-1.7 disallowed') }
     ])
-    await objectStore.store.put(objectStore.getUploadKey(accountImport), zip)
+    const stagedImport = await stageArchive(accountImport, zip)
     await upsertItems(importId, [
       {
         kind: 'own-media',
@@ -213,7 +231,7 @@ describe('own archive import phases', () => {
     const saveSpy = vi.spyOn(mediaService, 'saveMedia')
 
     const result = await runOwnArchiveMediaPhase(
-      contextFor(accountImport),
+      contextFor(stagedImport),
       createInitialImportProgress(),
       null
     )
@@ -460,8 +478,8 @@ describe('own archive import phases', () => {
     })
     const archivePath = 'fitness/files/source.fit'
     const bytes = Buffer.from('FIT archive bytes')
-    await objectStore.store.put(
-      objectStore.getUploadKey(accountImport),
+    const stagedImport = await stageArchive(
+      accountImport,
       buildZip([{ name: archivePath, data: bytes }])
     )
     await upsertItems(importId, [
@@ -514,7 +532,7 @@ describe('own archive import phases', () => {
     })
 
     await runFitnessPhase(
-      contextFor(accountImport),
+      contextFor(stagedImport),
       createInitialImportProgress(),
       null
     )
