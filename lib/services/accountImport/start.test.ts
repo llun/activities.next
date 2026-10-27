@@ -1,6 +1,9 @@
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import type { ArchiveObjectStore } from '@/lib/services/accountArchive/objectStore'
-import type { AccountImportObjectStore } from '@/lib/services/accountImport/objectStore'
+import {
+  AccountImportArchiveChangedError,
+  type AccountImportObjectStore
+} from '@/lib/services/accountImport/objectStore'
 import { inspectAccountArchive } from '@/lib/services/accountImport/phases'
 import { startAccountImport } from '@/lib/services/accountImport/start'
 import { seedDatabase } from '@/lib/stub/database'
@@ -22,13 +25,14 @@ describe('startAccountImport', () => {
   const getMetadata = vi.fn()
   const getSize = vi.fn()
   const deleteUpload = vi.fn()
+  const openSource = vi.fn()
   const objectStore = {
     store: {
       getMetadata,
       size: getSize
     } as unknown as ArchiveObjectStore,
     getUploadKey: () => 'imports/import-id/token/upload.zip',
-    openSource: vi.fn(),
+    openSource,
     deleteUpload
   } as unknown as AccountImportObjectStore
   const options = {
@@ -63,6 +67,7 @@ describe('startAccountImport', () => {
     })
     getSize.mockReset().mockResolvedValue(100)
     deleteUpload.mockReset().mockResolvedValue(undefined)
+    openSource.mockReset()
     vi.mocked(inspectAccountArchive).mockReset().mockResolvedValue({
       kind: 'mastodon',
       sourceActorId: 'https://source.test/users/owner',
@@ -119,8 +124,65 @@ describe('startAccountImport', () => {
       options
     })
 
+    expect(result).toEqual({ type: 'upload-incomplete' })
+    expect(deleteUpload).toHaveBeenCalledWith(accountImport)
+    expect(inspectAccountArchive).not.toHaveBeenCalled()
+  })
+
+  it('rejects and deletes an upload whose object metadata is missing', async () => {
+    const accountImport = await createImport()
+    getMetadata.mockResolvedValue(null)
+
+    const result = await startAccountImport({
+      database,
+      objectStore,
+      accountImport,
+      options
+    })
+
+    expect(result).toEqual({ type: 'upload-incomplete' })
+    expect(deleteUpload).toHaveBeenCalledWith(accountImport)
+    expect(inspectAccountArchive).not.toHaveBeenCalled()
+  })
+
+  it('rejects and deletes an upload larger than the configured cap', async () => {
+    const accountImport = await createImport(2_000)
+    getMetadata.mockResolvedValue({ size: 2_000, etag: '"archive-version-1"' })
+    getSize.mockResolvedValue(2_000)
+
+    const result = await startAccountImport({
+      database,
+      objectStore,
+      accountImport,
+      options
+    })
+
     expect(result).toEqual({ type: 'too-large' })
     expect(deleteUpload).toHaveBeenCalledWith(accountImport)
     expect(inspectAccountArchive).not.toHaveBeenCalled()
+  })
+
+  it('reports archive_changed when reading the upload fails with the pinned ETag', async () => {
+    const accountImport = await createImport()
+    const actual = await vi.importActual<
+      typeof import('@/lib/services/accountImport/phases')
+    >('@/lib/services/accountImport/phases')
+    vi.mocked(inspectAccountArchive).mockImplementation(
+      actual.inspectAccountArchive
+    )
+    openSource.mockResolvedValue({
+      size: 100,
+      read: () => Promise.reject(new AccountImportArchiveChangedError())
+    })
+
+    const result = await startAccountImport({
+      database,
+      objectStore,
+      accountImport,
+      options
+    })
+
+    expect(result).toEqual({ type: 'archive-changed' })
+    expect(deleteUpload).toHaveBeenCalledWith(accountImport)
   })
 })

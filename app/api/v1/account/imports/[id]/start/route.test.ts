@@ -5,6 +5,7 @@ import {
   ACCOUNT_IMPORT_MAX_STARTS,
   ACCOUNT_IMPORT_START_WINDOW_MS
 } from '@/lib/services/accountImport/constants'
+import { startAccountImport } from '@/lib/services/accountImport/start'
 import type { AccountImport } from '@/lib/types/domain/accountImport'
 import type { Actor } from '@/lib/types/domain/actor'
 import { HTTP_STATUS } from '@/lib/utils/response'
@@ -21,6 +22,10 @@ vi.mock('@/lib/services/accounts/movedAccount', () => ({
 
 vi.mock('@/lib/services/accountImport/objectStore', () => ({
   getAccountImportObjectStore: vi.fn().mockReturnValue(null)
+}))
+
+vi.mock('@/lib/services/accountImport/start', () => ({
+  startAccountImport: vi.fn()
 }))
 
 describe('start account import actor state', () => {
@@ -164,6 +169,9 @@ describe('start account import start limit', () => {
       .mockResolvedValue(null)
     countAccountImportStartsSince.mockReset()
     getOldestAccountImportStartSince.mockReset()
+    vi.mocked(startAccountImport)
+      .mockReset()
+      .mockResolvedValue({ type: 'storage-unavailable' })
   })
 
   it('counts the start limit per account, not per actor', async () => {
@@ -209,5 +217,90 @@ describe('start account import start limit', () => {
       accountId: 'account-id',
       since: expect.any(Number)
     })
+  })
+})
+
+describe('start account import result mapping', () => {
+  const currentActor = {
+    id: 'https://llun.test/users/current',
+    account: { id: 'account-id' }
+  } as Actor
+  const accountImport: AccountImport = {
+    id: 'import-id',
+    accountId: 'account-id',
+    actorId: currentActor.id,
+    status: 'queued',
+    kind: null,
+    archiveETag: null,
+    options: '{}',
+    storageToken: 'token',
+    uploadedBytes: 100,
+    progress: null,
+    phase: null,
+    cursor: null,
+    runToken: null,
+    claimedUntil: null,
+    lastErrorCode: null,
+    createdAt: Date.now(),
+    startedAt: null,
+    finishedAt: null,
+    updatedAt: Date.now()
+  }
+  const database = {
+    getActorFromId: vi.fn().mockResolvedValue(currentActor),
+    getAccountImport: vi.fn().mockResolvedValue(accountImport),
+    getActiveAccountImport: vi.fn().mockResolvedValue(null),
+    countAccountImportStartsSince: vi.fn().mockResolvedValue(0),
+    getOldestAccountImportStartSince: vi.fn().mockResolvedValue(null)
+  } as unknown as Database
+
+  const request = () =>
+    new NextRequest(
+      'https://llun.test/api/v1/account/imports/import-id/start',
+      {
+        method: 'POST',
+        headers: {
+          origin: 'https://llun.test',
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({ options: {} }),
+        duplex: 'half'
+      } as ConstructorParameters<typeof NextRequest>[1]
+    )
+
+  const start = () =>
+    POST(request(), {
+      params: Promise.resolve({ id: 'import-id' }),
+      currentActor,
+      database
+    } as never)
+
+  beforeEach(() => {
+    vi.mocked(database.getActorFromId)
+      .mockReset()
+      .mockResolvedValue(currentActor)
+    vi.mocked(database.getAccountImport)
+      .mockReset()
+      .mockResolvedValue(accountImport)
+    vi.mocked(database.getActiveAccountImport)
+      .mockReset()
+      .mockResolvedValue(null)
+    vi.mocked(database.countAccountImportStartsSince)
+      .mockReset()
+      .mockResolvedValue(0)
+    vi.mocked(startAccountImport).mockReset()
+  })
+
+  it.each([
+    ['upload-incomplete', HTTP_STATUS.CONFLICT],
+    ['archive-changed', HTTP_STATUS.CONFLICT],
+    ['too-large', HTTP_STATUS.PAYLOAD_TOO_LARGE],
+    ['unrecognised', HTTP_STATUS.UNPROCESSABLE_ENTITY]
+  ] as const)('maps %s to its status code', async (type, status) => {
+    vi.mocked(startAccountImport).mockResolvedValue({ type })
+
+    const response = await start()
+
+    expect(response.status).toBe(status)
   })
 })

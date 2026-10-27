@@ -1,13 +1,18 @@
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { ACCOUNT_IMPORT_ITEM_PAGE_SIZE } from '@/lib/services/accountImport/constants'
-import type { AccountImportObjectStore } from '@/lib/services/accountImport/objectStore'
+import {
+  AccountImportArchiveChangedError,
+  type AccountImportObjectStore
+} from '@/lib/services/accountImport/objectStore'
 import type { AccountImportPhaseContext } from '@/lib/services/accountImport/phases'
 import {
   getAccountImportItemPosition,
   runCatalogPhase,
+  runMastodonMediaPhase,
   runStatusesPhase
 } from '@/lib/services/accountImport/phases'
 import {
+  type AccountImportProgress,
   createInitialImportProgress,
   serializeImportCursor
 } from '@/lib/services/accountImport/progress'
@@ -682,5 +687,214 @@ describe('account import phases', () => {
         .where('statusId', '=', publicStatusId)
         .execute()
     ).toHaveLength(1)
+  })
+
+  it('ends the import when a full page of stuck replies makes no progress', async () => {
+    const sourceActorId = 'https://source.test/users/archive'
+    const accountImport = await database.createAccountImport({
+      id: 'import-stuck-full-page',
+      accountId,
+      actorId,
+      options: '{}'
+    })
+    await database.updateAccountImport({
+      id: accountImport.id,
+      status: 'running',
+      kind: 'mastodon'
+    })
+    const foreignParent = 'https://elsewhere.test/users/someone/statuses/1'
+    const ownParentSourceId = `${sourceActorId}/statuses/own-parent`
+    const rawNote = (sourceId: string, inReplyTo: string | null) =>
+      JSON.stringify({
+        id: `${sourceActorId}/activities/${sourceId}`,
+        type: 'Create',
+        actor: sourceActorId,
+        published: '2024-02-03T04:05:06.000Z',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [`${sourceActorId}/followers`],
+        object: {
+          id: `${sourceActorId}/statuses/${sourceId}`,
+          type: 'Note',
+          attributedTo: sourceActorId,
+          content: `Note ${sourceId}`,
+          published: '2024-02-03T04:05:06.000Z',
+          ...(inReplyTo ? { inReplyTo } : null),
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [`${sourceActorId}/followers`]
+        }
+      })
+    // The parent replies to someone else's post (skipped under the default
+    // repliesToOthers: 'skip'); the 25 replies to it are then stuck, and
+    // they fill whole pages exactly.
+    await database.upsertAccountImportItems({
+      importId: accountImport.id,
+      actorId,
+      items: [
+        {
+          kind: 'status',
+          sourceId: ownParentSourceId,
+          position: 1,
+          data: rawNote('own-parent', foreignParent)
+        },
+        ...Array.from({ length: 25 }, (_, index) => ({
+          kind: 'status',
+          sourceId: `${sourceActorId}/statuses/stuck-reply-${index}`,
+          position: 2 + index,
+          data: rawNote(`stuck-reply-${index}`, ownParentSourceId)
+        }))
+      ]
+    })
+    const current = (await database.getAccountImport({
+      id: accountImport.id,
+      actorId
+    }))!
+    const context: AccountImportPhaseContext = {
+      database,
+      objectStore: {
+        openSource: vi.fn()
+      } as unknown as AccountImportObjectStore,
+      accountImport: current,
+      now: () => Date.parse('2024-02-03T04:05:07.000Z'),
+      deadline: Number.MAX_SAFE_INTEGER,
+      renew: async () => {}
+    }
+
+    // Drive the phase the way the runner does: a budget result starts
+    // another pass with a null cursor and the persisted progress.
+    let progress: AccountImportProgress = {
+      ...createInitialImportProgress(),
+      sourceActorId,
+      sourceFollowersUrl: `${sourceActorId}/followers`
+    }
+    let outcome: { result: string; cursor: string | null } = {
+      result: 'budget',
+      cursor: null
+    }
+    for (let slice = 0; slice < 5 && outcome.result === 'budget'; slice += 1) {
+      const phase = await runStatusesPhase(context, progress, outcome.cursor)
+      progress = phase.progress
+      outcome = { result: phase.result, cursor: phase.cursor }
+    }
+
+    expect(outcome.result).toBe('done')
+    const rows = await database.getAccountImportItems({
+      importId: accountImport.id,
+      limit: 100
+    })
+    expect(
+      rows.find((item) => item.sourceId === ownParentSourceId)
+    ).toMatchObject({ state: 'skipped', reason: 'reply-to-other' })
+    const stuck = rows.filter((item) => item.sourceId.includes('/stuck-reply-'))
+    expect(stuck).toHaveLength(25)
+    expect(
+      stuck.every(
+        (item) =>
+          item.state === 'skipped' && item.reason === 'parent_unavailable'
+      )
+    ).toBe(true)
+  })
+
+  const mediaPhaseContext = async (importId: string, readError: unknown) => {
+    const accountImport = await database.createAccountImport({
+      id: importId,
+      accountId,
+      actorId,
+      options: '{}'
+    })
+    await database.updateAccountImport({
+      id: accountImport.id,
+      status: 'running',
+      kind: 'mastodon'
+    })
+    const mediaPath = 'media_attachments/changing.png'
+    // The entry data must push the archive past the end-record trailer
+    // window (up to 65 577 bytes), so the open's own reads never start at
+    // offset 0 and only the entry's local header read does.
+    const archive = buildZip([
+      {
+        name: mediaPath,
+        data: Buffer.concat([
+          Buffer.from('archived media bytes'),
+          Buffer.alloc(70_000)
+        ])
+      }
+    ])
+    const failingSource = {
+      size: archive.length,
+      read: async (start: number, endInclusive: number) => {
+        if (start === 0) throw readError
+        return Buffer.from(archive.subarray(start, endInclusive + 1))
+      }
+    }
+    await database.upsertAccountImportItems({
+      importId: accountImport.id,
+      actorId,
+      items: [{ kind: 'media', sourceId: mediaPath, position: 1 }]
+    })
+    const current = (await database.getAccountImport({
+      id: accountImport.id,
+      actorId
+    }))!
+    const context: AccountImportPhaseContext = {
+      database,
+      objectStore: {
+        openSource: async () => failingSource
+      } as unknown as AccountImportObjectStore,
+      accountImport: current,
+      now: () => 1,
+      deadline: Number.MAX_SAFE_INTEGER,
+      renew: async () => {}
+    }
+    return { context, mediaPath }
+  }
+
+  it('fails the media phase terminally when the archive changes under it', async () => {
+    const { context, mediaPath } = await mediaPhaseContext(
+      'import-media-archive-changed',
+      new AccountImportArchiveChangedError()
+    )
+
+    await expect(
+      runMastodonMediaPhase(context, createInitialImportProgress(), null)
+    ).rejects.toBeInstanceOf(AccountImportArchiveChangedError)
+    const item = (
+      await database.getAccountImportItems({
+        importId: 'import-media-archive-changed',
+        limit: 1
+      })
+    )[0]
+    // A changed archive is the import's verdict, never the item's: the row
+    // is left pending, not skipped as media_invalid.
+    expect(item).toMatchObject({
+      kind: 'media',
+      sourceId: mediaPath,
+      state: 'pending',
+      reason: null
+    })
+  })
+
+  it('marks a media item failed and retryable when the archive read fails transiently', async () => {
+    const { context } = await mediaPhaseContext(
+      'import-media-transient',
+      new Error('S3 unavailable')
+    )
+
+    const result = await runMastodonMediaPhase(
+      context,
+      createInitialImportProgress(),
+      null
+    )
+
+    // Storage trouble is not the item's verdict: the phase finishes, and
+    // the row is failed (re-claimable by a later import), not permanently
+    // skipped as media_invalid.
+    expect(result.result).toBe('done')
+    const item = (
+      await database.getAccountImportItems({
+        importId: 'import-media-transient',
+        limit: 1
+      })
+    )[0]
+    expect(item).toMatchObject({ state: 'failed', reason: 'item_failed' })
   })
 })

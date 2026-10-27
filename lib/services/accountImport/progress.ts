@@ -29,6 +29,14 @@ export interface AccountImportProgress {
    * consumed. Deterministic: it only ever counts up, never reads the clock.
    */
   continuationCount: number
+  /**
+   * completedItems + skippedItems when the statuses phase's current pass
+   * began (a null cursor). A pass spans slices and completedItems only ever
+   * grows, so the baseline is persisted here instead of being recomputed per
+   * slice: the phase must know whether THIS pass resolved anything, or a
+   * page of replies whose parents never arrive would loop forever.
+   */
+  passCompletedAtStart?: number
   /** Selected by the owner at start; stored here because the row's initial
    * options column is immutable in the slice-1 database contract. */
   selectedOptions?: {
@@ -117,6 +125,11 @@ export const parseImportProgress = (
         record.continuationCount >= 0
           ? record.continuationCount
           : 0,
+      ...(typeof record.passCompletedAtStart === 'number' &&
+      Number.isInteger(record.passCompletedAtStart) &&
+      record.passCompletedAtStart >= 0
+        ? { passCompletedAtStart: record.passCompletedAtStart }
+        : null),
       ...(record.selectedOptions && typeof record.selectedOptions === 'object'
         ? {
             selectedOptions:

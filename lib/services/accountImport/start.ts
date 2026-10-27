@@ -22,6 +22,7 @@ export type StartAccountImportResult =
         | 'not-queued'
         | 'active'
         | 'too-large'
+        | 'upload-incomplete'
         | 'unrecognised'
         | 'archive-changed'
     }
@@ -50,12 +51,17 @@ export const startAccountImport = async ({
   const metadata = await objectStore.store.getMetadata(
     objectStore.getUploadKey(accountImport)
   )
+  // A missing, empty or size-mismatched object is an upload that has not
+  // (fully) arrived, which is not the same verdict as an over-cap file.
   if (
     !metadata ||
     metadata.size <= 0 ||
-    metadata.size !== accountImport.uploadedBytes ||
-    metadata.size > getAccountImportConfig().maxFileSize
+    metadata.size !== accountImport.uploadedBytes
   ) {
+    await objectStore.deleteUpload(accountImport)
+    return { type: 'upload-incomplete' }
+  }
+  if (metadata.size > getAccountImportConfig().maxFileSize) {
     await objectStore.deleteUpload(accountImport)
     return { type: 'too-large' }
   }

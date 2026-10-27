@@ -55,6 +55,33 @@ export class ZipArchiveError extends Error {
   }
 }
 
+/**
+ * A read the underlying source refused. It is not a defect of the zip bytes,
+ * so it must leave the reader as the original error instead of being masked
+ * as not_a_zip: a changed archive (a 412 on the pinned ETag) and a transient
+ * storage failure are surfaced to the caller as themselves, and the importer
+ * treats the two very differently (terminal failure vs. retry).
+ */
+class ZipSourceReadError extends Error {
+  constructor(readonly cause: unknown) {
+    super('The archive source could not be read', { cause })
+    this.name = 'ZipSourceReadError'
+  }
+}
+
+/** Rethrows a source error unchanged once it has served its tagging purpose. */
+const unwrapSourceReadError = (error: unknown) =>
+  error instanceof ZipSourceReadError ? error.cause : error
+
+const readSourceRange = (
+  source: RandomAccessSource,
+  start: number,
+  endInclusive: number
+): Promise<Buffer> =>
+  source.read(start, endInclusive).catch((error: unknown) => {
+    throw new ZipSourceReadError(error)
+  })
+
 const S_IFLNK = 0o120000
 const S_IFDIR = 0o040000
 
@@ -177,7 +204,11 @@ const readEndRecordInfo = async (
   }
 
   const trailerStart = source.size - trailerSize
-  const trailerBytes = await source.read(trailerStart, source.size - 1)
+  const trailerBytes = await readSourceRange(
+    source,
+    trailerStart,
+    source.size - 1
+  )
   if (trailerBytes.length !== trailerSize) {
     return { trailer: null, centralDirectory: null }
   }
@@ -208,7 +239,11 @@ const readEndRecordInfo = async (
       if (zip64Offset === null || zip64Offset + 56 > source.size) {
         return { trailer, centralDirectory: null }
       }
-      const zip64End = await source.read(zip64Offset, zip64Offset + 55)
+      const zip64End = await readSourceRange(
+        source,
+        zip64Offset,
+        zip64Offset + 55
+      )
       if (zip64End.length !== 56 || zip64End.readUInt32LE(0) !== 0x06064b50) {
         return { trailer, centralDirectory: null }
       }
@@ -267,7 +302,7 @@ class ReadAheadSource implements RandomAccessSource {
 
   async prefetchCentralDirectory({ offset, size }: CentralDirectoryInfo) {
     if (size === 0 || size > MAX_CACHED_CENTRAL_DIRECTORY_SIZE) return
-    const bytes = await this.source.read(offset, offset + size - 1)
+    const bytes = await readSourceRange(this.source, offset, offset + size - 1)
     if (bytes.length === size) this.centralDirectory = { start: offset, bytes }
   }
 
@@ -311,7 +346,7 @@ class ReadAheadSource implements RandomAccessSource {
           blockStart + READ_AHEAD_BLOCK_SIZE,
           this.source.size
         )
-        block = await this.source.read(blockStart, blockEnd - 1)
+        block = await readSourceRange(this.source, blockStart, blockEnd - 1)
         if (block.length !== blockEnd - blockStart) {
           throw new Error('ZIP range read returned an incomplete block')
         }
@@ -380,6 +415,11 @@ export const openZipArchive = async (
     })
   } catch (error) {
     if (error instanceof ZipArchiveError) throw error
+    // A read the source refused is not a defect of the zip bytes: it leaves
+    // the reader as the original error (a changed archive, a storage
+    // failure), never masked as not_a_zip. Only yauzl's own parser errors
+    // mean the bytes are not a readable zip.
+    if (error instanceof ZipSourceReadError) throw unwrapSourceReadError(error)
     throw new ZipArchiveError(
       'not_a_zip',
       error instanceof Error ? error.message : 'unreadable archive'
@@ -432,7 +472,12 @@ export const openZipArchive = async (
             `no entry named ${JSON.stringify(entryName)}`
           )
         }
-        const raw = await zipfile.openReadStreamPromise(yauzlEntry)
+        let raw: Readable
+        try {
+          raw = await zipfile.openReadStreamPromise(yauzlEntry)
+        } catch (error) {
+          throw unwrapSourceReadError(error)
+        }
         return streamEntryWithErrors(raw, yauzlEntry)
       },
       close: async () => {
@@ -470,6 +515,10 @@ const streamEntryWithErrors = (raw: Readable, entry: yauzl.Entry): Readable =>
         for await (const chunk of output) yield chunk
       } catch (error) {
         if (error instanceof ZipArchiveError) throw error
+        // A read the source refused passes through as the original error.
+        if (error instanceof ZipSourceReadError) {
+          throw unwrapSourceReadError(error)
+        }
         const message = error instanceof Error ? error.message : ''
         if (/too many bytes|byte count|size mismatch/i.test(message)) {
           throw new ZipArchiveError(
@@ -477,7 +526,15 @@ const streamEntryWithErrors = (raw: Readable, entry: yauzl.Entry): Readable =>
             'Entry data exceeds its declared size'
           )
         }
-        throw new ZipArchiveError('not_a_zip', 'Entry data is invalid')
+        // Only the inflater's own verdicts mean the entry's bytes are not
+        // valid zip data; anything else passes through unchanged.
+        if (typeof (error as { code?: unknown }).code === 'string') {
+          const code = (error as { code: string }).code
+          if (code.startsWith('Z_')) {
+            throw new ZipArchiveError('not_a_zip', 'Entry data is invalid')
+          }
+        }
+        throw error
       }
     })(),
     { objectMode: false }

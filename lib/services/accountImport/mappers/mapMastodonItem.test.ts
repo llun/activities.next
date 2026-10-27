@@ -259,7 +259,7 @@ describe('mapMastodonItem', () => {
     expect(invalid).toEqual({ ok: false, reason: 'invalid' })
   })
 
-  it('clamps tags and kept reply uris to the database column limit', () => {
+  it('clamps tags and skips a kept reply uri that does not fit the column', () => {
     const longName = '#'.padEnd(300, 'a')
     const longHref = 'https://old.test/tags/'.padEnd(300, 'b')
     const tagged = mapMastodonItem(
@@ -280,6 +280,8 @@ describe('mapMastodonItem', () => {
       value: longHref.slice(0, 255)
     })
 
+    // statuses.reply is varchar(255): a kept parent URI that does not fit is
+    // skipped with its own reason code, never stored truncated.
     const longParent = 'https://elsewhere.test/statuses/'.padEnd(300, 'c')
     const reply = mapMastodonItem(
       item({
@@ -290,8 +292,6 @@ describe('mapMastodonItem', () => {
       }),
       context({ repliesToOthers: 'keep' })
     )
-    expect(reply.ok).toBe(true)
-    if (!reply.ok) return
-    expect(reply.input.externalReplyUri).toBe(longParent.slice(0, 255))
+    expect(reply).toEqual({ ok: false, reason: 'reply-uri-too-long' })
   })
 })

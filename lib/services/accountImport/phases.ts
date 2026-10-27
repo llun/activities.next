@@ -25,6 +25,7 @@ import { readTopLevelStringFields } from '@/lib/services/accountImport/json/topL
 import { mapMastodonItem } from '@/lib/services/accountImport/mappers/mapMastodonItem'
 import { mapOwnStatus } from '@/lib/services/accountImport/mappers/mapOwnStatus'
 import type { ImportedStatusInput } from '@/lib/services/accountImport/mappers/types'
+import { AccountImportArchiveChangedError } from '@/lib/services/accountImport/objectStore'
 import type { AccountImportObjectStore } from '@/lib/services/accountImport/objectStore'
 import {
   type AccountImportProgress,
@@ -348,8 +349,13 @@ const inferStatusOrder = async (
     : 'newest-first'
 }
 
-const statusIndex = (position: number, order: ArchiveStatusOrder) =>
-  order === 'oldest-first' ? position - 1 : ACCOUNT_IMPORT_MAX_ITEMS - position
+// The positions come from the maxItems the catalog ran with, never from the
+// constant: a test that injects a cap must not have the two disagree.
+const statusIndex = (
+  position: number,
+  order: ArchiveStatusOrder,
+  maxItems: number
+) => (order === 'oldest-first' ? position - 1 : maxItems - position)
 
 export const mediaArchivePathFromUrl = (sourceUrl: string): string | null => {
   let pathname = sourceUrl
@@ -920,6 +926,9 @@ const handleItemError = async (
   item: AccountImportItem,
   error: unknown
 ) => {
+  // A changed archive is terminal for the whole import, not a verdict about
+  // one item: it must reach the runner, never become a skip or a failed row.
+  if (error instanceof AccountImportArchiveChangedError) throw error
   await context.renew()
   await terminalItemState(context, progress, item, 'failed', 'item_failed')
   logger.error({
@@ -1031,6 +1040,29 @@ const requireActor = async (
   return actor
 }
 
+// A media item's own defect (a zip-level problem with its entry) is a
+// permanent skip. A changed archive is terminal for the import. Anything
+// else — storage or transport trouble — is recorded as a retryable failed
+// item, never as a permanent media_invalid skip.
+const handleMediaItemError = async (
+  context: AccountImportPhaseContext,
+  progress: AccountImportProgress,
+  item: AccountImportItem,
+  error: unknown
+) => {
+  if (
+    (error as Error)?.message === 'import_actor_missing' ||
+    error instanceof AccountImportArchiveChangedError
+  ) {
+    throw error
+  }
+  if (error instanceof ZipArchiveError) {
+    await terminalItemState(context, progress, item, 'skipped', 'media_invalid')
+    return
+  }
+  await handleItemError(context, progress, item, error)
+}
+
 const checkCancelled = async (context: AccountImportPhaseContext) => {
   const current = await context.database.getAccountImport({
     id: context.accountImport.id,
@@ -1084,15 +1116,7 @@ export const runMastodonMediaPhase = async (
               saved.state === 'done' ? saved.targetId : null
             )
           } catch (error) {
-            if ((error as Error)?.message === 'import_actor_missing')
-              throw error
-            await terminalItemState(
-              context,
-              progress,
-              item,
-              'skipped',
-              'media_invalid'
-            )
+            await handleMediaItemError(context, progress, item, error)
           }
         }
         afterPosition = item.position
@@ -1260,6 +1284,32 @@ const importBookmarkItem = async (
   )
 }
 
+// The replies whose own parent never became done (it was skipped or failed):
+// another pass cannot resolve them, so they end as parent_unavailable.
+const skipRemainingPendingStatuses = async (
+  context: AccountImportPhaseContext,
+  progress: AccountImportProgress
+) => {
+  for (;;) {
+    const remaining = await context.database.getAccountImportItems({
+      importId: context.accountImport.id,
+      kinds: ['status'],
+      states: ['pending'],
+      limit: ACCOUNT_IMPORT_ITEM_PAGE_SIZE
+    })
+    if (remaining.length === 0) break
+    for (const item of remaining) {
+      await terminalItemState(
+        context,
+        progress,
+        item,
+        'skipped',
+        'parent_unavailable'
+      )
+    }
+  }
+}
+
 export const runStatusesPhase = async (
   context: AccountImportPhaseContext,
   progress: AccountImportProgress,
@@ -1271,7 +1321,19 @@ export const runStatusesPhase = async (
 }> => {
   const { afterPosition: cursorPosition } = parseImportCursor(cursorText)
   let afterPosition = cursorPosition ?? undefined
-  const completedAtStart = progress.completedItems + progress.skippedItems
+  // A null cursor begins a pass; a pass spans slices, so its baseline is
+  // persisted in progress rather than recomputed at every slice.
+  const passCompletedAtStart =
+    cursorPosition === null
+      ? progress.completedItems + progress.skippedItems
+      : (progress.passCompletedAtStart ??
+        progress.completedItems + progress.skippedItems)
+  progress.passCompletedAtStart = passCompletedAtStart
+  // Only a pass that resolved something may ask for another one. A pass
+  // that made no progress would page through the same stuck replies
+  // forever, so its leftovers are skipped instead.
+  const madePassProgress = () =>
+    progress.completedItems + progress.skippedItems > passCompletedAtStart
   const actor = await requireActor(context)
   for (;;) {
     const page = await context.database.getAccountImportItems({
@@ -1291,7 +1353,10 @@ export const runStatusesPhase = async (
           limit: 1
         })
         if (earlierPending.some((item) => item.position <= processedPosition)) {
-          return { result: 'budget', progress, cursor: null }
+          if (madePassProgress()) {
+            return { result: 'budget', progress, cursor: null }
+          }
+          await skipRemainingPendingStatuses(context, progress)
         }
       }
       return { result: 'done', progress, cursor: null }
@@ -1384,27 +1449,10 @@ export const runStatusesPhase = async (
       if (remaining.length === 0) {
         return { result: 'done', progress, cursor: null }
       }
-      if (progress.completedItems + progress.skippedItems > completedAtStart) {
+      if (madePassProgress()) {
         return { result: 'budget', progress, cursor: null }
       }
-      for (;;) {
-        const nextRemaining = await context.database.getAccountImportItems({
-          importId: context.accountImport.id,
-          kinds: ['status'],
-          states: ['pending'],
-          limit: ACCOUNT_IMPORT_ITEM_PAGE_SIZE
-        })
-        if (nextRemaining.length === 0) break
-        for (const item of nextRemaining) {
-          await terminalItemState(
-            context,
-            progress,
-            item,
-            'skipped',
-            'parent_unavailable'
-          )
-        }
-      }
+      await skipRemainingPendingStatuses(context, progress)
       return { result: 'done', progress, cursor: null }
     }
   }
@@ -1790,14 +1838,7 @@ export const runOwnArchiveMediaPhase = async (
             result.state === 'done' ? result.targetId : null
           )
         } catch (error) {
-          if ((error as Error)?.message === 'import_actor_missing') throw error
-          await terminalItemState(
-            context,
-            progress,
-            item,
-            'skipped',
-            'media_invalid'
-          )
+          await handleMediaItemError(context, progress, item, error)
         }
       },
       async (page) => {
@@ -1931,6 +1972,7 @@ export const runAlbumsPhase = async (
 const importFitnessFile = async (
   context: AccountImportPhaseContext,
   progress: AccountImportProgress,
+  archive: ZipArchive,
   item: AccountImportItem,
   targetStatuses: ReadonlyMap<string, string>,
   targetGear: ReadonlyMap<string, string>
@@ -1963,138 +2005,124 @@ const importFitnessFile = async (
     )
     return
   }
-  const archive = await openArchive(context.objectStore, context.accountImport)
-  try {
-    const entry = archive.entries.find(
-      ({ name }) => name === source.archivePath
-    )
-    if (!entry) {
-      await terminalItemState(
-        context,
-        progress,
-        item,
-        'skipped',
-        'fitness_missing'
-      )
-      return
-    }
-    const configuredLimit = getConfig().fitnessStorage?.maxFileSize
-    const maxBytes = configuredLimit ?? DEFAULT_FITNESS_MAX_FILE_SIZE
-    if (entry.uncompressedSize > maxBytes) {
-      await terminalItemState(
-        context,
-        progress,
-        item,
-        'skipped',
-        'fitness_too_large'
-      )
-      return
-    }
-    const bytes = await readAsyncIterableToBufferWithLimit(
-      chunksOf(await archive.openEntryStream(entry.name)),
-      maxBytes,
-      'Archived fitness file'
-    )
-    const fileType = source.fileType as 'fit' | 'gpx' | 'tcx'
-    const mimeType =
-      fileType === 'fit'
-        ? 'application/vnd.ant.fit'
-        : fileType === 'gpx'
-          ? 'application/gpx+xml'
-          : 'application/tcx+xml'
-    const fileName = sanitizeStoredFileName(`${source.id}.${fileType}`)
-    const file = new File([new Uint8Array(bytes)], fileName, { type: mimeType })
-    const upload = FitnessFileUploadSchema.safeParse({
-      file,
-      description: source.description ?? undefined
-    })
-    if (!upload.success) {
-      await terminalItemState(
-        context,
-        progress,
-        item,
-        'skipped',
-        'fitness_invalid'
-      )
-      return
-    }
-    const actor = await requireActor(context)
-    await context.renew()
-    const saved = await saveFitnessFile(context.database, actor, upload.data)
-    if (!saved) {
-      await terminalItemState(
-        context,
-        progress,
-        item,
-        'skipped',
-        'storage_unavailable'
-      )
-      return
-    }
-    await leasedWrite(context, () =>
-      context.database.updateFitnessFileStatus(saved.id, targetStatusId)
-    )
-    await leasedWrite(context, () =>
-      context.database.updateFitnessFileActivityData(saved.id, {
-        activityType: source.activityType,
-        activityStartTime: source.activityStartTime
-          ? new Date(source.activityStartTime)
-          : null,
-        totalDistanceMeters: source.totalDistanceMeters,
-        totalDurationSeconds: source.totalDurationSeconds,
-        movingTimeSeconds: source.movingTimeSeconds,
-        elevationGainMeters: source.elevationGainMeters,
-        deviceManufacturer: source.deviceManufacturer,
-        deviceName: source.deviceName,
-        sourceUrl: source.sourceUrl,
-        deviceGearId: source.deviceGearId
-          ? (targetGear.get(source.deviceGearId) ?? null)
-          : null
-      })
-    )
-    const targetGearId = source.gearId
-      ? (targetGear.get(source.gearId) ?? null)
-      : null
-    if (targetGearId) {
-      await leasedWrite(context, () =>
-        context.database.setFitnessFileGear({
-          fitnessFileId: saved.id,
-          actorId: actor.id,
-          gearId: targetGearId
-        })
-      )
-    }
-    if (source.isPrimary)
-      await leasedWrite(context, () =>
-        context.database.updateFitnessFilePrimary(saved.id, true)
-      )
-    // This is the only queue publication allowed inside the quiet importer.
-    await leasedWrite(context, () =>
-      getQueue().publish({
-        id: getHashFromString(
-          `${context.accountImport.id}:fitness:${item.sourceId}`
-        ),
-        name: PROCESS_FITNESS_FILE_JOB_NAME,
-        data: {
-          actorId: actor.id,
-          statusId: targetStatusId,
-          fitnessFileId: saved.id,
-          publishSendNote: false,
-          notifyOnComplete: false
-        }
-      })
-    )
+  const entry = archive.entries.find(({ name }) => name === source.archivePath)
+  if (!entry) {
     await terminalItemState(
       context,
       progress,
       item,
-      'done',
-      undefined,
-      saved.id
+      'skipped',
+      'fitness_missing'
     )
-  } finally {
-    await archive.close()
+    return
   }
+  const configuredLimit = getConfig().fitnessStorage?.maxFileSize
+  const maxBytes = configuredLimit ?? DEFAULT_FITNESS_MAX_FILE_SIZE
+  if (entry.uncompressedSize > maxBytes) {
+    await terminalItemState(
+      context,
+      progress,
+      item,
+      'skipped',
+      'fitness_too_large'
+    )
+    return
+  }
+  const bytes = await readAsyncIterableToBufferWithLimit(
+    chunksOf(await archive.openEntryStream(entry.name)),
+    maxBytes,
+    'Archived fitness file'
+  )
+  const fileType = source.fileType as 'fit' | 'gpx' | 'tcx'
+  const mimeType =
+    fileType === 'fit'
+      ? 'application/vnd.ant.fit'
+      : fileType === 'gpx'
+        ? 'application/gpx+xml'
+        : 'application/tcx+xml'
+  const fileName = sanitizeStoredFileName(`${source.id}.${fileType}`)
+  const file = new File([new Uint8Array(bytes)], fileName, { type: mimeType })
+  const upload = FitnessFileUploadSchema.safeParse({
+    file,
+    description: source.description ?? undefined
+  })
+  if (!upload.success) {
+    await terminalItemState(
+      context,
+      progress,
+      item,
+      'skipped',
+      'fitness_invalid'
+    )
+    return
+  }
+  const actor = await requireActor(context)
+  await context.renew()
+  const saved = await saveFitnessFile(context.database, actor, upload.data)
+  if (!saved) {
+    await terminalItemState(
+      context,
+      progress,
+      item,
+      'skipped',
+      'storage_unavailable'
+    )
+    return
+  }
+  await leasedWrite(context, () =>
+    context.database.updateFitnessFileStatus(saved.id, targetStatusId)
+  )
+  await leasedWrite(context, () =>
+    context.database.updateFitnessFileActivityData(saved.id, {
+      activityType: source.activityType,
+      activityStartTime: source.activityStartTime
+        ? new Date(source.activityStartTime)
+        : null,
+      totalDistanceMeters: source.totalDistanceMeters,
+      totalDurationSeconds: source.totalDurationSeconds,
+      movingTimeSeconds: source.movingTimeSeconds,
+      elevationGainMeters: source.elevationGainMeters,
+      deviceManufacturer: source.deviceManufacturer,
+      deviceName: source.deviceName,
+      sourceUrl: source.sourceUrl,
+      deviceGearId: source.deviceGearId
+        ? (targetGear.get(source.deviceGearId) ?? null)
+        : null
+    })
+  )
+  const targetGearId = source.gearId
+    ? (targetGear.get(source.gearId) ?? null)
+    : null
+  if (targetGearId) {
+    await leasedWrite(context, () =>
+      context.database.setFitnessFileGear({
+        fitnessFileId: saved.id,
+        actorId: actor.id,
+        gearId: targetGearId
+      })
+    )
+  }
+  if (source.isPrimary)
+    await leasedWrite(context, () =>
+      context.database.updateFitnessFilePrimary(saved.id, true)
+    )
+  // This is the only queue publication allowed inside the quiet importer.
+  await leasedWrite(context, () =>
+    getQueue().publish({
+      id: getHashFromString(
+        `${context.accountImport.id}:fitness:${item.sourceId}`
+      ),
+      name: PROCESS_FITNESS_FILE_JOB_NAME,
+      data: {
+        actorId: actor.id,
+        statusId: targetStatusId,
+        fitnessFileId: saved.id,
+        publishSendNote: false,
+        notifyOnComplete: false
+      }
+    })
+  )
+  await terminalItemState(context, progress, item, 'done', undefined, saved.id)
 }
 
 // The same caps the profile route's PATCH applies to a name and a bio it did
@@ -2286,32 +2314,46 @@ export const runFitnessPhase = async (
 ) => {
   let targetStatuses = new Map<string, string>()
   let targetGear = new Map<string, string>()
-  return runCatalogedItems(
-    context,
-    progress,
-    cursorText,
-    new Set(['fitness-file']),
-    (item) =>
-      importFitnessFile(context, progress, item, targetStatuses, targetGear),
-    async (page) => {
-      const sourceIds = page.flatMap((item) => {
-        const parsed = sourceRecord(ownFitnessFileLineSchema, item)
-        if (!parsed.success) return []
-        return [
-          ...(parsed.data.statusId ? [parsed.data.statusId] : []),
-          ...(parsed.data.gearId ? [parsed.data.gearId] : []),
-          ...(parsed.data.deviceGearId ? [parsed.data.deviceGearId] : [])
-        ]
-      })
-      const references = await itemReferences(
-        context,
-        ['status', 'fitness-gear'],
-        sourceIds
-      )
-      targetStatuses = targetMapForKind(references, 'status')
-      targetGear = targetMapForKind(references, 'fitness-gear')
-    }
-  )
+  // One open per slice, not per file: every open re-reads the trailer and
+  // the whole central directory, which is megabytes on a large archive.
+  const archive = await openArchive(context.objectStore, context.accountImport)
+  try {
+    return await runCatalogedItems(
+      context,
+      progress,
+      cursorText,
+      new Set(['fitness-file']),
+      (item) =>
+        importFitnessFile(
+          context,
+          progress,
+          archive,
+          item,
+          targetStatuses,
+          targetGear
+        ),
+      async (page) => {
+        const sourceIds = page.flatMap((item) => {
+          const parsed = sourceRecord(ownFitnessFileLineSchema, item)
+          if (!parsed.success) return []
+          return [
+            ...(parsed.data.statusId ? [parsed.data.statusId] : []),
+            ...(parsed.data.gearId ? [parsed.data.gearId] : []),
+            ...(parsed.data.deviceGearId ? [parsed.data.deviceGearId] : [])
+          ]
+        })
+        const references = await itemReferences(
+          context,
+          ['status', 'fitness-gear'],
+          sourceIds
+        )
+        targetStatuses = targetMapForKind(references, 'status')
+        targetGear = targetMapForKind(references, 'fitness-gear')
+      }
+    )
+  } finally {
+    await archive.close()
+  }
 }
 
 export const runCollectionsNoopPhase = async () => 'done' as const

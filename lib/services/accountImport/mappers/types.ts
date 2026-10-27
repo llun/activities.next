@@ -71,6 +71,7 @@ export type ImportMapperContext = {
 export type ImportSkipReason =
   | 'boost'
   | 'reply-to-other'
+  | 'reply-uri-too-long'
   | 'direct'
   | 'bad-date'
   | 'invalid'

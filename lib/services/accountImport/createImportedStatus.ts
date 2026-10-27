@@ -207,6 +207,26 @@ const addAttachments = async (
   }
 }
 
+// A crash (or a failed rollback) can leave a status row behind while its
+// import item never reached done. The item row is the verdict: with no item
+// at all the caller is not an import retry and the row is returned as-is;
+// a done item means the status is complete; any other item state means the
+// row is a partial write nothing depends on yet (imported statuses never
+// federate, and a parent's replies are only written once its item is done),
+// so it is discarded and written again in full.
+const findStatusImportItem = async (
+  database: Database,
+  actorId: string,
+  sourceId: string
+) => {
+  const references = await database.getAccountImportItemReferences({
+    actorId,
+    kinds: ['status'],
+    sourceIds: [sourceId]
+  })
+  return references[0] ?? null
+}
+
 export const createImportedStatus = async (
   database: Database,
   actor: Actor,
@@ -216,13 +236,23 @@ export const createImportedStatus = async (
     publicId: input.publicId,
     currentActorId: actor.id
   })
-  if (existing?.actorId === actor.id) return existing
+  if (existing?.actorId === actor.id) {
+    const item = await findStatusImportItem(database, actor.id, input.sourceId)
+    if (!item || item.state === 'done') return existing
+    await database.discardUnpublishedStatus({
+      actorId: actor.id,
+      statusId: existing.id
+    })
+  }
   // The deterministic publicId already belongs to another actor's status
   // (a pre-fix import or a crafted archive that pre-empted it): never insert
   // with it and never return that row. A fresh random UUIDv7 keeps the write
   // quiet and local; the importing actor's own re-run still finds its own row
   // through the deterministic id whenever no other actor owns it.
-  const publicId = existing ? generatePublicId() : input.publicId
+  const publicId =
+    existing && existing.actorId !== actor.id
+      ? generatePublicId()
+      : input.publicId
 
   let reply = ''
   if (input.replyToStatusId) {
@@ -268,7 +298,9 @@ export const createImportedStatus = async (
   // pin, quote) must appear together or not at all, so a retry never finds a
   // half-written status and marks it done. The facade exposes no cross-domain
   // transaction, so a failure rolls the partial write back through the status
-  // domain's own transactional deleteStatus instead.
+  // domain's own transactional discardUnpublishedStatus — the importer never
+  // counted the hashtags (createTag does not touch the counters), so the
+  // discard must not lower them either.
   try {
     await addTags(database, statusId, input)
     await addAttachments(
@@ -294,7 +326,7 @@ export const createImportedStatus = async (
     }
   } catch (error) {
     await database
-      .deleteStatus({ actorId: actor.id, statusId })
+      .discardUnpublishedStatus({ actorId: actor.id, statusId })
       .catch((deleteError: unknown) => {
         logger.error({
           message: 'Could not roll back a partial imported status',

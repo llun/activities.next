@@ -193,4 +193,50 @@ describe('the zip reader', () => {
       await opened.close()
     }
   })
+
+  it('passes a source error from open through unchanged', async () => {
+    // A read the source refuses (a changed archive, a storage failure) is
+    // not a defect of the zip bytes: it must surface as itself, never as
+    // not_a_zip.
+    const failure = new Error('archive changed underneath')
+    const source = {
+      size: 128,
+      read: async () => {
+        throw failure
+      }
+    }
+    await expect(openZipArchive(source)).rejects.toBe(failure)
+  })
+
+  it('passes a source error from an entry stream through unchanged', async () => {
+    // The entry data must span past the first read-ahead block (4 MiB), so
+    // the local header read succeeds, the stream opens, and only the
+    // entry's own data read fails.
+    const archive = buildZip([
+      {
+        name: 'actor.json',
+        data: Buffer.concat([Buffer.from('{}'), Buffer.alloc(5 * 1024 * 1024)])
+      }
+    ])
+    const failure = new Error('archive changed underneath')
+    const source = {
+      size: archive.length,
+      read: async (start: number, endInclusive: number) => {
+        if (start === 4 * 1024 * 1024) throw failure
+        return Buffer.from(archive.subarray(start, endInclusive + 1))
+      }
+    }
+    const opened = await openZipArchive(source)
+    try {
+      const stream = await opened.openEntryStream('actor.json')
+      const drain = async () => {
+        const chunks: Buffer[] = []
+        for await (const chunk of stream) chunks.push(chunk as Buffer)
+        return chunks
+      }
+      await expect(drain()).rejects.toBe(failure)
+    } finally {
+      await opened.close()
+    }
+  })
 })

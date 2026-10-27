@@ -350,4 +350,78 @@ describe('createImportedStatus', () => {
       .execute()
     expect(danglingTags).toHaveLength(0)
   })
+
+  it('discards a status a crash left half-written and writes it again fully', async () => {
+    const publicId = '018d0000-0000-7000-8000-000000000006'
+    const media = await database.createMedia({
+      actorId: actor.id,
+      original: {
+        path: '/tests/r2code-partial.png',
+        bytes: 8,
+        mimeType: 'image/png',
+        metaData: { width: 1, height: 1 }
+      }
+    })
+    const input = makeInput(publicId, {
+      tags: [
+        {
+          type: 'hashtag',
+          name: '#partial',
+          value: 'https://archive.test/tags/partial'
+        }
+      ],
+      attachments: [
+        {
+          mediaId: String(media!.id),
+          sourceUrl: 'https://archive.test/media/r2code-partial.png',
+          mediaType: 'image/png',
+          name: 'Partial image',
+          width: 1,
+          height: 1,
+          thumbnailUrl: null
+        }
+      ]
+    })
+    // The crash: the process died right after the note row was written, so
+    // no tag or attachment ever landed and the item never reached done.
+    const partial = await createImportedStatus(database, actor, {
+      ...input,
+      tags: [],
+      attachments: [],
+      edits: []
+    })
+    expect(
+      await db
+        .selectFrom('tags')
+        .selectAll()
+        .where('statusId', '=', partial.id)
+        .execute()
+    ).toHaveLength(0)
+    const accountImport = await database.createAccountImport({
+      id: 'import-partial-status',
+      accountId: actor.account!.id,
+      actorId: actor.id,
+      options: '{}'
+    })
+    await database.upsertAccountImportItems({
+      importId: accountImport.id,
+      actorId: actor.id,
+      items: [{ kind: 'status', sourceId: input.sourceId, position: 1 }]
+    })
+
+    const retried = await createImportedStatus(database, actor, input)
+
+    // The retry never marks the item done over the partial row: the row is
+    // discarded and written again with its tags and attachments.
+    expect(retried.id).toBe(partial.id)
+    const tags = await database.getTags({ statusId: retried.id })
+    expect(tags.map((tag) => tag.name)).toContain('#partial')
+    const attachments = await db
+      .selectFrom('attachments')
+      .select('mediaId')
+      .where('statusId', '=', retried.id)
+      .execute()
+    expect(attachments).toHaveLength(1)
+    expect(String(attachments[0].mediaId)).toBe(String(media!.id))
+  })
 })

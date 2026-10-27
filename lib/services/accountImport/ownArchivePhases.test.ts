@@ -747,4 +747,111 @@ describe('own archive import phases', () => {
       })
     )
   })
+
+  it('opens the archive once per fitness phase slice, not once per file', async () => {
+    const importId = 'fitness-open-' + randomUUID()
+    const previousImport = await createImport(
+      'fitness-open-refs-' + randomUUID()
+    )
+    const statusId = actor.id + '/statuses/' + randomUUID()
+    await database.createNote({
+      id: statusId,
+      url: statusId,
+      actorId: actor.id,
+      text: 'Fitness status',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+    await upsertItems(previousImport.id, [
+      { kind: 'status', sourceId: 'source-status', position: 1, data: '{}' }
+    ])
+    const previousItems = await database.getAccountImportItems({
+      importId: previousImport.id,
+      limit: 10
+    })
+    for (const item of previousItems) {
+      await database.markAccountImportItem({
+        id: item.id,
+        state: 'done',
+        targetId: statusId
+      })
+    }
+    await database.updateAccountImport({
+      id: previousImport.id,
+      status: 'cancelled'
+    })
+    const accountImport = await createImport(importId)
+    const firstPath = 'fitness/files/first.fit'
+    const secondPath = 'fitness/files/second.fit'
+    const firstBytes = Buffer.from('FIRST fit bytes')
+    const secondBytes = Buffer.from('SECOND fit bytes')
+    const stagedImport = await stageArchive(
+      accountImport,
+      buildZip([
+        { name: firstPath, data: firstBytes },
+        { name: secondPath, data: secondBytes }
+      ])
+    )
+    const fitnessFileItem = (
+      archivePath: string,
+      bytes: Buffer,
+      position: number
+    ) => ({
+      kind: 'fitness-file',
+      sourceId: archivePath,
+      position,
+      data: JSON.stringify({
+        id: archivePath,
+        statusId: 'source-status',
+        fileName: archivePath.split('/').pop(),
+        fileType: 'fit',
+        mimeType: 'application/vnd.ant.fit',
+        bytes: bytes.length,
+        description: 'Archive ride',
+        activityType: 'ride',
+        activityStartTime: '2024-01-02T03:04:05.000Z',
+        totalDistanceMeters: 5_000,
+        totalDurationSeconds: 1_200,
+        movingTimeSeconds: 1_100,
+        elevationGainMeters: 10,
+        deviceManufacturer: null,
+        deviceName: null,
+        sourceUrl: null,
+        gearId: null,
+        deviceGearId: null,
+        isPrimary: true,
+        importBatchId: null,
+        createdAt: '2024-01-02T03:04:05.000Z',
+        archivePath
+      })
+    })
+    await upsertItems(importId, [
+      fitnessFileItem(
+        firstPath,
+        firstBytes,
+        ACCOUNT_IMPORT_FITNESS_FILE_POSITION
+      ),
+      fitnessFileItem(
+        secondPath,
+        secondBytes,
+        ACCOUNT_IMPORT_FITNESS_FILE_POSITION + 1
+      )
+    ])
+    const openSourceSpy = vi.spyOn(objectStore, 'openSource')
+
+    await runFitnessPhase(
+      contextFor(stagedImport),
+      createInitialImportProgress(),
+      null
+    )
+
+    expect(openSourceSpy).toHaveBeenCalledTimes(1)
+    const items = await database.getAccountImportItems({
+      importId,
+      kinds: ['fitness-file'],
+      limit: 10
+    })
+    expect(items).toHaveLength(2)
+    expect(items.every((item) => item.state === 'done')).toBe(true)
+  })
 })

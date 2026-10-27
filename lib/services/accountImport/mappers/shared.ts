@@ -24,8 +24,9 @@ import { MAX_FUTURE_SKEW_MS } from './timeSkew'
 // up to 4,096), so an over-long tag would fail the whole status write. The
 // mapper truncates to the column size instead.
 const TAG_COLUMN_MAX_LENGTH = 255
-// statuses.reply is varchar(255) too; a kept external parent URI is clamped
-// to what the column can hold rather than failing the write.
+// statuses.reply is varchar(255); no column holds a longer URI, and storing
+// a truncated one would write an invalid URI, so a kept parent URI that
+// does not fit skips the item instead.
 const REPLY_COLUMN_MAX_LENGTH = 255
 
 const clampToColumn = (value: string, maxLength: number) =>
@@ -117,7 +118,7 @@ export const replyReference = (
       replyToStatusId: string | null
       externalReplyUri: string | null
     }
-  | { ok: false; reason: 'reply-to-other' } => {
+  | { ok: false; reason: 'reply-to-other' | 'reply-uri-too-long' } => {
   if (!parentId || context.ownStatusIds.has(parentId)) {
     return {
       ok: true,
@@ -126,10 +127,13 @@ export const replyReference = (
     }
   }
   if (context.repliesToOthers === 'keep') {
+    if (parentId.length > REPLY_COLUMN_MAX_LENGTH) {
+      return { ok: false, reason: 'reply-uri-too-long' }
+    }
     return {
       ok: true,
       replyToStatusId: null,
-      externalReplyUri: clampToColumn(parentId, REPLY_COLUMN_MAX_LENGTH)
+      externalReplyUri: parentId
     }
   }
   return { ok: false, reason: 'reply-to-other' }

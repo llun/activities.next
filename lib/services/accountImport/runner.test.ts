@@ -30,6 +30,8 @@ import {
   getAccountImportContinuationJobId,
   runAccountImport
 } from '@/lib/services/accountImport/runner'
+import { openZipArchive } from '@/lib/services/accountImport/zip/reader'
+import { buildZip } from '@/lib/services/accountImport/zip/testing/fixtures'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 
@@ -385,7 +387,12 @@ describe('account import runner payload cleanup', () => {
   })
 
   it('fails an import as archive_changed when S3 rejects its pinned ETag', async () => {
-    const archive = Buffer.from('archive-bytes')
+    const archive = buildZip([
+      {
+        name: 'actor.json',
+        data: Buffer.from('{"id":"https://source.test/users/owner"}')
+      }
+    ])
     const s3Send = vi.fn(async (command: unknown) => {
       if (command instanceof HeadObjectCommand) {
         return { ContentLength: archive.length, ETag: '"version-2"' }
@@ -397,9 +404,15 @@ describe('account import runner payload cleanup', () => {
             $metadata: { httpStatusCode: 412 }
           })
         }
+        const range = /bytes=(\d+)-(\d+)/.exec(command.input.Range ?? '')
+        const start = Number(range?.[1] ?? 0)
+        const endInclusive = Number(range?.[2] ?? archive.length - 1)
         return {
-          ContentRange: `bytes 0-3/${archive.length}`,
-          Body: { transformToByteArray: async () => Buffer.from('arch') }
+          ContentRange: `bytes ${start}-${endInclusive}/${archive.length}`,
+          Body: {
+            transformToByteArray: async () =>
+              archive.subarray(start, endInclusive + 1)
+          }
         }
       }
       return {}
@@ -428,7 +441,8 @@ describe('account import runner payload cleanup', () => {
     vi.mocked(inspectAccountArchive).mockImplementationOnce(
       async ({ objectStore: sourceStore, accountImport: current }) => {
         const source = await sourceStore.openSource(current)
-        await source!.read(0, 3)
+        const opened = await openZipArchive(source!)
+        await opened.close()
         return {
           kind: 'mastodon',
           sourceActorId: 'https://source.test/users/owner',
