@@ -95,7 +95,8 @@ export class TopLevelStringFieldsScanner {
       if (this.done) continue
       if (!this.rootStarted) {
         if (/\s/.test(ch)) continue
-        if (ch !== '{') throw new Error('Invalid actor document')
+        if (ch !== '{')
+          throw new ZipArchiveError('not_a_zip', 'Invalid actor document')
         this.rootStarted = true
         this.state = 'key'
         continue
@@ -106,7 +107,8 @@ export class TopLevelStringFieldsScanner {
           this.done = true
           continue
         }
-        if (ch !== '"') throw new Error('Invalid actor document')
+        if (ch !== '"')
+          throw new ZipArchiveError('not_a_zip', 'Invalid actor document')
         this.keyRaw = '"'
         this.keyBytes = 1
         this.keyTooLarge = this.keyBytes > this.maxKeyBytes
@@ -127,7 +129,7 @@ export class TopLevelStringFieldsScanner {
             try {
               this.key = JSON.parse(this.keyRaw) as string
             } catch {
-              throw new Error('Invalid actor document')
+              throw new ZipArchiveError('not_a_zip', 'Invalid actor document')
             }
           }
         }
@@ -135,7 +137,8 @@ export class TopLevelStringFieldsScanner {
       }
       if (this.state === 'colon') {
         if (/\s/.test(ch)) continue
-        if (ch !== ':') throw new Error('Invalid actor document')
+        if (ch !== ':')
+          throw new ZipArchiveError('not_a_zip', 'Invalid actor document')
         this.state = 'value'
         continue
       }
@@ -186,7 +189,7 @@ export class TopLevelStringFieldsScanner {
         if (/\s/.test(ch)) continue
         if (ch === ',') this.state = 'key'
         else if (ch === '}') this.done = true
-        else throw new Error('Invalid actor document')
+        else throw new ZipArchiveError('not_a_zip', 'Invalid actor document')
       }
     }
   }

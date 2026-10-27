@@ -621,7 +621,7 @@ returns `409` if it detects a changed archive during inspection. `upload_expired
 means a queued upload was not started within 24 hours; the sweep marks it
 failed and deletes its staged upload. An upload that cannot be stored fails
 the queued row with `upload_empty` (an empty body), `file_too_large` (over the
-configured cap or the declared size) or `upload_failed` (the store refused the
+configured cap, or not the declared size) or `upload_failed` (the store refused the
 streamed bytes); a presigned URL that cannot be created fails it with
 `upload_url_failed`, and a start that cannot queue its job fails the running
 row with `queue_failed`. A ZIP-level refusal fails the import with `archive_`
@@ -642,8 +642,8 @@ skipped verdicts remain settled.
 Skipped items record a reason code. `option_disabled` marks a like or bookmark
 whose option is off; `reply-to-other` a reply excluded by the replies option;
 `reply-uri-too-long` a kept reply whose parent URI exceeds the 255-character
-`statuses.reply` limit; `boost` an Announce activity; `direct` a
-direct-visibility status; `invalid` an item that fails schema validation;
+`statuses.reply` limit; `boost` an Announce activity; `direct` a Mastodon
+direct message; `invalid` an item that fails schema validation;
 `bad-date` an item with no parseable publication time; `foreign-author` an item
 whose author is not the archive actor; `parent_unavailable` a reply whose
 parent is not in the archive; `local_status_missing` a like whose target is no
@@ -737,14 +737,17 @@ processed with `publishSendNote: false` and `notifyOnComplete: false`, so
 processing does not publish a fitness note or send a completion notification.
 
 The optional profile restore allowlist includes display name, bio, profile
-fields, avatar and header images. A profile image the media path refuses —
-the account is over its storage quota, or the bytes fail its validation — is
-skipped with `media_quota_exceeded` or `media_invalid` and the rest of the
-profile still applies; the profile phase keeps no item rows, so these skips
-are reported on the phase result and logged rather than recorded on the
-catalog. If the header's read fails after the avatar was stored, the stored
-avatar is deleted instead of left orphaned, and the phase fails for the
-header's own reason. The settings option
+fields, avatar and header images. A profile image the importer itself refuses —
+the sniffed type is not a stored png or jpeg, or the bytes fail the media
+schema or the decode check — is skipped with `media_invalid`, as is one the
+media path refuses because the bytes fail its validation; an image the
+account's storage quota refuses is skipped with `media_quota_exceeded`. The
+rest of the profile still applies. The profile phase keeps no item rows, so
+these skip reasons are recorded in the import's progress — the import API
+shows them on the run — and logged rather than recorded on the catalog. If
+anything fails after an image was stored (the header's own read or save, a
+cancellation, or the profile update), every image the run stored is deleted
+instead of left orphaned, and the phase fails for its own reason. The settings option
 reads only this server's own export. Its actor-settings allowlist is
 `defaultPrivacy`, `defaultSensitive`, `defaultLanguage`, `defaultQuotePolicy`,
 `postLineLimit`, `readingExpandMedia`, `readingExpandSpoilers`,

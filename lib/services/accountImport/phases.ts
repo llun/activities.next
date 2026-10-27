@@ -2187,8 +2187,10 @@ type ProfileImageResult =
  * Saves one profile image from the archive's own bytes through the same media
  * path the profile routes use (MediaSchema, the image type check, the decode
  * check, saveMedia). The MIME type is sniffed from the bytes, never taken from
- * the entry name or the archive's claim; anything that is not a stored png or
- * jpeg is skipped, and so is a save the storage cannot take.
+ * the entry name or the archive's claim. Every refusal the bytes earn — not a
+ * stored png or jpeg, a failed media schema, a failed decode, or the media
+ * path's own verdict — is a skip carrying its reason, so the owner can see
+ * why an image did not land; only a missing or over-size entry is absent.
  */
 const importProfileImage = async (
   context: AccountImportPhaseContext,
@@ -2223,7 +2225,7 @@ const importProfileImage = async (
   }
   const mediaType = sniffSupportedMediaType(bytes)
   if (!mediaType || !ACCEPTED_IMAGE_TYPES.includes(mediaType)) {
-    return { state: 'absent' }
+    return { state: 'skipped', reason: 'media_invalid' }
   }
   const file = new File(
     [new Uint8Array(bytes)],
@@ -2231,11 +2233,11 @@ const importProfileImage = async (
     { type: mediaType }
   )
   const parsed = MediaSchema.safeParse({ file })
-  if (!parsed.success) return { state: 'absent' }
+  if (!parsed.success) return { state: 'skipped', reason: 'media_invalid' }
   try {
     await readValidThumbnail(file)
   } catch {
-    return { state: 'absent' }
+    return { state: 'skipped', reason: 'media_invalid' }
   }
   await context.renew()
   let saved: Awaited<ReturnType<typeof saveMedia>>
@@ -2290,8 +2292,9 @@ export interface ProfileSettingsPhaseResult {
   progress: AccountImportProgress
   /**
    * Why the avatar or header was refused instead of saved, if either was.
-   * The profile phase has no item rows, so these skips are reported here
-   * and logged rather than recorded on the catalog.
+   * The profile phase has no item rows, so these skips are recorded on the
+   * progress (shown by GET /api/v1/account/imports/:id), returned here and
+   * logged rather than recorded on the catalog.
    */
   imageSkipReasons?: readonly ProfileImageSkipReason[]
 }
@@ -2369,7 +2372,10 @@ export const runProfilePhase = async (
     )
     if (icon.state === 'saved') patch.iconUrl = icon.url
     else if (icon.state === 'skipped') imageSkipReasons.push(icon.reason)
-    let header: ProfileImageResult
+    let header: ProfileImageResult | null = null
+    let updated: Awaited<
+      ReturnType<typeof context.database.updateActorWithPrevious>
+    >
     try {
       header = await importProfileImage(
         context,
@@ -2378,34 +2384,41 @@ export const runProfilePhase = async (
         source.image?.url,
         media.maxFileSize
       )
+      if (header.state === 'saved') patch.headerImageUrl = header.url
+      else if (header.state === 'skipped') imageSkipReasons.push(header.reason)
+      if (imageSkipReasons.length > 0) {
+        progress.profileImageSkips = [...imageSkipReasons]
+      }
+      for (const reason of imageSkipReasons) {
+        logger.info({
+          message: 'Account import skipped a profile image',
+          importId: context.accountImport.id,
+          reason
+        })
+      }
+      if (Object.keys(patch).length === 0) {
+        return { result: 'done', progress, imageSkipReasons }
+      }
+      await context.renew()
+      updated = await context.database.updateActorWithPrevious({
+        actorId: context.accountImport.actorId,
+        ...patch
+      })
     } catch (error) {
-      // The avatar was stored but the phase is failing before the profile
-      // points at it. It is deleted rather than left behind: nothing
-      // references it, and its bytes still count against the quota. A row
-      // that started meanwhile owns the key, so this only runs when the
-      // header's own read or save failed.
+      // The phase is failing after images may have been stored: a
+      // cancellation or a lost lease at the renew, or the profile update's
+      // own failure. Every image this run saved is deleted rather than left
+      // behind: nothing references it yet, and its bytes still count
+      // against the quota.
       if (icon.state === 'saved') {
         await deleteSavedProfileImage(context, icon.mediaId)
       }
+      if (header?.state === 'saved') {
+        await deleteSavedProfileImage(context, header.mediaId)
+      }
       throw error
     }
-    if (header.state === 'saved') patch.headerImageUrl = header.url
-    else if (header.state === 'skipped') imageSkipReasons.push(header.reason)
-    for (const reason of imageSkipReasons) {
-      logger.info({
-        message: 'Account import skipped a profile image',
-        importId: context.accountImport.id,
-        reason
-      })
-    }
-    if (Object.keys(patch).length === 0) {
-      return { result: 'done', progress, imageSkipReasons }
-    }
-    await context.renew()
-    const { before, after } = await context.database.updateActorWithPrevious({
-      actorId: context.accountImport.actorId,
-      ...patch
-    })
+    const { before, after } = updated
     // The one federated side effect the importer is allowed: a single
     // Update(Person), and only for a change to what the Person carries.
     if (after && (!before || hasFederatedProfileChange(before, after))) {

@@ -6,6 +6,10 @@ import {
 } from '@/lib/services/accountImport/objectStore'
 import { inspectAccountArchive } from '@/lib/services/accountImport/phases'
 import { startAccountImport } from '@/lib/services/accountImport/start'
+import {
+  buildZip,
+  sourceOf
+} from '@/lib/services/accountImport/zip/testing/fixtures'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 
@@ -185,4 +189,46 @@ describe('startAccountImport', () => {
     expect(result).toEqual({ type: 'archive-changed' })
     expect(deleteUpload).toHaveBeenCalledWith(accountImport)
   })
+
+  // A valid ZIP whose actor entry is not a JSON object must reach the owner
+  // as the documented 422 unrecognised, never as an unhandled 500 from a
+  // plain scanner error.
+  it.each([
+    ['a JSON array', Buffer.from('[]')],
+    ['not JSON at all', Buffer.from(',')]
+  ] as const)(
+    'answers unrecognised when actor.json is %s',
+    async (_description, actorData) => {
+      const actual = await vi.importActual<
+        typeof import('@/lib/services/accountImport/phases')
+      >('@/lib/services/accountImport/phases')
+      vi.mocked(inspectAccountArchive).mockImplementation(
+        actual.inspectAccountArchive
+      )
+      const archive = buildZip([
+        { name: 'actor.json', data: actorData },
+        { name: 'outbox.json', data: Buffer.from('{"orderedItems":[]}') }
+      ])
+      getMetadata.mockResolvedValue({
+        size: archive.length,
+        etag: '"archive-version-1"'
+      })
+      openSource.mockResolvedValue(sourceOf(archive))
+      const accountImport = await createImport(archive.length)
+
+      const result = await startAccountImport({
+        database,
+        objectStore,
+        accountImport,
+        options
+      })
+
+      expect(result).toEqual({ type: 'unrecognised' })
+      // The row follows the same verdict as any other unrecognised archive:
+      // it stays queued, the way the existing 422 unrecognised behaves.
+      expect(
+        await database.getAccountImport({ id: accountImport.id, actorId })
+      ).toMatchObject({ status: 'queued' })
+    }
+  )
 })

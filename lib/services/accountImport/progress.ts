@@ -1,3 +1,5 @@
+import type { ProfileImageSkipReason } from '@/lib/services/accountImport/phases'
+
 export type ArchiveStatusOrder = 'oldest-first' | 'newest-first'
 export type CatalogStage =
   | 'statuses'
@@ -37,6 +39,12 @@ export interface AccountImportProgress {
    * page of replies whose parents never arrive would loop forever.
    */
   passCompletedAtStart?: number
+  /**
+   * Why the profile phase skipped the avatar or header, if it skipped
+   * either. The profile phase keeps no item rows, so these reasons ride the
+   * progress the owner reads through GET /api/v1/account/imports/:id.
+   */
+  profileImageSkips?: ProfileImageSkipReason[]
   /** Selected by the owner at start; stored here because the row's initial
    * options column is immutable in the slice-1 database contract. */
   selectedOptions?: {
@@ -129,6 +137,16 @@ export const parseImportProgress = (
       Number.isInteger(record.passCompletedAtStart) &&
       record.passCompletedAtStart >= 0
         ? { passCompletedAtStart: record.passCompletedAtStart }
+        : null),
+      ...(Array.isArray(record.profileImageSkips) &&
+      record.profileImageSkips.every(
+        (reason) =>
+          reason === 'media_quota_exceeded' || reason === 'media_invalid'
+      )
+        ? {
+            profileImageSkips:
+              record.profileImageSkips as ProfileImageSkipReason[]
+          }
         : null),
       ...(record.selectedOptions && typeof record.selectedOptions === 'object'
         ? {

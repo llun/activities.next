@@ -11,7 +11,11 @@ import {
   runProfilePhase,
   runSettingsPhase
 } from '@/lib/services/accountImport/phases'
-import { createInitialImportProgress } from '@/lib/services/accountImport/progress'
+import {
+  createInitialImportProgress,
+  parseImportProgress,
+  serializeImportProgress
+} from '@/lib/services/accountImport/progress'
 import {
   buildZip,
   sourceOf
@@ -254,7 +258,7 @@ describe('account import profile and settings phases', () => {
       'mastodon'
     )
 
-    await runProfilePhase(
+    const result = await runProfilePhase(
       makeContext(accountImport, archive),
       createInitialImportProgress()
     )
@@ -265,6 +269,15 @@ describe('account import profile and settings phases', () => {
     expect(saved.file.type).toBe('image/jpeg')
     expect(actor.iconUrl).toBe(SAVED_AVATAR_URL)
     expect(actor.headerImageUrl).toBeUndefined()
+    // The importer's own refusal — the sniffed type is not an accepted
+    // image — carries its reason, and the reason rides the progress the
+    // owner reads through GET /api/v1/account/imports/:id.
+    expect(result.imageSkipReasons).toEqual(['media_invalid'])
+    expect(result.progress.profileImageSkips).toEqual(['media_invalid'])
+    expect(
+      parseImportProgress(serializeImportProgress(result.progress))
+        .profileImageSkips
+    ).toEqual(['media_invalid'])
   })
 
   // The avatar entry's data spans past the first read-ahead block (4 MiB),
@@ -399,6 +412,194 @@ describe('account import profile and settings phases', () => {
     expect(actor.iconUrl).toBeUndefined()
     expect(actor.headerImageUrl).toBeUndefined()
     expect(vi.mocked(publishActorUpdate)).toHaveBeenCalledTimes(1)
+  })
+
+  it('skips the avatar and header with media_invalid when the media path rejects the bytes', async () => {
+    const archive = buildZip([
+      {
+        name: 'actor.json',
+        data: Buffer.from(
+          JSON.stringify({
+            id: 'https://source.test/users/archive',
+            type: 'Person',
+            preferredUsername: 'archive',
+            name: 'Invalid Skipped',
+            icon: { type: 'Image', mediaType: 'image/png', url: 'avatar.png' },
+            image: { type: 'Image', mediaType: 'image/png', url: 'header.png' }
+          })
+        )
+      },
+      { name: 'avatar.png', data: await imageBytes('png') },
+      { name: 'header.png', data: await imageBytes('png') }
+    ])
+    const accountImport = await createImport(
+      'import-profile-invalid',
+      '{"profile":true}',
+      'mastodon'
+    )
+    vi.mocked(saveMedia)
+      .mockReset()
+      .mockRejectedValue(new MediaValidationError('Unsupported image'))
+
+    const result = await runProfilePhase(
+      makeContext(accountImport, archive),
+      createInitialImportProgress()
+    )
+
+    // A validation refusal that is not the quota is media_invalid, for
+    // both images; the rest of the profile still applies.
+    expect(result.result).toBe('done')
+    expect(result.imageSkipReasons).toEqual(['media_invalid', 'media_invalid'])
+    expect(result.progress.profileImageSkips).toEqual([
+      'media_invalid',
+      'media_invalid'
+    ])
+    const actor = (await database.getActorFromId({ id: actorId }))!
+    expect(actor.name).toBe('Invalid Skipped')
+    expect(actor.iconUrl).toBeUndefined()
+    expect(actor.headerImageUrl).toBeUndefined()
+  })
+
+  // Both images stored, then the run is cancelled at the renew before the
+  // profile update: neither image is referenced yet, so both are deleted
+  // instead of left orphaned against the quota.
+  it('deletes both saved images when the run is cancelled after the saves', async () => {
+    const archive = buildZip([
+      {
+        name: 'actor.json',
+        data: Buffer.from(
+          JSON.stringify({
+            id: 'https://source.test/users/archive',
+            type: 'Person',
+            preferredUsername: 'archive',
+            name: 'Cancel After Saves',
+            icon: { type: 'Image', mediaType: 'image/png', url: 'avatar.png' },
+            image: { type: 'Image', mediaType: 'image/png', url: 'header.png' }
+          })
+        )
+      },
+      { name: 'avatar.png', data: await imageBytes('png') },
+      { name: 'header.png', data: await imageBytes('png') }
+    ])
+    const accountImport = await createImport(
+      'import-profile-cancel-after-saves',
+      '{"profile":true}',
+      'mastodon'
+    )
+    vi.mocked(saveMedia)
+      .mockReset()
+      .mockImplementation(async () => {
+        const saved = {
+          type: 'image' as const,
+          mime_type: 'image/png',
+          meta: {
+            original: { width: 8, height: 8, size: '8x8', aspect: 1 }
+          },
+          description: null,
+          blurhash: null
+        }
+        return vi.mocked(saveMedia).mock.calls.length === 1
+          ? { ...saved, id: 'saved-avatar-image', url: SAVED_AVATAR_URL }
+          : { ...saved, id: 'saved-header-image', url: SAVED_HEADER_URL }
+      })
+    const cancellation = new Error('cancelled while the header was saved')
+    const renew = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(cancellation)
+    const context: AccountImportPhaseContext = {
+      ...makeContext(accountImport, archive),
+      renew
+    }
+    const deleteMediaWithFiles = vi.spyOn(database, 'deleteMediaWithFiles')
+
+    try {
+      await expect(
+        runProfilePhase(context, createInitialImportProgress())
+      ).rejects.toBe(cancellation)
+
+      expect(deleteMediaWithFiles).toHaveBeenCalledWith({
+        mediaId: 'saved-avatar-image'
+      })
+      expect(deleteMediaWithFiles).toHaveBeenCalledWith({
+        mediaId: 'saved-header-image'
+      })
+      const actor = (await database.getActorFromId({ id: actorId }))!
+      expect(actor.name ?? null).toBeNull()
+      expect(actor.iconUrl).toBeUndefined()
+      expect(vi.mocked(publishActorUpdate)).not.toHaveBeenCalled()
+    } finally {
+      deleteMediaWithFiles.mockRestore()
+    }
+  })
+
+  it('deletes both saved images when the profile update itself throws', async () => {
+    const archive = buildZip([
+      {
+        name: 'actor.json',
+        data: Buffer.from(
+          JSON.stringify({
+            id: 'https://source.test/users/archive',
+            type: 'Person',
+            preferredUsername: 'archive',
+            name: 'Update Throws',
+            icon: { type: 'Image', mediaType: 'image/png', url: 'avatar.png' },
+            image: { type: 'Image', mediaType: 'image/png', url: 'header.png' }
+          })
+        )
+      },
+      { name: 'avatar.png', data: await imageBytes('png') },
+      { name: 'header.png', data: await imageBytes('png') }
+    ])
+    const accountImport = await createImport(
+      'import-profile-update-throws',
+      '{"profile":true}',
+      'mastodon'
+    )
+    vi.mocked(saveMedia)
+      .mockReset()
+      .mockImplementation(async () => {
+        const saved = {
+          type: 'image' as const,
+          mime_type: 'image/png',
+          meta: {
+            original: { width: 8, height: 8, size: '8x8', aspect: 1 }
+          },
+          description: null,
+          blurhash: null
+        }
+        return vi.mocked(saveMedia).mock.calls.length === 1
+          ? { ...saved, id: 'saved-avatar-image', url: SAVED_AVATAR_URL }
+          : { ...saved, id: 'saved-header-image', url: SAVED_HEADER_URL }
+      })
+    const failure = new Error('database unavailable')
+    const updateActorWithPrevious = vi
+      .spyOn(database, 'updateActorWithPrevious')
+      .mockRejectedValueOnce(failure)
+    const deleteMediaWithFiles = vi.spyOn(database, 'deleteMediaWithFiles')
+
+    try {
+      await expect(
+        runProfilePhase(
+          makeContext(accountImport, archive),
+          createInitialImportProgress()
+        )
+      ).rejects.toBe(failure)
+
+      expect(deleteMediaWithFiles).toHaveBeenCalledWith({
+        mediaId: 'saved-avatar-image'
+      })
+      expect(deleteMediaWithFiles).toHaveBeenCalledWith({
+        mediaId: 'saved-header-image'
+      })
+      const actor = (await database.getActorFromId({ id: actorId }))!
+      expect(actor.name ?? null).toBeNull()
+      expect(vi.mocked(publishActorUpdate)).not.toHaveBeenCalled()
+    } finally {
+      updateActorWithPrevious.mockRestore()
+      deleteMediaWithFiles.mockRestore()
+    }
   })
 
   it('deletes the avatar when the header read fails after it was saved', async () => {
