@@ -1,0 +1,78 @@
+lib/services/accountImport/constants.ts
+  s_5f16f54601db5d::t_72a021d8dac998 16-27,29-30
+  s_5f16f54601db5d::t_c601d3f729fb00 28
+lib/services/accountImport/roundTrip.test.ts
+  s_5f16f54601db5d::t_c601d3f729fb00 365-367
+  s_5f16f54601db5d::t_d90cdfed55b439 364
+  s_5f16f54601db5d::t_6fd9ed54d23efc 361,363
+  s_5f16f54601db5d::t_f1377f8c45d432 115-136,320,356-360,362,368-373
+lib/services/accountImport/progress.ts
+  s_5f16f54601db5d::t_a22f9e4efc9538 18-19,78-84
+lib/services/accountImport/ownArchivePhases.test.ts
+  s_5f16f54601db5d::t_a0e5fce6773ff3 241-309
+  s_5f16f54601db5d::t_5ae69be1bbf04f 13,203,209,411
+  s_5f16f54601db5d::t_04d0a4312cbd02 526,536-565,595-596,613,617-626
+  s_5f16f54601db5d::t_1a3d64ef5bad3f 404-405,407,416,426-431
+  s_5f16f54601db5d::t_6f2cab97a931c1 566
+lib/services/accountImport/phases.ts
+  s_5f16f54601db5d::t_d9fd3e83b3e34e 1282-1283
+  s_5f16f54601db5d::t_b9e1bc881619f1 1290
+  s_5f16f54601db5d::t_a409fc5ae046cf 866
+  s_5f16f54601db5d::t_396c7b50eca68a 5,15,186-275,325,330-331,447,453-454,467,471-472,477,487,489-490,497-498,505-507,511-521,529,538,558-585,588-606,616,619-624,628-631,636,639-644,653,656-660,668,671-675,682,685-689,696,699-703,710,713-717,724,727-731,738,741-745,752,761,829-850,852-865,867-875,878-883,885,1058-1059,1277-1278,1281,1284-1289,1291-1327,1371-1391,1411-1412,1423-1424,1428,1433,1738,1771-1786,1844-1845,1901-1937,1939,1944-1946,1964,2058,2062,2203-2216,2286-2289,2294-2313,2315,2431,2433-2434,2436-2443,2467-2473
+lib/services/accountImport/profileSettingsPhase.test.ts
+  s_5f16f54601db5d::t_cbd9f030c73e53 325-329,332,335-336,367,427-431,434,437-438,442-459
+  s_5f16f54601db5d::t_b3f52f181fc0c0 460
+  s_5f16f54601db5d::t_c601d3f729fb00 4,387-390,470-473,483-486
+  s_5f16f54601db5d::t_80a61fd85b41ee 461-462
+lib/database/domains/accountImport/accountImport.test.ts
+  s_5f16f54601db5d::t_c601d3f729fb00 810-815,883,885-887
+  s_5f16f54601db5d::t_2e265c07541bd8 876-879
+  s_5f16f54601db5d::t_6614311f504148 863-870
+  s_5f16f54601db5d::t_bf40bc2f8b722f 732-809,816-862,871-873,882,884,888-890
+  s_5f16f54601db5d::t_391f95a117f3a0 874-875,880-881
+lib/database/domains/accountImport/types.ts
+  s_5f16f54601db5d::t_2e551415d54340 89-101,160-162
+  s_1f1a1efd8db0bf::t_11e122f7b273ee 80-88
+lib/services/accountImport/phases.test.ts
+  s_5f16f54601db5d::t_3ee71f74a92434 2,5-9,15-18,154-204,214-237,387-435,438-472
+  s_5f16f54601db5d::t_93d320670494a6 354
+  s_5f16f54601db5d::t_78a3712fea2fa3 372
+  s_5f16f54601db5d::t_c601d3f729fb00 14,205-213,359-367
+  s_5f16f54601db5d::t_29a461bfd81599 238-353,355-358,368-371,373-386
+  s_5f16f54601db5d::t_ef9f307c64100b 436-437
+  s_c030bf1950dbfc::t_b66401d38d5fb4 473
+lib/database/domains/accountImport/queries.ts
+  s_5f16f54601db5d::t_a8b43dd173e4b5 18,22,306-319,358-368,382-387,395-424,503
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "58296fc0bc351b8bd48255ffdf02c612cf128113",
+  "prompts": {},
+  "sessions": {
+    "s_1f1a1efd8db0bf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6f1be9b0-86e0-4f32-9286-3562b40d391e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_5f16f54601db5d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a17ee4-c070-72e1-b5d3-b9c8dc96e690",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_c030bf1950dbfc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a17ee5-b31d-7051-b472-39e5a16d2028",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
