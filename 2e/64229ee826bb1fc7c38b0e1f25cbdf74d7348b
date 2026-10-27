@@ -1,0 +1,47 @@
+docs/architecture.md
+  s_279e7012f36c5f::t_fb56e21ba87c3c 618-624
+app/api/v1/account/imports/[id]/route.ts
+  s_4cc5fb09056878::t_5373131b2e851f 98-109
+app/api/v1/account/imports/route.test.ts
+  s_4cc5fb09056878::t_cce232e1a96adf 127,766-862
+app/api/v1/account/imports/route.ts
+  s_4cc5fb09056878::t_3c2b4bdb98a0df 69
+docs/mastodon-api-compatibility.md
+  s_4cc5fb09056878::t_4e168d9d0d3b1c 524,539-544
+lib/database/domains/accountImport/accountImport.test.ts
+  s_4cc5fb09056878::t_235e3ce6903d39 1001-1125
+lib/database/domains/accountImport/queries.ts
+  s_4cc5fb09056878::t_8faf25ee90afb4 13-14,458-496,577
+lib/database/domains/accountImport/types.ts
+  s_4cc5fb09056878::t_526d9fdfdbd641 5,176-178
+lib/services/accountImport/serialize.test.ts
+  s_4cc5fb09056878::t_32752eae9553fa 1-64
+lib/services/accountImport/serialize.ts
+  s_4cc5fb09056878::t_48b04fb8abd2b9 2-5,7-10,23-26
+lib/types/domain/accountImport.ts
+  s_4cc5fb09056878::t_89015fdf304964 59-69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2e64229ee826bb1fc7c38b0e1f25cbdf74d7348b",
+  "prompts": {},
+  "sessions": {
+    "s_279e7012f36c5f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0410f49d-2e94-45e1-bd1f-237e6f7747bc",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_4cc5fb09056878": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a17fba-4126-7fd0-b71c-3f941b80d1ce",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
