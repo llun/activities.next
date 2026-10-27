@@ -63,12 +63,11 @@ export const getPostTranslation = (
 interface PostBodyProps {
   host: string
   currentTime: number
-  /** The row's status (the Announce wrapper for a boost), handed to `onOpenStatus`. */
+  /** The row's status (the Announce wrapper for a boost). */
   status: Status
   currentActor?: ActorProfile | Actor
   collapsible?: boolean
   postLineLimit?: PostLineLimit
-  onOpenStatus?: (status: Status) => void
   onShowAttachment?: OnMediaSelectedHandle
   /** Reveal this post's first picture without the hydration fade (eager only where it would otherwise be lazy). */
   prioritizeMedia?: boolean
@@ -87,7 +86,6 @@ export const PostBody: FC<PostBodyProps> = ({
   currentActor,
   collapsible,
   postLineLimit,
-  onOpenStatus,
   onShowAttachment = () => {},
   prioritizeMedia = false
 }) => {
@@ -199,7 +197,6 @@ export const PostBody: FC<PostBodyProps> = ({
             className="mt-1 text-sm leading-relaxed break-words"
             contentClassName="markdown-content"
             maxLines={postLineLimit}
-            onReadMore={onOpenStatus ? () => onOpenStatus(status) : undefined}
           >
             {processedAndCleanedText}
           </CollapsibleContent>

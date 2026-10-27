@@ -1,6 +1,6 @@
 'use client'
 
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 import {
   FC,
   ReactNode,
@@ -19,7 +19,6 @@ interface CollapsibleContentProps {
   className?: string
   contentClassName?: string
   maxLines?: number
-  onReadMore?: () => void
 }
 
 const LINE_HEIGHT_REM = 1.4375 // ~line height for text-sm leading-relaxed
@@ -37,10 +36,10 @@ export const CollapsibleContent: FC<CollapsibleContentProps> = ({
   children,
   className,
   contentClassName,
-  maxLines = 5,
-  onReadMore
+  maxLines = 5
 }) => {
   const measuredContentRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
   const [hasCheckedOverflow, setHasCheckedOverflow] = useState(false)
   const [isOverflowing, setIsOverflowing] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
@@ -64,6 +63,8 @@ export const CollapsibleContent: FC<CollapsibleContentProps> = ({
   }, [children, checkOverflow])
 
   useEffect(() => {
+    if (isExpanded) return
+
     const el = measuredContentRef.current
     if (!el || typeof ResizeObserver === 'undefined') return
 
@@ -72,7 +73,15 @@ export const CollapsibleContent: FC<CollapsibleContentProps> = ({
     })
     observer.observe(el)
     return () => observer.disconnect()
-  }, [checkOverflow])
+  }, [checkOverflow, isExpanded])
+
+  // Expanding unmounts the "Show more" button that had focus; without this the
+  // focus would drop to <body> and a keyboard user would lose their place.
+  useEffect(() => {
+    if (isExpanded) {
+      contentRef.current?.focus()
+    }
+  }, [isExpanded])
 
   const needsCollapse = isOverflowing && !isExpanded
   const shouldClamp = needsCollapse || (!hasCheckedOverflow && !isExpanded)
@@ -81,9 +90,12 @@ export const CollapsibleContent: FC<CollapsibleContentProps> = ({
     <div className={cn('relative min-h-0', shouldClamp && 'overflow-hidden')}>
       <div
         id={contentId}
+        ref={contentRef}
+        tabIndex={-1}
         className={cn(
+          'min-h-0',
           className,
-          shouldClamp && 'overflow-hidden min-h-0',
+          shouldClamp && 'overflow-hidden',
           needsCollapse && COLLAPSED_FADE_CLASS
         )}
         style={
@@ -100,38 +112,21 @@ export const CollapsibleContent: FC<CollapsibleContentProps> = ({
       </div>
       {needsCollapse && (
         <div className="absolute bottom-0 left-0 right-0 flex items-end justify-center pt-8 pb-0">
-          {onReadMore ? (
-            <Button
-              type="button"
-              variant="pill"
-              aria-controls={contentId}
-              aria-label="Read full post"
-              className="bg-background/80 backdrop-blur-sm"
-              onClick={(e) => {
-                e.stopPropagation()
-                onReadMore()
-              }}
-            >
-              <span>Read full post</span>
-              <ChevronRight className="size-4" />
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              variant="pill"
-              aria-expanded={isExpanded}
-              aria-controls={contentId}
-              aria-label="Show more content"
-              className="bg-background/80 backdrop-blur-sm"
-              onClick={(e) => {
-                e.stopPropagation()
-                setIsExpanded(true)
-              }}
-            >
-              <span>Show more</span>
-              <ChevronDown className="size-4" />
-            </Button>
-          )}
+          <Button
+            type="button"
+            variant="pill"
+            aria-expanded={isExpanded}
+            aria-controls={contentId}
+            aria-label="Show more content"
+            className="bg-background/80 backdrop-blur-sm"
+            onClick={(e) => {
+              e.stopPropagation()
+              setIsExpanded(true)
+            }}
+          >
+            <span>Show more</span>
+            <ChevronDown className="size-4" />
+          </Button>
         </div>
       )}
     </div>

@@ -192,7 +192,7 @@ const SelfThreadPart: FC<SelfThreadPartProps> = ({
         aria-current={isOpened ? 'location' : undefined}
         tabIndex={-1}
         className={cn(
-          'flex min-w-0 gap-3 focus:outline-none',
+          'flex min-h-0 min-w-0 gap-3 focus:outline-none',
           isOpened &&
             '-mx-4 border-l-[3px] border-l-primary bg-primary/[0.07] py-1.5 pr-4 pl-[13px]',
           // The focused card pads its top by 16px: reach through it so the
@@ -207,7 +207,9 @@ const SelfThreadPart: FC<SelfThreadPartProps> = ({
           isOpened={isOpened}
         />
 
-        <div className={cn('min-w-0 flex-1', !isLastRendered && 'pb-3')}>
+        <div
+          className={cn('min-h-0 min-w-0 flex-1', !isLastRendered && 'pb-3')}
+        >
           {isFirstHeader ? (
             <PostHeader
               status={part.status}
@@ -241,7 +243,6 @@ const SelfThreadPart: FC<SelfThreadPartProps> = ({
             currentTime={currentTime}
             status={part.status}
             currentActor={currentActor}
-            onOpenStatus={onOpenStatus}
             onShowAttachment={(medias, mediaIndex) =>
               onShowMedia(medias, mediaIndex, actualStatus)
             }

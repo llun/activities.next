@@ -40,18 +40,12 @@ const mockRefresh = vi.fn()
 let mockClampCollapsible = false
 
 vi.mock('./collapsible-content', () => ({
-  CollapsibleContent: ({
-    children,
-    onReadMore
-  }: {
-    children: ReactNode
-    onReadMore?: () => void
-  }) => (
+  CollapsibleContent: ({ children }: { children: ReactNode }) => (
     <div>
       {children}
-      {mockClampCollapsible && onReadMore ? (
-        <button type="button" aria-label="Read full post" onClick={onReadMore}>
-          Read full post
+      {mockClampCollapsible ? (
+        <button type="button" aria-label="Show more content">
+          Show more
         </button>
       ) : null}
     </div>
@@ -1540,12 +1534,12 @@ describe('StatusThread', () => {
 
       const ancestorRow = screen.getByTestId('ancestor-status')
       expect(
-        within(ancestorRow).getByRole('button', { name: 'Read full post' })
+        within(ancestorRow).getByRole('button', { name: 'Show more content' })
       ).toBeInTheDocument()
 
       const runEl = screen.getByTestId('self-thread-run')
       expect(
-        within(runEl).queryByRole('button', { name: 'Read full post' })
+        within(runEl).queryByRole('button', { name: 'Show more content' })
       ).not.toBeInTheDocument()
     })
 
@@ -1577,7 +1571,7 @@ describe('StatusThread', () => {
       })
       expect(insetGroup).toHaveTextContent('Bob very long tucked reply')
       expect(
-        within(insetGroup).queryByRole('button', { name: 'Read full post' })
+        within(insetGroup).queryByRole('button', { name: 'Show more content' })
       ).not.toBeInTheDocument()
     })
 

@@ -285,7 +285,7 @@ export const InsetReply: FC<InsetReplyProps> = ({
       <div
         role="group"
         aria-label={`Reply by ${name}`}
-        className="mt-2 flex min-w-0 gap-2 rounded-lg border bg-card p-2.5"
+        className="mt-2 flex min-h-0 min-w-0 gap-2 rounded-lg border bg-card p-2.5"
       >
         <div className="shrink-0">
           <ActorAvatar
@@ -295,7 +295,7 @@ export const InsetReply: FC<InsetReplyProps> = ({
             avatarClassName="size-7"
           />
         </div>
-        <div className="min-w-0 flex-1">
+        <div className="min-h-0 min-w-0 flex-1">
           <PostHeader
             status={status}
             currentTime={currentTime}
@@ -308,7 +308,6 @@ export const InsetReply: FC<InsetReplyProps> = ({
             currentActor={currentActor}
             collapsible
             postLineLimit={postLineLimit}
-            onOpenStatus={onOpenStatus}
             onShowAttachment={(medias, index) =>
               onShowMedia(medias, index, actualStatus)
             }
@@ -469,7 +468,6 @@ export const CombinedPostListItem = memo(function CombinedPostListItem({
                     currentActor={currentActor}
                     collapsible
                     postLineLimit={postLineLimit}
-                    onOpenStatus={onOpenStatus}
                     onShowAttachment={(medias, mediaIndex) =>
                       onShowMedia(medias, mediaIndex, actualStatus)
                     }
@@ -496,13 +494,18 @@ export const CombinedPostListItem = memo(function CombinedPostListItem({
               )
 
               return (
-                <div key={part.status.id} className="flex min-w-0 gap-3">
+                <div
+                  key={part.status.id}
+                  className="flex min-h-0 min-w-0 gap-3"
+                >
                   <CombinedPartRailColumn
                     actualStatus={actualStatus}
                     isFirst={isFirst}
                     isLast={isLast}
                   />
-                  <div className={cn('min-w-0 flex-1', !isLast && 'pb-3')}>
+                  <div
+                    className={cn('min-h-0 min-w-0 flex-1', !isLast && 'pb-3')}
+                  >
                     {isFirst ? (
                       <>
                         <PostHeader
