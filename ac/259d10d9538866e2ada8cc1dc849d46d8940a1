@@ -1,0 +1,29 @@
+lib/services/accountImport/json/topLevelStringFields.test.ts
+  s_ffde764297b168::t_1cf3fb77415869 33-58
+lib/services/accountImport/profileSettingsPhase.test.ts
+  s_ffde764297b168::t_a7ca87cd2be1ea 39-57,482-569
+docs/mastodon-api-compatibility.md
+  s_ffde764297b168::t_9aed42b04a8852 536-538
+lib/services/accountImport/phases.ts
+  s_ffde764297b168::t_95a2d0235ae293 2176,2193-2194
+lib/services/accountImport/start.test.ts
+  s_ffde764297b168::t_b133393a345e19 234-275
+lib/services/accountImport/start.ts
+  s_ffde764297b168::t_4c2cf20af77153 3,17,53-68,96-105
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ac259d10d9538866e2ada8cc1dc849d46d8940a1",
+  "prompts": {},
+  "sessions": {
+    "s_ffde764297b168": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "267fff37-3195-411d-a1e6-45a85ee713bf",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
