@@ -237,8 +237,8 @@ describe('account import queries', () => {
       importId: 'import-retry',
       actorId: 'actor-1',
       items: [
-        { kind: 'status', sourceId: 'r1', position: 0 },
-        { kind: 'status', sourceId: 'r2', position: 1 }
+        { kind: 'status', sourceId: 'r1', position: 0, data: '{"v":1}' },
+        { kind: 'status', sourceId: 'r2', position: 1, data: '{"v":2}' }
       ]
     })
     await database.markAccountImportItem({
@@ -249,7 +249,8 @@ describe('account import queries', () => {
         })
       )[0].id,
       state: 'failed',
-      reason: 'transient'
+      reason: 'transient',
+      retryable: true
     })
     expect(
       await database.resetRetryableAccountImportItems({
@@ -263,6 +264,14 @@ describe('account import queries', () => {
         reasons: ['transient']
       })
     ).toBe(0)
+    expect(
+      (
+        await database.getAccountImportItems({
+          importId: 'import-retry',
+          limit: 10
+        })
+      )[0].data
+    ).toBe('{"v":1}')
   })
 
   it('deletes every import of an actor', async () => {
@@ -452,7 +461,7 @@ describe('account import queries', () => {
     expect(found.map((row) => row.id)).toEqual([stale.id])
   })
 
-  it('clears cataloged item data when an item becomes done or skipped', async () => {
+  it('clears cataloged item data when an item becomes done, skipped, or permanently failed', async () => {
     const accountImport = await database.createAccountImport({
       id: 'import-clear-data',
       accountId,
@@ -464,7 +473,8 @@ describe('account import queries', () => {
       actorId: accountImport.actorId,
       items: [
         { kind: 'status', sourceId: 'done-data', position: 1 },
-        { kind: 'status', sourceId: 'skipped-data', position: 2 }
+        { kind: 'status', sourceId: 'skipped-data', position: 2 },
+        { kind: 'status', sourceId: 'failed-data', position: 3 }
       ]
     })
     const items = await database.getAccountImportItems({
@@ -479,9 +489,21 @@ describe('account import queries', () => {
         .execute()
       await database.markAccountImportItem({
         id: item.id,
-        state: item.sourceId === 'done-data' ? 'done' : 'skipped'
+        state:
+          item.sourceId === 'done-data'
+            ? 'done'
+            : item.sourceId === 'skipped-data'
+              ? 'skipped'
+              : 'failed',
+        ...(item.sourceId === 'failed-data' ? { reason: 'invalid' } : {})
       })
     }
+    expect(
+      await database.resetRetryableAccountImportItems({
+        importId: accountImport.id,
+        reasons: ['invalid']
+      })
+    ).toBe(0)
 
     expect(
       (
@@ -490,8 +512,61 @@ describe('account import queries', () => {
           limit: 10
         })
       ).map((item) => item.data)
-    ).toEqual([null, null])
+    ).toEqual([null, null, null])
   })
+
+  it.each(['done', 'cancelled', 'failed'] as const)(
+    'clears all remaining item data when an import becomes %s',
+    async (status) => {
+      const accountImport = await database.createAccountImport({
+        id: `import-terminal-${status}`,
+        accountId,
+        actorId: `actor-terminal-${status}`,
+        options: '{}'
+      })
+      await database.upsertAccountImportItems({
+        importId: accountImport.id,
+        actorId: accountImport.actorId,
+        items: [
+          {
+            kind: 'status',
+            sourceId: `pending-${status}`,
+            position: 1,
+            data: '{"raw":"pending"}'
+          },
+          {
+            kind: 'like',
+            sourceId: `failed-${status}`,
+            position: 2,
+            data: '{"raw":"failed"}'
+          }
+        ]
+      })
+      const failedItem = (
+        await database.getAccountImportItems({
+          importId: accountImport.id,
+          limit: 10
+        })
+      )[1]
+      await database.markAccountImportItem({
+        id: failedItem.id,
+        state: 'failed',
+        reason: 'transient',
+        retryable: true
+      })
+
+      await database.updateAccountImport({ id: accountImport.id, status })
+
+      expect(
+        (
+          await database.getAccountImportItems({
+            importId: accountImport.id,
+            limit: 10
+          })
+        ).map((item) => item.data)
+      ).toEqual([null, null])
+    }
+  )
 
   it('reclaims pending and failed items while preserving terminal items', async () => {
     const previous = await database.createAccountImport({
@@ -542,6 +617,7 @@ describe('account import queries', () => {
       await database.markAccountImportItem({
         id: previousItems.find((item) => item.sourceId === sourceId)!.id,
         state,
+        ...(state === 'failed' ? { retryable: true } : {}),
         reason: state === 'failed' ? 'transient' : undefined,
         targetId: state === 'done' ? 'target-done' : undefined
       })

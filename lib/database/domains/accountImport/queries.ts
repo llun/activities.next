@@ -196,15 +196,31 @@ export const updateAccountImport = async (
   if (params.startedAt !== undefined) values.startedAt = params.startedAt
   if (params.finishedAt !== undefined) values.finishedAt = params.finishedAt
 
-  let query = db
-    .updateTable('account_imports')
-    .set(values)
-    .where('id', '=', params.id)
-  if (params.onlyIfStatus) {
-    query = query.where('status', 'in', params.onlyIfStatus)
+  const terminal =
+    params.status === 'done' ||
+    params.status === 'failed' ||
+    params.status === 'cancelled'
+  const update = async (connection: Db) => {
+    let query = connection
+      .updateTable('account_imports')
+      .set(values)
+      .where('id', '=', params.id)
+    if (params.onlyIfStatus) {
+      query = query.where('status', 'in', params.onlyIfStatus)
+    }
+    const result = await query.executeTakeFirst()
+    if (Number(result.numUpdatedRows) === 0) return false
+    if (terminal) {
+      await connection
+        .updateTable('account_import_items')
+        .set({ data: null })
+        .where('importId', '=', params.id)
+        .execute()
+    }
+    return true
   }
-  const result = await query.executeTakeFirst()
-  return Number(result.numUpdatedRows) > 0
+
+  return terminal ? inTransaction(db, update) : update(db)
 }
 
 // The lease is computed and compared with the app server's clock, not the
@@ -352,7 +368,11 @@ export const markAccountImportItem = async (
     state: params.state,
     updatedAt: new Date()
   }
-  if (params.state === 'done' || params.state === 'skipped') {
+  if (
+    params.state === 'done' ||
+    params.state === 'skipped' ||
+    (params.state === 'failed' && !params.retryable)
+  ) {
     values.data = null
   }
   if (params.reason !== undefined) values.reason = params.reason
@@ -375,6 +395,7 @@ export const resetRetryableAccountImportItems = async (
     .where('importId', '=', params.importId)
     .where('state', '=', 'failed')
     .where('reason', 'in', params.reasons)
+    .where('data', 'is not', null)
     .executeTakeFirst()
   return Number(result.numUpdatedRows)
 }

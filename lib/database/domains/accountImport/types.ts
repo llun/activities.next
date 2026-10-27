@@ -84,6 +84,8 @@ export type MarkAccountImportItemParams = {
   state: AccountImportItemState
   reason?: string | null
   targetId?: string | null
+  /** Keeps data only when a failed item is expected to be retried. */
+  retryable?: boolean
 }
 
 export type ResetRetryableAccountImportItemsParams = {

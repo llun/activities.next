@@ -46,6 +46,7 @@ import { saveMedia } from '@/lib/services/medias'
 import { sanitizeStoredFileName } from '@/lib/services/medias/fileName'
 import { MediaSchema } from '@/lib/services/medias/types'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
+import { canActorReadStatus } from '@/lib/services/statusAccess'
 import type {
   AccountImport,
   AccountImportItem
@@ -778,7 +779,12 @@ const importLikeItem = async (
   const status = await context.database.getStatus({ statusId: item.sourceId })
   if (
     !status ||
-    !(await isLocalFederationDomain(context.database, status.id))
+    !(await isLocalFederationDomain(context.database, status.id)) ||
+    !(await canActorReadStatus({
+      database: context.database,
+      status,
+      currentActor: actor
+    }))
   ) {
     await terminalItemState(
       context,
