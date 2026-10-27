@@ -280,17 +280,27 @@ describe('account import queries', () => {
       await database.listAccountImports({ actorId: 'actor-1', limit: 10 })
     ).toEqual([])
     expect(
-      await database.countAccountImportStartsSince({
-        actorId: 'actor-1',
-        since: 0
-      })
+      await database.countAccountImportStartsSince({ accountId, since: 0 })
     ).toBe(0)
   })
 
+  // Each start-count test gets its own account: the limit is per account now,
+  // so rows another test left under the shared seed account would count too.
+  const createStartsAccount = async (name: string) =>
+    database.createAccount({
+      email: `import-starts-${name}@test.social`,
+      username: `import-starts-${name}`,
+      domain: 'test.social',
+      passwordHash: 'hash',
+      privateKey: `privateKey-starts-${name}`,
+      publicKey: `publicKey-starts-${name}`
+    })
+
   it('counts starts since a point in time', async () => {
+    const startsAccountId = await createStartsAccount('since')
     const started = await database.createAccountImport({
       id: 'import-count',
-      accountId,
+      accountId: startsAccountId,
       actorId: 'actor-count',
       options: '{}'
     })
@@ -301,24 +311,80 @@ describe('account import queries', () => {
       .execute()
     expect(
       await database.countAccountImportStartsSince({
-        actorId: 'actor-count',
+        accountId: startsAccountId,
         since: 0
       })
-    ).toBeGreaterThanOrEqual(1)
+    ).toBe(1)
+  })
+
+  it('counts starts per account across all of its actors', async () => {
+    const startsAccountId = await createStartsAccount('across')
+    const otherStartsAccountId = await createStartsAccount('across-other')
+    const since = Date.now() - 60_000
+    const starts = [
+      ['import-account-a', 'actor-account-a'],
+      ['import-account-b', 'actor-account-b'],
+      ['import-account-c', 'actor-account-c']
+    ] as const
+    for (const [id, actorId] of starts) {
+      await database.createAccountImport({
+        id,
+        accountId: startsAccountId,
+        actorId,
+        options: '{}'
+      })
+      await testDb.db
+        .updateTable('account_imports')
+        .set({ startedAt: new Date(since + 10_000) })
+        .where('id', '=', id)
+        .execute()
+    }
+    // Another account's starts do not count against this one.
+    const other = await database.createAccountImport({
+      id: 'import-account-other',
+      accountId: otherStartsAccountId,
+      actorId: 'actor-account-other',
+      options: '{}'
+    })
+    await testDb.db
+      .updateTable('account_imports')
+      .set({ startedAt: new Date(since + 10_000) })
+      .where('id', '=', other.id)
+      .execute()
+
+    expect(
+      await database.countAccountImportStartsSince({
+        accountId: startsAccountId,
+        since
+      })
+    ).toBe(3)
+    expect(
+      await database.getOldestAccountImportStartSince({
+        accountId: startsAccountId,
+        since
+      })
+    ).toBe(since + 10_000)
+    expect(
+      await database.countAccountImportStartsSince({
+        accountId: otherStartsAccountId,
+        since
+      })
+    ).toBe(1)
   })
 
   it('counts starts by startedAt and ignores recent uploads that never started', async () => {
+    const startsAccountId = await createStartsAccount('unstarted')
     const now = Date.now()
     const since = now - 24 * 60 * 60 * 1000
-    const unstarted = await database.createAccountImport({
+    await database.createAccountImport({
       id: 'import-unstarted-count',
-      accountId,
+      accountId: startsAccountId,
       actorId: 'actor-unstarted-count',
       options: '{}'
     })
     const started = await database.createAccountImport({
       id: 'import-started-count',
-      accountId,
+      accountId: startsAccountId,
       actorId: 'actor-started-count',
       options: '{}'
     })
@@ -337,24 +403,20 @@ describe('account import queries', () => {
 
     expect(
       await database.countAccountImportStartsSince({
-        actorId: unstarted.actorId,
-        since
-      })
-    ).toBe(0)
-    expect(
-      await database.countAccountImportStartsSince({
-        actorId: started.actorId,
+        accountId: startsAccountId,
         since
       })
     ).toBe(1)
   })
 
   it('returns the oldest start in the window for retry timing', async () => {
+    const startsAccountId = await createStartsAccount('oldest')
+    const emptyAccountId = await createStartsAccount('oldest-empty')
     const now = Date.now()
     const since = now - 24 * 60 * 60 * 1000
     const accountImport = await database.createAccountImport({
       id: 'import-oldest-start',
-      accountId,
+      accountId: startsAccountId,
       actorId: 'actor-oldest-start',
       options: '{}'
     })
@@ -366,25 +428,26 @@ describe('account import queries', () => {
 
     expect(
       await database.getOldestAccountImportStartSince({
-        actorId: accountImport.actorId,
+        accountId: startsAccountId,
         since
       })
     ).toBe(since + 10_000)
     expect(
       await database.getOldestAccountImportStartSince({
-        actorId: 'actor-without-starts',
+        accountId: emptyAccountId,
         since
       })
     ).toBeNull()
   })
 
   it('counts all started imports without a scan cap', async () => {
+    const startsAccountId = await createStartsAccount('many')
     const now = Date.now()
     const since = now - 24 * 60 * 60 * 1000
     const count = 1005
     const rows = Array.from({ length: count }, (_, index) => ({
       id: `import-start-count-${index}`,
-      accountId,
+      accountId: startsAccountId,
       actorId: 'actor-start-count-many',
       status: 'done',
       options: '{}',
@@ -402,10 +465,57 @@ describe('account import queries', () => {
 
     expect(
       await database.countAccountImportStartsSince({
-        actorId: 'actor-start-count-many',
+        accountId: startsAccountId,
         since
       })
     ).toBe(count)
+  })
+
+  it('selects queued imports past the expiry bound, not fresh or started ones', async () => {
+    const now = Date.now()
+    const before = now - 24 * 60 * 60 * 1000
+    const expired = await database.createAccountImport({
+      id: 'import-expired-queued',
+      accountId,
+      actorId: 'actor-expired-queued',
+      options: '{}'
+    })
+    await testDb.db
+      .updateTable('account_imports')
+      .set({ createdAt: new Date(before - 1000) })
+      .where('id', '=', expired.id)
+      .execute()
+    await database.createAccountImport({
+      id: 'import-fresh-queued',
+      accountId,
+      actorId: 'actor-fresh-queued',
+      options: '{}'
+    })
+    const startedOld = await database.createAccountImport({
+      id: 'import-old-started',
+      accountId,
+      actorId: 'actor-old-started',
+      options: '{}'
+    })
+    await database.updateAccountImport({ id: startedOld.id, status: 'running' })
+    await testDb.db
+      .updateTable('account_imports')
+      .set({ createdAt: new Date(before - 1000) })
+      .where('id', '=', startedOld.id)
+      .execute()
+
+    const found = await database.getExpiredQueuedAccountImports({
+      before,
+      limit: 100
+    })
+    expect(found.map((row) => row.id)).toEqual([expired.id])
+    expect(
+      await database.getExpiredQueuedAccountImports({
+        before,
+        afterId: expired.id,
+        limit: 100
+      })
+    ).toEqual([])
   })
 
   it('selects stale running imports with expired leases across actors', async () => {

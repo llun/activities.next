@@ -254,6 +254,98 @@ describe('deleteActorJob', () => {
     await fs.rm(root, { recursive: true, force: true })
   })
 
+  it('deletes the account import uploads and rows with the actor', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'delete-imports-'))
+    vi.mocked(getConfig).mockReturnValue({
+      host: 'test.social',
+      email: { serviceFromAddress: 'noreply@test.social' },
+      mediaStorage: { type: MediaStorageType.LocalFile, path: root }
+    } as unknown as ReturnType<typeof getConfig>)
+    const suffix = `${Date.now()}-imports`
+    const username = `delete-imports-${suffix}`
+    const actorId = `https://test.social/users/${username}`
+    await database.createAccount({
+      email: `${username}@test.social`,
+      username,
+      domain: 'test.social',
+      passwordHash: 'hash',
+      privateKey: `privateKey-${suffix}`,
+      publicKey: `publicKey-${suffix}`
+    })
+    const accountId = (await database.getActorFromId({ id: actorId }))!.account!
+      .id
+    const importId = crypto.randomUUID()
+    const accountImport = await database.createAccountImport({
+      id: importId,
+      accountId,
+      actorId,
+      options: '{}'
+    })
+    const upload = path.join(
+      root,
+      'imports',
+      importId,
+      accountImport.storageToken,
+      'upload.zip'
+    )
+    await fs.mkdir(path.dirname(upload), { recursive: true })
+    await fs.writeFile(upload, 'PRIVATE ARCHIVE')
+    // Another actor's upload survives this actor's deletion.
+    const otherUsername = `delete-imports-other-${suffix}`
+    const otherActorId = `https://test.social/users/${otherUsername}`
+    await database.createAccount({
+      email: `${otherUsername}@test.social`,
+      username: otherUsername,
+      domain: 'test.social',
+      passwordHash: 'hash',
+      privateKey: `privateKey-other-${suffix}`,
+      publicKey: `publicKey-other-${suffix}`
+    })
+    const otherAccountId = (await database.getActorFromId({
+      id: otherActorId
+    }))!.account!.id
+    const otherImportId = crypto.randomUUID()
+    const otherImport = await database.createAccountImport({
+      id: otherImportId,
+      accountId: otherAccountId,
+      actorId: otherActorId,
+      options: '{}'
+    })
+    const otherUpload = path.join(
+      root,
+      'imports',
+      otherImportId,
+      otherImport.storageToken,
+      'upload.zip'
+    )
+    await fs.mkdir(path.dirname(otherUpload), { recursive: true })
+    await fs.writeFile(otherUpload, 'KEEP')
+
+    await database.scheduleActorDeletion({ actorId, scheduledAt: null })
+    await deleteActorJob(database, {
+      id: `delete-job-${suffix}`,
+      name: DELETE_ACTOR_JOB_NAME,
+      data: { actorId }
+    })
+
+    expect(await database.getActorFromId({ id: actorId })).toBeNull()
+    await expect(fs.stat(upload)).rejects.toThrow()
+    expect((await fs.readFile(otherUpload)).toString()).toBe('KEEP')
+    expect(
+      await database.getAccountImport({ id: importId, actorId })
+    ).toBeNull()
+    expect(await database.listAccountImports({ actorId, limit: 10 })).toEqual(
+      []
+    )
+    expect(
+      await database.getAccountImport({
+        id: otherImportId,
+        actorId: otherActorId
+      })
+    ).toMatchObject({ id: otherImportId, status: 'queued' })
+    await fs.rm(root, { recursive: true, force: true })
+  })
+
   it('deletes actor and all associated data', async () => {
     // Create a new actor to delete
     const suffix = Date.now().toString()

@@ -75,6 +75,12 @@ export type GetStaleAccountImportsParams = {
   limit: number
 }
 
+export type GetExpiredQueuedAccountImportsParams = {
+  before: number
+  afterId?: string
+  limit: number
+}
+
 export type GetAccountImportItemsParams = {
   importId: string
   /** Only items at a position after this one (the cursor of the last read). */
@@ -140,12 +146,15 @@ export interface AccountImportDatabase {
   getStaleAccountImports(
     params: GetStaleAccountImportsParams
   ): Promise<AccountImport[]>
+  getExpiredQueuedAccountImports(
+    params: GetExpiredQueuedAccountImportsParams
+  ): Promise<AccountImport[]>
   countAccountImportStartsSince(params: {
-    actorId: string
+    accountId: string
     since: number
   }): Promise<number>
   getOldestAccountImportStartSince(params: {
-    actorId: string
+    accountId: string
     since: number
   }): Promise<number | null>
   updateAccountImport(params: UpdateAccountImportParams): Promise<boolean>

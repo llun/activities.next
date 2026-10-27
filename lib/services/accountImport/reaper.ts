@@ -3,6 +3,7 @@ import { IMPORT_ACCOUNT_ARCHIVE_JOB_NAME } from '@/lib/jobs/names'
 import { toArchiveLoggableError } from '@/lib/services/accountArchive/redact'
 import {
   ACCOUNT_IMPORT_MAX_STUCK_MS,
+  ACCOUNT_IMPORT_QUEUED_EXPIRY_MS,
   ACCOUNT_IMPORT_STUCK_AFTER_MS
 } from '@/lib/services/accountImport/constants'
 import { getAccountImportObjectStore } from '@/lib/services/accountImport/objectStore'
@@ -162,7 +163,41 @@ const reapOne = async (
   }
 }
 
-/** Requeues expired import leases; old rows fail with a code-only error. */
+// An upload that was never started holds personal data in object storage for
+// no reason; after the expiry bound the row fails with a code and the upload
+// goes. The only-if-queued update is the race guard: a start that flipped the
+// row to running first keeps its upload, and this sweep leaves it alone.
+const expireOne = async (
+  database: Database,
+  accountImport: AccountImport,
+  now: number
+): Promise<boolean> => {
+  const failed = await database.updateAccountImport({
+    id: accountImport.id,
+    onlyIfStatus: ['queued'],
+    status: 'failed',
+    lastErrorCode: 'upload_expired',
+    finishedAt: now
+  })
+  if (!failed) return false
+  const objectStore = getAccountImportObjectStore()
+  if (objectStore) {
+    await objectStore.deleteUpload(accountImport).catch((error: unknown) => {
+      logger.error({
+        message: 'Could not delete an expired account archive upload',
+        importId: accountImport.id,
+        err: toArchiveLoggableError(error)
+      })
+    })
+  }
+  return true
+}
+
+/**
+ * Requeues expired import leases; old rows fail with a code-only error. The
+ * same sweep expires queued uploads that were never started: they fail with
+ * `upload_expired` and their upload is deleted.
+ */
 export const sweepStuckAccountImports = async (
   database: Database,
   now = Date.now(),
@@ -190,6 +225,28 @@ export const sweepStuckAccountImports = async (
   } catch (error) {
     logger.error({
       message: 'Failed to sweep stuck account archive imports',
+      err: toArchiveLoggableError(error)
+    })
+  }
+  try {
+    let queuedAfterId: string | undefined
+    for (;;) {
+      const expiredQueued = await database.getExpiredQueuedAccountImports({
+        before: now - ACCOUNT_IMPORT_QUEUED_EXPIRY_MS,
+        ...(queuedAfterId === undefined ? {} : { afterId: queuedAfterId }),
+        limit: STALE_IMPORT_PAGE_SIZE
+      })
+      for (const accountImport of expiredQueued) {
+        if (await expireOne(database, accountImport, now)) {
+          reaped += 1
+        }
+        queuedAfterId = accountImport.id
+      }
+      if (expiredQueued.length < STALE_IMPORT_PAGE_SIZE) break
+    }
+  } catch (error) {
+    logger.error({
+      message: 'Failed to expire queued account archive uploads',
       err: toArchiveLoggableError(error)
     })
   }

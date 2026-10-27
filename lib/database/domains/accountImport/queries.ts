@@ -21,6 +21,7 @@ import type {
   CreateAccountImportParams,
   GetAccountImportItemReferencesParams,
   GetAccountImportItemsParams,
+  GetExpiredQueuedAccountImportsParams,
   GetStaleAccountImportsParams,
   ListAccountImportsParams,
   MarkAccountImportItemParams,
@@ -137,6 +138,25 @@ export const getStaleAccountImports = async (
   return rows.map(toImport)
 }
 
+// Uploads that were never started: a queued import whose upload has sat in
+// object storage past the expiry bound. The sweep fails these rows and deletes
+// the upload, so an abandoned upload cannot keep personal data forever.
+export const getExpiredQueuedAccountImports = async (
+  db: Db,
+  params: GetExpiredQueuedAccountImportsParams
+): Promise<AccountImport[]> => {
+  let query = db
+    .selectFrom('account_imports')
+    .selectAll()
+    .where('status', '=', 'queued')
+    .where('createdAt', '<=', timestampValue(params.before))
+  if (params.afterId !== undefined) {
+    query = query.where('id', '>', params.afterId)
+  }
+  const rows = await query.orderBy('id', 'asc').limit(params.limit).execute()
+  return rows.map(toImport)
+}
+
 export const listAccountImports = async (
   db: Db,
   params: ListAccountImportsParams
@@ -152,14 +172,16 @@ export const listAccountImports = async (
   return rows.map(toImport)
 }
 
+// The start limit is per ACCOUNT (every profile of the account shares it),
+// not per actor: the plan's decision is 3 starts per account per 24 h.
 export const countAccountImportStartsSince = async (
   db: Db,
-  params: { actorId: string; since: number }
+  params: { accountId: string; since: number }
 ): Promise<number> => {
   const { count } = await db
     .selectFrom('account_imports')
     .select((eb) => eb.fn.countAll<number>().as('count'))
-    .where('actorId', '=', params.actorId)
+    .where('accountId', '=', params.accountId)
     .where('startedAt', '>=', timestampValue(params.since))
     .executeTakeFirstOrThrow()
   return Number(count)
@@ -167,12 +189,12 @@ export const countAccountImportStartsSince = async (
 
 export const getOldestAccountImportStartSince = async (
   db: Db,
-  params: { actorId: string; since: number }
+  params: { accountId: string; since: number }
 ): Promise<number | null> => {
   const { oldestStartedAt } = await db
     .selectFrom('account_imports')
     .select((eb) => eb.fn.min('startedAt').as('oldestStartedAt'))
-    .where('actorId', '=', params.actorId)
+    .where('accountId', '=', params.accountId)
     .where('startedAt', '>=', timestampValue(params.since))
     .executeTakeFirstOrThrow()
   return oldestStartedAt === null ? null : new Date(oldestStartedAt).getTime()
@@ -498,6 +520,7 @@ export const accountImportQueries = {
   getAccountImport,
   getActiveAccountImport,
   getStaleAccountImports,
+  getExpiredQueuedAccountImports,
   listAccountImports,
   countAccountImportStartsSince,
   getOldestAccountImportStartSince,

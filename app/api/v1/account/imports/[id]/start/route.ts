@@ -129,14 +129,16 @@ export const POST = traceApiRoute(
         return error(req, 'An import is already active', HTTP_STATUS.CONFLICT)
       }
 
+      // The limit is per ACCOUNT: every profile of the account shares the
+      // three starts a 24 h window allows.
       const since = Date.now() - ACCOUNT_IMPORT_START_WINDOW_MS
       const recentStarts = await database.countAccountImportStartsSince({
-        actorId: currentActor.id,
+        accountId,
         since
       })
       if (recentStarts >= ACCOUNT_IMPORT_MAX_STARTS) {
         const oldestStart = await database.getOldestAccountImportStartSince({
-          actorId: currentActor.id,
+          accountId,
           since
         })
         const retryAfter = Math.max(

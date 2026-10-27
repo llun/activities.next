@@ -9,6 +9,7 @@ import {
   runWithConcurrencyLimit
 } from '@/lib/jobs/sendNoteJob'
 import { purgeAccountArchives } from '@/lib/services/accountArchive/purge'
+import { purgeActorAccountImports } from '@/lib/services/accountImport/purge'
 import { getServedLinkDomain } from '@/lib/services/domains/localDomains'
 import { sendMail } from '@/lib/services/email'
 import { resolveEmailIdentity } from '@/lib/services/email/sender'
@@ -274,6 +275,11 @@ export const deleteActorJob = createJobHandle(
           })
         }
       }
+
+      // The actor's import uploads are personal data the import rows point at;
+      // they go the same way as the exports above, before the actor is marked
+      // `deleting`, so a failure here is retried from `scheduled`.
+      await purgeActorAccountImports({ database, actorId })
 
       // Mark actor as deleting
       try {

@@ -9,6 +9,7 @@ import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { S3ArchiveObjectStore } from '@/lib/services/accountArchive/objectStore'
 import {
   ACCOUNT_IMPORT_MAX_STUCK_MS,
+  ACCOUNT_IMPORT_QUEUED_EXPIRY_MS,
   ACCOUNT_IMPORT_STUCK_AFTER_MS
 } from '@/lib/services/accountImport/constants'
 import {
@@ -186,6 +187,67 @@ describe('account import runner payload cleanup', () => {
       await database.getAccountImport({ id: accountImport.id, actorId })
     ).toMatchObject({ status: 'failed', lastErrorCode: 'import_stuck' })
     expect(await getItemData(accountImport.id)).toEqual([null])
+  })
+
+  it('expires a queued upload that was never started and deletes its upload', async () => {
+    const accountImport = await createImportWithItem(
+      'import-runner-queued-expired'
+    )
+    const now = Date.now()
+    await db
+      .updateTable('account_imports')
+      .set({ createdAt: new Date(now - ACCOUNT_IMPORT_QUEUED_EXPIRY_MS - 1) })
+      .where('id', '=', accountImport.id)
+      .execute()
+    const schedule = vi.fn().mockResolvedValue(undefined)
+
+    expect(await sweepStuckAccountImports(database, now, schedule)).toBe(1)
+    expect(schedule).not.toHaveBeenCalled()
+    expect(
+      await database.getAccountImport({ id: accountImport.id, actorId })
+    ).toMatchObject({ status: 'failed', lastErrorCode: 'upload_expired' })
+    expect(deleteUpload).toHaveBeenCalledWith(
+      expect.objectContaining({ id: accountImport.id })
+    )
+  })
+
+  it('leaves a fresh queued upload to its owner', async () => {
+    const accountImport = await createImportWithItem(
+      'import-runner-queued-fresh'
+    )
+    const now = Date.now()
+    const schedule = vi.fn().mockResolvedValue(undefined)
+
+    expect(await sweepStuckAccountImports(database, now, schedule)).toBe(0)
+    expect(
+      await database.getAccountImport({ id: accountImport.id, actorId })
+    ).toMatchObject({ status: 'queued', lastErrorCode: null })
+    expect(deleteUpload).not.toHaveBeenCalled()
+  })
+
+  it('does not expire a queued import a start just claimed', async () => {
+    const accountImport = await createImportWithItem(
+      'import-runner-queued-started'
+    )
+    const now = Date.now()
+    await db
+      .updateTable('account_imports')
+      .set({ createdAt: new Date(now - ACCOUNT_IMPORT_QUEUED_EXPIRY_MS - 1) })
+      .where('id', '=', accountImport.id)
+      .execute()
+    // A start flips the row to running before the sweep's update runs.
+    await database.updateAccountImport({
+      id: accountImport.id,
+      status: 'running',
+      startedAt: now
+    })
+    const schedule = vi.fn().mockResolvedValue(undefined)
+
+    expect(await sweepStuckAccountImports(database, now, schedule)).toBe(0)
+    expect(
+      await database.getAccountImport({ id: accountImport.id, actorId })
+    ).toMatchObject({ status: 'running' })
+    expect(deleteUpload).not.toHaveBeenCalled()
   })
 
   it('fails a suspended actor import in the stale sweep instead of requeueing it', async () => {

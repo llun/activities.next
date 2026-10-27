@@ -276,9 +276,11 @@ read-only against the database and storage.
 > hour without progress, fails an unavailable or deleted owner with
 > `actor_unavailable`, and fails an otherwise available import stuck for 24
 > hours with `import_stuck`. The two failure cases delete the staged upload;
-> terminal runner cleanup also deletes it. Account deletion removes import rows
-> from the database without deleting the corresponding `imports/` object,
-> so the sweep cannot discover that orphaned upload later. Add a lifecycle
+> terminal runner cleanup also deletes it. The same sweep expires a queued
+> upload that was never started 24 hours after its import row was created,
+> failing the row with `upload_expired` and deleting the upload. Actor
+> deletion removes the actor's import uploads together with the rows, before
+> the actor is marked `deleting`. Add a lifecycle
 > rule to the bucket that aborts incomplete multipart uploads after a day or
 > two, as a worker that died mid-export leaves one behind until the reaper
 > discards it.

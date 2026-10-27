@@ -13,6 +13,7 @@ const forbiddenPatterns: [string, RegExp][] = [
     'notification creation',
     /\b(?:create\w*Notification|send\w*Notification)\b/
   ],
+  ['publishActorUpdate', /\bpublishActorUpdate\s*\(/],
   [
     'federation job',
     /\b(?:SEND_NOTE_JOB_NAME|SEND_QUOTE_REQUEST_JOB_NAME|LIKE_JOB_NAME|FETCH_LINK_PREVIEW_JOB_NAME|SendNoteJob|SendQuoteRequestJob|LikeJob|FetchLinkPreviewJob)\b/
@@ -54,6 +55,17 @@ const stripAllowedFitnessProcessingJob = (source: string) =>
       ''
     )
 
+// The sole allowed publishActorUpdate call is the profile phase's single
+// Update(Person), guarded by the federated-change check. The pattern is
+// call-shaped (a bare mention in a doc comment is not a side effect), and the
+// replace is non-global and pins the full block, so a second call anywhere
+// under the importer is still caught.
+const stripAllowedProfileUpdate = (source: string) =>
+  source.replace(
+    /\/\/ The one federated side effect the importer is allowed: a single\s*\/\/ Update\(Person\), and only for a change to what the Person carries\.\s*if \(after && \(!before \|\| hasFederatedProfileChange\(before, after\)\)\) \{\s*await publishActorUpdate\(\{ actorId: context\.accountImport\.actorId \}\)\s*\}/m,
+    ''
+  )
+
 const findViolations = (source: string) =>
   forbiddenPatterns.flatMap(([name, pattern]) =>
     pattern.test(
@@ -61,7 +73,9 @@ const findViolations = (source: string) =>
         ? stripAllowedBookmarkImportRow(source)
         : name === 'queue access or publish'
           ? stripAllowedFitnessProcessingJob(source)
-          : source
+          : name === 'publishActorUpdate'
+            ? stripAllowedProfileUpdate(source)
+            : source
     )
       ? [name]
       : []
@@ -117,6 +131,27 @@ describe('account importer side-effect boundary', () => {
         'queue access or publish'
       ])
     )
+  })
+
+  it('rejects publishActorUpdate outside the one profile-phase call', () => {
+    const allowed = `
+      // The one federated side effect the importer is allowed: a single
+      // Update(Person), and only for a change to what the Person carries.
+      if (after && (!before || hasFederatedProfileChange(before, after))) {
+        await publishActorUpdate({ actorId: context.accountImport.actorId })
+      }
+    `
+    expect(findViolations(allowed)).toEqual([])
+    expect(
+      findViolations('await publishActorUpdate({ actorId: actor.id })')
+    ).toEqual(['publishActorUpdate'])
+    // A second call next to the allowed one is still caught: the exception
+    // strips only its one exact occurrence.
+    expect(
+      findViolations(
+        `${allowed}\nawait publishActorUpdate({ actorId: actor.id })`
+      )
+    ).toEqual(['publishActorUpdate'])
   })
 
   it('rejects importRow outside the one documented bookmarks path', () => {
