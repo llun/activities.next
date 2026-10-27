@@ -280,10 +280,12 @@ read-only against the database and storage.
 > upload that was never started 24 hours after its import row was created,
 > failing the row with `upload_expired` and deleting the upload. Actor
 > deletion removes the actor's import uploads together with the rows, before
-> the actor is marked `deleting`. Add a lifecycle
-> rule to the bucket that aborts incomplete multipart uploads after a day or
-> two, as a worker that died mid-export leaves one behind until the reaper
-> discards it.
+> the actor is marked `deleting`. For S3/object storage, configure a lifecycle
+> rule that aborts incomplete multipart uploads after a day or two and covers
+> both `archives/` and `imports/`. An interrupted export or server-streamed
+> import upload can leave multipart parts behind; terminal cleanup deletes
+> completed objects but cannot abort an incomplete multipart upload whose
+> upload ID was lost when the process stopped.
 
 ### Usage
 

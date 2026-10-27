@@ -150,6 +150,10 @@ ACTIVITIES_MEDIA_STORAGE_MAX_FILE_SIZE=209715200       # 200 MiB in bytes
 ACTIVITIES_MEDIA_STORAGE_QUOTA_PER_ACCOUNT=1073741824  # 1 GiB in bytes
 ```
 
+Account archive imports have a separate upload-size limit of 10 GiB by
+default. Set `ACTIVITIES_ACCOUNT_IMPORT_MAX_FILE_SIZE` to a byte count to
+change it; see the [Environment Variables Guide](environment-variables.md#account-import).
+
 Some uploads stream through the app as `multipart/form-data`: every media
 upload on local (`fs`) media storage; the sync media endpoints
 (`POST /api/v1/media` and `/api/v2/media`, which Mastodon clients use) and

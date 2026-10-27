@@ -512,17 +512,19 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   preflight on each route returns `200` with CORS headers. The shared
   `AuthenticatedGuard` returns `403` for missing same-origin proof, suspended
   or disabled actors, or unconfirmed accounts; without a session it redirects
-  with `303` for browser navigation and `307` otherwise.
+  with `303` for browser navigation and `307` otherwise. These preflight and
+  session-guard responses apply to every route; the table lists each method's
+  own responses as well.
 
-  | Method and route                         | Request                                                                       | Success response                                                                             | Other route statuses                                   |
-  | ---------------------------------------- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-  | `GET /api/v1/account/imports`            | Optional `actorId` query parameter                                            | `200`: array of at most 20 import objects                                                    | `403`, `404`, `409`                                    |
-  | `POST /api/v1/account/imports`           | Optional `actorId` query parameter; raw ZIP body                              | `202`: import object                                                                         | `400`, `403`, `404`, `409`, `413`, `422`, `503`        |
-  | `POST /api/v1/account/imports/presigned` | Optional `actorId` query or JSON field; creates an import and prepares upload | `202`: import object plus `uploadUrl: string \| null` and `directUploadPath: string \| null` | `400`, `403`, `404`, `409`, `422`, `503`               |
-  | `GET /api/v1/account/imports/:id`        | Optional `actorId` query parameter                                            | `200`: import object                                                                         | `403`, `404`, `409`                                    |
-  | `POST /api/v1/account/imports/:id`       | Optional `actorId` query parameter; raw ZIP body                              | `202`: import object                                                                         | `400`, `403`, `404`, `409`, `413`, `422`, `503`        |
-  | `POST /api/v1/account/imports/:id/start` | JSON `{ "actorId"?: string, "options"?: ImportOptions }`                      | `202`: import object                                                                         | `400`, `403`, `404`, `409`, `413`, `422`, `429`, `503` |
-  | `DELETE /api/v1/account/imports/:id`     | Optional `actorId` query parameter                                            | `202`: import object with `status: "cancelled"`                                              | `403`, `404`, `409`                                    |
+  | Method and route                         | Request                                                                            | Success response                                                                             | Other route statuses                                   |
+  | ---------------------------------------- | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+  | `GET /api/v1/account/imports`            | Optional `actorId` query parameter                                                 | `200`: array of at most 20 import objects                                                    | `403`, `404`, `409`                                    |
+  | `POST /api/v1/account/imports`           | Optional `actorId` query parameter; raw ZIP body                                   | `202`: import object                                                                         | `400`, `403`, `404`, `409`, `413`, `422`, `503`        |
+  | `POST /api/v1/account/imports/presigned` | Required JSON `size` (positive safe integer); optional `actorId` in query or JSON  | `202`: import object plus `uploadUrl: string \| null` and `directUploadPath: string \| null` | `400`, `403`, `404`, `409`, `413`, `422`, `503`        |
+  | `GET /api/v1/account/imports/:id`        | Optional `actorId` query parameter                                                 | `200`: import object                                                                         | `403`, `404`, `409`                                    |
+  | `POST /api/v1/account/imports/:id`       | Optional `actorId` query parameter; raw ZIP body                                   | `202`: import object                                                                         | `400`, `403`, `404`, `409`, `413`, `422`, `503`        |
+  | `POST /api/v1/account/imports/:id/start` | JSON `{ "actorId"?: string, "options"?: ImportOptions }`; optional `actorId` query | `202`: import object                                                                         | `400`, `403`, `404`, `409`, `413`, `422`, `429`, `503` |
+  | `DELETE /api/v1/account/imports/:id`     | Optional `actorId` query parameter                                                 | `202`: import object with `status: "cancelled"`                                              | `403`, `404`, `409`                                    |
 
   `options` accepts the `likes`, `bookmarks`, `profile` and `settings` boolean
   fields, plus `repliesToOthers` (`"skip"` or `"keep"`). The boolean fields
@@ -534,15 +536,24 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   counts and, after start, the selected options. It does not expose upload
   tokens or lease data.
 
+  The presigned request requires `size` because the S3 PUT URL signs that exact
+  content length and expires after 15 minutes. When storage cannot provide a
+  presigned URL—local-file storage or an S3 upload over 5 GiB—`uploadUrl` is
+  `null` and `directUploadPath` names the import's streamed upload route.
+
   Each route checks the optional `Activities-Expected-Actor` header and returns
   `409` when it names another actor. A mismatched `actorId` query/body value is
   also `409`. Other `409`s indicate an active import, an import that is not
-  queued, an existing upload or a finished cancellation. A `413` means the
-  upload exceeds the configured size; `422` means a moved/deleting actor,
-  unsupported archive or invalid start options; `429` is the per-actor start
-  limit and includes `Retry-After`. `400` covers malformed request JSON or an
-  empty/invalid streamed upload. `503` covers unavailable storage, upload
-  signing or queueing. See [Account data import](architecture.md#account-data-import).
+  queued, an existing upload, a finished cancellation or an archive change
+  detected during start. `413` means an upload exceeds the configured size; at
+  start it also covers a missing or empty stored object, or a mismatch between
+  its stored size and the declared size. `422` means a moved/deleting actor,
+  unsupported archive or invalid start options; `429` is the per-account start
+  limit and includes `Retry-After`. `400` covers malformed request JSON, an
+  invalid presigned `size` field or a missing streamed upload body. An
+  unsupported or malformed ZIP is rejected with `422` at start. `503` covers
+  unavailable storage, upload signing or queueing. See [Account data
+  import](architecture.md#account-data-import).
 
 - **Browser Web Vitals** — `POST /api/v1/web-vitals` takes a same-origin,
   sampled report of LCP, CLS and INP from this app's own pages and writes it to
