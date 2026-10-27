@@ -25,8 +25,8 @@ vi.mock('@/lib/services/accountImport/phases', () => ({
   runGearsNoopPhase: vi.fn(),
   runMastodonMediaPhase: vi.fn(),
   runOwnArchiveMediaNoopPhase: vi.fn(),
-  runProfileNoopPhase: vi.fn(),
-  runSettingsNoopPhase: vi.fn(),
+  runProfilePhase: vi.fn(),
+  runSettingsPhase: vi.fn(),
   runStatusesPhase: vi.fn()
 }))
 
