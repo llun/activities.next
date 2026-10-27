@@ -826,7 +826,10 @@ describe('GalleryAlbumFormDialog', () => {
 
   it('pads and offsets the scroll container to prevent highlight clipping', () => {
     renderDialog()
-    expect(screen.getByTestId('scroll-container')).toHaveClass('p-1', '-m-1')
+    expect(screen.getByTestId('scroll-container')).toHaveClass(
+      'p-1.5',
+      '-m-1.5'
+    )
   })
 
   it('uses sm:max-w-4xl for the Add photos dialog', () => {

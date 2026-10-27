@@ -683,7 +683,7 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
           <div
             data-testid="scroll-container"
             className={cn(
-              'min-h-0 flex-1 gap-5 overflow-y-auto p-1 -m-1',
+              'min-h-0 flex-1 gap-5 overflow-y-auto p-1.5 -m-1.5',
               showFields && showPicker
                 ? 'grid md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]'
                 : 'block'

@@ -838,7 +838,9 @@ describe('GalleryGrid', () => {
         const anchor = screen.getByRole('button', {
           name: 'Select media 2, taken 4 Oct 2025'
         })
-        expect(anchor).toHaveClass('ring-4 ring-inset ring-foreground')
+        expect(anchor).toHaveClass(
+          'ring-2 ring-foreground ring-offset-2 ring-offset-background'
+        )
         expect(anchor).not.toHaveClass('inset-ring-primary')
         const picked = screen.getByRole('button', {
           name: 'Select media: Red Fox, taken 4 Oct 2025'
@@ -864,10 +866,12 @@ describe('GalleryGrid', () => {
           name: 'Select media 2, taken 4 Oct 2025'
         })
         expect(anchor).toHaveClass('inset-ring-primary inset-ring-3')
-        expect(anchor).toHaveClass('ring-4 ring-inset ring-foreground')
+        expect(anchor).toHaveClass(
+          'ring-2 ring-foreground ring-offset-2 ring-offset-background'
+        )
       })
 
-      it('draws the focus outline outside a select tile and inside a viewer tile', () => {
+      it('draws a dashed focus outline further out than the anchor ring on a select tile, and inside a viewer tile', () => {
         const { rerender } = render(
           <GalleryGrid
             items={flatItems}
@@ -877,17 +881,20 @@ describe('GalleryGrid', () => {
         )
 
         // The pick ring is the inset primary band; the focus outline must be
-        // distinct from it, so it sits outside the tile in the foreground.
+        // distinct from it and from the anchor's solid offset ring, so it is
+        // a dashed outline further out in the foreground.
         const picked = screen.getByRole('button', {
           name: 'Select media: Red Fox, taken 4 Oct 2025'
         })
         expect(picked).toHaveClass(
           'focus-visible:outline-foreground',
+          'focus-visible:outline-dashed',
           'focus-visible:outline-2',
-          'focus-visible:outline-offset-2'
+          'focus-visible:outline-offset-4'
         )
         expect(picked).not.toHaveClass('focus-visible:outline-primary')
         expect(picked).not.toHaveClass('focus-visible:-outline-offset-2')
+        expect(picked).not.toHaveClass('focus-visible:outline-offset-2')
 
         rerender(<GalleryGrid items={flatItems} groups={groups} />)
         const viewerTile = screen.getByRole('button', {

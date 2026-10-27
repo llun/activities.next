@@ -226,19 +226,20 @@ export const GalleryGrid: FC<Props> = ({
           type="button"
           className={cn(
             'group bg-muted/20 relative block aspect-square w-full cursor-pointer overflow-hidden rounded-md',
-            // Select mode draws the focus outline outside the tile in the
-            // foreground colour: the inset primary ring already marks the
-            // selected tile, and an inset primary outline on top of it is
-            // invisible. Viewer tiles keep the inset primary outline.
-            // The anchor is an inset foreground ring inside the tile, so
-            // it never looks like the focus outline; the pick ring is
-            // painted over it, so a selected anchor shows both: the
-            // primary band inside, the anchor ring around it.
+            // Select mode draws a dashed focus outline outside the tile in
+            // the foreground colour, further out than the anchor's solid
+            // offset ring, so focus never looks like the anchor. Viewer
+            // tiles keep the inset primary outline. The pick ring is an
+            // inset primary ring painted over the photo; the anchor ring
+            // is a solid offset ring around the tile, so a selected
+            // anchor shows both: the primary band inside, the anchor
+            // ring around it.
             selection
-              ? 'focus-visible:outline-foreground focus-visible:outline-2 focus-visible:outline-offset-2'
+              ? 'focus-visible:outline-foreground focus-visible:outline-dashed focus-visible:outline-2 focus-visible:outline-offset-4'
               : 'focus-visible:outline-primary focus-visible:outline-2 focus-visible:-outline-offset-2',
             isSelected && 'inset-ring-primary inset-ring-3',
-            isAnchor && 'ring-4 ring-inset ring-foreground',
+            isAnchor &&
+              'ring-2 ring-foreground ring-offset-2 ring-offset-background',
             groups &&
               'max-md:scroll-mt-[calc(56px+env(safe-area-inset-top,0px)+var(--status-strip-h,0px)+3rem)] md:scroll-mt-[calc(79px+3rem)]'
           )}

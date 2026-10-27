@@ -294,7 +294,9 @@ describe('GalleryAlbumPickerTile', () => {
       />
     )
     const button = screen.getByRole('button')
-    expect(button).toHaveClass('ring-4 ring-inset ring-foreground')
+    expect(button).toHaveClass(
+      'ring-2 ring-foreground ring-offset-2 ring-offset-background'
+    )
     expect(button).not.toHaveClass('inset-ring-primary')
 
     rerender(
@@ -307,10 +309,12 @@ describe('GalleryAlbumPickerTile', () => {
       />
     )
     expect(button).toHaveClass('inset-ring-primary inset-ring-2')
-    expect(button).toHaveClass('ring-4 ring-inset ring-foreground')
+    expect(button).toHaveClass(
+      'ring-2 ring-foreground ring-offset-2 ring-offset-background'
+    )
   })
 
-  it('draws the focus outline outside the tile, clear of the pick ring', () => {
+  it('draws a dashed focus outline further out than the anchor ring', () => {
     const item = buildGalleryItem('1')
     render(
       <GalleryAlbumPickerTile
@@ -323,11 +327,13 @@ describe('GalleryAlbumPickerTile', () => {
     const button = screen.getByRole('button')
     expect(button).toHaveClass(
       'focus-visible:outline-foreground',
+      'focus-visible:outline-dashed',
       'focus-visible:outline-2',
-      'focus-visible:outline-offset-2'
+      'focus-visible:outline-offset-4'
     )
     expect(button).not.toHaveClass('focus-visible:outline-primary')
     expect(button).not.toHaveClass('focus-visible:-outline-offset-2')
+    expect(button).not.toHaveClass('focus-visible:outline-offset-2')
   })
 
   it('omits date from visible caption but includes getPickerTileDate in aria-label when showCaptionDate is false', () => {
