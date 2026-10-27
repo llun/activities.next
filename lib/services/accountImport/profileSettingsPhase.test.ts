@@ -1,6 +1,7 @@
 import sharp from 'sharp'
 
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import { planArchiveActors } from '@/lib/services/accountArchive/layout'
 import type { AccountImportObjectStore } from '@/lib/services/accountImport/objectStore'
 import {
   type AccountImportPhaseContext,
@@ -321,12 +322,18 @@ describe('account import profile and settings phases', () => {
   })
 
   it('restores allowlisted settings and drops the rest', async () => {
+    const sourceActorId = 'https://source.test/users/archive'
+    const sourceExtrasDir = planArchiveActors(
+      [{ id: sourceActorId, username: 'archive', domain: 'source.test' }],
+      sourceActorId
+    )[0].dir
     const archive = buildZip([
       {
-        name: 'activities.next/profile.json',
+        name: `${sourceExtrasDir}/profile.json`,
         data: Buffer.from(
           JSON.stringify({
-            id: actorId,
+            id: sourceActorId,
+            isDefault: true,
             handle: 'test1@llun.test',
             username: 'test1',
             domain: 'llun.test',
@@ -357,7 +364,7 @@ describe('account import profile and settings phases', () => {
         )
       },
       {
-        name: 'activities.next/gallery/settings.json',
+        name: `${sourceExtrasDir}/gallery/settings.json`,
         data: Buffer.from(
           JSON.stringify({
             actorId: 'https://evil.test/actors/x',
@@ -377,10 +384,10 @@ describe('account import profile and settings phases', () => {
     )
     const galleryBefore = await database.getGallerySettings({ actorId })
 
-    const result = await runSettingsPhase(
-      makeContext(accountImport, archive),
-      createInitialImportProgress()
-    )
+    const result = await runSettingsPhase(makeContext(accountImport, archive), {
+      ...createInitialImportProgress(),
+      sourceActorId
+    })
 
     expect(result.result).toBe('done')
     const settings = (await database.getActorSettings({ actorId }))!
@@ -417,12 +424,40 @@ describe('account import profile and settings phases', () => {
   it('restores no settings for a Mastodon archive or a disabled option', async () => {
     const settingsBefore = (await database.getActorSettings({ actorId }))!
     const galleryBefore = await database.getGallerySettings({ actorId })
+    const sourceActorId = 'https://source.test/users/archive'
+    const sourceExtrasDir = planArchiveActors(
+      [{ id: sourceActorId, username: 'archive', domain: 'source.test' }],
+      sourceActorId
+    )[0].dir
     const archive = buildZip([
       {
-        name: 'activities.next/profile.json',
+        name: `${sourceExtrasDir}/profile.json`,
         data: Buffer.from(
           JSON.stringify({
+            id: sourceActorId,
+            isDefault: true,
             settings: { defaultPrivacy: 'private', defaultSensitive: true }
+          })
+        )
+      },
+      {
+        name: `${sourceExtrasDir}/gallery/settings.json`,
+        data: Buffer.from(
+          JSON.stringify({
+            autoDescribe: !galleryBefore.autoDescribe,
+            allowEmptyDescription: galleryBefore.allowEmptyDescription,
+            subjectHashtags: galleryBefore.subjectHashtags,
+            galleryDefault: galleryBefore.galleryDefault,
+            defaultPlacePrecision: galleryBefore.defaultPlacePrecision,
+            showGear: galleryBefore.showGear,
+            mapPublic: galleryBefore.mapPublic,
+            lifeListPublic: galleryBefore.lifeListPublic,
+            hiddenLocations: galleryBefore.hiddenLocations,
+            hideThreatenedPlaces: galleryBefore.hideThreatenedPlaces,
+            subjectSuggestionMode: galleryBefore.subjectSuggestionMode,
+            subjectConfidenceThreshold:
+              galleryBefore.subjectConfidenceThreshold,
+            photoEnhance: galleryBefore.photoEnhance
           })
         )
       }
@@ -432,10 +467,10 @@ describe('account import profile and settings phases', () => {
       '{"settings":true}',
       'mastodon'
     )
-    await runSettingsPhase(
-      makeContext(mastodonImport, archive),
-      createInitialImportProgress()
-    )
+    await runSettingsPhase(makeContext(mastodonImport, archive), {
+      ...createInitialImportProgress(),
+      sourceActorId
+    })
     await database.updateAccountImport({
       id: mastodonImport.id,
       status: 'done'
@@ -445,10 +480,10 @@ describe('account import profile and settings phases', () => {
       '{}',
       'activities.next'
     )
-    await runSettingsPhase(
-      makeContext(optionOffImport, archive),
-      createInitialImportProgress()
-    )
+    await runSettingsPhase(makeContext(optionOffImport, archive), {
+      ...createInitialImportProgress(),
+      sourceActorId
+    })
 
     const settings = (await database.getActorSettings({ actorId }))!
     expect(settings.defaultPrivacy).toBe(settingsBefore.defaultPrivacy)

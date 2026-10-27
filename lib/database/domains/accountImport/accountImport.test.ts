@@ -729,4 +729,163 @@ describe('account import queries', () => {
       ])
     )
   })
+
+  it('reclaims skipped items whose reason can change with import options', async () => {
+    const previous = await database.createAccountImport({
+      id: 'import-option-skips-previous',
+      accountId,
+      actorId: 'actor-option-skips',
+      options: '{}'
+    })
+    const sources = [
+      ['like', 'like-source', 'option_disabled'],
+      ['status', 'reply-source', 'reply-to-other'],
+      ['status', 'invalid-source', 'archive_item_invalid']
+    ] as const
+    await database.upsertAccountImportItems({
+      importId: previous.id,
+      actorId: previous.actorId,
+      items: sources.map(([kind, sourceId], index) => ({
+        kind,
+        sourceId,
+        position: index + 1,
+        data: JSON.stringify({ sourceId })
+      }))
+    })
+    const previousItems = await database.getAccountImportItems({
+      importId: previous.id,
+      limit: 10
+    })
+    for (const item of previousItems) {
+      await database.markAccountImportItem({
+        id: item.id,
+        state: 'skipped',
+        reason: sources.find(([, sourceId]) => sourceId === item.sourceId)![2]
+      })
+    }
+    await database.updateAccountImport({ id: previous.id, status: 'cancelled' })
+
+    const next = await database.createAccountImport({
+      id: 'import-option-skips-next',
+      accountId,
+      actorId: previous.actorId,
+      options: '{"likes":true,"repliesToOthers":"keep"}'
+    })
+    await database.upsertAccountImportItems({
+      importId: next.id,
+      actorId: next.actorId,
+      items: sources.map(([kind, sourceId], index) => ({
+        kind,
+        sourceId,
+        position: index + 11,
+        data: JSON.stringify({ sourceId, retried: true })
+      }))
+    })
+
+    const nextItems = await database.getAccountImportItems({
+      importId: next.id,
+      limit: 10
+    })
+    expect(nextItems.map((item) => item.sourceId).sort()).toEqual([
+      'like-source',
+      'reply-source'
+    ])
+    expect(nextItems).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          sourceId: 'like-source',
+          state: 'pending',
+          data: '{"sourceId":"like-source","retried":true}',
+          reason: null
+        }),
+        expect.objectContaining({
+          sourceId: 'reply-source',
+          state: 'pending',
+          data: '{"sourceId":"reply-source","retried":true}',
+          reason: null
+        })
+      ])
+    )
+    expect(
+      (
+        await database.getAccountImportItems({
+          importId: previous.id,
+          limit: 10
+        })
+      ).find((item) => item.sourceId === 'invalid-source')
+    ).toMatchObject({ state: 'skipped', reason: 'archive_item_invalid' })
+  })
+
+  it('looks up done item targets across imports without selecting catalog data', async () => {
+    const previous = await database.createAccountImport({
+      id: 'import-item-references-previous',
+      accountId,
+      actorId: 'actor-item-references',
+      options: '{}'
+    })
+    const targets = [
+      ['status', 'source-parent', 'target-parent'],
+      ['media', 'media/archive.png', 'target-media'],
+      ['gallery-gear', 'camera-source', 'target-camera'],
+      ['fitness-gear', 'bike-source', 'target-bike']
+    ] as const
+    await database.upsertAccountImportItems({
+      importId: previous.id,
+      actorId: previous.actorId,
+      items: targets.map(([kind, sourceId], index) => ({
+        kind,
+        sourceId,
+        position: index + 1,
+        data: '{"raw":true}'
+      }))
+    })
+    const previousItems = await database.getAccountImportItems({
+      importId: previous.id,
+      limit: 10
+    })
+    for (const [kind, sourceId, targetId] of targets) {
+      const item = previousItems.find((row) => row.kind === kind)!
+      expect(item.sourceId).toBe(sourceId)
+      await database.markAccountImportItem({
+        id: item.id,
+        state: 'done',
+        targetId
+      })
+    }
+    await database.updateAccountImport({ id: previous.id, status: 'cancelled' })
+    const current = await database.createAccountImport({
+      id: 'import-item-references-current',
+      accountId,
+      actorId: previous.actorId,
+      options: '{}'
+    })
+
+    const params = {
+      actorId: current.actorId,
+      kinds: ['status', 'media', 'gallery-gear', 'fitness-gear'],
+      sourceIds: [...targets.map(([, sourceId]) => sourceId), 'missing-source']
+    }
+    const result = await database.getAccountImportItemReferences(params)
+    const queries = await testDb.captureQueries(() =>
+      database.getAccountImportItemReferences(params)
+    )
+
+    expect(result).toEqual(
+      expect.arrayContaining(
+        targets.map(([kind, sourceId, targetId]) => ({
+          kind,
+          sourceId,
+          state: 'done',
+          targetId
+        }))
+      )
+    )
+    expect(queries.some((query) => query.sql.includes('"data"'))).toBe(false)
+    expect(
+      queries.some(
+        (query) =>
+          query.sql.includes('"actorId"') && query.sql.includes('"sourceId"')
+      )
+    ).toBe(true)
+  })
 })

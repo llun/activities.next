@@ -2,24 +2,17 @@ import { basename } from 'node:path'
 import { Readable } from 'node:stream'
 import { z } from 'zod'
 
+import { getQuoteTargetId } from '@/lib/activities/note'
 import { getConfig } from '@/lib/config'
 import { DEFAULT_FITNESS_MAX_FILE_SIZE } from '@/lib/config/fitnessStorage'
 import type { UpdateActorParams } from '@/lib/database/domains/actor/types'
 import type { Database } from '@/lib/database/types'
 import { PROCESS_FITNESS_FILE_JOB_NAME } from '@/lib/jobs/names'
 import {
-  ACCOUNT_IMPORT_ALBUM_POSITION,
-  ACCOUNT_IMPORT_BOOKMARK_POSITION,
   ACCOUNT_IMPORT_CATALOG_PAGE_SIZE,
-  ACCOUNT_IMPORT_FITNESS_FILE_POSITION,
-  ACCOUNT_IMPORT_FITNESS_GEAR_POSITION,
-  ACCOUNT_IMPORT_GALLERY_GEAR_POSITION,
-  ACCOUNT_IMPORT_GALLERY_SETTINGS_POSITION,
   ACCOUNT_IMPORT_ITEM_PAGE_SIZE,
-  ACCOUNT_IMPORT_LIKE_POSITION,
   ACCOUNT_IMPORT_MAX_ATTACHMENTS_PER_STATUS,
-  ACCOUNT_IMPORT_MAX_ITEMS,
-  ACCOUNT_IMPORT_MEDIA_POSITION
+  ACCOUNT_IMPORT_MAX_ITEMS
 } from '@/lib/services/accountImport/constants'
 import { createImportedStatus } from '@/lib/services/accountImport/createImportedStatus'
 import { detectArchiveKind } from '@/lib/services/accountImport/detectArchiveKind'
@@ -190,6 +183,96 @@ const getOwnArchiveExtrasDir = async (
   return null
 }
 
+const resolveOwnArchiveExtrasDir = async (
+  archive: ZipArchive,
+  progress: AccountImportProgress,
+  kind: AccountArchiveKind
+) => {
+  if (progress.sourceExtrasDir === undefined) {
+    progress.sourceExtrasDir =
+      kind === 'activities.next'
+        ? await getOwnArchiveExtrasDir(archive, progress.sourceActorId ?? '')
+        : null
+  }
+  return progress.sourceExtrasDir
+}
+
+type CatalogItemKind =
+  | 'status'
+  | 'media'
+  | 'own-media'
+  | 'like'
+  | 'bookmark'
+  | 'gallery-settings'
+  | 'gallery-gear'
+  | 'fitness-gear'
+  | 'album'
+  | 'fitness-file'
+
+export const getAccountImportItemPosition = (
+  kind: CatalogItemKind,
+  index: number,
+  maxItems: number,
+  options: { order?: ArchiveStatusOrder; attachmentIndex?: number } = {}
+): number => {
+  if (
+    !Number.isSafeInteger(index) ||
+    index < 0 ||
+    !Number.isSafeInteger(maxItems) ||
+    maxItems < 1 ||
+    index >= maxItems
+  ) {
+    throw new ZipArchiveError('too_many_entries', 'catalog_item_limit_exceeded')
+  }
+  const mediaStart = maxItems + 1
+  const ownMediaStart = maxItems * 41 + 1
+  const likeStart = maxItems * 42 + 1
+  const bookmarkStart = maxItems * 43 + 1
+  const settingsStart = maxItems * 44 + 1
+  const galleryGearStart = settingsStart + 1
+  const fitnessGearStart = maxItems * 45 + 2
+  const albumStart = maxItems * 46 + 2
+  const fitnessFileStart = maxItems * 47 + 2
+  switch (kind) {
+    case 'status':
+      return options.order === 'oldest-first' ? index + 1 : maxItems - index
+    case 'media': {
+      const attachmentIndex = options.attachmentIndex ?? 0
+      if (
+        !Number.isSafeInteger(attachmentIndex) ||
+        attachmentIndex < 0 ||
+        attachmentIndex >= ACCOUNT_IMPORT_MAX_ATTACHMENTS_PER_STATUS
+      ) {
+        throw new ZipArchiveError(
+          'too_many_entries',
+          'catalog_item_limit_exceeded'
+        )
+      }
+      return (
+        mediaStart +
+        index * ACCOUNT_IMPORT_MAX_ATTACHMENTS_PER_STATUS +
+        attachmentIndex
+      )
+    }
+    case 'own-media':
+      return ownMediaStart + index
+    case 'like':
+      return likeStart + index
+    case 'bookmark':
+      return bookmarkStart + index
+    case 'gallery-settings':
+      return settingsStart
+    case 'gallery-gear':
+      return galleryGearStart + index
+    case 'fitness-gear':
+      return fitnessGearStart + index
+    case 'album':
+      return albumStart + index
+    case 'fitness-file':
+      return fitnessFileStart + index
+  }
+}
+
 const getActorEntryName = (kind: AccountArchiveKind) =>
   kind === 'activities.next' ? 'actor.json' : 'actor.json'
 
@@ -239,17 +322,13 @@ const getEventPublishedAt = (raw: string, kind: AccountArchiveKind) => {
 const inferStatusOrder = async (
   archive: ZipArchive,
   kind: AccountArchiveKind,
-  sourceActorId: string
+  sourceExtrasDir: string | null
 ): Promise<ArchiveStatusOrder> => {
-  const ownExtrasDir =
-    kind === 'activities.next'
-      ? await getOwnArchiveExtrasDir(archive, sourceActorId)
-      : null
   const name =
     kind === 'mastodon'
       ? 'outbox.json'
-      : ownExtrasDir
-        ? `${ownExtrasDir}/statuses.jsonl`
+      : sourceExtrasDir
+        ? `${sourceExtrasDir}/statuses.jsonl`
         : ''
   if (!requiredEntry(archive.entries, name)) return 'newest-first'
   const dates: number[] = []
@@ -269,9 +348,6 @@ const inferStatusOrder = async (
     ? 'oldest-first'
     : 'newest-first'
 }
-
-const statusPosition = (index: number, order: ArchiveStatusOrder) =>
-  order === 'oldest-first' ? index + 1 : ACCOUNT_IMPORT_MAX_ITEMS - index
 
 const statusIndex = (position: number, order: ArchiveStatusOrder) =>
   order === 'oldest-first' ? position - 1 : ACCOUNT_IMPORT_MAX_ITEMS - position
@@ -368,18 +444,14 @@ const listEventStream = async (
   archive: ZipArchive,
   kind: AccountArchiveKind,
   stage: Exclude<CatalogStage, 'done'>,
-  sourceActorId: string
+  sourceExtrasDir: string | null
 ) => {
   if (stage === 'statuses') {
-    const ownExtrasDir =
-      kind === 'activities.next'
-        ? await getOwnArchiveExtrasDir(archive, sourceActorId)
-        : null
     const name =
       kind === 'mastodon'
         ? 'outbox.json'
-        : ownExtrasDir
-          ? `${ownExtrasDir}/statuses.jsonl`
+        : sourceExtrasDir
+          ? `${sourceExtrasDir}/statuses.jsonl`
           : ''
     if (!requiredEntry(archive.entries, name)) return null
     return kind === 'mastodon'
@@ -392,18 +464,17 @@ const listEventStream = async (
     return iterateOrderedItems(chunksOf(await archive.openEntryStream(name)))
   }
   if (kind !== 'activities.next') return null
-  const ownExtrasDir = await getOwnArchiveExtrasDir(archive, sourceActorId)
-  if (!ownExtrasDir) return null
+  if (!sourceExtrasDir) return null
   if (stage === 'ownMedia' || stage === 'fitnessFiles') {
     const name =
       stage === 'ownMedia'
-        ? `${ownExtrasDir}/medias.jsonl`
-        : `${ownExtrasDir}/fitness/files.jsonl`
+        ? `${sourceExtrasDir}/medias.jsonl`
+        : `${sourceExtrasDir}/fitness/files.jsonl`
     if (!requiredEntry(archive.entries, name)) return null
     return iterateJsonlLines(chunksOf(await archive.openEntryStream(name)))
   }
   if (stage === 'gallerySettings') {
-    const name = `${ownExtrasDir}/gallery/settings.json`
+    const name = `${sourceExtrasDir}/gallery/settings.json`
     if (!requiredEntry(archive.entries, name)) return null
     const fields = await readTopLevelJsonFields(
       chunksOf(await archive.openEntryStream(name)),
@@ -413,26 +484,41 @@ const listEventStream = async (
   }
   const name =
     stage === 'galleryGears'
-      ? `${ownExtrasDir}/gallery/gears.json`
+      ? `${sourceExtrasDir}/gallery/gears.json`
       : stage === 'fitnessGears'
-        ? `${ownExtrasDir}/fitness/gears.json`
-        : `${ownExtrasDir}/gallery/albums.json`
+        ? `${sourceExtrasDir}/fitness/gears.json`
+        : `${sourceExtrasDir}/gallery/albums.json`
   if (!requiredEntry(archive.entries, name)) return null
   return iterateArrayItems(chunksOf(await archive.openEntryStream(name)))
 }
 
 export const runCatalogPhase = async (
   context: AccountImportPhaseContext,
-  progressInput: AccountImportProgress
+  progressInput: AccountImportProgress,
+  maxItems = ACCOUNT_IMPORT_MAX_ITEMS
 ): Promise<{
   result: PhaseResult
   progress: AccountImportProgress
   cursor: string | null
 }> => {
   const progress = { ...progressInput }
+  if (!Number.isSafeInteger(maxItems) || maxItems < 1) {
+    throw new RangeError('maxItems must be a positive safe integer')
+  }
   const archive = await openArchive(context.objectStore, context.accountImport)
   try {
     const kind = context.accountImport.kind as AccountArchiveKind
+    const sourceExtrasDir = await resolveOwnArchiveExtrasDir(
+      archive,
+      progress,
+      kind
+    )
+    if (progress.totalItems > maxItems) {
+      throw new ZipArchiveError(
+        'too_many_entries',
+        'catalog_item_limit_exceeded'
+      )
+    }
     if (
       progress.statusOrder !== 'oldest-first' &&
       progress.catalogIndex === 0
@@ -440,7 +526,7 @@ export const runCatalogPhase = async (
       progress.statusOrder = await inferStatusOrder(
         archive,
         kind,
-        progress.sourceActorId ?? ''
+        sourceExtrasDir
       )
     }
     while (progress.catalogStage !== 'done') {
@@ -449,7 +535,7 @@ export const runCatalogPhase = async (
         archive,
         kind,
         stage,
-        progress.sourceActorId ?? ''
+        sourceExtrasDir ?? null
       )
       if (!events) {
         progress.catalogStage = nextCatalogStage(stage)
@@ -469,8 +555,55 @@ export const runCatalogPhase = async (
         data?: string
       }[] = []
       let nextIndex = progress.catalogIndex
+      const flushCatalogPage = async (cursorIndex: number) => {
+        if (items.length === 0) return false
+        await context.renew()
+        await context.database.upsertAccountImportItems({
+          importId: context.accountImport.id,
+          actorId: context.accountImport.actorId,
+          items
+        })
+        progress.totalItems += items.length
+        items.length = 0
+        progress.catalogIndex = cursorIndex
+        await context.renew()
+        await context.database.updateAccountImport({
+          id: context.accountImport.id,
+          progress: serializeImportProgress(progress),
+          cursor: JSON.stringify({ stage, index: cursorIndex })
+        })
+        return context.now() >= context.deadline
+      }
+      const addItem = (item: (typeof items)[number]) => {
+        if (progress.totalItems + items.length >= maxItems) {
+          throw new ZipArchiveError(
+            'too_many_entries',
+            'catalog_item_limit_exceeded'
+          )
+        }
+        items.push(item)
+      }
       for await (const event of events) {
         if (event.index < progress.catalogIndex) continue
+        if (event.index >= maxItems) {
+          throw new ZipArchiveError(
+            'too_many_entries',
+            'catalog_item_limit_exceeded'
+          )
+        }
+        const eventItemLimit = stage === 'statuses' ? 1 + 40 : 1
+        if (
+          items.length > 0 &&
+          items.length + eventItemLimit > ACCOUNT_IMPORT_CATALOG_PAGE_SIZE
+        ) {
+          if (await flushCatalogPage(event.index)) {
+            return {
+              result: 'budget',
+              progress,
+              cursor: JSON.stringify({ stage, index: event.index })
+            }
+          }
+        }
         nextIndex = event.index + 1
         if ('raw' in event) {
           let value: unknown
@@ -480,25 +613,35 @@ export const runCatalogPhase = async (
             value = null
           }
           if (stage === 'statuses' && value !== null) {
-            items.push({
+            addItem({
               kind: 'status',
               sourceId: sourceIdForStatus(value, kind, event.index),
-              position: statusPosition(event.index, progress.statusOrder),
+              position: getAccountImportItemPosition(
+                'status',
+                event.index,
+                maxItems,
+                { order: progress.statusOrder }
+              ),
               data: event.raw
             })
             for (const [attachmentIndex, attachment] of (kind === 'mastodon'
-              ? statusAttachments(value, kind)
+              ? statusAttachments(value, kind).slice(
+                  0,
+                  ACCOUNT_IMPORT_MAX_ATTACHMENTS_PER_STATUS
+                )
               : []
             ).entries()) {
               const sourceId = sourceIdForAttachment(attachment)
               if (sourceId) {
-                items.push({
+                addItem({
                   kind: 'media',
                   sourceId,
-                  position:
-                    ACCOUNT_IMPORT_MEDIA_POSITION +
-                    event.index * ACCOUNT_IMPORT_MAX_ATTACHMENTS_PER_STATUS +
-                    attachmentIndex
+                  position: getAccountImportItemPosition(
+                    'media',
+                    event.index,
+                    maxItems,
+                    { attachmentIndex }
+                  )
                 })
               }
             }
@@ -507,13 +650,14 @@ export const runCatalogPhase = async (
             typeof value === 'string' &&
             value.length <= 512
           ) {
-            items.push({
+            addItem({
               kind: stage === 'likes' ? 'like' : 'bookmark',
               sourceId: value,
-              position:
-                (stage === 'likes'
-                  ? ACCOUNT_IMPORT_LIKE_POSITION
-                  : ACCOUNT_IMPORT_BOOKMARK_POSITION) + event.index,
+              position: getAccountImportItemPosition(
+                stage === 'likes' ? 'like' : 'bookmark',
+                event.index,
+                maxItems
+              ),
               data: event.raw
             })
           } else if (stage === 'ownMedia') {
@@ -521,82 +665,91 @@ export const runCatalogPhase = async (
               normalizeOwnMediaRecord(value)
             )
             if (parsed.success) {
-              items.push({
+              addItem({
                 kind: 'own-media',
                 sourceId: String(parsed.data.id),
-                position: ACCOUNT_IMPORT_MEDIA_POSITION + event.index,
+                position: getAccountImportItemPosition(
+                  'own-media',
+                  event.index,
+                  maxItems
+                ),
                 data: JSON.stringify(parsed.data)
               })
             }
           } else if (stage === 'gallerySettings') {
             const parsed = ownGallerySettingsSchema.safeParse(value)
             if (parsed.success) {
-              items.push({
+              addItem({
                 kind: 'gallery-settings',
                 sourceId: 'gallery-settings',
-                position: ACCOUNT_IMPORT_GALLERY_SETTINGS_POSITION,
+                position: getAccountImportItemPosition(
+                  'gallery-settings',
+                  event.index,
+                  maxItems
+                ),
                 data: event.raw
               })
             }
           } else if (stage === 'galleryGears') {
             const parsed = ownGalleryGearSchema.safeParse(value)
             if (parsed.success) {
-              items.push({
+              addItem({
                 kind: 'gallery-gear',
                 sourceId: parsed.data.id,
-                position: ACCOUNT_IMPORT_GALLERY_GEAR_POSITION + event.index,
+                position: getAccountImportItemPosition(
+                  'gallery-gear',
+                  event.index,
+                  maxItems
+                ),
                 data: event.raw
               })
             }
           } else if (stage === 'fitnessGears') {
             const parsed = ownFitnessGearSchema.safeParse(value)
             if (parsed.success) {
-              items.push({
+              addItem({
                 kind: 'fitness-gear',
                 sourceId: parsed.data.id,
-                position: ACCOUNT_IMPORT_FITNESS_GEAR_POSITION + event.index,
+                position: getAccountImportItemPosition(
+                  'fitness-gear',
+                  event.index,
+                  maxItems
+                ),
                 data: event.raw
               })
             }
           } else if (stage === 'albums') {
             const parsed = ownAlbumSchema.safeParse(value)
             if (parsed.success) {
-              items.push({
+              addItem({
                 kind: 'album',
                 sourceId: parsed.data.id,
-                position: ACCOUNT_IMPORT_ALBUM_POSITION + event.index,
+                position: getAccountImportItemPosition(
+                  'album',
+                  event.index,
+                  maxItems
+                ),
                 data: event.raw
               })
             }
           } else if (stage === 'fitnessFiles') {
             const parsed = ownFitnessFileLineSchema.safeParse(value)
             if (parsed.success) {
-              items.push({
+              addItem({
                 kind: 'fitness-file',
                 sourceId: parsed.data.id,
-                position: ACCOUNT_IMPORT_FITNESS_FILE_POSITION + event.index,
+                position: getAccountImportItemPosition(
+                  'fitness-file',
+                  event.index,
+                  maxItems
+                ),
                 data: event.raw
               })
             }
           }
         }
         if (items.length >= ACCOUNT_IMPORT_CATALOG_PAGE_SIZE) {
-          await context.renew()
-          await context.database.upsertAccountImportItems({
-            importId: context.accountImport.id,
-            actorId: context.accountImport.actorId,
-            items
-          })
-          progress.totalItems += items.length
-          items.length = 0
-          progress.catalogIndex = nextIndex
-          await context.renew()
-          await context.database.updateAccountImport({
-            id: context.accountImport.id,
-            progress: serializeImportProgress(progress),
-            cursor: JSON.stringify({ stage, index: nextIndex })
-          })
-          if (context.now() >= context.deadline)
+          if (await flushCatalogPage(nextIndex))
             return {
               result: 'budget',
               progress,
@@ -605,13 +758,7 @@ export const runCatalogPhase = async (
         }
       }
       if (items.length > 0) {
-        await context.renew()
-        await context.database.upsertAccountImportItems({
-          importId: context.accountImport.id,
-          actorId: context.accountImport.actorId,
-          items
-        })
-        progress.totalItems += items.length
+        await flushCatalogPage(nextIndex)
       }
       progress.catalogStage = nextCatalogStage(stage)
       progress.catalogIndex = 0
@@ -656,24 +803,6 @@ const nextCatalogStage = (
   return stages[stages.indexOf(stage) + 1]
 }
 
-const accountImportItems = async (
-  database: Database,
-  importId: string
-): Promise<AccountImportItem[]> => {
-  const all: AccountImportItem[] = []
-  let afterPosition: number | undefined
-  for (;;) {
-    const page = await database.getAccountImportItems({
-      importId,
-      ...(afterPosition === undefined ? {} : { afterPosition }),
-      limit: 1000
-    })
-    all.push(...page)
-    if (page.length < 1000) return all
-    afterPosition = page[page.length - 1].position
-  }
-}
-
 const parseCatalogedItem = (data: string | null): unknown => {
   if (data === null) return null
   try {
@@ -697,31 +826,63 @@ const normalizeOwnMediaRecord = (value: unknown): unknown => {
   }
 }
 
-const readMediaMap = async (database: Database, importId: string) => {
-  const media = new Map<string, string>()
-  for (const item of await accountImportItems(database, importId)) {
-    if (item.kind === 'media' && item.targetId)
-      media.set(item.sourceId, item.targetId)
-    if (item.kind === 'own-media' && item.targetId) {
-      media.set(item.sourceId, item.targetId)
-      const record = ownMediaLineSchema.safeParse(
-        normalizeOwnMediaRecord(parseCatalogedItem(item.data))
+const itemReferences = async (
+  context: AccountImportPhaseContext,
+  kinds: string[],
+  sourceIds: Iterable<string>
+) =>
+  context.database.getAccountImportItemReferences({
+    actorId: context.accountImport.actorId,
+    kinds,
+    sourceIds: [...new Set(sourceIds)]
+  })
+
+const targetMapForKind = (
+  references: Awaited<ReturnType<typeof itemReferences>>,
+  kind: string
+) =>
+  new Map(
+    references
+      .filter(
+        (reference) =>
+          reference.kind === kind &&
+          reference.state === 'done' &&
+          reference.targetId !== null
       )
-      if (record.success && record.data.archivePath) {
-        media.set(record.data.archivePath, item.targetId)
-      }
+      .map((reference) => [reference.sourceId, reference.targetId as string])
+  )
+
+const collectStatusReferenceIds = (
+  value: unknown,
+  kind: AccountArchiveKind
+): { statusIds: string[]; mediaIds: string[] } => {
+  const statusIds: string[] = []
+  const mediaIds: string[] = []
+  if (kind === 'activities.next') {
+    const parsed = ownStatusRecordSchema.safeParse(value)
+    if (parsed.success && parsed.data.type !== 'Announce') {
+      if (parsed.data.inReplyTo) statusIds.push(parsed.data.inReplyTo)
+      if (parsed.data.quote) statusIds.push(parsed.data.quote.quotedStatusId)
+    }
+  } else {
+    const parsed = mastodonActivitySchema.safeParse(value)
+    if (parsed.success && parsed.data.type === 'Create') {
+      const note = parsed.data.object
+      const inReplyTo = note.inReplyTo
+      if (typeof inReplyTo === 'string') statusIds.push(inReplyTo)
+      else if (inReplyTo?.id) statusIds.push(inReplyTo.id)
+      const quoteTarget = getQuoteTargetId(note as never)
+      if (quoteTarget) statusIds.push(quoteTarget)
     }
   }
-  return media
-}
-
-const readTargetStatusMap = async (database: Database, importId: string) => {
-  const statuses = new Map<string, string>()
-  for (const item of await accountImportItems(database, importId)) {
-    if (item.kind === 'status' && item.targetId)
-      statuses.set(item.sourceId, item.targetId)
+  for (const attachment of statusAttachments(value, kind)) {
+    const archivePath = sourceIdForAttachment(attachment)
+    if (archivePath) mediaIds.push(archivePath)
+    if ('mediaId' in attachment && attachment.mediaId) {
+      mediaIds.push(String(attachment.mediaId))
+    }
   }
-  return statuses
+  return { statusIds, mediaIds }
 }
 
 const statusInputWithTargetReferences = (
@@ -894,6 +1055,8 @@ export const runMastodonMediaPhase = async (
       const page = await context.database.getAccountImportItems({
         importId: context.accountImport.id,
         ...(afterPosition === undefined ? {} : { afterPosition }),
+        kinds: ['media'],
+        states: ['pending'],
         limit: ACCOUNT_IMPORT_ITEM_PAGE_SIZE
       })
       if (page.length === 0) return { result: 'done', progress, cursor: null }
@@ -1107,27 +1270,61 @@ export const runStatusesPhase = async (
   let afterPosition = cursorPosition ?? undefined
   const completedAtStart = progress.completedItems + progress.skippedItems
   const actor = await requireActor(context)
-  const allItems = await accountImportItems(
-    context.database,
-    context.accountImport.id
-  )
-  const statusItems = allItems.filter((item) => item.kind === 'status')
-  const ownStatusIds = new Set(statusItems.map((item) => item.sourceId))
-  const mediaByArchivePath = await readMediaMap(
-    context.database,
-    context.accountImport.id
-  )
-  const targetBySourceId = await readTargetStatusMap(
-    context.database,
-    context.accountImport.id
-  )
   for (;;) {
     const page = await context.database.getAccountImportItems({
       importId: context.accountImport.id,
       ...(afterPosition === undefined ? {} : { afterPosition }),
+      kinds: ['status', 'like', 'bookmark'],
+      states: ['pending'],
       limit: ACCOUNT_IMPORT_ITEM_PAGE_SIZE
     })
-    if (page.length === 0) return { result: 'done', progress, cursor: null }
+    if (page.length === 0) {
+      const processedPosition = afterPosition
+      if (processedPosition !== undefined) {
+        const earlierPending = await context.database.getAccountImportItems({
+          importId: context.accountImport.id,
+          kinds: ['status'],
+          states: ['pending'],
+          limit: 1
+        })
+        if (earlierPending.some((item) => item.position <= processedPosition)) {
+          return { result: 'budget', progress, cursor: null }
+        }
+      }
+      return { result: 'done', progress, cursor: null }
+    }
+    const kind = context.accountImport.kind as AccountArchiveKind
+    const referencedStatusIds: string[] = []
+    const referencedMediaIds: string[] = []
+    for (const item of page) {
+      if (item.kind !== 'status') continue
+      const record = parseCatalogedItem(item.data)
+      if (record === null) continue
+      const references = collectStatusReferenceIds(record, kind)
+      referencedStatusIds.push(...references.statusIds)
+      referencedMediaIds.push(...references.mediaIds)
+    }
+    const references = await itemReferences(
+      context,
+      ['status', 'media', 'own-media'],
+      [...referencedStatusIds, ...referencedMediaIds]
+    )
+    const ownStatusIds = new Set(
+      references
+        .filter((reference) => reference.kind === 'status')
+        .map((reference) => reference.sourceId)
+    )
+    const targetBySourceId = targetMapForKind(references, 'status')
+    const mediaByArchivePath = new Map<string, string>()
+    for (const reference of references) {
+      if (
+        (reference.kind === 'media' || reference.kind === 'own-media') &&
+        reference.state === 'done' &&
+        reference.targetId
+      ) {
+        mediaByArchivePath.set(reference.sourceId, reference.targetId)
+      }
+    }
     for (const item of page) {
       if (await checkCancelled(context)) {
         return { result: 'cancelled', progress, cursor: null }
@@ -1171,17 +1368,27 @@ export const runStatusesPhase = async (
       }
     }
     if (page.length < ACCOUNT_IMPORT_ITEM_PAGE_SIZE) {
-      const remaining = (
-        await accountImportItems(context.database, context.accountImport.id)
-      ).filter((item) => item.kind === 'status' && item.state === 'pending')
-      if (remaining.length > 0) {
-        if (
-          progress.completedItems + progress.skippedItems >
-          completedAtStart
-        ) {
-          return { result: 'budget', progress, cursor: null }
-        }
-        for (const item of remaining) {
+      const remaining = await context.database.getAccountImportItems({
+        importId: context.accountImport.id,
+        kinds: ['status'],
+        states: ['pending'],
+        limit: ACCOUNT_IMPORT_ITEM_PAGE_SIZE
+      })
+      if (remaining.length === 0) {
+        return { result: 'done', progress, cursor: null }
+      }
+      if (progress.completedItems + progress.skippedItems > completedAtStart) {
+        return { result: 'budget', progress, cursor: null }
+      }
+      for (;;) {
+        const nextRemaining = await context.database.getAccountImportItems({
+          importId: context.accountImport.id,
+          kinds: ['status'],
+          states: ['pending'],
+          limit: ACCOUNT_IMPORT_ITEM_PAGE_SIZE
+        })
+        if (nextRemaining.length === 0) break
+        for (const item of nextRemaining) {
           await terminalItemState(
             context,
             progress,
@@ -1201,7 +1408,8 @@ const runCatalogedItems = async (
   progress: AccountImportProgress,
   cursorText: string | null,
   kinds: ReadonlySet<string>,
-  process: (item: AccountImportItem) => Promise<void>
+  process: (item: AccountImportItem) => Promise<void>,
+  preparePage?: (page: AccountImportItem[]) => Promise<void>
 ): Promise<{
   result: PhaseResult
   progress: AccountImportProgress
@@ -1212,14 +1420,17 @@ const runCatalogedItems = async (
     const page = await context.database.getAccountImportItems({
       importId: context.accountImport.id,
       ...(afterPosition === undefined ? {} : { afterPosition }),
+      kinds: [...kinds],
+      states: ['pending'],
       limit: ACCOUNT_IMPORT_ITEM_PAGE_SIZE
     })
     if (page.length === 0) return { result: 'done', progress, cursor: null }
+    await preparePage?.(page)
     for (const item of page) {
       if (await checkCancelled(context)) {
         return { result: 'cancelled', progress, cursor: null }
       }
-      if (item.state === 'pending' && kinds.has(item.kind)) await process(item)
+      await process(item)
       afterPosition = item.position
       if (context.now() >= context.deadline) {
         return {
@@ -1385,19 +1596,6 @@ const archiveMediaFileName = (id: number, mediaType: string) => {
   return `archive-media-${id}.${extension[mediaType] ?? 'bin'}`
 }
 
-const readTargetGalleryGearMap = async (
-  database: Database,
-  importId: string
-) => {
-  const gear = new Map<string, string>()
-  for (const item of await accountImportItems(database, importId)) {
-    if (item.kind === 'gallery-gear' && item.targetId) {
-      gear.set(item.sourceId, item.targetId)
-    }
-  }
-  return gear
-}
-
 const readOwnMediaFile = async (
   context: AccountImportPhaseContext,
   archive: ZipArchive,
@@ -1537,10 +1735,7 @@ export const runOwnArchiveMediaPhase = async (
   const archive = await openArchive(context.objectStore, context.accountImport)
   try {
     const { media } = await getResolvedServerSettings(context.database)
-    const galleryGears = await readTargetGalleryGearMap(
-      context.database,
-      context.accountImport.id
-    )
+    let galleryGears = new Map<string, string>()
     return await runCatalogedItems(
       context,
       progress,
@@ -1573,6 +1768,22 @@ export const runOwnArchiveMediaPhase = async (
             'media_invalid'
           )
         }
+      },
+      async (page) => {
+        const gearIds = page.flatMap((item) => {
+          const parsed = sourceRecord(ownMediaLineSchema, item)
+          return parsed.success
+            ? [parsed.data.cameraGearId, parsed.data.lensGearId].filter(
+                (id): id is string => id !== null
+              )
+            : []
+        })
+        const references = await itemReferences(
+          context,
+          ['gallery-gear'],
+          gearIds
+        )
+        galleryGears = targetMapForKind(references, 'gallery-gear')
       }
     )
   } finally {
@@ -1630,7 +1841,8 @@ export const runGalleryPhase = async (
 const importAlbum = async (
   context: AccountImportPhaseContext,
   progress: AccountImportProgress,
-  item: AccountImportItem
+  item: AccountImportItem,
+  mediaMap: ReadonlyMap<string, string>
 ) => {
   const parsed = sourceRecord(ownAlbumSchema, item)
   if (!parsed.success) {
@@ -1638,10 +1850,6 @@ const importAlbum = async (
     return
   }
   const actor = await requireActor(context)
-  const mediaMap = await readMediaMap(
-    context.database,
-    context.accountImport.id
-  )
   const mediaIds = parsed.data.items
     .map(({ mediaId }) => mediaMap.get(String(mediaId)))
     .filter((id): id is string => Boolean(id))
@@ -1690,15 +1898,52 @@ export const runAlbumsPhase = async (
   context: AccountImportPhaseContext,
   progress: AccountImportProgress,
   cursorText: string | null
-) =>
-  runCatalogedItems(context, progress, cursorText, new Set(['album']), (item) =>
-    importAlbum(context, progress, item)
+) => {
+  let mediaMap = new Map<string, string>()
+  return runCatalogedItems(
+    context,
+    progress,
+    cursorText,
+    new Set(['album']),
+    (item) => importAlbum(context, progress, item, mediaMap),
+    async (page) => {
+      const mediaIds = page.flatMap((item) => {
+        const parsed = sourceRecord(ownAlbumSchema, item)
+        return parsed.success
+          ? [
+              ...parsed.data.items.map(({ mediaId }) => String(mediaId)),
+              ...(parsed.data.coverMediaId === null
+                ? []
+                : [String(parsed.data.coverMediaId)])
+            ]
+          : []
+      })
+      const references = await itemReferences(
+        context,
+        ['own-media', 'media'],
+        mediaIds
+      )
+      mediaMap = new Map(
+        references
+          .filter(
+            (reference) =>
+              reference.state === 'done' && reference.targetId !== null
+          )
+          .map((reference) => [
+            reference.sourceId,
+            reference.targetId as string
+          ])
+      )
+    }
   )
+}
 
 const importFitnessFile = async (
   context: AccountImportPhaseContext,
   progress: AccountImportProgress,
-  item: AccountImportItem
+  item: AccountImportItem,
+  targetStatuses: ReadonlyMap<string, string>,
+  targetGear: ReadonlyMap<string, string>
 ) => {
   const parsed = sourceRecord(ownFitnessFileLineSchema, item)
   if (
@@ -1716,9 +1961,7 @@ const importFitnessFile = async (
   }
   const source = parsed.data
   const targetStatusId = source.statusId
-    ? (
-        await readTargetStatusMap(context.database, context.accountImport.id)
-      ).get(source.statusId)
+    ? targetStatuses.get(source.statusId)
     : null
   if (!targetStatusId) {
     await terminalItemState(
@@ -1812,21 +2055,11 @@ const importFitnessFile = async (
       deviceName: source.deviceName,
       sourceUrl: source.sourceUrl,
       deviceGearId: source.deviceGearId
-        ? ((
-            await readTargetFitnessGearMap(
-              context.database,
-              context.accountImport.id
-            )
-          ).get(source.deviceGearId) ?? null)
+        ? (targetGear.get(source.deviceGearId) ?? null)
         : null
     })
     const targetGearId = source.gearId
-      ? ((
-          await readTargetFitnessGearMap(
-            context.database,
-            context.accountImport.id
-          )
-        ).get(source.gearId) ?? null)
+      ? (targetGear.get(source.gearId) ?? null)
       : null
     if (targetGearId) {
       await context.database.setFitnessFileGear({
@@ -1864,38 +2097,10 @@ const importFitnessFile = async (
   }
 }
 
-// A single small JSON document of the archive (actor.json, profile.json, a
-// settings row), read whole under a byte cap. The plan's "never parse a whole
-// entry" rule is about the collections (outbox.json holds up to 200,000
-// items); these documents are one bounded object each, and the cap keeps a
-// padded one from costing more than the read itself.
-const readArchiveJsonDocument = async (
-  archive: ZipArchive,
-  name: string,
-  maxBytes: number
-): Promise<unknown> => {
-  if (!requiredEntry(archive.entries, name)) return null
-  const stream = await archive.openEntryStream(name)
-  const bytes = await readAsyncIterableToBufferWithLimit(
-    chunksOf(stream),
-    maxBytes,
-    'Archived JSON document'
-  )
-  try {
-    return JSON.parse(bytes.toString('utf8')) as unknown
-  } catch {
-    return null
-  }
-}
-
 // The same caps the profile route's PATCH applies to a name and a bio it did
 // not already have stored (NAME_MAX_LENGTH / SUMMARY_MAX_LENGTH there).
 const PROFILE_NAME_MAX_LENGTH = 255
 const PROFILE_SUMMARY_MAX_LENGTH = 500
-// The actor document cap of the inspect phase's scanner, reused so both reads
-// of actor.json cost the same ceiling.
-const PROFILE_ACTOR_DOCUMENT_MAX_BYTES = 4 * 1024 * 1024
-const SETTINGS_DOCUMENT_MAX_BYTES = 1024 * 1024
 
 /**
  * The archive entry an actor.json image URL names, or null. The URL is never
@@ -1995,11 +2200,20 @@ export const runProfilePhase = async (
   }
   const archive = await openArchive(context.objectStore, context.accountImport)
   try {
-    const document = await readArchiveJsonDocument(
-      archive,
-      'actor.json',
-      PROFILE_ACTOR_DOCUMENT_MAX_BYTES
-    )
+    const document = requiredEntry(archive.entries, 'actor.json')
+      ? await readTopLevelJsonFields(
+          chunksOf(await archive.openEntryStream('actor.json')),
+          [
+            'id',
+            'preferredUsername',
+            'name',
+            'summary',
+            'attachment',
+            'icon',
+            'image'
+          ]
+        )
+      : null
     const actorDocument = mastodonActorSchema.safeParse(document)
     if (!actorDocument.success) return { result: 'done', progress }
     const source = actorDocument.data
@@ -2065,30 +2279,40 @@ export const runProfilePhase = async (
   }
 }
 
-const readTargetFitnessGearMap = async (
-  database: Database,
-  importId: string
-) => {
-  const gear = new Map<string, string>()
-  for (const item of await accountImportItems(database, importId)) {
-    if (item.kind === 'fitness-gear' && item.targetId)
-      gear.set(item.sourceId, item.targetId)
-  }
-  return gear
-}
-
 export const runFitnessPhase = async (
   context: AccountImportPhaseContext,
   progress: AccountImportProgress,
   cursorText: string | null
-) =>
-  runCatalogedItems(
+) => {
+  let targetStatuses = new Map<string, string>()
+  let targetGear = new Map<string, string>()
+  return runCatalogedItems(
     context,
     progress,
     cursorText,
     new Set(['fitness-file']),
-    (item) => importFitnessFile(context, progress, item)
+    (item) =>
+      importFitnessFile(context, progress, item, targetStatuses, targetGear),
+    async (page) => {
+      const sourceIds = page.flatMap((item) => {
+        const parsed = sourceRecord(ownFitnessFileLineSchema, item)
+        if (!parsed.success) return []
+        return [
+          ...(parsed.data.statusId ? [parsed.data.statusId] : []),
+          ...(parsed.data.gearId ? [parsed.data.gearId] : []),
+          ...(parsed.data.deviceGearId ? [parsed.data.deviceGearId] : [])
+        ]
+      })
+      const references = await itemReferences(
+        context,
+        ['status', 'fitness-gear'],
+        sourceIds
+      )
+      targetStatuses = targetMapForKind(references, 'status')
+      targetGear = targetMapForKind(references, 'fitness-gear')
+    }
   )
+}
 
 export const runCollectionsNoopPhase = async () => 'done' as const
 // The actor settings the settings option may restore, each validated with the
@@ -2204,11 +2428,19 @@ export const runSettingsPhase = async (
   }
   const archive = await openArchive(context.objectStore, context.accountImport)
   try {
-    const profileDocument = await readArchiveJsonDocument(
+    const sourceExtrasDir = await resolveOwnArchiveExtrasDir(
       archive,
-      'activities.next/profile.json',
-      SETTINGS_DOCUMENT_MAX_BYTES
+      progress,
+      'activities.next'
     )
+    if (!sourceExtrasDir) return { result: 'done', progress }
+    const profilePath = `${sourceExtrasDir}/profile.json`
+    const profileDocument = requiredEntry(archive.entries, profilePath)
+      ? await readTopLevelJsonFields(
+          chunksOf(await archive.openEntryStream(profilePath)),
+          ['settings']
+        )
+      : null
     const settings =
       profileDocument &&
       typeof profileDocument === 'object' &&
@@ -2232,11 +2464,13 @@ export const runSettingsPhase = async (
         })
       }
     }
-    const galleryRow = await readArchiveJsonDocument(
-      archive,
-      'activities.next/gallery/settings.json',
-      SETTINGS_DOCUMENT_MAX_BYTES
-    )
+    const galleryPath = `${sourceExtrasDir}/gallery/settings.json`
+    const galleryRow = requiredEntry(archive.entries, galleryPath)
+      ? await readTopLevelJsonFields(
+          chunksOf(await archive.openEntryStream(galleryPath)),
+          gallerySettingsFields
+        )
+      : null
     if (galleryRow && typeof galleryRow === 'object') {
       const patch = importAllowlistedSettings(
         galleryRow as Record<string, unknown>,

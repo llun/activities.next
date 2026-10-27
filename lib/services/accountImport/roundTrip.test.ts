@@ -112,6 +112,28 @@ describe('account archive round trip', () => {
   })
 
   it('exports and imports statuses, media details, gallery, gears, and fitness links', async () => {
+    await database.updateActor({
+      actorId: sourceActor.id,
+      name: 'Round trip profile name',
+      summary: 'Round trip profile bio',
+      fields: [{ name: 'Website', value: 'https://source.example' }],
+      defaultPrivacy: 'private',
+      defaultSensitive: true,
+      defaultLanguage: 'sl',
+      readingExpandSpoilers: true,
+      discoverable: false
+    })
+    await database.updateActor({
+      actorId: targetActor.id,
+      name: 'Destination profile name',
+      summary: 'Destination profile bio',
+      fields: [],
+      defaultPrivacy: 'unlisted',
+      defaultSensitive: false,
+      defaultLanguage: 'en',
+      readingExpandSpoilers: false,
+      discoverable: true
+    })
     const mediaBefore = await db
       .selectFrom('medias')
       .select('id')
@@ -295,7 +317,7 @@ describe('account archive round trip', () => {
       id: importId,
       accountId: targetActor.account!.id,
       actorId: targetActor.id,
-      options: '{}'
+      options: '{"profile":true,"settings":true}'
     })
     await importObjectStore.store.put(
       importObjectStore.getUploadKey(importRow),
@@ -331,6 +353,24 @@ describe('account archive round trip', () => {
       actorId: targetActor.id
     })
     expect(completed?.status).toBe('done')
+    const importedActor = (await database.getActorFromId({
+      id: targetActor.id
+    }))!
+    expect(importedActor).toMatchObject({
+      name: 'Round trip profile name',
+      summary: 'Round trip profile bio'
+    })
+    expect(importedActor.fields).toHaveLength(1)
+    expect(importedActor.fields?.[0]?.value ?? '').toContain('source.example')
+    expect(
+      await database.getActorSettings({ actorId: targetActor.id })
+    ).toMatchObject({
+      defaultPrivacy: 'private',
+      defaultSensitive: true,
+      defaultLanguage: 'sl',
+      readingExpandSpoilers: true,
+      discoverable: false
+    })
     const items = await database.getAccountImportItems({ importId, limit: 100 })
     const targetStatusId = items.find(
       (item) => item.kind === 'status' && item.sourceId === statusId

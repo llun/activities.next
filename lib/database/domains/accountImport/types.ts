@@ -80,6 +80,28 @@ export type GetAccountImportItemsParams = {
   /** Only items at a position after this one (the cursor of the last read). */
   afterPosition?: number
   limit: number
+  /** Only these kinds, filtered in SQL so a phase pages just its own items. */
+  kinds?: string[]
+  /**
+   * Only these states. A single state keeps the (importId, state, position)
+   * index usable for the position ordering, so pages never sort.
+   */
+  states?: AccountImportItemState[]
+}
+
+/** One source key lookup result, without the catalog payload. */
+export type AccountImportItemReference = {
+  kind: string
+  sourceId: string
+  state: AccountImportItemState
+  targetId: string | null
+}
+
+export type GetAccountImportItemReferencesParams = {
+  actorId: string
+  kinds: string[]
+  /** The source keys referenced by one bounded item page. */
+  sourceIds: string[]
 }
 
 export type MarkAccountImportItemParams = {
@@ -138,6 +160,9 @@ export interface AccountImportDatabase {
   getAccountImportItems(
     params: GetAccountImportItemsParams
   ): Promise<AccountImportItem[]>
+  getAccountImportItemReferences(
+    params: GetAccountImportItemReferencesParams
+  ): Promise<AccountImportItemReference[]>
   markAccountImportItem(params: MarkAccountImportItemParams): Promise<boolean>
   resetRetryableAccountImportItems(
     params: ResetRetryableAccountImportItemsParams

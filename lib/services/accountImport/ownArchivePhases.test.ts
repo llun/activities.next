@@ -10,7 +10,7 @@ import {
   ACCOUNT_IMPORT_FITNESS_GEAR_POSITION,
   ACCOUNT_IMPORT_GALLERY_GEAR_POSITION,
   ACCOUNT_IMPORT_GALLERY_SETTINGS_POSITION,
-  ACCOUNT_IMPORT_MEDIA_POSITION
+  ACCOUNT_IMPORT_OWN_MEDIA_POSITION
 } from '@/lib/services/accountImport/constants'
 import { createAccountImportObjectStore } from '@/lib/services/accountImport/objectStore'
 import {
@@ -218,13 +218,13 @@ describe('own archive import phases', () => {
       {
         kind: 'own-media',
         sourceId: '101',
-        position: ACCOUNT_IMPORT_MEDIA_POSITION,
+        position: ACCOUNT_IMPORT_OWN_MEDIA_POSITION,
         data: JSON.stringify(mediaLine(101, goodPath))
       },
       {
         kind: 'own-media',
         sourceId: '102',
-        position: ACCOUNT_IMPORT_MEDIA_POSITION + 1,
+        position: ACCOUNT_IMPORT_OWN_MEDIA_POSITION + 1,
         data: JSON.stringify(mediaLine(102, badPath))
       }
     ])
@@ -254,6 +254,75 @@ describe('own archive import phases', () => {
     ])
     expect(mocks.publish).not.toHaveBeenCalled()
     saveSpy.mockRestore()
+  })
+
+  it('restores a media gear link whose gear was finished in an earlier import', async () => {
+    const previousImport = await createImport(
+      'media-gear-previous-' + randomUUID()
+    )
+    const sourceGearId = 'source-camera-' + randomUUID()
+    const targetGear = await database.createGalleryGear({
+      actorId: actor.id,
+      kind: 'camera',
+      name: 'Previously imported camera'
+    })
+    await upsertItems(previousImport.id, [
+      {
+        kind: 'gallery-gear',
+        sourceId: sourceGearId,
+        position: ACCOUNT_IMPORT_GALLERY_GEAR_POSITION
+      }
+    ])
+    const previousGearItem = (
+      await database.getAccountImportItems({
+        importId: previousImport.id,
+        limit: 10
+      })
+    )[0]
+    await database.markAccountImportItem({
+      id: previousGearItem.id,
+      state: 'done',
+      targetId: targetGear.id
+    })
+    await database.updateAccountImport({
+      id: previousImport.id,
+      status: 'cancelled'
+    })
+
+    const importId = 'media-gear-current-' + randomUUID()
+    const accountImport = await createImport(importId)
+    const archivePath = 'media_attachments/301.png'
+    await objectStore.store.put(
+      objectStore.getUploadKey(accountImport),
+      buildZip([{ name: archivePath, data: PNG }])
+    )
+    await upsertItems(importId, [
+      {
+        kind: 'own-media',
+        sourceId: '301',
+        position: ACCOUNT_IMPORT_OWN_MEDIA_POSITION,
+        data: JSON.stringify({
+          ...mediaLine(301, archivePath),
+          cameraGearId: sourceGearId
+        })
+      }
+    ])
+
+    await runOwnArchiveMediaPhase(
+      contextFor(accountImport),
+      createInitialImportProgress(),
+      null
+    )
+
+    const importedItem = (
+      await database.getAccountImportItems({ importId, limit: 1 })
+    )[0]
+    const importedMedia = await db
+      .selectFrom('medias')
+      .select('cameraGearId')
+      .where('id', '=', Number(importedItem.targetId))
+      .executeTakeFirst()
+    expect(importedMedia?.cameraGearId).toBe(targetGear.id)
   })
 
   it('reuses gallery and fitness gears by deviceKey', async () => {
@@ -329,8 +398,6 @@ describe('own archive import phases', () => {
   })
 
   it('recreates album membership in archive item order', async () => {
-    const importId = 'album-order-' + randomUUID()
-    const accountImport = await createImport(importId)
     const mediaIds = await Promise.all(
       [1, 2, 3].map(async (index) => {
         const saved = await mediaService.saveMedia(
@@ -352,17 +419,19 @@ describe('own archive import phases', () => {
     )
     const sourceIds = [31, 11, 21]
     const order = [2, 0, 1]
+    const previousImportId = 'album-order-previous-' + randomUUID()
+    const previousImport = await createImport(previousImportId)
     await upsertItems(
-      importId,
+      previousImportId,
       sourceIds.map((id, index) => ({
         kind: 'own-media',
         sourceId: String(id),
-        position: ACCOUNT_IMPORT_MEDIA_POSITION + index,
+        position: ACCOUNT_IMPORT_OWN_MEDIA_POSITION + index,
         data: JSON.stringify(mediaLine(id, 'media_attachments/' + id + '.png'))
       }))
     )
     const mediaItems = await database.getAccountImportItems({
-      importId,
+      importId: previousImportId,
       limit: 10
     })
     for (const [index, item] of mediaItems.entries()) {
@@ -372,6 +441,12 @@ describe('own archive import phases', () => {
         targetId: mediaIds[index]
       })
     }
+    await database.updateAccountImport({
+      id: previousImport.id,
+      status: 'cancelled'
+    })
+    const importId = 'album-order-current-' + randomUUID()
+    const accountImport = await createImport(importId)
     const album = {
       id: 'source-album',
       title: 'Ordered photos',
@@ -466,7 +541,7 @@ describe('own archive import phases', () => {
 
   it('links imported fitness files and queues ProcessFitnessFileJob with both quiet flags', async () => {
     const importId = 'fitness-' + randomUUID()
-    const accountImport = await createImport(importId)
+    const previousImport = await createImport('fitness-refs-' + randomUUID())
     const statusId = actor.id + '/statuses/' + randomUUID()
     await database.createNote({
       id: statusId,
@@ -476,6 +551,37 @@ describe('own archive import phases', () => {
       to: [ACTIVITY_STREAM_PUBLIC],
       cc: []
     })
+    const sourceGearId = 'source-bike-' + randomUUID()
+    const targetGear = await database.createFitnessGear({
+      actorId: actor.id,
+      kind: 'bike',
+      name: 'Previously imported bike'
+    })
+    await upsertItems(previousImport.id, [
+      { kind: 'status', sourceId: 'source-status', position: 1, data: '{}' },
+      {
+        kind: 'fitness-gear',
+        sourceId: sourceGearId,
+        position: ACCOUNT_IMPORT_FITNESS_GEAR_POSITION,
+        data: '{}'
+      }
+    ])
+    const previousItems = await database.getAccountImportItems({
+      importId: previousImport.id,
+      limit: 10
+    })
+    for (const item of previousItems) {
+      await database.markAccountImportItem({
+        id: item.id,
+        state: 'done',
+        targetId: item.kind === 'status' ? statusId : targetGear.id
+      })
+    }
+    await database.updateAccountImport({
+      id: previousImport.id,
+      status: 'cancelled'
+    })
+    const accountImport = await createImport(importId)
     const archivePath = 'fitness/files/source.fit'
     const bytes = Buffer.from('FIT archive bytes')
     const stagedImport = await stageArchive(
@@ -483,12 +589,6 @@ describe('own archive import phases', () => {
       buildZip([{ name: archivePath, data: bytes }])
     )
     await upsertItems(importId, [
-      {
-        kind: 'status',
-        sourceId: 'source-status',
-        position: 1,
-        data: '{}'
-      },
       {
         kind: 'fitness-file',
         sourceId: 'source-file',
@@ -510,8 +610,8 @@ describe('own archive import phases', () => {
           deviceManufacturer: null,
           deviceName: null,
           sourceUrl: null,
-          gearId: null,
-          deviceGearId: null,
+          gearId: sourceGearId,
+          deviceGearId: sourceGearId,
           isPrimary: true,
           importBatchId: null,
           createdAt: '2024-01-02T03:04:05.000Z',
@@ -519,18 +619,6 @@ describe('own archive import phases', () => {
         })
       }
     ])
-    const statusItem = (
-      await database.getAccountImportItems({
-        importId,
-        limit: 1
-      })
-    )[0]
-    await database.markAccountImportItem({
-      id: statusItem.id,
-      state: 'done',
-      targetId: statusId
-    })
-
     await runFitnessPhase(
       contextFor(stagedImport),
       createInitialImportProgress(),
@@ -540,13 +628,20 @@ describe('own archive import phases', () => {
     const fitnessItem = (
       await database.getAccountImportItems({
         importId,
-        afterPosition: ACCOUNT_IMPORT_FITNESS_FILE_POSITION - 1,
+        kinds: ['fitness-file'],
         limit: 1
       })
     )[0]
-    expect(
-      (await database.getFitnessFile({ id: fitnessItem.targetId! }))?.statusId
-    ).toBe(statusId)
+    const importedFitnessFile = await db
+      .selectFrom('fitness_files')
+      .select(['statusId', 'gearId', 'deviceGearId'])
+      .where('id', '=', fitnessItem.targetId!)
+      .executeTakeFirst()
+    expect(importedFitnessFile).toEqual({
+      statusId,
+      gearId: targetGear.id,
+      deviceGearId: targetGear.id
+    })
     expect(mocks.publish).toHaveBeenCalledWith(
       expect.objectContaining({
         name: PROCESS_FITNESS_FILE_JOB_NAME,
