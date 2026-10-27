@@ -506,6 +506,57 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   limit is one request per 6 days in code and 7 in its documentation; this
   server uses 7. `POST` answers `429` with `nextAllowedAt` and a `Retry-After`
   header both while an export is running and inside the 7 days. See [Account data export](architecture.md#account-data-export).
+- **Account archive import** — These backend-only routes use the signed-in
+  web session and bind every import to the current actor; they do not use an
+  OAuth scope. Error JSON has Mastodon's `{ "error": "…" }` shape. `OPTIONS`
+  preflight on each route returns `200` with CORS headers. The shared
+  `AuthenticatedGuard` returns `403` for missing same-origin proof, suspended
+  or disabled actors, or unconfirmed accounts; without a session it redirects
+  with `303` for browser navigation and `307` otherwise. These preflight and
+  session-guard responses apply to every route; the table lists each method's
+  own responses as well.
+
+  | Method and route                         | Request                                                                            | Success response                                                                             | Other route statuses                                   |
+  | ---------------------------------------- | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+  | `GET /api/v1/account/imports`            | Optional `actorId` query parameter                                                 | `200`: array of at most 20 import objects                                                    | `403`, `404`, `409`                                    |
+  | `POST /api/v1/account/imports`           | Optional `actorId` query parameter; raw ZIP body                                   | `202`: import object                                                                         | `400`, `403`, `404`, `409`, `413`, `422`, `503`        |
+  | `POST /api/v1/account/imports/presigned` | Required JSON `size` (positive safe integer); optional `actorId` in query or JSON  | `202`: import object plus `uploadUrl: string \| null` and `directUploadPath: string \| null` | `400`, `403`, `404`, `409`, `413`, `422`, `503`        |
+  | `GET /api/v1/account/imports/:id`        | Optional `actorId` query parameter                                                 | `200`: import object                                                                         | `403`, `404`, `409`                                    |
+  | `POST /api/v1/account/imports/:id`       | Optional `actorId` query parameter; raw ZIP body                                   | `202`: import object                                                                         | `400`, `403`, `404`, `409`, `413`, `422`, `503`        |
+  | `POST /api/v1/account/imports/:id/start` | JSON `{ "actorId"?: string, "options"?: ImportOptions }`; optional `actorId` query | `202`: import object                                                                         | `400`, `403`, `404`, `409`, `413`, `422`, `429`, `503` |
+  | `DELETE /api/v1/account/imports/:id`     | Optional `actorId` query parameter                                                 | `202`: import object with `status: "cancelled"`                                              | `403`, `404`, `409`                                    |
+
+  `options` accepts the `likes`, `bookmarks`, `profile` and `settings` boolean
+  fields, plus `repliesToOthers` (`"skip"` or `"keep"`). The boolean fields
+  default to `false`; `repliesToOthers` defaults to `"skip"`. Unknown option
+  keys are stripped. Each import object contains
+  `id`, `status`, `kind`, `phase`, `progress`, `createdAt`, `startedAt`,
+  `finishedAt` and `lastErrorCode`. `progress` contains source actor/followers
+  identifiers, status order, catalog stage/index, total/completed/skipped item
+  counts and, after start, the selected options; when the profile option
+  skipped the avatar or header, it also carries `profileImageSkips`
+  (`media_quota_exceeded` or `media_invalid`). It does not expose upload
+  tokens or lease data.
+
+  The presigned request requires `size` because the S3 PUT URL signs that exact
+  content length and expires after 15 minutes. When storage cannot provide a
+  presigned URL—local-file storage or an S3 upload over 5 GiB—`uploadUrl` is
+  `null` and `directUploadPath` names the import's streamed upload route.
+
+  Each route checks the optional `Activities-Expected-Actor` header and returns
+  `409` when it names another actor. A mismatched `actorId` query/body value is
+  also `409`. Other `409`s indicate an active import, an import that is not
+  queued, an existing upload, a finished cancellation, an incomplete upload at
+  start (a missing or empty stored object, or a mismatch between its stored
+  size and the declared size) or an archive change detected during start.
+  `413` means an upload exceeds the configured size. `422` means a
+  moved/deleting actor, unsupported archive or invalid start options; `429` is
+  the per-account start limit and includes `Retry-After`. `400` covers
+  malformed request JSON, an invalid presigned `size` field or a missing
+  streamed upload body. An unsupported or malformed ZIP is rejected with `422`
+  at start. `503` covers unavailable storage, upload signing or queueing. See
+  [Account data import](architecture.md#account-data-import).
+
 - **Browser Web Vitals** — `POST /api/v1/web-vitals` takes a same-origin,
   sampled report of LCP, CLS and INP from this app's own pages and writes it to
   the server log; it is off (404) unless `ACTIVITIES_WEB_VITALS_SAMPLE_RATE` is

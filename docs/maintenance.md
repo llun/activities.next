@@ -268,10 +268,24 @@ read-only against the database and storage.
 > (`lib/services/accountArchive/actorArchive.ts`, re-exported by the script), so
 > a fix to the Mastodon-shaped files applies to both. An operator can delete an
 > export's files early by removing `archives/<id>/` from the storage; the row
-> then expires on its own. The media cleanup script and the production backup
-> both skip the `archives/` prefix. Add a lifecycle rule to the bucket that
-> aborts incomplete multipart uploads after a day or two, as a worker that
-> died mid-export leaves one behind until the reaper discards it.
+> then expires on its own. `imports/` is the reserved prefix for owner-uploaded
+> account archives (`imports/<id>/<storageToken>/upload.zip`). It is never
+> served by the media route. The media cleanup script and production backup
+> both skip the `archives/` and `imports/` prefixes. A periodic import sweep
+> checks running rows: it requeues imports with expired leases and at least an
+> hour without progress, fails an unavailable or deleted owner with
+> `actor_unavailable`, and fails an otherwise available import stuck for 24
+> hours with `import_stuck`. The two failure cases delete the staged upload;
+> terminal runner cleanup also deletes it. The same sweep expires a queued
+> upload that was never started 24 hours after its import row was created,
+> failing the row with `upload_expired` and deleting the upload. Actor
+> deletion removes the actor's import uploads together with the rows, before
+> the actor is marked `deleting`. For S3/object storage, configure a lifecycle
+> rule that aborts incomplete multipart uploads after a day or two and covers
+> both `archives/` and `imports/`. An interrupted export or server-streamed
+> import upload can leave multipart parts behind; terminal cleanup deletes
+> completed objects but cannot abort an incomplete multipart upload whose
+> upload ID was lost when the process stopped.
 
 ### Usage
 

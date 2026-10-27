@@ -21,6 +21,10 @@ describe('isReservedFitnessMediaPath', () => {
       userPath: 'archives/0d5b7c1e/archive.zip'
     },
     {
+      description: 'an account import upload',
+      userPath: 'imports/0d5b7c1e/upload.zip'
+    },
+    {
       description: 'an account export file behind an encoded dot segment',
       userPath: 'medias/%2e%2e/archives/0d5b7c1e/archive.zip'
     },

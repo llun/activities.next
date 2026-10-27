@@ -10,6 +10,9 @@ describe('archive log redaction', () => {
     expect(redactArchiveRoot(`archives/abc-1/${SECRET}/stage/p-0`)).toBe(
       'archives/<redacted>/stage/p-0'
     )
+    expect(redactArchiveRoot(`imports/abc-1/${SECRET}/stage/p-0`)).toBe(
+      'imports/<redacted>/stage/p-0'
+    )
     expect(redactArchiveRoot('medias/2026/a.jpg')).toBe('medias/2026/a.jpg')
   })
 

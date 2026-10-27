@@ -550,6 +550,78 @@ describe('ActorDatabase deletion', () => {
         ).toHaveLength(1)
       })
 
+      it('removes account imports and their items belonging to the deleted actor', async () => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const username = `delete-import-${suffix}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        const otherUsername = `other-import-${suffix}`
+        const otherActorId = `https://${TEST_DOMAIN}/users/${otherUsername}`
+
+        const accountId = await database.createAccount({
+          email: `${username}@${TEST_DOMAIN}`,
+          username,
+          passwordHash: TEST_PASSWORD_HASH,
+          domain: TEST_DOMAIN,
+          privateKey: `privateKey-${suffix}`,
+          publicKey: `publicKey-${suffix}`
+        })
+        const otherAccountId = await database.createAccount({
+          email: `${otherUsername}@${TEST_DOMAIN}`,
+          username: otherUsername,
+          passwordHash: TEST_PASSWORD_HASH,
+          domain: TEST_DOMAIN,
+          privateKey: `privateKey-other-${suffix}`,
+          publicKey: `publicKey-other-${suffix}`
+        })
+
+        await database.createAccountImport({
+          id: `import-${suffix}`,
+          accountId,
+          actorId,
+          options: '{}'
+        })
+        await database.upsertAccountImportItems({
+          importId: `import-${suffix}`,
+          actorId,
+          items: [{ kind: 'status', sourceId: 'source-1', position: 0 }]
+        })
+        await database.createAccountImport({
+          id: `other-import-${suffix}`,
+          accountId: otherAccountId,
+          actorId: otherActorId,
+          options: '{}'
+        })
+
+        expect(
+          await database.listAccountImports({ actorId, limit: 10 })
+        ).toHaveLength(1)
+        expect(
+          await database.getAccountImportItems({
+            importId: `import-${suffix}`,
+            limit: 10
+          })
+        ).toHaveLength(1)
+
+        await database.deleteActorData({ actorId })
+
+        expect(
+          await database.listAccountImports({ actorId, limit: 10 })
+        ).toEqual([])
+        expect(
+          await database.getAccountImportItems({
+            importId: `import-${suffix}`,
+            limit: 10
+          })
+        ).toEqual([])
+        // The other actor's import survives.
+        expect(
+          await database.listAccountImports({
+            actorId: otherActorId,
+            limit: 10
+          })
+        ).toHaveLength(1)
+      })
+
       describe('deleting an actor that owns statuses, relationships and counters', () => {
         const suffix = crypto.randomUUID().slice(0, 8)
         const username = `delete-data-${suffix}`

@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 
 import { indexHashtagSearchDocuments } from '@/lib/database/domains/search/hashtags'
 import {
+  appendStatusHistory,
   updateNote,
   updateNoteVisibility,
   updatePoll,
@@ -37,6 +38,8 @@ import {
   truncateToHour
 } from '@/lib/database/utils/counterBucket'
 import { getCompatibleJSON } from '@/lib/database/utils/getCompatibleJSON'
+import { MAX_FUTURE_SKEW_MS } from '@/lib/services/accountImport/mappers/timeSkew'
+import type { Attachment } from '@/lib/types/domain/attachment'
 import { StatusNote, StatusPoll, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
@@ -2891,6 +2894,266 @@ describe('updatePoll', () => {
       })
     ).resolves.toBeNull()
     expect(await dumpTables()).toEqual(before)
+    expect(hydrationCalls).toEqual([])
+  })
+})
+
+describe('appendStatusHistory', () => {
+  const revision = ({
+    text,
+    supersededAt,
+    summary = null,
+    sensitive = false,
+    attachments = [],
+    pollOptions = null
+  }: {
+    text: string
+    supersededAt: number
+    summary?: string | null
+    sensitive?: boolean | null
+    attachments?: Attachment[] | null
+    pollOptions?: string[] | null
+  }) => ({
+    text,
+    summary,
+    sensitive,
+    attachments,
+    pollOptions,
+    supersededAt
+  })
+
+  const setup = async () => {
+    const p = nextPrefix()
+    const author = await seedActor(`${p}-author`, { local: true })
+    const id = await seedStatus({
+      id: `${author}/statuses/1`,
+      actorId: author,
+      createdAt: BASE + 1_000,
+      content: JSON.stringify({
+        url: `${author}/statuses/1`,
+        text: 'current',
+        summary: '',
+        sensitive: false,
+        language: null
+      })
+    })
+    return { author, id }
+  }
+
+  it('writes the revisions in supersededAt order with the archived times and bumps updatedAt to the newest', async () => {
+    const { id } = await setup()
+    const rowBefore = await statusRow(id)
+
+    // An empty replay writes nothing at all.
+    await appendStatusHistory(db, { statusId: id, revisions: [] })
+    expect(await historyOf(id)).toEqual([])
+    expect(await statusRow(id)).toEqual(rowBefore)
+
+    // Out of order: the oldest revision is passed last.
+    await appendStatusHistory(db, {
+      statusId: id,
+      revisions: [
+        revision({ text: 'third', supersededAt: BASE + 9_000 }),
+        revision({
+          text: 'first',
+          summary: 'cw',
+          sensitive: true,
+          supersededAt: BASE + 3_000
+        }),
+        revision({ text: 'second', supersededAt: BASE + 5_000 })
+      ]
+    })
+
+    const rows = await historyOf(id)
+    expect(rows).toEqual([
+      {
+        data: {
+          text: 'first',
+          summary: 'cw',
+          sensitive: true,
+          attachments: [],
+          pollOptions: null
+        },
+        createdAt: BASE + 3_000,
+        updatedAt: BASE + 3_000
+      },
+      {
+        data: {
+          text: 'second',
+          summary: null,
+          sensitive: false,
+          attachments: [],
+          pollOptions: null
+        },
+        createdAt: BASE + 5_000,
+        updatedAt: BASE + 5_000
+      },
+      {
+        data: {
+          text: 'third',
+          summary: null,
+          sensitive: false,
+          attachments: [],
+          pollOptions: null
+        },
+        createdAt: BASE + 9_000,
+        updatedAt: BASE + 9_000
+      }
+    ])
+    // The reader reports the archived supersede times, oldest first.
+    expect(
+      (await testDb.database.getStatusEditHistory({ statusId: id })).map(
+        (row) => row.supersededAt
+      )
+    ).toEqual([BASE + 3_000, BASE + 5_000, BASE + 9_000])
+    // The newest supersede time becomes the status's edited_at; nothing else
+    // on the row moved, and no search document was written.
+    const rowAfter = await statusRow(id)
+    expect(rowAfter).toMatchObject({ updatedAt: BASE + 9_000 })
+    const { updatedAt: _after, ...restAfter } = rowAfter ?? {}
+    const { updatedAt: _before, ...restBefore } = rowBefore ?? {}
+    expect(restAfter).toEqual(restBefore)
+    expect(await searchDocumentOf(id)).toBeUndefined()
+    expect(hydrationCalls).toEqual([])
+  })
+
+  it('stores the same previousData shape as a real updateNote revision', async () => {
+    const p = nextPrefix()
+    const author = await seedActor(`${p}-author`, { local: true })
+    const content = JSON.stringify({
+      url: `${author}/statuses/shared`,
+      text: 'before',
+      summary: 'old cw',
+      sensitive: true,
+      language: 'th'
+    })
+    const edited = await seedStatus({
+      id: `${author}/statuses/1`,
+      actorId: author,
+      createdAt: BASE + 1_000,
+      content
+    })
+    const appended = await seedStatus({
+      id: `${author}/statuses/2`,
+      actorId: author,
+      createdAt: BASE + 1_000,
+      content
+    })
+    const seedAttachment = async (statusId: string) => {
+      const id = randomUUID()
+      await db
+        .insertInto('attachments')
+        .values({
+          id,
+          statusId,
+          actorId: author,
+          type: 'Document',
+          mediaType: 'image/jpeg',
+          url: `https://${DOMAIN}/media/shared`,
+          width: 100,
+          height: 50,
+          name: 'alt',
+          mediaId: null,
+          blurhash: 'LKO2?U%2Tw=w]~RBVZRi};RPxuwH',
+          focusX: 0.1,
+          focusY: -0.2,
+          thumbnailUrl: null,
+          createdAt: new Date(BASE),
+          updatedAt: new Date(BASE)
+        })
+        .execute()
+      return id
+    }
+    await seedAttachment(edited)
+    await seedAttachment(appended)
+
+    // A real edit of the first status records its previous version.
+    await updateNote(db, hydration, {
+      statusId: edited,
+      text: 'after',
+      summary: 'new cw'
+    })
+    // The same previous version, appended as an archived revision of the
+    // second status with its own supersede time.
+    const previous = await testDb.database.getStatus({ statusId: appended })
+    await appendStatusHistory(db, {
+      statusId: appended,
+      revisions: [
+        revision({
+          text: 'before',
+          summary: 'old cw',
+          sensitive: true,
+          attachments: (previous as StatusNote).attachments,
+          supersededAt: BASE + 2_000
+        })
+      ]
+    })
+
+    const [updateNoteRow, appendedRow] = [
+      (await historyOf(edited))[0],
+      (await historyOf(appended))[0]
+    ]
+    const appendedData = appendedRow.data as Record<string, unknown>
+    const updateNoteData = updateNoteRow.data as Record<string, unknown>
+    expect(Object.keys(appendedData)).toEqual(Object.keys(updateNoteData))
+    expect(appendedData.text).toBe(updateNoteData.text)
+    expect(appendedData.summary).toBe(updateNoteData.summary)
+    expect(appendedData.sensitive).toBe(updateNoteData.sensitive)
+    expect(appendedData.pollOptions).toBe(updateNoteData.pollOptions)
+    const appendedAttachments = appendedData.attachments as Record<
+      string,
+      unknown
+    >[]
+    const updateNoteAttachments = updateNoteData.attachments as Record<
+      string,
+      unknown
+    >[]
+    expect(appendedAttachments).toHaveLength(1)
+    expect(Object.keys(appendedAttachments[0])).toEqual(
+      Object.keys(updateNoteAttachments[0])
+    )
+  })
+
+  it('appends the revisions and the updatedAt bump in one transaction', async () => {
+    const { id } = await setup()
+    const drop = await failWrite(
+      'statuses',
+      ['update'],
+      `new."id" = ${quote(id)}`
+    )
+    await expectRolledBack(drop, () =>
+      appendStatusHistory(db, {
+        statusId: id,
+        revisions: [
+          revision({ text: 'first', supersededAt: BASE + 3_000 }),
+          revision({ text: 'second', supersededAt: BASE + 5_000 })
+        ]
+      })
+    )
+    expect(hydrationCalls).toEqual([])
+  })
+
+  it('refuses a supersede time later than now plus the skew, or not finite', async () => {
+    const { id } = await setup()
+    const rowBefore = await statusRow(id)
+    // `now` is this test's faked time; one millisecond past the skew is a
+    // crafted future edited_at.
+    const future = now + MAX_FUTURE_SKEW_MS + 1
+    await expect(
+      appendStatusHistory(db, {
+        statusId: id,
+        revisions: [revision({ text: 'future', supersededAt: future })]
+      })
+    ).rejects.toThrow()
+    await expect(
+      appendStatusHistory(db, {
+        statusId: id,
+        revisions: [revision({ text: 'nan', supersededAt: Number.NaN })]
+      })
+    ).rejects.toThrow()
+    // Nothing was written: no history row, no updatedAt bump.
+    expect(await historyOf(id)).toEqual([])
+    expect(await statusRow(id)).toEqual(rowBefore)
     expect(hydrationCalls).toEqual([])
   })
 })

@@ -1327,6 +1327,9 @@ describe('statements', () => {
       'delete account_notes by actorId',
       'delete bulk_import_rows by importId',
       'delete bulk_imports by actorId',
+      // Import rows are purged only when any exist; the seeded world has none,
+      // so the item and import deletes behind this read never fire here.
+      'select account_imports by actorId',
       'delete actor_migrations by actorId',
       'delete filter_statuses by filterId',
       'delete filter_keywords by filterId',

@@ -362,6 +362,13 @@ describe('account archive routes', () => {
       expect(response.headers.get('location')).toBeNull()
       expect(response.headers.get('content-length')).toBe('7')
       expect(await response.text()).toBe('ZIPDATA')
+      // Export downloads are never pinned: only an import's archive reads
+      // carry If-Match.
+      for (const [command] of send.mock.calls) {
+        expect(
+          (command as { input: { IfMatch?: string } }).input.IfMatch
+        ).toBeUndefined()
+      }
       spy.mockRestore()
     })
 

@@ -568,6 +568,206 @@ Export](maintenance.md#actor-archive-export)). It is built by
   (`scripts/backup/productionArchive.ts`) skip the `archives/` prefix like the
   fitness prefix.
 
+### Account data import
+
+The account archive importer restores a Mastodon archive or an `activities.next`
+account export into the signed-in actor's current profile. The endpoints are
+backend-only; there is no import settings page.
+
+#### Records, phases and recovery
+
+`account_imports` stores the importing account and actor, archive kind and
+options, upload token and byte count, state, phase and cursor, progress, lease
+token and expiry, reason-code error, and lifecycle timestamps.
+`account_import_items` is the resumable catalog: one source item per import
+kind, with its source id, position, raw JSON while needed, state, reason code
+and imported target id. A partial unique index allows one queued or running
+import per actor (profile). Import starts are limited to three per account in
+a rolling 24-hour window; every profile of the account shares the same limit.
+Only starts that reached `startedAt` count, so an uploaded archive that is
+never started does not use a start.
+
+The worker takes a database lease for each slice, renews it around writes and
+stops each queued slice within a 20-second budget. Each continuation job id is
+deterministic from the import, phase/cursor and a persisted, increasing pass
+counter; a later continuation or reaper pass therefore gets a fresh id even
+when it resumes the same cursor. The phases run in order: inspect the archive,
+catalog items, restore profile and settings, gears, media, statuses and albums,
+pass through the collections no-op, process archived fitness files for
+`activities.next` archives, then finish. Status and item cursors let a worker
+continue where it stopped. Statuses are processed in published order so
+available parents are handled before replies. A reply whose parent cannot be
+imported is skipped as `parent_unavailable`; it does not keep the statuses
+phase cycling. The catalog phase reopens and rescans the ZIP from its beginning
+on continuation, skipping catalog positions already recorded.
+
+`DELETE /api/v1/account/imports/:id` marks a queued or running import cancelled
+and queues cleanup; the runner checks cancellation before continuing. The
+periodic stuck-import sweep runs every ten minutes. A running import with an
+expired lease and no progress for an hour is requeued if its owner is still
+available. A missing actor/account, suspended or disabled actor, or actor
+being deleted is failed with `actor_unavailable` and its staged upload is
+deleted when the import row is still present for the sweep to inspect. An
+otherwise available import still stuck for 24 hours is failed
+with `import_stuck` and its upload is deleted. When an import reaches `done`,
+`failed` or `cancelled`, its catalog rows' raw `data` is cleared in the same
+database transaction; processed, skipped and non-retryable failed items also
+clear their raw data as they finish. Retryable failed items retain it until
+they are retried or the import becomes terminal.
+
+Import-level failures use fixed reason codes. `archive_changed` means a
+previously started archive changed during a later read; the start endpoint
+returns `409` if it detects a changed archive during inspection. `upload_expired`
+means a queued upload was not started within 24 hours; the sweep marks it
+failed and deletes its staged upload. An upload that cannot be stored fails
+the queued row with `upload_empty` (an empty body), `file_too_large` (over the
+configured cap, or not the declared size) or `upload_failed` (the store refused the
+streamed bytes); a presigned URL that cannot be created fails it with
+`upload_url_failed`, and a start that cannot queue its job fails the running
+row with `queue_failed`. A ZIP-level refusal fails the import with `archive_`
+plus the reader's reason: `archive_not_a_zip`, `archive_unsafe_name`,
+`archive_entry_too_large`, `archive_ratio_too_high` and
+`archive_total_too_large` (the entry-count cap and the 200,000-item catalog
+cap share `archive_too_many_entries`, described with the bounds below). Any
+other error fails the import with `import_failed`. An individual catalog item
+that errors is marked `failed` with reason `item_failed`, while the rest of the
+import continues and can still finish with status `done`. Failed items do not
+increase `completedItems` or `skippedItems`, so those progress counts may not
+add up to `totalItems`. When the same actor imports the same source again,
+pending or failed rows can be claimed again, as can skipped rows whose reason
+depends on an option or size limit (`option_disabled`, `reply-to-other`,
+`media_too_large`, `media_quota_exceeded` or `fitness_too_large`). Other
+skipped verdicts remain settled.
+
+Skipped items record a reason code. `option_disabled` marks a like or bookmark
+whose option is off; `reply-to-other` a reply excluded by the replies option;
+`reply-uri-too-long` a kept reply whose parent URI exceeds the 255-character
+`statuses.reply` limit; `boost` an Announce activity; `direct` a Mastodon
+direct message; `invalid` an item that fails schema validation;
+`bad-date` an item with no parseable publication time; `foreign-author` an item
+whose author is not the archive actor; `parent_unavailable` a reply whose
+parent is not in the archive; `local_status_missing` a like whose target is no
+readable local status; `bookmark_unavailable` a bookmark row that could not be
+imported; `archive_item_invalid` an item whose stored data is no longer
+usable; `media_missing` a media file absent from the archive;
+`media_type_unsupported` a media type the importer does not accept;
+`media_too_large` and `fitness_too_large` content over its size limit;
+`media_invalid` media bytes that fail validation or decoding;
+`media_quota_exceeded` media that would exceed the owner's storage quota;
+`gear_invalid` a gallery or fitness gear record that fails validation;
+`album_invalid` an album record that fails validation; `album_limit` an album
+over the per-actor album limit; `fitness_invalid` a fitness file whose record
+or bytes fail validation; `fitness_missing` a fitness file absent from the
+archive; `status_unavailable` a fitness file whose status was not imported;
+and `storage_unavailable` a media or fitness save no store accepted anything
+for (no storage configured). `storage_unavailable` is a settled skip: the row
+is not re-claimed on a later import, unlike the option- and size-limit
+verdicts above.
+
+#### Archive and document bounds
+
+Uploads default to 10 GiB, configurable with
+`ACTIVITIES_ACCOUNT_IMPORT_MAX_FILE_SIZE`. The ZIP reader checks the central
+directory before inflating anything: at most 200,000 ZIP entries, 2 GiB
+uncompressed per entry, 20 GiB uncompressed across entries, and a compression
+ratio of at most 1,000:1. Entry names must be relative and cannot contain a
+backslash, NUL, drive prefix or `..` path segment; directory and symlink entries
+are ignored. The importer reads the stored ZIP with random-access ranges. It
+does not extract files to disk, and it never opens a ZIP nested inside an
+archive. At start, the importer records the upload size and available ETag and
+checks that identity on later range reads. S3 range requests use `If-Match` for
+the recorded ETag. If a later read detects a changed object, the import fails
+with `lastErrorCode: archive_changed`.
+
+Mastodon's `outbox.json` `orderedItems` array, own-export JSONL files and root
+JSON arrays are scanned incrementally, one item at a time. Each item or line
+is capped at 512 KiB; root JSON arrays are capped at 256 MiB total. Selected
+root-field scanners cap each source document at 4 MiB, keys at 1 KiB and
+captured values at 64 KiB (8 KiB for selected strings). `actor.json`, the own
+export's `profile.json`, and its gallery settings document are read through
+these bounded top-level scanners: selected fields are captured, and no profile
+or settings document is parsed whole. Independently of the ZIP-entry limit,
+the importer enforces a 200,000-item cap on cataloged items; exceeding it fails
+the import with `archive_too_many_entries`.
+
+#### Quiet writes and imported data
+
+The status writer inserts the local status directly with its archived creation
+time, rebuilt recipients and owned tags, attachments, polls and edit history;
+it does not use the ordinary create-and-publish path. The `noSideEffects`
+guard rejects status publication, timeline, notification, preview, arbitrary
+HTTP and arbitrary queue helpers, while explicitly allowing the bookmark CSV
+import path and fitness processing job. Likes are added only when the target
+status is local and `canActorReadStatus` says the importing actor can read it.
+Bookmarks go through the same `importRow` path used for CSV bookmark imports.
+With `repliesToOthers: "keep"`, a foreign parent's URI is stored as data in the
+imported status's `statuses.reply` field, which is limited to 255 characters;
+the importer never fetches that parent. A parent URI longer than 255 characters
+cannot be stored, so that reply is skipped with reason `reply-uri-too-long`
+and never stored truncated. Local thread reads resolve a parent
+only from a status already stored in the database.
+
+There are two current exceptions to the quiet/security goal that callers
+should account for. When `profile` is enabled and a federated profile field
+changes, the profile phase calls `publishActorUpdate`, sending one ordinary
+ActivityPub `Update(Person)`. For bookmarks, `importRow` can queue
+`fetchRemoteStatusJob` when an archive URI names an unknown remote status, so a
+URL from the archive can be fetched indirectly. Other archive URLs are used as
+identifiers or matched to safe paths inside the archive; media and profile
+image bytes are read from archive entries rather than fetched from their
+source URLs. These two code paths mean that the global guarantees “no archive
+URL is ever fetched” and “no federation” are not currently true for every
+option combination.
+
+Status public IDs are deterministic from the importing actor id and source
+status id, with the archived publication time as the UUIDv7 timestamp. This
+keeps repeated imports stable without allowing one actor's archive to claim
+another actor's IDs. Mastodon Create activities must name the archive actor as
+both activity author and note author; own-export status rows must also match
+the archive actor. Foreign-author records are skipped. Archived publication
+times must parse and cannot be more than five minutes in the future. Archived
+edit supersede times must also parse, be no more than five minutes in the
+future, and be at or after the original publication time; accepted revisions
+are restored into status history at their archived times.
+
+Media is matched to archive paths and sniffed from its bytes before storage.
+Profile images are likewise archive-local and type-checked. The importer does
+not enqueue gallery subject or place enrichment jobs. Fitness files are
+processed with `publishSendNote: false` and `notifyOnComplete: false`, so
+processing does not publish a fitness note or send a completion notification.
+
+The optional profile restore allowlist includes display name, bio, profile
+fields, avatar and header images. A profile image the importer itself refuses —
+the sniffed type is not a stored png or jpeg, or the bytes fail the media
+schema or the decode check — is skipped with `media_invalid`, as is one the
+media path refuses because the bytes fail its validation; an image the
+account's storage quota refuses is skipped with `media_quota_exceeded`. The
+rest of the profile still applies. The profile phase keeps no item rows, so
+these skip reasons are recorded in the import's progress — the import API
+shows them on the run — and logged rather than recorded on the catalog. If
+anything fails after an image was stored (the header's own read or save, a
+cancellation, or the profile update), every image the run stored is deleted
+instead of left orphaned, and the phase fails for its own reason. The settings option
+reads only this server's own export. Its actor-settings allowlist is
+`defaultPrivacy`, `defaultSensitive`, `defaultLanguage`, `defaultQuotePolicy`,
+`postLineLimit`, `readingExpandMedia`, `readingExpandSpoilers`,
+`readingAutoplayGifs`, `notificationPolicy`, `showMedia`,
+`showMediaReplies`, `showFeatured`, `discoverable`, `indexable`,
+`hideCollections` and `manuallyApprovesFollowers`. Its gallery-settings
+allowlist is `autoDescribe`, `allowEmptyDescription`, `subjectHashtags`,
+`galleryDefault`, `defaultPlacePrecision`, `showGear`, `mapPublic`,
+`lifeListPublic`, `hiddenLocations`, `hideThreatenedPlaces`,
+`subjectSuggestionMode`, `subjectConfidenceThreshold` and `photoEnhance`.
+Fitness OAuth settings and other secrets, delivery toggles and actor-identity
+fields are excluded. The import API exposes fixed `lastErrorCode` values rather
+than exception text; archive exceptions are mapped to reason codes and redacted
+before logging, and raw archive exception messages are not returned to the
+owner.
+
+Editing an imported status later uses the ordinary edit path and sends its
+normal federated `Update`. The catalog phase rescans the ZIP on resume as
+described above.
+
 ### Link Preview Cards
 
 When a status contains a link, `FetchLinkPreviewJob` fetches that page once,
@@ -2294,8 +2494,10 @@ moved` (reject stays allowed). While
   their existing transactions, and a rename mints a missing current row
   lazily. `isUsernameExists` consults the ledger too, so a handle any row
   holds — current or replaced, any actor — can never be registered again, and
-  `getActorFromUsername` gains a third arm that resolves a replaced handle
-  back to the actor that gave it up, so an old handle keeps working
+  `getActorFromUsername` gains a ledger arm that resolves any `actor_handles`
+  row for the folded handle, current or replaced, to its holder (a replaced
+  row returns the actor that gave the handle up; a current row answers a
+  casing miss with the handle's holder), so an old handle keeps working
   everywhere a handle resolves (`OnlyLocalUserGuard`, WebFinger, mentions,
   lookup, search). The arm runs after the exact actors match but BEFORE the
   case-folded one: a retired ledger row is the reservation that says who the

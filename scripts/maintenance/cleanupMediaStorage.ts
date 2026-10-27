@@ -28,7 +28,9 @@ import {
 import { openScriptDatabase } from '@/lib/database/scriptDatabase'
 import {
   ARCHIVE_STORAGE_PREFIX,
-  isArchiveStoragePath
+  IMPORT_STORAGE_PREFIX,
+  isArchiveStoragePath,
+  isImportStoragePath
 } from '@/lib/services/accountArchive/constants'
 import { getEffectiveFitnessStorageConfig } from '@/lib/services/fitness-files'
 import { resolveStorageFilePath } from '@/lib/services/medias/storagePath'
@@ -499,6 +501,17 @@ async function cleanupMediaStorage() {
     storageFiles = storageFiles.filter((file) => !isArchiveStoragePath(file))
     console.log(
       `   Skipped ${before - storageFiles.length} file(s) under '${ARCHIVE_STORAGE_PREFIX}/' (account exports, managed by the export job)`
+    )
+  }
+
+  // Import uploads (imports/) are created and expired by the import job and
+  // are referenced by account_imports, not by any media row.
+  {
+    const before = storageFiles.length
+    storageFiles = storageFiles.filter((file) => !isImportStoragePath(file))
+    const skipped = before - storageFiles.length
+    console.log(
+      `   Skipped ${skipped} file(s) under '${IMPORT_STORAGE_PREFIX}/' (archive imports, managed by the import job)`
     )
   }
 

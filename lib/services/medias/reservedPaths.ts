@@ -1,5 +1,8 @@
 import { getMediaReservedFitnessPathPrefixes } from '@/lib/config/fitnessStorage'
-import { ARCHIVE_STORAGE_PREFIX } from '@/lib/services/accountArchive/constants'
+import {
+  ARCHIVE_STORAGE_PREFIX,
+  IMPORT_STORAGE_PREFIX
+} from '@/lib/services/accountArchive/constants'
 
 // How many times a path may be percent-decoded while canonicalising. Next has
 // already decoded the catch-all segments once, so a client that double-encodes
@@ -98,7 +101,8 @@ export const isReservedFitnessMediaPath = (userPath: string): boolean => {
   // only by the owner-only download endpoint, never by this route.
   return [
     ...getMediaReservedFitnessPathPrefixes(),
-    ARCHIVE_STORAGE_PREFIX
+    ARCHIVE_STORAGE_PREFIX,
+    IMPORT_STORAGE_PREFIX
   ].some(
     (prefix) =>
       canonicalPath === prefix || canonicalPath.startsWith(`${prefix}/`)

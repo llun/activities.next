@@ -91,7 +91,7 @@ ACTIVITIES_MEDIA_STORAGE_PATH=./uploads
 
 #### S3 / S3-Compatible Object Storage
 
-The account exports (`archives/` in the same bucket) need these permissions on the bucket's credentials besides what media needs: `s3:PutObject`, `s3:GetObject`, `s3:DeleteObject` and `s3:AbortMultipartUpload` (to clean up an unfinished upload) on `archives/*`, `s3:ListBucket` on the bucket (limited to the `archives/*` prefix with a condition), and optionally `s3:ListMultipartUploadParts` on `archives/*`. Without the last one an export still completes, with a warning in the logs, but cannot double-check its part ETags. Add a bucket lifecycle rule that aborts incomplete multipart uploads after a day or two.
+Account archive exports and imports use the same bucket and credentials as media. They need these permissions in addition to the media policy: `s3:PutObject`, `s3:GetObject`, `s3:DeleteObject` and `s3:AbortMultipartUpload` (to clean up an unfinished upload) on both `archives/*` and `imports/*`; `s3:ListBucket` on the bucket, limited to both prefixes with a condition; and optionally `s3:ListMultipartUploadParts` on both prefixes. Without the last permission an export still completes, with a warning in the logs, but cannot double-check its part ETags. Add a bucket lifecycle rule that aborts incomplete multipart uploads after a day or two.
 
 This is an extra IAM identity policy for the app's S3 credentials, added alongside the existing media policy (not a replacement for it, and not a bucket policy). If S3 answers 403 instead of 404 for missing keys, the `s3:prefix` condition on `s3:ListBucket` may be left off.
 
@@ -108,13 +108,18 @@ This is an extra IAM identity policy for the app's S3 credentials, added alongsi
         "s3:AbortMultipartUpload",
         "s3:ListMultipartUploadParts"
       ],
-      "Resource": "arn:aws:s3:::my-bucket/archives/*"
+      "Resource": [
+        "arn:aws:s3:::my-bucket/archives/*",
+        "arn:aws:s3:::my-bucket/imports/*"
+      ]
     },
     {
       "Effect": "Allow",
       "Action": "s3:ListBucket",
       "Resource": "arn:aws:s3:::my-bucket",
-      "Condition": { "StringLike": { "s3:prefix": ["archives/*"] } }
+      "Condition": {
+        "StringLike": { "s3:prefix": ["archives/*", "imports/*"] }
+      }
     }
   ]
 }
@@ -125,14 +130,14 @@ ACTIVITIES_MEDIA_STORAGE_TYPE=s3          # or 'object' for S3-compatible
 ACTIVITIES_MEDIA_STORAGE_BUCKET=my-bucket
 ACTIVITIES_MEDIA_STORAGE_REGION=us-east-1
 # Optional: public CDN/custom domain used to serve media files.
-# Account data exports live in the same bucket under archives/. The hostname
-# must not serve that prefix (or the bucket root) publicly: an export is
-# protected by a secret key segment plus the owner-checked download endpoint,
-# not by the bucket. With this variable set, exports are streamed through the
-# app instead of redirecting to a signed bucket URL. A streamed download lasts as
-# long as the transfer, so on a host with a short request duration limit
-# (serverless) a large export may be cut off; a client can resume it with a
-# `Range: bytes=n-` request.
+# Account archives live in the same bucket under archives/ (exports) and
+# imports/ (staged uploads). The hostname must not serve either prefix (or the
+# bucket root) publicly. Exports are protected by a secret key segment plus the
+# owner-checked download endpoint, not by the bucket. With this variable set,
+# exports are streamed through the app instead of redirecting to a signed
+# bucket URL. A streamed download lasts as long as the transfer, so on a host
+# with a short request duration limit (serverless) a large export may be cut
+# off; a client can resume it with a `Range: bytes=n-` request.
 ACTIVITIES_MEDIA_STORAGE_HOSTNAME=media.example.com
 # Optional: S3-compatible API endpoint for uploads/storage operations
 ACTIVITIES_MEDIA_STORAGE_ENDPOINT=https://s3.example.com
@@ -144,6 +149,10 @@ Optional storage limits:
 ACTIVITIES_MEDIA_STORAGE_MAX_FILE_SIZE=209715200       # 200 MiB in bytes
 ACTIVITIES_MEDIA_STORAGE_QUOTA_PER_ACCOUNT=1073741824  # 1 GiB in bytes
 ```
+
+Account archive imports have a separate upload-size limit of 10 GiB by
+default. Set `ACTIVITIES_ACCOUNT_IMPORT_MAX_FILE_SIZE` to a byte count to
+change it; see the [Environment Variables Guide](environment-variables.md#account-import).
 
 Some uploads stream through the app as `multipart/form-data`: every media
 upload on local (`fs`) media storage; the sync media endpoints

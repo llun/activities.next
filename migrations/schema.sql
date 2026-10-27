@@ -27,6 +27,43 @@ CREATE TABLE public.account_archives (
     "expiresAt" timestamp with time zone
 );
 
+CREATE TABLE public.account_import_items (
+    id character varying(255) NOT NULL,
+    "importId" character varying(255) NOT NULL,
+    "actorId" character varying(255) NOT NULL,
+    kind character varying(64) NOT NULL,
+    "sourceId" character varying(512) NOT NULL,
+    "position" integer NOT NULL,
+    data text,
+    state character varying(16) DEFAULT 'pending'::character varying NOT NULL,
+    reason text,
+    "targetId" character varying(255),
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE TABLE public.account_imports (
+    id character varying(255) NOT NULL,
+    "accountId" character varying(255) NOT NULL,
+    "actorId" character varying(255) NOT NULL,
+    status character varying(32) DEFAULT 'queued'::character varying NOT NULL,
+    kind character varying(32),
+    options text DEFAULT '{}'::text NOT NULL,
+    "storageToken" character varying(64) NOT NULL,
+    "uploadedBytes" bigint DEFAULT 0 NOT NULL,
+    "archiveETag" text,
+    progress text,
+    phase character varying(64),
+    cursor text,
+    "runToken" character varying(255),
+    "claimedUntil" timestamp with time zone,
+    "lastErrorCode" text,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "startedAt" timestamp with time zone,
+    "finishedAt" timestamp with time zone,
+    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
 CREATE TABLE public.account_notes (
     id character varying(255) NOT NULL,
     "actorId" character varying(255) NOT NULL,
@@ -1579,6 +1616,12 @@ ALTER TABLE ONLY public.account_providers
 ALTER TABLE ONLY public.account_archives
     ADD CONSTRAINT account_archives_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY public.account_import_items
+    ADD CONSTRAINT account_import_items_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY public.account_imports
+    ADD CONSTRAINT account_imports_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY public.account_notes
     ADD CONSTRAINT account_notes_actor_target_unique UNIQUE ("actorId", "targetActorId");
 
@@ -2055,6 +2098,16 @@ CREATE INDEX account_archives_expires_idx ON public.account_archives USING btree
 
 CREATE INDEX account_archives_heartbeat_idx ON public.account_archives USING btree (status, "heartbeatAt");
 
+CREATE UNIQUE INDEX account_import_items_actor_source_unique ON public.account_import_items USING btree ("actorId", kind, "sourceId");
+
+CREATE INDEX account_import_items_import_state_position_idx ON public.account_import_items USING btree ("importId", state, "position");
+
+CREATE INDEX account_imports_account_started_idx ON public.account_imports USING btree ("accountId", "startedAt");
+
+CREATE UNIQUE INDEX account_imports_actor_active_idx ON public.account_imports USING btree ("actorId") WHERE (((status)::text = 'queued'::text) OR ((status)::text = 'running'::text));
+
+CREATE INDEX account_imports_actor_created_idx ON public.account_imports USING btree ("actorId", "createdAt");
+
 CREATE INDEX "account_providers_accountId_provider_providerId_idx" ON public.account_providers USING btree ("accountId", provider, "providerId");
 
 CREATE INDEX "accountsIndex" ON public.accounts USING btree (email, "createdAt", "updatedAt");
@@ -2369,6 +2422,12 @@ CREATE INDEX wahoo_imports_history_idx ON public.wahoo_imports USING btree ("his
 
 ALTER TABLE ONLY public.account_archives
     ADD CONSTRAINT "account_archives_accountId_fkey" FOREIGN KEY ("accountId") REFERENCES public.accounts(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY public.account_import_items
+    ADD CONSTRAINT "account_import_items_importId_fkey" FOREIGN KEY ("importId") REFERENCES public.account_imports(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY public.account_imports
+    ADD CONSTRAINT "account_imports_accountId_fkey" FOREIGN KEY ("accountId") REFERENCES public.accounts(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY public.actors
     ADD CONSTRAINT actors_accountid_foreign FOREIGN KEY ("accountId") REFERENCES public.accounts(id);

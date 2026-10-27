@@ -16,6 +16,7 @@ import * as addAccountArchives from './20261024100100_add_account_archives'
 import * as addActorMigrations from './20261024131756_add_actor_migrations'
 import * as addMediaSortAt from './20261024160234_add_media_sort_at'
 import * as addActorHandles from './20261025141323_add_actor_handles'
+import * as addAccountImports from './20261027134549_add_account_imports'
 import type { MigrationName } from './names'
 
 // Every migration, registered by name (the file name without `.ts`). `yarn
@@ -40,5 +41,6 @@ export const migrations: MigrationRegistry = {
   '20261024100100_add_account_archives': addAccountArchives,
   '20261024131756_add_actor_migrations': addActorMigrations,
   '20261024160234_add_media_sort_at': addMediaSortAt,
-  '20261025141323_add_actor_handles': addActorHandles
+  '20261025141323_add_actor_handles': addActorHandles,
+  '20261027134549_add_account_imports': addAccountImports
 } satisfies Record<MigrationName, MigrationModule>
