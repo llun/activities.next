@@ -1,0 +1,25 @@
+app/(timeline)/gallery/albums/GalleryAlbumPickerTile.tsx
+  s_1f1a1efd8db0bf::t_58e451577e82b2 112-114
+app/(timeline)/gallery/albums/GalleryAlbumPicker.tsx
+  s_1f1a1efd8db0bf::t_58e451577e82b2 608,679
+app/(timeline)/gallery/albums/GalleryAlbumPicker.test.tsx
+  s_1f1a1efd8db0bf::t_cc256edfd80921 1231,1544
+lib/components/gallery/GalleryGrid.tsx
+  s_1f1a1efd8db0bf::t_58e451577e82b2 232-233,235
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ea0decc7da88fea2ed3a49d1c3e533e9c1f877b4",
+  "prompts": {},
+  "sessions": {
+    "s_1f1a1efd8db0bf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6f1be9b0-86e0-4f32-9286-3562b40d391e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
