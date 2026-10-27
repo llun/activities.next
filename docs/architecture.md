@@ -582,18 +582,24 @@ token and expiry, reason-code error, and lifecycle timestamps.
 `account_import_items` is the resumable catalog: one source item per import
 kind, with its source id, position, raw JSON while needed, state, reason code
 and imported target id. A partial unique index allows one queued or running
-import per actor. Import starts are limited to three per actor in a rolling
-24-hour window.
+import per actor (profile). Import starts are limited to three per account in
+a rolling 24-hour window; every profile of the account shares the same limit.
+Only starts that reached `startedAt` count, so an uploaded archive that is
+never started does not use a start.
 
 The worker takes a database lease for each slice, renews it around writes and
-stops each queued slice within a 20-second budget. Deterministic queue ids make
-continuations idempotent. The phases run in order: inspect the archive, catalog
-items, restore profile and settings, gears, media, statuses and albums, pass
-through the collections no-op, process archived fitness files for
+stops each queued slice within a 20-second budget. Each continuation job id is
+deterministic from the import, phase/cursor and a persisted, increasing pass
+counter; a later continuation or reaper pass therefore gets a fresh id even
+when it resumes the same cursor. The phases run in order: inspect the archive,
+catalog items, restore profile and settings, gears, media, statuses and albums,
+pass through the collections no-op, process archived fitness files for
 `activities.next` archives, then finish. Status and item cursors let a worker
-continue where it stopped. The
-catalog phase reopens and rescans the ZIP from its beginning on continuation,
-skipping catalog positions already recorded.
+continue where it stopped. Statuses are processed in published order so
+available parents are handled before replies. A reply whose parent cannot be
+imported is skipped as `parent_unavailable`; it does not keep the statuses
+phase cycling. The catalog phase reopens and rescans the ZIP from its beginning
+on continuation, skipping catalog positions already recorded.
 
 `DELETE /api/v1/account/imports/:id` marks a queued or running import cancelled
 and queues cleanup; the runner checks cancellation before continuing. The
@@ -609,6 +615,20 @@ database transaction; processed, skipped and non-retryable failed items also
 clear their raw data as they finish. Retryable failed items retain it until
 they are retried or the import becomes terminal.
 
+Import-level failures use fixed reason codes. `archive_changed` means a
+previously started archive changed during a later read; the start endpoint
+returns `409` if it detects a changed archive during inspection. `upload_expired`
+means a queued upload was not started within 24 hours; the sweep marks it
+failed and deletes its staged upload. An individual catalog item that errors
+is marked `failed` with reason `item_failed`, while the rest of the import
+continues and can still finish with status `done`. Failed items do not increase
+`completedItems` or `skippedItems`, so those progress counts may not add up to
+`totalItems`. When the same actor imports the same source again, pending or
+failed rows can be claimed again, as can skipped rows whose reason depends on
+an option or size limit (`option_disabled`, `reply-to-other`,
+`media_too_large` or `fitness_too_large`). Other skipped verdicts remain
+settled.
+
 #### Archive and document bounds
 
 Uploads default to 10 GiB, configurable with
@@ -619,19 +639,21 @@ ratio of at most 1,000:1. Entry names must be relative and cannot contain a
 backslash, NUL, drive prefix or `..` path segment; directory and symlink entries
 are ignored. The importer reads the stored ZIP with random-access ranges. It
 does not extract files to disk, and it never opens a ZIP nested inside an
-archive.
+archive. At start, the importer records the upload size and available ETag and
+checks that identity on later range reads. S3 range requests use `If-Match` for
+the recorded ETag. If a later read detects a changed object, the import fails
+with `lastErrorCode: archive_changed`.
 
 Mastodon's `outbox.json` `orderedItems` array, own-export JSONL files and root
 JSON arrays are scanned incrementally, one item at a time. Each item or line
 is capped at 512 KiB; root JSON arrays are capped at 256 MiB total. Selected
-root-field scanners cap their source document at 4 MiB, keys at 1 KiB and
-captured values at 64 KiB (8 KiB for selected strings). The actor profile
-document is capped at 4 MiB, and own-export profile/settings documents at 1 MiB
-each, but `readArchiveJsonDocument` buffers and parses those whole documents;
-that bounded exception currently differs from the plan's blanket rule against
-parsing any full archive entry with `JSON.parse`. The ZIP's 200,000-entry cap
-is enforced; the separate planned limit of 200,000 cataloged/imported records
-is not. The `ACCOUNT_IMPORT_MAX_ITEMS` constant only assigns positions.
+root-field scanners cap each source document at 4 MiB, keys at 1 KiB and
+captured values at 64 KiB (8 KiB for selected strings). `actor.json`, the own
+export's `profile.json`, and its gallery settings document are read through
+these bounded top-level scanners: selected fields are captured, and no profile
+or settings document is parsed whole. Independently of the ZIP-entry limit,
+the importer enforces a 200,000-item cap on cataloged items; exceeding it fails
+the import with `archive_too_many_entries`.
 
 #### Quiet writes and imported data
 
@@ -643,6 +665,10 @@ HTTP and arbitrary queue helpers, while explicitly allowing the bookmark CSV
 import path and fitness processing job. Likes are added only when the target
 status is local and `canActorReadStatus` says the importing actor can read it.
 Bookmarks go through the same `importRow` path used for CSV bookmark imports.
+With `repliesToOthers: "keep"`, a foreign parent's URI is stored as data in the
+imported status's `statuses.reply` field, which is limited to 255 characters;
+the importer never fetches that parent. Local thread reads resolve a parent
+only from a status already stored in the database.
 
 There are two current exceptions to the quiet/security goal that callers
 should account for. When `profile` is enabled and a federated profile field
@@ -686,9 +712,10 @@ allowlist is `autoDescribe`, `allowEmptyDescription`, `subjectHashtags`,
 `lifeListPublic`, `hiddenLocations`, `hideThreatenedPlaces`,
 `subjectSuggestionMode`, `subjectConfidenceThreshold` and `photoEnhance`.
 Fitness OAuth settings and other secrets, delivery toggles and actor-identity
-fields are excluded. API progress exposes only the import error reason code,
-and archive exceptions are mapped to reason codes and redacted before logging;
-raw archive exception messages are not returned to the owner.
+fields are excluded. The import API exposes fixed `lastErrorCode` values rather
+than exception text; archive exceptions are mapped to reason codes and redacted
+before logging, and raw archive exception messages are not returned to the
+owner.
 
 Editing an imported status later uses the ordinary edit path and sends its
 normal federated `Update`. The catalog phase rescans the ZIP on resume as
