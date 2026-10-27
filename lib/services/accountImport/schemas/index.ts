@@ -1,5 +1,18 @@
 import { z } from 'zod'
 
+import { FITNESS_PRIVACY_RADIUS_OPTIONS } from '@/lib/services/fitness-files/privacy'
+import { FITNESS_GEAR_KINDS } from '@/lib/services/fitness-files/sportTypes'
+import {
+  GALLERY_GEAR_KINDS,
+  IUCN_CATEGORIES,
+  MEDIA_PLACE_PRECISIONS,
+  MEDIA_SUBJECT_CATEGORIES
+} from '@/lib/types/database/gallery'
+import {
+  GALLERY_ALBUM_SORTS,
+  GALLERY_ALBUM_VISIBILITIES
+} from '@/lib/types/database/galleryAlbums'
+
 const text = (max = 16_384) => z.string().max(max)
 const uri = text(4_096)
 const dateText = text(64)
@@ -507,7 +520,7 @@ const subjectSuggestionsSchema = z
         .object({
           name: text(1_024),
           scientificName: text(1_024).nullable(),
-          category: text(64),
+          category: z.enum(MEDIA_SUBJECT_CATEGORIES),
           confidence: finiteNumber,
           taxonKey: text(128).nullable(),
           rank: text(128).nullable(),
@@ -516,7 +529,7 @@ const subjectSuggestionsSchema = z
         .strip(),
       20
     ),
-    group: text(64).nullable()
+    group: z.enum(MEDIA_SUBJECT_CATEGORIES).nullable()
   })
   .strip()
 
@@ -552,7 +565,7 @@ export const ownMediaLineSchema = z
     blurhash: text(1_024).nullable(),
     subjectName: text(1_024).nullable(),
     subjectScientificName: text(1_024).nullable(),
-    subjectCategory: text(64).nullable(),
+    subjectCategory: z.enum(MEDIA_SUBJECT_CATEGORIES).nullable(),
     takenAt: timestamp.nullable(),
     cameraGearId: text(256).nullable(),
     lensGearId: text(256).nullable(),
@@ -560,13 +573,13 @@ export const ownMediaLineSchema = z
     placeName: text(1_024).nullable(),
     placeLatitude: finiteNumber.nullable().optional(),
     placeLongitude: finiteNumber.nullable().optional(),
-    placePrecision: text(64).nullable(),
+    placePrecision: z.enum(MEDIA_PLACE_PRECISIONS).nullable(),
     placeCountryCode: text(2).nullable(),
     placeNameSource: z.enum(['owner', 'geocoder']).nullable(),
     inGallery: z.boolean(),
     subjectTaxonKey: text(128).nullable(),
     subjectTaxonPath: smallCount(text(1_024), 100).nullable(),
-    subjectIucnCategory: text(32).nullable(),
+    subjectIucnCategory: z.enum(IUCN_CATEGORIES).nullable(),
     subjectSuggestions: subjectSuggestionsSchema.nullable(),
     editRecipe: mediaEditRecipeSchema.nullable(),
     editVersion: finiteNumber,
@@ -587,8 +600,8 @@ export const ownAlbumSchema = z
     title: text(256),
     description: text(8_192).nullable(),
     coverMediaId: finiteNumber.nullable(),
-    visibility: z.enum(['public', 'unlisted', 'private']),
-    sortOrder: text(64),
+    visibility: z.enum(GALLERY_ALBUM_VISIBILITIES),
+    sortOrder: z.enum(GALLERY_ALBUM_SORTS),
     createdAt: timestamp,
     updatedAt: timestamp,
     items: smallCount(albumItemSchema, 20_000)
@@ -607,7 +620,11 @@ const gearBaseSchema = z.object({
   createdAt: timestamp,
   updatedAt: timestamp
 })
-export const ownGalleryGearSchema = gearBaseSchema.strip()
+export const ownGalleryGearSchema = gearBaseSchema
+  .extend({
+    kind: z.enum(GALLERY_GEAR_KINDS)
+  })
+  .strip()
 
 const fitnessPeriodSchema = z
   .object({
@@ -638,7 +655,7 @@ const fitnessComponentSchema = z
 export const ownFitnessGearSchema = z
   .object({
     id: text(256),
-    kind: text(64),
+    kind: z.enum(FITNESS_GEAR_KINDS),
     name: text(256),
     brand: text(256).nullable(),
     model: text(256).nullable(),
@@ -688,7 +705,11 @@ const privacyLocationSchema = z
   .object({
     latitude: finiteNumber,
     longitude: finiteNumber,
-    hideRadiusMeters: finiteNumber
+    hideRadiusMeters: z.custom<(typeof FITNESS_PRIVACY_RADIUS_OPTIONS)[number]>(
+      (value) =>
+        typeof value === 'number' &&
+        FITNESS_PRIVACY_RADIUS_OPTIONS.some((option) => option === value)
+    )
   })
   .strip()
 const galleryHiddenLocationSchema = privacyLocationSchema
@@ -714,8 +735,8 @@ export const ownGallerySettingsSchema = z
     autoDescribe: z.boolean(),
     allowEmptyDescription: z.boolean(),
     subjectHashtags: z.boolean(),
-    galleryDefault: z.boolean(),
-    defaultPlacePrecision: text(64),
+    galleryDefault: z.unknown().optional(),
+    defaultPlacePrecision: z.enum(MEDIA_PLACE_PRECISIONS),
     showGear: z.boolean(),
     mapPublic: z.boolean(),
     lifeListPublic: z.boolean(),

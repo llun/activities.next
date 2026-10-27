@@ -11,14 +11,14 @@ import {
   type AccountArchiveKind,
   type AccountImportPhaseContext,
   inspectAccountArchive,
-  runAlbumsNoopPhase,
+  runAlbumsPhase,
   runCatalogPhase,
   runCollectionsNoopPhase,
-  runFitnessNoopPhase,
-  runGalleryNoopPhase,
-  runGearsNoopPhase,
+  runFitnessPhase,
+  runGalleryPhase,
+  runGearsPhase,
   runMastodonMediaPhase,
-  runOwnArchiveMediaNoopPhase,
+  runOwnArchiveMediaPhase,
   runProfileNoopPhase,
   runSettingsNoopPhase,
   runStatusesPhase
@@ -257,32 +257,53 @@ export const runAccountImport = async (
         await runSettingsNoopPhase()
         phaseResult = 'done'
       } else if (phase === 'gears') {
-        await runGearsNoopPhase()
-        phaseResult = 'done'
+        if ((accountImport.kind as AccountArchiveKind) === 'activities.next') {
+          const result = await runGearsPhase(context, progress, cursor)
+          progress = result.progress
+          phaseResult = result.result
+          cursor = result.cursor
+        } else {
+          phaseResult = 'done'
+        }
       } else if (phase === 'media') {
+        const kind = accountImport.kind as AccountArchiveKind
         const mediaResult =
-          (accountImport.kind as AccountArchiveKind) === 'mastodon'
+          kind === 'mastodon'
             ? await runMastodonMediaPhase(context, progress, cursor)
-            : {
-                result: await runOwnArchiveMediaNoopPhase(),
-                progress,
-                cursor: null
-              }
-        await runGalleryNoopPhase()
+            : await runOwnArchiveMediaPhase(context, progress, cursor)
+        progress = mediaResult.progress
         phaseResult = mediaResult.result
         cursor = mediaResult.cursor
+        if (kind === 'activities.next' && phaseResult === 'done') {
+          const galleryResult = await runGalleryPhase(context, progress, null)
+          progress = galleryResult.progress
+          phaseResult = galleryResult.result
+          cursor = galleryResult.cursor
+        }
       } else if (phase === 'statuses') {
         const result = await runStatusesPhase(context, progress, cursor)
         progress = result.progress
         phaseResult = result.result
         cursor = result.cursor
       } else if (phase === 'albums') {
-        await runAlbumsNoopPhase()
-        phaseResult = 'done'
+        if ((accountImport.kind as AccountArchiveKind) === 'activities.next') {
+          const result = await runAlbumsPhase(context, progress, cursor)
+          progress = result.progress
+          phaseResult = result.result
+          cursor = result.cursor
+        } else {
+          phaseResult = 'done'
+        }
       } else if (phase === 'collections') {
         await runCollectionsNoopPhase()
-        await runFitnessNoopPhase()
-        phaseResult = 'done'
+        if ((accountImport.kind as AccountArchiveKind) === 'activities.next') {
+          const result = await runFitnessPhase(context, progress, cursor)
+          progress = result.progress
+          phaseResult = result.result
+          cursor = result.cursor
+        } else {
+          phaseResult = 'done'
+        }
       } else {
         await renew()
         await database.updateAccountImport({
