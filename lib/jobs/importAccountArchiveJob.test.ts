@@ -349,6 +349,14 @@ describe('ImportAccountArchiveJob', () => {
     if (first.type !== 'continued') return
     expect(first.phase).toBe('catalog')
     expect(first.cursor).toContain('likes')
+    const catalogedStatuses = (
+      await database.getAccountImportItems({
+        importId: row.id,
+        limit: 100
+      })
+    ).filter((item) => item.kind === 'status')
+    expect(catalogedStatuses).toHaveLength(2)
+    expect(catalogedStatuses.every((item) => item.data !== null)).toBe(true)
 
     mocks.inline = true
     await importAccountArchiveJob(database, {
@@ -363,6 +371,63 @@ describe('ImportAccountArchiveJob', () => {
       (await database.getAccountImport({ id: row.id, actorId: actor.id }))
         ?.status
     ).toBe('done')
+  })
+
+  it('imports pending items left by a cancelled import on the next import', async () => {
+    const archive = archiveFor({
+      label: `reclaim-${crypto.randomUUID()}`,
+      includeMedia: false
+    })
+    const cancelled = await createImport(archive)
+    const partial = await runAccountImport(database, cancelled.id, {
+      actorId: actor.id,
+      budgetMs: 0,
+      now: () => 1,
+      runToken: 'cancelled-slice'
+    })
+    expect(partial).toMatchObject({ type: 'continued', phase: 'catalog' })
+    const catalogued = await database.getAccountImportItems({
+      importId: cancelled.id,
+      limit: 100
+    })
+    expect(catalogued.filter((item) => item.kind === 'status')).toHaveLength(2)
+    expect(
+      catalogued
+        .filter((item) => item.kind === 'status')
+        .every((item) => item.state === 'pending')
+    ).toBe(true)
+    await database.updateAccountImport({
+      id: cancelled.id,
+      status: 'cancelled',
+      finishedAt: Date.now()
+    })
+
+    const next = await createImport(archive)
+    await importAccountArchiveJob(database, {
+      id: `${next.id}:start`,
+      name: IMPORT_ACCOUNT_ARCHIVE_JOB_NAME,
+      data: { importId: next.id, actorId: actor.id }
+    })
+
+    expect(
+      (
+        await database.getAccountImportItems({
+          importId: cancelled.id,
+          limit: 100
+        })
+      ).filter((item) => item.kind === 'status')
+    ).toEqual([])
+    const imported = (
+      await database.getAccountImportItems({
+        importId: next.id,
+        limit: 100
+      })
+    ).filter((item) => item.kind === 'status')
+    expect(imported).toHaveLength(2)
+    expect(
+      imported.every((item) => item.state === 'done' && item.data === null)
+    ).toBe(true)
+    expect(imported.every((item) => item.targetId !== null)).toBe(true)
   })
 
   it('writes nothing after a run loses its lease', async () => {
@@ -435,31 +500,44 @@ describe('ImportAccountArchiveJob', () => {
     expect(
       await database.getActiveAccountImport({ actorId: actor.id })
     ).toMatchObject({ id: row.id, status: 'running' })
-    expect(
-      (
-        await database.getLocalMastodonActors({
-          localDomain: 'llun.test',
-          local: true,
-          order: 'new',
-          limit: 100
+    await db
+      .updateTable('actors')
+      .set({ suspendedAt: new Date() })
+      .where('id', '=', actor.id)
+      .execute()
+    try {
+      expect(
+        (
+          await database.getLocalMastodonActors({
+            localDomain: 'llun.test',
+            local: true,
+            order: 'new',
+            limit: 100
+          })
+        ).map((candidate) => candidate.uri)
+      ).not.toContain(actor.id)
+      const schedule = vi.fn().mockResolvedValue(undefined)
+      const count = await sweepStuckAccountImports(
+        database,
+        Date.now(),
+        schedule,
+        false
+      )
+      expect(count).toBe(1)
+      expect(schedule).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: getAccountImportContinuationJobId(row.id, 'inspect:'),
+          name: IMPORT_ACCOUNT_ARCHIVE_JOB_NAME,
+          data: { importId: row.id, actorId: actor.id }
         })
-      ).map((candidate) => candidate.uri)
-    ).toContain(actor.id)
-    const schedule = vi.fn().mockResolvedValue(undefined)
-    const count = await sweepStuckAccountImports(
-      database,
-      Date.now(),
-      schedule,
-      false
-    )
-    expect(count).toBe(1)
-    expect(schedule).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: getAccountImportContinuationJobId(row.id, 'inspect:'),
-        name: IMPORT_ACCOUNT_ARCHIVE_JOB_NAME,
-        data: { importId: row.id, actorId: actor.id }
-      })
-    )
+      )
+    } finally {
+      await db
+        .updateTable('actors')
+        .set({ suspendedAt: null })
+        .where('id', '=', actor.id)
+        .execute()
+    }
   })
 
   it('fails a run that stayed stuck beyond the sweep bound and deletes its upload', async () => {

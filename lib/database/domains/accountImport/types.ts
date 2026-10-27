@@ -57,7 +57,19 @@ export type UpdateAccountImportParams = {
 export type UpsertAccountImportItemsParams = {
   importId: string
   actorId: string
-  items: { kind: string; sourceId: string; position: number }[]
+  items: {
+    kind: string
+    sourceId: string
+    position: number
+    data?: string | null
+  }[]
+}
+
+export type GetStaleAccountImportsParams = {
+  now: number
+  before: number
+  afterId?: string
+  limit: number
 }
 
 export type GetAccountImportItemsParams = {
@@ -98,10 +110,17 @@ export interface AccountImportDatabase {
   getActiveAccountImport(params: {
     actorId: string
   }): Promise<AccountImport | null>
+  getStaleAccountImports(
+    params: GetStaleAccountImportsParams
+  ): Promise<AccountImport[]>
   countAccountImportStartsSince(params: {
     actorId: string
     since: number
   }): Promise<number>
+  getOldestAccountImportStartSince(params: {
+    actorId: string
+    since: number
+  }): Promise<number | null>
   updateAccountImport(params: UpdateAccountImportParams): Promise<boolean>
   claimAccountImportRun(
     params: ClaimAccountImportRunParams

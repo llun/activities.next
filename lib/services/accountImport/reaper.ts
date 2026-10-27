@@ -1,4 +1,3 @@
-import { getConfig } from '@/lib/config'
 import type { Database } from '@/lib/database/types'
 import { IMPORT_ACCOUNT_ARCHIVE_JOB_NAME } from '@/lib/jobs/names'
 import { toArchiveLoggableError } from '@/lib/services/accountArchive/redact'
@@ -13,7 +12,7 @@ import type { AccountImport } from '@/lib/types/domain/accountImport'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 
-const ACTOR_PAGE_SIZE = 100
+const STALE_IMPORT_PAGE_SIZE = 100
 const REAPER_LEASE_MS = 30_000
 
 const reapOne = async (
@@ -109,34 +108,23 @@ export const sweepStuckAccountImports = async (
   schedule?: (message: JobMessage) => Promise<void>,
   runsInline = false
 ): Promise<number> => {
-  let actorOffset = 0
+  let afterId: string | undefined
   let reaped = 0
   try {
     for (;;) {
-      const actors = await database.getLocalMastodonActors({
-        localDomain: getConfig().host,
-        local: true,
-        order: 'new',
-        offset: actorOffset,
-        limit: ACTOR_PAGE_SIZE
+      const staleImports = await database.getStaleAccountImports({
+        now,
+        before: now - ACCOUNT_IMPORT_STUCK_AFTER_MS,
+        ...(afterId === undefined ? {} : { afterId }),
+        limit: STALE_IMPORT_PAGE_SIZE
       })
-      for (const actor of actors) {
-        // Mastodon Account ids may use the public client-facing encoding; `uri`
-        // is the stored ActivityPub actor id used by account_imports.actorId.
-        const actorId = actor.uri
-        if (!actorId) continue
-        const active = await database.getActiveAccountImport({
-          actorId
-        })
-        if (
-          active &&
-          (await reapOne(database, active, now, schedule, runsInline))
-        ) {
+      for (const accountImport of staleImports) {
+        if (await reapOne(database, accountImport, now, schedule, runsInline)) {
           reaped += 1
         }
+        afterId = accountImport.id
       }
-      if (actors.length < ACTOR_PAGE_SIZE) break
-      actorOffset += ACTOR_PAGE_SIZE
+      if (staleImports.length < STALE_IMPORT_PAGE_SIZE) break
     }
   } catch (error) {
     logger.error({

@@ -54,6 +54,7 @@ export interface AccountArchives {
 export interface AccountImportItems {
   actorId: string
   createdAt: WithDefault<Timestamp>
+  data: Nullable<string>
   id: string
   importId: string
   kind: string

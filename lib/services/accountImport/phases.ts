@@ -308,7 +308,12 @@ export const runCatalogPhase = async (
         })
         continue
       }
-      const items: { kind: string; sourceId: string; position: number }[] = []
+      const items: {
+        kind: string
+        sourceId: string
+        position: number
+        data?: string
+      }[] = []
       let nextIndex = progress.catalogIndex
       for await (const event of events) {
         if (event.index < progress.catalogIndex) continue
@@ -324,7 +329,8 @@ export const runCatalogPhase = async (
             items.push({
               kind: 'status',
               sourceId: sourceIdForStatus(value, kind, event.index),
-              position: statusPosition(event.index, progress.statusOrder)
+              position: statusPosition(event.index, progress.statusOrder),
+              data: event.raw
             })
             for (const [attachmentIndex, attachment] of (kind === 'mastodon'
               ? statusAttachments(value, kind)
@@ -353,7 +359,8 @@ export const runCatalogPhase = async (
               position:
                 (stage === 'likes'
                   ? ACCOUNT_IMPORT_LIKE_POSITION
-                  : ACCOUNT_IMPORT_BOOKMARK_POSITION) + event.index
+                  : ACCOUNT_IMPORT_BOOKMARK_POSITION) + event.index,
+              data: event.raw
             })
           }
         }
@@ -438,40 +445,14 @@ const accountImportItems = async (
   }
 }
 
-const makeEventStream = async (
-  archive: ZipArchive,
-  kind: AccountArchiveKind
-) => {
-  const name =
-    kind === 'mastodon' ? 'outbox.json' : 'activities.next/statuses.jsonl'
-  if (!requiredEntry(archive.entries, name)) return null
-  return kind === 'mastodon'
-    ? iterateOrderedItems(chunksOf(await archive.openEntryStream(name)))
-    : iterateJsonlLines(chunksOf(await archive.openEntryStream(name)))
-}
-
-const loadStatusRecords = async (
-  archive: ZipArchive,
-  kind: AccountArchiveKind,
-  indexes: Set<number>
-): Promise<Map<number, unknown>> => {
-  const rawItems = new Map<number, unknown>()
-  const events = await makeEventStream(archive, kind)
-  if (!events || indexes.size === 0) return rawItems
-  for await (const event of events) {
-    if (!indexes.has(event.index) || !('raw' in event)) continue
-    try {
-      rawItems.set(event.index, parseJsonItem(event.raw))
-    } catch {
-      rawItems.set(event.index, null)
-    }
-    if (rawItems.size === indexes.size) break
+const parseCatalogedItem = (data: string | null): unknown => {
+  if (data === null) return null
+  try {
+    return parseJsonItem(data)
+  } catch {
+    return null
   }
-  return rawItems
 }
-
-const indexForItem = (item: AccountImportItem, order: ArchiveStatusOrder) =>
-  statusIndex(item.position, order)
 
 const readMediaMap = async (database: Database, importId: string) => {
   const media = new Map<string, string>()
@@ -873,91 +854,78 @@ export const runStatusesPhase = async (
     context.database,
     context.accountImport.id
   )
-  const kind = context.accountImport.kind as AccountArchiveKind
-  const archive = await openArchive(context.objectStore, context.accountImport)
-  try {
-    for (;;) {
-      const page = await context.database.getAccountImportItems({
-        importId: context.accountImport.id,
-        ...(afterPosition === undefined ? {} : { afterPosition }),
-        limit: ACCOUNT_IMPORT_ITEM_PAGE_SIZE
-      })
-      if (page.length === 0) return { result: 'done', progress, cursor: null }
-      const statuses = page.filter(
-        (item) => item.kind === 'status' && item.state === 'pending'
-      )
-      const indexes = new Set(
-        statuses.map((item) => indexForItem(item, progress.statusOrder))
-      )
-      const records = await loadStatusRecords(archive, kind, indexes)
-      for (const item of page) {
-        if (await checkCancelled(context)) {
-          return { result: 'cancelled', progress, cursor: null }
-        }
-        if (item.state === 'pending') {
-          if (item.kind === 'status') {
-            const record = records.get(indexForItem(item, progress.statusOrder))
-            if (record === undefined || record === null) {
-              await terminalItemState(
-                context,
-                progress,
-                item,
-                'skipped',
-                'archive_item_invalid'
-              )
-            } else {
-              await importStatusItem(
-                context,
-                progress,
-                actor,
-                item,
-                record,
-                ownStatusIds,
-                mediaByArchivePath,
-                targetBySourceId
-              )
-            }
-          } else if (item.kind === 'like') {
-            await importLikeItem(context, progress, actor, item)
-          } else if (item.kind === 'bookmark') {
-            await importBookmarkItem(context, progress, actor, item)
-          }
-        }
-        afterPosition = item.position
-        if (context.now() >= context.deadline) {
-          return {
-            result: 'budget',
-            progress,
-            cursor: serializeImportCursor(afterPosition)
-          }
-        }
+  for (;;) {
+    const page = await context.database.getAccountImportItems({
+      importId: context.accountImport.id,
+      ...(afterPosition === undefined ? {} : { afterPosition }),
+      limit: ACCOUNT_IMPORT_ITEM_PAGE_SIZE
+    })
+    if (page.length === 0) return { result: 'done', progress, cursor: null }
+    for (const item of page) {
+      if (await checkCancelled(context)) {
+        return { result: 'cancelled', progress, cursor: null }
       }
-      if (page.length < ACCOUNT_IMPORT_ITEM_PAGE_SIZE) {
-        const remaining = (
-          await accountImportItems(context.database, context.accountImport.id)
-        ).filter((item) => item.kind === 'status' && item.state === 'pending')
-        if (remaining.length > 0) {
-          if (
-            progress.completedItems + progress.skippedItems >
-            completedAtStart
-          ) {
-            return { result: 'budget', progress, cursor: null }
-          }
-          for (const item of remaining) {
+      if (item.state === 'pending') {
+        if (item.kind === 'status') {
+          const record = parseCatalogedItem(item.data)
+          if (record === null) {
             await terminalItemState(
               context,
               progress,
               item,
               'skipped',
-              'parent_unavailable'
+              'archive_item_invalid'
+            )
+          } else {
+            await importStatusItem(
+              context,
+              progress,
+              actor,
+              item,
+              record,
+              ownStatusIds,
+              mediaByArchivePath,
+              targetBySourceId
             )
           }
+        } else if (item.kind === 'like') {
+          await importLikeItem(context, progress, actor, item)
+        } else if (item.kind === 'bookmark') {
+          await importBookmarkItem(context, progress, actor, item)
         }
-        return { result: 'done', progress, cursor: null }
+      }
+      afterPosition = item.position
+      if (context.now() >= context.deadline) {
+        return {
+          result: 'budget',
+          progress,
+          cursor: serializeImportCursor(afterPosition)
+        }
       }
     }
-  } finally {
-    await archive.close()
+    if (page.length < ACCOUNT_IMPORT_ITEM_PAGE_SIZE) {
+      const remaining = (
+        await accountImportItems(context.database, context.accountImport.id)
+      ).filter((item) => item.kind === 'status' && item.state === 'pending')
+      if (remaining.length > 0) {
+        if (
+          progress.completedItems + progress.skippedItems >
+          completedAtStart
+        ) {
+          return { result: 'budget', progress, cursor: null }
+        }
+        for (const item of remaining) {
+          await terminalItemState(
+            context,
+            progress,
+            item,
+            'skipped',
+            'parent_unavailable'
+          )
+        }
+      }
+      return { result: 'done', progress, cursor: null }
+    }
   }
 }
 

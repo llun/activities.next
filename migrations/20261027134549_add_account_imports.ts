@@ -54,6 +54,7 @@ export const up = async (db: Kysely<any>): Promise<void> => {
     .addColumn('kind', 'varchar(64)', (col) => col.notNull())
     .addColumn('sourceId', 'varchar(512)', (col) => col.notNull())
     .addColumn('position', 'integer', (col) => col.notNull())
+    .addColumn('data', 'text')
     .addColumn('state', 'varchar(16)', (col) =>
       col.notNull().defaultTo('pending')
     )
@@ -71,6 +72,12 @@ export const up = async (db: Kysely<any>): Promise<void> => {
     .createIndex('account_imports_actor_created_idx')
     .on('account_imports')
     .columns(['actorId', 'createdAt'])
+    .execute()
+
+  await db.schema
+    .createIndex('account_imports_actor_started_idx')
+    .on('account_imports')
+    .columns(['actorId', 'startedAt'])
     .execute()
 
   await db.schema

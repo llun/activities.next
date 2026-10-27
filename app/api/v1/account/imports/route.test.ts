@@ -7,6 +7,7 @@ import { MediaStorageType } from '@/lib/config/mediaStorage'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import type { Database } from '@/lib/database/types'
 import { FileArchiveObjectStore } from '@/lib/services/accountArchive/objectStore'
+import { ACCOUNT_IMPORT_START_WINDOW_MS } from '@/lib/services/accountImport/constants'
 import { createAccountImportObjectStore } from '@/lib/services/accountImport/objectStore'
 import { buildZip } from '@/lib/services/accountImport/zip/testing/fixtures'
 import { seedDatabase } from '@/lib/stub/database'
@@ -377,6 +378,56 @@ describe('account import routes', () => {
       ),
       routeContext(row.id)
     )
+    expect(response.status).toBe(HTTP_STATUS.TOO_MANY_REQUESTS)
+    expect(Number(response.headers.get('Retry-After'))).toBeGreaterThan(0)
+  })
+
+  it('finds starts hidden behind a thousand newer uploads that never started', async () => {
+    const now = Date.now()
+    const since = now - ACCOUNT_IMPORT_START_WINDOW_MS
+    const history = Array.from({ length: 1000 }, (_, index) => ({
+      id: `unstarted-history-${index}`,
+      accountId,
+      actorId,
+      status: 'done',
+      options: '{}',
+      storageToken: `unstarted-token-${index}`,
+      createdAt: new Date(now - 60_000),
+      startedAt: null,
+      updatedAt: new Date(now - 60_000)
+    }))
+    const started = Array.from({ length: 3 }, (_, index) => ({
+      id: `started-history-${index}`,
+      accountId,
+      actorId,
+      status: 'done',
+      options: '{}',
+      storageToken: `started-token-${index}`,
+      createdAt: new Date(since - 60_000),
+      startedAt: new Date(now - 2 * 60_000),
+      updatedAt: new Date(since - 60_000)
+    }))
+    for (const rows of [history, started]) {
+      for (let offset = 0; offset < rows.length; offset += 40) {
+        await db
+          .insertInto('account_imports')
+          .values(rows.slice(offset, offset + 40))
+          .execute()
+      }
+    }
+
+    const row = await createRow()
+    await saveZip(row, validZip())
+    const response = await startImport(
+      request(
+        `https://llun.test/api/v1/account/imports/${row.id}/start`,
+        'POST',
+        JSON.stringify({ options: {} }),
+        { 'content-type': 'application/json' }
+      ),
+      routeContext(row.id)
+    )
+
     expect(response.status).toBe(HTTP_STATUS.TOO_MANY_REQUESTS)
     expect(Number(response.headers.get('Retry-After'))).toBeGreaterThan(0)
   })

@@ -5,7 +5,6 @@ import { IMPORT_ACCOUNT_ARCHIVE_JOB_NAME } from '@/lib/jobs/names'
 import { toArchiveLoggableError } from '@/lib/services/accountArchive/redact'
 import {
   ACCOUNT_IMPORT_MAX_STARTS,
-  ACCOUNT_IMPORT_START_COUNT_SCAN_LIMIT,
   ACCOUNT_IMPORT_START_WINDOW_MS
 } from '@/lib/services/accountImport/constants'
 import { getAccountImportObjectStore } from '@/lib/services/accountImport/objectStore'
@@ -116,27 +115,19 @@ export const POST = traceApiRoute(
       }
 
       const since = Date.now() - ACCOUNT_IMPORT_START_WINDOW_MS
-      // Call the slice-1 count query, then use startedAt from the bounded owner
-      // list so uploads that were never started do not consume a start.
-      const createdRecently = await database.countAccountImportStartsSince({
+      const recentStarts = await database.countAccountImportStartsSince({
         actorId: currentActor.id,
         since
       })
-      const recentImports = await database.listAccountImports({
-        actorId: currentActor.id,
-        limit: Math.max(ACCOUNT_IMPORT_START_COUNT_SCAN_LIMIT, createdRecently)
-      })
-      const recentStarts = recentImports
-        .map((item) => item.startedAt)
-        .filter(
-          (startedAt): startedAt is number =>
-            startedAt !== null && startedAt >= since
-        )
-      if (recentStarts.length >= ACCOUNT_IMPORT_MAX_STARTS) {
+      if (recentStarts >= ACCOUNT_IMPORT_MAX_STARTS) {
+        const oldestStart = await database.getOldestAccountImportStartSince({
+          actorId: currentActor.id,
+          since
+        })
         const retryAfter = Math.max(
           1,
           Math.ceil(
-            (Math.min(...recentStarts) +
+            ((oldestStart ?? Date.now()) +
               ACCOUNT_IMPORT_START_WINDOW_MS -
               Date.now()) /
               1000
