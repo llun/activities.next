@@ -381,9 +381,9 @@ export const GalleryMediaFilterBar: FC<GalleryMediaFilterBarProps> = ({
               return (
                 <div
                   key={key}
-                  className="border-primary bg-primary/10 text-primary-text inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium"
+                  className="border-primary bg-primary/10 text-primary-text inline-flex max-w-full shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium"
                 >
-                  <span>{label}</span>
+                  <span className="min-w-0 truncate">{label}</span>
                   <button
                     type="button"
                     aria-label={`Clear ${label} filter`}
@@ -397,7 +397,7 @@ export const GalleryMediaFilterBar: FC<GalleryMediaFilterBarProps> = ({
                         )
                       )
                     }
-                    className="hover:bg-primary/20 focus-visible:ring-primary/50 flex size-4 items-center justify-center rounded-full focus-visible:ring-2 focus-visible:outline-none"
+                    className="hover:bg-primary/20 focus-visible:ring-primary/50 flex size-4 shrink-0 items-center justify-center rounded-full focus-visible:ring-2 focus-visible:outline-none"
                   >
                     <X className="size-3 shrink-0" />
                   </button>
@@ -419,10 +419,12 @@ export const GalleryMediaFilterBar: FC<GalleryMediaFilterBarProps> = ({
         />
       </div>
 
-      {/* Count line under filters; the button stays outside the live region */}
+      {/* Count line under filters; the button stays outside the live
+          region. The row wraps so "Clear filters" is never cut off at
+          the right edge on narrow screens. */}
       <div
         data-testid={`${idPrefix}-count-line`}
-        className="text-muted-foreground flex items-center justify-between text-sm"
+        className="text-muted-foreground flex flex-wrap items-center justify-between gap-2 text-sm"
       >
         <div role="status" aria-live="polite">
           {total !== null ? (
