@@ -5,6 +5,7 @@ import {
 } from '@/lib/services/accountImport/constants'
 import { getAccountImportObjectStore } from '@/lib/services/accountImport/objectStore'
 import type { AccountImportObjectStore } from '@/lib/services/accountImport/objectStore'
+import { runStatusesPhase } from '@/lib/services/accountImport/phases'
 import { sweepStuckAccountImports } from '@/lib/services/accountImport/reaper'
 import { runAccountImport } from '@/lib/services/accountImport/runner'
 import { seedDatabase } from '@/lib/stub/database'
@@ -12,6 +13,21 @@ import { seedActor1 } from '@/lib/stub/seed/actor1'
 
 vi.mock('@/lib/services/accountImport/objectStore', () => ({
   getAccountImportObjectStore: vi.fn()
+}))
+
+vi.mock('@/lib/services/accountImport/phases', () => ({
+  inspectAccountArchive: vi.fn(),
+  runAlbumsNoopPhase: vi.fn(),
+  runCatalogPhase: vi.fn(),
+  runCollectionsNoopPhase: vi.fn(),
+  runFitnessNoopPhase: vi.fn(),
+  runGalleryNoopPhase: vi.fn(),
+  runGearsNoopPhase: vi.fn(),
+  runMastodonMediaPhase: vi.fn(),
+  runOwnArchiveMediaNoopPhase: vi.fn(),
+  runProfileNoopPhase: vi.fn(),
+  runSettingsNoopPhase: vi.fn(),
+  runStatusesPhase: vi.fn()
 }))
 
 describe('account import runner payload cleanup', () => {
@@ -40,10 +56,22 @@ describe('account import runner payload cleanup', () => {
   beforeEach(async () => {
     await db.deleteFrom('account_import_items').execute()
     await db.deleteFrom('account_imports').execute()
+    await db
+      .updateTable('actors')
+      .set({ suspendedAt: null, deletionStatus: null })
+      .where('id', '=', actorId)
+      .execute()
     vi.mocked(getAccountImportObjectStore)
       .mockReset()
       .mockReturnValue(objectStore)
     deleteUpload.mockReset().mockResolvedValue(undefined)
+    vi.mocked(runStatusesPhase)
+      .mockReset()
+      .mockImplementation(async (_context, progress, cursor) => ({
+        result: 'budget',
+        progress,
+        cursor
+      }))
   })
 
   const createImportWithItem = async (id: string) => {
@@ -133,5 +161,139 @@ describe('account import runner payload cleanup', () => {
       await database.getAccountImport({ id: accountImport.id, actorId })
     ).toMatchObject({ status: 'failed', lastErrorCode: 'import_stuck' })
     expect(await getItemData(accountImport.id)).toEqual([null])
+  })
+
+  it('fails a suspended actor import in the stale sweep instead of requeueing it', async () => {
+    const accountImport = await createImportWithItem(
+      'import-runner-sweep-suspended'
+    )
+    const now = Date.now()
+    await db
+      .updateTable('actors')
+      .set({ suspendedAt: new Date(now) })
+      .where('id', '=', actorId)
+      .execute()
+    await db
+      .updateTable('account_imports')
+      .set({
+        status: 'running',
+        updatedAt: new Date(now - ACCOUNT_IMPORT_STUCK_AFTER_MS - 1),
+        claimedUntil: null
+      })
+      .where('id', '=', accountImport.id)
+      .execute()
+    const schedule = vi.fn().mockResolvedValue(undefined)
+
+    expect(await sweepStuckAccountImports(database, now, schedule)).toBe(1)
+    expect(schedule).not.toHaveBeenCalled()
+    expect(
+      await database.getAccountImport({ id: accountImport.id, actorId })
+    ).toMatchObject({ status: 'failed', lastErrorCode: 'actor_unavailable' })
+    expect(await getItemData(accountImport.id)).toEqual([null])
+    expect(deleteUpload).toHaveBeenCalledWith(
+      expect.objectContaining({ id: accountImport.id })
+    )
+  })
+
+  it.each(['scheduled', 'deleting'] as const)(
+    'fails an actor with deletion state %s in the stale sweep',
+    async (deletionStatus) => {
+      const accountImport = await createImportWithItem(
+        `import-runner-sweep-${deletionStatus}`
+      )
+      const now = Date.now()
+      await db
+        .updateTable('actors')
+        .set({ deletionStatus })
+        .where('id', '=', actorId)
+        .execute()
+      await db
+        .updateTable('account_imports')
+        .set({
+          status: 'running',
+          updatedAt: new Date(now - ACCOUNT_IMPORT_STUCK_AFTER_MS - 1),
+          claimedUntil: null
+        })
+        .where('id', '=', accountImport.id)
+        .execute()
+      const schedule = vi.fn().mockResolvedValue(undefined)
+
+      expect(await sweepStuckAccountImports(database, now, schedule)).toBe(1)
+      expect(schedule).not.toHaveBeenCalled()
+      expect(
+        await database.getAccountImport({ id: accountImport.id, actorId })
+      ).toMatchObject({ status: 'failed', lastErrorCode: 'actor_unavailable' })
+      expect(await getItemData(accountImport.id)).toEqual([null])
+      expect(deleteUpload).toHaveBeenCalledWith(
+        expect.objectContaining({ id: accountImport.id })
+      )
+    }
+  )
+
+  it('fails a stale import when its actor has been deleted instead of requeueing it', async () => {
+    const accountImport = await createImportWithItem(
+      'import-runner-sweep-deleted'
+    )
+    const now = Date.now()
+    await db
+      .updateTable('account_imports')
+      .set({
+        status: 'running',
+        updatedAt: new Date(now - ACCOUNT_IMPORT_STUCK_AFTER_MS - 1),
+        claimedUntil: null
+      })
+      .where('id', '=', accountImport.id)
+      .execute()
+    const getActor = vi
+      .spyOn(database, 'getActorFromId')
+      .mockResolvedValue(null)
+    const schedule = vi.fn().mockResolvedValue(undefined)
+
+    try {
+      expect(await sweepStuckAccountImports(database, now, schedule)).toBe(1)
+      expect(getActor).toHaveBeenCalledWith({ id: actorId })
+      expect(schedule).not.toHaveBeenCalled()
+      expect(
+        await database.getAccountImport({ id: accountImport.id, actorId })
+      ).toMatchObject({ status: 'failed', lastErrorCode: 'actor_unavailable' })
+      expect(await getItemData(accountImport.id)).toEqual([null])
+      expect(deleteUpload).toHaveBeenCalledWith(
+        expect.objectContaining({ id: accountImport.id })
+      )
+    } finally {
+      getActor.mockRestore()
+    }
+  })
+
+  it('fails a queued continuation for a suspended actor before its status phase writes', async () => {
+    const accountImport = await createImportWithItem('import-runner-suspended')
+    const now = Date.now()
+    await db
+      .updateTable('actors')
+      .set({ suspendedAt: new Date(now) })
+      .where('id', '=', actorId)
+      .execute()
+    await database.updateAccountImport({
+      id: accountImport.id,
+      status: 'running',
+      phase: 'statuses'
+    })
+
+    const result = await runAccountImport(database, accountImport.id, {
+      actorId,
+      runToken: 'suspended-continuation',
+      now: () => now,
+      runsInline: true
+    })
+
+    expect(result).toEqual({ type: 'failed' })
+    expect(runStatusesPhase).not.toHaveBeenCalled()
+    expect(
+      await database.getAccountImport({ id: accountImport.id, actorId })
+    ).toMatchObject({ status: 'failed', lastErrorCode: 'actor_unavailable' })
+    expect(await getItemData(accountImport.id)).toEqual([null])
+    expect(deleteUpload).toHaveBeenCalledWith(
+      expect.objectContaining({ id: accountImport.id })
+    )
   })
 })

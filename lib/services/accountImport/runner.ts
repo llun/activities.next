@@ -28,7 +28,9 @@ import {
   serializeImportProgress
 } from '@/lib/services/accountImport/progress'
 import { ZipArchiveError } from '@/lib/services/accountImport/zip/reader'
+import { isActorModerationBlocked } from '@/lib/services/guards/accountState'
 import type { AccountImport } from '@/lib/types/domain/accountImport'
+import type { Actor } from '@/lib/types/domain/actor'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 
@@ -53,6 +55,13 @@ export const getAccountImportContinuationJobId = (
 
 class LostAccountImportLeaseError extends Error {}
 class AccountImportCancelledError extends Error {}
+class AccountImportActorUnavailableError extends Error {}
+
+export const isAccountImportActorUnavailable = (actor: Actor | null) =>
+  !actor ||
+  !actor.account ||
+  isActorModerationBlocked(actor) ||
+  Boolean(actor.deletionStatus)
 
 const isPhase = (value: string | null): value is AccountImportPhase =>
   PHASES.includes(value as AccountImportPhase)
@@ -61,7 +70,11 @@ const nextPhase = (phase: AccountImportPhase): AccountImportPhase =>
   PHASES[PHASES.indexOf(phase) + 1] ?? 'finish'
 
 const failureCode = (error: unknown) =>
-  error instanceof ZipArchiveError ? `archive_${error.reason}` : 'import_failed'
+  error instanceof AccountImportActorUnavailableError
+    ? 'actor_unavailable'
+    : error instanceof ZipArchiveError
+      ? `archive_${error.reason}`
+      : 'import_failed'
 
 export type AccountImportRunResult =
   | { type: 'continued'; phase: AccountImportPhase; cursor: string | null }
@@ -158,6 +171,11 @@ export const runAccountImport = async (
       return { type: 'cancelled' }
     }
     if (accountImport.status !== 'running') return { type: 'done' }
+
+    const actor = await database.getActorFromId({ id: accountImport.actorId })
+    if (isAccountImportActorUnavailable(actor)) {
+      throw new AccountImportActorUnavailableError('actor_unavailable')
+    }
     if (!objectStore) throw new Error('import_storage_unavailable')
 
     const deadline = runsInline

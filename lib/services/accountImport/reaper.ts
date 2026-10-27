@@ -6,7 +6,10 @@ import {
   ACCOUNT_IMPORT_STUCK_AFTER_MS
 } from '@/lib/services/accountImport/constants'
 import { getAccountImportObjectStore } from '@/lib/services/accountImport/objectStore'
-import { getAccountImportContinuationJobId } from '@/lib/services/accountImport/runner'
+import {
+  getAccountImportContinuationJobId,
+  isAccountImportActorUnavailable
+} from '@/lib/services/accountImport/runner'
 import type { JobMessage } from '@/lib/services/queue/type'
 import type { AccountImport } from '@/lib/types/domain/accountImport'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
@@ -41,6 +44,45 @@ const reapOne = async (
   if (!claim.claimed) return false
 
   try {
+    const actor = await database.getActorFromId({ id: accountImport.actorId })
+    if (isAccountImportActorUnavailable(actor)) {
+      const renewed = await database.renewAccountImportRun({
+        id: accountImport.id,
+        runToken,
+        leaseMs: REAPER_LEASE_MS
+      })
+      if (!renewed) return false
+      const failed = await database.updateAccountImport({
+        id: accountImport.id,
+        onlyIfStatus: ['running'],
+        status: 'failed',
+        lastErrorCode: 'actor_unavailable',
+        finishedAt: now
+      })
+      if (failed) {
+        const objectStore = getAccountImportObjectStore()
+        if (objectStore) {
+          const stillOwned = await database.renewAccountImportRun({
+            id: accountImport.id,
+            runToken,
+            leaseMs: REAPER_LEASE_MS
+          })
+          if (!stillOwned) return false
+          await objectStore
+            .deleteUpload(accountImport)
+            .catch((error: unknown) => {
+              logger.error({
+                message:
+                  'Could not delete an unavailable actor account import upload',
+                importId: accountImport.id,
+                err: toArchiveLoggableError(error)
+              })
+            })
+        }
+      }
+      return failed
+    }
+
     if (now - accountImport.updatedAt >= ACCOUNT_IMPORT_MAX_STUCK_MS) {
       const renewed = await database.renewAccountImportRun({
         id: accountImport.id,
@@ -88,7 +130,7 @@ const reapOne = async (
     return true
   } catch (error) {
     logger.error({
-      message: 'Failed to requeue a stuck account archive import',
+      message: 'Failed to reap a stuck account archive import',
       importId: accountImport.id,
       err: toArchiveLoggableError(error)
     })

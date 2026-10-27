@@ -13,6 +13,7 @@ import { serializeAccountImport } from '@/lib/services/accountImport/serialize'
 import { startAccountImport } from '@/lib/services/accountImport/start'
 import { isMovedActor } from '@/lib/services/accounts/movedAccount'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import { isActorModerationBlocked } from '@/lib/services/guards/accountState'
 import { getQueue } from '@/lib/services/queue'
 import { expectedActorMismatchResponse } from '@/lib/services/statuses/expectedActorMismatch'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -67,10 +68,24 @@ export const POST = traceApiRoute(
       if (queryActorId !== null && queryActorId !== currentActor.id) {
         return error(req, 'Actor changed', HTTP_STATUS.CONFLICT)
       }
-      if (isMovedActor(currentActor)) {
+      const actor = await database.getActorFromId({ id: currentActor.id })
+      if (!actor) {
+        return error(req, 'Account not found', HTTP_STATUS.NOT_FOUND)
+      }
+      if (isMovedActor(actor)) {
         return error(
           req,
           'This account has moved',
+          HTTP_STATUS.UNPROCESSABLE_ENTITY
+        )
+      }
+      if (isActorModerationBlocked(actor)) {
+        return error(req, 'This account is unavailable', HTTP_STATUS.FORBIDDEN)
+      }
+      if (actor.deletionStatus) {
+        return error(
+          req,
+          'This account is being deleted',
           HTTP_STATUS.UNPROCESSABLE_ENTITY
         )
       }
