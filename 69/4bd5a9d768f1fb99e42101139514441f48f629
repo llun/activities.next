@@ -1,0 +1,43 @@
+lib/database/domains/status/statusWriteQueries.test.ts
+  s_1f1a1efd8db0bf::t_065dcc9edccda0 6,41,2900-3135
+lib/database/domains/status/edits.ts
+  s_1f1a1efd8db0bf::t_093039a082cce6 11,45-50,608-655
+lib/database/domains/status/queries.ts
+  s_1f1a1efd8db0bf::t_4cfdaf61798988 8,69,178-179
+lib/database/domains/status/types.ts
+  s_1f1a1efd8db0bf::t_796d9986290417 296-320,590-595
+lib/services/accountImport/createImportedStatus.test.ts
+  s_1f1a1efd8db0bf::t_2efb6631ba6f1b 4-5,9,11,164-185,247-288
+lib/services/accountImport/createImportedStatus.ts
+  s_1f1a1efd8db0bf::t_a55159074db7ad 1,11,14,61-65,68-70,72,75,89-109,113-120,122,124-125,127-143,145,218-223,232,236-237,239-240,244,252,265,268
+lib/services/accountImport/mappers/mapMastodonItem.test.ts
+  s_1f1a1efd8db0bf::t_0a684dee8076b2 162-202
+lib/services/accountImport/mappers/mapMastodonItem.ts
+  s_1f1a1efd8db0bf::t_da4577dc5b848a 35-47,120
+lib/services/accountImport/mappers/mapOwnStatus.test.ts
+  s_1f1a1efd8db0bf::t_cd2720baf074b1 13,20,165-195
+lib/services/accountImport/mappers/mapOwnStatus.ts
+  s_1f1a1efd8db0bf::t_4b1bc2e91416c5 26-32,65
+lib/services/accountImport/mappers/shared.ts
+  s_1f1a1efd8db0bf::t_eec4e4cd9fa876 43-46,48,56-60
+lib/services/accountImport/mappers/types.ts
+  s_1f1a1efd8db0bf::t_607faed532e8ac 65,72-77
+lib/types/database/operations.ts
+  s_1f1a1efd8db0bf::t_a789c5bc44aeef 91-92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "694bd5a9d768f1fb99e42101139514441f48f629",
+  "prompts": {},
+  "sessions": {
+    "s_1f1a1efd8db0bf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6f1be9b0-86e0-4f32-9286-3562b40d391e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
