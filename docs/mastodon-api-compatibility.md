@@ -544,16 +544,16 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   Each route checks the optional `Activities-Expected-Actor` header and returns
   `409` when it names another actor. A mismatched `actorId` query/body value is
   also `409`. Other `409`s indicate an active import, an import that is not
-  queued, an existing upload, a finished cancellation or an archive change
-  detected during start. `413` means an upload exceeds the configured size; at
-  start it also covers a missing or empty stored object, or a mismatch between
-  its stored size and the declared size. `422` means a moved/deleting actor,
-  unsupported archive or invalid start options; `429` is the per-account start
-  limit and includes `Retry-After`. `400` covers malformed request JSON, an
-  invalid presigned `size` field or a missing streamed upload body. An
-  unsupported or malformed ZIP is rejected with `422` at start. `503` covers
-  unavailable storage, upload signing or queueing. See [Account data
-  import](architecture.md#account-data-import).
+  queued, an existing upload, a finished cancellation, an incomplete upload at
+  start (a missing or empty stored object, or a mismatch between its stored
+  size and the declared size) or an archive change detected during start.
+  `413` means an upload exceeds the configured size. `422` means a
+  moved/deleting actor, unsupported archive or invalid start options; `429` is
+  the per-account start limit and includes `Retry-After`. `400` covers
+  malformed request JSON, an invalid presigned `size` field or a missing
+  streamed upload body. An unsupported or malformed ZIP is rejected with `422`
+  at start. `503` covers unavailable storage, upload signing or queueing. See
+  [Account data import](architecture.md#account-data-import).
 
 - **Browser Web Vitals** — `POST /api/v1/web-vitals` takes a same-origin,
   sampled report of LCP, CLS and INP from this app's own pages and writes it to

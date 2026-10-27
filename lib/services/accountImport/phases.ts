@@ -68,6 +68,7 @@ import {
   ACCEPTED_FILE_TYPES,
   ACCEPTED_IMAGE_TYPES
 } from '@/lib/services/medias/constants'
+import { MediaValidationError } from '@/lib/services/medias/errors'
 import { sanitizeStoredFileName } from '@/lib/services/medias/fileName'
 import { readValidThumbnail } from '@/lib/services/medias/thumbnailInput'
 import { MediaSchema } from '@/lib/services/medias/types'
@@ -96,7 +97,10 @@ import { QuoteApprovalPolicy } from '@/lib/types/domain/status'
 import { Visibility } from '@/lib/types/mastodon/visibility'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
-import { readAsyncIterableToBufferWithLimit } from '@/lib/utils/streamLimit'
+import {
+  StreamByteLimitError,
+  readAsyncIterableToBufferWithLimit
+} from '@/lib/utils/streamLimit'
 
 export type AccountArchiveKind = 'mastodon' | 'activities.next'
 export type PhaseResult = 'done' | 'budget' | 'cancelled'
@@ -348,14 +352,6 @@ const inferStatusOrder = async (
     ? 'oldest-first'
     : 'newest-first'
 }
-
-// The positions come from the maxItems the catalog ran with, never from the
-// constant: a test that injects a cap must not have the two disagree.
-const statusIndex = (
-  position: number,
-  order: ArchiveStatusOrder,
-  maxItems: number
-) => (order === 'oldest-first' ? position - 1 : maxItems - position)
 
 export const mediaArchivePathFromUrl = (sourceUrl: string): string | null => {
   let pathname = sourceUrl
@@ -1041,9 +1037,12 @@ const requireActor = async (
 }
 
 // A media item's own defect (a zip-level problem with its entry) is a
-// permanent skip. A changed archive is terminal for the import. Anything
-// else — storage or transport trouble — is recorded as a retryable failed
-// item, never as a permanent media_invalid skip.
+// permanent skip. A changed archive is terminal for the import. A media
+// validation failure — the account is over its storage quota, or the bytes
+// cannot be decoded — is the item's verdict too, not a server fault, so it
+// is a permanent skip with its own reason code. Anything else — storage or
+// transport trouble — is recorded as a retryable failed item, never as a
+// permanent media_invalid skip.
 const handleMediaItemError = async (
   context: AccountImportPhaseContext,
   progress: AccountImportProgress,
@@ -1060,8 +1059,23 @@ const handleMediaItemError = async (
     await terminalItemState(context, progress, item, 'skipped', 'media_invalid')
     return
   }
+  if (error instanceof MediaValidationError) {
+    await terminalItemState(
+      context,
+      progress,
+      item,
+      'skipped',
+      isQuotaExceededError(error) ? 'media_quota_exceeded' : 'media_invalid'
+    )
+    return
+  }
   await handleItemError(context, progress, item, error)
 }
+
+// The quota verdict is the fixed prefix saveMedia's quota check raises with;
+// the numbers after it never reach a row.
+const isQuotaExceededError = (error: Error) =>
+  error.message.startsWith('Storage quota exceeded')
 
 const checkCancelled = async (context: AccountImportPhaseContext) => {
   const current = await context.database.getAccountImport({
@@ -2184,8 +2198,15 @@ const importProfileImage = async (
       maxBytes,
       'Archived profile image'
     )
-  } catch {
-    return null
+  } catch (error) {
+    // Only the image's own verdicts are a skip: a defective entry
+    // (ZipArchiveError) or an image over the size cap. A changed archive is
+    // terminal for the import and a storage failure must not be silently
+    // forgotten, so both reach the caller the way the media phase treats
+    // them.
+    if (error instanceof ZipArchiveError) return null
+    if (error instanceof StreamByteLimitError) return null
+    throw error
   }
   const mediaType = sniffSupportedMediaType(bytes)
   if (!mediaType || !ACCEPTED_IMAGE_TYPES.includes(mediaType)) return null
@@ -2533,5 +2554,3 @@ export const runSettingsPhase = async (
     await archive.close()
   }
 }
-
-export const sourceIndexFromPosition = statusIndex

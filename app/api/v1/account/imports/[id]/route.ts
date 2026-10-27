@@ -157,6 +157,11 @@ export const POST = traceApiRoute(
     if (uploaded.type === 'invalid') {
       return error(req, 'Invalid archive upload', HTTP_STATUS.BAD_REQUEST)
     }
+    if (uploaded.type === 'not-queued') {
+      // A late upload to a row that started meanwhile: the running
+      // import's archive must not be overwritten by this attempt.
+      return error(req, 'Import is not queued', HTTP_STATUS.CONFLICT)
+    }
     if (uploaded.type !== 'stored') {
       return error(
         req,

@@ -17,14 +17,19 @@ const failUpload = async (
   code: string,
   now: number
 ) => {
-  await database.updateAccountImport({
+  const applied = await database.updateAccountImport({
     id: accountImport.id,
     onlyIfStatus: ['queued'],
     status: 'failed',
     lastErrorCode: code,
     finishedAt: now
   })
-  await objectStore.deleteUpload(accountImport)
+  // The staged bytes are removed only when this row is still the queued
+  // upload they belong to: a row that already left `queued` is running or
+  // finished, and its archive is not this attempt's to delete.
+  if (applied) {
+    await objectStore.deleteUpload(accountImport)
+  }
 }
 
 /** Streams a request body straight into the configured object store. */
@@ -110,6 +115,18 @@ export const uploadAccountImport = async ({
       return { type: 'too-large' }
     }
 
+    // The row must still be queued immediately before the streamed bytes
+    // become the archive key's content: an import that started meanwhile
+    // owns that key, and a late upload must never overwrite it. The staged
+    // bytes are thrown away instead.
+    const current = await database.getAccountImport({
+      id: accountImport.id,
+      actorId: accountImport.actorId
+    })
+    if (!current || current.status !== 'queued') {
+      await sink.abort()
+      return { type: 'not-queued' }
+    }
     await sink.finish()
     const updated = await database.updateAccountImport({
       id: accountImport.id,
@@ -117,7 +134,9 @@ export const uploadAccountImport = async ({
       uploadedBytes: bytes
     })
     if (!updated) {
-      await objectStore.deleteUpload(accountImport)
+      // The row left `queued` between the check and the update: the upload
+      // is refused, and the archive is left alone for the same reason as
+      // above.
       return { type: 'not-queued' }
     }
     return { type: 'stored', bytes }

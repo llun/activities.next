@@ -337,12 +337,15 @@ export const getAccountImportItemId = (
  * bookmarks off, replies to others left out) or on a size limit (media,
  * fitness), not on the item itself: a later import that turns the option on,
  * or that runs after the limit was raised, must be able to claim the row
- * again. Every other skipped row keeps its verdict.
+ * again. Every other skipped row keeps its verdict. A quota skip is here for
+ * the same reason: a later import that runs after space was freed retries
+ * the media it could not store.
  */
 export const RECLAIMABLE_SKIPPED_ITEM_REASONS = [
   'option_disabled',
   'reply-to-other',
   'media_too_large',
+  'media_quota_exceeded',
   'fitness_too_large'
 ] as const
 

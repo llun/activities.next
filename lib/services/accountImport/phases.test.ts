@@ -22,11 +22,18 @@ import {
   sourceOf
 } from '@/lib/services/accountImport/zip/testing/fixtures'
 import { isLocalFederationDomain } from '@/lib/services/federation/domainPolicy'
+import { saveMedia } from '@/lib/services/medias'
+import { MediaValidationError } from '@/lib/services/medias/errors'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { seedActor2 } from '@/lib/stub/seed/actor2'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+
+vi.mock('@/lib/services/medias', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  saveMedia: vi.fn()
+}))
 
 describe('account import phases', () => {
   const testDb = createTestDatabase({ backend: 'sqlite' })
@@ -896,5 +903,209 @@ describe('account import phases', () => {
       })
     )[0]
     expect(item).toMatchObject({ state: 'failed', reason: 'item_failed' })
+  })
+
+  const workingMediaPhaseContext = async (importId: string) => {
+    const accountImport = await database.createAccountImport({
+      id: importId,
+      accountId,
+      actorId,
+      options: '{}'
+    })
+    await database.updateAccountImport({
+      id: accountImport.id,
+      status: 'running',
+      kind: 'mastodon'
+    })
+    const mediaPath = 'media_attachments/avatar.png'
+    // The PNG signature is enough here: the type is sniffed from the bytes
+    // and the schema only checks the file and its type; saveMedia, which
+    // would decode the image, is mocked per test below.
+    const archive = buildZip([
+      {
+        name: mediaPath,
+        data: Buffer.concat([
+          Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+          Buffer.alloc(64)
+        ])
+      }
+    ])
+    await database.upsertAccountImportItems({
+      importId: accountImport.id,
+      actorId,
+      items: [{ kind: 'media', sourceId: mediaPath, position: 1 }]
+    })
+    const current = (await database.getAccountImport({
+      id: accountImport.id,
+      actorId
+    }))!
+    const context: AccountImportPhaseContext = {
+      database,
+      objectStore: {
+        openSource: async () => sourceOf(archive)
+      } as unknown as AccountImportObjectStore,
+      accountImport: current,
+      now: () => 1,
+      deadline: Number.MAX_SAFE_INTEGER,
+      renew: async () => {}
+    }
+    return { context, mediaPath }
+  }
+
+  it('skips a media item when the account is over its storage quota', async () => {
+    const { context } = await workingMediaPhaseContext('import-media-quota')
+    vi.mocked(saveMedia).mockRejectedValue(
+      new MediaValidationError(
+        'Storage quota exceeded. Used: 10 bytes, Limit: 5 bytes'
+      )
+    )
+
+    const result = await runMastodonMediaPhase(
+      context,
+      createInitialImportProgress(),
+      null
+    )
+
+    // A quota refusal is the item's verdict, not a server fault: the row is
+    // a permanent skip with its own reason code, never a retryable failure.
+    expect(result.result).toBe('done')
+    const item = (
+      await database.getAccountImportItems({
+        importId: 'import-media-quota',
+        limit: 1
+      })
+    )[0]
+    expect(item).toMatchObject({
+      state: 'skipped',
+      reason: 'media_quota_exceeded'
+    })
+  })
+
+  it('skips a media item whose bytes fail media validation', async () => {
+    const { context } = await workingMediaPhaseContext('import-media-invalid')
+    vi.mocked(saveMedia).mockRejectedValue(
+      new MediaValidationError('Image could not be decoded')
+    )
+
+    const result = await runMastodonMediaPhase(
+      context,
+      createInitialImportProgress(),
+      null
+    )
+
+    expect(result.result).toBe('done')
+    const item = (
+      await database.getAccountImportItems({
+        importId: 'import-media-invalid',
+        limit: 1
+      })
+    )[0]
+    expect(item).toMatchObject({ state: 'skipped', reason: 'media_invalid' })
+  })
+
+  it('keeps the pass baseline across slices so a reply left pending is retried', async () => {
+    const sourceActorId = 'https://source.test/users/archive'
+    const accountImport = await database.createAccountImport({
+      id: 'import-pass-baseline',
+      accountId,
+      actorId,
+      options: '{}'
+    })
+    await database.updateAccountImport({
+      id: accountImport.id,
+      status: 'running',
+      kind: 'mastodon'
+    })
+    const parentSourceId = `${sourceActorId}/statuses/parent`
+    const replySourceId = `${sourceActorId}/statuses/reply`
+    const rawNote = (sourceId: string, inReplyTo: string | null) =>
+      JSON.stringify({
+        id: `${sourceActorId}/activities/${sourceId}`,
+        type: 'Create',
+        actor: sourceActorId,
+        published: '2024-02-03T04:05:06.000Z',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [`${sourceActorId}/followers`],
+        object: {
+          id: `${sourceActorId}/statuses/${sourceId}`,
+          type: 'Note',
+          attributedTo: sourceActorId,
+          content: `Note ${sourceId}`,
+          published: '2024-02-03T04:05:06.000Z',
+          ...(inReplyTo ? { inReplyTo } : null),
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [`${sourceActorId}/followers`]
+        }
+      })
+    // The reply is listed before its parent, so the first pass leaves it
+    // pending; the parent is imported later in the SAME pass, but in
+    // ANOTHER slice (the deadline ends every slice after one item).
+    await database.upsertAccountImportItems({
+      importId: accountImport.id,
+      actorId,
+      items: [
+        {
+          kind: 'status',
+          sourceId: replySourceId,
+          position: 1,
+          data: rawNote('reply', parentSourceId)
+        },
+        {
+          kind: 'status',
+          sourceId: parentSourceId,
+          position: 2,
+          data: rawNote('parent', null)
+        }
+      ]
+    })
+    const current = (await database.getAccountImport({
+      id: accountImport.id,
+      actorId
+    }))!
+    const context: AccountImportPhaseContext = {
+      database,
+      objectStore: {
+        openSource: vi.fn()
+      } as unknown as AccountImportObjectStore,
+      accountImport: current,
+      // The clock sits just after the notes' publication time, and the
+      // deadline has already passed: every slice ends after one item, so
+      // one pass is split across several slices.
+      now: () => Date.parse('2024-02-03T04:05:06.500Z'),
+      deadline: Date.parse('2024-02-03T04:05:06.000Z'),
+      renew: async () => {}
+    }
+
+    // Drive the phase the way the runner does, feeding each slice the
+    // cursor and progress the previous one persisted.
+    let progress: AccountImportProgress = {
+      ...createInitialImportProgress(),
+      sourceActorId,
+      sourceFollowersUrl: `${sourceActorId}/followers`
+    }
+    let cursor: string | null = null
+    let result = 'budget'
+    for (let slice = 0; slice < 10 && result !== 'done'; slice += 1) {
+      const phase = await runStatusesPhase(context, progress, cursor)
+      progress = phase.progress
+      cursor = phase.cursor
+      result = phase.result
+    }
+
+    expect(result).toBe('done')
+    const rows = await database.getAccountImportItems({
+      importId: accountImport.id,
+      limit: 10
+    })
+    // The pass baseline must be the one persisted when the pass began, not
+    // recomputed at the slice that resumes it: the parent's import counts
+    // as pass progress, so the reply gets another pass and is imported.
+    expect(rows.find((item) => item.sourceId === parentSourceId)).toMatchObject(
+      { state: 'done' }
+    )
+    expect(rows.find((item) => item.sourceId === replySourceId)).toMatchObject({
+      state: 'done',
+      reason: null
+    })
   })
 })

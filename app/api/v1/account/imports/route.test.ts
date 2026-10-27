@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { deflateRawSync } from 'zlib'
 
 import { MediaStorageType } from '@/lib/config/mediaStorage'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
@@ -452,6 +453,56 @@ describe('account import routes', () => {
     expect(response.status).toBe(HTTP_STATUS.UNPROCESSABLE_ENTITY)
   })
 
+  it('rejects a malformed actor.json entry with 422, not a server error', async () => {
+    const row = await createRow()
+    // A deflated actor.json whose central record promises more bytes than
+    // the entry actually inflates to: yauzl's own stream verdict must reach
+    // the start route as an unrecognised archive, never as a thrown error.
+    const actorJson = Buffer.from(
+      JSON.stringify({
+        id: 'https://source.test/users/owner',
+        preferredUsername: 'owner',
+        followers: 'https://source.test/users/owner/followers'
+      })
+    )
+    const compressed = deflateRawSync(actorJson)
+    const archive = buildZip([
+      {
+        name: 'actor.json',
+        data: compressed,
+        method: 8,
+        declaredSize: actorJson.length + 64,
+        declaredCompressedSize: compressed.length
+      },
+      {
+        name: 'outbox.json',
+        data: Buffer.from(
+          JSON.stringify({ type: 'OrderedCollection', orderedItems: [] })
+        )
+      }
+    ])
+    await saveZip(row, archive)
+
+    const response = await startImport(
+      request(
+        `https://llun.test/api/v1/account/imports/${row.id}/start`,
+        'POST',
+        JSON.stringify({ options: {} }),
+        { 'content-type': 'application/json' }
+      ),
+      routeContext(row.id)
+    )
+
+    expect(response.status).toBe(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+    expect(await response.json()).toMatchObject({
+      error: 'Archive format is not recognised'
+    })
+    expect(
+      (await database.getAccountImport({ id: row.id, actorId }))?.status
+    ).toBe('queued')
+    expect(mocks.publish).not.toHaveBeenCalled()
+  })
+
   it('limits the fourth import start in 24 hours and includes Retry-After', async () => {
     for (let index = 0; index < 3; index += 1) {
       const previous = await createRow(actorId, accountId, 'done')
@@ -657,5 +708,59 @@ describe('account import routes', () => {
       routeContext(row.id)
     )
     expect(duplicate.status).toBe(HTTP_STATUS.CONFLICT)
+  })
+
+  it('refuses a late direct upload with 409 once its import has started', async () => {
+    const row = await createRow()
+    const store = createAccountImportObjectStore(
+      new FileArchiveObjectStore({
+        type: MediaStorageType.LocalFile,
+        path: storageRoot
+      })
+    )!
+    // The body flips the row to running while it streams, the way a start
+    // that raced this upload would: the upload must not overwrite (or
+    // delete) the running import's archive key. The flip happens on the
+    // second pull so the route's own queued check still sees the row
+    // queued, and only the write to the archive key is refused.
+    let pulls = 0
+    const body = new ReadableStream<Uint8Array>({
+      async pull(controller) {
+        pulls += 1
+        if (pulls === 1) {
+          controller.enqueue(new Uint8Array(validZip().subarray(0, 16)))
+          return
+        }
+        await database.updateAccountImport({
+          id: row.id,
+          status: 'running',
+          startedAt: Date.now()
+        })
+        controller.enqueue(new Uint8Array(16))
+        controller.close()
+      }
+    })
+
+    const response = await uploadById(
+      request(
+        `https://llun.test/api/v1/account/imports/${row.id}`,
+        'POST',
+        body,
+        { 'content-type': 'application/zip' }
+      ),
+      routeContext(row.id)
+    )
+
+    expect(response.status).toBe(HTTP_STATUS.CONFLICT)
+    expect(await response.json()).toMatchObject({
+      error: 'Import is not queued'
+    })
+    expect(
+      (await database.getAccountImport({ id: row.id, actorId }))?.status
+    ).toBe('running')
+    expect(
+      (await database.getAccountImport({ id: row.id, actorId }))?.lastErrorCode
+    ).toBeNull()
+    expect(await store.store.size(store.getUploadKey(row))).toBeNull()
   })
 })

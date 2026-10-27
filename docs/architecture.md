@@ -626,8 +626,25 @@ continues and can still finish with status `done`. Failed items do not increase
 `totalItems`. When the same actor imports the same source again, pending or
 failed rows can be claimed again, as can skipped rows whose reason depends on
 an option or size limit (`option_disabled`, `reply-to-other`,
-`media_too_large` or `fitness_too_large`). Other skipped verdicts remain
-settled.
+`media_too_large`, `media_quota_exceeded` or `fitness_too_large`). Other
+skipped verdicts remain settled.
+
+Skipped items record a reason code. `option_disabled` marks a like or bookmark
+whose option is off; `reply-to-other` a reply excluded by the replies option;
+`reply-uri-too-long` a kept reply whose parent URI exceeds the 255-character
+`statuses.reply` limit; `boost` an Announce activity; `direct` a
+direct-visibility status; `invalid` an item that fails schema validation;
+`bad-date` an item with no parseable publication time; `foreign-author` an item
+whose author is not the archive actor; `parent_unavailable` a reply whose
+parent is not in the archive; `local_status_missing` a like whose target is no
+readable local status; `bookmark_unavailable` a bookmark row that could not be
+imported; `archive_item_invalid` an item whose stored data is no longer
+usable; `media_missing` a media file absent from the archive;
+`media_type_unsupported` a media type the importer does not accept;
+`media_too_large` and `fitness_too_large` content over its size limit;
+`media_invalid` media bytes that fail validation or decoding;
+`media_quota_exceeded` media that would exceed the owner's storage quota; and
+`storage_unavailable` a transient storage error during a media read.
 
 #### Archive and document bounds
 
@@ -667,7 +684,9 @@ status is local and `canActorReadStatus` says the importing actor can read it.
 Bookmarks go through the same `importRow` path used for CSV bookmark imports.
 With `repliesToOthers: "keep"`, a foreign parent's URI is stored as data in the
 imported status's `statuses.reply` field, which is limited to 255 characters;
-the importer never fetches that parent. Local thread reads resolve a parent
+the importer never fetches that parent. A parent URI longer than 255 characters
+cannot be stored, so that reply is skipped with reason `reply-uri-too-long`
+and never stored truncated. Local thread reads resolve a parent
 only from a status already stored in the database.
 
 There are two current exceptions to the quiet/security goal that callers

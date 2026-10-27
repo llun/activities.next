@@ -20,8 +20,11 @@ const DOS_TIME: DosDateTime = toDosDateTime(Date.UTC(2026, 9, 24, 12, 30, 10))
 export interface FixtureEntry {
   name: string
   data: Buffer
-  /** The compression method the headers declare: 0 stored, 8 deflated. */
-  method?: 0 | 8
+  /**
+   * The compression method the headers declare: 0 stored, 8 deflated. A test
+   * may declare a method the reader must refuse, so any number is allowed.
+   */
+  method?: number
   /** The POSIX mode the central record carries; a regular file by default. */
   mode?: number
   /** The uncompressed size the central record declares, when it must lie. */
@@ -41,7 +44,7 @@ export const buildZip = (entries: FixtureEntry[]): Buffer => {
   let offset = 0
   for (const entry of entries) {
     const known: KnownEntry = {
-      method: entry.method ?? 0,
+      method: entry.method as 0 | 8,
       crc: 0,
       size: entry.declaredSize ?? entry.data.length,
       csize: entry.declaredCompressedSize ?? entry.data.length

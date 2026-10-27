@@ -2,7 +2,10 @@ import sharp from 'sharp'
 
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { planArchiveActors } from '@/lib/services/accountArchive/layout'
-import type { AccountImportObjectStore } from '@/lib/services/accountImport/objectStore'
+import {
+  AccountImportArchiveChangedError,
+  type AccountImportObjectStore
+} from '@/lib/services/accountImport/objectStore'
 import {
   type AccountImportPhaseContext,
   runProfilePhase,
@@ -261,6 +264,90 @@ describe('account import profile and settings phases', () => {
     expect(saved.file.type).toBe('image/jpeg')
     expect(actor.iconUrl).toBe(SAVED_AVATAR_URL)
     expect(actor.headerImageUrl).toBeUndefined()
+  })
+
+  // The avatar entry's data spans past the first read-ahead block (4 MiB),
+  // so the archive opens, actor.json reads from the cached first block, and
+  // only the avatar entry's own data read crosses into the failing range.
+  const failingAvatarSource = (archive: Buffer, failure: Error) => ({
+    size: archive.length,
+    read: async (start: number, endInclusive: number) => {
+      if (start === 4 * 1024 * 1024) throw failure
+      return Buffer.from(archive.subarray(start, endInclusive + 1))
+    }
+  })
+
+  const avatarFailureArchive = async () =>
+    buildZip([
+      {
+        name: 'actor.json',
+        data: Buffer.from(
+          JSON.stringify({
+            id: 'https://source.test/users/archive',
+            type: 'Person',
+            preferredUsername: 'archive',
+            name: 'Avatar Failure',
+            icon: { type: 'Image', mediaType: 'image/png', url: 'avatar.png' },
+            image: { type: 'Image', mediaType: 'image/png', url: 'header.png' }
+          })
+        )
+      },
+      {
+        name: 'avatar.png',
+        data: Buffer.concat([
+          await imageBytes('png'),
+          Buffer.alloc(5 * 1024 * 1024)
+        ])
+      },
+      { name: 'header.png', data: await imageBytes('png') }
+    ])
+
+  it('fails the profile phase when reading the avatar detects a changed archive', async () => {
+    const archive = await avatarFailureArchive()
+    const failure = new AccountImportArchiveChangedError()
+    const accountImport = await createImport(
+      'import-profile-avatar-changed',
+      '{"profile":true}',
+      'mastodon'
+    )
+    const context: AccountImportPhaseContext = {
+      ...makeContext(accountImport, archive),
+      objectStore: {
+        openSource: async () => failingAvatarSource(archive, failure)
+      } as unknown as AccountImportObjectStore
+    }
+
+    await expect(
+      runProfilePhase(context, createInitialImportProgress())
+    ).rejects.toBe(failure)
+
+    // A changed archive is the import's verdict: the profile is not saved.
+    const actor = (await database.getActorFromId({ id: actorId }))!
+    expect(actor.name ?? null).toBeNull()
+    expect(vi.mocked(publishActorUpdate)).not.toHaveBeenCalled()
+  })
+
+  it('fails the profile phase when reading the avatar hits a storage error', async () => {
+    const archive = await avatarFailureArchive()
+    const failure = new Error('S3 unavailable')
+    const accountImport = await createImport(
+      'import-profile-avatar-transient',
+      '{"profile":true}',
+      'mastodon'
+    )
+    const context: AccountImportPhaseContext = {
+      ...makeContext(accountImport, archive),
+      objectStore: {
+        openSource: async () => failingAvatarSource(archive, failure)
+      } as unknown as AccountImportObjectStore
+    }
+
+    // A transient storage failure must not be silently forgotten either.
+    await expect(
+      runProfilePhase(context, createInitialImportProgress())
+    ).rejects.toBe(failure)
+    const actor = (await database.getActorFromId({ id: actorId }))!
+    expect(actor.name ?? null).toBeNull()
   })
 
   it('publishes nothing when nothing changed or the option is off', async () => {

@@ -476,7 +476,14 @@ export const openZipArchive = async (
         try {
           raw = await zipfile.openReadStreamPromise(yauzlEntry)
         } catch (error) {
-          throw unwrapSourceReadError(error)
+          if (error instanceof ZipArchiveError) throw error
+          // A read the source refused is not a defect of the zip bytes.
+          // Every other failure here is yauzl's own verdict on the archive
+          // (an unsupported compression method, a bad local header, data
+          // past the file bounds), so it leaves as a zip verdict too.
+          throw error instanceof ZipSourceReadError
+            ? unwrapSourceReadError(error)
+            : new ZipArchiveError('not_a_zip', 'Entry data is invalid')
         }
         return streamEntryWithErrors(raw, yauzlEntry)
       },
@@ -526,15 +533,11 @@ const streamEntryWithErrors = (raw: Readable, entry: yauzl.Entry): Readable =>
             'Entry data exceeds its declared size'
           )
         }
-        // Only the inflater's own verdicts mean the entry's bytes are not
-        // valid zip data; anything else passes through unchanged.
-        if (typeof (error as { code?: unknown }).code === 'string') {
-          const code = (error as { code: string }).code
-          if (code.startsWith('Z_')) {
-            throw new ZipArchiveError('not_a_zip', 'Entry data is invalid')
-          }
-        }
-        throw error
+        // Every other failure while reading the entry's bytes is a verdict
+        // about the archive's own data (a corrupt or short inflate, a bad
+        // local header): the importer treats it as a defective archive,
+        // never as a storage fault, so the default is the zip verdict.
+        throw new ZipArchiveError('not_a_zip', 'Entry data is invalid')
       }
     })(),
     { objectMode: false }

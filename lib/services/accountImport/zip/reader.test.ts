@@ -170,6 +170,49 @@ describe('the zip reader', () => {
     }
   })
 
+  it('rejects a deflated entry that inflates to fewer bytes than declared', async () => {
+    // The central record promises 100 uncompressed bytes but the entry
+    // holds a valid 9-byte deflate stream: yauzl's own "not enough bytes
+    // in the stream" verdict must leave the reader as a zip verdict, not
+    // as a plain error.
+    const compressed = deflateRawSync(Buffer.from('{"id": 1}'))
+    const archive = buildZip([
+      {
+        name: 'actor.json',
+        data: compressed,
+        method: 8,
+        declaredSize: 100,
+        declaredCompressedSize: compressed.length
+      }
+    ])
+    const opened = await openZipArchive(sourceOf(archive))
+    try {
+      await expectStreamFailure(opened, 'actor.json', 'not_a_zip')
+    } finally {
+      await opened.close()
+    }
+  })
+
+  it('rejects an entry with an unsupported compression method', async () => {
+    const archive = buildZip([
+      {
+        name: 'actor.json',
+        data: Buffer.from('{}'),
+        method: 12,
+        declaredSize: 2,
+        declaredCompressedSize: 2
+      }
+    ])
+    const opened = await openZipArchive(sourceOf(archive))
+    try {
+      await expect(opened.openEntryStream('actor.json')).rejects.toMatchObject({
+        reason: 'not_a_zip'
+      })
+    } finally {
+      await opened.close()
+    }
+  })
+
   it('opens a two-thousand-entry archive with a small constant number of range reads', async () => {
     const archive = buildZip(
       Array.from({ length: 2000 }, (_, index) => ({
