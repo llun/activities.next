@@ -60,6 +60,14 @@ describe('assertArchiveKey', () => {
     )
     expect(() => getArchiveStorageKey('../x')).toThrow()
   })
+
+  it('accepts keys under imports/ as well', () => {
+    expect(assertArchiveKey('imports/abc-123/archive.zip')).toBe(
+      'imports/abc-123/archive.zip'
+    )
+    expect(() => assertArchiveKey('imports/../medias/a.jpg')).toThrow()
+    expect(() => assertArchiveKey('importx/a')).toThrow()
+  })
 })
 
 describe('FileArchiveObjectStore', () => {
@@ -131,6 +139,27 @@ describe('FileArchiveObjectStore', () => {
     expect(
       await readAll((await store.openRead('archives/a/archive.zip', 3))!)
     ).toBe('DATA')
+  })
+
+  it('reads an inclusive byte range', async () => {
+    await store.put('archives/a/archive.zip', 'ZIPDATA')
+    await store.put('imports/a/archive.zip', 'IMPORTDATA')
+    expect(await store.readRange('archives/a/archive.zip', 0, 3)).toEqual(
+      Buffer.from('ZIPD')
+    )
+    expect(await store.readRange('archives/a/archive.zip', 3, 6)).toEqual(
+      Buffer.from('DATA')
+    )
+    expect(await store.readRange('imports/a/archive.zip', 0, 3)).toEqual(
+      Buffer.from('IMPO')
+    )
+    expect(await store.readRange('archives/a/missing', 0, 3)).toBeNull()
+  })
+
+  it('offers no presigned upload URL on the file store', async () => {
+    expect(
+      await store.getUploadUrl('archives/a/archive.zip', 100, 60)
+    ).toBeNull()
   })
 
   it('aborts an unfinished file from its state alone', async () => {
@@ -834,5 +863,76 @@ describe('S3ArchiveObjectStore', () => {
         'application/zip'
       )
     })
+  })
+})
+
+describe('S3 range reads and presigned upload URLs', () => {
+  const objects = new Map<string, string>([
+    ['archives/a/t/archive-1.zip', 'ZIPDATA'],
+    ['imports/a/t/archive-1.zip', 'IMPORTDATA']
+  ])
+  const send = vi.fn(async (command: unknown) => {
+    if (command instanceof GetObjectCommand) {
+      const body = objects.get(command.input.Key!)
+      if (body === undefined) {
+        throw Object.assign(new Error('missing'), { name: 'NoSuchKey' })
+      }
+      // The real SDK honours Range server-side; the caller sees the slice.
+      const range = /^bytes=(\d+)-(\d+)$/.exec(command.input.Range ?? '')
+      const sliced = range
+        ? body.slice(Number(range[1]), Number(range[2]) + 1)
+        : body
+      return {
+        Body: {
+          transformToByteArray: async () => Buffer.from(sliced)
+        }
+      }
+    }
+    if (command instanceof PutObjectCommand) {
+      objects.set(command.input.Key!, String(command.input.Body))
+      return {}
+    }
+    return {}
+  })
+  const store = new S3ArchiveObjectStore(
+    { type: MediaStorageType.S3Storage, bucket: 'bucket', region: 'us-east-1' },
+    { send } as unknown as S3Client
+  )
+
+  it('reads a byte range with an S3 GetObject', async () => {
+    send.mockClear()
+    expect(await store.readRange('archives/a/t/archive-1.zip', 0, 3)).toEqual(
+      Buffer.from('ZIPD')
+    )
+    expect((send.mock.calls[0][0] as GetObjectCommand).input.Range).toBe(
+      'bytes=0-3'
+    )
+  })
+
+  it('reads a byte range from the import root too', async () => {
+    expect(await store.readRange('imports/a/t/archive-1.zip', 6, 10)).toEqual(
+      Buffer.from('DATA')
+    )
+  })
+
+  it('presigns a direct upload of at most maxBytes', async () => {
+    const signing = new S3ArchiveObjectStore(
+      {
+        type: MediaStorageType.S3Storage,
+        bucket: 'bucket',
+        region: 'us-east-1'
+      },
+      new RealS3Client({
+        region: 'us-east-1',
+        credentials: { accessKeyId: 'AK', secretAccessKey: 'SK' }
+      })
+    )
+    const url = await signing.getUploadUrl('archives/a/t/upload.zip', 100, 60)
+    expect(new URL(url!).searchParams.get('X-Amz-Expires')).toBe('60')
+    expect(new URL(url!).searchParams.get('X-Amz-Signature')).toBeTruthy()
+  })
+
+  it('refuses a presigned upload URL for a key outside the archive roots', async () => {
+    await expect(store.getUploadUrl('medias/a.jpg', 100, 60)).rejects.toThrow()
   })
 })

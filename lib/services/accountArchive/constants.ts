@@ -14,6 +14,22 @@ export const isArchiveStoragePath = (file: string) => {
   )
 }
 
+/** Object-store prefix of every archive import an owner started. */
+export const IMPORT_STORAGE_PREFIX = 'imports'
+
+/**
+ * Whether a storage-root-relative file path is an import upload: the staged
+ * parts and finished archives the import job writes and expires. Like the
+ * exports, these are never served by the media route.
+ */
+export const isImportStoragePath = (file: string) => {
+  const normalized = file.replace(/\\/g, '/').replace(/^\/+/, '').toLowerCase()
+  return (
+    normalized === IMPORT_STORAGE_PREFIX ||
+    normalized.startsWith(`${IMPORT_STORAGE_PREFIX}/`)
+  )
+}
+
 /** An export is deleted this long after it became ready. */
 export const ARCHIVE_RETENTION_MS = 7 * 24 * 60 * 60 * 1000
 
