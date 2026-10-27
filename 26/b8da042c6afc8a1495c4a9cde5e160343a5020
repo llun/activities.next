@@ -1,0 +1,29 @@
+app/(timeline)/gallery/albums/GalleryAlbumFormDialog.test.tsx
+  s_50783debe9bf9d::t_65c504090ff755 829-832
+app/(timeline)/gallery/albums/GalleryAlbumFormDialog.tsx
+  s_50783debe9bf9d::t_2a0b29cd64edd1 686
+app/(timeline)/gallery/albums/GalleryAlbumPickerTile.test.tsx
+  s_50783debe9bf9d::t_09b8a4eb438c17 297-299,312-314,317,330,332,336
+app/(timeline)/gallery/albums/GalleryAlbumPickerTile.tsx
+  s_50783debe9bf9d::t_408af3cf23065f 110-116,121-122
+lib/components/gallery/GalleryGrid.test.tsx
+  s_50783debe9bf9d::t_45442799b0a29d 841-843,869-871,874,884-885,891,893,897
+lib/components/gallery/GalleryGrid.tsx
+  s_50783debe9bf9d::t_e56e35cddfb291 229-236,238,241-242
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "26b8da042c6afc8a1495c4a9cde5e160343a5020",
+  "prompts": {},
+  "sessions": {
+    "s_50783debe9bf9d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a17d98-532a-7743-a0cb-5438dbdf5c71",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
