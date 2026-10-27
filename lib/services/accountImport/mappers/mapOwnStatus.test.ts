@@ -214,4 +214,69 @@ describe('mapOwnStatus', () => {
     ).toBeLessThan(0)
     expect(first.input).not.toHaveProperty('untrusted')
   })
+
+  const edit = (supersededAt: string) => ({
+    text: 'old text',
+    summary: null,
+    sensitive: false,
+    attachments: null,
+    pollOptions: null,
+    supersededAt
+  })
+  const editsOf = (result: ReturnType<typeof mapOwnStatus>) =>
+    result.ok ? result.input.edits : null
+
+  it('drops an edit superseded later than now plus the skew', () => {
+    // nowMs is 2025-01-01; an edit a year ahead is beyond the 5-minute skew.
+    const result = mapOwnStatus(
+      row({ edits: [edit('2030-01-01T00:00:00.000Z')] }),
+      context()
+    )
+    expect(editsOf(result)).toEqual([])
+  })
+
+  it('drops an edit whose supersede time does not parse', () => {
+    const result = mapOwnStatus(row({ edits: [edit('not-a-date')] }), context())
+    expect(editsOf(result)).toEqual([])
+  })
+
+  it('drops an edit superseded before the status was published', () => {
+    // published is 2024-02-03T04:05:06.000Z; one second earlier predates it.
+    const result = mapOwnStatus(
+      row({ edits: [edit('2024-02-03T04:05:05.000Z')] }),
+      context()
+    )
+    expect(editsOf(result)).toEqual([])
+  })
+
+  it('keeps a valid edit, including one within the skew', () => {
+    const nowMs = Date.parse('2025-01-01T00:00:00Z')
+    const result = mapOwnStatus(
+      row({
+        edits: [
+          edit('2024-02-03T04:05:07.000Z'),
+          edit(new Date(nowMs + 4 * 60 * 1_000).toISOString())
+        ]
+      }),
+      context()
+    )
+    expect(editsOf(result)).toEqual([
+      {
+        text: 'old text',
+        summary: null,
+        sensitive: false,
+        attachments: null,
+        pollOptions: null,
+        supersededAt: Date.parse('2024-02-03T04:05:07.000Z')
+      },
+      {
+        text: 'old text',
+        summary: null,
+        sensitive: false,
+        attachments: null,
+        pollOptions: null,
+        supersededAt: nowMs + 4 * 60 * 1_000
+      }
+    ])
+  })
 })

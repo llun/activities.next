@@ -87,7 +87,7 @@ export const mapOwnStatus = (
             }
           : null,
       pinned: status.pinned,
-      edits: buildEdits(status.edits)
+      edits: buildEdits(status.edits, context.nowMs, published)
     }
   }
 }

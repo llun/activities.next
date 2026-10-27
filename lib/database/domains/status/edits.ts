@@ -24,6 +24,7 @@ import {
 import { forUpdate } from '@/lib/database/kysely/dialect'
 import { CounterKey } from '@/lib/database/utils/counter'
 import { getCompatibleJSON } from '@/lib/database/utils/getCompatibleJSON'
+import { MAX_FUTURE_SKEW_MS } from '@/lib/services/accountImport/mappers/timeSkew'
 import { Attachment, isFitnessAttachment } from '@/lib/types/domain/attachment'
 import { type Status, StatusType } from '@/lib/types/domain/status'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
@@ -615,6 +616,20 @@ export const appendStatusHistory = async (
   { statusId, revisions }: AppendStatusHistoryParams
 ): Promise<void> => {
   if (revisions.length === 0) return
+  // Defensive: the archive mapper is the real filter (it drops an edit whose
+  // supersede time is non-finite, past now plus the skew, or before the
+  // status's published time), but this is the last stop before the value
+  // reaches statuses.updatedAt — the API's edited_at — so an out-of-range
+  // supersede time must never be written, from any caller.
+  const nowMs = Date.now()
+  for (const revision of revisions) {
+    if (
+      !Number.isFinite(revision.supersededAt) ||
+      revision.supersededAt > nowMs + MAX_FUTURE_SKEW_MS
+    ) {
+      throw new Error('appendStatusHistory: supersededAt is out of range')
+    }
+  }
   const ordered = [...revisions].sort(
     (left, right) => left.supersededAt - right.supersededAt
   )

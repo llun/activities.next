@@ -38,6 +38,7 @@ import {
   truncateToHour
 } from '@/lib/database/utils/counterBucket'
 import { getCompatibleJSON } from '@/lib/database/utils/getCompatibleJSON'
+import { MAX_FUTURE_SKEW_MS } from '@/lib/services/accountImport/mappers/timeSkew'
 import type { Attachment } from '@/lib/types/domain/attachment'
 import { StatusNote, StatusPoll, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
@@ -3129,6 +3130,30 @@ describe('appendStatusHistory', () => {
         ]
       })
     )
+    expect(hydrationCalls).toEqual([])
+  })
+
+  it('refuses a supersede time later than now plus the skew, or not finite', async () => {
+    const { id } = await setup()
+    const rowBefore = await statusRow(id)
+    // `now` is this test's faked time; one millisecond past the skew is a
+    // crafted future edited_at.
+    const future = now + MAX_FUTURE_SKEW_MS + 1
+    await expect(
+      appendStatusHistory(db, {
+        statusId: id,
+        revisions: [revision({ text: 'future', supersededAt: future })]
+      })
+    ).rejects.toThrow()
+    await expect(
+      appendStatusHistory(db, {
+        statusId: id,
+        revisions: [revision({ text: 'nan', supersededAt: Number.NaN })]
+      })
+    ).rejects.toThrow()
+    // Nothing was written: no history row, no updatedAt bump.
+    expect(await historyOf(id)).toEqual([])
+    expect(await statusRow(id)).toEqual(rowBefore)
     expect(hydrationCalls).toEqual([])
   })
 })

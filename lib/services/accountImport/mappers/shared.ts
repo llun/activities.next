@@ -17,7 +17,7 @@ import {
   getVisibility
 } from '@/lib/utils/getVisibility'
 
-export const MAX_FUTURE_SKEW_MS = 5 * 60 * 1_000
+import { MAX_FUTURE_SKEW_MS } from './timeSkew'
 
 export const normalizeRecipients = (
   value: string | string[] | null | undefined
@@ -189,6 +189,11 @@ export const buildAttachments = (
 
 export const parseEditedAt = (value: string): number => Date.parse(value)
 
+// An archived edit's supersede time is untrusted: a crafted future (or
+// non-finite) value would reach statuses.updatedAt and be reported as
+// edited_at in the future, and one before the status's own published time
+// would predate the status it edited. The same bound parsePublished applies
+// to the published time is applied here, plus the published floor.
 export const buildEdits = (
   edits: {
     text: string
@@ -197,16 +202,32 @@ export const buildEdits = (
     attachments: Parameters<typeof buildAttachments>[0] | null
     pollOptions: string[] | null
     supersededAt: string
-  }[]
+  }[],
+  nowMs: number,
+  published: number
 ): ImportedEdit[] =>
-  edits.map((edit) => ({
-    text: edit.text,
-    summary: edit.summary,
-    sensitive: edit.sensitive,
-    attachments: edit.attachments ? buildAttachments(edit.attachments) : null,
-    pollOptions: edit.pollOptions,
-    supersededAt: parseEditedAt(edit.supersededAt)
-  }))
+  edits.flatMap((edit) => {
+    const supersededAt = parseEditedAt(edit.supersededAt)
+    if (
+      !Number.isFinite(supersededAt) ||
+      supersededAt > nowMs + MAX_FUTURE_SKEW_MS ||
+      supersededAt < published
+    ) {
+      return []
+    }
+    return [
+      {
+        text: edit.text,
+        summary: edit.summary,
+        sensitive: edit.sensitive,
+        attachments: edit.attachments
+          ? buildAttachments(edit.attachments)
+          : null,
+        pollOptions: edit.pollOptions,
+        supersededAt
+      }
+    ]
+  })
 
 export const sourceVisibilityToRecipients = (
   sourceTo: string[],
