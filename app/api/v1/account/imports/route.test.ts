@@ -601,7 +601,9 @@ describe('account import routes', () => {
       routeContext(row.id)
     )
 
-    expect(response.status).toBe(HTTP_STATUS.PAYLOAD_TOO_LARGE)
+    // A size that differs from the declared one is an upload that has not
+    // fully arrived, not an over-cap file.
+    expect(response.status).toBe(HTTP_STATUS.CONFLICT)
     expect(await store.store.size(store.getUploadKey(row))).toBeNull()
     expect(mocks.publish).not.toHaveBeenCalled()
   })
