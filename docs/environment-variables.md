@@ -403,9 +403,9 @@ a basemap change, to re-render them.
 The owner-only importer of an account archive (a Mastodon archive or this
 server's own export) into the current profile.
 
-| Variable                                  | Description                                                                                                                                        |
-| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ACTIVITIES_ACCOUNT_IMPORT_MAX_FILE_SIZE` | Maximum archive upload size in bytes (default: 10 GiB / `10737418240`). An invalid or non-positive value falls back to the default with a warning. |
+| Variable                                  | Description                                                                                                                                                                                           |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ACTIVITIES_ACCOUNT_IMPORT_MAX_FILE_SIZE` | Maximum archive upload size in bytes (default: 10 GiB / `10737418240`). The value is parsed as a base-10 integer; a non-finite or non-positive parsed value falls back to the default with a warning. |
 
 ## Queue (Background Jobs)
 
