@@ -1,5 +1,6 @@
 'use client'
 
+import { RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 
@@ -183,7 +184,18 @@ export const CsvImportForm = ({
               ? error
               : 'Could not start the import'
           }
-          onRetry={() => void submit()}
+          action={
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={submitting || isOffline}
+              onClick={() => void submit()}
+            >
+              <RefreshCw aria-hidden="true" />
+              Retry
+            </Button>
+          }
         >
           {/* The plain fallback and the unreadable-file message already say
               everything in the title; a server message adds the detail. */}

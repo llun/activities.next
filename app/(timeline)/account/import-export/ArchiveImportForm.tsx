@@ -159,8 +159,8 @@ export const ArchiveImportForm = ({
   // again takes the focus the unmounted Cancel dropped; the generic
   // alert's Retry takes the focus the pressed Try again dropped when the
   // presign failed before the upload began. A candidate that cannot take
-  // the focus (Try again is disabled while offline) falls through to the
-  // next one, so the file picker is the last resort.
+  // the focus (Try again and Retry are disabled while offline) falls
+  // through to the next one, so the file picker is the last resort.
   useEffect(() => {
     if (alert?.type === 'upload') {
       if (!focusTryAgain.current) return
@@ -319,6 +319,7 @@ export const ArchiveImportForm = ({
               type="button"
               variant="outline"
               size="sm"
+              disabled={busy || isOffline || !file}
               onClick={() => void handleSubmit()}
             >
               <RefreshCw aria-hidden="true" />
