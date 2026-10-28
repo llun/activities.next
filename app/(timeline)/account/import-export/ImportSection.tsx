@@ -167,6 +167,9 @@ export const ImportSection = ({
   const filePickerRef = useRef<HTMLButtonElement>(null)
   const archiveFormRef = useRef<HTMLFormElement>(null)
   const progressRef = useRef<HTMLDivElement>(null)
+  // Whether the "not started" warning holds the focus, so a start from it
+  // that drops the row can hand the focus to the picker, as Discard does.
+  const warningRef = useRef<HTMLDivElement>(null)
   // Whether the progress view holds (or last held) the focus. A page-load
   // import nobody touched must not grab the focus when it finishes, and
   // "the body has the focus" cannot tell that apart from "the progress view
@@ -292,12 +295,22 @@ export const ImportSection = ({
     if (uploaded.id !== notStartedImport?.id) showImport(uploaded)
   }
 
+  // A waiting upload found through a 409 was not uploaded from the chosen
+  // file (if any): like one the page loaded with, it starts with the
+  // defaults until its own .zip is the chosen file, which it never is here.
+  const showFoundImport = (found: AccountImportResponse) => {
+    if (isUploadedNotStarted(found) && found.id !== notStartedImport?.id) {
+      setKeptOptions(INITIAL_OPTIONS)
+    }
+    showImport(found)
+  }
+
   const findActiveImport = async () => {
     const imports = await listAccountImports({ actorId }).catch(() => [])
     const activeImport = imports.find(
       (item) => item.status === 'queued' || item.status === 'running'
     )
-    if (activeImport) showImport(activeImport)
+    if (activeImport) showFoundImport(activeImport)
     return Boolean(activeImport)
   }
 
@@ -312,6 +325,11 @@ export const ImportSection = ({
     if (startInFlight) return
     setStartInFlight(true)
     setStartAlert(null)
+    // Some start answers drop the warning's row, and the warning (with the
+    // focused Start import button) unmounts with it: whether it held the
+    // focus decides the hand-off to the picker below.
+    const warningHadFocus =
+      warningRef.current?.contains(document.activeElement) ?? false
     // A row another file was picked over carries the options snapshotted
     // then; every other row (one the page loaded with, a fresh upload, a
     // kept failure on the file still chosen) takes the switches as they
@@ -327,6 +345,10 @@ export const ImportSection = ({
       if (notStartedImport?.id === uploaded.id) {
         setAccountImport(null)
         setCancelError(false)
+        // The warning (and its focused button) unmounts; the picker takes
+        // the focus on the commit that releases the start lock, as after
+        // Discard.
+        if (warningHadFocus) focusPickerAfterDiscard.current = true
       }
     }
     try {
@@ -385,7 +407,12 @@ export const ImportSection = ({
           const current = await getAccountImport({ actorId, id: uploaded.id })
           if (current.status === 'cancelled' && current.startedAt === null) {
             setKeptOptions(null)
-            if (notStartedImport?.id === uploaded.id) setAccountImport(null)
+            if (notStartedImport?.id === uploaded.id) {
+              setAccountImport(null)
+              // Same hand-off as a row dropped by the start itself: the
+              // warning's focused button unmounts with the row.
+              if (warningHadFocus) focusPickerAfterDiscard.current = true
+            }
             setStartAlert({ type: 'upload' })
           } else {
             showImport(current)
@@ -546,31 +573,35 @@ export const ImportSection = ({
             picking a .csv (which swaps the archive form for the CSV form)
             cannot hide the upload that is still waiting to be started. */}
         {showWarning && notStartedImport ? (
-          <Alert
-            tone="warning"
-            title="An earlier upload was not started"
-            action={
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  disabled={startInFlight || isOffline}
-                  onClick={() => void startQueuedImport(notStartedImport)}
-                >
-                  Start import
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={startInFlight || isOffline}
-                  onClick={() => void handleDiscardUpload(notStartedImport.id)}
-                >
-                  Discard
-                </Button>
-              </div>
-            }
-          />
+          <div ref={warningRef}>
+            <Alert
+              tone="warning"
+              title="An earlier upload was not started"
+              action={
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={startInFlight || isOffline}
+                    onClick={() => void startQueuedImport(notStartedImport)}
+                  >
+                    Start import
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={startInFlight || isOffline}
+                    onClick={() =>
+                      void handleDiscardUpload(notStartedImport.id)
+                    }
+                  >
+                    Discard
+                  </Button>
+                </div>
+              }
+            />
+          </div>
         ) : null}
         {startAlert?.type === 'upload' ? (
           <Alert
@@ -668,7 +699,7 @@ export const ImportSection = ({
               onFileChange={onFileChange}
               onActorChanged={() => setActorChangedLocally(true)}
               onMoved={() => setMoved(true)}
-              onStarted={showImport}
+              onStarted={showFoundImport}
               onUploaded={(uploaded) => void startQueuedImport(uploaded)}
               startInFlight={startInFlight}
               filePickerRef={filePickerRef}

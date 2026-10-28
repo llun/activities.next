@@ -1360,6 +1360,64 @@ describe('ImportSection', () => {
     )
   })
 
+  it.each([
+    [
+      'an unreadable archive',
+      new ApiRequestError('Archive format is not recognised', 422),
+      'We could not read this file'
+    ],
+    [
+      'an incomplete upload',
+      new ApiRequestError('Upload is incomplete; upload it again', 409),
+      'The upload did not finish'
+    ],
+    [
+      'a too-large file',
+      new ApiRequestError('File is too large', 413),
+      'File is too large'
+    ]
+  ])(
+    'moves focus to the file picker when a start from the warning drops the upload (%s)',
+    async (_label, error, title) => {
+      vi.mocked(accountImports.startAccountImport).mockRejectedValueOnce(error)
+      renderWithImport(queuedNotStarted)
+
+      const start = screen.getByRole('button', { name: 'Start import' })
+      start.focus()
+      fireEvent.click(start)
+
+      expect(await screen.findByText(title)).toBeInTheDocument()
+      await waitFor(() =>
+        expect(document.activeElement).toBe(
+          screen.getByRole('button', { name: 'Choose file' })
+        )
+      )
+    }
+  )
+
+  it('moves focus to the file picker when a start finds the upload was discarded elsewhere', async () => {
+    vi.mocked(accountImports.startAccountImport).mockRejectedValueOnce(
+      new ApiRequestError('Import is not queued', 409)
+    )
+    vi.mocked(accountImports.getAccountImport).mockResolvedValueOnce(
+      cancelledNotStarted as never
+    )
+    renderWithImport(queuedNotStarted)
+
+    const start = screen.getByRole('button', { name: 'Start import' })
+    start.focus()
+    fireEvent.click(start)
+
+    expect(
+      await screen.findByText('The upload did not finish')
+    ).toBeInTheDocument()
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Choose file' })
+      )
+    )
+  })
+
   it('starts a kept upload with the options it was uploaded with, not the switches a later file shows', async () => {
     vi.mocked(accountImports.startAccountImport)
       .mockRejectedValueOnce(
@@ -1399,6 +1457,99 @@ describe('ImportSection', () => {
     expect(
       vi.mocked(accountImports.startAccountImport).mock.calls[1][0].options
     ).toMatchObject({ likes: true, profile: true })
+  })
+
+  it('starts a waiting upload found through a presign 409 with the default options', async () => {
+    vi.mocked(accountImports.createPresignedImport).mockRejectedValueOnce(
+      new ApiRequestError('An import is already active', 409)
+    )
+    vi.mocked(accountImports.listAccountImports).mockResolvedValue([
+      { ...queuedNotStarted, id: 'other-upload' } as never
+    ])
+    renderSection()
+    chooseFile('mine.zip')
+    fireEvent.click(
+      screen.getByRole('switch', {
+        name: 'Replace my profile with the one in the archive'
+      })
+    )
+    submitArchive()
+
+    expect(
+      await screen.findByText('An earlier upload was not started')
+    ).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Start import' }))
+
+    await waitFor(() =>
+      expect(accountImports.startAccountImport).toHaveBeenCalled()
+    )
+    expect(
+      vi.mocked(accountImports.startAccountImport).mock.calls[0][0]
+    ).toEqual({
+      actorId,
+      importId: 'other-upload',
+      options: {
+        likes: false,
+        bookmarks: false,
+        repliesToOthers: 'skip',
+        profile: false,
+        settings: false
+      }
+    })
+  })
+
+  it('starts a waiting upload found through a start 409 with the default options', async () => {
+    vi.mocked(accountImports.startAccountImport)
+      .mockRejectedValueOnce(
+        new ApiRequestError('Import storage is unavailable', 503)
+      )
+      .mockRejectedValueOnce(
+        new ApiRequestError('An import is already active', 409)
+      )
+    vi.mocked(accountImports.listAccountImports).mockResolvedValue([
+      { ...queuedNotStarted, id: 'other-upload' } as never
+    ])
+    renderSection()
+    chooseFile('a.zip')
+    fireEvent.click(screen.getByRole('switch', { name: 'Import likes' }))
+    submitArchive()
+
+    expect(
+      await screen.findByText('Import storage is unavailable')
+    ).toBeInTheDocument()
+    // Another file is picked over the kept upload, so its switches are
+    // snapshotted onto it.
+    chooseFile('b.zip')
+    fireEvent.click(screen.getByRole('button', { name: 'Start import' }))
+
+    // That start answers 409 already active and the section finds another
+    // waiting row, which must not inherit the first row's snapshot. The
+    // warning is already up for the first row, so wait for the start to
+    // settle before pressing the new row's Start import.
+    await waitFor(() =>
+      expect(accountImports.startAccountImport).toHaveBeenCalledTimes(2)
+    )
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Start import' })).toBeEnabled()
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Start import' }))
+
+    await waitFor(() =>
+      expect(accountImports.startAccountImport).toHaveBeenCalledTimes(3)
+    )
+    expect(
+      vi.mocked(accountImports.startAccountImport).mock.calls[2][0]
+    ).toEqual({
+      actorId,
+      importId: 'other-upload',
+      options: {
+        likes: false,
+        bookmarks: false,
+        repliesToOthers: 'skip',
+        profile: false,
+        settings: false
+      }
+    })
   })
 
   it('shows the generic start alert for a fresh upload whose re-read fails, without Retry', async () => {
