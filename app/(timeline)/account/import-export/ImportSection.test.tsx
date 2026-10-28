@@ -134,6 +134,20 @@ const renderWithImport = (initialImport: unknown) =>
     />
   )
 
+// A fresh element per call: rerendering with the same element reference
+// lets React bail out, so a test that flips the connection state between
+// renders builds its element again.
+const sectionWith = (initialImport: unknown) => (
+  <ImportSection
+    actorId={actorId}
+    handle="@may@llun.test"
+    currentTime={Date.parse('2026-10-28T10:00:00.000Z')}
+    initialImport={initialImport as never}
+    maxImportBytes={1024 * 1024}
+    maxCsvBytes={5 * 1024 * 1024}
+  />
+)
+
 const chooseFile = (name: string) => {
   const file = new File(['file data'], name)
   fireEvent.change(
@@ -178,7 +192,12 @@ describe('ImportSection', () => {
   })
 
   beforeEach(() => {
-    vi.clearAllMocks()
+    // resetAllMocks, not clearAllMocks: clearAllMocks only wipes the call
+    // history, so a mockResolvedValue set by one test stayed armed for
+    // every later one and the file only passed in one order. Every mock
+    // the suite has a default for is armed again right below, so no
+    // implementation can leak between tests.
+    vi.resetAllMocks()
     vi.mocked(accountImports.cancelAccountImport).mockResolvedValue({} as never)
     vi.mocked(accountImports.createPresignedImport).mockResolvedValue({
       ...activeImport,
@@ -1070,6 +1089,49 @@ describe('ImportSection', () => {
     expect(accountImports.cancelAccountImport).toHaveBeenCalledTimes(1)
   })
 
+  it('disables the rate-limit Try again while offline', async () => {
+    vi.mocked(accountImports.startAccountImport).mockRejectedValueOnce(
+      new ApiRequestError('Too many imports started recently', 429, 60_000)
+    )
+    const { rerender } = render(sectionWith(queuedNotStarted))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start import' }))
+    expect(
+      await screen.findByText('Too many imports started recently')
+    ).toBeInTheDocument()
+
+    // The connection drops after the rate limit arrived: the Try again
+    // would send a start that can only fail, so it must lock.
+    connection.state = 'offline'
+    rerender(sectionWith(queuedNotStarted))
+
+    const tryAgain = screen.getByRole('button', { name: 'Try again' })
+    expect(tryAgain).toBeDisabled()
+    fireEvent.click(tryAgain)
+    expect(accountImports.startAccountImport).toHaveBeenCalledTimes(1)
+  })
+
+  it('disables the upload-failure Try again while offline', async () => {
+    vi.mocked(accountImports.startAccountImport).mockRejectedValueOnce(
+      new ApiRequestError('Upload is incomplete; upload it again', 409)
+    )
+    const { rerender } = render(sectionWith(null))
+    chooseFile('a.zip')
+    submitArchive()
+
+    expect(
+      await screen.findByText('The upload did not finish')
+    ).toBeInTheDocument()
+
+    connection.state = 'offline'
+    rerender(sectionWith(null))
+
+    const tryAgain = screen.getByRole('button', { name: 'Try again' })
+    expect(tryAgain).toBeDisabled()
+    fireEvent.click(tryAgain)
+    expect(accountImports.uploadAccountImport).toHaveBeenCalledTimes(1)
+  })
+
   it('treats a 409 already-finished Discard as discarded', async () => {
     vi.mocked(accountImports.cancelAccountImport).mockRejectedValueOnce(
       new ApiRequestError('Import is already finished', 409)
@@ -1523,6 +1585,62 @@ describe('ImportSection', () => {
       screen.getByRole('button', { name: 'Start import' })
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Discard' })).toBeInTheDocument()
+  })
+
+  it('removes the start alert and its Retry when the CSV import answers Actor changed', async () => {
+    vi.mocked(accountImports.startAccountImport).mockRejectedValue(
+      new ApiRequestError('Import storage is unavailable', 503)
+    )
+    vi.mocked(bulkImports.createBulkImport).mockRejectedValueOnce(
+      new ApiRequestError('Actor changed', 409)
+    )
+    renderWithImport(queuedNotStarted)
+    chooseFile('following_accounts.csv')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start import' }))
+    expect(
+      await screen.findByText('Could not start the import')
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeEnabled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Import following' }))
+
+    // The ActorChangedAlert takes the form's place; a Retry left live
+    // beside it would send a start under an actorId the server has
+    // already refused.
+    expect(
+      await screen.findByText('Your active profile changed')
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText('Could not start the import')
+    ).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
+  })
+
+  it('removes the start alert and its Retry when the CSV import answers that the account has moved', async () => {
+    vi.mocked(accountImports.startAccountImport).mockRejectedValue(
+      new ApiRequestError('Import storage is unavailable', 503)
+    )
+    vi.mocked(bulkImports.createBulkImport).mockRejectedValueOnce(
+      new ApiRequestError('This account has moved', 422)
+    )
+    renderWithImport(queuedNotStarted)
+    chooseFile('following_accounts.csv')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start import' }))
+    expect(
+      await screen.findByText('Could not start the import')
+    ).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Import following' }))
+
+    expect(
+      await screen.findByText('This account has moved')
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText('Could not start the import')
+    ).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
   })
 
   it('does not cancel the upload when the form is swapped out while the start is in flight', async () => {

@@ -293,6 +293,7 @@ export const ArchiveExportSection = ({
   const archiveError = failedAlert
     ? archiveErrorBody(currentArchive.error)
     : null
+  const errorBody = requestError ?? archiveError
 
   // What is sent must be what is shown: the request sends the switches of
   // the render that pressed Prepare, so they are locked while it runs, and
@@ -315,7 +316,11 @@ export const ArchiveExportSection = ({
           live={false}
         />
       ) : null}
-      {archiveError ? (
+      {/* One alert, one failure: the stored reason and a failed request
+          share the title, so a Try again that fails must replace the
+          body instead of stacking a second alert beside the first. The
+          request failure is the newer one, so it wins while it stands. */}
+      {errorBody ? (
         <Alert
           tone="error"
           title="We could not make your archive"
@@ -324,33 +329,14 @@ export const ArchiveExportSection = ({
               type="button"
               variant="outline"
               size="sm"
-              disabled={requesting || isOffline}
+              disabled={requesting || isOffline || actorChanged}
               onClick={() => void prepareArchive()}
             >
               Try again
             </Button>
           }
         >
-          {archiveError}
-        </Alert>
-      ) : null}
-      {requestError ? (
-        <Alert
-          tone="error"
-          title="We could not make your archive"
-          action={
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={requesting || isOffline}
-              onClick={() => void prepareArchive()}
-            >
-              Try again
-            </Button>
-          }
-        >
-          {requestError}
+          {errorBody}
         </Alert>
       ) : null}
 

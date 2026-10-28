@@ -322,6 +322,29 @@ describe('ArchiveExportSection', () => {
     expect(screen.queryByText('Failed to fetch')).not.toBeInTheDocument()
   })
 
+  it('shows one failure alert when Try again on a failed archive fails too', async () => {
+    mocks.requestArchive.mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    render(
+      <ArchiveExportSection
+        {...props}
+        initialArchives={[archive('failed')] as never}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+
+    expect(
+      await screen.findByText('Could not prepare your archive')
+    ).toBeInTheDocument()
+    // The stored failure and the request failure share one title, so the
+    // newer body replaces the older alert instead of stacking a second
+    // alert with a second Try again under it.
+    expect(screen.getAllByText('We could not make your archive')).toHaveLength(
+      1
+    )
+    expect(screen.getAllByRole('button', { name: 'Try again' })).toHaveLength(1)
+  })
+
   it('hides this browser’s drafts until hydration and only reads the current actor', async () => {
     mocks.hydrated = false
     const { rerender } = render(<ArchiveExportSection {...props} />)
@@ -523,6 +546,30 @@ describe('ArchiveExportSection', () => {
     expect(screen.getByRole('button', { name: 'Preparing…' })).toBeDisabled()
   })
 
+  it('disables the failed archive’s Try again after a 409 Actor changed', async () => {
+    mocks.requestArchive.mockRejectedValueOnce(
+      new ApiRequestError('Actor changed', 409)
+    )
+    render(
+      <ArchiveExportSection
+        {...props}
+        initialArchives={[archive('failed')] as never}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+
+    expect(
+      await screen.findByText('Your active profile changed')
+    ).toBeInTheDocument()
+    // Every further request would answer the same 409, so the Try again
+    // that stayed beside the alert must not offer one.
+    const tryAgain = screen.getByRole('button', { name: 'Try again' })
+    expect(tryAgain).toBeDisabled()
+    fireEvent.click(tryAgain)
+    expect(mocks.requestArchive).toHaveBeenCalledTimes(1)
+  })
+
   it('disables Prepare with the offline reason while offline', () => {
     mocks.connectionState = 'offline'
     render(<ArchiveExportSection {...props} />)
@@ -532,6 +579,41 @@ describe('ArchiveExportSection', () => {
     expect(button.closest('[data-slot="save-bar"]')).not.toBeNull()
     expect(screen.getByText("You're offline")).toBeInTheDocument()
     expect(screen.queryByText('You’re offline')).not.toBeInTheDocument()
+  })
+
+  it('disables the failed archive’s Try again while offline', () => {
+    mocks.connectionState = 'offline'
+    render(
+      <ArchiveExportSection
+        {...props}
+        initialArchives={[archive('failed')] as never}
+      />
+    )
+
+    const tryAgain = screen.getByRole('button', { name: 'Try again' })
+    expect(tryAgain).toBeDisabled()
+    fireEvent.click(tryAgain)
+    expect(mocks.requestArchive).not.toHaveBeenCalled()
+  })
+
+  it('disables the request failure’s Try again while offline', async () => {
+    mocks.requestArchive.mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    const { rerender } = render(<ArchiveExportSection {...props} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Prepare archive' }))
+    expect(
+      await screen.findByText('Could not prepare your archive')
+    ).toBeInTheDocument()
+
+    // The connection drops after the request failed: the Try again that
+    // came with the failure can only be a silent no-op now.
+    mocks.connectionState = 'offline'
+    rerender(<ArchiveExportSection {...props} />)
+
+    const tryAgain = screen.getByRole('button', { name: 'Try again' })
+    expect(tryAgain).toBeDisabled()
+    fireEvent.click(tryAgain)
+    expect(mocks.requestArchive).toHaveBeenCalledTimes(1)
   })
 
   it('turns a ready archive into expired when its download link expires', async () => {
