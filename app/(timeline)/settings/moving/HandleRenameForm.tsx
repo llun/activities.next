@@ -62,6 +62,7 @@ export const HandleRenameForm: FC<Props> = ({
   const [error, setError] = useState<string | null>(null)
   const [actorChanged, setActorChanged] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [renamed, setRenamed] = useState(false)
   const [saving, setSaving] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [cooldownArrived, setCooldownArrived] = useState(false)
@@ -71,9 +72,11 @@ export const HandleRenameForm: FC<Props> = ({
 
   const cooldownUntil = handle.cooldownUntil
 
-  // A 429 swaps the form for the cooldown Frame while the confirm dialog is
-  // open; closing the dialog would return focus to a button that unmounts
-  // with the form, so the cooldown state takes focus once it is there.
+  // A rename always starts the cooldown, so its success answer (and a 429's
+  // re-read state) carries cooldownUntil and swaps the form for the cooldown
+  // Frame while the confirm dialog is open; closing the dialog would return
+  // focus to a button that unmounts with the form, so the cooldown state
+  // takes focus once it is there.
   useEffect(() => {
     if (!cooldownArrived) return
     setCooldownArrived(false)
@@ -116,10 +119,14 @@ export const HandleRenameForm: FC<Props> = ({
       })
       setHandle(next)
       setSaved(true)
+      setRenamed(true)
       setUsername('')
       setPassword('')
       setCurrentUsername('')
       setConfirmOpen(false)
+      // The cooldown the rename started replaces the form with the cooldown
+      // Frame, which takes focus (see the effect above).
+      if (next.cooldownUntil !== null) setCooldownArrived(true)
       // The page's "These settings are for @handle" and the MoveForm's
       // currentHandle follow the rename, like MoveForm and MovedNotice do.
       router.refresh()
@@ -178,6 +185,11 @@ export const HandleRenameForm: FC<Props> = ({
             />
           }
         >
+          {renamed ? (
+            <p role="status" className="px-4 pt-2.5 text-sm">
+              Your handle is now @{handle.acct}.
+            </p>
+          ) : null}
           <FormRow label="Current handle">
             <p className="text-sm break-words">@{handle.acct}</p>
           </FormRow>

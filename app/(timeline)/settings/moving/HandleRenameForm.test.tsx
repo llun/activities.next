@@ -168,7 +168,15 @@ describe('HandleRenameForm', () => {
   })
 
   it('refreshes the page after a rename', async () => {
-    mockRename.mockResolvedValueOnce(handleState({ username: 'may' }))
+    // A rename always starts the cooldown, so the server answers with
+    // cooldownUntil set.
+    mockRename.mockResolvedValueOnce(
+      handleState({
+        username: 'may',
+        acct: 'may@llun.test',
+        cooldownUntil: '2026-11-27T00:00:00.000Z'
+      })
+    )
 
     render(
       <HandleRenameForm
@@ -190,6 +198,51 @@ describe('HandleRenameForm', () => {
     await waitFor(() => {
       expect(refresh).toHaveBeenCalled()
     })
+  })
+
+  it('focuses the cooldown and announces the new handle after a rename', async () => {
+    mockRename.mockResolvedValueOnce(
+      handleState({
+        username: 'may',
+        acct: 'may@llun.test',
+        cooldownUntil: '2026-11-27T00:00:00.000Z'
+      })
+    )
+
+    render(
+      <HandleRenameForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        initialHandle={handleState()}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('New handle'), {
+      target: { value: 'may' }
+    })
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'secret' }
+    })
+
+    await submit()
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/You can change your handle again on/)
+      ).toBeInTheDocument()
+    })
+    // The closed dialog would return focus to the SaveBar button that
+    // unmounted with the form; the cooldown Frame takes it instead.
+    expect(document.activeElement).toBe(
+      screen
+        .getByRole('button', { name: 'Change handle' })
+        .closest('[tabindex="-1"]')
+    )
+    const announcement = screen.getByText('Your handle is now @may@llun.test.')
+    expect(announcement).toHaveAttribute('role', 'status')
+    expect(
+      screen.queryByRole('dialog', { name: 'Change your handle' })
+    ).not.toBeInTheDocument()
   })
 
   it('shows the actor-changed alert on a 409 Actor changed', async () => {
@@ -377,6 +430,11 @@ describe('HandleRenameForm', () => {
     expect(screen.getByText('23 Nov 2026')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Change handle' })).toBeDisabled()
     expect(screen.queryByLabelText('New handle')).not.toBeInTheDocument()
+    // The announcement belongs to a rename that just succeeded, not to a
+    // cooldown the account already had at load.
+    expect(
+      screen.queryByText('Your handle is now @anna@llun.test.')
+    ).not.toBeInTheDocument()
   })
 
   it('picks the cooldown back up from a 429 and shows the date', async () => {
