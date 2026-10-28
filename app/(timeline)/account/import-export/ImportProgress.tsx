@@ -41,7 +41,7 @@ export const ImportProgress = ({
 
   useEffect(() => {
     if (hasHydrated) setClock(Date.now())
-  }, [hasHydrated])
+  }, [hasHydrated, accountImport])
 
   const confirmCancel = () => {
     setConfirmOpen(false)
@@ -74,18 +74,18 @@ export const ImportProgress = ({
           </span>
         </div>
 
-        <p className="text-sm font-medium">
-          {importPhaseLabel(accountImport.phase)}
-        </p>
-        <div className="space-y-2">
+        {/* The phase and the count are the news (a phase change, "x of y");
+            the Progress bar stays outside the live region so every percent
+            tick is not announced. */}
+        <div role="status" className="space-y-2">
+          <p className="text-sm font-medium">
+            {importPhaseLabel(accountImport.phase)}
+          </p>
           <p className="text-sm">
             {formatCount(completedItems)} of {formatCount(totalItems)} completed
           </p>
-          <Progress
-            value={progressValue}
-            aria-label="Archive import progress"
-          />
         </div>
+        <Progress value={progressValue} aria-label="Archive import progress" />
 
         {accountImport.kind ? (
           <p className="text-sm text-muted-foreground">

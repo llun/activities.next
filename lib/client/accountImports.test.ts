@@ -19,6 +19,7 @@ class FakeXMLHttpRequest {
   status = 0
   responseText = ''
   body: Document | XMLHttpRequestBodyInit | null = null
+  sent = false
   requestHeaders: Record<string, string> = {}
   listeners = new Map<string, (event: Event) => void>()
   uploadListeners = new Map<string, (event: ProgressEvent) => void>()
@@ -42,9 +43,13 @@ class FakeXMLHttpRequest {
 
   send(body: Document | XMLHttpRequestBodyInit | null) {
     this.body = body
+    this.sent = true
   }
 
+  // Per the XHR spec, abort() on an OPENED request whose send() flag is not
+  // set fires no event at all, so the fake stays silent before send().
   abort() {
+    if (!this.sent) return
     this.listeners.get('abort')?.(new Event('abort'))
   }
 
@@ -157,5 +162,26 @@ describe('account archive upload client', () => {
     FakeXMLHttpRequest.latest.abort()
 
     await expect(uploading).rejects.toMatchObject({ status: 0 })
+  })
+
+  it('rejects a pre-aborted signal without creating or sending an XHR', async () => {
+    vi.stubGlobal('XMLHttpRequest', FakeXMLHttpRequest)
+    FakeXMLHttpRequest.latest = undefined as unknown as FakeXMLHttpRequest
+    const controller = new AbortController()
+    controller.abort()
+
+    const uploading = uploadAccountImport({
+      actorId: 'actor-1',
+      file: new File(['archive'], 'backup.zip'),
+      uploadUrl: 'https://storage.example/upload',
+      directUploadPath: null,
+      signal: controller.signal
+    })
+
+    await expect(uploading).rejects.toMatchObject({
+      status: 0,
+      message: 'The archive upload was cancelled'
+    })
+    expect(FakeXMLHttpRequest.latest).toBeUndefined()
   })
 })

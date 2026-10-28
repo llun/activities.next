@@ -16,6 +16,7 @@ import { Frame } from '@/lib/components/surface/Frame'
 import { RadioCard } from '@/lib/components/surface/RadioCard'
 import { SaveBar } from '@/lib/components/surface/SaveBar'
 import { Button } from '@/lib/components/ui/button'
+import { Input } from '@/lib/components/ui/input'
 import { Progress } from '@/lib/components/ui/progress'
 import { RadioGroup } from '@/lib/components/ui/radio-group'
 import { Select } from '@/lib/components/ui/select'
@@ -154,7 +155,9 @@ export const CsvImportForm = ({
   return (
     <div className="space-y-4">
       {mode === 'overwrite' && !bulkImport ? (
-        <Alert tone="warning" title="Overwrite replaces your current list" />
+        <Alert tone="warning" title="Overwrite replaces your current list">
+          Anything not in the file is removed.
+        </Alert>
       ) : null}
       {error ? (
         <Alert
@@ -199,32 +202,41 @@ export const CsvImportForm = ({
             htmlFor="csv-import-file"
             hint="An activities.next archive (.zip), a Mastodon archive (.zip) or a Mastodon CSV file."
           >
-            <div className="space-y-2">
-              <div className="flex flex-wrap items-center gap-3">
-                <span className="min-w-0 flex-1 text-sm">
-                  {file
-                    ? `${file.name} · ${formatBytes(file.size)}`
-                    : 'No file chosen'}
-                </span>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={submitting || Boolean(bulkImport)}
-                  onClick={() => inputRef.current?.click()}
-                >
-                  Change file
-                </Button>
+            {({ describedBy }) => (
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  {/* The visible field the label names, as in ImageUploadField:
+                      the file input itself is display:none, so a label pointing
+                      at it would name nothing. */}
+                  <Input
+                    type="text"
+                    id="csv-import-file"
+                    value={file ? `${file.name} · ${formatBytes(file.size)}` : ''}
+                    readOnly
+                    placeholder="No file chosen"
+                    aria-describedby={describedBy}
+                    className="flex-1 bg-muted dark:bg-muted"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="self-center"
+                    disabled={submitting || Boolean(bulkImport)}
+                    onClick={() => inputRef.current?.click()}
+                  >
+                    Change file
+                  </Button>
+                </div>
+                <input
+                  ref={inputRef}
+                  type="file"
+                  accept=".zip,.csv"
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
               </div>
-              <input
-                ref={inputRef}
-                id="csv-import-file"
-                type="file"
-                accept=".zip,.csv"
-                className="hidden"
-                onChange={handleFileChange}
-              />
-            </div>
+            )}
           </FormRow>
 
           {!bulkImport ? (
@@ -257,12 +269,12 @@ export const CsvImportForm = ({
                     <RadioCard
                       value="merge"
                       title="Merge"
-                      hint="Add these accounts to your list. Anyone you already follow stays. Follow requests go out one by one, so it can take a while."
+                      hint="Keep what you have and add the file."
                     />
                     <RadioCard
                       value="overwrite"
                       title="Overwrite"
-                      hint="Replace your list with this file. Anyone not in the file is unfollowed."
+                      hint="Replace what you have with the file."
                     />
                   </RadioGroup>
                 )}
@@ -270,13 +282,19 @@ export const CsvImportForm = ({
             </>
           ) : (
             <div className="space-y-3 px-4 py-3">
-              <p className="font-medium">
-                {finished ? 'Import finished' : 'Importing'}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                {bulkImport.importedItems.toLocaleString('en-US')} imported ·{' '}
-                {bulkImport.failedItems.toLocaleString('en-US')} failed
-              </p>
+              {/* The heading and the counts are the news ("Importing" turning
+                  into "Import finished", the counts moving); the Progress bar
+                  stays outside the live region so every tick is not
+                  announced. */}
+              <div role="status" className="space-y-1">
+                <p className="font-medium">
+                  {finished ? 'Import finished' : 'Importing'}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {bulkImport.importedItems.toLocaleString('en-US')} imported ·{' '}
+                  {bulkImport.failedItems.toLocaleString('en-US')} failed
+                </p>
+              </div>
               {!finished ? (
                 <Progress value={progress} aria-label="CSV import progress" />
               ) : null}

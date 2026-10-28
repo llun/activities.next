@@ -5,6 +5,7 @@ import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { getAccountImport } from '@/lib/client/accountImports'
+import { ApiRequestError } from '@/lib/client/http'
 
 import { useImportPolling } from './useImportPolling'
 
@@ -112,6 +113,26 @@ describe('useImportPolling', () => {
     })
     expect(getAccountImport).toHaveBeenCalledTimes(1)
     expect(result.current.accountImport?.status).toBe('running')
+  })
+
+  it('stops polling after a 409 actor mismatch', async () => {
+    mocks.get
+      .mockRejectedValueOnce(new ApiRequestError('Actor changed', 409))
+      .mockResolvedValue({ ...queuedImport, status: 'running' })
+    const { result } = renderHook(() =>
+      useImportPolling({ actorId: 'actor-1', initialImport: queuedImport })
+    )
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3_000)
+    })
+    expect(getAccountImport).toHaveBeenCalledTimes(1)
+    expect(result.current.actorChanged).toBe(true)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(9_000)
+    })
+    expect(getAccountImport).toHaveBeenCalledTimes(1)
   })
 
   it('clears its polling interval when unmounted', async () => {

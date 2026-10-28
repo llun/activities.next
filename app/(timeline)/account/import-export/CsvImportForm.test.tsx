@@ -1,0 +1,304 @@
+/**
+ * @vitest-environment jsdom
+ */
+import '@testing-library/jest-dom'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import * as bulkImports from '@/lib/client/bulkImports'
+import type { BulkImportResponse } from '@/lib/client/bulkImports'
+import { ApiRequestError } from '@/lib/client/http'
+import { formatBytes } from '@/lib/utils/formatBytes'
+
+import { CsvImportForm } from './CsvImportForm'
+
+const mocks = vi.hoisted(() => ({
+  restored: null as (() => void) | null
+}))
+
+vi.mock('@/lib/client/bulkImports', () => ({
+  createBulkImport: vi.fn(),
+  getBulkImport: vi.fn()
+}))
+vi.mock('@/lib/client/connection', () => ({
+  onConnectionRestored: (listener: () => void) => {
+    mocks.restored = listener
+    return () => {
+      mocks.restored = null
+    }
+  }
+}))
+
+const actorId = 'https://llun.test/users/may'
+
+const connectionState = { offline: false }
+
+vi.mock('@/lib/hooks/useConnectionStatus', () => ({
+  useConnectionStatus: () => ({
+    state: connectionState.offline ? 'offline' : 'online'
+  })
+}))
+
+const bulkImport = (
+  overrides: Partial<BulkImportResponse>
+): BulkImportResponse => ({
+  id: 'bulk-1',
+  type: 'following',
+  mode: 'merge',
+  state: 'in_progress',
+  originalFilename: 'following_accounts.csv',
+  totalItems: 5,
+  processedItems: 0,
+  importedItems: 0,
+  failedItems: 0,
+  createdAt: '2026-10-28T10:00:00.000Z',
+  finishedAt: null,
+  ...overrides
+})
+
+const csvFile = () => new File(['account,acct'], 'following_accounts.csv')
+
+const csvElement = (
+  file: File,
+  onActorChanged: () => void,
+  onMoved: () => void
+) => (
+  <CsvImportForm
+    actorId={actorId}
+    file={file}
+    maxCsvBytes={5 * 1024 * 1024}
+    onFileChange={vi.fn()}
+    onActorChanged={onActorChanged}
+    onMoved={onMoved}
+  />
+)
+
+const flush = async (ticks = 10) => {
+  for (let i = 0; i < ticks; i += 1) await Promise.resolve()
+}
+
+describe('CsvImportForm', () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      }
+    )
+    connectionState.offline = false
+    mocks.restored = null
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.useRealTimers()
+    vi.clearAllMocks()
+  })
+
+  beforeEach(() => {
+    vi.mocked(bulkImports.createBulkImport).mockResolvedValue(bulkImport({}))
+    vi.mocked(bulkImports.getBulkImport).mockResolvedValue(
+      bulkImport({ state: 'finished' })
+    )
+  })
+
+  it('uses the same Merge and Overwrite copy for every CSV type', () => {
+    const copies: string[] = []
+    const types = [
+      'following',
+      'blocking',
+      'muting',
+      'domain_blocking',
+      'bookmarks',
+      'lists'
+    ]
+
+    for (const type of types) {
+      const { unmount } = render(csvElement(csvFile(), vi.fn(), vi.fn()))
+      fireEvent.change(screen.getByLabelText('What is in this file'), {
+        target: { value: type }
+      })
+      fireEvent.click(screen.getByRole('radio', { name: /Overwrite/ }))
+      const group = screen.getByRole('radiogroup', {
+        name: 'When importing'
+      }).textContent
+      const warning = screen
+        .getByText('Overwrite replaces your current list')
+        .closest('[data-slot="alert"]')!.textContent
+      copies.push(`${group}|${warning}`)
+      unmount()
+    }
+
+    expect(copies.every((copy) => copy === copies[0])).toBe(true)
+    expect(copies[0]).toContain('Keep what you have and add the file.')
+    expect(copies[0]).toContain('Replace what you have with the file.')
+    expect(copies[0]).toContain('Overwrite replaces your current list')
+    expect(copies[0]).toContain('Anything not in the file is removed.')
+  })
+
+  it('submits, polls every three seconds and shows the finished counts and failed rows', async () => {
+    vi.useFakeTimers()
+    vi.mocked(bulkImports.getBulkImport)
+      .mockResolvedValueOnce(
+        bulkImport({ processedItems: 2, importedItems: 1, failedItems: 1 })
+      )
+      .mockResolvedValueOnce(
+        bulkImport({
+          state: 'finished',
+          processedItems: 5,
+          importedItems: 3,
+          failedItems: 2,
+          finishedAt: '2026-10-28T10:01:00.000Z',
+          failedRows: [
+            { rowIndex: 4, data: {}, error: 'Account not found' },
+            { rowIndex: 9, data: {}, error: 'Could not follow' }
+          ]
+        })
+      )
+
+    render(csvElement(csvFile(), vi.fn(), vi.fn()))
+    fireEvent.click(screen.getByRole('button', { name: 'Import following' }))
+    await act(async () => {
+      await flush()
+    })
+
+    expect(screen.getByText('Importing')).toBeInTheDocument()
+    expect(bulkImports.createBulkImport).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3_000)
+    })
+    expect(bulkImports.getBulkImport).toHaveBeenCalledTimes(1)
+    expect(screen.getByText('1 imported · 1 failed')).toBeInTheDocument()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3_000)
+    })
+    expect(bulkImports.getBulkImport).toHaveBeenCalledTimes(2)
+    expect(screen.getByText('Import finished')).toBeInTheDocument()
+    expect(screen.getByText('3 imported · 2 failed')).toBeInTheDocument()
+    expect(screen.getByText('Row 4:')).toBeInTheDocument()
+    expect(screen.getByText('Account not found')).toBeInTheDocument()
+    expect(screen.getByText('Row 9:')).toBeInTheDocument()
+    expect(screen.getByText('Could not follow')).toBeInTheDocument()
+  })
+
+  it('lists at most 100 failed rows', async () => {
+    const finished = bulkImport({
+      state: 'finished',
+      processedItems: 105,
+      importedItems: 0,
+      failedItems: 105,
+      finishedAt: '2026-10-28T10:01:00.000Z',
+      failedRows: Array.from({ length: 105 }, (_, index) => ({
+        rowIndex: index + 1,
+        data: {},
+        error: 'Could not import this row'
+      }))
+    })
+    vi.mocked(bulkImports.createBulkImport).mockResolvedValue(finished)
+    vi.mocked(bulkImports.getBulkImport).mockResolvedValue(finished)
+
+    render(csvElement(csvFile(), vi.fn(), vi.fn()))
+    fireEvent.click(screen.getByRole('button', { name: 'Import following' }))
+
+    expect(await screen.findByText('Import finished')).toBeInTheDocument()
+    expect(screen.getAllByText(/Row \d+:/)).toHaveLength(100)
+  })
+
+  it('pauses polling while offline and resumes when the connection is restored', async () => {
+    vi.useFakeTimers()
+    vi.mocked(bulkImports.getBulkImport).mockResolvedValue(
+      bulkImport({ processedItems: 1, importedItems: 1, failedItems: 0 })
+    )
+    const file = csvFile()
+    const onActorChanged = vi.fn()
+    const onMoved = vi.fn()
+    const { rerender } = render(csvElement(file, onActorChanged, onMoved))
+    fireEvent.click(screen.getByRole('button', { name: 'Import following' }))
+    await act(async () => {
+      await flush()
+    })
+    expect(screen.getByText('Importing')).toBeInTheDocument()
+
+    connectionState.offline = true
+    rerender(csvElement(file, onActorChanged, onMoved))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(6_000)
+    })
+    expect(bulkImports.getBulkImport).not.toHaveBeenCalled()
+
+    connectionState.offline = false
+    rerender(csvElement(file, onActorChanged, onMoved))
+    await act(async () => {
+      mocks.restored?.()
+      await flush()
+    })
+    expect(bulkImports.getBulkImport).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3_000)
+    })
+    expect(bulkImports.getBulkImport).toHaveBeenCalledTimes(2)
+  })
+
+  it('announces the CSV status and counts in a live region that excludes the bar', async () => {
+    vi.useFakeTimers()
+    vi.mocked(bulkImports.createBulkImport).mockResolvedValue(
+      bulkImport({ processedItems: 2, importedItems: 1, failedItems: 1 })
+    )
+    render(csvElement(csvFile(), vi.fn(), vi.fn()))
+    fireEvent.click(screen.getByRole('button', { name: 'Import following' }))
+    await act(async () => {
+      await flush()
+    })
+
+    const region = screen.getByRole('status')
+    expect(region).toHaveTextContent('Importing')
+    expect(region).toHaveTextContent('1 imported · 1 failed')
+    expect(region).not.toContainElement(screen.getByRole('progressbar'))
+  })
+
+  it('labels the visible file field, not the hidden input', () => {
+    render(csvElement(csvFile(), vi.fn(), vi.fn()))
+
+    const field = screen.getByLabelText('File')
+    expect(field).toHaveAttribute('type', 'text')
+    expect(field).toHaveValue(
+      `following_accounts.csv · ${formatBytes(csvFile().size)}`
+    )
+    expect(field.getAttribute('aria-describedby')).toContain('hint')
+    expect(
+      document.querySelector<HTMLInputElement>('input[type="file"]')!.id
+    ).toBe('')
+  })
+
+  it('reports a 409 Actor changed instead of showing a raw error', async () => {
+    const onActorChanged = vi.fn()
+    vi.mocked(bulkImports.createBulkImport).mockRejectedValueOnce(
+      new ApiRequestError('Actor changed', 409)
+    )
+    render(csvElement(csvFile(), onActorChanged, vi.fn()))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Import following' }))
+
+    await waitFor(() => expect(onActorChanged).toHaveBeenCalledOnce())
+    expect(
+      screen.queryByText('Could not start the import')
+    ).not.toBeInTheDocument()
+  })
+
+  it('reports a 422 moved account', async () => {
+    const onMoved = vi.fn()
+    vi.mocked(bulkImports.createBulkImport).mockRejectedValueOnce(
+      new ApiRequestError('This account has moved', 422)
+    )
+    render(csvElement(csvFile(), vi.fn(), onMoved))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Import following' }))
+
+    await waitFor(() => expect(onMoved).toHaveBeenCalledOnce())
+  })
+})

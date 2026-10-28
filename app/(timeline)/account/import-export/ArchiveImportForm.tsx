@@ -1,7 +1,7 @@
 'use client'
 
 import { formatDistance } from 'date-fns/formatDistance'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import {
   AccountImportOptions,
@@ -19,6 +19,7 @@ import { FormRow } from '@/lib/components/surface/FormRow'
 import { Frame } from '@/lib/components/surface/Frame'
 import { SaveBar } from '@/lib/components/surface/SaveBar'
 import { Button } from '@/lib/components/ui/button'
+import { Input } from '@/lib/components/ui/input'
 import { Progress } from '@/lib/components/ui/progress'
 import { Switch } from '@/lib/components/ui/switch'
 import { useConnectionStatus } from '@/lib/hooks/useConnectionStatus'
@@ -30,10 +31,17 @@ interface Props {
   currentTime: number
   file: File | null
   maxImportBytes: number
+  /**
+   * A queued import that was uploaded but never started (the row the presign
+   * leaves behind when the start never happened), offered back to the user
+   * instead of being shown as progress that would never move.
+   */
+  notStartedImport: AccountImportResponse | null
   onFileChange: (file: File | null) => void
   onActorChanged: () => void
   onMoved: () => void
   onStarted: (accountImport: AccountImportResponse) => void
+  onDiscarded: () => void
 }
 
 type AlertState =
@@ -69,6 +77,16 @@ const isMoved = (error: unknown) =>
   error.status === 422 &&
   error.message === 'This account has moved'
 
+// A start failure the owner can simply try again from: the server kept the
+// upload queued, so retrying the start must not re-upload anything.
+const isTransientStartFailure = (error: unknown) =>
+  !(error instanceof ApiRequestError) ||
+  error.status === 0 ||
+  error.status === 503
+
+const cancelBestEffort = (actorId: string, id: string) =>
+  cancelAccountImport({ actorId, id }).catch(() => undefined)
+
 const ToggleOption = ({
   id,
   label,
@@ -97,13 +115,18 @@ export const ArchiveImportForm = ({
   currentTime,
   file,
   maxImportBytes,
+  notStartedImport,
   onFileChange,
   onActorChanged,
   onMoved,
-  onStarted
+  onStarted,
+  onDiscarded
 }: Props) => {
   const inputRef = useRef<HTMLInputElement>(null)
   const uploadController = useRef<AbortController | null>(null)
+  // The upload awaiting a start, readable from effects and cleanups that run
+  // after the state has moved on (the [file] reset, the unmount).
+  const pendingUploadRef = useRef<PresignedAccountImportResponse | null>(null)
   const [options, setOptions] = useState(INITIAL_OPTIONS)
   const [submitting, setSubmitting] = useState(false)
   const [pendingUpload, setPendingUpload] =
@@ -117,12 +140,22 @@ export const ArchiveImportForm = ({
   const isOffline = useConnectionStatus().state === 'offline'
   const isUploading = uploadProgress !== null && submitting
 
+  const storePendingUpload = useCallback(
+    (uploaded: PresignedAccountImportResponse | null) => {
+      pendingUploadRef.current = uploaded
+      setPendingUpload(uploaded)
+    },
+    []
+  )
+
   useEffect(() => {
+    const stored = pendingUploadRef.current
+    if (stored) void cancelBestEffort(actorId, stored.id)
     setOptions(INITIAL_OPTIONS)
     setAlert(null)
-    setPendingUpload(null)
+    storePendingUpload(null)
     setUploadProgress(null)
-  }, [file])
+  }, [actorId, file, storePendingUpload])
 
   useEffect(() => {
     if (hasHydrated) setClock(Date.now())
@@ -131,13 +164,11 @@ export const ArchiveImportForm = ({
   useEffect(
     () => () => {
       uploadController.current?.abort()
+      const stored = pendingUploadRef.current
+      if (stored) void cancelBestEffort(actorId, stored.id)
     },
-    []
+    [actorId]
   )
-
-  const cancelBestEffort = async (id: string) => {
-    await cancelAccountImport({ actorId, id }).catch(() => undefined)
-  }
 
   const findActiveImport = async () => {
     const imports = await listAccountImports({ actorId }).catch(() => [])
@@ -157,7 +188,7 @@ export const ArchiveImportForm = ({
         importId: uploaded.id,
         options
       })
-      setPendingUpload(null)
+      storePendingUpload(null)
       setUploadProgress(null)
       onStarted(accountImport)
     } catch (error) {
@@ -166,7 +197,8 @@ export const ArchiveImportForm = ({
       } else if (isMoved(error)) {
         onMoved()
       } else if (error instanceof ApiRequestError && error.status === 429) {
-        setPendingUpload(uploaded)
+        storePendingUpload(uploaded)
+        setClock(Date.now())
         setAlert({
           type: 'rate-limit',
           retryAt:
@@ -175,9 +207,13 @@ export const ArchiveImportForm = ({
               : Date.now() + error.retryAfterMs
         })
       } else if (error instanceof ApiRequestError && error.status === 422) {
-        await cancelBestEffort(uploaded.id)
-        setPendingUpload(null)
-        setAlert({ type: 'unreadable' })
+        await cancelBestEffort(actorId, uploaded.id)
+        storePendingUpload(null)
+        setAlert(
+          error.message === 'Archive format is not recognised'
+            ? { type: 'unreadable' }
+            : { type: 'generic', message: error.message }
+        )
       } else if (
         error instanceof ApiRequestError &&
         error.status === 409 &&
@@ -186,11 +222,21 @@ export const ArchiveImportForm = ({
         const found = await findActiveImport()
         if (!found) setAlert({ type: 'generic', message: error.message })
       } else if (error instanceof ApiRequestError && error.status === 409) {
-        await cancelBestEffort(uploaded.id)
-        setPendingUpload(null)
+        await cancelBestEffort(actorId, uploaded.id)
+        storePendingUpload(null)
         setAlert({ type: 'upload' })
+      } else if (isTransientStartFailure(error)) {
+        storePendingUpload(uploaded)
+        setAlert({
+          type: 'generic',
+          message:
+            error instanceof Error
+              ? error.message
+              : 'Could not start the import'
+        })
       } else {
-        setPendingUpload(null)
+        await cancelBestEffort(actorId, uploaded.id)
+        storePendingUpload(null)
         setAlert({
           type: 'generic',
           message:
@@ -219,7 +265,7 @@ export const ArchiveImportForm = ({
     uploadController.current = controller
     try {
       uploaded = await createPresignedImport({ actorId, size: file.size })
-      setPendingUpload(uploaded)
+      storePendingUpload(uploaded)
       setUploadProgress({ loaded: 0, total: file.size })
       await uploadAccountImport({
         actorId,
@@ -243,8 +289,8 @@ export const ArchiveImportForm = ({
         const found = await findActiveImport()
         if (!found) setAlert({ type: 'generic', message: error.message })
       } else if (uploaded) {
-        await cancelBestEffort(uploaded.id)
-        setPendingUpload(null)
+        await cancelBestEffort(actorId, uploaded.id)
+        storePendingUpload(null)
         setUploadProgress(null)
         setAlert({ type: 'upload' })
       } else {
@@ -264,6 +310,17 @@ export const ArchiveImportForm = ({
     if (uploaded && uploadSucceeded && !controller.signal.aborted) {
       setUploadProgress(null)
       await startUploadedArchive(uploaded)
+    }
+  }
+
+  const handleDiscardUpload = async (id: string) => {
+    setSubmitting(true)
+    try {
+      await cancelBestEffort(actorId, id)
+      storePendingUpload(null)
+      onDiscarded()
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -297,6 +354,39 @@ export const ArchiveImportForm = ({
 
   return (
     <div className="space-y-4">
+      {notStartedImport ? (
+        <Alert
+          tone="warning"
+          title="An earlier upload was not started"
+          action={
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                size="sm"
+                disabled={submitting || isOffline}
+                onClick={() =>
+                  void startUploadedArchive({
+                    ...notStartedImport,
+                    uploadUrl: null,
+                    directUploadPath: null
+                  })
+                }
+              >
+                Start import
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={submitting || isOffline}
+                onClick={() => void handleDiscardUpload(notStartedImport.id)}
+              >
+                Discard
+              </Button>
+            </div>
+          }
+        />
+      ) : null}
       {alert?.type === 'upload' ? (
         <Alert
           tone="error"
@@ -315,21 +405,7 @@ export const ArchiveImportForm = ({
         />
       ) : null}
       {alert?.type === 'unreadable' ? (
-        <Alert
-          tone="error"
-          title="We could not read this file"
-          action={
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={submitting || isOffline || !file}
-              onClick={() => void handleSubmit()}
-            >
-              Try again
-            </Button>
-          }
-        >
+        <Alert tone="error" title="We could not read this file">
           Choose an activities.next archive, a Mastodon archive (.zip) or a
           Mastodon CSV file.
         </Alert>
@@ -386,32 +462,42 @@ export const ArchiveImportForm = ({
             htmlFor="archive-import-file"
             hint="An activities.next archive (.zip), a Mastodon archive (.zip) or a Mastodon CSV file."
           >
-            <div className="space-y-2">
-              <div className="flex flex-wrap items-center gap-3">
-                <span className="min-w-0 flex-1 text-sm">
-                  {file
-                    ? `${file.name} · ${formatBytes(file.size)}`
-                    : 'No file chosen'}
-                </span>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={submitting}
-                  onClick={() => inputRef.current?.click()}
-                >
-                  {file ? 'Change file' : 'Choose file'}
-                </Button>
+            {({ describedBy }) => (
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  {/* The visible field the label names, as in
+                      ImageUploadField: the file input itself is
+                      display:none, so a label pointing at it would name
+                      nothing. It shows the chosen file instead of a URL. */}
+                  <Input
+                    type="text"
+                    id="archive-import-file"
+                    value={file ? `${file.name} · ${formatBytes(file.size)}` : ''}
+                    readOnly
+                    placeholder="No file chosen"
+                    aria-describedby={describedBy}
+                    className="flex-1 bg-muted dark:bg-muted"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="self-center"
+                    disabled={submitting}
+                    onClick={() => inputRef.current?.click()}
+                  >
+                    {file ? 'Change file' : 'Choose file'}
+                  </Button>
+                </div>
+                <input
+                  ref={inputRef}
+                  type="file"
+                  accept=".zip,.csv"
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
               </div>
-              <input
-                ref={inputRef}
-                id="archive-import-file"
-                type="file"
-                accept=".zip,.csv"
-                className="hidden"
-                onChange={handleFileChange}
-              />
-            </div>
+            )}
           </FormRow>
 
           <ToggleOption
