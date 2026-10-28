@@ -4,10 +4,12 @@
 import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
+import type { RefObject } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import * as accountImports from '@/lib/client/accountImports'
 import type {
+  AccountImportOptions,
   AccountImportResponse,
   PresignedAccountImportResponse
 } from '@/lib/client/accountImports'
@@ -27,11 +29,16 @@ vi.mock('@/lib/client/accountImports', () => ({
 vi.mock('@/lib/hooks/useConnectionStatus', () => ({
   useConnectionStatus: () => ({ state: 'online' })
 }))
-vi.mock('@/lib/hooks/useHasHydrated', () => ({
-  useHasHydrated: () => true
-}))
 
 const actorId = 'https://llun.test/users/may'
+
+const INITIAL_OPTIONS: AccountImportOptions = {
+  likes: false,
+  bookmarks: false,
+  repliesToOthers: 'skip',
+  profile: false,
+  settings: false
+}
 
 const baseImport = {
   id: 'archive-1',
@@ -74,30 +81,36 @@ const notStarted: AccountImportResponse = {
   startedAt: null
 }
 
+const filePickerRef: RefObject<HTMLButtonElement | null> = { current: null }
+
 const Harness = ({
   notStartedImport = null,
+  startInFlight = false,
   onStarted = vi.fn(),
-  onDiscarded = vi.fn(),
-  onActorChanged = vi.fn()
+  onUploaded = vi.fn()
 }: {
   notStartedImport?: AccountImportResponse | null
+  startInFlight?: boolean
   onStarted?: (accountImport: AccountImportResponse) => void
-  onDiscarded?: () => void
-  onActorChanged?: () => void
+  onUploaded?: (uploaded: PresignedAccountImportResponse) => void
 }) => {
   const [file, setFile] = useState<File | null>(null)
+  const [options, setOptions] = useState(INITIAL_OPTIONS)
   return (
     <ArchiveImportForm
       actorId={actorId}
-      currentTime={Date.parse('2026-10-28T10:00:00.000Z')}
       file={file}
       maxImportBytes={1024 * 1024}
       notStartedImport={notStartedImport}
+      options={options}
+      onOptionsChange={setOptions}
       onFileChange={setFile}
-      onActorChanged={onActorChanged}
+      onActorChanged={vi.fn()}
       onMoved={vi.fn()}
       onStarted={onStarted}
-      onDiscarded={onDiscarded}
+      onUploaded={onUploaded}
+      startInFlight={startInFlight}
+      filePickerRef={filePickerRef}
     />
   )
 }
@@ -130,7 +143,6 @@ describe('ArchiveImportForm', () => {
   beforeEach(() => {
     vi.mocked(accountImports.createPresignedImport).mockResolvedValue(presigned)
     vi.mocked(accountImports.uploadAccountImport).mockResolvedValue(undefined)
-    vi.mocked(accountImports.startAccountImport).mockResolvedValue(baseImport)
     vi.mocked(accountImports.listAccountImports).mockResolvedValue([baseImport])
     vi.mocked(accountImports.cancelAccountImport).mockResolvedValue(baseImport)
   })
@@ -138,87 +150,14 @@ describe('ArchiveImportForm', () => {
   const submit = () =>
     fireEvent.click(screen.getByRole('button', { name: 'Import archive' }))
 
-  it('keeps the stored upload and retries only the start when start fails with 503', async () => {
-    vi.mocked(accountImports.startAccountImport)
-      .mockRejectedValueOnce(
-        new ApiRequestError('Import storage is unavailable', 503)
-      )
-      .mockResolvedValueOnce(baseImport)
-
-    render(<Harness />)
+  it('hands the uploaded row to the section and never starts it itself', async () => {
+    const onUploaded = vi.fn()
+    render(<Harness onUploaded={onUploaded} />)
     chooseFile('archive.zip')
     submit()
 
-    expect(
-      await screen.findByText('Import storage is unavailable')
-    ).toBeInTheDocument()
-    expect(accountImports.cancelAccountImport).not.toHaveBeenCalled()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
-
-    await waitFor(() =>
-      expect(accountImports.startAccountImport).toHaveBeenCalledTimes(2)
-    )
-    expect(accountImports.createPresignedImport).toHaveBeenCalledTimes(1)
-    expect(accountImports.uploadAccountImport).toHaveBeenCalledTimes(1)
-  })
-
-  it('keeps the stored import on the server when another file is chosen after a 429', async () => {
-    vi.mocked(accountImports.startAccountImport).mockRejectedValueOnce(
-      new ApiRequestError('Too many imports started recently', 429, 60_000)
-    )
-
-    render(<Harness />)
-    chooseFile('archive.zip')
-    submit()
-
-    expect(
-      await screen.findByText('Too many imports started recently')
-    ).toBeInTheDocument()
-    expect(accountImports.cancelAccountImport).not.toHaveBeenCalled()
-
-    chooseFile('other.zip')
-
-    expect(await screen.findByLabelText('File')).toHaveValue(
-      `other.zip · ${formatBytes(9)}`
-    )
-    expect(accountImports.cancelAccountImport).not.toHaveBeenCalled()
-  })
-
-  it('keeps the stored import on the server when the form unmounts after a 429', async () => {
-    vi.mocked(accountImports.startAccountImport).mockRejectedValueOnce(
-      new ApiRequestError('Too many imports started recently', 429, 60_000)
-    )
-
-    const { unmount } = render(<Harness />)
-    chooseFile('archive.zip')
-    submit()
-
-    expect(
-      await screen.findByText('Too many imports started recently')
-    ).toBeInTheDocument()
-    unmount()
-
-    expect(accountImports.cancelAccountImport).not.toHaveBeenCalled()
-  })
-
-  it('does not cancel the upload when the form unmounts while the start is in flight', async () => {
-    // The start inspects the archive on the server and can take seconds; the
-    // mockup promises the import carries on without the page.
-    vi.mocked(accountImports.startAccountImport).mockImplementation(
-      () => new Promise(() => {})
-    )
-
-    const { unmount } = render(<Harness />)
-    chooseFile('archive.zip')
-    submit()
-
-    await waitFor(() =>
-      expect(accountImports.startAccountImport).toHaveBeenCalled()
-    )
-    unmount()
-
-    expect(accountImports.cancelAccountImport).not.toHaveBeenCalled()
+    await waitFor(() => expect(onUploaded).toHaveBeenCalledWith(presigned))
+    expect(accountImports.startAccountImport).not.toHaveBeenCalled()
   })
 
   it('aborts the upload on Cancel, cancels the import and never starts', async () => {
@@ -247,105 +186,37 @@ describe('ArchiveImportForm', () => {
     expect(accountImports.startAccountImport).not.toHaveBeenCalled()
   })
 
-  it('shows the active import via listAccountImports on a 409 already-active start', async () => {
-    vi.mocked(accountImports.startAccountImport).mockRejectedValueOnce(
+  it('shows the plain fallback when the presign fails with a network error', async () => {
+    vi.mocked(accountImports.createPresignedImport).mockRejectedValueOnce(
+      new TypeError('Failed to fetch')
+    )
+
+    render(<Harness />)
+    chooseFile('archive.zip')
+    submit()
+
+    expect(
+      await screen.findByText('Could not prepare the archive upload')
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Failed to fetch')).not.toBeInTheDocument()
+    expect(accountImports.cancelAccountImport).not.toHaveBeenCalled()
+  })
+
+  it('hands the active import to the section when the presign answers 409 already active', async () => {
+    vi.mocked(accountImports.createPresignedImport).mockRejectedValueOnce(
       new ApiRequestError('An import is already active', 409)
     )
     const onStarted = vi.fn()
-    render(
-      <ArchiveImportForm
-        actorId={actorId}
-        currentTime={Date.parse('2026-10-28T10:00:00.000Z')}
-        file={new File(['data'], 'archive.zip')}
-        maxImportBytes={1024 * 1024}
-        notStartedImport={null}
-        onFileChange={vi.fn()}
-        onActorChanged={vi.fn()}
-        onMoved={vi.fn()}
-        onStarted={onStarted}
-        onDiscarded={vi.fn()}
-      />
-    )
+    render(<Harness onStarted={onStarted} />)
+
+    chooseFile('archive.zip')
     submit()
 
     await waitFor(() => expect(onStarted).toHaveBeenCalledWith(baseImport))
     expect(accountImports.listAccountImports).toHaveBeenCalledWith({ actorId })
-  })
-
-  it('treats a 409 upload-incomplete start failure as an upload failure', async () => {
-    vi.mocked(accountImports.startAccountImport).mockRejectedValueOnce(
-      new ApiRequestError('Upload is incomplete; upload it again', 409)
-    )
-
-    render(<Harness />)
-    chooseFile('archive.zip')
-    submit()
-
     expect(
-      await screen.findByText('The upload did not finish')
-    ).toBeInTheDocument()
-    expect(accountImports.cancelAccountImport).toHaveBeenCalledWith({
-      actorId,
-      id: 'archive-1'
-    })
-  })
-
-  it('shows the unreadable alert without an action for an unrecognised archive', async () => {
-    vi.mocked(accountImports.startAccountImport).mockRejectedValueOnce(
-      new ApiRequestError('Archive format is not recognised', 422)
-    )
-
-    render(<Harness />)
-    chooseFile('photos.zip')
-    submit()
-
-    expect(
-      await screen.findByText('We could not read this file')
-    ).toBeInTheDocument()
-    expect(
-      screen.queryByRole('button', { name: 'Try again' })
+      screen.queryByText('Could not start the import')
     ).not.toBeInTheDocument()
-    expect(accountImports.cancelAccountImport).toHaveBeenCalledWith({
-      actorId,
-      id: 'archive-1'
-    })
-  })
-
-  it('shows the server message for other 422 start errors without cancelling', async () => {
-    vi.mocked(accountImports.startAccountImport).mockRejectedValueOnce(
-      new ApiRequestError('This account is being deleted', 422)
-    )
-
-    render(<Harness />)
-    chooseFile('archive.zip')
-    submit()
-
-    expect(
-      await screen.findByText('This account is being deleted')
-    ).toBeInTheDocument()
-    expect(
-      screen.queryByText('We could not read this file')
-    ).not.toBeInTheDocument()
-    expect(accountImports.cancelAccountImport).not.toHaveBeenCalled()
-  })
-
-  it('measures the retry time from the moment the rate limit arrives', async () => {
-    const start = Date.parse('2026-10-28T10:00:00.000Z')
-    let now = start
-    vi.spyOn(Date, 'now').mockImplementation(() => now)
-    vi.mocked(accountImports.startAccountImport).mockRejectedValueOnce(
-      new ApiRequestError('Too many imports started recently', 429, 7_200_000)
-    )
-
-    render(<Harness />)
-    chooseFile('archive.zip')
-    // Forty minutes pass between hydration and the rate-limited start.
-    now = start + 40 * 60 * 1000
-    submit()
-
-    expect(
-      await screen.findByText('You can try again in about 2 hours.')
-    ).toBeInTheDocument()
   })
 
   it('labels the visible file field, not the hidden input', () => {
@@ -361,136 +232,6 @@ describe('ArchiveImportForm', () => {
     ).toBe('')
   })
 
-  it('offers to start or discard an upload that was never started', async () => {
-    vi.mocked(accountImports.startAccountImport).mockResolvedValue(baseImport)
-
-    render(<Harness notStartedImport={notStarted} />)
-
-    expect(
-      screen.getByText('An earlier upload was not started')
-    ).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Start import' }))
-
-    await waitFor(() =>
-      expect(accountImports.startAccountImport).toHaveBeenCalledWith({
-        actorId,
-        importId: 'archive-1',
-        options: {
-          likes: false,
-          bookmarks: false,
-          repliesToOthers: 'skip',
-          profile: false,
-          settings: false
-        }
-      })
-    )
-  })
-
-  it('discards an upload that was never started', async () => {
-    const onDiscarded = vi.fn()
-    render(
-      <ArchiveImportForm
-        actorId={actorId}
-        currentTime={Date.parse('2026-10-28T10:00:00.000Z')}
-        file={null}
-        maxImportBytes={1024 * 1024}
-        notStartedImport={notStarted}
-        onFileChange={vi.fn()}
-        onActorChanged={vi.fn()}
-        onMoved={vi.fn()}
-        onStarted={vi.fn()}
-        onDiscarded={onDiscarded}
-      />
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
-
-    await waitFor(() =>
-      expect(accountImports.cancelAccountImport).toHaveBeenCalledWith({
-        actorId,
-        id: 'archive-1'
-      })
-    )
-    await waitFor(() => expect(onDiscarded).toHaveBeenCalledOnce())
-  })
-
-  it('keeps the earlier upload and shows the error when Discard fails', async () => {
-    vi.mocked(accountImports.cancelAccountImport).mockRejectedValueOnce(
-      new ApiRequestError('Server error', 500)
-    )
-    const onDiscarded = vi.fn()
-    render(<Harness notStartedImport={notStarted} onDiscarded={onDiscarded} />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
-
-    expect(
-      await screen.findByText('Could not discard the upload')
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText('An earlier upload was not started')
-    ).toBeInTheDocument()
-    expect(onDiscarded).not.toHaveBeenCalled()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
-
-    await waitFor(() => expect(onDiscarded).toHaveBeenCalledOnce())
-    expect(
-      screen.queryByText('Could not discard the upload')
-    ).not.toBeInTheDocument()
-  })
-
-  it('treats a 409 already-finished Discard as discarded', async () => {
-    vi.mocked(accountImports.cancelAccountImport).mockRejectedValueOnce(
-      new ApiRequestError('Import is already finished', 409)
-    )
-    const onDiscarded = vi.fn()
-    render(<Harness notStartedImport={notStarted} onDiscarded={onDiscarded} />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
-
-    await waitFor(() => expect(onDiscarded).toHaveBeenCalledOnce())
-    expect(
-      screen.queryByText('Could not discard the upload')
-    ).not.toBeInTheDocument()
-  })
-
-  it('shows the actor-changed alert when Discard answers 409 Actor changed', async () => {
-    vi.mocked(accountImports.cancelAccountImport).mockRejectedValueOnce(
-      new ApiRequestError('Actor changed', 409)
-    )
-    const onActorChanged = vi.fn()
-    const onDiscarded = vi.fn()
-    render(
-      <Harness
-        notStartedImport={notStarted}
-        onActorChanged={onActorChanged}
-        onDiscarded={onDiscarded}
-      />
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
-
-    await waitFor(() => expect(onActorChanged).toHaveBeenCalledOnce())
-    expect(onDiscarded).not.toHaveBeenCalled()
-  })
-
-  it('hands a kept upload to the parent when a fresh start is rate-limited', async () => {
-    vi.mocked(accountImports.startAccountImport).mockRejectedValueOnce(
-      new ApiRequestError('Too many imports started recently', 429, 60_000)
-    )
-    const onStarted = vi.fn()
-    render(<Harness onStarted={onStarted} />)
-    chooseFile('archive.zip')
-    submit()
-
-    await waitFor(() => expect(onStarted).toHaveBeenCalledWith(presigned))
-    expect(
-      screen.getByText('Too many imports started recently')
-    ).toBeInTheDocument()
-    expect(accountImports.cancelAccountImport).not.toHaveBeenCalled()
-  })
-
   it('disables Import archive while an earlier upload waits to be started', () => {
     render(<Harness notStartedImport={notStarted} />)
     chooseFile('other.zip')
@@ -501,6 +242,13 @@ describe('ArchiveImportForm', () => {
     expect(
       screen.getByRole('button', { name: 'Import archive' })
     ).toBeDisabled()
+  })
+
+  it('locks the form while the section starts or discards the earlier upload', () => {
+    render(<Harness notStartedImport={notStarted} startInFlight />)
+
+    expect(screen.getByRole('button', { name: 'Importing…' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Choose file' })).toBeDisabled()
   })
 
   it('announces the upload once instead of on every progress tick', async () => {
@@ -533,190 +281,5 @@ describe('ArchiveImportForm', () => {
     expect(screen.getByRole('status')).toHaveTextContent(
       'Uploading the archive'
     )
-  })
-
-  // The cancel rule as a table: the client cancels an account import only
-  // when the user presses Discard or Cancel, when the upload itself failed
-  // or was aborted, or when the start answers that the stored file can never
-  // start. Every other start outcome leaves the queued upload alone. The
-  // user-action side of the rule (Discard, an aborted upload, another file,
-  // unmounting) is pinned by the named tests above.
-  describe('cancel rule', () => {
-    beforeEach(() => {
-      vi.mocked(accountImports.getAccountImport).mockResolvedValue(baseImport)
-    })
-
-    it.each([
-      [
-        'a 429 rate limit',
-        'kept',
-        new ApiRequestError('Too many imports started recently', 429, 60_000)
-      ],
-      [
-        'a 503',
-        'kept',
-        new ApiRequestError('Import storage is unavailable', 503)
-      ],
-      [
-        'a network error',
-        'kept',
-        new ApiRequestError('The network was interrupted', 0)
-      ],
-      [
-        'a 409 already active',
-        'kept',
-        new ApiRequestError('An import is already active', 409)
-      ],
-      [
-        'a 409 not queued',
-        'kept',
-        new ApiRequestError('Import is not queued', 409)
-      ],
-      [
-        'a 409 upload incomplete',
-        'cancelled',
-        new ApiRequestError('Upload is incomplete; upload it again', 409)
-      ],
-      [
-        'a 409 archive changed',
-        'cancelled',
-        new ApiRequestError('Archive changed; upload it again', 409)
-      ],
-      [
-        'a 422 unrecognised archive',
-        'cancelled',
-        new ApiRequestError('Archive format is not recognised', 422)
-      ],
-      [
-        'a 413 too large',
-        'cancelled',
-        new ApiRequestError('File is too large', 413)
-      ],
-      [
-        'another 422',
-        'kept',
-        new ApiRequestError('This account is being deleted', 422)
-      ],
-      [
-        'a 500',
-        'kept',
-        new ApiRequestError('Import storage is unavailable', 500)
-      ]
-    ])(
-      'start fails with %s: the stored import is %s',
-      async (_label, outcome, error) => {
-        vi.mocked(accountImports.startAccountImport).mockRejectedValueOnce(
-          error
-        )
-
-        render(<Harness />)
-        chooseFile('archive.zip')
-        submit()
-
-        await waitFor(() =>
-          expect(accountImports.startAccountImport).toHaveBeenCalledTimes(1)
-        )
-        await act(async () => {
-          for (let i = 0; i < 5; i += 1) await Promise.resolve()
-        })
-
-        if (outcome === 'cancelled') {
-          expect(accountImports.cancelAccountImport).toHaveBeenCalledWith({
-            actorId,
-            id: 'archive-1'
-          })
-        } else {
-          expect(accountImports.cancelAccountImport).not.toHaveBeenCalled()
-        }
-      }
-    )
-  })
-
-  it('re-reads the import on a 409 not-queued start instead of cancelling it', async () => {
-    const running = { ...baseImport, status: 'running' as const }
-    vi.mocked(accountImports.startAccountImport).mockRejectedValueOnce(
-      new ApiRequestError('Import is not queued', 409)
-    )
-    vi.mocked(accountImports.getAccountImport).mockResolvedValue(running)
-    const onStarted = vi.fn()
-    render(
-      <ArchiveImportForm
-        actorId={actorId}
-        currentTime={Date.parse('2026-10-28T10:00:00.000Z')}
-        file={null}
-        maxImportBytes={1024 * 1024}
-        notStartedImport={notStarted}
-        onFileChange={vi.fn()}
-        onActorChanged={vi.fn()}
-        onMoved={vi.fn()}
-        onStarted={onStarted}
-        onDiscarded={vi.fn()}
-      />
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'Start import' }))
-
-    await waitFor(() => expect(onStarted).toHaveBeenCalledWith(running))
-    expect(accountImports.getAccountImport).toHaveBeenCalledWith({
-      actorId,
-      id: 'archive-1'
-    })
-    expect(accountImports.cancelAccountImport).not.toHaveBeenCalled()
-  })
-
-  it('retries a failed start of an earlier upload without a file', async () => {
-    vi.mocked(accountImports.startAccountImport)
-      .mockRejectedValueOnce(
-        new ApiRequestError('Import storage is unavailable', 503)
-      )
-      .mockResolvedValueOnce(baseImport)
-    render(<Harness notStartedImport={notStarted} />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Start import' }))
-    expect(
-      await screen.findByText('Import storage is unavailable')
-    ).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
-
-    await waitFor(() =>
-      expect(accountImports.startAccountImport).toHaveBeenCalledTimes(2)
-    )
-    expect(accountImports.createPresignedImport).not.toHaveBeenCalled()
-    expect(accountImports.uploadAccountImport).not.toHaveBeenCalled()
-  })
-
-  it('keeps the earlier upload when another file is chosen after a failed start', async () => {
-    vi.mocked(accountImports.startAccountImport).mockRejectedValueOnce(
-      new ApiRequestError('Too many imports started recently', 429, 60_000)
-    )
-    render(<Harness notStartedImport={notStarted} />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Start import' }))
-    expect(
-      await screen.findByText('Too many imports started recently')
-    ).toBeInTheDocument()
-
-    chooseFile('other.zip')
-
-    expect(
-      screen.getByText('An earlier upload was not started')
-    ).toBeInTheDocument()
-    expect(accountImports.cancelAccountImport).not.toHaveBeenCalled()
-  })
-
-  it('keeps the earlier upload when the form unmounts after a failed start', async () => {
-    vi.mocked(accountImports.startAccountImport).mockRejectedValueOnce(
-      new ApiRequestError('Too many imports started recently', 429, 60_000)
-    )
-    const { unmount } = render(<Harness notStartedImport={notStarted} />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Start import' }))
-    expect(
-      await screen.findByText('Too many imports started recently')
-    ).toBeInTheDocument()
-    unmount()
-
-    expect(accountImports.cancelAccountImport).not.toHaveBeenCalled()
   })
 })

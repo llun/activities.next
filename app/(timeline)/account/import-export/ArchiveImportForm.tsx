@@ -1,7 +1,7 @@
 'use client'
 
-import { formatDistance } from 'date-fns/formatDistance'
 import { useEffect, useRef, useState } from 'react'
+import type { RefObject } from 'react'
 
 import {
   AccountImportOptions,
@@ -9,9 +9,7 @@ import {
   PresignedAccountImportResponse,
   cancelAccountImport,
   createPresignedImport,
-  getAccountImport,
   listAccountImports,
-  startAccountImport,
   uploadAccountImport
 } from '@/lib/client/accountImports'
 import { ApiRequestError } from '@/lib/client/http'
@@ -24,47 +22,42 @@ import { Input } from '@/lib/components/ui/input'
 import { Progress } from '@/lib/components/ui/progress'
 import { Switch } from '@/lib/components/ui/switch'
 import { useConnectionStatus } from '@/lib/hooks/useConnectionStatus'
-import { useHasHydrated } from '@/lib/hooks/useHasHydrated'
 import { formatBytes } from '@/lib/utils/formatBytes'
 
 interface Props {
   actorId: string
-  currentTime: number
   file: File | null
   maxImportBytes: number
   /**
    * A queued import that was uploaded but never started (the row the presign
-   * leaves behind when the start never happened), offered back to the user
-   * instead of being shown as progress that would never move.
+   * leaves behind when the start never happened). The section owns its
+   * warning; the form only needs it to lock its own Save bar.
    */
   notStartedImport: AccountImportResponse | null
+  /** The import options, owned by the section: it needs them to start. */
+  options: AccountImportOptions
+  onOptionsChange: (options: AccountImportOptions) => void
   onFileChange: (file: File | null) => void
   onActorChanged: () => void
   onMoved: () => void
+  /** Hands a queued row to the section when another import holds the slot. */
   onStarted: (accountImport: AccountImportResponse) => void
-  onDiscarded: () => void
+  /** The upload finished; the section starts the row it uploaded. */
+  onUploaded: (uploaded: PresignedAccountImportResponse) => void
+  /** True while the section is starting or discarding the earlier upload. */
+  startInFlight: boolean
+  /** The section focuses the picker after a successful Discard. */
+  filePickerRef: RefObject<HTMLButtonElement | null>
+  /** Lets the section's "The upload did not finish" Try again upload again. */
+  formRef: RefObject<HTMLFormElement | null>
 }
 
 type AlertState =
-  | { type: 'upload' }
-  | { type: 'unreadable' }
-  | { type: 'rate-limit'; retryAt: number | null }
-  | { type: 'too-large' }
-  | { type: 'discard'; id: string }
-  | { type: 'generic'; message: string }
-  | null
+  { type: 'upload' } | { type: 'generic'; message: string } | null
 
 interface UploadProgress {
   loaded: number
   total: number
-}
-
-const INITIAL_OPTIONS: AccountImportOptions = {
-  likes: false,
-  bookmarks: false,
-  repliesToOthers: 'skip',
-  profile: false,
-  settings: false
 }
 
 const isActiveImport = (accountImport: AccountImportResponse) =>
@@ -79,30 +72,6 @@ const isMoved = (error: unknown) =>
   error instanceof ApiRequestError &&
   error.status === 422 &&
   error.message === 'This account has moved'
-
-// The only start failures that cancel the stored upload: the file behind the
-// row can never start, so the row is dead weight. Every other failure leaves
-// the queued upload alone (see the cancel rule on startUploadedArchive).
-const isUnreadableStart = (error: unknown) =>
-  error instanceof ApiRequestError &&
-  error.status === 422 &&
-  error.message === 'Archive format is not recognised'
-
-const isUploadLostStart = (error: unknown) =>
-  error instanceof ApiRequestError &&
-  error.status === 409 &&
-  (error.message === 'Upload is incomplete; upload it again' ||
-    error.message === 'Archive changed; upload it again')
-
-// The server deletes the stored file before answering 413, so the row can
-// never start, exactly like an unreadable or lost upload.
-const isTooLargeStart = (error: unknown) =>
-  error instanceof ApiRequestError && error.status === 413
-
-const isAlreadyFinished = (error: unknown) =>
-  error instanceof ApiRequestError &&
-  error.status === 409 &&
-  error.message === 'Import is already finished'
 
 const cancelBestEffort = (actorId: string, id: string) =>
   cancelAccountImport({ actorId, id }).catch(() => undefined)
@@ -132,65 +101,40 @@ const ToggleOption = ({
 
 export const ArchiveImportForm = ({
   actorId,
-  currentTime,
   file,
   maxImportBytes,
   notStartedImport,
+  options,
+  onOptionsChange,
   onFileChange,
   onActorChanged,
   onMoved,
   onStarted,
-  onDiscarded
+  onUploaded,
+  startInFlight,
+  filePickerRef,
+  formRef
 }: Props) => {
   const inputRef = useRef<HTMLInputElement>(null)
-  const chooseFileRef = useRef<HTMLButtonElement>(null)
-  // The warning that held the focused Discard button unmounts on a
-  // successful Discard, so the file picker must take the focus. It cannot
-  // do that inside the handler: the picker is disabled while the submit
-  // lock is held, and a disabled button is not focusable. The effect runs
-  // on the commit that releases the lock.
-  const focusPickerAfterDiscard = useRef(false)
   const uploadController = useRef<AbortController | null>(null)
-  const [options, setOptions] = useState(INITIAL_OPTIONS)
   const [submitting, setSubmitting] = useState(false)
-  const [pendingUpload, setPendingUpload] =
-    useState<PresignedAccountImportResponse | null>(null)
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(
     null
   )
   const [alert, setAlert] = useState<AlertState>(null)
-  const [clock, setClock] = useState(currentTime)
-  const hasHydrated = useHasHydrated()
   const isOffline = useConnectionStatus().state === 'offline'
+  const busy = submitting || startInFlight
   const isUploading = uploadProgress !== null && submitting
 
-  // The cancel rule: the client cancels an account import only when the user
-  // presses Discard or Cancel, when the upload itself failed or was aborted,
-  // or when the start answers that the stored file can never start (422
-  // unrecognised, 409 upload incomplete or archive changed, 413 too large).
-  // Everything else leaves the queued upload alone — a failed start, another
-  // file, leaving the page or switching to CSV — so the row survives and the
-  // page offers it back as the "not started" warning.
   useEffect(() => {
-    setOptions(INITIAL_OPTIONS)
     setAlert(null)
-    setPendingUpload(null)
     setUploadProgress(null)
   }, [actorId, file])
 
-  useEffect(() => {
-    if (hasHydrated) setClock(Date.now())
-  }, [hasHydrated])
-
-  useEffect(() => {
-    if (!focusPickerAfterDiscard.current || submitting) return
-    focusPickerAfterDiscard.current = false
-    chooseFileRef.current?.focus()
-  }, [submitting])
-
   // Aborting the upload makes it fail, and a failed upload is one of the
   // cases that cancel the row (in handleSubmit's catch). The start needs no
-  // cleanup: the row it is starting is the server's, not the page's.
+  // cleanup: the section starts the row, and it is the server's, not the
+  // page's.
   useEffect(
     () => () => {
       uploadController.current?.abort()
@@ -205,103 +149,9 @@ export const ArchiveImportForm = ({
     return Boolean(activeImport)
   }
 
-  const startUploadedArchive = async (
-    uploaded: PresignedAccountImportResponse
-  ) => {
-    setSubmitting(true)
-    setAlert(null)
-    // A start that gives up on the upload cancels the row server-side, so it
-    // must also tell the parent to drop it: otherwise the "earlier upload"
-    // warning stays up with a Start button that can only fail again, until
-    // the next poll reports the row as cancelled.
-    const discardUploaded = async () => {
-      await cancelBestEffort(actorId, uploaded.id)
-      setPendingUpload(null)
-      if (notStartedImport?.id === uploaded.id) onDiscarded()
-    }
-    try {
-      const accountImport = await startAccountImport({
-        actorId,
-        importId: uploaded.id,
-        options
-      })
-      setPendingUpload(null)
-      setUploadProgress(null)
-      onStarted(accountImport)
-    } catch (error) {
-      if (isActorChanged(error)) {
-        onActorChanged()
-      } else if (isMoved(error)) {
-        onMoved()
-      } else if (error instanceof ApiRequestError && error.status === 429) {
-        setPendingUpload(uploaded)
-        // The kept upload must not live only in this form's state: the
-        // [actorId, file] reset effect clears pendingUpload when another
-        // file is chosen. Hand it to the parent right away, so the "not
-        // started" warning owns the row from the start.
-        if (uploaded.id !== notStartedImport?.id) onStarted(uploaded)
-        setClock(Date.now())
-        setAlert({
-          type: 'rate-limit',
-          retryAt:
-            error.retryAfterMs === undefined
-              ? null
-              : Date.now() + error.retryAfterMs
-        })
-      } else if (isUnreadableStart(error)) {
-        await discardUploaded()
-        setAlert({ type: 'unreadable' })
-      } else if (isUploadLostStart(error)) {
-        await discardUploaded()
-        setAlert({ type: 'upload' })
-      } else if (isTooLargeStart(error)) {
-        await discardUploaded()
-        setAlert({ type: 'too-large' })
-      } else if (
-        error instanceof ApiRequestError &&
-        error.status === 409 &&
-        error.message === 'An import is already active'
-      ) {
-        const found = await findActiveImport()
-        if (!found) setAlert({ type: 'generic', message: error.message })
-      } else if (
-        error instanceof ApiRequestError &&
-        error.status === 409 &&
-        error.message === 'Import is not queued'
-      ) {
-        // The row has already started (another tab) or another import took
-        // the slot: re-read it and show it. It is never this page's to cancel.
-        setPendingUpload(null)
-        try {
-          onStarted(await getAccountImport({ actorId, id: uploaded.id }))
-        } catch {
-          setAlert({ type: 'generic', message: 'Could not start the import' })
-        }
-      } else {
-        // 503, a network error, a 422 or 409 the rule does not name, a 500:
-        // the upload stays queued, so keep it and let the owner try again.
-        setPendingUpload(uploaded)
-        setAlert({
-          type: 'generic',
-          message:
-            error instanceof Error
-              ? error.message
-              : 'Could not start the import'
-        })
-      }
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
   const handleSubmit = async () => {
-    if (!file || submitting || isOffline || file.size > maxImportBytes) return
+    if (!file || busy || isOffline || file.size > maxImportBytes) return
     setAlert(null)
-    if (pendingUpload) {
-      await startUploadedArchive(pendingUpload)
-      return
-    }
-
     setSubmitting(true)
     let uploaded: PresignedAccountImportResponse | null = null
     let uploadSucceeded = false
@@ -309,7 +159,6 @@ export const ArchiveImportForm = ({
     uploadController.current = controller
     try {
       uploaded = await createPresignedImport({ actorId, size: file.size })
-      setPendingUpload(uploaded)
       setUploadProgress({ loaded: 0, total: file.size })
       await uploadAccountImport({
         actorId,
@@ -334,14 +183,16 @@ export const ArchiveImportForm = ({
         if (!found) setAlert({ type: 'generic', message: error.message })
       } else if (uploaded) {
         await cancelBestEffort(actorId, uploaded.id)
-        setPendingUpload(null)
         setUploadProgress(null)
         setAlert({ type: 'upload' })
       } else {
+        // Only a server message is worth showing: a browser network
+        // failure rejects with a TypeError whose text ("Failed to fetch")
+        // says nothing the title does not.
         setAlert({
           type: 'generic',
           message:
-            error instanceof Error
+            error instanceof ApiRequestError
               ? error.message
               : 'Could not prepare the archive upload'
         })
@@ -353,33 +204,7 @@ export const ArchiveImportForm = ({
 
     if (uploaded && uploadSucceeded && !controller.signal.aborted) {
       setUploadProgress(null)
-      await startUploadedArchive(uploaded)
-    }
-  }
-
-  const handleDiscardUpload = async (id: string) => {
-    setSubmitting(true)
-    setAlert(null)
-    try {
-      await cancelAccountImport({ actorId, id })
-      setPendingUpload(null)
-      onDiscarded()
-      focusPickerAfterDiscard.current = true
-    } catch (error) {
-      if (isActorChanged(error)) {
-        onActorChanged()
-      } else if (isAlreadyFinished(error)) {
-        // The 24 h sweep got there first: the row is gone either way.
-        setPendingUpload(null)
-        onDiscarded()
-        focusPickerAfterDiscard.current = true
-      } else {
-        // The cancel the user asked for did not happen, so the row is
-        // still queued: keep the warning and say what failed.
-        setAlert({ type: 'discard', id })
-      }
-    } finally {
-      setSubmitting(false)
+      onUploaded(uploaded)
     }
   }
 
@@ -390,18 +215,6 @@ export const ArchiveImportForm = ({
 
   const handleCancelUpload = () => uploadController.current?.abort()
 
-  const retryDescription =
-    alert?.type === 'rate-limit'
-      ? alert.retryAt === null
-        ? 'Try again later.'
-        : `You can try again ${
-            hasHydrated
-              ? formatDistance(new Date(alert.retryAt), new Date(clock), {
-                  addSuffix: true
-                })
-              : 'later'
-          }.`
-      : null
   const percent = uploadProgress
     ? Math.min(
         100,
@@ -413,39 +226,6 @@ export const ArchiveImportForm = ({
 
   return (
     <div className="space-y-4">
-      {notStartedImport ? (
-        <Alert
-          tone="warning"
-          title="An earlier upload was not started"
-          action={
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                size="sm"
-                disabled={submitting || isOffline}
-                onClick={() =>
-                  void startUploadedArchive({
-                    ...notStartedImport,
-                    uploadUrl: null,
-                    directUploadPath: null
-                  })
-                }
-              >
-                Start import
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={submitting || isOffline}
-                onClick={() => void handleDiscardUpload(notStartedImport.id)}
-              >
-                Discard
-              </Button>
-            </div>
-          }
-        />
-      ) : null}
       {alert?.type === 'upload' ? (
         <Alert
           tone="error"
@@ -455,7 +235,7 @@ export const ArchiveImportForm = ({
               type="button"
               variant="outline"
               size="sm"
-              disabled={submitting || isOffline || !file}
+              disabled={busy || isOffline || !file}
               onClick={() => void handleSubmit()}
             >
               Try again
@@ -463,58 +243,18 @@ export const ArchiveImportForm = ({
           }
         />
       ) : null}
-      {alert?.type === 'unreadable' ? (
-        <Alert tone="error" title="We could not read this file">
-          Choose an activities.next archive, a Mastodon archive (.zip) or a
-          Mastodon CSV file.
-        </Alert>
-      ) : null}
-      {alert?.type === 'too-large' ? (
-        <Alert tone="error" title="File is too large">
-          Choose a file no larger than {formatBytes(maxImportBytes)}.
-        </Alert>
-      ) : null}
-      {alert?.type === 'discard' ? (
-        <Alert
-          tone="error"
-          title="Could not discard the upload"
-          onRetry={() => void handleDiscardUpload(alert.id)}
-        />
-      ) : null}
-      {alert?.type === 'rate-limit' && pendingUpload ? (
-        <Alert
-          tone="warning"
-          title="Too many imports started recently"
-          action={
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={submitting || isOffline}
-              onClick={() => void startUploadedArchive(pendingUpload)}
-            >
-              Try again
-            </Button>
-          }
-        >
-          {retryDescription}
-        </Alert>
-      ) : null}
       {alert?.type === 'generic' ? (
         <Alert
           tone="error"
           title="Could not start the import"
-          onRetry={() =>
-            void (pendingUpload
-              ? startUploadedArchive(pendingUpload)
-              : handleSubmit())
-          }
+          onRetry={() => void handleSubmit()}
         >
           {alert.message}
         </Alert>
       ) : null}
 
       <form
+        ref={formRef}
         onSubmit={(event) => {
           event.preventDefault()
           void handleSubmit()
@@ -525,9 +265,9 @@ export const ArchiveImportForm = ({
           footer={
             <SaveBar
               variant="create"
-              actionLabel={submitting ? 'Importing…' : 'Import archive'}
+              actionLabel={busy ? 'Importing…' : 'Import archive'}
               submit
-              disabled={!file || submitting}
+              disabled={!file || busy}
               disabledReason={
                 isOffline
                   ? "You're offline"
@@ -562,12 +302,12 @@ export const ArchiveImportForm = ({
                     className="flex-1 bg-muted dark:bg-muted"
                   />
                   <Button
-                    ref={chooseFileRef}
+                    ref={filePickerRef}
                     type="button"
                     variant="outline"
                     size="sm"
                     className="self-center"
-                    disabled={submitting}
+                    disabled={busy}
                     onClick={() => inputRef.current?.click()}
                   >
                     {file ? 'Change file' : 'Choose file'}
@@ -590,10 +330,10 @@ export const ArchiveImportForm = ({
             hint="Off: your replies to other people's posts are skipped. On: they come in as standalone posts that link to the original."
             checked={options.repliesToOthers === 'keep'}
             onCheckedChange={(checked) =>
-              setOptions((previous) => ({
-                ...previous,
+              onOptionsChange({
+                ...options,
                 repliesToOthers: checked ? 'keep' : 'skip'
-              }))
+              })
             }
           />
           <ToggleOption
@@ -601,16 +341,14 @@ export const ArchiveImportForm = ({
             label="Import likes"
             hint="Only for posts already on this server."
             checked={options.likes}
-            onCheckedChange={(likes) =>
-              setOptions((previous) => ({ ...previous, likes }))
-            }
+            onCheckedChange={(likes) => onOptionsChange({ ...options, likes })}
           />
           <ToggleOption
             id="archive-import-bookmarks"
             label="Import bookmarks"
             checked={options.bookmarks}
             onCheckedChange={(bookmarks) =>
-              setOptions((previous) => ({ ...previous, bookmarks }))
+              onOptionsChange({ ...options, bookmarks })
             }
           />
           <ToggleOption
@@ -618,7 +356,7 @@ export const ArchiveImportForm = ({
             label="Replace my profile with the one in the archive"
             checked={options.profile}
             onCheckedChange={(profile) =>
-              setOptions((previous) => ({ ...previous, profile }))
+              onOptionsChange({ ...options, profile })
             }
           />
           <ToggleOption
@@ -626,7 +364,7 @@ export const ArchiveImportForm = ({
             label="Replace my settings with the ones in the archive"
             checked={options.settings}
             onCheckedChange={(settings) =>
-              setOptions((previous) => ({ ...previous, settings }))
+              onOptionsChange({ ...options, settings })
             }
           />
 

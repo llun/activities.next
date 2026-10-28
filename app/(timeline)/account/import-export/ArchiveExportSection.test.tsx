@@ -250,6 +250,18 @@ describe('ArchiveExportSection', () => {
     })
   })
 
+  it('shows the plain fallback when the network fails', async () => {
+    mocks.requestArchive.mockRejectedValue(new TypeError('Failed to fetch'))
+    render(<ArchiveExportSection {...props} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Prepare archive' }))
+
+    expect(
+      await screen.findByText('Could not prepare your archive')
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Failed to fetch')).not.toBeInTheDocument()
+  })
+
   it('hides this browser’s drafts until hydration and only reads the current actor', async () => {
     mocks.hydrated = false
     const { rerender } = render(<ArchiveExportSection {...props} />)

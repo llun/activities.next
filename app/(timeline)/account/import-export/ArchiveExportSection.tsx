@@ -238,8 +238,11 @@ export const ArchiveExportSection = ({
           ])
         }
       } else {
+        // Only a server message is worth showing: a browser network
+        // failure rejects with a TypeError whose text ("Failed to fetch")
+        // says nothing the title does not.
         setRequestError(
-          error instanceof Error
+          error instanceof ApiRequestError
             ? error.message
             : 'Could not prepare your archive'
         )

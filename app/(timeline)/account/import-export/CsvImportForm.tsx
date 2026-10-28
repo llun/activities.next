@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { RefObject } from 'react'
 
 import { createBulkImport, getBulkImport } from '@/lib/client/bulkImports'
 import type {
@@ -53,6 +54,8 @@ interface Props {
   actorId: string
   file: File
   maxCsvBytes: number
+  /** The section focuses the picker after discarding an earlier upload. */
+  filePickerRef: RefObject<HTMLButtonElement | null>
   onFileChange: (file: File | null) => void
   onActorChanged: () => void
   onMoved: () => void
@@ -62,6 +65,7 @@ export const CsvImportForm = ({
   actorId,
   file,
   maxCsvBytes,
+  filePickerRef,
   onFileChange,
   onActorChanged,
   onMoved
@@ -129,8 +133,13 @@ export const CsvImportForm = ({
       ) {
         onMoved()
       } else {
+        // Only a server message is worth showing: a browser network
+        // failure rejects with a TypeError whose text ("Failed to fetch")
+        // says nothing the title does not.
         setError(
-          cause instanceof Error ? cause.message : 'Could not start the import'
+          cause instanceof ApiRequestError
+            ? cause.message
+            : 'Could not start the import'
         )
       }
     } finally {
@@ -169,7 +178,12 @@ export const CsvImportForm = ({
           }
           onRetry={() => void submit()}
         >
-          {error === 'We could not read this file' ? null : error}
+          {/* The plain fallback and the unreadable-file message already say
+              everything in the title; a server message adds the detail. */}
+          {error === 'We could not read this file' ||
+          error === 'Could not start the import'
+            ? null
+            : error}
         </Alert>
       ) : null}
 
@@ -220,6 +234,7 @@ export const CsvImportForm = ({
                     className="flex-1 bg-muted dark:bg-muted"
                   />
                   <Button
+                    ref={filePickerRef}
                     type="button"
                     variant="outline"
                     size="sm"
