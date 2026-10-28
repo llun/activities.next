@@ -498,6 +498,114 @@ describe('MoveForm', () => {
     ).toBeDisabled()
   })
 
+  it('shows the server message when a 429 has no cooldown behind it', async () => {
+    // The race answer: the move changed while it was checked, so the server
+    // refuses with 429 and the re-read has no cooldown that explains it.
+    mockMove.mockRejectedValueOnce(
+      new client.ApiRequestError(
+        'The move changed while it was checked, try again',
+        429
+      )
+    )
+    mockGetMigration.mockResolvedValueOnce({
+      movedTo: null,
+      migrations: [],
+      cooldownUntil: null,
+      followersCount: 12
+    })
+
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+
+    fillMove()
+    fireEvent.click(screen.getByRole('button', { name: 'Move followers' }))
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Move your followers'
+    })
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Move followers' })
+    )
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('The move changed while it was checked, try again')
+      ).toBeInTheDocument()
+    })
+    // The form stays: no cooldown arrived, so the action is still there.
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Move followers' })).toBeEnabled()
+    expect(screen.queryByText(/You can move again on/)).not.toBeInTheDocument()
+  })
+
+  it('shows the server message for a redirect 429, which has no cooldown', async () => {
+    mockMove.mockRejectedValueOnce(
+      new client.ApiRequestError('Too many redirects', 429)
+    )
+    mockGetMigration.mockResolvedValueOnce({
+      movedTo: null,
+      migrations: [],
+      cooldownUntil: null,
+      followersCount: 12
+    })
+
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('radio', { name: /Only show a redirect/ }))
+    fillMove()
+    fireEvent.click(screen.getByRole('button', { name: 'Show redirect' }))
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Show a redirect'
+    })
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Show redirect' })
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('Too many redirects')).toBeInTheDocument()
+    })
+    expect(screen.getByRole('button', { name: 'Show redirect' })).toBeEnabled()
+  })
+
+  it('describes the password and current-username fields with their hint', () => {
+    const withPassword = render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+    expect(screen.getByLabelText('Password')).toHaveAccessibleDescription(
+      'Confirm it is you.'
+    )
+    withPassword.unmount()
+
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword={false}
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+    expect(
+      screen.getByLabelText('Current username')
+    ).toHaveAccessibleDescription('Confirm it is you.')
+  })
+
   it('maps an unresolvable account to the field error', async () => {
     mockMove.mockRejectedValueOnce(
       new client.ApiRequestError('Record not found', 404)
