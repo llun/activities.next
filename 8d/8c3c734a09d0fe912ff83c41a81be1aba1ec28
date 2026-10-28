@@ -1,0 +1,81 @@
+app/(timeline)/account/import-export/ImportReport.tsx
+  s_0749291240ecd6::t_edd4abacdf3833 1-20,22-55
+  s_0749291240ecd6::t_68ffb76ec3e098 21
+app/(timeline)/account/import-export/CsvImportForm.tsx
+  s_0749291240ecd6::t_ebeb55f8ea3133 1-4,10-45,50-86,88-112,120-184,190-204,208-235,239-280,282-309
+  s_0749291240ecd6::t_68ffb76ec3e098 5,48-49,87,115-117
+  s_0749291240ecd6::t_9f6376b753b98f 6-9,46-47,113-114,118-119,185-189,205-207,236-238,281
+lib/client/accountImports.test.ts
+  s_0749291240ecd6::t_8dfa65ae08e5ea 1-3,5-8,13-51,57-122,124-161
+  s_0749291240ecd6::t_68ffb76ec3e098 4,9-12,52-56,123
+lib/client.ts
+  s_0749291240ecd6::t_161c4df7666524 10,15
+app/(timeline)/account/import-export/ImportSection.test.tsx
+  s_0749291240ecd6::t_175b828270f4fc 12,85-99
+  s_0749291240ecd6::t_8dfa65ae08e5ea 1-4,13-14,16-84,100-112,116-179,183-234,240-242,246-252,256-257,259-263,269-278,282-292,296-310
+  s_0749291240ecd6::t_68ffb76ec3e098 5-11,15,113-115,180-182,235-239,243-245,253-255,279-281,293-295
+  s_0749291240ecd6::t_800597f9d8efe7 258
+  s_0749291240ecd6::t_ef059162310704 264-268
+app/(timeline)/account/import-export/ImportReport.test.tsx
+  s_0749291240ecd6::t_175b828270f4fc 57
+  s_0749291240ecd6::t_68ffb76ec3e098 96-104
+  s_0749291240ecd6::t_8dfa65ae08e5ea 1-56,58-95,105-140
+docs/features.md
+  s_0749291240ecd6::t_e6ac0f7532f9f7 69,137
+app/(timeline)/account/import-export/useImportPolling.ts
+  s_0749291240ecd6::t_161c4df7666524 1-68
+lib/client/bulkImports.test.ts
+  s_0749291240ecd6::t_8dfa65ae08e5ea 1,6-8,20-56,62-91
+  s_0749291240ecd6::t_68ffb76ec3e098 4
+  s_0749291240ecd6::t_175b828270f4fc 57-61
+  s_0749291240ecd6::t_6ce0379e0a6fef 5
+app/(timeline)/account/import-export/importCopy.test.ts
+  s_0749291240ecd6::t_8dfa65ae08e5ea 1-91
+app/(timeline)/account/import-export/page.tsx
+  s_0749291240ecd6::t_e6ac0f7532f9f7 69-77,99-101
+app/(timeline)/account/import-export/ImportProgress.test.tsx
+  s_0749291240ecd6::t_68ffb76ec3e098 80-82
+  s_0749291240ecd6::t_8dfa65ae08e5ea 1-69,71-79,83-85
+  s_0749291240ecd6::t_ef059162310704 70
+lib/client/bulkImports.ts
+  s_0749291240ecd6::t_161c4df7666524 5,18-70
+  s_0749291240ecd6::t_bda7409c6e35f7 3
+  s_0749291240ecd6::t_7d9bfbf8e5b9a2 4
+app/(timeline)/account/import-export/ImportSection.tsx
+  s_0749291240ecd6::t_68ffb76ec3e098 6-9
+  s_0749291240ecd6::t_65fb927f12dd9c 1-5,10-12,14,17-22,27,32-195
+app/(timeline)/account/import-export/useImportPolling.test.tsx
+  s_0749291240ecd6::t_8dfa65ae08e5ea 1-127
+app/(timeline)/account/import-export/ArchiveImportForm.tsx
+  s_0749291240ecd6::t_68ffb76ec3e098 177,197-199,292-294,479
+  s_0749291240ecd6::t_c812d8ccf7ddd2 217,232,264
+  s_0749291240ecd6::t_3300e21a7249e3 1-176,178-196,200-216,218-231,233-263,265-291,295-478,480-486
+app/(timeline)/account/import-export/importCopy.ts
+  s_0749291240ecd6::t_ef059162310704 131-134
+  s_0749291240ecd6::t_68ffb76ec3e098 135
+  s_0749291240ecd6::t_161c4df7666524 1-130,136-138
+app/(timeline)/account/import-export/ImportProgress.tsx
+  s_0749291240ecd6::t_00d57491d7360e 3,8,53,61-65,92,102,108
+  s_0749291240ecd6::t_68ffb76ec3e098 4,71-73,77-79,84-87
+  s_0749291240ecd6::t_edd4abacdf3833 1-2,5-7,9-52,54-60,66-70,74-76,80-83,88-91,93-101,103-107,109-122
+lib/client/accountImports.ts
+  s_0749291240ecd6::t_68ffb76ec3e098 1,67-69,184-186
+  s_0749291240ecd6::t_ef059162310704 2-5,12
+  s_0749291240ecd6::t_161c4df7666524 6-11,13-66,70-183,187-226
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8d8c3c734a09d0fe912ff83c41a81be1aba1ec28",
+  "prompts": {},
+  "sessions": {
+    "s_0749291240ecd6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a17fc5-ba19-7bc2-8486-2a66b700f9e8",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
