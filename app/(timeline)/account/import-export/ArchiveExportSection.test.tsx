@@ -79,10 +79,9 @@ const archive = (
       : '2026-10-28T09:00:00.000Z',
   readyAt: status === 'ready' ? '2026-10-28T10:00:00.000Z' : null,
   expiresAt: status === 'ready' ? '2026-11-04T10:00:00.000Z' : null,
-  error:
-    status === 'failed'
-      ? 'Something went wrong while packing your photos.'
-      : null,
+  // A reason the server really stores (reaper.ts), not the mockup's example
+  // sentence: the fixture must be able to catch a body that ignores it.
+  error: status === 'failed' ? 'The export stopped making progress' : null,
   downloadUrl:
     status === 'ready'
       ? '/api/v1/account/archives/archive-ready/download'
@@ -208,12 +207,30 @@ describe('ArchiveExportSection', () => {
 
     const alert = screen.getByRole('alert')
     expect(alert).toHaveTextContent('We could not make your archive')
+    // The body says the stored reason in plain English, not the mockup's
+    // example sentence.
     expect(alert).toHaveTextContent(
-      'Something went wrong while packing your photos'
+      'The export stopped making progress partway through.'
     )
+    expect(alert).not.toHaveTextContent('packing your photos')
     expect(alert).toHaveTextContent('Your last request does not count')
     expect(screen.getByRole('button', { name: 'Try again' })).toBeEnabled()
     expect(alert.closest('[data-slot="frame"]')).toBeNull()
+  })
+
+  it('falls back to a generic body when the stored reason is unknown or missing', () => {
+    render(
+      <ArchiveExportSection
+        {...props}
+        initialArchives={[archive('failed', { error: null })] as never}
+      />
+    )
+
+    const alert = screen.getByRole('alert')
+    expect(alert).toHaveTextContent('We could not make your archive')
+    expect(alert).toHaveTextContent('Something went wrong while making it.')
+    expect(alert).toHaveTextContent('Your last request does not count')
+    expect(alert).not.toHaveTextContent('packing your photos')
   })
 
   it('renders the unavailable state', () => {

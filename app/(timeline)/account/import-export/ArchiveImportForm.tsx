@@ -92,13 +92,15 @@ const ToggleOption = ({
   onCheckedChange: (checked: boolean) => void
 }) => (
   <FormRow label={label} htmlFor={id} hint={hint} inline>
-    <Switch
-      id={id}
-      aria-label={label}
-      checked={checked}
-      disabled={disabled}
-      onCheckedChange={onCheckedChange}
-    />
+    {({ describedBy }) => (
+      <Switch
+        id={id}
+        aria-describedby={describedBy}
+        checked={checked}
+        disabled={disabled}
+        onCheckedChange={onCheckedChange}
+      />
+    )}
   </FormRow>
 )
 

@@ -786,6 +786,60 @@ describe('ImportSection', () => {
     )
   })
 
+  it('disables the upload-failure Try again while a .csv is chosen', async () => {
+    vi.mocked(accountImports.startAccountImport).mockRejectedValueOnce(
+      new ApiRequestError('Upload is incomplete; upload it again', 409)
+    )
+    renderWithImport(queuedNotStarted)
+    // A .csv swaps the archive form for the CSV form, so the section's
+    // Try again has no archive form to submit any more.
+    chooseFile('following_accounts.csv')
+    fireEvent.click(screen.getByRole('button', { name: 'Start import' }))
+
+    expect(
+      await screen.findByText('The upload did not finish')
+    ).toBeInTheDocument()
+    const tryAgain = screen.getByRole('button', { name: 'Try again' })
+    expect(tryAgain).toBeDisabled()
+    fireEvent.click(tryAgain)
+    await act(async () => undefined)
+    expect(accountImports.createPresignedImport).not.toHaveBeenCalled()
+    expect(accountImports.uploadAccountImport).not.toHaveBeenCalled()
+  })
+
+  it('shows the finished import when cancelling answers 409 already finished', async () => {
+    vi.mocked(accountImports.cancelAccountImport).mockRejectedValueOnce(
+      new ApiRequestError('Import is already finished', 409)
+    )
+    vi.mocked(accountImports.getAccountImport).mockResolvedValue(
+      finishedImport as never
+    )
+    renderWithImport(activeImport)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel import' }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Cancel import' })
+    )
+
+    // The import finished between the last poll and the cancel: it is over,
+    // not failed, so the report shows instead of the cancel error.
+    expect(await screen.findByText('Import finished')).toBeInTheDocument()
+    expect(accountImports.getAccountImport).toHaveBeenCalledWith({
+      actorId,
+      id: 'archive-1'
+    })
+    expect(
+      screen.queryByText('Could not cancel the import')
+    ).not.toBeInTheDocument()
+    // The report takes the focus the closing dialog leaves on the button
+    // that unmounts with the progress view.
+    const reportAlert = screen
+      .getByText('Import finished')
+      .closest('[data-slot="alert"]')
+    expect(document.activeElement).toBe(reportAlert?.parentElement)
+  })
+
   it('shows an error alert when cancelling fails, and retries', async () => {
     vi.mocked(accountImports.cancelAccountImport)
       .mockRejectedValueOnce(

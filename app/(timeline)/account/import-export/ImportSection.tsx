@@ -467,6 +467,18 @@ export const ImportSection = ({
     } catch (error) {
       if (isActorChanged(error)) {
         setActorChangedLocally(true)
+      } else if (isAlreadyFinished(error)) {
+        // The import finished between the last poll and the confirmed
+        // cancel: it is over, not failed. Show what became of it, the same
+        // way a successful cancel does.
+        try {
+          setAccountImport(
+            await getAccountImport({ actorId, id: accountImport.id })
+          )
+          setFocusReport(true)
+        } catch {
+          setCancelError(true)
+        }
       } else {
         setCancelError(true)
       }
@@ -551,7 +563,7 @@ export const ImportSection = ({
                 type="button"
                 variant="outline"
                 size="sm"
-                disabled={startInFlight || isOffline || !file}
+                disabled={startInFlight || isOffline || !file || showCsvForm}
                 onClick={() => archiveFormRef.current?.requestSubmit()}
               >
                 Try again
