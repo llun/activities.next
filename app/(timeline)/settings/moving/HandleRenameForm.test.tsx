@@ -242,10 +242,12 @@ describe('HandleRenameForm', () => {
     })
     // The closed dialog would return focus to the SaveBar button that
     // unmounted with the form; the cooldown Frame takes it instead.
-    expect(document.activeElement).toBe(
-      screen
-        .getByRole('button', { name: 'Change handle' })
-        .closest('[tabindex="-1"]')
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen
+          .getByRole('button', { name: 'Change handle' })
+          .closest('[tabindex="-1"]')
+      )
     )
     const announcement = screen.getByText('Your handle is now @may@llun.test.')
     expect(announcement).toHaveAttribute('role', 'status')
@@ -495,7 +497,9 @@ describe('HandleRenameForm', () => {
     })
     // The closed dialog would return focus to the SaveBar button that opened
     // it; the field error is on the input, so focus moves there instead.
-    expect(document.activeElement).toBe(screen.getByLabelText('New handle'))
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByLabelText('New handle'))
+    )
   })
 
   it('keeps the action available while the server is unreachable', () => {

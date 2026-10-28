@@ -231,7 +231,7 @@ describe('ArchiveImportForm', () => {
     fireEvent.click(cancel)
 
     const tryAgain = await screen.findByRole('button', { name: 'Try again' })
-    expect(document.activeElement).toBe(tryAgain)
+    await waitFor(() => expect(document.activeElement).toBe(tryAgain))
   })
 
   it('aborts the upload and cancels the import when the form unmounts mid-upload', async () => {

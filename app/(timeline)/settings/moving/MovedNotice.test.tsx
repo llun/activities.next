@@ -133,7 +133,7 @@ describe('MovedNotice', () => {
     })
   })
 
-  it('takes the focus request left by a move', () => {
+  it('takes the focus request left by a move', async () => {
     requestMovingFocus('moved-notice')
 
     render(
@@ -146,8 +146,10 @@ describe('MovedNotice', () => {
       />
     )
 
-    expect(document.activeElement).toBe(
-      screen.getByText('You moved to').closest('[tabindex="-1"]')
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByText('You moved to').closest('[tabindex="-1"]')
+      )
     )
   })
 

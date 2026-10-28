@@ -2,7 +2,14 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { AccountImportResponse } from '@/lib/client/accountImports'
@@ -126,7 +133,7 @@ describe('ImportProgress', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
-  it('takes focus on mount when focusOnMount is set', () => {
+  it('takes focus on mount when focusOnMount is set', async () => {
     render(
       <ImportProgress
         accountImport={accountImport('statuses')}
@@ -136,8 +143,10 @@ describe('ImportProgress', () => {
       />
     )
     const heading = screen.getByText('Import in progress')
-    expect(document.activeElement).toBe(heading.parentElement)
-    expect(document.activeElement).toHaveAttribute('tabindex', '-1')
+    await waitFor(() => {
+      expect(document.activeElement).toBe(heading.parentElement)
+      expect(document.activeElement).toHaveAttribute('tabindex', '-1')
+    })
   })
 
   it('does not take focus on mount by default', () => {

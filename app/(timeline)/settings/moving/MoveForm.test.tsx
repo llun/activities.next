@@ -321,7 +321,9 @@ describe('MoveForm', () => {
     })
     // The closed dialog would return focus to the SaveBar button that opened
     // it; the field error is on the input, so focus moves there instead.
-    expect(document.activeElement).toBe(screen.getByLabelText('New account'))
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByLabelText('New account'))
+    )
   })
 
   it('shows the plain message for a network failure, not the browser text', async () => {
@@ -698,7 +700,9 @@ describe('MoveForm', () => {
     })
     // The closed dialog would return focus to the SaveBar button that opened
     // it; the field error is on the input, so focus moves there instead.
-    expect(document.activeElement).toBe(screen.getByLabelText('New account'))
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByLabelText('New account'))
+    )
   })
 
   it('keeps the action available while the server is unreachable', () => {
@@ -791,7 +795,7 @@ describe('MoveForm', () => {
     })
   })
 
-  it('takes the focus request left by a cancelled redirect', () => {
+  it('takes the focus request left by a cancelled redirect', async () => {
     requestMovingFocus('move-form')
 
     render(
@@ -803,10 +807,12 @@ describe('MoveForm', () => {
       />
     )
 
-    expect(document.activeElement).toBe(
-      screen
-        .getByText('Followers move. Posts stay here.')
-        .closest('[tabindex="-1"]')
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen
+          .getByText('Followers move. Posts stay here.')
+          .closest('[tabindex="-1"]')
+      )
     )
   })
 

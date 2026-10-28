@@ -768,7 +768,9 @@ describe('ImportSection', () => {
     })
     // The start moved the focus into the progress view.
     const heading = screen.getByText('Import in progress')
-    expect(document.activeElement).toBe(heading.parentElement)
+    await waitFor(() => {
+      expect(document.activeElement).toBe(heading.parentElement)
+    })
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(3_000)
@@ -780,8 +782,10 @@ describe('ImportSection', () => {
     const reportAlert = screen
       .getByText('Import finished')
       .closest('[data-slot="alert"]')
-    expect(document.activeElement).toBe(reportAlert?.parentElement)
-    expect(document.activeElement).toHaveAttribute('tabindex', '-1')
+    await waitFor(() => {
+      expect(document.activeElement).toBe(reportAlert?.parentElement)
+      expect(document.activeElement).toHaveAttribute('tabindex', '-1')
+    })
   })
 
   it('leaves focus alone when the poll ends an import the user is not watching', async () => {
@@ -830,7 +834,9 @@ describe('ImportSection', () => {
     // the focus while the user decides whether to cancel.
     const dialog = screen.getByRole('dialog')
     expect(dialog).toBeInTheDocument()
-    expect(dialog.contains(document.activeElement)).toBe(true)
+    await waitFor(() => {
+      expect(dialog.contains(document.activeElement)).toBe(true)
+    })
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(3_000)
@@ -843,8 +849,10 @@ describe('ImportSection', () => {
     const reportAlert = screen
       .getByText('Import finished')
       .closest('[data-slot="alert"]')
-    expect(document.activeElement).toBe(reportAlert?.parentElement)
-    expect(document.activeElement).toHaveAttribute('tabindex', '-1')
+    await waitFor(() => {
+      expect(document.activeElement).toBe(reportAlert?.parentElement)
+      expect(document.activeElement).toHaveAttribute('tabindex', '-1')
+    })
   })
 
   it('disables the upload-failure Try again while a .csv is chosen', async () => {
@@ -1139,7 +1147,9 @@ describe('ImportSection', () => {
     const reportAlert = screen
       .getByText('Import cancelled')
       .closest('[data-slot="alert"]')
-    expect(document.activeElement).toBe(reportAlert?.parentElement)
+    await waitFor(() => {
+      expect(document.activeElement).toBe(reportAlert?.parentElement)
+    })
   })
 
   it('does not carry a failed cancel over to the next import', async () => {
@@ -1341,8 +1351,10 @@ describe('ImportSection', () => {
     // The form that held the focused button unmounts, so the progress view
     // takes the focus itself and the live region is announced.
     const heading = screen.getByText('Import in progress')
-    expect(document.activeElement).toBe(heading.parentElement)
-    expect(document.activeElement).toHaveAttribute('tabindex', '-1')
+    await waitFor(() => {
+      expect(document.activeElement).toBe(heading.parentElement)
+      expect(document.activeElement).toHaveAttribute('tabindex', '-1')
+    })
   })
 
   it('moves focus to the file picker after Discard', async () => {
@@ -1355,8 +1367,10 @@ describe('ImportSection', () => {
         screen.queryByText('An earlier upload was not started')
       ).not.toBeInTheDocument()
     )
-    expect(document.activeElement).toBe(
-      screen.getByRole('button', { name: 'Choose file' })
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Choose file' })
+      )
     )
   })
 
@@ -1693,25 +1707,29 @@ describe('ImportSection', () => {
     expect(document.activeElement).toBe(document.body)
   })
 
-  it('moves focus to the file picker after Import another file on a finished report', () => {
+  it('moves focus to the file picker after Import another file on a finished report', async () => {
     renderWithImport(finishedImport)
     const button = screen.getByRole('button', { name: 'Import another file' })
     button.focus()
     fireEvent.click(button)
 
-    expect(document.activeElement).toBe(
-      screen.getByRole('button', { name: 'Choose file' })
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Choose file' })
+      )
     )
   })
 
-  it('moves focus to the file picker after Start again on a failed report', () => {
+  it('moves focus to the file picker after Start again on a failed report', async () => {
     renderWithImport(failedImport)
     const button = screen.getByRole('button', { name: 'Start again' })
     button.focus()
     fireEvent.click(button)
 
-    expect(document.activeElement).toBe(
-      screen.getByRole('button', { name: 'Choose file' })
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Choose file' })
+      )
     )
   })
 
@@ -1730,8 +1748,10 @@ describe('ImportSection', () => {
     reset.focus()
     fireEvent.click(reset)
 
-    expect(document.activeElement).toBe(
-      screen.getByRole('button', { name: 'Choose file' })
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Choose file' })
+      )
     )
   })
 
