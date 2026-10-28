@@ -49,6 +49,8 @@ type AlertState =
   | { type: 'upload' }
   | { type: 'unreadable' }
   | { type: 'rate-limit'; retryAt: number | null }
+  | { type: 'too-large' }
+  | { type: 'discard'; id: string }
   | { type: 'generic'; message: string }
   | null
 
@@ -92,6 +94,16 @@ const isUploadLostStart = (error: unknown) =>
   (error.message === 'Upload is incomplete; upload it again' ||
     error.message === 'Archive changed; upload it again')
 
+// The server deletes the stored file before answering 413, so the row can
+// never start, exactly like an unreadable or lost upload.
+const isTooLargeStart = (error: unknown) =>
+  error instanceof ApiRequestError && error.status === 413
+
+const isAlreadyFinished = (error: unknown) =>
+  error instanceof ApiRequestError &&
+  error.status === 409 &&
+  error.message === 'Import is already finished'
+
 const cancelBestEffort = (actorId: string, id: string) =>
   cancelAccountImport({ actorId, id }).catch(() => undefined)
 
@@ -131,6 +143,13 @@ export const ArchiveImportForm = ({
   onDiscarded
 }: Props) => {
   const inputRef = useRef<HTMLInputElement>(null)
+  const chooseFileRef = useRef<HTMLButtonElement>(null)
+  // The warning that held the focused Discard button unmounts on a
+  // successful Discard, so the file picker must take the focus. It cannot
+  // do that inside the handler: the picker is disabled while the submit
+  // lock is held, and a disabled button is not focusable. The effect runs
+  // on the commit that releases the lock.
+  const focusPickerAfterDiscard = useRef(false)
   const uploadController = useRef<AbortController | null>(null)
   const [options, setOptions] = useState(INITIAL_OPTIONS)
   const [submitting, setSubmitting] = useState(false)
@@ -148,10 +167,10 @@ export const ArchiveImportForm = ({
   // The cancel rule: the client cancels an account import only when the user
   // presses Discard or Cancel, when the upload itself failed or was aborted,
   // or when the start answers that the stored file can never start (422
-  // unrecognised, 409 upload incomplete or archive changed). Everything else
-  // leaves the queued upload alone — a failed start, another file, leaving
-  // the page or switching to CSV — so the row survives and the page offers it
-  // back as the "not started" warning.
+  // unrecognised, 409 upload incomplete or archive changed, 413 too large).
+  // Everything else leaves the queued upload alone — a failed start, another
+  // file, leaving the page or switching to CSV — so the row survives and the
+  // page offers it back as the "not started" warning.
   useEffect(() => {
     setOptions(INITIAL_OPTIONS)
     setAlert(null)
@@ -162,6 +181,12 @@ export const ArchiveImportForm = ({
   useEffect(() => {
     if (hasHydrated) setClock(Date.now())
   }, [hasHydrated])
+
+  useEffect(() => {
+    if (!focusPickerAfterDiscard.current || submitting) return
+    focusPickerAfterDiscard.current = false
+    chooseFileRef.current?.focus()
+  }, [submitting])
 
   // Aborting the upload makes it fail, and a failed upload is one of the
   // cases that cancel the row (in handleSubmit's catch). The start needs no
@@ -210,6 +235,11 @@ export const ArchiveImportForm = ({
         onMoved()
       } else if (error instanceof ApiRequestError && error.status === 429) {
         setPendingUpload(uploaded)
+        // The kept upload must not live only in this form's state: the
+        // [actorId, file] reset effect clears pendingUpload when another
+        // file is chosen. Hand it to the parent right away, so the "not
+        // started" warning owns the row from the start.
+        if (uploaded.id !== notStartedImport?.id) onStarted(uploaded)
         setClock(Date.now())
         setAlert({
           type: 'rate-limit',
@@ -224,6 +254,9 @@ export const ArchiveImportForm = ({
       } else if (isUploadLostStart(error)) {
         await discardUploaded()
         setAlert({ type: 'upload' })
+      } else if (isTooLargeStart(error)) {
+        await discardUploaded()
+        setAlert({ type: 'too-large' })
       } else if (
         error instanceof ApiRequestError &&
         error.status === 409 &&
@@ -326,10 +359,25 @@ export const ArchiveImportForm = ({
 
   const handleDiscardUpload = async (id: string) => {
     setSubmitting(true)
+    setAlert(null)
     try {
-      await cancelBestEffort(actorId, id)
+      await cancelAccountImport({ actorId, id })
       setPendingUpload(null)
       onDiscarded()
+      focusPickerAfterDiscard.current = true
+    } catch (error) {
+      if (isActorChanged(error)) {
+        onActorChanged()
+      } else if (isAlreadyFinished(error)) {
+        // The 24 h sweep got there first: the row is gone either way.
+        setPendingUpload(null)
+        onDiscarded()
+        focusPickerAfterDiscard.current = true
+      } else {
+        // The cancel the user asked for did not happen, so the row is
+        // still queued: keep the warning and say what failed.
+        setAlert({ type: 'discard', id })
+      }
     } finally {
       setSubmitting(false)
     }
@@ -421,6 +469,18 @@ export const ArchiveImportForm = ({
           Mastodon CSV file.
         </Alert>
       ) : null}
+      {alert?.type === 'too-large' ? (
+        <Alert tone="error" title="File is too large">
+          Choose a file no larger than {formatBytes(maxImportBytes)}.
+        </Alert>
+      ) : null}
+      {alert?.type === 'discard' ? (
+        <Alert
+          tone="error"
+          title="Could not discard the upload"
+          onRetry={() => void handleDiscardUpload(alert.id)}
+        />
+      ) : null}
       {alert?.type === 'rate-limit' && pendingUpload ? (
         <Alert
           tone="warning"
@@ -502,6 +562,7 @@ export const ArchiveImportForm = ({
                     className="flex-1 bg-muted dark:bg-muted"
                   />
                   <Button
+                    ref={chooseFileRef}
                     type="button"
                     variant="outline"
                     size="sm"

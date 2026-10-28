@@ -126,6 +126,31 @@ describe('ImportProgress', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
+  it('takes focus on mount when focusOnMount is set', () => {
+    render(
+      <ImportProgress
+        accountImport={accountImport('statuses')}
+        currentTime={Date.parse('2026-10-28T10:00:00.000Z')}
+        focusOnMount
+        onCancel={vi.fn()}
+      />
+    )
+    const heading = screen.getByText('Import in progress')
+    expect(document.activeElement).toBe(heading.parentElement)
+    expect(document.activeElement).toHaveAttribute('tabindex', '-1')
+  })
+
+  it('does not take focus on mount by default', () => {
+    render(
+      <ImportProgress
+        accountImport={accountImport('statuses')}
+        currentTime={Date.parse('2026-10-28T10:00:00.000Z')}
+        onCancel={vi.fn()}
+      />
+    )
+    expect(document.activeElement).toBe(document.body)
+  })
+
   it('advances the started time as polling updates the import', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(Date.parse('2026-10-28T10:00:00.000Z'))

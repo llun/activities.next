@@ -75,9 +75,15 @@ const notStarted: AccountImportResponse = {
 }
 
 const Harness = ({
-  notStartedImport = null
+  notStartedImport = null,
+  onStarted = vi.fn(),
+  onDiscarded = vi.fn(),
+  onActorChanged = vi.fn()
 }: {
   notStartedImport?: AccountImportResponse | null
+  onStarted?: (accountImport: AccountImportResponse) => void
+  onDiscarded?: () => void
+  onActorChanged?: () => void
 }) => {
   const [file, setFile] = useState<File | null>(null)
   return (
@@ -88,10 +94,10 @@ const Harness = ({
       maxImportBytes={1024 * 1024}
       notStartedImport={notStartedImport}
       onFileChange={setFile}
-      onActorChanged={vi.fn()}
+      onActorChanged={onActorChanged}
       onMoved={vi.fn()}
-      onStarted={vi.fn()}
-      onDiscarded={vi.fn()}
+      onStarted={onStarted}
+      onDiscarded={onDiscarded}
     />
   )
 }
@@ -409,6 +415,82 @@ describe('ArchiveImportForm', () => {
     await waitFor(() => expect(onDiscarded).toHaveBeenCalledOnce())
   })
 
+  it('keeps the earlier upload and shows the error when Discard fails', async () => {
+    vi.mocked(accountImports.cancelAccountImport).mockRejectedValueOnce(
+      new ApiRequestError('Server error', 500)
+    )
+    const onDiscarded = vi.fn()
+    render(<Harness notStartedImport={notStarted} onDiscarded={onDiscarded} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+
+    expect(
+      await screen.findByText('Could not discard the upload')
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('An earlier upload was not started')
+    ).toBeInTheDocument()
+    expect(onDiscarded).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    await waitFor(() => expect(onDiscarded).toHaveBeenCalledOnce())
+    expect(
+      screen.queryByText('Could not discard the upload')
+    ).not.toBeInTheDocument()
+  })
+
+  it('treats a 409 already-finished Discard as discarded', async () => {
+    vi.mocked(accountImports.cancelAccountImport).mockRejectedValueOnce(
+      new ApiRequestError('Import is already finished', 409)
+    )
+    const onDiscarded = vi.fn()
+    render(<Harness notStartedImport={notStarted} onDiscarded={onDiscarded} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+
+    await waitFor(() => expect(onDiscarded).toHaveBeenCalledOnce())
+    expect(
+      screen.queryByText('Could not discard the upload')
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows the actor-changed alert when Discard answers 409 Actor changed', async () => {
+    vi.mocked(accountImports.cancelAccountImport).mockRejectedValueOnce(
+      new ApiRequestError('Actor changed', 409)
+    )
+    const onActorChanged = vi.fn()
+    const onDiscarded = vi.fn()
+    render(
+      <Harness
+        notStartedImport={notStarted}
+        onActorChanged={onActorChanged}
+        onDiscarded={onDiscarded}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+
+    await waitFor(() => expect(onActorChanged).toHaveBeenCalledOnce())
+    expect(onDiscarded).not.toHaveBeenCalled()
+  })
+
+  it('hands a kept upload to the parent when a fresh start is rate-limited', async () => {
+    vi.mocked(accountImports.startAccountImport).mockRejectedValueOnce(
+      new ApiRequestError('Too many imports started recently', 429, 60_000)
+    )
+    const onStarted = vi.fn()
+    render(<Harness onStarted={onStarted} />)
+    chooseFile('archive.zip')
+    submit()
+
+    await waitFor(() => expect(onStarted).toHaveBeenCalledWith(presigned))
+    expect(
+      screen.getByText('Too many imports started recently')
+    ).toBeInTheDocument()
+    expect(accountImports.cancelAccountImport).not.toHaveBeenCalled()
+  })
+
   it('disables Import archive while an earlier upload waits to be started', () => {
     render(<Harness notStartedImport={notStarted} />)
     chooseFile('other.zip')
@@ -504,6 +586,11 @@ describe('ArchiveImportForm', () => {
         'a 422 unrecognised archive',
         'cancelled',
         new ApiRequestError('Archive format is not recognised', 422)
+      ],
+      [
+        'a 413 too large',
+        'cancelled',
+        new ApiRequestError('File is too large', 413)
       ],
       [
         'another 422',

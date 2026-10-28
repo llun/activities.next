@@ -66,6 +66,9 @@ export const ImportSection = ({
   // Set for the report that appears because the user just cancelled, so it
   // takes the focus the closing dialog leaves on a button that unmounts.
   const [focusReport, setFocusReport] = useState(false)
+  // Same for the progress that appears because the user just started an
+  // import: the form (and with it the focused button) unmounts.
+  const [focusProgress, setFocusProgress] = useState(false)
   const isOffline = useConnectionStatus().state === 'offline'
   const {
     accountImport,
@@ -115,7 +118,9 @@ export const ImportSection = ({
     setFile(null)
     setSelectionError(null)
     setMoved(false)
+    setCancelError(false)
     setFocusReport(false)
+    setFocusProgress(false)
   }
 
   const handleCancelImport = async () => {
@@ -196,9 +201,16 @@ export const ImportSection = ({
               onMoved={() => setMoved(true)}
               onStarted={(started) => {
                 setAccountImport(started)
+                // The failure to cancel belongs to the import it happened
+                // on, never to whatever import is shown next.
+                setCancelError(false)
                 setFocusReport(false)
+                setFocusProgress(true)
               }}
-              onDiscarded={() => setAccountImport(null)}
+              onDiscarded={() => {
+                setAccountImport(null)
+                setCancelError(false)
+              }}
             />
           )
         ) : null}
@@ -219,6 +231,7 @@ export const ImportSection = ({
             currentTime={currentTime}
             canceling={canceling}
             offline={isOffline}
+            focusOnMount={focusProgress}
             onCancel={() => void handleCancelImport()}
           />
         ) : null}

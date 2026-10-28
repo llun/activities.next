@@ -406,6 +406,34 @@ describe('ArchiveExportSection', () => {
     expect(screen.queryByText('You’re offline')).not.toBeInTheDocument()
   })
 
+  it('turns a ready archive into expired when its download link expires', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(now)
+    render(
+      <ArchiveExportSection
+        {...props}
+        initialArchives={
+          [archive('ready', { expiresAt: '2026-10-28T12:01:00.000Z' })] as never
+        }
+      />
+    )
+
+    expect(screen.getByRole('link', { name: 'Download' })).toBeInTheDocument()
+
+    // A ready archive is not polled, so only the clock's own timer can turn
+    // it into expired.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(61_000)
+    })
+
+    expect(
+      screen.getByText('Your last archive has expired')
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('link', { name: 'Download' })
+    ).not.toBeInTheDocument()
+  })
+
   it('formats the archive dates with date-fns, not Intl', () => {
     // The house rule: a value rendered before hydration must come from a
     // formatter that is identical in every engine. Intl with a fixed locale
