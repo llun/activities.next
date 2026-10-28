@@ -1,5 +1,7 @@
 'use client'
 
+import { UTCDate } from '@date-fns/utc'
+import { format } from 'date-fns/format'
 import { formatDistance } from 'date-fns/formatDistance'
 import { Archive, Download } from 'lucide-react'
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
@@ -16,6 +18,7 @@ import { ApiRequestError } from '@/lib/client/http'
 import { ActorChangedAlert } from '@/lib/components/settings/ActorChangedAlert'
 import { Alert } from '@/lib/components/surface/Alert'
 import { Frame } from '@/lib/components/surface/Frame'
+import { SaveBar } from '@/lib/components/surface/SaveBar'
 import { Section } from '@/lib/components/surface/Section'
 import { Button } from '@/lib/components/ui/button'
 import { Progress } from '@/lib/components/ui/progress'
@@ -41,25 +44,14 @@ const parseTimestamp = (value: string | null | undefined) => {
 }
 
 // The MovingDate pattern: the server cannot know the viewer's zone, so the
-// dates render in UTC until hydration and in the viewer's zone after it.
-const formatDate = (value: string, utc: boolean) =>
-  new Intl.DateTimeFormat('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    timeZone: utc ? 'UTC' : undefined,
-    year: 'numeric'
-  }).format(new Date(value))
+// dates render in UTC until hydration and in the viewer's zone after it. The
+// value comes from date-fns on a UTCDate, never from Intl with a fixed
+// locale, so the server and the browser format it identically.
+const formatDate = (value: string | number, utc: boolean) =>
+  format(utc ? new UTCDate(value) : new Date(value), 'd MMM yyyy')
 
-const formatDateTime = (value: string, utc: boolean) =>
-  new Intl.DateTimeFormat('en-GB', {
-    day: 'numeric',
-    hour: '2-digit',
-    hourCycle: 'h23',
-    minute: '2-digit',
-    month: 'short',
-    timeZone: utc ? 'UTC' : undefined,
-    year: 'numeric'
-  }).format(new Date(value))
+const formatDateTime = (value: string | number, utc: boolean) =>
+  format(utc ? new UTCDate(value) : new Date(value), 'd MMM yyyy, HH:mm')
 
 const isActive = (archive: AccountArchiveResponse | undefined) =>
   archive?.status === 'queued' || archive?.status === 'running'
@@ -169,21 +161,30 @@ export const ArchiveExportSection = ({
   }, [actorId])
 
   useEffect(() => {
-    if (!active || isOffline) return
+    // A 409 Actor changed means this profile no longer owns the page's
+    // data: every further request would answer the same 409.
+    if (!active || isOffline || actorChanged) return
     const timer = window.setInterval(
       () => void refreshArchives(),
       POLL_INTERVAL_MS
     )
     return () => window.clearInterval(timer)
-  }, [active, isOffline, refreshArchives])
+  }, [active, actorChanged, isOffline, refreshArchives])
 
   useEffect(() => {
-    if (!active) return
+    if (!active || actorChanged) return
     return onConnectionRestored(() => void refreshArchives())
-  }, [active, refreshArchives])
+  }, [active, actorChanged, refreshArchives])
 
   const prepareArchive = useCallback(async () => {
-    if (!exportAvailable || active || requesting || coolingDown || isOffline)
+    if (
+      !exportAvailable ||
+      active ||
+      requesting ||
+      coolingDown ||
+      isOffline ||
+      actorChanged
+    )
       return
     if (includeDrafts && draftsTooLarge) return
 
@@ -231,6 +232,7 @@ export const ArchiveExportSection = ({
       setRequesting(false)
     }
   }, [
+    actorChanged,
     actorId,
     active,
     coolingDown,
@@ -318,8 +320,46 @@ export const ArchiveExportSection = ({
         icon={Archive}
         description="Everything on your account in one ZIP file. Mastodon and other servers can read the posts; fitness files, gallery and settings are extra."
       >
-        <Frame>
+        <Frame
+          footer={
+            exportAvailable && archiveStatus !== 'failed' ? (
+              <SaveBar
+                variant="create"
+                submit
+                formId="archive-export-form"
+                actionLabel={
+                  requesting || active
+                    ? 'Preparing…'
+                    : archiveStatus === 'ready'
+                      ? 'Prepare new archive'
+                      : 'Prepare archive'
+                }
+                disabled={
+                  active ||
+                  coolingDown ||
+                  requesting ||
+                  isOffline ||
+                  actorChanged ||
+                  (includeDrafts && draftsTooLarge)
+                }
+                disabledReason={
+                  isOffline
+                    ? "You're offline"
+                    : active
+                      ? 'Options are locked while it is being made.'
+                      : coolingDown
+                        ? `You can make another archive on ${formatDate(
+                            cooldownUntil,
+                            !hasHydrated
+                          )}. One every 7 days.`
+                        : undefined
+                }
+              />
+            ) : undefined
+          }
+        >
           <form
+            id="archive-export-form"
             data-testid="archive-export-form"
             onSubmit={submit}
             className="space-y-5 p-4 sm:p-5"
@@ -521,42 +561,6 @@ export const ArchiveExportSection = ({
                 />
               </div>
             </div>
-
-            {coolingDown && !active ? (
-              <p className="border-t pt-4 text-sm text-muted-foreground">
-                You can make another archive on{' '}
-                {formatDate(
-                  new Date(cooldownUntil).toISOString(),
-                  !hasHydrated
-                )}
-                . One every 7 days.
-              </p>
-            ) : null}
-            {isOffline ? (
-              <p className="text-sm text-muted-foreground">You’re offline.</p>
-            ) : null}
-            {exportAvailable && archiveStatus !== 'failed' ? (
-              <div className="flex justify-end border-t pt-4">
-                <Button
-                  type="submit"
-                  disabled={
-                    active ||
-                    coolingDown ||
-                    requesting ||
-                    isOffline ||
-                    (includeDrafts && draftsTooLarge)
-                  }
-                >
-                  {requesting
-                    ? 'Preparing…'
-                    : active
-                      ? 'Preparing…'
-                      : archiveStatus === 'ready'
-                        ? 'Prepare new archive'
-                        : 'Prepare archive'}
-                </Button>
-              </div>
-            ) : null}
           </form>
         </Frame>
       </Section>

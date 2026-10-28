@@ -16,6 +16,7 @@ interface Props {
   accountImport: AccountImportResponse
   currentTime: number
   canceling?: boolean
+  offline?: boolean
   onCancel: () => void
 }
 
@@ -28,6 +29,7 @@ export const ImportProgress = ({
   accountImport,
   currentTime,
   canceling = false,
+  offline = false,
   onCancel
 }: Props) => {
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -94,12 +96,17 @@ export const ImportProgress = ({
           </p>
         ) : null}
 
-        <div className="flex justify-end border-t pt-3">
+        <div className="flex items-center justify-end gap-3 border-t pt-3">
+          {offline ? (
+            <span className="text-sm text-muted-foreground">
+              You're offline
+            </span>
+          ) : null}
           <Button
             type="button"
             variant="outline"
             size="sm"
-            disabled={canceling}
+            disabled={canceling || offline}
             onClick={() => setConfirmOpen(true)}
           >
             {canceling ? 'Cancelling…' : 'Cancel import'}

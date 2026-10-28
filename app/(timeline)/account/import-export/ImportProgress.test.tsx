@@ -107,6 +107,25 @@ describe('ImportProgress', () => {
     expect(region).not.toContainElement(screen.getByRole('progressbar'))
   })
 
+  it('disables Cancel import while offline and says why', () => {
+    const onCancel = vi.fn()
+    render(
+      <ImportProgress
+        accountImport={accountImport('statuses')}
+        currentTime={Date.parse('2026-10-28T10:00:00.000Z')}
+        offline
+        onCancel={onCancel}
+      />
+    )
+
+    const button = screen.getByRole('button', { name: 'Cancel import' })
+    expect(button).toBeDisabled()
+    expect(screen.getByText("You're offline")).toBeInTheDocument()
+    fireEvent.click(button)
+    expect(onCancel).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
   it('advances the started time as polling updates the import', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(Date.parse('2026-10-28T10:00:00.000Z'))

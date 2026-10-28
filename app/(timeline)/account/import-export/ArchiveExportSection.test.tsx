@@ -174,8 +174,11 @@ describe('ArchiveExportSection', () => {
       />
     )
 
-    const region = screen.getByRole('status')
-    expect(region).toHaveTextContent('Latest archive')
+    // The SaveBar's cooldown reason is a polite status too; the latest
+    // archive is the one that says so.
+    const region = screen
+      .getAllByRole('status')
+      .find((element) => element.textContent?.includes('Latest archive'))
     expect(region).toHaveTextContent('Ready')
   })
 
@@ -360,5 +363,64 @@ describe('ArchiveExportSection', () => {
       await vi.advanceTimersByTimeAsync(10_000)
     })
     expect(mocks.listArchives).toHaveBeenCalledTimes(2)
+  })
+
+  it('stops polling and disables Prepare after a 409 Actor changed', async () => {
+    vi.useFakeTimers()
+    mocks.listArchives.mockRejectedValue(
+      new ApiRequestError('Actor changed', 409)
+    )
+    render(
+      <ArchiveExportSection
+        {...props}
+        initialArchives={[archive('queued')] as never}
+      />
+    )
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000)
+    })
+    expect(mocks.listArchives).toHaveBeenCalledTimes(1)
+    expect(
+      await screen.findByText('Your active profile changed')
+    ).toBeInTheDocument()
+
+    // Every further request would answer the same 409, so neither the
+    // interval nor a restored connection may send one.
+    expect(mocks.restoreListener).toBeNull()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20_000)
+    })
+    expect(mocks.listArchives).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('button', { name: 'Preparing…' })).toBeDisabled()
+  })
+
+  it('disables Prepare with the offline reason while offline', () => {
+    mocks.connectionState = 'offline'
+    render(<ArchiveExportSection {...props} />)
+
+    const button = screen.getByRole('button', { name: 'Prepare archive' })
+    expect(button).toBeDisabled()
+    expect(button.closest('[data-slot="save-bar"]')).not.toBeNull()
+    expect(screen.getByText("You're offline")).toBeInTheDocument()
+    expect(screen.queryByText('You’re offline')).not.toBeInTheDocument()
+  })
+
+  it('formats the archive dates with date-fns, not Intl', () => {
+    // The house rule: a value rendered before hydration must come from a
+    // formatter that is identical in every engine. Intl with a fixed locale
+    // is not that formatter; date-fns on a UTCDate is.
+    const dateTimeFormat = vi.spyOn(Intl, 'DateTimeFormat')
+    render(
+      <ArchiveExportSection
+        {...props}
+        initialArchives={[archive('ready')] as never}
+      />
+    )
+
+    expect(
+      screen.getByText('1.0 MB · made 28 Oct 2026, 09:00')
+    ).toBeInTheDocument()
+    expect(dateTimeFormat).not.toHaveBeenCalled()
   })
 })
