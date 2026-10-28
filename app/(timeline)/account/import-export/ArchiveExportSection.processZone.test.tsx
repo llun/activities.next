@@ -49,7 +49,16 @@ const readyArchive = {
 }
 
 describe('ArchiveExportSection dates', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   beforeEach(() => {
+    // Pin the clock to the fixture's day: after hydration the component
+    // reads Date.now(), and from 4 Nov 2026 10:00Z the ready fixture would
+    // turn "expired" and drop the "made …" line this test checks.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(Date.parse('2026-10-28T12:00:00.000Z'))
     mocks.listArchives.mockReset().mockResolvedValue([])
     mocks.requestArchive.mockReset()
     mocks.listDrafts.mockReset().mockResolvedValue([])
