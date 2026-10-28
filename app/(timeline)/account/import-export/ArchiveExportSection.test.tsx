@@ -267,6 +267,35 @@ describe('ArchiveExportSection', () => {
     })
   })
 
+  it('re-reads the archives when a 429 body carries no archive', async () => {
+    // Another tab or device made an archive after this page loaded, and it
+    // is ready now: the rate limit is the only sign of it.
+    mocks.requestArchive.mockRejectedValue(
+      new ApiRequestError(
+        'An archive was requested in the last 7 days',
+        429,
+        undefined,
+        {
+          nextAllowedAt: '2026-11-04T12:00:00.000Z'
+        }
+      )
+    )
+    mocks.listArchives.mockResolvedValue([archive('ready')])
+    render(<ArchiveExportSection {...props} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Prepare archive' }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/You can make another archive on 4 Nov 2026/)
+      ).toBeInTheDocument()
+    })
+    expect(mocks.listArchives).toHaveBeenCalledWith({ actorId: 'actor-1' })
+    expect(await screen.findByText('Ready')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Download' })).toBeInTheDocument()
+    expect(screen.queryByText('No archive yet')).not.toBeInTheDocument()
+  })
+
   it('shows the plain fallback when the network fails', async () => {
     mocks.requestArchive.mockRejectedValue(new TypeError('Failed to fetch'))
     render(<ArchiveExportSection {...props} />)

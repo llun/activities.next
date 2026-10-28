@@ -59,13 +59,26 @@ const Page = async () => {
   initialArchives.sort((left, right) =>
     right.createdAt.localeCompare(left.createdAt)
   )
+  const ownImports = imports.filter(
+    (accountImport) => accountImport.accountId === accountId
+  )
+  // A cancelled row that never started (a Discard, a failed upload, a start
+  // the server refused) is not an import to report on: showing it would greet
+  // every visit with "Import cancelled" and no file field. A cancelled row
+  // that did start still has a report worth showing, and so does a failed
+  // never-started one (upload_expired).
   const latestImport =
-    imports.find(
+    ownImports.find(
       (accountImport) =>
-        accountImport.accountId === accountId &&
-        (accountImport.status === 'queued' ||
-          accountImport.status === 'running')
-    ) ?? imports.find((accountImport) => accountImport.accountId === accountId)
+        accountImport.status === 'queued' || accountImport.status === 'running'
+    ) ??
+    ownImports.find(
+      (accountImport) =>
+        !(
+          accountImport.status === 'cancelled' &&
+          accountImport.startedAt === null
+        )
+    )
   const latestImportReport =
     latestImport &&
     (latestImport.status === 'done' ||

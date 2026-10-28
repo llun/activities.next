@@ -238,6 +238,12 @@ export const ArchiveExportSection = ({
             archive,
             ...previous.filter((item) => item.id !== archive.id)
           ])
+        } else {
+          // A rate limit with no archive in the body means another tab or
+          // device made one after this page loaded: the list is stale, and
+          // the archive that caused the refusal is the only way to learn
+          // about it.
+          void refreshArchives()
         }
       } else {
         // Only a server message is worth showing: a browser network
@@ -262,6 +268,7 @@ export const ArchiveExportSection = ({
     exportAvailable,
     includeDrafts,
     isOffline,
+    refreshArchives,
     requesting,
     stripExactLocations
   ])

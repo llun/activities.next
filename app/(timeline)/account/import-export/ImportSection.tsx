@@ -173,6 +173,11 @@ export const ImportSection = ({
   // just unmounted with the focus inside it": only a focusin inside the
   // progress view can.
   const progressHadFocus = useRef(false)
+  // The cancel confirm is portalled outside the progress view, so its
+  // focus cannot be seen from the focusin tracker. While it is open the
+  // user is still deciding about this import, so the poll that ends it
+  // must hand the focus to the report all the same.
+  const cancelConfirmOpen = useRef(false)
   // Whether the previous render showed an active import, so the poll that
   // ends one is recognised (see the layout effect below).
   const wasActiveImport = useRef(false)
@@ -222,8 +227,11 @@ export const ImportSection = ({
   useIsomorphicLayoutEffect(() => {
     const active = Boolean(accountImport && isActiveImport(accountImport))
     if (wasActiveImport.current && !active && accountImport) {
-      if (progressHadFocus.current) setFocusReport(true)
+      if (progressHadFocus.current || cancelConfirmOpen.current) {
+        setFocusReport(true)
+      }
       progressHadFocus.current = false
+      cancelConfirmOpen.current = false
     }
     wasActiveImport.current = active
   }, [accountImport])
@@ -677,6 +685,9 @@ export const ImportSection = ({
               canceling={canceling}
               offline={isOffline}
               focusOnMount={focusProgress}
+              onConfirmOpenChange={(open) => {
+                cancelConfirmOpen.current = open
+              }}
               onCancel={() => void handleCancelImport()}
             />
           </div>

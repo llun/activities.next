@@ -786,6 +786,39 @@ describe('ImportSection', () => {
     )
   })
 
+  it('moves focus to the report when the poll ends an import while the cancel confirm is open', async () => {
+    vi.useFakeTimers()
+    vi.mocked(accountImports.getAccountImport).mockResolvedValue(
+      finishedImport as never
+    )
+    renderWithImport(activeImport)
+    const cancel = screen.getByRole('button', { name: 'Cancel import' })
+    cancel.focus()
+    fireEvent.click(cancel)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    // The confirm dialog is portalled outside the progress view and holds
+    // the focus while the user decides whether to cancel.
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toBeInTheDocument()
+    expect(dialog.contains(document.activeElement)).toBe(true)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3_000)
+    })
+
+    expect(screen.getByText('Import finished')).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    // The dialog unmounted with the focus inside it, so the report must
+    // take the focus itself and be announced.
+    const reportAlert = screen
+      .getByText('Import finished')
+      .closest('[data-slot="alert"]')
+    expect(document.activeElement).toBe(reportAlert?.parentElement)
+    expect(document.activeElement).toHaveAttribute('tabindex', '-1')
+  })
+
   it('disables the upload-failure Try again while a .csv is chosen', async () => {
     vi.mocked(accountImports.startAccountImport).mockRejectedValueOnce(
       new ApiRequestError('Upload is incomplete; upload it again', 409)
