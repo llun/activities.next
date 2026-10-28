@@ -112,6 +112,19 @@ const doneImport = {
   lastErrorCode: null
 }
 
+const cancelledNotStartedImport = {
+  id: 'import-cancelled-not-started',
+  accountId: 'acct-1',
+  status: 'cancelled',
+  kind: null,
+  phase: null,
+  progress: {},
+  createdAt: '2026-10-28T11:00:00.000Z',
+  startedAt: null,
+  finishedAt: '2026-10-28T11:00:30.000Z',
+  lastErrorCode: null
+}
+
 const report = {
   done: { status: 6 },
   skipped: {},
@@ -177,6 +190,35 @@ describe('/account/import-export', () => {
       expect.objectContaining({
         initialImport: expect.objectContaining({ report })
       })
+    )
+  })
+
+  it('skips a cancelled import that never started for an older finished one', async () => {
+    // What a Discard, a failed upload or a refused start leaves behind: the
+    // newest row, cancelled before it ever ran.
+    listAccountImports.mockResolvedValue([
+      cancelledNotStartedImport,
+      doneImport
+    ])
+
+    render(await Page())
+
+    expect(serializeAccountImport).toHaveBeenCalledWith(doneImport, report)
+    expect(importSectionProps).toHaveBeenCalledWith(
+      expect.objectContaining({
+        initialImport: expect.objectContaining({ id: 'import-done' })
+      })
+    )
+  })
+
+  it('passes no import when the only row was cancelled before it started', async () => {
+    listAccountImports.mockResolvedValue([cancelledNotStartedImport])
+
+    render(await Page())
+
+    expect(serializeAccountImport).not.toHaveBeenCalled()
+    expect(importSectionProps).toHaveBeenCalledWith(
+      expect.objectContaining({ initialImport: null })
     )
   })
 

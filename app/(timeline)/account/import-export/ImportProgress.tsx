@@ -25,6 +25,14 @@ interface Props {
    * announced.
    */
   focusOnMount?: boolean
+  /**
+   * Told whenever the cancel confirm opens or closes. The dialog is
+   * portalled outside the progress view, so its focus cannot be tracked
+   * from there: the section counts an open confirm as "the progress view
+   * has the focus", so a poll that ends the import while the user is
+   * deciding still hands the focus to the report.
+   */
+  onConfirmOpenChange?: (open: boolean) => void
   onCancel: () => void
 }
 
@@ -39,6 +47,7 @@ export const ImportProgress = ({
   canceling = false,
   offline = false,
   focusOnMount = false,
+  onConfirmOpenChange,
   onCancel
 }: Props) => {
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -51,6 +60,11 @@ export const ImportProgress = ({
       ? Math.min(100, Math.round((completedItems / totalItems) * 100))
       : null
 
+  const changeConfirmOpen = (open: boolean) => {
+    setConfirmOpen(open)
+    onConfirmOpenChange?.(open)
+  }
+
   useEffect(() => {
     if (hasHydrated) setClock(Date.now())
   }, [hasHydrated, accountImport])
@@ -60,7 +74,7 @@ export const ImportProgress = ({
   }, [focusOnMount])
 
   const confirmCancel = () => {
-    setConfirmOpen(false)
+    changeConfirmOpen(false)
     onCancel()
   }
 
@@ -121,7 +135,7 @@ export const ImportProgress = ({
             variant="outline"
             size="sm"
             disabled={canceling || offline}
-            onClick={() => setConfirmOpen(true)}
+            onClick={() => changeConfirmOpen(true)}
           >
             {canceling ? 'Cancelling…' : 'Cancel import'}
           </Button>
@@ -135,7 +149,7 @@ export const ImportProgress = ({
         cancelLabel="Keep importing"
         confirmLabel="Cancel import"
         destructive
-        onCancel={() => setConfirmOpen(false)}
+        onCancel={() => changeConfirmOpen(false)}
         onConfirm={confirmCancel}
       />
     </div>
