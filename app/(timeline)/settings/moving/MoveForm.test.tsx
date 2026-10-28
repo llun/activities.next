@@ -295,6 +295,96 @@ describe('MoveForm', () => {
     ).toBeDisabled()
   })
 
+  it('keeps a redirect available while the move cooldown runs', () => {
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil="2026-11-23T00:00:00.000Z"
+      />
+    )
+
+    // The redirect's own note shows, not the move's cooldown date.
+    fireEvent.click(screen.getByRole('radio', { name: /Only show a redirect/ }))
+    expect(
+      screen.getByText('No time limit. Cancel any time.')
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/You can move again on/)).not.toBeInTheDocument()
+
+    // A filled form can still send a redirect, while the move stays off.
+    fillMove()
+    fireEvent.click(screen.getByRole('radio', { name: /Move my followers/ }))
+    expect(
+      screen.getByRole('button', { name: 'Move followers' })
+    ).toBeDisabled()
+    fireEvent.click(screen.getByRole('radio', { name: /Only show a redirect/ }))
+    expect(
+      screen.getByRole('button', { name: 'Show redirect' })
+    ).not.toBeDisabled()
+  })
+
+  it('draws no native radio inputs named by their value', () => {
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+
+    // The only radios are the RadioCards' own, named by their titles; the
+    // hidden native inputs Radix draws for radios inside a <form> would be
+    // named "move" and "redirect" by their value attribute.
+    expect(document.querySelectorAll('input[type="radio"]')).toHaveLength(0)
+    expect(
+      screen.getByRole('radio', { name: 'Move my followers' })
+    ).toBeChecked()
+    expect(
+      screen.getByRole('radio', { name: 'Only show a redirect' })
+    ).not.toBeChecked()
+  })
+
+  it('shows the actor-changed alert on a 409 Actor changed', async () => {
+    mockMove.mockRejectedValueOnce(
+      new client.ApiRequestError('Actor changed', 409)
+    )
+
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+
+    fillMove()
+    fireEvent.click(screen.getByRole('button', { name: 'Move followers' }))
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Move your followers'
+    })
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Move followers' })
+    )
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Your active profile changed')
+      ).toBeInTheDocument()
+    })
+    expect(screen.getByRole('button', { name: 'Reload' })).toBeInTheDocument()
+    // The raw message is not shown as the SaveBar error.
+    expect(
+      screen.queryByText((_, element) =>
+        element?.classList.contains('text-destructive-text')
+          ? element.textContent === 'Actor changed'
+          : false
+      )
+    ).toBeNull()
+  })
+
   it('picks the cooldown back up from a 429', async () => {
     mockMove.mockRejectedValueOnce(
       new client.ApiRequestError('Too many moves', 429)

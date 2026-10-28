@@ -9,6 +9,7 @@ import {
   addAccountAlias,
   removeAccountAlias
 } from '@/lib/client'
+import { ActorChangedAlert } from '@/lib/components/settings/ActorChangedAlert'
 import { AddBar } from '@/lib/components/surface/AddBar'
 import { Alert } from '@/lib/components/surface/Alert'
 import { FramedList, FramedListItem } from '@/lib/components/surface/FramedList'
@@ -36,6 +37,7 @@ export const AliasesSection: FC<Props> = ({ actorId, initialAliases }) => {
   const [value, setValue] = useState('')
   const [fieldError, setFieldError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [actorChanged, setActorChanged] = useState(false)
   const [adding, setAdding] = useState(false)
   const [removingId, setRemovingId] = useState<string | null>(null)
 
@@ -48,6 +50,7 @@ export const AliasesSection: FC<Props> = ({ actorId, initialAliases }) => {
     setAdding(true)
     setFieldError(null)
     setError(null)
+    setActorChanged(false)
     try {
       setAliases(await addAccountAlias({ actorId, acct }))
       setValue('')
@@ -56,6 +59,12 @@ export const AliasesSection: FC<Props> = ({ actorId, initialAliases }) => {
         setFieldError(
           'We could not find that account. Check the handle and try again.'
         )
+      } else if (
+        err instanceof ApiRequestError &&
+        err.status === 409 &&
+        err.message === 'Actor changed'
+      ) {
+        setActorChanged(true)
       } else {
         setFieldError(
           err instanceof Error ? err.message : 'Could not add that account'
@@ -70,12 +79,21 @@ export const AliasesSection: FC<Props> = ({ actorId, initialAliases }) => {
     if (removingId !== null) return
     setRemovingId(id)
     setError(null)
+    setActorChanged(false)
     try {
       setAliases(await removeAccountAlias({ actorId, id }))
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Could not remove that account'
-      )
+      if (
+        err instanceof ApiRequestError &&
+        err.status === 409 &&
+        err.message === 'Actor changed'
+      ) {
+        setActorChanged(true)
+      } else {
+        setError(
+          err instanceof Error ? err.message : 'Could not remove that account'
+        )
+      }
     } finally {
       setRemovingId(null)
     }
@@ -84,6 +102,7 @@ export const AliasesSection: FC<Props> = ({ actorId, initialAliases }) => {
   return (
     <div className="space-y-3">
       {error ? <Alert title={error} /> : null}
+      {actorChanged ? <ActorChangedAlert /> : null}
       <FramedList aria-label="Old accounts">
         {aliases.length === 0 ? (
           <FramedListItem>
@@ -109,6 +128,11 @@ export const AliasesSection: FC<Props> = ({ actorId, initialAliases }) => {
                   size="sm"
                   className="shrink-0"
                   data-testid="remove-alias"
+                  // The row says which account it is; the button's name has
+                  // to as well, or every row's control reads the same.
+                  aria-label={`Remove ${
+                    alias.acct ? `@${alias.acct}` : alias.id
+                  }`}
                   onClick={() => remove(alias.id)}
                   disabled={removingId !== null}
                 >

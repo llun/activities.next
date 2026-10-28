@@ -3,7 +3,12 @@
 import { useRouter } from 'next/navigation'
 import { FC, useState } from 'react'
 
-import { type AccountMigrationKind, cancelAccountRedirect } from '@/lib/client'
+import {
+  type AccountMigrationKind,
+  ApiRequestError,
+  cancelAccountRedirect
+} from '@/lib/client'
+import { ActorChangedAlert } from '@/lib/components/settings/ActorChangedAlert'
 import { Alert } from '@/lib/components/surface/Alert'
 import { Button } from '@/lib/components/ui/button'
 import {
@@ -41,19 +46,29 @@ export const MovedNotice: FC<Props> = ({
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [cancelling, setCancelling] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [actorChanged, setActorChanged] = useState(false)
 
   const cancelRedirect = async () => {
     setCancelling(true)
     setError(null)
+    setActorChanged(false)
     try {
       await cancelAccountRedirect({ actorId })
       // The MoveForm comes back in this alert's place.
       router.refresh()
       setConfirmOpen(false)
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Could not cancel the redirect'
-      )
+      if (
+        err instanceof ApiRequestError &&
+        err.status === 409 &&
+        err.message === 'Actor changed'
+      ) {
+        setActorChanged(true)
+      } else {
+        setError(
+          err instanceof Error ? err.message : 'Could not cancel the redirect'
+        )
+      }
       setConfirmOpen(false)
     } finally {
       setCancelling(false)
@@ -65,6 +80,7 @@ export const MovedNotice: FC<Props> = ({
   return (
     <>
       {error ? <Alert title={error} /> : null}
+      {actorChanged ? <ActorChangedAlert /> : null}
       <Alert
         tone="info"
         live={false}

@@ -921,4 +921,58 @@ describe('[actor] page moved banner', () => {
       expect.objectContaining({ targetMoved: false })
     )
   })
+
+  it('banners and turns Follow off when the target actor is not stored', async () => {
+    mockGetProfileData.mockResolvedValue(
+      profile(person('https://gone.example/users/may'))
+    )
+    mockDatabase.getActorFromId.mockResolvedValue(null)
+
+    await renderPage()
+
+    // The banner still draws, but without a target there is no way in.
+    expect(screen.getByText('This profile has moved')).toBeInTheDocument()
+    expect(
+      screen.queryByText('This profile has moved to')
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('link', { name: /Go to new profile/ })
+    ).not.toBeInTheDocument()
+    // The badge beside the name still says the profile moved.
+    expect(screen.getByText('moved')).toBeInTheDocument()
+    // The server refuses new follows of a moved account whether or not the
+    // target is stored, so Follow is turned off.
+    expect(mockRelationshipActionsProps).toHaveBeenCalledWith(
+      expect.objectContaining({ targetMoved: true })
+    )
+  })
+
+  it('clears the banner below md of the floating menu button when signed in', async () => {
+    mockGetProfileData.mockResolvedValue(
+      profile(person('https://new.example/users/may'))
+    )
+
+    await renderPage()
+
+    const slot = screen.getByTestId('moved-banner-slot')
+    expect(slot).toHaveClass(
+      'pt-[calc(env(safe-area-inset-top,0px)+64px)]',
+      'md:pt-0'
+    )
+  })
+
+  it('gives the banner no clearance when the floating button is absent', async () => {
+    mockGetProfileData.mockResolvedValue(
+      profile(person('https://new.example/users/may'))
+    )
+    mockGetServerAuthSession.mockResolvedValue({} as never)
+
+    await renderPage()
+
+    const slot = screen.getByTestId('moved-banner-slot')
+    expect(slot).not.toHaveClass(
+      'pt-[calc(env(safe-area-inset-top,0px)+64px)]'
+    )
+    expect(slot).not.toHaveClass('md:pt-0')
+  })
 })
