@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -203,6 +203,25 @@ describe('ArchiveImportForm', () => {
     )
   })
 
+  it('does not cancel the upload when the form unmounts while the start is in flight', async () => {
+    // The start inspects the archive on the server and can take seconds; the
+    // mockup promises the import carries on without the page.
+    vi.mocked(accountImports.startAccountImport).mockImplementation(
+      () => new Promise(() => {})
+    )
+
+    const { unmount } = render(<Harness />)
+    chooseFile('archive.zip')
+    submit()
+
+    await waitFor(() =>
+      expect(accountImports.startAccountImport).toHaveBeenCalled()
+    )
+    unmount()
+
+    expect(accountImports.cancelAccountImport).not.toHaveBeenCalled()
+  })
+
   it('aborts the upload on Cancel, cancels the import and never starts', async () => {
     vi.mocked(accountImports.uploadAccountImport).mockImplementation(
       ({ signal }) =>
@@ -398,5 +417,49 @@ describe('ArchiveImportForm', () => {
       })
     )
     await waitFor(() => expect(onDiscarded).toHaveBeenCalledOnce())
+  })
+
+  it('disables Import archive while an earlier upload waits to be started', () => {
+    render(<Harness notStartedImport={notStarted} />)
+    chooseFile('other.zip')
+
+    expect(
+      screen.getByText('Start or discard the earlier upload first')
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Import archive' })
+    ).toBeDisabled()
+  })
+
+  it('announces the upload once instead of on every progress tick', async () => {
+    let reportProgress:
+      ((progress: { loaded: number; total: number }) => void) | undefined
+    vi.mocked(accountImports.uploadAccountImport).mockImplementation(
+      ({ onProgress }) => {
+        reportProgress = onProgress
+        onProgress?.({ loaded: 10, total: 100 })
+        return new Promise(() => {})
+      }
+    )
+
+    render(<Harness />)
+    chooseFile('archive.zip')
+    submit()
+
+    await waitFor(() =>
+      expect(screen.getByText('10 B of 100 B · 10%')).toBeInTheDocument()
+    )
+    const status = screen.getByRole('status')
+    expect(status).toHaveTextContent('Uploading the archive')
+
+    act(() => {
+      reportProgress?.({ loaded: 50, total: 100 })
+    })
+
+    expect(screen.getByText('50 B of 100 B · 50%')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toBe(status)
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Uploading the archive'
+    )
   })
 })

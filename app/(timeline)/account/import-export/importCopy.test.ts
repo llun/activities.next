@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  IMPORTED_KIND_LABELS,
   IMPORT_ERROR_LABELS,
   IMPORT_PHASE_LABELS,
-  IMPORT_REASON_LABELS
+  IMPORT_REASON_LABELS,
+  importReportRows
 } from './importCopy'
 
 const DOCUMENTED_ERRORS = [
@@ -56,6 +58,21 @@ const DOCUMENTED_REASONS = [
   'item_failed'
 ]
 
+// The item kinds the import catalog counts (CatalogItemKind in
+// lib/services/accountImport/phases.ts).
+const DOCUMENTED_KINDS = [
+  'status',
+  'media',
+  'own-media',
+  'like',
+  'bookmark',
+  'gallery-settings',
+  'gallery-gear',
+  'fitness-gear',
+  'album',
+  'fitness-file'
+]
+
 describe('importCopy', () => {
   it('has a plain-English label for every documented import error code', () => {
     expect(Object.keys(IMPORT_ERROR_LABELS).sort()).toEqual(
@@ -73,6 +90,26 @@ describe('importCopy', () => {
     for (const label of Object.values(IMPORT_REASON_LABELS)) {
       expect(label).not.toMatch(/^[a-z0-9_-]+$/)
     }
+  })
+
+  it('has a plain-English label for every catalog item kind', () => {
+    expect(Object.keys(IMPORTED_KIND_LABELS).sort()).toEqual(
+      [...DOCUMENTED_KINDS].sort()
+    )
+  })
+
+  it('labels own-media, gallery-gear and gallery-settings rows in words', () => {
+    expect(
+      importReportRows({
+        done: { 'own-media': 912, 'gallery-gear': 2, 'gallery-settings': 1 },
+        skipped: {},
+        failed: {}
+      })
+    ).toEqual([
+      '2 gallery gear items imported',
+      '1 gallery setting imported',
+      '912 photos and videos imported'
+    ])
   })
 
   it('includes the worker phases used by archive imports', () => {

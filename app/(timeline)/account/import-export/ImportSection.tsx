@@ -63,6 +63,9 @@ export const ImportSection = ({
   const [moved, setMoved] = useState(false)
   const [canceling, setCanceling] = useState(false)
   const [cancelError, setCancelError] = useState(false)
+  // Set for the report that appears because the user just cancelled, so it
+  // takes the focus the closing dialog leaves on a button that unmounts.
+  const [focusReport, setFocusReport] = useState(false)
   const isOffline = useConnectionStatus().state === 'offline'
   const {
     accountImport,
@@ -112,6 +115,7 @@ export const ImportSection = ({
     setFile(null)
     setSelectionError(null)
     setMoved(false)
+    setFocusReport(false)
   }
 
   const handleCancelImport = async () => {
@@ -130,6 +134,7 @@ export const ImportSection = ({
       } catch {
         setAccountImport(cancelled)
       }
+      setFocusReport(true)
     } catch (error) {
       if (
         error instanceof ApiRequestError &&
@@ -189,7 +194,10 @@ export const ImportSection = ({
               onFileChange={onFileChange}
               onActorChanged={() => setActorChangedLocally(true)}
               onMoved={() => setMoved(true)}
-              onStarted={setAccountImport}
+              onStarted={(started) => {
+                setAccountImport(started)
+                setFocusReport(false)
+              }}
               onDiscarded={() => setAccountImport(null)}
             />
           )
@@ -220,6 +228,7 @@ export const ImportSection = ({
           <ImportReport
             accountImport={accountImport}
             onStartAgain={handleStartAgain}
+            focusOnMount={focusReport}
           />
         ) : null}
       </div>
