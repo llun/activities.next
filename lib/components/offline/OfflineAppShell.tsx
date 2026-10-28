@@ -434,6 +434,7 @@ export function OfflineAppShell() {
                       currentActor={currentActor}
                       actors={formattedActors}
                       unreadCount={bootstrap.unreadCount}
+                      openReportCount={bootstrap.openReportCount ?? 0}
                       fitnessUrl={bootstrap.fitnessUrl}
                       galleryUrl={bootstrap.galleryUrl}
                       isAdmin={bootstrap.isAdmin}
@@ -445,6 +446,7 @@ export function OfflineAppShell() {
                       currentActor={currentActor}
                       actors={formattedActors}
                       unreadCount={bootstrap.unreadCount}
+                      openReportCount={bootstrap.openReportCount ?? 0}
                       fitnessUrl={bootstrap.fitnessUrl}
                       galleryUrl={bootstrap.galleryUrl}
                       isAdmin={bootstrap.isAdmin}

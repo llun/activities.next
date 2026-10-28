@@ -117,6 +117,13 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
   // Gallery needs a local account too, but is not an admin-switchable feature.
   const galleryUrl = actor.account ? '/gallery' : undefined
   const isAdmin = actor.account?.role === 'admin'
+  // Admins see the unresolved report count on the sidebar's Admin item, as the
+  // Notifications item carries the unread count. Capped at 100 (the badge shows
+  // 99+); the Admin section's own menu row counts the same way
+  // (app/(timeline)/admin/layout.tsx).
+  const openReportCount = isAdmin
+    ? await database.countOpenReports({ limit: 100 })
+    : 0
 
   // Drives the expandable Lists group in the sidebar.
   const lists = await database.getLists({ actorId: actor.id })
@@ -166,6 +173,7 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
                     currentActor={currentActor}
                     actors={formattedActors}
                     unreadCount={unreadCount}
+                    openReportCount={openReportCount}
                     fitnessUrl={fitnessUrl}
                     galleryUrl={galleryUrl}
                     isAdmin={isAdmin}
@@ -177,6 +185,7 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
                     currentActor={currentActor}
                     actors={formattedActors}
                     unreadCount={unreadCount}
+                    openReportCount={openReportCount}
                     fitnessUrl={fitnessUrl}
                     galleryUrl={galleryUrl}
                     isAdmin={isAdmin}

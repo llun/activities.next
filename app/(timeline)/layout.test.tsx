@@ -15,6 +15,7 @@ const mockGetNotificationsCount = vi.fn()
 const mockGetLists = vi.fn()
 const mockGetAllServerSettings = vi.fn()
 const mockGetActorSettings = vi.fn()
+const mockCountOpenReports = vi.fn()
 
 vi.mock('@/lib/database', () => ({
   getDatabase: vi.fn(() => ({
@@ -22,7 +23,8 @@ vi.mock('@/lib/database', () => ({
     getNotificationsCount: mockGetNotificationsCount,
     getLists: mockGetLists,
     getAllServerSettings: mockGetAllServerSettings,
-    getActorSettings: mockGetActorSettings
+    getActorSettings: mockGetActorSettings,
+    countOpenReports: mockCountOpenReports
   }))
 }))
 
@@ -119,16 +121,36 @@ vi.mock('@/lib/components/drafts/DraftsProvider', () => ({
 
 vi.mock('@/app/Modal', () => ({ Modal: () => <div data-testid="modal" /> }))
 vi.mock('@/lib/components/layout/sidebar', () => ({
-  Sidebar: ({ fitnessUrl }: { fitnessUrl?: string }) => (
-    <div data-testid="sidebar" data-fitness={fitnessUrl ?? ''} />
+  Sidebar: ({
+    fitnessUrl,
+    openReportCount
+  }: {
+    fitnessUrl?: string
+    openReportCount?: number
+  }) => (
+    <div
+      data-testid="sidebar"
+      data-fitness={fitnessUrl ?? ''}
+      data-open-reports={openReportCount}
+    />
   )
 }))
 vi.mock('@/lib/components/session-keep-alive', () => ({
   SessionKeepAlive: () => <div data-testid="session-keep-alive" />
 }))
 vi.mock('@/lib/components/layout/mobile-nav', () => ({
-  MobileNav: ({ unreadCount }: { unreadCount?: number }) => (
-    <div data-testid="mobile-nav" data-unread={unreadCount} />
+  MobileNav: ({
+    unreadCount,
+    openReportCount
+  }: {
+    unreadCount?: number
+    openReportCount?: number
+  }) => (
+    <div
+      data-testid="mobile-nav"
+      data-unread={unreadCount}
+      data-open-reports={openReportCount}
+    />
   )
 }))
 vi.mock('@/lib/components/layout/mobile-navigation-context', () => ({
@@ -163,6 +185,7 @@ describe('(timeline) Layout', () => {
     mockGetServerAuthSession.mockResolvedValue(null)
     mockGetActorsForAccount.mockResolvedValue([])
     mockGetNotificationsCount.mockResolvedValue(0)
+    mockCountOpenReports.mockResolvedValue(3)
     mockGetLists.mockResolvedValue([])
     mockGetActorSettings.mockResolvedValue(undefined)
     mockGetAllServerSettings.mockResolvedValue([
@@ -195,6 +218,41 @@ describe('(timeline) Layout', () => {
     expect(screen.getByTestId('sidebar')).toBeInTheDocument()
     expect(screen.getByTestId('mobile-nav')).toBeInTheDocument()
     expect(screen.getByTestId('child')).toBeInTheDocument()
+  })
+
+  it('counts the open reports for an admin and hands the count to both navs', async () => {
+    mockGetActorFromSession.mockResolvedValue({
+      ...signedInActor,
+      account: { id: 'account-1', role: 'admin' }
+    } as never)
+
+    await renderLayout()
+
+    expect(mockCountOpenReports).toHaveBeenCalledWith({ limit: 100 })
+    expect(screen.getByTestId('sidebar')).toHaveAttribute(
+      'data-open-reports',
+      '3'
+    )
+    expect(screen.getByTestId('mobile-nav')).toHaveAttribute(
+      'data-open-reports',
+      '3'
+    )
+  })
+
+  it('does not count reports for a non-admin', async () => {
+    mockGetActorFromSession.mockResolvedValue(signedInActor as never)
+
+    await renderLayout()
+
+    expect(mockCountOpenReports).not.toHaveBeenCalled()
+    expect(screen.getByTestId('sidebar')).toHaveAttribute(
+      'data-open-reports',
+      '0'
+    )
+    expect(screen.getByTestId('mobile-nav')).toHaveAttribute(
+      'data-open-reports',
+      '0'
+    )
   })
 
   it('mounts the drafts provider, the status bar and the announcer for signed-in users', async () => {

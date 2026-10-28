@@ -161,6 +161,22 @@ describe('MobileNav', () => {
     expect(screen.getAllByText('4')).toHaveLength(1)
   })
 
+  it('shows the unresolved report count on the drawer Admin row and never on the menu button', () => {
+    renderMobileNav(<MobileNav isAdmin openReportCount={3} />)
+
+    const trigger = screen.getByTestId('mobile-trigger')
+    expect(trigger.textContent).toBe('')
+
+    fireEvent.click(trigger)
+
+    const admin = screen.getByRole('link', { name: /Admin/ })
+    expect(within(admin).getByText('3')).toBeInTheDocument()
+    expect(within(admin).getByText('(3 unresolved reports)')).toHaveClass(
+      'sr-only'
+    )
+    expect(screen.getAllByText('3')).toHaveLength(1)
+  })
+
   it('shows the Drafts count on the drawer row and never on the menu button', async () => {
     installFakeBroadcastChannel()
     setDraftsIndexedDBFactory(new IDBFactory())

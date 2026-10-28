@@ -58,6 +58,7 @@ let mockCurrentActor: Actor
 let mockDatabase: {
   getActorsForAccount: ReturnType<typeof vi.fn>
   getNotificationsCount: ReturnType<typeof vi.fn>
+  countOpenReports: ReturnType<typeof vi.fn>
   getLists: ReturnType<typeof vi.fn>
   getActorSettings: ReturnType<typeof vi.fn>
 }
@@ -147,6 +148,7 @@ describe('GET /api/v1/accounts/bootstrap', () => {
         }
       ]),
       getNotificationsCount: vi.fn().mockResolvedValue(7),
+      countOpenReports: vi.fn().mockResolvedValue(4),
       getLists: vi.fn().mockResolvedValue([
         {
           id: 'list-1',
@@ -242,6 +244,9 @@ describe('GET /api/v1/accounts/bootstrap', () => {
     expect(data.fitnessUrl).toBe('/fitness')
     expect(data.galleryUrl).toBe('/gallery')
     expect(data.isAdmin).toBe(true)
+    // The Admin item's unresolved report count, capped at 100.
+    expect(data.openReportCount).toBe(4)
+    expect(mockDatabase.countOpenReports).toHaveBeenCalledWith({ limit: 100 })
     expect(data.isMediaUploadEnabled).toBe(true)
     expect(typeof data.currentTime).toBe('number')
     expect(typeof data.savedAt).toBe('number')
@@ -283,6 +288,8 @@ describe('GET /api/v1/accounts/bootstrap', () => {
 
     expect(data.isAdmin).toBe(false)
     expect(data.fitnessUrl).toBeUndefined()
+    expect(data.openReportCount).toBe(0)
+    expect(mockDatabase.countOpenReports).not.toHaveBeenCalled()
   })
 
   it('drops fitness from the bootstrap when the visited domain turns it off', async () => {

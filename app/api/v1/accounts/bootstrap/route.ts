@@ -34,19 +34,29 @@ export const GET = traceApiRoute(
         }
 
         const { host, mediaStorage } = getConfig()
-        const [serverSettings, actors, unreadCount, lists, actorSettings] =
-          await Promise.all([
-            getResolvedServerSettings(database),
-            database.getActorsForAccount({
-              accountId: currentActor.account.id
-            }),
-            database.getNotificationsCount({
-              actorId: currentActor.id,
-              onlyUnread: true
-            }),
-            database.getLists({ actorId: currentActor.id }),
-            database.getActorSettings({ actorId: currentActor.id })
-          ])
+        const [
+          serverSettings,
+          actors,
+          unreadCount,
+          openReportCount,
+          lists,
+          actorSettings
+        ] = await Promise.all([
+          getResolvedServerSettings(database),
+          database.getActorsForAccount({
+            accountId: currentActor.account.id
+          }),
+          database.getNotificationsCount({
+            actorId: currentActor.id,
+            onlyUnread: true
+          }),
+          // The Admin item's unresolved report count, for admins only.
+          currentActor.account.role === 'admin'
+            ? database.countOpenReports({ limit: 100 })
+            : Promise.resolve(0),
+          database.getLists({ actorId: currentActor.id }),
+          database.getActorSettings({ actorId: currentActor.id })
+        ])
 
         const { posts, media, polls } = serverSettings
         // The server's switches, minus what the visited domain turned off.
@@ -117,6 +127,7 @@ export const GET = traceApiRoute(
           actors: formattedActors,
           profile: getActorProfile(currentActor),
           unreadCount,
+          openReportCount,
           fitnessUrl:
             currentActor.account && features.fitness ? '/fitness' : undefined,
           galleryUrl: currentActor.account ? '/gallery' : undefined,
