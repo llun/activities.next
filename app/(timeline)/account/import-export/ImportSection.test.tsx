@@ -72,6 +72,15 @@ const queuedNotStarted = {
   startedAt: null
 }
 
+const cancelledNotStarted = {
+  ...activeImport,
+  status: 'cancelled' as const,
+  kind: null,
+  phase: null,
+  startedAt: null,
+  finishedAt: '2026-10-28T10:05:00.000Z'
+}
+
 const finishedImport = {
   ...activeImport,
   status: 'done' as const,
@@ -390,6 +399,25 @@ describe('ImportSection', () => {
       actorId,
       id: 'archive-1'
     })
+    expect(accountImports.cancelAccountImport).not.toHaveBeenCalled()
+  })
+
+  it('treats a start of an upload discarded elsewhere as gone, not as a cancelled report', async () => {
+    vi.mocked(accountImports.startAccountImport).mockRejectedValueOnce(
+      new ApiRequestError('Import is not queued', 409)
+    )
+    vi.mocked(accountImports.getAccountImport).mockResolvedValueOnce(
+      cancelledNotStarted as never
+    )
+    renderWithImport(queuedNotStarted)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start import' }))
+
+    expect(
+      await screen.findByText('The upload did not finish')
+    ).toBeInTheDocument()
+    expect(screen.getByLabelText('File')).toBeInTheDocument()
+    expect(screen.queryByText('Import cancelled')).not.toBeInTheDocument()
     expect(accountImports.cancelAccountImport).not.toHaveBeenCalled()
   })
 
@@ -870,7 +898,9 @@ describe('ImportSection', () => {
     const reportAlert = screen
       .getByText('Import finished')
       .closest('[data-slot="alert"]')
-    expect(document.activeElement).toBe(reportAlert?.parentElement)
+    await waitFor(() =>
+      expect(document.activeElement).toBe(reportAlert?.parentElement)
+    )
   })
 
   it('shows an error alert when cancelling fails, and retries', async () => {
