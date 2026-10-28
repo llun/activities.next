@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { usePathname } from 'next/navigation'
 
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
@@ -41,6 +41,12 @@ const renderLayout = async (pathname: string) => {
   )
 }
 
+const openMenu = async () => {
+  const nav = screen.getByRole('navigation', { name: 'Settings' })
+  fireEvent.keyDown(within(nav).getByRole('button'), { key: 'ArrowDown' })
+  return screen.findByRole('menu')
+}
+
 describe('Settings Layout', () => {
   it('names the profile the settings are for in the section header', async () => {
     await renderLayout('/settings/appearance')
@@ -61,13 +67,13 @@ describe('Settings Layout', () => {
     expect(screen.queryByText(/^For /)).not.toBeInTheDocument()
   })
 
-  it('groups the rail under Preferences and Privacy & safety, in order', async () => {
+  it('groups the menu under Preferences and Privacy & safety, in order', async () => {
     await renderLayout('/settings/appearance')
+    const menu = await openMenu()
 
-    const nav = screen.getByRole('navigation', { name: 'Settings' })
     const names = (group: string) =>
-      within(within(nav).getByRole('group', { name: group }))
-        .getAllByRole('link')
+      within(within(menu).getByRole('group', { name: group }))
+        .getAllByRole('menuitem')
         .map((link) => link.textContent)
     expect(names('Preferences')).toEqual([
       'Appearance',
@@ -83,65 +89,79 @@ describe('Settings Layout', () => {
       'Filters'
     ])
 
-    const links = within(nav).getAllByRole('link')
-    expect(links[0]).toHaveAttribute('href', '/settings/profile')
-    expect(links[0]).toHaveTextContent('Edit profile@anna@llun.test')
+    // Edit profile leads the menu and no longer carries the handle.
+    const items = within(menu).getAllByRole('menuitem')
+    expect(items[0]).toHaveAttribute('href', '/settings/profile')
+    expect(items[0]).toHaveTextContent('Edit profile')
+    expect(items[0]).not.toHaveTextContent('@anna@llun.test')
     expect(
-      within(nav).getByRole('link', { name: 'Delete this profile' })
+      within(menu).getByRole('menuitem', { name: 'Delete this profile' })
     ).toHaveAttribute('href', '/settings/delete')
+    const account = within(menu).getByRole('menuitem', {
+      name: 'Account & security'
+    })
+    expect(account).toHaveAttribute('href', '/account')
     expect(
-      within(nav).getByRole('link', { name: /Account & security/ })
-    ).toHaveAttribute('href', '/account')
-    // No "General" any more, and no dropdown.
-    expect(within(nav).queryByText('General')).not.toBeInTheDocument()
-    expect(within(nav).queryByRole('button')).not.toBeInTheDocument()
+      within(menu).queryByText('Shared across your profiles')
+    ).not.toBeInTheDocument()
+    // No "General" any more.
+    expect(within(menu).queryByText('General')).not.toBeInTheDocument()
   })
 
   it('lists Moving just before Delete this profile', async () => {
     await renderLayout('/settings/moving')
+    const menu = await openMenu()
 
-    const nav = screen.getByRole('navigation', { name: 'Settings' })
-    const links = within(nav).getAllByRole('link')
-    const moving = links.find((link) => link.textContent?.startsWith('Moving'))
+    const items = within(menu).getAllByRole('menuitem')
+    const moving = items.find((item) => item.textContent === 'Moving')
     expect(moving).toHaveAttribute('href', '/settings/moving')
-    expect(moving).toHaveTextContent('Moving')
-    // Moving sits in the ungrouped footer list, directly above the delete row.
-    const movingIndex = links.indexOf(moving!)
-    expect(links[movingIndex + 1]).toHaveTextContent(/^Delete this profile/)
+    // Moving sits in the after-footer run, directly above the delete row.
+    expect(items[items.indexOf(moving!) + 1]).toHaveTextContent(
+      /^Delete this profile/
+    )
   })
 
   it.each([
     ['/settings/preferences', 'Posting & reading'],
     ['/settings/sidebar', 'Sidebar'],
-    ['/settings/profile', 'Edit profile@anna@llun.test'],
+    ['/settings/profile', 'Edit profile'],
     ['/settings/moving', 'Moving']
   ])('marks %s current as %s', async (pathname, name) => {
     await renderLayout(pathname)
 
     const nav = screen.getByRole('navigation', { name: 'Settings' })
-    const current = within(nav)
-      .getAllByRole('link')
-      .filter((link) => link.getAttribute('aria-current') === 'page')
+    expect(within(nav).getByRole('button')).toHaveTextContent(name)
+
+    const menu = await openMenu()
+    const current = within(menu)
+      .getAllByRole('menuitem')
+      .filter((item) => item.getAttribute('aria-current') === 'page')
     expect(current).toHaveLength(1)
     expect(current[0]).toHaveTextContent(name)
   })
 
-  it('leads a section page with Back to Settings below lg', async () => {
+  it('renders the Settings link and no Back row on a section page', async () => {
     await renderLayout('/settings/privacy')
 
-    const back = screen.getByRole('link', { name: 'Back to settings' })
-    expect(back).toHaveAttribute('href', '/settings')
-    expect(back).toHaveClass('lg:hidden')
+    // jsdom drops the space before the visually hidden suffix (a browser
+    // keeps it), hence `\s*`.
+    expect(
+      screen.getByRole('link', { name: /^Settings\s*\(all pages\)$/ })
+    ).toHaveAttribute('href', '/settings')
+    expect(
+      screen.queryByRole('link', { name: /^Back to/ })
+    ).not.toBeInTheDocument()
   })
 
-  it('renders the index list instead of the rail on /settings', async () => {
+  it('renders the index list and no dropdown row on /settings', async () => {
     await renderLayout('/settings')
 
     expect(
       screen.queryByRole('navigation', { name: 'Settings' })
     ).not.toBeInTheDocument()
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
     expect(
-      screen.queryByRole('link', { name: 'Back to settings' })
+      screen.queryByRole('link', { name: /all pages/ })
     ).not.toBeInTheDocument()
     expect(
       screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)

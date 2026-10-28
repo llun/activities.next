@@ -25,7 +25,7 @@ export const getSettingsGroups = (
   profile: { handle: string; username: string; iconUrl: string | null } | null
 ): SectionNavGroup[] => [
   {
-    railOnly: true,
+    menuOnly: true,
     items: [
       {
         name: 'Edit profile',
@@ -34,10 +34,9 @@ export const getSettingsGroups = (
           <ProfileAvatar
             username={profile.username}
             iconUrl={profile.iconUrl}
-            className="size-7 text-xs"
+            className="size-4 text-xs"
           />
-        ) : null,
-        hint: profile?.handle
+        ) : null
       }
     ]
   },

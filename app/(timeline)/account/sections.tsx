@@ -24,6 +24,7 @@ export const getAccountGroups = (
       {
         name: 'Email & name',
         url: '/account/email',
+        alsoMatches: ['/account/verify-email'],
         icon: <Mail />,
         description: 'Email address, account name and photo'
       },
@@ -59,7 +60,6 @@ export const getAccountGroups = (
 
 export const getAccountFooter = (handle?: string): SectionNavFooter => ({
   heading: 'For this profile',
-  hint: 'Each profile has its own',
   item: {
     name: handle ? `Settings for ${handle}` : 'Settings',
     url: '/settings',

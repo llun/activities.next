@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { usePathname } from 'next/navigation'
 
 import { getDatabase } from '@/lib/database'
@@ -45,17 +45,22 @@ const renderAt = async (pathname: string) => {
   return render(await Layout({ children: <div>content</div> }))
 }
 
-const getRailNav = () => {
-  const navs = screen.getAllByRole('navigation', { name: 'Admin' })
-  const rail = navs.find((nav) => nav.classList.contains('max-lg:hidden'))
-  expect(rail).toBeDefined()
-  return rail!
+// Radix hides everything outside an open menu from the accessibility tree, so
+// read the row (the link and the trigger) before this.
+const openMenu = async () => {
+  const nav = screen.getByRole('navigation', { name: 'Admin' })
+  fireEvent.keyDown(within(nav).getByRole('button'), { key: 'ArrowDown' })
+  return screen.findByRole('menu')
 }
 
-const activeLinksIn = (scope: HTMLElement) =>
+const triggerText = () =>
+  within(screen.getByRole('navigation', { name: 'Admin' })).getByRole('button')
+    .textContent
+
+const activeItemsIn = (scope: HTMLElement) =>
   within(scope)
-    .getAllByRole('link')
-    .filter((link) => link.getAttribute('aria-current') === 'page')
+    .getAllByRole('menuitem')
+    .filter((item) => item.getAttribute('aria-current') === 'page')
 
 describe('Admin Layout', () => {
   it('renders the header title and description', async () => {
@@ -70,22 +75,28 @@ describe('Admin Layout', () => {
     expect(screen.getByText('content')).toBeInTheDocument()
   })
 
-  it('lists the five groups in order in the rail, with item hrefs', async () => {
+  it('lists the four groups in order in the menu, with item hrefs', async () => {
     await renderAt('/admin/reports')
 
-    const rail = getRailNav()
+    const menu = await openMenu()
     // The headless first run holds Dashboard; the four headed groups follow.
     expect(
-      within(rail)
+      within(menu)
         .getAllByRole('group')
-        .map((group) => group.querySelector('p')?.textContent)
+        .map(
+          (group) =>
+            document.getElementById(group.getAttribute('aria-labelledby')!)
+              ?.textContent
+        )
     ).toEqual(['Moderation', 'Community', 'Server', 'Maintenance'])
 
-    const links = within(rail).getAllByRole('link')
+    // The name span alone, so the badge's screen reader text does not pollute
+    // Reports.
+    const items = within(menu).getAllByRole('menuitem')
     expect(
-      links.map((link) => [
-        link.querySelector('.min-w-0 > span')?.textContent,
-        link.getAttribute('href')
+      items.map((item) => [
+        item.querySelector('.truncate')?.textContent,
+        item.getAttribute('href')
       ])
     ).toEqual([
       ['Dashboard', '/admin/overview'],
@@ -110,7 +121,8 @@ describe('Admin Layout', () => {
   it('marks Dashboard active at /admin/overview', async () => {
     await renderAt('/admin/overview')
 
-    const active = activeLinksIn(getRailNav())
+    expect(triggerText()).toBe('Dashboard')
+    const active = activeItemsIn(await openMenu())
     expect(active).toHaveLength(1)
     expect(active[0]).toHaveTextContent('Dashboard')
     expect(active[0]).toHaveAttribute('href', '/admin/overview')
@@ -119,7 +131,8 @@ describe('Admin Layout', () => {
   it('marks Reports active at a nested path like /admin/reports/123', async () => {
     await renderAt('/admin/reports/123')
 
-    const active = activeLinksIn(getRailNav())
+    expect(triggerText()).toBe('Reports')
+    const active = activeItemsIn(await openMenu())
     expect(active).toHaveLength(1)
     expect(active[0]).toHaveTextContent('Reports')
     expect(active[0]).toHaveAttribute('href', '/admin/reports')
@@ -128,13 +141,14 @@ describe('Admin Layout', () => {
   it('marks Served domains active at a nested path like /admin/domains/example.com', async () => {
     await renderAt('/admin/domains/example.com')
 
-    const active = activeLinksIn(getRailNav())
+    expect(triggerText()).toBe('Served domains')
+    const active = activeItemsIn(await openMenu())
     expect(active).toHaveLength(1)
     expect(active[0]).toHaveTextContent('Served domains')
     expect(active[0]).toHaveAttribute('href', '/admin/domains')
   })
 
-  it('renders the grouped index at /admin: no rail, one card run per group', async () => {
+  it('renders the grouped index at /admin: no dropdown row, one card run per group', async () => {
     await renderAt('/admin')
 
     expect(
@@ -184,36 +198,47 @@ describe('Admin Layout', () => {
     ).toBeNull()
   })
 
-  it('shows a "Back to admin" row below lg on direct item pages but not on detail pages', async () => {
+  it('renders the Admin link and no Back row on item and detail pages', async () => {
     const { unmount } = await renderAt('/admin/reports')
-    expect(screen.getByRole('link', { name: 'Back to admin' })).toHaveAttribute(
-      'href',
-      '/admin'
-    )
+    // jsdom drops the space before the visually hidden suffix (a browser
+    // keeps it), hence `\s*`.
+    expect(
+      screen.getByRole('link', { name: /^Admin\s*\(all pages\)$/ })
+    ).toHaveAttribute('href', '/admin')
+    expect(
+      screen.queryByRole('link', { name: /^Back to admin/ })
+    ).not.toBeInTheDocument()
     unmount()
 
     await renderAt('/admin/reports/123')
     expect(
-      screen.queryByRole('link', { name: 'Back to admin' })
+      screen.getByRole('link', { name: /^Admin\s*\(all pages\)$/ })
+    ).toHaveAttribute('href', '/admin')
+    expect(triggerText()).toBe('Reports')
+    expect(
+      screen.queryByRole('link', { name: /^Back to admin/ })
     ).not.toBeInTheDocument()
   })
 
-  it('renders no dropdown navigation', async () => {
-    await renderAt('/admin/reports/123')
+  it('renders exactly one section navigation, the dropdown row', async () => {
+    const { container } = await renderAt('/admin/reports/123')
 
-    // Only the rail carries the section's name.
     const navs = screen.getAllByRole('navigation', { name: 'Admin' })
     expect(navs).toHaveLength(1)
-    expect(navs[0]).toHaveClass('max-lg:hidden')
-    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    expect(within(navs[0]).getAllByRole('button')).toHaveLength(1)
+    expect(container.querySelector('.max-lg\\:hidden')).toBeNull()
   })
 
-  it('shows the open report count in the rail and index for admins', async () => {
+  it('shows the open report count on the Reports row and the index, not on the trigger', async () => {
     const { unmount } = await renderAt('/admin/reports')
 
     expect(countOpenReports).toHaveBeenCalledWith({ limit: 100 })
+    expect(triggerText()).toBe('Reports')
+    const menu = await openMenu()
     expect(
-      screen.getByRole('link', { name: /Reports\s*\(4 unresolved reports\)/ })
+      within(menu).getByRole('menuitem', {
+        name: /Reports\s*\(4 unresolved reports\)/
+      })
     ).toBeInTheDocument()
 
     unmount()
@@ -229,8 +254,11 @@ describe('Admin Layout', () => {
     countOpenReports.mockResolvedValue(1)
     await renderAt('/admin/reports')
 
+    const menu = await openMenu()
     expect(
-      screen.getByRole('link', { name: /Reports\s*\(1 unresolved report\)/ })
+      within(menu).getByRole('menuitem', {
+        name: /Reports\s*\(1 unresolved report\)/
+      })
     ).toBeInTheDocument()
   })
 
@@ -253,7 +281,8 @@ describe('Admin Layout', () => {
     expect(getAdminFromSession).not.toHaveBeenCalled()
     expect(countOpenReports).not.toHaveBeenCalled()
 
-    const reports = screen.getByRole('link', { name: 'Reports' })
+    const menu = await openMenu()
+    const reports = within(menu).getByRole('menuitem', { name: 'Reports' })
     expect(within(reports).queryByText(/^\d+$/)).not.toBeInTheDocument()
   })
 })

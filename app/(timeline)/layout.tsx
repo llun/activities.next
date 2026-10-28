@@ -199,10 +199,7 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
                       'md:pl-[72px] md:[--sidebar-w:72px] xl:pl-[280px] xl:[--sidebar-w:280px]'
                     )}
                   >
-                    {/* A settings-style section (`SectionLayout`) widens the column
-                        to `--container-section` so its rail fits beside the
-                        content at today's width. */}
-                    <div className="mx-auto flex w-full max-w-content flex-1 flex-col px-4 pb-6 [&:has([data-section-layout])]:max-w-section">
+                    <div className="mx-auto flex w-full max-w-content flex-1 flex-col px-4 pb-6">
                       <ConnectionStatusBar />
                       {children}
                     </div>

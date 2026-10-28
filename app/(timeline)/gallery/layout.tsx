@@ -15,23 +15,25 @@ import {
   PageHeader,
   PageHeaderSectionProvider
 } from '@/lib/components/page-header'
-import {
-  SectionNavDropdown,
-  type SectionNavTab
-} from '@/lib/components/section-nav-dropdown'
+import { SectionNavDropdown } from '@/lib/components/section-nav-dropdown'
+import type { SectionNavGroup } from '@/lib/components/section-nav-shared'
 
 interface Props {
   children: ReactNode
 }
 
-const tabs: SectionNavTab[] = [
-  { name: 'Subjects', url: '/gallery', icon: Bird },
-  { name: 'All media', url: '/gallery/media', icon: Images },
-  { name: 'Albums', url: '/gallery/albums', icon: FolderOpen },
-  { name: 'Map', url: '/gallery/map', icon: MapPin },
-  { name: 'Life list', url: '/gallery/life-list', icon: ListChecks },
-  { name: 'Gear', url: '/gallery/gear', icon: Camera },
-  { name: 'Privacy', url: '/gallery/privacy', icon: Lock }
+const groups: SectionNavGroup[] = [
+  {
+    items: [
+      { name: 'Subjects', url: '/gallery', icon: <Bird /> },
+      { name: 'All media', url: '/gallery/media', icon: <Images /> },
+      { name: 'Albums', url: '/gallery/albums', icon: <FolderOpen /> },
+      { name: 'Map', url: '/gallery/map', icon: <MapPin /> },
+      { name: 'Life list', url: '/gallery/life-list', icon: <ListChecks /> },
+      { name: 'Gear', url: '/gallery/gear', icon: <Camera /> },
+      { name: 'Privacy', url: '/gallery/privacy', icon: <Lock /> }
+    ]
+  }
 ]
 
 const Layout: FC<Props> = ({ children }) => {
@@ -46,7 +48,7 @@ const Layout: FC<Props> = ({ children }) => {
       />
       <PageHeaderSectionProvider>
         <div className="w-full pt-4 max-md:pt-0">
-          <SectionNavDropdown label="Gallery" tabs={tabs} />
+          <SectionNavDropdown label="Gallery" groups={groups} />
 
           <div className="min-w-0">{children}</div>
         </div>

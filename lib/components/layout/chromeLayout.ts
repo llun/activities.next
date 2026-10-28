@@ -45,8 +45,8 @@ export const MOBILE_COMPACT_HEADER_CLASS =
 export const MOBILE_BACK_ROW_CLASS =
   'max-md:min-h-11 max-md:gap-2 max-md:text-sm max-md:font-medium'
 
-// Below a section's sticky 79px PageHeader (from md up) plus the 24px gap
-// above the section content, so the Settings rail and the Edit profile preview
-// stick where they already sit instead of sliding under the header. Keep the
-// literal class string in this file (Tailwind scans it).
+// Below a section's sticky 79px PageHeader (from md up) plus the 24px gap above
+// the section content, so the Edit profile preview sticks where it already sits
+// instead of sliding under the header. Keep the literal class string in this
+// file (Tailwind scans it).
 export const SECTION_STICKY_TOP_CLASS = 'top-[103px]'
