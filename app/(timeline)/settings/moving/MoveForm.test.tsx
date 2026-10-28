@@ -19,6 +19,14 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn() })
 }))
 
+const connection = {
+  state: 'online' as 'online' | 'offline' | 'unreachable'
+}
+
+vi.mock('@/lib/hooks/useConnectionStatus', () => ({
+  useConnectionStatus: () => connection
+}))
+
 vi.mock('@/lib/client', () => {
   class ApiRequestError extends Error {
     status: number
@@ -50,6 +58,7 @@ const fillMove = () => {
 describe('MoveForm', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    connection.state = 'online'
     // RadioGroup measures its cards; jsdom has no observer.
     vi.stubGlobal(
       'ResizeObserver',
@@ -279,6 +288,42 @@ describe('MoveForm', () => {
     })
   })
 
+  it('moves focus to the account input when the alias is required first', async () => {
+    mockMove.mockRejectedValueOnce(
+      new client.ApiRequestError(
+        'Add this account as an alias on the new account first',
+        422
+      )
+    )
+
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+
+    fillMove()
+    fireEvent.click(screen.getByRole('button', { name: 'Move followers' }))
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Move your followers'
+    })
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Move followers' })
+    )
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/does not list @anna@llun.test as an old account/)
+      ).toBeInTheDocument()
+    })
+    // The closed dialog would return focus to the SaveBar button that opened
+    // it; the field error is on the input, so focus moves there instead.
+    expect(document.activeElement).toBe(screen.getByLabelText('New account'))
+  })
+
   it('shows the plain message for a network failure, not the browser text', async () => {
     mockMove.mockRejectedValueOnce(new TypeError('Failed to fetch'))
 
@@ -491,6 +536,62 @@ describe('MoveForm', () => {
     expect(
       screen.queryByRole('dialog', { name: 'Move your followers' })
     ).not.toBeInTheDocument()
+  })
+
+  it('moves focus to the account input when the account is not found', async () => {
+    mockMove.mockRejectedValueOnce(
+      new client.ApiRequestError('Record not found', 404)
+    )
+
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+
+    fillMove()
+    fireEvent.click(screen.getByRole('button', { name: 'Move followers' }))
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Move your followers'
+    })
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Move followers' })
+    )
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          'We could not find that account. Check the handle and try again.'
+        )
+      ).toBeInTheDocument()
+    })
+    // The closed dialog would return focus to the SaveBar button that opened
+    // it; the field error is on the input, so focus moves there instead.
+    expect(document.activeElement).toBe(screen.getByLabelText('New account'))
+  })
+
+  it('keeps the action available while the server is unreachable', () => {
+    // `unreachable` is the health probe failing while the device is online:
+    // only the browser's own `offline` state disables the action, so it keeps
+    // its own error path.
+    connection.state = 'unreachable'
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+
+    fillMove()
+    expect(
+      screen.getByRole('button', { name: 'Move followers' })
+    ).not.toBeDisabled()
+    expect(screen.queryByText("You're offline")).not.toBeInTheDocument()
   })
 
   it('maps a malformed account to the same field error', async () => {

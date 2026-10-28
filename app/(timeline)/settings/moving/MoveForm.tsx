@@ -66,8 +66,12 @@ export const MoveForm: FC<Props> = ({
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [cooldownUntil, setCooldownUntil] = useState(initialCooldownUntil)
   const warningRef = useRef<HTMLDivElement>(null)
+  const accountRef = useRef<HTMLInputElement>(null)
   const { state: connection } = useConnectionStatus()
-  const offline = connection !== 'online'
+  // Only the browser's own `offline` state disables the action: with
+  // `unreachable` (the health probe failed while the device is online) the
+  // move keeps its own error path, like every other offline check.
+  const offline = connection === 'offline'
 
   // After a cancelled redirect the refreshed page brings this form back in
   // the notice's place: the notice left a focus request, so the standing
@@ -242,6 +246,7 @@ export const MoveForm: FC<Props> = ({
               <div className="space-y-2">
                 <Input
                   id="moveNewAccount"
+                  ref={accountRef}
                   placeholder="@may@new.example"
                   aria-describedby={
                     [
@@ -303,7 +308,17 @@ export const MoveForm: FC<Props> = ({
       </Frame>
 
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent
+          className="sm:max-w-md"
+          onCloseAutoFocus={(event) => {
+            // A field error closes the dialog with the invalid input waiting:
+            // closing would otherwise return focus to the SaveBar button that
+            // opened it, and the error is on the input, not the button.
+            if (!fieldError) return
+            event.preventDefault()
+            accountRef.current?.focus()
+          }}
+        >
           <DialogHeader>
             <DialogTitle>
               {kind === 'move' ? 'Move your followers' : 'Show a redirect'}

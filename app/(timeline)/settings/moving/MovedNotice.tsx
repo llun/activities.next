@@ -51,7 +51,10 @@ export const MovedNotice: FC<Props> = ({
   const [actorChanged, setActorChanged] = useState(false)
   const noticeRef = useRef<HTMLDivElement>(null)
   const { state: connection } = useConnectionStatus()
-  const offline = connection !== 'online'
+  // Only the browser's own `offline` state disables the action: with
+  // `unreachable` (the health probe failed while the device is online) the
+  // cancel keeps its own error path, like every other offline check.
+  const offline = connection === 'offline'
 
   // After a move the refreshed page brings this notice in the form's place:
   // the form left a focus request, so the notice takes focus (and is read)

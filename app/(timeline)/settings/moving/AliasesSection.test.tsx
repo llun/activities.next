@@ -13,7 +13,9 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn() })
 }))
 
-const connection = { state: 'online' as 'online' | 'offline' }
+const connection = {
+  state: 'online' as 'online' | 'offline' | 'unreachable'
+}
 
 vi.mock('@/lib/hooks/useConnectionStatus', () => ({
   useConnectionStatus: () => connection
@@ -272,6 +274,54 @@ describe('AliasesSection', () => {
     expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled()
     expect(screen.getByTestId('remove-alias')).toBeDisabled()
     expect(screen.getByText("You're offline")).toBeInTheDocument()
+  })
+
+  it('keeps Add and Remove available while the server is unreachable', () => {
+    // `unreachable` is the health probe failing while the device is online:
+    // only the browser's own `offline` state disables the actions, so each
+    // keeps its own error path.
+    connection.state = 'unreachable'
+    render(
+      <AliasesSection
+        actorId="https://llun.test/users/anna"
+        initialAliases={[
+          alias('https://old.example/users/anna', 'anna@old.example')
+        ]}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'Add' })).not.toBeDisabled()
+    expect(screen.getByTestId('remove-alias')).not.toBeDisabled()
+    expect(screen.queryByText("You're offline")).not.toBeInTheDocument()
+  })
+
+  it('moves focus to the input when the account is not found', async () => {
+    mockAdd.mockRejectedValueOnce(
+      new client.ApiRequestError('Account not found', 404)
+    )
+    render(
+      <AliasesSection
+        actorId="https://llun.test/users/anna"
+        initialAliases={[]}
+      />
+    )
+
+    const input = screen.getByLabelText('Old account')
+    fireEvent.change(input, { target: { value: '@nobody@old.example' } })
+    const add = screen.getByRole('button', { name: 'Add' })
+    add.focus()
+    fireEvent.click(add)
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          'We could not find that account. Check the handle and try again.'
+        )
+      ).toBeInTheDocument()
+    })
+    // The field error is on the input, so focus moves there to have it read,
+    // not back to the Add button that was pressed.
+    expect(document.activeElement).toBe(input)
   })
 
   it('maps an add network failure to the plain message, not the browser text', async () => {
