@@ -92,6 +92,10 @@ export const MoveForm: FC<Props> = ({
   const openConfirm = (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+    // A retry after a field error (the alias was added on the new server,
+    // say) starts clean: a failure for another reason must not keep the
+    // error for the problem the user just fixed.
+    setFieldError(null)
     setActorChanged(false)
     setConfirmOpen(true)
   }
@@ -152,6 +156,14 @@ export const MoveForm: FC<Props> = ({
         // both are a problem with the New account field, not the move.
         setFieldError(
           'We could not find that account. Check the handle and try again.'
+        )
+        setConfirmOpen(false)
+      } else if (err instanceof ApiRequestError && err.status === 403) {
+        // The migration route answers 403 "Forbidden" when this instance
+        // does not federate with the target's server: a problem with the
+        // New account field, not the move.
+        setFieldError(
+          "This server does not connect with that account's server."
         )
         setConfirmOpen(false)
       } else {

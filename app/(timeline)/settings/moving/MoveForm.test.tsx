@@ -726,6 +726,103 @@ describe('MoveForm', () => {
     expect(screen.queryByText("You're offline")).not.toBeInTheDocument()
   })
 
+  it('keeps the action off while offline, with a note', () => {
+    connection.state = 'offline'
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+
+    fillMove()
+    expect(
+      screen.getByRole('button', { name: 'Move followers' })
+    ).toBeDisabled()
+    expect(screen.getByText(/You're offline/)).toBeInTheDocument()
+  })
+
+  it('maps a server this instance does not federate with to the field error', async () => {
+    mockMove.mockRejectedValueOnce(new client.ApiRequestError('Forbidden', 403))
+
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+
+    fillMove()
+    fireEvent.click(screen.getByRole('button', { name: 'Move followers' }))
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Move your followers'
+    })
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Move followers' })
+    )
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          "This server does not connect with that account's server."
+        )
+      ).toBeInTheDocument()
+    })
+    expect(screen.getByLabelText('New account')).toHaveAttribute(
+      'aria-invalid',
+      'true'
+    )
+    // The raw message is not shown as the SaveBar error.
+    expect(screen.queryByText('Forbidden')).not.toBeInTheDocument()
+  })
+
+  it('drops the stale alias field error when a retried move fails for another reason', async () => {
+    mockMove
+      .mockRejectedValueOnce(
+        new client.ApiRequestError(
+          'Add this account as an alias on the new account first',
+          422
+        )
+      )
+      .mockRejectedValueOnce(
+        new client.ApiRequestError('Invalid password', 422)
+      )
+
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+
+    fillMove()
+    const send = async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Move followers' }))
+      const dialog = await screen.findByRole('dialog', {
+        name: 'Move your followers'
+      })
+      fireEvent.click(
+        within(dialog).getByRole('button', { name: 'Move followers' })
+      )
+    }
+
+    await send()
+    await screen.findByText(/does not list @anna@llun.test/)
+
+    // The user adds the alias on the new server and tries again, without
+    // touching the New account field; this time the password is wrong.
+    await send()
+    await screen.findByText('Invalid password')
+
+    expect(screen.queryByText(/does not list @anna@llun.test/)).toBeNull()
+  })
+
   it('maps a malformed account to the same field error', async () => {
     mockMove.mockRejectedValueOnce(
       new client.ApiRequestError('Invalid account', 422)

@@ -527,6 +527,181 @@ describe('HandleRenameForm', () => {
     expect(screen.queryByText("You're offline")).not.toBeInTheDocument()
   })
 
+  it('keeps the action off while offline, with a note', () => {
+    connection.state = 'offline'
+    render(
+      <HandleRenameForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        initialHandle={handleState()}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('New handle'), {
+      target: { value: 'may' }
+    })
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'secret' }
+    })
+    expect(screen.getByRole('button', { name: 'Change handle' })).toBeDisabled()
+    expect(screen.getByText(/You're offline/)).toBeInTheDocument()
+  })
+
+  it('previews and confirms the handle the server will store, lowercased', async () => {
+    render(
+      <HandleRenameForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        initialHandle={handleState()}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('New handle'), {
+      target: { value: 'May' }
+    })
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'secret' }
+    })
+    // The server lowercases before it stores, so the preview promises the
+    // saved handle, not the typed text.
+    expect(screen.getByText('@may@llun.test')).toBeInTheDocument()
+    expect(screen.queryByText('@May@llun.test')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Change handle' }))
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Change your handle'
+    })
+    expect(within(dialog).getByText('@may@llun.test')).toBeInTheDocument()
+  })
+
+  it('refuses the same name in another case: nothing changed, so nothing sends', () => {
+    render(
+      <HandleRenameForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        initialHandle={handleState()}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('New handle'), {
+      target: { value: 'Anna' }
+    })
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'secret' }
+    })
+    // The server compares case-insensitively and would answer "Nothing to
+    // change": the normalised name is the current one, so there is no change
+    // to save.
+    expect(screen.getByRole('button', { name: 'Change handle' })).toBeDisabled()
+  })
+
+  it('refuses a submitted no-op rename with a field error, not a request', () => {
+    render(
+      <HandleRenameForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        initialHandle={handleState()}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('New handle'), {
+      target: { value: 'Anna' }
+    })
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'secret' }
+    })
+    // The button is off, but the form can still be submitted (Enter in a
+    // field): the refusal is the field's, not the server's.
+    fireEvent.submit(document.querySelector('form')!)
+
+    expect(screen.getByText('That is already your handle')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('dialog', { name: 'Change your handle' })
+    ).not.toBeInTheDocument()
+    expect(mockRename).not.toHaveBeenCalled()
+  })
+
+  it('shows the schema message on New handle for an invalid username', async () => {
+    render(
+      <HandleRenameForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        initialHandle={handleState()}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('New handle'), {
+      target: { value: 'may thee' }
+    })
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'secret' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Change handle' }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          'Username may only contain letters, numbers, underscore, dot and dash, and must start with a letter, number or underscore'
+        )
+      ).toBeInTheDocument()
+    })
+    expect(screen.getByLabelText('New handle')).toHaveAttribute(
+      'aria-invalid',
+      'true'
+    )
+    expect(
+      screen.queryByRole('dialog', { name: 'Change your handle' })
+    ).not.toBeInTheDocument()
+    expect(mockRename).not.toHaveBeenCalled()
+    // The error is on the input, so focus moves there, not to the dialog.
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByLabelText('New handle'))
+    )
+  })
+
+  it('maps a passwordless Invalid username to the Current username field', async () => {
+    // The new username is validated with the server's own schema before the
+    // dialog opens, so this refusal is the challenge: the current username
+    // did not match.
+    mockRename.mockRejectedValueOnce(
+      new client.ApiRequestError('Invalid username', 422)
+    )
+
+    render(
+      <HandleRenameForm
+        actorId="https://llun.test/users/anna"
+        hasPassword={false}
+        initialHandle={handleState()}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('New handle'), {
+      target: { value: 'may' }
+    })
+    fireEvent.change(screen.getByLabelText('Current username'), {
+      target: { value: 'wrong' }
+    })
+
+    await submit()
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('That is not your current username')
+      ).toBeInTheDocument()
+    })
+    expect(screen.getByLabelText('Current username')).toHaveAttribute(
+      'aria-invalid',
+      'true'
+    )
+    // The raw message is not shown as the SaveBar error.
+    expect(screen.queryByText('Invalid username')).not.toBeInTheDocument()
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByLabelText('Current username')
+      )
+    )
+  })
+
   it('shows the plain message for a network failure, not the browser text', async () => {
     mockRename.mockRejectedValueOnce(new TypeError('Failed to fetch'))
 

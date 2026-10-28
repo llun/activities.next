@@ -26,6 +26,7 @@ import {
 import { Input } from '@/lib/components/ui/input'
 import { Select } from '@/lib/components/ui/select'
 import { useConnectionStatus } from '@/lib/hooks/useConnectionStatus'
+import { localUsernameSchema } from '@/lib/services/accounts/localUsername'
 
 import { MovingDate } from './MovingDate'
 
@@ -59,6 +60,7 @@ export const HandleRenameForm: FC<Props> = ({
   const [password, setPassword] = useState('')
   const [currentUsername, setCurrentUsername] = useState('')
   const [fieldError, setFieldError] = useState<string | null>(null)
+  const [challengeError, setChallengeError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [actorChanged, setActorChanged] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -68,6 +70,7 @@ export const HandleRenameForm: FC<Props> = ({
   const [cooldownArrived, setCooldownArrived] = useState(false)
   const cooldownRef = useRef<HTMLDivElement>(null)
   const usernameRef = useRef<HTMLInputElement>(null)
+  const currentUsernameRef = useRef<HTMLInputElement>(null)
   const { state: connection } = useConnectionStatus()
   // Only the browser's own `offline` state disables the action: with
   // `unreachable` (the health probe failed while the device is online) the
@@ -87,7 +90,11 @@ export const HandleRenameForm: FC<Props> = ({
     cooldownRef.current?.focus()
   }, [cooldownArrived])
   const lastChanged = lastChangedAt(handle)
-  const trimmedUsername = username.trim()
+  // The server parses the new username with `localUsernameSchema`, which
+  // trims and lowercases before it checks anything, and stores what it
+  // parsed: the form has to compare and preview the same value, or the
+  // preview and the confirm can promise a handle the server never saves.
+  const trimmedUsername = username.trim().toLowerCase()
   // A domain change alone is a change: the username the form sends is the new
   // one, or the current one when only the domain moved.
   const nextUsername = trimmedUsername || handle.username
@@ -100,12 +107,33 @@ export const HandleRenameForm: FC<Props> = ({
     set(value)
     setSaved(false)
     setFieldError(null)
+    setChallengeError(null)
+  }
+
+  const failUsernameField = (message: string) => {
+    setFieldError(message)
+    usernameRef.current?.focus()
   }
 
   const openConfirm = (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
     setActorChanged(false)
+    // The same schema the rename route parses with, so a name the server
+    // would refuse never reaches the confirm dialog: its own message is a
+    // field error on New handle, not a raw "Invalid username" in the SaveBar.
+    const parsed = localUsernameSchema.safeParse(nextUsername)
+    if (!parsed.success) {
+      failUsernameField(parsed.error.issues[0]?.message ?? 'Invalid username')
+      return
+    }
+    // The server compares case-insensitively and answers "Nothing to
+    // change" for the same name in another case: refuse it here, on the
+    // field, instead of sending a rename that cannot succeed.
+    if (parsed.data === handle.username && domain === handle.domain) {
+      failUsernameField('That is already your handle')
+      return
+    }
     setConfirmOpen(true)
   }
 
@@ -158,6 +186,18 @@ export const HandleRenameForm: FC<Props> = ({
         err.message === 'Username already exists'
       ) {
         setFieldError('That username is taken')
+        setConfirmOpen(false)
+      } else if (
+        err instanceof ApiRequestError &&
+        !hasPassword &&
+        err.status === 422 &&
+        err.message === 'Invalid username'
+      ) {
+        // The new username is validated with the server's own schema before
+        // the dialog opens, so on a passwordless account this refusal is the
+        // challenge: the Current username did not match. It is that field's
+        // error, not the SaveBar's.
+        setChallengeError('That is not your current username')
         setConfirmOpen(false)
       } else {
         setError(
@@ -386,13 +426,35 @@ export const HandleRenameForm: FC<Props> = ({
               hint="Confirm it is you."
             >
               {({ describedBy }) => (
-                <Input
-                  id="handleCurrentUsername"
-                  aria-describedby={describedBy}
-                  value={currentUsername}
-                  onChange={(e) => edit(setCurrentUsername)(e.target.value)}
-                  autoComplete="username"
-                />
+                <div className="space-y-2">
+                  <Input
+                    id="handleCurrentUsername"
+                    ref={currentUsernameRef}
+                    aria-describedby={
+                      [
+                        describedBy,
+                        challengeError
+                          ? 'handleCurrentUsername-error'
+                          : undefined
+                      ]
+                        .filter(Boolean)
+                        .join(' ') || undefined
+                    }
+                    aria-invalid={challengeError ? true : undefined}
+                    value={currentUsername}
+                    onChange={(e) => edit(setCurrentUsername)(e.target.value)}
+                    autoComplete="username"
+                  />
+                  {challengeError ? (
+                    <p
+                      id="handleCurrentUsername-error"
+                      role="alert"
+                      className="text-destructive-text text-xs"
+                    >
+                      {challengeError}
+                    </p>
+                  ) : null}
+                </div>
               )}
             </FormRow>
           )}
@@ -406,9 +468,15 @@ export const HandleRenameForm: FC<Props> = ({
             // A field error closes the dialog with the invalid input waiting:
             // closing would otherwise return focus to the SaveBar button that
             // opened it, and the error is on the input, not the button.
-            if (!fieldError) return
-            event.preventDefault()
-            usernameRef.current?.focus()
+            if (fieldError) {
+              event.preventDefault()
+              usernameRef.current?.focus()
+              return
+            }
+            if (challengeError) {
+              event.preventDefault()
+              currentUsernameRef.current?.focus()
+            }
           }}
         >
           <DialogHeader>

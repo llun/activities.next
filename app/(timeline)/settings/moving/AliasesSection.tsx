@@ -69,10 +69,20 @@ export const AliasesSection: FC<Props> = ({ actorId, initialAliases }) => {
       setAliases(await addAccountAlias({ actorId, acct }))
       setValue('')
     } catch (err) {
-      if (err instanceof ApiRequestError && err.status === 404) {
+      if (
+        err instanceof ApiRequestError &&
+        (err.status === 404 || err.message === 'Invalid account')
+      ) {
+        // The aliases route answers 404 for an account it cannot resolve and
+        // 422 "Invalid account" for a malformed handle; both are a problem
+        // with the Old account field.
         failField(
           'We could not find that account. Check the handle and try again.'
         )
+      } else if (err instanceof ApiRequestError && err.status === 403) {
+        // 403 "Forbidden" is this instance refusing to federate with the
+        // handle's server.
+        failField("This server does not connect with that account's server.")
       } else if (
         err instanceof ApiRequestError &&
         err.status === 409 &&
