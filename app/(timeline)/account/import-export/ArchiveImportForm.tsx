@@ -341,13 +341,18 @@ export const ArchiveImportForm = ({
         <Frame
           form
           footer={
-            // The label follows the form's own submit only: the section's
-            // start lock (a Start import or Discard of the earlier upload)
-            // disables the button without importing anything, so it must
-            // not say Importing….
+            // The label follows the form's own work: its submit, or the
+            // start of its own upload. The section's start lock for the
+            // earlier upload (a Start import or Discard) disables the
+            // button without importing anything of this form's, so it
+            // must not say Importing….
             <SaveBar
               variant="create"
-              actionLabel={submitting ? 'Importing…' : 'Import archive'}
+              actionLabel={
+                submitting || (startInFlight && !notStartedImport)
+                  ? 'Importing…'
+                  : 'Import archive'
+              }
               submit
               disabled={!file || busy}
               disabledReason={

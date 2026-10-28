@@ -2,7 +2,13 @@
 
 import { formatDistance } from 'date-fns/formatDistance'
 import { RefreshCw } from 'lucide-react'
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState
+} from 'react'
 
 import type {
   AccountImportOptions,
@@ -153,8 +159,9 @@ export const ImportSection = ({
   // import: the form (and with it the focused button) unmounts.
   const [focusProgress, setFocusProgress] = useState(false)
   // The start or discard of the earlier upload, which the section owns: it
-  // must lock the warning's buttons and the form even when the form that
-  // uploaded the row has been swapped for the CSV form.
+  // must lock the warning's buttons and both forms — the archive form, and
+  // the CSV form the section may have swapped in, whose own import must
+  // not begin under a start that would unmount it mid-import.
   const [startInFlight, setStartInFlight] = useState(false)
   // A CSV import lives only in the CSV form's own state: starting the
   // waiting archive upload while it runs would unmount that form
@@ -162,6 +169,13 @@ export const ImportSection = ({
   // control that starts the row waits for the CSV import to finish.
   // Discard is safe and stays live.
   const [csvBusy, setCsvBusy] = useState(false)
+  // The guard in startQueuedImport must see these two flags as they are
+  // now, not as they were in the render whose handler is running: the
+  // archive form hands its uploaded row to the section from a closure
+  // created before a start began, and only a ref is ahead of that. The
+  // state beside them still drives the buttons and the forms.
+  const startInFlightRef = useRef(false)
+  const csvBusyRef = useRef(false)
   const [startAlert, setStartAlert] = useState<StartAlert>(null)
   const [clock, setClock] = useState(currentTime)
   const hasHydrated = useHasHydrated()
@@ -388,7 +402,10 @@ export const ImportSection = ({
   // file, leaving the page or switching to CSV — so the row survives and the
   // page offers it back as the "not started" warning.
   const startQueuedImport = async (uploaded: AccountImportResponse) => {
-    if (startInFlight || csvBusy) return
+    // The refs, not the state: this runs from the archive form's upload
+    // callback too, whose closure can predate the start that is in flight.
+    if (startInFlightRef.current || csvBusyRef.current) return
+    startInFlightRef.current = true
     setStartInFlight(true)
     // Some start answers drop the warning's row, and the warning (with the
     // focused Start import button) unmounts with it; the alert buttons
@@ -511,12 +528,14 @@ export const ImportSection = ({
       // too (the alert was cleared above), so the hand-off applies to
       // every start whose control held the focus.
       if (startControlHadFocus) focusAfterStart.current = true
+      startInFlightRef.current = false
       setStartInFlight(false)
     }
   }
 
   const handleDiscardUpload = async (id: string) => {
     if (startInFlight) return
+    startInFlightRef.current = true
     setStartInFlight(true)
     // The discard alert's Retry sits in the same start controls box as the
     // warning's buttons: whether one of them held the focus decides the
@@ -548,6 +567,7 @@ export const ImportSection = ({
         if (startControlHadFocus) focusAfterStart.current = true
       }
     } finally {
+      startInFlightRef.current = false
       setStartInFlight(false)
     }
   }
@@ -573,6 +593,14 @@ export const ImportSection = ({
     focusPickerAfterReset.current = true
     onFileChange(null)
   }
+
+  // The CSV form reports its busy state through this; the ref keeps the
+  // start guard's view of it current (see startInFlightRef). It must stay
+  // referentially stable: the form's busy effect depends on it.
+  const handleCsvBusyChange = useCallback((busy: boolean) => {
+    csvBusyRef.current = busy
+    setCsvBusy(busy)
+  }, [])
 
   const handleCancelImport = async () => {
     if (!accountImport || !isActiveImport(accountImport) || isOffline) return
@@ -803,7 +831,8 @@ export const ImportSection = ({
               filePickerRef={filePickerRef}
               onFileChange={onFileChange}
               onImportAnotherFile={handleCsvImportAnotherFile}
-              onBusyChange={setCsvBusy}
+              onBusyChange={handleCsvBusyChange}
+              startInFlight={startInFlight}
               onActorChanged={() => setActorChangedLocally(true)}
               onMoved={() => setMoved(true)}
             />

@@ -66,6 +66,13 @@ interface Props {
    * starting the waiting archive upload) while it is busy.
    */
   onBusyChange: (busy: boolean) => void
+  /**
+   * True while the section is starting or discarding the waiting archive
+   * upload: a CSV import begun now would be lost the moment the start
+   * succeeds and unmounts this form mid-import, so every control that
+   * begins one is locked, and submit itself returns early.
+   */
+  startInFlight: boolean
   onActorChanged: () => void
   onMoved: () => void
 }
@@ -78,6 +85,7 @@ export const CsvImportForm = ({
   onFileChange,
   onImportAnotherFile,
   onBusyChange,
+  startInFlight,
   onActorChanged,
   onMoved
 }: Props) => {
@@ -134,7 +142,9 @@ export const CsvImportForm = ({
   }, [submitting, running, onBusyChange])
 
   const submit = async () => {
-    if (submitting || isOffline || file.size > maxCsvBytes) return
+    if (submitting || startInFlight || isOffline || file.size > maxCsvBytes) {
+      return
+    }
     setSubmitting(true)
     setError(null)
     try {
@@ -205,7 +215,7 @@ export const CsvImportForm = ({
               type="button"
               variant="outline"
               size="sm"
-              disabled={submitting || isOffline}
+              disabled={submitting || startInFlight || isOffline}
               onClick={() => void submit()}
             >
               <RefreshCw aria-hidden="true" />
@@ -240,7 +250,12 @@ export const CsvImportForm = ({
                     : `Import ${labelForType(type).toLowerCase()}`
                 }
                 submit
-                disabled={submitting || running || file.size > maxCsvBytes}
+                disabled={
+                  submitting ||
+                  running ||
+                  startInFlight ||
+                  file.size > maxCsvBytes
+                }
                 disabledReason={isOffline ? "You're offline" : undefined}
               />
             )
@@ -274,7 +289,9 @@ export const CsvImportForm = ({
                     variant="outline"
                     size="sm"
                     className="self-center"
-                    disabled={submitting || Boolean(bulkImport)}
+                    disabled={
+                      submitting || startInFlight || Boolean(bulkImport)
+                    }
                     onClick={() => inputRef.current?.click()}
                   >
                     Change file
