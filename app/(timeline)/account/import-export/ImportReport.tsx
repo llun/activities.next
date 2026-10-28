@@ -10,7 +10,12 @@ import { importErrorLabel, importReportRows } from './importCopy'
 
 interface Props {
   accountImport: AccountImportResponse
-  onStartAgain: () => void
+  /**
+   * Reset the report and bring the import form back: leave it unset when
+   * the form cannot come back (a moved account), so no dead reset button
+   * renders.
+   */
+  onStartAgain?: () => void
   /**
    * Move focus to the report's alert: set only when the report appears
    * because the user just acted (they cancelled the import), not when the
@@ -32,7 +37,7 @@ export const ImportReport = ({
     accountImport.progress.profileImageSkips
   )
   const action =
-    accountImport.status === 'failed' ? (
+    accountImport.status === 'failed' && onStartAgain ? (
       <Button type="button" variant="outline" size="sm" onClick={onStartAgain}>
         Start again
       </Button>
@@ -71,7 +76,7 @@ export const ImportReport = ({
           ))}
         </ul>
       ) : null}
-      {accountImport.status !== 'failed' ? (
+      {onStartAgain && accountImport.status !== 'failed' ? (
         <Button type="button" variant="outline" onClick={onStartAgain}>
           Import another file
         </Button>

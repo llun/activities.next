@@ -874,7 +874,7 @@ export const ImportSection = ({
         !notStartedImport ? (
           <ImportReport
             accountImport={accountImport}
-            onStartAgain={handleStartAgain}
+            onStartAgain={moved ? undefined : handleStartAgain}
             focusOnMount={focusReport}
           />
         ) : null}
