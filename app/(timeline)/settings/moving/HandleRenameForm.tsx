@@ -67,8 +67,12 @@ export const HandleRenameForm: FC<Props> = ({
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [cooldownArrived, setCooldownArrived] = useState(false)
   const cooldownRef = useRef<HTMLDivElement>(null)
+  const usernameRef = useRef<HTMLInputElement>(null)
   const { state: connection } = useConnectionStatus()
-  const offline = connection !== 'online'
+  // Only the browser's own `offline` state disables the action: with
+  // `unreachable` (the health probe failed while the device is online) the
+  // rename keeps its own error path, like every other offline check.
+  const offline = connection === 'offline'
 
   const cooldownUntil = handle.cooldownUntil
 
@@ -257,6 +261,7 @@ export const HandleRenameForm: FC<Props> = ({
                     </span>
                     <Input
                       id="newHandleUsername"
+                      ref={usernameRef}
                       className="pl-7"
                       aria-describedby={
                         [
@@ -392,7 +397,17 @@ export const HandleRenameForm: FC<Props> = ({
       </form>
 
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent
+          className="sm:max-w-md"
+          onCloseAutoFocus={(event) => {
+            // A field error closes the dialog with the invalid input waiting:
+            // closing would otherwise return focus to the SaveBar button that
+            // opened it, and the error is on the input, not the button.
+            if (!fieldError) return
+            event.preventDefault()
+            usernameRef.current?.focus()
+          }}
+        >
           <DialogHeader>
             <DialogTitle>Change your handle</DialogTitle>
             <DialogDescription>

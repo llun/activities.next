@@ -21,6 +21,14 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh })
 }))
 
+const connection = {
+  state: 'online' as 'online' | 'offline' | 'unreachable'
+}
+
+vi.mock('@/lib/hooks/useConnectionStatus', () => ({
+  useConnectionStatus: () => connection
+}))
+
 vi.mock('@/lib/client', () => {
   class ApiRequestError extends Error {
     status: number
@@ -73,6 +81,7 @@ const submit = async () => {
 describe('HandleRenameForm', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    connection.state = 'online'
   })
 
   it('shows the current handle and no domain picker with a single domain', () => {
@@ -411,6 +420,61 @@ describe('HandleRenameForm', () => {
     expect(screen.getByLabelText('New handle')).toHaveAccessibleDescription(
       /That username is taken/
     )
+  })
+
+  it('moves focus to the username input when the rename is rejected as taken', async () => {
+    mockRename.mockRejectedValueOnce(
+      new client.ApiRequestError('Username already exists', 409)
+    )
+
+    render(
+      <HandleRenameForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        initialHandle={handleState()}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('New handle'), {
+      target: { value: 'taken' }
+    })
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'secret' }
+    })
+
+    await submit()
+
+    await waitFor(() => {
+      expect(screen.getByText('That username is taken')).toBeInTheDocument()
+    })
+    // The closed dialog would return focus to the SaveBar button that opened
+    // it; the field error is on the input, so focus moves there instead.
+    expect(document.activeElement).toBe(screen.getByLabelText('New handle'))
+  })
+
+  it('keeps the action available while the server is unreachable', () => {
+    // `unreachable` is the health probe failing while the device is online:
+    // only the browser's own `offline` state disables the action, so it keeps
+    // its own error path.
+    connection.state = 'unreachable'
+    render(
+      <HandleRenameForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        initialHandle={handleState()}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('New handle'), {
+      target: { value: 'may' }
+    })
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'secret' }
+    })
+    expect(
+      screen.getByRole('button', { name: 'Change handle' })
+    ).not.toBeDisabled()
+    expect(screen.queryByText("You're offline")).not.toBeInTheDocument()
   })
 
   it('shows the plain message for a network failure, not the browser text', async () => {

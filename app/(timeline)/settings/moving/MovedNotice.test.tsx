@@ -21,7 +21,9 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: refresh })
 }))
 
-const connection = { state: 'online' as 'online' | 'offline' }
+const connection = {
+  state: 'online' as 'online' | 'offline' | 'unreachable'
+}
 
 vi.mock('@/lib/hooks/useConnectionStatus', () => ({
   useConnectionStatus: () => connection
@@ -238,6 +240,27 @@ describe('MovedNotice', () => {
       screen.getByRole('button', { name: 'Cancel redirect' })
     ).toBeDisabled()
     expect(screen.getByText("You're offline")).toBeInTheDocument()
+  })
+
+  it('keeps Cancel redirect available while the server is unreachable', () => {
+    // `unreachable` is the health probe failing while the device is online:
+    // only the browser's own `offline` state disables the action, so it keeps
+    // its own error path.
+    connection.state = 'unreachable'
+    render(
+      <MovedNotice
+        actorId="https://llun.test/users/anna"
+        acct="may@new.example"
+        kind="redirect"
+        movedAt="2026-10-24T00:00:00.000Z"
+        cooldownUntil={null}
+      />
+    )
+
+    expect(
+      screen.getByRole('button', { name: 'Cancel redirect' })
+    ).not.toBeDisabled()
+    expect(screen.queryByText("You're offline")).not.toBeInTheDocument()
   })
 
   it('maps a network failure to the plain message, not the browser text', async () => {

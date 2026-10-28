@@ -1,7 +1,7 @@
 'use client'
 
 import { CircleUserRound, X } from 'lucide-react'
-import { FC, useState } from 'react'
+import { FC, useRef, useState } from 'react'
 
 import {
   type AccountAliasItem,
@@ -42,9 +42,20 @@ export const AliasesSection: FC<Props> = ({ actorId, initialAliases }) => {
   const [adding, setAdding] = useState(false)
   const [removingId, setRemovingId] = useState<string | null>(null)
   const { state: connection } = useConnectionStatus()
-  const offline = connection !== 'online'
+  // Only the browser's own `offline` state disables the actions: with
+  // `unreachable` (the health probe failed while the device is online) each
+  // keeps its own error path, like every other offline check.
+  const offline = connection === 'offline'
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const atCap = aliases.length >= MAX_ALIASES
+
+  // A field error moves focus to the invalid input so its described error is
+  // read; the Add button keeps focus otherwise.
+  const failField = (message: string) => {
+    setFieldError(message)
+    inputRef.current?.focus()
+  }
 
   const add = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -59,7 +70,7 @@ export const AliasesSection: FC<Props> = ({ actorId, initialAliases }) => {
       setValue('')
     } catch (err) {
       if (err instanceof ApiRequestError && err.status === 404) {
-        setFieldError(
+        failField(
           'We could not find that account. Check the handle and try again.'
         )
       } else if (
@@ -71,9 +82,9 @@ export const AliasesSection: FC<Props> = ({ actorId, initialAliases }) => {
       } else if (err instanceof TypeError) {
         // A network failure is the browser's own text ("Failed to fetch",
         // "Load failed"): the plain message stands in for it.
-        setFieldError('Could not add that account')
+        failField('Could not add that account')
       } else {
-        setFieldError(
+        failField(
           err instanceof Error ? err.message : 'Could not add that account'
         )
       }
@@ -162,6 +173,7 @@ export const AliasesSection: FC<Props> = ({ actorId, initialAliases }) => {
           error={fieldError}
           buttonDisabled={adding || atCap || offline}
           onSubmit={add}
+          inputRef={inputRef}
           inputProps={{
             name: 'alias',
             placeholder: '@you@old.server',
