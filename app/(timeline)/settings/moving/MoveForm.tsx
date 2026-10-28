@@ -1,5 +1,6 @@
 'use client'
 
+import { format } from 'date-fns/format'
 import { ArrowRightLeft } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -210,7 +211,22 @@ export const MoveForm: FC<Props> = ({
             submit
             formId="move-form"
             disabled={moveCooldown}
-            disabledReason={offline ? "You're offline" : undefined}
+            disabledReason={
+              offline
+                ? "You're offline"
+                : // The cooldown also has to say why on a filled-in form:
+                  // the idleNote is hidden while the form is dirty, and a
+                  // 429 picked up from a re-read lands on a form the user
+                  // just filled in. The edit variant renders this only
+                  // while dirty, and dirty needs typing, which happens
+                  // after hydration: a local date is safe here.
+                  moveCooldown && cooldownUntil !== null
+                  ? `You can move again on ${format(
+                      new Date(cooldownUntil),
+                      'd MMM yyyy'
+                    )}.`
+                  : undefined
+            }
           />
         }
       >
