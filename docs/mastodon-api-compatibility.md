@@ -506,8 +506,9 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   limit is one request per 6 days in code and 7 in its documentation; this
   server uses 7. `POST` answers `429` with `nextAllowedAt` and a `Retry-After`
   header both while an export is running and inside the 7 days. See [Account data export](architecture.md#account-data-export).
-- **Account archive import** — These backend-only routes use the signed-in
-  web session and bind every import to the current actor; they do not use an
+- **Account archive import** — These routes, which back Account & security →
+  Import and export (`/account/import-export`), use the signed-in web session
+  and bind every import to the current actor; they do not use an
   OAuth scope. Error JSON has Mastodon's `{ "error": "…" }` shape. `OPTIONS`
   preflight on each route returns `200` with CORS headers. The shared
   `AuthenticatedGuard` returns `403` for missing same-origin proof, suspended
@@ -1175,8 +1176,8 @@ ActivityPub objects are **JSON-LD**, so the same logical object can arrive in ma
   can still let the start run); a redirect to the account `movedTo` already names
   is 422 `Already moved to this account`, even for two concurrent requests; an unreachable target is 502, a server with no federation signing
   actor to fetch with is 500, and a reachable target without the alias is 422;
-  one Move goes to each remote shared inbox across all continuations; and there
-  is no settings UI yet. Details in
+  one Move goes to each remote shared inbox across all continuations; and
+  Settings → Moving (`/settings/moving`) is the web UI for it. Details in
   [architecture.md](architecture.md#agents-actor-profile-deletion-federation).
 - **Handle rename in place is this server's own API, `/api/v1/accounts/handle`
   (`GET`, `POST`), not a Mastodon endpoint.** Mastodon has no REST rename: a
