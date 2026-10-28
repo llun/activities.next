@@ -160,6 +160,12 @@ export const ImportSection = ({
   // lock is held, and a disabled button is not focusable. The effect runs
   // on the commit that releases the lock.
   const focusPickerAfterDiscard = useRef(false)
+  // Set by a start whose pressed control held the focus: the button the
+  // user pressed (the warning's Start import, the rate-limit alert's Try
+  // again, the generic alert's Retry) unmounts as soon as the start clears
+  // its alert or drops the row, so the [startInFlight] effect hands the
+  // focus back on the commit that releases the lock.
+  const focusAfterStart = useRef(false)
   // Same, for the resets that unmount the focused button ("Import another
   // file", "Start again"): the empty form appears, and the picker must take
   // the focus a keyboard user just lost.
@@ -167,9 +173,13 @@ export const ImportSection = ({
   const filePickerRef = useRef<HTMLButtonElement>(null)
   const archiveFormRef = useRef<HTMLFormElement>(null)
   const progressRef = useRef<HTMLDivElement>(null)
-  // Whether the "not started" warning holds the focus, so a start from it
-  // that drops the row can hand the focus to the picker, as Discard does.
-  const warningRef = useRef<HTMLDivElement>(null)
+  // The warning and the start alerts, whose buttons all start the waiting
+  // row: whether one of them held the focus decides the hand-off when the
+  // start ends.
+  const startControlsRef = useRef<HTMLDivElement>(null)
+  // The warning's Start import button: the focus target when a start that
+  // keeps the row ends and the pressed button is gone.
+  const warningStartRef = useRef<HTMLButtonElement>(null)
   // Whether the progress view holds (or last held) the focus. A page-load
   // import nobody touched must not grab the focus when it finishes, and
   // "the body has the focus" cannot tell that apart from "the progress view
@@ -199,7 +209,20 @@ export const ImportSection = ({
   }, [hasHydrated])
 
   useEffect(() => {
-    if (!focusPickerAfterDiscard.current || startInFlight) return
+    if (startInFlight) return
+    if (focusAfterStart.current) {
+      focusAfterStart.current = false
+      // A started import hands the focus to the progress view itself, and
+      // a start from the warning that kept the row leaves it on the Start
+      // import button, which never unmounted: both are left alone. Only
+      // a focus that fell to the body (the pressed alert button is gone)
+      // is handed back — to the warning's Start import if the row is
+      // still kept, otherwise to the picker.
+      if (document.activeElement === document.body) {
+        ;(warningStartRef.current ?? filePickerRef.current)?.focus()
+      }
+    }
+    if (!focusPickerAfterDiscard.current) return
     focusPickerAfterDiscard.current = false
     filePickerRef.current?.focus()
   }, [startInFlight])
@@ -324,12 +347,14 @@ export const ImportSection = ({
   const startQueuedImport = async (uploaded: AccountImportResponse) => {
     if (startInFlight) return
     setStartInFlight(true)
-    setStartAlert(null)
     // Some start answers drop the warning's row, and the warning (with the
-    // focused Start import button) unmounts with it: whether it held the
-    // focus decides the hand-off to the picker below.
-    const warningHadFocus =
-      warningRef.current?.contains(document.activeElement) ?? false
+    // focused Start import button) unmounts with it; the alert buttons
+    // unmount as soon as the alert is cleared below. Whether a start
+    // control held the focus decides the hand-off in the [startInFlight]
+    // effect.
+    const startControlHadFocus =
+      startControlsRef.current?.contains(document.activeElement) ?? false
+    setStartAlert(null)
     // A row another file was picked over carries the options snapshotted
     // then; every other row (one the page loaded with, a fresh upload, a
     // kept failure on the file still chosen) takes the switches as they
@@ -345,10 +370,10 @@ export const ImportSection = ({
       if (notStartedImport?.id === uploaded.id) {
         setAccountImport(null)
         setCancelError(false)
-        // The warning (and its focused button) unmounts; the picker takes
-        // the focus on the commit that releases the start lock, as after
-        // Discard.
-        if (warningHadFocus) focusPickerAfterDiscard.current = true
+        // The warning (and its focused button) unmounts; the focus is
+        // handed over on the commit that releases the start lock, as
+        // after Discard.
+        if (startControlHadFocus) focusAfterStart.current = true
       }
     }
     try {
@@ -411,7 +436,7 @@ export const ImportSection = ({
               setAccountImport(null)
               // Same hand-off as a row dropped by the start itself: the
               // warning's focused button unmounts with the row.
-              if (warningHadFocus) focusPickerAfterDiscard.current = true
+              if (startControlHadFocus) focusAfterStart.current = true
             }
             setStartAlert({ type: 'upload' })
           } else {
@@ -436,6 +461,10 @@ export const ImportSection = ({
         })
       }
     } finally {
+      // An answer that keeps the row unmounts the pressed alert button
+      // too (the alert was cleared above), so the hand-off applies to
+      // every start whose control held the focus.
+      if (startControlHadFocus) focusAfterStart.current = true
       setStartInFlight(false)
     }
   }
@@ -571,109 +600,118 @@ export const ImportSection = ({
 
         {/* The warning lives here, above whichever form is shown, so that
             picking a .csv (which swaps the archive form for the CSV form)
-            cannot hide the upload that is still waiting to be started. */}
-        {showWarning && notStartedImport ? (
-          <div ref={warningRef}>
-            <Alert
-              tone="warning"
-              title="An earlier upload was not started"
-              action={
-                <div className="flex gap-2">
+            cannot hide the upload that is still waiting to be started.
+            The start alerts sit inside the same ref'd element, because
+            their buttons start the warning's row too: whichever of these
+            controls held the focus, the end of the start hands it back
+            (see the [startInFlight] effect). */}
+        {showWarning || startAlert !== null ? (
+          <div ref={startControlsRef} className="space-y-4">
+            {showWarning && notStartedImport ? (
+              <Alert
+                tone="warning"
+                title="An earlier upload was not started"
+                action={
+                  <div className="flex gap-2">
+                    <Button
+                      ref={warningStartRef}
+                      type="button"
+                      size="sm"
+                      disabled={startInFlight || isOffline}
+                      onClick={() => void startQueuedImport(notStartedImport)}
+                    >
+                      Start import
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={startInFlight || isOffline}
+                      onClick={() =>
+                        void handleDiscardUpload(notStartedImport.id)
+                      }
+                    >
+                      Discard
+                    </Button>
+                  </div>
+                }
+              />
+            ) : null}
+            {startAlert?.type === 'upload' ? (
+              <Alert
+                tone="error"
+                title="The upload did not finish"
+                action={
                   <Button
                     type="button"
+                    variant="outline"
                     size="sm"
-                    disabled={startInFlight || isOffline}
-                    onClick={() => void startQueuedImport(notStartedImport)}
+                    disabled={
+                      startInFlight || isOffline || !file || showCsvForm
+                    }
+                    onClick={() => archiveFormRef.current?.requestSubmit()}
                   >
-                    Start import
+                    Try again
                   </Button>
+                }
+              />
+            ) : null}
+            {startAlert?.type === 'unreadable' ? (
+              <Alert tone="error" title="We could not read this file">
+                Choose an activities.next archive, a Mastodon archive (.zip) or
+                a Mastodon CSV file.
+              </Alert>
+            ) : null}
+            {startAlert?.type === 'too-large' ? (
+              <Alert tone="error" title="File is too large">
+                Choose a file no larger than {formatBytes(maxImportBytes)}.
+              </Alert>
+            ) : null}
+            {startAlert?.type === 'discard' ? (
+              <Alert
+                tone="error"
+                title="Could not discard the upload"
+                onRetry={() => void handleDiscardUpload(startAlert.id)}
+              />
+            ) : null}
+            {startAlert?.type === 'rate-limit' && notStartedImport ? (
+              <Alert
+                tone="warning"
+                title="Too many imports started recently"
+                action={
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
                     disabled={startInFlight || isOffline}
-                    onClick={() =>
-                      void handleDiscardUpload(notStartedImport.id)
-                    }
+                    onClick={() => void startQueuedImport(notStartedImport)}
                   >
-                    Discard
+                    Try again
                   </Button>
-                </div>
-              }
-            />
+                }
+              >
+                {retryDescription}
+              </Alert>
+            ) : null}
+            {/* A generic start failure is shown whatever became of the row:
+                the branches that set it may drop it (a fresh upload whose
+                re-read failed), so gating on the kept row would hide the only
+                explanation. Retry needs a row to start, so it is offered only
+                when one is kept. */}
+            {startAlert?.type === 'generic' ? (
+              <Alert
+                tone="error"
+                title="Could not start the import"
+                onRetry={
+                  notStartedImport
+                    ? () => void startQueuedImport(notStartedImport)
+                    : undefined
+                }
+              >
+                {startAlert.message}
+              </Alert>
+            ) : null}
           </div>
-        ) : null}
-        {startAlert?.type === 'upload' ? (
-          <Alert
-            tone="error"
-            title="The upload did not finish"
-            action={
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={startInFlight || isOffline || !file || showCsvForm}
-                onClick={() => archiveFormRef.current?.requestSubmit()}
-              >
-                Try again
-              </Button>
-            }
-          />
-        ) : null}
-        {startAlert?.type === 'unreadable' ? (
-          <Alert tone="error" title="We could not read this file">
-            Choose an activities.next archive, a Mastodon archive (.zip) or a
-            Mastodon CSV file.
-          </Alert>
-        ) : null}
-        {startAlert?.type === 'too-large' ? (
-          <Alert tone="error" title="File is too large">
-            Choose a file no larger than {formatBytes(maxImportBytes)}.
-          </Alert>
-        ) : null}
-        {startAlert?.type === 'discard' ? (
-          <Alert
-            tone="error"
-            title="Could not discard the upload"
-            onRetry={() => void handleDiscardUpload(startAlert.id)}
-          />
-        ) : null}
-        {startAlert?.type === 'rate-limit' && notStartedImport ? (
-          <Alert
-            tone="warning"
-            title="Too many imports started recently"
-            action={
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={startInFlight || isOffline}
-                onClick={() => void startQueuedImport(notStartedImport)}
-              >
-                Try again
-              </Button>
-            }
-          >
-            {retryDescription}
-          </Alert>
-        ) : null}
-        {/* A generic start failure is shown whatever became of the row:
-            the branches that set it may drop it (a fresh upload whose
-            re-read failed), so gating on the kept row would hide the only
-            explanation. Retry needs a row to start, so it is offered only
-            when one is kept. */}
-        {startAlert?.type === 'generic' ? (
-          <Alert
-            tone="error"
-            title="Could not start the import"
-            onRetry={
-              notStartedImport
-                ? () => void startQueuedImport(notStartedImport)
-                : undefined
-            }
-          >
-            {startAlert.message}
-          </Alert>
         ) : null}
 
         {showForm ? (
