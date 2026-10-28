@@ -3,7 +3,7 @@
 import { ArrowRightLeft } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { FC, useState } from 'react'
+import { FC, useEffect, useRef, useState } from 'react'
 
 import {
   type AccountMigrationKind,
@@ -31,6 +31,7 @@ import { RadioGroup } from '@/lib/components/ui/radio-group'
 import { useConnectionStatus } from '@/lib/hooks/useConnectionStatus'
 
 import { MovingDate } from './MovingDate'
+import { requestMovingFocus, takeMovingFocus } from './movingFocus'
 
 const ALIAS_REQUIRED = 'Add this account as an alias on the new account first'
 
@@ -64,8 +65,17 @@ export const MoveForm: FC<Props> = ({
   const [saving, setSaving] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [cooldownUntil, setCooldownUntil] = useState(initialCooldownUntil)
+  const warningRef = useRef<HTMLDivElement>(null)
   const { state: connection } = useConnectionStatus()
   const offline = connection !== 'online'
+
+  // After a cancelled redirect the refreshed page brings this form back in
+  // the notice's place: the notice left a focus request, so the standing
+  // warning takes focus (and is read) instead of focus falling to the body.
+  useEffect(() => {
+    if (!takeMovingFocus('move-form')) return
+    warningRef.current?.focus()
+  }, [])
 
   const trimmedAcct = acct.trim().replace(/^@/, '')
   const dirty =
@@ -92,6 +102,7 @@ export const MoveForm: FC<Props> = ({
         ...(hasPassword ? { password } : { username: username.trim() })
       })
       // The page now shows the MovedNotice in this form's place.
+      requestMovingFocus('moved-notice')
       router.refresh()
       setConfirmOpen(false)
     } catch (err) {
@@ -120,6 +131,17 @@ export const MoveForm: FC<Props> = ({
           `@${trimmedAcct} does not list @${currentHandle} as an old account yet. Add it there first, then try again.`
         )
         setConfirmOpen(false)
+      } else if (
+        err instanceof ApiRequestError &&
+        (err.status === 404 || err.message === 'Invalid account')
+      ) {
+        // The migration route answers 404 "Record not found" for an account
+        // it cannot resolve and 422 "Invalid account" for a malformed one;
+        // both are a problem with the New account field, not the move.
+        setFieldError(
+          'We could not find that account. Check the handle and try again.'
+        )
+        setConfirmOpen(false)
       } else {
         setError(
           err instanceof Error ? err.message : 'Could not start the move'
@@ -133,19 +155,21 @@ export const MoveForm: FC<Props> = ({
 
   return (
     <>
-      <Alert
-        tone="warning"
-        live={false}
-        title="Followers move. Posts stay here."
-      >
-        Your followers will follow the new account. Your posts, photos and
-        fitness files stay on this profile, which becomes read-only and shows
-        &quot;moved&quot;.{' '}
-        <Link href="/account/import-export" className="underline">
-          Download your archive first
-        </Link>
-        , then import it into the new account.
-      </Alert>
+      <div ref={warningRef} tabIndex={-1} className="outline-none">
+        <Alert
+          tone="warning"
+          live={false}
+          title="Followers move. Posts stay here."
+        >
+          Your followers will follow the new account. Your posts, photos and
+          fitness files stay on this profile, which becomes read-only and shows
+          &quot;moved&quot;.{' '}
+          <Link href="/account/import-export" className="underline">
+            Download your archive first
+          </Link>
+          , then import it into the new account.
+        </Alert>
+      </div>
 
       {actorChanged ? <ActorChangedAlert /> : null}
 

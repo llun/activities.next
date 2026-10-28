@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { FC, useState } from 'react'
+import { FC, useEffect, useRef, useState } from 'react'
 
 import {
   type AccountMigrationKind,
@@ -21,6 +21,7 @@ import {
 } from '@/lib/components/ui/dialog'
 
 import { MovingDate } from './MovingDate'
+import { requestMovingFocus, takeMovingFocus } from './movingFocus'
 
 interface Props {
   actorId: string
@@ -47,6 +48,15 @@ export const MovedNotice: FC<Props> = ({
   const [cancelling, setCancelling] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [actorChanged, setActorChanged] = useState(false)
+  const noticeRef = useRef<HTMLDivElement>(null)
+
+  // After a move the refreshed page brings this notice in the form's place:
+  // the form left a focus request, so the notice takes focus (and is read)
+  // instead of focus falling to the body with the result unannounced.
+  useEffect(() => {
+    if (!takeMovingFocus('moved-notice')) return
+    noticeRef.current?.focus()
+  }, [])
 
   const cancelRedirect = async () => {
     setCancelling(true)
@@ -55,6 +65,7 @@ export const MovedNotice: FC<Props> = ({
     try {
       await cancelAccountRedirect({ actorId })
       // The MoveForm comes back in this alert's place.
+      requestMovingFocus('move-form')
       router.refresh()
       setConfirmOpen(false)
     } catch (err) {
@@ -81,62 +92,65 @@ export const MovedNotice: FC<Props> = ({
     <>
       {error ? <Alert title={error} /> : null}
       {actorChanged ? <ActorChangedAlert /> : null}
-      <Alert
-        tone="info"
-        live={false}
-        title={
-          isRedirect ? (
+      <div ref={noticeRef} tabIndex={-1} className="outline-none">
+        <Alert
+          tone="info"
+          live={false}
+          title={
+            isRedirect ? (
+              <>
+                This profile has moved to{' '}
+                {acct ? <strong>@{acct}</strong> : 'another account'}
+              </>
+            ) : (
+              <>
+                You moved to{' '}
+                {acct ? <strong>@{acct}</strong> : 'another account'}
+              </>
+            )
+          }
+          action={
+            isRedirect ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setConfirmOpen(true)}
+              >
+                Cancel redirect
+              </Button>
+            ) : undefined
+          }
+        >
+          {isRedirect ? (
             <>
-              This profile has moved to{' '}
-              {acct ? <strong>@{acct}</strong> : 'another account'}
+              {movedAt ? (
+                <>
+                  Since <MovingDate at={movedAt} /> your profile shows
+                  &quot;moved&quot;.{' '}
+                </>
+              ) : null}
+              Your followers have not been moved, and your posts stay here.
             </>
           ) : (
             <>
-              You moved to {acct ? <strong>@{acct}</strong> : 'another account'}
+              {movedAt ? (
+                <>
+                  On <MovingDate at={movedAt} />.{' '}
+                </>
+              ) : null}
+              Your followers moved too. This profile is read-only and shows
+              &quot;moved&quot;.
+              {cooldownUntil ? (
+                <>
+                  {' '}
+                  You can move again on <MovingDate at={cooldownUntil} />.
+                </>
+              ) : null}
             </>
-          )
-        }
-        action={
-          isRedirect ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setConfirmOpen(true)}
-            >
-              Cancel redirect
-            </Button>
-          ) : undefined
-        }
-      >
-        {isRedirect ? (
-          <>
-            {movedAt ? (
-              <>
-                Since <MovingDate at={movedAt} /> your profile shows
-                &quot;moved&quot;.{' '}
-              </>
-            ) : null}
-            Your followers have not been moved, and your posts stay here.
-          </>
-        ) : (
-          <>
-            {movedAt ? (
-              <>
-                On <MovingDate at={movedAt} />.{' '}
-              </>
-            ) : null}
-            Your followers moved too. This profile is read-only and shows
-            &quot;moved&quot;.
-            {cooldownUntil ? (
-              <>
-                {' '}
-                You can move again on <MovingDate at={cooldownUntil} />.
-              </>
-            ) : null}
-          </>
-        )}
-      </Alert>
+          )}
+        </Alert>
+      </div>
 
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent className="sm:max-w-md">

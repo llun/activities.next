@@ -13,6 +13,7 @@ import {
 import * as client from '@/lib/client'
 
 import { MoveForm } from './MoveForm'
+import { requestMovingFocus, takeMovingFocus } from './movingFocus'
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn() })
@@ -423,5 +424,146 @@ describe('MoveForm', () => {
     expect(
       screen.getByRole('button', { name: 'Move followers' })
     ).toBeDisabled()
+  })
+
+  it('maps an unresolvable account to the field error', async () => {
+    mockMove.mockRejectedValueOnce(
+      new client.ApiRequestError('Record not found', 404)
+    )
+
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+
+    fillMove()
+    fireEvent.click(screen.getByRole('button', { name: 'Move followers' }))
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Move your followers'
+    })
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Move followers' })
+    )
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          'We could not find that account. Check the handle and try again.'
+        )
+      ).toBeInTheDocument()
+    })
+    expect(screen.getByLabelText('New account')).toHaveAttribute(
+      'aria-invalid',
+      'true'
+    )
+    // The dialog is gone, so the field error is what is on the page.
+    expect(
+      screen.queryByRole('dialog', { name: 'Move your followers' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('maps a malformed account to the same field error', async () => {
+    mockMove.mockRejectedValueOnce(
+      new client.ApiRequestError('Invalid account', 422)
+    )
+
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+
+    fillMove()
+    fireEvent.click(screen.getByRole('button', { name: 'Move followers' }))
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Move your followers'
+    })
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Move followers' })
+    )
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          'We could not find that account. Check the handle and try again.'
+        )
+      ).toBeInTheDocument()
+    })
+    expect(screen.getByLabelText('New account')).toHaveAttribute(
+      'aria-invalid',
+      'true'
+    )
+  })
+
+  it('leaves a focus request for the notice after a move', async () => {
+    mockMove.mockResolvedValueOnce({
+      movedTo: { id: 'https://new.example/users/may', acct: 'may@new.example' },
+      migrations: [],
+      cooldownUntil: null,
+      followersCount: 12
+    })
+
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+
+    fillMove()
+    fireEvent.click(screen.getByRole('button', { name: 'Move followers' }))
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Move your followers'
+    })
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Move followers' })
+    )
+
+    await waitFor(() => {
+      // The refresh swaps this form for the MovedNotice, which takes the
+      // request on mount and focuses its own Alert.
+      expect(takeMovingFocus('moved-notice')).toBe(true)
+    })
+  })
+
+  it('takes the focus request left by a cancelled redirect', () => {
+    requestMovingFocus('move-form')
+
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+
+    expect(document.activeElement).toBe(
+      screen
+        .getByText('Followers move. Posts stay here.')
+        .closest('[tabindex="-1"]')
+    )
+  })
+
+  it('leaves focus alone on a plain page load', () => {
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+
+    expect(document.activeElement).toBe(document.body)
   })
 })
