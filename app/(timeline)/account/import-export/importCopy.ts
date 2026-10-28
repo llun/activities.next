@@ -72,7 +72,7 @@ export const importErrorLabel = (code: string | null): string =>
 export const importReasonLabel = (code: string): string =>
   IMPORT_REASON_LABELS[code] ?? 'an unrecognized reason'
 
-const IMPORTED_KIND_LABELS: Record<
+export const IMPORTED_KIND_LABELS: Record<
   string,
   { singular: string; plural: string }
 > = {
@@ -80,6 +80,15 @@ const IMPORTED_KIND_LABELS: Record<
   like: { singular: 'like', plural: 'likes' },
   bookmark: { singular: 'bookmark', plural: 'bookmarks' },
   media: { singular: 'photo or video', plural: 'photos and videos' },
+  'own-media': { singular: 'photo or video', plural: 'photos and videos' },
+  'gallery-gear': {
+    singular: 'gallery gear item',
+    plural: 'gallery gear items'
+  },
+  'gallery-settings': {
+    singular: 'gallery setting',
+    plural: 'gallery settings'
+  },
   'fitness-file': { singular: 'fitness file', plural: 'fitness files' },
   'fitness-gear': { singular: 'gear item', plural: 'gear items' },
   album: { singular: 'album', plural: 'albums' }

@@ -494,4 +494,95 @@ describe('ImportSection', () => {
       screen.queryByText('Could not cancel the import')
     ).not.toBeInTheDocument()
   })
+
+  it('keeps the start failure alert when starting an earlier upload fails, and never reports it as cancelled', async () => {
+    vi.useFakeTimers()
+    vi.mocked(accountImports.startAccountImport).mockRejectedValueOnce(
+      new ApiRequestError('Archive format is not recognised', 422)
+    )
+    // Without the fix the next poll returns the row the failed start
+    // cancelled, and the report claims the user cancelled it.
+    vi.mocked(accountImports.getAccountImport).mockResolvedValue({
+      ...activeImport,
+      status: 'cancelled',
+      finishedAt: '2026-10-28T10:05:00.000Z'
+    } as never)
+
+    render(
+      <ImportSection
+        actorId={actorId}
+        handle="@may@llun.test"
+        currentTime={Date.parse('2026-10-28T10:00:00.000Z')}
+        initialImport={
+          {
+            ...activeImport,
+            status: 'queued' as const,
+            kind: null,
+            phase: null,
+            startedAt: null
+          } as never
+        }
+        maxImportBytes={1024 * 1024}
+        maxCsvBytes={5 * 1024 * 1024}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start import' }))
+    // Let the failed start cancel the row and tell the section to drop it.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_999)
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(screen.getByText('We could not read this file')).toBeInTheDocument()
+    expect(
+      screen.queryByText('An earlier upload was not started')
+    ).not.toBeInTheDocument()
+
+    // The next poll tick must not turn the failed start into a report that
+    // claims the user cancelled the import.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3_000)
+    })
+
+    expect(screen.getByText('We could not read this file')).toBeInTheDocument()
+    expect(screen.queryByText('Import cancelled')).not.toBeInTheDocument()
+    expect(accountImports.getAccountImport).not.toHaveBeenCalled()
+  })
+
+  it('moves focus to the report after cancelling an import', async () => {
+    vi.mocked(accountImports.getAccountImport).mockResolvedValue({
+      ...activeImport,
+      status: 'cancelled',
+      finishedAt: '2026-10-28T10:05:00.000Z'
+    } as never)
+    render(
+      <ImportSection
+        actorId={actorId}
+        handle="@may@llun.test"
+        currentTime={Date.parse('2026-10-28T10:00:00.000Z')}
+        initialImport={activeImport}
+        maxImportBytes={1024 * 1024}
+        maxCsvBytes={5 * 1024 * 1024}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel import' }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Cancel import' })
+    )
+
+    await waitFor(() =>
+      expect(screen.getByText('Import cancelled')).toBeInTheDocument()
+    )
+    // The dialog returns focus to the Cancel import button, which unmounts
+    // with the progress view; the report must take the focus itself.
+    const reportAlert = screen
+      .getByText('Import cancelled')
+      .closest('[data-slot="alert"]')
+    expect(document.activeElement).toBe(reportAlert?.parentElement)
+  })
 })

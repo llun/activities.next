@@ -127,6 +127,10 @@ export const ArchiveImportForm = ({
   // The upload awaiting a start, readable from effects and cleanups that run
   // after the state has moved on (the [file] reset, the unmount).
   const pendingUploadRef = useRef<PresignedAccountImportResponse | null>(null)
+  // True while startAccountImport is in flight. The start owns the upload for
+  // as long as it runs: leaving the page or picking another file then must
+  // not cancel it ("You can leave this page. The import carries on").
+  const startingRef = useRef(false)
   const [options, setOptions] = useState(INITIAL_OPTIONS)
   const [submitting, setSubmitting] = useState(false)
   const [pendingUpload, setPendingUpload] =
@@ -149,6 +153,7 @@ export const ArchiveImportForm = ({
   )
 
   useEffect(() => {
+    if (startingRef.current) return
     const stored = pendingUploadRef.current
     if (stored) void cancelBestEffort(actorId, stored.id)
     setOptions(INITIAL_OPTIONS)
@@ -164,6 +169,7 @@ export const ArchiveImportForm = ({
   useEffect(
     () => () => {
       uploadController.current?.abort()
+      if (startingRef.current) return
       const stored = pendingUploadRef.current
       if (stored) void cancelBestEffort(actorId, stored.id)
     },
@@ -182,6 +188,16 @@ export const ArchiveImportForm = ({
   ) => {
     setSubmitting(true)
     setAlert(null)
+    startingRef.current = true
+    // A start that gives up on the upload cancels the row server-side, so it
+    // must also tell the parent to drop it: otherwise the "earlier upload"
+    // warning stays up with a Start button that can only fail again, until
+    // the next poll reports the row as cancelled.
+    const discardUploaded = async () => {
+      await cancelBestEffort(actorId, uploaded.id)
+      storePendingUpload(null)
+      if (notStartedImport?.id === uploaded.id) onDiscarded()
+    }
     try {
       const accountImport = await startAccountImport({
         actorId,
@@ -207,8 +223,7 @@ export const ArchiveImportForm = ({
               : Date.now() + error.retryAfterMs
         })
       } else if (error instanceof ApiRequestError && error.status === 422) {
-        await cancelBestEffort(actorId, uploaded.id)
-        storePendingUpload(null)
+        await discardUploaded()
         setAlert(
           error.message === 'Archive format is not recognised'
             ? { type: 'unreadable' }
@@ -222,8 +237,7 @@ export const ArchiveImportForm = ({
         const found = await findActiveImport()
         if (!found) setAlert({ type: 'generic', message: error.message })
       } else if (error instanceof ApiRequestError && error.status === 409) {
-        await cancelBestEffort(actorId, uploaded.id)
-        storePendingUpload(null)
+        await discardUploaded()
         setAlert({ type: 'upload' })
       } else if (isTransientStartFailure(error)) {
         storePendingUpload(uploaded)
@@ -235,8 +249,7 @@ export const ArchiveImportForm = ({
               : 'Could not start the import'
         })
       } else {
-        await cancelBestEffort(actorId, uploaded.id)
-        storePendingUpload(null)
+        await discardUploaded()
         setAlert({
           type: 'generic',
           message:
@@ -246,6 +259,7 @@ export const ArchiveImportForm = ({
         })
       }
     } finally {
+      startingRef.current = false
       setSubmitting(false)
     }
   }
@@ -453,7 +467,13 @@ export const ArchiveImportForm = ({
               actionLabel={submitting ? 'Importing…' : 'Import archive'}
               submit
               disabled={!file || submitting}
-              disabledReason={isOffline ? "You're offline" : undefined}
+              disabledReason={
+                isOffline
+                  ? "You're offline"
+                  : notStartedImport
+                    ? 'Start or discard the earlier upload first'
+                    : undefined
+              }
             />
           }
         >
@@ -549,7 +569,14 @@ export const ArchiveImportForm = ({
           />
 
           {isUploading && uploadProgress ? (
-            <div className="space-y-2 px-4 py-3" role="status">
+            <div className="space-y-2 px-4 py-3">
+              {/* The live region says only that the upload began: XHR
+                  progress fires many times a second, and announcing each
+                  percentage would talk over everything else for minutes.
+                  The bytes, percent and bar stay outside it. */}
+              <span role="status" className="sr-only">
+                Uploading the archive
+              </span>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="text-sm">
                   {formatBytes(uploadProgress.loaded)} of{' '}
