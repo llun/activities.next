@@ -21,6 +21,12 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: refresh })
 }))
 
+const connection = { state: 'online' as 'online' | 'offline' }
+
+vi.mock('@/lib/hooks/useConnectionStatus', () => ({
+  useConnectionStatus: () => connection
+}))
+
 vi.mock('@/lib/client', () => {
   class ApiRequestError extends Error {
     status: number
@@ -41,6 +47,7 @@ const mockCancel = vi.mocked(client.cancelAccountRedirect)
 describe('MovedNotice', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    connection.state = 'online'
   })
 
   it('offers Cancel redirect for a redirect, behind a confirm dialog', async () => {
@@ -213,5 +220,51 @@ describe('MovedNotice', () => {
           : false
       )
     ).toBeNull()
+  })
+
+  it('disables Cancel redirect while offline, with a note', () => {
+    connection.state = 'offline'
+    render(
+      <MovedNotice
+        actorId="https://llun.test/users/anna"
+        acct="may@new.example"
+        kind="redirect"
+        movedAt="2026-10-24T00:00:00.000Z"
+        cooldownUntil={null}
+      />
+    )
+
+    expect(
+      screen.getByRole('button', { name: 'Cancel redirect' })
+    ).toBeDisabled()
+    expect(screen.getByText("You're offline")).toBeInTheDocument()
+  })
+
+  it('maps a network failure to the plain message, not the browser text', async () => {
+    mockCancel.mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    render(
+      <MovedNotice
+        actorId="https://llun.test/users/anna"
+        acct="may@new.example"
+        kind="redirect"
+        movedAt="2026-10-24T00:00:00.000Z"
+        cooldownUntil={null}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel redirect' }))
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Cancel redirect'
+    })
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Cancel redirect' })
+    )
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Could not cancel the redirect')
+      ).toBeInTheDocument()
+    })
+    expect(screen.queryByText('Failed to fetch')).not.toBeInTheDocument()
   })
 })

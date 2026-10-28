@@ -19,6 +19,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/lib/components/ui/dialog'
+import { useConnectionStatus } from '@/lib/hooks/useConnectionStatus'
 
 import { MovingDate } from './MovingDate'
 import { requestMovingFocus, takeMovingFocus } from './movingFocus'
@@ -49,6 +50,8 @@ export const MovedNotice: FC<Props> = ({
   const [error, setError] = useState<string | null>(null)
   const [actorChanged, setActorChanged] = useState(false)
   const noticeRef = useRef<HTMLDivElement>(null)
+  const { state: connection } = useConnectionStatus()
+  const offline = connection !== 'online'
 
   // After a move the refreshed page brings this notice in the form's place:
   // the form left a focus request, so the notice takes focus (and is read)
@@ -75,6 +78,10 @@ export const MovedNotice: FC<Props> = ({
         err.message === 'Actor changed'
       ) {
         setActorChanged(true)
+      } else if (err instanceof TypeError) {
+        // A network failure is the browser's own text ("Failed to fetch",
+        // "Load failed"): the plain message stands in for it.
+        setError('Could not cancel the redirect')
       } else {
         setError(
           err instanceof Error ? err.message : 'Could not cancel the redirect'
@@ -111,14 +118,22 @@ export const MovedNotice: FC<Props> = ({
           }
           action={
             isRedirect ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setConfirmOpen(true)}
-              >
-                Cancel redirect
-              </Button>
+              <>
+                {offline ? (
+                  <span className="text-muted-foreground text-sm">
+                    You&apos;re offline
+                  </span>
+                ) : null}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setConfirmOpen(true)}
+                  disabled={offline}
+                >
+                  Cancel redirect
+                </Button>
+              </>
             ) : undefined
           }
         >

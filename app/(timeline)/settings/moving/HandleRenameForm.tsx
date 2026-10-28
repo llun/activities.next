@@ -157,7 +157,9 @@ export const HandleRenameForm: FC<Props> = ({
         setConfirmOpen(false)
       } else {
         setError(
-          err instanceof Error ? err.message : 'Could not change your handle'
+          err instanceof ApiRequestError
+            ? err.message
+            : 'Could not change your handle'
         )
         setConfirmOpen(false)
       }
