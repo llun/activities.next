@@ -1,0 +1,23 @@
+app/(timeline)/account/import-export/ArchiveImportForm.tsx
+  s_279e7012f36c5f::t_7787aa8c5abdb2 47-50,136-138,154-158,160-167,303-311
+app/(timeline)/account/import-export/ImportSection.test.tsx
+  s_279e7012f36c5f::t_14953b19ced969 173-175,429-550,634-639
+app/(timeline)/account/import-export/ImportSection.tsx
+  s_279e7012f36c5f::t_199fc74e5812da 183-188,224-227,229-238,370-372,374-375,673,770
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8a0336637ac7d5f2ce5cb9151e3474641613c1d4",
+  "prompts": {},
+  "sessions": {
+    "s_279e7012f36c5f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0410f49d-2e94-45e1-bd1f-237e6f7747bc",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
