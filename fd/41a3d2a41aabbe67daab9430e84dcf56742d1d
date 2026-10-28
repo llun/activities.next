@@ -1,0 +1,31 @@
+app/(timeline)/settings/moving/HandleRenameForm.test.tsx
+  s_bc01ca89894c05::t_83d17d8f83e966 417-472
+app/(timeline)/settings/moving/HandleRenameForm.tsx
+  s_bc01ca89894c05::t_0ccfca2976464a 5,67-68,73-81,131-133,137,164-192
+app/(timeline)/settings/moving/MoveForm.test.tsx
+  s_bc01ca89894c05::t_fd841bf0992955 16,428-568
+app/(timeline)/settings/moving/MoveForm.tsx
+  s_bc01ca89894c05::t_8005b5ad2da6dd 6,34,68,72-79,105,134-144,158-172
+app/(timeline)/settings/moving/MovedNotice.test.tsx
+  s_bc01ca89894c05::t_0db4438bd89679 16,94-158
+app/(timeline)/settings/moving/MovedNotice.tsx
+  s_bc01ca89894c05::t_05c29390b89c4e 4,24,51-59,68,95-125,127-133,137-149,151-153
+app/(timeline)/settings/moving/movingFocus.ts
+  s_bc01ca89894c05::t_51ddaa73e48aa5 1-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fd41a3d2a41aabbe67daab9430e84dcf56742d1d",
+  "prompts": {},
+  "sessions": {
+    "s_bc01ca89894c05": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e78f366-c784-4eb8-ac28-48ecf3b330e4",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
