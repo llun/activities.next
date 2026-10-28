@@ -26,8 +26,12 @@ vi.mock('@/lib/client/accountImports', () => ({
   startAccountImport: vi.fn(),
   uploadAccountImport: vi.fn()
 }))
+const connectionState = { offline: false }
+
 vi.mock('@/lib/hooks/useConnectionStatus', () => ({
-  useConnectionStatus: () => ({ state: 'online' })
+  useConnectionStatus: () => ({
+    state: connectionState.offline ? 'offline' : 'online'
+  })
 }))
 
 const actorId = 'https://llun.test/users/may'
@@ -126,6 +130,7 @@ const chooseFile = (name: string) => {
 
 describe('ArchiveImportForm', () => {
   beforeEach(() => {
+    connectionState.offline = false
     vi.stubGlobal(
       'ResizeObserver',
       class {
@@ -185,6 +190,34 @@ describe('ArchiveImportForm', () => {
       actorId,
       id: 'archive-1'
     })
+    expect(accountImports.startAccountImport).not.toHaveBeenCalled()
+  })
+
+  it('aborts the upload and cancels the import when the form unmounts mid-upload', async () => {
+    vi.mocked(accountImports.uploadAccountImport).mockImplementation(
+      ({ signal }) =>
+        new Promise((_resolve, reject) => {
+          signal?.addEventListener('abort', () => {
+            reject(new ApiRequestError('The archive upload was cancelled', 0))
+          })
+        })
+    )
+    const onUploaded = vi.fn()
+
+    const { unmount } = render(<Harness onUploaded={onUploaded} />)
+    chooseFile('archive.zip')
+    submit()
+
+    await screen.findByRole('button', { name: 'Cancel' })
+    unmount()
+
+    await waitFor(() =>
+      expect(accountImports.cancelAccountImport).toHaveBeenCalledWith({
+        actorId,
+        id: 'archive-1'
+      })
+    )
+    expect(onUploaded).not.toHaveBeenCalled()
     expect(accountImports.startAccountImport).not.toHaveBeenCalled()
   })
 
@@ -260,6 +293,24 @@ describe('ArchiveImportForm', () => {
     expect(
       screen.getByRole('button', { name: 'Import archive' })
     ).toBeDisabled()
+  })
+
+  it("disables Import archive and says You're offline while offline", () => {
+    connectionState.offline = true
+    render(<Harness />)
+    chooseFile('archive.zip')
+
+    expect(screen.getByText("You're offline")).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Import archive' })
+    ).toBeDisabled()
+
+    // The section's Try again submits the form itself, so the offline guard
+    // must hold on that path too, not only on the disabled button.
+    act(() => {
+      formRef.current!.requestSubmit()
+    })
+    expect(accountImports.createPresignedImport).not.toHaveBeenCalled()
   })
 
   it('says Choose a file to start. while no file is chosen', () => {
