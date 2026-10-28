@@ -321,7 +321,7 @@ describe('AliasesSection', () => {
     })
     // The field error is on the input, so focus moves there to have it read,
     // not back to the Add button that was pressed.
-    expect(document.activeElement).toBe(input)
+    await waitFor(() => expect(document.activeElement).toBe(input))
   })
 
   it('maps an add network failure to the plain message, not the browser text', async () => {
@@ -365,7 +365,7 @@ describe('AliasesSection', () => {
     await waitFor(() => {
       expect(screen.queryByTestId('remove-alias')).toBeNull()
     })
-    expect(document.activeElement).toBe(input)
+    await waitFor(() => expect(document.activeElement).toBe(input))
   })
 
   it('maps a remove network failure to the plain message, not the browser text', async () => {
