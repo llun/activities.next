@@ -80,6 +80,7 @@ const csvElement = (
     onFileChange={handlers?.onFileChange ?? vi.fn()}
     onImportAnotherFile={handlers?.onImportAnotherFile ?? vi.fn()}
     onBusyChange={handlers?.onBusyChange ?? vi.fn()}
+    startInFlight={false}
     onActorChanged={onActorChanged}
     onMoved={onMoved}
   />

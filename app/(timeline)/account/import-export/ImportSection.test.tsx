@@ -1701,6 +1701,224 @@ describe('ImportSection', () => {
     expect(screen.getByRole('button', { name: 'Start import' })).toBeEnabled()
   })
 
+  it('does not start the waiting upload from the rate-limit alert while a CSV import runs', async () => {
+    vi.useFakeTimers()
+    vi.mocked(accountImports.startAccountImport).mockRejectedValueOnce(
+      new ApiRequestError('Too many imports started recently', 429, 60_000)
+    )
+    vi.mocked(bulkImports.createBulkImport).mockResolvedValue(runningBulkImport)
+    vi.mocked(bulkImports.getBulkImport).mockResolvedValue(finishedBulkImport)
+    renderWithImport(queuedNotStarted)
+    chooseFile('following_accounts.csv')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start import' }))
+    expect(
+      await screen.findByText('Too many imports started recently')
+    ).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Import following' }))
+    await act(async () => {
+      for (let i = 0; i < 10; i += 1) await Promise.resolve()
+    })
+    expect(screen.getByText('Importing')).toBeInTheDocument()
+
+    // The rate-limit alert can show while a CSV import runs, and its Try
+    // again starts the waiting row like the warning's Start import: it
+    // must wait for the CSV import to finish too.
+    const tryAgain = screen.getByRole('button', { name: 'Try again' })
+    expect(tryAgain).toBeDisabled()
+    fireEvent.click(tryAgain)
+    expect(accountImports.startAccountImport).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3_000)
+    })
+
+    expect(screen.getByText('Import finished')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeEnabled()
+  })
+
+  it('does not start the waiting upload from the generic alert while a CSV import runs', async () => {
+    vi.useFakeTimers()
+    vi.mocked(accountImports.startAccountImport).mockRejectedValueOnce(
+      new ApiRequestError('Import storage is unavailable', 503)
+    )
+    vi.mocked(bulkImports.createBulkImport).mockResolvedValue(runningBulkImport)
+    vi.mocked(bulkImports.getBulkImport).mockResolvedValue(finishedBulkImport)
+    renderWithImport(queuedNotStarted)
+    chooseFile('following_accounts.csv')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start import' }))
+    expect(
+      await screen.findByText('Import storage is unavailable')
+    ).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Import following' }))
+    await act(async () => {
+      for (let i = 0; i < 10; i += 1) await Promise.resolve()
+    })
+    expect(screen.getByText('Importing')).toBeInTheDocument()
+
+    // The generic alert's Retry starts the waiting row like the warning's
+    // Start import: while the CSV import runs, it is as locked as that.
+    const retry = screen.getByRole('button', { name: 'Retry' })
+    expect(retry).toBeDisabled()
+    fireEvent.click(retry)
+    expect(accountImports.startAccountImport).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3_000)
+    })
+
+    expect(screen.getByText('Import finished')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeEnabled()
+  })
+
+  it('does not start the uploaded row while an earlier start is still in flight', async () => {
+    const upload = deferred<void>()
+    vi.mocked(accountImports.uploadAccountImport).mockReturnValueOnce(
+      upload.promise
+    )
+    const start = deferred<unknown>()
+    vi.mocked(accountImports.startAccountImport).mockReturnValueOnce(
+      start.promise as never
+    )
+    renderWithImport(queuedNotStarted)
+    chooseFile('a.zip')
+
+    // The waiting row keeps the form's own Save bar disabled, but the form
+    // can still be submitted (the section's "The upload did not finish"
+    // Try again submits it exactly that way), so an upload can be in
+    // flight while the row's start controls are live.
+    fireEvent.submit(document.querySelector('form')!)
+    await screen.findByText('Uploading the archive')
+    fireEvent.click(screen.getByRole('button', { name: 'Start import' }))
+    await waitFor(() =>
+      expect(accountImports.startAccountImport).toHaveBeenCalledTimes(1)
+    )
+
+    // The finished upload hands its row to startQueuedImport — the one
+    // start path no disabled button guards — while the earlier start is
+    // still in flight: the guard must keep it from starting a second
+    // import under the same lock.
+    await act(async () => {
+      upload.resolve()
+    })
+    await act(async () => {
+      for (let i = 0; i < 5; i += 1) await Promise.resolve()
+    })
+    expect(accountImports.startAccountImport).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      start.resolve(activeImport)
+    })
+    expect(await screen.findByText('Import in progress')).toBeInTheDocument()
+  })
+
+  it("does not start a CSV import while the waiting upload's start is in flight", async () => {
+    const start = deferred<unknown>()
+    vi.mocked(accountImports.startAccountImport).mockReturnValueOnce(
+      start.promise as never
+    )
+    renderWithImport(queuedNotStarted)
+    chooseFile('following_accounts.csv')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start import' }))
+    await waitFor(() =>
+      expect(accountImports.startAccountImport).toHaveBeenCalledTimes(1)
+    )
+
+    // The start inspects the archive on the server and can take seconds: a
+    // CSV import begun now would be lost the moment the start succeeds and
+    // unmounts the CSV form mid-import, so every control that begins one
+    // is locked, and the form's own submit is a no-op.
+    const importFollowing = screen.getByRole('button', {
+      name: 'Import following'
+    })
+    expect(importFollowing).toBeDisabled()
+    fireEvent.click(importFollowing)
+    fireEvent.submit(document.querySelector('form')!)
+    await act(async () => {
+      for (let i = 0; i < 5; i += 1) await Promise.resolve()
+    })
+    expect(bulkImports.createBulkImport).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Change file' })).toBeDisabled()
+
+    await act(async () => {
+      start.resolve(activeImport)
+    })
+    expect(await screen.findByText('Import in progress')).toBeInTheDocument()
+  })
+
+  it("locks the CSV form's Retry while the waiting upload's start is in flight", async () => {
+    const start = deferred<unknown>()
+    vi.mocked(accountImports.startAccountImport).mockReturnValueOnce(
+      start.promise as never
+    )
+    vi.mocked(bulkImports.createBulkImport).mockRejectedValueOnce(
+      new ApiRequestError('Could not start the import', 500)
+    )
+    renderWithImport(queuedNotStarted)
+    chooseFile('following_accounts.csv')
+
+    // The CSV import fails, so its Retry shows; then the waiting upload's
+    // start begins.
+    fireEvent.click(screen.getByRole('button', { name: 'Import following' }))
+    expect(await screen.findByRole('button', { name: 'Retry' })).toBeEnabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Start import' }))
+    await waitFor(() =>
+      expect(accountImports.startAccountImport).toHaveBeenCalledTimes(1)
+    )
+
+    const retry = screen.getByRole('button', { name: 'Retry' })
+    expect(retry).toBeDisabled()
+    fireEvent.click(retry)
+    await act(async () => {
+      for (let i = 0; i < 5; i += 1) await Promise.resolve()
+    })
+    expect(bulkImports.createBulkImport).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      start.resolve(activeImport)
+    })
+    expect(await screen.findByText('Import in progress')).toBeInTheDocument()
+  })
+
+  it("says Importing… while the form's own upload is being started", async () => {
+    const upload = deferred<void>()
+    vi.mocked(accountImports.uploadAccountImport).mockReturnValueOnce(
+      upload.promise
+    )
+    const start = deferred<unknown>()
+    vi.mocked(accountImports.startAccountImport).mockReturnValueOnce(
+      start.promise as never
+    )
+    renderSection()
+    chooseFile('a.zip')
+    submitArchive()
+
+    await screen.findByText('Uploading the archive')
+    await act(async () => {
+      upload.resolve()
+    })
+    await waitFor(() =>
+      expect(accountImports.startAccountImport).toHaveBeenCalledTimes(1)
+    )
+
+    // The upload reached 100% and the server is inspecting the archive:
+    // for the whole start the form must not look idle with a dead button.
+    const importing = screen.getByRole('button', { name: 'Importing…' })
+    expect(importing).toBeDisabled()
+    expect(
+      screen.queryByRole('button', { name: 'Import archive' })
+    ).not.toBeInTheDocument()
+
+    await act(async () => {
+      start.resolve(activeImport)
+    })
+    expect(await screen.findByText('Import in progress')).toBeInTheDocument()
+  })
+
   it('does not cancel the upload when the form is swapped out while the start is in flight', async () => {
     // The start inspects the archive on the server and can take seconds; the
     // mockup promises the import carries on without the page.
