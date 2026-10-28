@@ -339,6 +339,21 @@ describe('CsvImportForm', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('disables the CSV import while offline', () => {
+    connectionState.offline = true
+    const { container } = render(csvElement(csvFile(), vi.fn(), vi.fn()))
+
+    expect(screen.getByText("You're offline")).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Import following' })
+    ).toBeDisabled()
+
+    // The disabled button is not the only guard: submitting the form itself
+    // must not reach the server either.
+    fireEvent.submit(container.querySelector('form')!)
+    expect(bulkImports.createBulkImport).not.toHaveBeenCalled()
+  })
+
   it('hands Import another file to the section instead of clearing the file itself', async () => {
     const onFileChange = vi.fn()
     const onImportAnotherFile = vi.fn()
