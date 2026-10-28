@@ -145,6 +145,16 @@ const chooseFile = (name: string) => {
 const submitArchive = () =>
   fireEvent.click(screen.getByRole('button', { name: 'Import archive' }))
 
+const deferred = <T,>() => {
+  let resolve!: (value: T) => void
+  let reject!: (error: unknown) => void
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  return { promise, resolve, reject }
+}
+
 describe('ImportSection', () => {
   beforeEach(() => {
     vi.stubGlobal(
@@ -370,6 +380,47 @@ describe('ImportSection', () => {
       expect(accountImports.uploadAccountImport).toHaveBeenCalledTimes(2)
     })
     expect(accountImports.startAccountImport).toHaveBeenCalledTimes(2)
+  })
+
+  it('clears the start upload alert when Try again uploads again, so it cannot double up', async () => {
+    vi.mocked(accountImports.startAccountImport).mockRejectedValueOnce(
+      new ApiRequestError('Upload is incomplete; upload it again', 409)
+    )
+    renderSection()
+    chooseFile('a.zip')
+    submitArchive()
+
+    expect(
+      await screen.findByText('The upload did not finish')
+    ).toBeInTheDocument()
+
+    const upload = deferred<void>()
+    vi.mocked(accountImports.uploadAccountImport).mockReturnValueOnce(
+      upload.promise
+    )
+    const tryAgain = screen.getByRole('button', { name: 'Try again' })
+    tryAgain.focus()
+    fireEvent.click(tryAgain)
+
+    await screen.findByText('Uploading the archive')
+    // The re-upload is running: the start's failure alert is gone, so its
+    // Try again cannot be pressed again and cannot double up with the
+    // form's own alert if this upload fails too.
+    expect(screen.queryByText('The upload did not finish')).toBeNull()
+    // The pressed Try again unmounted with the alert, so the upload's
+    // Cancel takes the focus it dropped.
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Cancel' })
+      )
+    )
+
+    await act(async () => {
+      upload.reject(new ApiRequestError('The archive upload did not finish', 0))
+    })
+    expect(
+      await screen.findAllByText('The upload did not finish')
+    ).toHaveLength(1)
   })
 
   it('shows the active import via listAccountImports on a 409 already-active start', async () => {
@@ -676,6 +727,34 @@ describe('ImportSection', () => {
     expect(
       screen.queryByText('An earlier upload was not started')
     ).not.toBeInTheDocument()
+  })
+
+  it('moves focus to the warning when Retry on the discard alert fails again', async () => {
+    vi.mocked(accountImports.cancelAccountImport)
+      .mockRejectedValueOnce(new ApiRequestError('Server error', 500))
+      .mockRejectedValueOnce(new ApiRequestError('Server error', 500))
+    renderWithImport(queuedNotStarted)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+    expect(
+      await screen.findByText('Could not discard the upload')
+    ).toBeInTheDocument()
+
+    const retry = screen.getByRole('button', { name: 'Retry' })
+    retry.focus()
+    fireEvent.click(retry)
+
+    expect(
+      await screen.findByText('Could not discard the upload')
+    ).toBeInTheDocument()
+    // The pressed Retry unmounted with the alert it cleared, and the row
+    // is still queued, so the warning's Start import takes the focus it
+    // dropped — the same hand-off as the other start controls.
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Start import' })
+      )
+    )
   })
 
   it('treats a 409 already-finished Discard as discarded', async () => {
@@ -1153,7 +1232,7 @@ describe('ImportSection', () => {
   })
 
   it('does not carry a failed cancel over to the next import', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.useFakeTimers()
     vi.mocked(accountImports.cancelAccountImport)
       .mockRejectedValueOnce(new ApiRequestError('Server error', 500))
       .mockResolvedValue({} as never)

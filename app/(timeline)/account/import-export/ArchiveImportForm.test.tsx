@@ -93,12 +93,14 @@ const Harness = ({
   startInFlight = false,
   onStarted = vi.fn(),
   onUploaded = vi.fn(),
+  onSubmitStart = vi.fn(),
   onMoved = vi.fn()
 }: {
   notStartedImport?: AccountImportResponse | null
   startInFlight?: boolean
   onStarted?: (accountImport: AccountImportResponse) => void
   onUploaded?: (uploaded: PresignedAccountImportResponse) => void
+  onSubmitStart?: () => void
   onMoved?: () => void
 }) => {
   const [file, setFile] = useState<File | null>(null)
@@ -116,6 +118,7 @@ const Harness = ({
       onMoved={onMoved}
       onStarted={onStarted}
       onUploaded={onUploaded}
+      onSubmitStart={onSubmitStart}
       startInFlight={startInFlight}
       filePickerRef={filePickerRef}
       formRef={formRef}

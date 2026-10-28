@@ -44,6 +44,8 @@ interface Props {
   onStarted: (accountImport: AccountImportResponse) => void
   /** The upload finished; the section starts the row it uploaded. */
   onUploaded: (uploaded: PresignedAccountImportResponse) => void
+  /** Called as a submit begins: the section drops its stale upload alert. */
+  onSubmitStart: () => void
   /** True while the section is starting or discarding the earlier upload. */
   startInFlight: boolean
   /** The section focuses the picker after a successful Discard. */
@@ -116,6 +118,7 @@ export const ArchiveImportForm = ({
   onMoved,
   onStarted,
   onUploaded,
+  onSubmitStart,
   startInFlight,
   filePickerRef,
   formRef
@@ -148,6 +151,15 @@ export const ArchiveImportForm = ({
     tryAgainRef.current?.focus()
   }, [alert])
 
+  // A submit that begins from the section's "The upload did not finish"
+  // clears that alert, so the Try again that was pressed unmounts and the
+  // focus falls to the body: the upload's Cancel must take it.
+  useEffect(() => {
+    if (isUploading && document.activeElement === document.body) {
+      cancelUploadRef.current?.focus()
+    }
+  }, [isUploading])
+
   // Aborting the upload makes it fail, and a failed upload is one of the
   // cases that cancel the row (in handleSubmit's catch). The start needs no
   // cleanup: the section starts the row, and it is the server's, not the
@@ -170,6 +182,7 @@ export const ArchiveImportForm = ({
     if (!file || busy || isOffline || file.size > maxImportBytes) return
     setAlert(null)
     setSubmitting(true)
+    onSubmitStart()
     let uploaded: PresignedAccountImportResponse | null = null
     let uploadSucceeded = false
     const controller = new AbortController()

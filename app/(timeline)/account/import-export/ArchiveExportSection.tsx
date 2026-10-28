@@ -294,6 +294,17 @@ export const ArchiveExportSection = ({
     ? archiveErrorBody(currentArchive.error)
     : null
 
+  // What is sent must be what is shown: the request sends the switches of
+  // the render that pressed Prepare, so they are locked while it runs, and
+  // an archive that is queued or running shows its own options, not the
+  // local state the page happened to load with.
+  const shownStripExactLocations =
+    active && currentArchive
+      ? currentArchive.stripExactLocations
+      : stripExactLocations
+  const shownIncludeDrafts =
+    active && currentArchive ? currentArchive.includesDrafts : includeDrafts
+
   return (
     <div className="space-y-4">
       {actorChanged ? <ActorChangedAlert /> : null}
@@ -551,9 +562,10 @@ export const ArchiveExportSection = ({
                     id="include-archive-drafts"
                     aria-label="Include drafts from this browser"
                     aria-describedby="include-archive-drafts-hint"
-                    checked={includeDrafts}
+                    checked={shownIncludeDrafts}
                     disabled={
                       active ||
+                      requesting ||
                       drafts.length === 0 ||
                       draftsTooLarge ||
                       draftReadError
@@ -583,8 +595,8 @@ export const ArchiveExportSection = ({
                   id="strip-exact-locations"
                   aria-label="Leave out exact photo locations"
                   aria-describedby="strip-exact-locations-hint"
-                  checked={stripExactLocations}
-                  disabled={active}
+                  checked={shownStripExactLocations}
+                  disabled={active || requesting}
                   onCheckedChange={setStripExactLocations}
                 />
               </div>

@@ -472,6 +472,11 @@ export const ImportSection = ({
   const handleDiscardUpload = async (id: string) => {
     if (startInFlight) return
     setStartInFlight(true)
+    // The discard alert's Retry sits in the same start controls box as the
+    // warning's buttons: whether one of them held the focus decides the
+    // hand-off when the discard ends (see the [startInFlight] effect).
+    const startControlHadFocus =
+      startControlsRef.current?.contains(document.activeElement) ?? false
     setStartAlert(null)
     try {
       await cancelAccountImport({ actorId, id })
@@ -490,8 +495,11 @@ export const ImportSection = ({
         focusPickerAfterDiscard.current = true
       } else {
         // The cancel the user asked for did not happen, so the row is
-        // still queued: keep the warning and say what failed.
+        // still queued: keep the warning and say what failed. The alert
+        // that unmounts took the focus with it, so a discard that fails
+        // again hands it back like a start that keeps the row.
         setStartAlert({ type: 'discard', id })
+        if (startControlHadFocus) focusAfterStart.current = true
       }
     } finally {
       setStartInFlight(false)
@@ -739,6 +747,11 @@ export const ImportSection = ({
               onMoved={() => setMoved(true)}
               onStarted={showFoundImport}
               onUploaded={(uploaded) => void startQueuedImport(uploaded)}
+              onSubmitStart={() =>
+                setStartAlert((current) =>
+                  current?.type === 'upload' ? null : current
+                )
+              }
               startInFlight={startInFlight}
               filePickerRef={filePickerRef}
               formRef={archiveFormRef}
