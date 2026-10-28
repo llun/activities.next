@@ -1,0 +1,21 @@
+app/(timeline)/settings/moving/HandleRenameForm.test.tsx
+  s_279e7012f36c5f::t_efa5f7ca548f63 171-179,203-247,433-437
+app/(timeline)/settings/moving/HandleRenameForm.tsx
+  s_279e7012f36c5f::t_602cf5d427f3e9 65,75-79,122,127-129,188-192
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b9bc2d251d40d624cf5f81088ac3fd64c8cc857c",
+  "prompts": {},
+  "sessions": {
+    "s_279e7012f36c5f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0410f49d-2e94-45e1-bd1f-237e6f7747bc",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
