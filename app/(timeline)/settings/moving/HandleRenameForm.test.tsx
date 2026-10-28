@@ -697,4 +697,29 @@ describe('HandleRenameForm', () => {
     expect(screen.getByText(/Last changed:/)).toBeInTheDocument()
     expect(screen.getByText('14 Nov 2023')).toBeInTheDocument()
   })
+
+  it('describes the password and current-username fields with their hint', () => {
+    const withPassword = render(
+      <HandleRenameForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        initialHandle={handleState()}
+      />
+    )
+    expect(screen.getByLabelText('Password')).toHaveAccessibleDescription(
+      'Confirm it is you.'
+    )
+    withPassword.unmount()
+
+    render(
+      <HandleRenameForm
+        actorId="https://llun.test/users/anna"
+        hasPassword={false}
+        initialHandle={handleState()}
+      />
+    )
+    expect(
+      screen.getByLabelText('Current username')
+    ).toHaveAccessibleDescription('Confirm it is you.')
+  })
 })

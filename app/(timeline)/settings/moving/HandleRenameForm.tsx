@@ -368,13 +368,16 @@ export const HandleRenameForm: FC<Props> = ({
               htmlFor="handlePassword"
               hint="Confirm it is you."
             >
-              <Input
-                type="password"
-                id="handlePassword"
-                value={password}
-                onChange={(e) => edit(setPassword)(e.target.value)}
-                autoComplete="current-password"
-              />
+              {({ describedBy }) => (
+                <Input
+                  type="password"
+                  id="handlePassword"
+                  aria-describedby={describedBy}
+                  value={password}
+                  onChange={(e) => edit(setPassword)(e.target.value)}
+                  autoComplete="current-password"
+                />
+              )}
             </FormRow>
           ) : (
             <FormRow
@@ -382,12 +385,15 @@ export const HandleRenameForm: FC<Props> = ({
               htmlFor="handleCurrentUsername"
               hint="Confirm it is you."
             >
-              <Input
-                id="handleCurrentUsername"
-                value={currentUsername}
-                onChange={(e) => edit(setCurrentUsername)(e.target.value)}
-                autoComplete="username"
-              />
+              {({ describedBy }) => (
+                <Input
+                  id="handleCurrentUsername"
+                  aria-describedby={describedBy}
+                  value={currentUsername}
+                  onChange={(e) => edit(setCurrentUsername)(e.target.value)}
+                  autoComplete="username"
+                />
+              )}
             </FormRow>
           )}
         </Frame>

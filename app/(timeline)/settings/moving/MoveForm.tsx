@@ -112,10 +112,17 @@ export const MoveForm: FC<Props> = ({
     } catch (err) {
       if (err instanceof ApiRequestError && err.status === 429) {
         // The 429 body carries cooldownUntil, but the error type does not
-        // (yet): re-read the state, which does.
+        // (yet): re-read the state, which does. The cooldown only explains
+        // the refusal for a move; a redirect has none, and the race answer
+        // ("The move changed while it was checked, try again") arrives with
+        // no cooldown behind it, so the message shows unless the re-read
+        // just picked up a cooldown that says why.
         try {
           const state = await getAccountMigration({ actorId })
           setCooldownUntil(state.cooldownUntil)
+          if (kind !== 'move' || state.cooldownUntil === null) {
+            setError(err.message)
+          }
         } catch {
           setError(err.message)
         }
@@ -282,13 +289,16 @@ export const MoveForm: FC<Props> = ({
               htmlFor="movePassword"
               hint="Confirm it is you."
             >
-              <Input
-                type="password"
-                id="movePassword"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="current-password"
-              />
+              {({ describedBy }) => (
+                <Input
+                  type="password"
+                  id="movePassword"
+                  aria-describedby={describedBy}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                />
+              )}
             </FormRow>
           ) : (
             <FormRow
@@ -296,12 +306,15 @@ export const MoveForm: FC<Props> = ({
               htmlFor="moveCurrentUsername"
               hint="Confirm it is you."
             >
-              <Input
-                id="moveCurrentUsername"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                autoComplete="username"
-              />
+              {({ describedBy }) => (
+                <Input
+                  id="moveCurrentUsername"
+                  aria-describedby={describedBy}
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  autoComplete="username"
+                />
+              )}
             </FormRow>
           )}
         </form>
