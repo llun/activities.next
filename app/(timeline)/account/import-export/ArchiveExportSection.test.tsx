@@ -96,6 +96,16 @@ const props = {
   exportAvailable: true
 }
 
+const deferred = <T,>() => {
+  let resolve!: (value: T) => void
+  let reject!: (error: unknown) => void
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  return { promise, resolve, reject }
+}
+
 describe('ArchiveExportSection', () => {
   afterAll(() => {
     vi.unstubAllGlobals()
@@ -368,6 +378,59 @@ describe('ArchiveExportSection', () => {
         drafts: storedDrafts
       })
     })
+  })
+
+  it('locks the switches while the archive is being requested', async () => {
+    // The request can carry up to 5 MiB of drafts, so it can be in flight
+    // for a while: what it was sent with is what the switches must show,
+    // so they are locked for as long as it runs.
+    mocks.listDrafts.mockResolvedValue([{ id: 'draft-1', text: 'unsent' }])
+    const pending = deferred<unknown>()
+    mocks.requestArchive.mockReturnValueOnce(pending.promise)
+    render(<ArchiveExportSection {...props} />)
+
+    const draftsSwitch = await screen.findByRole('switch', {
+      name: 'Include drafts from this browser'
+    })
+    const stripSwitch = screen.getByRole('switch', {
+      name: 'Leave out exact photo locations'
+    })
+    expect(draftsSwitch).toBeEnabled()
+    expect(stripSwitch).toBeEnabled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Prepare archive' }))
+    await screen.findByRole('button', { name: 'Preparing…' })
+
+    expect(draftsSwitch).toBeDisabled()
+    expect(stripSwitch).toBeDisabled()
+  })
+
+  it('shows the options of the archive being made', async () => {
+    render(
+      <ArchiveExportSection
+        {...props}
+        initialArchives={
+          [
+            archive('queued', {
+              stripExactLocations: true,
+              includesDrafts: true
+            })
+          ] as never
+        }
+      />
+    )
+
+    const stripSwitch = screen.getByRole('switch', {
+      name: 'Leave out exact photo locations'
+    })
+    expect(stripSwitch).toBeDisabled()
+    expect(stripSwitch).toHaveAttribute('aria-checked', 'true')
+
+    const draftsSwitch = await screen.findByRole('switch', {
+      name: 'Include drafts from this browser'
+    })
+    expect(draftsSwitch).toBeDisabled()
+    expect(draftsSwitch).toHaveAttribute('aria-checked', 'true')
   })
 
   it('polls every 10 seconds while queued', async () => {
