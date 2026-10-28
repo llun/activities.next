@@ -247,7 +247,11 @@ export const ImportSection = ({
     }
     if (!focusPickerAfterDiscard.current) return
     focusPickerAfterDiscard.current = false
-    handOffFocus()
+    // The pressed Discard unmounts with the row, so the focus falls to the
+    // body — unless the user moved on to another control while the request
+    // was in flight, in which case it stays where the user put it. The
+    // same check the failed paths make.
+    if (document.activeElement === document.body) handOffFocus()
     // The effect also runs on the commit that shows a waiting upload found
     // through a 409 (a re-upload whose presign finds another tab's row):
     // no start of the section's own is in flight there, so the row's
