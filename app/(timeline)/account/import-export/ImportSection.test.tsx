@@ -447,6 +447,48 @@ describe('ImportSection', () => {
     expect(screen.queryByRole('radio')).not.toBeInTheDocument()
   })
 
+  it('shows the switches only once a .zip that passed the checks is chosen', () => {
+    renderSection()
+    // Nothing chosen yet: the mockup board shows only the File row.
+    expect(screen.getByText('Choose a file to start.')).toBeInTheDocument()
+    expect(screen.queryAllByRole('switch')).toHaveLength(0)
+
+    // An unrecognised, an empty and a too-large file all leave the form
+    // without a file, so none of them may bring the switches up either.
+    chooseFile('photos.txt')
+    expect(screen.getByText('We could not read this file')).toBeInTheDocument()
+    expect(screen.queryAllByRole('switch')).toHaveLength(0)
+
+    const empty = new File([], 'a.zip')
+    fireEvent.change(
+      document.querySelector<HTMLInputElement>('input[type="file"]')!,
+      { target: { files: [empty] } }
+    )
+    expect(screen.getByText('The file is empty')).toBeInTheDocument()
+    expect(screen.queryAllByRole('switch')).toHaveLength(0)
+
+    const tooLarge = new File(['too large'], 'a.zip')
+    Object.defineProperty(tooLarge, 'size', { value: 2 * 1024 * 1024 })
+    fireEvent.change(
+      document.querySelector<HTMLInputElement>('input[type="file"]')!,
+      { target: { files: [tooLarge] } }
+    )
+    expect(screen.getByText('File is too large')).toBeInTheDocument()
+    expect(screen.queryAllByRole('switch')).toHaveLength(0)
+
+    chooseFile('a.zip')
+    expect(screen.getAllByRole('switch')).toHaveLength(5)
+  })
+
+  it('shows no switches while only a page-load earlier upload waits', () => {
+    renderWithImport(queuedNotStarted)
+
+    expect(
+      screen.getByText('An earlier upload was not started')
+    ).toBeInTheDocument()
+    expect(screen.queryAllByRole('switch')).toHaveLength(0)
+  })
+
   it('shows a guessed CSV Select, Merge and Overwrite cards, with an outside warning', () => {
     renderSection()
     chooseFile('following_accounts.csv')
@@ -1050,6 +1092,100 @@ describe('ImportSection', () => {
     expect(
       screen.getByText('Start or discard the earlier upload first')
     ).toBeInTheDocument()
+  })
+
+  it('starts a kept upload with the switches as they stand while the same file is chosen', async () => {
+    vi.mocked(accountImports.startAccountImport)
+      .mockRejectedValueOnce(
+        new ApiRequestError('Too many imports started recently', 429, 60_000)
+      )
+      .mockResolvedValueOnce(activeImport)
+    renderSection()
+    chooseFile('a.zip')
+    fireEvent.click(screen.getByRole('switch', { name: 'Import likes' }))
+    fireEvent.click(
+      screen.getByRole('switch', {
+        name: 'Replace my profile with the one in the archive'
+      })
+    )
+    submitArchive()
+
+    expect(
+      await screen.findByText('Too many imports started recently')
+    ).toBeInTheDocument()
+
+    // a.zip is still the chosen file, so its switches are live: Try again
+    // must send what they show now, not what they showed at the 429.
+    fireEvent.click(screen.getByRole('switch', { name: 'Import bookmarks' }))
+    fireEvent.click(
+      screen.getByRole('switch', {
+        name: 'Replace my profile with the one in the archive'
+      })
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+
+    await waitFor(() =>
+      expect(accountImports.startAccountImport).toHaveBeenCalledTimes(2)
+    )
+    expect(
+      vi.mocked(accountImports.startAccountImport).mock.calls[1][0].options
+    ).toMatchObject({ likes: true, bookmarks: true, profile: false })
+  })
+
+  it('locks the switches while the upload and the start are in flight', async () => {
+    let finishUpload: () => void = () => undefined
+    vi.mocked(accountImports.uploadAccountImport).mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finishUpload = resolve
+        })
+    )
+    let rejectStart: (error: unknown) => void = () => undefined
+    vi.mocked(accountImports.startAccountImport).mockImplementation(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectStart = reject
+        })
+    )
+    const switchLabels = [
+      "Import replies to other people's posts",
+      'Import likes',
+      'Import bookmarks',
+      'Replace my profile with the one in the archive',
+      'Replace my settings with the ones in the archive'
+    ]
+    renderSection()
+    chooseFile('a.zip')
+    submitArchive()
+
+    expect(await screen.findByText('Uploading the archive')).toBeInTheDocument()
+    switchLabels.forEach((label) =>
+      expect(screen.getByRole('switch', { name: label })).toBeDisabled()
+    )
+
+    await act(async () => {
+      finishUpload()
+    })
+    await waitFor(() =>
+      expect(accountImports.startAccountImport).toHaveBeenCalledTimes(1)
+    )
+    // The start is in flight: the switches stay locked, so what is sent
+    // is what is shown.
+    switchLabels.forEach((label) =>
+      expect(screen.getByRole('switch', { name: label })).toBeDisabled()
+    )
+
+    await act(async () => {
+      rejectStart(
+        new ApiRequestError('Too many imports started recently', 429, 60_000)
+      )
+    })
+    expect(
+      await screen.findByText('Too many imports started recently')
+    ).toBeInTheDocument()
+    switchLabels.forEach((label) =>
+      expect(screen.getByRole('switch', { name: label })).toBeEnabled()
+    )
   })
 
   it('cancels the row and shows File is too large when start answers 413', async () => {

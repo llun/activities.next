@@ -81,12 +81,14 @@ const ToggleOption = ({
   label,
   hint,
   checked,
+  disabled,
   onCheckedChange
 }: {
   id: string
   label: string
   hint?: string
   checked: boolean
+  disabled?: boolean
   onCheckedChange: (checked: boolean) => void
 }) => (
   <FormRow label={label} htmlFor={id} hint={hint} inline>
@@ -94,6 +96,7 @@ const ToggleOption = ({
       id={id}
       aria-label={label}
       checked={checked}
+      disabled={disabled}
       onCheckedChange={onCheckedChange}
     />
   </FormRow>
@@ -326,49 +329,65 @@ export const ArchiveImportForm = ({
             )}
           </FormRow>
 
-          <ToggleOption
-            id="archive-import-replies"
-            label="Import replies to other people's posts"
-            hint="Off: your replies to other people's posts are skipped. On: they come in as standalone posts that link to the original."
-            checked={options.repliesToOthers === 'keep'}
-            onCheckedChange={(checked) =>
-              onOptionsChange({
-                ...options,
-                repliesToOthers: checked ? 'keep' : 'skip'
-              })
-            }
-          />
-          <ToggleOption
-            id="archive-import-likes"
-            label="Import likes"
-            hint="Only for posts already on this server."
-            checked={options.likes}
-            onCheckedChange={(likes) => onOptionsChange({ ...options, likes })}
-          />
-          <ToggleOption
-            id="archive-import-bookmarks"
-            label="Import bookmarks"
-            checked={options.bookmarks}
-            onCheckedChange={(bookmarks) =>
-              onOptionsChange({ ...options, bookmarks })
-            }
-          />
-          <ToggleOption
-            id="archive-import-profile"
-            label="Replace my profile with the one in the archive"
-            checked={options.profile}
-            onCheckedChange={(profile) =>
-              onOptionsChange({ ...options, profile })
-            }
-          />
-          <ToggleOption
-            id="archive-import-settings"
-            label="Replace my settings with the ones in the archive"
-            checked={options.settings}
-            onCheckedChange={(settings) =>
-              onOptionsChange({ ...options, settings })
-            }
-          />
+          {/* The switches belong to the chosen .zip (the mockup's
+              "nothing chosen yet" and "file not recognised" boards show
+              only the File row), and they are locked while the form is
+              busy: the start sends the options of the render that pressed
+              Import, so what is sent must be what is shown. */}
+          {file ? (
+            <>
+              <ToggleOption
+                id="archive-import-replies"
+                label="Import replies to other people's posts"
+                hint="Off: your replies to other people's posts are skipped. On: they come in as standalone posts that link to the original."
+                checked={options.repliesToOthers === 'keep'}
+                disabled={busy}
+                onCheckedChange={(checked) =>
+                  onOptionsChange({
+                    ...options,
+                    repliesToOthers: checked ? 'keep' : 'skip'
+                  })
+                }
+              />
+              <ToggleOption
+                id="archive-import-likes"
+                label="Import likes"
+                hint="Only for posts already on this server."
+                checked={options.likes}
+                disabled={busy}
+                onCheckedChange={(likes) =>
+                  onOptionsChange({ ...options, likes })
+                }
+              />
+              <ToggleOption
+                id="archive-import-bookmarks"
+                label="Import bookmarks"
+                checked={options.bookmarks}
+                disabled={busy}
+                onCheckedChange={(bookmarks) =>
+                  onOptionsChange({ ...options, bookmarks })
+                }
+              />
+              <ToggleOption
+                id="archive-import-profile"
+                label="Replace my profile with the one in the archive"
+                checked={options.profile}
+                disabled={busy}
+                onCheckedChange={(profile) =>
+                  onOptionsChange({ ...options, profile })
+                }
+              />
+              <ToggleOption
+                id="archive-import-settings"
+                label="Replace my settings with the ones in the archive"
+                checked={options.settings}
+                disabled={busy}
+                onCheckedChange={(settings) =>
+                  onOptionsChange({ ...options, settings })
+                }
+              />
+            </>
+          ) : null}
 
           {isUploading && uploadProgress ? (
             <div className="space-y-2 px-4 py-3">
