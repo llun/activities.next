@@ -222,6 +222,58 @@ describe('AliasesSection', () => {
     })
   })
 
+  it('maps a malformed account to the same field error', async () => {
+    mockAdd.mockRejectedValueOnce(
+      new client.ApiRequestError('Invalid account', 422)
+    )
+    render(
+      <AliasesSection
+        actorId="https://llun.test/users/anna"
+        initialAliases={[]}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('Old account'), {
+      target: { value: 'you' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          'We could not find that account. Check the handle and try again.'
+        )
+      ).toBeInTheDocument()
+    })
+    // The raw message is not the field error.
+    expect(screen.queryByText('Invalid account')).not.toBeInTheDocument()
+  })
+
+  it('maps a server this instance does not federate with to the field error', async () => {
+    mockAdd.mockRejectedValueOnce(new client.ApiRequestError('Forbidden', 403))
+    render(
+      <AliasesSection
+        actorId="https://llun.test/users/anna"
+        initialAliases={[]}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('Old account'), {
+      target: { value: '@you@old.example' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          "This server does not connect with that account's server."
+        )
+      ).toBeInTheDocument()
+    })
+    // The raw message is not the field error.
+    expect(screen.queryByText('Forbidden')).not.toBeInTheDocument()
+  })
+
   it('carries the hint from the plan', () => {
     render(
       <AliasesSection
