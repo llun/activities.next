@@ -75,27 +75,53 @@ const ROW_CLASS =
 const ACTIVE_ROW_CLASS =
   'bg-primary/10 text-primary-text focus:bg-primary/10 focus:text-primary-text dark:focus:bg-primary/10 focus:ring-2 focus:ring-primary/50'
 
+// Scroll the menu itself (never the window) just far enough to show `row`,
+// with a few pixels of room for its focus ring.
+const revealRow = (menu: HTMLElement, row: HTMLElement) => {
+  const room = 4
+  const menuRect = menu.getBoundingClientRect()
+  const rowRect = row.getBoundingClientRect()
+  if (rowRect.bottom + room > menuRect.bottom)
+    menu.scrollTop += rowRect.bottom + room - menuRect.bottom
+  else if (rowRect.top - room < menuRect.top)
+    menu.scrollTop -= menuRect.top - (rowRect.top - room)
+}
+
 // Open on the current page. Radix would focus the first row (keyboard) or the
-// panel (pointer), leaving the current row of a long menu below the fold;
-// focusing it scrolls it into view, and the arrow keys continue from it.
+// panel (pointer), leaving the current row of a long menu below the fold; the
+// current row takes focus instead, and the arrow keys continue from it.
 // Because the handler calls `preventDefault`, Radix skips its own focus, so the
 // roving-focus entry focus never fires and typeahead keeps working.
+//
+// The menu is not capped to the window yet when it takes focus: Radix measures
+// the available height a moment later and only then sets
+// `--radix-dropdown-menu-content-available-height`. So the row is revealed
+// again whenever the menu changes size, and once more after the open animation
+// (the menu's rects are scaled while it zooms in). jsdom has no layout, so
+// there the reveal is a no-op.
 //
 // `DropdownMenu.Content` keeps `onOpenAutoFocus` off its public types (only
 // the menu internals declare it) but passes every prop through to the menu's
 // `FocusScope`, which is where the event comes from. It is therefore spread
 // from a variable rather than written as a prop, and the component test
 // "opens on the current page" fails if a Radix update stops honouring it.
-// `scrollIntoView` is optional-called because jsdom lacks it.
 const focusCurrentRowOnOpen = {
   onOpenAutoFocus: (event: Event) => {
-    const current = (
-      event.currentTarget as HTMLElement | null
-    )?.querySelector<HTMLElement>('[aria-current="page"]')
-    if (!current) return
+    const menu = event.currentTarget as HTMLElement | null
+    const current = menu?.querySelector<HTMLElement>('[aria-current="page"]')
+    if (!menu || !current) return
     event.preventDefault()
-    current.scrollIntoView?.({ block: 'nearest' })
     current.focus({ preventScroll: true })
+    revealRow(menu, current)
+
+    const reveal = () => revealRow(menu, current)
+    const observer =
+      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(reveal)
+    observer?.observe(menu)
+    window.setTimeout(() => {
+      reveal()
+      observer?.disconnect()
+    }, 300)
   }
 }
 

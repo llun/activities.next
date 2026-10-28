@@ -366,6 +366,30 @@ describe('SectionNavDropdown', () => {
     )
   })
 
+  it('scrolls the menu, not the window, to the current row', async () => {
+    // jsdom has no layout, so the rects are mocked: the menu spans 0..100 and
+    // the current row sits below its fold.
+    const rectSpy = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(function (this: HTMLElement) {
+        if (this.getAttribute('role') === 'menu')
+          return { top: 0, bottom: 100 } as DOMRect
+        if (this.getAttribute('aria-current') === 'page')
+          return { top: 150, bottom: 180 } as DOMRect
+        return { top: 0, bottom: 0 } as DOMRect
+      })
+    try {
+      setPath('/admin/system')
+      render(<SectionNavDropdown label="Admin" groups={adminGroups(3)} />)
+
+      const menu = await openMenu('Admin')
+      // 180 + 4px of room for the focus ring - 100.
+      await waitFor(() => expect(menu.scrollTop).toBe(84))
+    } finally {
+      rectSpy.mockRestore()
+    }
+  })
+
   it('sizes rows for touch and truncates long names', async () => {
     setPath('/fitness/strava')
     renderFitness()
