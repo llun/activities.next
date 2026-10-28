@@ -92,12 +92,14 @@ const Harness = ({
   notStartedImport = null,
   startInFlight = false,
   onStarted = vi.fn(),
-  onUploaded = vi.fn()
+  onUploaded = vi.fn(),
+  onMoved = vi.fn()
 }: {
   notStartedImport?: AccountImportResponse | null
   startInFlight?: boolean
   onStarted?: (accountImport: AccountImportResponse) => void
   onUploaded?: (uploaded: PresignedAccountImportResponse) => void
+  onMoved?: () => void
 }) => {
   const [file, setFile] = useState<File | null>(null)
   const [options, setOptions] = useState(INITIAL_OPTIONS)
@@ -111,7 +113,7 @@ const Harness = ({
       onOptionsChange={setOptions}
       onFileChange={setFile}
       onActorChanged={vi.fn()}
-      onMoved={vi.fn()}
+      onMoved={onMoved}
       onStarted={onStarted}
       onUploaded={onUploaded}
       startInFlight={startInFlight}
@@ -191,6 +193,45 @@ describe('ArchiveImportForm', () => {
       id: 'archive-1'
     })
     expect(accountImports.startAccountImport).not.toHaveBeenCalled()
+  })
+
+  it("cancels the upload's row when the upload answers moved", async () => {
+    vi.mocked(accountImports.uploadAccountImport).mockRejectedValueOnce(
+      new ApiRequestError('This account has moved', 422)
+    )
+    const onMoved = vi.fn()
+
+    render(<Harness onMoved={onMoved} />)
+    chooseFile('archive.zip')
+    submit()
+
+    await waitFor(() => expect(onMoved).toHaveBeenCalled())
+    expect(accountImports.cancelAccountImport).toHaveBeenCalledWith({
+      actorId,
+      id: 'archive-1'
+    })
+  })
+
+  it('moves focus to Try again when the upload is cancelled', async () => {
+    vi.mocked(accountImports.uploadAccountImport).mockImplementation(
+      ({ signal }) =>
+        new Promise((_resolve, reject) => {
+          signal?.addEventListener('abort', () => {
+            reject(new ApiRequestError('The archive upload was cancelled', 0))
+          })
+        })
+    )
+
+    render(<Harness />)
+    chooseFile('archive.zip')
+    submit()
+
+    const cancel = await screen.findByRole('button', { name: 'Cancel' })
+    cancel.focus()
+    fireEvent.click(cancel)
+
+    const tryAgain = await screen.findByRole('button', { name: 'Try again' })
+    expect(document.activeElement).toBe(tryAgain)
   })
 
   it('aborts the upload and cancels the import when the form unmounts mid-upload', async () => {

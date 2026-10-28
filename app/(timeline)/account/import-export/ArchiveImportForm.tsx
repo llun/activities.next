@@ -122,6 +122,12 @@ export const ArchiveImportForm = ({
 }: Props) => {
   const inputRef = useRef<HTMLInputElement>(null)
   const uploadController = useRef<AbortController | null>(null)
+  // The upload's Cancel button and the alert's Try again: when the upload
+  // fails while Cancel holds the focus, that button unmounts on the commit
+  // that shows the alert, so Try again must take the focus on it.
+  const cancelUploadRef = useRef<HTMLButtonElement>(null)
+  const tryAgainRef = useRef<HTMLButtonElement>(null)
+  const focusTryAgain = useRef(false)
   const [submitting, setSubmitting] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(
     null
@@ -135,6 +141,12 @@ export const ArchiveImportForm = ({
     setAlert(null)
     setUploadProgress(null)
   }, [actorId, file])
+
+  useEffect(() => {
+    if (alert?.type !== 'upload' || !focusTryAgain.current) return
+    focusTryAgain.current = false
+    tryAgainRef.current?.focus()
+  }, [alert])
 
   // Aborting the upload makes it fail, and a failed upload is one of the
   // cases that cancel the row (in handleSubmit's catch). The start needs no
@@ -178,6 +190,11 @@ export const ArchiveImportForm = ({
       if (isActorChanged(error)) {
         onActorChanged()
       } else if (isMoved(error)) {
+        // A failed upload like any other (the account moved while it ran):
+        // the row it leaves behind can never start, so it is cancelled
+        // best-effort before the moved banner takes over. The cancel route
+        // has no moved check, so it goes through.
+        if (uploaded) await cancelBestEffort(actorId, uploaded.id)
         onMoved()
       } else if (
         error instanceof ApiRequestError &&
@@ -187,6 +204,10 @@ export const ArchiveImportForm = ({
         const found = await findActiveImport()
         if (!found) setAlert({ type: 'generic', message: error.message })
       } else if (uploaded) {
+        // The Cancel button unmounts on this commit if it held the focus,
+        // so Try again must take it (see the effect above).
+        focusTryAgain.current =
+          document.activeElement === cancelUploadRef.current
         await cancelBestEffort(actorId, uploaded.id)
         setUploadProgress(null)
         setAlert({ type: 'upload' })
@@ -237,6 +258,7 @@ export const ArchiveImportForm = ({
           title="The upload did not finish"
           action={
             <Button
+              ref={tryAgainRef}
               type="button"
               variant="outline"
               size="sm"
@@ -406,6 +428,7 @@ export const ArchiveImportForm = ({
                   {formatBytes(uploadProgress.total)} · {percent}%
                 </p>
                 <Button
+                  ref={cancelUploadRef}
                   type="button"
                   variant="outline"
                   size="sm"

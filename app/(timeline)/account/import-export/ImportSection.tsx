@@ -377,9 +377,19 @@ export const ImportSection = ({
         error.message === 'Import is not queued'
       ) {
         // The row has already started (another tab) or another import took
-        // the slot: re-read it and show it. It is never this page's to cancel.
+        // the slot: re-read it and show it. It is never this page's to
+        // cancel. A row that comes back cancelled and never started was
+        // discarded elsewhere: nothing ran, so there is nothing to report —
+        // it is gone, and the user is asked to upload again.
         try {
-          showImport(await getAccountImport({ actorId, id: uploaded.id }))
+          const current = await getAccountImport({ actorId, id: uploaded.id })
+          if (current.status === 'cancelled' && current.startedAt === null) {
+            setKeptOptions(null)
+            if (notStartedImport?.id === uploaded.id) setAccountImport(null)
+            setStartAlert({ type: 'upload' })
+          } else {
+            showImport(current)
+          }
         } catch {
           setStartAlert({
             type: 'generic',

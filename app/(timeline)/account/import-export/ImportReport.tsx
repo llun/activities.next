@@ -39,7 +39,12 @@ export const ImportReport = ({
     ) : null
 
   useEffect(() => {
-    if (focusOnMount) alertRef.current?.focus()
+    if (!focusOnMount) return
+    alertRef.current?.focus()
+    // A cancel dialog closing in the same commit can pull focus back into its
+    // trap and drop it on <body> as it unmounts: take it again next frame.
+    const frame = requestAnimationFrame(() => alertRef.current?.focus())
+    return () => cancelAnimationFrame(frame)
   }, [focusOnMount])
 
   return (
