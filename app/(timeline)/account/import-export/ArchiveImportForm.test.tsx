@@ -133,6 +133,16 @@ const chooseFile = (name: string) => {
   return file
 }
 
+const deferred = <T,>() => {
+  let resolve!: (value: T) => void
+  let reject!: (error: unknown) => void
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  return { promise, resolve, reject }
+}
+
 describe('ArchiveImportForm', () => {
   beforeEach(() => {
     connectionState.offline = false
@@ -235,6 +245,36 @@ describe('ArchiveImportForm', () => {
 
     const tryAgain = await screen.findByRole('button', { name: 'Try again' })
     await waitFor(() => expect(document.activeElement).toBe(tryAgain))
+  })
+
+  it('falls back to the file picker when Try again is disabled while offline', async () => {
+    const upload = deferred<void>()
+    vi.mocked(accountImports.uploadAccountImport).mockReturnValueOnce(
+      upload.promise
+    )
+
+    render(<Harness />)
+    chooseFile('archive.zip')
+    submit()
+
+    const cancel = await screen.findByRole('button', { name: 'Cancel' })
+    cancel.focus()
+    connectionState.offline = true
+    await act(async () => {
+      upload.reject(new ApiRequestError('The archive upload did not finish', 0))
+    })
+
+    expect(
+      await screen.findByText('The upload did not finish')
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeDisabled()
+    // Try again cannot take the focus while offline, so the hand-off
+    // falls through to the file picker.
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Change file' })
+      )
+    )
   })
 
   it('aborts the upload and cancels the import when the form unmounts mid-upload', async () => {

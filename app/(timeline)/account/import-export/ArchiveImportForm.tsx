@@ -1,5 +1,6 @@
 'use client'
 
+import { RefreshCw } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 
@@ -23,6 +24,8 @@ import { Progress } from '@/lib/components/ui/progress'
 import { Switch } from '@/lib/components/ui/switch'
 import { useConnectionStatus } from '@/lib/hooks/useConnectionStatus'
 import { formatBytes } from '@/lib/utils/formatBytes'
+
+import { focusStartCandidate } from './focusStartCandidate'
 
 interface Props {
   actorId: string
@@ -133,9 +136,9 @@ export const ArchiveImportForm = ({
   // that shows the alert, so Try again must take the focus on it.
   const cancelUploadRef = useRef<HTMLButtonElement>(null)
   const tryAgainRef = useRef<HTMLButtonElement>(null)
-  // The generic alert's Retry, which the Alert renders itself: the wrapper
-  // div is the only handle on it.
-  const genericAlertRef = useRef<HTMLDivElement>(null)
+  // The generic alert's Retry, which the form hands the focus to when the
+  // presign fails before the upload began.
+  const genericRetryRef = useRef<HTMLButtonElement>(null)
   const focusTryAgain = useRef(false)
   const [submitting, setSubmitting] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(
@@ -155,16 +158,23 @@ export const ArchiveImportForm = ({
   // ends takes the focus that fell to the body. The upload alert's Try
   // again takes the focus the unmounted Cancel dropped; the generic
   // alert's Retry takes the focus the pressed Try again dropped when the
-  // presign failed before the upload began.
+  // presign failed before the upload began. A candidate that cannot take
+  // the focus (Try again is disabled while offline) falls through to the
+  // next one, so the file picker is the last resort.
   useEffect(() => {
     if (alert?.type === 'upload') {
       if (!focusTryAgain.current) return
       focusTryAgain.current = false
-      tryAgainRef.current?.focus()
     } else if (alert?.type === 'generic') {
       if (document.activeElement !== document.body) return
-      genericAlertRef.current?.querySelector('button')?.focus()
+    } else {
+      return
     }
+    focusStartCandidate([
+      genericRetryRef.current,
+      tryAgainRef.current,
+      filePickerRef.current
+    ])
   }, [alert])
 
   // A submit that begins from the section's "The upload did not finish"
@@ -300,15 +310,24 @@ export const ArchiveImportForm = ({
         />
       ) : null}
       {alert?.type === 'generic' ? (
-        <div ref={genericAlertRef}>
-          <Alert
-            tone="error"
-            title="Could not start the import"
-            onRetry={() => void handleSubmit()}
-          >
-            {alert.message}
-          </Alert>
-        </div>
+        <Alert
+          tone="error"
+          title="Could not start the import"
+          action={
+            <Button
+              ref={genericRetryRef}
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void handleSubmit()}
+            >
+              <RefreshCw aria-hidden="true" />
+              Retry
+            </Button>
+          }
+        >
+          {alert.message}
+        </Alert>
       ) : null}
 
       <form

@@ -20,8 +20,9 @@ import { ApiRequestError } from '@/lib/client/http'
 import { ImportSection } from './ImportSection'
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }))
+const connection = vi.hoisted(() => ({ state: 'online' }))
 vi.mock('@/lib/hooks/useConnectionStatus', () => ({
-  useConnectionStatus: () => ({ state: 'online' })
+  useConnectionStatus: () => ({ state: connection.state })
 }))
 vi.mock('@/lib/client/connection', () => ({
   onConnectionRestored: () => () => undefined
@@ -157,6 +158,7 @@ const deferred = <T,>() => {
 
 describe('ImportSection', () => {
   beforeEach(() => {
+    connection.state = 'online'
     vi.stubGlobal(
       'ResizeObserver',
       class {
@@ -544,6 +546,88 @@ describe('ImportSection', () => {
     await waitFor(() =>
       expect(document.activeElement).toBe(
         screen.getByRole('button', { name: 'Start import' })
+      )
+    )
+  })
+
+  it('moves focus to the found upload when a re-upload finds a waiting upload', async () => {
+    vi.mocked(accountImports.startAccountImport).mockRejectedValueOnce(
+      new ApiRequestError('Upload is incomplete; upload it again', 409)
+    )
+    renderSection()
+    chooseFile('a.zip')
+    submitArchive()
+
+    expect(
+      await screen.findByText('The upload did not finish')
+    ).toBeInTheDocument()
+
+    // Another tab uploaded meanwhile: the re-upload's presign answers 409
+    // and the list holds that tab's waiting, never-started row.
+    vi.mocked(accountImports.createPresignedImport).mockRejectedValueOnce(
+      new ApiRequestError('An import is already active', 409)
+    )
+    vi.mocked(accountImports.listAccountImports).mockResolvedValueOnce([
+      { ...queuedNotStarted, id: 'other-tab-row' } as never
+    ])
+    const tryAgain = screen.getByRole('button', { name: 'Try again' })
+    tryAgain.focus()
+    fireEvent.click(tryAgain)
+
+    expect(
+      await screen.findByText('An earlier upload was not started')
+    ).toBeInTheDocument()
+    // The pressed Try again unmounted when the re-upload began, so the
+    // found row's Start import must take the focus it dropped.
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Start import' })
+      )
+    )
+  })
+
+  it('skips the disabled Start import and focuses the generic Retry while offline', async () => {
+    let rejectStart: (error: unknown) => void = () => undefined
+    vi.mocked(accountImports.startAccountImport)
+      .mockRejectedValueOnce(
+        new ApiRequestError('Too many imports started recently', 429, 60_000)
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejectStart = reject
+          })
+      )
+    renderSection()
+    chooseFile('a.zip')
+    submitArchive()
+
+    expect(
+      await screen.findByText('Too many imports started recently')
+    ).toBeInTheDocument()
+
+    const tryAgain = screen.getByRole('button', { name: 'Try again' })
+    tryAgain.focus()
+    fireEvent.click(tryAgain)
+    await waitFor(() =>
+      expect(
+        screen.queryByText('Too many imports started recently')
+      ).not.toBeInTheDocument()
+    )
+
+    connection.state = 'offline'
+    await act(async () => {
+      rejectStart(new TypeError('Failed to fetch'))
+    })
+
+    expect(
+      await screen.findByText('Could not start the import')
+    ).toBeInTheDocument()
+    // The warning's Start import is disabled while offline, so the
+    // hand-off falls through to the showing alert's Retry.
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Retry' })
       )
     )
   })
