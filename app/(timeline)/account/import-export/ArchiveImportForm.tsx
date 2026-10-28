@@ -44,7 +44,10 @@ interface Props {
   onStarted: (accountImport: AccountImportResponse) => void
   /** The upload finished; the section starts the row it uploaded. */
   onUploaded: (uploaded: PresignedAccountImportResponse) => void
-  /** Called as a submit begins: the section drops its stale upload alert. */
+  /**
+   * Called as a submit begins: the section drops its stale start alerts,
+   * because a submit can only begin when no row is waiting.
+   */
   onSubmitStart: () => void
   /** True while the section is starting or discarding the earlier upload. */
   startInFlight: boolean
@@ -130,6 +133,9 @@ export const ArchiveImportForm = ({
   // that shows the alert, so Try again must take the focus on it.
   const cancelUploadRef = useRef<HTMLButtonElement>(null)
   const tryAgainRef = useRef<HTMLButtonElement>(null)
+  // The generic alert's Retry, which the Alert renders itself: the wrapper
+  // div is the only handle on it.
+  const genericAlertRef = useRef<HTMLDivElement>(null)
   const focusTryAgain = useRef(false)
   const [submitting, setSubmitting] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(
@@ -145,10 +151,20 @@ export const ArchiveImportForm = ({
     setUploadProgress(null)
   }, [actorId, file])
 
+  // One rule for the form's alerts: the alert that appears when a submit
+  // ends takes the focus that fell to the body. The upload alert's Try
+  // again takes the focus the unmounted Cancel dropped; the generic
+  // alert's Retry takes the focus the pressed Try again dropped when the
+  // presign failed before the upload began.
   useEffect(() => {
-    if (alert?.type !== 'upload' || !focusTryAgain.current) return
-    focusTryAgain.current = false
-    tryAgainRef.current?.focus()
+    if (alert?.type === 'upload') {
+      if (!focusTryAgain.current) return
+      focusTryAgain.current = false
+      tryAgainRef.current?.focus()
+    } else if (alert?.type === 'generic') {
+      if (document.activeElement !== document.body) return
+      genericAlertRef.current?.querySelector('button')?.focus()
+    }
   }, [alert])
 
   // A submit that begins from the section's "The upload did not finish"
@@ -284,13 +300,15 @@ export const ArchiveImportForm = ({
         />
       ) : null}
       {alert?.type === 'generic' ? (
-        <Alert
-          tone="error"
-          title="Could not start the import"
-          onRetry={() => void handleSubmit()}
-        >
-          {alert.message}
-        </Alert>
+        <div ref={genericAlertRef}>
+          <Alert
+            tone="error"
+            title="Could not start the import"
+            onRetry={() => void handleSubmit()}
+          >
+            {alert.message}
+          </Alert>
+        </div>
       ) : null}
 
       <form

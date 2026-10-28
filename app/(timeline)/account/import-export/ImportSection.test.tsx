@@ -170,6 +170,9 @@ describe('ImportSection', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
     vi.useRealTimers()
+    // Every spy (the rate-limit test's Date.now) is restored after its
+    // test, so no test depends on the order the tests run in.
+    vi.restoreAllMocks()
   })
 
   beforeEach(() => {
@@ -423,6 +426,128 @@ describe('ImportSection', () => {
     ).toHaveLength(1)
   })
 
+  it('clears every start alert when a new upload begins', async () => {
+    vi.mocked(accountImports.startAccountImport).mockRejectedValueOnce(
+      new ApiRequestError('Archive format is not recognised', 422)
+    )
+    renderSection()
+    chooseFile('a.zip')
+    submitArchive()
+
+    expect(
+      await screen.findByText('We could not read this file')
+    ).toBeInTheDocument()
+
+    const upload = deferred<void>()
+    vi.mocked(accountImports.uploadAccountImport).mockReturnValueOnce(
+      upload.promise
+    )
+    submitArchive()
+
+    await screen.findByText('Uploading the archive')
+    // A submit can only begin when no row is waiting, so no start alert
+    // is worth keeping: the unreadable-file alert must not sit above the
+    // running upload.
+    expect(screen.queryByText('We could not read this file')).toBeNull()
+
+    await act(async () => {
+      upload.reject(new ApiRequestError('The archive upload did not finish', 0))
+    })
+    expect(
+      await screen.findAllByText('The upload did not finish')
+    ).toHaveLength(1)
+  })
+
+  it('moves focus to the Retry of the generic alert when Try again hits a failed presign', async () => {
+    vi.mocked(accountImports.startAccountImport).mockRejectedValueOnce(
+      new ApiRequestError('Upload is incomplete; upload it again', 409)
+    )
+    renderSection()
+    chooseFile('a.zip')
+    submitArchive()
+
+    expect(
+      await screen.findByText('The upload did not finish')
+    ).toBeInTheDocument()
+
+    vi.mocked(accountImports.createPresignedImport).mockRejectedValueOnce(
+      new ApiRequestError('Import storage is unavailable', 503)
+    )
+    const tryAgain = screen.getByRole('button', { name: 'Try again' })
+    tryAgain.focus()
+    fireEvent.click(tryAgain)
+
+    expect(
+      await screen.findByText('Import storage is unavailable')
+    ).toBeInTheDocument()
+    // The pressed Try again unmounted when the submit began, and the
+    // upload never started (the presign failed), so the focus fell to the
+    // body: the alert that appeared must take it.
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Retry' })
+      )
+    )
+  })
+
+  it('moves focus to the warning when a start after a focused Try again keeps the row', async () => {
+    // The start takes a round-trip, so it begins on the commit that ends
+    // the upload and ends on its own: the rejection is deferred the way
+    // the real request would be.
+    let rejectStart: (error: unknown) => void = () => undefined
+    vi.mocked(accountImports.startAccountImport)
+      .mockRejectedValueOnce(
+        new ApiRequestError('Upload is incomplete; upload it again', 409)
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejectStart = reject
+          })
+      )
+    renderSection()
+    chooseFile('a.zip')
+    submitArchive()
+
+    expect(
+      await screen.findByText('The upload did not finish')
+    ).toBeInTheDocument()
+
+    const upload = deferred<void>()
+    vi.mocked(accountImports.uploadAccountImport).mockReturnValueOnce(
+      upload.promise
+    )
+    const tryAgain = screen.getByRole('button', { name: 'Try again' })
+    tryAgain.focus()
+    fireEvent.click(tryAgain)
+
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Cancel' })
+      )
+    )
+    await act(async () => {
+      upload.resolve()
+    })
+    await act(async () => {
+      rejectStart(
+        new ApiRequestError('Too many imports started recently', 429, 60_000)
+      )
+    })
+
+    expect(
+      await screen.findByText('Too many imports started recently')
+    ).toBeInTheDocument()
+    // The upload's Cancel unmounted when the upload ended, and the start
+    // kept the row: the warning's Start import must take the focus it
+    // dropped.
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Start import' })
+      )
+    )
+  })
+
   it('shows the active import via listAccountImports on a 409 already-active start', async () => {
     vi.mocked(accountImports.startAccountImport).mockRejectedValueOnce(
       new ApiRequestError('An import is already active', 409)
@@ -504,6 +629,12 @@ describe('ImportSection', () => {
     expect(
       await screen.findByText('You can try again in about 2 hours.')
     ).toBeInTheDocument()
+  })
+
+  it('runs on the real clock once the rate-limit test has ended', () => {
+    // The test above spies on Date.now; if the spy were not restored after
+    // it, every later test in this file would run on the frozen clock.
+    expect(vi.isMockFunction(Date.now)).toBe(false)
   })
 
   it('shows five unchecked switches for ZIPs and no CSV controls', () => {
