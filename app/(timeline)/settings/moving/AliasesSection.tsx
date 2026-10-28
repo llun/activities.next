@@ -100,6 +100,10 @@ export const AliasesSection: FC<Props> = ({ actorId, initialAliases }) => {
     setActorChanged(false)
     try {
       setAliases(await removeAccountAlias({ actorId, id }))
+      // The pressed Remove button unmounted with its row, and the browser
+      // has already dropped focus to the body. The alias input is the next
+      // useful control whether or not rows are left.
+      inputRef.current?.focus()
     } catch (err) {
       if (
         err instanceof ApiRequestError &&

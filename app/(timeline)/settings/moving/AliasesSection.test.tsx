@@ -344,6 +344,30 @@ describe('AliasesSection', () => {
     expect(screen.queryByText('Failed to fetch')).not.toBeInTheDocument()
   })
 
+  it('moves focus to the input after a successful remove', async () => {
+    // The pressed Remove button unmounts with its row, so focus would
+    // otherwise fall to the page body.
+    mockRemove.mockResolvedValueOnce([])
+    render(
+      <AliasesSection
+        actorId="https://llun.test/users/anna"
+        initialAliases={[
+          alias('https://old.example/users/anna', 'anna@old.example')
+        ]}
+      />
+    )
+
+    const input = screen.getByLabelText('Old account')
+    const remove = screen.getByTestId('remove-alias')
+    remove.focus()
+    fireEvent.click(remove)
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('remove-alias')).toBeNull()
+    })
+    expect(document.activeElement).toBe(input)
+  })
+
   it('maps a remove network failure to the plain message, not the browser text', async () => {
     mockRemove.mockRejectedValueOnce(new TypeError('Load failed'))
     render(
