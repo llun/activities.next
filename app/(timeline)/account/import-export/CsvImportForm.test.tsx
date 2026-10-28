@@ -58,6 +58,10 @@ const bulkImport = (
 
 const csvFile = () => new File(['account,acct'], 'following_accounts.csv')
 
+const filePickerRef = { current: null } as {
+  current: HTMLButtonElement | null
+}
+
 const csvElement = (
   file: File,
   onActorChanged: () => void,
@@ -67,6 +71,7 @@ const csvElement = (
     actorId={actorId}
     file={file}
     maxCsvBytes={5 * 1024 * 1024}
+    filePickerRef={filePickerRef}
     onFileChange={vi.fn()}
     onActorChanged={onActorChanged}
     onMoved={onMoved}
@@ -300,5 +305,19 @@ describe('CsvImportForm', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Import following' }))
 
     await waitFor(() => expect(onMoved).toHaveBeenCalledOnce())
+  })
+
+  it('shows the plain fallback when the network fails', async () => {
+    vi.mocked(bulkImports.createBulkImport).mockRejectedValueOnce(
+      new TypeError('Failed to fetch')
+    )
+    render(csvElement(csvFile(), vi.fn(), vi.fn()))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Import following' }))
+
+    expect(
+      await screen.findByText('Could not start the import')
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Failed to fetch')).not.toBeInTheDocument()
   })
 })
