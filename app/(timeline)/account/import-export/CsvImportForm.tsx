@@ -269,6 +269,9 @@ export const CsvImportForm = ({
                 <Select
                   id="csv-import-type"
                   value={type}
+                  // What is sent must be what is shown: the type is locked
+                  // while the request that carries it is in flight.
+                  disabled={submitting}
                   onChange={(event) =>
                     setType(event.currentTarget.value as BulkImportType)
                   }
@@ -288,6 +291,9 @@ export const CsvImportForm = ({
                     aria-describedby={describedBy}
                     value={mode}
                     onValueChange={(value) => setMode(value as BulkImportMode)}
+                    // Same lock as the type: the mode the request carries
+                    // must be the mode the page shows.
+                    disabled={submitting}
                     className="grid gap-2"
                   >
                     <RadioCard

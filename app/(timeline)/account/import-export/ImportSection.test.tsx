@@ -1418,6 +1418,108 @@ describe('ImportSection', () => {
     )
   })
 
+  it('keeps the focus on the warning when Try again on the rate-limit alert is refused again', async () => {
+    vi.mocked(accountImports.startAccountImport)
+      .mockRejectedValueOnce(
+        new ApiRequestError('Too many imports started recently', 429, 60_000)
+      )
+      .mockRejectedValueOnce(
+        new ApiRequestError('Too many imports started recently', 429, 60_000)
+      )
+    renderWithImport(queuedNotStarted)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start import' }))
+    expect(
+      await screen.findByText('Too many imports started recently')
+    ).toBeInTheDocument()
+
+    // The click clears the alert at once, so the focused Try again
+    // unmounts before any answer comes back.
+    const tryAgain = screen.getByRole('button', { name: 'Try again' })
+    tryAgain.focus()
+    fireEvent.click(tryAgain)
+    await waitFor(() =>
+      expect(
+        screen.queryByText('Too many imports started recently')
+      ).not.toBeInTheDocument()
+    )
+
+    expect(
+      await screen.findByText('Too many imports started recently')
+    ).toBeInTheDocument()
+    // The alert came back with the warning's buttons enabled, so the
+    // warning's Start import must have taken the focus the unmounted Try
+    // again dropped.
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Start import' })
+      )
+    )
+  })
+
+  it('keeps the focus on the warning when Retry on the generic alert fails again', async () => {
+    vi.mocked(accountImports.startAccountImport)
+      .mockRejectedValueOnce(
+        new ApiRequestError('Import storage is unavailable', 503)
+      )
+      .mockRejectedValueOnce(
+        new ApiRequestError('Import storage is unavailable', 503)
+      )
+    renderWithImport(queuedNotStarted)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start import' }))
+    expect(
+      await screen.findByText('Could not start the import')
+    ).toBeInTheDocument()
+
+    const retry = screen.getByRole('button', { name: 'Retry' })
+    retry.focus()
+    fireEvent.click(retry)
+    await waitFor(() =>
+      expect(
+        screen.queryByText('Could not start the import')
+      ).not.toBeInTheDocument()
+    )
+
+    expect(
+      await screen.findByText('Import storage is unavailable')
+    ).toBeInTheDocument()
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Start import' })
+      )
+    )
+  })
+
+  it('moves focus to the file picker when Try again on the rate-limit alert drops the upload', async () => {
+    vi.mocked(accountImports.startAccountImport)
+      .mockRejectedValueOnce(
+        new ApiRequestError('Too many imports started recently', 429, 60_000)
+      )
+      .mockRejectedValueOnce(
+        new ApiRequestError('Archive format is not recognised', 422)
+      )
+    renderWithImport(queuedNotStarted)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start import' }))
+    expect(
+      await screen.findByText('Too many imports started recently')
+    ).toBeInTheDocument()
+
+    const tryAgain = screen.getByRole('button', { name: 'Try again' })
+    tryAgain.focus()
+    fireEvent.click(tryAgain)
+
+    expect(
+      await screen.findByText('We could not read this file')
+    ).toBeInTheDocument()
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Choose file' })
+      )
+    )
+  })
+
   it('starts a kept upload with the options it was uploaded with, not the switches a later file shows', async () => {
     vi.mocked(accountImports.startAccountImport)
       .mockRejectedValueOnce(

@@ -339,6 +339,39 @@ describe('CsvImportForm', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('locks the type and the mode while the import is being sent', async () => {
+    let resolveCreate: (value: BulkImportResponse) => void = () => undefined
+    vi.mocked(bulkImports.createBulkImport).mockImplementation(
+      () =>
+        new Promise<BulkImportResponse>((resolve) => {
+          resolveCreate = resolve
+        })
+    )
+    render(csvElement(csvFile(), vi.fn(), vi.fn()))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Import following' }))
+    expect(
+      await screen.findByRole('button', { name: 'Importing…' })
+    ).toBeInTheDocument()
+
+    // What is sent must be what is shown: neither the type nor the mode
+    // may change while the request that carries them is in flight.
+    expect(screen.getByLabelText('What is in this file')).toBeDisabled()
+    expect(screen.getByRole('radio', { name: /Merge/ })).toBeDisabled()
+    expect(screen.getByRole('radio', { name: /Overwrite/ })).toBeDisabled()
+
+    await act(async () => {
+      resolveCreate(bulkImport({}))
+    })
+    // The controls unmount once the import is created; nothing else is
+    // needed.
+    await waitFor(() =>
+      expect(
+        screen.queryByLabelText('What is in this file')
+      ).not.toBeInTheDocument()
+    )
+  })
+
   it('disables the CSV import while offline', () => {
     connectionState.offline = true
     const { container } = render(csvElement(csvFile(), vi.fn(), vi.fn()))
