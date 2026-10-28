@@ -75,6 +75,18 @@ const ROW_CLASS =
 const ACTIVE_ROW_CLASS =
   'bg-primary/10 text-primary-text focus:bg-primary/10 focus:text-primary-text dark:focus:bg-primary/10 focus:ring-2 focus:ring-primary/50'
 
+// What counts as the user taking over from the automatic reveal.
+const STEERING_EVENTS = ['keydown', 'wheel', 'pointerdown'] as const
+// The wheel listener only observes, so it is passive and never blocks scrolling.
+const LISTENER_OPTIONS: Record<
+  (typeof STEERING_EVENTS)[number],
+  AddEventListenerOptions | undefined
+> = {
+  keydown: undefined,
+  wheel: { passive: true },
+  pointerdown: undefined
+}
+
 // Scroll the menu itself (never the window) just far enough to show `row`,
 // with a few pixels of room for its focus ring.
 const revealRow = (menu: HTMLElement, row: HTMLElement) => {
@@ -105,9 +117,6 @@ const revealRow = (menu: HTMLElement, row: HTMLElement) => {
 // `FocusScope`, which is where the event comes from. It is therefore spread
 // from a variable rather than written as a prop, and the component test
 // "opens on the current page" fails if a Radix update stops honouring it.
-// What counts as the user taking over from the automatic reveal.
-const STEERING_EVENTS = ['keydown', 'wheel', 'pointerdown'] as const
-
 const focusCurrentRowOnOpen = {
   onOpenAutoFocus: (event: Event) => {
     const menu = event.currentTarget as HTMLElement | null
@@ -130,13 +139,15 @@ const focusCurrentRowOnOpen = {
     const stop = () => {
       observer?.disconnect()
       window.clearTimeout(timer)
-      for (const type of STEERING_EVENTS) menu.removeEventListener(type, stop)
+      for (const type of STEERING_EVENTS)
+        menu.removeEventListener(type, stop, LISTENER_OPTIONS[type])
     }
     function reveal() {
       if (document.activeElement !== currentEl) return stop()
       revealRow(menuEl, currentEl)
     }
-    for (const type of STEERING_EVENTS) menu.addEventListener(type, stop)
+    for (const type of STEERING_EVENTS)
+      menu.addEventListener(type, stop, LISTENER_OPTIONS[type])
     observer?.observe(menu)
     timer = window.setTimeout(() => {
       reveal()

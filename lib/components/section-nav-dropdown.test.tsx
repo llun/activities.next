@@ -418,6 +418,42 @@ describe('SectionNavDropdown', () => {
     }
   })
 
+  it.each([
+    ['wheel', (menu: HTMLElement) => fireEvent.wheel(menu)],
+    ['pointerdown', (menu: HTMLElement) => fireEvent.pointerDown(menu)]
+  ])(
+    'does not pull the menu back after a %s on the menu while focus is on the current row',
+    async (_name, steer) => {
+      setPath('/admin/system')
+      render(<SectionNavDropdown label="Admin" groups={adminGroups(3)} />)
+
+      const menu = await openMenu('Admin')
+      const current = within(menu).getByRole('menuitem', { name: 'System' })
+      await waitFor(() => expect(current).toHaveFocus())
+
+      // Mock layout only after opening, so the late reveals have a reason to
+      // scroll if the steering event did not stop them.
+      const rectSpy = vi
+        .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+        .mockImplementation(function (this: HTMLElement) {
+          if (this.getAttribute('role') === 'menu')
+            return { top: 0, bottom: 100 } as DOMRect
+          if (this.getAttribute('aria-current') === 'page')
+            return { top: 150, bottom: 180 } as DOMRect
+          return { top: 0, bottom: 0 } as DOMRect
+        })
+      try {
+        steer(menu)
+        menu.scrollTop = 0
+        await new Promise((resolve) => setTimeout(resolve, 400))
+        expect(current).toHaveFocus()
+        expect(menu.scrollTop).toBe(0)
+      } finally {
+        rectSpy.mockRestore()
+      }
+    }
+  )
+
   it('sizes rows for touch and truncates long names', async () => {
     setPath('/fitness/strava')
     renderFitness()

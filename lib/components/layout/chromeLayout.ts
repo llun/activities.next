@@ -47,6 +47,5 @@ export const MOBILE_BACK_ROW_CLASS =
 
 // The section's sticky 79px PageHeader (from md up) plus a 24px gap: where the
 // Edit profile preview sticks once scrolled, instead of sliding under the
-// header. Keep the literal class string in this
-// file (Tailwind scans it).
+// header. Keep the literal class string in this file (Tailwind scans it).
 export const SECTION_STICKY_TOP_CLASS = 'top-[103px]'

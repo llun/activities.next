@@ -63,9 +63,12 @@ let mockDatabase: {
   getActorSettings: ReturnType<typeof vi.fn>
 }
 
-vi.mock('@/lib/services/guards/OAuthGuard', () => ({
-  isBearerAuthorizationHeader: (header: string | null) =>
-    header?.trim().split(/\s+/, 1)[0]?.toLowerCase() === 'bearer',
+vi.mock('@/lib/services/guards/OAuthGuard', async () => ({
+  isBearerAuthorizationHeader: (
+    await vi.importActual<typeof import('@/lib/services/guards/OAuthGuard')>(
+      '@/lib/services/guards/OAuthGuard'
+    )
+  ).isBearerAuthorizationHeader,
   OAuthGuardAnyScope:
     (
       _scopes: unknown,
@@ -304,7 +307,7 @@ describe('GET /api/v1/accounts/bootstrap', () => {
     const data = await res.json()
 
     expect(data.isAdmin).toBe(true)
-    expect(data.openReportCount).toBe(0)
+    expect(data).not.toHaveProperty('openReportCount')
     expect(mockDatabase.countOpenReports).not.toHaveBeenCalled()
   })
 

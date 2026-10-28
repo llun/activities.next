@@ -62,9 +62,11 @@ export const GET = traceApiRoute(
             onlyUnread: true
           }),
           // The Admin item's unresolved report count, for first-party admins.
-          isFirstParty && currentActor.account.role === 'admin'
-            ? database.countOpenReports({ limit: 100 })
-            : Promise.resolve(0),
+          !isFirstParty
+            ? Promise.resolve(undefined)
+            : currentActor.account.role === 'admin'
+              ? database.countOpenReports({ limit: 100 })
+              : Promise.resolve(0),
           database.getLists({ actorId: currentActor.id }),
           database.getActorSettings({ actorId: currentActor.id })
         ])
