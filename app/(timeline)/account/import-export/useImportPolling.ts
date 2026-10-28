@@ -46,18 +46,18 @@ export const useImportPolling = ({ actorId, initialImport }: Props) => {
   }, [accountImport, actorId])
 
   useEffect(() => {
-    if (!isActive(accountImport) || isOffline) return
+    if (!isActive(accountImport) || isOffline || actorChanged) return
     const interval = window.setInterval(
       () => void refresh(),
       IMPORT_POLL_INTERVAL_MS
     )
     return () => window.clearInterval(interval)
-  }, [accountImport, isOffline, refresh])
+  }, [accountImport, actorChanged, isOffline, refresh])
 
   useEffect(() => {
-    if (!isActive(accountImport)) return
+    if (!isActive(accountImport) || actorChanged) return
     return onConnectionRestored(() => void refresh())
-  }, [accountImport, refresh])
+  }, [accountImport, actorChanged, refresh])
 
   return {
     accountImport,

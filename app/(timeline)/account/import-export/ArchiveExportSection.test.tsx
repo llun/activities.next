@@ -166,6 +166,19 @@ describe('ArchiveExportSection', () => {
     )
   })
 
+  it('announces the latest-archive status in a live region', () => {
+    render(
+      <ArchiveExportSection
+        {...props}
+        initialArchives={[archive('ready')] as never}
+      />
+    )
+
+    const region = screen.getByRole('status')
+    expect(region).toHaveTextContent('Latest archive')
+    expect(region).toHaveTextContent('Ready')
+  })
+
   it('renders the expired state and allows another archive', () => {
     render(
       <ArchiveExportSection

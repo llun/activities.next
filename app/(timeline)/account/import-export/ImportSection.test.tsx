@@ -3,6 +3,7 @@
  */
 import '@testing-library/jest-dom'
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -75,9 +76,10 @@ const renderSection = () =>
 
 const chooseFile = (name: string) => {
   const file = new File(['file data'], name)
-  fireEvent.change(screen.getByLabelText('File'), {
-    target: { files: [file] }
-  })
+  fireEvent.change(
+    document.querySelector<HTMLInputElement>('input[type="file"]')!,
+    { target: { files: [file] } }
+  )
   return file
 }
 
@@ -95,6 +97,7 @@ describe('ImportSection', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals()
+    vi.useRealTimers()
   })
 
   beforeEach(() => {
@@ -300,11 +303,195 @@ describe('ImportSection', () => {
     renderSection()
     const file = new File(['too large'], 'archive.zip')
     Object.defineProperty(file, 'size', { value: 2 * 1024 * 1024 })
-    fireEvent.change(screen.getByLabelText('File'), {
-      target: { files: [file] }
-    })
+    fireEvent.change(
+      document.querySelector<HTMLInputElement>('input[type="file"]')!,
+      { target: { files: [file] } }
+    )
 
     expect(await screen.findByText('File is too large')).toBeInTheDocument()
     expect(accountImports.createPresignedImport).not.toHaveBeenCalled()
+  })
+
+  it('offers a queued upload that never started instead of progress', async () => {
+    render(
+      <ImportSection
+        actorId={actorId}
+        handle="@may@llun.test"
+        currentTime={Date.parse('2026-10-28T10:00:00.000Z')}
+        initialImport={
+          {
+            ...activeImport,
+            status: 'queued' as const,
+            kind: null,
+            phase: null,
+            startedAt: null
+          } as never
+        }
+        maxImportBytes={1024 * 1024}
+        maxCsvBytes={5 * 1024 * 1024}
+      />
+    )
+
+    expect(screen.queryByText('Import in progress')).not.toBeInTheDocument()
+    expect(
+      screen.getByText('An earlier upload was not started')
+    ).toBeInTheDocument()
+    expect(screen.getByLabelText('File')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start import' }))
+    await waitFor(() =>
+      expect(accountImports.startAccountImport).toHaveBeenCalledWith({
+        actorId,
+        importId: 'archive-1',
+        options: {
+          likes: false,
+          bookmarks: false,
+          repliesToOthers: 'skip',
+          profile: false,
+          settings: false
+        }
+      })
+    )
+    expect(await screen.findByText('Import in progress')).toBeInTheDocument()
+  })
+
+  it('discards a queued upload that never started', async () => {
+    render(
+      <ImportSection
+        actorId={actorId}
+        handle="@may@llun.test"
+        currentTime={Date.parse('2026-10-28T10:00:00.000Z')}
+        initialImport={
+          {
+            ...activeImport,
+            status: 'queued' as const,
+            kind: null,
+            phase: null,
+            startedAt: null
+          } as never
+        }
+        maxImportBytes={1024 * 1024}
+        maxCsvBytes={5 * 1024 * 1024}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+
+    await waitFor(() =>
+      expect(accountImports.cancelAccountImport).toHaveBeenCalledWith({
+        actorId,
+        id: 'archive-1'
+      })
+    )
+    await waitFor(() =>
+      expect(
+        screen.queryByText('An earlier upload was not started')
+      ).not.toBeInTheDocument()
+    )
+    expect(screen.getByLabelText('File')).toBeInTheDocument()
+  })
+
+  it('cancels a running import through the confirm dialog and shows the report', async () => {
+    vi.mocked(accountImports.getAccountImport).mockResolvedValue({
+      ...activeImport,
+      status: 'cancelled',
+      finishedAt: '2026-10-28T10:05:00.000Z'
+    } as never)
+    render(
+      <ImportSection
+        actorId={actorId}
+        handle="@may@llun.test"
+        currentTime={Date.parse('2026-10-28T10:00:00.000Z')}
+        initialImport={activeImport}
+        maxImportBytes={1024 * 1024}
+        maxCsvBytes={5 * 1024 * 1024}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel import' }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Cancel import' })
+    )
+
+    await waitFor(() =>
+      expect(accountImports.cancelAccountImport).toHaveBeenCalledWith({
+        actorId,
+        id: 'archive-1'
+      })
+    )
+    expect(await screen.findByText('Import cancelled')).toBeInTheDocument()
+    expect(screen.queryByText('Import in progress')).not.toBeInTheDocument()
+  })
+
+  it('replaces progress with the report when polling reaches a terminal status', async () => {
+    vi.useFakeTimers()
+    vi.mocked(accountImports.getAccountImport).mockResolvedValue({
+      ...activeImport,
+      status: 'done',
+      finishedAt: '2026-10-28T10:05:00.000Z'
+    } as never)
+    render(
+      <ImportSection
+        actorId={actorId}
+        handle="@may@llun.test"
+        currentTime={Date.parse('2026-10-28T10:00:00.000Z')}
+        initialImport={activeImport}
+        maxImportBytes={1024 * 1024}
+        maxCsvBytes={5 * 1024 * 1024}
+      />
+    )
+    expect(screen.getByText('Import in progress')).toBeInTheDocument()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3_000)
+    })
+
+    expect(screen.getByText('Import finished')).toBeInTheDocument()
+    expect(screen.queryByText('Import in progress')).not.toBeInTheDocument()
+  })
+
+  it('shows an error alert when cancelling fails, and retries', async () => {
+    vi.mocked(accountImports.cancelAccountImport)
+      .mockRejectedValueOnce(
+        new ApiRequestError('Could not cancel the import', 500)
+      )
+      .mockResolvedValueOnce({} as never)
+    vi.mocked(accountImports.getAccountImport).mockResolvedValue({
+      ...activeImport,
+      status: 'cancelled',
+      finishedAt: '2026-10-28T10:05:00.000Z'
+    } as never)
+    render(
+      <ImportSection
+        actorId={actorId}
+        handle="@may@llun.test"
+        currentTime={Date.parse('2026-10-28T10:00:00.000Z')}
+        initialImport={activeImport}
+        maxImportBytes={1024 * 1024}
+        maxCsvBytes={5 * 1024 * 1024}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel import' }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Cancel import' })
+    )
+
+    expect(
+      await screen.findByText('Could not cancel the import')
+    ).toBeInTheDocument()
+    expect(screen.getByText('Import in progress')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    await waitFor(() =>
+      expect(accountImports.cancelAccountImport).toHaveBeenCalledTimes(2)
+    )
+    expect(await screen.findByText('Import cancelled')).toBeInTheDocument()
+    expect(
+      screen.queryByText('Could not cancel the import')
+    ).not.toBeInTheDocument()
   })
 })

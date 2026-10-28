@@ -102,6 +102,14 @@ export const uploadAccountImport = ({
   signal
 }: UploadAccountImportParams): Promise<void> =>
   new Promise((resolve, reject) => {
+    // A signal that is already aborted must reject here, before any XHR
+    // exists: per the XHR spec, abort() on an OPENED request whose send()
+    // flag is not set fires no abort, error or loadend event, so a promise
+    // that waits for the XHR would never settle.
+    if (signal?.aborted) {
+      reject(new ApiRequestError('The archive upload was cancelled', 0))
+      return
+    }
     if (!uploadUrl && !directUploadPath) {
       reject(new ApiRequestError('No archive upload path was returned', 503))
       return
@@ -151,10 +159,6 @@ export const uploadAccountImport = ({
       reject(new ApiRequestError('The archive upload was cancelled', 0))
     })
     if (signal) {
-      if (signal.aborted) {
-        xhr.abort()
-        return
-      }
       signal.addEventListener('abort', () => xhr.abort(), { once: true })
     }
     xhr.send(file)

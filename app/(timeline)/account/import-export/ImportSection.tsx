@@ -34,8 +34,18 @@ interface SelectionError {
   message: string
 }
 
+// A queued row that was never started is an upload waiting for its start, not
+// an import in progress: nothing will ever move it, so it is offered back to
+// the user (start it or discard it) instead of being polled as progress.
+const isUploadedNotStarted = (accountImport: AccountImportResponse | null) =>
+  accountImport !== null &&
+  accountImport.status === 'queued' &&
+  accountImport.startedAt === null
+
 const isActiveImport = (accountImport: AccountImportResponse | null) =>
-  accountImport?.status === 'queued' || accountImport?.status === 'running'
+  accountImport !== null &&
+  (accountImport.status === 'running' ||
+    (accountImport.status === 'queued' && accountImport.startedAt !== null))
 
 export const ImportSection = ({
   actorId,
@@ -52,6 +62,7 @@ export const ImportSection = ({
   const [actorChangedLocally, setActorChangedLocally] = useState(false)
   const [moved, setMoved] = useState(false)
   const [canceling, setCanceling] = useState(false)
+  const [cancelError, setCancelError] = useState(false)
   const isOffline = useConnectionStatus().state === 'offline'
   const {
     accountImport,
@@ -59,6 +70,9 @@ export const ImportSection = ({
     actorChanged: actorChangedWhilePolling
   } = useImportPolling({ actorId, initialImport })
   const actorChanged = actorChangedLocally || actorChangedWhilePolling
+  const notStartedImport = isUploadedNotStarted(accountImport)
+    ? accountImport
+    : null
 
   const onFileChange = (selected: File | null) => {
     setSelectionError(null)
@@ -103,6 +117,7 @@ export const ImportSection = ({
   const handleCancelImport = async () => {
     if (!accountImport || !isActiveImport(accountImport) || isOffline) return
     setCanceling(true)
+    setCancelError(false)
     try {
       const cancelled = await cancelAccountImport({
         actorId,
@@ -122,13 +137,16 @@ export const ImportSection = ({
         error.message === 'Actor changed'
       ) {
         setActorChangedLocally(true)
+      } else {
+        setCancelError(true)
       }
     } finally {
       setCanceling(false)
     }
   }
 
-  const showForm = !accountImport && !actorChanged && !moved
+  const showForm =
+    (!accountImport || notStartedImport !== null) && !actorChanged && !moved
   const showCsvForm = file?.name.toLowerCase().endsWith('.csv') ?? false
 
   return (
@@ -167,14 +185,26 @@ export const ImportSection = ({
               currentTime={currentTime}
               file={file}
               maxImportBytes={maxImportBytes}
+              notStartedImport={notStartedImport}
               onFileChange={onFileChange}
               onActorChanged={() => setActorChangedLocally(true)}
               onMoved={() => setMoved(true)}
               onStarted={setAccountImport}
+              onDiscarded={() => setAccountImport(null)}
             />
           )
         ) : null}
 
+        {cancelError &&
+        accountImport &&
+        !actorChanged &&
+        isActiveImport(accountImport) ? (
+          <Alert
+            tone="error"
+            title="Could not cancel the import"
+            onRetry={() => void handleCancelImport()}
+          />
+        ) : null}
         {accountImport && !actorChanged && isActiveImport(accountImport) ? (
           <ImportProgress
             accountImport={accountImport}
@@ -183,7 +213,10 @@ export const ImportSection = ({
             onCancel={() => void handleCancelImport()}
           />
         ) : null}
-        {accountImport && !actorChanged && !isActiveImport(accountImport) ? (
+        {accountImport &&
+        !actorChanged &&
+        !isActiveImport(accountImport) &&
+        !notStartedImport ? (
           <ImportReport
             accountImport={accountImport}
             onStartAgain={handleStartAgain}

@@ -40,22 +40,24 @@ const parseTimestamp = (value: string | null | undefined) => {
   return Number.isNaN(time) ? null : time
 }
 
-const formatDate = (value: string) =>
+// The MovingDate pattern: the server cannot know the viewer's zone, so the
+// dates render in UTC until hydration and in the viewer's zone after it.
+const formatDate = (value: string, utc: boolean) =>
   new Intl.DateTimeFormat('en-GB', {
     day: 'numeric',
     month: 'short',
-    timeZone: 'UTC',
+    timeZone: utc ? 'UTC' : undefined,
     year: 'numeric'
   }).format(new Date(value))
 
-const formatDateTime = (value: string) =>
+const formatDateTime = (value: string, utc: boolean) =>
   new Intl.DateTimeFormat('en-GB', {
     day: 'numeric',
     hour: '2-digit',
     hourCycle: 'h23',
     minute: '2-digit',
     month: 'short',
-    timeZone: 'UTC',
+    timeZone: utc ? 'UTC' : undefined,
     year: 'numeric'
   }).format(new Date(value))
 
@@ -253,8 +255,8 @@ export const ArchiveExportSection = ({
       ? `The download link expires in ${formatDistance(
           new Date(expiresAt),
           new Date(clock)
-        )} (${formatDate(expiresAt)}).`
-      : `The download link expires on ${formatDate(expiresAt)}.`
+        )} (${formatDate(expiresAt, !hasHydrated)}).`
+      : `The download link expires on ${formatDate(expiresAt, true)}.`
     : null
 
   const failedAlert = archiveStatus === 'failed' && currentArchive
@@ -322,7 +324,10 @@ export const ArchiveExportSection = ({
             onSubmit={submit}
             className="space-y-5 p-4 sm:p-5"
           >
-            <div className="space-y-2">
+            {/* A polite live region: the change from "being prepared" to
+                "Ready" (or expired, or failed) is the news, and it happens
+                after the page has settled. */}
+            <div role="status" className="space-y-2">
               <p className="text-sm font-medium">Latest archive</p>
               {archiveStatus === 'ready' && currentArchive ? (
                 <div className="space-y-2">
@@ -338,7 +343,9 @@ export const ArchiveExportSection = ({
                     {currentArchive.bytes === null
                       ? 'Size unavailable'
                       : formatBytes(currentArchive.bytes)}
-                    {createdAt ? ` · made ${formatDateTime(createdAt)}` : ''}
+                    {createdAt
+                      ? ` · made ${formatDateTime(createdAt, !hasHydrated)}`
+                      : ''}
                   </p>
                   {expiryCopy ? (
                     <p className="text-sm text-muted-foreground">
@@ -359,7 +366,8 @@ export const ArchiveExportSection = ({
                   <p className="font-medium">Your last archive has expired</p>
                   {createdAt ? (
                     <p className="text-sm text-muted-foreground">
-                      Made {formatDate(createdAt)}. Links work for 7 days.
+                      Made {formatDate(createdAt, !hasHydrated)}. Links work for
+                      7 days.
                     </p>
                   ) : null}
                   <p className="text-sm text-muted-foreground">Expired</p>
@@ -372,7 +380,7 @@ export const ArchiveExportSection = ({
                   <p className="font-medium">Your archive is being prepared</p>
                   {createdAt ? (
                     <p className="text-sm text-muted-foreground">
-                      Started {formatDateTime(createdAt)}
+                      Started {formatDateTime(createdAt, !hasHydrated)}
                     </p>
                   ) : null}
                   <div className="flex items-center gap-2 text-sm">
@@ -517,8 +525,11 @@ export const ArchiveExportSection = ({
             {coolingDown && !active ? (
               <p className="border-t pt-4 text-sm text-muted-foreground">
                 You can make another archive on{' '}
-                {formatDate(new Date(cooldownUntil).toISOString())}. One every 7
-                days.
+                {formatDate(
+                  new Date(cooldownUntil).toISOString(),
+                  !hasHydrated
+                )}
+                . One every 7 days.
               </p>
             ) : null}
             {isOffline ? (

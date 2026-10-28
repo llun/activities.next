@@ -2,12 +2,14 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, within } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import type { AccountImportResponse } from '@/lib/client/accountImports'
 
 import { ImportProgress } from './ImportProgress'
 
-const accountImport = (phase: string | null) => ({
+const accountImport = (phase: string | null): AccountImportResponse => ({
   id: 'import-1',
   status: 'running' as const,
   kind: 'mastodon' as const,
@@ -28,6 +30,10 @@ const accountImport = (phase: string | null) => ({
   startedAt: null,
   finishedAt: null,
   lastErrorCode: null
+})
+
+afterEach(() => {
+  vi.useRealTimers()
 })
 
 describe('ImportProgress', () => {
@@ -81,5 +87,51 @@ describe('ImportProgress', () => {
       within(dialog).getByRole('button', { name: 'Cancel import' })
     )
     expect(onCancel).toHaveBeenCalledOnce()
+  })
+
+  it('announces the phase and count in a live region that excludes the bar', () => {
+    const current = accountImport('statuses')
+    current.progress.totalItems = 12
+    current.progress.completedItems = 4
+    render(
+      <ImportProgress
+        accountImport={current}
+        currentTime={Date.parse('2026-10-28T10:00:00.000Z')}
+        onCancel={vi.fn()}
+      />
+    )
+
+    const region = screen.getByRole('status')
+    expect(region).toHaveTextContent('Importing posts')
+    expect(region).toHaveTextContent('4 of 12 completed')
+    expect(region).not.toContainElement(screen.getByRole('progressbar'))
+  })
+
+  it('advances the started time as polling updates the import', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(Date.parse('2026-10-28T10:00:00.000Z'))
+    const current = accountImport('statuses')
+    current.startedAt = '2026-10-28T10:00:00.000Z'
+    const { rerender } = render(
+      <ImportProgress
+        accountImport={current}
+        currentTime={Date.parse('2026-10-28T10:00:00.000Z')}
+        onCancel={vi.fn()}
+      />
+    )
+    expect(screen.getByText(/less than a minute ago/)).toBeInTheDocument()
+
+    vi.setSystemTime(Date.parse('2026-10-28T10:05:00.000Z'))
+    await act(async () => {
+      rerender(
+        <ImportProgress
+          accountImport={{ ...current }}
+          currentTime={Date.parse('2026-10-28T10:00:00.000Z')}
+          onCancel={vi.fn()}
+        />
+      )
+    })
+
+    expect(screen.getByText(/5 minutes ago/)).toBeInTheDocument()
   })
 })
