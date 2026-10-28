@@ -644,8 +644,11 @@ export const ImportSection = ({
             The start alerts sit inside the same ref'd element, because
             their buttons start the warning's row too: whichever of these
             controls held the focus, the end of the start hands it back
-            (see the [startInFlight] effect). */}
-        {showWarning || startAlert !== null ? (
+            (see the [startInFlight] effect).
+            The ActorChangedAlert and the moved alert replace this whole
+            block: a Retry or Try again left live beside them would send a
+            start under an actorId the server has already refused. */}
+        {(showWarning || startAlert !== null) && !actorChanged && !moved ? (
           <div ref={startControlsRef} className="space-y-4">
             {showWarning && notStartedImport ? (
               <Alert
