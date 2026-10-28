@@ -140,6 +140,10 @@ export const ArchiveExportSection = ({
   }, [actorId, exportAvailable, hasHydrated])
 
   useEffect(() => {
+    if (hasHydrated) setClock(Date.now())
+  }, [hasHydrated])
+
+  useEffect(() => {
     if (cooldownUntil <= Date.now()) return
     const timer = window.setTimeout(
       () => setClock(Date.now()),
@@ -147,6 +151,18 @@ export const ArchiveExportSection = ({
     )
     return () => window.clearTimeout(timer)
   }, [cooldownUntil])
+
+  // A ready archive is not polled, so nothing else would notice its link
+  // expiring: the clock needs its own timer for that moment.
+  const currentExpiresAt = parseTimestamp(currentArchive?.expiresAt)
+  useEffect(() => {
+    if (currentExpiresAt === null || currentExpiresAt <= Date.now()) return
+    const timer = window.setTimeout(
+      () => setClock(Date.now()),
+      currentExpiresAt - Date.now()
+    )
+    return () => window.clearTimeout(timer)
+  }, [currentExpiresAt])
 
   const refreshArchives = useCallback(async () => {
     try {

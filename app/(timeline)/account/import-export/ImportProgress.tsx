@@ -1,7 +1,7 @@
 'use client'
 
 import { formatDistance } from 'date-fns/formatDistance'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import type { AccountImportResponse } from '@/lib/client/accountImports'
 import { ConfirmDialog } from '@/lib/components/photo-editor/ConfirmDialog'
@@ -17,6 +17,14 @@ interface Props {
   currentTime: number
   canceling?: boolean
   offline?: boolean
+  /**
+   * Move focus to the "Import in progress" heading: set only when the
+   * progress appears because the user just started the import, not when the
+   * page loads with a running one — the form that held the focused button
+   * unmounts, and a live region that mounts with its content is usually not
+   * announced.
+   */
+  focusOnMount?: boolean
   onCancel: () => void
 }
 
@@ -30,10 +38,12 @@ export const ImportProgress = ({
   currentTime,
   canceling = false,
   offline = false,
+  focusOnMount = false,
   onCancel
 }: Props) => {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [clock, setClock] = useState(currentTime)
+  const headingRef = useRef<HTMLDivElement>(null)
   const hasHydrated = useHasHydrated()
   const { completedItems, totalItems } = accountImport.progress
   const progressValue =
@@ -45,6 +55,10 @@ export const ImportProgress = ({
     if (hasHydrated) setClock(Date.now())
   }, [hasHydrated, accountImport])
 
+  useEffect(() => {
+    if (focusOnMount) headingRef.current?.focus()
+  }, [focusOnMount])
+
   const confirmCancel = () => {
     setConfirmOpen(false)
     onCancel()
@@ -54,7 +68,7 @@ export const ImportProgress = ({
     <div className="space-y-4">
       <Frame className="space-y-3 p-4 sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="space-y-1">
+          <div ref={headingRef} tabIndex={-1} className="space-y-1">
             <p className="font-medium">Import in progress</p>
             {accountImport.startedAt ? (
               <p className="text-sm text-muted-foreground">

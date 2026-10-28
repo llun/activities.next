@@ -62,6 +62,14 @@ const activeImport = {
   lastErrorCode: null
 }
 
+const queuedNotStarted = {
+  ...activeImport,
+  status: 'queued' as const,
+  kind: null,
+  phase: null,
+  startedAt: null
+}
+
 const renderSection = () =>
   render(
     <ImportSection
@@ -69,6 +77,18 @@ const renderSection = () =>
       handle="@may@llun.test"
       currentTime={Date.parse('2026-10-28T10:00:00.000Z')}
       initialImport={null}
+      maxImportBytes={1024 * 1024}
+      maxCsvBytes={5 * 1024 * 1024}
+    />
+  )
+
+const renderWithImport = (initialImport: unknown) =>
+  render(
+    <ImportSection
+      actorId={actorId}
+      handle="@may@llun.test"
+      currentTime={Date.parse('2026-10-28T10:00:00.000Z')}
+      initialImport={initialImport as never}
       maxImportBytes={1024 * 1024}
       maxCsvBytes={5 * 1024 * 1024}
     />
@@ -108,6 +128,7 @@ describe('ImportSection', () => {
       status: 'queued',
       kind: null,
       phase: null,
+      startedAt: null,
       uploadUrl: 'https://storage.example/upload',
       directUploadPath: null
     })
@@ -660,5 +681,165 @@ describe('ImportSection', () => {
       .getByText('Import cancelled')
       .closest('[data-slot="alert"]')
     expect(document.activeElement).toBe(reportAlert?.parentElement)
+  })
+
+  it('does not carry a failed cancel over to the next import', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.mocked(accountImports.cancelAccountImport)
+      .mockRejectedValueOnce(new ApiRequestError('Server error', 500))
+      .mockResolvedValue({} as never)
+    vi.mocked(accountImports.getAccountImport)
+      .mockResolvedValueOnce({
+        ...activeImport,
+        status: 'done' as const,
+        finishedAt: '2026-10-28T10:05:00.000Z',
+        report: { done: { status: 10 }, skipped: {}, failed: {} }
+      } as never)
+      .mockResolvedValue({ ...activeImport, id: 'archive-2' } as never)
+    renderWithImport(activeImport)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel import' }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Cancel import' })
+    )
+    expect(
+      await screen.findByText('Could not cancel the import')
+    ).toBeInTheDocument()
+
+    // The import finishes on its own and the report replaces the progress.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3_100)
+    })
+    expect(await screen.findByText('Import finished')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Import another file' }))
+
+    // A new import is uploaded and started.
+    vi.mocked(accountImports.createPresignedImport).mockResolvedValue({
+      ...queuedNotStarted,
+      id: 'archive-2',
+      uploadUrl: 'https://storage.example/upload',
+      directUploadPath: null
+    } as never)
+    vi.mocked(accountImports.startAccountImport).mockResolvedValue({
+      ...activeImport,
+      id: 'archive-2'
+    } as never)
+    chooseFile('b.zip')
+    fireEvent.click(screen.getByRole('button', { name: 'Import archive' }))
+
+    expect(await screen.findByText('Import in progress')).toBeInTheDocument()
+    // The failure belonged to the import it happened on, never to this one.
+    expect(
+      screen.queryByText('Could not cancel the import')
+    ).not.toBeInTheDocument()
+  })
+
+  it('keeps the earlier upload and shows an error when Discard fails', async () => {
+    vi.mocked(accountImports.cancelAccountImport)
+      .mockRejectedValueOnce(new ApiRequestError('Server error', 500))
+      .mockResolvedValue({} as never)
+    renderWithImport(queuedNotStarted)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+
+    expect(
+      await screen.findByText('Could not discard the upload')
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('An earlier upload was not started')
+    ).toBeInTheDocument()
+    expect(accountImports.cancelAccountImport).toHaveBeenCalledWith({
+      actorId,
+      id: 'archive-1'
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    await waitFor(() =>
+      expect(
+        screen.queryByText('Could not discard the upload')
+      ).not.toBeInTheDocument()
+    )
+    expect(
+      screen.queryByText('An earlier upload was not started')
+    ).not.toBeInTheDocument()
+  })
+
+  it('hands a kept upload to the warning when another file is chosen after a 429', async () => {
+    vi.mocked(accountImports.startAccountImport).mockRejectedValueOnce(
+      new ApiRequestError('Too many imports started recently', 429, 60_000)
+    )
+    renderSection()
+    chooseFile('a.zip')
+    fireEvent.click(screen.getByRole('button', { name: 'Import archive' }))
+
+    expect(
+      await screen.findByText('Too many imports started recently')
+    ).toBeInTheDocument()
+
+    chooseFile('b.zip')
+
+    expect(
+      await screen.findByText('An earlier upload was not started')
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('Start or discard the earlier upload first')
+    ).toBeInTheDocument()
+  })
+
+  it('cancels the row and shows File is too large when start answers 413', async () => {
+    vi.mocked(accountImports.startAccountImport).mockRejectedValueOnce(
+      new ApiRequestError('File is too large', 413)
+    )
+    renderSection()
+    chooseFile('a.zip')
+    fireEvent.click(screen.getByRole('button', { name: 'Import archive' }))
+
+    expect(
+      await screen.findByText('Choose a file no larger than 1.0 MB.')
+    ).toBeInTheDocument()
+    expect(screen.getByText('File is too large')).toBeInTheDocument()
+    expect(accountImports.cancelAccountImport).toHaveBeenCalledWith({
+      actorId,
+      id: 'archive-1'
+    })
+    expect(
+      screen.queryByRole('button', { name: 'Try again' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Retry' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('An earlier upload was not started')
+    ).not.toBeInTheDocument()
+  })
+
+  it('moves focus into the progress view after a start succeeds', async () => {
+    renderSection()
+    chooseFile('archive.zip')
+    fireEvent.click(screen.getByRole('button', { name: 'Import archive' }))
+
+    expect(await screen.findByText('Import in progress')).toBeInTheDocument()
+    // The form that held the focused button unmounts, so the progress view
+    // takes the focus itself and the live region is announced.
+    const heading = screen.getByText('Import in progress')
+    expect(document.activeElement).toBe(heading.parentElement)
+    expect(document.activeElement).toHaveAttribute('tabindex', '-1')
+  })
+
+  it('moves focus to the file picker after Discard', async () => {
+    renderWithImport(queuedNotStarted)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+
+    await waitFor(() =>
+      expect(
+        screen.queryByText('An earlier upload was not started')
+      ).not.toBeInTheDocument()
+    )
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: 'Choose file' })
+    )
   })
 })
