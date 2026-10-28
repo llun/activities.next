@@ -234,6 +234,22 @@ describe('ArchiveImportForm', () => {
     ).toBe('')
   })
 
+  it('describes each hinted switch by its hint', () => {
+    render(<Harness />)
+    chooseFile('archive.zip')
+
+    expect(
+      screen.getByRole('switch', { name: 'Import likes' })
+    ).toHaveAccessibleDescription('Only for posts already on this server.')
+    expect(
+      screen.getByRole('switch', {
+        name: "Import replies to other people's posts"
+      })
+    ).toHaveAccessibleDescription(
+      "Off: your replies to other people's posts are skipped. On: they come in as standalone posts that link to the original."
+    )
+  })
+
   it('disables Import archive while an earlier upload waits to be started', () => {
     render(<Harness notStartedImport={notStarted} />)
     chooseFile('other.zip')

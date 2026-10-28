@@ -27,6 +27,8 @@ import { useConnectionStatus } from '@/lib/hooks/useConnectionStatus'
 import { useHasHydrated } from '@/lib/hooks/useHasHydrated'
 import { formatBytes } from '@/lib/utils/formatBytes'
 
+import { archiveErrorBody } from './exportCopy'
+
 const DRAFTS_MAX_BYTES = 5 * 1024 * 1024
 const POLL_INTERVAL_MS = 10_000
 
@@ -282,7 +284,7 @@ export const ArchiveExportSection = ({
 
   const failedAlert = archiveStatus === 'failed' && currentArchive
   const archiveError = failedAlert
-    ? 'Something went wrong while packing your photos. Your last request does not count; try again.'
+    ? archiveErrorBody(currentArchive.error)
     : null
 
   return (
