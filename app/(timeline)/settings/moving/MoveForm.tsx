@@ -119,12 +119,14 @@ export const MoveForm: FC<Props> = ({
       setConfirmOpen(false)
     } catch (err) {
       if (err instanceof ApiRequestError && err.status === 429) {
-        // The 429 body carries cooldownUntil, but the error type does not
-        // (yet): re-read the state, which does. The cooldown only explains
-        // the refusal for a move; a redirect has none, and the race answer
-        // ("The move changed while it was checked, try again") arrives with
-        // no cooldown behind it, so the message shows unless the re-read
-        // just picked up a cooldown that says why.
+        // The 429 body carries cooldownUntil (ApiRequestError keeps the
+        // body as details), but the re-read is kept: it answers from the
+        // state the page shows, not from a body only some 429s carry. The
+        // cooldown only explains the refusal for a move; a redirect has
+        // none, and the race answer ("The move changed while it was
+        // checked, try again") arrives with no cooldown behind it, so the
+        // message shows unless the re-read just picked up a cooldown that
+        // says why.
         try {
           const state = await getAccountMigration({ actorId })
           setCooldownUntil(state.cooldownUntil)

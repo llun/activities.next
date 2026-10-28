@@ -60,6 +60,12 @@ interface Props {
   onFileChange: (file: File | null) => void
   /** "Import another file": the section focuses the picker for it. */
   onImportAnotherFile: () => void
+  /**
+   * Reports `submitting || running`: the import lives only in this
+   * component's state, so the section must not unmount the form (by
+   * starting the waiting archive upload) while it is busy.
+   */
+  onBusyChange: (busy: boolean) => void
   onActorChanged: () => void
   onMoved: () => void
 }
@@ -71,6 +77,7 @@ export const CsvImportForm = ({
   filePickerRef,
   onFileChange,
   onImportAnotherFile,
+  onBusyChange,
   onActorChanged,
   onMoved
 }: Props) => {
@@ -116,6 +123,15 @@ export const CsvImportForm = ({
     if (!bulkImport || bulkImport.state === 'finished') return
     return onConnectionRestored(() => void refreshImport())
   }, [bulkImport, refreshImport])
+
+  // The section locks its start controls on this: a start of the waiting
+  // archive upload that succeeds would unmount this form mid-import and
+  // lose its result (nothing else polls it). The cleanup releases the
+  // lock on unmount, and the effect re-reports on every change.
+  useEffect(() => {
+    onBusyChange(submitting || running)
+    return () => onBusyChange(false)
+  }, [submitting, running, onBusyChange])
 
   const submit = async () => {
     if (submitting || isOffline || file.size > maxCsvBytes) return

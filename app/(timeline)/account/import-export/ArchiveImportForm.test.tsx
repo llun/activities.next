@@ -449,8 +449,15 @@ describe('ArchiveImportForm', () => {
   it('locks the form while the section starts or discards the earlier upload', () => {
     render(<Harness notStartedImport={notStarted} startInFlight />)
 
-    expect(screen.getByRole('button', { name: 'Importing…' })).toBeDisabled()
+    // The lock disables the button, but nothing of the form's own is
+    // importing: the label stays "Import archive".
+    expect(
+      screen.getByRole('button', { name: 'Import archive' })
+    ).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Choose file' })).toBeDisabled()
+    expect(
+      screen.getByText('Start or discard the earlier upload first')
+    ).toBeInTheDocument()
   })
 
   it('announces the upload once instead of on every progress tick', async () => {
@@ -471,6 +478,8 @@ describe('ArchiveImportForm', () => {
     await waitFor(() =>
       expect(screen.getByText('10 B of 100 B · 10%')).toBeInTheDocument()
     )
+    // The form's own upload is what is importing, so its button says so.
+    expect(screen.getByRole('button', { name: 'Importing…' })).toBeDisabled()
     const status = screen.getByRole('status')
     expect(status).toHaveTextContent('Uploading the archive')
 

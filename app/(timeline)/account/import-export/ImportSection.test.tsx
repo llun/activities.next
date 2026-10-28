@@ -110,6 +110,14 @@ const finishedBulkImport: BulkImportResponse = {
   finishedAt: '2026-10-28T10:01:00.000Z'
 }
 
+const runningBulkImport: BulkImportResponse = {
+  ...finishedBulkImport,
+  state: 'in_progress',
+  processedItems: 2,
+  importedItems: 2,
+  finishedAt: null
+}
+
 const renderSection = () =>
   render(
     <ImportSection
@@ -1661,6 +1669,36 @@ describe('ImportSection', () => {
       screen.queryByText('Could not start the import')
     ).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
+  })
+
+  it('does not start the waiting upload while a CSV import runs', async () => {
+    vi.useFakeTimers()
+    vi.mocked(bulkImports.createBulkImport).mockResolvedValue(runningBulkImport)
+    vi.mocked(bulkImports.getBulkImport).mockResolvedValue(finishedBulkImport)
+    renderWithImport(queuedNotStarted)
+    chooseFile('following_accounts.csv')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Import following' }))
+    await act(async () => {
+      for (let i = 0; i < 10; i += 1) await Promise.resolve()
+    })
+
+    // The CSV import is running in the CSV form's own state: a start that
+    // succeeds would unmount the form mid-import and lose its result and
+    // failed rows, so the waiting upload's start is locked until it
+    // finishes.
+    expect(screen.getByText('Importing')).toBeInTheDocument()
+    const start = screen.getByRole('button', { name: 'Start import' })
+    expect(start).toBeDisabled()
+    fireEvent.click(start)
+    expect(accountImports.startAccountImport).not.toHaveBeenCalled()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3_000)
+    })
+
+    expect(screen.getByText('Import finished')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Start import' })).toBeEnabled()
   })
 
   it('does not cancel the upload when the form is swapped out while the start is in flight', async () => {
