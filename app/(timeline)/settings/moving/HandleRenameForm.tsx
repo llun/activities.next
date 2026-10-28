@@ -174,8 +174,10 @@ export const HandleRenameForm: FC<Props> = ({
       router.refresh()
     } catch (err) {
       if (err instanceof ApiRequestError && err.status === 429) {
-        // The 429 body carries cooldownUntil, but the error type does not
-        // (yet): re-read the state, which does.
+        // The 429 body carries cooldownUntil (ApiRequestError keeps the
+        // body as details), but only the cooldown: re-read the state,
+        // which also brings the handle and its history that the
+        // cooldown Frame shows.
         try {
           const next = await getAccountHandle({ actorId })
           setHandle(next)

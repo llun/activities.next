@@ -156,6 +156,12 @@ export const ImportSection = ({
   // must lock the warning's buttons and the form even when the form that
   // uploaded the row has been swapped for the CSV form.
   const [startInFlight, setStartInFlight] = useState(false)
+  // A CSV import lives only in the CSV form's own state: starting the
+  // waiting archive upload while it runs would unmount that form
+  // mid-import and lose its result and failed rows for good, so every
+  // control that starts the row waits for the CSV import to finish.
+  // Discard is safe and stays live.
+  const [csvBusy, setCsvBusy] = useState(false)
   const [startAlert, setStartAlert] = useState<StartAlert>(null)
   const [clock, setClock] = useState(currentTime)
   const hasHydrated = useHasHydrated()
@@ -382,7 +388,7 @@ export const ImportSection = ({
   // file, leaving the page or switching to CSV — so the row survives and the
   // page offers it back as the "not started" warning.
   const startQueuedImport = async (uploaded: AccountImportResponse) => {
-    if (startInFlight) return
+    if (startInFlight || csvBusy) return
     setStartInFlight(true)
     // Some start answers drop the warning's row, and the warning (with the
     // focused Start import button) unmounts with it; the alert buttons
@@ -667,7 +673,7 @@ export const ImportSection = ({
                       ref={warningStartRef}
                       type="button"
                       size="sm"
-                      disabled={startInFlight || isOffline}
+                      disabled={startInFlight || csvBusy || isOffline}
                       onClick={() => void startQueuedImport(notStartedImport)}
                     >
                       Start import
@@ -747,7 +753,7 @@ export const ImportSection = ({
                     type="button"
                     variant="outline"
                     size="sm"
-                    disabled={startInFlight || isOffline}
+                    disabled={startInFlight || csvBusy || isOffline}
                     onClick={() => void startQueuedImport(notStartedImport)}
                   >
                     Try again
@@ -773,7 +779,7 @@ export const ImportSection = ({
                       type="button"
                       variant="outline"
                       size="sm"
-                      disabled={startInFlight || isOffline}
+                      disabled={startInFlight || csvBusy || isOffline}
                       onClick={() => void startQueuedImport(notStartedImport)}
                     >
                       <RefreshCw aria-hidden="true" />
@@ -797,6 +803,7 @@ export const ImportSection = ({
               filePickerRef={filePickerRef}
               onFileChange={onFileChange}
               onImportAnotherFile={handleCsvImportAnotherFile}
+              onBusyChange={setCsvBusy}
               onActorChanged={() => setActorChangedLocally(true)}
               onMoved={() => setMoved(true)}
             />

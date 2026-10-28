@@ -69,6 +69,7 @@ const csvElement = (
   handlers?: {
     onFileChange?: (file: File | null) => void
     onImportAnotherFile?: () => void
+    onBusyChange?: (busy: boolean) => void
   }
 ) => (
   <CsvImportForm
@@ -78,6 +79,7 @@ const csvElement = (
     filePickerRef={filePickerRef}
     onFileChange={handlers?.onFileChange ?? vi.fn()}
     onImportAnotherFile={handlers?.onImportAnotherFile ?? vi.fn()}
+    onBusyChange={handlers?.onBusyChange ?? vi.fn()}
     onActorChanged={onActorChanged}
     onMoved={onMoved}
   />
