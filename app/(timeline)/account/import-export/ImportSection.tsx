@@ -34,6 +34,7 @@ interface Props {
   actorId: string
   handle: string
   currentTime: number
+  initialMoved: boolean
   initialImport: AccountImportResponse | null
   maxImportBytes: number
   maxCsvBytes: number
@@ -121,6 +122,7 @@ export const ImportSection = ({
   actorId,
   handle,
   currentTime,
+  initialMoved,
   initialImport,
   maxImportBytes,
   maxCsvBytes
@@ -139,7 +141,9 @@ export const ImportSection = ({
     null
   )
   const [actorChangedLocally, setActorChangedLocally] = useState(false)
-  const [moved, setMoved] = useState(false)
+  // The page knows whether the actor has moved before any request is made,
+  // so the form never appears for an account that cannot import.
+  const [moved, setMoved] = useState(initialMoved)
   const [canceling, setCanceling] = useState(false)
   const [cancelError, setCancelError] = useState(false)
   // Set for the report that appears because the user just cancelled, so it
@@ -546,7 +550,6 @@ export const ImportSection = ({
     setAccountImport(null)
     setFile(null)
     setSelectionError(null)
-    setMoved(false)
     setCancelError(false)
     setStartAlert(null)
     setOptions(INITIAL_OPTIONS)

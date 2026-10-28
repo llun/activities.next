@@ -116,6 +116,7 @@ const renderSection = () =>
       actorId={actorId}
       handle="@may@llun.test"
       currentTime={Date.parse('2026-10-28T10:00:00.000Z')}
+      initialMoved={false}
       initialImport={null}
       maxImportBytes={1024 * 1024}
       maxCsvBytes={5 * 1024 * 1024}
@@ -128,6 +129,7 @@ const renderWithImport = (initialImport: unknown) =>
       actorId={actorId}
       handle="@may@llun.test"
       currentTime={Date.parse('2026-10-28T10:00:00.000Z')}
+      initialMoved={false}
       initialImport={initialImport as never}
       maxImportBytes={1024 * 1024}
       maxCsvBytes={5 * 1024 * 1024}
@@ -142,11 +144,27 @@ const sectionWith = (initialImport: unknown) => (
     actorId={actorId}
     handle="@may@llun.test"
     currentTime={Date.parse('2026-10-28T10:00:00.000Z')}
+    initialMoved={false}
     initialImport={initialImport as never}
     maxImportBytes={1024 * 1024}
     maxCsvBytes={5 * 1024 * 1024}
   />
 )
+
+// The page seeds the moved state from the actor it loaded, so an account
+// with a redirect never sees the import form at all.
+const renderMoved = (initialImport: unknown) =>
+  render(
+    <ImportSection
+      actorId={actorId}
+      handle="@may@llun.test"
+      currentTime={Date.parse('2026-10-28T10:00:00.000Z')}
+      initialMoved
+      initialImport={initialImport as never}
+      maxImportBytes={1024 * 1024}
+      maxCsvBytes={5 * 1024 * 1024}
+    />
+  )
 
 const chooseFile = (name: string) => {
   const file = new File(['file data'], name)
@@ -624,6 +642,7 @@ describe('ImportSection', () => {
           actorId={actorId}
           handle="@may@llun.test"
           currentTime={Date.parse('2026-10-28T10:00:00.000Z')}
+          initialMoved={false}
           initialImport={null}
           maxImportBytes={1024 * 1024}
           maxCsvBytes={5 * 1024 * 1024}
@@ -1254,6 +1273,7 @@ describe('ImportSection', () => {
           actorId={actorId}
           handle="@may@llun.test"
           currentTime={Date.parse('2026-10-28T10:00:00.000Z')}
+          initialMoved={false}
           initialImport={activeImport}
           maxImportBytes={1024 * 1024}
           maxCsvBytes={5 * 1024 * 1024}
@@ -2425,5 +2445,54 @@ describe('ImportSection', () => {
         }
       }
     )
+  })
+
+  // The page seeds the moved state from the actor it loaded, so an account
+  // that has moved never sees the import form: nothing un-moves it without
+  // a reload, so the report's reset buttons must not bring it back either.
+  describe('moved actor', () => {
+    it('shows the moved alert instead of the form', () => {
+      renderMoved(null)
+
+      expect(screen.getByText('This account has moved')).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Choose file' })
+      ).not.toBeInTheDocument()
+    })
+
+    it('does not offer the waiting upload a start', () => {
+      renderMoved(queuedNotStarted)
+
+      expect(
+        screen.queryByText('An earlier upload was not started')
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Start import' })
+      ).not.toBeInTheDocument()
+    })
+
+    it('does not bring the form back from a done report', () => {
+      renderMoved(finishedImport)
+
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Import another file' })
+      )
+
+      expect(screen.getByText('This account has moved')).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Choose file' })
+      ).not.toBeInTheDocument()
+    })
+
+    it('does not bring the form back from a failed report', () => {
+      renderMoved(failedImport)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Start again' }))
+
+      expect(screen.getByText('This account has moved')).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Choose file' })
+      ).not.toBeInTheDocument()
+    })
   })
 })
