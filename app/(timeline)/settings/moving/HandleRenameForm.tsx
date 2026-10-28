@@ -288,10 +288,7 @@ export const HandleRenameForm: FC<Props> = ({
                         aria-label="Domain"
                         className="w-full sm:w-56"
                         value={domain}
-                        onChange={(e) => {
-                          setDomain(e.target.value)
-                          setSaved(false)
-                        }}
+                        onChange={(e) => edit(setDomain)(e.target.value)}
                       >
                         {handle.domains.map((choice) => (
                           <option key={choice} value={choice}>
