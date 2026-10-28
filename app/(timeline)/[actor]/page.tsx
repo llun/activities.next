@@ -197,7 +197,10 @@ const Page: FC<Props> = async ({ params }) => {
   // A profile that moved points at its new account. The target is resolved
   // from the stored actor row only — never fetched — and the migration row
   // for that target tells a cancellable redirect from a performed move. A
-  // pointer whose row is gone is a legacy move and reads as one.
+  // pointer whose row is gone is a legacy move and reads as one. A pointer
+  // whose actor row is missing still moved: the banner draws without the
+  // link, and Follow stays off (the server refuses new follows of a moved
+  // account whether or not the target is stored).
   const movedTarget = person.movedTo
     ? await database.getActorFromId({ id: person.movedTo })
     : null
@@ -351,18 +354,38 @@ const Page: FC<Props> = async ({ params }) => {
     // layout's mobile navigation and render nothing there.
     <div className={cn('flex flex-col gap-6', isLoggedIn && 'md:pt-8')}>
       <MobileNavigationTrigger variant="floating" />
-      {movedTarget ? (
-        <ProfileMovedBanner
-          acct={`${movedTarget.username}@${movedTarget.domain}`}
-          href={
-            movedTarget.account
-              ? `/@${movedTarget.username}@${movedTarget.domain}`
-              : movedTarget.id
+      {person.movedTo ? (
+        // Below `md` the floating menu button sits fixed over the top-left
+        // 16px of whatever is first, so the banner is pushed down past it
+        // (the button is `size-11` at the same inset); from `md` the button
+        // is gone and the wrapper adds nothing. Logged out there is a page
+        // bar instead, so no clearance is needed there.
+        <div
+          data-testid="moved-banner-slot"
+          className={
+            isLoggedIn
+              ? 'pt-[calc(env(safe-area-inset-top,0px)+64px)] md:pt-0'
+              : undefined
           }
-          external={!movedTarget.account}
-          isOwner={isCurrentUser}
-          isRedirect={movedKind === 'redirect'}
-        />
+        >
+          <ProfileMovedBanner
+            acct={
+              movedTarget
+                ? `${movedTarget.username}@${movedTarget.domain}`
+                : null
+            }
+            href={
+              movedTarget
+                ? movedTarget.account
+                  ? `/@${movedTarget.username}@${movedTarget.domain}`
+                  : movedTarget.id
+                : null
+            }
+            external={Boolean(movedTarget && !movedTarget.account)}
+            isOwner={isCurrentUser}
+            isRedirect={movedKind === 'redirect'}
+          />
+        </div>
       ) : null}
       {/* The profile header is not a card: the cover, then the avatar, name,
           handle and bio on the page itself, then the counts as a stat strip
@@ -395,7 +418,7 @@ const Page: FC<Props> = async ({ params }) => {
                   name={person.name || person.preferredUsername}
                   tags={getActorEmojiTags(person)}
                 />
-                {movedTarget ? (
+                {person.movedTo ? (
                   <span className="text-info-text bg-info-surface ml-2 inline-flex items-center gap-1 rounded-full border border-info/30 px-2 py-0.5 align-middle text-xs font-medium">
                     <ArrowRightLeft className="size-3" aria-hidden="true" />
                     moved
@@ -434,7 +457,7 @@ const Page: FC<Props> = async ({ params }) => {
                 targetHandle={`${person.preferredUsername}@${actorDomain}`}
                 isLoggedIn={isLoggedIn}
                 relationship={relationship}
-                targetMoved={Boolean(movedTarget)}
+                targetMoved={Boolean(person.movedTo)}
               />
             )}
           </div>

@@ -1,6 +1,7 @@
 'use client'
 
 import { AtSign, Check, Clock, Info } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { FC, useState } from 'react'
 
 import {
@@ -9,6 +10,7 @@ import {
   getAccountHandle,
   renameAccountHandle
 } from '@/lib/client'
+import { ActorChangedAlert } from '@/lib/components/settings/ActorChangedAlert'
 import { FormRow } from '@/lib/components/surface/FormRow'
 import { Frame } from '@/lib/components/surface/Frame'
 import { SaveBar } from '@/lib/components/surface/SaveBar'
@@ -50,6 +52,7 @@ export const HandleRenameForm: FC<Props> = ({
   hasPassword,
   initialHandle
 }) => {
+  const router = useRouter()
   const [handle, setHandle] = useState(initialHandle)
   const [username, setUsername] = useState('')
   const [domain, setDomain] = useState(initialHandle.domain)
@@ -57,6 +60,7 @@ export const HandleRenameForm: FC<Props> = ({
   const [currentUsername, setCurrentUsername] = useState('')
   const [fieldError, setFieldError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [actorChanged, setActorChanged] = useState(false)
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -66,10 +70,11 @@ export const HandleRenameForm: FC<Props> = ({
   const cooldownUntil = handle.cooldownUntil
   const lastChanged = lastChangedAt(handle)
   const trimmedUsername = username.trim()
-  const previewUsername = trimmedUsername || handle.username
-  const changed =
-    trimmedUsername !== '' &&
-    (trimmedUsername !== handle.username || domain !== handle.domain)
+  // A domain change alone is a change: the username the form sends is the new
+  // one, or the current one when only the domain moved.
+  const nextUsername = trimmedUsername || handle.username
+  const previewUsername = nextUsername
+  const changed = nextUsername !== handle.username || domain !== handle.domain
   const dirty =
     changed && (hasPassword ? password !== '' : currentUsername !== '')
 
@@ -82,6 +87,7 @@ export const HandleRenameForm: FC<Props> = ({
   const openConfirm = (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+    setActorChanged(false)
     setConfirmOpen(true)
   }
 
@@ -91,7 +97,7 @@ export const HandleRenameForm: FC<Props> = ({
     try {
       const next = await renameAccountHandle({
         actorId,
-        username: trimmedUsername,
+        username: nextUsername,
         ...(handle.domains.length > 1 ? { domain } : null),
         ...(hasPassword
           ? { password }
@@ -103,6 +109,9 @@ export const HandleRenameForm: FC<Props> = ({
       setPassword('')
       setCurrentUsername('')
       setConfirmOpen(false)
+      // The page's "These settings are for @handle" and the MoveForm's
+      // currentHandle follow the rename, like MoveForm and MovedNotice do.
+      router.refresh()
     } catch (err) {
       if (err instanceof ApiRequestError && err.status === 429) {
         // The 429 body carries cooldownUntil, but the error type does not
@@ -112,6 +121,13 @@ export const HandleRenameForm: FC<Props> = ({
         } catch {
           setError(err.message)
         }
+      } else if (
+        err instanceof ApiRequestError &&
+        err.status === 409 &&
+        err.message === 'Actor changed'
+      ) {
+        setActorChanged(true)
+        setConfirmOpen(false)
       } else if (
         err instanceof ApiRequestError &&
         err.message === 'Username already exists'
@@ -163,6 +179,7 @@ export const HandleRenameForm: FC<Props> = ({
 
   return (
     <>
+      {actorChanged ? <ActorChangedAlert /> : null}
       <form method="post" onSubmit={openConfirm}>
         <Frame
           form

@@ -20,9 +20,20 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: refresh })
 }))
 
-vi.mock('@/lib/client', () => ({
-  cancelAccountRedirect: vi.fn()
-}))
+vi.mock('@/lib/client', () => {
+  class ApiRequestError extends Error {
+    status: number
+    constructor(message: string, status: number) {
+      super(message)
+      this.name = 'ApiRequestError'
+      this.status = status
+    }
+  }
+  return {
+    ApiRequestError,
+    cancelAccountRedirect: vi.fn()
+  }
+})
 
 const mockCancel = vi.mocked(client.cancelAccountRedirect)
 
@@ -97,5 +108,44 @@ describe('MovedNotice', () => {
     expect(
       screen.queryByRole('button', { name: 'Cancel redirect' })
     ).not.toBeInTheDocument()
+  })
+
+  it('shows the actor-changed alert when cancelling hits 409 Actor changed', async () => {
+    mockCancel.mockRejectedValueOnce(
+      new client.ApiRequestError('Actor changed', 409)
+    )
+
+    render(
+      <MovedNotice
+        actorId="https://llun.test/users/anna"
+        acct="may@new.example"
+        kind="redirect"
+        movedAt="2026-10-24T00:00:00.000Z"
+        cooldownUntil={null}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel redirect' }))
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Cancel redirect'
+    })
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Cancel redirect' })
+    )
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Your active profile changed')
+      ).toBeInTheDocument()
+    })
+    expect(screen.getByRole('button', { name: 'Reload' })).toBeInTheDocument()
+    // The raw message is not shown as the error Alert.
+    expect(
+      screen.queryByText((_, element) =>
+        element?.getAttribute('data-slot') === 'alert'
+          ? element.textContent === 'Actor changed'
+          : false
+      )
+    ).toBeNull()
   })
 })

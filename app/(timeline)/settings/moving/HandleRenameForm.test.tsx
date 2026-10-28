@@ -15,6 +15,12 @@ import * as client from '@/lib/client'
 
 import { HandleRenameForm } from './HandleRenameForm'
 
+const refresh = vi.fn()
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh })
+}))
+
 vi.mock('@/lib/client', () => {
   class ApiRequestError extends Error {
     status: number
@@ -119,6 +125,111 @@ describe('HandleRenameForm', () => {
     })
 
     expect(screen.getByText('@may@run.llun.dev')).toBeInTheDocument()
+  })
+
+  it('sends a domain change on its own, keeping the current username', async () => {
+    mockRename.mockResolvedValueOnce(
+      handleState({ domain: 'run.llun.dev', acct: 'anna@run.llun.dev' })
+    )
+
+    render(
+      <HandleRenameForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        initialHandle={handleState({ domains: ['llun.test', 'run.llun.dev'] })}
+      />
+    )
+
+    // Only the domain changes: the preview promises @anna@run.llun.dev, so
+    // the action has to be available without retyping the username.
+    fireEvent.change(screen.getByRole('combobox', { name: 'Domain' }), {
+      target: { value: 'run.llun.dev' }
+    })
+    expect(screen.getByText('@anna@run.llun.dev')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Change handle' })
+    ).toBeDisabled()
+
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'secret' }
+    })
+    expect(
+      screen.getByRole('button', { name: 'Change handle' })
+    ).not.toBeDisabled()
+
+    await submit()
+
+    await waitFor(() => {
+      expect(mockRename).toHaveBeenCalledWith({
+        actorId: 'https://llun.test/users/anna',
+        username: 'anna',
+        domain: 'run.llun.dev',
+        password: 'secret'
+      })
+    })
+  })
+
+  it('refreshes the page after a rename', async () => {
+    mockRename.mockResolvedValueOnce(handleState({ username: 'may' }))
+
+    render(
+      <HandleRenameForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        initialHandle={handleState()}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('New handle'), {
+      target: { value: 'may' }
+    })
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'secret' }
+    })
+
+    await submit()
+
+    await waitFor(() => {
+      expect(refresh).toHaveBeenCalled()
+    })
+  })
+
+  it('shows the actor-changed alert on a 409 Actor changed', async () => {
+    mockRename.mockRejectedValueOnce(
+      new client.ApiRequestError('Actor changed', 409)
+    )
+
+    render(
+      <HandleRenameForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        initialHandle={handleState()}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('New handle'), {
+      target: { value: 'may' }
+    })
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'secret' }
+    })
+
+    await submit()
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Your active profile changed')
+      ).toBeInTheDocument()
+    })
+    expect(screen.getByRole('button', { name: 'Reload' })).toBeInTheDocument()
+    // The raw message is not shown as the SaveBar error.
+    expect(
+      screen.queryByText((_, element) =>
+        element?.classList.contains('text-destructive-text')
+          ? element.textContent === 'Actor changed'
+          : false
+      )
+    ).toBeNull()
   })
 
   it('asks for the password on an account that has one', async () => {

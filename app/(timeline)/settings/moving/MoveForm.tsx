@@ -11,6 +11,7 @@ import {
   getAccountMigration,
   moveAccount
 } from '@/lib/client'
+import { ActorChangedAlert } from '@/lib/components/settings/ActorChangedAlert'
 import { Alert } from '@/lib/components/surface/Alert'
 import { FormRow } from '@/lib/components/surface/FormRow'
 import { Frame } from '@/lib/components/surface/Frame'
@@ -59,6 +60,7 @@ export const MoveForm: FC<Props> = ({
   const [username, setUsername] = useState('')
   const [fieldError, setFieldError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [actorChanged, setActorChanged] = useState(false)
   const [saving, setSaving] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [cooldownUntil, setCooldownUntil] = useState(initialCooldownUntil)
@@ -68,10 +70,14 @@ export const MoveForm: FC<Props> = ({
   const trimmedAcct = acct.trim().replace(/^@/, '')
   const dirty =
     trimmedAcct !== '' && (hasPassword ? password !== '' : username !== '')
+  // The 30-day cooldown is the server's rule for a move only; a redirect has
+  // no cooldown, so it stays available while a move waits.
+  const moveCooldown = kind === 'move' && cooldownUntil !== null
 
   const openConfirm = (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+    setActorChanged(false)
     setConfirmOpen(true)
   }
 
@@ -98,6 +104,13 @@ export const MoveForm: FC<Props> = ({
         } catch {
           setError(err.message)
         }
+        setConfirmOpen(false)
+      } else if (
+        err instanceof ApiRequestError &&
+        err.status === 409 &&
+        err.message === 'Actor changed'
+      ) {
+        setActorChanged(true)
         setConfirmOpen(false)
       } else if (
         err instanceof ApiRequestError &&
@@ -134,59 +147,66 @@ export const MoveForm: FC<Props> = ({
         , then import it into the new account.
       </Alert>
 
-      <form method="post" onSubmit={openConfirm}>
-        <Frame
-          form
-          stickyFooter
-          footer={
-            <SaveBar
-              actionLabel={kind === 'move' ? 'Move followers' : 'Show redirect'}
-              actionIcon={ArrowRightLeft}
-              idleNote={
-                cooldownUntil !== null ? (
-                  <>
-                    You can move again on <MovingDate at={cooldownUntil} />.
-                  </>
-                ) : kind === 'move' ? (
-                  'You can move once every 30 days.'
-                ) : (
-                  'No time limit. Cancel any time.'
-                )
-              }
-              dirty={dirty}
-              saving={saving}
-              error={error}
-              submit
-              disabled={cooldownUntil !== null}
-              disabledReason={offline ? "You're offline" : undefined}
-            />
-          }
-        >
-          <FormRow label="What to do">
-            {({ labelledBy }) => (
-              <RadioGroup
-                aria-labelledby={labelledBy}
-                value={kind}
-                onValueChange={(value) => {
-                  setKind(value as AccountMigrationKind)
-                  setFieldError(null)
-                }}
-                className="grid gap-2 sm:grid-cols-2"
-              >
-                <RadioCard
-                  value="move"
-                  title="Move my followers"
-                  hint="Your followers are moved to the new account and your profile becomes read-only. This can't be undone, and you can't move again for 30 days."
-                />
-                <RadioCard
-                  value="redirect"
-                  title="Only show a redirect"
-                  hint="Your profile shows that you moved, but your followers stay. You can cancel the redirect any time."
-                />
-              </RadioGroup>
-            )}
-          </FormRow>
+      {actorChanged ? <ActorChangedAlert /> : null}
 
+      <Frame
+        form
+        stickyFooter
+        footer={
+          <SaveBar
+            actionLabel={kind === 'move' ? 'Move followers' : 'Show redirect'}
+            actionIcon={ArrowRightLeft}
+            idleNote={
+              moveCooldown ? (
+                <>
+                  You can move again on <MovingDate at={cooldownUntil} />.
+                </>
+              ) : kind === 'move' ? (
+                'You can move once every 30 days.'
+              ) : (
+                'No time limit. Cancel any time.'
+              )
+            }
+            dirty={dirty}
+            saving={saving}
+            error={error}
+            submit
+            formId="move-form"
+            disabled={moveCooldown}
+            disabledReason={offline ? "You're offline" : undefined}
+          />
+        }
+      >
+        <FormRow label="What to do">
+          {({ labelledBy }) => (
+            <RadioGroup
+              aria-labelledby={labelledBy}
+              value={kind}
+              onValueChange={(value) => {
+                setKind(value as AccountMigrationKind)
+                setFieldError(null)
+              }}
+              className="grid gap-2 sm:grid-cols-2"
+            >
+              <RadioCard
+                value="move"
+                title="Move my followers"
+                hint="Your followers are moved to the new account and your profile becomes read-only. This can't be undone, and you can't move again for 30 days."
+              />
+              <RadioCard
+                value="redirect"
+                title="Only show a redirect"
+                hint="Your profile shows that you moved, but your followers stay. You can cancel the redirect any time."
+              />
+            </RadioGroup>
+          )}
+        </FormRow>
+
+        {/* Only the fields that submit sit in the native form: the
+              RadioCards stay out of it, so no hidden value-named radio
+              inputs are drawn beside them (their accessible names are the
+              card titles). */}
+        <form id="move-form" method="post" onSubmit={openConfirm}>
           <FormRow
             label="New account"
             htmlFor="moveNewAccount"
@@ -253,8 +273,8 @@ export const MoveForm: FC<Props> = ({
               />
             </FormRow>
           )}
-        </Frame>
-      </form>
+        </form>
+      </Frame>
 
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent className="sm:max-w-md">

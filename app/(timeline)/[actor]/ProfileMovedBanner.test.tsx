@@ -88,4 +88,44 @@ describe('ProfileMovedBanner', () => {
       )
     ).toBeInTheDocument()
   })
+
+  it('draws the banner without a link when the target is not stored', () => {
+    render(
+      <ProfileMovedBanner
+        acct={null}
+        href={null}
+        external={false}
+        isOwner={false}
+        isRedirect={false}
+      />
+    )
+
+    expect(screen.getByText('This profile has moved')).toBeInTheDocument()
+    expect(
+      screen.queryByText('This profile has moved to')
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('link', { name: /Go to new profile/ })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('link', { name: /Manage/ })
+    ).not.toBeInTheDocument()
+  })
+
+  it('keeps the Manage way in for the owner without a stored target', () => {
+    render(
+      <ProfileMovedBanner
+        acct={null}
+        href={null}
+        external={false}
+        isOwner
+        isRedirect={false}
+      />
+    )
+
+    expect(screen.getByRole('link', { name: /Manage/ })).toHaveAttribute(
+      'href',
+      '/settings/moving'
+    )
+  })
 })

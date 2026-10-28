@@ -9,6 +9,10 @@ import * as client from '@/lib/client'
 
 import { AliasesSection, normalizeAliasInput } from './AliasesSection'
 
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: vi.fn() })
+}))
+
 vi.mock('@/lib/client', () => {
   class ApiRequestError extends Error {
     status: number
@@ -58,6 +62,90 @@ describe('AliasesSection', () => {
     })
     // No dialog ever opened: the row is removed on the first click.
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('names each Remove button after its alias', () => {
+    render(
+      <AliasesSection
+        actorId="https://llun.test/users/anna"
+        initialAliases={[
+          alias('https://old.example/users/anna', 'anna@old.example'),
+          alias('https://older.example/users/anna', 'anna@older.example'),
+          alias('https://gone.example/users/anna', null as unknown as string)
+        ]}
+      />
+    )
+
+    expect(
+      screen.getByRole('button', { name: 'Remove @anna@old.example' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Remove @anna@older.example' })
+    ).toBeInTheDocument()
+    // A row whose handle is unknown falls back to the id.
+    expect(
+      screen.getByRole('button', {
+        name: 'Remove https://gone.example/users/anna'
+      })
+    ).toBeInTheDocument()
+  })
+
+  it('shows the actor-changed alert when adding hits 409 Actor changed', async () => {
+    mockAdd.mockRejectedValueOnce(
+      new client.ApiRequestError('Actor changed', 409)
+    )
+    render(
+      <AliasesSection
+        actorId="https://llun.test/users/anna"
+        initialAliases={[]}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('Old account'), {
+      target: { value: '@you@old.example' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Your active profile changed')
+      ).toBeInTheDocument()
+    })
+    expect(screen.getByRole('button', { name: 'Reload' })).toBeInTheDocument()
+    // The raw message does not land in the field error.
+    expect(screen.getByLabelText('Old account')).not.toHaveAccessibleDescription(
+      /Actor changed/
+    )
+  })
+
+  it('shows the actor-changed alert when removing hits 409 Actor changed', async () => {
+    mockRemove.mockRejectedValueOnce(
+      new client.ApiRequestError('Actor changed', 409)
+    )
+    render(
+      <AliasesSection
+        actorId="https://llun.test/users/anna"
+        initialAliases={[
+          alias('https://old.example/users/anna', 'anna@old.example')
+        ]}
+      />
+    )
+
+    fireEvent.click(screen.getByTestId('remove-alias'))
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Your active profile changed')
+      ).toBeInTheDocument()
+    })
+    // The raw message is not shown as the standalone error Alert.
+    expect(
+      screen.queryByText((_, element) =>
+        element?.getAttribute('data-slot') === 'alert'
+          ? element.textContent === 'Actor changed'
+          : false
+      )
+    ).toBeNull()
   })
 
   it('says so when the list is empty', () => {
