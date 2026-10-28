@@ -106,6 +106,10 @@ describe('ArchiveExportSection', () => {
   })
 
   beforeEach(() => {
+    // Pin the clock to the fixtures' day: the component reads Date.now()
+    // after hydration, so a real clock turns these fixed dates stale.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(now)
     mocks.connectionState = 'online'
     mocks.hydrated = true
     mocks.restoreListener = null
@@ -368,6 +372,7 @@ describe('ArchiveExportSection', () => {
 
   it('polls every 10 seconds while queued', async () => {
     vi.useFakeTimers()
+    vi.setSystemTime(now)
     mocks.listArchives.mockResolvedValue([archive('running')])
     render(
       <ArchiveExportSection
@@ -390,6 +395,7 @@ describe('ArchiveExportSection', () => {
 
   it('pauses polling offline and refreshes on connection restoration', async () => {
     vi.useFakeTimers()
+    vi.setSystemTime(now)
     mocks.connectionState = 'offline'
     mocks.listArchives.mockResolvedValue([archive('running')])
     const { rerender } = render(
@@ -425,6 +431,7 @@ describe('ArchiveExportSection', () => {
 
   it('stops polling and disables Prepare after a 409 Actor changed', async () => {
     vi.useFakeTimers()
+    vi.setSystemTime(now)
     mocks.listArchives.mockRejectedValue(
       new ApiRequestError('Actor changed', 409)
     )
@@ -466,6 +473,7 @@ describe('ArchiveExportSection', () => {
 
   it('turns a ready archive into expired when its download link expires', async () => {
     vi.useFakeTimers()
+    vi.setSystemTime(now)
     vi.setSystemTime(now)
     render(
       <ArchiveExportSection
