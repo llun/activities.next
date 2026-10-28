@@ -621,6 +621,82 @@ describe('HandleRenameForm', () => {
     expect(mockRename).not.toHaveBeenCalled()
   })
 
+  it('refuses the stored name typed in another case when the stored name has capitals', () => {
+    // A mixed-case row (`Anna`) is the same handle as `anna` once both
+    // sides are folded, as the server folds them: there is no change to
+    // save, so the action stays off instead of sending a rename the server
+    // would refuse with "Nothing to change".
+    render(
+      <HandleRenameForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        initialHandle={handleState({
+          username: 'Anna',
+          acct: 'Anna@llun.test'
+        })}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('New handle'), {
+      target: { value: 'anna' }
+    })
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'secret' }
+    })
+
+    expect(screen.getByRole('button', { name: 'Change handle' })).toBeDisabled()
+  })
+
+  it('refuses a submitted no-op rename against a mixed-case stored name, not a request', () => {
+    render(
+      <HandleRenameForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        initialHandle={handleState({
+          username: 'Anna',
+          acct: 'Anna@llun.test'
+        })}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('New handle'), {
+      target: { value: 'anna' }
+    })
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'secret' }
+    })
+    fireEvent.submit(document.querySelector('form')!)
+
+    expect(screen.getByText('That is already your handle')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('dialog', { name: 'Change your handle' })
+    ).not.toBeInTheDocument()
+    expect(mockRename).not.toHaveBeenCalled()
+  })
+
+  it('previews a domain-only change with the stored name folded', () => {
+    // The server stores what it parsed, so a domain change on a mixed-case
+    // row promises @anna@other.test, not @Anna@other.test.
+    render(
+      <HandleRenameForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        initialHandle={handleState({
+          username: 'Anna',
+          acct: 'Anna@llun.test',
+          domains: ['llun.test', 'other.test']
+        })}
+      />
+    )
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Domain' }), {
+      target: { value: 'other.test' }
+    })
+
+    expect(screen.getByText('@anna@other.test')).toBeInTheDocument()
+    expect(screen.queryByText('@Anna@other.test')).not.toBeInTheDocument()
+  })
+
   it('shows the schema message on New handle for an invalid username', async () => {
     render(
       <HandleRenameForm
@@ -700,6 +776,72 @@ describe('HandleRenameForm', () => {
         screen.getByLabelText('Current username')
       )
     )
+  })
+
+  it('drops the stale field error when a retried rename fails for another reason', async () => {
+    // The user frees the taken name elsewhere and tries again without
+    // touching the form; this time the request fails for another reason.
+    // The new failure is the SaveBar's, and the stale "taken" error is gone
+    // from the field (and from the closing dialog's focus decision).
+    mockRename
+      .mockRejectedValueOnce(
+        new client.ApiRequestError('Username already exists', 422)
+      )
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+
+    render(
+      <HandleRenameForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        initialHandle={handleState()}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('New handle'), {
+      target: { value: 'may' }
+    })
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'secret' }
+    })
+
+    await submit()
+    await screen.findByText('That username is taken')
+
+    await submit()
+    await screen.findByText('Could not change your handle')
+
+    expect(screen.queryByText('That username is taken')).toBeNull()
+  })
+
+  it('drops the stale challenge error when a retried rename fails for another reason', async () => {
+    mockRename
+      .mockRejectedValueOnce(
+        new client.ApiRequestError('Invalid username', 422)
+      )
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+
+    render(
+      <HandleRenameForm
+        actorId="https://llun.test/users/anna"
+        hasPassword={false}
+        initialHandle={handleState()}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('New handle'), {
+      target: { value: 'may' }
+    })
+    fireEvent.change(screen.getByLabelText('Current username'), {
+      target: { value: 'anna' }
+    })
+
+    await submit()
+    await screen.findByText('That is not your current username')
+
+    await submit()
+    await screen.findByText('Could not change your handle')
+
+    expect(screen.queryByText('That is not your current username')).toBeNull()
   })
 
   it('shows the plain message for a network failure, not the browser text', async () => {

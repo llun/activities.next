@@ -109,7 +109,11 @@ export const POST = traceApiRoute(
       return errorResponse(req, 'Invalid account')
     }
     if (result.type === 'forbidden') {
-      return errorResponse(req, 'Forbidden', HTTP_STATUS.FORBIDDEN)
+      return errorResponse(
+        req,
+        'Federation with that server is not allowed',
+        HTTP_STATUS.FORBIDDEN
+      )
     }
     if (result.type === 'not-found') {
       return errorResponse(req, 'Record not found', HTTP_STATUS.NOT_FOUND)

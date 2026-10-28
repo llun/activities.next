@@ -745,7 +745,12 @@ describe('MoveForm', () => {
   })
 
   it('maps a server this instance does not federate with to the field error', async () => {
-    mockMove.mockRejectedValueOnce(new client.ApiRequestError('Forbidden', 403))
+    mockMove.mockRejectedValueOnce(
+      new client.ApiRequestError(
+        'Federation with that server is not allowed',
+        403
+      )
+    )
 
     render(
       <MoveForm
@@ -777,7 +782,101 @@ describe('MoveForm', () => {
       'true'
     )
     // The raw message is not shown as the SaveBar error.
-    expect(screen.queryByText('Forbidden')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('Federation with that server is not allowed')
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows any other 403 in the SaveBar, not as the account field error', async () => {
+    // The auth guard's 403 (a suspended or unconfirmed account) is not a
+    // problem with the New account field.
+    mockMove.mockRejectedValueOnce(new client.ApiRequestError('Forbidden', 403))
+
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+
+    fillMove()
+    fireEvent.click(screen.getByRole('button', { name: 'Move followers' }))
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Move your followers'
+    })
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Move followers' })
+    )
+
+    expect(await screen.findByText('Forbidden')).toBeInTheDocument()
+    expect(screen.getByLabelText('New account')).not.toHaveAttribute(
+      'aria-invalid',
+      'true'
+    )
+  })
+
+  it('maps a passwordless Invalid username to the Current username field', async () => {
+    // The migration route has no other source of "Invalid username" (a
+    // malformed target is "Invalid account"), so on a passwordless account
+    // this refusal is the challenge: the current username did not match.
+    mockMove.mockRejectedValueOnce(
+      new client.ApiRequestError('Invalid username', 422)
+    )
+
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword={false}
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('New account'), {
+      target: { value: '@may@new.example' }
+    })
+    fireEvent.change(screen.getByLabelText('Current username'), {
+      target: { value: 'wrong' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Move followers' }))
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Move your followers'
+    })
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Move followers' })
+    )
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('That is not your current username')
+      ).toBeInTheDocument()
+    })
+    expect(screen.getByLabelText('Current username')).toHaveAttribute(
+      'aria-invalid',
+      'true'
+    )
+    // The raw message is not shown as the SaveBar error.
+    expect(screen.queryByText('Invalid username')).not.toBeInTheDocument()
+    // The closed dialog would return focus to the SaveBar button that opened
+    // it; the field error is on the input, so focus moves there instead.
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByLabelText('Current username')
+      )
+    )
+
+    // Editing the challenge clears its error and invalid state.
+    fireEvent.change(screen.getByLabelText('Current username'), {
+      target: { value: 'anna' }
+    })
+    expect(
+      screen.queryByText('That is not your current username')
+    ).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Current username')).not.toHaveAttribute(
+      'aria-invalid'
+    )
   })
 
   it('drops the stale alias field error when a retried move fails for another reason', async () => {

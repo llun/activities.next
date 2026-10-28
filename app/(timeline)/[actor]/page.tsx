@@ -196,19 +196,23 @@ const Page: FC<Props> = async ({ params }) => {
 
   // A profile that moved points at its new account. The target is resolved
   // from the stored actor row only — never fetched — and the migration row
-  // for that target tells a cancellable redirect from a performed move. A
-  // pointer whose row is gone is a legacy move and reads as one. A pointer
-  // whose actor row is missing still moved: the banner draws without the
-  // link, and Follow stays off (the server refuses new follows of a moved
-  // account whether or not the target is stored).
+  // for that target tells a cancellable redirect from a performed move.
+  // The kind is decided from the pointer, not the target row, so a redirect
+  // whose target actor row is gone still reads as a redirect, exactly as
+  // Settings › Moving reads the same pointer; only the owner's copy uses it,
+  // so the migrations are read only for the owner. A pointer whose actor
+  // row is missing still moved: the banner draws without the link, and
+  // Follow stays off (the server refuses new follows of a moved account
+  // whether or not the target is stored).
   const movedTarget = person.movedTo
     ? await database.getActorFromId({ id: person.movedTo })
     : null
-  const movedKind = movedTarget
-    ? ((await database.getActorMigrations({ actorId: person.id })).find(
-        (migration) => migration.targetActorId === person.movedTo
-      )?.kind ?? 'move')
-    : null
+  const movedKind =
+    person.movedTo && isCurrentUser
+      ? ((await database.getActorMigrations({ actorId: person.id })).find(
+          (migration) => migration.targetActorId === person.movedTo
+        )?.kind ?? 'move')
+      : null
 
   // A local profile of the signed-in account that is not the active actor gets
   // "Edit profile" in place of the relationship actions: the button switches to

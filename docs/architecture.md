@@ -2295,7 +2295,8 @@ changed' }` before any write. Mastodon clients do not send it and are
   passwordless account must send its current username, compared
   case-insensitively (`Invalid username`); both are 422. Then `acct` (with a
   leading `@` stripped) is resolved: `invalid` is 422 `Invalid account`,
-  `forbidden` is 403 and `not-found` is 404. `performOutgoingMove`
+  `forbidden` is 403 `Federation with that server is not allowed` (the aliases
+  route answers the same) and `not-found` is 404. `performOutgoingMove`
   (`lib/services/accounts/migration/outgoingMove.ts`) then refuses, all as 422:
   first an origin that is being deleted (`This account is being deleted`; the
   route has already resolved the target, so an unknown target still answers

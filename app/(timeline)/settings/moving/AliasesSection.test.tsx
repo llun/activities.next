@@ -250,7 +250,12 @@ describe('AliasesSection', () => {
   })
 
   it('maps a server this instance does not federate with to the field error', async () => {
-    mockAdd.mockRejectedValueOnce(new client.ApiRequestError('Forbidden', 403))
+    mockAdd.mockRejectedValueOnce(
+      new client.ApiRequestError(
+        'Federation with that server is not allowed',
+        403
+      )
+    )
     render(
       <AliasesSection
         actorId="https://llun.test/users/anna"
@@ -271,7 +276,33 @@ describe('AliasesSection', () => {
       ).toBeInTheDocument()
     })
     // The raw message is not the field error.
-    expect(screen.queryByText('Forbidden')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('Federation with that server is not allowed')
+    ).not.toBeInTheDocument()
+  })
+
+  it('keeps the text of any other 403', async () => {
+    // The auth guard's 403 (a suspended or unconfirmed account) is not a
+    // problem with the handle's server.
+    mockAdd.mockRejectedValueOnce(new client.ApiRequestError('Forbidden', 403))
+    render(
+      <AliasesSection
+        actorId="https://llun.test/users/anna"
+        initialAliases={[]}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('Old account'), {
+      target: { value: '@you@old.example' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+
+    expect(await screen.findByText('Forbidden')).toBeInTheDocument()
+    expect(
+      screen.queryByText(
+        "This server does not connect with that account's server."
+      )
+    ).not.toBeInTheDocument()
   })
 
   it('carries the hint from the plan', () => {
