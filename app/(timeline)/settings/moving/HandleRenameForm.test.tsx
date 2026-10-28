@@ -413,6 +413,34 @@ describe('HandleRenameForm', () => {
     )
   })
 
+  it('shows the plain message for a network failure, not the browser text', async () => {
+    mockRename.mockRejectedValueOnce(new TypeError('Failed to fetch'))
+
+    render(
+      <HandleRenameForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        initialHandle={handleState()}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('New handle'), {
+      target: { value: 'newname' }
+    })
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'secret' }
+    })
+
+    await submit()
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Could not change your handle')
+      ).toBeInTheDocument()
+    })
+    expect(screen.queryByText('Failed to fetch')).not.toBeInTheDocument()
+  })
+
   it('replaces the form with the date while the cooldown runs', () => {
     render(
       <HandleRenameForm

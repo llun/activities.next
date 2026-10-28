@@ -14,6 +14,7 @@ import { AddBar } from '@/lib/components/surface/AddBar'
 import { Alert } from '@/lib/components/surface/Alert'
 import { FramedList, FramedListItem } from '@/lib/components/surface/FramedList'
 import { Button } from '@/lib/components/ui/button'
+import { useConnectionStatus } from '@/lib/hooks/useConnectionStatus'
 
 const MAX_ALIASES = 10
 
@@ -40,13 +41,15 @@ export const AliasesSection: FC<Props> = ({ actorId, initialAliases }) => {
   const [actorChanged, setActorChanged] = useState(false)
   const [adding, setAdding] = useState(false)
   const [removingId, setRemovingId] = useState<string | null>(null)
+  const { state: connection } = useConnectionStatus()
+  const offline = connection !== 'online'
 
   const atCap = aliases.length >= MAX_ALIASES
 
   const add = async (e: React.FormEvent) => {
     e.preventDefault()
     const acct = normalizeAliasInput(value)
-    if (!acct || adding || atCap) return
+    if (!acct || adding || atCap || offline) return
     setAdding(true)
     setFieldError(null)
     setError(null)
@@ -65,6 +68,10 @@ export const AliasesSection: FC<Props> = ({ actorId, initialAliases }) => {
         err.message === 'Actor changed'
       ) {
         setActorChanged(true)
+      } else if (err instanceof TypeError) {
+        // A network failure is the browser's own text ("Failed to fetch",
+        // "Load failed"): the plain message stands in for it.
+        setFieldError('Could not add that account')
       } else {
         setFieldError(
           err instanceof Error ? err.message : 'Could not add that account'
@@ -76,7 +83,7 @@ export const AliasesSection: FC<Props> = ({ actorId, initialAliases }) => {
   }
 
   const remove = async (id: string) => {
-    if (removingId !== null) return
+    if (removingId !== null || offline) return
     setRemovingId(id)
     setError(null)
     setActorChanged(false)
@@ -89,6 +96,10 @@ export const AliasesSection: FC<Props> = ({ actorId, initialAliases }) => {
         err.message === 'Actor changed'
       ) {
         setActorChanged(true)
+      } else if (err instanceof TypeError) {
+        // A network failure is the browser's own text ("Failed to fetch",
+        // "Load failed"): the plain message stands in for it.
+        setError('Could not remove that account')
       } else {
         setError(
           err instanceof Error ? err.message : 'Could not remove that account'
@@ -134,7 +145,7 @@ export const AliasesSection: FC<Props> = ({ actorId, initialAliases }) => {
                     alias.acct ? `@${alias.acct}` : alias.id
                   }`}
                   onClick={() => remove(alias.id)}
-                  disabled={removingId !== null}
+                  disabled={removingId !== null || offline}
                 >
                   <X aria-hidden="true" />
                   Remove
@@ -149,7 +160,7 @@ export const AliasesSection: FC<Props> = ({ actorId, initialAliases }) => {
           label="Old account"
           hint="Do this first, then start the move on the old server (in Mastodon: Preferences, Account, Moving from a different account)."
           error={fieldError}
-          buttonDisabled={adding || atCap}
+          buttonDisabled={adding || atCap || offline}
           onSubmit={add}
           inputProps={{
             name: 'alias',
@@ -164,6 +175,11 @@ export const AliasesSection: FC<Props> = ({ actorId, initialAliases }) => {
           {atCap ? (
             <p className="text-muted-foreground mt-2 text-xs">
               You can add up to {MAX_ALIASES} old accounts.
+            </p>
+          ) : null}
+          {offline ? (
+            <p className="text-muted-foreground mt-2 text-xs">
+              You&apos;re offline
             </p>
           ) : null}
         </AddBar>

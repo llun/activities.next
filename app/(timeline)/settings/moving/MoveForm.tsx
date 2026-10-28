@@ -144,7 +144,9 @@ export const MoveForm: FC<Props> = ({
         setConfirmOpen(false)
       } else {
         setError(
-          err instanceof Error ? err.message : 'Could not start the move'
+          err instanceof ApiRequestError
+            ? err.message
+            : 'Could not start the move'
         )
         setConfirmOpen(false)
       }

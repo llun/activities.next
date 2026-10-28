@@ -279,6 +279,33 @@ describe('MoveForm', () => {
     })
   })
 
+  it('shows the plain message for a network failure, not the browser text', async () => {
+    mockMove.mockRejectedValueOnce(new TypeError('Failed to fetch'))
+
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+
+    fillMove()
+    fireEvent.click(screen.getByRole('button', { name: 'Move followers' }))
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Move your followers'
+    })
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Move followers' })
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('Could not start the move')).toBeInTheDocument()
+    })
+    expect(screen.queryByText('Failed to fetch')).not.toBeInTheDocument()
+  })
+
   it('keeps the action off while the cooldown runs', () => {
     render(
       <MoveForm

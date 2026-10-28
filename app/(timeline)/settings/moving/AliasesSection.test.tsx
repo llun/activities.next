@@ -13,6 +13,12 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn() })
 }))
 
+const connection = { state: 'online' as 'online' | 'offline' }
+
+vi.mock('@/lib/hooks/useConnectionStatus', () => ({
+  useConnectionStatus: () => connection
+}))
+
 vi.mock('@/lib/client', () => {
   class ApiRequestError extends Error {
     status: number
@@ -37,6 +43,7 @@ const alias = (id: string, acct: string): AccountAliasItem => ({ id, acct })
 describe('AliasesSection', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    connection.state = 'online'
   })
 
   it('lists the old accounts with a Remove that needs no confirm', async () => {
@@ -249,5 +256,62 @@ describe('AliasesSection', () => {
     expect(normalizeAliasInput(' @you@old.server ')).toBe('you@old.server')
     expect(normalizeAliasInput('you@old.server')).toBe('you@old.server')
     expect(normalizeAliasInput('@@you@old.server')).toBe('@you@old.server')
+  })
+
+  it('disables Add and Remove while offline, with a note', () => {
+    connection.state = 'offline'
+    render(
+      <AliasesSection
+        actorId="https://llun.test/users/anna"
+        initialAliases={[
+          alias('https://old.example/users/anna', 'anna@old.example')
+        ]}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled()
+    expect(screen.getByTestId('remove-alias')).toBeDisabled()
+    expect(screen.getByText("You're offline")).toBeInTheDocument()
+  })
+
+  it('maps an add network failure to the plain message, not the browser text', async () => {
+    mockAdd.mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    render(
+      <AliasesSection
+        actorId="https://llun.test/users/anna"
+        initialAliases={[]}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('Old account'), {
+      target: { value: '@you@old.example' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Could not add that account')).toBeInTheDocument()
+    })
+    expect(screen.queryByText('Failed to fetch')).not.toBeInTheDocument()
+  })
+
+  it('maps a remove network failure to the plain message, not the browser text', async () => {
+    mockRemove.mockRejectedValueOnce(new TypeError('Load failed'))
+    render(
+      <AliasesSection
+        actorId="https://llun.test/users/anna"
+        initialAliases={[
+          alias('https://old.example/users/anna', 'anna@old.example')
+        ]}
+      />
+    )
+
+    fireEvent.click(screen.getByTestId('remove-alias'))
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Could not remove that account')
+      ).toBeInTheDocument()
+    })
+    expect(screen.queryByText('Load failed')).not.toBeInTheDocument()
   })
 })
