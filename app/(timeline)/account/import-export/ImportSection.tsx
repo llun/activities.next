@@ -125,9 +125,11 @@ export const ImportSection = ({
 }: Props) => {
   const [file, setFile] = useState<File | null>(null)
   const [options, setOptions] = useState(INITIAL_OPTIONS)
-  // The options the kept upload was uploaded with. They belong to the row,
-  // not to the switches: another file (or the switches it brings up) must
-  // not change what the waiting upload starts with.
+  // The options snapshotted onto the waiting upload at the moment another
+  // file was picked while it waited. While the .zip the upload came from is
+  // still the chosen file they are null, and the row starts with the
+  // switches as they stand; once another file is picked, the row starts
+  // with the snapshot, whatever the switches show for the new file.
   const [keptOptions, setKeptOptions] = useState<AccountImportOptions | null>(
     null
   )
@@ -227,6 +229,10 @@ export const ImportSection = ({
   }, [accountImport])
 
   const onFileChange = (selected: File | null) => {
+    // Picking another file is the moment the waiting upload's options are
+    // frozen: until then its switches are live and it starts with what
+    // they show, from then on it starts with this snapshot.
+    if (notStartedImport && keptOptions === null) setKeptOptions(options)
     setSelectionError(null)
     setStartAlert(null)
     setOptions(INITIAL_OPTIONS)
@@ -298,8 +304,9 @@ export const ImportSection = ({
     if (startInFlight) return
     setStartInFlight(true)
     setStartAlert(null)
-    // A row that was kept carries the options it was uploaded with; a row
-    // the page loaded with (or a fresh upload) takes the switches as they
+    // A row another file was picked over carries the options snapshotted
+    // then; every other row (one the page loaded with, a fresh upload, a
+    // kept failure on the file still chosen) takes the switches as they
     // stand, which for a fresh upload is what it was just uploaded with.
     const uploadOptions = keptOptions ?? options
     // A start that gives up on the upload cancels the row server-side, so it
@@ -329,7 +336,6 @@ export const ImportSection = ({
         setMoved(true)
       } else if (error instanceof ApiRequestError && error.status === 429) {
         keepUpload(uploaded)
-        setKeptOptions(uploadOptions)
         setClock(Date.now())
         setStartAlert({
           type: 'rate-limit',
@@ -379,7 +385,6 @@ export const ImportSection = ({
         // rejects with a TypeError whose text ("Failed to fetch") says
         // nothing the title does not.
         keepUpload(uploaded)
-        setKeptOptions(uploadOptions)
         setStartAlert({
           type: 'generic',
           message: error instanceof ApiRequestError ? error.message : ''
