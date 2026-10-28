@@ -422,6 +422,52 @@ describe('HandleRenameForm', () => {
     )
   })
 
+  it('clears the field error when the domain changes', async () => {
+    // "Username already exists" applies to one username@domain: picking
+    // another domain where the username may be free must not keep the
+    // error, aria-invalid and aria-describedby on the input.
+    mockRename.mockRejectedValueOnce(
+      new client.ApiRequestError('Username already exists', 422)
+    )
+
+    render(
+      <HandleRenameForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        initialHandle={handleState({ domains: ['llun.test', 'run.llun.dev'] })}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('New handle'), {
+      target: { value: 'may' }
+    })
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'secret' }
+    })
+
+    await submit()
+
+    await waitFor(() => {
+      expect(screen.getByText('That username is taken')).toBeInTheDocument()
+    })
+    expect(screen.getByLabelText('New handle')).toHaveAttribute(
+      'aria-invalid',
+      'true'
+    )
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Domain' }), {
+      target: { value: 'run.llun.dev' }
+    })
+
+    expect(screen.queryByText('That username is taken')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('New handle')).not.toHaveAttribute(
+      'aria-invalid'
+    )
+    expect(screen.getByLabelText('New handle')).not.toHaveAccessibleDescription(
+      /That username is taken/
+    )
+  })
+
   it('moves focus to the username input when the rename is rejected as taken', async () => {
     mockRename.mockRejectedValueOnce(
       new client.ApiRequestError('Username already exists', 409)
