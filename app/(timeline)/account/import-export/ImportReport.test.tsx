@@ -137,4 +137,78 @@ describe('ImportReport', () => {
     expect(screen.getByText('Import cancelled')).toBeInTheDocument()
     expect(screen.getByText('1 post imported')).toBeInTheDocument()
   })
+
+  // A moved account cannot bring the import form back, so the section
+  // leaves onStartAgain unset and the report must not offer a reset.
+  it('renders no reset button without onStartAgain on a done import', () => {
+    render(
+      <ImportReport
+        accountImport={{
+          id: 'import-4',
+          status: 'done',
+          kind: null,
+          phase: 'finish',
+          progress: {
+            version: 1,
+            sourceActorId: null,
+            sourceFollowersUrl: null,
+            statusOrder: 'newest-first',
+            catalogStage: 'done',
+            catalogIndex: 0,
+            totalItems: 0,
+            completedItems: 0,
+            skippedItems: 0,
+            continuationCount: 0
+          },
+          createdAt: '2026-10-28T10:00:00.000Z',
+          startedAt: '2026-10-28T10:00:00.000Z',
+          finishedAt: '2026-10-28T10:03:00.000Z',
+          lastErrorCode: null,
+          report: { done: {}, skipped: {}, failed: {} }
+        }}
+      />
+    )
+
+    expect(screen.getByText('Import finished')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Import another file' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('renders no reset button without onStartAgain on a failed import', () => {
+    render(
+      <ImportReport
+        accountImport={{
+          id: 'import-5',
+          status: 'failed',
+          kind: null,
+          phase: null,
+          progress: {
+            version: 1,
+            sourceActorId: null,
+            sourceFollowersUrl: null,
+            statusOrder: 'newest-first',
+            catalogStage: 'statuses',
+            catalogIndex: 0,
+            totalItems: 0,
+            completedItems: 0,
+            skippedItems: 0,
+            continuationCount: 0
+          },
+          createdAt: '2026-10-28T10:00:00.000Z',
+          startedAt: null,
+          finishedAt: '2026-10-28T10:03:00.000Z',
+          lastErrorCode: 'archive_not_a_zip',
+          report: { done: {}, skipped: {}, failed: {} }
+        }}
+      />
+    )
+
+    expect(
+      screen.getByText('We could not finish the import')
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Start again' })
+    ).not.toBeInTheDocument()
+  })
 })

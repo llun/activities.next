@@ -2449,7 +2449,7 @@ describe('ImportSection', () => {
 
   // The page seeds the moved state from the actor it loaded, so an account
   // that has moved never sees the import form: nothing un-moves it without
-  // a reload, so the report's reset buttons must not bring it back either.
+  // a reload, so the report offers no reset buttons either.
   describe('moved actor', () => {
     it('shows the moved alert instead of the form', () => {
       renderMoved(null)
@@ -2471,27 +2471,23 @@ describe('ImportSection', () => {
       ).not.toBeInTheDocument()
     })
 
-    it('does not bring the form back from a done report', () => {
+    it('does not offer Import another file on a done report', () => {
       renderMoved(finishedImport)
 
-      fireEvent.click(
-        screen.getByRole('button', { name: 'Import another file' })
-      )
-
-      expect(screen.getByText('This account has moved')).toBeInTheDocument()
+      expect(screen.getByText('Import finished')).toBeInTheDocument()
       expect(
-        screen.queryByRole('button', { name: 'Choose file' })
+        screen.queryByRole('button', { name: 'Import another file' })
       ).not.toBeInTheDocument()
     })
 
-    it('does not bring the form back from a failed report', () => {
+    it('does not offer Start again on a failed report', () => {
       renderMoved(failedImport)
 
-      fireEvent.click(screen.getByRole('button', { name: 'Start again' }))
-
-      expect(screen.getByText('This account has moved')).toBeInTheDocument()
       expect(
-        screen.queryByRole('button', { name: 'Choose file' })
+        screen.getByText('We could not finish the import')
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Start again' })
       ).not.toBeInTheDocument()
     })
   })
