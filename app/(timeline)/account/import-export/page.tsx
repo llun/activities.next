@@ -13,6 +13,7 @@ import { getArchiveObjectStore } from '@/lib/services/accountArchive/objectStore
 import { reapStuckAccountArchive } from '@/lib/services/accountArchive/reaper'
 import { toArchiveResponse } from '@/lib/services/accountArchive/serialize'
 import { serializeAccountImport } from '@/lib/services/accountImport/serialize'
+import { isMovedActor } from '@/lib/services/accounts/movedAccount'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { BULK_IMPORT_FILE_SIZE_LIMIT } from '@/lib/services/imports/types'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
@@ -108,6 +109,7 @@ const Page = async () => {
         actorId={actor.id}
         handle={handle}
         currentTime={currentTime}
+        initialMoved={isMovedActor(actor)}
         initialImport={
           latestImport
             ? serializeAccountImport(latestImport, latestImportReport)

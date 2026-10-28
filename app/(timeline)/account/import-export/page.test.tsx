@@ -237,4 +237,21 @@ describe('/account/import-export', () => {
       })
     )
   })
+
+  it("seeds the import section's moved state from the actor", async () => {
+    render(await Page())
+    expect(importSectionProps).toHaveBeenCalledWith(
+      expect.objectContaining({ initialMoved: false })
+    )
+
+    vi.clearAllMocks()
+    vi.mocked(getActorFromSession).mockResolvedValue({
+      ...ACTOR,
+      movedTo: 'https://llun.test/users/may2'
+    } as never)
+    render(await Page())
+    expect(importSectionProps).toHaveBeenCalledWith(
+      expect.objectContaining({ initialMoved: true })
+    )
+  })
 })

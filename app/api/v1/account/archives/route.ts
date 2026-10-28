@@ -1,3 +1,4 @@
+import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
 import {
@@ -53,15 +54,37 @@ const readBodyWithLimit = async (
 }
 
 const RequestBody = z.object({
+  actorId: z.string().optional(),
   stripExactLocations: z.boolean().optional(),
   drafts: z.unknown().optional()
 })
+
+// The web client names the actor it loaded the page as (the query on GET,
+// the JSON body on POST). A stale tab whose session now belongs to another
+// account must not read or write this account's archives, so a mismatch is
+// answered before anything runs. A request without actorId — an API
+// client's — keeps working as before.
+const actorIdMismatch = (req: NextRequest, actorId: string) => {
+  const expected = new URL(req.url).searchParams.get('actorId')
+  return Boolean(expected && expected !== actorId)
+}
+
+const actorChangedResponse = (req: NextRequest) =>
+  apiResponse({
+    req,
+    allowedMethods: CORS_HEADERS,
+    data: { error: 'Actor changed' },
+    responseStatusCode: HTTP_STATUS.CONFLICT
+  })
 
 export const GET = traceApiRoute(
   'listAccountArchives',
   AuthenticatedGuard(
     async (req, context) => {
       const { currentActor, database } = context
+      if (actorIdMismatch(req, currentActor.id)) {
+        return actorChangedResponse(req)
+      }
       const accountId = currentActor.account?.id
       if (!accountId) return apiErrorResponse(HTTP_STATUS.UNAUTHORIZED)
 
@@ -113,6 +136,9 @@ export const POST = traceApiRoute(
     }
     const parsed = RequestBody.safeParse(json)
     if (!parsed.success) return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+    if (parsed.data.actorId && parsed.data.actorId !== currentActor.id) {
+      return actorChangedResponse(req)
+    }
 
     const result = await requestAccountArchive({
       database,

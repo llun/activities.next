@@ -505,7 +505,12 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   can read it; everything else lives under `activities.next/`. Mastodon's
   limit is one request per 6 days in code and 7 in its documentation; this
   server uses 7. `POST` answers `429` with `nextAllowedAt` and a `Retry-After`
-  header both while an export is running and inside the 7 days. See [Account data export](architecture.md#account-data-export).
+  header both while an export is running and inside the 7 days. The web client
+  names the actor it loaded the page as — the `actorId` query parameter on
+  `GET`, the `actorId` JSON field on `POST`; when it differs from the
+  signed-in actor, both answer `409` `{ "error": "Actor changed" }` before
+  anything is read or written, and a request without `actorId` (an API
+  client's) keeps working. See [Account data export](architecture.md#account-data-export).
 - **Account archive import** — These routes, which back Account & security →
   Import and export (`/account/import-export`), use the signed-in web session
   and bind every import to the current actor; they do not use an
