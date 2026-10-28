@@ -1,6 +1,5 @@
-// Shared by the section dropdown and the section rail. Dependency-free and
-// without `'use client'` so either side of the server/client boundary can read
-// it.
+// Used by the section dropdown. Dependency-free and without `'use client'` so
+// either side of the server/client boundary can read it.
 
 /**
  * The most specific url that is the path or a parent of it, so

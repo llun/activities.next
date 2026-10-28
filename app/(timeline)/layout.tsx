@@ -103,11 +103,6 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
     iconUrl: isRealAvatar(actor.iconUrl) ? actor.iconUrl : null
   }
 
-  const unreadCount = await database.getNotificationsCount({
-    actorId: actor.id,
-    onlyUnread: true
-  })
-
   // Fitness is a first-class section for every signed-in local account (like
   // Bookmarks/Messages), so new users can discover the import/Strava setup even
   // before they have any activity. The Overview itself handles the empty state.
@@ -120,18 +115,20 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
   // Admins see the unresolved report count on the sidebar's Admin item, as the
   // Notifications item carries the unread count. Capped at 100 (the badge shows
   // 99+); the Admin section's own menu row counts the same way
-  // (app/(timeline)/admin/layout.tsx).
-  const openReportCount = isAdmin
-    ? await database.countOpenReports({ limit: 100 })
-    : 0
-
-  // Drives the expandable Lists group in the sidebar.
-  const lists = await database.getLists({ actorId: actor.id })
-
-  // The navigation the user customized: their order, and the items they tucked
-  // under "More". Read here so every nav surface — and the settings manager
-  // that edits them — starts from the same state.
-  const actorSettings = await database.getActorSettings({ actorId: actor.id })
+  // (app/(timeline)/admin/layout.tsx). Only admins are queried.
+  //
+  // The reads are independent, so they run together: the unread count, the
+  // report count, the lists that drive the expandable Lists group in the
+  // sidebar, and the navigation the user customized (their order, and the items
+  // they tucked under "More"), which every nav surface — and the settings
+  // manager that edits them — starts from.
+  const [unreadCount, openReportCount, lists, actorSettings] =
+    await Promise.all([
+      database.getNotificationsCount({ actorId: actor.id, onlyUnread: true }),
+      isAdmin ? database.countOpenReports({ limit: 100 }) : 0,
+      database.getLists({ actorId: actor.id }),
+      database.getActorSettings({ actorId: actor.id })
+    ])
 
   const formattedActors = actors.map((a) => ({
     id: a.id,

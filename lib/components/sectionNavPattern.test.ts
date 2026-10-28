@@ -55,10 +55,19 @@ const timelineLayouts = sourceFiles.filter(
     path.basename(file) === 'layout.tsx' && isUnder(file, 'app', '(timeline)')
 )
 
+// The shell of a section: where the rail and the Back row actually lived
+// (`SectionLayout` and the dropdown), not in the layouts.
+const sectionShell = sourceFiles.filter(
+  (file) =>
+    isUnder(file, 'lib', 'components', 'section-nav.tsx') ||
+    isUnder(file, 'lib', 'components', 'section-nav-dropdown.tsx')
+)
+
 describe('section navigation pattern', () => {
   it('scans real sources (a bad root would pass vacuously)', () => {
     expect(sourceFiles.length).toBeGreaterThan(50)
     expect(timelineLayouts.length).toBeGreaterThan(5)
+    expect(sectionShell).toHaveLength(2)
   })
 
   it('has no trace of the wide section column', () => {
@@ -94,6 +103,26 @@ describe('section navigation pattern', () => {
       ),
       // A grouped list of links beside the content.
       ...findAll(timelineLayouts, /role="group"/g)
+    ]
+    expect(offenders).toEqual([])
+  })
+
+  it('renders no rail or Back row in the section shell either', () => {
+    const offenders = [
+      // A "Back to <section>" row, built or written out (either quote style).
+      ...findAll(sectionShell, /<BackLink\b[^>]*label=\{`Back to \$\{/gs),
+      ...findAll(
+        sectionShell,
+        /["'`]Back to (?:Settings|Admin|Account & security)["'`]/g
+      ),
+      // A sticky string in a class list: the rail stuck beside the content.
+      ...findAll(sectionShell, /['"`][^'"`\n]*\bsticky\b[^'"`\n]*['"`]/g),
+      // A navigation element hidden below lg, or shown only from lg up: a rail
+      // under any name (<nav>, <aside>, <SectionNav>, <SectionRail>).
+      ...findAll(
+        sectionShell,
+        /<(?:nav|aside|Section\w*)\b[^>]*(?:max-lg:hidden|hidden lg:)[^>]*>/gs
+      )
     ]
     expect(offenders).toEqual([])
   })

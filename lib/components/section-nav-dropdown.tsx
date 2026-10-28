@@ -105,6 +105,9 @@ const revealRow = (menu: HTMLElement, row: HTMLElement) => {
 // `FocusScope`, which is where the event comes from. It is therefore spread
 // from a variable rather than written as a prop, and the component test
 // "opens on the current page" fails if a Radix update stops honouring it.
+// What counts as the user taking over from the automatic reveal.
+const STEERING_EVENTS = ['keydown', 'wheel', 'pointerdown'] as const
+
 const focusCurrentRowOnOpen = {
   onOpenAutoFocus: (event: Event) => {
     const menu = event.currentTarget as HTMLElement | null
@@ -114,13 +117,30 @@ const focusCurrentRowOnOpen = {
     current.focus({ preventScroll: true })
     revealRow(menu, current)
 
-    const reveal = () => revealRow(menu, current)
+    const menuEl = menu
+    const currentEl = current
+    // The late reveals only help while the user has not moved: once focus has
+    // left the current row, or they press a key, wheel or press inside the
+    // menu, they are steering and the menu must not be pulled back.
     const observer =
-      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(reveal)
-    observer?.observe(menu)
-    window.setTimeout(() => {
-      reveal()
+      typeof ResizeObserver === 'undefined'
+        ? null
+        : new ResizeObserver(() => reveal())
+    let timer: number | undefined
+    const stop = () => {
       observer?.disconnect()
+      window.clearTimeout(timer)
+      for (const type of STEERING_EVENTS) menu.removeEventListener(type, stop)
+    }
+    function reveal() {
+      if (document.activeElement !== currentEl) return stop()
+      revealRow(menuEl, currentEl)
+    }
+    for (const type of STEERING_EVENTS) menu.addEventListener(type, stop)
+    observer?.observe(menu)
+    timer = window.setTimeout(() => {
+      reveal()
+      stop()
     }, 300)
   }
 }

@@ -64,6 +64,8 @@ let mockDatabase: {
 }
 
 vi.mock('@/lib/services/guards/OAuthGuard', () => ({
+  isBearerAuthorizationHeader: (header: string | null) =>
+    header?.trim().split(/\s+/, 1)[0]?.toLowerCase() === 'bearer',
   OAuthGuardAnyScope:
     (
       _scopes: unknown,
@@ -288,6 +290,20 @@ describe('GET /api/v1/accounts/bootstrap', () => {
 
     expect(data.isAdmin).toBe(false)
     expect(data.fitnessUrl).toBeUndefined()
+    expect(data.openReportCount).toBe(0)
+    expect(mockDatabase.countOpenReports).not.toHaveBeenCalled()
+  })
+
+  it('leaves the open report count out of a bearer-token (third-party) request', async () => {
+    const req = new NextRequest('https://llun.test/api/v1/accounts/bootstrap', {
+      headers: { Authorization: 'Bearer some-token' }
+    })
+    const res = await GET(req, { params: Promise.resolve({}) })
+
+    expect(res.status).toBe(200)
+    const data = await res.json()
+
+    expect(data.isAdmin).toBe(true)
     expect(data.openReportCount).toBe(0)
     expect(mockDatabase.countOpenReports).not.toHaveBeenCalled()
   })
