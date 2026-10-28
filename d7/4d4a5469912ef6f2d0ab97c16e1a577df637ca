@@ -1,0 +1,33 @@
+app/(timeline)/account/import-export/ArchiveExportSection.test.tsx
+  s_279e7012f36c5f::t_92174ec3c19ab5 82-84,210-211,213,215,221-235
+app/(timeline)/account/import-export/ArchiveExportSection.tsx
+  s_279e7012f36c5f::t_d07c7bb197c5c9 30-31,287
+app/(timeline)/account/import-export/ArchiveImportForm.test.tsx
+  s_279e7012f36c5f::t_7013e2e51318fe 237-252
+app/(timeline)/account/import-export/ArchiveImportForm.tsx
+  s_279e7012f36c5f::t_7637a27909fdc4 95-103
+app/(timeline)/account/import-export/ImportSection.test.tsx
+  s_279e7012f36c5f::t_14076e2a4d612b 789-842
+app/(timeline)/account/import-export/ImportSection.tsx
+  s_279e7012f36c5f::t_017e32f2b2113a 470-481,566
+app/(timeline)/account/import-export/exportCopy.test.ts
+  s_279e7012f36c5f::t_8634397e87a52a 1-45
+app/(timeline)/account/import-export/exportCopy.ts
+  s_279e7012f36c5f::t_7c106529dbbe38 1-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d74d4a5469912ef6f2d0ab97c16e1a577df637ca",
+  "prompts": {},
+  "sessions": {
+    "s_279e7012f36c5f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0410f49d-2e94-45e1-bd1f-237e6f7747bc",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
