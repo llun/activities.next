@@ -663,6 +663,65 @@ describe('Sidebar', () => {
       expect(screen.getByText('(7 unread)')).toBeInTheDocument()
     })
 
+    it('shows the unresolved report count on the Admin item for admins', () => {
+      renderSidebar(
+        <Sidebar variant="drawer" lists={[]} isAdmin openReportCount={3} />
+      )
+
+      // jsdom drops the space before the visually hidden suffix (a browser
+      // keeps it), hence `\s*`.
+      const link = screen.getByRole('link', {
+        name: /^Admin\s*\(3 unresolved reports\)$/
+      })
+      expect(within(link).getByText('3')).toHaveAttribute('aria-hidden', 'true')
+      // The drawer has no hover menu to step aside for.
+      expect(within(link).getByText('3')).not.toHaveClass(
+        'group-hover:opacity-0'
+      )
+    })
+
+    it('uses the singular for one unresolved report', () => {
+      renderSidebar(
+        <Sidebar variant="drawer" lists={[]} isAdmin openReportCount={1} />
+      )
+
+      expect(
+        screen.getByRole('link', { name: /^Admin\s*\(1 unresolved report\)$/ })
+      ).toBeInTheDocument()
+    })
+
+    it('shows no Admin count at zero, and no Admin item for a non-admin', () => {
+      const { unmount } = renderSidebar(
+        <Sidebar variant="drawer" lists={[]} isAdmin openReportCount={0} />
+      )
+      const link = screen.getByRole('link', { name: 'Admin' })
+      expect(within(link).queryByText('0')).not.toBeInTheDocument()
+      expect(screen.queryByText(/unresolved report/)).not.toBeInTheDocument()
+      unmount()
+
+      renderSidebar(<Sidebar variant="drawer" lists={[]} openReportCount={3} />)
+      expect(
+        screen.queryByRole('link', { name: /Admin/ })
+      ).not.toBeInTheDocument()
+    })
+
+    it('leaves the Admin count off the Notifications item and the count off other items', () => {
+      renderSidebar(
+        <Sidebar
+          variant="drawer"
+          lists={[]}
+          isAdmin
+          unreadCount={7}
+          openReportCount={3}
+        />
+      )
+
+      expect(
+        screen.getByRole('link', { name: /^Notifications\s*\(7 unread\)$/ })
+      ).toBeInTheDocument()
+      expect(screen.getAllByText('3')).toHaveLength(1)
+    })
+
     it('gives drawer navigation links a 44px minimum touch target', () => {
       renderSidebar(<Sidebar variant="drawer" lists={[]} />)
 
@@ -844,6 +903,56 @@ describe('Sidebar', () => {
 
       expect(preventedBySidebar).toBe(false)
       expect(scrollTo).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('Admin item report count', () => {
+    it('shows the count in the full sidebar, stepping aside while the row is hovered', () => {
+      renderSidebar(<Sidebar lists={[]} isAdmin openReportCount={3} />)
+
+      const nav = screen.getAllByRole('navigation')[0]
+      const link = within(nav).getByRole('link', {
+        name: /^Admin\s*\(3 unresolved reports\)$/
+      })
+      const badge = within(link).getByText('3')
+      expect(badge).toHaveAttribute('aria-hidden', 'true')
+      expect(badge).toHaveClass('static', 'group-hover:opacity-0')
+      expect(within(link).getByText('(3 unresolved reports)')).toHaveClass(
+        'sr-only'
+      )
+    })
+
+    it('overlays the count on the tablet rail icon and names it on the link', () => {
+      renderSidebar(<Sidebar lists={[]} isAdmin openReportCount={3} />)
+
+      const rail = screen.getAllByRole('navigation')[1]
+      const link = within(rail).getByRole('link', {
+        name: 'Admin (3 unresolved reports)'
+      })
+      expect(within(link).getByText('3')).toHaveClass(
+        'absolute',
+        '-top-1',
+        '-right-1'
+      )
+    })
+
+    it('names the rail link with the singular for one report and plainly at zero', () => {
+      const { unmount } = renderSidebar(
+        <Sidebar lists={[]} isAdmin openReportCount={1} />
+      )
+      expect(
+        within(screen.getAllByRole('navigation')[1]).getByRole('link', {
+          name: 'Admin (1 unresolved report)'
+        })
+      ).toBeInTheDocument()
+      unmount()
+
+      renderSidebar(<Sidebar lists={[]} isAdmin openReportCount={0} />)
+      const link = within(screen.getAllByRole('navigation')[1]).getByRole(
+        'link',
+        { name: 'Admin' }
+      )
+      expect(link.querySelector('[data-slot], span')).toBeNull()
     })
   })
 

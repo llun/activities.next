@@ -103,11 +103,6 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
     iconUrl: isRealAvatar(actor.iconUrl) ? actor.iconUrl : null
   }
 
-  const unreadCount = await database.getNotificationsCount({
-    actorId: actor.id,
-    onlyUnread: true
-  })
-
   // Fitness is a first-class section for every signed-in local account (like
   // Bookmarks/Messages), so new users can discover the import/Strava setup even
   // before they have any activity. The Overview itself handles the empty state.
@@ -117,14 +112,23 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
   // Gallery needs a local account too, but is not an admin-switchable feature.
   const galleryUrl = actor.account ? '/gallery' : undefined
   const isAdmin = actor.account?.role === 'admin'
-
-  // Drives the expandable Lists group in the sidebar.
-  const lists = await database.getLists({ actorId: actor.id })
-
-  // The navigation the user customized: their order, and the items they tucked
-  // under "More". Read here so every nav surface — and the settings manager
-  // that edits them — starts from the same state.
-  const actorSettings = await database.getActorSettings({ actorId: actor.id })
+  // Admins see the unresolved report count on the sidebar's Admin item, as the
+  // Notifications item carries the unread count. Capped at 100 (the badge shows
+  // 99+); the Admin section's own menu row counts the same way
+  // (app/(timeline)/admin/layout.tsx). Only admins are queried.
+  //
+  // The reads are independent, so they run together: the unread count, the
+  // report count, the lists that drive the expandable Lists group in the
+  // sidebar, and the navigation the user customized (their order, and the items
+  // they tucked under "More"), which every nav surface — and the settings
+  // manager that edits them — starts from.
+  const [unreadCount, openReportCount, lists, actorSettings] =
+    await Promise.all([
+      database.getNotificationsCount({ actorId: actor.id, onlyUnread: true }),
+      isAdmin ? database.countOpenReports({ limit: 100 }) : 0,
+      database.getLists({ actorId: actor.id }),
+      database.getActorSettings({ actorId: actor.id })
+    ])
 
   const formattedActors = actors.map((a) => ({
     id: a.id,
@@ -166,6 +170,7 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
                     currentActor={currentActor}
                     actors={formattedActors}
                     unreadCount={unreadCount}
+                    openReportCount={openReportCount}
                     fitnessUrl={fitnessUrl}
                     galleryUrl={galleryUrl}
                     isAdmin={isAdmin}
@@ -177,6 +182,7 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
                     currentActor={currentActor}
                     actors={formattedActors}
                     unreadCount={unreadCount}
+                    openReportCount={openReportCount}
                     fitnessUrl={fitnessUrl}
                     galleryUrl={galleryUrl}
                     isAdmin={isAdmin}
@@ -190,10 +196,7 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
                       'md:pl-[72px] md:[--sidebar-w:72px] xl:pl-[280px] xl:[--sidebar-w:280px]'
                     )}
                   >
-                    {/* A settings-style section (`SectionLayout`) widens the column
-                        to `--container-section` so its rail fits beside the
-                        content at today's width. */}
-                    <div className="mx-auto flex w-full max-w-content flex-1 flex-col px-4 pb-6 [&:has([data-section-layout])]:max-w-section">
+                    <div className="mx-auto flex w-full max-w-content flex-1 flex-col px-4 pb-6">
                       <ConnectionStatusBar />
                       {children}
                     </div>

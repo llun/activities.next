@@ -2,13 +2,12 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { usePathname } from 'next/navigation'
 
 import {
   SectionIndex,
   SectionLayout,
-  SectionNav,
   type SectionNavFooter,
   type SectionNavGroup
 } from './section-nav'
@@ -20,8 +19,8 @@ vi.mock('next/navigation', () => ({
 
 const groups: SectionNavGroup[] = [
   {
-    railOnly: true,
-    items: [{ name: 'Profile', url: '/s/profile', icon: null, hint: '@a@b' }]
+    menuOnly: true,
+    items: [{ name: 'Profile', url: '/s/profile', icon: null }]
   },
   {
     heading: 'First',
@@ -72,109 +71,6 @@ describe('resolveActiveSectionUrl', () => {
   })
 })
 
-describe('SectionNav', () => {
-  it('labels each headed group by its heading and marks the active row', () => {
-    ;(usePathname as jest.Mock).mockReturnValue('/s/two/detail')
-    render(<SectionNav label="Things" groups={groups} footer={footer} />)
-
-    const nav = screen.getByRole('navigation', { name: 'Things' })
-    const first = within(nav).getByRole('group', { name: 'First' })
-    expect(
-      within(first)
-        .getAllByRole('link')
-        .map((link) => link.textContent)
-    ).toEqual(['One', 'Two'])
-    expect(within(first).getByRole('link', { name: 'Two' })).toHaveAttribute(
-      'aria-current',
-      'page'
-    )
-    expect(
-      within(first).getByRole('link', { name: 'One' })
-    ).not.toHaveAttribute('aria-current')
-  })
-
-  it('names every group it exposes: headless runs are not groups', () => {
-    ;(usePathname as jest.Mock).mockReturnValue('/s/one')
-    render(<SectionNav label="Things" groups={groups} footer={footer} />)
-
-    expect(
-      screen.getAllByRole('group').map((group) => group.textContent)
-    ).toEqual(['FirstOneTwo', 'SecondThree'])
-  })
-
-  it('shows rail-only groups with their hint, and the footer with its heading', () => {
-    ;(usePathname as jest.Mock).mockReturnValue('/s/one')
-    render(<SectionNav label="Things" groups={groups} footer={footer} />)
-
-    expect(screen.getByRole('link', { name: /Profile/ })).toHaveTextContent(
-      '@a@b'
-    )
-    const other = screen.getByRole('link', { name: /Other/ })
-    expect(other).toHaveAttribute('href', '/other')
-    expect(other).toHaveTextContent('Elsewhere')
-  })
-
-  it('renders a visible decorative badge and screen reader count in the rail', () => {
-    ;(usePathname as jest.Mock).mockReturnValue('/admin/reports')
-    render(<SectionNav label="Admin" groups={reportGroups(7)} />)
-
-    const link = screen.getByRole('link', {
-      name: /Reports\s*\(7 unresolved reports\)/
-    })
-    const badge = link.querySelector('[aria-hidden="true"]')
-    expect(badge).toHaveTextContent('7')
-    expect(badge).toHaveClass('static')
-    expect(link.querySelector('.sr-only')).toHaveTextContent(
-      '(7 unresolved reports)'
-    )
-  })
-
-  it('scrolls the rail, not the window, to the active row, and again when it changes', () => {
-    // The nav is the scroll container (`overflow-y-auto`); jsdom has no
-    // layout, so the rects are mocked: the nav spans 0..100, the active row
-    // first sits below the fold, then above it.
-    const rectSpy = vi
-      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
-      .mockImplementation(function (this: HTMLElement) {
-        if (this.tagName === 'NAV') return { top: 0, bottom: 100 } as DOMRect
-        if (this.getAttribute('aria-current') === 'page')
-          return { top: 150, bottom: 180 } as DOMRect
-        return { top: 0, bottom: 0 } as DOMRect
-      })
-    try {
-      ;(usePathname as jest.Mock).mockReturnValue('/s/two')
-      const { rerender } = render(
-        <SectionNav label="Things" groups={groups} footer={footer} />
-      )
-
-      const nav = screen.getByRole('navigation', { name: 'Things' })
-      expect(screen.getByRole('link', { name: 'Two' })).toHaveAttribute(
-        'aria-current',
-        'page'
-      )
-      expect(nav.scrollTop).toBe(80)
-
-      // Navigating within the section re-runs the effect with the new row.
-      rectSpy.mockImplementation(function (this: HTMLElement) {
-        if (this.tagName === 'NAV') return { top: 0, bottom: 100 } as DOMRect
-        if (this.getAttribute('aria-current') === 'page')
-          return { top: -30, bottom: 0 } as DOMRect
-        return { top: 0, bottom: 0 } as DOMRect
-      })
-      ;(usePathname as jest.Mock).mockReturnValue('/s/three')
-      rerender(<SectionNav label="Things" groups={groups} footer={footer} />)
-
-      expect(screen.getByRole('link', { name: 'Three' })).toHaveAttribute(
-        'aria-current',
-        'page'
-      )
-      expect(nav.scrollTop).toBe(50)
-    } finally {
-      rectSpy.mockRestore()
-    }
-  })
-})
-
 describe('long names', () => {
   const long: SectionNavFooter = {
     heading: 'Elsewhere',
@@ -186,16 +82,7 @@ describe('long names', () => {
     }
   }
 
-  it('wraps the rail footer name and the index names anywhere', () => {
-    ;(usePathname as jest.Mock).mockReturnValue('/s/one')
-    const { unmount } = render(
-      <SectionNav label="Things" groups={groups} footer={long} />
-    )
-    expect(screen.getByText(long.item.name)).toHaveClass(
-      '[overflow-wrap:anywhere]'
-    )
-    unmount()
-
+  it('wraps the index names anywhere', () => {
     render(<SectionIndex groups={groups} footer={long} />)
     expect(screen.getByText(long.item.name)).toHaveClass(
       '[overflow-wrap:anywhere]'
@@ -204,7 +91,7 @@ describe('long names', () => {
     expect(screen.getByText('One line')).toHaveClass('[overflow-wrap:anywhere]')
   })
 
-  it('renders no rail without groups or footer', () => {
+  it('renders no row without items', () => {
     ;(usePathname as jest.Mock).mockReturnValue('/s/one')
     render(
       <SectionLayout label="Things" title="Things" groups={[]}>
@@ -217,7 +104,7 @@ describe('long names', () => {
 })
 
 describe('SectionIndex', () => {
-  it('lists the groups, then the footer, then after-footer groups, without rail-only groups', () => {
+  it('lists the groups, then the footer, then after-footer groups, without menu-only groups', () => {
     render(<SectionIndex groups={groups} footer={footer} />)
 
     expect(
@@ -226,7 +113,6 @@ describe('SectionIndex', () => {
     expect(
       screen.getAllByRole('link').map((link) => link.getAttribute('href'))
     ).toEqual(['/s/one', '/s/two', '/s/three', '/other', '/s/last'])
-    expect(screen.queryByText('@a@b')).not.toBeInTheDocument()
     expect(screen.getByText('One line')).toHaveClass('max-lg:hidden')
     // The cross-link card keeps its line on phones.
     expect(screen.getByText('What')).not.toHaveClass('max-lg:hidden')
@@ -323,48 +209,52 @@ describe('SectionLayout', () => {
       </SectionLayout>
     )
 
-  it('renders the rail from lg up and the Back row below lg on a section page', () => {
-    ;(usePathname as jest.Mock).mockReturnValue('/s/one')
-    renderLayout()
+  const openMenu = async () => {
+    const nav = screen.getByRole('navigation', { name: 'Things' })
+    fireEvent.keyDown(within(nav).getByRole('button'), { key: 'ArrowDown' })
+    return screen.findByRole('menu')
+  }
 
-    expect(screen.getByRole('navigation', { name: 'Things' })).toHaveClass(
-      'max-lg:hidden'
+  it('renders the section row on a section page', () => {
+    ;(usePathname as jest.Mock).mockReturnValue('/s/one')
+    const { container } = renderLayout()
+
+    const nav = screen.getByRole('navigation', { name: 'Things' })
+    // jsdom drops the space before the visually hidden suffix (a browser
+    // keeps it), hence `\s*`.
+    const link = within(nav).getByRole('link', {
+      name: /^Things\s*\(all pages\)$/
+    })
+    expect(link).toHaveAttribute('href', '/s')
+    expect(within(nav).getByRole('button')).toHaveTextContent('One')
+    expect(
+      screen.queryByRole('link', { name: /^Back/ })
+    ).not.toBeInTheDocument()
+    // The wide column and its rail are gone: the title row keeps the unified
+    // content width.
+    expect(container.querySelector('[data-section-layout]')).toBeNull()
+    const heading = screen.getByRole('heading', { level: 1, name: 'Things' })
+    expect(heading.closest('.max-w-content')?.className).not.toMatch(
+      /max-w-section/
     )
-    const back = screen.getByRole('link', { name: 'Back to things' })
-    expect(back).toHaveAttribute('href', '/s')
-    expect(back).toHaveTextContent('Back to Things')
-    expect(back).toHaveClass('lg:hidden')
   })
 
-  it('renders the index instead of the rail and Back on the index route', () => {
+  it('renders the index and no row on the index route', () => {
     ;(usePathname as jest.Mock).mockReturnValue('/s')
     renderLayout()
 
     expect(
       screen.queryByRole('navigation', { name: 'Things' })
     ).not.toBeInTheDocument()
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
     expect(
-      screen.queryByRole('link', { name: 'Back to things' })
+      screen.queryByRole('link', { name: /all pages/ })
     ).not.toBeInTheDocument()
     expect(screen.getByText('content')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'First' })).toBeInTheDocument()
   })
 
-  it('wraps the section header in the data-section-layout hook the wide column keys on', () => {
-    ;(usePathname as jest.Mock).mockReturnValue('/s/one')
-    const { container } = renderLayout()
-
-    const root = container.firstElementChild
-    expect(root).toHaveAttribute('data-section-layout')
-    // The shell (`[&:has([data-section-layout])]`) and the header's title row
-    // (`[[data-section-layout]_&]`) only widen when the header sits inside it.
-    const heading = screen.getByRole('heading', { level: 1, name: 'Things' })
-    expect(root).toContainElement(heading)
-    expect(heading.closest('.max-w-content')).toHaveClass(
-      '[[data-section-layout]_&]:max-w-section'
-    )
-  })
-  it('has no Back row without an index', () => {
+  it('renders the dropdown without a list-page link in a section without an index', () => {
     ;(usePathname as jest.Mock).mockReturnValue('/s/one')
     render(
       <SectionLayout label="Things" title="Things" groups={groups}>
@@ -372,13 +262,14 @@ describe('SectionLayout', () => {
       </SectionLayout>
     )
 
+    const nav = screen.getByRole('navigation', { name: 'Things' })
+    expect(within(nav).getByRole('button')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('link', { name: /all pages/ })
+    ).not.toBeInTheDocument()
     expect(
       screen.queryByRole('link', { name: /^Back/ })
     ).not.toBeInTheDocument()
-    // Rail stays; no index means no index list either.
-    expect(
-      screen.getByRole('navigation', { name: 'Things' })
-    ).toBeInTheDocument()
   })
 
   it('shows the section header box below md only on the index, or without an index', () => {
@@ -386,13 +277,14 @@ describe('SectionLayout', () => {
       screen
         .getByRole('heading', { level: 1, name: 'Things' })
         .closest('.max-w-content')!.parentElement!
-    const row = () =>
-      screen.getByText('content').closest('.gap-6') as HTMLElement
+    const row = () => screen.getByText('content').parentElement as HTMLElement
 
     ;(usePathname as jest.Mock).mockReturnValue('/s/one')
     const { unmount } = renderLayout()
     expect(headerBox()).toHaveClass('max-md:hidden')
-    expect(row()).toHaveClass('max-md:pt-2')
+    // The row opens 12px under the compact bar, 16px under the header box
+    // from md up.
+    expect(row()).toHaveClass('pt-4', 'max-md:pt-3')
     unmount()
 
     ;(usePathname as jest.Mock).mockReturnValue('/s')
@@ -413,31 +305,39 @@ describe('SectionLayout', () => {
       .getByRole('heading', { level: 1, name: 'Things' })
       .closest('.max-w-content')!.parentElement!
     expect(headerBox).not.toHaveClass('max-md:hidden')
-    const row = screen.getByText('content').closest('.gap-6') as HTMLElement
+    const row = screen.getByText('content').parentElement as HTMLElement
     expect(row).toHaveClass('max-md:pt-0')
-    expect(row).not.toHaveClass('max-md:pt-2')
+    expect(row).not.toHaveClass('max-md:pt-3')
   })
 
-  it('hides the Back row on a detail page under an item, which renders its own Back', () => {
+  it('shows the row on a page nested under an item, naming the item', async () => {
     ;(usePathname as jest.Mock).mockReturnValue('/s/one/detail')
     renderLayout()
 
-    expect(
-      screen.queryByRole('link', { name: 'Back to things' })
-    ).not.toBeInTheDocument()
-    // The rail still marks the item the detail page sits under.
-    expect(screen.getByRole('link', { name: 'One' })).toHaveAttribute(
+    const nav = screen.getByRole('navigation', { name: 'Things' })
+    expect(within(nav).getByRole('button')).toHaveTextContent('One')
+
+    const menu = await openMenu()
+    expect(within(menu).getByRole('menuitem', { name: 'One' })).toHaveAttribute(
       'aria-current',
       'page'
     )
   })
 
-  it('shows the Back row on a page that is neither an item nor nested under one', () => {
+  it('names the section on a page no item matches', async () => {
     ;(usePathname as jest.Mock).mockReturnValue('/s/verify-email')
     renderLayout()
 
-    const back = screen.getByRole('link', { name: 'Back to things' })
-    expect(back).toHaveAttribute('href', '/s')
+    const nav = screen.getByRole('navigation', { name: 'Things' })
+    expect(within(nav).getByRole('button')).toHaveTextContent('Things')
+    expect(
+      within(nav).getByRole('link', { name: /all pages/ })
+    ).toHaveAttribute('href', '/s')
+
+    const menu = await openMenu()
+    for (const item of within(menu).getAllByRole('menuitem')) {
+      expect(item).not.toHaveAttribute('aria-current')
+    }
   })
 
   it('leaves no top-margin gap above the index when the page renders nothing', () => {
@@ -501,20 +401,5 @@ describe('SectionLayout', () => {
       ['/s/one', '/s/two', '/s/three', '/other'],
       ['/s/last']
     ])
-  })
-
-  it('uses the footer hint for the rail card when given', () => {
-    ;(usePathname as jest.Mock).mockReturnValue('/s/one')
-    render(
-      <SectionNav
-        label="Things"
-        groups={groups}
-        footer={{ ...footer, hint: 'Each has its own' }}
-      />
-    )
-
-    const card = screen.getByRole('link', { name: /Other/ })
-    expect(card).toHaveTextContent('Each has its own')
-    expect(card).not.toHaveTextContent('Elsewhere')
   })
 })

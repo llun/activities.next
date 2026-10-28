@@ -26,6 +26,7 @@ const Layout: FC<Props> = async ({ children }) => {
   return (
     <SectionLayout
       label="Account & security"
+      shortLabel="Account"
       title="Account & security"
       description={
         account

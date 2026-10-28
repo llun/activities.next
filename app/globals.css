@@ -92,12 +92,6 @@
      the `max-w-content` utility via Tailwind's `--container-*` namespace. */
   --container-content: 940px;
 
-  /* The wider column of settings-style sections (Settings): the section rail
-     (216px and a 32px gap at `xl`) beside content about as wide as the
-     `content` column's. A deliberate exception to the one width above, exposed
-     as `max-w-section`; see `SectionLayout`. */
-  --container-section: 1160px;
-
   /* The design's type scale draws 18 px text on a 24 px line (Heading/lg 18/24),
      where Tailwind's default `text-lg` is 18/28. Every `text-lg` element (the
      settings and admin card headings above all) takes its line height from this

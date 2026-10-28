@@ -315,7 +315,7 @@ The durable rule source moved to [docs/architecture.md](docs/architecture.md#age
 
 ## Page Header & Sub-Navigation
 
-The durable rule source moved to [docs/architecture.md](docs/architecture.md#agents-page-header-sub-navigation); read it before changing this subsystem.
+The durable rule source moved to [docs/architecture.md](docs/architecture.md#agents-page-header-sub-navigation); read it before changing this subsystem. One rule is repeated here because it is easy to break by accident: **switching between the pages of a section always uses the shared `SectionNavDropdown`** (`lib/components/section-nav-dropdown.tsx`). Never render a second navigation list, rail, tab strip or menu of a section's pages inside the content pane beside the app sidebar, at any width; the index pages (`/settings`, `/account`, `/admin`) are the only in-content lists, and they are the page, not a navigation. `lib/components/sectionNavPattern.test.ts` fails on a layout that reintroduces one.
 
 ## Fitness Overview Calendar
 

@@ -15,6 +15,7 @@ export interface MobileNavProps {
   currentActor?: ActorInfo | null
   actors?: ActorInfo[]
   unreadCount?: number
+  openReportCount?: number
   fitnessUrl?: string
   galleryUrl?: string
   isAdmin?: boolean
@@ -33,6 +34,7 @@ export function MobileNav({
   currentActor,
   actors,
   unreadCount = 0,
+  openReportCount = 0,
   fitnessUrl,
   galleryUrl,
   isAdmin = false,
@@ -48,6 +50,7 @@ export function MobileNav({
           currentActor={currentActor}
           actors={actors}
           unreadCount={unreadCount}
+          openReportCount={openReportCount}
           fitnessUrl={fitnessUrl}
           galleryUrl={galleryUrl}
           isAdmin={isAdmin}

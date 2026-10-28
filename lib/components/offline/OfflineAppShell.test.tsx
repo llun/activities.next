@@ -62,10 +62,11 @@ vi.mock('@/lib/client/bootstrap', () => ({
 }))
 
 vi.mock('@/lib/components/layout/sidebar', () => ({
-  Sidebar: (props: { isLoading?: boolean }) => (
+  Sidebar: (props: { isLoading?: boolean; openReportCount?: number }) => (
     <nav
       data-testid="desktop-sidebar"
       data-loading={props.isLoading ? 'true' : undefined}
+      data-open-reports={props.openReportCount}
     >
       Sidebar
     </nav>
@@ -73,7 +74,11 @@ vi.mock('@/lib/components/layout/sidebar', () => ({
 }))
 
 vi.mock('@/lib/components/layout/mobile-nav', () => ({
-  MobileNav: () => <nav data-testid="mobile-nav">MobileNav</nav>
+  MobileNav: (props: { openReportCount?: number }) => (
+    <nav data-testid="mobile-nav" data-open-reports={props.openReportCount}>
+      MobileNav
+    </nav>
+  )
 }))
 
 vi.mock('@/app/(timeline)/MainPageTimeline', () => ({
@@ -250,6 +255,45 @@ describe('OfflineAppShell', () => {
         freshBootstrap
       )
     })
+  })
+
+  it('passes the cached unresolved report count to both navs, reading a snapshot without it as 0', async () => {
+    mockGetActiveOfflineSession.mockResolvedValue({
+      actorId: 'actor-1',
+      accountId: 'account-1'
+    })
+    mockGetOfflineTimeline.mockResolvedValue(dummyTimeline)
+    mockGetAccountBootstrap.mockResolvedValue(null)
+
+    // A snapshot cached before the Admin item carried the count has no field.
+    mockGetClientBootstrapSnapshot.mockResolvedValueOnce(dummyBootstrap)
+    const { unmount } = render(<OfflineAppShell />)
+    await screen.findByTestId('main-timeline')
+    expect(screen.getByTestId('desktop-sidebar')).toHaveAttribute(
+      'data-open-reports',
+      '0'
+    )
+    expect(screen.getByTestId('mobile-nav')).toHaveAttribute(
+      'data-open-reports',
+      '0'
+    )
+    unmount()
+
+    mockGetClientBootstrapSnapshot.mockResolvedValueOnce({
+      ...dummyBootstrap,
+      isAdmin: true,
+      openReportCount: 6
+    })
+    render(<OfflineAppShell />)
+    await screen.findByTestId('main-timeline')
+    expect(screen.getByTestId('desktop-sidebar')).toHaveAttribute(
+      'data-open-reports',
+      '6'
+    )
+    expect(screen.getByTestId('mobile-nav')).toHaveAttribute(
+      'data-open-reports',
+      '6'
+    )
   })
 
   it('mounts the drafts provider, the status bar and the announcer once the shell is ready', async () => {

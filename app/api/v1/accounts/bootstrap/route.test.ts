@@ -58,11 +58,17 @@ let mockCurrentActor: Actor
 let mockDatabase: {
   getActorsForAccount: ReturnType<typeof vi.fn>
   getNotificationsCount: ReturnType<typeof vi.fn>
+  countOpenReports: ReturnType<typeof vi.fn>
   getLists: ReturnType<typeof vi.fn>
   getActorSettings: ReturnType<typeof vi.fn>
 }
 
-vi.mock('@/lib/services/guards/OAuthGuard', () => ({
+vi.mock('@/lib/services/guards/OAuthGuard', async () => ({
+  isBearerAuthorizationHeader: (
+    await vi.importActual<typeof import('@/lib/services/guards/OAuthGuard')>(
+      '@/lib/services/guards/OAuthGuard'
+    )
+  ).isBearerAuthorizationHeader,
   OAuthGuardAnyScope:
     (
       _scopes: unknown,
@@ -147,6 +153,7 @@ describe('GET /api/v1/accounts/bootstrap', () => {
         }
       ]),
       getNotificationsCount: vi.fn().mockResolvedValue(7),
+      countOpenReports: vi.fn().mockResolvedValue(4),
       getLists: vi.fn().mockResolvedValue([
         {
           id: 'list-1',
@@ -242,6 +249,9 @@ describe('GET /api/v1/accounts/bootstrap', () => {
     expect(data.fitnessUrl).toBe('/fitness')
     expect(data.galleryUrl).toBe('/gallery')
     expect(data.isAdmin).toBe(true)
+    // The Admin item's unresolved report count, capped at 100.
+    expect(data.openReportCount).toBe(4)
+    expect(mockDatabase.countOpenReports).toHaveBeenCalledWith({ limit: 100 })
     expect(data.isMediaUploadEnabled).toBe(true)
     expect(typeof data.currentTime).toBe('number')
     expect(typeof data.savedAt).toBe('number')
@@ -283,6 +293,22 @@ describe('GET /api/v1/accounts/bootstrap', () => {
 
     expect(data.isAdmin).toBe(false)
     expect(data.fitnessUrl).toBeUndefined()
+    expect(data.openReportCount).toBe(0)
+    expect(mockDatabase.countOpenReports).not.toHaveBeenCalled()
+  })
+
+  it('leaves the open report count out of a bearer-token (third-party) request', async () => {
+    const req = new NextRequest('https://llun.test/api/v1/accounts/bootstrap', {
+      headers: { Authorization: 'Bearer some-token' }
+    })
+    const res = await GET(req, { params: Promise.resolve({}) })
+
+    expect(res.status).toBe(200)
+    const data = await res.json()
+
+    expect(data.isAdmin).toBe(true)
+    expect(data).not.toHaveProperty('openReportCount')
+    expect(mockDatabase.countOpenReports).not.toHaveBeenCalled()
   })
 
   it('drops fitness from the bootstrap when the visited domain turns it off', async () => {

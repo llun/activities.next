@@ -395,8 +395,8 @@ export const ProfileEditor: FC<Props> = ({
         </div>
       ) : null}
 
-      {/* The section rail takes width beside the content from lg up, so
-          size the two-column editor by its container, not the viewport. */}
+      {/* Sized by its container, not the viewport, so the preview column
+          appears only when the editor itself is wide enough (860px). */}
       <div className="@min-[860px]:grid @min-[860px]:grid-cols-[minmax(0,1fr)_17rem] @min-[860px]:items-start @min-[860px]:gap-8">
         <div className="min-w-0 space-y-6">
           <form
@@ -630,8 +630,8 @@ export const ProfileEditor: FC<Props> = ({
           </Frame>
         </div>
 
-        {/* Sticks at the section rail's offset so its top does not slide
-            under the sticky Settings header. */}
+        {/* Sticks just under the sticky Settings header
+            (SECTION_STICKY_TOP_CLASS) so its top does not slide under it. */}
         <div
           className={cn(
             'sticky hidden @min-[860px]:block',

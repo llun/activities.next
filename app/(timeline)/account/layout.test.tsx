@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { usePathname } from 'next/navigation'
 
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
@@ -40,6 +40,12 @@ const renderLayout = async (pathname: string) => {
   render(await Layout({ children: <div>content</div> }))
 }
 
+const openMenu = async () => {
+  const nav = screen.getByRole('navigation', { name: 'Account & security' })
+  fireEvent.keyDown(within(nav).getByRole('button'), { key: 'ArrowDown' })
+  return screen.findByRole('menu')
+}
+
 describe('Account Layout', () => {
   it('names the account email in the section header', async () => {
     await renderLayout('/account/security')
@@ -72,16 +78,20 @@ describe('Account Layout', () => {
       screen.queryByRole('navigation', { name: 'Account & security' })
     ).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /Back to/ })).toBeNull()
+    expect(screen.queryByRole('link', { name: /all pages/ })).toBeNull()
     expect(screen.queryByRole('link', { name: /Settings for/ })).toBeNull()
   })
 
-  it('lists the five sections in order and the settings card', async () => {
+  it('lists the five sections in order and the settings row', async () => {
     await renderLayout('/account/security')
-
+    // Before the menu opens: Radix hides everything outside an open menu.
     const nav = screen.getByRole('navigation', { name: 'Account & security' })
-    const links = within(nav).getAllByRole('link')
+    expect(within(nav).getByRole('button')).toBeInTheDocument()
+    const menu = await openMenu()
+
+    const items = within(menu).getAllByRole('menuitem')
     expect(
-      links.slice(0, 5).map((l) => [l.textContent, l.getAttribute('href')])
+      items.slice(0, 5).map((l) => [l.textContent, l.getAttribute('href')])
     ).toEqual([
       ['Email & name', '/account/email'],
       ['Password & sign-in', '/account/security'],
@@ -89,51 +99,69 @@ describe('Account Layout', () => {
       ['Profiles', '/account/profiles'],
       ['Import and export', '/account/import-export']
     ])
-    const footer = within(nav).getByRole('link', {
+    const footer = within(menu).getByRole('menuitem', {
       name: /Settings for @anna@llun.test/
     })
     expect(footer).toHaveAttribute('href', '/settings')
-    expect(footer).toHaveTextContent('Each profile has its own')
-    expect(within(nav).queryByRole('button')).not.toBeInTheDocument()
+    expect(footer).not.toHaveTextContent('Each profile has its own')
+    expect(items).toHaveLength(6)
   })
 
   it('marks a nested security path as Password & sign-in', async () => {
     await renderLayout('/account/security/passkeys')
 
     const nav = screen.getByRole('navigation', { name: 'Account & security' })
-    const current = within(nav)
-      .getAllByRole('link')
-      .filter((link) => link.getAttribute('aria-current') === 'page')
+    expect(within(nav).getByRole('button')).toHaveTextContent(
+      'Password & sign-in'
+    )
+    const menu = await openMenu()
+    const current = within(menu)
+      .getAllByRole('menuitem')
+      .filter((item) => item.getAttribute('aria-current') === 'page')
     expect(current).toHaveLength(1)
     expect(current[0]).toHaveTextContent('Password & sign-in')
   })
 
-  it('leads a section page with Back to Account & security below lg', async () => {
+  it('renders the Account link and no Back row on /account/email', async () => {
     await renderLayout('/account/email')
 
-    const back = screen.getByRole('link', {
-      name: 'Back to account & security'
+    // jsdom has no CSS, so both spans of the link are in its name (only
+    // `max-md:hidden` / `md:hidden` hide one) and drops the space before the
+    // visually hidden suffix; assert the pieces.
+    const link = screen.getByRole('link', {
+      name: /^Account & security.*\(all pages\)$/
     })
-    expect(back).toHaveAttribute('href', '/account')
-    expect(back).toHaveClass('lg:hidden')
+    expect(link).toHaveAttribute('href', '/account')
+    expect(within(link).getByText('Account & security')).toHaveClass(
+      'max-md:hidden'
+    )
+    expect(within(link).getByText('Account')).toHaveClass('md:hidden')
+    expect(
+      screen.queryByRole('link', { name: /^Back/ })
+    ).not.toBeInTheDocument()
   })
 
-  it('leads a signed-in verify-email page with Back to Account & security below lg', async () => {
+  it('names Email & name on a signed-in verify-email page', async () => {
     await renderLayout('/account/verify-email')
 
-    const back = screen.getByRole('link', {
-      name: 'Back to account & security'
-    })
-    expect(back).toHaveAttribute('href', '/account')
-    expect(back).toHaveClass('lg:hidden')
+    const nav = screen.getByRole('navigation', { name: 'Account & security' })
+    expect(within(nav).getByRole('button')).toHaveTextContent('Email & name')
+    const menu = await openMenu()
+    expect(
+      within(menu).getByRole('menuitem', { name: 'Email & name' })
+    ).toHaveAttribute('aria-current', 'page')
+    expect(
+      screen.queryByRole('link', { name: /^Back/ })
+    ).not.toBeInTheDocument()
   })
 
-  it('renders the index list instead of the rail on /account', async () => {
+  it('renders the index list and no dropdown row on /account', async () => {
     await renderLayout('/account')
 
     expect(
       screen.queryByRole('navigation', { name: 'Account & security' })
     ).not.toBeInTheDocument()
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
     expect(
       screen.getByRole('heading', { level: 2, name: 'For this profile' })
     ).toBeInTheDocument()

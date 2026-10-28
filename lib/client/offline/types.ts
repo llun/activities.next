@@ -60,6 +60,9 @@ export interface ClientBootstrapSnapshot {
   actors: BootstrapActorSummary[]
   profile: ActorProfile
   unreadCount: number
+  // Absent from a copy cached before the Admin item carried the count; read
+  // it as 0.
+  openReportCount?: number
   fitnessUrl?: string
   galleryUrl?: string
   isAdmin: boolean

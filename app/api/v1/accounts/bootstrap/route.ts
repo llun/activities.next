@@ -1,7 +1,10 @@
 import type { ClientBootstrapSnapshot } from '@/lib/client/offline/types'
 import { getConfig } from '@/lib/config'
 import { getRequestFeatures } from '@/lib/services/domains/visitedFeatures'
-import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
+import {
+  OAuthGuardAnyScope,
+  isBearerAuthorizationHeader
+} from '@/lib/services/guards/OAuthGuard'
 import {
   sanitizeNavHidden,
   sanitizeNavOrder
@@ -34,19 +37,39 @@ export const GET = traceApiRoute(
         }
 
         const { host, mediaStorage } = getConfig()
-        const [serverSettings, actors, unreadCount, lists, actorSettings] =
-          await Promise.all([
-            getResolvedServerSettings(database),
-            database.getActorsForAccount({
-              accountId: currentActor.account.id
-            }),
-            database.getNotificationsCount({
-              actorId: currentActor.id,
-              onlyUnread: true
-            }),
-            database.getLists({ actorId: currentActor.id }),
-            database.getActorSettings({ actorId: currentActor.id })
-          ])
+        // The report count is moderation data a third-party app holding only
+        // `read` should not see (Mastodon gates it behind admin:read:reports).
+        // The guard authenticates a bearer token when the Authorization header
+        // carries one and the session cookie otherwise, so the header tells the
+        // two apart: only the first-party (cookie) client gets the count.
+        const isFirstParty = !isBearerAuthorizationHeader(
+          req.headers.get('Authorization')
+        )
+        const [
+          serverSettings,
+          actors,
+          unreadCount,
+          openReportCount,
+          lists,
+          actorSettings
+        ] = await Promise.all([
+          getResolvedServerSettings(database),
+          database.getActorsForAccount({
+            accountId: currentActor.account.id
+          }),
+          database.getNotificationsCount({
+            actorId: currentActor.id,
+            onlyUnread: true
+          }),
+          // The Admin item's unresolved report count, for first-party admins.
+          !isFirstParty
+            ? Promise.resolve(undefined)
+            : currentActor.account.role === 'admin'
+              ? database.countOpenReports({ limit: 100 })
+              : Promise.resolve(0),
+          database.getLists({ actorId: currentActor.id }),
+          database.getActorSettings({ actorId: currentActor.id })
+        ])
 
         const { posts, media, polls } = serverSettings
         // The server's switches, minus what the visited domain turned off.
@@ -117,6 +140,7 @@ export const GET = traceApiRoute(
           actors: formattedActors,
           profile: getActorProfile(currentActor),
           unreadCount,
+          openReportCount,
           fitnessUrl:
             currentActor.account && features.fitness ? '/fitness' : undefined,
           galleryUrl: currentActor.account ? '/gallery' : undefined,

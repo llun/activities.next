@@ -20,7 +20,6 @@ const renderLayout = () =>
 
 describe('Fitness Connections Layout', () => {
   it.each([
-    ['/fitness/connections', 'Strava'],
     ['/fitness/connections/strava', 'Strava'],
     ['/fitness/connections/wahoo', 'Wahoo']
   ])(
@@ -33,6 +32,24 @@ describe('Fitness Connections Layout', () => {
       expect(within(nav).getByRole('button')).toHaveTextContent(label)
     }
   )
+
+  // The dropdown no longer falls back to its first entry when the path matches
+  // none (the trigger used to claim Strava on any unmatched path): it names the
+  // section instead, with no row current. `/fitness/connections` itself only
+  // redirects to Strava (page.tsx).
+  it('names the section on the trigger when no connection matches', async () => {
+    ;(usePathname as jest.Mock).mockReturnValue('/fitness/connections')
+    renderLayout()
+
+    const nav = screen.getByRole('navigation', { name: 'Connections' })
+    expect(within(nav).getByRole('button')).toHaveTextContent('Connections')
+
+    fireEvent.keyDown(within(nav).getByRole('button'), { key: 'ArrowDown' })
+    const menu = await screen.findByRole('menu')
+    for (const item of within(menu).getAllByRole('menuitem')) {
+      expect(item).not.toHaveAttribute('aria-current')
+    }
+  })
 
   it('renders the Connections header and description above the sub-nav', () => {
     ;(usePathname as jest.Mock).mockReturnValue('/fitness/connections/strava')

@@ -86,6 +86,11 @@ export interface SidebarProps {
   currentActor?: ActorInfo | null
   actors?: ActorInfo[]
   unreadCount?: number
+  /**
+   * Unresolved reports, shown on the Admin item for admins as the unread count
+   * is on Notifications (capped by the caller; the badge shows 99+).
+   */
+  openReportCount?: number
   fitnessUrl?: string
   galleryUrl?: string
   isAdmin?: boolean
@@ -228,6 +233,7 @@ export function Sidebar({
   currentActor,
   actors = [],
   unreadCount = 0,
+  openReportCount = 0,
   fitnessUrl,
   galleryUrl,
   isAdmin = false,
@@ -411,6 +417,7 @@ export function Sidebar({
             {shown.map((item, index) => {
               const isActive = isItemActive(item.href)
               const isNotifications = item.id === 'notifications'
+              const isAdminItem = item.id === 'admin'
 
               // The Lists entry expands into the user's lists when they have
               // any; otherwise it stays a plain link to the (empty) index.
@@ -559,6 +566,30 @@ export function Sidebar({
                         <span className="sr-only"> ({unreadCount} unread)</span>
                       </>
                     )}
+                    {isAdminItem && openReportCount > 0 && (
+                      <>
+                        <NotificationBadge
+                          count={openReportCount}
+                          aria-hidden="true"
+                          // Same as the Notifications badge: it steps aside
+                          // while the row is hovered on desktop.
+                          className={cn(
+                            'static ml-1',
+                            isDrawer
+                              ? ''
+                              : 'transition-opacity group-hover:opacity-0'
+                          )}
+                        />
+                        <span className="sr-only">
+                          {' '}
+                          ({openReportCount}{' '}
+                          {openReportCount === 1
+                            ? 'unresolved report'
+                            : 'unresolved reports'}
+                          )
+                        </span>
+                      </>
+                    )}
                   </Link>
                   {renderRowMenu(item, index)}
                 </li>
@@ -705,6 +736,7 @@ export function Sidebar({
               {shown.map((item) => {
                 const isActive = isItemActive(item.href)
                 const isNotifications = item.id === 'notifications'
+                const isAdminItem = item.id === 'admin'
                 return (
                   <li key={item.id}>
                     <Tooltip>
@@ -721,7 +753,9 @@ export function Sidebar({
                           aria-label={
                             item.id === 'drafts' && draftsCount > 0
                               ? `${item.label} (${draftsCount} unsent)`
-                              : item.label
+                              : isAdminItem && openReportCount > 0
+                                ? `${item.label} (${openReportCount} ${openReportCount === 1 ? 'unresolved report' : 'unresolved reports'})`
+                                : item.label
                           }
                           aria-current={isActive ? 'page' : undefined}
                           className={cn(
@@ -746,6 +780,12 @@ export function Sidebar({
                           {isNotifications && unreadCount > 0 && (
                             <NotificationBadge
                               count={unreadCount}
+                              className="absolute -top-1 -right-1"
+                            />
+                          )}
+                          {isAdminItem && openReportCount > 0 && (
+                            <NotificationBadge
+                              count={openReportCount}
                               className="absolute -top-1 -right-1"
                             />
                           )}
