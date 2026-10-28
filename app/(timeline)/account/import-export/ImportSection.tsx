@@ -218,6 +218,7 @@ export const ImportSection = ({
             accountImport={accountImport}
             currentTime={currentTime}
             canceling={canceling}
+            offline={isOffline}
             onCancel={() => void handleCancelImport()}
           />
         ) : null}

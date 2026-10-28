@@ -552,6 +552,82 @@ describe('ImportSection', () => {
     expect(accountImports.getAccountImport).not.toHaveBeenCalled()
   })
 
+  it('keeps an earlier upload whose start was rate-limited when another file is chosen', async () => {
+    vi.useFakeTimers()
+    let cancelled = false
+    vi.mocked(accountImports.cancelAccountImport).mockImplementation(
+      async () => {
+        cancelled = true
+        return {} as never
+      }
+    )
+    // If the earlier upload were cancelled behind the page's back, the next
+    // poll would report it as cancelled.
+    vi.mocked(accountImports.getAccountImport).mockImplementation(
+      async () =>
+        (cancelled
+          ? {
+              ...activeImport,
+              status: 'cancelled' as const,
+              finishedAt: '2026-10-28T10:05:00.000Z'
+            }
+          : {
+              ...activeImport,
+              status: 'queued' as const,
+              kind: null,
+              phase: null,
+              startedAt: null
+            }) as never
+    )
+    vi.mocked(accountImports.startAccountImport).mockRejectedValue(
+      new ApiRequestError('Too many imports started recently', 429, 3_600_000)
+    )
+    render(
+      <ImportSection
+        actorId={actorId}
+        handle="@may@llun.test"
+        currentTime={Date.parse('2026-10-28T10:00:00.000Z')}
+        initialImport={
+          {
+            ...activeImport,
+            status: 'queued' as const,
+            kind: null,
+            phase: null,
+            startedAt: null
+          } as never
+        }
+        maxImportBytes={1024 * 1024}
+        maxCsvBytes={5 * 1024 * 1024}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start import' }))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(
+      screen.getByText('Too many imports started recently')
+    ).toBeInTheDocument()
+
+    chooseFile('other.zip')
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+      await Promise.resolve()
+    })
+    expect(accountImports.cancelAccountImport).not.toHaveBeenCalled()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3_000)
+    })
+    expect(
+      screen.getByText('An earlier upload was not started')
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Import cancelled')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('File')).toBeInTheDocument()
+  })
+
   it('moves focus to the report after cancelling an import', async () => {
     vi.mocked(accountImports.getAccountImport).mockResolvedValue({
       ...activeImport,

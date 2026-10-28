@@ -48,10 +48,14 @@ const queuedImport = {
     continuationCount: 0
   },
   createdAt: '2026-10-28T10:00:00.000Z',
-  startedAt: null,
+  startedAt: '2026-10-28T10:00:30.000Z',
   finishedAt: null,
   lastErrorCode: null
 }
+
+// A queued row that was never started: an upload waiting for its start, not
+// an import the server is moving.
+const neverStartedImport = { ...queuedImport, startedAt: null }
 
 beforeEach(() => {
   vi.useFakeTimers()
@@ -144,5 +148,49 @@ describe('useImportPolling', () => {
       await vi.advanceTimersByTimeAsync(6_000)
     })
     expect(getAccountImport).not.toHaveBeenCalled()
+  })
+
+  it('never polls a queued upload that was not started', async () => {
+    mocks.get.mockResolvedValue({ ...queuedImport, status: 'running' })
+    renderHook(() =>
+      useImportPolling({
+        actorId: 'actor-1',
+        initialImport: neverStartedImport
+      })
+    )
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(6_000)
+    })
+    expect(getAccountImport).not.toHaveBeenCalled()
+  })
+
+  it('drops a poll answer that arrives after the state was set', async () => {
+    let answerPoll: ((value: unknown) => void) | undefined
+    mocks.get.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          answerPoll = resolve
+        })
+    )
+    const { result } = renderHook(() =>
+      useImportPolling({ actorId: 'actor-1', initialImport: queuedImport })
+    )
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3_000)
+    })
+    expect(getAccountImport).toHaveBeenCalledTimes(1)
+
+    // The user discards the import while the poll is still in flight.
+    await act(async () => {
+      result.current.setAccountImport(null)
+    })
+    await act(async () => {
+      answerPoll?.({ ...queuedImport, status: 'running' })
+      await Promise.resolve()
+    })
+
+    expect(result.current.accountImport).toBeNull()
   })
 })

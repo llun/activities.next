@@ -1,7 +1,7 @@
 'use client'
 
 import { formatDistance } from 'date-fns/formatDistance'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import {
   AccountImportOptions,
@@ -9,6 +9,7 @@ import {
   PresignedAccountImportResponse,
   cancelAccountImport,
   createPresignedImport,
+  getAccountImport,
   listAccountImports,
   startAccountImport,
   uploadAccountImport
@@ -77,12 +78,19 @@ const isMoved = (error: unknown) =>
   error.status === 422 &&
   error.message === 'This account has moved'
 
-// A start failure the owner can simply try again from: the server kept the
-// upload queued, so retrying the start must not re-upload anything.
-const isTransientStartFailure = (error: unknown) =>
-  !(error instanceof ApiRequestError) ||
-  error.status === 0 ||
-  error.status === 503
+// The only start failures that cancel the stored upload: the file behind the
+// row can never start, so the row is dead weight. Every other failure leaves
+// the queued upload alone (see the cancel rule on startUploadedArchive).
+const isUnreadableStart = (error: unknown) =>
+  error instanceof ApiRequestError &&
+  error.status === 422 &&
+  error.message === 'Archive format is not recognised'
+
+const isUploadLostStart = (error: unknown) =>
+  error instanceof ApiRequestError &&
+  error.status === 409 &&
+  (error.message === 'Upload is incomplete; upload it again' ||
+    error.message === 'Archive changed; upload it again')
 
 const cancelBestEffort = (actorId: string, id: string) =>
   cancelAccountImport({ actorId, id }).catch(() => undefined)
@@ -124,13 +132,6 @@ export const ArchiveImportForm = ({
 }: Props) => {
   const inputRef = useRef<HTMLInputElement>(null)
   const uploadController = useRef<AbortController | null>(null)
-  // The upload awaiting a start, readable from effects and cleanups that run
-  // after the state has moved on (the [file] reset, the unmount).
-  const pendingUploadRef = useRef<PresignedAccountImportResponse | null>(null)
-  // True while startAccountImport is in flight. The start owns the upload for
-  // as long as it runs: leaving the page or picking another file then must
-  // not cancel it ("You can leave this page. The import carries on").
-  const startingRef = useRef(false)
   const [options, setOptions] = useState(INITIAL_OPTIONS)
   const [submitting, setSubmitting] = useState(false)
   const [pendingUpload, setPendingUpload] =
@@ -144,34 +145,30 @@ export const ArchiveImportForm = ({
   const isOffline = useConnectionStatus().state === 'offline'
   const isUploading = uploadProgress !== null && submitting
 
-  const storePendingUpload = useCallback(
-    (uploaded: PresignedAccountImportResponse | null) => {
-      pendingUploadRef.current = uploaded
-      setPendingUpload(uploaded)
-    },
-    []
-  )
-
+  // The cancel rule: the client cancels an account import only when the user
+  // presses Discard or Cancel, when the upload itself failed or was aborted,
+  // or when the start answers that the stored file can never start (422
+  // unrecognised, 409 upload incomplete or archive changed). Everything else
+  // leaves the queued upload alone — a failed start, another file, leaving
+  // the page or switching to CSV — so the row survives and the page offers it
+  // back as the "not started" warning.
   useEffect(() => {
-    if (startingRef.current) return
-    const stored = pendingUploadRef.current
-    if (stored) void cancelBestEffort(actorId, stored.id)
     setOptions(INITIAL_OPTIONS)
     setAlert(null)
-    storePendingUpload(null)
+    setPendingUpload(null)
     setUploadProgress(null)
-  }, [actorId, file, storePendingUpload])
+  }, [actorId, file])
 
   useEffect(() => {
     if (hasHydrated) setClock(Date.now())
   }, [hasHydrated])
 
+  // Aborting the upload makes it fail, and a failed upload is one of the
+  // cases that cancel the row (in handleSubmit's catch). The start needs no
+  // cleanup: the row it is starting is the server's, not the page's.
   useEffect(
     () => () => {
       uploadController.current?.abort()
-      if (startingRef.current) return
-      const stored = pendingUploadRef.current
-      if (stored) void cancelBestEffort(actorId, stored.id)
     },
     [actorId]
   )
@@ -188,14 +185,13 @@ export const ArchiveImportForm = ({
   ) => {
     setSubmitting(true)
     setAlert(null)
-    startingRef.current = true
     // A start that gives up on the upload cancels the row server-side, so it
     // must also tell the parent to drop it: otherwise the "earlier upload"
     // warning stays up with a Start button that can only fail again, until
     // the next poll reports the row as cancelled.
     const discardUploaded = async () => {
       await cancelBestEffort(actorId, uploaded.id)
-      storePendingUpload(null)
+      setPendingUpload(null)
       if (notStartedImport?.id === uploaded.id) onDiscarded()
     }
     try {
@@ -204,7 +200,7 @@ export const ArchiveImportForm = ({
         importId: uploaded.id,
         options
       })
-      storePendingUpload(null)
+      setPendingUpload(null)
       setUploadProgress(null)
       onStarted(accountImport)
     } catch (error) {
@@ -213,7 +209,7 @@ export const ArchiveImportForm = ({
       } else if (isMoved(error)) {
         onMoved()
       } else if (error instanceof ApiRequestError && error.status === 429) {
-        storePendingUpload(uploaded)
+        setPendingUpload(uploaded)
         setClock(Date.now())
         setAlert({
           type: 'rate-limit',
@@ -222,13 +218,12 @@ export const ArchiveImportForm = ({
               ? null
               : Date.now() + error.retryAfterMs
         })
-      } else if (error instanceof ApiRequestError && error.status === 422) {
+      } else if (isUnreadableStart(error)) {
         await discardUploaded()
-        setAlert(
-          error.message === 'Archive format is not recognised'
-            ? { type: 'unreadable' }
-            : { type: 'generic', message: error.message }
-        )
+        setAlert({ type: 'unreadable' })
+      } else if (isUploadLostStart(error)) {
+        await discardUploaded()
+        setAlert({ type: 'upload' })
       } else if (
         error instanceof ApiRequestError &&
         error.status === 409 &&
@@ -236,20 +231,23 @@ export const ArchiveImportForm = ({
       ) {
         const found = await findActiveImport()
         if (!found) setAlert({ type: 'generic', message: error.message })
-      } else if (error instanceof ApiRequestError && error.status === 409) {
-        await discardUploaded()
-        setAlert({ type: 'upload' })
-      } else if (isTransientStartFailure(error)) {
-        storePendingUpload(uploaded)
-        setAlert({
-          type: 'generic',
-          message:
-            error instanceof Error
-              ? error.message
-              : 'Could not start the import'
-        })
+      } else if (
+        error instanceof ApiRequestError &&
+        error.status === 409 &&
+        error.message === 'Import is not queued'
+      ) {
+        // The row has already started (another tab) or another import took
+        // the slot: re-read it and show it. It is never this page's to cancel.
+        setPendingUpload(null)
+        try {
+          onStarted(await getAccountImport({ actorId, id: uploaded.id }))
+        } catch {
+          setAlert({ type: 'generic', message: 'Could not start the import' })
+        }
       } else {
-        await discardUploaded()
+        // 503, a network error, a 422 or 409 the rule does not name, a 500:
+        // the upload stays queued, so keep it and let the owner try again.
+        setPendingUpload(uploaded)
         setAlert({
           type: 'generic',
           message:
@@ -259,7 +257,6 @@ export const ArchiveImportForm = ({
         })
       }
     } finally {
-      startingRef.current = false
       setSubmitting(false)
     }
   }
@@ -279,7 +276,7 @@ export const ArchiveImportForm = ({
     uploadController.current = controller
     try {
       uploaded = await createPresignedImport({ actorId, size: file.size })
-      storePendingUpload(uploaded)
+      setPendingUpload(uploaded)
       setUploadProgress({ loaded: 0, total: file.size })
       await uploadAccountImport({
         actorId,
@@ -304,7 +301,7 @@ export const ArchiveImportForm = ({
         if (!found) setAlert({ type: 'generic', message: error.message })
       } else if (uploaded) {
         await cancelBestEffort(actorId, uploaded.id)
-        storePendingUpload(null)
+        setPendingUpload(null)
         setUploadProgress(null)
         setAlert({ type: 'upload' })
       } else {
@@ -331,7 +328,7 @@ export const ArchiveImportForm = ({
     setSubmitting(true)
     try {
       await cancelBestEffort(actorId, id)
-      storePendingUpload(null)
+      setPendingUpload(null)
       onDiscarded()
     } finally {
       setSubmitting(false)
@@ -447,7 +444,11 @@ export const ArchiveImportForm = ({
         <Alert
           tone="error"
           title="Could not start the import"
-          onRetry={() => void handleSubmit()}
+          onRetry={() =>
+            void (pendingUpload
+              ? startUploadedArchive(pendingUpload)
+              : handleSubmit())
+          }
         >
           {alert.message}
         </Alert>
