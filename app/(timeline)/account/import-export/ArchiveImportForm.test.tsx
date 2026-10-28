@@ -217,9 +217,7 @@ describe('ArchiveImportForm', () => {
     chooseFile('archive.zip')
     submit()
 
-    fireEvent.click(
-      await screen.findByRole('button', { name: 'Cancel' })
-    )
+    fireEvent.click(await screen.findByRole('button', { name: 'Cancel' }))
 
     expect(
       await screen.findByText('The upload did not finish')

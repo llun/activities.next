@@ -146,9 +146,7 @@ describe('HandleRenameForm', () => {
       target: { value: 'run.llun.dev' }
     })
     expect(screen.getByText('@anna@run.llun.dev')).toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: 'Change handle' })
-    ).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Change handle' })).toBeDisabled()
 
     fireEvent.change(screen.getByLabelText('Password'), {
       target: { value: 'secret' }

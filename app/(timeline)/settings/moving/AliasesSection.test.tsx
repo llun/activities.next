@@ -113,9 +113,9 @@ describe('AliasesSection', () => {
     })
     expect(screen.getByRole('button', { name: 'Reload' })).toBeInTheDocument()
     // The raw message does not land in the field error.
-    expect(screen.getByLabelText('Old account')).not.toHaveAccessibleDescription(
-      /Actor changed/
-    )
+    expect(
+      screen.getByLabelText('Old account')
+    ).not.toHaveAccessibleDescription(/Actor changed/)
   })
 
   it('shows the actor-changed alert when removing hits 409 Actor changed', async () => {

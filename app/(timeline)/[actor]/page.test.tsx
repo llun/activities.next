@@ -970,9 +970,7 @@ describe('[actor] page moved banner', () => {
     await renderPage()
 
     const slot = screen.getByTestId('moved-banner-slot')
-    expect(slot).not.toHaveClass(
-      'pt-[calc(env(safe-area-inset-top,0px)+64px)]'
-    )
+    expect(slot).not.toHaveClass('pt-[calc(env(safe-area-inset-top,0px)+64px)]')
     expect(slot).not.toHaveClass('md:pt-0')
   })
 })

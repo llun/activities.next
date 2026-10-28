@@ -472,7 +472,9 @@ export const ArchiveImportForm = ({
                   <Input
                     type="text"
                     id="archive-import-file"
-                    value={file ? `${file.name} · ${formatBytes(file.size)}` : ''}
+                    value={
+                      file ? `${file.name} · ${formatBytes(file.size)}` : ''
+                    }
                     readOnly
                     placeholder="No file chosen"
                     aria-describedby={describedBy}
