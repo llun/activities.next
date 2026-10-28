@@ -273,7 +273,9 @@ export const ArchiveImportForm = ({
                   ? "You're offline"
                   : notStartedImport
                     ? 'Start or discard the earlier upload first'
-                    : undefined
+                    : !file
+                      ? 'Choose a file to start.'
+                      : undefined
               }
             />
           }

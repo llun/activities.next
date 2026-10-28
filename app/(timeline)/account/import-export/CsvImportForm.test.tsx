@@ -65,14 +65,19 @@ const filePickerRef = { current: null } as {
 const csvElement = (
   file: File,
   onActorChanged: () => void,
-  onMoved: () => void
+  onMoved: () => void,
+  handlers?: {
+    onFileChange?: (file: File | null) => void
+    onImportAnotherFile?: () => void
+  }
 ) => (
   <CsvImportForm
     actorId={actorId}
     file={file}
     maxCsvBytes={5 * 1024 * 1024}
     filePickerRef={filePickerRef}
-    onFileChange={vi.fn()}
+    onFileChange={handlers?.onFileChange ?? vi.fn()}
+    onImportAnotherFile={handlers?.onImportAnotherFile ?? vi.fn()}
     onActorChanged={onActorChanged}
     onMoved={onMoved}
   />
@@ -319,5 +324,45 @@ describe('CsvImportForm', () => {
       await screen.findByText('Could not start the import')
     ).toBeInTheDocument()
     expect(screen.queryByText('Failed to fetch')).not.toBeInTheDocument()
+  })
+
+  it('locks the SaveBar while the CSV import runs', async () => {
+    vi.mocked(bulkImports.createBulkImport).mockResolvedValue(bulkImport({}))
+    render(csvElement(csvFile(), vi.fn(), vi.fn()))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Import following' }))
+
+    expect(await screen.findByText('Importing')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Importing…' })).toBeDisabled()
+    expect(
+      screen.queryByRole('button', { name: 'Import following' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('hands Import another file to the section instead of clearing the file itself', async () => {
+    const onFileChange = vi.fn()
+    const onImportAnotherFile = vi.fn()
+    vi.mocked(bulkImports.createBulkImport).mockResolvedValue(
+      bulkImport({
+        state: 'finished',
+        processedItems: 5,
+        importedItems: 5,
+        finishedAt: '2026-10-28T10:01:00.000Z'
+      })
+    )
+    render(
+      csvElement(csvFile(), vi.fn(), vi.fn(), {
+        onFileChange,
+        onImportAnotherFile
+      })
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Import following' }))
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Import another file' })
+    )
+
+    expect(onImportAnotherFile).toHaveBeenCalledOnce()
+    expect(onFileChange).not.toHaveBeenCalled()
   })
 })

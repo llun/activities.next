@@ -13,6 +13,8 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import * as accountImports from '@/lib/client/accountImports'
+import type { BulkImportResponse } from '@/lib/client/bulkImports'
+import * as bulkImports from '@/lib/client/bulkImports'
 import { ApiRequestError } from '@/lib/client/http'
 
 import { ImportSection } from './ImportSection'
@@ -75,6 +77,27 @@ const finishedImport = {
   status: 'done' as const,
   finishedAt: '2026-10-28T10:05:00.000Z',
   report: { done: { status: 10 }, skipped: {}, failed: {} }
+}
+
+const failedImport = {
+  ...activeImport,
+  status: 'failed' as const,
+  finishedAt: '2026-10-28T10:05:00.000Z',
+  lastErrorCode: null
+}
+
+const finishedBulkImport: BulkImportResponse = {
+  id: 'bulk-1',
+  type: 'following',
+  mode: 'merge',
+  state: 'finished',
+  originalFilename: 'following_accounts.csv',
+  totalItems: 5,
+  processedItems: 5,
+  importedItems: 5,
+  failedItems: 0,
+  createdAt: '2026-10-28T10:00:00.000Z',
+  finishedAt: '2026-10-28T10:01:00.000Z'
 }
 
 const renderSection = () =>
@@ -1079,6 +1102,128 @@ describe('ImportSection', () => {
         screen.queryByText('An earlier upload was not started')
       ).not.toBeInTheDocument()
     )
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: 'Choose file' })
+    )
+  })
+
+  it('starts a kept upload with the options it was uploaded with, not the switches a later file shows', async () => {
+    vi.mocked(accountImports.startAccountImport)
+      .mockRejectedValueOnce(
+        new ApiRequestError('Import storage is unavailable', 503)
+      )
+      .mockResolvedValueOnce(activeImport)
+    renderSection()
+    chooseFile('a.zip')
+    fireEvent.click(screen.getByRole('switch', { name: 'Import likes' }))
+    fireEvent.click(
+      screen.getByRole('switch', {
+        name: 'Replace my profile with the one in the archive'
+      })
+    )
+    submitArchive()
+
+    expect(
+      await screen.findByText('Import storage is unavailable')
+    ).toBeInTheDocument()
+    expect(
+      vi.mocked(accountImports.startAccountImport).mock.calls[0][0].options
+    ).toMatchObject({ likes: true, profile: true })
+
+    // A .csv swaps the switches for the CSV form; the kept upload must
+    // still start with the options it was uploaded with.
+    chooseFile('following_accounts.csv')
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Import following' })
+      ).toBeInTheDocument()
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Start import' }))
+
+    await waitFor(() =>
+      expect(accountImports.startAccountImport).toHaveBeenCalledTimes(2)
+    )
+    expect(
+      vi.mocked(accountImports.startAccountImport).mock.calls[1][0].options
+    ).toMatchObject({ likes: true, profile: true })
+  })
+
+  it('shows the generic start alert for a fresh upload whose re-read fails, without Retry', async () => {
+    vi.mocked(accountImports.startAccountImport).mockRejectedValueOnce(
+      new ApiRequestError('Import is not queued', 409)
+    )
+    vi.mocked(accountImports.getAccountImport).mockRejectedValueOnce(
+      new TypeError('Failed to fetch')
+    )
+    renderSection()
+    chooseFile('a.zip')
+    submitArchive()
+
+    await waitFor(() =>
+      expect(accountImports.getAccountImport).toHaveBeenCalled()
+    )
+    expect(
+      screen.getAllByText('Could not start the import').length
+    ).toBeGreaterThan(0)
+    expect(
+      screen.queryByRole('button', { name: 'Retry' })
+    ).not.toBeInTheDocument()
+    expect(accountImports.cancelAccountImport).not.toHaveBeenCalled()
+  })
+
+  it('leaves focus on the body when a page-load import finishes that nobody touched', async () => {
+    vi.useFakeTimers()
+    vi.mocked(accountImports.getAccountImport).mockResolvedValue(
+      finishedImport as never
+    )
+    renderWithImport(activeImport)
+    expect(document.activeElement).toBe(document.body)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3_000)
+    })
+
+    expect(screen.getByText('Import finished')).toBeInTheDocument()
+    expect(document.activeElement).toBe(document.body)
+  })
+
+  it('moves focus to the file picker after Import another file on a finished report', () => {
+    renderWithImport(finishedImport)
+    const button = screen.getByRole('button', { name: 'Import another file' })
+    button.focus()
+    fireEvent.click(button)
+
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: 'Choose file' })
+    )
+  })
+
+  it('moves focus to the file picker after Start again on a failed report', () => {
+    renderWithImport(failedImport)
+    const button = screen.getByRole('button', { name: 'Start again' })
+    button.focus()
+    fireEvent.click(button)
+
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: 'Choose file' })
+    )
+  })
+
+  it('moves focus to the file picker after Import another file on a finished CSV import', async () => {
+    vi.mocked(bulkImports.createBulkImport).mockResolvedValue(
+      finishedBulkImport
+    )
+    vi.mocked(bulkImports.getBulkImport).mockResolvedValue(finishedBulkImport)
+    renderSection()
+    chooseFile('following_accounts.csv')
+    fireEvent.click(screen.getByRole('button', { name: 'Import following' }))
+
+    const reset = await screen.findByRole('button', {
+      name: 'Import another file'
+    })
+    reset.focus()
+    fireEvent.click(reset)
+
     expect(document.activeElement).toBe(
       screen.getByRole('button', { name: 'Choose file' })
     )

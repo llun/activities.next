@@ -246,6 +246,21 @@ describe('ArchiveImportForm', () => {
     ).toBeDisabled()
   })
 
+  it('says Choose a file to start. while no file is chosen', () => {
+    render(<Harness />)
+
+    expect(screen.getByText('Choose a file to start.')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Import archive' })
+    ).toBeDisabled()
+
+    chooseFile('archive.zip')
+
+    expect(
+      screen.queryByText('Choose a file to start.')
+    ).not.toBeInTheDocument()
+  })
+
   it('locks the form while the section starts or discards the earlier upload', () => {
     render(<Harness notStartedImport={notStarted} startInFlight />)
 

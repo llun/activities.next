@@ -125,6 +125,12 @@ export const ImportSection = ({
 }: Props) => {
   const [file, setFile] = useState<File | null>(null)
   const [options, setOptions] = useState(INITIAL_OPTIONS)
+  // The options the kept upload was uploaded with. They belong to the row,
+  // not to the switches: another file (or the switches it brings up) must
+  // not change what the waiting upload starts with.
+  const [keptOptions, setKeptOptions] = useState<AccountImportOptions | null>(
+    null
+  )
   const [selectionError, setSelectionError] = useState<SelectionError | null>(
     null
   )
@@ -152,9 +158,19 @@ export const ImportSection = ({
   // lock is held, and a disabled button is not focusable. The effect runs
   // on the commit that releases the lock.
   const focusPickerAfterDiscard = useRef(false)
+  // Same, for the resets that unmount the focused button ("Import another
+  // file", "Start again"): the empty form appears, and the picker must take
+  // the focus a keyboard user just lost.
+  const focusPickerAfterReset = useRef(false)
   const filePickerRef = useRef<HTMLButtonElement>(null)
   const archiveFormRef = useRef<HTMLFormElement>(null)
   const progressRef = useRef<HTMLDivElement>(null)
+  // Whether the progress view holds (or last held) the focus. A page-load
+  // import nobody touched must not grab the focus when it finishes, and
+  // "the body has the focus" cannot tell that apart from "the progress view
+  // just unmounted with the focus inside it": only a focusin inside the
+  // progress view can.
+  const progressHadFocus = useRef(false)
   // Whether the previous render showed an active import, so the poll that
   // ends one is recognised (see the layout effect below).
   const wasActiveImport = useRef(false)
@@ -178,6 +194,24 @@ export const ImportSection = ({
     filePickerRef.current?.focus()
   }, [startInFlight])
 
+  // The picker is focusable on the commit that swaps the report or the CSV
+  // result for the empty form, so the reset focuses it there.
+  useEffect(() => {
+    if (!focusPickerAfterReset.current) return
+    focusPickerAfterReset.current = false
+    filePickerRef.current?.focus()
+  }, [file, accountImport])
+
+  useEffect(() => {
+    const onFocusIn = (event: FocusEvent) => {
+      progressHadFocus.current = Boolean(
+        progressRef.current?.contains(event.target as Node)
+      )
+    }
+    document.addEventListener('focusin', onFocusIn)
+    return () => document.removeEventListener('focusin', onFocusIn)
+  }, [])
+
   // When the poll ends an import the user started, the progress view
   // unmounts with the focus inside it, so the focus falls to the body and
   // the report that replaces it is never announced. The report must take
@@ -186,10 +220,8 @@ export const ImportSection = ({
   useIsomorphicLayoutEffect(() => {
     const active = Boolean(accountImport && isActiveImport(accountImport))
     if (wasActiveImport.current && !active && accountImport) {
-      const focused = document.activeElement
-      if (focused === document.body || progressRef.current?.contains(focused)) {
-        setFocusReport(true)
-      }
+      if (progressHadFocus.current) setFocusReport(true)
+      progressHadFocus.current = false
     }
     wasActiveImport.current = active
   }, [accountImport])
@@ -266,12 +298,17 @@ export const ImportSection = ({
     if (startInFlight) return
     setStartInFlight(true)
     setStartAlert(null)
+    // A row that was kept carries the options it was uploaded with; a row
+    // the page loaded with (or a fresh upload) takes the switches as they
+    // stand, which for a fresh upload is what it was just uploaded with.
+    const uploadOptions = keptOptions ?? options
     // A start that gives up on the upload cancels the row server-side, so it
     // must also drop it here: otherwise the "earlier upload" warning stays up
     // with a Start button that can only fail again, until the next poll
     // reports the row as cancelled.
     const discardUploaded = async () => {
       await cancelBestEffort(actorId, uploaded.id)
+      setKeptOptions(null)
       if (notStartedImport?.id === uploaded.id) {
         setAccountImport(null)
         setCancelError(false)
@@ -281,8 +318,9 @@ export const ImportSection = ({
       const started = await startAccountImport({
         actorId,
         importId: uploaded.id,
-        options
+        options: uploadOptions
       })
+      setKeptOptions(null)
       showImport(started)
     } catch (error) {
       if (isActorChanged(error)) {
@@ -291,6 +329,7 @@ export const ImportSection = ({
         setMoved(true)
       } else if (error instanceof ApiRequestError && error.status === 429) {
         keepUpload(uploaded)
+        setKeptOptions(uploadOptions)
         setClock(Date.now())
         setStartAlert({
           type: 'rate-limit',
@@ -340,6 +379,7 @@ export const ImportSection = ({
         // rejects with a TypeError whose text ("Failed to fetch") says
         // nothing the title does not.
         keepUpload(uploaded)
+        setKeptOptions(uploadOptions)
         setStartAlert({
           type: 'generic',
           message: error instanceof ApiRequestError ? error.message : ''
@@ -357,6 +397,7 @@ export const ImportSection = ({
     try {
       await cancelAccountImport({ actorId, id })
       setAccountImport(null)
+      setKeptOptions(null)
       setCancelError(false)
       focusPickerAfterDiscard.current = true
     } catch (error) {
@@ -365,6 +406,7 @@ export const ImportSection = ({
       } else if (isAlreadyFinished(error)) {
         // The 24 h sweep got there first: the row is gone either way.
         setAccountImport(null)
+        setKeptOptions(null)
         setCancelError(false)
         focusPickerAfterDiscard.current = true
       } else {
@@ -385,8 +427,19 @@ export const ImportSection = ({
     setCancelError(false)
     setStartAlert(null)
     setOptions(INITIAL_OPTIONS)
+    setKeptOptions(null)
     setFocusReport(false)
     setFocusProgress(false)
+    // The button that was pressed unmounts with the report, so the picker
+    // must take the focus on the commit that shows the empty form.
+    focusPickerAfterReset.current = true
+  }
+
+  // The CSV result's "Import another file" unmounts the form the button
+  // sits in, so it goes through the section for the same focus hand-off.
+  const handleCsvImportAnotherFile = () => {
+    focusPickerAfterReset.current = true
+    onFileChange(null)
   }
 
   const handleCancelImport = async () => {
@@ -538,11 +591,20 @@ export const ImportSection = ({
             {retryDescription}
           </Alert>
         ) : null}
-        {startAlert?.type === 'generic' && notStartedImport ? (
+        {/* A generic start failure is shown whatever became of the row:
+            the branches that set it may drop it (a fresh upload whose
+            re-read failed), so gating on the kept row would hide the only
+            explanation. Retry needs a row to start, so it is offered only
+            when one is kept. */}
+        {startAlert?.type === 'generic' ? (
           <Alert
             tone="error"
             title="Could not start the import"
-            onRetry={() => void startQueuedImport(notStartedImport)}
+            onRetry={
+              notStartedImport
+                ? () => void startQueuedImport(notStartedImport)
+                : undefined
+            }
           >
             {startAlert.message}
           </Alert>
@@ -556,6 +618,7 @@ export const ImportSection = ({
               maxCsvBytes={maxCsvBytes}
               filePickerRef={filePickerRef}
               onFileChange={onFileChange}
+              onImportAnotherFile={handleCsvImportAnotherFile}
               onActorChanged={() => setActorChangedLocally(true)}
               onMoved={() => setMoved(true)}
             />
