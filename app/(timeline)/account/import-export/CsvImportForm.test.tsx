@@ -326,6 +326,34 @@ describe('CsvImportForm', () => {
     expect(screen.queryByText('Failed to fetch')).not.toBeInTheDocument()
   })
 
+  it('disables the Retry while offline', async () => {
+    let rejectCreate: (error: unknown) => void = () => undefined
+    vi.mocked(bulkImports.createBulkImport).mockImplementationOnce(
+      () =>
+        new Promise<BulkImportResponse>((_resolve, reject) => {
+          rejectCreate = reject
+        })
+    )
+    render(csvElement(csvFile(), vi.fn(), vi.fn()))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Import following' }))
+
+    // The connection drops while the import is being sent, so the Retry
+    // that appears with its failure can only be a silent no-op.
+    connectionState.offline = true
+    await act(async () => {
+      rejectCreate(new TypeError('Failed to fetch'))
+    })
+
+    expect(
+      await screen.findByText('Could not start the import')
+    ).toBeInTheDocument()
+    const retry = screen.getByRole('button', { name: 'Retry' })
+    expect(retry).toBeDisabled()
+    fireEvent.click(retry)
+    expect(bulkImports.createBulkImport).toHaveBeenCalledTimes(1)
+  })
+
   it('locks the SaveBar while the CSV import runs', async () => {
     vi.mocked(bulkImports.createBulkImport).mockResolvedValue(bulkImport({}))
     render(csvElement(csvFile(), vi.fn(), vi.fn()))

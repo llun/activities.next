@@ -277,6 +277,40 @@ describe('ArchiveImportForm', () => {
     )
   })
 
+  it('disables the generic Retry while offline and falls back to the file picker', async () => {
+    const presign = deferred<PresignedAccountImportResponse>()
+    vi.mocked(accountImports.createPresignedImport).mockReturnValueOnce(
+      presign.promise
+    )
+
+    render(<Harness />)
+    chooseFile('archive.zip')
+    submit()
+
+    // The connection drops while the presign is in flight, so the Retry
+    // that appears with its failure can only be a silent no-op.
+    connectionState.offline = true
+    await act(async () => {
+      presign.reject(new TypeError('Failed to fetch'))
+    })
+
+    expect(
+      await screen.findByText('Could not prepare the archive upload')
+    ).toBeInTheDocument()
+    const retry = screen.getByRole('button', { name: 'Retry' })
+    expect(retry).toBeDisabled()
+    fireEvent.click(retry)
+    expect(accountImports.createPresignedImport).toHaveBeenCalledTimes(1)
+
+    // The disabled Retry cannot take the focus the pressed Import
+    // archive dropped, so the hand-off falls through to the file picker.
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Change file' })
+      )
+    )
+  })
+
   it('aborts the upload and cancels the import when the form unmounts mid-upload', async () => {
     vi.mocked(accountImports.uploadAccountImport).mockImplementation(
       ({ signal }) =>

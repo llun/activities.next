@@ -222,8 +222,8 @@ export const ImportSection = ({
   // The focus rule in one place: the waiting upload's Start import, the
   // showing alert's Retry or Try again, then the file picker. The first
   // candidate that is mounted and not disabled takes the focus; one that
-  // cannot (offline disables the Start import and every Try again) falls
-  // through to the next.
+  // cannot (offline disables the Start import and every Retry and Try
+  // again) falls through to the next.
   const handOffFocus = () =>
     focusStartCandidate([
       warningStartRef.current,
@@ -718,6 +718,7 @@ export const ImportSection = ({
                     type="button"
                     variant="outline"
                     size="sm"
+                    disabled={startInFlight || isOffline}
                     onClick={() => void handleDiscardUpload(startAlert.id)}
                   >
                     <RefreshCw aria-hidden="true" />
@@ -762,6 +763,7 @@ export const ImportSection = ({
                       type="button"
                       variant="outline"
                       size="sm"
+                      disabled={startInFlight || isOffline}
                       onClick={() => void startQueuedImport(notStartedImport)}
                     >
                       <RefreshCw aria-hidden="true" />
@@ -804,8 +806,11 @@ export const ImportSection = ({
                 // upload attempt that ends with a row waiting: the pressed
                 // control (the form's Try again, or Import archive) is gone
                 // or locked, so the found row's Start import must take the
-                // focus the rule hands back (see the effect above).
-                focusAfterStart.current = true
+                // focus the rule hands back (see the effect above). A
+                // running row arms nothing: no control of the section's
+                // own was pressed, so the flag must not stay set for a
+                // later start to fire.
+                focusAfterStart.current = isUploadedNotStarted(found)
                 showFoundImport(found)
               }}
               onUploaded={(uploaded) => void startQueuedImport(uploaded)}
@@ -824,7 +829,18 @@ export const ImportSection = ({
           <Alert
             tone="error"
             title="Could not cancel the import"
-            onRetry={() => void handleCancelImport()}
+            action={
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={canceling || isOffline}
+                onClick={() => void handleCancelImport()}
+              >
+                <RefreshCw aria-hidden="true" />
+                Retry
+              </Button>
+            }
           />
         ) : null}
         {accountImport && !actorChanged && isActiveImport(accountImport) ? (

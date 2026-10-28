@@ -586,7 +586,75 @@ describe('ImportSection', () => {
     )
   })
 
-  it('skips the disabled Start import and focuses the generic Retry while offline', async () => {
+  it('does not hand the focus to the Start import from a running row found earlier', async () => {
+    vi.mocked(accountImports.createPresignedImport).mockRejectedValueOnce(
+      new ApiRequestError('An import is already active', 409)
+    )
+    vi.mocked(accountImports.getAccountImport).mockResolvedValue({
+      ...activeImport,
+      status: 'cancelled',
+      finishedAt: '2026-10-28T10:05:00.000Z'
+    } as never)
+    vi.mocked(accountImports.startAccountImport).mockRejectedValueOnce(
+      new ApiRequestError('Import storage is unavailable', 503)
+    )
+    render(
+      <>
+        <button type="button">Elsewhere</button>
+        <ImportSection
+          actorId={actorId}
+          handle="@may@llun.test"
+          currentTime={Date.parse('2026-10-28T10:00:00.000Z')}
+          initialImport={null}
+          maxImportBytes={1024 * 1024}
+          maxCsvBytes={5 * 1024 * 1024}
+        />
+      </>
+    )
+    chooseFile('a.zip')
+    submitArchive()
+
+    // The presign finds another tab's running import: no start of the
+    // section's own began, so the found row must not arm the start
+    // hand-off for a later start to fire.
+    expect(await screen.findByText('Import in progress')).toBeInTheDocument()
+
+    // Cancel the found import and start again: the empty form comes back.
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel import' }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Cancel import' })
+    )
+    expect(await screen.findByText('Import cancelled')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Import another file' }))
+    expect(
+      await screen.findByRole('button', { name: 'Import archive' })
+    ).toBeInTheDocument()
+
+    // Upload again with the focus off the section's controls, and let the
+    // start keep the row: the hand-off must not fire from the running row
+    // the presign found earlier.
+    const elsewhere = screen.getByRole('button', { name: 'Elsewhere' })
+    elsewhere.focus()
+    chooseFile('b.zip')
+    const upload = deferred<void>()
+    vi.mocked(accountImports.uploadAccountImport).mockReturnValueOnce(
+      upload.promise
+    )
+    submitArchive()
+    await screen.findByRole('button', { name: 'Cancel' })
+    elsewhere.blur()
+    await act(async () => {
+      upload.resolve(undefined)
+    })
+
+    expect(
+      await screen.findByText('An earlier upload was not started')
+    ).toBeInTheDocument()
+    expect(document.activeElement).toBe(document.body)
+  })
+
+  it('skips the disabled Start import and Retry and focuses the file picker while offline', async () => {
     let rejectStart: (error: unknown) => void = () => undefined
     vi.mocked(accountImports.startAccountImport)
       .mockRejectedValueOnce(
@@ -623,11 +691,13 @@ describe('ImportSection', () => {
     expect(
       await screen.findByText('Could not start the import')
     ).toBeInTheDocument()
-    // The warning's Start import is disabled while offline, so the
-    // hand-off falls through to the showing alert's Retry.
+    // The warning's Start import and the showing alert's Retry are both
+    // disabled while offline, so the hand-off falls through to the file
+    // picker.
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeDisabled()
     await waitFor(() =>
       expect(document.activeElement).toBe(
-        screen.getByRole('button', { name: 'Retry' })
+        screen.getByRole('button', { name: 'Change file' })
       )
     )
   })
@@ -972,6 +1042,34 @@ describe('ImportSection', () => {
     )
   })
 
+  it('disables the discard Retry while offline', async () => {
+    let rejectDiscard: (error: unknown) => void = () => undefined
+    vi.mocked(accountImports.cancelAccountImport).mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectDiscard = reject
+        })
+    )
+    renderWithImport(queuedNotStarted)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+
+    // The connection drops while the discard is in flight, so the Retry
+    // that appears with its failure can only be a silent no-op.
+    connection.state = 'offline'
+    await act(async () => {
+      rejectDiscard(new TypeError('Failed to fetch'))
+    })
+
+    expect(
+      await screen.findByText('Could not discard the upload')
+    ).toBeInTheDocument()
+    const retry = screen.getByRole('button', { name: 'Retry' })
+    expect(retry).toBeDisabled()
+    fireEvent.click(retry)
+    expect(accountImports.cancelAccountImport).toHaveBeenCalledTimes(1)
+  })
+
   it('treats a 409 already-finished Discard as discarded', async () => {
     vi.mocked(accountImports.cancelAccountImport).mockRejectedValueOnce(
       new ApiRequestError('Import is already finished', 409)
@@ -1238,6 +1336,38 @@ describe('ImportSection', () => {
     expect(
       screen.queryByText('Could not cancel the import')
     ).not.toBeInTheDocument()
+  })
+
+  it('disables the cancel Retry while offline', async () => {
+    let rejectCancel: (error: unknown) => void = () => undefined
+    vi.mocked(accountImports.cancelAccountImport).mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectCancel = reject
+        })
+    )
+    renderWithImport(activeImport)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel import' }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Cancel import' })
+    )
+
+    // The connection drops while the cancel is in flight, so the Retry
+    // that appears with its failure can only be a silent no-op.
+    connection.state = 'offline'
+    await act(async () => {
+      rejectCancel(new ApiRequestError('Could not cancel the import', 500))
+    })
+
+    expect(
+      await screen.findByText('Could not cancel the import')
+    ).toBeInTheDocument()
+    const retry = screen.getByRole('button', { name: 'Retry' })
+    expect(retry).toBeDisabled()
+    fireEvent.click(retry)
+    expect(accountImports.cancelAccountImport).toHaveBeenCalledTimes(1)
   })
 
   it('keeps the start failure alert when starting an earlier upload fails, and never reports it as cancelled', async () => {

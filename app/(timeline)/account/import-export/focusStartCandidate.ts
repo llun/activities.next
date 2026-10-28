@@ -6,8 +6,8 @@
  *
  * A candidate that is unmounted (its ref is null, or its node was detached)
  * or disabled cannot take the focus, so it falls through to the next one:
- * offline, say, disables the Start import and every Try again, and the
- * focus must not stop dead on a control the browser would ignore.
+ * offline, say, disables the Start import and every Retry and Try again,
+ * and the focus must not stop dead on a control the browser would ignore.
  */
 export const focusStartCandidate = (
   candidates: ReadonlyArray<HTMLButtonElement | null | undefined>
