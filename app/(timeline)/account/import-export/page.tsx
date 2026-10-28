@@ -66,6 +66,15 @@ const Page = async () => {
         (accountImport.status === 'queued' ||
           accountImport.status === 'running')
     ) ?? imports.find((accountImport) => accountImport.accountId === accountId)
+  const latestImportReport =
+    latestImport &&
+    (latestImport.status === 'done' ||
+      latestImport.status === 'failed' ||
+      latestImport.status === 'cancelled')
+      ? await database.countAccountImportItemsByOutcome({
+          importId: latestImport.id
+        })
+      : undefined
 
   const handle = `@${actor.username}@${actor.domain}`
 
@@ -87,7 +96,9 @@ const Page = async () => {
         handle={handle}
         currentTime={currentTime}
         initialImport={
-          latestImport ? serializeAccountImport(latestImport) : null
+          latestImport
+            ? serializeAccountImport(latestImport, latestImportReport)
+            : null
         }
         maxImportBytes={getAccountImportConfig().maxFileSize}
         maxCsvBytes={BULK_IMPORT_FILE_SIZE_LIMIT}

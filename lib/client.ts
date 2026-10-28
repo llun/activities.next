@@ -7,10 +7,12 @@
 export * from './client/accountMigration'
 export * from './client/accountPreferences'
 export * from './client/accountArchives'
+export * from './client/accountImports'
 export * from './client/accounts'
 export * from './client/accountSettings'
 export * from './client/profile'
 export * from './client/bootstrap'
+export * from './client/bulkImports'
 
 // --- Admin ---
 export * from './client/adminAccounts'

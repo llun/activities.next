@@ -1,0 +1,122 @@
+'use client'
+
+import { formatDistance } from 'date-fns/formatDistance'
+import { useEffect, useState } from 'react'
+
+import type { AccountImportResponse } from '@/lib/client/accountImports'
+import { ConfirmDialog } from '@/lib/components/photo-editor/ConfirmDialog'
+import { Frame } from '@/lib/components/surface/Frame'
+import { Button } from '@/lib/components/ui/button'
+import { Progress } from '@/lib/components/ui/progress'
+import { useHasHydrated } from '@/lib/hooks/useHasHydrated'
+
+import { importPhaseLabel } from './importCopy'
+
+interface Props {
+  accountImport: AccountImportResponse
+  currentTime: number
+  canceling?: boolean
+  onCancel: () => void
+}
+
+const formatCount = (value: number) => value.toLocaleString('en-US')
+
+const kindLabel = (kind: string) =>
+  kind === 'activities.next' ? 'activities.next archive' : 'Mastodon archive'
+
+export const ImportProgress = ({
+  accountImport,
+  currentTime,
+  canceling = false,
+  onCancel
+}: Props) => {
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [clock, setClock] = useState(currentTime)
+  const hasHydrated = useHasHydrated()
+  const { completedItems, totalItems } = accountImport.progress
+  const progressValue =
+    totalItems > 0
+      ? Math.min(100, Math.round((completedItems / totalItems) * 100))
+      : null
+
+  useEffect(() => {
+    if (hasHydrated) setClock(Date.now())
+  }, [hasHydrated])
+
+  const confirmCancel = () => {
+    setConfirmOpen(false)
+    onCancel()
+  }
+
+  return (
+    <div className="space-y-4">
+      <Frame className="space-y-3 p-4 sm:p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-1">
+            <p className="font-medium">Import in progress</p>
+            {accountImport.startedAt ? (
+              <p className="text-sm text-muted-foreground">
+                Started{' '}
+                {hasHydrated
+                  ? formatDistance(
+                      new Date(accountImport.startedAt),
+                      new Date(clock),
+                      { addSuffix: true }
+                    )
+                  : 'recently'}
+              </p>
+            ) : null}
+          </div>
+          <span className="text-sm font-medium">
+            {accountImport.status === 'queued'
+              ? 'Waiting to start'
+              : 'In progress'}
+          </span>
+        </div>
+
+        <p className="text-sm font-medium">
+          {importPhaseLabel(accountImport.phase)}
+        </p>
+        <div className="space-y-2">
+          <p className="text-sm">
+            {formatCount(completedItems)} of {formatCount(totalItems)} completed
+          </p>
+          <Progress
+            value={progressValue}
+            aria-label="Archive import progress"
+          />
+        </div>
+
+        {accountImport.kind ? (
+          <p className="text-sm text-muted-foreground">
+            Found in this file: {kindLabel(accountImport.kind)} ·{' '}
+            {formatCount(totalItems)} {totalItems === 1 ? 'item' : 'items'}
+          </p>
+        ) : null}
+
+        <div className="flex justify-end border-t pt-3">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={canceling}
+            onClick={() => setConfirmOpen(true)}
+          >
+            {canceling ? 'Cancelling…' : 'Cancel import'}
+          </Button>
+        </div>
+      </Frame>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Cancel this import?"
+        description="Items already imported stay. The rest is not imported."
+        cancelLabel="Keep importing"
+        confirmLabel="Cancel import"
+        destructive
+        onCancel={() => setConfirmOpen(false)}
+        onConfirm={confirmCancel}
+      />
+    </div>
+  )
+}

@@ -1,0 +1,309 @@
+'use client'
+
+import { useCallback, useEffect, useRef, useState } from 'react'
+
+import { createBulkImport, getBulkImport } from '@/lib/client/bulkImports'
+import type {
+  BulkImportMode,
+  BulkImportResponse,
+  BulkImportType
+} from '@/lib/client/bulkImports'
+import { onConnectionRestored } from '@/lib/client/connection'
+import { ApiRequestError } from '@/lib/client/http'
+import { Alert } from '@/lib/components/surface/Alert'
+import { FormRow } from '@/lib/components/surface/FormRow'
+import { Frame } from '@/lib/components/surface/Frame'
+import { RadioCard } from '@/lib/components/surface/RadioCard'
+import { SaveBar } from '@/lib/components/surface/SaveBar'
+import { Button } from '@/lib/components/ui/button'
+import { Progress } from '@/lib/components/ui/progress'
+import { RadioGroup } from '@/lib/components/ui/radio-group'
+import { Select } from '@/lib/components/ui/select'
+import { useConnectionStatus } from '@/lib/hooks/useConnectionStatus'
+import { formatBytes } from '@/lib/utils/formatBytes'
+
+const CSV_TYPES: Array<{ value: BulkImportType; label: string }> = [
+  { value: 'following', label: 'Following' },
+  { value: 'blocking', label: 'Blocked accounts' },
+  { value: 'muting', label: 'Muted accounts' },
+  { value: 'domain_blocking', label: 'Blocked domains' },
+  { value: 'bookmarks', label: 'Bookmarks' },
+  { value: 'lists', label: 'Lists' }
+]
+
+const FILENAME_TYPES: Record<string, BulkImportType> = {
+  'following_accounts.csv': 'following',
+  'blocked_accounts.csv': 'blocking',
+  'muted_accounts.csv': 'muting',
+  'blocked_domains.csv': 'domain_blocking',
+  'bookmarks.csv': 'bookmarks',
+  'lists.csv': 'lists'
+}
+
+const labelForType = (type: BulkImportType) =>
+  CSV_TYPES.find((item) => item.value === type)?.label ?? 'file'
+
+export const guessCsvImportType = (
+  filename: string | undefined
+): BulkImportType =>
+  FILENAME_TYPES[filename?.toLowerCase() ?? ''] ?? 'following'
+
+interface Props {
+  actorId: string
+  file: File
+  maxCsvBytes: number
+  onFileChange: (file: File | null) => void
+  onActorChanged: () => void
+  onMoved: () => void
+}
+
+export const CsvImportForm = ({
+  actorId,
+  file,
+  maxCsvBytes,
+  onFileChange,
+  onActorChanged,
+  onMoved
+}: Props) => {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [type, setType] = useState(() => guessCsvImportType(file.name))
+  const [mode, setMode] = useState<BulkImportMode>('merge')
+  const [bulkImport, setBulkImport] = useState<BulkImportResponse | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const isOffline = useConnectionStatus().state === 'offline'
+  const finished = bulkImport?.state === 'finished'
+
+  useEffect(() => {
+    setType(guessCsvImportType(file.name))
+    setMode('merge')
+    setBulkImport(null)
+    setError(null)
+  }, [file])
+
+  const refreshImport = useCallback(async () => {
+    if (!bulkImport || bulkImport.state === 'finished') return
+    try {
+      setBulkImport(await getBulkImport({ actorId, id: bulkImport.id }))
+    } catch (cause) {
+      if (cause instanceof ApiRequestError && cause.status === 409) {
+        if (cause.message === 'Actor changed') onActorChanged()
+        else if (cause.message === 'This account has moved') onMoved()
+      }
+    }
+  }, [actorId, bulkImport, onActorChanged, onMoved])
+
+  useEffect(() => {
+    if (!bulkImport || bulkImport.state === 'finished' || isOffline) return
+    const interval = window.setInterval(() => void refreshImport(), 3_000)
+    return () => window.clearInterval(interval)
+  }, [bulkImport, isOffline, refreshImport])
+
+  useEffect(() => {
+    if (!bulkImport || bulkImport.state === 'finished') return
+    return onConnectionRestored(() => void refreshImport())
+  }, [bulkImport, refreshImport])
+
+  const submit = async () => {
+    if (submitting || isOffline || file.size > maxCsvBytes) return
+    setSubmitting(true)
+    setError(null)
+    try {
+      const created = await createBulkImport({ actorId, file, type, mode })
+      setBulkImport(
+        created.state === 'finished'
+          ? await getBulkImport({ actorId, id: created.id }).catch(
+              () => created
+            )
+          : created
+      )
+    } catch (cause) {
+      if (cause instanceof ApiRequestError && cause.status === 409) {
+        if (cause.message === 'Actor changed') onActorChanged()
+        else setError(cause.message)
+      } else if (
+        cause instanceof ApiRequestError &&
+        cause.status === 422 &&
+        cause.message === 'This account has moved'
+      ) {
+        onMoved()
+      } else {
+        setError(
+          cause instanceof Error ? cause.message : 'Could not start the import'
+        )
+      }
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    onFileChange(event.currentTarget.files?.[0] ?? null)
+    event.currentTarget.value = ''
+  }
+
+  const progress = bulkImport
+    ? bulkImport.totalItems > 0
+      ? Math.min(
+          100,
+          Math.round((bulkImport.processedItems / bulkImport.totalItems) * 100)
+        )
+      : null
+    : null
+
+  return (
+    <div className="space-y-4">
+      {mode === 'overwrite' && !bulkImport ? (
+        <Alert tone="warning" title="Overwrite replaces your current list" />
+      ) : null}
+      {error ? (
+        <Alert
+          tone="error"
+          title={
+            error === 'We could not read this file'
+              ? error
+              : 'Could not start the import'
+          }
+          onRetry={() => void submit()}
+        >
+          {error === 'We could not read this file' ? null : error}
+        </Alert>
+      ) : null}
+
+      <form
+        onSubmit={(event) => {
+          event.preventDefault()
+          void submit()
+        }}
+      >
+        <Frame
+          form
+          footer={
+            finished ? null : (
+              <SaveBar
+                variant="create"
+                actionLabel={
+                  submitting
+                    ? 'Importing…'
+                    : `Import ${labelForType(type).toLowerCase()}`
+                }
+                submit
+                disabled={submitting || file.size > maxCsvBytes}
+                disabledReason={isOffline ? "You're offline" : undefined}
+              />
+            )
+          }
+        >
+          <FormRow
+            label="File"
+            htmlFor="csv-import-file"
+            hint="An activities.next archive (.zip), a Mastodon archive (.zip) or a Mastodon CSV file."
+          >
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="min-w-0 flex-1 text-sm">
+                  {file
+                    ? `${file.name} · ${formatBytes(file.size)}`
+                    : 'No file chosen'}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={submitting || Boolean(bulkImport)}
+                  onClick={() => inputRef.current?.click()}
+                >
+                  Change file
+                </Button>
+              </div>
+              <input
+                ref={inputRef}
+                id="csv-import-file"
+                type="file"
+                accept=".zip,.csv"
+                className="hidden"
+                onChange={handleFileChange}
+              />
+            </div>
+          </FormRow>
+
+          {!bulkImport ? (
+            <>
+              <FormRow label="What is in this file" htmlFor="csv-import-type">
+                <Select
+                  id="csv-import-type"
+                  value={type}
+                  onChange={(event) =>
+                    setType(event.currentTarget.value as BulkImportType)
+                  }
+                >
+                  {CSV_TYPES.map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </Select>
+              </FormRow>
+              <FormRow label="When importing" htmlFor="csv-import-mode">
+                {({ describedBy, labelledBy }) => (
+                  <RadioGroup
+                    id="csv-import-mode"
+                    aria-labelledby={labelledBy}
+                    aria-describedby={describedBy}
+                    value={mode}
+                    onValueChange={(value) => setMode(value as BulkImportMode)}
+                    className="grid gap-2"
+                  >
+                    <RadioCard
+                      value="merge"
+                      title="Merge"
+                      hint="Add these accounts to your list. Anyone you already follow stays. Follow requests go out one by one, so it can take a while."
+                    />
+                    <RadioCard
+                      value="overwrite"
+                      title="Overwrite"
+                      hint="Replace your list with this file. Anyone not in the file is unfollowed."
+                    />
+                  </RadioGroup>
+                )}
+              </FormRow>
+            </>
+          ) : (
+            <div className="space-y-3 px-4 py-3">
+              <p className="font-medium">
+                {finished ? 'Import finished' : 'Importing'}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {bulkImport.importedItems.toLocaleString('en-US')} imported ·{' '}
+                {bulkImport.failedItems.toLocaleString('en-US')} failed
+              </p>
+              {!finished ? (
+                <Progress value={progress} aria-label="CSV import progress" />
+              ) : null}
+              {finished && bulkImport.failedRows?.length ? (
+                <ul className="space-y-2 text-sm">
+                  {bulkImport.failedRows.slice(0, 100).map((row) => (
+                    <li key={row.rowIndex}>
+                      <span className="font-medium">Row {row.rowIndex}:</span>{' '}
+                      {row.error ?? 'Could not import this row'}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              {finished ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onFileChange(null)}
+                >
+                  Import another file
+                </Button>
+              ) : null}
+            </div>
+          )}
+        </Frame>
+      </form>
+    </div>
+  )
+}
