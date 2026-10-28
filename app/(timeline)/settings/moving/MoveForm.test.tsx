@@ -366,6 +366,16 @@ describe('MoveForm', () => {
     expect(
       screen.getByRole('button', { name: 'Move followers' })
     ).toBeDisabled()
+
+    // A filled-in form hides the idle note, so the reason has to come from
+    // the disabledReason and stay next to "Unsaved changes".
+    fillMove()
+    expect(
+      screen.getByRole('button', { name: 'Move followers' })
+    ).toBeDisabled()
+    expect(
+      screen.getByText(/You can move again on 23 Nov 2026/)
+    ).toBeInTheDocument()
   })
 
   it('keeps a redirect available while the move cooldown runs', () => {
@@ -496,6 +506,16 @@ describe('MoveForm', () => {
     expect(
       screen.getByRole('button', { name: 'Move followers' })
     ).toBeDisabled()
+    // The form is still dirty from the attempt, so the idle note is hidden:
+    // the reason has to show as the disabledReason, next to "Unsaved
+    // changes".
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+    expect(
+      screen.getByText(/You can move again on 23 Nov 2026/)
+    ).toBeInTheDocument()
+    expect(screen.getByText('Unsaved changes')).toBeInTheDocument()
   })
 
   it('shows the server message when a 429 has no cooldown behind it', async () => {
