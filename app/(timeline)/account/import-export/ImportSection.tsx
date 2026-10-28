@@ -1,6 +1,7 @@
 'use client'
 
 import { formatDistance } from 'date-fns/formatDistance'
+import { RefreshCw } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 import type {
@@ -26,6 +27,7 @@ import { ArchiveImportForm } from './ArchiveImportForm'
 import { CsvImportForm } from './CsvImportForm'
 import { ImportProgress } from './ImportProgress'
 import { ImportReport } from './ImportReport'
+import { focusStartCandidate } from './focusStartCandidate'
 import { useImportPolling } from './useImportPolling'
 
 interface Props {
@@ -180,12 +182,15 @@ export const ImportSection = ({
   // The warning's Start import button: the focus target when a start that
   // keeps the row ends and the pressed button is gone.
   const warningStartRef = useRef<HTMLButtonElement>(null)
-  // The upload-failure start alert's Try again: the focus target when a
-  // start that drops the row ends, so no warning is left to hand the focus
-  // to. It is the only start alert that can show without a kept row: the
-  // discard, rate-limit and generic alerts only appear while the warning
-  // does, so the warning's Start import comes first for them.
+  // The start alerts' Try again and Retry buttons, in the order the focus
+  // rule tries them once the warning's Start import cannot take the focus.
+  // The upload-failure alert is the only one that can show without a kept
+  // row: the discard, rate-limit and generic alerts only appear while the
+  // warning does, so the warning's Start import comes first for them.
+  const rateLimitTryAgainRef = useRef<HTMLButtonElement>(null)
+  const genericRetryRef = useRef<HTMLButtonElement>(null)
   const uploadAlertTryAgainRef = useRef<HTMLButtonElement>(null)
+  const discardRetryRef = useRef<HTMLButtonElement>(null)
   // Whether the progress view holds (or last held) the focus. A page-load
   // import nobody touched must not grab the focus when it finishes, and
   // "the body has the focus" cannot tell that apart from "the progress view
@@ -214,34 +219,42 @@ export const ImportSection = ({
     if (hasHydrated) setClock(Date.now())
   }, [hasHydrated])
 
+  // The focus rule in one place: the waiting upload's Start import, the
+  // showing alert's Retry or Try again, then the file picker. The first
+  // candidate that is mounted and not disabled takes the focus; one that
+  // cannot (offline disables the Start import and every Try again) falls
+  // through to the next.
+  const handOffFocus = () =>
+    focusStartCandidate([
+      warningStartRef.current,
+      rateLimitTryAgainRef.current,
+      genericRetryRef.current,
+      uploadAlertTryAgainRef.current,
+      discardRetryRef.current,
+      filePickerRef.current
+    ])
+
   useEffect(() => {
     if (startInFlight) return
     if (focusAfterStart.current) {
       focusAfterStart.current = false
       // A started import hands the focus to the progress view itself, and
       // a start from the warning that kept the row leaves it on the Start
-      // import button, which never unmounted: both are left alone. Only
-      // a focus that fell to the body (the pressed control is gone) is
-      // handed back, by one rule: the warning's Start import if an upload
-      // still waits, otherwise the Retry or Try again of the start alert
-      // now showing, otherwise the file picker.
-      if (document.activeElement === document.body) {
-        const tryAgain = uploadAlertTryAgainRef.current
-        if (warningStartRef.current) {
-          warningStartRef.current.focus()
-        } else if (tryAgain && !tryAgain.disabled) {
-          // A disabled Try again cannot take the focus, so it falls
-          // through to the picker.
-          tryAgain.focus()
-        } else {
-          filePickerRef.current?.focus()
-        }
-      }
+      // import button, which never unmounted: both are left alone. Only a
+      // focus that fell to the body (the pressed control is gone) is
+      // handed back, by the rule above.
+      if (document.activeElement === document.body) handOffFocus()
     }
     if (!focusPickerAfterDiscard.current) return
     focusPickerAfterDiscard.current = false
-    filePickerRef.current?.focus()
-  }, [startInFlight])
+    handOffFocus()
+    // The effect also runs on the commit that shows a waiting upload found
+    // through a 409 (a re-upload whose presign finds another tab's row):
+    // no start of the section's own is in flight there, so the row's
+    // arrival is what must trigger the hand-off. A running found row is
+    // left alone: its progress view takes the focus in its own (child)
+    // effect first, and this one only acts on a focus left on the body.
+  }, [startInFlight, notStartedImport?.id])
 
   // The picker is focusable on the commit that swaps the report or the CSV
   // result for the empty form, so the reset focuses it there.
@@ -699,7 +712,18 @@ export const ImportSection = ({
               <Alert
                 tone="error"
                 title="Could not discard the upload"
-                onRetry={() => void handleDiscardUpload(startAlert.id)}
+                action={
+                  <Button
+                    ref={discardRetryRef}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void handleDiscardUpload(startAlert.id)}
+                  >
+                    <RefreshCw aria-hidden="true" />
+                    Retry
+                  </Button>
+                }
               />
             ) : null}
             {startAlert?.type === 'rate-limit' && notStartedImport ? (
@@ -708,6 +732,7 @@ export const ImportSection = ({
                 title="Too many imports started recently"
                 action={
                   <Button
+                    ref={rateLimitTryAgainRef}
                     type="button"
                     variant="outline"
                     size="sm"
@@ -730,10 +755,19 @@ export const ImportSection = ({
               <Alert
                 tone="error"
                 title="Could not start the import"
-                onRetry={
-                  notStartedImport
-                    ? () => void startQueuedImport(notStartedImport)
-                    : undefined
+                action={
+                  notStartedImport ? (
+                    <Button
+                      ref={genericRetryRef}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void startQueuedImport(notStartedImport)}
+                    >
+                      <RefreshCw aria-hidden="true" />
+                      Retry
+                    </Button>
+                  ) : undefined
                 }
               >
                 {startAlert.message}
@@ -765,7 +799,15 @@ export const ImportSection = ({
               onFileChange={onFileChange}
               onActorChanged={() => setActorChangedLocally(true)}
               onMoved={() => setMoved(true)}
-              onStarted={showFoundImport}
+              onStarted={(found) => {
+                // A waiting upload found through the presign's 409 is an
+                // upload attempt that ends with a row waiting: the pressed
+                // control (the form's Try again, or Import archive) is gone
+                // or locked, so the found row's Start import must take the
+                // focus the rule hands back (see the effect above).
+                focusAfterStart.current = true
+                showFoundImport(found)
+              }}
               onUploaded={(uploaded) => void startQueuedImport(uploaded)}
               onSubmitStart={() => setStartAlert(null)}
               startInFlight={startInFlight}
