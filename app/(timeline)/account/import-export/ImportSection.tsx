@@ -180,6 +180,12 @@ export const ImportSection = ({
   // The warning's Start import button: the focus target when a start that
   // keeps the row ends and the pressed button is gone.
   const warningStartRef = useRef<HTMLButtonElement>(null)
+  // The upload-failure start alert's Try again: the focus target when a
+  // start that drops the row ends, so no warning is left to hand the focus
+  // to. It is the only start alert that can show without a kept row: the
+  // discard, rate-limit and generic alerts only appear while the warning
+  // does, so the warning's Start import comes first for them.
+  const uploadAlertTryAgainRef = useRef<HTMLButtonElement>(null)
   // Whether the progress view holds (or last held) the focus. A page-load
   // import nobody touched must not grab the focus when it finishes, and
   // "the body has the focus" cannot tell that apart from "the progress view
@@ -215,11 +221,21 @@ export const ImportSection = ({
       // A started import hands the focus to the progress view itself, and
       // a start from the warning that kept the row leaves it on the Start
       // import button, which never unmounted: both are left alone. Only
-      // a focus that fell to the body (the pressed alert button is gone)
-      // is handed back — to the warning's Start import if the row is
-      // still kept, otherwise to the picker.
+      // a focus that fell to the body (the pressed control is gone) is
+      // handed back, by one rule: the warning's Start import if an upload
+      // still waits, otherwise the Retry or Try again of the start alert
+      // now showing, otherwise the file picker.
       if (document.activeElement === document.body) {
-        ;(warningStartRef.current ?? filePickerRef.current)?.focus()
+        const tryAgain = uploadAlertTryAgainRef.current
+        if (warningStartRef.current) {
+          warningStartRef.current.focus()
+        } else if (tryAgain && !tryAgain.disabled) {
+          // A disabled Try again cannot take the focus, so it falls
+          // through to the picker.
+          tryAgain.focus()
+        } else {
+          filePickerRef.current?.focus()
+        }
       }
     }
     if (!focusPickerAfterDiscard.current) return
@@ -351,9 +367,12 @@ export const ImportSection = ({
     // focused Start import button) unmounts with it; the alert buttons
     // unmount as soon as the alert is cleared below. Whether a start
     // control held the focus decides the hand-off in the [startInFlight]
-    // effect.
+    // effect. The archive form counts as a start control too: a start that
+    // a focused Try again began runs after the upload's Cancel took the
+    // focus, and that focus is about to be lost with the form's unmount.
     const startControlHadFocus =
-      startControlsRef.current?.contains(document.activeElement) ?? false
+      (startControlsRef.current?.contains(document.activeElement) ?? false) ||
+      (archiveFormRef.current?.contains(document.activeElement) ?? false)
     setStartAlert(null)
     // A row another file was picked over carries the options snapshotted
     // then; every other row (one the page loaded with, a fresh upload, a
@@ -651,6 +670,7 @@ export const ImportSection = ({
                 title="The upload did not finish"
                 action={
                   <Button
+                    ref={uploadAlertTryAgainRef}
                     type="button"
                     variant="outline"
                     size="sm"
@@ -747,11 +767,7 @@ export const ImportSection = ({
               onMoved={() => setMoved(true)}
               onStarted={showFoundImport}
               onUploaded={(uploaded) => void startQueuedImport(uploaded)}
-              onSubmitStart={() =>
-                setStartAlert((current) =>
-                  current?.type === 'upload' ? null : current
-                )
-              }
+              onSubmitStart={() => setStartAlert(null)}
               startInFlight={startInFlight}
               filePickerRef={filePickerRef}
               formRef={archiveFormRef}
