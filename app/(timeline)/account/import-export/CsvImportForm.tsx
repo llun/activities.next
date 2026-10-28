@@ -57,6 +57,8 @@ interface Props {
   /** The section focuses the picker after discarding an earlier upload. */
   filePickerRef: RefObject<HTMLButtonElement | null>
   onFileChange: (file: File | null) => void
+  /** "Import another file": the section focuses the picker for it. */
+  onImportAnotherFile: () => void
   onActorChanged: () => void
   onMoved: () => void
 }
@@ -67,6 +69,7 @@ export const CsvImportForm = ({
   maxCsvBytes,
   filePickerRef,
   onFileChange,
+  onImportAnotherFile,
   onActorChanged,
   onMoved
 }: Props) => {
@@ -78,6 +81,10 @@ export const CsvImportForm = ({
   const [error, setError] = useState<string | null>(null)
   const isOffline = useConnectionStatus().state === 'offline'
   const finished = bulkImport?.state === 'finished'
+  // The import runs on the server after createBulkImport returns, so the
+  // bar must stay locked until it finishes: a second press would post the
+  // same file again and answer "An import is already in progress".
+  const running = bulkImport !== null && !finished
 
   useEffect(() => {
     setType(guessCsvImportType(file.name))
@@ -200,12 +207,12 @@ export const CsvImportForm = ({
               <SaveBar
                 variant="create"
                 actionLabel={
-                  submitting
+                  submitting || running
                     ? 'Importing…'
                     : `Import ${labelForType(type).toLowerCase()}`
                 }
                 submit
-                disabled={submitting || file.size > maxCsvBytes}
+                disabled={submitting || running || file.size > maxCsvBytes}
                 disabledReason={isOffline ? "You're offline" : undefined}
               />
             )
@@ -330,7 +337,7 @@ export const CsvImportForm = ({
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => onFileChange(null)}
+                  onClick={onImportAnotherFile}
                 >
                   Import another file
                 </Button>
