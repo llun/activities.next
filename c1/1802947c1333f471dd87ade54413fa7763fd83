@@ -1,0 +1,31 @@
+app/(timeline)/account/import-export/ImportSection.test.tsx
+  s_279e7012f36c5f::t_8c583ee3905026 119,132,147,154-168,645,1276,2449-2497
+app/(timeline)/account/import-export/ImportSection.tsx
+  s_279e7012f36c5f::t_f867adf50ea0cb 37,125,144-146
+app/(timeline)/account/import-export/page.test.tsx
+  s_279e7012f36c5f::t_7cc7e72cdd70f6 240-256
+app/(timeline)/account/import-export/page.tsx
+  s_279e7012f36c5f::t_dc63351ab906a7 16,112
+app/api/v1/account/archives/route.test.ts
+  s_279e7012f36c5f::t_99b7fc36e78d66 145-198
+app/api/v1/account/archives/route.ts
+  s_279e7012f36c5f::t_488eb4388fba63 1,57,62-79,85-87,139-141
+docs/mastodon-api-compatibility.md
+  s_279e7012f36c5f::t_abd30f4709c392 508-513
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c11802947c1333f471dd87ade54413fa7763fd83",
+  "prompts": {},
+  "sessions": {
+    "s_279e7012f36c5f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0410f49d-2e94-45e1-bd1f-237e6f7747bc",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
