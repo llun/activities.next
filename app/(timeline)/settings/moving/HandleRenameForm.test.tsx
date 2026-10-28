@@ -414,6 +414,62 @@ describe('HandleRenameForm', () => {
     })
   })
 
+  it('closes the dialog and focuses the cooldown after a 429', async () => {
+    mockRename.mockRejectedValueOnce(
+      new client.ApiRequestError('Too many handle changes', 429)
+    )
+    mockGetAccountHandle.mockResolvedValueOnce(
+      handleState({ cooldownUntil: '2026-11-23T00:00:00.000Z' })
+    )
+
+    render(
+      <HandleRenameForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        initialHandle={handleState()}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('New handle'), {
+      target: { value: 'may' }
+    })
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'secret' }
+    })
+
+    await submit()
+
+    await waitFor(() => {
+      // The cooldown Frame replaced the form, and it holds focus: without
+      // it the closed dialog would leave focus on the page body.
+      expect(document.activeElement).toBe(
+        screen
+          .getByRole('button', { name: 'Change handle' })
+          .closest('[tabindex="-1"]')
+      )
+    })
+    expect(
+      screen.queryByRole('dialog', { name: 'Change your handle' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('leaves focus alone when the cooldown is already running at load', () => {
+    render(
+      <HandleRenameForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        initialHandle={handleState({
+          cooldownUntil: '2026-11-23T00:00:00.000Z'
+        })}
+      />
+    )
+
+    expect(
+      screen.getByText(/You can change your handle again on/)
+    ).toBeInTheDocument()
+    expect(document.activeElement).toBe(document.body)
+  })
+
   it('shows the last change date once there is history', () => {
     render(
       <HandleRenameForm

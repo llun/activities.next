@@ -2,7 +2,7 @@
 
 import { AtSign, Check, Clock, Info } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { FC, useState } from 'react'
+import { FC, useEffect, useRef, useState } from 'react'
 
 import {
   type AccountHandleState,
@@ -64,10 +64,21 @@ export const HandleRenameForm: FC<Props> = ({
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [cooldownArrived, setCooldownArrived] = useState(false)
+  const cooldownRef = useRef<HTMLDivElement>(null)
   const { state: connection } = useConnectionStatus()
   const offline = connection !== 'online'
 
   const cooldownUntil = handle.cooldownUntil
+
+  // A 429 swaps the form for the cooldown Frame while the confirm dialog is
+  // open; closing the dialog would return focus to a button that unmounts
+  // with the form, so the cooldown state takes focus once it is there.
+  useEffect(() => {
+    if (!cooldownArrived) return
+    setCooldownArrived(false)
+    cooldownRef.current?.focus()
+  }, [cooldownArrived])
   const lastChanged = lastChangedAt(handle)
   const trimmedUsername = username.trim()
   // A domain change alone is a change: the username the form sends is the new
@@ -117,10 +128,13 @@ export const HandleRenameForm: FC<Props> = ({
         // The 429 body carries cooldownUntil, but the error type does not
         // (yet): re-read the state, which does.
         try {
-          setHandle(await getAccountHandle({ actorId }))
+          const next = await getAccountHandle({ actorId })
+          setHandle(next)
+          if (next.cooldownUntil !== null) setCooldownArrived(true)
         } catch {
           setError(err.message)
         }
+        setConfirmOpen(false)
       } else if (
         err instanceof ApiRequestError &&
         err.status === 409 &&
@@ -147,33 +161,35 @@ export const HandleRenameForm: FC<Props> = ({
 
   if (cooldownUntil !== null) {
     return (
-      <Frame
-        form
-        footer={
-          <SaveBar
-            actionLabel="Change handle"
-            actionIcon={AtSign}
-            idleNote={
-              <>
-                You can change your handle again on{' '}
-                <MovingDate at={cooldownUntil} />.
-              </>
-            }
-            disabled
-          />
-        }
-      >
-        <FormRow label="Current handle">
-          <p className="text-sm break-words">@{handle.acct}</p>
-        </FormRow>
-        <FormRow label="Last changed">
-          {lastChanged !== null ? (
-            <MovingDate at={lastChanged} />
-          ) : (
-            <p className="text-sm">Never</p>
-          )}
-        </FormRow>
-      </Frame>
+      <div ref={cooldownRef} tabIndex={-1} className="outline-none">
+        <Frame
+          form
+          footer={
+            <SaveBar
+              actionLabel="Change handle"
+              actionIcon={AtSign}
+              idleNote={
+                <>
+                  You can change your handle again on{' '}
+                  <MovingDate at={cooldownUntil} />.
+                </>
+              }
+              disabled
+            />
+          }
+        >
+          <FormRow label="Current handle">
+            <p className="text-sm break-words">@{handle.acct}</p>
+          </FormRow>
+          <FormRow label="Last changed">
+            {lastChanged !== null ? (
+              <MovingDate at={lastChanged} />
+            ) : (
+              <p className="text-sm">Never</p>
+            )}
+          </FormRow>
+        </Frame>
+      </div>
     )
   }
 

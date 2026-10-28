@@ -13,6 +13,7 @@ import {
 import * as client from '@/lib/client'
 
 import { MovedNotice } from './MovedNotice'
+import { requestMovingFocus, takeMovingFocus } from './movingFocus'
 
 const refresh = vi.fn()
 
@@ -88,6 +89,71 @@ describe('MovedNotice', () => {
       })
       expect(refresh).toHaveBeenCalled()
     })
+  })
+
+  it('leaves a focus request for the form after cancelling a redirect', async () => {
+    mockCancel.mockResolvedValueOnce({
+      movedTo: null,
+      migrations: [],
+      cooldownUntil: null,
+      followersCount: 12
+    })
+
+    render(
+      <MovedNotice
+        actorId="https://llun.test/users/anna"
+        acct="may@new.example"
+        kind="redirect"
+        movedAt="2026-10-24T00:00:00.000Z"
+        cooldownUntil={null}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel redirect' }))
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Cancel redirect'
+    })
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Cancel redirect' })
+    )
+
+    await waitFor(() => {
+      // The refresh swaps this notice for the MoveForm, which takes the
+      // request on mount and focuses its own warning.
+      expect(takeMovingFocus('move-form')).toBe(true)
+    })
+  })
+
+  it('takes the focus request left by a move', () => {
+    requestMovingFocus('moved-notice')
+
+    render(
+      <MovedNotice
+        actorId="https://llun.test/users/anna"
+        acct="may@new.example"
+        kind="move"
+        movedAt="2026-10-24T00:00:00.000Z"
+        cooldownUntil="2026-11-23T00:00:00.000Z"
+      />
+    )
+
+    expect(document.activeElement).toBe(
+      screen.getByText('You moved to').closest('[tabindex="-1"]')
+    )
+  })
+
+  it('leaves focus alone on a plain page load', () => {
+    render(
+      <MovedNotice
+        actorId="https://llun.test/users/anna"
+        acct="may@new.example"
+        kind="move"
+        movedAt="2026-10-24T00:00:00.000Z"
+        cooldownUntil="2026-11-23T00:00:00.000Z"
+      />
+    )
+
+    expect(document.activeElement).toBe(document.body)
   })
 
   it('has no action after a full move, only the cooldown date', () => {
