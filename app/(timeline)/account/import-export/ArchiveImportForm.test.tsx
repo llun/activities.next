@@ -82,6 +82,7 @@ const notStarted: AccountImportResponse = {
 }
 
 const filePickerRef: RefObject<HTMLButtonElement | null> = { current: null }
+const formRef: RefObject<HTMLFormElement | null> = { current: null }
 
 const Harness = ({
   notStartedImport = null,
@@ -111,6 +112,7 @@ const Harness = ({
       onUploaded={onUploaded}
       startInFlight={startInFlight}
       filePickerRef={filePickerRef}
+      formRef={formRef}
     />
   )
 }
