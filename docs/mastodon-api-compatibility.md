@@ -505,9 +505,15 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   can read it; everything else lives under `activities.next/`. Mastodon's
   limit is one request per 6 days in code and 7 in its documentation; this
   server uses 7. `POST` answers `429` with `nextAllowedAt` and a `Retry-After`
-  header both while an export is running and inside the 7 days. See [Account data export](architecture.md#account-data-export).
-- **Account archive import** — These backend-only routes use the signed-in
-  web session and bind every import to the current actor; they do not use an
+  header both while an export is running and inside the 7 days. The web client
+  names the actor it loaded the page as — the `actorId` query parameter on
+  `GET`, the `actorId` JSON field on `POST`; when it differs from the
+  signed-in actor, both answer `409` `{ "error": "Actor changed" }` before
+  anything is read or written, and a request without `actorId` (an API
+  client's) keeps working. See [Account data export](architecture.md#account-data-export).
+- **Account archive import** — These routes, which back Account & security →
+  Import and export (`/account/import-export`), use the signed-in web session
+  and bind every import to the current actor; they do not use an
   OAuth scope. Error JSON has Mastodon's `{ "error": "…" }` shape. `OPTIONS`
   preflight on each route returns `200` with CORS headers. The shared
   `AuthenticatedGuard` returns `403` for missing same-origin proof, suspended
@@ -521,7 +527,7 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   | `GET /api/v1/account/imports`            | Optional `actorId` query parameter                                                 | `200`: array of at most 20 import objects                                                    | `403`, `404`, `409`                                    |
   | `POST /api/v1/account/imports`           | Optional `actorId` query parameter; raw ZIP body                                   | `202`: import object                                                                         | `400`, `403`, `404`, `409`, `413`, `422`, `503`        |
   | `POST /api/v1/account/imports/presigned` | Required JSON `size` (positive safe integer); optional `actorId` in query or JSON  | `202`: import object plus `uploadUrl: string \| null` and `directUploadPath: string \| null` | `400`, `403`, `404`, `409`, `413`, `422`, `503`        |
-  | `GET /api/v1/account/imports/:id`        | Optional `actorId` query parameter                                                 | `200`: import object                                                                         | `403`, `404`, `409`                                    |
+  | `GET /api/v1/account/imports/:id`        | Optional `actorId` query parameter                                                 | `200`: import object, plus `report` when the import is `done`, `failed` or `cancelled`       | `403`, `404`, `409`                                    |
   | `POST /api/v1/account/imports/:id`       | Optional `actorId` query parameter; raw ZIP body                                   | `202`: import object                                                                         | `400`, `403`, `404`, `409`, `413`, `422`, `503`        |
   | `POST /api/v1/account/imports/:id/start` | JSON `{ "actorId"?: string, "options"?: ImportOptions }`; optional `actorId` query | `202`: import object                                                                         | `400`, `403`, `404`, `409`, `413`, `422`, `429`, `503` |
   | `DELETE /api/v1/account/imports/:id`     | Optional `actorId` query parameter                                                 | `202`: import object with `status: "cancelled"`                                              | `403`, `404`, `409`                                    |
@@ -536,7 +542,12 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   counts and, after start, the selected options; when the profile option
   skipped the avatar or header, it also carries `profileImageSkips`
   (`media_quota_exceeded` or `media_invalid`). It does not expose upload
-  tokens or lease data.
+  tokens or lease data. `GET /api/v1/account/imports/:id` adds a `report`
+  field, but only once the import is `done`, `failed` or `cancelled` — never
+  while it is `queued` or `running`, and never in the list route's objects.
+  `report` groups the import's catalog items by outcome: `done` counts by
+  item kind, `skipped` and `failed` count by reason code (`unknown` for a
+  row without one), each as `{ [kind or reason]: count }`.
 
   The presigned request requires `size` because the S3 PUT URL signs that exact
   content length and expires after 15 minutes. When storage cannot provide a
@@ -1170,8 +1181,8 @@ ActivityPub objects are **JSON-LD**, so the same logical object can arrive in ma
   can still let the start run); a redirect to the account `movedTo` already names
   is 422 `Already moved to this account`, even for two concurrent requests; an unreachable target is 502, a server with no federation signing
   actor to fetch with is 500, and a reachable target without the alias is 422;
-  one Move goes to each remote shared inbox across all continuations; and there
-  is no settings UI yet. Details in
+  one Move goes to each remote shared inbox across all continuations; and
+  Settings → Moving (`/settings/moving`) is the web UI for it. Details in
   [architecture.md](architecture.md#agents-actor-profile-deletion-federation).
 - **Handle rename in place is this server's own API, `/api/v1/accounts/handle`
   (`GET`, `POST`), not a Mastodon endpoint.** Mastodon has no REST rename: a

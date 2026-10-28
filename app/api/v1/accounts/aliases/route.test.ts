@@ -406,7 +406,7 @@ describe('Accounts Aliases API route', () => {
       expect(publishActorUpdate).not.toHaveBeenCalled()
     })
 
-    it('returns 403 Forbidden when resolver returns forbidden', async () => {
+    it('returns 403 when the resolver refuses the domain', async () => {
       vi.mocked(resolveAccountTarget).mockResolvedValueOnce({
         type: 'forbidden'
       })
@@ -418,7 +418,9 @@ describe('Accounts Aliases API route', () => {
         }
       )
       expect(res.status).toBe(HTTP_STATUS.FORBIDDEN)
-      expect(await res.json()).toEqual({ error: 'Forbidden' })
+      expect(await res.json()).toEqual({
+        error: 'Federation with that server is not allowed'
+      })
       expect(publishActorUpdate).not.toHaveBeenCalled()
     })
 

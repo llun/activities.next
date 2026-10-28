@@ -4,14 +4,13 @@
 // generic failure — the client and the server can legitimately disagree while a
 // tab holds a limit resolved before an admin changed it.
 export const throwApiError = async (response: Response, fallback: string) => {
-  const message = await response
-    .json()
-    .then((body) => (typeof body?.error === 'string' ? body.error : null))
-    .catch(() => null)
+  const details = await response.json().catch(() => undefined)
+  const message = typeof details?.error === 'string' ? details.error : undefined
   throw new ApiRequestError(
     message || fallback,
     response.status,
-    parseRetryAfterMs(response.headers?.get('Retry-After'))
+    parseRetryAfterMs(response.headers?.get('Retry-After')),
+    details
   )
 }
 
@@ -31,12 +30,23 @@ export class ApiRequestError extends Error {
   status: number
   /** From a `Retry-After` header, when the server sent a usable one. */
   retryAfterMs?: number
+  /** Parsed response body for callers that need structured error details. */
+  details?: Record<string, unknown>
 
-  constructor(message: string, status: number, retryAfterMs?: number) {
+  constructor(
+    message: string,
+    status: number,
+    retryAfterMs?: number,
+    details?: unknown
+  ) {
     super(message)
     this.name = 'ApiRequestError'
     this.status = status
     this.retryAfterMs = retryAfterMs
+    this.details =
+      details && typeof details === 'object' && !Array.isArray(details)
+        ? (details as Record<string, unknown>)
+        : undefined
   }
 }
 

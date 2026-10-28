@@ -16,7 +16,9 @@ import Page from './page'
 const mockDatabase = {
   getFeaturedTags: vi.fn().mockResolvedValue([]),
   getActorSettings: vi.fn().mockResolvedValue(undefined),
-  getActorsForAccount: vi.fn().mockResolvedValue([])
+  getActorsForAccount: vi.fn().mockResolvedValue([]),
+  getActorFromId: vi.fn(),
+  getActorMigrations: vi.fn().mockResolvedValue([])
 }
 
 vi.mock('@/lib/config', () => ({
@@ -77,8 +79,12 @@ vi.mock('./ProfileHeaderImage', () => ({
   ProfileHeaderImage: () => <div data-testid="header-image" />
 }))
 
+const mockRelationshipActionsProps = vi.fn()
 vi.mock('./ProfileRelationshipActions', () => ({
-  ProfileRelationshipActions: () => <div data-testid="relationship-actions" />
+  ProfileRelationshipActions: (props: unknown) => {
+    mockRelationshipActionsProps(props)
+    return <div data-testid="relationship-actions" />
+  }
 }))
 
 vi.mock('@/lib/services/accounts/relationship', () => ({
@@ -776,5 +782,250 @@ describe('[actor] page avatar description', () => {
 
     expect(mockDatabase.getActorSettings).toHaveBeenCalledTimes(1) // the viewer's
     expect(screen.getByTestId('avatar-image')).toHaveAttribute('alt', '')
+  })
+})
+
+describe('[actor] page moved banner', () => {
+  const person = (movedTo: string | undefined) =>
+    ({
+      id: 'https://llun.social/users/main',
+      type: 'Person',
+      preferredUsername: 'main',
+      name: 'Main',
+      summary: '',
+      movedTo
+    }) as unknown as Actor
+
+  const profile = (p: Actor) => ({
+    person: p,
+    profileFields: [],
+    statuses: [],
+    statusesCount: 0,
+    statusPagination: { nextPageUrl: null, prevPageUrl: null },
+    attachments: [],
+    followingCount: 0,
+    followersCount: 0,
+    isInternalAccount: true,
+    hasFitnessData: false,
+    gallerySubviews: [],
+    isPixelfed: false
+  })
+
+  const viewer = {
+    id: 'https://llun.social/users/viewer',
+    account: { id: 'a' }
+  }
+
+  const renderPage = async () =>
+    render(
+      await Page({ params: Promise.resolve({ actor: '@main@llun.social' }) })
+    )
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetServerAuthSession.mockResolvedValue({
+      user: { email: 'viewer@llun.social' }
+    } as never)
+    mockGetActorFromSession.mockResolvedValue(viewer as never)
+    mockIsLocalFederationDomain.mockResolvedValue(true)
+    mockDatabase.getActorsForAccount.mockResolvedValue([])
+    mockDatabase.getActorSettings.mockResolvedValue(undefined)
+    mockDatabase.getActorFromId.mockResolvedValue({
+      id: 'https://new.example/users/may',
+      username: 'may',
+      domain: 'new.example'
+    })
+    mockDatabase.getActorMigrations.mockResolvedValue([])
+  })
+
+  it('renders the banner from the stored target, without fetching it', async () => {
+    mockGetProfileData.mockResolvedValue(
+      profile(person('https://new.example/users/may'))
+    )
+
+    await renderPage()
+
+    expect(mockDatabase.getActorFromId).toHaveBeenCalledWith({
+      id: 'https://new.example/users/may'
+    })
+    expect(screen.getByText('This profile has moved to')).toBeInTheDocument()
+    expect(screen.getByText('@may@new.example')).toBeInTheDocument()
+    const go = screen.getByRole('link', { name: /Go to new profile/ })
+    expect(go).toHaveAttribute('href', 'https://new.example/users/may')
+    expect(go).toHaveAttribute('target', '_blank')
+    // The badge beside the name says the profile moved.
+    expect(screen.getByText('moved')).toBeInTheDocument()
+    // A viewer never gets the owner's way in.
+    expect(
+      screen.queryByRole('link', { name: /Manage/ })
+    ).not.toBeInTheDocument()
+    // The follow button is told the profile moved.
+    expect(mockRelationshipActionsProps).toHaveBeenCalledWith(
+      expect.objectContaining({ targetMoved: true })
+    )
+  })
+
+  it('soft-links a target that lives on this server', async () => {
+    mockGetProfileData.mockResolvedValue(
+      profile(person('https://llun.social/users/may'))
+    )
+    mockDatabase.getActorFromId.mockResolvedValue({
+      id: 'https://llun.social/users/may',
+      username: 'may',
+      domain: 'llun.social',
+      account: { id: 'acct-2' }
+    })
+
+    await renderPage()
+
+    const go = screen.getByRole('link', { name: /Go to new profile/ })
+    expect(go).toHaveAttribute('href', '/@may@llun.social')
+    expect(go).not.toHaveAttribute('target')
+  })
+
+  it('gives the owner the Manage link and the redirect wording', async () => {
+    mockGetActorFromSession.mockResolvedValue({
+      ...viewer,
+      id: 'https://llun.social/users/main'
+    } as never)
+    mockGetProfileData.mockResolvedValue(
+      profile(person('https://new.example/users/may'))
+    )
+    mockDatabase.getActorMigrations.mockResolvedValue([
+      { targetActorId: 'https://new.example/users/may', kind: 'redirect' }
+    ])
+
+    await renderPage()
+
+    expect(screen.getByRole('link', { name: /Manage/ })).toHaveAttribute(
+      'href',
+      '/settings/moving'
+    )
+    expect(
+      screen.getByText(
+        'You are redirecting from this profile. Followers have not been moved.'
+      )
+    ).toBeInTheDocument()
+  })
+
+  it('reads the kind from the pointer for the owner when the target row is gone', async () => {
+    // The target's actor row can disappear (a remote Delete(Person), say)
+    // while the redirect still stands: the owner's banner has to keep
+    // reading it as a redirect, exactly as Settings › Moving does, instead
+    // of falling back to the performed-move wording.
+    mockGetActorFromSession.mockResolvedValue({
+      ...viewer,
+      id: 'https://llun.social/users/main'
+    } as never)
+    mockGetProfileData.mockResolvedValue(
+      profile(person('https://gone.example/users/may'))
+    )
+    mockDatabase.getActorFromId.mockResolvedValue(null)
+    mockDatabase.getActorMigrations.mockResolvedValue([
+      { targetActorId: 'https://gone.example/users/may', kind: 'redirect' }
+    ])
+
+    await renderPage()
+
+    expect(mockDatabase.getActorMigrations).toHaveBeenCalledWith({
+      actorId: 'https://llun.social/users/main'
+    })
+    expect(
+      screen.getByText(
+        'You are redirecting from this profile. Followers have not been moved.'
+      )
+    ).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Manage/ })).toHaveAttribute(
+      'href',
+      '/settings/moving'
+    )
+    // Without a stored target there is no way in, only the owner's way to
+    // manage the redirect.
+    expect(
+      screen.queryByRole('link', { name: /Go to new profile/ })
+    ).not.toBeInTheDocument()
+  })
+
+  it('does not read the migrations for a visitor of a moved profile', async () => {
+    // Only the owner's copy depends on the kind, so a visitor's view of a
+    // moved profile never pays the migrations query.
+    mockGetProfileData.mockResolvedValue(
+      profile(person('https://new.example/users/may'))
+    )
+
+    await renderPage()
+
+    expect(mockDatabase.getActorMigrations).not.toHaveBeenCalled()
+    expect(
+      screen.getByText(
+        'Follow them at their new profile. Posts here stay as they were.'
+      )
+    ).toBeInTheDocument()
+  })
+
+  it('draws no banner when the profile has not moved', async () => {
+    mockGetProfileData.mockResolvedValue(profile(person(undefined)))
+
+    await renderPage()
+
+    expect(
+      screen.queryByText('This profile has moved to')
+    ).not.toBeInTheDocument()
+    expect(mockDatabase.getActorFromId).not.toHaveBeenCalled()
+    expect(mockRelationshipActionsProps).toHaveBeenCalledWith(
+      expect.objectContaining({ targetMoved: false })
+    )
+  })
+
+  it('banners and turns Follow off when the target actor is not stored', async () => {
+    mockGetProfileData.mockResolvedValue(
+      profile(person('https://gone.example/users/may'))
+    )
+    mockDatabase.getActorFromId.mockResolvedValue(null)
+
+    await renderPage()
+
+    // The banner still draws, but without a target there is no way in.
+    expect(screen.getByText('This profile has moved')).toBeInTheDocument()
+    expect(
+      screen.queryByText('This profile has moved to')
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('link', { name: /Go to new profile/ })
+    ).not.toBeInTheDocument()
+    // The badge beside the name still says the profile moved.
+    expect(screen.getByText('moved')).toBeInTheDocument()
+    // The server refuses new follows of a moved account whether or not the
+    // target is stored, so Follow is turned off.
+    expect(mockRelationshipActionsProps).toHaveBeenCalledWith(
+      expect.objectContaining({ targetMoved: true })
+    )
+  })
+
+  it('clears the banner below md of the floating menu button when signed in', async () => {
+    mockGetProfileData.mockResolvedValue(
+      profile(person('https://new.example/users/may'))
+    )
+
+    await renderPage()
+
+    const slot = screen.getByTestId('moved-banner-slot')
+    expect(slot).toHaveClass(
+      'pt-[calc(env(safe-area-inset-top,0px)+64px)]',
+      'md:pt-0'
+    )
+  })
+
+  it('gives the banner no clearance when the floating button is absent', async () => {
+    mockGetProfileData.mockResolvedValue(
+      profile(person('https://new.example/users/may'))
+    )
+    mockGetServerAuthSession.mockResolvedValue({} as never)
+
+    await renderPage()
+
+    const slot = screen.getByTestId('moved-banner-slot')
+    expect(slot).not.toHaveClass('pt-[calc(env(safe-area-inset-top,0px)+64px)]')
+    expect(slot).not.toHaveClass('md:pt-0')
   })
 })

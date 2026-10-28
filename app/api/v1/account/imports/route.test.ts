@@ -124,7 +124,7 @@ describe('account import routes', () => {
   const createRow = async (
     ownerActorId = actorId,
     ownerAccountId = accountId,
-    status?: 'done' | 'failed'
+    status?: 'done' | 'failed' | 'cancelled'
   ) => {
     const row = await database.createAccountImport({
       id: crypto.randomUUID(),
@@ -762,5 +762,102 @@ describe('account import routes', () => {
       (await database.getAccountImport({ id: row.id, actorId }))?.lastErrorCode
     ).toBeNull()
     expect(await store.store.size(store.getUploadKey(row))).toBeNull()
+  })
+
+  // Catalog items marked with every outcome, so a report has something to
+  // count: two done statuses, one skipped like and one failed media item.
+  const seedOutcomeItems = async (importId: string) => {
+    await database.upsertAccountImportItems({
+      importId,
+      actorId,
+      items: [
+        { kind: 'status', sourceId: 's1', position: 0 },
+        { kind: 'status', sourceId: 's2', position: 1 },
+        { kind: 'like', sourceId: 'l1', position: 2 },
+        { kind: 'media', sourceId: 'm1', position: 3 }
+      ]
+    })
+    const items = await database.getAccountImportItems({ importId, limit: 10 })
+    const bySource = (sourceId: string) =>
+      items.find((item) => item.sourceId === sourceId)!
+    await database.markAccountImportItem({
+      id: bySource('s1').id,
+      state: 'done',
+      targetId: 't1'
+    })
+    await database.markAccountImportItem({
+      id: bySource('s2').id,
+      state: 'done',
+      targetId: 't2'
+    })
+    await database.markAccountImportItem({
+      id: bySource('l1').id,
+      state: 'skipped',
+      reason: 'option_disabled'
+    })
+    await database.markAccountImportItem({
+      id: bySource('m1').id,
+      state: 'failed',
+      reason: 'item_failed'
+    })
+  }
+
+  it.each(['done', 'failed', 'cancelled'] as const)(
+    'serves an outcome report for a %s import',
+    async (status) => {
+      const row = await createRow(actorId, accountId, status)
+      await seedOutcomeItems(row.id)
+      const response = await getImport(
+        request(`https://llun.test/api/v1/account/imports/${row.id}`, 'GET'),
+        routeContext(row.id)
+      )
+      expect(response.status).toBe(HTTP_STATUS.OK)
+      expect(await response.json()).toMatchObject({
+        id: row.id,
+        status,
+        report: {
+          done: { status: 2 },
+          skipped: { option_disabled: 1 },
+          failed: { item_failed: 1 }
+        }
+      })
+    }
+  )
+
+  it.each(['queued', 'running'] as const)(
+    'serves no report while an import is %s',
+    async (status) => {
+      const row = await createRow()
+      if (status === 'running') {
+        await database.updateAccountImport({
+          id: row.id,
+          status: 'running',
+          startedAt: Date.now()
+        })
+      }
+      await seedOutcomeItems(row.id)
+      const response = await getImport(
+        request(`https://llun.test/api/v1/account/imports/${row.id}`, 'GET'),
+        routeContext(row.id)
+      )
+      expect(response.status).toBe(HTTP_STATUS.OK)
+      const body = await response.json()
+      expect(body.status).toBe(status)
+      expect('report' in body).toBe(false)
+    }
+  )
+
+  it('leaves the report out of the list route', async () => {
+    const row = await createRow(actorId, accountId, 'done')
+    await seedOutcomeItems(row.id)
+    const response = await listImports(
+      request('https://llun.test/api/v1/account/imports', 'GET'),
+      { params: Promise.resolve({}) }
+    )
+    expect(response.status).toBe(HTTP_STATUS.OK)
+    const body = await response.json()
+    expect(body).toHaveLength(1)
+    expect(body[0]).toMatchObject({ id: row.id, status: 'done' })
+    expect('report' in body[0]).toBe(false)
   })
 })

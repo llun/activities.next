@@ -75,18 +75,19 @@ describe('Account Layout', () => {
     expect(screen.queryByRole('link', { name: /Settings for/ })).toBeNull()
   })
 
-  it('lists the four sections in order and the settings card', async () => {
+  it('lists the five sections in order and the settings card', async () => {
     await renderLayout('/account/security')
 
     const nav = screen.getByRole('navigation', { name: 'Account & security' })
     const links = within(nav).getAllByRole('link')
     expect(
-      links.slice(0, 4).map((l) => [l.textContent, l.getAttribute('href')])
+      links.slice(0, 5).map((l) => [l.textContent, l.getAttribute('href')])
     ).toEqual([
       ['Email & name', '/account/email'],
       ['Password & sign-in', '/account/security'],
       ['Sessions & apps', '/account/sessions'],
-      ['Profiles', '/account/profiles']
+      ['Profiles', '/account/profiles'],
+      ['Import and export', '/account/import-export']
     ])
     const footer = within(nav).getByRole('link', {
       name: /Settings for @anna@llun.test/

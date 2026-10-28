@@ -1,4 +1,5 @@
 import {
+  ArrowRightLeft,
   ExternalLink,
   FileText,
   Info,
@@ -38,6 +39,7 @@ import { ActorTimelines } from './ActorTimelines'
 import { EditOwnedProfileButton } from './EditOwnedProfileButton'
 import { ProfileCover } from './ProfileCover'
 import { ProfileHeaderImage } from './ProfileHeaderImage'
+import { ProfileMovedBanner } from './ProfileMovedBanner'
 import { ProfileRelationshipActions } from './ProfileRelationshipActions'
 import { getProfileData } from './getProfileData'
 import { getNonLocalActorRedirectTarget } from './resolveActorRedirect'
@@ -192,6 +194,26 @@ const Page: FC<Props> = async ({ params }) => {
         })
       : null
 
+  // A profile that moved points at its new account. The target is resolved
+  // from the stored actor row only — never fetched — and the migration row
+  // for that target tells a cancellable redirect from a performed move.
+  // The kind is decided from the pointer, not the target row, so a redirect
+  // whose target actor row is gone still reads as a redirect, exactly as
+  // Settings › Moving reads the same pointer; only the owner's copy uses it,
+  // so the migrations are read only for the owner. A pointer whose actor
+  // row is missing still moved: the banner draws without the link, and
+  // Follow stays off (the server refuses new follows of a moved account
+  // whether or not the target is stored).
+  const movedTarget = person.movedTo
+    ? await database.getActorFromId({ id: person.movedTo })
+    : null
+  const movedKind =
+    person.movedTo && isCurrentUser
+      ? ((await database.getActorMigrations({ actorId: person.id })).find(
+          (migration) => migration.targetActorId === person.movedTo
+        )?.kind ?? 'move')
+      : null
+
   // A local profile of the signed-in account that is not the active actor gets
   // "Edit profile" in place of the relationship actions: the button switches to
   // it first. Remote profiles and the active actor never read the account's
@@ -336,6 +358,39 @@ const Page: FC<Props> = async ({ params }) => {
     // layout's mobile navigation and render nothing there.
     <div className={cn('flex flex-col gap-6', isLoggedIn && 'md:pt-8')}>
       <MobileNavigationTrigger variant="floating" />
+      {person.movedTo ? (
+        // Below `md` the floating menu button sits fixed over the top-left
+        // 16px of whatever is first, so the banner is pushed down past it
+        // (the button is `size-11` at the same inset); from `md` the button
+        // is gone and the wrapper adds nothing. Logged out there is a page
+        // bar instead, so no clearance is needed there.
+        <div
+          data-testid="moved-banner-slot"
+          className={
+            isLoggedIn
+              ? 'pt-[calc(env(safe-area-inset-top,0px)+64px)] md:pt-0'
+              : undefined
+          }
+        >
+          <ProfileMovedBanner
+            acct={
+              movedTarget
+                ? `${movedTarget.username}@${movedTarget.domain}`
+                : null
+            }
+            href={
+              movedTarget
+                ? movedTarget.account
+                  ? `/@${movedTarget.username}@${movedTarget.domain}`
+                  : movedTarget.id
+                : null
+            }
+            external={Boolean(movedTarget && !movedTarget.account)}
+            isOwner={isCurrentUser}
+            isRedirect={movedKind === 'redirect'}
+          />
+        </div>
+      ) : null}
       {/* The profile header is not a card: the cover, then the avatar, name,
           handle and bio on the page itself, then the counts as a stat strip
           whose cells open the lists. */}
@@ -367,6 +422,12 @@ const Page: FC<Props> = async ({ params }) => {
                   name={person.name || person.preferredUsername}
                   tags={getActorEmojiTags(person)}
                 />
+                {person.movedTo ? (
+                  <span className="text-info-text bg-info-surface ml-2 inline-flex items-center gap-1 rounded-full border border-info/30 px-2 py-0.5 align-middle text-xs font-medium">
+                    <ArrowRightLeft className="size-3" aria-hidden="true" />
+                    moved
+                  </span>
+                ) : null}
               </h1>
               <p className="text-sm text-muted-foreground">
                 {/* `max-w-full` + a truncating, shrinkable handle: a handle
@@ -400,6 +461,7 @@ const Page: FC<Props> = async ({ params }) => {
                 targetHandle={`${person.preferredUsername}@${actorDomain}`}
                 isLoggedIn={isLoggedIn}
                 relationship={relationship}
+                targetMoved={Boolean(person.movedTo)}
               />
             )}
           </div>

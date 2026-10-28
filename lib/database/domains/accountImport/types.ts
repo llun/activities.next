@@ -2,6 +2,7 @@
 import type {
   AccountImport,
   AccountImportItem,
+  AccountImportOutcomeReport,
   AccountImportStatus
 } from '@/lib/types/domain/accountImport'
 
@@ -172,6 +173,9 @@ export interface AccountImportDatabase {
   getAccountImportItemReferences(
     params: GetAccountImportItemReferencesParams
   ): Promise<AccountImportItemReference[]>
+  countAccountImportItemsByOutcome(params: {
+    importId: string
+  }): Promise<AccountImportOutcomeReport>
   markAccountImportItem(params: MarkAccountImportItemParams): Promise<boolean>
   resetRetryableAccountImportItems(
     params: ResetRetryableAccountImportItemsParams

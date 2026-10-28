@@ -1,4 +1,5 @@
 import {
+  ArrowDownUp,
   KeyRound,
   Mail,
   MonitorSmartphone,
@@ -45,6 +46,12 @@ export const getAccountGroups = (
         description: info
           ? `${info.profileCount} ${info.profileCount === 1 ? 'profile' : 'profiles'}: switch, set the default, add one`
           : 'Switch, set the default, add one'
+      },
+      {
+        name: 'Import and export',
+        url: '/account/import-export',
+        icon: <ArrowDownUp />,
+        description: 'Download your archive, import posts and spreadsheets'
       }
     ]
   }

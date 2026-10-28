@@ -142,6 +142,60 @@ describe('account archive routes', () => {
     expect((await post()).status).toBe(202)
   })
 
+  const getActorId = async () =>
+    (await database.getActorFromEmail({ email: seedActor1.email }))!.id
+
+  const listWithActorId = (actorId: string) =>
+    GET(
+      new NextRequest(
+        `https://llun.test/api/v1/account/archives?actorId=${encodeURIComponent(actorId)}`
+      ),
+      { params: Promise.resolve({}) }
+    )
+
+  it('answers 409 Actor changed to a POST naming another actor, and stores nothing', async () => {
+    const response = await post({
+      actorId: 'https://llun.test/users/someone-else',
+      stripExactLocations: true,
+      drafts: [{ id: 'd1', composer: 'post-box', text: 'a draft' }]
+    })
+    expect(response.status).toBe(409)
+    expect(await response.json()).toEqual({ error: 'Actor changed' })
+    expect(publish).not.toHaveBeenCalled()
+    expect(
+      await database.getActiveAccountArchive({
+        accountId: await getAccountId(seedActor1.email)
+      })
+    ).toBeNull()
+    // The drafts never reached the store.
+    expect(await fs.readdir(root)).toEqual([])
+  })
+
+  it('answers 409 Actor changed to a GET naming another actor', async () => {
+    const response = await listWithActorId(
+      'https://llun.test/users/someone-else'
+    )
+    expect(response.status).toBe(409)
+    expect(await response.json()).toEqual({ error: 'Actor changed' })
+  })
+
+  it('accepts a POST and a GET that name the signed-in actor', async () => {
+    const actorId = await getActorId()
+    expect((await post({ actorId, stripExactLocations: true })).status).toBe(
+      202
+    )
+    const listed = await listWithActorId(actorId)
+    expect(listed.status).toBe(200)
+    expect(await listed.json()).toHaveLength(1)
+  })
+
+  it('accepts a POST and a GET without an actorId, as API clients send them', async () => {
+    expect((await post({ stripExactLocations: true })).status).toBe(202)
+    const listed = await list()
+    expect(listed.status).toBe(200)
+    expect(await listed.json()).toHaveLength(1)
+  })
+
   it('answers 429 with the retry time while an export is running', async () => {
     const created = await (await post()).json()
     const row = (await database.getAccountArchive({ id: created.id }))!

@@ -1,0 +1,1027 @@
+/**
+ * @vitest-environment jsdom
+ */
+import '@testing-library/jest-dom'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
+
+import * as client from '@/lib/client'
+
+import { MoveForm } from './MoveForm'
+import { requestMovingFocus, takeMovingFocus } from './movingFocus'
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: vi.fn() })
+}))
+
+const connection = {
+  state: 'online' as 'online' | 'offline' | 'unreachable'
+}
+
+vi.mock('@/lib/hooks/useConnectionStatus', () => ({
+  useConnectionStatus: () => connection
+}))
+
+vi.mock('@/lib/client', () => {
+  class ApiRequestError extends Error {
+    status: number
+    constructor(message: string, status: number) {
+      super(message)
+      this.name = 'ApiRequestError'
+      this.status = status
+    }
+  }
+  return {
+    ApiRequestError,
+    getAccountMigration: vi.fn(),
+    moveAccount: vi.fn()
+  }
+})
+
+const mockMove = vi.mocked(client.moveAccount)
+const mockGetMigration = vi.mocked(client.getAccountMigration)
+
+const fillMove = () => {
+  fireEvent.change(screen.getByLabelText('New account'), {
+    target: { value: '@may@new.example' }
+  })
+  fireEvent.change(screen.getByLabelText('Password'), {
+    target: { value: 'secret' }
+  })
+}
+
+describe('MoveForm', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    connection.state = 'online'
+    // RadioGroup measures its cards; jsdom has no observer.
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      }
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('shows the standing warning', () => {
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+
+    expect(
+      screen.getByText('Followers move. Posts stay here.')
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/Your posts, photos and fitness files stay on this/)
+    ).toBeInTheDocument()
+  })
+
+  it('offers the two kinds and words the action per kind', () => {
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+
+    expect(
+      screen.getByRole('radio', { name: /Move my followers/ })
+    ).toBeChecked()
+    expect(
+      screen.getByRole('radio', { name: /Only show a redirect/ })
+    ).not.toBeChecked()
+    expect(
+      screen.getByRole('button', { name: 'Move followers' })
+    ).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('radio', { name: /Only show a redirect/ }))
+
+    expect(
+      screen.getByRole('button', { name: 'Show redirect' })
+    ).toBeInTheDocument()
+  })
+
+  it('confirms a full move before sending it', async () => {
+    mockMove.mockResolvedValueOnce({
+      movedTo: { id: 'https://new.example/users/may', acct: 'may@new.example' },
+      migrations: [],
+      cooldownUntil: null,
+      followersCount: 12
+    })
+
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+
+    fillMove()
+    fireEvent.click(screen.getByRole('button', { name: 'Move followers' }))
+
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Move your followers'
+    })
+    expect(
+      within(dialog).getByText(/followers will be moved to/)
+    ).toBeInTheDocument()
+    expect(within(dialog).getByText('@may@new.example')).toBeInTheDocument()
+    expect(mockMove).not.toHaveBeenCalled()
+
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Move followers' })
+    )
+
+    await waitFor(() => {
+      expect(mockMove).toHaveBeenCalledWith({
+        actorId: 'https://llun.test/users/anna',
+        acct: 'may@new.example',
+        kind: 'move',
+        password: 'secret'
+      })
+    })
+  })
+
+  it('confirms a redirect with its own words', async () => {
+    mockMove.mockResolvedValueOnce({
+      movedTo: { id: 'https://new.example/users/may', acct: 'may@new.example' },
+      migrations: [],
+      cooldownUntil: null,
+      followersCount: 12
+    })
+
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('radio', { name: /Only show a redirect/ }))
+    fireEvent.change(screen.getByLabelText('New account'), {
+      target: { value: '@may@new.example' }
+    })
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'secret' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Show redirect' }))
+
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Show a redirect'
+    })
+    expect(
+      within(dialog).getByText(/profile will show that you moved to/)
+    ).toBeInTheDocument()
+    expect(within(dialog).getByText('@may@new.example')).toBeInTheDocument()
+
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Show redirect' })
+    )
+
+    await waitFor(() => {
+      expect(mockMove).toHaveBeenCalledWith({
+        actorId: 'https://llun.test/users/anna',
+        acct: 'may@new.example',
+        kind: 'redirect',
+        password: 'secret'
+      })
+    })
+  })
+
+  it('asks for the current username on a passwordless account', async () => {
+    mockMove.mockResolvedValueOnce({
+      movedTo: null,
+      migrations: [],
+      cooldownUntil: null,
+      followersCount: 12
+    })
+
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword={false}
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+
+    expect(screen.queryByLabelText('Password')).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('New account'), {
+      target: { value: '@may@new.example' }
+    })
+    fireEvent.change(screen.getByLabelText('Current username'), {
+      target: { value: 'anna' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Move followers' }))
+
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Move your followers'
+    })
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Move followers' })
+    )
+
+    await waitFor(() => {
+      expect(mockMove).toHaveBeenCalledWith({
+        actorId: 'https://llun.test/users/anna',
+        acct: 'may@new.example',
+        kind: 'move',
+        username: 'anna'
+      })
+    })
+  })
+
+  it('maps the alias-required failure to the field error', async () => {
+    mockMove.mockRejectedValueOnce(
+      new client.ApiRequestError(
+        'Add this account as an alias on the new account first',
+        422
+      )
+    )
+
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+
+    fillMove()
+    fireEvent.click(screen.getByRole('button', { name: 'Move followers' }))
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Move your followers'
+    })
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Move followers' })
+    )
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          '@may@new.example does not list @anna@llun.test as an old account yet. Add it there first, then try again.'
+        )
+      ).toBeInTheDocument()
+    })
+  })
+
+  it('moves focus to the account input when the alias is required first', async () => {
+    mockMove.mockRejectedValueOnce(
+      new client.ApiRequestError(
+        'Add this account as an alias on the new account first',
+        422
+      )
+    )
+
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+
+    fillMove()
+    fireEvent.click(screen.getByRole('button', { name: 'Move followers' }))
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Move your followers'
+    })
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Move followers' })
+    )
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/does not list @anna@llun.test as an old account/)
+      ).toBeInTheDocument()
+    })
+    // The closed dialog would return focus to the SaveBar button that opened
+    // it; the field error is on the input, so focus moves there instead.
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByLabelText('New account'))
+    )
+  })
+
+  it('shows the plain message for a network failure, not the browser text', async () => {
+    mockMove.mockRejectedValueOnce(new TypeError('Failed to fetch'))
+
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+
+    fillMove()
+    fireEvent.click(screen.getByRole('button', { name: 'Move followers' }))
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Move your followers'
+    })
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Move followers' })
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('Could not start the move')).toBeInTheDocument()
+    })
+    expect(screen.queryByText('Failed to fetch')).not.toBeInTheDocument()
+  })
+
+  it('keeps the action off while the cooldown runs', () => {
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil="2026-11-23T00:00:00.000Z"
+      />
+    )
+
+    expect(screen.getByText(/You can move again on/)).toBeInTheDocument()
+    expect(screen.getByText('23 Nov 2026')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Move followers' })
+    ).toBeDisabled()
+
+    // A filled-in form hides the idle note, so the reason has to come from
+    // the disabledReason and stay next to "Unsaved changes".
+    fillMove()
+    expect(
+      screen.getByRole('button', { name: 'Move followers' })
+    ).toBeDisabled()
+    expect(
+      screen.getByText(/You can move again on 23 Nov 2026/)
+    ).toBeInTheDocument()
+  })
+
+  it('keeps a redirect available while the move cooldown runs', () => {
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil="2026-11-23T00:00:00.000Z"
+      />
+    )
+
+    // The redirect's own note shows, not the move's cooldown date.
+    fireEvent.click(screen.getByRole('radio', { name: /Only show a redirect/ }))
+    expect(
+      screen.getByText('No time limit. Cancel any time.')
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/You can move again on/)).not.toBeInTheDocument()
+
+    // A filled form can still send a redirect, while the move stays off.
+    fillMove()
+    fireEvent.click(screen.getByRole('radio', { name: /Move my followers/ }))
+    expect(
+      screen.getByRole('button', { name: 'Move followers' })
+    ).toBeDisabled()
+    fireEvent.click(screen.getByRole('radio', { name: /Only show a redirect/ }))
+    expect(
+      screen.getByRole('button', { name: 'Show redirect' })
+    ).not.toBeDisabled()
+  })
+
+  it('draws no native radio inputs named by their value', () => {
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+
+    // The only radios are the RadioCards' own, named by their titles; the
+    // hidden native inputs Radix draws for radios inside a <form> would be
+    // named "move" and "redirect" by their value attribute.
+    expect(document.querySelectorAll('input[type="radio"]')).toHaveLength(0)
+    expect(
+      screen.getByRole('radio', { name: 'Move my followers' })
+    ).toBeChecked()
+    expect(
+      screen.getByRole('radio', { name: 'Only show a redirect' })
+    ).not.toBeChecked()
+  })
+
+  it('shows the actor-changed alert on a 409 Actor changed', async () => {
+    mockMove.mockRejectedValueOnce(
+      new client.ApiRequestError('Actor changed', 409)
+    )
+
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+
+    fillMove()
+    fireEvent.click(screen.getByRole('button', { name: 'Move followers' }))
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Move your followers'
+    })
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Move followers' })
+    )
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Your active profile changed')
+      ).toBeInTheDocument()
+    })
+    expect(screen.getByRole('button', { name: 'Reload' })).toBeInTheDocument()
+    // The raw message is not shown as the SaveBar error.
+    expect(
+      screen.queryByText((_, element) =>
+        element?.classList.contains('text-destructive-text')
+          ? element.textContent === 'Actor changed'
+          : false
+      )
+    ).toBeNull()
+  })
+
+  it('picks the cooldown back up from a 429', async () => {
+    mockMove.mockRejectedValueOnce(
+      new client.ApiRequestError('Too many moves', 429)
+    )
+    mockGetMigration.mockResolvedValueOnce({
+      movedTo: null,
+      migrations: [],
+      cooldownUntil: '2026-11-23T00:00:00.000Z',
+      followersCount: 12
+    })
+
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+
+    fillMove()
+    fireEvent.click(screen.getByRole('button', { name: 'Move followers' }))
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Move your followers'
+    })
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Move followers' })
+    )
+
+    await waitFor(() => {
+      expect(mockGetMigration).toHaveBeenCalledWith({
+        actorId: 'https://llun.test/users/anna'
+      })
+    })
+    // The cooldown picked up from the re-read keeps the action off.
+    expect(
+      screen.getByRole('button', { name: 'Move followers' })
+    ).toBeDisabled()
+    // The form is still dirty from the attempt, so the idle note is hidden:
+    // the reason has to show as the disabledReason, next to "Unsaved
+    // changes".
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+    expect(
+      screen.getByText(/You can move again on 23 Nov 2026/)
+    ).toBeInTheDocument()
+    expect(screen.getByText('Unsaved changes')).toBeInTheDocument()
+  })
+
+  it('shows the server message when a 429 has no cooldown behind it', async () => {
+    // The race answer: the move changed while it was checked, so the server
+    // refuses with 429 and the re-read has no cooldown that explains it.
+    mockMove.mockRejectedValueOnce(
+      new client.ApiRequestError(
+        'The move changed while it was checked, try again',
+        429
+      )
+    )
+    mockGetMigration.mockResolvedValueOnce({
+      movedTo: null,
+      migrations: [],
+      cooldownUntil: null,
+      followersCount: 12
+    })
+
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+
+    fillMove()
+    fireEvent.click(screen.getByRole('button', { name: 'Move followers' }))
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Move your followers'
+    })
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Move followers' })
+    )
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('The move changed while it was checked, try again')
+      ).toBeInTheDocument()
+    })
+    // The form stays: no cooldown arrived, so the action is still there.
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Move followers' })).toBeEnabled()
+    expect(screen.queryByText(/You can move again on/)).not.toBeInTheDocument()
+  })
+
+  it('shows the server message for a redirect 429, which has no cooldown', async () => {
+    mockMove.mockRejectedValueOnce(
+      new client.ApiRequestError('Too many redirects', 429)
+    )
+    mockGetMigration.mockResolvedValueOnce({
+      movedTo: null,
+      migrations: [],
+      cooldownUntil: null,
+      followersCount: 12
+    })
+
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('radio', { name: /Only show a redirect/ }))
+    fillMove()
+    fireEvent.click(screen.getByRole('button', { name: 'Show redirect' }))
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Show a redirect'
+    })
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Show redirect' })
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('Too many redirects')).toBeInTheDocument()
+    })
+    expect(screen.getByRole('button', { name: 'Show redirect' })).toBeEnabled()
+  })
+
+  it('describes the password and current-username fields with their hint', () => {
+    const withPassword = render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+    expect(screen.getByLabelText('Password')).toHaveAccessibleDescription(
+      'Confirm it is you.'
+    )
+    withPassword.unmount()
+
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword={false}
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+    expect(
+      screen.getByLabelText('Current username')
+    ).toHaveAccessibleDescription('Confirm it is you.')
+  })
+
+  it('maps an unresolvable account to the field error', async () => {
+    mockMove.mockRejectedValueOnce(
+      new client.ApiRequestError('Record not found', 404)
+    )
+
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+
+    fillMove()
+    fireEvent.click(screen.getByRole('button', { name: 'Move followers' }))
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Move your followers'
+    })
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Move followers' })
+    )
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          'We could not find that account. Check the handle and try again.'
+        )
+      ).toBeInTheDocument()
+    })
+    expect(screen.getByLabelText('New account')).toHaveAttribute(
+      'aria-invalid',
+      'true'
+    )
+    // The dialog is gone, so the field error is what is on the page.
+    expect(
+      screen.queryByRole('dialog', { name: 'Move your followers' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('moves focus to the account input when the account is not found', async () => {
+    mockMove.mockRejectedValueOnce(
+      new client.ApiRequestError('Record not found', 404)
+    )
+
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+
+    fillMove()
+    fireEvent.click(screen.getByRole('button', { name: 'Move followers' }))
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Move your followers'
+    })
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Move followers' })
+    )
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          'We could not find that account. Check the handle and try again.'
+        )
+      ).toBeInTheDocument()
+    })
+    // The closed dialog would return focus to the SaveBar button that opened
+    // it; the field error is on the input, so focus moves there instead.
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByLabelText('New account'))
+    )
+  })
+
+  it('keeps the action available while the server is unreachable', () => {
+    // `unreachable` is the health probe failing while the device is online:
+    // only the browser's own `offline` state disables the action, so it keeps
+    // its own error path.
+    connection.state = 'unreachable'
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+
+    fillMove()
+    expect(
+      screen.getByRole('button', { name: 'Move followers' })
+    ).not.toBeDisabled()
+    expect(screen.queryByText("You're offline")).not.toBeInTheDocument()
+  })
+
+  it('keeps the action off while offline, with a note', () => {
+    connection.state = 'offline'
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+
+    fillMove()
+    expect(
+      screen.getByRole('button', { name: 'Move followers' })
+    ).toBeDisabled()
+    expect(screen.getByText(/You're offline/)).toBeInTheDocument()
+  })
+
+  it('maps a server this instance does not federate with to the field error', async () => {
+    mockMove.mockRejectedValueOnce(
+      new client.ApiRequestError(
+        'Federation with that server is not allowed',
+        403
+      )
+    )
+
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+
+    fillMove()
+    fireEvent.click(screen.getByRole('button', { name: 'Move followers' }))
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Move your followers'
+    })
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Move followers' })
+    )
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          "This server does not connect with that account's server."
+        )
+      ).toBeInTheDocument()
+    })
+    expect(screen.getByLabelText('New account')).toHaveAttribute(
+      'aria-invalid',
+      'true'
+    )
+    // The raw message is not shown as the SaveBar error.
+    expect(
+      screen.queryByText('Federation with that server is not allowed')
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows any other 403 in the SaveBar, not as the account field error', async () => {
+    // The auth guard's 403 (a suspended or unconfirmed account) is not a
+    // problem with the New account field.
+    mockMove.mockRejectedValueOnce(new client.ApiRequestError('Forbidden', 403))
+
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+
+    fillMove()
+    fireEvent.click(screen.getByRole('button', { name: 'Move followers' }))
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Move your followers'
+    })
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Move followers' })
+    )
+
+    expect(await screen.findByText('Forbidden')).toBeInTheDocument()
+    expect(screen.getByLabelText('New account')).not.toHaveAttribute(
+      'aria-invalid',
+      'true'
+    )
+  })
+
+  it('maps a passwordless Invalid username to the Current username field', async () => {
+    // The migration route has no other source of "Invalid username" (a
+    // malformed target is "Invalid account"), so on a passwordless account
+    // this refusal is the challenge: the current username did not match.
+    mockMove.mockRejectedValueOnce(
+      new client.ApiRequestError('Invalid username', 422)
+    )
+
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword={false}
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('New account'), {
+      target: { value: '@may@new.example' }
+    })
+    fireEvent.change(screen.getByLabelText('Current username'), {
+      target: { value: 'wrong' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Move followers' }))
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Move your followers'
+    })
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Move followers' })
+    )
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('That is not your current username')
+      ).toBeInTheDocument()
+    })
+    expect(screen.getByLabelText('Current username')).toHaveAttribute(
+      'aria-invalid',
+      'true'
+    )
+    // The raw message is not shown as the SaveBar error.
+    expect(screen.queryByText('Invalid username')).not.toBeInTheDocument()
+    // The closed dialog would return focus to the SaveBar button that opened
+    // it; the field error is on the input, so focus moves there instead.
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByLabelText('Current username')
+      )
+    )
+
+    // Editing the challenge clears its error and invalid state.
+    fireEvent.change(screen.getByLabelText('Current username'), {
+      target: { value: 'anna' }
+    })
+    expect(
+      screen.queryByText('That is not your current username')
+    ).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Current username')).not.toHaveAttribute(
+      'aria-invalid'
+    )
+  })
+
+  it('drops the stale alias field error when a retried move fails for another reason', async () => {
+    mockMove
+      .mockRejectedValueOnce(
+        new client.ApiRequestError(
+          'Add this account as an alias on the new account first',
+          422
+        )
+      )
+      .mockRejectedValueOnce(
+        new client.ApiRequestError('Invalid password', 422)
+      )
+
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+
+    fillMove()
+    const send = async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Move followers' }))
+      const dialog = await screen.findByRole('dialog', {
+        name: 'Move your followers'
+      })
+      fireEvent.click(
+        within(dialog).getByRole('button', { name: 'Move followers' })
+      )
+    }
+
+    await send()
+    await screen.findByText(/does not list @anna@llun.test/)
+
+    // The user adds the alias on the new server and tries again, without
+    // touching the New account field; this time the password is wrong.
+    await send()
+    await screen.findByText('Invalid password')
+
+    expect(screen.queryByText(/does not list @anna@llun.test/)).toBeNull()
+  })
+
+  it('maps a malformed account to the same field error', async () => {
+    mockMove.mockRejectedValueOnce(
+      new client.ApiRequestError('Invalid account', 422)
+    )
+
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+
+    fillMove()
+    fireEvent.click(screen.getByRole('button', { name: 'Move followers' }))
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Move your followers'
+    })
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Move followers' })
+    )
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          'We could not find that account. Check the handle and try again.'
+        )
+      ).toBeInTheDocument()
+    })
+    expect(screen.getByLabelText('New account')).toHaveAttribute(
+      'aria-invalid',
+      'true'
+    )
+  })
+
+  it('leaves a focus request for the notice after a move', async () => {
+    mockMove.mockResolvedValueOnce({
+      movedTo: { id: 'https://new.example/users/may', acct: 'may@new.example' },
+      migrations: [],
+      cooldownUntil: null,
+      followersCount: 12
+    })
+
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+
+    fillMove()
+    fireEvent.click(screen.getByRole('button', { name: 'Move followers' }))
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Move your followers'
+    })
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Move followers' })
+    )
+
+    await waitFor(() => {
+      // The refresh swaps this form for the MovedNotice, which takes the
+      // request on mount and focuses its own Alert.
+      expect(takeMovingFocus('moved-notice')).toBe(true)
+    })
+  })
+
+  it('takes the focus request left by a cancelled redirect', async () => {
+    requestMovingFocus('move-form')
+
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen
+          .getByText('Followers move. Posts stay here.')
+          .closest('[tabindex="-1"]')
+      )
+    )
+  })
+
+  it('leaves focus alone on a plain page load', () => {
+    render(
+      <MoveForm
+        actorId="https://llun.test/users/anna"
+        hasPassword
+        currentHandle="anna@llun.test"
+        cooldownUntil={null}
+      />
+    )
+
+    expect(document.activeElement).toBe(document.body)
+  })
+})

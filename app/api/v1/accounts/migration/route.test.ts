@@ -391,6 +391,15 @@ describe('Account migration API route', () => {
       expect((await post(goodBody)).status).toBe(status)
     })
 
+    it('names the refused domain in its 403 body', async () => {
+      vi.mocked(resolveAccountTarget).mockResolvedValue({ type: 'forbidden' })
+      const res = await post(goodBody)
+      expect(res.status).toBe(HTTP_STATUS.FORBIDDEN)
+      expect(await res.json()).toEqual({
+        error: 'Federation with that server is not allowed'
+      })
+    })
+
     it('refuses moving to yourself', async () => {
       resolveTo(MockActor({ id: ME }))
       const res = await post(goodBody)
