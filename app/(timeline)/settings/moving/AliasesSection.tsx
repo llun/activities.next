@@ -79,9 +79,13 @@ export const AliasesSection: FC<Props> = ({ actorId, initialAliases }) => {
         failField(
           'We could not find that account. Check the handle and try again.'
         )
-      } else if (err instanceof ApiRequestError && err.status === 403) {
-        // 403 "Forbidden" is this instance refusing to federate with the
-        // handle's server.
+      } else if (
+        err instanceof ApiRequestError &&
+        err.status === 403 &&
+        err.message === 'Federation with that server is not allowed'
+      ) {
+        // This instance refuses to federate with the handle's server. Any
+        // other 403 (a suspended or unconfirmed account) keeps its own text.
         failField("This server does not connect with that account's server.")
       } else if (
         err instanceof ApiRequestError &&

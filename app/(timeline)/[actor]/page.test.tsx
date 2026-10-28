@@ -908,6 +908,61 @@ describe('[actor] page moved banner', () => {
     ).toBeInTheDocument()
   })
 
+  it('reads the kind from the pointer for the owner when the target row is gone', async () => {
+    // The target's actor row can disappear (a remote Delete(Person), say)
+    // while the redirect still stands: the owner's banner has to keep
+    // reading it as a redirect, exactly as Settings › Moving does, instead
+    // of falling back to the performed-move wording.
+    mockGetActorFromSession.mockResolvedValue({
+      ...viewer,
+      id: 'https://llun.social/users/main'
+    } as never)
+    mockGetProfileData.mockResolvedValue(
+      profile(person('https://gone.example/users/may'))
+    )
+    mockDatabase.getActorFromId.mockResolvedValue(null)
+    mockDatabase.getActorMigrations.mockResolvedValue([
+      { targetActorId: 'https://gone.example/users/may', kind: 'redirect' }
+    ])
+
+    await renderPage()
+
+    expect(mockDatabase.getActorMigrations).toHaveBeenCalledWith({
+      actorId: 'https://llun.social/users/main'
+    })
+    expect(
+      screen.getByText(
+        'You are redirecting from this profile. Followers have not been moved.'
+      )
+    ).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Manage/ })).toHaveAttribute(
+      'href',
+      '/settings/moving'
+    )
+    // Without a stored target there is no way in, only the owner's way to
+    // manage the redirect.
+    expect(
+      screen.queryByRole('link', { name: /Go to new profile/ })
+    ).not.toBeInTheDocument()
+  })
+
+  it('does not read the migrations for a visitor of a moved profile', async () => {
+    // Only the owner's copy depends on the kind, so a visitor's view of a
+    // moved profile never pays the migrations query.
+    mockGetProfileData.mockResolvedValue(
+      profile(person('https://new.example/users/may'))
+    )
+
+    await renderPage()
+
+    expect(mockDatabase.getActorMigrations).not.toHaveBeenCalled()
+    expect(
+      screen.getByText(
+        'Follow them at their new profile. Posts here stay as they were.'
+      )
+    ).toBeInTheDocument()
+  })
+
   it('draws no banner when the profile has not moved', async () => {
     mockGetProfileData.mockResolvedValue(profile(person(undefined)))
 

@@ -101,7 +101,11 @@ export const POST = traceApiRoute(
     const result = await resolveAccountTarget({ database, input: acct })
     if (result.type === 'invalid') return errorResponse(req, 'Invalid account')
     if (result.type === 'forbidden') {
-      return errorResponse(req, 'Forbidden', HTTP_STATUS.FORBIDDEN)
+      return errorResponse(
+        req,
+        'Federation with that server is not allowed',
+        HTTP_STATUS.FORBIDDEN
+      )
     }
     if (result.type === 'not-found') {
       return errorResponse(req, 'Record not found', HTTP_STATUS.NOT_FOUND)

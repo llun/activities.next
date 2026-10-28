@@ -95,11 +95,16 @@ export const HandleRenameForm: FC<Props> = ({
   // parsed: the form has to compare and preview the same value, or the
   // preview and the confirm can promise a handle the server never saves.
   const trimmedUsername = username.trim().toLowerCase()
+  // The stored username is folded the same way: the server compares both
+  // sides lowercased, so a mixed-case row (`Anna`) and the same name typed
+  // lowercased are the same handle, not a change.
+  const storedUsername = handle.username.toLowerCase()
   // A domain change alone is a change: the username the form sends is the new
-  // one, or the current one when only the domain moved.
-  const nextUsername = trimmedUsername || handle.username
+  // one, or the current one when only the domain moved — folded either way,
+  // because the server stores what it parsed.
+  const nextUsername = (trimmedUsername || handle.username).toLowerCase()
   const previewUsername = nextUsername
-  const changed = nextUsername !== handle.username || domain !== handle.domain
+  const changed = nextUsername !== storedUsername || domain !== handle.domain
   const dirty =
     changed && (hasPassword ? password !== '' : currentUsername !== '')
 
@@ -118,6 +123,11 @@ export const HandleRenameForm: FC<Props> = ({
   const openConfirm = (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+    // A retry starts clean, as MoveForm does: a failure for another reason
+    // must not keep the error for the problem the user just fixed elsewhere,
+    // and a stale field error would also take the closing dialog's focus.
+    setFieldError(null)
+    setChallengeError(null)
     setActorChanged(false)
     // The same schema the rename route parses with, so a name the server
     // would refuse never reaches the confirm dialog: its own message is a
@@ -130,7 +140,7 @@ export const HandleRenameForm: FC<Props> = ({
     // The server compares case-insensitively and answers "Nothing to
     // change" for the same name in another case: refuse it here, on the
     // field, instead of sending a rename that cannot succeed.
-    if (parsed.data === handle.username && domain === handle.domain) {
+    if (parsed.data === storedUsername && domain === handle.domain) {
       failUsernameField('That is already your handle')
       return
     }

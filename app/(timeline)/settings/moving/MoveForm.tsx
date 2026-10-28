@@ -61,6 +61,7 @@ export const MoveForm: FC<Props> = ({
   const [password, setPassword] = useState('')
   const [username, setUsername] = useState('')
   const [fieldError, setFieldError] = useState<string | null>(null)
+  const [challengeError, setChallengeError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [actorChanged, setActorChanged] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -68,6 +69,7 @@ export const MoveForm: FC<Props> = ({
   const [cooldownUntil, setCooldownUntil] = useState(initialCooldownUntil)
   const warningRef = useRef<HTMLDivElement>(null)
   const accountRef = useRef<HTMLInputElement>(null)
+  const currentUsernameRef = useRef<HTMLInputElement>(null)
   const { state: connection } = useConnectionStatus()
   // Only the browser's own `offline` state disables the action: with
   // `unreachable` (the health probe failed while the device is online) the
@@ -96,6 +98,7 @@ export const MoveForm: FC<Props> = ({
     // say) starts clean: a failure for another reason must not keep the
     // error for the problem the user just fixed.
     setFieldError(null)
+    setChallengeError(null)
     setActorChanged(false)
     setConfirmOpen(true)
   }
@@ -158,10 +161,26 @@ export const MoveForm: FC<Props> = ({
           'We could not find that account. Check the handle and try again.'
         )
         setConfirmOpen(false)
-      } else if (err instanceof ApiRequestError && err.status === 403) {
-        // The migration route answers 403 "Forbidden" when this instance
-        // does not federate with the target's server: a problem with the
-        // New account field, not the move.
+      } else if (
+        err instanceof ApiRequestError &&
+        !hasPassword &&
+        err.status === 422 &&
+        err.message === 'Invalid username'
+      ) {
+        // The migration route has no other source of "Invalid username" (a
+        // malformed target is "Invalid account"), so on a passwordless
+        // account this refusal is the challenge: the Current username did
+        // not match. It is that field's error, not the SaveBar's.
+        setChallengeError('That is not your current username')
+        setConfirmOpen(false)
+      } else if (
+        err instanceof ApiRequestError &&
+        err.status === 403 &&
+        err.message === 'Federation with that server is not allowed'
+      ) {
+        // This instance does not federate with the target's server: a
+        // problem with the New account field, not the move. Any other 403
+        // (a suspended or unconfirmed account) keeps its own text.
         setFieldError(
           "This server does not connect with that account's server."
         )
@@ -335,13 +354,36 @@ export const MoveForm: FC<Props> = ({
               hint="Confirm it is you."
             >
               {({ describedBy }) => (
-                <Input
-                  id="moveCurrentUsername"
-                  aria-describedby={describedBy}
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  autoComplete="username"
-                />
+                <div className="space-y-2">
+                  <Input
+                    id="moveCurrentUsername"
+                    ref={currentUsernameRef}
+                    aria-describedby={
+                      [
+                        describedBy,
+                        challengeError ? 'moveCurrentUsername-error' : undefined
+                      ]
+                        .filter(Boolean)
+                        .join(' ') || undefined
+                    }
+                    aria-invalid={challengeError ? true : undefined}
+                    value={username}
+                    onChange={(e) => {
+                      setUsername(e.target.value)
+                      setChallengeError(null)
+                    }}
+                    autoComplete="username"
+                  />
+                  {challengeError ? (
+                    <p
+                      id="moveCurrentUsername-error"
+                      role="alert"
+                      className="text-destructive-text text-xs"
+                    >
+                      {challengeError}
+                    </p>
+                  ) : null}
+                </div>
               )}
             </FormRow>
           )}
@@ -355,9 +397,15 @@ export const MoveForm: FC<Props> = ({
             // A field error closes the dialog with the invalid input waiting:
             // closing would otherwise return focus to the SaveBar button that
             // opened it, and the error is on the input, not the button.
-            if (!fieldError) return
-            event.preventDefault()
-            accountRef.current?.focus()
+            if (fieldError) {
+              event.preventDefault()
+              accountRef.current?.focus()
+              return
+            }
+            if (challengeError) {
+              event.preventDefault()
+              currentUsernameRef.current?.focus()
+            }
           }}
         >
           <DialogHeader>
