@@ -325,15 +325,20 @@ export const ArchiveExportSection = ({
           tone="error"
           title="We could not make your archive"
           action={
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={requesting || isOffline || actorChanged}
-              onClick={() => void prepareArchive()}
-            >
-              Try again
-            </Button>
+            // Without an object store prepareArchive returns at once, so
+            // a Try again would be a live control that does nothing. The
+            // info alert above already says why nothing can be retried.
+            exportAvailable ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={requesting || isOffline || actorChanged}
+                onClick={() => void prepareArchive()}
+              >
+                Try again
+              </Button>
+            ) : undefined
           }
         >
           {errorBody}

@@ -112,6 +112,19 @@ describe('importCopy', () => {
     ])
   })
 
+  it('sums kinds that share one label into a single row', () => {
+    // The posts' attachments and the gallery's own photos and videos are
+    // different files counted under different kinds, but the reader sees
+    // one number: the total.
+    expect(
+      importReportRows({
+        done: { media: 3, 'own-media': 2 },
+        skipped: {},
+        failed: {}
+      })
+    ).toEqual(['5 photos and videos imported'])
+  })
+
   it('includes the worker phases used by archive imports', () => {
     expect(IMPORT_PHASE_LABELS).toMatchObject({
       inspect: 'Reading the archive',

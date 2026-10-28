@@ -96,12 +96,37 @@ export const IMPORTED_KIND_LABELS: Record<
 
 const countLabel = (count: number) => count.toLocaleString('en-US')
 
-const importedRow = (kind: string, count: number) => {
-  const label = IMPORTED_KIND_LABELS[kind] ?? {
+const importedKindLabel = (kind: string) =>
+  IMPORTED_KIND_LABELS[kind] ?? {
     singular: kind.replaceAll(/[-_]/g, ' '),
     plural: `${kind.replaceAll(/[-_]/g, ' ')}s`
   }
-  return `${countLabel(count)} ${count === 1 ? label.singular : label.plural} imported`
+
+const importedRow = (
+  label: { singular: string; plural: string },
+  count: number
+) =>
+  `${countLabel(count)} ${count === 1 ? label.singular : label.plural} imported`
+
+// Two catalog kinds can share one wording: the posts' attachments and the
+// gallery's own photos and videos are both "photos and videos". One row per
+// kind would print the same words twice with numbers that each tell only
+// part of the story, so kinds with the same label are summed into one row.
+const doneRows = (done: Record<string, number>) => {
+  const summed = new Map<
+    string,
+    { label: { singular: string; plural: string }; count: number }
+  >()
+  for (const [kind, count] of Object.entries(done)) {
+    if (count <= 0) continue
+    const label = importedKindLabel(kind)
+    const row = summed.get(label.plural)
+    if (row) row.count += count
+    else summed.set(label.plural, { label, count })
+  }
+  return [...summed.values()]
+    .sort((left, right) => left.label.plural.localeCompare(right.label.plural))
+    .map(({ label, count }) => importedRow(label, count))
 }
 
 const outcomeRows = (
@@ -122,10 +147,7 @@ export const importReportRows = (
 ): string[] => {
   const rows = report
     ? [
-        ...Object.entries(report.done)
-          .filter(([, count]) => count > 0)
-          .sort(([left], [right]) => left.localeCompare(right))
-          .map(([kind, count]) => importedRow(kind, count)),
+        ...doneRows(report.done),
         ...outcomeRows(report.skipped, 'skipped'),
         ...outcomeRows(report.failed, 'failed')
       ]

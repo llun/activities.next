@@ -256,6 +256,26 @@ describe('ArchiveExportSection', () => {
     expect(screen.queryByRole('button', { name: 'Prepare archive' })).toBeNull()
   })
 
+  it('offers no Try again for a failed archive when export is unavailable', () => {
+    render(
+      <ArchiveExportSection
+        {...props}
+        exportAvailable={false}
+        initialArchives={[archive('failed')] as never}
+      />
+    )
+
+    expect(
+      screen.getByText('Archive export is not available on this server')
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('We could not make your archive')
+    ).toBeInTheDocument()
+    // prepareArchive returns at once without an object store, so a Try
+    // again here would be a control that does nothing.
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull()
+  })
+
   it('disables Prepare for the date returned in a 429 body', async () => {
     mocks.requestArchive.mockRejectedValue(
       new ApiRequestError(

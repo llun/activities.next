@@ -1916,6 +1916,39 @@ describe('ImportSection', () => {
     )
   })
 
+  it('leaves a focus the user moved elsewhere alone after Discard succeeds', async () => {
+    const cancel = deferred<unknown>()
+    vi.mocked(accountImports.cancelAccountImport).mockReturnValueOnce(
+      cancel.promise as never
+    )
+    render(
+      <>
+        <input aria-label="Elsewhere" />
+        {sectionWith(queuedNotStarted)}
+      </>
+    )
+    const discard = screen.getByRole('button', { name: 'Discard' })
+    discard.focus()
+    fireEvent.click(discard)
+    // While the DELETE is in flight the user moves on to another control.
+    screen.getByLabelText('Elsewhere').focus()
+    await act(async () => {
+      cancel.resolve({})
+      await cancel.promise
+    })
+
+    await waitFor(() =>
+      expect(
+        screen.queryByText('An earlier upload was not started')
+      ).not.toBeInTheDocument()
+    )
+    // The hand-off only applies to a focus that fell to the body, so the
+    // control the user moved to keeps it.
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByLabelText('Elsewhere'))
+    )
+  })
+
   it.each([
     [
       'an unreadable archive',
