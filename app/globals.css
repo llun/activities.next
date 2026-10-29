@@ -86,10 +86,10 @@
      true against it. */
   --color-photo-stage: var(--photo-stage);
 
-  /* Unified desktop content width. Every top-level page in the (timeline)
-     route group centers its content (and its page-header title row) at this
-     single width, so the column stays aligned as you switch tabs. Exposed as
-     the `max-w-content` utility via Tailwind's `--container-*` namespace. */
+  /* The design's type scale draws 18 px text on a 24 px line (Heading/lg 18/24),
+     where Tailwind's default `text-lg` is 18/28. Every `text-lg` element (the
+     settings and admin card headings above all) takes its line height from this
+     one value. */
   --text-lg--line-height: calc(1.5 / 1.125);
 }
 
@@ -97,6 +97,10 @@
    var(--container-content) instead of the literal value, letting the
    route-scoped override below re-declare it. */
 @theme {
+  /* Unified desktop content width. Every top-level page in the (timeline)
+     route group centers its content (and its page-header title row) at this
+     single width, so the column stays aligned as you switch tabs. Exposed as
+     the `max-w-content` utility via Tailwind's `--container-*` namespace. */
   --container-content: 940px;
 }
 
@@ -106,7 +110,7 @@
    the shell column and the Gallery title band together; the app-wide value
    above is unchanged, so narrower viewports are unaffected. */
 html:has([data-gallery-wide]) {
-  --container-content: 70rem;
+  --container-content: 1120px;
 }
 
 :root {

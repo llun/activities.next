@@ -2,6 +2,7 @@
 
 import { type FC, useEffect, useRef, useState } from 'react'
 
+import { breakoutStyle } from '@/lib/components/layout/chromeLayout'
 import { Button } from '@/lib/components/ui/button'
 import { normalizeActivityTypeToSportKey } from '@/lib/services/fitness-files/sportTypes'
 import type {
@@ -82,13 +83,44 @@ export const GalleryDayHeader: FC<GalleryDayHeaderProps> = ({
   const [stuck, setStuck] = useState(false)
   const headerRef = useRef<HTMLDivElement | null>(null)
   const sentinelRef = useRef<HTMLDivElement | null>(null)
+  // Bumped whenever the sticky offset may have moved, re-creating the
+  // observer so it re-reads the header's computed `top`.
+  const [observeEpoch, setObserveEpoch] = useState(0)
+
+  // The offset moves when the viewport crosses md or the connection strip's
+  // measured --status-strip-h changes; either re-reads the rootMargin.
+  useEffect(() => {
+    if (!isPage) return
+    const onMaybeMove = () => setObserveEpoch((epoch) => epoch + 1)
+    const media =
+      typeof window.matchMedia === 'function'
+        ? window.matchMedia('(min-width: 48rem)')
+        : null
+    media?.addEventListener('change', onMaybeMove)
+    const mutations =
+      typeof MutationObserver === 'undefined'
+        ? null
+        : new MutationObserver((records) => {
+            if (records.some((record) => record.attributeName === 'style'))
+              onMaybeMove()
+          })
+    mutations?.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['style']
+    })
+    return () => {
+      media?.removeEventListener('change', onMaybeMove)
+      mutations?.disconnect()
+    }
+  }, [isPage])
 
   // Stuck when the sentinel just above the header has scrolled behind the
   // sticky offset: the observer's top rootMargin is minus that offset, so the
   // sentinel only leaves the shrunken viewport once the header is pinned.
-  // The offset differs between phone and md, so it is read off the header's
-  // computed `top` when the observer is set up. No observer (SSR, jsdom)
-  // means never stuck.
+  // The offset differs between phone and md, and with --status-strip-h, so a
+  // matching media query or a style mutation on <html> re-creates the
+  // observer (see the epoch effect above). No observer (SSR, jsdom) means
+  // never stuck.
   useEffect(() => {
     const header = headerRef.current
     const sentinel = sentinelRef.current
@@ -99,12 +131,18 @@ export const GalleryDayHeader: FC<GalleryDayHeaderProps> = ({
       ? `-${offset}px 0px 0px 0px`
       : '0px'
     const observer = new IntersectionObserver(
-      (entries) => setStuck(!entries[0].isIntersecting),
+      (entries) => {
+        const entry = entries[0]
+        if (!entry) return
+        // Stuck once the sentinel has crossed above the shrunken
+        // viewport's top edge, not merely when it stops intersecting.
+        setStuck(entry.boundingClientRect.top < (entry.rootBounds?.top ?? 0))
+      },
       { rootMargin }
     )
     observer.observe(sentinel)
     return () => observer.disconnect()
-  }, [isPage])
+  }, [isPage, observeEpoch])
   const count = stats?.count ?? loadedCount
   const inAlbum = stats?.inAlbum ?? loadedInAlbum
   const placeName = stats?.placeName ?? null
@@ -149,27 +187,20 @@ export const GalleryDayHeader: FC<GalleryDayHeaderProps> = ({
     )
   }
 
-  const header = (
-    <div
-      ref={headerRef}
-      data-stuck={isPage && stuck ? 'true' : undefined}
-      className={cn(
-        'sticky z-10 py-1.5',
-        twoRow
-          ? 'max-sm:grid max-sm:grid-cols-[minmax(0,1fr)_auto] max-sm:items-center max-sm:gap-x-2 max-sm:gap-y-1'
-          : 'flex items-center gap-2',
-        'sm:flex sm:items-center sm:gap-2',
-        // The page surface is transparent at rest; stuck it takes the
-        // chrome surface, blur and hairline of the title band, spanning
-        // the content column edge to edge (the column's padding is
-        // pulled in, then added back so text aligns with the tiles).
-        isPage && [
-          '-mx-4 px-4',
-          'data-[stuck]:border-b data-[stuck]:bg-surface-chrome data-[stuck]:backdrop-blur'
-        ],
-        className
-      )}
-    >
+  // The header's one row: the date, the meta line, the activity chip and,
+  // while selecting, the Select day button. On the dialog surface this is
+  // the header box itself; on the page surface it sits inside the breakout
+  // box, re-centred at `max-w-content` so it stays aligned with the tiles.
+  const rowClassName = cn(
+    'py-1.5',
+    twoRow
+      ? 'max-sm:grid max-sm:grid-cols-[minmax(0,1fr)_auto] max-sm:items-center max-sm:gap-x-2 max-sm:gap-y-1'
+      : 'flex items-center gap-2',
+    'sm:flex sm:items-center sm:gap-2'
+  )
+
+  const row = (
+    <>
       <Heading
         className={cn(
           'shrink-0',
@@ -268,16 +299,49 @@ export const GalleryDayHeader: FC<GalleryDayHeaderProps> = ({
           )}
         </Button>
       ) : null}
-    </div>
+    </>
   )
 
-  if (!isPage) return header
-  // The 1px sentinel the observer watches sits directly above the sticky
-  // header, so it leaves the shrunken viewport exactly when the header pins.
+  // The dialog surface keeps the single box the album picker has always
+  // hosted: its `className` supplies the sticky offset and background.
+  if (!isPage) {
+    return (
+      <div
+        ref={headerRef}
+        className={cn('sticky z-10', rowClassName, className)}
+      >
+        {row}
+      </div>
+    )
+  }
+
+  // The page surface is transparent at rest; stuck it takes the chrome
+  // surface, blur and hairline of the title band. The box breaks out of
+  // the content column exactly the way the title band does
+  // (`breakoutStyle`, as `PageHeader` applies it), so the frosted strip
+  // spans the content pane edge to edge, while the row inside re-centres
+  // at `max-w-content` so the date and the Select day button keep the
+  // grid's edges. The hairline is a shadow, not a border: pinning must
+  // not grow the header and shift the tiles.
   return (
     <>
+      {/* The 1px sentinel the observer watches sits directly above the sticky
+          header, so it leaves the shrunken viewport exactly when the header pins. */}
       <div ref={sentinelRef} aria-hidden="true" className="h-px" />
-      {header}
+      <div
+        ref={headerRef}
+        data-stuck={stuck ? 'true' : undefined}
+        className={cn(
+          'sticky z-10',
+          'data-[stuck]:bg-surface-chrome data-[stuck]:backdrop-blur data-[stuck]:shadow-[0_1px_0_var(--border)]',
+          className
+        )}
+        style={breakoutStyle}
+      >
+        <div className={cn('mx-auto max-w-content px-4', rowClassName)}>
+          {row}
+        </div>
+      </div>
     </>
   )
 }

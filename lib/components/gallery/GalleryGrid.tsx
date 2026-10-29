@@ -301,9 +301,12 @@ export const GalleryGrid: FC<Props> = ({
             className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
           />
           {/* Quiet round icon badges, top-right, side by side. The titles are
-              decoration: the tile's accessible name speaks the state. */}
-          {item.inGallery === false || item.posted === false ? (
-            <div
+              decoration: the tile's accessible name speaks the state. The
+              wrapper (a span: buttons take phrasing content only) renders
+              only when a badge shows. */}
+          {(showHiddenBadge && item.inGallery === false) ||
+          item.posted === false ? (
+            <span
               aria-hidden="true"
               className="absolute top-1.5 right-1.5 flex gap-1"
             >
@@ -325,7 +328,7 @@ export const GalleryGrid: FC<Props> = ({
                   <Lock className="size-3" aria-hidden="true" />
                 </span>
               ) : null}
-            </div>
+            </span>
           ) : null}
           {selection ? (
             <span

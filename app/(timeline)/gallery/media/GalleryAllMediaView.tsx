@@ -674,7 +674,7 @@ export const GalleryAllMediaView: FC<Props> = ({
   const isDefaultFiltersAndSort = !hasFilters && filters.sort === 'taken_desc'
 
   const actions = (
-    <div className="flex items-center gap-2">
+    <div className="flex gap-2 sm:h-10 sm:items-center">
       {isUploadEnabled ? (
         <>
           <input

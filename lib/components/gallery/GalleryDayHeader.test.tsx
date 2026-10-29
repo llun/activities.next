@@ -6,6 +6,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { GalleryDayHeader } from '@/lib/components/gallery/GalleryDayHeader'
+import { breakoutStyle } from '@/lib/components/layout/chromeLayout'
 import type { GalleryDayStats } from '@/lib/services/gallery/galleryEntities'
 
 const DAY = '2025-10-04'
@@ -501,8 +502,12 @@ describe('GalleryDayHeader page surface', () => {
     scrollMargin = ''
     thresholds: number[] = []
 
-    constructor(callback: IntersectionObserverCallback) {
+    constructor(
+      callback: IntersectionObserverCallback,
+      options?: IntersectionObserverInit
+    ) {
       this.callback = callback
+      this.rootMargin = (options?.rootMargin as string) ?? ''
       MockIntersectionObserver.instances.push(this)
     }
 
@@ -514,66 +519,113 @@ describe('GalleryDayHeader page surface', () => {
     }
   }
 
+  // Fires an entry for a sentinel whose box top sits at `boundingTop` in a
+  // root whose top edge sits at `rootTop` (the shrunken viewport).
   const fireEntry = (
     observer: MockIntersectionObserver,
-    isIntersecting: boolean
+    boundingTop: number,
+    rootTop: number
   ) => {
     act(() => {
       observer.callback(
-        [{ isIntersecting } as unknown as IntersectionObserverEntry],
+        [
+          {
+            isIntersecting: false,
+            boundingClientRect: { top: boundingTop },
+            rootBounds: { top: rootTop }
+          } as unknown as IntersectionObserverEntry
+        ],
         observer as unknown as IntersectionObserver
       )
     })
   }
+
+  // Stubs the observer for the duration of `run`, awaiting it first: an
+  // async run must not outlive the stub.
+  const withMockObserver = async (run: () => void | Promise<void>) => {
+    vi.stubGlobal('IntersectionObserver', MockIntersectionObserver)
+    MockIntersectionObserver.instances = []
+    try {
+      await run()
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  }
+
+  // The page surface wraps the row in a breakout box: the sticky element the
+  // observer watches is the heading's sticky ancestor, not the row itself.
+  const pageHeader = () =>
+    screen.getByRole('heading').closest('div.sticky') as HTMLElement
 
   it('is transparent at rest with a sentinel above it', () => {
     const { container } = render(
       <GalleryDayHeader {...baseProps} surface="page" />
     )
 
-    const header = screen.getByRole('heading').parentElement as HTMLElement
+    const header = pageHeader()
     expect(header).not.toHaveClass('bg-background')
     expect(header).not.toHaveClass('bg-surface-chrome')
     expect(header).not.toHaveClass('border-b')
     expect(header).not.toHaveAttribute('data-stuck')
-    // The chrome spans the content column edge to edge, with the column
-    // padding added back so the text stays aligned with the tiles.
-    expect(header).toHaveClass('-mx-4', 'px-4')
+    // The row inside the breakout box re-centres at max-w-content with the
+    // column's padding, so the text stays aligned with the tiles.
+    const row = screen.getByRole('heading').parentElement as HTMLElement
+    expect(row).toHaveClass('mx-auto', 'max-w-content', 'px-4')
 
     const sentinel = container.firstElementChild as HTMLElement
     expect(sentinel).toHaveAttribute('aria-hidden', 'true')
     expect(sentinel).not.toBe(header)
   })
 
-  it('gains the chrome surface and hairline only while stuck', () => {
-    vi.stubGlobal('IntersectionObserver', MockIntersectionObserver)
-    try {
-      MockIntersectionObserver.instances = []
+  it('breaks the stuck strip out to the pane like the title band', () => {
+    const { unmount } = render(
+      <GalleryDayHeader {...baseProps} surface="page" />
+    )
+
+    // The same mechanism the Gallery title band uses: the sticky box carries
+    // breakoutStyle, so its background spans the content pane edge to edge
+    // instead of stopping 16px past the photo column.
+    const header = pageHeader()
+    expect(header.style.marginLeft).toBe(breakoutStyle.marginLeft)
+    expect(header.style.marginRight).toBe(breakoutStyle.marginRight)
+    unmount()
+
+    // The dialog surface (the album picker) keeps its own box: no breakout.
+    render(<GalleryDayHeader {...baseProps} />)
+    const dialog = screen.getByRole('heading').parentElement as HTMLElement
+    expect(dialog.style.marginLeft).toBe('')
+    expect(dialog.style.marginRight).toBe('')
+    expect(dialog).toHaveClass('sticky')
+  })
+
+  it('gains the chrome surface and a 0px hairline shadow only while stuck', async () => {
+    await withMockObserver(() => {
       const { container } = render(
         <GalleryDayHeader {...baseProps} surface="page" />
       )
 
-      const header = screen.getByRole('heading').parentElement as HTMLElement
+      const header = pageHeader()
       const sentinel = container.firstElementChild as HTMLElement
       const observer = MockIntersectionObserver.instances.at(-1)
       expect(observer).toBeDefined()
       expect(observer?.observe).toHaveBeenCalledWith(sentinel)
 
-      fireEntry(observer!, false)
+      // The sentinel has scrolled behind the root's top edge.
+      fireEntry(observer!, -1, 0)
       expect(header).toHaveAttribute('data-stuck', 'true')
       expect(header).toHaveClass(
         'data-[stuck]:bg-surface-chrome',
-        'data-[stuck]:border-b',
         'data-[stuck]:backdrop-blur'
       )
+      // The hairline is a shadow, not a border: pinning must not shift
+      // the tiles by growing the header.
+      expect(header).toHaveClass('data-[stuck]:shadow-[0_1px_0_var(--border)]')
+      expect(header).not.toHaveClass('data-[stuck]:border-b')
 
-      fireEntry(observer!, true)
+      fireEntry(observer!, 10, 0)
       expect(header).not.toHaveAttribute('data-stuck')
       expect(header).not.toHaveClass('bg-surface-chrome')
-      expect(header).not.toHaveClass('border-b')
-    } finally {
-      vi.unstubAllGlobals()
-    }
+    })
   })
 
   it('never sticks without an IntersectionObserver', () => {
@@ -584,9 +636,109 @@ describe('GalleryDayHeader page surface', () => {
     )
 
     expect(container.querySelector('[data-stuck]')).toBeNull()
-    expect(screen.getByRole('heading').parentElement).not.toHaveClass(
-      'bg-surface-chrome'
-    )
+    expect(pageHeader()).not.toHaveClass('bg-surface-chrome')
+  })
+
+  it('marks stuck when the sentinel has crossed above the root top', async () => {
+    await withMockObserver(() => {
+      render(<GalleryDayHeader {...baseProps} surface="page" />)
+
+      const header = pageHeader()
+      const observer = MockIntersectionObserver.instances.at(-1)!
+      expect(observer).toBeDefined()
+
+      fireEntry(observer, -1, 96)
+      expect(header).toHaveAttribute('data-stuck', 'true')
+
+      // Back below the root's top edge: not stuck again.
+      fireEntry(observer, 120, 96)
+      expect(header).not.toHaveAttribute('data-stuck')
+    })
+  })
+
+  it('stays unstuck while the sentinel is still below the viewport', async () => {
+    await withMockObserver(() => {
+      render(<GalleryDayHeader {...baseProps} surface="page" />)
+
+      const header = pageHeader()
+      const observer = MockIntersectionObserver.instances.at(-1)!
+
+      // The sentinel has not reached the shrunken viewport yet: the header
+      // must not pin just because the entry is not intersecting.
+      fireEntry(observer, 400, 96)
+      expect(header).not.toHaveAttribute('data-stuck')
+    })
+  })
+
+  it('cuts the rootMargin by the computed sticky offset', async () => {
+    await withMockObserver(() => {
+      const realGetComputedStyle = window.getComputedStyle
+      vi.spyOn(window, 'getComputedStyle').mockImplementation(((
+        element: Element
+      ) => {
+        if (
+          element instanceof HTMLElement &&
+          element.className.includes('sticky')
+        ) {
+          return { top: '79px' } as unknown as CSSStyleDeclaration
+        }
+        return realGetComputedStyle.call(window, element)
+      }) as typeof window.getComputedStyle)
+
+      render(<GalleryDayHeader {...baseProps} surface="page" />)
+
+      const observer = MockIntersectionObserver.instances.at(-1)
+      expect(observer).toBeDefined()
+      expect(observer?.rootMargin).toBe('-79px 0px 0px 0px')
+
+      vi.restoreAllMocks()
+    })
+  })
+
+  it('re-creates the observer when the sticky offset may move', async () => {
+    await withMockObserver(async () => {
+      // jsdom ships no matchMedia: stub one that collects its change
+      // listeners so the test can fire the md crossing.
+      const mediaListeners = new Set<() => void>()
+      vi.stubGlobal('matchMedia', (query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: (_type: string, listener: () => void) => {
+          mediaListeners.add(listener)
+        },
+        removeEventListener: (_type: string, listener: () => void) => {
+          mediaListeners.delete(listener)
+        }
+      }))
+
+      const { container } = render(
+        <GalleryDayHeader {...baseProps} surface="page" />
+      )
+      const sentinel = container.firstElementChild as HTMLElement
+      expect(MockIntersectionObserver.instances).toHaveLength(1)
+
+      // --status-strip-h lands in <html>'s style attribute: the observer is
+      // re-created so the new offset reaches the rootMargin.
+      await act(async () => {
+        document.documentElement.style.setProperty('--status-strip-h', '4px')
+      })
+      expect(MockIntersectionObserver.instances).toHaveLength(2)
+
+      // Crossing md (48rem) moves the offset too.
+      await act(async () => {
+        for (const listener of [...mediaListeners]) listener()
+      })
+      expect(MockIntersectionObserver.instances).toHaveLength(3)
+
+      // Every observer watched the sentinel, and the replaced ones were
+      // disconnected.
+      for (const observer of MockIntersectionObserver.instances) {
+        expect(observer.observe).toHaveBeenCalledWith(sentinel)
+      }
+      expect(
+        MockIntersectionObserver.instances[0].disconnect
+      ).toHaveBeenCalled()
+    })
   })
 
   it('marks the heading date with a muted Uploaded suffix', () => {

@@ -100,7 +100,7 @@ export const GalleryMediaFilterBar: FC<GalleryMediaFilterBarProps> = ({
   // only below sm, where its menus are replaced by the sheet.
   const chips =
     filters.order.length > 0 ? (
-      <div className="flex items-center gap-2 overflow-x-auto py-1">
+      <div className="flex items-center gap-2 overflow-x-auto py-2">
         {filters.order.map((key) => {
           const label = formatFilterActiveValue(filters, key, facets)
           return (
@@ -465,6 +465,22 @@ export const GalleryMediaFilterBar: FC<GalleryMediaFilterBarProps> = ({
 
       {/* Active-filter chips at every width for a sheet host */}
       {filtersInSheet ? chips : null}
+
+      {/* One-click clear from sm up, where a sheet host shows no count line
+          for the phone's own Clear button to live in. Only once more than one
+          filter is active: with one, its chip's ✕ is the shorter path. */}
+      {filtersInSheet && activeFilterCount > 1 ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled={disabled}
+          onClick={() => onChange(clearGalleryFilters(filters))}
+          className="text-muted-foreground hover:text-foreground hidden h-auto p-0 font-normal hover:bg-transparent sm:inline-flex"
+        >
+          Clear filters
+        </Button>
+      ) : null}
 
       {/* The sheet both layouts open; closed, it renders nothing. */}
       <GalleryMediaFilterSheet

@@ -318,6 +318,17 @@ describe('GalleryGrid', () => {
         })
       ).toBeInTheDocument()
     })
+
+    it('renders no badge wrapper when no badge shows', () => {
+      render(<GalleryGrid items={[hidden]} showHiddenBadge={false} />)
+
+      // With the hidden badge screened off and nothing unposted, the
+      // top-right wrapper stays out of the tile's button entirely.
+      const tile = screen.getByRole('button', {
+        name: 'Open media 1, hidden from your gallery'
+      })
+      expect(tile.querySelector('[class*="right-1.5"]')).toBeNull()
+    })
   })
 
   describe('added in Gallery and not posted yet', () => {
@@ -357,9 +368,11 @@ describe('GalleryGrid', () => {
       ).toContainElement(screen.getByTestId('only-you-badge'))
       expect(screen.getByTestId('select-mark')).toBeInTheDocument()
       // Both state badges share one row in the top-right, clear of the
-      // top-left select mark.
+      // top-left select mark. The row is a span: a button takes phrasing
+      // content only.
       const row = screen.getByTestId('hidden-badge')
         .parentElement as HTMLElement
+      expect(row.tagName).toBe('SPAN')
       expect(row).toHaveClass('top-1.5', 'right-1.5', 'flex', 'gap-1')
       expect(row).toContainElement(screen.getByTestId('only-you-badge'))
     })

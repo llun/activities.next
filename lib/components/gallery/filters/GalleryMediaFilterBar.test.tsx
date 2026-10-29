@@ -953,5 +953,69 @@ describe('GalleryMediaFilterBar', () => {
         screen.queryByRole('button', { name: 'Filters' })
       ).not.toBeEnabled()
     })
+
+    it('gives the chips row py-2', () => {
+      renderBar({
+        filters: {
+          ...EMPTY_GALLERY_FILTERS,
+          species: 'name:Red Fox',
+          order: ['species']
+        }
+      })
+
+      const chip = screen.getByText('Red Fox').closest('div')
+      expect(chip?.parentElement).toHaveClass('py-2')
+    })
+
+    it('keeps the one-click Clear filters away with zero or one active filter', () => {
+      const empty = renderBar({})
+      expect(
+        screen.queryByRole('button', { name: 'Clear filters' })
+      ).not.toBeInTheDocument()
+      empty.unmount()
+
+      renderBar({
+        filters: {
+          ...EMPTY_GALLERY_FILTERS,
+          species: 'name:Red Fox',
+          order: ['species']
+        }
+      })
+      // One active filter: its chip's ✕ is the shorter path.
+      expect(
+        screen.queryByRole('button', { name: 'Clear filters' })
+      ).not.toBeInTheDocument()
+    })
+
+    it('shows the one-click Clear filters from sm up once two filters are active', () => {
+      renderBar({
+        filters: {
+          ...EMPTY_GALLERY_FILTERS,
+          species: 'name:Red Fox',
+          place: 'Richmond Park',
+          order: ['species', 'place']
+        }
+      })
+
+      const clear = screen.getByRole('button', { name: 'Clear filters' })
+      // Phones clear from their own count line instead.
+      expect(clear).toHaveClass('hidden', 'sm:inline-flex')
+    })
+
+    it('clears every active filter from the one-click Clear filters', () => {
+      const onChange = vi.fn()
+      renderBar({
+        filters: {
+          ...EMPTY_GALLERY_FILTERS,
+          species: 'name:Red Fox',
+          place: 'Richmond Park',
+          order: ['species', 'place']
+        },
+        onChange
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
+      expect(onChange).toHaveBeenCalledWith(EMPTY_GALLERY_FILTERS)
+    })
   })
 })

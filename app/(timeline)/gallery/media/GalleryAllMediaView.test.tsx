@@ -26,6 +26,7 @@ import type { GalleryMediaFilterBarProps } from '@/lib/components/gallery/filter
 import type { GalleryMediaFilterEmptyProps } from '@/lib/components/gallery/filters/GalleryMediaFilterEmpty'
 import { EMPTY_GALLERY_FILTERS } from '@/lib/components/gallery/filters/galleryMediaFilterState'
 import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
+import { breakoutStyle } from '@/lib/components/layout/chromeLayout'
 import { PageHeaderSectionProvider } from '@/lib/components/page-header'
 import type { GalleryMediaPage } from '@/lib/services/gallery/galleryEntities'
 import { createDeferred } from '@/lib/testing/deferred'
@@ -533,6 +534,11 @@ describe('GalleryAllMediaView', () => {
     expect(
       within(header).getByRole('button', { name: 'Select' })
     ).toBeInTheDocument()
+    // The actions row keeps the dropdown line's 40px height from sm up, so
+    // the absolutely placed row never grows past the trigger's line.
+    const actions = within(header).getByRole('button', { name: 'Add' })
+      .parentElement as HTMLElement
+    expect(actions).toHaveClass('sm:h-10', 'sm:items-center')
   })
 
   it('renders the day headers on the page surface', () => {
@@ -551,17 +557,24 @@ describe('GalleryAllMediaView', () => {
 
     // The header keeps the page's sticky offsets and brings no box of its
     // own: the chrome surface arrives only through data-stuck, which
-    // jsdom's missing IntersectionObserver never sets.
-    const header = heading.parentElement as HTMLElement
+    // jsdom's missing IntersectionObserver never sets. The sticky box
+    // breaks out to the pane like the title band; the row inside stays
+    // aligned with the tiles.
+    const header = heading.parentElement?.parentElement as HTMLElement
     expect(header).toHaveClass(
       'sticky',
       'top-[calc(56px+env(safe-area-inset-top,0px)+var(--status-strip-h,0px))]',
-      'md:top-[79px]',
-      '-mx-4',
-      'px-4'
+      'md:top-[79px]'
     )
+    expect(header.style.marginLeft).toBe(breakoutStyle.marginLeft)
+    expect(header.style.marginRight).toBe(breakoutStyle.marginRight)
     expect(header).not.toHaveClass('bg-background')
     expect(header).not.toHaveAttribute('data-stuck')
+    expect(heading.parentElement).toHaveClass(
+      'mx-auto',
+      'max-w-content',
+      'px-4'
+    )
   })
 
   const openShowMenu = async () => {
