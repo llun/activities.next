@@ -1,0 +1,121 @@
+docs-audit/findings/AGENTS.md
+  s_f147bf36f62485::t_c769c50d7a5926 1-75
+docs-audit/findings/docs-environment-variables.md
+  s_f147bf36f62485::t_c769c50d7a5926 1-110
+docs-audit/findings/docs-fitness-file-storage.md
+  s_f147bf36f62485::t_c769c50d7a5926 1-193
+docs-audit/findings/docs-setup.md
+  s_f147bf36f62485::t_c769c50d7a5926 1-54
+docs-audit/findings/docs-architecture.md
+  s_f147bf36f62485::t_c769c50d7a5926 1-423
+docs-audit/findings/docs-features.md
+  s_f147bf36f62485::t_c769c50d7a5926 1-46
+docs-audit/findings-brief.md
+  s_f147bf36f62485::t_b26d5507e604f9 1-37
+docs-audit/findings/CONTRIBUTING.md
+  s_f147bf36f62485::t_c769c50d7a5926 1-112
+docs-audit/findings/docs-maintenance.md
+  s_f147bf36f62485::t_c769c50d7a5926 1-177
+docs-audit/findings/README.md
+  s_f147bf36f62485::t_c769c50d7a5926 1-40
+docs-audit/findings/docs-quickstart-sqlite-postgresql-setup.md
+  s_f147bf36f62485::t_c769c50d7a5926 1-91
+docs-audit/findings/REVIEW-LICENSE-PR_TEMPLATE.md
+  s_f147bf36f62485::t_c769c50d7a5926 1-68
+docs-audit/findings/docs-mastodon-api-compatibility.md
+  s_f147bf36f62485::t_c769c50d7a5926 1-205
+docs-audit/README.md
+  s_f147bf36f62485::t_9833c14c8e14ba 1-20
+docs-audit/parts/findings/docs_mastodon-api-compatibility.md--0708-1171.md
+  s_bfd174605da2bc::t_e2c18dc7a1cba7 1-42
+docs-audit/parts/findings/docs_fitness-file-storage.md--0001-0394.md
+  s_f147bf36f62485::t_418a50f399d6d4 1-57
+docs-audit/parts/findings/docs_fitness-file-storage.md--0925-1470.md
+  s_f147bf36f62485::t_d163fb39069ecc 1-48
+docs-audit/parts/findings/docs_fitness-file-storage.md--1471-1557.md
+  s_f147bf36f62485::t_2848b226f01cca 1-38
+docs-audit/parts/findings/docs_maintenance.md--0001-0554.md
+  s_f147bf36f62485::t_3b08817fd5367c 1-40
+docs-audit/parts/findings/docs_maintenance.md--0555-1016.md
+  s_f147bf36f62485::t_aceb506b1f2b79 1-29
+docs-audit/parts/findings/docs_maintenance.md--1017-1282.md
+  s_f147bf36f62485::t_328d6e70e96bb5 1-58
+docs-audit/parts/findings/docs_maintenance.md--1283-1721.md
+  s_f147bf36f62485::t_e8ae3590b6c45b 1-42
+docs-audit/parts/findings/docs_mastodon-api-compatibility.md--0001-0707.md
+  s_f147bf36f62485::t_ee9539d5b222e5 1-35
+docs-audit/parts/findings/docs_mastodon-api-compatibility.md--1172-1338.md
+  s_f147bf36f62485::t_5b540d6724a9e9 1-39
+docs-audit/parts/findings/docs_mastodon-api-compatibility.md--1339-1705.md
+  s_f147bf36f62485::t_47170d917bfc19 1-49
+docs-audit/parts/findings/docs_mastodon-api-compatibility.md--1706-1979.md
+  s_f147bf36f62485::t_3eb6578d3e9976 1-31
+docs-audit/parts/findings/AGENTS.md--1-235.md
+  s_f147bf36f62485::t_ccecb9dc64c5ee 1-38
+docs-audit/parts/findings/AGENTS.md--236-469.md
+  s_f147bf36f62485::t_6c0b71f92bc244 1-31
+docs-audit/parts/findings/CONTRIBUTING.md--1-1000.md
+  s_f147bf36f62485::t_67bf64f756c156 1-47
+docs-audit/parts/findings/CONTRIBUTING.md--1001-1477.md
+  s_f147bf36f62485::t_7c50fc546a6946 1-59
+docs-audit/parts/findings/README.md--1-160.md
+  s_f147bf36f62485::t_ee05e2abb236de 1-35
+docs-audit/parts/findings/REVIEW-LICENSE-PRTEMPLATE.md
+  s_f147bf36f62485::t_38e5474746d99e 1-68
+docs-audit/parts/findings/docs_architecture.md--0001-0285.md
+  s_f147bf36f62485::t_0fae3a02d6dfdf 1-31
+docs-audit/parts/findings/docs_architecture.md--0286-0570.md
+  s_f147bf36f62485::t_f3201f58605cb2 1-34
+docs-audit/parts/findings/docs_architecture.md--0571-1117.md
+  s_f147bf36f62485::t_31858a1149dd05 1-29
+docs-audit/parts/findings/docs_architecture.md--1118-1312.md
+  s_f147bf36f62485::t_3c7c5cb6400c53 1-39
+docs-audit/parts/findings/docs_architecture.md--1313-1501.md
+  s_f147bf36f62485::t_e49ce9dd67f4df 1-33
+docs-audit/parts/findings/docs_architecture.md--1502-2048.md
+  s_f147bf36f62485::t_b2bf019808a296 1-42
+docs-audit/parts/findings/docs_architecture.md--2049-2710.md
+  s_f147bf36f62485::t_2e3b80be247b6c 1-100
+docs-audit/parts/findings/docs_architecture.md--2711-2901.md
+  s_f147bf36f62485::t_a434e2147a1227 1-31
+docs-audit/parts/findings/docs_architecture.md--2902-3458.md
+  s_f147bf36f62485::t_1ac638fb18b16d 1-41
+docs-audit/parts/findings/docs_architecture.md--3459-4033.md
+  s_f147bf36f62485::t_cfd1ea198e5f28 1-29
+docs-audit/parts/findings/docs_environment-variables.md--1-267.md
+  s_f147bf36f62485::t_179d40f82aa3da 1-30
+docs-audit/parts/findings/docs_environment-variables.md--268-538.md
+  s_f147bf36f62485::t_57918e63aec17f 1-74
+docs-audit/parts/findings/docs_features.md--1-159.md
+  s_f147bf36f62485::t_333a3dcf1dd0bc 1-41
+docs-audit/parts/findings/docs_fitness-file-storage.md--0395-0924.md
+  s_f147bf36f62485::t_f5ede08fadbd65 1-42
+docs-audit/parts/findings/docs_quickstart-sqlite-postgresql.md
+  s_f147bf36f62485::t_7e43188c3115bf 1-91
+docs-audit/parts/findings/docs_setup.md--1-441.md
+  s_f147bf36f62485::t_2ba704982225c1 1-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "020ae276929cfcb6bacd22f3c1d8d7308a1bab8a",
+  "prompts": {},
+  "sessions": {
+    "s_bfd174605da2bc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "587d6f32-cd3e-48b1-abc7-6f9c11af8b8d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_f147bf36f62485": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "25ee74e4-3619-4df9-8186-dcf3fd9b6ec2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
