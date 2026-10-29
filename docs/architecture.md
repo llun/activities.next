@@ -402,7 +402,7 @@ Export](maintenance.md#actor-archive-export)). It is built by
   warnings). Mastodon's CSV files (`following_accounts.csv`, `lists.csv`,
   `muted_accounts.csv`, `blocked_accounts.csv`, `blocked_domains.csv`,
   `bookmarks.csv`) are written by the same functions as the web app's CSV
-  export (`lib/services/exports/`, `stepsCsv.ts`), beside each profile's
+  export (`lib/services/accountArchive/stepsCsv.ts`), beside each profile's
   `actor.json`: at the root for the default profile, in the profile's folder
   for the others. The same data is also in `graph.json`. A file is written one
   database page at a time (`exportPage`), with the page cursor in the step's
@@ -1506,7 +1506,7 @@ The editor is `lib/components/photo-editor/`, opened from `PhotoEditPreview` (th
   - Call a named function exported from `lib/client.ts` (which encapsulates the `fetch` call, method, headers, and body serialization), per the Client-Side API Calls section — do **not** call `fetch()` directly in the component
   - Show inline success and error messages (not raw error pages)
   - Manage loading state with `useState`
-- A dozen legacy components still call `fetch()` directly (the `Change*Form`s under `app/(timeline)/account/`, `StravaSettingsForm`, the OAuth/password-reset forms, and several `lib/components` settings/actor-switcher dialogs). They are frozen in the `allowFiles` list of `agents/no-component-fetch` in `.oxlintrc.json`; the lint rule blocks any new offender. Migrate them to `lib/client.ts` when touched and remove them from the list — never add to it.
+- Components should not call `fetch()` directly — they go through `lib/client.ts`, and the `agents/no-component-fetch` allowFiles list in `.oxlintrc.json` is empty and must stay empty; the lint rule blocks any new offender.
 - The corresponding API route should return JSON via `apiResponse()`, not `Response.redirect()`.
 - `GalleryPrivacySettings` (`/gallery/privacy`) follows this, lays itself out with the surface kit (a `Section` per group, `Frame form` of `FormRow`s with an inline switch or a select, and `GallerySettingsStatus` drawing load and save failures as `Alert`s and the saved state as a `SavedIndicator`), and auto-saves each switch and select on its own through `gallerySettingsForm.tsx` (`lib/components/settings/`), the load and per-key save logic it shares with `MediaDetailsSettings`. Hidden locations save through `PrivacyLocationsEditor` (`lib/components/privacy-locations/`), which `FitnessPrivacyLocationSettings` also wraps; a second consumer passes its own `mapIdPrefix` so the GL source and layer ids stay distinct. "Hide the place for threatened species" (`hideThreatenedPlaces`, default on) sits under the default precision as one more auto-saving switch; when `speciesLookupsAvailable` is false it carries a `ToggleRow` `notice` saying the server cannot check IUCN status, so places of photos with a species name stay hidden while it is on. `MediaDetailsSettings` (Settings → Media) is where the subject suggestion mode and confidence threshold are set.
 
