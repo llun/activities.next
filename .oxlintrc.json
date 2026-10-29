@@ -1,7 +1,7 @@
 {
   // Lint configuration. ESLint and typescript-eslint were replaced by Oxlint
   // because TypeScript 7 ships no JavaScript compiler API for typescript-eslint
-  // to load (see AGENTS.md → TypeScript). The rule set below is the migrated
+  // to load (see docs/setup.md → Build, Test, and Development Commands). The rule set below is the migrated
   // eslint.config.mjs (`yarn dlx @oxlint/migrate`), with the AGENTS.md
   // conventions Oxlint cannot express natively moved into lint/agentsRules.mjs.
   //
@@ -207,7 +207,7 @@
     },
     {
       // Every filesystem path a LOCAL STORAGE DRIVER builds goes through
-      // resolveStorageFilePath/assertStorageFilePath (AGENTS.md → A stored path
+      // resolveStorageFilePath/assertStorageFilePath (docs/maintenance.md → A stored path
       // is confined to the storage root). `agents/no-storage-path-builder`
       // resolves the callee through scope, so a renamed import, a destructured
       // `const { resolve } = path`, `path['resolve']` and a prettier-wrapped
@@ -227,7 +227,7 @@
     },
     {
       // Direct fetch() is banned in React component files — client→server calls go
-      // through named exported functions in lib/client.ts (AGENTS.md →
+      // through named exported functions in lib/client.ts (docs/architecture.md →
       // Client-Side API Calls). `allowFiles` is the FROZEN set of legacy offenders
       // from before this rule existed: migrate them to lib/client.ts when touched
       // and remove them here. NEVER add a new file. Test files are exempted by the

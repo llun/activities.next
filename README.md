@@ -99,7 +99,7 @@ For a more detailed architecture overview, see [docs/architecture.md](docs/archi
    yarn dev
    ```
 
-7. **Sign up** at `http://localhost:3000/auth/signup` (your email must be in the allow list).
+7. **Sign up** at `http://localhost:3000/auth/signup` (your email must be in the allow list, `ACTIVITIES_ALLOW_EMAILS`, e.g. `ACTIVITIES_ALLOW_EMAILS='["you@example.com"]'`).
 
 For detailed setup instructions, see the [Setup Guide](docs/setup.md).
 
@@ -112,6 +112,7 @@ docker run -p 3000:3000 \
   -e ACTIVITIES_HOST=your.domain.tld \
   -e ACTIVITIES_SECRET_PHASE=change-me-to-a-random-secret-at-least-32-chars \
   -e ACTIVITIES_DATABASE_SQLITE_FILENAME=/opt/activities.next/data/data.sqlite \
+  -e 'ACTIVITIES_ALLOW_EMAILS=["you@example.com"]' \
   -e ACTIVITIES_MEDIA_STORAGE_TYPE=fs \
   -e ACTIVITIES_MEDIA_STORAGE_PATH=/opt/activities.next/data/uploads \
   -v /path/to/data:/opt/activities.next/data \

@@ -5,7 +5,7 @@ import type { TileSegment } from './tileCodec'
  * Turning a tile between its two representations: the polylines it is stored
  * as, and the edge set the build accumulates into.
  *
- * Pure and dependency-free, no `'use client'` (see AGENTS.md → Server/Client
+ * Pure and dependency-free, no `'use client'` (see docs/architecture.md → Server/Client
  * Module Boundary).
  */
 

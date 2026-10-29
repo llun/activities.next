@@ -22,7 +22,7 @@ import { Actor } from '@/lib/types/domain/actor'
  * So an account better-auth already treats as verified is not held pending
  * here either. That grants nothing new — it is the gate that has actually been
  * governing those sign-ins. Why this predicate, rather than a repair keyed on
- * when a migration ran, is the mechanism: see AGENTS.md's "An Unconfirmed
+ * when a migration ran, is the mechanism: see docs/architecture.md's "An Unconfirmed
  * Account May Not Act" and the header of
  * `20260828140000_clear_stale_verification_codes`, which records the attempts
  * that got that bound wrong.

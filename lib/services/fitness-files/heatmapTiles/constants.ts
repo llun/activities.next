@@ -4,7 +4,7 @@
  * This module is deliberately dependency-free and carries no `'use client'`
  * directive: the generation job, the serving routes and the map components all
  * import it, and a server module reading a value out of a client module gets
- * nothing (see AGENTS.md → Server/Client Module Boundary). It also reads no
+ * nothing (see docs/architecture.md → Server/Client Module Boundary). It also reads no
  * environment: the one tunable it consumes, the simplification floor, is passed
  * in as a plain number by whichever server caller resolved it from config.
  */
@@ -136,7 +136,7 @@ export const heatOpacityForCount = (count: number, base: number) =>
  *
  * It lives here, beside `heatOpacityForCount`, because the static share image
  * has to colour its lines from the same stops and a server module may not read
- * a constant out of the `'use client'` map (see AGENTS.md → Server/Client
+ * a constant out of the `'use client'` map (see docs/architecture.md → Server/Client
  * Module Boundary). One list, so the orange and yellow the thumbnail draws are
  * the map's own; the thumbnail leaves out the red stop.
  */

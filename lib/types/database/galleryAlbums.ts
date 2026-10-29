@@ -1,7 +1,7 @@
 // Types for gallery albums: owner-curated groups of the owner's own gallery
 // media. This module is deliberately free of server-only imports — the Albums
 // pages and the client helpers import these types and constants too (see
-// AGENTS.md → Server/Client Module Boundary).
+// docs/architecture.md → Server/Client Module Boundary).
 
 // Who may open an album. Followers-only albums are not offered: a follower
 // still sees their followers-only photos inside a public album, because every

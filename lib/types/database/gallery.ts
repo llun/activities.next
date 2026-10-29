@@ -1,7 +1,7 @@
 // Types for the media gallery: the details a `medias` row carries beyond alt
 // text, the camera/lens gear they reference, and the per-actor gallery
 // settings. This module is deliberately free of server-only imports — the
-// composer and the viewer import these types too (see AGENTS.md → Server/Client
+// composer and the viewer import these types too (see docs/architecture.md → Server/Client
 // Module Boundary).
 import type { FitnessPrivacyRadiusMeters } from '@/lib/services/fitness-files/privacy'
 

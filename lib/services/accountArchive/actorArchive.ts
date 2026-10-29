@@ -581,7 +581,7 @@ export const copyProfileImage = async ({
   // under `tmpdir()`.
   //
   // Through the shared helper: "does this resolve inside that root?" is the
-  // storage drivers' question too, and AGENTS.md ("A stored path is confined
+  // storage drivers' question too, and docs/maintenance.md ("A stored path is confined
   // to the storage root") records why this call site stopped spelling its own
   // answer. The warning stays local so the archive keeps telling its operator
   // which image it dropped and why.

@@ -52,7 +52,8 @@ export interface AccountAppRow {
   name: string | null
   website: string | null
   scopes: string[]
-  // Epoch ms (never a Date, see "Date Serialization in Server Components");
+  // Epoch ms (never a Date, see "Date Serialization in Server Components" in
+  // docs/architecture.md);
   // rendered relative to `currentTime`, so SSR and hydration agree.
   authorizedAt: number
   signIn: boolean

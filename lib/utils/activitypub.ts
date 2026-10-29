@@ -52,7 +52,8 @@ export const normalizeActivityPubUri = (uri: string | null | undefined) => {
  * operand from a signature keyId actor, which always has a host. The one place
  * a host-less pair could chain into a write is `persistInboundQuoteEdge`, and
  * only against a status stored under a host-less id — which nothing produces
- * except the unconstrained fetched-`note.id` writes AGENTS.md records as open.
+ * except the unconstrained fetched-`note.id` writes docs/mastodon-api-compatibility.md
+ * (A Fetched Document's Own `id` Is Not Evidence) records as open.
  * Do not read any of that as "so it does not matter": it is the shape of the
  * bug, and the copies it replaces have no such test. Deliberately stricter than
  * those five on exactly this input and no other.

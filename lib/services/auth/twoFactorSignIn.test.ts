@@ -17,7 +17,8 @@ import {
 // the "Invalid two factor cookie" bug: better-auth's two-factor plugin writes
 // `failedVerificationCount`/`lockedUntil` on the `twoFactor` table, so if those
 // columns are absent from the schema dumps — e.g. a migration landed without
-// the dumps being regenerated in lockstep (see AGENTS.md) — `enable` /
+// the dumps being regenerated in lockstep (see docs/setup.md → Database
+// Backends & Local Setup) — `enable` /
 // `verify-totp` throw a 500 and the final verification here fails.
 const HOST = 'test.example.com'
 const BASE_URL = `https://${HOST}`

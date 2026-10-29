@@ -7,7 +7,7 @@
 // server route that persists preferences validates against it. Keep this module
 // free of React, lucide, and env access so importing it from a Server Component
 // or an API route stays safe (see the Server/Client Module Boundary section in
-// AGENTS.md).
+// docs/architecture.md).
 export const NAV_ITEM_IDS = [
   'timeline',
   'search',

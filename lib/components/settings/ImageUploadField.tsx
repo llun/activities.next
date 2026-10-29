@@ -77,7 +77,8 @@ export const ImageUploadField: FC<ImageUploadFieldProps> = ({
     // clearing unmounts the button that was just activated — and a focused
     // element removed from the document drops focus to `<body>`, sending the
     // next Tab back to the top of the page (WCAG 2.4.3). The media strip's
-    // chevrons have the same shape and are documented in AGENTS.md; their fix
+    // chevrons have the same shape and are documented in docs/mastodon-api-compatibility.md
+    // (Status Posts & Actions → Post media layout); their fix
     // (leave the control out of the tab order) does not apply here, because
     // Remove is the only way to clear the image.
     //

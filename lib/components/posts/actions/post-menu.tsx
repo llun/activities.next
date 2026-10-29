@@ -170,7 +170,7 @@ export interface PostMenuExtraSubmenuItem extends PostMenuExtraItemBase {
  *
  * This can only ADD to the action set — there is deliberately no way to remove
  * or replace one of the menu's own items, because a post offers the same
- * actions on every surface (see **Status Posts & Actions** in AGENTS.md).
+ * actions on every surface (see **Status Posts & Actions** in docs/mastodon-api-compatibility.md).
  */
 export type PostMenuExtraItem =
   PostMenuExtraActionItem | PostMenuExtraSubmenuItem

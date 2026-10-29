@@ -2,8 +2,9 @@
 
 A focused checklist for reviewing changes to **activities.next**. It captures the
 project-specific invariants that are easy to miss in a diff — both the rules in
-`AGENTS.md` and recurring patterns surfaced in past code review. `AGENTS.md`
-remains the authoritative source for the full rules. Skip sections that a given
+`AGENTS.md` and recurring patterns surfaced in past code review. The rules in
+`AGENTS.md` and the guides its routing table links to remain the authoritative
+source for the full rules. Skip sections that a given
 change doesn't touch.
 
 ## How to use this checklist
