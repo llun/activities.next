@@ -4,6 +4,7 @@ Thank you for your interest in contributing to Activities.next! This document pr
 
 ## Table of Contents
 
+- [Code of Conduct](#code-of-conduct)
 - [Getting Started](#getting-started)
 - [Development Workflow](#development-workflow)
 - [Coding Standards](#coding-standards)
@@ -178,7 +179,7 @@ Branch protection on `main` requires four status checks:
 - `Build`
 - `CI Success`
 
-`CI Success` is required and fail-closed over all upstream CI checks: lint (`Lint and Prettier`), typecheck (`Type Check`), build (`Build`), test shards (`All Tests`), PostgreSQL database tests (`PostgreSQL Database Tests`), and schema dump checks (`SQLite Schema Dump Sync` and `PostgreSQL Schema Dump Sync`). If any upstream check fails, `CI Success` fails and blocks merging.
+`CI Success` is required but configured `strict: false` in branch protection, which is why the job itself must be fail-closed over all upstream CI checks: lint (`Lint and Prettier`), typecheck (`Type Check`), build (`Build`), test shards (`All Tests`), PostgreSQL database tests (`PostgreSQL Database Tests`), and schema dump checks (`SQLite Schema Dump Sync` and `PostgreSQL Schema Dump Sync`). If any upstream check fails, `CI Success` fails and blocks merging.
 
 The `Build` job persists only `.next/cache`, including Next.js's default Turbopack filesystem build cache. Its versioned cache key includes the runner OS, Yarn lockfile, build configuration, and application source; a lockfile-prefix restore lets changed source reuse a prior build cache. Generated build outputs outside `.next/cache` are rebuilt on every run, and Yarn's archive cache remains managed by `actions/setup-node`.
 
@@ -414,7 +415,8 @@ activities.next/
   needs a connection of its own (the connection and sqlcommenter tests) opens
   it with `createDatabaseConnection` and `getTestDatabaseConfig(backend)`,
   and destroys it. The helpers below are one-line aliases over
-  `createTestDatabase`.
+  `createTestDatabase`; `lib/database/testUtils.ts` keeps the older helpers
+  as aliases.
 - **To assert on the SQL a call sends, capture it with
   `testDb.captureQueries(work)`.** It resolves to the `{ sql, bindings }[]`
   the driver sent while `work` ran, in order, with the `begin` / `commit` /
@@ -870,7 +872,7 @@ When a change alters what users see, update the design in the same task:
 ## Commit & Pull Request Guidelines
 
 - **Work reaches `main` as a pull request**: commit to the feature branch, push it, and open a PR. Nothing is merged by committing to `main` directly (Definition of Done item 1), and the review loop below has no PR to attach to until this has happened.
-- Commit messages and PR titles carry the conventional prefix that controls the version bump — see [Commit Messages and Version Bumps](#commit-messages-and-version-bumps).
+- Commit messages and PR titles carry the conventional prefix that controls the version bump, followed by a short imperative description — see [Commit Messages and Version Bumps](#commit-messages-and-version-bumps).
 - **Never put production or operational SQL in PR descriptions** (or anywhere committed in the repo). One-off database mutations for a deployment — hotfix `UPDATE`/`INSERT`/`DELETE` statements, data backfills, or any copy-pasteable production runbook — must not live in the PR body. Describe **what** operational change is needed and **why** in prose, and deliver the actual SQL through the deployment runbook or a private ops channel instead. This targets operational/runbook SQL — it does **not** restrict application query code: Kysely query-builder calls and its `sql` tag in `lib/` are normal application code and unaffected. The database files that legitimately live in the repo, all under `migrations/`, are the migrations (TypeScript that define schema changes — not raw `.sql`), the frozen baseline schema (`migrations/baseline/`) and the reference schema dumps (`migrations/schema.sql`, `migrations/schema.sqlite.sql`); illustrative SQL in the `docs/` setup and maintenance guides (e.g. `docs/postgresql-setup.md` and the schema-dump steps) is also fine. This keeps environment-specific identifiers, hostnames, and runbooks out of the public Git history.
 - A husky pre-commit hook (`.husky/pre-commit`) runs on every commit: first `lint-staged` (configured in `package.json`), which runs `prettier --write` on the staged files and re-stages the formatted result, then `yarn lint`, which blocks the commit on lint errors. It does **not** run build or tests — run those yourself per the [pre-submit gate](#before-submitting).
 - The `prettier` / `prettier:check` package scripts only cover `app migrations lib lint test`; the trailing `.` in `yarn run prettier --write .` is what extends formatting to the whole tree. Note that `yarn run prettier` always **writes** (`"prettier": "prettier --write ..."` in `package.json`, so even `yarn prettier --check` writes); use `yarn prettier:check` for a read-only check. CI's format gate (`yarn prettier:check`) does not check `scripts/`, `docs/`, or `.github/`. Always `git fetch` before pushing to a PR branch, because the maintainer sometimes rebases open PR branches.

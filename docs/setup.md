@@ -413,7 +413,7 @@ The app (`yarn migrate`) runs the migrations, but the test suite does **not** �
 
   **PostgreSQL (`migrations/schema.sql`):**
 
-  1. Start a **local** PostgreSQL 17 — e.g. a throwaway `postgres:17` Docker container — and wait until it accepts connections (`docker run -d` returns before `initdb` finishes; loop on `pg_isready`). Never point at a remote/shared/production DB.
+  1. Start a **local** PostgreSQL 17 — e.g. a throwaway `postgres:17` Docker container, or the docker-compose stack — and wait until it accepts connections (`docker run -d` returns before `initdb` finishes; loop on `pg_isready`). Never point at a remote/shared/production DB.
 
      ```bash
      docker run -d --name anext-schema-pg \
