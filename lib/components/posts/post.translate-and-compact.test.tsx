@@ -84,11 +84,62 @@ describe('Post', () => {
       })
     })
 
-    it('offers Translate when the content-detected language overrides a mislabeled declared language', async () => {
+    it('does not offer the inline Translate control on the viewer own post', async () => {
       render(
         <Post
           host="activities.local"
           currentActor={status.actor ?? undefined}
+          currentTime={currentTime}
+          status={{
+            ...status,
+            summary: null,
+            language: null,
+            detectedLanguage: null
+          }}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      await waitFor(() => expect(getTranslationCapability).toHaveBeenCalled())
+      expect(
+        screen.queryByRole('button', { name: /Translate/ })
+      ).not.toBeInTheDocument()
+    })
+
+    it('still offers inline Translate on another author post with an unknown language', async () => {
+      render(
+        <Post
+          host="activities.local"
+          currentActor={
+            status.actor
+              ? { ...status.actor, id: 'https://other/u/viewer' }
+              : undefined
+          }
+          currentTime={currentTime}
+          status={{
+            ...status,
+            summary: null,
+            language: null,
+            detectedLanguage: null
+          }}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      expect(
+        await screen.findByRole('button', { name: /Translate/ })
+      ).toBeInTheDocument()
+    })
+
+    it('offers Translate when the content-detected language overrides a mislabeled declared language', async () => {
+      render(
+        <Post
+          host="activities.local"
+          currentActor={
+            status.actor
+              ? { ...status.actor, id: 'https://other/u/viewer' }
+              : undefined
+          }
           currentTime={currentTime}
           status={{
             ...status,

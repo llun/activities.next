@@ -71,7 +71,8 @@ const TranslationContext = createContext<StatusTranslation | null>(null)
 export const useStatusTranslation = (
   statusId: string,
   language?: string | null,
-  enabled = true
+  enabled = true,
+  inline = true
 ): StatusTranslation => {
   const [backendEnabled, setBackendEnabled] = useState(false)
   const [defaultLanguage, setDefaultLanguage] = useState<string | null>(null)
@@ -167,13 +168,21 @@ export const useStatusTranslation = (
   // Require a resolvable target too: with a backend enabled but no advertised
   // target for this source, the control would otherwise be a dead button.
   const canTranslate = Boolean(
-    enabled && backendEnabled && !isDefaultTarget && effectiveTarget !== null
+    enabled &&
+    backendEnabled &&
+    inline &&
+    !isDefaultTarget &&
+    effectiveTarget !== null
   )
 
-  // Same-language posts can still be manually translated via the post menu when
-  // alternate target languages are available.
+  // Posts without the inline control (same-language posts, the viewer's own
+  // posts) can still be manually translated via the post menu when a target
+  // language is available.
   const canManualTranslate = Boolean(
-    enabled && backendEnabled && isDefaultTarget && effectiveTarget !== null
+    enabled &&
+    backendEnabled &&
+    (isDefaultTarget || !inline) &&
+    effectiveTarget !== null
   )
 
   // Tracks the latest state for `pickTarget` without recreating the callback
@@ -273,6 +282,8 @@ interface ProviderProps {
   statusId: string
   language?: string | null
   enabled?: boolean
+  // False hides the inline control (the post menu can still translate).
+  inline?: boolean
   children: ReactNode
 }
 
@@ -285,9 +296,10 @@ export const TranslationProvider: FC<ProviderProps> = ({
   statusId,
   language,
   enabled = true,
+  inline = true,
   children
 }) => {
-  const value = useStatusTranslation(statusId, language, enabled)
+  const value = useStatusTranslation(statusId, language, enabled, inline)
   return (
     <TranslationContext.Provider value={value}>
       {children}

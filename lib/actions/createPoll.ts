@@ -6,6 +6,7 @@ import {
   loadIdempotentStatus,
   persistEmojiTagsForStatus,
   publishCreatedStatus,
+  resolveDeclaredLanguage,
   resolveExistingIdempotentStatus,
   runBestEffortStep,
   settleAll,
@@ -62,7 +63,7 @@ export const createPollFromUserInput = async ({
   hideTotals = false,
   visibility,
   sensitive = false,
-  language = null,
+  language: requestedLanguage = null,
   application,
   createdAt,
   idempotency
@@ -76,6 +77,12 @@ export const createPollFromUserInput = async ({
       })
       if (existing) return existing
     }
+
+    const language = await resolveDeclaredLanguage({
+      database,
+      actorId: currentActor.id,
+      language: requestedLanguage
+    })
 
     const config = getConfig()
     const replyStatus = replyStatusId

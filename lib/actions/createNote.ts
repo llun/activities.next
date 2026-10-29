@@ -32,6 +32,7 @@ import {
   isPublicOrUnlisted
 } from '@/lib/services/statusAccess'
 import { addStatusToTimelines } from '@/lib/services/timelines'
+import { normalizeLanguageCode } from '@/lib/services/translation/types'
 import { Mention } from '@/lib/types/activitypub'
 import { NotificationType } from '@/lib/types/database/operations'
 import {
@@ -692,6 +693,26 @@ export const getVisibilityFromReplyStatus = (
   return 'direct'
 }
 
+// The language a new status is declared in: the request's own, else the
+// author's default posting language (Mastodon's `source.language`), else null.
+export const resolveDeclaredLanguage = async ({
+  database,
+  actorId,
+  language
+}: {
+  database: Database
+  actorId: string
+  language?: string | null
+}): Promise<string | null> => {
+  const requested = language ? normalizeLanguageCode(language) : ''
+  if (requested) return requested
+  const settings = await database.getActorSettings({ actorId })
+  const fallback = settings?.defaultLanguage
+    ? normalizeLanguageCode(settings.defaultLanguage)
+    : ''
+  return fallback || null
+}
+
 interface CreateNoteFromUserInputParams {
   text: string
   summary?: string | null
@@ -728,7 +749,7 @@ export const createNoteFromUserInput = async ({
   fitnessFileId,
   visibility,
   sensitive = false,
-  language = null,
+  language: requestedLanguage = null,
   application,
   createdAt,
   idempotency,
@@ -763,6 +784,12 @@ export const createNoteFromUserInput = async ({
       text,
       mediaIds: subjectMediaIds,
       maxCharacters
+    })
+
+    const language = await resolveDeclaredLanguage({
+      database,
+      actorId: currentActor.id,
+      language: requestedLanguage
     })
 
     const fitnessFile = fitnessFileId
