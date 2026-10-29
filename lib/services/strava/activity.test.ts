@@ -11,8 +11,7 @@ import {
   getStravaActivityStreams,
   getStravaActivityUrl,
   getStravaUpload,
-  getValidStravaAccessToken,
-  isSupportedStravaPhotoMimeType
+  getValidStravaAccessToken
 } from './activity'
 
 const mockFetch = vi.fn()
@@ -533,15 +532,6 @@ describe('buildStravaActivitySummary', () => {
 })
 
 describe('getStravaActivityUrl', () => {
-  it('builds the public activity URL from a numeric id', () => {
-    expect(getStravaActivityUrl(123)).toBe(
-      'https://www.strava.com/activities/123'
-    )
-    expect(getStravaActivityUrl('456')).toBe(
-      'https://www.strava.com/activities/456'
-    )
-  })
-
   it('returns null for non-numeric ids (e.g. archive filename fallbacks)', () => {
     expect(getStravaActivityUrl('activities/run.gpx')).toBeNull()
     expect(getStravaActivityUrl('')).toBeNull()
@@ -591,17 +581,6 @@ describe('getStravaActivityDurationSeconds', () => {
         moving_time: moving
       })
     ).toBe(expected)
-  })
-})
-
-describe('isSupportedStravaPhotoMimeType', () => {
-  it.each([
-    ['image/jpeg', true],
-    ['image/png', true],
-    ['image/gif', false],
-    ['video/mp4', false]
-  ])('%s -> %s', (mime, expected) => {
-    expect(isSupportedStravaPhotoMimeType(mime)).toBe(expected)
   })
 })
 

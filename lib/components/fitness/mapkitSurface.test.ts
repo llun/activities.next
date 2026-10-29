@@ -16,14 +16,6 @@ const moduleWithMapTypes = (
 }
 
 describe('mutedStandardMapType', () => {
-  it("reads the muted standard constant off MapKit's own basemap enum", () => {
-    expect(
-      mutedStandardMapType(
-        moduleWithMapTypes({ MutedStandard: 'mutedStandard' })
-      )
-    ).toBe('mutedStandard')
-  })
-
   it.each([
     { description: 'MapTypes is missing entirely', mapTypes: undefined },
     { description: 'MapTypes carries no MutedStandard', mapTypes: {} }

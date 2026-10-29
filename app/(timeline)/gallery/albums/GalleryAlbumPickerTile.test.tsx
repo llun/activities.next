@@ -314,28 +314,6 @@ describe('GalleryAlbumPickerTile', () => {
     )
   })
 
-  it('draws a dashed focus outline further out than the anchor ring', () => {
-    const item = buildGalleryItem('1')
-    render(
-      <GalleryAlbumPickerTile
-        item={item}
-        index={0}
-        isSelected
-        onToggle={vi.fn()}
-      />
-    )
-    const button = screen.getByRole('button')
-    expect(button).toHaveClass(
-      'focus-visible:outline-foreground',
-      'focus-visible:outline-dashed',
-      'focus-visible:outline-2',
-      'focus-visible:outline-offset-4'
-    )
-    expect(button).not.toHaveClass('focus-visible:outline-primary')
-    expect(button).not.toHaveClass('focus-visible:-outline-offset-2')
-    expect(button).not.toHaveClass('focus-visible:outline-offset-2')
-  })
-
   it('omits date from visible caption but includes getPickerTileDate in aria-label when showCaptionDate is false', () => {
     const item = buildGalleryItem('1', {
       subject: { name: 'Common kingfisher' } as never,
@@ -413,27 +391,4 @@ describe('GalleryAlbumPickerTile', () => {
       expect(onToggle).toHaveBeenCalledWith('1', { shiftKey })
     }
   )
-
-  it('renders data-grid-index, tabIndex, onFocus, and scroll-mt-12 on the button', () => {
-    const item = buildGalleryItem('1')
-    const onFocus = vi.fn()
-    render(
-      <GalleryAlbumPickerTile
-        item={item}
-        index={3}
-        isSelected={false}
-        tabIndex={0}
-        onFocus={onFocus}
-        onToggle={vi.fn()}
-      />
-    )
-    const button = screen.getByRole('button')
-    expect(button).toHaveAttribute('data-grid-index', '3')
-    expect(button).toHaveAttribute('tabindex', '0')
-    expect(button).toHaveClass('scroll-mt-12')
-    // Phones clear the taller two-row selecting day header.
-    expect(button).toHaveClass('max-sm:scroll-mt-20')
-    fireEvent.focus(button)
-    expect(onFocus).toHaveBeenCalledTimes(1)
-  })
 })

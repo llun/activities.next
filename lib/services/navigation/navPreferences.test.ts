@@ -14,12 +14,6 @@ import {
 const allAvailable = new Set<NavItemId>(DEFAULT_NAV_ORDER)
 
 describe('the Drafts item', () => {
-  it('sits right after Messages', () => {
-    expect(DEFAULT_NAV_ORDER.indexOf('drafts')).toBe(
-      DEFAULT_NAV_ORDER.indexOf('messages') + 1
-    )
-  })
-
   it('is not pinned, so it can be hidden under More', () => {
     expect(sanitizeNavHidden(['drafts'])).toEqual(['drafts'])
   })

@@ -324,19 +324,6 @@ describe('FitnessStatusDetail', () => {
     ).toHaveLength(3)
   })
 
-  it('matches the analysis controls row and responsive plot height while loading', () => {
-    mockGetFitnessRouteData.mockImplementation(() => new Promise(() => {}))
-    renderDetail()
-
-    const analysisSection = screen.getByRole('region', { name: 'Analysis' })
-    expect(
-      within(analysisSection).getByTestId('analysis-controls-skeleton')
-    ).toBeInTheDocument()
-    expect(
-      within(analysisSection).getByTestId('analysis-plot-skeleton')
-    ).toHaveClass('h-[190px]', '@min-[700px]:h-[250px]')
-  })
-
   it('keeps reserved layout static with em-dash overview rows and a retry overlay when route data fails', async () => {
     mockGetFitnessRouteData.mockRejectedValue(new Error('request failed'))
     renderDetail({

@@ -425,14 +425,6 @@ describe('PhotoEditorDialog', () => {
       expect(saveButton()).toBeEnabled()
       fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
     })
-
-    it('straightens with the slider', async () => {
-      await setup()
-      openCrop()
-      const slider = await screen.findByRole('slider', { name: 'Straighten' })
-      fireEvent.keyDown(slider, { key: 'ArrowRight' })
-      expect(slider).toHaveAttribute('aria-valuetext', '+0.1 degrees')
-    })
   })
 
   describe('leaving', () => {

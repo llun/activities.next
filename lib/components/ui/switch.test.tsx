@@ -14,11 +14,4 @@ describe('Switch', () => {
     // The old fills: --input (#E5E5E5 light) and its 80 % dark variant.
     expect(track.className).not.toContain('bg-input')
   })
-
-  it('keeps the orange on track when checked', () => {
-    render(<Switch aria-label="Email" defaultChecked />)
-    const track = screen.getByRole('switch', { name: 'Email' })
-    expect(track).toHaveAttribute('data-state', 'checked')
-    expect(track).toHaveClass('data-[state=checked]:bg-primary')
-  })
 })

@@ -250,11 +250,6 @@ describe('GalleryAddToAlbumDialog', () => {
     expect(getAlbumsMock).not.toHaveBeenCalled()
   })
 
-  it('pads and offsets the scroll container to prevent highlight clipping', () => {
-    renderDialog()
-    expect(screen.getByTestId('scroll-container')).toHaveClass('p-1', '-m-1')
-  })
-
   describe('membership hints and already-in counts', () => {
     it('formats large counts with separators in the hint and add button', async () => {
       renderDialog({

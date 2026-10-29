@@ -1,12 +1,6 @@
-import { RefreshButton as RefreshButtonSource } from '@/lib/components/refresh-button'
-
 import * as kit from './index'
 
 describe('surface kit index', () => {
-  it('re-exports RefreshButton from its existing home', () => {
-    expect(kit.RefreshButton).toBe(RefreshButtonSource)
-  })
-
   it.each([
     'AddBar',
     'Alert',

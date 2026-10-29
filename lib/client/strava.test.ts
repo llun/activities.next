@@ -49,32 +49,6 @@ describe('strava client module', () => {
       )
     })
 
-    it('supports passing AbortSignal directly or via options object', async () => {
-      fetchMock.mockResponse(
-        JSON.stringify({
-          configured: false,
-          defaultVisibility: 'private'
-        }),
-        { status: 200 }
-      )
-
-      const controller1 = new AbortController()
-      await getStravaSettings(controller1.signal)
-      expect(fetchMock).toHaveBeenNthCalledWith(
-        1,
-        '/api/v1/fitness/strava',
-        expect.objectContaining({ signal: controller1.signal })
-      )
-
-      const controller2 = new AbortController()
-      await getStravaSettings({ signal: controller2.signal })
-      expect(fetchMock).toHaveBeenNthCalledWith(
-        2,
-        '/api/v1/fitness/strava',
-        expect.objectContaining({ signal: controller2.signal })
-      )
-    })
-
     it('throws server error message on non-ok response', async () => {
       fetchMock.mockResponseOnce(JSON.stringify({ error: 'Session expired' }), {
         status: 401

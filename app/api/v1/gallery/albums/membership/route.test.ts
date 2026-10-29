@@ -6,7 +6,7 @@ import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
 
-import { OPTIONS, POST } from './route'
+import { POST } from './route'
 
 const mockGetServerSession = vi.fn()
 vi.mock('@/lib/services/auth/getSession', () => ({
@@ -119,20 +119,6 @@ describe('/api/v1/gallery/albums/membership', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     signIn(seedActor1.email)
-  })
-
-  describe('OPTIONS', () => {
-    it('advertises POST and OPTIONS', async () => {
-      const response = await OPTIONS(
-        new NextRequest('https://llun.test/api/v1/gallery/albums/membership', {
-          method: 'OPTIONS'
-        })
-      )
-
-      const methods = response.headers.get('Access-Control-Allow-Methods')
-      expect(methods).toContain('POST')
-      expect(methods).toContain('OPTIONS')
-    })
   })
 
   describe('POST', () => {

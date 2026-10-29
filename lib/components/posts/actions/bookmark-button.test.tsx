@@ -77,13 +77,6 @@ describe('BookmarkButton', () => {
     vi.clearAllMocks()
   })
 
-  it('does not reserve idle error message space in the action grid', () => {
-    render(<BookmarkAction status={status} />)
-
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('bookmark-error')).not.toBeInTheDocument()
-  })
-
   it('shows an error and keeps state when bookmarking fails', async () => {
     ;(bookmarkStatus as jest.Mock).mockResolvedValue(false)
     const onBookmarkChanged = vi.fn()

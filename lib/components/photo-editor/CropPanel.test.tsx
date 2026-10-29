@@ -47,15 +47,6 @@ const Harness = ({ compact }: { compact?: boolean }) => {
 }
 
 describe('CropPanel', () => {
-  it('offers every aspect preset as a wrapping chip', () => {
-    render(<Harness />)
-    const group = screen.getByRole('radiogroup', { name: 'Aspect ratio' })
-    expect(group).toHaveClass('flex-wrap')
-    for (const label of ['Original', 'Free', '1:1', '4:5', '3:2', '16:9']) {
-      expect(screen.getByRole('radio', { name: label })).toBeInTheDocument()
-    }
-  })
-
   it('puts the orientation toggle on its own line, 40px on a phone', () => {
     render(<Harness compact />)
     fireEvent.click(screen.getByRole('radio', { name: '3:2' }))

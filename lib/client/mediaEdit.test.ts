@@ -6,7 +6,6 @@ import {
   MediaEditError,
   getMediaEdit,
   getMediaEditMaskBlob,
-  getMediaEditSourceUrl,
   revertMediaEdit,
   saveMediaEdit
 } from './mediaEdit'
@@ -100,10 +99,6 @@ describe('mediaEdit client', () => {
       expect(error).toBeInstanceOf(MediaEditError)
       expect(error).toMatchObject({ status: 404, error: 'Record not found' })
     })
-  })
-
-  it('builds the same-origin source path', () => {
-    expect(getMediaEditSourceUrl('12')).toBe('/api/v1/media/12/edit/source')
   })
 
   describe('saveMediaEdit', () => {

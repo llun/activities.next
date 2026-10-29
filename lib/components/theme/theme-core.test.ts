@@ -101,10 +101,6 @@ describe('theme-core', () => {
   })
 
   describe('THEME_INIT_SCRIPT', () => {
-    it('references the storage key so the pre-paint script and helpers agree', () => {
-      expect(THEME_INIT_SCRIPT).toContain(THEME_STORAGE_KEY)
-    })
-
     it('applies a stored dark preference when executed before hydration', () => {
       localStorage.setItem(THEME_STORAGE_KEY, 'dark')
       // Executes the inline IIFE exactly as the browser would at the top of

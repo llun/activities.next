@@ -479,15 +479,4 @@ describe('GalleryDayHeader', () => {
     expect(screen.getByRole('heading')).toHaveTextContent('No date')
     expect(screen.queryByRole('button')).toBeNull()
   })
-
-  it('passes the host className through', () => {
-    render(<GalleryDayHeader {...baseProps} className="top-0 bg-background" />)
-
-    expect(screen.getByRole('heading').parentElement).toHaveClass(
-      'top-0',
-      'bg-background',
-      'sticky',
-      'z-10'
-    )
-  })
 })

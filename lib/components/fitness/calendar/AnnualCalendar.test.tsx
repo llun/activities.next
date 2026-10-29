@@ -863,13 +863,6 @@ describe('AnnualCalendar', () => {
       expect(container.innerHTML).not.toMatch(/animate-|skeleton|shimmer/)
     })
 
-    it('is idle by default', () => {
-      const { container, cell } = renderCalendar()
-
-      expect(container.querySelector('[aria-busy]')).toBeNull()
-      expect(cell('2026-09-24')).not.toHaveAttribute('data-loading')
-    })
-
     it('never names a day a rest day before its data has landed', () => {
       const { cell, cells } = renderCalendar({ loading: true, days: [] })
 

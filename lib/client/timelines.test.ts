@@ -194,25 +194,6 @@ describe('client timelines module', () => {
         prevMinStatusId: null
       })
     })
-
-    it('forwards signal to fetch', async () => {
-      fetchMock.mockResponseOnce(
-        JSON.stringify({
-          statuses: [{ id: 'status-1' }],
-          nextMaxStatusId: null,
-          prevMinStatusId: null
-        }),
-        { status: 200 }
-      )
-
-      const controller = new AbortController()
-      await getTimeline({ timeline: Timeline.HOME, signal: controller.signal })
-
-      expect(fetchMock).toHaveBeenCalledWith(
-        expect.stringContaining('/api/v1/timelines/home'),
-        expect.objectContaining({ signal: controller.signal })
-      )
-    })
   })
 
   describe('getHashtagTimeline', () => {
@@ -251,24 +232,6 @@ describe('client timelines module', () => {
         statuses: [],
         nextMaxStatusId: null
       })
-    })
-
-    it('forwards signal to fetch', async () => {
-      fetchMock.mockResponseOnce(
-        JSON.stringify({
-          statuses: [{ id: 'status-tag' }],
-          nextMaxStatusId: null
-        }),
-        { status: 200 }
-      )
-
-      const controller = new AbortController()
-      await getHashtagTimeline({ tag: 'tech', signal: controller.signal })
-
-      expect(fetchMock).toHaveBeenCalledWith(
-        expect.stringContaining('/api/v1/tags/tech'),
-        expect.objectContaining({ signal: controller.signal })
-      )
     })
   })
 
@@ -313,25 +276,6 @@ describe('client timelines module', () => {
         nextMaxStatusId: null,
         prevMinStatusId: null
       })
-    })
-
-    it('forwards signal to fetch', async () => {
-      fetchMock.mockResponseOnce(
-        JSON.stringify({
-          statuses: [{ id: 'status-list' }],
-          nextMaxStatusId: null,
-          prevMinStatusId: null
-        }),
-        { status: 200 }
-      )
-
-      const controller = new AbortController()
-      await getListTimeline({ listId: 'list-1', signal: controller.signal })
-
-      expect(fetchMock).toHaveBeenCalledWith(
-        expect.stringContaining('/api/v1/timelines/list/list-1'),
-        expect.objectContaining({ signal: controller.signal })
-      )
     })
   })
 

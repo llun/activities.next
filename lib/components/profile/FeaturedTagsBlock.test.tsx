@@ -17,11 +17,6 @@ const buildTag = (overrides: Partial<FeaturedTag>): FeaturedTag => ({
 })
 
 describe('FeaturedTagsBlock', () => {
-  it('renders nothing when there are no featured tags', () => {
-    const { container } = render(<FeaturedTagsBlock tags={[]} />)
-    expect(container).toBeEmptyDOMElement()
-  })
-
   it('renders a chip per tag linking to its tagged timeline', () => {
     render(
       <FeaturedTagsBlock

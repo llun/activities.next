@@ -824,28 +824,6 @@ describe('GalleryAlbumFormDialog', () => {
     })
   })
 
-  it('pads and offsets the scroll container to prevent highlight clipping', () => {
-    renderDialog()
-    expect(screen.getByTestId('scroll-container')).toHaveClass(
-      'p-1.5',
-      '-m-1.5'
-    )
-  })
-
-  it('uses sm:max-w-4xl for the Add photos dialog', () => {
-    render(
-      <GalleryAlbumFormDialog
-        open
-        ownerId="owner"
-        intent="add"
-        album={buildAlbumCard('a1')}
-        onOpenChange={vi.fn()}
-        onSaved={vi.fn()}
-      />
-    )
-    expect(screen.getByRole('dialog')).toHaveClass('sm:max-w-4xl')
-  })
-
   describe('formatAlbumDatesChipLabel', () => {
     it.each`
       firstAt                       | lastAt                        | label

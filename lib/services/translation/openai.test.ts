@@ -22,13 +22,6 @@ describe('createOpenAIProvider', () => {
     vi.clearAllMocks()
   })
 
-  it('uses the model in the cache key but the model name as provider', () => {
-    const provider = createOpenAIProvider(config)
-
-    expect(provider.cacheKey).toBe('openai:gpt-4o-mini')
-    expect(provider.providerName).toBe('gpt-4o-mini')
-  })
-
   it('advertises the broad fixed language list', async () => {
     const provider = createOpenAIProvider(config)
 

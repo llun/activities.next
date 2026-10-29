@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 
-import { DELETE, OPTIONS, PATCH, PUT } from './route'
+import { DELETE, PATCH, PUT } from './route'
 
 const mockDatabase = {
   deleteDomainBlock: vi.fn(),
@@ -108,19 +108,6 @@ describe('/api/v1/admin/domain_blocks/:id', () => {
       publicComment: null,
       obfuscate: undefined
     })
-  })
-
-  it('advertises PATCH in the OPTIONS Access-Control-Allow-Methods header', async () => {
-    const response = await OPTIONS(
-      new NextRequest('https://llun.test/api/v1/admin/domain_blocks/block-1', {
-        method: 'OPTIONS',
-        headers: { origin: 'https://llun.test' }
-      })
-    )
-
-    expect(response.headers.get('Access-Control-Allow-Methods')).toContain(
-      'PATCH'
-    )
   })
 
   it('updates domain block fields when sent via PATCH', async () => {

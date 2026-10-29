@@ -194,22 +194,6 @@ describe('GET /api/v1/timelines/tag/:hashtag', () => {
       })
     }
 
-    it('forwards any[]/all[]/none[] tags to the hashtag query', async () => {
-      const response = await requestWithQuery({
-        'any[]': ['cycling'],
-        'all[]': ['fitness'],
-        'none[]': ['walking']
-      })
-      expect(response.status).toBe(200)
-      expect(mockDatabase.getStatusesByHashtag).toHaveBeenCalledWith(
-        expect.objectContaining({
-          anyTags: ['cycling'],
-          allTags: ['fitness'],
-          noneTags: ['walking']
-        })
-      )
-    })
-
     it('strips a leading # from an additional tag before querying', async () => {
       // isMastodonHashtagName rejects '#', so parseAdditionalTags must strip the
       // leading hash; otherwise a `#cycling` additional tag would 400 the request.

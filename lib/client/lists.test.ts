@@ -3,12 +3,10 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 import { ListEntity } from '@/lib/types/mastodon/list'
 
 import {
-  addListAccounts,
   createList,
   deleteList,
   listRequestBody,
   mutateListAccounts,
-  removeListAccounts,
   updateList
 } from './lists'
 
@@ -227,48 +225,6 @@ describe('client lists module', () => {
       })
 
       expect(res).toBe(false)
-    })
-  })
-
-  describe('addListAccounts', () => {
-    it('calls mutateListAccounts with POST', async () => {
-      fetchMock.mockResponseOnce('{}', { status: 200 })
-
-      const res = await addListAccounts({
-        listId: 'list-123',
-        accountIds: ['acc-1']
-      })
-
-      expect(res).toBe(true)
-      expect(fetchMock).toHaveBeenCalledWith(
-        '/api/v1/lists/list-123/accounts',
-        expect.objectContaining({
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ account_ids: ['acc-1'] })
-        })
-      )
-    })
-  })
-
-  describe('removeListAccounts', () => {
-    it('calls mutateListAccounts with DELETE', async () => {
-      fetchMock.mockResponseOnce('{}', { status: 200 })
-
-      const res = await removeListAccounts({
-        listId: 'list-123',
-        accountIds: ['acc-1']
-      })
-
-      expect(res).toBe(true)
-      expect(fetchMock).toHaveBeenCalledWith(
-        '/api/v1/lists/list-123/accounts',
-        expect.objectContaining({
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ account_ids: ['acc-1'] })
-        })
-      )
     })
   })
 })

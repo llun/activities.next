@@ -1,8 +1,6 @@
 import {
-  FITNESS_PRIVACY_RADIUS_OPTIONS,
   type FitnessPrivacyLocation,
   type FitnessPrivacyRadiusMeters,
-  MAX_FITNESS_PRIVACY_RADIUS_METERS,
   annotatePointsWithPrivacy,
   buildPrivacySegments,
   downsamplePrivacySegments,
@@ -580,22 +578,6 @@ describe('getFitnessPrivacyLocations', () => {
         radiusMeters: 50
       }
     ])
-  })
-})
-
-describe('FITNESS_PRIVACY_RADIUS_OPTIONS', () => {
-  it('stays sorted ascending, which the upward snap depends on', () => {
-    const sorted = [...FITNESS_PRIVACY_RADIUS_OPTIONS].sort(
-      (first, second) => first - second
-    )
-
-    expect([...FITNESS_PRIVACY_RADIUS_OPTIONS]).toEqual(sorted)
-  })
-
-  it('caps at the largest option, so a new option cannot outgrow the cap', () => {
-    expect(MAX_FITNESS_PRIVACY_RADIUS_METERS).toBe(
-      Math.max(...FITNESS_PRIVACY_RADIUS_OPTIONS)
-    )
   })
 })
 

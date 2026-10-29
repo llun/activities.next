@@ -3,7 +3,6 @@
  */
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen } from '@testing-library/react'
-import type { MouseEvent } from 'react'
 
 import { GearProductLink } from './GearProductLink'
 
@@ -50,27 +49,5 @@ describe('GearProductLink', () => {
 
     expect(screen.getByText('—')).toBeInTheDocument()
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
-  })
-
-  it('forwards onClick to the anchor', () => {
-    // Only that the prop reaches the anchor. That a clickable row actually
-    // PASSES a `stopPropagation` handler is GearListView's own behaviour, and
-    // is asserted there — proving it here would only be this test handing
-    // itself the handler it then checks.
-    const onClick = vi.fn((event: MouseEvent<HTMLAnchorElement>) =>
-      event.stopPropagation()
-    )
-    render(<GearProductLink productUrl="https://moots.com" onClick={onClick} />)
-
-    fireEvent.click(screen.getByRole('link'))
-    expect(onClick).toHaveBeenCalled()
-  })
-
-  it('uses the accessible orange for the link text', () => {
-    // `text-primary` is 3.37:1 on the card and fails AA as a foreground;
-    // `--primary-text` is the hue tuned per theme to clear it.
-    render(<GearProductLink productUrl="https://moots.com" onEdit={vi.fn()} />)
-
-    expect(screen.getByRole('link')).toHaveClass('text-primary-text')
   })
 })

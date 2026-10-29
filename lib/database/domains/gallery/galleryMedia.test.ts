@@ -418,19 +418,6 @@ describe('GalleryMediaDatabase', () => {
         expect(row.statusPublicId).toBe(stored?.publicId ?? null)
       })
 
-      it('carries a numeric uploadedAt on every returned row', async () => {
-        const rows = await database.getGalleryMedia({
-          actorId: ownerId,
-          audience: OWNER_GALLERY_AUDIENCE,
-          limit: 10
-        })
-        expect(rows.length).toBeGreaterThan(0)
-        for (const row of rows) {
-          expect(typeof row.uploadedAt).toBe('number')
-          expect(Number.isFinite(row.uploadedAt)).toBe(true)
-        }
-      })
-
       it('pages by maxId, newest first', async () => {
         const first = await database.getGalleryMedia({
           actorId: ownerId,

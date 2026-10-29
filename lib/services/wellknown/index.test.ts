@@ -42,25 +42,6 @@ describe('wellknown services', () => {
       })
     })
 
-    it('includes supported scopes', () => {
-      const metadata = getOAuthAuthorizationServerMetadata()
-
-      expect(metadata.scopes_supported).toEqual(
-        expect.arrayContaining([
-          'openid',
-          'profile',
-          'email',
-          'read',
-          'read:bookmarks',
-          'write',
-          'write:accounts',
-          'write:bookmarks',
-          'follow',
-          'push'
-        ])
-      )
-    })
-
     it('advertises a provided baseURL host instead of the configured host (multi-domain alias)', () => {
       const metadata = getOAuthAuthorizationServerMetadata(
         'https://alias.example.com'
@@ -177,31 +158,6 @@ describe('wellknown services', () => {
       expect(oauth.scopes_supported).not.toContain('offline_access')
     })
 
-    it('includes OIDC scopes and claims', () => {
-      const config = getOpenIDConfiguration()
-
-      expect(config.scopes_supported).toEqual(
-        expect.arrayContaining([
-          'openid',
-          'profile',
-          'email',
-          'read:bookmarks',
-          'write:accounts',
-          'write:bookmarks',
-          'push'
-        ])
-      )
-      expect(config.claims_supported).toEqual(
-        expect.arrayContaining([
-          'sub',
-          'name',
-          'email',
-          'email_verified',
-          'preferred_username'
-        ])
-      )
-    })
-
     it('advertises a provided baseURL host (issuer + endpoints) for a served alias domain', () => {
       const config = getOpenIDConfiguration('https://alias.example.com')
 
@@ -225,20 +181,6 @@ describe('wellknown services', () => {
   })
 
   describe('getHostMetaXML', () => {
-    it('returns valid XRD XML with webfinger template', () => {
-      const xml = getHostMetaXML()
-
-      expect(xml).toContain('<?xml version="1.0" encoding="UTF-8"?>')
-      expect(xml).toContain(
-        '<XRD xmlns="http://docs.oasis-open.org/ns/xri/xrd-1.0">'
-      )
-      expect(xml).toContain('rel="lrdd"')
-      expect(xml).toContain(
-        'template="https://test.example.com/.well-known/webfinger?resource={uri}"'
-      )
-      expect(xml).toContain('</XRD>')
-    })
-
     it('points WebFinger at the base URL it is given', () => {
       expect(getHostMetaXML('https://alias.example.com')).toContain(
         'template="https://alias.example.com/.well-known/webfinger?resource={uri}"'

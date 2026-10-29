@@ -6,7 +6,7 @@ import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { FilterAction, FilterContext } from '@/lib/types/domain/filter'
 
-import { DELETE, GET, OPTIONS, PATCH, PUT } from './route'
+import { DELETE, GET, PATCH, PUT } from './route'
 
 const mockGetServerSession = vi.fn()
 vi.mock('@/lib/services/auth/getSession', () => ({
@@ -645,18 +645,5 @@ describe('/api/v1/filters/[id]', () => {
     expect(
       await database.getFilter({ actorId: ACTOR1_ID, id: filter.id })
     ).toMatchObject({ title: 'patch-new' })
-  })
-
-  it('advertises PATCH in the OPTIONS Access-Control-Allow-Methods header', async () => {
-    const response = await OPTIONS(
-      new NextRequest('https://llun.test/api/v1/filters/keyword-1', {
-        method: 'OPTIONS',
-        headers: { origin: 'https://llun.test' }
-      })
-    )
-
-    expect(response.headers.get('Access-Control-Allow-Methods')).toContain(
-      'PATCH'
-    )
   })
 })

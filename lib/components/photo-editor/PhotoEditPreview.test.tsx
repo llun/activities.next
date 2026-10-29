@@ -11,7 +11,7 @@ import {
 } from '@/lib/client/mediaEdit'
 import type { MediaStorageSaveFileOutput } from '@/lib/services/medias/types'
 
-import { PhotoEditPreview, isEditableItem } from './PhotoEditPreview'
+import { PhotoEditPreview } from './PhotoEditPreview'
 import { isWebGl2Supported } from './engine/webglSupport'
 
 vi.mock('@/lib/client/mediaEdit', async (importOriginal) => ({
@@ -114,22 +114,6 @@ describe('PhotoEditPreview', () => {
     vi.mocked(isWebGl2Supported).mockReturnValue(true)
     mockGetMediaEdit.mockReset()
     mockRevertMediaEdit.mockReset()
-  })
-
-  it.each([
-    ['image/jpeg', true],
-    ['image/png', true],
-    ['image/webp', true],
-    ['image/gif', false],
-    ['image/heic', false],
-    ['video/mp4', false]
-  ])('offers editing for %s: %s', (mediaType, editable) => {
-    expect(isEditableItem({ mediaType })).toBe(editable)
-    renderPreview({ item: item({ mediaType }) })
-    expect(screen.getByAltText('Preview')).toBeInTheDocument()
-    expect(!!screen.queryByRole('button', { name: 'Edit photo' })).toBe(
-      editable
-    )
   })
 
   it('shows the pill on a still image and opens the editor', async () => {

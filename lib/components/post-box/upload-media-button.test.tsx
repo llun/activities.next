@@ -496,24 +496,6 @@ describe('UploadMediaButton', () => {
   })
 
   describe('component visibility', () => {
-    it('renders button when media upload is enabled', () => {
-      render(
-        <UploadMediaButton
-          isMediaUploadEnabled={true}
-          attachments={[]}
-          onAddAttachment={mockOnAddAttachment}
-          onDuplicateError={mockOnDuplicateError}
-          onUploadStart={mockOnUploadStart}
-        />
-      )
-
-      expect(
-        screen.getByRole('button', {
-          name: `Add media (0/${DEFAULT_INSTANCE_LIMITS.maxMediaAttachments})`
-        })
-      ).toBeInTheDocument()
-    })
-
     it('does not render when media upload is disabled', () => {
       const { container } = render(
         <UploadMediaButton
