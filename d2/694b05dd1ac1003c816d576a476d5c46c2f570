@@ -1,0 +1,19 @@
+test/docLinks.test.ts
+  s_f147bf36f62485::t_985a603ddcc4f0 23-26,29-34,70,83-84,86,88-93,103,113-114,117,121,124,196-202,204-214,220-222,245-248,253-255,259-262,265-270,279,282-293
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d2694b05dd1ac1003c816d576a476d5c46c2f570",
+  "prompts": {},
+  "sessions": {
+    "s_f147bf36f62485": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "25ee74e4-3619-4df9-8186-dcf3fd9b6ec2",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
