@@ -379,9 +379,9 @@ Also:
 
 ### CI Status Checks
 
-Branch protection on `main` requires a single status check: `CI Success`.
+Branch protection on `main` requires the `All Tests`, `Lint and Prettier`, and `Build` checks.
 
-`CI Success` is required and fail-closed over all upstream CI checks: lint (`Lint and Prettier`), typecheck (`Type Check`), build (`Build`), the four SQLite test shards (`Test Shard N of 4`), the two PostgreSQL test shards (`PostgreSQL Tests (shard N/2)` — shard 1 also runs the SQLite and PostgreSQL schema dump drift checks), and the Docker smoke jobs (`Docker Images Smoke Test (minimal)` and `Docker Images Smoke Test (full)`). If any upstream check fails, `CI Success` fails and blocks merging.
+`All Tests` is the fail-closed fan-in over the four SQLite test shards and the two PostgreSQL test shards (`PostgreSQL Tests (shard N/2)` — shard 1 also runs the SQLite and PostgreSQL schema dump drift checks). `CI Success` is the overall aggregate: it fails closed over every upstream job (`Lint and Prettier`, `Type Check`, `Build`, `Test Shard N of 4`, `PostgreSQL Tests (shard N/2)`, and the Docker smoke jobs `Docker Images Smoke Test (minimal)` / `Docker Images Smoke Test (full)`). If any upstream check fails, `CI Success` fails and blocks merging.
 
 The `Build` job persists only `.next/cache`, including Next.js's default Turbopack filesystem build cache. Its versioned cache key includes the runner OS, Yarn lockfile, build configuration, and application source; a lockfile-prefix restore lets changed source reuse a prior build cache. Generated build outputs outside `.next/cache` are rebuilt on every run, and Yarn's archive cache remains managed by `actions/setup-node`.
 
@@ -793,7 +793,8 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
   SQLite and PostgreSQL schema dumps from the migrations and fails on drift) on
   every push and PR, plus Docker smoke jobs for the minimal and full images.
   Branch protection on `main` requires
-  a single status check — `CI Success` (strict: false). The `CI Success` aggregate job is fail-closed over all upstream
+  a single status check — `All Tests` (strict: false). The `All Tests` job fans in the test shards and the PostgreSQL shard; the
+  `CI Success` aggregate job is fail-closed over all upstream
   jobs (`Lint and Prettier`, `Type Check`, `Build`, `Test Shard N of 4`,
   `PostgreSQL Tests (shard N/2)`, and `Docker Images Smoke Test (minimal)` /
   `(full)`), so failures in
@@ -1433,16 +1434,17 @@ attachment ref guard` is exactly that: it passed with the bug present until
   unless explicitly `minor:` or `major:`.
 - Pre-commit gate is green in order: `yarn run prettier --write .`, `yarn lint`,
   `yarn typecheck`, `yarn build`, `yarn test`.
-- All required CI status checks pass (`CI Success`).
+- All required CI status checks pass (`All Tests`, `Lint and Prettier`, and `Build`, with `CI Success` as the overall aggregate).
 
 <a id="review-ci-checklist"></a>
 
 ## CI checklist
 
-- Branch protection on `main` requires a single status check: `CI Success`.
-- `CI Success` is required and fail-closed over lint (`Lint and Prettier`),
-  typecheck (`Type Check`), build (`Build`), the SQLite test shards
-  (`Test Shard N of 4`), the PostgreSQL test shards
+- Branch protection on `main` requires the `All Tests`, `Lint and Prettier`, and `Build` checks.
+- `All Tests` is the fail-closed fan-in over the test shards and the
+  PostgreSQL test shard; `CI Success` is the overall aggregate, fail-closed
+  over lint (`Lint and Prettier`), typecheck (`Type Check`), build (`Build`),
+  the SQLite test shards (`Test Shard N of 4`), the PostgreSQL test shards
   (`PostgreSQL Tests (shard N/2)`), and the Docker smoke jobs
   (`Docker Images Smoke Test (minimal)` and `Docker Images Smoke Test (full)`).
   A failure in any upstream check blocks merging via `CI Success`.

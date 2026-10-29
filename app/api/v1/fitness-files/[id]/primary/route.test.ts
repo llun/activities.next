@@ -148,25 +148,32 @@ describe('POST /api/v1/fitness-files/[id]/primary', () => {
     )
 
   // The route polls the lock on a faked 250ms timer, and PG round-trips land
-  // between fake ticks; step the clock until the response settles.
-  const advanceUntilSettled = async (pending: Promise<unknown>) => {
-    for (let i = 0; i < 24; i++) {
+  // between fake ticks; step the clock until the response settles. Each step
+  // drains real event-loop turns first, so the queries in flight can complete
+  // before the next fake tick. Throws once the step budget is spent, so a
+  // stalled route fails this test instead of hanging it to the timeout.
+  const advanceUntilSettled = async (pending: Promise<unknown>, steps = 24) => {
+    for (let i = 0; i < steps; i++) {
       const settled = await Promise.race([
         pending.then(() => true),
         new Promise<boolean>((resolve) => setImmediate(() => resolve(false)))
       ])
       if (settled) return
+      for (let drain = 0; drain < 25; drain++)
+        await new Promise((resolve) => setImmediate(resolve))
       await vi.advanceTimersByTimeAsync(250)
     }
+    throw new Error(
+      `The response did not settle within ${steps * 250}ms of the fake clock`
+    )
   }
 
   // withImportLock stamps its wait deadline before its first acquire attempt,
   // so wait for that attempt before advancing the fake clock: on PostgreSQL
-  // the round-trips land after the advance would otherwise have run.
-  const waitForPollStart = async (acquire: { mock: { calls: unknown[] } }) => {
-    for (let i = 0; i < 200 && !acquire.mock.calls.length; i++)
-      await new Promise((resolve) => setImmediate(resolve))
-  }
+  // the round-trips land after the advance would otherwise have run. vi.waitFor
+  // runs on timers stashed before faking, so it waits in real time here.
+  const waitForPollStart = (acquire: { mock: { calls: unknown[] } }) =>
+    vi.waitFor(() => expect(acquire).toHaveBeenCalled(), { timeout: 5000 })
 
   it('swaps the primary flag and answers with the new primary', async () => {
     const { oldPrimary, chosen } = await createPair()
@@ -346,7 +353,9 @@ describe('POST /api/v1/fitness-files/[id]/primary', () => {
     try {
       const pending = post(chosen.id)
       await waitForPollStart(acquire)
-      await vi.advanceTimersByTimeAsync(16_000)
+      // Step past the 15s wait deadline instead of one jump: the PG
+      // round-trips must interleave with the fake 250ms poll ticks.
+      await advanceUntilSettled(pending, 64)
       const response = await pending
 
       expect(response.status).toBe(409)

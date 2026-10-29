@@ -155,6 +155,9 @@ export const collectImportEntries = (
             !(specifier.type === 'ExportSpecifier' && specifier.isTypeOnly)
         )
         .map((specifier) => {
+          // `export * as x from './mod'` has no `orig`, only the alias; the
+          // module still flows through x, so it counts as the wildcard.
+          if (specifier.type === 'ExportNamespaceSpecifier') return '*'
           const orig = (specifier as { orig?: { value?: string } }).orig
           return typeof orig?.value === 'string' ? orig.value : ''
         })

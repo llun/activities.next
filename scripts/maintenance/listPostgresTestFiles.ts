@@ -15,8 +15,13 @@
 // A file that only reaches the SQLite-only helpers (`getTestSQLDatabase`,
 // `getTestSQLDatabaseWithInstance`, or `createTestDatabase` called with an
 // explicit `backend: 'sqlite'` in every call) never opens a PostgreSQL
-// connection and is left out. The selection reports both groups so the test
-// suite can pin the SQLite-only ones down as explicit exceptions.
+// connection and is left out. A `getTestDatabaseConfig('sqlite')` call is not
+// detected: only `createTestDatabase` is matched for an explicit
+// `backend: 'sqlite'`, so a file calling `getTestDatabaseConfig('sqlite')` is
+// kept in the PostgreSQL list — a safe over-inclusion, since the run must not
+// drop a suite that in fact opens a PostgreSQL connection. The selection
+// reports both groups so the test suite can pin the SQLite-only ones down as
+// explicit exceptions.
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'

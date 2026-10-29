@@ -266,7 +266,8 @@ const renderTable = (
 const HEADER = `// GENERATED FILE — do not edit by hand.
 // Regenerate with scripts/maintenance/generateDatabaseTypes.ts whenever a
 // migration changes the schema (see docs/setup.md, "Regenerating the Kysely DB
-// types"). CI's PostgreSQL Schema Dump Sync job fails when this file drifts.
+// types"). The schema drift checks in PostgreSQL test shard 1 fail when this
+// file drifts.
 //
 // The select side is what the database connection (lib/database/connection.ts)
 // returns on BOTH backends after normalisation (lib/database/kysely/

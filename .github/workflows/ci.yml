@@ -1,15 +1,15 @@
 name: CI
 
 # Runs on every commit (push to any branch + pull requests). The lint/prettier,
-# typecheck, build, test-shards, postgresql test shards, and docker smoke jobs
-# run in parallel (no `needs:` chain between them) so the check finishes as
-# fast as the slowest single job instead of the sum of all of them. If any one
-# of them fails, the run is reported as failed: the `CI / CI Success` job
-# aggregates every job's result and fails unless all succeeded. Mark that job
-# as the required status check in branch protection — it avoids the
-# skipped-job-counts-as-passing gap that requiring the individual jobs would
-# have. `cancel-in-progress` (below) also kills superseded runs so a new push
-# fails fast past the old one.
+# typecheck, build, SQLite test shards, PostgreSQL test shards, and docker
+# smoke jobs run in parallel (no `needs:` chain between them) so the check
+# finishes as fast as the slowest single job instead of the sum of all of
+# them. The `All Tests` job (id `test`) fans in the SQLite test shards and the
+# PostgreSQL test shards and fails closed. Branch protection requires
+# `All Tests`, `Lint and Prettier` and `Build`. `CI Success` aggregates every
+# job and fails unless all of them succeeded (skipped or cancelled count as
+# failure). `cancel-in-progress` (below) also kills superseded runs so a new
+# push fails fast past the old one.
 #
 # Everything runs in the normal push/pull_request context: jobs use the default
 # read-only token, pull_request runs check out the PR merge ref (catching
@@ -181,7 +181,7 @@ jobs:
         ports:
           - 5432/tcp
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U activities"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -196,7 +196,7 @@ jobs:
         ports:
           - 5432/tcp
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U activities"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -238,13 +238,13 @@ jobs:
       # a fresh SQLite database, apply the documented dump-and-strip pipeline,
       # and fail if the result differs from the committed file.
       - name: Run migrations against a fresh SQLite database
-        if: matrix.shard == 1
+        if: ${{ matrix.shard == 1 && !cancelled() }}
         run: |
           ACTIVITIES_DATABASE_CLIENT=better-sqlite3 \
           ACTIVITIES_DATABASE_SQLITE_FILENAME=/tmp/schema-check.sqlite3 \
             yarn migrate
       - name: Verify every migration file ran (SQLite)
-        if: matrix.shard == 1
+        if: ${{ matrix.shard == 1 && !cancelled() }}
         run: |
           applied=$(sqlite3 /tmp/schema-check.sqlite3 'SELECT count(*) FROM kysely_migration;')
           files=$(ls migrations/[0-9]*_*.ts | wc -l)
@@ -254,7 +254,7 @@ jobs:
             exit 1
           fi
       - name: Diff regenerated SQLite dump against migrations/schema.sqlite.sql
-        if: matrix.shard == 1
+        if: ${{ matrix.shard == 1 && !cancelled() }}
         run: |
           sqlite3 /tmp/schema-check.sqlite3 '.schema' \
             | grep -vE "^CREATE TABLE sqlite_sequence" \
@@ -268,13 +268,13 @@ jobs:
       # `postgres` service, then the same schema loaded on PostgreSQL 14 and
       # dumped with the same normalization.
       - name: Create the schema-check database
-        if: matrix.shard == 1
+        if: ${{ matrix.shard == 1 && !cancelled() }}
         run: |
           docker exec ${{ job.services.postgres.id }} psql -U activities -d postgres \
             -c 'DROP DATABASE IF EXISTS activities' \
             -c 'CREATE DATABASE activities'
       - name: Run migrations against a fresh PostgreSQL database
-        if: matrix.shard == 1
+        if: ${{ matrix.shard == 1 && !cancelled() }}
         run: |
           ACTIVITIES_DATABASE_CLIENT=pg \
           ACTIVITIES_DATABASE_PG_HOST=127.0.0.1 \
@@ -284,7 +284,7 @@ jobs:
           ACTIVITIES_DATABASE_PG_DATABASE=activities \
             yarn migrate
       - name: Verify every migration file ran (PostgreSQL)
-        if: matrix.shard == 1
+        if: ${{ matrix.shard == 1 && !cancelled() }}
         run: |
           applied=$(docker exec ${{ job.services.postgres.id }} psql -U activities -d activities -tAc 'SELECT count(*) FROM kysely_migration;')
           files=$(ls migrations/[0-9]*_*.ts | wc -l)
@@ -294,7 +294,7 @@ jobs:
             exit 1
           fi
       - name: Diff regenerated dump against migrations/schema.sql
-        if: matrix.shard == 1
+        if: ${{ matrix.shard == 1 && !cancelled() }}
         run: |
           docker exec ${{ job.services.postgres.id }} \
             pg_dump -U activities -d activities --schema-only --no-owner --no-privileges \
@@ -316,7 +316,7 @@ jobs:
       # migrated database plus migrations/schema.sqlite.sql, so they drift
       # whenever a migration changes the schema.
       - name: Diff regenerated Kysely DB types against lib/database/kysely/db.ts
-        if: matrix.shard == 1
+        if: ${{ matrix.shard == 1 && !cancelled() }}
         run: |
           ACTIVITIES_DATABASE_CLIENT=pg \
           ACTIVITIES_DATABASE_PG_HOST=127.0.0.1 \
@@ -335,7 +335,7 @@ jobs:
       # dump is taken with the PostgreSQL 17 pg_dump, as above; only its
       # `SET transaction_timeout` preamble line is left out of the comparison.
       - name: Load the baseline on PostgreSQL 14 and diff its dump
-        if: matrix.shard == 1
+        if: ${{ matrix.shard == 1 && !cancelled() }}
         run: |
           ACTIVITIES_DATABASE_CLIENT=pg \
           ACTIVITIES_DATABASE_PG_HOST=127.0.0.1 \
@@ -362,6 +362,28 @@ jobs:
             echo "::error::The baseline does not load on PostgreSQL 14 as the schema in migrations/schema.sql."
             exit 1
           fi
+
+  # Aggregate gate for the test jobs: this is the job to mark required in
+  # branch protection as "All Tests". It always runs (`if: always()`) and
+  # fails closed unless every test shard and the PostgreSQL shard succeeded.
+  test:
+    name: All Tests
+    needs: [test-shards, test-pg]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify all test shards succeeded
+        env:
+          RESULTS: ${{ needs.test-shards.result }} ${{ needs.test-pg.result }}
+        run: |
+          echo "Test shard results: $RESULTS"
+          for result in $RESULTS; do
+            if [ "$result" != "success" ]; then
+              echo "::error::A required CI job did not succeed (got: $result)"
+              exit 1
+            fi
+          done
+          echo "All test shards succeeded."
 
   # Build and verify the minimal Docker image: it starts with SQLite, serves
   # /api/v2/instance, exercises Sharp, and omits the optional SDKs. Does not
@@ -436,6 +458,7 @@ jobs:
         build,
         test-shards,
         test-pg,
+        test,
         docker-smoke-minimal,
         docker-smoke-full
       ]
@@ -443,7 +466,7 @@ jobs:
     steps:
       - name: Verify all CI jobs succeeded
         env:
-          RESULTS: ${{ needs.lint-prettier.result }} ${{ needs.typecheck.result }} ${{ needs.build.result }} ${{ needs.test-shards.result }} ${{ needs.test-pg.result }} ${{ needs.docker-smoke-minimal.result }} ${{ needs.docker-smoke-full.result }}
+          RESULTS: ${{ needs.lint-prettier.result }} ${{ needs.typecheck.result }} ${{ needs.build.result }} ${{ needs.test-shards.result }} ${{ needs.test-pg.result }} ${{ needs.test.result }} ${{ needs.docker-smoke-minimal.result }} ${{ needs.docker-smoke-full.result }}
         run: |
           echo "Upstream job results: $RESULTS"
           for result in $RESULTS; do
