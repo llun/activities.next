@@ -401,7 +401,7 @@ export function DraftsProvider({
               .map(itemKey)
         if (due.length === 0) {
           stalledRef.current = new Set()
-          setDrainFailed(false)
+          if (!controller.signal.aborted) setDrainFailed(false)
           return
         }
         const deps = await loadSendQueueDeps(m, accountId, actorId)
