@@ -266,8 +266,6 @@ interface DetectedLanguageStore {
   clearDetectedLanguage(params: { statusId: string }): Promise<void>
 }
 
-// Stores the language detected from the text (or clears a stale one) and
-// returns it, or null when nothing was detected or storing failed.
 export const persistDetectedLanguage = async ({
   database,
   statusId,
@@ -280,7 +278,7 @@ export const persistDetectedLanguage = async ({
   text: string | null | undefined
   html?: boolean
   declaredLanguage?: string | null
-}): Promise<string | null> => {
+}): Promise<void> => {
   try {
     const detected = html
       ? await detectLanguageFromHtml(text, { declaredLanguage })
@@ -291,15 +289,13 @@ export const persistDetectedLanguage = async ({
         language: detected.language,
         confidence: detected.confidence
       })
-      return detected.language
+      return
     }
     await database.clearDetectedLanguage({ statusId })
-    return null
   } catch (error) {
     logger.error(
       { err: toLoggableError(error), statusId },
       'Failed to persist detected language'
     )
-    return null
   }
 }

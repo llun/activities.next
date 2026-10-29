@@ -68,6 +68,10 @@ vi.mock('@/lib/client', () => ({
   getStatusById: vi.fn().mockResolvedValue(null)
 }))
 
+const otherViewer = status.actor
+  ? { ...status.actor, id: 'https://other/u/viewer' }
+  : undefined
+
 describe('Post', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -84,12 +88,13 @@ describe('Post', () => {
       })
     })
 
-    it('does not offer the inline Translate control on the viewer own post', async () => {
+    it('does not offer the inline Translate control on the viewer own post, only the menu item', async () => {
       render(
         <Post
           host="activities.local"
           currentActor={status.actor ?? undefined}
           currentTime={currentTime}
+          showActions
           status={{
             ...status,
             summary: null,
@@ -104,17 +109,22 @@ describe('Post', () => {
       expect(
         screen.queryByRole('button', { name: /Translate/ })
       ).not.toBeInTheDocument()
+
+      const trigger = await screen.findByRole('button', {
+        name: 'More actions'
+      })
+      fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+      const menu = await screen.findByRole('menu')
+      expect(
+        await within(menu).findByRole('menuitem', { name: /Translate/ })
+      ).toBeInTheDocument()
     })
 
     it('still offers inline Translate on another author post with an unknown language', async () => {
       render(
         <Post
           host="activities.local"
-          currentActor={
-            status.actor
-              ? { ...status.actor, id: 'https://other/u/viewer' }
-              : undefined
-          }
+          currentActor={otherViewer}
           currentTime={currentTime}
           status={{
             ...status,
@@ -135,11 +145,7 @@ describe('Post', () => {
       render(
         <Post
           host="activities.local"
-          currentActor={
-            status.actor
-              ? { ...status.actor, id: 'https://other/u/viewer' }
-              : undefined
-          }
+          currentActor={otherViewer}
           currentTime={currentTime}
           status={{
             ...status,
@@ -187,7 +193,7 @@ describe('Post', () => {
       render(
         <Post
           host="activities.local"
-          currentActor={status.actor ?? undefined}
+          currentActor={otherViewer}
           currentTime={currentTime}
           status={{
             ...status,

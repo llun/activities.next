@@ -182,36 +182,68 @@ describe('Create note action', () => {
       expect(status.detectedLanguage).toBe('th')
     })
 
-    it('defaults the declared language to the actor posting language', async () => {
-      await database.updateActor({
-        actorId: actor1.id,
-        defaultLanguage: 'th-TH'
+    describe('declared language', () => {
+      const create = async (language?: string) =>
+        (await createNoteFromUserInput({
+          text: 'Hello',
+          currentActor: actor1,
+          language,
+          database
+        })) as StatusNote
+
+      afterEach(async () => {
+        await database.updateActor({ actorId: actor1.id, defaultLanguage: '' })
       })
-      const defaulted = (await createNoteFromUserInput({
-        text: 'Hello',
-        currentActor: actor1,
-        database
-      })) as StatusNote
-      expect(defaulted.language).toBe('th')
 
-      const explicit = (await createNoteFromUserInput({
-        text: 'Hello',
-        currentActor: actor1,
-        language: 'fr',
-        database
-      })) as StatusNote
-      expect(explicit.language).toBe('fr')
+      it('defaults to the actor posting language, kept as given', async () => {
+        await database.updateActor({
+          actorId: actor1.id,
+          defaultLanguage: 'th'
+        })
+        expect((await create()).language).toBe('th')
+        await database.updateActor({
+          actorId: actor1.id,
+          defaultLanguage: 'fil'
+        })
+        expect((await create()).language).toBe('fil')
+      })
 
-      await database.updateActor({ actorId: actor1.id, defaultLanguage: '' })
-    })
+      it.each(['yue', 'fil', 'zh-TW', 'fr'])(
+        'keeps an explicit %s as sent',
+        async (code) => {
+          await database.updateActor({
+            actorId: actor1.id,
+            defaultLanguage: 'th'
+          })
+          expect((await create(code)).language).toBe(code)
+        }
+      )
 
-    it('leaves the language unset without a request or default language', async () => {
-      const status = (await createNoteFromUserInput({
-        text: 'Hello',
-        currentActor: actor1,
-        database
-      })) as StatusNote
-      expect(status.language).toBeNull()
+      it('falls through an invalid default language to the settings value', async () => {
+        await database.updateActor({
+          actorId: actor1.id,
+          defaultLanguage: '12!'
+        })
+        expect((await create()).language).toBe('en')
+      })
+
+      it('falls back to the value settings report when no default is set', async () => {
+        expect((await create()).language).toBe('en')
+      })
+
+      it('does not let a defaulted language suppress detection', async () => {
+        await database.updateActor({
+          actorId: actor1.id,
+          defaultLanguage: 'id'
+        })
+        const status = (await createNoteFromUserInput({
+          text: 'Hello, my name is John and I am a software developer working in Bangkok',
+          currentActor: actor1,
+          database
+        })) as StatusNote
+        expect(status.language).toBe('id')
+        expect(status.detectedLanguage).toBe('en')
+      })
     })
 
     it('leaves the detected language unset for short text', async () => {

@@ -230,7 +230,7 @@ export const createPollFromUserInput = async ({
             database,
             statusId,
             text,
-            declaredLanguage: language
+            declaredLanguage: requestedLanguage
           })
         )
 

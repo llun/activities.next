@@ -440,7 +440,7 @@ describe('persistDetectedLanguage', () => {
         statusId: 'status-1',
         text: THAI_TEXT
       })
-    ).resolves.toBeNull()
+    ).resolves.toBeUndefined()
 
     expect(logger.error).toHaveBeenCalledWith(
       { err: expect.any(Error), statusId: 'status-1' },
@@ -462,28 +462,6 @@ describe('persistDetectedLanguage', () => {
       confidence: expect.any(Number)
     })
     expect(database.clearDetectedLanguage).not.toHaveBeenCalled()
-  })
-
-  it('returns the detected language code', async () => {
-    const database = createStore()
-    await expect(
-      persistDetectedLanguage({
-        database,
-        statusId: 'status-1',
-        text: DUTCH_HEADLINE_1
-      })
-    ).resolves.toBe('nl')
-  })
-
-  it('returns null when nothing is detected', async () => {
-    const database = createStore()
-    await expect(
-      persistDetectedLanguage({
-        database,
-        statusId: 'status-1',
-        text: 'hi'
-      })
-    ).resolves.toBeNull()
   })
 
   it('clears any previous detection when re-detection is inconclusive', async () => {

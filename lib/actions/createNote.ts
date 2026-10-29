@@ -32,7 +32,6 @@ import {
   isPublicOrUnlisted
 } from '@/lib/services/statusAccess'
 import { addStatusToTimelines } from '@/lib/services/timelines'
-import { normalizeLanguageCode } from '@/lib/services/translation/types'
 import { Mention } from '@/lib/types/activitypub'
 import { NotificationType } from '@/lib/types/database/operations'
 import {
@@ -56,6 +55,7 @@ import {
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
 import { logger } from '@/lib/utils/logger'
+import { getPostingLanguage } from '@/lib/utils/postingLanguage'
 import { generatePublicId } from '@/lib/utils/publicId'
 import { MENTION_GLOBAL_REGEX } from '@/lib/utils/text/convertMarkdownText'
 import { getEmojiTags } from '@/lib/utils/text/getEmojiTags'
@@ -693,8 +693,9 @@ export const getVisibilityFromReplyStatus = (
   return 'direct'
 }
 
-// The language a new status is declared in: the request's own, else the
-// author's default posting language (Mastodon's `source.language`), else null.
+// The language a new status is declared in: the request's own (as sent), else
+// the author's posting language, else the instance default (Mastodon:
+// options[:language] -> preferred_posting_language -> default locale).
 export const resolveDeclaredLanguage = async ({
   database,
   actorId,
@@ -703,14 +704,11 @@ export const resolveDeclaredLanguage = async ({
   database: Database
   actorId: string
   language?: string | null
-}): Promise<string | null> => {
-  const requested = language ? normalizeLanguageCode(language) : ''
+}): Promise<string> => {
+  const requested = language?.trim()
   if (requested) return requested
   const settings = await database.getActorSettings({ actorId })
-  const fallback = settings?.defaultLanguage
-    ? normalizeLanguageCode(settings.defaultLanguage)
-    : ''
-  return fallback || null
+  return getPostingLanguage(settings?.defaultLanguage)
 }
 
 interface CreateNoteFromUserInputParams {
@@ -1002,7 +1000,7 @@ export const createNoteFromUserInput = async ({
             database,
             statusId,
             text,
-            declaredLanguage: language
+            declaredLanguage: requestedLanguage
           })
         )
 
