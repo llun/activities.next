@@ -539,7 +539,7 @@ Read the applicable rules and review checks below before changing this subsystem
   double carries the real static, so the components exercise the enum read.
 - The snapshot module keeps its own copy of the literal rather than importing the
   component one: it is server-only (`lib/services/**`) and must not reach into
-  the client component tree — see **Server/Client Module Boundary**.
+  the client component tree — see **Server/Client Module Boundary** in `docs/architecture.md`.
 - Changing the basemap does **not** restyle already-stored route images. They are
   re-rendered only by **Regenerate maps for old statuses** (`/fitness/privacy`,
   `POST /api/v1/fitness/general/regenerate-maps`).
