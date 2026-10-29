@@ -1,0 +1,21 @@
+test/docLinks.test.ts
+  s_17b7477480da96::t_4fa5525e6be07d 41-44,72,92,105,210-220,272-282,313-318
+AGENTS.md
+  s_17b7477480da96::t_b209c7cfdd5bb8 133-183
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0275791f6f3b4c7f4f9cfc5a2bb7bda0c7e16302",
+  "prompts": {},
+  "sessions": {
+    "s_17b7477480da96": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2228ce77-e5f6-425a-b31c-1cf14bbecf3e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
