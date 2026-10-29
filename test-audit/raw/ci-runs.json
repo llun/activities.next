@@ -1,0 +1,527 @@
+{
+  "repository": "llun/activities.next",
+  "source": "test-audit/raw/gh/list-ci-main.json and test-audit/raw/gh/run-<id>.json; analogous list/run files for other workflows",
+  "method": "Job wall time = completedAt - startedAt. CI run wall = latest completedAt minus earliest startedAt across jobs. Summed runner minutes = sum of all job wall times in the run. Medians are over five listed runs.",
+  "ciMainRuns": [
+    {
+      "runId": 40850202030,
+      "createdAt": "2026-10-29T09:30:43Z",
+      "conclusion": "success",
+      "wallMinutes": 8.0,
+      "summedRunnerMinutes": 37.13
+    },
+    {
+      "runId": 40848058940,
+      "createdAt": "2026-10-29T09:14:17Z",
+      "conclusion": "success",
+      "wallMinutes": 10.55,
+      "summedRunnerMinutes": 41.52
+    },
+    {
+      "runId": 40846547012,
+      "createdAt": "2026-10-29T09:02:39Z",
+      "conclusion": "success",
+      "wallMinutes": 10.9,
+      "summedRunnerMinutes": 39.53
+    },
+    {
+      "runId": 40844799816,
+      "createdAt": "2026-10-29T08:48:21Z",
+      "conclusion": "success",
+      "wallMinutes": 10.8,
+      "summedRunnerMinutes": 41.75
+    },
+    {
+      "runId": 40765106249,
+      "createdAt": "2026-10-28T20:38:38Z",
+      "conclusion": "success",
+      "wallMinutes": 8.77,
+      "summedRunnerMinutes": 38.08
+    }
+  ],
+  "ciMainPerJob": [
+    {
+      "job": "All Tests",
+      "sampleCount": 5,
+      "medianMinutes": 0.05,
+      "minMinutes": 0.03,
+      "maxMinutes": 0.07
+    },
+    {
+      "job": "Build",
+      "sampleCount": 5,
+      "medianMinutes": 1.52,
+      "minMinutes": 1.08,
+      "maxMinutes": 2.75
+    },
+    {
+      "job": "CI Success",
+      "sampleCount": 5,
+      "medianMinutes": 0.05,
+      "minMinutes": 0.05,
+      "maxMinutes": 0.18
+    },
+    {
+      "job": "Docker Images Smoke Test",
+      "sampleCount": 5,
+      "medianMinutes": 8.32,
+      "minMinutes": 7.88,
+      "maxMinutes": 8.53
+    },
+    {
+      "job": "Lint and Prettier",
+      "sampleCount": 5,
+      "medianMinutes": 1.67,
+      "minMinutes": 1.3,
+      "maxMinutes": 1.78
+    },
+    {
+      "job": "PostgreSQL Database Tests",
+      "sampleCount": 5,
+      "medianMinutes": 10.18,
+      "minMinutes": 7.8,
+      "maxMinutes": 10.8
+    },
+    {
+      "job": "PostgreSQL Schema Dump Sync",
+      "sampleCount": 5,
+      "medianMinutes": 1.03,
+      "minMinutes": 0.87,
+      "maxMinutes": 1.08
+    },
+    {
+      "job": "SQLite Schema Dump Sync",
+      "sampleCount": 5,
+      "medianMinutes": 0.47,
+      "minMinutes": 0.38,
+      "maxMinutes": 0.48
+    },
+    {
+      "job": "Test Shard 1 of 4",
+      "sampleCount": 5,
+      "medianMinutes": 4.1,
+      "minMinutes": 3.53,
+      "maxMinutes": 4.9
+    },
+    {
+      "job": "Test Shard 2 of 4",
+      "sampleCount": 5,
+      "medianMinutes": 3.88,
+      "minMinutes": 3.23,
+      "maxMinutes": 4.27
+    },
+    {
+      "job": "Test Shard 3 of 4",
+      "sampleCount": 5,
+      "medianMinutes": 4.55,
+      "minMinutes": 2.87,
+      "maxMinutes": 4.7
+    },
+    {
+      "job": "Test Shard 4 of 4",
+      "sampleCount": 5,
+      "medianMinutes": 4.57,
+      "minMinutes": 2.92,
+      "maxMinutes": 4.67
+    },
+    {
+      "job": "Type Check",
+      "sampleCount": 5,
+      "medianMinutes": 0.68,
+      "minMinutes": 0.65,
+      "maxMinutes": 0.73
+    }
+  ],
+  "otherWorkflows": {
+    "codeql.yml": {
+      "runs": [
+        {
+          "runId": 40850202124,
+          "event": "push",
+          "conclusion": "success"
+        },
+        {
+          "runId": 40848772211,
+          "event": "pull_request",
+          "conclusion": "success"
+        },
+        {
+          "runId": 40848058743,
+          "event": "push",
+          "conclusion": "success"
+        },
+        {
+          "runId": 40846546919,
+          "event": "push",
+          "conclusion": "success"
+        },
+        {
+          "runId": 40846413318,
+          "event": "pull_request",
+          "conclusion": "success"
+        }
+      ],
+      "jobs": [
+        {
+          "job": "Analyze (javascript)",
+          "sampleCount": 5,
+          "medianMinutes": 12.57,
+          "minMinutes": 2.18,
+          "maxMinutes": 13.17
+        }
+      ]
+    },
+    "package.yml": {
+      "runs": [
+        {
+          "runId": 40850202054,
+          "event": "push",
+          "conclusion": "success"
+        },
+        {
+          "runId": 40848058694,
+          "event": "push",
+          "conclusion": "success"
+        },
+        {
+          "runId": 40846546749,
+          "event": "push",
+          "conclusion": "success"
+        },
+        {
+          "runId": 40844799786,
+          "event": "push",
+          "conclusion": "success"
+        },
+        {
+          "runId": 40765106346,
+          "event": "push",
+          "conclusion": "success"
+        }
+      ],
+      "jobs": [
+        {
+          "job": "Build amd64 image",
+          "sampleCount": 5,
+          "medianMinutes": 6.87,
+          "minMinutes": 6.7,
+          "maxMinutes": 7.37
+        },
+        {
+          "job": "Build arm64 image",
+          "sampleCount": 5,
+          "medianMinutes": 5.73,
+          "minMinutes": 5.28,
+          "maxMinutes": 6.23
+        },
+        {
+          "job": "Publish Docker Hub manifest",
+          "sampleCount": 5,
+          "medianMinutes": 0.25,
+          "minMinutes": 0.22,
+          "maxMinutes": 0.35
+        },
+        {
+          "job": "Publish GHCR manifest",
+          "sampleCount": 5,
+          "medianMinutes": 0.27,
+          "minMinutes": 0.22,
+          "maxMinutes": 0.3
+        }
+      ]
+    },
+    "version-bump.yml": {
+      "runs": [
+        {
+          "runId": 40850202107,
+          "event": "push",
+          "conclusion": "success"
+        },
+        {
+          "runId": 40848058736,
+          "event": "push",
+          "conclusion": "success"
+        },
+        {
+          "runId": 40846546848,
+          "event": "push",
+          "conclusion": "success"
+        },
+        {
+          "runId": 40844799873,
+          "event": "push",
+          "conclusion": "success"
+        },
+        {
+          "runId": 40765106355,
+          "event": "push",
+          "conclusion": "success"
+        }
+      ],
+      "jobs": [
+        {
+          "job": "Bump Version",
+          "sampleCount": 5,
+          "medianMinutes": 0,
+          "minMinutes": 0,
+          "maxMinutes": 11.27
+        },
+        {
+          "job": "Wait for merge batch",
+          "sampleCount": 5,
+          "medianMinutes": 5.13,
+          "minMinutes": 5.12,
+          "maxMinutes": 5.77
+        }
+      ]
+    },
+    "tag-version.yml": {
+      "runs": [
+        {
+          "runId": 40850202002,
+          "event": "push",
+          "conclusion": "success"
+        },
+        {
+          "runId": 40848058697,
+          "event": "push",
+          "conclusion": "success"
+        },
+        {
+          "runId": 40846546834,
+          "event": "push",
+          "conclusion": "success"
+        },
+        {
+          "runId": 40844799817,
+          "event": "push",
+          "conclusion": "success"
+        },
+        {
+          "runId": 40765106401,
+          "event": "push",
+          "conclusion": "success"
+        }
+      ],
+      "jobs": [
+        {
+          "job": "Create Version Tag",
+          "sampleCount": 5,
+          "medianMinutes": 0.17,
+          "minMinutes": 0.12,
+          "maxMinutes": 0.28
+        }
+      ]
+    },
+    "sync-main-to-prod-dispatch.yml": {
+      "runs": [
+        {
+          "runId": 40800177078,
+          "event": "schedule",
+          "conclusion": "success"
+        },
+        {
+          "runId": 40614778626,
+          "event": "schedule",
+          "conclusion": "success"
+        },
+        {
+          "runId": 40434069484,
+          "event": "schedule",
+          "conclusion": "success"
+        },
+        {
+          "runId": 40255456380,
+          "event": "schedule",
+          "conclusion": "success"
+        },
+        {
+          "runId": 40151417819,
+          "event": "schedule",
+          "conclusion": "success"
+        }
+      ],
+      "jobs": [
+        {
+          "job": "Dispatch Sync Runner",
+          "sampleCount": 5,
+          "medianMinutes": 0.23,
+          "minMinutes": 0.22,
+          "maxMinutes": 0.27
+        }
+      ]
+    },
+    "dependabot-auto-merge.yml": {
+      "runs": [
+        {
+          "runId": 40848771966,
+          "event": "pull_request_target",
+          "conclusion": "skipped"
+        },
+        {
+          "runId": 40846413579,
+          "event": "pull_request_target",
+          "conclusion": "skipped"
+        },
+        {
+          "runId": 40845462143,
+          "event": "pull_request_target",
+          "conclusion": "skipped"
+        },
+        {
+          "runId": 40843241163,
+          "event": "pull_request_target",
+          "conclusion": "skipped"
+        },
+        {
+          "runId": 40838495911,
+          "event": "pull_request_target",
+          "conclusion": "skipped"
+        }
+      ],
+      "jobs": [
+        {
+          "job": "auto-merge",
+          "sampleCount": 5,
+          "medianMinutes": 0,
+          "minMinutes": 0,
+          "maxMinutes": 0
+        }
+      ]
+    }
+  },
+  "notes": [
+    "CI main samples are all five successful push runs from list-ci-main.json.",
+    "Skipped jobs with zero or negative timestamp deltas are clamped to 0 minutes for summary; Dependabot runs were skipped.",
+    "No job detail records were missing for the five main CI runs or the listed other-workflow samples."
+  ],
+  "ciRecentMixedEventSample": {
+    "source": "test-audit/raw/gh/list-ci.yml.json and listed run-<id>.json files",
+    "note": "Latest five CI runs across push and pull_request; includes three main push runs and two PR runs. Not the same sample as ciMainPerJob.",
+    "runs": [
+      {
+        "runId": 40850202030,
+        "event": "push",
+        "headBranch": "main",
+        "conclusion": "success"
+      },
+      {
+        "runId": 40848772091,
+        "event": "pull_request",
+        "headBranch": "version-bump/main",
+        "conclusion": "success"
+      },
+      {
+        "runId": 40848058940,
+        "event": "push",
+        "headBranch": "main",
+        "conclusion": "success"
+      },
+      {
+        "runId": 40846547012,
+        "event": "push",
+        "headBranch": "main",
+        "conclusion": "success"
+      },
+      {
+        "runId": 40846413402,
+        "event": "pull_request",
+        "headBranch": "claude/project-thread-0viodp",
+        "conclusion": "success"
+      }
+    ],
+    "perJob": [
+      {
+        "job": "All Tests",
+        "sampleCount": 5,
+        "medianMinutes": 0.05,
+        "minMinutes": 0.05,
+        "maxMinutes": 0.07
+      },
+      {
+        "job": "Build",
+        "sampleCount": 5,
+        "medianMinutes": 1.47,
+        "minMinutes": 1.08,
+        "maxMinutes": 1.72
+      },
+      {
+        "job": "CI Success",
+        "sampleCount": 5,
+        "medianMinutes": 0.05,
+        "minMinutes": 0.03,
+        "maxMinutes": 0.05
+      },
+      {
+        "job": "Docker Images Smoke Test",
+        "sampleCount": 5,
+        "medianMinutes": 7.92,
+        "minMinutes": 7.47,
+        "maxMinutes": 8.32
+      },
+      {
+        "job": "Lint and Prettier",
+        "sampleCount": 5,
+        "medianMinutes": 1.77,
+        "minMinutes": 1.35,
+        "maxMinutes": 1.78
+      },
+      {
+        "job": "PostgreSQL Database Tests",
+        "sampleCount": 5,
+        "medianMinutes": 10.18,
+        "minMinutes": 7.8,
+        "maxMinutes": 10.8
+      },
+      {
+        "job": "PostgreSQL Schema Dump Sync",
+        "sampleCount": 5,
+        "medianMinutes": 1.03,
+        "minMinutes": 0.95,
+        "maxMinutes": 1.2
+      },
+      {
+        "job": "SQLite Schema Dump Sync",
+        "sampleCount": 5,
+        "medianMinutes": 0.47,
+        "minMinutes": 0.4,
+        "maxMinutes": 0.58
+      },
+      {
+        "job": "Test Shard 1 of 4",
+        "sampleCount": 5,
+        "medianMinutes": 4.9,
+        "minMinutes": 4.1,
+        "maxMinutes": 5.23
+      },
+      {
+        "job": "Test Shard 2 of 4",
+        "sampleCount": 5,
+        "medianMinutes": 4.22,
+        "minMinutes": 2.63,
+        "maxMinutes": 4.27
+      },
+      {
+        "job": "Test Shard 3 of 4",
+        "sampleCount": 5,
+        "medianMinutes": 4.3,
+        "minMinutes": 2.87,
+        "maxMinutes": 4.92
+      },
+      {
+        "job": "Test Shard 4 of 4",
+        "sampleCount": 5,
+        "medianMinutes": 4.6,
+        "minMinutes": 2.92,
+        "maxMinutes": 4.88
+      },
+      {
+        "job": "Type Check",
+        "sampleCount": 5,
+        "medianMinutes": 0.73,
+        "minMinutes": 0.65,
+        "maxMinutes": 0.88
+      }
+    ]
+  }
+}

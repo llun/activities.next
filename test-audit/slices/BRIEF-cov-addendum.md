@@ -1,0 +1,3 @@
+ADDENDUM for slices in app/api, lib/services, lib/database: per-test-file coverage overlap is available. For each file in your slice run
+`grep -F "<path>" test-audit/raw/coverage-overlap.csv | head -15` (columns: category,A,B,containmentPct,aDistinctLines,bDistinctLines,moduleUnderTest; A's distinctive covered lines are >=90% contained in B's).
+A pair is only a CANDIDATE: confirm a duplicate by reading the test names/bodies on both sides (does B assert the same behaviour A asserts?). In the Duplicates bullet add `(coverage: NN% of A in B)` when the pair came from the CSV. Write nothing outside your one output file.
