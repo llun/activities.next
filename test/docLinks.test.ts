@@ -38,6 +38,10 @@ const nextFence = (fence: string, mark: string, line: string): string => {
 // (``a`b`` is one span), so a link inside one is not checked.
 const stripInlineCode = (line: string): string => line.replace(/(`+).*?\1/g, '')
 
+// Lines of a document, dropping a trailing \r so CRLF files behave like LF.
+const contentLines = (content: string): string[] =>
+  content.split('\n').map((line) => line.replace(/\r$/, ''))
+
 // Target of `[text](url)`, `[text](<url>)` or `[text](url "title")`.
 // shortcut: reference-style links and parentheses inside targets are not
 // parsed; upgrade when a doc actually uses either.
@@ -65,7 +69,7 @@ const headingSlugs = (content: string): Set<string> => {
   let fence = ''
   const seen = new Map<string, number>()
   const slugs = new Set<string>()
-  for (const line of content.split('\n')) {
+  for (const line of contentLines(content)) {
     const mark = fenceMark(line)
     fence = nextFence(fence, mark, line)
     if (fence || mark) continue
@@ -85,7 +89,7 @@ const headingSlugs = (content: string): Set<string> => {
 const explicitAnchors = (content: string): Set<string> => {
   let fence = ''
   const ids = new Set<string>()
-  for (const line of content.split('\n')) {
+  for (const line of contentLines(content)) {
     const mark = fenceMark(line)
     fence = nextFence(fence, mark, line)
     if (fence || mark) continue
@@ -98,7 +102,7 @@ const explicitAnchors = (content: string): Set<string> => {
 const inlineLinks = (content: string): { line: number; target: string }[] => {
   let fence = ''
   const out: { line: number; target: string }[] = []
-  content.split('\n').forEach((raw, i) => {
+  contentLines(content).forEach((raw, i) => {
     const mark = fenceMark(raw)
     fence = nextFence(fence, mark, raw)
     if (fence || mark) return
@@ -203,12 +207,17 @@ const trackedMarkdown = (): [string[], Map<string, string>] => {
     .toString()
     .split('\n')) {
     if (p === '' || p.startsWith('node_modules/')) continue
-    if (fs.lstatSync(path.join(ROOT, p)).isSymbolicLink())
-      symlinked.set(
-        p,
-        docContent(path.relative(ROOT, fs.realpathSync(path.join(ROOT, p))))
-      )
-    else sources.push(p)
+    if (fs.lstatSync(path.join(ROOT, p)).isSymbolicLink()) {
+      try {
+        symlinked.set(
+          p,
+          docContent(path.relative(ROOT, fs.realpathSync(path.join(ROOT, p))))
+        )
+      } catch {
+        // Dangling or unreadable (e.g. directory) symlink: skip it, so a link
+        // into it fails with the normal not-found/anchor reason instead.
+      }
+    } else sources.push(p)
   }
   return [sources, symlinked]
 }
@@ -260,7 +269,17 @@ describe('documentation links', () => {
         'docs/b.md',
         '## Section\n\n<a id="real"></a>\n\n```html\n<a id="fenced"></a>\n```\n'
       ],
-      ['docs/c.md', '## [Link](a.md) text\n\n   ## Indented\n']
+      ['docs/c.md', '## [Link](a.md) text\n\n   ## Indented\n'],
+      [
+        'docs/crlf.md',
+        [
+          'See [crlf good](b.md#section) and [crlf bad](b.md#nope).',
+          '```md',
+          '[fenced crlf](b.md#nope)',
+          '```',
+          ''
+        ].join('\r\n')
+      ]
     ])
     const symlinked = new Map([
       ['docs/CLAUDE.md', '## Real Section\n\nText.\n']
@@ -291,6 +310,12 @@ describe('documentation links', () => {
         line: 20,
         target: 'b.md#fenced',
         reason: '#fenced not found in docs/b.md'
+      },
+      {
+        source: 'docs/crlf.md',
+        line: 1,
+        target: 'b.md#nope',
+        reason: '#nope not found in docs/b.md'
       }
     ])
   })
