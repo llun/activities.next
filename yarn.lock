@@ -3804,7 +3804,7 @@ __metadata:
     marked: "npm:^18.1.1"
     mime-types: "npm:^3.0.2"
     next: "npm:16.4.3"
-    onnxruntime-web: "npm:1.30.0"
+    onnxruntime-web: "npm:1.31.1"
     oxlint: "npm:^1.88.0"
     pino: "npm:^10.4.0"
     pino-pretty: "npm:^13.2.0"
@@ -6270,24 +6270,24 @@ __metadata:
   languageName: node
   linkType: hard
 
-"onnxruntime-common@npm:1.30.0":
-  version: 1.30.0
-  resolution: "onnxruntime-common@npm:1.30.0"
-  checksum: 10c0/cfc1bf3d14d3771922db3179ec03c0b59a799c260579c8b934d6cdbc77fd2104b3b961c1d7c626457629eed72d94acbc7d49f8805d0ed35375c4e6ad0dc5e6cc
+"onnxruntime-common@npm:1.31.1":
+  version: 1.31.1
+  resolution: "onnxruntime-common@npm:1.31.1"
+  checksum: 10c0/aa4e676baa6e77bc4b31433ef62fce60df5645d64b5135abf6f90c3478e5d396d502338a252fe772422e66981ea742fa5ce1f2886ab096463f0207bb44f7f09e
   languageName: node
   linkType: hard
 
-"onnxruntime-web@npm:1.30.0":
-  version: 1.30.0
-  resolution: "onnxruntime-web@npm:1.30.0"
+"onnxruntime-web@npm:1.31.1":
+  version: 1.31.1
+  resolution: "onnxruntime-web@npm:1.31.1"
   dependencies:
     flatbuffers: "npm:^25.1.24"
     guid-typescript: "npm:^1.0.9"
     long: "npm:^5.2.3"
-    onnxruntime-common: "npm:1.30.0"
+    onnxruntime-common: "npm:1.31.1"
     platform: "npm:^1.3.6"
     protobufjs: "npm:^7.2.4"
-  checksum: 10c0/10f0f9a7b76d6561db685546f42e43c70b29de386b0db9ad023fb261efa00584b154a2f8a85abf954f3aa39a0ee39871d13540a26b97892adbc0bc5e70337008
+  checksum: 10c0/cb697ed921ea493b0851e0503684a8f2d274cc0b25bec266230fe4f3a3aa464c57ffb92bb3b06c60c812989f0f14cddc27d6db1e6ef0915f592315701963adc5
   languageName: node
   linkType: hard
 
