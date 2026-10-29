@@ -91,9 +91,15 @@ const settingsGroups: SectionNavGroup[] = [
   },
   {
     afterFooter: true,
+    heading: 'This profile',
     items: [
       { name: 'Moving', url: '/settings/moving', icon: <Globe /> },
-      { name: 'Delete this profile', url: '/settings/delete', icon: <Trash2 /> }
+      {
+        name: 'Delete this profile',
+        url: '/settings/delete',
+        icon: <Trash2 />,
+        danger: true
+      }
     ]
   }
 ]
@@ -283,7 +289,7 @@ describe('SectionNavDropdown', () => {
       expect(names).toEqual(['Moderation', 'Maintenance'])
     })
 
-    it('separates the cross-link and the after-footer run, and keeps menu-only groups', async () => {
+    it('separates the cross-link from the headed after-footer group, and keeps menu-only groups', async () => {
       setPath('/settings/appearance')
       render(
         <SectionNavDropdown
@@ -295,7 +301,10 @@ describe('SectionNavDropdown', () => {
       )
 
       const menu = await openMenu('Settings')
-      expect(within(menu).getAllByRole('separator')).toHaveLength(2)
+      // The headed after-footer group is set off by its label, not a
+      // separator; only the cross-link needs one.
+      expect(within(menu).getAllByRole('separator')).toHaveLength(1)
+      expect(within(menu).getAllByRole('group').length).toBeGreaterThan(0)
       expect(
         within(menu)
           .getAllByRole('menuitem')
@@ -542,7 +551,7 @@ describe('SectionNavDropdown', () => {
       ).not.toBeInTheDocument()
     })
 
-    it('does not colour "Delete this profile" as destructive: it is a page', async () => {
+    it('colours the danger "Delete this profile" row destructive', async () => {
       setPath('/settings/appearance')
       renderSettings()
 
@@ -550,7 +559,14 @@ describe('SectionNavDropdown', () => {
       const row = within(menu).getByRole('menuitem', {
         name: 'Delete this profile'
       })
-      expect(row.className).not.toMatch(DESTRUCTIVE_COLOUR)
+      // The name and the icon carry the destructive colour; the row itself
+      // keeps its default variant.
+      expect(within(row).getByText('Delete this profile')).toHaveClass(
+        'text-destructive'
+      )
+      expect(row.querySelector('span')!.className).toMatch(
+        /(^|\s)text-destructive/
+      )
       expect(row).toHaveAttribute('data-variant', 'default')
     })
   })

@@ -104,6 +104,14 @@ describe('long names', () => {
 })
 
 describe('SectionIndex', () => {
+  it('renders blocks in order: groups, footer card, after-footer groups', () => {
+    render(<SectionIndex groups={groups} footer={footer} />)
+
+    expect(
+      screen.getAllByRole('link').map((link) => link.getAttribute('href'))
+    ).toEqual(['/s/one', '/s/two', '/s/three', '/other', '/s/last'])
+  })
+
   it('lists the groups, then the footer, then after-footer groups, without menu-only groups', () => {
     render(<SectionIndex groups={groups} footer={footer} />)
 
@@ -160,37 +168,37 @@ describe('SectionIndex', () => {
     }
   )
 
-  // The fixture's blocks: First, Second, the footer card, then the
-  // after-footer run (Last).
-  const columnHrefs = (container: HTMLElement) => {
-    const grid = container.firstElementChild as HTMLElement
-    return Array.from(grid.children).map((column) =>
-      Array.from(column.querySelectorAll('a')).map((link) =>
-        link.getAttribute('href')
-      )
-    )
-  }
-
-  it('keeps the first block in the left column by default', () => {
+  // The fixture's blocks in order: First, Second, the footer card, then the
+  // after-footer run (Last), all in one column.
+  it('renders one column capped at 680px', () => {
     const { container } = render(
       <SectionIndex groups={groups} footer={footer} />
     )
 
-    expect(columnHrefs(container)).toEqual([
-      ['/s/one', '/s/two'],
-      ['/s/three', '/other', '/s/last']
-    ])
+    const column = container.firstElementChild as HTMLElement
+    expect(column).toHaveClass('max-w-[680px]', 'flex-col')
+    expect(container.querySelector('.lg\\:grid-cols-2')).toBeNull()
   })
 
-  it('puts the first splitAt blocks in the left column', () => {
-    const { container } = render(
-      <SectionIndex groups={groups} footer={footer} splitAt={3} />
+  it('colours the name and icon of a danger item destructive', () => {
+    render(
+      <SectionIndex
+        groups={[
+          {
+            heading: 'Danger',
+            items: [
+              { name: 'Delete', url: '/delete', icon: null, danger: true }
+            ]
+          }
+        ]}
+      />
     )
 
-    expect(columnHrefs(container)).toEqual([
-      ['/s/one', '/s/two', '/s/three', '/other'],
-      ['/s/last']
-    ])
+    // The icon span and the name span both carry the destructive colour.
+    const link = screen.getByRole('link', { name: 'Delete' })
+    expect(link.querySelectorAll('.text-destructive')).toHaveLength(2)
+    expect(link.firstElementChild).toHaveClass('text-destructive')
+    expect(screen.getByText('Delete')).toHaveClass('text-destructive')
   })
 })
 
@@ -357,7 +365,7 @@ describe('SectionLayout', () => {
 
     const wrapper = screen
       .getByRole('heading', { name: 'First' })
-      .closest('.grid')!.parentElement!
+      .closest('.max-w-\\[680px\\]')!.parentElement!
     // The margin is conditional: a null page leaves the wrapper the column's
     // first child, so `[&:not(:first-child)]:mt-6` does not apply.
     expect(wrapper).toHaveClass('[&:not(:first-child)]:mt-6')
@@ -370,36 +378,7 @@ describe('SectionLayout', () => {
 
     const wrapper = screen
       .getByRole('heading', { name: 'First' })
-      .closest('.grid')!.parentElement!
+      .closest('.max-w-\\[680px\\]')!.parentElement!
     expect(wrapper.previousElementSibling).toHaveTextContent('content')
-  })
-
-  it('passes splitAt through to the index', () => {
-    ;(usePathname as jest.Mock).mockReturnValue('/s')
-    render(
-      <SectionLayout
-        label="Things"
-        title="Things"
-        indexUrl="/s"
-        groups={groups}
-        footer={footer}
-        splitAt={3}
-      >
-        <div>content</div>
-      </SectionLayout>
-    )
-
-    const grid = screen
-      .getByRole('heading', { name: 'First' })
-      .closest('.grid')!
-    const columns = Array.from(grid.children).map((column) =>
-      Array.from(column.querySelectorAll('a')).map((link) =>
-        link.getAttribute('href')
-      )
-    )
-    expect(columns).toEqual([
-      ['/s/one', '/s/two', '/s/three', '/other'],
-      ['/s/last']
-    ])
   })
 })

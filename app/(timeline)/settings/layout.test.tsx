@@ -168,11 +168,27 @@ describe('Settings Layout', () => {
     ).toEqual([
       'Preferences',
       'Privacy & safety',
-      'Shared across your profiles'
+      'Shared across your profiles',
+      'This profile'
     ])
     expect(
       screen.getByText('Remove @anna and its posts from this server')
     ).toBeInTheDocument()
+    // The after-footer group's heading comes from its own heading, not the
+    // footer card's.
+    expect(
+      screen.getByRole('heading', { level: 2, name: 'This profile' })
+    ).toBeInTheDocument()
+    // The destructive action reads in the destructive colour.
+    const deleteRow = screen.getByRole('link', {
+      name: /Delete this profile/
+    })
+    expect(within(deleteRow).getByText('Delete this profile')).toHaveClass(
+      'text-destructive'
+    )
+    expect(deleteRow.querySelector('span')!.className).toMatch(
+      /(^|\s)text-destructive/
+    )
     // The index rows carry each section's description.
     expect(screen.getByRole('link', { name: /Moving/ })).toHaveAttribute(
       'href',

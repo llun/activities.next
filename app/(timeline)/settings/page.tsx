@@ -39,7 +39,7 @@ const Page = async () => {
     <>
       {/* Desktop: who these settings are for, with both ways into the
           profile. */}
-      <Frame className="flex items-center gap-4 p-4 max-lg:hidden">
+      <Frame className="flex max-w-[680px] items-center gap-4 p-4 max-lg:hidden">
         <ProfileAvatar
           username={actor.username}
           iconUrl={iconUrl}
@@ -70,7 +70,7 @@ const Page = async () => {
       </Frame>
 
       {/* Phones and tablets: the list page opens on Edit profile. */}
-      <FramedList className="lg:hidden">
+      <FramedList className="max-w-[680px] lg:hidden">
         <FramedListItem
           href="/settings/profile"
           className="flex items-center gap-3"

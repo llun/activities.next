@@ -5,6 +5,7 @@ import type { SectionNavGroup } from '@/lib/components/section-nav'
 // then the server's own configuration, then maintenance.
 export const adminGroups = (openReports = 0): SectionNavGroup[] => [
   {
+    heading: 'Overview',
     items: [
       {
         name: 'Dashboard',

@@ -54,13 +54,19 @@ const IndexGroup: FC<{
             <span
               className={cn(
                 SECTION_NAV_ICON_CLASS,
-                accent ? 'text-primary' : 'text-muted-foreground'
+                accent ? 'text-primary' : 'text-muted-foreground',
+                item.danger && 'text-destructive'
               )}
             >
               {item.icon}
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block font-medium [overflow-wrap:anywhere] max-lg:font-normal lg:text-sm">
+              <span
+                className={cn(
+                  'block font-medium [overflow-wrap:anywhere] max-lg:font-normal lg:text-sm',
+                  item.danger && 'text-destructive'
+                )}
+              >
                 {item.name}
               </span>
               {item.description && (
@@ -91,19 +97,13 @@ const IndexGroup: FC<{
 /**
  * The section's index: the list page on phones and the described cards on
  * desktop, one component at every width. Groups that are not `menuOnly`
- * render in order, then the footer card, then the `afterFooter` groups; from
- * `lg` up the first `splitAt` blocks fill the left column and the rest stack
- * on the right.
+ * render in order, then the footer card, then the `afterFooter` groups, in
+ * one column capped at 680px.
  */
 export const SectionIndex: FC<{
   groups: SectionNavGroup[]
   footer?: SectionNavFooter
-  /**
-   * How many blocks fill the left column from `lg` up; the rest stack on
-   * the right. Default 1: the first block left, the rest right.
-   */
-  splitAt?: number
-}> = ({ groups, footer, splitAt = 1 }) => {
+}> = ({ groups, footer }) => {
   const listed = groups.filter((group) => !group.menuOnly)
   const toBlock = (group: SectionNavGroup) => (
     <IndexGroup
@@ -127,12 +127,7 @@ export const SectionIndex: FC<{
     ...listed.filter((group) => group.afterFooter).map(toBlock)
   ]
 
-  return (
-    <div className="grid gap-6 lg:grid-cols-2 lg:items-start lg:gap-x-4">
-      <div className="space-y-6">{blocks.slice(0, splitAt)}</div>
-      <div className="space-y-6">{blocks.slice(splitAt)}</div>
-    </div>
-  )
+  return <div className="flex max-w-[680px] flex-col gap-6">{blocks}</div>
 }
 
 interface SectionLayoutProps {
@@ -147,11 +142,6 @@ interface SectionLayoutProps {
    * elsewhere. A section without one has no index and no link.
    */
   indexUrl?: string
-  /**
-   * How many index blocks fill the left column from `lg` up (default 1);
-   * passed to `SectionIndex`.
-   */
-  splitAt?: number
   groups: SectionNavGroup[]
   footer?: SectionNavFooter
   children: ReactNode
@@ -170,7 +160,6 @@ export const SectionLayout: FC<SectionLayoutProps> = ({
   title,
   description,
   indexUrl,
-  splitAt,
   groups,
   footer,
   children
@@ -211,7 +200,7 @@ export const SectionLayout: FC<SectionLayoutProps> = ({
             // page that returns null leaves this wrapper the column's first
             // child, so the list sits flush under the header.
             <div className="[&:not(:first-child)]:mt-6">
-              <SectionIndex groups={groups} footer={footer} splitAt={splitAt} />
+              <SectionIndex groups={groups} footer={footer} />
             </div>
           )}
         </div>

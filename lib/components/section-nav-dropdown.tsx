@@ -207,12 +207,23 @@ export const SectionNavDropdown: FC<SectionNavDropdownProps> = ({
           <span
             className={cn(
               SECTION_NAV_ICON_CLASS,
-              isActive ? 'text-primary' : 'text-popover-foreground'
+              item.danger
+                ? 'text-destructive'
+                : isActive
+                  ? 'text-primary'
+                  : 'text-popover-foreground'
             )}
           >
             {item.icon}
           </span>
-          <span className="min-w-0 flex-1 truncate">{item.name}</span>
+          <span
+            className={cn(
+              'min-w-0 flex-1 truncate',
+              item.danger && 'text-destructive'
+            )}
+          >
+            {item.name}
+          </span>
           {/* The count beside the row, with its sr-only label. */}
           <SectionNavItemBadge count={item.badge} label={item.badgeLabel} />
         </Link>
