@@ -1537,8 +1537,8 @@ legacy shape left to copy.
   land they will need to pass an already-sanitized post body through; that must
   go through the existing `convertMarkdownText`/`sanitizeText` pipeline and be
   the single, explicitly-typed exception — never markup assembled by hand.
-- **An email carries the name of the domain it is for.** Every builder takes an optional `brand: { name, domain }` (`lib/services/email/brand.ts`) that `renderEmail` turns into the wordmark (`brand.name`, escaped; without a brand the literal "Activities", because `renderEmail` is synchronous and the server name is an async setting), the header host, the logo and every link and copy line (`brandBaseURL(brand)`, `brandHost(brand)`). The brand is a `resolveDomainIdentity` result (`lib/services/email/sender.ts`: `resolveEmailIdentity(database, host)`, `resolveActorEmailBrand(database, actor)`): the visited domain for the password reset (`headerHost` of the request), the account's served domain (`getServedLinkDomain`) for the confirmation, email-change, actor-deleted and notification emails, so callers resolve it where they are already async (`lib/actions/*`, the fitness and delete jobs) and pass it in. `getEmailSender(identity)` picks the From: the primary keeps `ACTIVITIES_EMAIL_FROM` exactly as set, any served secondary domain (source `env` or `database`; a wildcard preview host is the primary) sends `{ name: getDomainDisplayName(identity), email: <bare address of ACTIVITIES_EMAIL_FROM> }` so one verified mailbox serves every domain. `sendNotificationAlerts` looks up the recipient actor's domain for it. `getAddressFromEmail` (`lib/services/email/address.ts`) normalises a display name once for every provider (`"` and `\` removed; CR, LF, other control characters and U+2028/U+2029 become spaces; whitespace collapsed), because domain names are admin text and must not inject headers. SES alone passes `encodeName: true`, which writes a non-ASCII name as RFC 2047 `=?UTF-8?B?…?=` words (each at most 75 characters), since its `Source` must be 7-bit ASCII; nodemailer encodes names itself and would quote an encoded-word, so SMTP gets the raw name.
-- **Every `href`/`src` is absolute and built from `brandBaseURL(brand)`, except the quoted-actor avatar (see below).**
+- **An email carries the name of the domain it is for.** Every builder takes an optional `brand: { name, domain }` (`lib/services/email/brand.ts`) that `renderEmail` turns into the wordmark (`brand.name`, escaped; without a brand the literal "Activities", because `renderEmail` is synchronous and the server name is an async setting), the header host, and every link and copy line (`brandBaseURL(brand)`, `brandHost(brand)`) — the header logo is the one exception, see below. The brand is a `resolveDomainIdentity` result (`lib/services/email/sender.ts`: `resolveEmailIdentity(database, host)`, `resolveActorEmailBrand(database, actor)`): the visited domain for the password reset (`headerHost` of the request), the account's served domain (`getServedLinkDomain`) for the confirmation, email-change, actor-deleted and notification emails, so callers resolve it where they are already async (`lib/actions/*`, the fitness and delete jobs) and pass it in. `getEmailSender(identity)` picks the From: the primary keeps `ACTIVITIES_EMAIL_FROM` exactly as set, any served secondary domain (source `env` or `database`; a wildcard preview host is the primary) sends `{ name: getDomainDisplayName(identity), email: <bare address of ACTIVITIES_EMAIL_FROM> }` so one verified mailbox serves every domain. `sendNotificationAlerts` looks up the recipient actor's domain for it. `getAddressFromEmail` (`lib/services/email/address.ts`) normalises a display name once for every provider (`"` and `\` removed; CR, LF, other control characters and U+2028/U+2029 become spaces; whitespace collapsed), because domain names are admin text and must not inject headers. SES alone passes `encodeName: true`, which writes a non-ASCII name as RFC 2047 `=?UTF-8?B?…?=` words (each at most 75 characters), since its `Source` must be 7-bit ASCII; nodemailer encodes names itself and would quote an encoded-word, so SMTP gets the raw name.
+- **Every `href`/`src` is absolute and built from `brandBaseURL(brand)`, except the quoted-actor avatar (see below) and the header logo.**
   That is `buildBaseURL` of the brand's domain, and `getBaseURL()` when no brand is passed or the brand
   is the primary (`toEmailBrand` leaves the primary's `domain` empty, so a configured host that
   carries a scheme keeps the link it always had). A
@@ -1546,7 +1546,13 @@ legacy shape left to copy.
   emits `/tags/x` for hashtags), and a hardcoded `https://${config.host}` is
   wrong under `ACTIVITIES_INSECURE_AUTH=true`. URLs are protocol-checked to
   http/https/mailto; anything else degrades to plain text rather than shipping a
-  dead or dangerous link, since remote actors control `status.url`. The brand's
+  dead or dangerous link, since remote actors control `status.url`. The header
+  logo, though, always comes from the configured host (`new URL('/logo-nav.png', getBaseURL())`, the same reasoning as `getBrandAssetSrc` for the web UI): an
+  alias domain may redirect elsewhere and not serve the `public/` assets — a
+  real llun.dev email pointed at `https://llun.dev/logo-nav.png`, which
+  302-redirects to `www.llun.me` (another site, no file) and rendered blank,
+  while the primary host serves the image. Links, the header host text and the
+  wordmark keep using the brand domain. The brand's
   domain is the account's own domain: every builder takes it through `brand`, and
   the confirmation and email-change links (`buildVerifyEmail`, `buildChangeEmail`)
   also take an optional `domain` for their verify link. Registration's first confirmation email
@@ -1620,6 +1626,29 @@ legacy shape left to copy.
   its text when the card is wider than the screen, which rendered the circle as a
   narrow tall pill in Apple Mail. Keep flexbox out of it and keep `min-width`
   beside the explicit width and height.
+- **The quote's author row is one fixed-layout table with the name and handle in
+  one cell.** The inset table and the row's table both carry
+  `width:100%;table-layout:fixed`, because an auto-layout table never shrinks
+  below its min-content width: with the display name and the handle in one cell
+  each (the name `white-space:nowrap`, the handle an unbreakable
+  `@user@domain` token), the row ran ~10px past the white card's right edge on a
+  narrow screen (~390pt in iPhone Apple Mail). The single cell wraps
+  (`word-wrap:break-word;overflow-wrap:anywhere;word-break:break-word`), the
+  handle drops under the name only when the two do not fit on the row, and an
+  over-long handle breaks rather than pushing the card wide. A quoted `<pre>`
+  code block gets `white-space:pre-wrap` with the same break properties (its
+  line breaks survive; a long code line wraps), and the headline `h1` carries
+  `overflow-wrap:anywhere`, for the same reason. The stat card gets the same
+  treatment: its title, stats and map tables carry
+  `width:100%;table-layout:fixed`, the timestamp column is an explicit 120px
+  (roughly the room the medium start time needs at 12px) with no
+  `white-space:nowrap`, and the title and footnote carry the break properties.
+  The header table is auto-layout: a normal wordmark and host keep their
+  natural widths, so the 20px wordmark stays on one line even at a 320px
+  viewport (fixed layout with a 160px host column squeezed it onto two), and
+  the wordmark and host cells still carry the break properties —
+  `overflow-wrap:anywhere` lowers their min-content width, so a very long
+  custom host can still make the header shrink instead of overflowing.
 - **The avatar is the one email image that is not on `getBaseURL()` and not a
   JPEG copy, and that is an accepted trade-off.** `iconUrl` is used as stored: a
   remote actor's own host, or this instance's media storage for a local actor
@@ -3651,7 +3680,12 @@ moved` (reject stays allowed). While
   an unescaped value today.
 - Every `href`/`src` is absolute and built from `brandBaseURL(brand)`
   (`buildBaseURL` of the brand's domain, a domain `getServedLinkDomain`
-  accepted; `getBaseURL()` when no brand is passed or the brand is the primary). Root-relative URLs are unresolvable in a mail client, and a
+  accepted; `getBaseURL()` when no brand is passed or the brand is the primary),
+  except the header logo, which always comes from the configured host
+  (`new URL('/logo-nav.png', getBaseURL())`, the same reasoning as
+  `getBrandAssetSrc` for the web UI: an alias domain may redirect elsewhere and
+  not serve the `public/` assets, so a logo from the brand domain can render
+  blank). Root-relative URLs are unresolvable in a mail client, and a
   hardcoded `https://${config.host}` is wrong under
   `ACTIVITIES_INSECURE_AUTH=true`.
 - The plain-text part is derived from the same block list, never hand-written

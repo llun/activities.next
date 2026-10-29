@@ -43,8 +43,8 @@ describe('buildFollowEmail', () => {
 
   it('quotes the follower with their handle', () => {
     const { html } = build()
-    expect(html).toContain('>Ben Carter</td>')
-    expect(html).toContain('>@ben@remote.example.com</td>')
+    expect(html).toContain('>Ben Carter</span>')
+    expect(html).toContain('>@ben@remote.example.com</span>')
   })
 
   it('links the local profile rather than the remote actor id', () => {

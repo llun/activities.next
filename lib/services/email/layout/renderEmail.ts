@@ -1,3 +1,4 @@
+import { getBaseURL } from '@/lib/config'
 import {
   type EmailBrand,
   brandBaseURL,
@@ -39,8 +40,11 @@ export interface RenderEmailOptions {
   footer: EmailFooter
   /**
    * The visited or recipient domain's name and host. The wordmark shows its
-   * name; the header host, the logo and every link use its domain. Omitted, the
-   * email reads as the primary host's, with the wordmark "Activities".
+   * name; the header host and every link use its domain. The header logo is
+   * the one exception: it always comes from the configured host, because an
+   * alias domain may redirect elsewhere and not serve the public/ assets.
+   * Omitted, the email reads as the primary host's, with the wordmark
+   * "Activities".
    */
   brand?: EmailBrand
 }
@@ -55,13 +59,24 @@ const PREHEADER_PADDING = '&zwnj;&nbsp;'.repeat(30)
 
 const footerLinkStyle = `color:${TEXT_CHROME};text-decoration:underline;`
 
-const renderHeader = (baseUrl: string, host: string, name: string): string => {
-  // Absolute, because a root-relative src is unresolvable in a mail client, and
-  // built from getBaseURL() so it stays correct on http/custom-port deployments
-  // and on instances whose host already carries a scheme.
-  const logoUrl = new URL('/logo-nav.png', baseUrl).toString()
+const renderHeader = (host: string, name: string): string => {
+  // The logo always comes from the configured host (getBaseURL()), never the
+  // brand domain: an alias domain may redirect elsewhere and not serve the
+  // public/ assets — a real llun.dev email pointed at
+  // https://llun.dev/logo-nav.png, which 302-redirects to www.llun.me (another
+  // site, no file) and rendered blank, while the primary host serves the file.
+  // This is the same reason the web UI loads brand assets through
+  // getBrandAssetSrc. Absolute, because a root-relative src is unresolvable in
+  // a mail client; getBaseURL() keeps it correct on http/custom-port
+  // deployments and on instances whose host already carries a scheme.
+  const logoUrl = new URL('/logo-nav.png', getBaseURL()).toString()
   return (
-    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>` +
+    // Auto layout: a wordmark and host keep their natural widths, so the 20px
+    // wordmark never wraps (fixed layout squeezed it onto two lines at a 320px
+    // viewport). The wordmark and host cells still carry overflow-wrap:anywhere,
+    // which lowers their min-content width, so a very long custom host can
+    // still make the header shrink instead of overflowing.
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%"><tr>` +
     // Explicit dimensions and display:block keep the three-column header intact
     // when the client blocks remote images, which most do by default. The
     // wordmark beside it is real text, so the header still reads without it.
@@ -69,8 +84,8 @@ const renderHeader = (baseUrl: string, host: string, name: string): string => {
     // text, so alt text here would make a client with images off read
     // "Activities Activities example.com".
     `<td width="28" style="width:28px;"><img src="${escapeHtml(logoUrl)}" width="28" height="28" alt="" style="display:block;width:28px;height:28px;border-radius:6px;border:0;"></td>` +
-    `<td style="padding-left:8px;font-family:${FONT_STACK};font-size:20px;font-weight:600;letter-spacing:-0.01em;color:${TEXT_STRONG};">${escapeHtml(name)}</td>` +
-    `<td align="right" style="font-family:${FONT_STACK};font-size:13px;color:${TEXT_CHROME};">${escapeHtml(host)}</td>` +
+    `<td style="padding-left:8px;font-family:${FONT_STACK};font-size:20px;font-weight:600;letter-spacing:-0.01em;color:${TEXT_STRONG};word-wrap:break-word;overflow-wrap:anywhere;">${escapeHtml(name)}</td>` +
+    `<td align="right" style="font-family:${FONT_STACK};font-size:13px;color:${TEXT_CHROME};word-wrap:break-word;overflow-wrap:anywhere;">${escapeHtml(host)}</td>` +
     `</tr></table>`
   )
 }
@@ -167,7 +182,7 @@ export const renderEmail = ({
     // precisely why the column can shrink at all.
     `<!--[if mso]><table role="presentation" width="${CONTENT_WIDTH}" cellpadding="0" cellspacing="0" border="0" style="width:${CONTENT_WIDTH}px;"><tr><td><![endif]-->\n` +
     `<table role="presentation" width="${CONTENT_WIDTH}" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:${CONTENT_WIDTH}px;table-layout:fixed;">\n` +
-    `<tr><td style="padding:0 8px 16px;">${renderHeader(baseUrl, host, name)}</td></tr>\n` +
+    `<tr><td style="padding:0 8px 16px;">${renderHeader(host, name)}</td></tr>\n` +
     `<tr><td bgcolor="${CARD_BACKGROUND}" style="background-color:${CARD_BACKGROUND};border:1px solid ${BORDER};border-radius:${RADIUS_CARD};padding:28px 28px 26px;">${body}</td></tr>\n` +
     `<tr><td style="padding:20px 8px 0;font-family:${FONT_STACK};font-size:12px;line-height:1.7;color:${TEXT_CHROME};">${renderFooterHtml(footer, baseUrl, host)}</td></tr>\n` +
     `</table>\n` +

@@ -106,7 +106,7 @@ const renderInlineText = (content: InlineContent): string =>
 
 /** The one-line statement of what happened. Sentence case, never a greeting. */
 export const headline = (text: string): EmailBlock => ({
-  html: `<h1 style="margin:0 0 12px;font-family:${FONT_STACK};font-size:19px;font-weight:600;letter-spacing:-0.01em;line-height:1.35;color:${TEXT};">${escapeHtml(text)}</h1>`,
+  html: `<h1 style="margin:0 0 12px;font-family:${FONT_STACK};font-size:19px;font-weight:600;letter-spacing:-0.01em;line-height:1.35;color:${TEXT};word-wrap:break-word;overflow-wrap:anywhere;">${escapeHtml(text)}</h1>`,
   text
 })
 
@@ -214,6 +214,7 @@ export interface SanitizedBody {
 const QUOTE_PARAGRAPH_GAP = '14px'
 
 const PARAGRAPH_OPEN_TAG = /<p(\s[^>]*)?>/g
+const PRE_OPEN_TAG = /<pre(\s[^>]*)?>/g
 const ANCHOR_OPEN_TAG = /<a(\s[^>]*)?>/g
 const CONTENT_LINK_CLASS = /\sclass="[^"]*\b(?:mention|hashtag)\b[^"]*"/
 
@@ -229,6 +230,9 @@ const CONTENT_LINK_CLASS = /\sclass="[^"]*\b(?:mention|hashtag)\b[^"]*"/
  * - A hashtag or mention anchor is drawn mid blue without an underline instead
  *   of the client's default blue underline. An ordinary link keeps its
  *   underline: it has no `#` or `@` to mark it as a link.
+ * - A `<pre>` code block keeps its line breaks but wraps instead of scrolling
+ *   or overflowing: `white-space:pre-wrap` plus the same break properties the
+ *   body carries, so a long code line cannot push the card wide.
  *
  * Only literal `style` attributes are added to tags the sanitizer already
  * emitted (`p` and `a` allow no `style` of their own), so this cannot widen
@@ -245,6 +249,9 @@ const styleQuotedBody = (html: string): string => {
     .replace(ANCHOR_OPEN_TAG, (tag, attributes: string | undefined) => {
       if (!attributes || !CONTENT_LINK_CLASS.test(attributes)) return tag
       return `<a${attributes} style="color:${QUOTE_LINK};text-decoration:none;">`
+    })
+    .replace(PRE_OPEN_TAG, (_tag, attributes: string | undefined) => {
+      return `<pre${attributes ?? ''} style="white-space:pre-wrap;word-wrap:break-word;overflow-wrap:anywhere;word-break:break-word;">`
     })
 }
 
@@ -282,22 +289,31 @@ export const quote = (options: {
   const avatarHtml = `<table role="presentation" width="${AVATAR_SIZE}" height="${AVATAR_SIZE}" cellpadding="0" cellspacing="0" border="0" style="width:${AVATAR_SIZE}px;height:${AVATAR_SIZE}px;min-width:${AVATAR_SIZE}px;"><tr>${avatarContent}</tr></table>`
 
   const bodyHtml = body
-    ? `<div style="margin-top:8px;font-family:${FONT_STACK};font-size:14px;line-height:1.6;color:${TEXT_BODY};word-wrap:break-word;">${styleQuotedBody(body.html)}</div>`
+    ? `<div style="margin-top:8px;font-family:${FONT_STACK};font-size:14px;line-height:1.6;color:${TEXT_BODY};word-wrap:break-word;overflow-wrap:anywhere;word-break:break-word;">${styleQuotedBody(body.html)}</div>`
     : ''
 
   return {
     html:
-      `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 20px;"><tr>` +
+      `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 20px;width:100%;table-layout:fixed;"><tr>` +
       `<td bgcolor="${INSET_BACKGROUND}" style="background-color:${INSET_BACKGROUND};border:1px solid ${BORDER};border-radius:${RADIUS_INSET};padding:14px 16px;">` +
-      `<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>` +
+      `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;table-layout:fixed;"><tr>` +
       // The avatar is a fixed-size table NESTED in this cell, never this cell
       // itself. A coloured `<td>` stretches to the height of its row, so as
       // soon as the handle wraps on a narrow screen a cell-sized avatar turns
       // into a tall pill (Apple Mail did exactly that). This cell only reserves
       // the width; `min-width` stops the name cell squeezing it.
       `<td width="${AVATAR_SIZE}" valign="middle" style="width:${AVATAR_SIZE}px;min-width:${AVATAR_SIZE}px;padding:0;">${avatarHtml}</td>` +
-      `<td style="padding-left:8px;font-family:${FONT_STACK};font-size:14px;font-weight:600;color:${TEXT_STRONG};white-space:nowrap;">${escapeHtml(author.displayName)}</td>` +
-      `<td style="padding-left:6px;font-family:${FONT_STACK};font-size:13px;color:${TEXT_CHROME};">${escapeHtml(author.handle)}</td>` +
+      // The name and handle share ONE cell, not one cell each. An auto-layout
+      // table never shrinks below its min-content width, and the handle (e.g.
+      // @cheeaun@mastodon.social) offers no break opportunity of its own, so on
+      // a narrow screen (~390pt in iPhone Apple Mail) the two cells pushed the
+      // row ~10px past the card's right edge. `table-layout:fixed` above and
+      // on the inset table lets the single cell shrink; the handle drops under
+      // the name only when the two do not fit, and an over-long handle breaks
+      // (`overflow-wrap:anywhere`). A normal space plus `padding-left:2px` on
+      // the handle span keeps roughly today's 6px gap between name and handle,
+      // and `white-space:nowrap` stays OFF the name so it can wrap too.
+      `<td valign="middle" style="padding-left:8px;font-family:${FONT_STACK};word-wrap:break-word;overflow-wrap:anywhere;word-break:break-word;"><span style="font-size:14px;font-weight:600;color:${TEXT_STRONG};">${escapeHtml(author.displayName)}</span> <span style="font-size:13px;color:${TEXT_CHROME};padding-left:2px;">${escapeHtml(author.handle)}</span></td>` +
       `</tr></table>${bodyHtml}` +
       `</td></tr></table>`,
     text: body
@@ -337,24 +353,33 @@ export const statCard = (options: {
   // wider, so a fixed height would letterbox or crop it. Letting the client
   // scale keeps the whole route visible.
   const mapHtml = safeMap
-    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 12px;"><tr>` +
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;table-layout:fixed;margin:0 0 12px;"><tr>` +
       `<td style="border:1px solid ${BORDER};border-radius:6px;background-color:${MAP_BACKGROUND};">` +
       `<img src="${escapeHtml(safeMap)}" width="512" alt="Route map" style="display:block;width:100%;max-width:512px;height:auto;border:0;border-radius:6px;">` +
       `</td></tr></table>`
     : ''
 
   const titleHtml =
-    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>` +
-    `<td style="font-family:${FONT_STACK};font-size:15px;font-weight:600;color:${TEXT};word-wrap:break-word;">${escapeHtml(title)}</td>` +
+    // Fixed layout like the quote's author row: an auto-layout table never
+    // shrinks below its min-content width, which pushed the card past the
+    // screen edge on narrow phones. With fixed layout the column widths come
+    // from the first row's cells, so the title keeps `width:auto` (it takes
+    // the remaining space and wraps) and the timestamp gets an explicit 120px —
+    // roughly the room the en-GB medium "29 Oct 2026, 07:12" start time needs
+    // at 12px, matching how the right-aligned timestamp sits today at 600px.
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;table-layout:fixed;"><tr>` +
+    `<td style="font-family:${FONT_STACK};font-size:15px;font-weight:600;color:${TEXT};word-wrap:break-word;overflow-wrap:anywhere;word-break:break-word;">${escapeHtml(title)}</td>` +
     (timestamp
-      ? `<td align="right" style="font-family:${FONT_STACK};font-size:12px;color:${TEXT_MUTED};white-space:nowrap;">${escapeHtml(timestamp)}</td>`
+      ? `<td align="right" width="120" style="width:120px;font-family:${FONT_STACK};font-size:12px;color:${TEXT_MUTED};">${escapeHtml(timestamp)}</td>`
       : '') +
     `</tr></table>`
 
+  // Explicit equal percentage widths on the cells: with fixed layout the first
+  // row's widths decide the columns, so the stats stay equal.
   const statWidth = stats.length > 0 ? Math.floor(100 / stats.length) : 100
   const statsHtml =
     stats.length > 0
-      ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:12px;"><tr>` +
+      ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;table-layout:fixed;margin-top:12px;"><tr>` +
         stats
           .map(
             (stat) =>
@@ -368,7 +393,7 @@ export const statCard = (options: {
       : ''
 
   const footnoteHtml = footnote
-    ? `<div style="margin-top:12px;padding-top:10px;border-top:1px solid ${BORDER};font-family:${FONT_STACK};font-size:12px;color:${TEXT_MUTED};word-wrap:break-word;">${escapeHtml(footnote)}</div>`
+    ? `<div style="margin-top:12px;padding-top:10px;border-top:1px solid ${BORDER};font-family:${FONT_STACK};font-size:12px;color:${TEXT_MUTED};word-wrap:break-word;overflow-wrap:anywhere;word-break:break-word;">${escapeHtml(footnote)}</div>`
     : ''
 
   const textLines = [

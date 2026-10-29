@@ -74,6 +74,6 @@ describe('buildReplyEmail', () => {
   })
 
   it('quotes the replier, not the recipient', () => {
-    expect(build().html).toContain('>@ben@remote.example.com</td>')
+    expect(build().html).toContain('>@ben@remote.example.com</span>')
   })
 })

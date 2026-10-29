@@ -463,15 +463,21 @@ describe('email design brand', () => {
   it.each(branded)('%s carries the wordmark and the brand host', (_, email) => {
     expect(email.html).toContain('Run Club')
     expect(email.html).toContain(BRAND_HOST)
-    expect(email.html).not.toContain(HOST)
+    // The header logo is the one exception: it comes from the configured host
+    // (an alias domain may redirect elsewhere and not serve public/ assets),
+    // so only the links must stay off the configured host.
+    expect(email.html).not.toContain(`href="https://${HOST}`)
   })
 
   it.each(branded)('%s builds every link on the brand domain', (_, email) => {
-    const urls = [...email.html.matchAll(/(?:href|src)="(https?:[^"]+)"/g)].map(
+    const urls = [...email.html.matchAll(/href="(https?:[^"]+)"/g)].map(
       (match) => match[1]
     )
     expect(urls.length).toBeGreaterThan(0)
     for (const url of urls) expect(url).toContain(`//${BRAND_HOST}`)
+    // The logo img src is the one exception: it is served from the configured
+    // host, never the brand domain.
+    expect(email.html).toContain(`<img src="https://${HOST}/logo-nav.png"`)
   })
 
   it('absolutizes a post body link and the actor link on the brand', () => {
@@ -483,7 +489,7 @@ describe('email design brand', () => {
     })
     expect(email.html).toContain(`href="https://${BRAND_HOST}/tags/run"`)
     expect(email.html).toContain(`https://${BRAND_HOST}/@ann`)
-    expect(email.html).not.toContain(`https://${HOST}/`)
+    expect(email.html).not.toContain(`href="https://${HOST}/`)
   })
 
   it('keeps the primary host in the body links without a brand', () => {

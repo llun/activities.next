@@ -70,8 +70,8 @@ describe('buildMentionEmail', () => {
 
   it('quotes the sender, not the recipient', () => {
     const { html } = build()
-    expect(html).toContain('>Ben Carter</td>')
-    expect(html).toContain('>@ben@remote.example.com</td>')
+    expect(html).toContain('>Ben Carter</span>')
+    expect(html).toContain('>@ben@remote.example.com</span>')
   })
 
   it('carries no label because the post is the subject of the email', () => {
