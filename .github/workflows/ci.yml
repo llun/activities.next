@@ -719,8 +719,9 @@ jobs:
   # a dump that lags the migrations makes the whole suite test a stale schema.
   # This job runs `yarn migrate` against a fresh SQLite database (the baseline,
   # then every migration after it), applies
-  # the documented dump-and-strip pipeline (CONTRIBUTING.md → "SQLite —
-  # migrations/schema.sqlite.sql"), and fails if the result differs from the
+  # the documented dump-and-strip pipeline (docs/setup.md → "Keeping the
+  # reference schema dumps in sync" → SQLite — migrations/schema.sqlite.sql),
+  # and fails if the result differs from the
   # committed file.
   schema-dump-check:
     name: SQLite Schema Dump Sync
@@ -768,8 +769,9 @@ jobs:
   # starts a PostgreSQL 17 service container, waits for readiness, runs
   # `yarn migrate` against a fresh database, verifies that every migration file ran,
   # generates a schema-only dump using PostgreSQL 17 tooling, applies the
-  # documented normalization (CONTRIBUTING.md → "PostgreSQL —
-  # migrations/schema.sql"), and fails if the result differs from the committed file.
+  # documented normalization (docs/setup.md → "Keeping the reference schema
+  # dumps in sync" → PostgreSQL — migrations/schema.sql), and fails if the
+  # result differs from the committed file.
   # It then regenerates the Kysely DB types (lib/database/kysely/db.ts) from the
   # same database and fails if they differ from the committed file too. Last,
   # it runs `yarn migrate` on PostgreSQL 14, the oldest version the docs
