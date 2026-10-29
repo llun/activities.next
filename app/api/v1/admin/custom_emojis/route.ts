@@ -185,7 +185,7 @@ export const POST = traceApiRoute(
 // Best-effort cleanup of the media file this route just saved.
 //
 // The path comes back through the shared, host-aware `getMediaPathFromFileUrl`
-// (AGENTS.md, "A stored media URL is only ours if the host says so"). Its null
+// (docs/maintenance.md, "A stored media URL is only ours if the host says so"). Its null
 // is the point at a call site that ends in an unlink: `getAttachmentMediaPath`
 // fits this input too and never returns null, but it falls back to the whole
 // pathname, which is the wrong default for a delete. The host check is

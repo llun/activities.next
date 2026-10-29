@@ -45,8 +45,9 @@ const ItemGlyph: FC<{ item: PickerItem }> = ({ item }) =>
 
 // The instance's custom emoji, fetched at most once per page load. Threading
 // them as a prop would touch every surface that renders a post (~30 files),
-// which is exactly the prop-drilling AGENTS.md warns against for instance-wide
-// values; the picker is also the only consumer, and only once it is opened.
+// which is exactly the prop-drilling docs/architecture.md (Instance Limits in
+// Client Components) warns against for instance-wide values; the picker is also
+// the only consumer, and only once it is opened.
 let customEmojiRequest: Promise<CustomEmojiOption[]> | null = null
 
 const loadCustomEmojis = (): Promise<CustomEmojiOption[]> => {

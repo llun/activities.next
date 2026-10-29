@@ -13,7 +13,7 @@
  * This module is deliberately dependency-free and carries no `'use client'`
  * directive: the auto-assign job, the API routes and the gear UI all import it,
  * and a server module reading a value out of a client module gets nothing (see
- * AGENTS.md → Server/Client Module Boundary).
+ * docs/architecture.md → Server/Client Module Boundary).
  *
  * Only sports that a bike or a pair of shoes is used for are modelled. Swimming
  * and gym work normalize to null — there is no gear kind to attribute them to.

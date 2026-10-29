@@ -211,7 +211,7 @@ export const getActorDisplayName = (
 // dynamic route that runs a session lookup plus six actor queries and, for a
 // remote actor this instance has not persisted yet, a WebFinger lookup and a
 // signed actor fetch to the remote server. See "Link prefetching in feeds" in
-// AGENTS.md.
+// docs/architecture.md.
 export const ActorAvatar: FC<Props> = ({
   actor,
   actorId,
@@ -253,7 +253,7 @@ export const ActorInfo: FC<Props> = ({
 
   const href = getActorProfileHref(actor, actorId, statusUrl)
   // `name` and `mention` are independent fallback chains and can disagree.
-  // See "Status Posts & Actions" in AGENTS.md for the case breakdown.
+  // See "Status Posts & Actions" in docs/mastodon-api-compatibility.md for the case breakdown.
   const mention = getUsableActorMention(actor)
   const idParts = mention ? null : getActorIdParts(actorId || '', statusUrl)
   const name = getActorDisplayName(actor) || idParts?.handle || ''

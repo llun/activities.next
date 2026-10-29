@@ -4,7 +4,7 @@
 // It lives in its own dependency-free module — like `pollDurations` next door —
 // so both server code and Client Components can import the value without either
 // side pulling the other's module graph in (see the Server/Client Module
-// Boundary section in AGENTS.md).
+// Boundary section in docs/architecture.md).
 
 // How many *distinct* reactions one actor may place on one status. Matches the
 // glitch-soc reaction PR's `MAX_REACTIONS` default of 8 and is enforced for both

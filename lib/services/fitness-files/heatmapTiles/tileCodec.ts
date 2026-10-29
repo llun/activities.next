@@ -11,7 +11,7 @@ import { TILE_EXTENT, TILE_MAX_ZOOM, TILE_MIN_ZOOM } from './constants'
  *
  * Dependency-free apart from the shared Web Mercator maths, and carries no
  * `'use client'`: the build job, the serving routes and the map components all
- * decode with this (see AGENTS.md → Server/Client Module Boundary). The
+ * decode with this (see docs/architecture.md → Server/Client Module Boundary). The
  * database layer deliberately treats a tile's payload as an opaque string and
  * never parses it, so this module is the ONLY definition of the format.
  */

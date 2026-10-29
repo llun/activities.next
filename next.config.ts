@@ -36,7 +36,8 @@ const nextConfig: NextConfig = {
     // needs its `bin.tsc`: never alias that package (e.g. to
     // @typescript/typescript6 for a side-by-side install) while this is on, or
     // `next build` runs `yarn add --dev typescript` itself mid-build and
-    // rewrites package.json. See AGENTS.md -> TypeScript.
+    // rewrites package.json. See docs/setup.md -> Build, Test, and Development
+    // Commands.
     useTypeScriptCli: true
   },
   // sharp's native *.node binary dlopen's its libvips shared library via a

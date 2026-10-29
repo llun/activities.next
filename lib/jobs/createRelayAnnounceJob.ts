@@ -19,7 +19,7 @@ import {
 // `{ @context, id, type, actor, object }` — no `published`, often no `cc` — so
 // the strict AS `Announce` schema (which requires published/to/cc) would reject
 // them and drop every relayed post. Model only the fields this job consumes and
-// stay liberal in what we accept (AGENTS.md).
+// stay liberal in what we accept (docs/mastodon-api-compatibility.md → ActivityPub & JSON-LD).
 const RelayAnnounce = z
   .object({
     id: z.string(),
