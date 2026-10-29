@@ -390,6 +390,27 @@ describe('SectionNavDropdown', () => {
     }
   })
 
+  it('does nothing when the late re-reveal fires after unmount', async () => {
+    setPath('/admin/system')
+    const { unmount } = render(
+      <SectionNavDropdown label="Admin" groups={adminGroups(3)} />
+    )
+    await openMenu('Admin')
+    unmount()
+
+    // The CI flake: the 300ms re-reveal fired after the test's jsdom
+    // environment was torn down, so the callback read a `document` that no
+    // longer existed. Simulate that teardown by removing the global.
+    const document_ = globalThis.document
+    // @ts-expect-error -- deleting the global is the teardown being simulated
+    delete globalThis.document
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 350))
+    } finally {
+      globalThis.document = document_
+    }
+  })
+
   it('does not pull the menu back once focus has moved off the current row', async () => {
     const rectSpy = vi
       .spyOn(HTMLElement.prototype, 'getBoundingClientRect')

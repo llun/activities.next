@@ -431,7 +431,7 @@ export function DraftsProvider({
         // A lock miss is no stall: another tab is draining, and an item it
         // listed too late is still due here, so it is tried again soon.
         stalledRef.current = new Set(ran && attempted === 0 ? due : [])
-        setDrainFailed(false)
+        if (!controller.signal.aborted) setDrainFailed(false)
       } catch {
         // Storage or a chunk failed to load: the next trigger tries again,
         // and the Drafts page offers Retry meanwhile.
