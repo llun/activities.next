@@ -1,0 +1,35 @@
+docs-audit/consult-astra.md
+  s_bb7c698b9d0a76::t_ca41c631b6d9ba 1-218
+docs-audit/consult-fable.md
+  s_f147bf36f62485::t_435851e4b9541e 1-137
+docs-audit/audit-log.md
+  s_f147bf36f62485::t_4a03fa41928103 1-25
+docs-audit/consult-argon.md
+  s_f147bf36f62485::t_1bc65a1b6bb49d 1-159
+docs-audit/consult-glm.md
+  s_f147bf36f62485::t_b09b959d35133d 1-102
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d80fff3b4691323450ecc2af6b98412e0b671fff",
+  "prompts": {},
+  "sessions": {
+    "s_bb7c698b9d0a76": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a188c7-79fa-79f0-9069-9ea07e296a43",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_f147bf36f62485": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "25ee74e4-3619-4df9-8186-dcf3fd9b6ec2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
