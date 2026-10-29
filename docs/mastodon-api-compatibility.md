@@ -1009,8 +1009,7 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   rollups are serialized in full (twice — once per dialect) on every status.
   A federating peer with many actors can therefore inflate the size of a status
   entity. Storage is unaffected; the cost is response size. A per-status cap is
-  deliberately out of scope for the first release — see the reaction-spam note
-  in the epic plan — so treat an abusive peer as a moderation/defederation
+  deliberately out of scope — treat an abusive peer as a moderation/defederation
   matter for now.
 
 - **Remote statuses** — `/api/v1/accounts/:id/remote-statuses` exposes cached
