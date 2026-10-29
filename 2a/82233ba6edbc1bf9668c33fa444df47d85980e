@@ -1,0 +1,133 @@
+lib/activities/index.ts
+  s_17b7477480da96::t_da2da42a5ec843 192
+lib/jobs/followTimelineBackfillJob.ts
+  s_17b7477480da96::t_da2da42a5ec843 63,85-86,197
+lib/services/fitness-gears/deviceIdentity.ts
+  s_17b7477480da96::t_da2da42a5ec843 25
+lib/types/database/gallery.ts
+  s_17b7477480da96::t_da2da42a5ec843 4
+lib/services/guards/OAuthGuard.ts
+  s_17b7477480da96::t_da2da42a5ec843 752
+lib/services/polls/syncRemotePoll.test.ts
+  s_17b7477480da96::t_da2da42a5ec843 329-330
+lib/services/statuses/fetchEphemeralRemoteStatus.ts
+  s_17b7477480da96::t_da2da42a5ec843 39-40
+REVIEW.md
+  s_17b7477480da96::t_da2da42a5ec843 5-7
+scripts/backup/productionArchive.ts
+  s_17b7477480da96::t_da2da42a5ec843 1549-1550,1654-1655
+test/docLinks.test.ts
+  s_17b7477480da96::t_da2da42a5ec843 1-322
+app/(timeline)/admin/accounts/[id]/accountDetails.ts
+  s_17b7477480da96::t_da2da42a5ec843 3-4
+lib/database/testing/schema.ts
+  s_17b7477480da96::t_da2da42a5ec843 9-10
+lib/database/domains/fitnessFile/writes.ts
+  s_17b7477480da96::t_da2da42a5ec843 85
+lib/jobs/processFitnessFileJob.ts
+  s_17b7477480da96::t_da2da42a5ec843 581
+lib/jobs/createRelayAnnounceJob.ts
+  s_17b7477480da96::t_da2da42a5ec843 22
+docs/mastodon-api-compatibility.md
+  s_17b7477480da96::t_da2da42a5ec843 1012,1120,1165,1833-1836,1900
+lib/services/fitness-files/heatmapTiles/constants.ts
+  s_17b7477480da96::t_da2da42a5ec843 7,139
+.oxlintrc.json
+  s_17b7477480da96::t_da2da42a5ec843 4,210,230
+.github/workflows/ci.yml
+  s_17b7477480da96::t_da2da42a5ec843 763,862
+lib/components/posts/post.tsx
+  s_17b7477480da96::t_da2da42a5ec843 114
+docs/setup.md
+  s_17b7477480da96::t_da2da42a5ec843 380,383,406
+lib/services/navigation/navPreferences.ts
+  s_17b7477480da96::t_da2da42a5ec843 10
+lib/actions/emojiReaction.ts
+  s_17b7477480da96::t_da2da42a5ec843 39-40
+app/api/v1/files/[...pathname]/route.ts
+  s_17b7477480da96::t_da2da42a5ec843 28
+.github/PULL_REQUEST_TEMPLATE.md
+  s_17b7477480da96::t_da2da42a5ec843 2-6
+docs/fitness-file-storage.md
+  s_17b7477480da96::t_da2da42a5ec843 542,1318-1319,1556
+app/api/v1/accounts/relationships/route.test.ts
+  s_17b7477480da96::t_da2da42a5ec843 21
+lib/utils/activitypub.ts
+  s_17b7477480da96::t_da2da42a5ec843 55-56
+lint/agentsRules.test.ts
+  s_17b7477480da96::t_da2da42a5ec843 241
+lib/services/accountArchive/actorArchive.ts
+  s_17b7477480da96::t_da2da42a5ec843 584
+lib/services/fitness-files/heatmapTiles/tileCodec.ts
+  s_17b7477480da96::t_da2da42a5ec843 14
+lib/components/posts/actions/actions.tsx
+  s_17b7477480da96::t_da2da42a5ec843 46
+lib/types/activitypub/activities.ts
+  s_17b7477480da96::t_da2da42a5ec843 120-121,131-132
+lib/services/statuses/reactionLimits.ts
+  s_17b7477480da96::t_da2da42a5ec843 7
+lib/services/quotes/fetchQuoteTargetForCreate.ts
+  s_17b7477480da96::t_da2da42a5ec843 51-52
+CONTRIBUTING.md
+  s_17b7477480da96::t_da2da42a5ec843 20,709,1161-1162,1172,1190-1191,1222,1225
+lib/components/posts/reaction-picker.tsx
+  s_17b7477480da96::t_da2da42a5ec843 48-50
+lint/agentsRules.mjs
+  s_17b7477480da96::t_da2da42a5ec843 33-34,377,383,393,404,416,431,443,477
+next.config.ts
+  s_17b7477480da96::t_da2da42a5ec843 39-40
+lib/types/database/galleryAlbums.ts
+  s_17b7477480da96::t_da2da42a5ec843 4
+package.json
+  s_17b7477480da96::t_da2da42a5ec843 3,128
+docs/maintenance.md
+  s_17b7477480da96::t_da2da42a5ec843 401-411,1167,1169,1171-1174,1195,1602,1645-1646
+lib/services/auth/twoFactorSignIn.test.ts
+  s_17b7477480da96::t_da2da42a5ec843 20-21
+app/(timeline)/account/sessions/AccountSessions.tsx
+  s_17b7477480da96::t_da2da42a5ec843 55-56
+lib/components/back-link.tsx
+  s_17b7477480da96::t_da2da42a5ec843 29
+lib/services/fitness-files/heatmapTiles/tiler.ts
+  s_17b7477480da96::t_da2da42a5ec843 19
+lib/components/settings/ImageUploadField.tsx
+  s_17b7477480da96::t_da2da42a5ec843 80-81
+lib/components/posts/actions/post-menu.tsx
+  s_17b7477480da96::t_da2da42a5ec843 173
+lib/services/fitness-files/sportTypes.ts
+  s_17b7477480da96::t_da2da42a5ec843 16
+README.md
+  s_17b7477480da96::t_da2da42a5ec843 102,115
+AGENTS.md
+  s_17b7477480da96::t_da2da42a5ec843 12-14,17,21,25-30,34-55,59-64,68-73,77-81,83-84,88-92,97-99,103,107-110,114-116,130-186
+app/api/v1/admin/custom_emojis/route.ts
+  s_17b7477480da96::t_da2da42a5ec843 188
+lib/components/posts/actor.tsx
+  s_17b7477480da96::t_da2da42a5ec843 214,256
+lib/services/fitness-files/heatmapTiles/edgeMerge.ts
+  s_17b7477480da96::t_da2da42a5ec843 8
+lib/services/guards/accountState.ts
+  s_17b7477480da96::t_da2da42a5ec843 25
+CLAUDE.md
+  s_17b7477480da96::t_fb10f8cdf7ad67 1
+yarn.lock
+  s_17b7477480da96::t_96f8bb0cbf3768 3397-3400,3763
+docs/architecture.md
+  s_17b7477480da96::t_1f702543a8a487 1324
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2a82233ba6edbc1bf9668c33fa444df47d85980e",
+  "prompts": {},
+  "sessions": {
+    "s_17b7477480da96": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2228ce77-e5f6-425a-b31c-1cf14bbecf3e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
