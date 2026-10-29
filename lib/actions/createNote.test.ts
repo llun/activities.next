@@ -219,6 +219,14 @@ describe('Create note action', () => {
         }
       )
 
+      it('ignores a malformed explicit language and uses the default chain', async () => {
+        await database.updateActor({
+          actorId: actor1.id,
+          defaultLanguage: 'th'
+        })
+        expect((await create('English')).language).toBe('th')
+      })
+
       it('falls through an invalid default language to the settings value', async () => {
         await database.updateActor({
           actorId: actor1.id,

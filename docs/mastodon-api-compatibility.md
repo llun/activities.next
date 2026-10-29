@@ -589,14 +589,17 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
 - **Declared language of a new status** — `POST /api/v1/statuses` (notes and
   polls, immediate and scheduled at publish time) stores `language` by the same
   chain as Mastodon: the request's own `language` as sent (trimmed, never cut to
-  two letters, so `yue`, `fil` and `zh-TW` survive), else the author's saved
+  two letters, so `yue`, `fil` and `zh-TW` survive; a malformed value such as
+  `English` is ignored), else the author's saved
   posting language (`defaultLanguage`, Mastodon's `source.language`; ignored
   when it is not a 2-3 letter code with optional subtags), else `en`. That last
   step is `getPostingLanguage` (`lib/utils/postingLanguage.ts`), the same value
   `verify_credentials` reports as `source.language` and Settings → Preferences
-  shows, so a created status always has a language. Only the request's own
-  language is passed to content-based detection as its hint; a defaulted one is
-  not.
+  shows, so a created status always has a language
+  (`GET /api/v1/preferences` still reports `posting:default:language` as null
+  when none is set or it is malformed, as Mastodon does). Only the request's
+  own language is passed to content-based detection as its hint, on create and
+  on edit; a defaulted or stored one is not.
 - **Atomic `Idempotency-Key` on `POST /api/v1/statuses`** — `Idempotency-Key`
   (up to 255 characters; a longer key is rejected with `422` before any work)
   is claimed atomically inside the same database transaction as the status row

@@ -55,7 +55,10 @@ import {
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
 import { logger } from '@/lib/utils/logger'
-import { getPostingLanguage } from '@/lib/utils/postingLanguage'
+import {
+  getPostingLanguage,
+  parseLanguageCode
+} from '@/lib/utils/postingLanguage'
 import { generatePublicId } from '@/lib/utils/publicId'
 import { MENTION_GLOBAL_REGEX } from '@/lib/utils/text/convertMarkdownText'
 import { getEmojiTags } from '@/lib/utils/text/getEmojiTags'
@@ -693,7 +696,8 @@ export const getVisibilityFromReplyStatus = (
   return 'direct'
 }
 
-// The language a new status is declared in: the request's own (as sent), else
+// The language a new status is declared in: the request's own (as sent, when
+// it looks like a language code), else
 // the author's posting language, else the instance default (Mastodon:
 // options[:language] -> preferred_posting_language -> default locale).
 export const resolveDeclaredLanguage = async ({
@@ -705,7 +709,7 @@ export const resolveDeclaredLanguage = async ({
   actorId: string
   language?: string | null
 }): Promise<string> => {
-  const requested = language?.trim()
+  const requested = parseLanguageCode(language)
   if (requested) return requested
   const settings = await database.getActorSettings({ actorId })
   return getPostingLanguage(settings?.defaultLanguage)

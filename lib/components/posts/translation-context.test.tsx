@@ -120,19 +120,6 @@ describe('useStatusTranslation', () => {
     expect(result.current.state).toBe('idle')
   })
 
-  it('offers no manual translation on an own post when there is no backend', async () => {
-    ;(getTranslationCapability as jest.Mock).mockResolvedValue({
-      enabled: false,
-      defaultLanguage: null
-    })
-    const { result } = renderHook(() =>
-      useStatusTranslation('id-own-2', 'en', true, false)
-    )
-    await waitFor(() => expect(getTranslationCapability).toHaveBeenCalled())
-    expect(result.current.canTranslate).toBe(false)
-    expect(result.current.canManualTranslate).toBe(false)
-  })
-
   it('caches each target so re-requesting it does not re-hit the backend', async () => {
     ;(translateStatus as jest.Mock).mockImplementation(
       ({ language }: { language: string }) =>

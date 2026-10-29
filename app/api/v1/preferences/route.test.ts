@@ -144,6 +144,15 @@ describe('/api/v1/preferences', () => {
     })
   })
 
+  it('reports a malformed stored posting language as null', async () => {
+    await database.updateActor({ actorId: ACTOR1_ID, defaultLanguage: '12!' })
+    const response = await GET(
+      new NextRequest('https://llun.test/api/v1/preferences'),
+      { params: Promise.resolve({}) }
+    )
+    expect((await response.json())['posting:default:language']).toBeNull()
+  })
+
   // The guard now accepts the aggregate `read` scope OR the granular
   // `read:accounts` scope (OAuthGuardAnyScope). An unrelated granular read
   // scope must still be rejected.

@@ -88,9 +88,10 @@ export const PreferencesSettings: FC<Props> = ({ initialPreferences }) => {
     [preferences, savedPreferences]
   )
 
-  // `defaultLanguage` is an arbitrary string in actor settings, so the stored
-  // value may not be in the curated list. Keep it selectable to avoid the
-  // select rendering blank and silently overwriting it on save.
+  // The stored `defaultLanguage` may be a valid code outside the curated list
+  // (zh-TW, fil, ...). Keep it selectable to avoid the select rendering blank
+  // and silently overwriting it on save. A malformed stored value never gets
+  // here: the page shows (and so saves) it as `en`.
   const languageOptions = useMemo(() => {
     if (
       LANGUAGES.some((option) => option.value === initialPreferences.language)

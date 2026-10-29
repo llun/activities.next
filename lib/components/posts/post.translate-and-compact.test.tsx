@@ -105,19 +105,19 @@ describe('Post', () => {
         />
       )
 
-      await waitFor(() => expect(getTranslationCapability).toHaveBeenCalled())
-      expect(
-        screen.queryByRole('button', { name: /Translate/ })
-      ).not.toBeInTheDocument()
-
       const trigger = await screen.findByRole('button', {
         name: 'More actions'
       })
       fireEvent.keyDown(trigger, { key: 'ArrowDown' })
       const menu = await screen.findByRole('menu')
+      // Found only once the capability has resolved, so the absence check
+      // below is meaningful.
       expect(
         await within(menu).findByRole('menuitem', { name: /Translate/ })
       ).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /Translate/, hidden: true })
+      ).not.toBeInTheDocument()
     })
 
     it('still offers inline Translate on another author post with an unknown language', async () => {
