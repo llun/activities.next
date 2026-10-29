@@ -115,47 +115,48 @@ const revealRow = (menu: HTMLElement, row: HTMLElement) => {
 // `DropdownMenu.Content` keeps `onOpenAutoFocus` off its public types (only
 // the menu internals declare it) but passes every prop through to the menu's
 // `FocusScope`, which is where the event comes from. It is therefore spread
-// from a call's result rather than written as a prop, and the component test
+// onto the content rather than written as a prop, and the component test
 // "opens on the current page" fails if a Radix update stops honouring it.
-const focusCurrentRowOnOpen = (registerStop: (stop: () => void) => void) => ({
-  onOpenAutoFocus: (event: Event) => {
-    const menu = event.currentTarget as HTMLElement | null
-    const current = menu?.querySelector<HTMLElement>('[aria-current="page"]')
-    if (!menu || !current) return
-    event.preventDefault()
-    current.focus({ preventScroll: true })
-    revealRow(menu, current)
+//
+// Returns the `stop` cleanup for the caller to run when the menu closes or
+// the component unmounts, or undefined when there is no current row.
+const revealCurrentRow = (event: Event): (() => void) | undefined => {
+  const menu = event.currentTarget as HTMLElement | null
+  const current = menu?.querySelector<HTMLElement>('[aria-current="page"]')
+  if (!menu || !current) return undefined
+  event.preventDefault()
+  current.focus({ preventScroll: true })
+  revealRow(menu, current)
 
-    const menuEl = menu
-    const currentEl = current
-    // The late reveals only help while the user has not moved: once focus has
-    // left the current row, or they press a key, wheel or press inside the
-    // menu, they are steering and the menu must not be pulled back.
-    const observer =
-      typeof ResizeObserver === 'undefined'
-        ? null
-        : new ResizeObserver(() => reveal())
-    let timer: number | undefined
-    const stop = () => {
-      observer?.disconnect()
-      window.clearTimeout(timer)
-      for (const type of STEERING_EVENTS)
-        menu.removeEventListener(type, stop, LISTENER_OPTIONS[type])
-    }
-    function reveal() {
-      if (document.activeElement !== currentEl) return stop()
-      revealRow(menuEl, currentEl)
-    }
+  const menuEl = menu
+  const currentEl = current
+  // The late reveals only help while the user has not moved: once focus has
+  // left the current row, or they press a key, wheel or press inside the
+  // menu, they are steering and the menu must not be pulled back.
+  const observer =
+    typeof ResizeObserver === 'undefined'
+      ? null
+      : new ResizeObserver(() => reveal())
+  let timer: number | undefined
+  const stop = () => {
+    observer?.disconnect()
+    window.clearTimeout(timer)
     for (const type of STEERING_EVENTS)
-      menu.addEventListener(type, stop, LISTENER_OPTIONS[type])
-    observer?.observe(menu)
-    timer = window.setTimeout(() => {
-      reveal()
-      stop()
-    }, 300)
-    registerStop(stop)
+      menu.removeEventListener(type, stop, LISTENER_OPTIONS[type])
   }
-})
+  function reveal() {
+    if (document.activeElement !== currentEl) return stop()
+    revealRow(menuEl, currentEl)
+  }
+  for (const type of STEERING_EVENTS)
+    menu.addEventListener(type, stop, LISTENER_OPTIONS[type])
+  observer?.observe(menu)
+  timer = window.setTimeout(() => {
+    reveal()
+    stop()
+  }, 300)
+  return stop
+}
 
 /**
  * The section sub-navigation of every section (Settings, Account & security,
@@ -176,16 +177,25 @@ export const SectionNavDropdown: FC<SectionNavDropdownProps> = ({
 }) => {
   const pathname = usePathname()
   const id = useId()
-  // The 300ms re-reveal in `focusCurrentRowOnOpen` outlives the open
-  // animation; its `stop` (disconnect the ResizeObserver, remove the steering
-  // listeners, clear the timer) is registered here and run when the menu
-  // closes or the component unmounts. Calling it twice is safe.
+  // The 300ms re-reveal in `revealCurrentRow` outlives the open animation;
+  // its `stop` (disconnect the ResizeObserver, remove the steering listeners,
+  // clear the timer) is stored here by the `onOpenAutoFocus` handler below
+  // and run by `clearReveal` when the menu closes or the component unmounts.
+  // Calling it twice is safe.
   const stopReveal = useRef<(() => void) | undefined>(undefined)
   const clearReveal = () => {
     stopReveal.current?.()
     stopReveal.current = undefined
   }
   useEffect(() => clearReveal, [])
+  // Built as an object and spread because `onOpenAutoFocus` is not on the
+  // content's public types (see the comment above `revealCurrentRow`).
+  const focusCurrentRowOnOpen = {
+    onOpenAutoFocus: (event: Event) => {
+      clearReveal()
+      stopReveal.current = revealCurrentRow(event)
+    }
+  }
   const items = groups.flatMap((group) => group.items)
   if (items.length === 0) return null
 
@@ -318,9 +328,7 @@ export const SectionNavDropdown: FC<SectionNavDropdownProps> = ({
         align="start"
         sideOffset={6}
         className="w-(--radix-dropdown-menu-trigger-width) rounded-xl shadow-lg"
-        {...focusCurrentRowOnOpen((stop) => {
-          stopReveal.current = stop
-        })}
+        {...focusCurrentRowOnOpen}
       >
         {before.map((group, index) => block(group, index, index > 0))}
         {/* The cross-link behind its separator, then the after-footer groups:

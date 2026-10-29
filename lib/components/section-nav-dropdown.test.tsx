@@ -473,6 +473,126 @@ describe('SectionNavDropdown', () => {
     }
   )
 
+  // The reveal's `stop` — disconnect the ResizeObserver, clear the 300ms
+  // timer, drop the steering listeners — must run when the menu closes and
+  // when the component unmounts, and a reopen must start a fresh reveal.
+  // jsdom has no ResizeObserver, so a stub stands in for it, and only
+  // setTimeout/clearTimeout are faked: the reveal's timer is captured while
+  // waitFor's polling interval stays real.
+  describe('reveal cleanup', () => {
+    // floating-ui's autoUpdate (Radix's positioning) shares the global
+    // ResizeObserver and observes the trigger as well as the menu, so global
+    // call counts would count it too — and its cleanup disconnects on close,
+    // which would make any `disconnect` assertion pass on its own. Every
+    // stub instance therefore keeps its own spies, and the tests assert on
+    // the instance that observed the menu alone: the reveal's.
+    class ResizeObserverStub {
+      static instances: ResizeObserverStub[] = []
+      observe = vi.fn()
+      disconnect = vi.fn()
+      unobserve = vi.fn()
+      constructor() {
+        ResizeObserverStub.instances.push(this)
+      }
+    }
+
+    const renderSettings = () =>
+      render(
+        <SectionNavDropdown
+          label="Settings"
+          groups={settingsGroups}
+          footer={settingsFooter}
+          indexUrl="/settings"
+        />
+      )
+
+    // The trigger toggles on a left pointerdown (Radix listens for that, not
+    // for click). The pointerdown is on the trigger, outside the menu
+    // content, so no steering event runs `stop` before the close path does.
+    // The trigger must be captured before the menu opens: the open menu is
+    // modal and hides the rest of the page from role queries.
+    const clickTrigger = (trigger: HTMLElement) =>
+      fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false })
+
+    // Closing schedules short timers beyond the reveal's own too (Radix's
+    // unmount auto-focus at 0ms, next/link's idle callbacks at 1ms). Advance
+    // to just before the reveal's 300ms timer: everything else runs, and a
+    // reveal timer that `stop` failed to clear would still be pending.
+    const settleShortTimers = () => vi.advanceTimersByTime(299)
+
+    // The reveal's observer watches the menu and nothing else; the
+    // positioning observer watches the trigger too, so it never matches.
+    const revealObserver = (menu: HTMLElement) => {
+      const [observer] = ResizeObserverStub.instances.filter((instance) => {
+        const targets = instance.observe.mock.calls.map(([element]) => element)
+        return targets.length === 1 && targets[0] === menu
+      })
+      expect(observer).toBeDefined()
+      return observer!
+    }
+
+    beforeEach(() => {
+      ResizeObserverStub.instances = []
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+      vi.stubGlobal('ResizeObserver', ResizeObserverStub)
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+      vi.unstubAllGlobals()
+    })
+
+    it('stops the reveal when the menu is closed from the trigger', async () => {
+      setPath('/settings/appearance')
+      renderSettings()
+      const trigger = within(
+        screen.getByRole('navigation', { name: 'Settings' })
+      ).getByRole('button')
+
+      const menu = await openMenu('Settings')
+      const reveal = revealObserver(menu)
+      expect(reveal.observe).toHaveBeenCalledTimes(1)
+
+      clickTrigger(trigger)
+      expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+      settleShortTimers()
+      expect(reveal.disconnect).toHaveBeenCalled()
+      expect(vi.getTimerCount()).toBe(0)
+    })
+
+    it('stops the reveal when the component unmounts', async () => {
+      setPath('/settings/appearance')
+      const { unmount } = renderSettings()
+
+      const menu = await openMenu('Settings')
+      const reveal = revealObserver(menu)
+      expect(reveal.observe).toHaveBeenCalledTimes(1)
+
+      unmount()
+      settleShortTimers()
+      expect(reveal.disconnect).toHaveBeenCalled()
+      expect(vi.getTimerCount()).toBe(0)
+    })
+
+    it('reveals again when the menu is reopened', async () => {
+      setPath('/settings/appearance')
+      renderSettings()
+      const trigger = within(
+        screen.getByRole('navigation', { name: 'Settings' })
+      ).getByRole('button')
+
+      const menu = await openMenu('Settings')
+      const first = revealObserver(menu)
+      clickTrigger(trigger)
+      settleShortTimers()
+
+      const reopened = await openMenu('Settings')
+      const second = revealObserver(reopened)
+      expect(second).not.toBe(first)
+      expect(second.observe).toHaveBeenCalledTimes(1)
+    })
+  })
+
   it('sizes rows for touch and truncates long names', async () => {
     setPath('/fitness/strava')
     renderFitness()
@@ -578,6 +698,11 @@ describe('SectionNavDropdown', () => {
         'text-destructive'
       )
       expect(row).toHaveAttribute('data-variant', 'default')
+      // The danger colour stays on its own row: the neighbour sharing the
+      // after-footer group keeps the default colour everywhere.
+      expect(
+        within(menu).getByRole('menuitem', { name: 'Moving' }).innerHTML
+      ).not.toMatch(DESTRUCTIVE_COLOUR)
     })
 
     it('matches the trigger when the danger row is the current page', async () => {
