@@ -12,8 +12,8 @@ permissions:
 
 env:
   # This gate waits for a whole CI run, not just for checks to be attached:
-  # "All Tests" is a fan-in job (`needs: [test-shards]`), so GitHub only creates
-  # its check run once the four-way shard matrix has finished — minutes after
+  # "CI Success" is a fan-in job (`needs: [...]`), so GitHub only creates
+  # its check run once the parallel matrix jobs have finished — minutes after
   # the PR is opened. 30 minutes covers a cold-cache run with headroom.
   CHECK_ATTEMPTS: 180
   CHECK_INTERVAL_SECONDS: 10
@@ -280,7 +280,7 @@ jobs:
           # same name to one head commit (a reopen, a manual re-run, a run
           # superseded by CI's cancel-in-progress concurrency). Branch protection
           # resolves a duplicated name to the newest run, but `gh pr checks` does
-          # not — it reported the cancelled run's failed "All Tests" and never
+          # not — it reported the cancelled run's failed "CI Success" and never
           # looked at the green one, which is why this gate used to abandon every
           # bump PR.
           latest_check_run_states() {
@@ -296,12 +296,12 @@ jobs:
           # run on the PR head commit.
           #
           # A required check that has no check run yet is PENDING, not missing.
-          # CI's "All Tests" is a fan-in job (`needs: [test-shards]`), so GitHub
-          # does not create its check run until the whole shard matrix finishes,
+          # CI's "CI Success" is a fan-in job (`needs: [...]`), so GitHub
+          # does not create its check run until the parallel jobs finish,
           # minutes into a perfectly healthy run. Treating that as "CI never
           # fired" is what made the self-heal reopen below fire on every bump PR:
           # the reopen cancelled the in-flight run, and the cancelled run's
-          # "All Tests" job (`if: always()`) then failed permanently on that
+          # "CI Success" job (`if: always()`) then failed permanently on that
           # commit, so the PR could never merge.
           wait_for_required_checks() {
             local pr_url="$1"

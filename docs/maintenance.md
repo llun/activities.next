@@ -942,7 +942,7 @@ NODE_ENV=production node scripts/run.cjs scripts/maintenance/importRemoteStatus.
 
 ## Docker Image Verification
 
-The `verifyDockerImages.ts` script verifies both the minimal and full Docker images.
+The `verifyDockerImages.ts` script verifies both the minimal and full Docker images by default; pass `--only <minimal|full>` to verify just one. CI runs the same verifier in two jobs — `Docker Images Smoke Test (minimal)` and `Docker Images Smoke Test (full)` — each with `--only` set to its half.
 
 ### What it does
 
@@ -959,6 +959,10 @@ The `verifyDockerImages.ts` script verifies both the minimal and full Docker ima
 ```bash
 # Verify both minimal and full images (builds images if not present)
 node scripts/run.cjs scripts/maintenance/verifyDockerImages.ts
+
+# Verify only one of the two images (builds it if not present)
+node scripts/run.cjs scripts/maintenance/verifyDockerImages.ts --only minimal
+node scripts/run.cjs scripts/maintenance/verifyDockerImages.ts --only full
 
 # Force rebuild before verification
 node scripts/run.cjs scripts/maintenance/verifyDockerImages.ts --build
@@ -1339,8 +1343,8 @@ Every query the app runs goes through Kysely, on a connection Kysely owns (`crea
 - Any PR that adds/edits/removes a migration regenerates **both**
   `migrations/schema.sql` (PostgreSQL) and `migrations/schema.sqlite.sql` (SQLite)
   in the same PR, against fresh local DBs — never hand-edited — and then
-  `lib/database/kysely/db.ts`. Commit a schema-only regeneration as `none:`. (CI's SQLite and PostgreSQL Schema Dump Sync
-  jobs catch schema-dump and Kysely-type drift.)
+  `lib/database/kysely/db.ts`. Commit a schema-only regeneration as `none:`. (CI's schema drift checks,
+  run in the first PostgreSQL test shard, catch schema-dump and Kysely-type drift.)
 - A new migration is a TypeScript module from `yarn migrate:make`, registered in
   `migrations/index.ts` with its name in `migrations/names.ts` (the runner reads
   that map, the startup check the names; `yarn typecheck` fails when the two

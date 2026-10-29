@@ -284,7 +284,7 @@ docker run --rm -d --name test-postgres -p 127.0.0.1:5432:5432 \
   postgres:17
 ```
 
-2. Run the PostgreSQL database test suites with bounded worker concurrency (e.g. `--maxWorkers=2` to avoid connection exhaustion):
+2. Run one or more PostgreSQL-reaching test files with bounded worker concurrency (e.g. `--maxWorkers=2` to avoid connection exhaustion):
 
 ```bash
 TEST_DATABASE_TYPE=pg \
@@ -293,40 +293,14 @@ TEST_DATABASE_PORT=5432 \
 TEST_DATABASE_USERNAME=activities \
 TEST_DATABASE_PASSWORD=activities \
 yarn test --maxWorkers=2 \
-  lib/database/domains/media/media.test.ts \
-  lib/database/domains/media/mediaAccountListing.test.ts \
-  lib/database/domains/media/mediaMutations.test.ts \
-  lib/database/domains/media/mediaDetails.test.ts \
-  lib/database/domains/gallery/gallery.test.ts \
-  lib/database/domains/gallery/galleryMedia.test.ts \
-  lib/database/domains/gallery/galleryAlbums.test.ts \
-  lib/database/domains/gallery/galleryAlbumsVisibility.test.ts \
-  lib/database/domains/gallery/galleryAlbumQueries.test.ts \
-  lib/database/domains/gallery/galleryAlbumSuggestions.test.ts \
-  lib/services/gallery/galleryQueries.test.ts \
-  lib/services/gallery/galleryAlbumQueries.test.ts \
-  lib/services/gallery/galleryAlbumVisitor.test.ts \
-  lib/services/gallery/galleryAlbumSuggestions.test.ts \
-  lib/services/gallery/galleryGear.test.ts \
-  lib/services/gallery/subjectHashtags.test.ts \
-  lib/services/gallery/uploadMediaDetails.test.ts \
-  lib/database/domains/gallery/galleryLookupCache.test.ts \
-  lib/database/domains/fitnessFile/fitnessFile.test.ts \
-  lib/database/domains/fitnessFile/fitnessFileActivityStats.test.ts \
-  lib/database/domains/fitnessFile/fitnessFileOverviewWindows.test.ts \
-  lib/database/domains/fitnessGear/fitnessGear.test.ts \
-  lib/database/domains/fitnessGear/fitnessGearComponents.test.ts \
-  lib/database/domains/fitnessGear/fitnessGearDevice.test.ts \
-  lib/database/domains/fitnessGear/fitnessGearComponentPeriods.test.ts \
-  lib/database/domains/fitnessRouteHeatmapTile/fitnessRouteHeatmapTile.test.ts \
-  lib/database/domains/fitnessRouteHeatmapTile/fitnessRouteHeatmapTileClaim.test.ts \
-  lib/database/domains/fitnessRouteHeatmapTile/fitnessRouteHeatmapTileClaimRace.test.ts \
-  lib/database/domains/queueJob/queueJob.test.ts \
-  lib/database/domains/status/statusDeletionQueue.test.ts \
-  lib/database/domains/stravaArchiveImport/stravaArchiveImport.test.ts \
-  lib/database/domains/list/list.test.ts \
-  lib/database/domains/list/listMembershipEligibility.test.ts
+  lib/database/domains/media/media.test.ts
 ```
+
+There is no hand-written list of PostgreSQL test files to maintain — not in CI
+and not here. `node scripts/run.cjs scripts/maintenance/listPostgresTestFiles.ts`
+prints every test file whose import graph reaches a PG-capable test helper
+(`createTestDatabase` and friends), and CI runs that generated list in two
+shards, so a new database-reaching test is picked up automatically.
 
 3. When finished, stop the container:
 
@@ -405,14 +379,9 @@ Also:
 
 ### CI Status Checks
 
-Branch protection on `main` requires four status checks:
+Branch protection on `main` requires a single status check: `CI Success`.
 
-- `All Tests`
-- `Lint and Prettier`
-- `Build`
-- `CI Success`
-
-`CI Success` is required and fail-closed over all upstream CI checks: lint (`Lint and Prettier`), typecheck (`Type Check`), build (`Build`), test shards (`All Tests`), PostgreSQL database tests (`PostgreSQL Database Tests`), and schema dump checks (`SQLite Schema Dump Sync` and `PostgreSQL Schema Dump Sync`). If any upstream check fails, `CI Success` fails and blocks merging.
+`CI Success` is required and fail-closed over all upstream CI checks: lint (`Lint and Prettier`), typecheck (`Type Check`), build (`Build`), the four SQLite test shards (`Test Shard N of 4`), the two PostgreSQL test shards (`PostgreSQL Tests (shard N/2)` — shard 1 also runs the SQLite and PostgreSQL schema dump drift checks), and the Docker smoke jobs (`Docker Images Smoke Test (minimal)` and `Docker Images Smoke Test (full)`). If any upstream check fails, `CI Success` fails and blocks merging.
 
 The `Build` job persists only `.next/cache`, including Next.js's default Turbopack filesystem build cache. Its versioned cache key includes the runner OS, Yarn lockfile, build configuration, and application source; a lockfile-prefix restore lets changed source reuse a prior build cache. Generated build outputs outside `.next/cache` are rebuilt on every run, and Yarn's archive cache remains managed by `actions/setup-node`.
 
@@ -427,7 +396,7 @@ The separate Docker packaging workflow (`.github/workflows/package.yml`) reuses 
 - [ ] TypeScript types are proper (no `any`)
 - [ ] Commit messages follow convention
 - [ ] `yarn run prettier --write .`, `yarn lint`, `yarn typecheck`, `yarn build`, and `yarn test` pass
-- [ ] All CI status checks pass (including required check `CI Success`, fail-closed over lint, typecheck, build, tests, PostgreSQL database tests, and schema dump checks)
+- [ ] All CI status checks pass (including required check `CI Success`, fail-closed over lint, typecheck, build, tests, PostgreSQL tests, and Docker smoke tests)
 
 ## Project Structure
 
@@ -818,13 +787,16 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
   never nest that deep, so normal `focus()` / `document.activeElement` behavior
   is unchanged.
 - CI (`.github/workflows/ci.yml`) runs lint + prettier-check, **type check**,
-  build, four parallel test shards aggregated into an `All Tests` step, and
-  schema dump sync jobs (regenerating SQLite and PostgreSQL schema dumps from
-  the migrations and failing on drift) on every push and PR. Branch protection on `main` requires
-  four status checks — `All Tests`, `Lint and Prettier`, `Build`, and `CI Success`
-  (strict: false). The `CI Success` aggregate job is fail-closed over all upstream
-  jobs (`Lint and Prettier`, `Type Check`, `Build`, `All Tests`,
-  `PostgreSQL Database Tests`, `SQLite Schema Dump Sync`, and `PostgreSQL Schema Dump Sync`), so failures in
+  build, four parallel SQLite test shards, and two PostgreSQL test shards
+  (built from the file list generated by
+  `scripts/maintenance/listPostgresTestFiles.ts`; shard 1 also regenerates the
+  SQLite and PostgreSQL schema dumps from the migrations and fails on drift) on
+  every push and PR, plus Docker smoke jobs for the minimal and full images.
+  Branch protection on `main` requires
+  a single status check — `CI Success` (strict: false). The `CI Success` aggregate job is fail-closed over all upstream
+  jobs (`Lint and Prettier`, `Type Check`, `Build`, `Test Shard N of 4`,
+  `PostgreSQL Tests (shard N/2)`, and `Docker Images Smoke Test (minimal)` /
+  `(full)`), so failures in
   `Type Check` (the gate covering `*.test.ts(x)`), database portability, or schema dump drift block
   merging via `CI Success`.
   The test job pins `TEST_DATABASE_TYPE: sqlite`; `createTestDatabase`
@@ -1171,7 +1143,7 @@ each ends with the Definition of Done gate.
 1. `yarn migrate:make <name>` — never hand-write the file (migrations are TypeScript with named `up`/`down` taking a `Kysely<any>`, from `migrations/migration.stub`) — then register it in `migrations/index.ts` and its name in `migrations/names.ts`.
 2. Use Kysely's schema and query builders; the migration must work on SQLite and PostgreSQL (see **Database Compatibility Guidelines**). It runs in its own transaction unless it exports `config = { transaction: false }`.
 3. Apply it locally against a throwaway SQLite file with inline env vars: `ACTIVITIES_DATABASE= ACTIVITIES_DATABASE_CLIENT=better-sqlite3 ACTIVITIES_DATABASE_SQLITE_FILENAME=./throwaway.sqlite3 yarn migrate` (the empty `ACTIVITIES_DATABASE=` keeps a JSON configuration in `.env.local` from taking over).
-4. Regenerate BOTH reference schema dumps (see **Keeping the reference schema dumps in sync**), then the Kysely DB types (see **Regenerating the Kysely DB types** in `docs/setup.md`). This is not optional: the Vitest suite builds its databases from the dumps, and CI's SQLite and PostgreSQL Schema Dump Sync jobs fail on schema-dump or type drift.
+4. Regenerate BOTH reference schema dumps (see **Keeping the reference schema dumps in sync**), then the Kysely DB types (see **Regenerating the Kysely DB types** in `docs/setup.md`). This is not optional: the Vitest suite builds its databases from the dumps, and CI's schema drift checks (in the first PostgreSQL test shard) fail on schema-dump or type drift.
 5. Update the affected `lib/database/` code and types, plus tests.
 6. Run the Definition of Done gate.
 
@@ -1461,16 +1433,16 @@ attachment ref guard` is exactly that: it passed with the bug present until
   unless explicitly `minor:` or `major:`.
 - Pre-commit gate is green in order: `yarn run prettier --write .`, `yarn lint`,
   `yarn typecheck`, `yarn build`, `yarn test`.
-- All required CI status checks pass (`All Tests`, `Lint and Prettier`, `Build`,
-  and `CI Success`).
+- All required CI status checks pass (`CI Success`).
 
 <a id="review-ci-checklist"></a>
 
 ## CI checklist
 
-- Branch protection on `main` requires four status checks: `All Tests`,
-  `Lint and Prettier`, `Build`, and `CI Success`.
+- Branch protection on `main` requires a single status check: `CI Success`.
 - `CI Success` is required and fail-closed over lint (`Lint and Prettier`),
-  typecheck (`Type Check`), build (`Build`), tests (`All Tests`), PostgreSQL database tests
-  (`PostgreSQL Database Tests`), and schema dump checks (`SQLite Schema Dump Sync` and `PostgreSQL Schema Dump Sync`).
+  typecheck (`Type Check`), build (`Build`), the SQLite test shards
+  (`Test Shard N of 4`), the PostgreSQL test shards
+  (`PostgreSQL Tests (shard N/2)`), and the Docker smoke jobs
+  (`Docker Images Smoke Test (minimal)` and `Docker Images Smoke Test (full)`).
   A failure in any upstream check blocks merging via `CI Success`.

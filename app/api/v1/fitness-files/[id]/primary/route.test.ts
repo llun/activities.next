@@ -42,7 +42,7 @@ vi.mock('next/headers', () => ({
 }))
 
 describe('POST /api/v1/fitness-files/[id]/primary', () => {
-  const { database, prepare } = createTestDatabase()
+  const { database, db, prepare } = createTestDatabase()
   let slugCounter = 0
 
   beforeAll(async () => {
@@ -66,7 +66,10 @@ describe('POST /api/v1/fitness-files/[id]/primary', () => {
     })
   })
 
-  afterEach(() => {
+  afterEach(async () => {
+    // A route killed by a test timeout can leave its lock row behind; drop
+    // any so one failure cannot cascade into the next test's lock wait.
+    await db.deleteFrom('fitness_import_locks').execute()
     vi.useRealTimers()
     vi.restoreAllMocks()
   })
@@ -143,6 +146,27 @@ describe('POST /api/v1/fitness-files/[id]/primary', () => {
     Promise.all(
       ids.map(async (id) => (await database.getFitnessFile({ id }))?.isPrimary)
     )
+
+  // The route polls the lock on a faked 250ms timer, and PG round-trips land
+  // between fake ticks; step the clock until the response settles.
+  const advanceUntilSettled = async (pending: Promise<unknown>) => {
+    for (let i = 0; i < 24; i++) {
+      const settled = await Promise.race([
+        pending.then(() => true),
+        new Promise<boolean>((resolve) => setImmediate(() => resolve(false)))
+      ])
+      if (settled) return
+      await vi.advanceTimersByTimeAsync(250)
+    }
+  }
+
+  // withImportLock stamps its wait deadline before its first acquire attempt,
+  // so wait for that attempt before advancing the fake clock: on PostgreSQL
+  // the round-trips land after the advance would otherwise have run.
+  const waitForPollStart = async (acquire: { mock: { calls: unknown[] } }) => {
+    for (let i = 0; i < 200 && !acquire.mock.calls.length; i++)
+      await new Promise((resolve) => setImmediate(resolve))
+  }
 
   it('swaps the primary flag and answers with the new primary', async () => {
     const { oldPrimary, chosen } = await createPair()
@@ -316,10 +340,12 @@ describe('POST /api/v1/fitness-files/[id]/primary', () => {
       ttlMs: 10 * 60 * 1000
     })
     expect(held).not.toBeNull()
+    const acquire = vi.spyOn(database, 'acquireImportLock')
     vi.useFakeTimers({ toFake: ['Date', 'setTimeout'] })
 
     try {
       const pending = post(chosen.id)
+      await waitForPollStart(acquire)
       await vi.advanceTimersByTimeAsync(16_000)
       const response = await pending
 
@@ -340,13 +366,15 @@ describe('POST /api/v1/fitness-files/[id]/primary', () => {
     const { oldPrimary, chosen } = await createPair()
     const lockKey = `fitness-import:${ACTOR1_ID}`
     const held = await database.acquireImportLock({ lockKey, ttlMs: 60_000 })
+    const acquire = vi.spyOn(database, 'acquireImportLock')
     vi.useFakeTimers({ toFake: ['Date', 'setTimeout'] })
 
     try {
       const pending = post(chosen.id)
+      await waitForPollStart(acquire)
       await vi.advanceTimersByTimeAsync(1_000)
       await database.releaseImportLock({ lockKey, token: held!.token })
-      await vi.advanceTimersByTimeAsync(1_000)
+      await advanceUntilSettled(pending)
       const response = await pending
 
       expect(response.status).toBe(200)

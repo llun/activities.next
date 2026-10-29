@@ -6,6 +6,8 @@ export interface VerifyDockerImagesOptions {
   minimalImage: string
   fullImage: string
   build: boolean
+  /** Verify only one of the two images; undefined verifies both. */
+  only?: 'minimal' | 'full'
   port?: number
   help?: boolean
 }
@@ -14,8 +16,16 @@ export function parseArgs(args: string[]): VerifyDockerImagesOptions {
   let minimalImage = process.env.MINIMAL_IMAGE || 'activities:test-minimal'
   let fullImage = process.env.FULL_IMAGE || 'activities:test-full'
   let build = false
+  let only: 'minimal' | 'full' | undefined
   let port: number | undefined
   let help = false
+
+  const parseOnly = (value: string): 'minimal' | 'full' => {
+    if (value !== 'minimal' && value !== 'full') {
+      throw new Error(`--only must be "minimal" or "full", got "${value}"`)
+    }
+    return value
+  }
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]
@@ -25,6 +35,10 @@ export function parseArgs(args: string[]): VerifyDockerImagesOptions {
       build = true
     } else if (arg === '--skip-build') {
       build = false
+    } else if (arg.startsWith('--only=')) {
+      only = parseOnly(arg.slice('--only='.length))
+    } else if (arg === '--only' && i + 1 < args.length) {
+      only = parseOnly(args[++i])
     } else if (arg.startsWith('--minimal-image=')) {
       minimalImage = arg.slice('--minimal-image='.length)
     } else if (arg === '--minimal-image' && i + 1 < args.length) {
@@ -44,6 +58,7 @@ export function parseArgs(args: string[]): VerifyDockerImagesOptions {
     minimalImage,
     fullImage,
     build,
+    only,
     port,
     help
   }
@@ -465,30 +480,41 @@ Options:
   --full-image <tag>     Tag for full Docker image (default: activities:test-full)
   --build                Build images before verification
   --skip-build           Skip building images (use existing images)
+  --only <minimal|full>  Verify only one of the two images (default: both)
   --port <port>          Port for minimal app smoke test (default: random 3100..3899)
   --help, -h             Show this help message
 `)
     return
   }
 
+  const only = options.only ?? 'both'
+  // Only the image(s) this run will verify must exist.
   const shouldBuild =
     options.build ||
-    !imageExists(options.minimalImage) ||
-    !imageExists(options.fullImage)
+    (only !== 'full' && !imageExists(options.minimalImage)) ||
+    (only !== 'minimal' && !imageExists(options.fullImage))
 
   if (shouldBuild) {
-    console.log('Building minimal and full Docker images...')
-    buildDockerImage(options.minimalImage)
-    buildDockerImage(options.fullImage, {
-      WORKSPACES:
-        'activities.next @activities/nodemailer @activities/resend @activities/ses @activities/pg @activities/cloudtasks @activities/qstash'
-    })
+    console.log('Building Docker images...')
+    if (only !== 'full') {
+      buildDockerImage(options.minimalImage)
+    }
+    if (only !== 'minimal') {
+      buildDockerImage(options.fullImage, {
+        WORKSPACES:
+          'activities.next @activities/nodemailer @activities/resend @activities/ses @activities/pg @activities/cloudtasks @activities/qstash'
+      })
+    }
   }
 
   const port = options.port || Math.floor(Math.random() * 800) + 3100
 
-  await verifyMinimalImage(options.minimalImage, port)
-  await verifyFullImage(options.fullImage)
+  if (only !== 'full') {
+    await verifyMinimalImage(options.minimalImage, port)
+  }
+  if (only !== 'minimal') {
+    await verifyFullImage(options.fullImage)
+  }
 
   console.log('\n=== All Docker Image Verifications Succeeded! ===\n')
 }
