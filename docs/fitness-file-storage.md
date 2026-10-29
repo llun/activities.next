@@ -1315,8 +1315,8 @@ null }` remains the precise "this retirement never happened" — it reopens the
   implementation, used by a bike's Activities view and by the whole of a
   device's page, so the same ride reads identically on either — same body, same
   stat chip, same action row as in the timeline. It is not a bespoke list: a
-  fitness activity is a status, and **Status Posts & Actions** applies to it
-  like every other surface. Two consequences are load-bearing. The feed pages
+  fitness activity is a status, and **Status Posts & Actions** in
+  `docs/mastodon-api-compatibility.md` applies to it like every other surface. Two consequences are load-bearing. The feed pages
   over ACTIVITY ROWS and the endpoint answers `nextOffset` from those rows, not
   from the statuses in the page: deleting a status only nulls
   `fitness_files.statusId`, so a row with no post left still occupies an offset

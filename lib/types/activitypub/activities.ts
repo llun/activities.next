@@ -128,7 +128,8 @@ export const Like = z.object({
   id: z.string(),
   actor: z.string(),
   object: z.union([z.string(), Note]),
-  // Liberal per the ActivityPub & JSON-LD rules: a sender whose document
+  // Liberal per the ActivityPub & JSON-LD rules in
+  // docs/mastodon-api-compatibility.md: a sender whose document
   // carries a default language can have compaction render `content` as a
   // language-tagged object rather than a scalar. Degrade that to `undefined`
   // instead of failing the whole activity — a `Like` we cannot read a reaction
