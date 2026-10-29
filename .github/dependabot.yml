@@ -4,13 +4,20 @@ updates:
     directory: '/'
     schedule:
       interval: 'weekly'
+    # Yarn's npmMinimalAgeGate rejects versions published less than a day ago,
+    # so Dependabot must not propose them (its PRs would fail `yarn install`).
+    cooldown:
+      default-days: 2
     groups:
       # The better-auth stack pins exact cross-package peer versions: better-auth
       # and @better-auth/core require a specific @better-fetch/fetch (e.g.
       # better-auth 1.6.19 -> @better-auth/core 1.6.19 + @better-fetch/fetch 1.3.1).
       # Bumping any one of them on its own leaves the others behind and breaks the
       # auth client's type inference (authClient.signIn.passkey disappears, failing
-      # `next build`). Group them so dependabot upgrades the whole stack in one PR.
+      # `next build`). In #2638 Dependabot also moved @better-fetch/fetch past the
+      # version better-auth pins (1.3.3 vs 1.3.2 pinned by better-auth 1.7.12),
+      # leaving two copies and breaking typecheck and build. Group them so
+      # dependabot upgrades the whole stack in one PR.
       # See PRs #1003 and #1011 (both broke the build via piecemeal bumps).
       better-auth:
         patterns:
@@ -28,6 +35,15 @@ updates:
           - 'react-dom'
           - '@types/react'
           - '@types/react-dom'
+      # @aws-sdk/client-s3 and @aws-sdk/s3-request-presigner must share one
+      # @smithy/core: bumping only client-s3 leaves two copies of @smithy/core
+      # in the tree, and S3Client stops being assignable to the presigner's
+      # Client type (TS2345). Group them so dependabot bumps the whole AWS
+      # stack together in one PR. See PR #2639.
+      aws-sdk:
+        patterns:
+          - '@aws-sdk/*'
+          - '@smithy/*'
   - package-ecosystem: 'github-actions'
     directory: '/'
     schedule:
