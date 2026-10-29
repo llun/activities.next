@@ -477,8 +477,13 @@ describe('SectionNavDropdown', () => {
   // timer, drop the steering listeners — must run when the menu closes and
   // when the component unmounts, and a reopen must start a fresh reveal.
   // jsdom has no ResizeObserver, so a stub stands in for it, and only
-  // setTimeout/clearTimeout are faked: the reveal's timer is captured while
-  // waitFor's polling interval stays real.
+  // setTimeout/clearTimeout are faked. The global `jest` shim still makes
+  // testing-library treat that clock as faked, so waitFor/findByRole
+  // advance it 50ms per poll while polling — the menu is therefore opened
+  // synchronously (openMenuNow below) so the open itself never moves the
+  // clock, and each test first asserts the reveal is still live (observer
+  // connected, timer pending) so the post-close assertions prove the close
+  // path stopped it, not that it never started.
   describe('reveal cleanup', () => {
     // floating-ui's autoUpdate (Radix's positioning) shares the global
     // ResizeObserver and observes the trigger as well as the menu, so global
@@ -514,6 +519,15 @@ describe('SectionNavDropdown', () => {
     const clickTrigger = (trigger: HTMLElement) =>
       fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false })
 
+    // Open synchronously: with the global `jest` shim, testing-library
+    // treats vi's fake timers as on, so the async openMenu's findByRole
+    // would advance the fake clock while polling. The keyDown opens the
+    // menu within the same act flush, so it is there immediately.
+    const openMenuNow = (trigger: HTMLElement) => {
+      fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+      return screen.getByRole('menu')
+    }
+
     // Closing schedules short timers beyond the reveal's own too (Radix's
     // unmount auto-focus at 0ms, next/link's idle callbacks at 1ms). Advance
     // to just before the reveal's 300ms timer: everything else runs, and a
@@ -542,16 +556,21 @@ describe('SectionNavDropdown', () => {
       vi.unstubAllGlobals()
     })
 
-    it('stops the reveal when the menu is closed from the trigger', async () => {
+    it('stops the reveal when the menu is closed from the trigger', () => {
       setPath('/settings/appearance')
       renderSettings()
       const trigger = within(
         screen.getByRole('navigation', { name: 'Settings' })
       ).getByRole('button')
 
-      const menu = await openMenu('Settings')
+      const menu = openMenuNow(trigger)
       const reveal = revealObserver(menu)
       expect(reveal.observe).toHaveBeenCalledTimes(1)
+      // The reveal is live right up to the close: its observer is connected
+      // and its 300ms timer pending, so the assertions below prove the close
+      // path ran `stop`, not that the reveal never started.
+      expect(reveal.disconnect).not.toHaveBeenCalled()
+      expect(vi.getTimerCount()).toBeGreaterThan(0)
 
       clickTrigger(trigger)
       expect(screen.queryByRole('menu')).not.toBeInTheDocument()
@@ -560,13 +579,19 @@ describe('SectionNavDropdown', () => {
       expect(vi.getTimerCount()).toBe(0)
     })
 
-    it('stops the reveal when the component unmounts', async () => {
+    it('stops the reveal when the component unmounts', () => {
       setPath('/settings/appearance')
       const { unmount } = renderSettings()
+      const trigger = within(
+        screen.getByRole('navigation', { name: 'Settings' })
+      ).getByRole('button')
 
-      const menu = await openMenu('Settings')
+      const menu = openMenuNow(trigger)
       const reveal = revealObserver(menu)
       expect(reveal.observe).toHaveBeenCalledTimes(1)
+      // Live before the unmount, for the same reason as above.
+      expect(reveal.disconnect).not.toHaveBeenCalled()
+      expect(vi.getTimerCount()).toBeGreaterThan(0)
 
       unmount()
       settleShortTimers()
@@ -574,19 +599,19 @@ describe('SectionNavDropdown', () => {
       expect(vi.getTimerCount()).toBe(0)
     })
 
-    it('reveals again when the menu is reopened', async () => {
+    it('reveals again when the menu is reopened', () => {
       setPath('/settings/appearance')
       renderSettings()
       const trigger = within(
         screen.getByRole('navigation', { name: 'Settings' })
       ).getByRole('button')
 
-      const menu = await openMenu('Settings')
+      const menu = openMenuNow(trigger)
       const first = revealObserver(menu)
       clickTrigger(trigger)
       settleShortTimers()
 
-      const reopened = await openMenu('Settings')
+      const reopened = openMenuNow(trigger)
       const second = revealObserver(reopened)
       expect(second).not.toBe(first)
       expect(second.observe).toHaveBeenCalledTimes(1)

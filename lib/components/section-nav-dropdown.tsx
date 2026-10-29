@@ -181,7 +181,9 @@ export const SectionNavDropdown: FC<SectionNavDropdownProps> = ({
   // its `stop` (disconnect the ResizeObserver, remove the steering listeners,
   // clear the timer) is stored here by the `onOpenAutoFocus` handler below
   // and run by `clearReveal` when the menu closes or the component unmounts.
-  // Calling it twice is safe.
+  // Calling it twice is safe. The extra `clearReveal()` at the start of
+  // `onOpenAutoFocus` covers that handler firing twice without a close in
+  // between (React StrictMode), so an earlier reveal never leaks.
   const stopReveal = useRef<(() => void) | undefined>(undefined)
   const clearReveal = () => {
     stopReveal.current?.()
