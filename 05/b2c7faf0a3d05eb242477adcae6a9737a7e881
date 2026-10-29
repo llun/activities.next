@@ -1,0 +1,43 @@
+.github/workflows/ci.yml
+  s_f147bf36f62485::t_e4aac8573bd2b9 4-12,150-165,167,169-173,188-202,215,222-239,241,246-247,256-257,267-271,273-275,277,286-287,297,319,338,366-370,386-410,416,420,437,439-440,446
+.github/workflows/version-bump.yml
+  s_f147bf36f62485::t_db0842ca96f458 15-16,283,299-300,304
+CONTRIBUTING.md
+  s_f147bf36f62485::t_3ed97383edd2b6 287,296,299-304,382,384,399,790-799,1146,1436,1442,1444-1447
+app/api/v1/fitness-files/[id]/primary/route.test.ts
+  s_f147bf36f62485::t_e9db5d29595882 45,69-72,150-170,343,348,369,374,377
+docs/maintenance.md
+  s_f147bf36f62485::t_dae9586eca037a 945,963-966,1346-1347
+docs/postgresql-setup.md
+  s_f147bf36f62485::t_bd826e190b98aa 155
+docs/setup.md
+  s_f147bf36f62485::t_1eb3c9b242d776 352-353,411,442
+lib/testing/moduleImports.ts
+  s_f147bf36f62485::t_01ce21f12ad91b 88-117,119-120,127,131-137,139-147,152-164,171-173,179-187,189-207
+scripts/maintenance/__fixtures__/legacyPostgresTestFiles.txt
+  s_f147bf36f62485::t_9d5fc41889106a 1-359
+scripts/maintenance/listPostgresTestFiles.test.ts
+  s_f147bf36f62485::t_6e8c22d40373c9 1-232
+scripts/maintenance/listPostgresTestFiles.ts
+  s_f147bf36f62485::t_2a52ad841a6dad 1-283
+scripts/maintenance/verifyDockerImages.test.ts
+  s_f147bf36f62485::t_83307a754cb669 74-95
+scripts/maintenance/verifyDockerImages.ts
+  s_f147bf36f62485::t_eefd3fca583e92 9-10,19,23-29,38-41,61,483,490-491,494-495,498-507,512-517
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "05b2c7faf0a3d05eb242477adcae6a9737a7e881",
+  "prompts": {},
+  "sessions": {
+    "s_f147bf36f62485": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "25ee74e4-3619-4df9-8186-dcf3fd9b6ec2",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
