@@ -2961,7 +2961,7 @@ moved` (reject stays allowed). While
   prefetches on viewport entry, so in an infinite-scroll feed that is one RSC
   request per row — against dynamic routes that also federate out for
   unpersisted remote actors. Navigation chrome (sidebar, sub-nav, pagination)
-  keeps prefetching. See **Link prefetching in feeds** in `AGENTS.md`.
+  keeps prefetching. See **Link prefetching in feeds** above.
 - Client Components that render relative timestamps (or fan out to `Posts`/`Post`)
   never call `Date.now()` / `new Date()` during render — they receive and forward
   `currentTime` from the server to avoid hydration mismatches.
@@ -3161,7 +3161,7 @@ moved` (reject stays allowed). While
 - Client authoring UI reads admin-configured limits from `useInstanceLimits()`
   rather than hardcoding a constant, and new authoring/upload surfaces render
   under `InstanceLimitsProvider`. The limits are still enforced server-side. See
-  **Instance Limits in Client Components** in `AGENTS.md`.
+  **Instance Limits in Client Components** above.
 - Validate any user-controlled URL before using it as an `href`: parse with
   `new URL()` and allow only the `http:` or `https:` protocols — not a `startsWith`
   or regex check — so a `javascript:` (or other) scheme can't become a DOM-XSS
@@ -3173,7 +3173,7 @@ moved` (reject stays allowed). While
   `activityType`, and import jobs assign with `assignFitnessFileGearIfUnset` so a
   re-run can't clobber a manual assignment. No importer reads gear from Strava or
   creates a gear row — attribution comes only from the owner's `defaultSports`
-  mapping. See **Fitness Gear** in `AGENTS.md`.
+  mapping. See **Fitness Gear** in `docs/fitness-file-storage.md`.
 - A `kind: 'device'` gear is a recording device and follows different rules from
   a bike or shoes. `deviceKey` is create-only — it is the identity an upload
   matches against, while `name`/`brand`/`model`/`productUrl` are display fields
@@ -3324,7 +3324,7 @@ moved` (reject stays allowed). While
   layering over it), and a dimmed row dims its **cells**, never the `<tr>` or the
   pinned `<td>` — `opacity` fades a background along with its text. Use
   `STICKY_CLICKABLE_COLUMN` only on a row carrying `group` and its own `hover:`.
-  See **Fitness Gear** in `AGENTS.md`.
+  See **Fitness Gear** in `docs/fitness-file-storage.md`.
 - Orange **text** uses `text-primary-text`, not `text-primary`. `--primary` is
   the accent orange for icons and fills and is only 3.37:1 on the card, below the
   WCAG AA floor for body text; `--primary-text` is tuned per theme to clear 4.5:1

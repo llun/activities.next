@@ -31,7 +31,7 @@ The main thread (the top-level session the user talks to) always delegates work 
 
 ### Choosing model and effort
 
-Match the tier to how much judgment the task needs, not to how important the overall change is. The policy is written in three model tiers (`fast`, `balanced`, `strongest`) and five effort steps (`low`, `medium`, `high`, `xhigh`, `max`); the two tables after the task table map them onto each tool's own settings.
+Match the tier to how much judgment the task needs, not to how important the overall change is. This policy works with any agent tool and any model, not only Claude: it is written in three model tiers (`fast`, `balanced`, `strongest`) and five effort steps (`low`, `medium`, `high`, `xhigh`, `max`), and the two tables after the task table map them onto each tool's own settings.
 
 | Task                                                                                                                                                                                                                       | Tier        | Effort   |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- | -------- |
@@ -65,8 +65,9 @@ How each tool sets the effort step:
 
 Guidelines:
 
-- If the table does not cover a task and you are unsure, use `balanced`/`medium` — a good quality/cost balance for most coding work.
-- When a task matches both a cheaper row and the high-risk row, the high-risk row wins; reaching those tiers by escalation is fine.
+- When the table does not cover a task and you are unsure, use `balanced` at `medium`, a good balance of quality and cost for most coding work.
+- Use `fast` freely for retrieval and mechanical changes. It is the cheapest and quickest, and a wrong search result is cheap to redo.
+- Start at `strongest` or `high` effort only where a mistake is expensive: design, the high-risk areas in the table, subtle bugs, and review. When a task matches both a cheaper row and the high-risk row, the high-risk row wins. Reaching them by escalation is fine.
 - Escalate one step at a time, starting from the task's row in the table. The ladder is `fast`/`low` → `fast`/`medium` → `balanced`/`medium` → `balanced`/`high` → `strongest`/`high` → `strongest`/`xhigh` → `strongest`/`max`; a task that starts at `balanced`/`low` steps to `balanced`/`medium`. Never set `fast` above `medium`, and use `max` only on `strongest` after `xhigh` has fallen short. Where a tool has fewer effort steps than this ladder, skip the steps it lacks.
 - Do not go beyond these tiers and steps (for example Claude Code's `fable` model, or an effort level above `max`) unless the user asks for it.
 - Tools without a sub-agent feature still follow the same split as closely as they allow (a separate session or pass for review, the cheapest adequate model per task) rather than skipping it.
