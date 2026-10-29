@@ -594,7 +594,10 @@ export const copyProfileImage = async ({
   }
 
   try {
-    await fs.copyFile(source, path.join(stagingDir, fileName))
+    await fs.copyFile(
+      source,
+      path.join(/*turbopackIgnore: true*/ stagingDir, fileName)
+    )
     return fileName
   } catch {
     warnings.push(
