@@ -1,0 +1,59 @@
+## CONTRIBUTING.md lines 1001-1477
+
+Slice = second half of the "Contributor workflow reference" (Testing Guidelines tail, Known failure classes, Local Manual/Browser Testing, Task Recipes, Design Library Sync, Documentation Maintenance, Commit & PR Guidelines, Code Review Loop, Style/imports/tests, Docs hygiene, Commits & versioning, CI checklist).
+
+### Duplicates
+- CONTRIBUTING.md:1161 ≈ CONTRIBUTING.md:223, 492 (also docs/mastodon-api-compatibility.md:1133, AGENTS.md:255) — "safeParse, never .parse()" rule, 4+ statements.
+- CONTRIBUTING.md:1162 ≈ docs/mastodon-api-compatibility.md:1120 — resolveStatusIdParam/resolveActorIdParam id rule restated.
+- CONTRIBUTING.md:1240, 1256, 1264, 1284 ≈ 1459 (also AGENTS.md:234) — the `release:major` human-label rule appears 5× in this slice alone (bullet, table row, prose, example, checklist).
+- CONTRIBUTING.md:1290-1295 ≈ CONTRIBUTING.md:128-137, 377, 429 (also AGENTS.md:10, 226) — the five-step pre-commit gate, 4th copy.
+- CONTRIBUTING.md:1296 ≈ CONTRIBUTING.md:128 — husky/lint-staged pre-commit hook description, near-verbatim.
+- CONTRIBUTING.md:1298 ≈ CONTRIBUTING.md:1335 — "gemini-code-assist removed / no review bot / don't post /gemini review", twice in the same section pair.
+- CONTRIBUTING.md:1053 ≈ CONTRIBUTING.md:1369 (also 1165) — table-driven `it.each` guidance, near-verbatim.
+- CONTRIBUTING.md:1416-1436 ≈ CONTRIBUTING.md:897-915 — `vi.importMock` guidance (including the importOriginal caveat) duplicated nearly verbatim within the same file.
+- CONTRIBUTING.md:1371-1379 ≈ CONTRIBUTING.md:960-968 — `createDeferred` guidance + the same PostBox war story, twice.
+- CONTRIBUTING.md:1385-1389 ≈ CONTRIBUTING.md:973-983 — `runInReactCacheScope` guidance, twice.
+- CONTRIBUTING.md:1464-1475 ≈ CONTRIBUTING.md:410-415, 430, 824-829 — required CI checks / `CI Success` fail-closed list, 4th and 5th copies.
+- CONTRIBUTING.md:1174 ≈ docs/setup.md:396-409 (also CONTRIBUTING.md:522-535, 822; AGENTS.md:12; REVIEW.md:38) — regenerate both schema dumps + Kysely types rule.
+- CONTRIBUTING.md:1157-1166 ≈ CONTRIBUTING.md:489-495 — "Adding a Mastodon-style API endpoint" vs first-half "Adding a New API Endpoint": same recipe, two versions.
+- CONTRIBUTING.md:1169-1177 ≈ CONTRIBUTING.md:504-535 (also docs/setup.md:385, docs/maintenance.md:1344) — migration recipe: migrate:make, register in index.ts/names.ts, regenerate dumps.
+- CONTRIBUTING.md:1262, 1272 ≈ 1457 — squash-merge / "PR title is the commit subject" rule, twice in-slice.
+- CONTRIBUTING.md:1237-1242 ≈ CONTRIBUTING.md:98-108 — commit-prefix list; first half has a simpler stale-ish variant without the version-bump semantics.
+- CONTRIBUTING.md:1437-1451 ("Docs hygiene") ≈ CONTRIBUTING.md:1217-1234 ("Documentation Maintenance") — same triggers→docs mapping stated twice, ~15 lines apart in spirit and both in/near this slice.
+- CONTRIBUTING.md:1188 ≈ docs/architecture.md:1285-1295 — PageHeader / max-w-content / no-per-page-width rules restated from the architecture guide.
+- CONTRIBUTING.md:1092-1104 ≈ docs/quickstart.md:44-59 — ACTIVITIES_INSECURE_AUTH local sign-in gotcha duplicated.
+- CONTRIBUTING.md:1125-1127 ≈ docs/maintenance.md:516-539 — createMockUser/createMockStatuses usage duplicated.
+- Whole-section: "Commits & versioning" (1452-1468) is a compressed re-statement of "Commit & Pull Request Guidelines" (1235-1301) — prefixes, version field, squash-merge, pre-commit gate, CI checks all repeated.
+
+### Stale
+- none — verified: `app/api/v1/routeScopeWiring.test.ts`, `lib/services/guards/OAuthGuard.testUtils.ts` (`stubAccessTokenLookup` present), `app/api/v1/preferences/route.test.ts`, `app/api/v1/notifications/clear/route.scopes.test.ts`, `lib/database/testing/schema.ts`, `app/(timeline)/MainPageTimeline.test.tsx`, `scripts/run.cjs`, `scripts/mock/createMock{User,Statuses}.ts`, `migrations/migration.stub`, `migrations/schema{,.sqlite}.sql`, `lib/config/envAccess.test.ts`, `lib/config/envDocumentation.test.ts`, `lib/testing/{deferred,hydrateServerHtml,reactCacheScope}.ts`, `lib/utils/crypto.test.ts`, `test/setup/vitest.setup.ts`, `scripts/fitness/repairFailedFitnessImports.ts`, `.github/workflows/{tag-version,package,sync-main-to-prod-dispatch,version-bump}.yml`, `.github/PULL_REQUEST_TEMPLATE.md`, `.env.example`, `docs/{architecture,maintenance,setup,environment-variables,fitness-file-storage}.md`, `lib/client.ts` — all via `git ls-files` / `git grep`; package.json scripts `prettier`, `prettier:check`, `lint`, `typecheck`, `build`, `test`, `migrate`, `migrate:make`, `dev` all exist; Node 24 matches `engines`. Anchors checked: `docs/setup.md` "Keeping the reference schema dumps in sync"/"Regenerating the Kysely DB types", `docs/maintenance.md#create-web-vitals-fixtures`, `docs/architecture.md` "Mobile chrome"/"Page Header & Sub-Navigation"/"Date Serialization", `docs/mastodon-api-compatibility.md` "Client-Facing Entity IDs"/"Zod Validation in API Routes", AGENTS.md "Runtime Configuration Guidelines" — all resolve. Not verifiable from this repo: `activities.prod`'s `sync-upstream.yml` and the `llun/sketch` repo/path (1200) — external/private.
+- CONTRIBUTING.md:1199-1200 — `/Users/llun/Documents/llun/sketch` — checked: machine-specific absolute path to a private repo; not stale per se but not durable, portable documentation.
+
+### History / changelog text
+- CONTRIBUTING.md:1076 — "\"Shard 4 OOM\" in CI was ... not a heap leak" — past-incident forensics (useful lesson, written as history).
+- CONTRIBUTING.md:1078 — "Worker SIGABRT in production is heatmap fan-out × Cloud Run concurrency" — past-production-incident narrative.
+- CONTRIBUTING.md:1298 — "The gemini-code-assist bot has been removed" — removal history; repeated at 1335.
+- CONTRIBUTING.md:1313 — "Nearly every serious finding after round 1 in past PRs was a regression" — past-PR narrative framing a durable rule.
+- CONTRIBUTING.md:1314-1321 — named past-incident walk-throughs (completedAt scan, sendNoteJob/sendUpdateNoteJob leak, verifiedAt DEFAULT) — war stories doubling as review heuristics.
+- CONTRIBUTING.md:1372 — "the same eight lines had been copied into four files under three names" — history of the duplication.
+- CONTRIBUTING.md:1377-1379 — "it passed with the bug present until the two picker batches were sequenced" — past-bug narrative (duplicates 968).
+- CONTRIBUTING.md:1422-1423 — "(Some review bots wrongly flag vi.importMock as non-existent)" — reference to removed reviewers' behavior.
+
+### Long sections
+- CONTRIBUTING.md:713-1151 `Testing Guidelines` (~439 lines; slice portion 1001-1151) — far over 80; mixes durable testing rules with tooling walkthroughs and the Known-failure/Local-testing subsections; should be split or moved to docs/.
+- CONTRIBUTING.md:1356-1436 `Style, imports & tests` (81 lines) — just over 80; testing-hygiene bullets duplicate Testing Guidelines content and could merge into it.
+
+### Task/PR-specific
+- CONTRIBUTING.md:1314-1321 — review heuristics illustrated only by named one-off PR incidents; the durable rule is one line, the rest is case history.
+- CONTRIBUTING.md:1145-1151 — hydration-mismatch reproduction recipe (Playwright clock override) tied to one past timestamp bug; candidate for a docs/ guide.
+- CONTRIBUTING.md:1082-1151 — Local Manual/Browser Testing is a verified runbook (fine), but it is environment-personal (maintainer's flow) and duplicates docs/quickstart.md setup steps.
+
+### Readability
+- CONTRIBUTING.md:1001-1031 — a single bullet ~30 lines long on routeScopeWiring with nested parentheticals and exceptions; nearly impossible to scan.
+- CONTRIBUTING.md:1263-1288 — the version-bump rule is stated three ways (prose, table, two example blocks) within 25 lines; could lose one prose pass and one example block.
+- CONTRIBUTING.md:1290-1298 — pre-commit bullets are walls of text (1297 packs five separate facts into one sentence).
+- CONTRIBUTING.md:1375-1387 — mock-reset bullet buries the rule inside a 60-word parenthetical about mutation testing.
+- Repeated "never/always" emphasis (`never`, `must`, `MUST`, bold) throughout 1235-1477; the same prohibitions are re-asserted in 3-5 places (see Duplicates).
+
+### Slice summary
+This slice is the agent-facing workflow reference: testing rules tail, task recipes, design-library sync, commit/PR/versioning rules, the sub-agent review loop, and style/checklist sections. It is heavily self-duplicating (pre-commit gate, CI list, release:major, squash-merge, vi.importMock/createDeferred guidance each appear 2-5×, much of it duplicating lines 1-706 and docs/setup.md), and the Code Review Loop + Style sections carry the most history/war-story text. Roughly 30-40% of the slice is restatement or narrative that could be deleted by keeping one canonical statement per rule; the Task Recipes and Local Testing runbooks are the most durable parts and could move to docs/.
