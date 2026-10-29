@@ -2,6 +2,7 @@ import { buildGalleryItem } from '@/lib/components/gallery/__fixtures__/galleryI
 import {
   UNDATED_DAY_KEY,
   formatDayHeading,
+  formatDayHeadingParts,
   formatDayMeta,
   formatDayToastPhrase,
   getGalleryDayKey,
@@ -139,6 +140,43 @@ describe('groupGalleryItemsByDay', () => {
       UNDATED_DAY_KEY
     ])
     expect(groups[2].items.map((entry) => entry.mediaId)).toEqual(['unknown'])
+  })
+})
+
+describe('formatDayHeadingParts', () => {
+  it.each([
+    {
+      key: '2025-10-12',
+      short: false,
+      expected: { day: 'Sun 12 Oct 2025', uploaded: false }
+    },
+    {
+      key: '2025-10-12',
+      short: true,
+      expected: { day: 'Sun 12 Oct', uploaded: false }
+    },
+    {
+      key: 'uploaded:2025-10-03',
+      short: false,
+      expected: { day: 'Fri 3 Oct 2025', uploaded: true }
+    },
+    {
+      key: 'uploaded:2025-10-03',
+      short: true,
+      expected: { day: 'Fri 3 Oct', uploaded: true }
+    },
+    {
+      key: UNDATED_DAY_KEY,
+      short: false,
+      expected: { day: 'No date', uploaded: false }
+    },
+    {
+      key: UNDATED_DAY_KEY,
+      short: true,
+      expected: { day: 'No date', uploaded: false }
+    }
+  ])('$key short=$short', ({ key, short, expected }) => {
+    expect(formatDayHeadingParts(key, { short })).toEqual(expected)
   })
 })
 

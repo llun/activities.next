@@ -71,6 +71,12 @@ interface Props {
    * and the rest stay lazy.
    */
   prioritizeFirst?: boolean
+  /**
+   * The hidden badge on each tile: on by default. A host whose filter already
+   * screens for hidden photos — All media's Show filter on `hidden` — turns
+   * it off; the tile's accessible name still says "hidden from your gallery".
+   */
+  showHiddenBadge?: boolean
   className?: string
 }
 
@@ -100,7 +106,7 @@ const itemLabel = (
   const noun = isVideo(item) ? 'video' : 'media'
   const alt = item.attachment.name?.trim()
   // Only the owner is told (`inGallery` is omitted for everyone else). Spoken
-  // here, in the name, because the visible "Hidden" pill is decoration.
+  // here, in the name, because the visible icon badge is only decoration.
   const state = [
     item.posted === false ? 'only you can see it, not posted' : '',
     item.inGallery === false ? 'hidden from your gallery' : ''
@@ -136,6 +142,7 @@ export const GalleryGrid: FC<Props> = ({
   onAlbumsChanged,
   groups,
   prioritizeFirst = false,
+  showHiddenBadge = true,
   className
 }) => {
   const [modalIndex, setModalIndex] = useState<number | null>(null)
@@ -293,31 +300,32 @@ export const GalleryGrid: FC<Props> = ({
             revealImmediately={isPriorityTile}
             className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
           />
-          {item.inGallery === false ? (
-            <span
-              data-testid="hidden-badge"
+          {/* Quiet round icon badges, top-right, side by side. The titles are
+              decoration: the tile's accessible name speaks the state. */}
+          {item.inGallery === false || item.posted === false ? (
+            <div
               aria-hidden="true"
-              className={cn(
-                'pointer-events-none absolute top-1.5 flex items-center gap-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[11px] leading-4 font-medium text-white backdrop-blur-xs',
-                // Clear of the select mark that sits in the same corner.
-                selection ? 'left-9' : 'left-1.5'
-              )}
+              className="absolute top-1.5 right-1.5 flex gap-1"
             >
-              <EyeOff className="size-3" aria-hidden="true" />
-              Hidden
-            </span>
-          ) : null}
-          {item.posted === false ? (
-            <span
-              data-testid="only-you-badge"
-              aria-hidden="true"
-              className={cn(
-                'pointer-events-none absolute bottom-1.5 left-1.5 flex items-center gap-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[11px] leading-4 font-medium text-white backdrop-blur-xs'
-              )}
-            >
-              <Lock className="size-3" aria-hidden="true" />
-              Only you
-            </span>
+              {showHiddenBadge && item.inGallery === false ? (
+                <span
+                  data-testid="hidden-badge"
+                  title="Hidden"
+                  className="grid size-5 place-items-center rounded-full bg-black/55 text-white"
+                >
+                  <EyeOff className="size-3" aria-hidden="true" />
+                </span>
+              ) : null}
+              {item.posted === false ? (
+                <span
+                  data-testid="only-you-badge"
+                  title="Only you"
+                  className="grid size-5 place-items-center rounded-full bg-black/55 text-white"
+                >
+                  <Lock className="size-3" aria-hidden="true" />
+                </span>
+              ) : null}
+            </div>
           ) : null}
           {selection ? (
             <span
@@ -333,7 +341,8 @@ export const GalleryGrid: FC<Props> = ({
           ) : null}
           {isVideo(item) ? (
             <span
-              className="pointer-events-none absolute top-1.5 right-1.5 flex items-center rounded bg-black/60 p-1 text-white"
+              data-testid="video-marker"
+              className="pointer-events-none absolute right-1.5 bottom-1.5 flex items-center rounded bg-black/60 p-1 text-white"
               aria-hidden="true"
             >
               <Video className="size-3.5" aria-hidden="true" />
@@ -358,7 +367,7 @@ export const GalleryGrid: FC<Props> = ({
               {group.header}
               <ul
                 className={cn(
-                  'grid grid-cols-3 gap-1 sm:grid-cols-4 sm:gap-2',
+                  'grid grid-cols-3 gap-1 sm:grid-cols-4 sm:gap-1.5 lg:grid-cols-6',
                   className
                 )}
                 data-grid
@@ -376,7 +385,7 @@ export const GalleryGrid: FC<Props> = ({
       ) : (
         <ul
           className={cn(
-            'grid grid-cols-3 gap-1 sm:grid-cols-4 sm:gap-2',
+            'grid grid-cols-3 gap-1 sm:grid-cols-4 sm:gap-1.5 lg:grid-cols-6',
             className
           )}
           data-grid={selection ? true : undefined}

@@ -75,6 +75,11 @@ export interface GalleryPagedGridProps {
   showCaption?: boolean
   /** Select mode (owner views): tiles toggle instead of opening the viewer. */
   selection?: GalleryGridSelection
+  /**
+   * The hidden badge on each tile: on by default. A host whose filter already
+   * screens for hidden photos turns it off (see `GalleryGrid`).
+   */
+  showHiddenBadge?: boolean
   /** Owner only: ask for per-day stats (`days`) on every page request. */
   includeDays?: boolean
   /**
@@ -167,6 +172,7 @@ export const GalleryPagedGrid: FC<GalleryPagedGridProps> = ({
   emptyState,
   showCaption = true,
   selection,
+  showHiddenBadge,
   includeDays = false,
   renderGroups,
   albumsOwnerId,
@@ -494,6 +500,7 @@ export const GalleryPagedGrid: FC<GalleryPagedGridProps> = ({
           groups={groups}
           showCaption={showCaption}
           selection={selection}
+          showHiddenBadge={showHiddenBadge}
           albumsOwnerId={albumsOwnerId}
           onItemEdited={(item) => replaceItems([item])}
           onPostItems={onPostItems}

@@ -17,8 +17,9 @@ interface Props {
 
 /**
  * The gallery's photo grid while it loads: square shimmer tiles on the same
- * 3-up (4-up from `sm`) grid `GalleryGrid` uses, so the page does not move when
- * the photos arrive. Used by the paged grid and by the gallery `loading.tsx`s.
+ * 3-up (4-up from `sm`, 6-up from `lg`) grid `GalleryGrid` uses, so the page
+ * does not move when the photos arrive. Used by the paged grid and by the
+ * gallery `loading.tsx`s.
  */
 export const GalleryGridSkeleton: FC<Props> = ({
   tiles = 12,
@@ -30,7 +31,10 @@ export const GalleryGridSkeleton: FC<Props> = ({
     data-slot="gallery-grid-skeleton"
     role={label ? 'status' : undefined}
     aria-busy="true"
-    className={cn('grid grid-cols-3 gap-1 sm:grid-cols-4 sm:gap-2', className)}
+    className={cn(
+      'grid grid-cols-3 gap-1 sm:grid-cols-4 sm:gap-1.5 lg:grid-cols-6',
+      className
+    )}
   >
     {label ? <span className="sr-only">{label}</span> : null}
     {Array.from({ length: tiles }, (_, index) =>

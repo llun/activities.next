@@ -3,6 +3,7 @@
  */
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen, within } from '@testing-library/react'
+import { type ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { GalleryMediaFacetsResponse } from '@/lib/services/gallery/galleryEntities'
@@ -789,6 +790,168 @@ describe('GalleryMediaFilterBar', () => {
       const countLine = screen.getByTestId('test-count-line')
       expect(countLine).toHaveClass('flex-wrap', 'gap-2')
       expect(within(countLine).getByText('Clear filters')).toBeInTheDocument()
+    })
+  })
+
+  describe('Sheet mode (filtersInSheet)', () => {
+    const renderBar = ({
+      filters = EMPTY_GALLERY_FILTERS,
+      onChange = vi.fn(),
+      total = 42,
+      leading
+    }: {
+      filters?: GalleryMediaFilterState
+      onChange?: (next: GalleryMediaFilterState) => void
+      total?: number | null
+      leading?: ReactNode
+    }) =>
+      render(
+        <GalleryMediaFilterBar
+          idPrefix="test"
+          filters={filters}
+          onChange={onChange}
+          facets={mockFacets}
+          total={total}
+          filtersInSheet
+          leading={
+            leading ?? (
+              <>
+                <div data-testid="type-select">Type</div>
+                <div data-testid="show-select">Show</div>
+              </>
+            )
+          }
+        />
+      )
+
+    it('keeps Type and Show at sm+ and replaces the four facet menus with one Filters button carrying the active count', () => {
+      renderBar({
+        filters: {
+          ...EMPTY_GALLERY_FILTERS,
+          species: 'name:Red Fox',
+          place: 'Richmond Park',
+          order: ['species', 'place']
+        }
+      })
+
+      const desktop = screen.getByTestId('test-desktop-filters')
+      expect(within(desktop).getByTestId('type-select')).toBeInTheDocument()
+      expect(within(desktop).getByTestId('show-select')).toBeInTheDocument()
+      expect(
+        within(desktop).getByRole('button', { name: 'Filters · 2' })
+      ).toBeEnabled()
+      for (const name of [/Species:/, /Place:/, /Date taken:/, /Activity:/]) {
+        expect(
+          within(desktop).queryByRole('button', { name })
+        ).not.toBeInTheDocument()
+      }
+    })
+
+    it('opens the same GalleryMediaFilterSheet the phone uses', async () => {
+      renderBar({})
+
+      fireEvent.click(
+        within(screen.getByTestId('test-desktop-filters')).getByRole('button', {
+          name: 'Filters'
+        })
+      )
+      expect(
+        await screen.findByRole('button', { name: 'Clear all' })
+      ).toBeInTheDocument()
+    })
+
+    it('shows the active filters as the removable chips under the row at every width, with size-11 clear targets', () => {
+      const onChange = vi.fn()
+      renderBar({
+        filters: {
+          ...EMPTY_GALLERY_FILTERS,
+          species: 'name:Red Fox',
+          order: ['species']
+        },
+        onChange
+      })
+
+      // One chips row, outside both layout containers, so it shows at every
+      // width; the collapsed Filters button carries no per-filter state.
+      expect(screen.getByText('Red Fox')).toBeInTheDocument()
+      expect(
+        within(screen.getByTestId('test-desktop-filters')).queryByText(
+          'Red Fox'
+        )
+      ).not.toBeInTheDocument()
+      expect(
+        within(screen.getByTestId('test-mobile-filters')).queryByText('Red Fox')
+      ).not.toBeInTheDocument()
+
+      const clear = screen.getByRole('button', {
+        name: 'Clear Red Fox filter'
+      })
+      expect(clear).toHaveClass('size-11')
+      fireEvent.click(clear)
+      expect(onChange).toHaveBeenCalledWith({
+        ...EMPTY_GALLERY_FILTERS,
+        species: null,
+        order: []
+      })
+    })
+
+    it('puts the count and Sort at the row end, keeps the count a live region, and drops the desktop count line', () => {
+      renderBar({ total: 774 })
+
+      const desktop = screen.getByTestId('test-desktop-filters')
+      const count = within(desktop).getByTestId('test-count')
+      expect(count).toHaveAttribute('role', 'status')
+      expect(count).toHaveAttribute('aria-live', 'polite')
+      expect(count).toHaveTextContent('774 photos')
+      expect(count).toHaveClass('ml-auto')
+      expect(
+        within(desktop).getByRole('group', { name: 'Sort' })
+      ).toBeInTheDocument()
+      // The separate count line survives only on phones.
+      expect(screen.getByTestId('test-count-line')).toHaveClass('sm:hidden')
+    })
+
+    it('keeps the phone layout: leading, Filters button and compact Sort in the row, count line below', () => {
+      renderBar({
+        filters: {
+          ...EMPTY_GALLERY_FILTERS,
+          species: 'name:Red Fox',
+          order: ['species']
+        },
+        total: 19
+      })
+
+      const mobile = screen.getByTestId('test-mobile-filters')
+      expect(within(mobile).getByTestId('type-select')).toBeInTheDocument()
+      expect(
+        within(mobile).getByRole('button', { name: 'Filters · 1' })
+      ).toBeInTheDocument()
+      expect(
+        within(mobile).getByRole('group', { name: 'Sort' })
+      ).toBeInTheDocument()
+      const countLine = screen.getByTestId('test-count-line')
+      expect(countLine).toHaveClass('sm:hidden')
+      expect(within(countLine).getByText('19 photos')).toBeInTheDocument()
+    })
+
+    it('renders one skeleton for the Filters button while facets load', () => {
+      render(
+        <GalleryMediaFilterBar
+          idPrefix="test"
+          filters={EMPTY_GALLERY_FILTERS}
+          onChange={vi.fn()}
+          facets={null}
+          total={null}
+          filtersInSheet
+        />
+      )
+
+      expect(
+        screen.getByRole('status', { name: 'Loading filters' })
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Filters' })
+      ).not.toBeEnabled()
     })
   })
 })

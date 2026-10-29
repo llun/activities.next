@@ -26,6 +26,7 @@ import type { GalleryMediaFilterBarProps } from '@/lib/components/gallery/filter
 import type { GalleryMediaFilterEmptyProps } from '@/lib/components/gallery/filters/GalleryMediaFilterEmpty'
 import { EMPTY_GALLERY_FILTERS } from '@/lib/components/gallery/filters/galleryMediaFilterState'
 import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
+import { PageHeaderSectionProvider } from '@/lib/components/page-header'
 import type { GalleryMediaPage } from '@/lib/services/gallery/galleryEntities'
 import { createDeferred } from '@/lib/testing/deferred'
 import { GALLERY_ALBUM_FULL_MESSAGE } from '@/lib/types/database/galleryAlbums'
@@ -191,11 +192,16 @@ vi.mock('@/lib/components/gallery/GalleryEditDetailsDialog', () => ({
   }
 }))
 
+const gridProps = vi.hoisted(() => ({
+  current: null as null | { showHiddenBadge?: boolean }
+}))
+
 vi.mock('@/lib/components/gallery/GalleryGrid', () => ({
   GalleryGrid: ({
     items,
     groups,
     selection,
+    showHiddenBadge,
     onAlbumsChanged
   }: {
     items: { mediaId: string }[]
@@ -212,70 +218,74 @@ vi.mock('@/lib/components/gallery/GalleryGrid', () => ({
       ) => void
       anchorId?: string | null
     }
+    showHiddenBadge?: boolean
     onAlbumsChanged?: (albumIds: string[]) => void
-  }) => (
-    <div data-testid="grid" data-selecting={selection ? 'yes' : 'no'}>
-      {groups
-        ? groups.map((group) => (
-            <section key={group.key}>
-              {group.header}
-              <ul data-testid="grid-tiles">
-                {group.items.map((item) => (
-                  <li key={item.mediaId}>
-                    {selection ? (
-                      <button
-                        type="button"
-                        aria-pressed={selection.selected.has(item.mediaId)}
-                        onClick={() => selection.onToggle(item)}
-                      >
-                        Select {item.mediaId}
-                      </button>
-                    ) : (
-                      item.mediaId
-                    )}
-                    {selection ? (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          selection.onToggle(item, { shiftKey: true })
-                        }
-                      >
-                        Shift-select {item.mediaId}
-                      </button>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ))
-        : items.map((item) => (
-            <li key={item.mediaId}>
-              {selection ? (
-                <button
-                  type="button"
-                  aria-pressed={selection.selected.has(item.mediaId)}
-                  onClick={() => selection.onToggle(item)}
-                >
-                  Select {item.mediaId}
-                </button>
-              ) : (
-                item.mediaId
-              )}
-            </li>
-          ))}
-      <button type="button" onClick={() => onAlbumsChanged?.(['album-1'])}>
-        Change albums
-      </button>
-      {selection ? (
-        <button
-          type="button"
-          onClick={() => selection.onToggle({ mediaId: 'missing-from-seen' })}
-        >
-          Select missing
+  }) => {
+    gridProps.current = { showHiddenBadge }
+    return (
+      <div data-testid="grid" data-selecting={selection ? 'yes' : 'no'}>
+        {groups
+          ? groups.map((group) => (
+              <section key={group.key}>
+                {group.header}
+                <ul data-testid="grid-tiles">
+                  {group.items.map((item) => (
+                    <li key={item.mediaId}>
+                      {selection ? (
+                        <button
+                          type="button"
+                          aria-pressed={selection.selected.has(item.mediaId)}
+                          onClick={() => selection.onToggle(item)}
+                        >
+                          Select {item.mediaId}
+                        </button>
+                      ) : (
+                        item.mediaId
+                      )}
+                      {selection ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            selection.onToggle(item, { shiftKey: true })
+                          }
+                        >
+                          Shift-select {item.mediaId}
+                        </button>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ))
+          : items.map((item) => (
+              <li key={item.mediaId}>
+                {selection ? (
+                  <button
+                    type="button"
+                    aria-pressed={selection.selected.has(item.mediaId)}
+                    onClick={() => selection.onToggle(item)}
+                  >
+                    Select {item.mediaId}
+                  </button>
+                ) : (
+                  item.mediaId
+                )}
+              </li>
+            ))}
+        <button type="button" onClick={() => onAlbumsChanged?.(['album-1'])}>
+          Change albums
         </button>
-      ) : null}
-    </div>
-  )
+        {selection ? (
+          <button
+            type="button"
+            onClick={() => selection.onToggle({ mediaId: 'missing-from-seen' })}
+          >
+            Select missing
+          </button>
+        ) : null}
+      </div>
+    )
+  }
 }))
 
 const getGalleryMediaMock = getGalleryMedia as jest.Mock
@@ -466,6 +476,29 @@ describe('GalleryAllMediaView', () => {
   })
 
   it('titles the page All media', () => {
+    // The gallery layout provides section mode; the view's PageHeader is the
+    // sr-only outline heading and the actions row only.
+    render(
+      <PageHeaderSectionProvider>
+        <GalleryAllMediaView
+          actorId="actor-1"
+          initialCategory={null}
+          initialShow="all"
+          initialPage={{ items: [buildGalleryItem('5')], nextMaxId: null }}
+        />
+      </PageHeaderSectionProvider>
+    )
+    expect(screen.getByRole('heading', { name: 'All media' })).toHaveClass(
+      'sr-only'
+    )
+    // No visible description either: the compact top is the section
+    // dropdown row, nothing else.
+    expect(
+      screen.queryByText("Every photo and video you've posted or added")
+    ).not.toBeInTheDocument()
+  })
+
+  it('collapses the desktop filters into the shared sheet', () => {
     render(
       <GalleryAllMediaView
         actorId="actor-1"
@@ -474,12 +507,61 @@ describe('GalleryAllMediaView', () => {
         initialPage={{ items: [buildGalleryItem('5')], nextMaxId: null }}
       />
     )
+    expect(filterBarProps.current?.filtersInSheet).toBe(true)
+  })
+
+  it('rides the section dropdown row with the actions from sm up', () => {
+    render(
+      <PageHeaderSectionProvider>
+        <GalleryAllMediaView
+          actorId="actor-1"
+          initialCategory={null}
+          initialShow="all"
+          initialPage={{ items: [buildGalleryItem('5')], nextMaxId: null }}
+        />
+      </PageHeaderSectionProvider>
+    )
+    // The header's outer div carries the absolute placement on the layout's
+    // wrapper; the h2's sr-only title keeps the outline.
+    const header = screen
+      .getByRole('heading', { name: 'All media' })
+      .closest('.mb-6') as HTMLElement
+    expect(header).toHaveClass('sm:absolute', 'sm:right-0', 'sm:top-0')
     expect(
-      screen.getByRole('heading', { name: 'All media' })
+      within(header).getByRole('button', { name: 'Add' })
     ).toBeInTheDocument()
     expect(
-      screen.getByText("Every photo and video you've posted or added")
+      within(header).getByRole('button', { name: 'Select' })
     ).toBeInTheDocument()
+  })
+
+  it('renders the day headers on the page surface', () => {
+    render(
+      <GalleryAllMediaView
+        actorId="actor-1"
+        initialCategory={null}
+        initialShow="all"
+        initialPage={{ items: [buildGalleryItem('5')], nextMaxId: null }}
+      />
+    )
+
+    // The day heading is an h2 on All media, dated first.
+    const heading = screen.getByRole('heading', { name: /Fri 14 Mar/ })
+    expect(heading.tagName).toBe('H2')
+
+    // The header keeps the page's sticky offsets and brings no box of its
+    // own: the chrome surface arrives only through data-stuck, which
+    // jsdom's missing IntersectionObserver never sets.
+    const header = heading.parentElement as HTMLElement
+    expect(header).toHaveClass(
+      'sticky',
+      'top-[calc(56px+env(safe-area-inset-top,0px)+var(--status-strip-h,0px))]',
+      'md:top-[79px]',
+      '-mx-4',
+      'px-4'
+    )
+    expect(header).not.toHaveClass('bg-background')
+    expect(header).not.toHaveAttribute('data-stuck')
   })
 
   const openShowMenu = async () => {
@@ -514,6 +596,34 @@ describe('GalleryAllMediaView', () => {
       expect(screen.getByRole('group', { name: 'Show' })).toHaveTextContent(
         'Show Hidden from gallery'
       )
+    })
+
+    it('hides the hidden badge on Hidden from gallery, keeps it elsewhere', () => {
+      // The Show filter already screens this list for hidden photos, so the
+      // grid is told to leave the badge off (the tiles' names still say it).
+      const { unmount } = render(
+        <GalleryAllMediaView
+          actorId="actor-1"
+          initialCategory={null}
+          initialShow="all"
+          initialPage={{ items: [buildGalleryItem('5')], nextMaxId: null }}
+        />
+      )
+      expect(gridProps.current?.showHiddenBadge).toBe(true)
+      unmount()
+
+      render(
+        <GalleryAllMediaView
+          actorId="actor-1"
+          initialCategory={null}
+          initialShow="hidden"
+          initialPage={{
+            items: [buildGalleryItem('6', { inGallery: false })],
+            nextMaxId: null
+          }}
+        />
+      )
+      expect(gridProps.current?.showHiddenBadge).toBe(false)
     })
 
     it('offers the five lists with a hint each', async () => {

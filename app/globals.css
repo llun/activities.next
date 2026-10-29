@@ -90,13 +90,23 @@
      route group centers its content (and its page-header title row) at this
      single width, so the column stays aligned as you switch tabs. Exposed as
      the `max-w-content` utility via Tailwind's `--container-*` namespace. */
-  --container-content: 940px;
-
-  /* The design's type scale draws 18 px text on a 24 px line (Heading/lg 18/24),
-     where Tailwind's default `text-lg` is 18/28. Every `text-lg` element (the
-     settings and admin card headings above all) takes its line height from this
-     one value. */
   --text-lg--line-height: calc(1.5 / 1.125);
+}
+
+/* Non-inline @theme, so the max-w-content utility emits
+   var(--container-content) instead of the literal value, letting the
+   route-scoped override below re-declare it. */
+@theme {
+  --container-content: 940px;
+}
+
+/* Gallery section routes run a wider 1120px content column. The gallery
+   layout renders `data-gallery-wide` on every route under /gallery except
+   /gallery/privacy, and this route-scoped override of the same token widens
+   the shell column and the Gallery title band together; the app-wide value
+   above is unchanged, so narrower viewports are unaffected. */
+html:has([data-gallery-wide]) {
+  --container-content: 70rem;
 }
 
 :root {

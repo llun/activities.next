@@ -490,7 +490,7 @@ describe('GalleryAlbumPicker', () => {
     expect(
       await screen.findByRole('heading', {
         level: 3,
-        name: /Uploaded Fri 14 Mar 2025/
+        name: /Fri 14 Mar 2025\s*· Uploaded/
       })
     ).toBeInTheDocument()
     expect(
@@ -968,7 +968,7 @@ describe('GalleryAlbumPicker', () => {
       expect(
         await screen.findByRole('heading', {
           level: 3,
-          name: /Uploaded Fri 3 Oct 2025/
+          name: /Fri 3 Oct 2025\s*· Uploaded/
         })
       ).toBeInTheDocument()
     })
@@ -997,7 +997,7 @@ describe('GalleryAlbumPicker', () => {
       expect(
         await screen.findByRole('heading', {
           level: 3,
-          name: /Uploaded Fri 3 Oct 2025/
+          name: /Fri 3 Oct 2025\s*· Uploaded/
         })
       ).toBeInTheDocument()
     })

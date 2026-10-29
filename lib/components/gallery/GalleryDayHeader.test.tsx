@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { GalleryDayHeader } from '@/lib/components/gallery/GalleryDayHeader'
@@ -489,5 +489,120 @@ describe('GalleryDayHeader', () => {
       'sticky',
       'z-10'
     )
+  })
+})
+
+describe('GalleryDayHeader page surface', () => {
+  class MockIntersectionObserver implements IntersectionObserver {
+    static instances: MockIntersectionObserver[] = []
+    callback: IntersectionObserverCallback
+    root: Document | Element | null = null
+    rootMargin = ''
+    scrollMargin = ''
+    thresholds: number[] = []
+
+    constructor(callback: IntersectionObserverCallback) {
+      this.callback = callback
+      MockIntersectionObserver.instances.push(this)
+    }
+
+    observe = vi.fn()
+    unobserve = vi.fn()
+    disconnect = vi.fn()
+    takeRecords(): IntersectionObserverEntry[] {
+      return []
+    }
+  }
+
+  const fireEntry = (
+    observer: MockIntersectionObserver,
+    isIntersecting: boolean
+  ) => {
+    act(() => {
+      observer.callback(
+        [{ isIntersecting } as unknown as IntersectionObserverEntry],
+        observer as unknown as IntersectionObserver
+      )
+    })
+  }
+
+  it('is transparent at rest with a sentinel above it', () => {
+    const { container } = render(
+      <GalleryDayHeader {...baseProps} surface="page" />
+    )
+
+    const header = screen.getByRole('heading').parentElement as HTMLElement
+    expect(header).not.toHaveClass('bg-background')
+    expect(header).not.toHaveClass('bg-surface-chrome')
+    expect(header).not.toHaveClass('border-b')
+    expect(header).not.toHaveAttribute('data-stuck')
+    // The chrome spans the content column edge to edge, with the column
+    // padding added back so the text stays aligned with the tiles.
+    expect(header).toHaveClass('-mx-4', 'px-4')
+
+    const sentinel = container.firstElementChild as HTMLElement
+    expect(sentinel).toHaveAttribute('aria-hidden', 'true')
+    expect(sentinel).not.toBe(header)
+  })
+
+  it('gains the chrome surface and hairline only while stuck', () => {
+    vi.stubGlobal('IntersectionObserver', MockIntersectionObserver)
+    try {
+      MockIntersectionObserver.instances = []
+      const { container } = render(
+        <GalleryDayHeader {...baseProps} surface="page" />
+      )
+
+      const header = screen.getByRole('heading').parentElement as HTMLElement
+      const sentinel = container.firstElementChild as HTMLElement
+      const observer = MockIntersectionObserver.instances.at(-1)
+      expect(observer).toBeDefined()
+      expect(observer?.observe).toHaveBeenCalledWith(sentinel)
+
+      fireEntry(observer!, false)
+      expect(header).toHaveAttribute('data-stuck', 'true')
+      expect(header).toHaveClass(
+        'data-[stuck]:bg-surface-chrome',
+        'data-[stuck]:border-b',
+        'data-[stuck]:backdrop-blur'
+      )
+
+      fireEntry(observer!, true)
+      expect(header).not.toHaveAttribute('data-stuck')
+      expect(header).not.toHaveClass('bg-surface-chrome')
+      expect(header).not.toHaveClass('border-b')
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('never sticks without an IntersectionObserver', () => {
+    // jsdom ships no IntersectionObserver: the header stays transparent
+    // instead of guessing or crashing.
+    const { container } = render(
+      <GalleryDayHeader {...baseProps} surface="page" />
+    )
+
+    expect(container.querySelector('[data-stuck]')).toBeNull()
+    expect(screen.getByRole('heading').parentElement).not.toHaveClass(
+      'bg-surface-chrome'
+    )
+  })
+
+  it('marks the heading date with a muted Uploaded suffix', () => {
+    render(<GalleryDayHeader {...baseProps} dayKey="uploaded:2025-10-03" />)
+
+    const heading = screen.getByRole('heading')
+    expect(heading).toHaveTextContent('Fri 3 Oct 2025 · Uploaded')
+    for (const suffix of screen.getAllByText('· Uploaded')) {
+      expect(suffix).toHaveClass('text-muted-foreground', 'font-normal')
+    }
+  })
+
+  it('keeps the place name on the phone meta line', () => {
+    render(<GalleryDayHeader {...baseProps} stats={stats()} surface="page" />)
+
+    const meta = screen.getByText('Box Hill, Surrey · 14 · 2 picked')
+    expect(meta).toHaveClass('sm:hidden', 'min-w-0', 'truncate')
   })
 })

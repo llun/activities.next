@@ -99,4 +99,41 @@ describe('Gallery Layout', () => {
       within(menu).getByRole('menuitem', { name: 'Subjects' })
     ).not.toHaveAttribute('aria-current')
   })
+
+  describe('wide-column marker', () => {
+    it.each([
+      '/gallery',
+      '/gallery/media',
+      '/gallery/albums/abc123',
+      '/gallery/map',
+      '/gallery/life-list',
+      '/gallery/gear',
+      '/gallery/gear/abc123'
+    ])('renders data-gallery-wide on %s', (path) => {
+      ;(usePathname as jest.Mock).mockReturnValue(path)
+      const { container } = renderLayout()
+
+      expect(container.querySelector('[data-gallery-wide]')).toBeInTheDocument()
+    })
+
+    it('leaves the marker off /gallery/privacy', () => {
+      ;(usePathname as jest.Mock).mockReturnValue('/gallery/privacy')
+      const { container } = renderLayout()
+
+      expect(
+        container.querySelector('[data-gallery-wide]')
+      ).not.toBeInTheDocument()
+    })
+  })
+
+  it('positions the wrapper so a page can absolutely place its header row', () => {
+    // All media's actions ride the dropdown's line from sm up: the wrapper
+    // must be the positioning parent for that absolute row.
+    ;(usePathname as jest.Mock).mockReturnValue('/gallery/media')
+    const { container } = renderLayout()
+
+    expect(container.querySelector('[data-gallery-wide]')).toHaveClass(
+      'relative'
+    )
+  })
 })

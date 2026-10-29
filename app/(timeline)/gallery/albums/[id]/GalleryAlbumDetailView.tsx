@@ -540,7 +540,7 @@ export const GalleryAlbumDetailView: FC<Props> = ({
                 No photos in this view.
               </p>
             ) : isEditing ? (
-              <ul className="grid grid-cols-3 gap-1 sm:grid-cols-4 sm:gap-2">
+              <ul className="grid grid-cols-3 gap-1 sm:grid-cols-4 sm:gap-1.5 lg:grid-cols-6">
                 {items.map((item, index) => {
                   const isCover = effectiveCoverId === item.mediaId
                   const isPinned = album.coverMediaId === item.mediaId
