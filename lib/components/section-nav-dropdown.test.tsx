@@ -409,6 +409,51 @@ describe('SectionNavDropdown', () => {
     }
   })
 
+  it('does nothing when the late re-reveal fires after unmount', async () => {
+    setPath('/admin/system')
+    const { unmount } = render(
+      <SectionNavDropdown label="Admin" groups={adminGroups(3)} />
+    )
+    await openMenu('Admin')
+    unmount()
+
+    // The CI flake: the 300ms re-reveal fired after the test's jsdom
+    // environment was torn down, so the callback read a `document` that no
+    // longer existed. Simulate that teardown by replacing the global with a
+    // dead stub whose every read is recorded: a reveal that still reaches
+    // into it (the old behaviour read `document.activeElement` right there)
+    // fails the assertions below explicitly, instead of dying as an
+    // unattributed crash or passing silently.
+    const document_ = globalThis.document
+    let readTornDownDocument = false
+    let revealedWithoutDocument = false
+    const rectSpy = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(function (this: HTMLElement) {
+        if (globalThis.document !== document_) revealedWithoutDocument = true
+        return { top: 0, bottom: 0 } as DOMRect
+      })
+    // @ts-expect-error -- deleting the global is the teardown being simulated
+    delete globalThis.document
+    globalThis.document = new Proxy(
+      {},
+      {
+        get() {
+          readTornDownDocument = true
+          return undefined
+        }
+      }
+    ) as unknown as Document
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 350))
+    } finally {
+      globalThis.document = document_
+      rectSpy.mockRestore()
+    }
+    expect(readTornDownDocument).toBe(false)
+    expect(revealedWithoutDocument).toBe(false)
+  })
+
   it('does not pull the menu back once focus has moved off the current row', async () => {
     const rectSpy = vi
       .spyOn(HTMLElement.prototype, 'getBoundingClientRect')

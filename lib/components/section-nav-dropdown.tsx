@@ -137,21 +137,24 @@ const revealCurrentRow = (event: Event): (() => void) | undefined => {
     typeof ResizeObserver === 'undefined'
       ? null
       : new ResizeObserver(() => reveal())
-  let timer: number | undefined
+  let timer: ReturnType<typeof setTimeout> | undefined
   const stop = () => {
     observer?.disconnect()
-    window.clearTimeout(timer)
+    clearTimeout(timer)
     for (const type of STEERING_EVENTS)
       menu.removeEventListener(type, stop, LISTENER_OPTIONS[type])
   }
   function reveal() {
-    if (document.activeElement !== currentEl) return stop()
+    // A timer or observer that fires after the menu (or, in tests, the whole
+    // document) has gone away must be a no-op, not a crash.
+    if (!menuEl.isConnected) return stop()
+    if (menuEl.ownerDocument.activeElement !== currentEl) return stop()
     revealRow(menuEl, currentEl)
   }
   for (const type of STEERING_EVENTS)
     menu.addEventListener(type, stop, LISTENER_OPTIONS[type])
   observer?.observe(menu)
-  timer = window.setTimeout(() => {
+  timer = setTimeout(() => {
     reveal()
     stop()
   }, 300)
