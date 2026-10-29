@@ -1,0 +1,23 @@
+lib/components/drafts/DraftsProvider.tsx
+  s_17b7477480da96::t_4859a91e2f0ac9 434
+lib/components/section-nav-dropdown.test.tsx
+  s_17b7477480da96::t_7719efbcb98311 393-413
+lib/components/section-nav-dropdown.tsx
+  s_17b7477480da96::t_16008022934c8f 138,141,146-149,155
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "520adc5e965f13ef6c9208f3d7f277bb013de289",
+  "prompts": {},
+  "sessions": {
+    "s_17b7477480da96": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2228ce77-e5f6-425a-b31c-1cf14bbecf3e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
