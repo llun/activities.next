@@ -1,0 +1,47 @@
+app/(timeline)/admin/layout.test.tsx
+  s_f147bf36f62485::t_38e7a3a5f76791 82,91,175,178-186,188-192
+app/(timeline)/settings/layout.test.tsx
+  s_f147bf36f62485::t_b8a8afb6fe631c 171-172,177-191
+app/(timeline)/account/AccountIdentityCard.tsx
+  s_f147bf36f62485::t_40d3fa208e9e4b 23
+app/(timeline)/account/loading.tsx
+  s_f147bf36f62485::t_c580bfcdb8419f 7-12
+app/(timeline)/admin/layout.tsx
+  s_f147bf36f62485::t_fbfa324b4a1c4d 14
+app/(timeline)/admin/sections.tsx
+  s_f147bf36f62485::t_60cf8cffc0ac7f 8
+app/(timeline)/settings/loading.tsx
+  s_f147bf36f62485::t_58f98146af9611 7-12
+app/(timeline)/settings/page.tsx
+  s_f147bf36f62485::t_6ffee866acc6e9 42,73
+app/(timeline)/settings/sections.tsx
+  s_f147bf36f62485::t_024550ea2594fc 109,121
+docs/architecture.md
+  s_f147bf36f62485::t_345e7bb1828164 1321,1324-1326,1328
+lib/components/section-nav-dropdown.test.tsx
+  s_f147bf36f62485::t_a09488da020b36 94,97-102,292,304-307,554,562-569
+lib/components/section-nav-dropdown.tsx
+  s_f147bf36f62485::t_e4b3841805464c 210-214,219-226
+lib/components/section-nav-shared.tsx
+  s_f147bf36f62485::t_ab70b6e38d67c3 29-30
+lib/components/section-nav.test.tsx
+  s_f147bf36f62485::t_3f0be158d6da9e 107-114,171-173,178-180,183-194,197-201,368,381
+lib/components/section-nav.tsx
+  s_f147bf36f62485::t_122495275070a2 57-58,64-69,100-101,106,130,203
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "21ebc4f6cca4f7b393c17760ffb54e3644759b5d",
+  "prompts": {},
+  "sessions": {
+    "s_f147bf36f62485": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "25ee74e4-3619-4df9-8186-dcf3fd9b6ec2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
