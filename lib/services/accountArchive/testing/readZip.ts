@@ -112,6 +112,10 @@ export const readZipStreaming = (
   writeFileSync(source, STREAM_READER)
   const result = spawnSync('java', [source, file], { encoding: 'utf8' })
   if (result.error) return null
+  // macOS ships /usr/bin/java as a stub that runs and exits 1 with this
+  // message when no JDK is installed; that is "no Java here", not a failure
+  // of the reader.
+  if (/Unable to locate a Java Runtime/.test(result.stderr)) return null
   const sizes = new Map<string, number>()
   for (const line of result.stdout.split('\n')) {
     const [name, size] = line.split('\t')
