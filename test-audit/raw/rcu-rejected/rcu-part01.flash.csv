@@ -1,0 +1,29 @@
+file,cases,verdict,casesToKeep,keepLines,coveringRouteTest,reason
+lib/services/accounts/profile.test.ts,4,delete,0,,app/api/v1/profile/route.test.ts,profile shape and movedTo flag asserted at route level
+lib/services/accounts/profileFields.test.ts,6,delete,0,,app/api/v1/accounts/profile/route.test.ts,form parsing rows order and refusals re-asserted by the profile route suite
+lib/services/accounts/profileImageUrl.test.ts,15,delete,0,,app/api/v1/accounts/image/route.test.ts,accept clear and refuse cases copy-pasted into the image and profile route suites
+lib/services/accounts/relationship.test.ts,17,delete,0,,app/api/v1/accounts/[id]/follow/route.test.ts,all serialised relationship fields asserted by nine relationship route suites
+lib/services/actors/refreshRemoteActor.test.ts,13,delete,0,,app/api/v1/accounts/lookup/route.test.ts,refresh backoff cooldown and in-flight sharing driven end-to-end by lookup and search route tests
+lib/services/auth/requestOrigin.test.ts,5,delete,0,,app/api/auth/[...all]/route.test.ts,host and forwarded-header precedence asserted by the auth catch-all route suite
+lib/services/auth/servedDomains.test.ts,8,delete,0,,app/api/oembed/route.test.ts,served-domain gating asserted end-to-end including wildcard and duplicate cases
+lib/services/bookmarks/getBookmarkedStatusesPage.test.ts,5,delete,0,,app/api/v1/bookmarks/route.test.ts,pagination cursors backfill and ordering asserted by the bookmarks route suite
+lib/services/domains/actorDomains.test.ts,5,delete,0,,app/api/v1/accounts/handle/route.test.ts,allow-list wildcard exclusion and served-domain fallback asserted by handle and domains route suites
+lib/services/domains/adminDomains.test.ts,31,delete,0,,app/api/v1/admin/domains/route.test.ts,env parsing trust transitions and row writes re-asserted by the admin domains route suite
+lib/services/domains/domainScope.test.ts,4,delete,0,,app/api/v2/admin/announcements/route.test.ts,scope resolution including empty and wildcard cases asserted through the v2 admin routes
+lib/services/email/layout/renderEmail.test.ts,14,delete,0,,app/api/v1/statuses/[id]/actions.route.test.ts,layout document title preheader blocks and footer asserted by notification route tests
+lib/services/email/sender.test.ts,19,delete,0,,app/api/v1/accounts/email/route.test.ts,from-address identity and header-injection sanitising asserted by the email and password-reset route suites
+lib/services/email/templates/changeEmail.test.ts,4,delete,0,,app/api/v1/accounts/email/route.test.ts,subject footer and code encoding asserted by the account email route suite
+lib/services/email/templates/like.test.ts,5,delete,0,,app/api/v1/statuses/[id]/actions.route.test.ts,like notification email rendering asserted at route level
+lib/services/email/templates/mention.test.ts,3,delete,0,,app/api/v1/statuses/[id]/actions.route.test.ts,mention notification rendering asserted by the actions route suite
+lib/services/email/templates/reblog.test.ts,3,delete,0,,app/api/v1/statuses/[id]/actions.route.test.ts,reboost wording subject and footer asserted by the actions route suite
+lib/services/email/templates/reply.test.ts,3,delete,0,,app/api/v1/statuses/[id]/actions.route.test.ts,reply email subject quote label and footer asserted at route level
+lib/services/email/templates/resetPassword.test.ts,4,delete,0,,app/api/v1/accounts/password/reset/request/route.test.ts,reset email subject link expiry and instance naming asserted by the route suite
+lib/services/email/templates/verifyEmail.test.ts,6,delete,0,,app/api/v1/emails/confirmations/route.test.ts,confirmation email subject link and ignore copy asserted by the confirmations route suite
+lib/services/favourites/getFavouritedStatusesPage.test.ts,3,delete,0,,app/api/v1/favourites/route.test.ts,newest-first order Link-header pagination and unreadable-status backfill asserted by the favourites route suite
+lib/services/fitness-files/fileRouteDataCache.test.ts,10,delete,0,,app/api/v1/fitness-files/[id]/route-data/route.test.ts,cache round-trip precision cap and hidden-segment masking re-asserted by the route-data route suite
+lib/services/fitness-files/heatmapTiles/tileSource.test.ts,4,delete,0,,app/api/v1/accounts/[id]/fitness-route-heatmap/route.test.ts,tile ladder selection and copy semantics asserted by the heatmap route suite
+lib/services/fitness-files/importLock.test.ts,4,delete,0,,app/api/v1/fitness-files/[id]/primary/route.test.ts,lock acquire release wait budget and timeout asserted through the primary swap route suite
+lib/services/fitness-files/queryParams.test.ts,8,delete,0,,app/api/v1/accounts/[id]/fitness-heatmap/route.test.ts,period trim control-character and type refusals asserted by three heatmap route suites
+lib/services/fitness-files/retryImports.test.ts,8,delete,0,,app/api/v1/fitness/import/[batchId]/route.test.ts,requeue column resets job id stability and failure rollback asserted by the batch route suite
+lib/services/fitness-files/statusFitnessFiles.test.ts,2,delete,0,,app/api/v1/fitness-files/by-status/route.test.ts,empty list gear name resolution and summary metrics asserted by two route suites
+lib/services/gallery/galleryAlbumQueries.test.ts,21,delete,0,,app/api/v1/accounts/[id]/gallery/albums/[albumId]/route.test.ts,album cursor counts collage and visibility matrix re-asserted by the album route and visitor suites
