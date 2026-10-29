@@ -52,9 +52,16 @@ import { TranslateContent } from './translate-content'
  */
 export const getPostTranslation = (
   actualStatus: StatusNote | StatusPoll,
-  hasViewer: boolean
+  hasViewer: boolean,
+  currentActorId?: string
 ) => ({
   isTranslatable: hasViewer,
+  // The author's own posts never carry the inline Translate control (it would
+  // sit under a post they just wrote in their own language); they can still
+  // translate one from the post menu.
+  inlineTranslation: !(
+    currentActorId && currentActorId === actualStatus.actorId
+  ),
   translationLanguage: hasViewer
     ? (actualStatus.detectedLanguage ?? actualStatus.language)
     : null
@@ -181,15 +188,17 @@ export const PostBody: FC<PostBodyProps> = ({
     currentActor?.id === actualStatus.actorId
   const summary = actualStatus.summary?.trim()
 
-  const { translationLanguage } = getPostTranslation(
+  const { translationLanguage, inlineTranslation } = getPostTranslation(
     actualStatus,
-    Boolean(currentActor)
+    Boolean(currentActor),
+    currentActor?.id
   )
   const statusBody = (
     <>
       <TranslateContent
         statusId={actualStatus.id}
         language={translationLanguage}
+        inline={inlineTranslation}
         contentClassName="mt-1 text-sm leading-relaxed break-words markdown-content"
       >
         {collapsible && postLineLimit !== 0 && !summary ? (

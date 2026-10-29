@@ -68,6 +68,10 @@ vi.mock('@/lib/client', () => ({
   getStatusById: vi.fn().mockResolvedValue(null)
 }))
 
+const otherViewer = status.actor
+  ? { ...status.actor, id: 'https://other/u/viewer' }
+  : undefined
+
 describe('Post', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -84,11 +88,64 @@ describe('Post', () => {
       })
     })
 
-    it('offers Translate when the content-detected language overrides a mislabeled declared language', async () => {
+    it('does not offer the inline Translate control on the viewer own post, only the menu item', async () => {
       render(
         <Post
           host="activities.local"
           currentActor={status.actor ?? undefined}
+          currentTime={currentTime}
+          showActions
+          status={{
+            ...status,
+            summary: null,
+            language: null,
+            detectedLanguage: null
+          }}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      const trigger = await screen.findByRole('button', {
+        name: 'More actions'
+      })
+      fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+      const menu = await screen.findByRole('menu')
+      // Found only once the capability has resolved, so the absence check
+      // below is meaningful.
+      expect(
+        await within(menu).findByRole('menuitem', { name: /Translate/ })
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /Translate/, hidden: true })
+      ).not.toBeInTheDocument()
+    })
+
+    it('still offers inline Translate on another author post with an unknown language', async () => {
+      render(
+        <Post
+          host="activities.local"
+          currentActor={otherViewer}
+          currentTime={currentTime}
+          status={{
+            ...status,
+            summary: null,
+            language: null,
+            detectedLanguage: null
+          }}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      expect(
+        await screen.findByRole('button', { name: /Translate/ })
+      ).toBeInTheDocument()
+    })
+
+    it('offers Translate when the content-detected language overrides a mislabeled declared language', async () => {
+      render(
+        <Post
+          host="activities.local"
+          currentActor={otherViewer}
           currentTime={currentTime}
           status={{
             ...status,
@@ -136,7 +193,7 @@ describe('Post', () => {
       render(
         <Post
           host="activities.local"
-          currentActor={status.actor ?? undefined}
+          currentActor={otherViewer}
           currentTime={currentTime}
           status={{
             ...status,

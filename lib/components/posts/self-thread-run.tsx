@@ -146,10 +146,8 @@ const SelfThreadPart: FC<SelfThreadPartProps> = ({
     currentActor: showActions ? currentActor : undefined,
     status: actualStatus
   })
-  const { isTranslatable, translationLanguage } = getPostTranslation(
-    actualStatus,
-    Boolean(currentActor)
-  )
+  const { isTranslatable, translationLanguage, inlineTranslation } =
+    getPostTranslation(actualStatus, Boolean(currentActor), currentActor?.id)
   const label = `${partIndex + 1} of ${totalParts}`
   const compactTime = formatCompactRelativeTime(
     actualStatus.createdAt,
@@ -184,6 +182,7 @@ const SelfThreadPart: FC<SelfThreadPartProps> = ({
       statusId={actualStatus.id}
       language={translationLanguage}
       enabled={isTranslatable}
+      inline={inlineTranslation}
     >
       <div
         ref={isOpened ? openedPartRef : undefined}

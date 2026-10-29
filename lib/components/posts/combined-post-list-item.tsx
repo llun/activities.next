@@ -270,10 +270,8 @@ export const InsetReply: FC<InsetReplyProps> = ({
   const name = actualStatus.actor
     ? getActorDisplayName(actualStatus.actor) || actualStatus.actor.username
     : 'someone'
-  const { isTranslatable, translationLanguage } = getPostTranslation(
-    actualStatus,
-    Boolean(currentActor)
-  )
+  const { isTranslatable, translationLanguage, inlineTranslation } =
+    getPostTranslation(actualStatus, Boolean(currentActor), currentActor?.id)
 
   return (
     <TranslationProvider
@@ -281,6 +279,7 @@ export const InsetReply: FC<InsetReplyProps> = ({
       statusId={actualStatus.id}
       language={translationLanguage}
       enabled={isTranslatable}
+      inline={inlineTranslation}
     >
       <div
         role="group"
@@ -402,10 +401,8 @@ export const CombinedPostListItem = memo(function CombinedPostListItem({
     onReactionsChanged
   })
   const showsActionRow = Boolean(showActions && currentActor)
-  const { isTranslatable, translationLanguage } = getPostTranslation(
-    firstActual,
-    Boolean(currentActor)
-  )
+  const { isTranslatable, translationLanguage, inlineTranslation } =
+    getPostTranslation(firstActual, Boolean(currentActor), currentActor?.id)
   const handleReply = canCompose
     ? (target: Status) => openReply(target, anchorId)
     : undefined
@@ -428,6 +425,7 @@ export const CombinedPostListItem = memo(function CombinedPostListItem({
         statusId={firstActual.id}
         language={translationLanguage}
         enabled={isTranslatable}
+        inline={inlineTranslation}
       >
         <div className="flex min-h-0 min-w-0 flex-col gap-1">
           {showReplyContext ? (
@@ -456,8 +454,13 @@ export const CombinedPostListItem = memo(function CombinedPostListItem({
               )
               const {
                 isTranslatable: partTranslatable,
-                translationLanguage: partLanguage
-              } = getPostTranslation(actualStatus, Boolean(currentActor))
+                translationLanguage: partLanguage,
+                inlineTranslation: partInline
+              } = getPostTranslation(
+                actualStatus,
+                Boolean(currentActor),
+                currentActor?.id
+              )
 
               const body = (
                 <>
@@ -522,6 +525,7 @@ export const CombinedPostListItem = memo(function CombinedPostListItem({
                         statusId={actualStatus.id}
                         language={partLanguage}
                         enabled={partTranslatable}
+                        inline={partInline}
                       >
                         {/* `relative`: the edit history panel anchors to the
                             nearest positioned ancestor, which for the first

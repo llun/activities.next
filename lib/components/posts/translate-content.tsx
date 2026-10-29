@@ -26,6 +26,9 @@ interface Props {
   // The status's declared language (ISO 639-1), or null/undefined when unknown.
   // The Translate control is only offered when a language is present.
   language?: string | null
+  // False hides the inline control (only used without a surrounding provider;
+  // inside one, the provider decides).
+  inline?: boolean
   // The server-rendered original content nodes, shown until translated and
   // again when the viewer toggles back to the original.
   children: ReactNode
@@ -203,9 +206,10 @@ const TranslateContentView: FC<
 const StandaloneTranslateContent: FC<Props> = ({
   statusId,
   language,
+  inline = true,
   ...rest
 }) => {
-  const t = useStatusTranslation(statusId, language)
+  const t = useStatusTranslation(statusId, language, true, inline)
   return <TranslateContentView t={t} {...rest} />
 }
 

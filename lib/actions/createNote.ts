@@ -55,6 +55,10 @@ import {
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
 import { logger } from '@/lib/utils/logger'
+import {
+  getPostingLanguage,
+  parseLanguageCode
+} from '@/lib/utils/postingLanguage'
 import { generatePublicId } from '@/lib/utils/publicId'
 import { MENTION_GLOBAL_REGEX } from '@/lib/utils/text/convertMarkdownText'
 import { getEmojiTags } from '@/lib/utils/text/getEmojiTags'
@@ -692,6 +696,25 @@ export const getVisibilityFromReplyStatus = (
   return 'direct'
 }
 
+// The language a new status is declared in: the request's own (as sent, when
+// it looks like a language code), else
+// the author's posting language, else the instance default (Mastodon:
+// options[:language] -> preferred_posting_language -> default locale).
+export const resolveDeclaredLanguage = async ({
+  database,
+  actorId,
+  language
+}: {
+  database: Database
+  actorId: string
+  language?: string | null
+}): Promise<string> => {
+  const requested = parseLanguageCode(language)
+  if (requested) return requested
+  const settings = await database.getActorSettings({ actorId })
+  return getPostingLanguage(settings?.defaultLanguage)
+}
+
 interface CreateNoteFromUserInputParams {
   text: string
   summary?: string | null
@@ -728,7 +751,7 @@ export const createNoteFromUserInput = async ({
   fitnessFileId,
   visibility,
   sensitive = false,
-  language = null,
+  language: requestedLanguage = null,
   application,
   createdAt,
   idempotency,
@@ -763,6 +786,12 @@ export const createNoteFromUserInput = async ({
       text,
       mediaIds: subjectMediaIds,
       maxCharacters
+    })
+
+    const language = await resolveDeclaredLanguage({
+      database,
+      actorId: currentActor.id,
+      language: requestedLanguage
     })
 
     const fitnessFile = fitnessFileId
@@ -975,7 +1004,7 @@ export const createNoteFromUserInput = async ({
             database,
             statusId,
             text,
-            declaredLanguage: language
+            declaredLanguage: requestedLanguage
           })
         )
 

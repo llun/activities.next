@@ -153,10 +153,12 @@ export const Post: FC<PostProps> = (props) => {
   // The same gate `Actions` applies to itself, hoisted so the chip row above it
   // knows whether there will be an action row under it to align with.
   const showsActionRow = Boolean(props.showActions && props.currentActor)
-  const { isTranslatable, translationLanguage } = getPostTranslation(
-    actualStatus,
-    Boolean(props.currentActor)
-  )
+  const { isTranslatable, translationLanguage, inlineTranslation } =
+    getPostTranslation(
+      actualStatus,
+      Boolean(props.currentActor),
+      props.currentActor?.id
+    )
 
   return (
     <TranslationProvider
@@ -166,6 +168,7 @@ export const Post: FC<PostProps> = (props) => {
       statusId={actualStatus.id}
       language={translationLanguage}
       enabled={isTranslatable}
+      inline={inlineTranslation}
     >
       <div className="flex min-h-0 min-w-0 flex-col gap-1">
         <BoostStatus status={status} />

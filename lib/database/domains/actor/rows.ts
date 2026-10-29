@@ -19,6 +19,7 @@ import type {
 import { Account } from '@/lib/types/domain/account'
 import { Actor, ActorType } from '@/lib/types/domain/actor'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import { getPostingLanguage } from '@/lib/utils/postingLanguage'
 import { getClientActorId } from '@/lib/utils/publicId'
 import { formatProfileFieldValue } from '@/lib/utils/text/formatProfileFieldValue'
 import { toEmojiShortcodeToken } from '@/lib/utils/text/getEmojiTags'
@@ -314,7 +315,7 @@ export const getMastodonAccountFromSQLActor = (
       fields: sourceFields,
       privacy: settings.defaultPrivacy ?? 'public',
       sensitive: settings.defaultSensitive ?? false,
-      language: settings.defaultLanguage ?? 'en',
+      language: getPostingLanguage(settings.defaultLanguage),
       quote_policy: settings.defaultQuotePolicy ?? 'public',
       attribution_domains: settings.attributionDomains ?? [],
       follow_requests_count: 0

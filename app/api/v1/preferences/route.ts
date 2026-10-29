@@ -1,6 +1,7 @@
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
+import { parseLanguageCode } from '@/lib/utils/postingLanguage'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
@@ -25,9 +26,11 @@ export const GET = traceApiRoute(
           'posting:default:visibility': account?.source?.privacy ?? 'public',
           'posting:default:sensitive': account?.source?.sensitive ?? false,
           // Mastodon leaves this null when the account never chose a posting
-          // language. The Account serializer defaults source.language to 'en',
+          // language (or the stored value is malformed). The Account serializer defaults source.language to 'en',
           // so read the raw setting instead of the serialized account.
-          'posting:default:language': settings?.defaultLanguage ?? null,
+          'posting:default:language': parseLanguageCode(
+            settings?.defaultLanguage
+          ),
           // Mastodon 4.5 default quote-approval policy for new statuses.
           'posting:default:quote_policy':
             settings?.defaultQuotePolicy ?? 'public',

@@ -101,6 +101,25 @@ describe('useStatusTranslation', () => {
     expect(result.current.target).toBe('en')
   })
 
+  it('hides the inline control on the viewer own posts but keeps manual translation', async () => {
+    ;(translateStatus as jest.Mock).mockImplementation(
+      ({ language }: { language: string }) =>
+        Promise.resolve(makeTranslation(language))
+    )
+    const { result } = renderHook(() =>
+      useStatusTranslation('id-own', null, true, false)
+    )
+    await waitFor(() => expect(result.current.canManualTranslate).toBe(true))
+    expect(result.current.canTranslate).toBe(false)
+
+    // A manual request still translates and can be reverted.
+    await act(async () => result.current.request())
+    await waitFor(() => expect(result.current.state).toBe('translated'))
+    expect(result.current.showingTranslation).toBe(true)
+    act(() => result.current.showOriginal())
+    expect(result.current.state).toBe('idle')
+  })
+
   it('caches each target so re-requesting it does not re-hit the backend', async () => {
     ;(translateStatus as jest.Mock).mockImplementation(
       ({ language }: { language: string }) =>

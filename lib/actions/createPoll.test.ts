@@ -57,6 +57,35 @@ describe('Create poll action', () => {
   })
 
   describe('createPollFromUserInput', () => {
+    it('defaults the language to the actor posting language, and keeps an explicit one', async () => {
+      try {
+        await database.updateActor({
+          actorId: actor1.id,
+          defaultLanguage: 'fil'
+        })
+        const defaulted = await createPollFromUserInput({
+          text: 'Poll with a default language',
+          currentActor: actor1,
+          choices: ['Yes', 'No'],
+          database,
+          endAt: Date.now() + 24 * 60 * 60 * 1000
+        })
+        expect((defaulted as StatusPoll | null)?.language).toBe('fil')
+
+        const explicit = await createPollFromUserInput({
+          text: 'Poll with an explicit language',
+          currentActor: actor1,
+          choices: ['Yes', 'No'],
+          language: 'zh-TW',
+          database,
+          endAt: Date.now() + 24 * 60 * 60 * 1000
+        })
+        expect((explicit as StatusPoll | null)?.language).toBe('zh-TW')
+      } finally {
+        await database.updateActor({ actorId: actor1.id, defaultLanguage: '' })
+      }
+    })
+
     it('fails as a kept post when the discard of a failed create fails', async () => {
       vi.mocked(addStatusToTimelines).mockRejectedValueOnce(
         new Error('timeline write failed')

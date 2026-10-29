@@ -131,6 +131,27 @@ describe('Update note action', () => {
       })
     })
 
+    it('does not let a stored language suppress detection on an edit that omits language', async () => {
+      if (!actor1) fail('Actor1 is required')
+      const statusId = `${actor1.id}/statuses/post-1`
+
+      await updateNoteFromUserInput({
+        statusId,
+        currentActor: actor1,
+        database,
+        text: 'Short',
+        language: 'id'
+      })
+      const status = (await updateNoteFromUserInput({
+        statusId,
+        currentActor: actor1,
+        database,
+        text: 'Hello, my name is John and I am a software developer working in Bangkok'
+      })) as Status
+
+      expect(status).toMatchObject({ language: 'id', detectedLanguage: 'en' })
+    })
+
     it('clears a stale detected language when the edit no longer detects confidently', async () => {
       if (!actor1) fail('Actor1 is required')
       const statusId = `${actor1.id}/statuses/post-1`

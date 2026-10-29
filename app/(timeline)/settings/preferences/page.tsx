@@ -5,6 +5,7 @@ import { PreferencesSettings } from '@/lib/components/settings/PreferencesSettin
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
+import { getPostingLanguage } from '@/lib/utils/postingLanguage'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,7 +33,7 @@ const Page = async () => {
         visibility: settings?.defaultPrivacy ?? 'public',
         quotePolicy: settings?.defaultQuotePolicy ?? 'public',
         sensitive: settings?.defaultSensitive ?? false,
-        language: settings?.defaultLanguage ?? 'en',
+        language: getPostingLanguage(settings?.defaultLanguage),
         expandMedia: settings?.readingExpandMedia ?? 'default',
         expandSpoilers: settings?.readingExpandSpoilers ?? false,
         autoplayGifs: settings?.readingAutoplayGifs ?? false
