@@ -402,7 +402,9 @@ Export](maintenance.md#actor-archive-export)). It is built by
   warnings). Mastodon's CSV files (`following_accounts.csv`, `lists.csv`,
   `muted_accounts.csv`, `blocked_accounts.csv`, `blocked_domains.csv`,
   `bookmarks.csv`) are written by the same functions as the web app's CSV
-  export (`lib/services/accountArchive/stepsCsv.ts`), beside each profile's
+  export (`exportPage` / `EXPORT_FILES` in
+  `lib/services/exports/accountExports.ts`, called from
+  `lib/services/accountArchive/stepsCsv.ts`), beside each profile's
   `actor.json`: at the root for the default profile, in the profile's folder
   for the others. The same data is also in `graph.json`. A file is written one
   database page at a time (`exportPage`), with the page cursor in the step's

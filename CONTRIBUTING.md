@@ -17,7 +17,7 @@ Thank you for your interest in contributing to Activities.next! This document pr
 
 The root files are indexes into the durable guides:
 
-- [AGENTS.md](AGENTS.md) contains the Definition of Done, cross-cutting conventions, and the required subsystem reading map.
+- [AGENTS.md](AGENTS.md) contains the Definition of Done, cross-cutting conventions, and the routing table.
 - [REVIEW.md](REVIEW.md) is the actionable review checklist.
 - [Architecture rules](docs/architecture.md), [Mastodon compatibility rules](docs/mastodon-api-compatibility.md), [fitness and storage rules](docs/fitness-file-storage.md), [maintenance rules](docs/maintenance.md), and the [setup guide](docs/setup.md) own subsystem detail.
 - [Design library sync](#agents-design-library-sync) explains how design changes reach the Sketch library in `llun/sketch`.
@@ -706,7 +706,7 @@ By contributing, you agree that your contributions will be licensed under the MI
 
 ## Contributor workflow reference
 
-These rules apply to every change. The [Definition of Done](AGENTS.md#definition-of-done-read-this-first) and mandatory subsystem reading map remain in AGENTS.md. The sections below preserve the detailed commands, tests, review process, and rationale.
+These rules apply to every change. The [Definition of Done](AGENTS.md#definition-of-done-read-this-first) and the routing table remain in AGENTS.md. The sections below preserve the detailed commands, tests, review process, and rationale.
 
 <a id="agents-testing-guidelines"></a>
 
@@ -1219,7 +1219,7 @@ When a change alters what users see, update the design in the same task:
 - **Docs are part of the change.** Any PR that changes behavior described in `AGENTS.md`, `CLAUDE.md`, `README.md`, `CONTRIBUTING.md`, `REVIEW.md`, or `docs/` MUST update those documents in the same PR. Stale guidance is a bug: these files are the operating manual for both humans and AI agents, and past drift produced broken commands and examples (e.g. docs still saying "Jest" long after the Vitest migration, and Docker examples that could not start).
 - Before opening a PR, grep the repo's Markdown for every command, script, route, environment variable, table, flag, or convention your change renames, removes, or reshapes — `grep -rn "<old-name>" *.md docs/` — and fix every hit.
 - Common triggers and the docs they touch:
-  - `package.json` scripts, tooling, hooks (husky/lint-staged), or CI workflow changes → `AGENTS.md` (Build/Test and Commit sections) and `CONTRIBUTING.md`
+  - `package.json` scripts, tooling, hooks (husky/lint-staged), or CI workflow changes → `AGENTS.md` (Build, Test, and Development Commands) and `CONTRIBUTING.md` (Commit & Pull Request Guidelines)
   - Environment variables added/removed/renamed, or defaults/validation changed → `docs/environment-variables.md` and `.env.example` (plus any setup guide that shows the variable)
   - API routes added/moved, or HTTP methods changed → `docs/architecture.md` and the relevant feature guide (e.g. `docs/fitness-file-storage.md`)
   - Migrations → regenerate both schema dumps and the Kysely DB types (see Database Backends & Local Setup)

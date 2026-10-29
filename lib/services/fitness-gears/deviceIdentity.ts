@@ -22,7 +22,7 @@ import {
  *
  * This module is deliberately free of `'use client'` and of any client import:
  * the import jobs, the backfill script and the API routes all read values out of
- * it (see AGENTS.md → Server/Client Module Boundary).
+ * it (see docs/architecture.md → Server/Client Module Boundary).
  */
 
 // `deviceKey`, `name`, `brand`, `model` and `productUrl` are all varchar(255).

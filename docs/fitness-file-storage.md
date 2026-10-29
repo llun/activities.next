@@ -1553,4 +1553,4 @@ null }` remains the precise "this retirement never happened" — it reopens the
   `requireAllOverlays`. Removing that fallback, or nulling `segments` on pyramid
   rows, costs Apple/Mapbox instances their basemap — reject it unless the raster
   path has been made to stand alone.
-- See AGENTS.md → Fitness Route Heatmap Pyramid.
+- See [Fitness Route Heatmap Pyramid](#agents-fitness-route-heatmap-pyramid) above.

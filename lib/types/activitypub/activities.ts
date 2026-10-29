@@ -117,7 +117,8 @@ export type Reject = z.infer<typeof Reject>
 // are otherwise identical, so `EmojiReact` is just `Like` with another type.
 // Deciding which one a document is happens at the consumption boundary
 // (`getReactionContent` in lib/actions/emojiReaction), never here — the schemas
-// stay liberal per the ActivityPub & JSON-LD rules in AGENTS.md.
+// stay liberal per the ActivityPub & JSON-LD rules in
+// docs/mastodon-api-compatibility.md.
 
 export const ENTITY_TYPE_LIKE = 'Like'
 export const ENTITY_TYPE_EMOJI_REACT = 'EmojiReact'

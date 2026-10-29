@@ -16,7 +16,7 @@ import { tileCountAtZoom, tileKey } from './tileCodec'
  * zoom in the ladder.
  *
  * Pure and dependency-free apart from the shared projection and simplification
- * helpers; no `'use client'`, no environment (see AGENTS.md → Server/Client
+ * helpers; no `'use client'`, no environment (see docs/architecture.md → Server/Client
  * Module Boundary). The simplification floor arrives as a plain number from
  * whichever server caller read it from config.
  */

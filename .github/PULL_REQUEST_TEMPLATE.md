@@ -1,9 +1,9 @@
 <!-- Title rule: PRs are squash-merged, so the PR title becomes the commit
-subject on main. It MUST start with a conventional prefix. Use `minor:` in the
-TITLE to trigger an automated minor bump. A `major:` title triggers a major bump
-only when a human maintainer has applied the `release:major` label; agents must
-never apply that label. Use `none:` to request no release.
-See AGENTS.md → Commit & Pull Request Guidelines. -->
+subject on main and MUST start with a conventional prefix. `minor:` in the TITLE
+triggers an automated minor bump; `major:` triggers a major bump only when a
+human maintainer has applied the `release:major` label (agents must never apply
+it); `none:` requests no release. See
+[Commit & Pull Request Guidelines](CONTRIBUTING.md#agents-commit-pull-request-guidelines). -->
 
 ## Summary
 
