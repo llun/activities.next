@@ -578,7 +578,7 @@ const processFitnessFileJobUnlocked = createJobHandle(
       // parsed `activityType` is known. This is the ONLY automatic attribution
       // there is — imports deliberately read no gear from their source, so an
       // imported activity lands here exactly like an uploaded one (see
-      // AGENTS.md → Fitness Gear). It still only ever fills a hole: a manual
+      // docs/fitness-file-storage.md → Fitness Gear). It still only ever fills a hole: a manual
       // assignment wins, which `assignFitnessFileGearIfUnset` enforces with its
       // guarded UPDATE, and these jobs re-run. Attribution is metadata — the
       // whole block is best-effort so it can never fail a file that parsed

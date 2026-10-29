@@ -326,7 +326,8 @@ describe('syncRemotePoll', () => {
   })
 
   it('refuses a remote poll document claiming another poll on the same origin', async () => {
-    // The width test for the deliberate split documented in AGENTS.md: this
+    // The width test for the deliberate split documented in docs/mastodon-api-compatibility.md
+    // (A Fetched Document's Own `id` Is Not Evidence): this
     // guard is an EXACT id match, NOT the same-origin check createAnnounceJob
     // uses, because here we fetch the origin's own canonical id and it should
     // answer with that id. Both other refusal fixtures are cross-host, so

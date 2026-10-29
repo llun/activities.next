@@ -749,7 +749,7 @@ export const OptionalOAuthGuard =
       matchMode: options.matchMode ?? 'all',
       // Served WITHOUT its identity — neither refused nor accepted as itself.
       // Both alternatives are wrong here and the full argument lives in
-      // AGENTS.md's "An Unconfirmed Account May Not Act"; the short of it is
+      // docs/architecture.md's "An Unconfirmed Account May Not Act"; the short of it is
       // that refusing made a valid token fail a read that succeeds with no
       // token, and accepting hands an unverified account real capability.
       unconfirmedAccount: 'anonymous'

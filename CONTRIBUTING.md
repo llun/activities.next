@@ -17,7 +17,7 @@ Thank you for your interest in contributing to Activities.next! This document pr
 
 The root files are indexes into the durable guides:
 
-- [AGENTS.md](AGENTS.md) contains the Definition of Done, cross-cutting conventions, and the required subsystem reading map.
+- [AGENTS.md](AGENTS.md) contains the Definition of Done, cross-cutting conventions, and the routing table.
 - [REVIEW.md](REVIEW.md) is the actionable review checklist.
 - [Architecture rules](docs/architecture.md), [Mastodon compatibility rules](docs/mastodon-api-compatibility.md), [fitness and storage rules](docs/fitness-file-storage.md), [maintenance rules](docs/maintenance.md), and the [setup guide](docs/setup.md) own subsystem detail.
 - [Design library sync](#agents-design-library-sync) explains how design changes reach the Sketch library in `llun/sketch`.
@@ -675,7 +675,7 @@ By contributing, you agree that your contributions will be licensed under the MI
 
 ## Contributor workflow reference
 
-These rules apply to every change. The [Definition of Done](AGENTS.md#definition-of-done-read-this-first) and mandatory subsystem reading map remain in AGENTS.md. The sections below preserve the detailed commands, tests, review process, and rationale.
+These rules apply to every change. The [Definition of Done](AGENTS.md#definition-of-done-read-this-first) and the routing table remain in AGENTS.md. The sections below preserve the detailed commands, tests, review process, and rationale.
 
 <a id="agents-testing-guidelines"></a>
 
@@ -1131,8 +1131,8 @@ each ends with the Definition of Done gate.
 
 1. Create `app/api/v1/<name>/route.ts` exporting HTTP-method handlers (`GET`, `POST`, …).
 2. Wrap handlers in the right guard from `lib/services/guards/` (e.g. `AuthenticatedGuard`, `AdminApiGuard`) — the guards already handle auth and same-origin proof.
-3. Validate request bodies with Zod `safeParse` (never `.parse()` — lint-enforced); add `.max(n)` for sized columns and the empty→`null` transform for nullable text (see **Zod Validation in API Routes**).
-4. Take status/actor ids through `resolveStatusIdParam` / `resolveActorIdParam` (or their batch `…Params` forms) and emit them with `getClientStatusId` / `getClientActorId`, including any pagination cursor — never `idToUrl`/`urlToId` inline (see **Client-Facing Entity IDs**).
+3. Validate request bodies with Zod `safeParse` (never `.parse()` — lint-enforced); add `.max(n)` for sized columns and the empty→`null` transform for nullable text (see **Zod Validation in API Routes** in `docs/mastodon-api-compatibility.md`).
+4. Take status/actor ids through `resolveStatusIdParam` / `resolveActorIdParam` (or their batch `…Params` forms) and emit them with `getClientStatusId` / `getClientActorId`, including any pagination cursor — never `idToUrl`/`urlToId` inline (see **Client-Facing Entity IDs** in `docs/mastodon-api-compatibility.md`).
 5. Respond only via `apiResponse` / `apiErrorResponse` from `@/lib/utils/response` (lint-enforced); CORS routes (those exporting `OPTIONS`) use `apiResponse` even for errors.
 6. If the web UI calls the endpoint, add a named exported function to `lib/client.ts` and import it in components — never call `fetch()` in a component (lint-enforced).
 7. Co-locate `route.test.ts`; plain `describe`/`it` names, table-driven `it.each` for input/expected variants (see **Testing Guidelines**).
@@ -1142,7 +1142,7 @@ each ends with the Definition of Done gate.
 ### Adding a database migration
 
 1. `yarn migrate:make <name>` — never hand-write the file (migrations are TypeScript with named `up`/`down` taking a `Kysely<any>`, from `migrations/migration.stub`) — then register it in `migrations/index.ts` and its name in `migrations/names.ts`.
-2. Use Kysely's schema and query builders; the migration must work on SQLite and PostgreSQL (see **Database Compatibility Guidelines**). It runs in its own transaction unless it exports `config = { transaction: false }`.
+2. Use Kysely's schema and query builders; the migration must work on SQLite and PostgreSQL (see **Database Compatibility Guidelines** in `docs/maintenance.md`). It runs in its own transaction unless it exports `config = { transaction: false }`.
 3. Apply it locally against a throwaway SQLite file with inline env vars: `ACTIVITIES_DATABASE= ACTIVITIES_DATABASE_CLIENT=better-sqlite3 ACTIVITIES_DATABASE_SQLITE_FILENAME=./throwaway.sqlite3 yarn migrate` (the empty `ACTIVITIES_DATABASE=` keeps a JSON configuration in `.env.local` from taking over).
 4. Regenerate BOTH reference schema dumps (see **Keeping the reference schema dumps in sync**), then the Kysely DB types (see **Regenerating the Kysely DB types** in `docs/setup.md`). This is not optional: the Vitest suite builds its databases from the dumps, and CI's schema drift checks (in the first PostgreSQL test shard) fail on schema-dump or type drift.
 5. Update the affected `lib/database/` code and types, plus tests.
@@ -1160,8 +1160,8 @@ each ends with the Definition of Done gate.
 
 1. Create `app/(timeline)/<name>/page.tsx`; render `<PageHeader title="…" />` and inherit the unified `max-w-content` width — no per-page width classes. `PageHeader` also renders the mobile compact bar below 768px; a page without a `PageHeader` renders `MobileCompactHeader` itself (or, for a cover-led page like the profile, the floating `MobileNavigationTrigger`). Never put a back arrow or a logo in a title — pass `back` to `PageHeader` or use `BackLink` (see **Mobile chrome** in `docs/architecture.md`).
 2. A section's pages are switched with the shared `SectionNavDropdown` at every width (Settings, Account & security and Admin through `SectionLayout`, which also owns their index pages and puts a link to them before the trigger; Fitness and Gallery directly). Never a navigation list or rail beside the content, and never in-header tabs (see **Page Header & Sub-Navigation** in `docs/architecture.md`).
-3. Pass timestamps as `Date.now()` numbers from Server Components; Client Components accept `currentTime: number` and never call `Date.now()`/`new Date()` during render (see **Date Serialization**).
-4. If the page shows status posts, render them through the shared `Posts`/`Post` components and turn actions on with `currentActor` + `showActions` — never a bespoke post/action row or per-status action callbacks (see **Status Posts & Actions**).
+3. Pass timestamps as `Date.now()` numbers from Server Components; Client Components accept `currentTime: number` and never call `Date.now()`/`new Date()` during render (see **Date Serialization in Server Components** in `docs/architecture.md`).
+4. If the page shows status posts, render them through the shared `Posts`/`Post` components and turn actions on with `currentActor` + `showActions` — never a bespoke post/action row or per-status action callbacks (see **Status Posts & Actions** in `docs/mastodon-api-compatibility.md`).
 5. All client-side data calls go through named functions in `lib/client.ts` (lint-enforced).
 6. Add component tests (`/** @vitest-environment jsdom */` docblock) and verify the page in a real browser (see **Local Manual / Browser Testing**); screenshots in the PR are not required.
 7. Run the Definition of Done gate.
@@ -1192,10 +1192,10 @@ When a change alters what users see, update the design in the same task:
 - **Docs are part of the change.** Any PR that changes behavior described in `AGENTS.md`, `CLAUDE.md`, `README.md`, `CONTRIBUTING.md`, `REVIEW.md`, or `docs/` MUST update those documents in the same PR. Stale guidance is a bug: these files are the operating manual for both humans and AI agents, and past drift produced broken commands and examples (e.g. docs still saying "Jest" long after the Vitest migration, and Docker examples that could not start).
 - Before opening a PR, grep the repo's Markdown for every command, script, route, environment variable, table, flag, or convention your change renames, removes, or reshapes — `grep -rn "<old-name>" *.md docs/` — and fix every hit.
 - Common triggers and the docs they touch:
-  - `package.json` scripts, tooling, hooks (husky/lint-staged), or CI workflow changes → `AGENTS.md` (Build/Test and Commit sections) and `CONTRIBUTING.md`
+  - `package.json` scripts, tooling, hooks (husky/lint-staged), or CI workflow changes → `AGENTS.md` (Build, Test, and Development Commands) and `CONTRIBUTING.md` (Commit & Pull Request Guidelines)
   - Environment variables added/removed/renamed, or defaults/validation changed → `docs/environment-variables.md` and `.env.example` (plus any setup guide that shows the variable)
   - API routes added/moved, or HTTP methods changed → `docs/architecture.md` and the relevant feature guide (e.g. `docs/fitness-file-storage.md`)
-  - Migrations → regenerate both schema dumps and the Kysely DB types (see Database Backends & Local Setup)
+  - Migrations → regenerate both schema dumps and the Kysely DB types (see Database Backends & Local Setup in `docs/setup.md`)
   - `scripts/` utilities added or changed → `docs/maintenance.md` (and the feature guide that lists them)
   - Deployment, Docker, or runtime-config changes → `README.md`, `docs/setup.md`, and the database setup guides
   - New or changed coding conventions and patterns → the matching `AGENTS.md` section and the `REVIEW.md` checklist

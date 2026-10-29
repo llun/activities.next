@@ -261,7 +261,7 @@ jobs:
             | grep -vE "^CREATE TABLE IF NOT EXISTS '[A-Za-z_]+_fts_(data|idx|docsize|config|content)'" \
             > /tmp/schema-regenerated.sql
           if ! diff -u migrations/schema.sqlite.sql /tmp/schema-regenerated.sql; then
-            echo "::error::migrations/schema.sqlite.sql is out of sync with the migrations. Regenerate BOTH schema dumps in this PR — see AGENTS.md → 'Keeping the reference schema dumps in sync'."
+            echo "::error::migrations/schema.sqlite.sql is out of sync with the migrations. Regenerate BOTH schema dumps in this PR — see docs/setup.md → 'Keeping the reference schema dumps in sync'."
             exit 1
           fi
       # PostgreSQL 17 drift checks against a fresh `activities` database on the
@@ -309,7 +309,7 @@ jobs:
             { print }
           ' /tmp/schema_raw.sql | cat -s > /tmp/schema-regenerated.sql
           if ! diff -u migrations/schema.sql /tmp/schema-regenerated.sql; then
-            echo "::error::migrations/schema.sql is out of sync with the migrations. Regenerate BOTH schema dumps in this PR — see AGENTS.md → 'Keeping the reference schema dumps in sync'."
+            echo "::error::migrations/schema.sql is out of sync with the migrations. Regenerate BOTH schema dumps in this PR — see docs/setup.md → 'Keeping the reference schema dumps in sync'."
             exit 1
           fi
       # The Kysely DB types (lib/database/kysely/db.ts) are generated from this

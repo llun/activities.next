@@ -402,7 +402,9 @@ Export](maintenance.md#actor-archive-export)). It is built by
   warnings). Mastodon's CSV files (`following_accounts.csv`, `lists.csv`,
   `muted_accounts.csv`, `blocked_accounts.csv`, `blocked_domains.csv`,
   `bookmarks.csv`) are written by the same functions as the web app's CSV
-  export (`lib/services/exports/`, `stepsCsv.ts`), beside each profile's
+  export (`exportPage` / `EXPORT_FILES` in
+  `lib/services/exports/accountExports.ts`, called from
+  `lib/services/accountArchive/stepsCsv.ts`), beside each profile's
   `actor.json`: at the root for the default profile, in the profile's folder
   for the others. The same data is also in `graph.json`. A file is written one
   database page at a time (`exportPage`), with the page cursor in the step's
@@ -1321,7 +1323,7 @@ section-navigation pattern: the shared section dropdown. There is no second one 
 - **Input:** `label` (the `<nav>` landmark's name), `groups: SectionNavGroup[]` (`{ heading?, items: SectionNavItem[], menuOnly?, afterFooter? }`, each item `{ name, url, icon: ReactNode, description?, alsoMatches?, badge?, badgeLabel? }`), an optional `footer: SectionNavFooter` (`{ heading, item }`) and, for a section with a list page, `indexUrl` (and `shortLabel` for a long name: Account & security's "Account" below `md`). The shapes live in `lib/components/section-nav-shared.tsx` and each section's `sections.tsx` exports them; Fitness and Gallery pass one headless group and no `indexUrl`. Icons are rendered elements (`<Sun />`), not components, so a server layout can pass the list straight through. Sentence-case names ("Blocked accounts"); long names truncate in the trigger and the rows.
 - **The row:** with `indexUrl`, a plain link to the section's list page (visible "Admin", "Settings", "Account & security" / "Account" below `md`; accessible name "Admin (all pages)" etc.), a "/" and the trigger, in one `<nav aria-label="Admin">` — not a breadcrumb landmark, and no crumb after the trigger. Without `indexUrl` (Fitness, Gallery) the row is the trigger alone. A page nested under an item (an admin account, report, hashtag or domain, Add domain, a signed-in verify-email under Email & name via `alsoMatches`, a bike under Gear) shows its parent on the trigger and keeps its own `BackLink` under the row.
 - **Trigger:** an outline `Button` (`h-10 rounded-lg`, `w-full` below `sm`, `sm:w-64`) showing the active page's icon in `text-primary`, its name, and a muted `ChevronDown`; no group name, no count. The active page is the longest-prefix match of the pathname against the items' urls and `alsoMatches` (`resolveActiveSectionUrl`, `@/lib/components/sectionNavActive`); when nothing matches the trigger reads the section's name and no row is current.
-- **Menu:** `DropdownMenuContent` with `align="start"`, `sideOffset={6}`, `w-(--radix-dropdown-menu-trigger-width) rounded-xl shadow-lg`; capped to the viewport and scrolling inside itself (the primitive's `max-h-(--radix-dropdown-menu-content-available-height)`), and it opens with the current row focused and scrolled into view (`onOpenAutoFocus`, spread onto the content because Radix keeps that prop off its public types), so the arrow keys continue from it. Rows are `<Link>`s in `DropdownMenuItem asChild`, `gap-2.5 rounded-lg px-3 py-2 font-medium`, 44px tall under a coarse pointer, the current one `aria-current="page"` on `bg-primary/10 text-primary-text` with its wash held on focus and a `focus:ring-2` (see **Fitness Gear** for why `text-primary-text`). Groups keep their headings as small muted labels (`DropdownMenuLabel` naming a `DropdownMenuGroup` through `aria-labelledby`); a headless run after the first block gets a separator; headless runs are plain blocks, not unnamed groups. A badged row (Admin's Reports) shows `NotificationBadge` after its name with the sr-only "(N unresolved reports)". The footer cross-link (Settings → "Account & security", Account & security → "Settings for @handle") is a plain row with a muted chevron at the foot after a separator, then the `afterFooter` groups (Settings' Moving and Delete this profile, a page link, not a destructive action). `menuOnly` groups (Settings' Edit profile) are in the menu but not in `SectionIndex`. Phones use the same menu under the full-width trigger; there is no sheet.
+- **Menu:** `DropdownMenuContent` with `align="start"`, `sideOffset={6}`, `w-(--radix-dropdown-menu-trigger-width) rounded-xl shadow-lg`; capped to the viewport and scrolling inside itself (the primitive's `max-h-(--radix-dropdown-menu-content-available-height)`), and it opens with the current row focused and scrolled into view (`onOpenAutoFocus`, spread onto the content because Radix keeps that prop off its public types), so the arrow keys continue from it. Rows are `<Link>`s in `DropdownMenuItem asChild`, `gap-2.5 rounded-lg px-3 py-2 font-medium`, 44px tall under a coarse pointer, the current one `aria-current="page"` on `bg-primary/10 text-primary-text` with its wash held on focus and a `focus:ring-2` (see **Fitness Gear** in `docs/fitness-file-storage.md` for why `text-primary-text`). Groups keep their headings as small muted labels (`DropdownMenuLabel` naming a `DropdownMenuGroup` through `aria-labelledby`); a headless run after the first block gets a separator; headless runs are plain blocks, not unnamed groups. A badged row (Admin's Reports) shows `NotificationBadge` after its name with the sr-only "(N unresolved reports)". The footer cross-link (Settings → "Account & security", Account & security → "Settings for @handle") is a plain row with a muted chevron at the foot after a separator, then the `afterFooter` groups (Settings' Moving and Delete this profile, a page link, not a destructive action). `menuOnly` groups (Settings' Edit profile) are in the menu but not in `SectionIndex`. Phones use the same menu under the full-width trigger; there is no sheet.
   - **Index routes (`/settings`, `/account`, `/admin`):** Settings, Account & security and Admin serve index pages across all breakpoints. There is no dropdown row on the index; `SectionLayout` renders `SectionIndex` below the page's top card: groups displayed as framed lists (`FramedList`), with descriptions visible from `lg` up and names only on phones. From `lg` up, the first `splitAt` blocks (default 1) fill the left column, while the remaining groups, the footer cross-link card, and ungrouped items render in the right column:
     - **Settings (`/settings`):** Profile card (desktop: avatar, name, handle, View profile / Edit profile buttons; phones: avatar and Edit profile row) followed by `SectionIndex` with Settings groups, the footer cross-link ("Shared across your profiles" → Account & security at `/account`), and the `afterFooter` ungrouped items ("Moving" at `/settings/moving`, then "Delete this profile" at `/settings/delete`).
     - **Account & security (`/account`):** Reachable from the account menu at the bottom of the sidebar (as well as the tablet rail flyout and mobile drawer) and the Settings index footer card. Renders `AccountIdentityCard` (name, email, account photo) followed by `SectionIndex` with Account groups (Email & name, Password & sign-in, Sessions & apps, Profiles, Import and export), and the footer cross-link card ("Settings for @handle" → `/settings`).
@@ -1387,7 +1389,7 @@ section-navigation pattern: the shared section dropdown. There is no second one 
 - **`SectionNavSelect` is the state-driven twin of `SectionNavDropdown`**, and there is one implementation of each — do not re-inline either. Both render the same chrome: an outline trigger carrying the active tab's Lucide icon in `text-primary`, a sentence-case label and a muted `ChevronDown`, over a `rounded-xl` menu sized with `w-(--radix-dropdown-menu-trigger-width)`. They differ only in what a row does. `SectionNavDropdown`'s rows are `<Link>`s, its active row is resolved from `usePathname()` and marked `aria-current="page"`; `SectionNavSelect` takes `{ tabs, active, onChange }`, its rows are `DropdownMenuItem`s calling `onChange`, and the current one is marked with the **boolean** `aria-current` — nothing here is a page. `SectionNavSelect`'s menu has no groups, footer or list-page link; only the chrome is shared.
 - The fitness activity page's recording picker (`FitnessRecordingPicker`) is not a third consumer but wears the same chrome — an outline trigger with a muted `ChevronDown`, a `rounded-xl` menu, `rounded-lg` rows and the current row on `bg-primary/10 text-primary-text` with the same focus ring, marked with the boolean `aria-current` — because the two menus sit within a screen of each other. Keep them in step.
 - Its two consumers are a bike's gear page (Components / Activities) and the profile's Gallery tab (`ProfileGalleryTab`: Subjects / Recent / Albums / Map / Life list, limited to the subviews the viewer may open). With five profile tabs the tab list scrolls sideways below `sm` (`overflow-x-auto`, `justify-start`, `flex-none` triggers); with four or fewer it is unchanged. A third copy of that markup is exactly what extracting it removed.
-- **Both** active rows take `text-primary-text`, not `text-primary` — see the orange-text rule under **Fitness Gear**. That is the one place the pairing is load-bearing rather than cosmetic: the two dropdowns now appear on one screen (a bike's page carries the fitness section's nav above its own view switcher), so a mismatch reads as a mistake, and `--primary` as a foreground is under the AA floor either way. Each keeps its wash on `focus:` and therefore also carries `focus:ring-2`, or a keyboard user watching the highlight move down the list would see it vanish on precisely the current row.
+- **Both** active rows take `text-primary-text`, not `text-primary` — see the orange-text rule under **Fitness Gear** in `docs/fitness-file-storage.md`. That is the one place the pairing is load-bearing rather than cosmetic: the two dropdowns now appear on one screen (a bike's page carries the fitness section's nav above its own view switcher), so a mismatch reads as a mistake, and `--primary` as a foreground is under the AA floor either way. Each keeps its wash on `focus:` and therefore also carries `focus:ring-2`, or a keyboard user watching the highlight move down the list would see it vanish on precisely the current row.
 
 #### Sticky-header sub-nav (`PageSubnavProvider`)
 
@@ -1506,7 +1508,7 @@ The editor is `lib/components/photo-editor/`, opened from `PhotoEditPreview` (th
   - Call a named function exported from `lib/client.ts` (which encapsulates the `fetch` call, method, headers, and body serialization), per the Client-Side API Calls section — do **not** call `fetch()` directly in the component
   - Show inline success and error messages (not raw error pages)
   - Manage loading state with `useState`
-- A dozen legacy components still call `fetch()` directly (the `Change*Form`s under `app/(timeline)/account/`, `StravaSettingsForm`, the OAuth/password-reset forms, and several `lib/components` settings/actor-switcher dialogs). They are frozen in the `allowFiles` list of `agents/no-component-fetch` in `.oxlintrc.json`; the lint rule blocks any new offender. Migrate them to `lib/client.ts` when touched and remove them from the list — never add to it.
+- Components should not call `fetch()` directly — they go through `lib/client.ts`, and the `agents/no-component-fetch` allowFiles list in `.oxlintrc.json` is empty and must stay empty; the lint rule blocks any new offender.
 - The corresponding API route should return JSON via `apiResponse()`, not `Response.redirect()`.
 - `GalleryPrivacySettings` (`/gallery/privacy`) follows this, lays itself out with the surface kit (a `Section` per group, `Frame form` of `FormRow`s with an inline switch or a select, and `GallerySettingsStatus` drawing load and save failures as `Alert`s and the saved state as a `SavedIndicator`), and auto-saves each switch and select on its own through `gallerySettingsForm.tsx` (`lib/components/settings/`), the load and per-key save logic it shares with `MediaDetailsSettings`. Hidden locations save through `PrivacyLocationsEditor` (`lib/components/privacy-locations/`), which `FitnessPrivacyLocationSettings` also wraps; a second consumer passes its own `mapIdPrefix` so the GL source and layer ids stay distinct. "Hide the place for threatened species" (`hideThreatenedPlaces`, default on) sits under the default precision as one more auto-saving switch; when `speciesLookupsAvailable` is false it carries a `ToggleRow` `notice` saying the server cannot check IUCN status, so places of photos with a species name stay hidden while it is on. `MediaDetailsSettings` (Settings → Media) is where the subject suggestion mode and confidence threshold are set.
 
@@ -2959,7 +2961,7 @@ moved` (reject stays allowed). While
   prefetches on viewport entry, so in an infinite-scroll feed that is one RSC
   request per row — against dynamic routes that also federate out for
   unpersisted remote actors. Navigation chrome (sidebar, sub-nav, pagination)
-  keeps prefetching. See **Link prefetching in feeds** in `AGENTS.md`.
+  keeps prefetching. See **Link prefetching in feeds** above.
 - Client Components that render relative timestamps (or fan out to `Posts`/`Post`)
   never call `Date.now()` / `new Date()` during render — they receive and forward
   `currentTime` from the server to avoid hydration mismatches.
@@ -3055,7 +3057,7 @@ moved` (reject stays allowed). While
   Pages pass only
   data-sync callbacks (`onStatusCreated`/`onPostUpdated`/`onPostDeleted`/
   `onLikeChanged`/`onBookmarkChanged`/`onReactionsChanged`) and
-  `isMediaUploadEnabled`. See **Status Posts & Actions** in `AGENTS.md`.
+  `isMediaUploadEnabled`. See **Status Posts & Actions** in `docs/mastodon-api-compatibility.md`.
   The edit-history panel lists prior revisions newest-first and labels each
   transition to the following version, including text, image or attachment,
   content-warning, sensitivity and poll-option changes. Its relative time is
@@ -3079,7 +3081,7 @@ moved` (reject stays allowed). While
     timeline's combined post): Reply acts on, and counts the replies of, one
     post while every other control acts on the bar's `status`, and each button's
     accessible name says which ("Reply to the latest post", "Like the first
-    post"). It changes which post a control reaches, never what a post offers (the one exception, the combined post's per-part and per-reply ⋯ menus, is in **Status Posts & Actions**).
+    post"). It changes which post a control reaches, never what a post offers (the one exception, the combined post's per-part and per-reply ⋯ menus, is in **Status Posts & Actions** in `docs/mastodon-api-compatibility.md`).
 
 - **Timeline grouping and nested status threads.**
   - `TimelineFeed` (`lib/components/posts/timeline-feed.tsx`) renders grouped home timelines, connecting related posts into visual threads and multi-author conversations with accessible badges, compact collapsed middle runs for long chains, and an optional boost carousel (`BoostCarousel`).
@@ -3155,11 +3157,11 @@ moved` (reject stays allowed). While
   test can see it (`lib/clientModuleBoundary.test.ts` enforces this).
   Type-only imports are fine; `export … from` re-exports are not. Shared
   constants live in a dependency-free module both sides import. See
-  **Server/Client Module Boundary** in `AGENTS.md`.
+  **Server/Client Module Boundary** above.
 - Client authoring UI reads admin-configured limits from `useInstanceLimits()`
   rather than hardcoding a constant, and new authoring/upload surfaces render
   under `InstanceLimitsProvider`. The limits are still enforced server-side. See
-  **Instance Limits in Client Components** in `AGENTS.md`.
+  **Instance Limits in Client Components** above.
 - Validate any user-controlled URL before using it as an `href`: parse with
   `new URL()` and allow only the `http:` or `https:` protocols — not a `startsWith`
   or regex check — so a `javascript:` (or other) scheme can't become a DOM-XSS
@@ -3171,7 +3173,7 @@ moved` (reject stays allowed). While
   `activityType`, and import jobs assign with `assignFitnessFileGearIfUnset` so a
   re-run can't clobber a manual assignment. No importer reads gear from Strava or
   creates a gear row — attribution comes only from the owner's `defaultSports`
-  mapping. See **Fitness Gear** in `AGENTS.md`.
+  mapping. See **Fitness Gear** in `docs/fitness-file-storage.md`.
 - A `kind: 'device'` gear is a recording device and follows different rules from
   a bike or shoes. `deviceKey` is create-only — it is the identity an upload
   matches against, while `name`/`brand`/`model`/`productUrl` are display fields
@@ -3322,7 +3324,7 @@ moved` (reject stays allowed). While
   layering over it), and a dimmed row dims its **cells**, never the `<tr>` or the
   pinned `<td>` — `opacity` fades a background along with its text. Use
   `STICKY_CLICKABLE_COLUMN` only on a row carrying `group` and its own `hover:`.
-  See **Fitness Gear** in `AGENTS.md`.
+  See **Fitness Gear** in `docs/fitness-file-storage.md`.
 - Orange **text** uses `text-primary-text`, not `text-primary`. `--primary` is
   the accent orange for icons and fills and is only 3.37:1 on the card, below the
   WCAG AA floor for body text; `--primary-text` is tuned per theme to clear 4.5:1

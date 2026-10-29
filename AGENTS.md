@@ -9,217 +9,111 @@ Every change, however small, is done only when ALL of these hold:
 1. It is on a feature branch — never commit to `main`.
 2. `yarn run prettier --write .` → `yarn lint` → `yarn typecheck` → `yarn build` → `yarn test` all pass, run in that order.
 3. Every document the change makes stale is updated in the same PR (see **Documentation Maintenance**).
-4. If a migration was added/edited/removed, BOTH schema dumps and the generated Kysely DB types (`lib/database/kysely/db.ts`) are regenerated (see **Database Backends & Local Setup**; CI fails on drift in any of them).
-5. The commit subject and PR title carry the correct conventional prefix, and `package.json` `version` is untouched (see **Commit & Pull Request Guidelines**).
-6. UI changes are verified in a real browser (see [Local Manual / Browser Testing](CONTRIBUTING.md#local-manual-browser-testing)) (screenshots in the PR are not required).
+4. If a migration was added/edited/removed, BOTH schema dumps and the generated Kysely DB types (`lib/database/kysely/db.ts`) are regenerated (see [Database Backends & Local Setup](docs/setup.md#agents-database-backends-local-setup); CI fails on drift in any of them).
+5. The commit subject and PR title carry the correct conventional prefix, and `package.json` `version` is untouched (see [Commit & Pull Request Guidelines](CONTRIBUTING.md#agents-commit-pull-request-guidelines)).
+6. UI changes are verified in a real browser (see [Local Manual / Browser Testing](CONTRIBUTING.md#local-manual-browser-testing)); screenshots in the PR are not required.
 7. Changes that alter the design keep the Sketch design library in step: `Activities.next.sketch` is updated (and redesign screens regenerated when affected), the interactive prototype (`Activities.next/Interactive/`) is regenerated from the merged change, and both are committed, pushed and published (its `scripts/publish.sh`) in the separate `llun/sketch` repository (see [Design Library Sync](CONTRIBUTING.md#agents-design-library-sync)).
 
-For the most common task shapes, follow the step-by-step **Task Recipes** section below instead of improvising.
+For the most common task shapes, follow the step-by-step [Task Recipes](CONTRIBUTING.md#agents-task-recipes) instead of improvising.
 
 ## Working with Sub-Agents (always)
 
-The main thread (the top-level session the user talks to) always delegates work
-to sub-agents. It is the orchestrator: it understands the ask, splits it into
-tasks, briefs a sub-agent for each, checks what comes back, and owns the final
-answer. It does not do the bulk reading, searching, editing or reviewing itself.
-Sub-agents do their assigned task directly and do not spawn further sub-agents
-unless their brief says to. The only exception is a session that cannot spawn
-sub-agents at all; see [When sub-agents are
-unavailable](CONTRIBUTING.md#when-sub-agents-are-unavailable). The review
-loop itself is specified in [Code Review Loop
-(Sub-Agents)](CONTRIBUTING.md#agents-code-review-loop-sub-agents).
+The main thread (the top-level session the user talks to) always delegates work to sub-agents. It is the orchestrator: it understands the ask, splits it into tasks, briefs a sub-agent for each, checks what comes back, and owns the final answer — it does not do the bulk reading, searching, editing or reviewing itself. Sub-agents do their assigned task directly and spawn further sub-agents only if their brief says to. The only exception is a session that cannot spawn sub-agents at all ([when sub-agents are unavailable](CONTRIBUTING.md#when-sub-agents-are-unavailable)); the review loop is specified in [Code Review Loop (Sub-Agents)](CONTRIBUTING.md#agents-code-review-loop-sub-agents).
 
 ### Rules for the main thread
 
-- **Delegate every non-trivial step.** Exploration, code search, reading large
-  files or logs, implementation, test runs, and code review each go to a
-  sub-agent. The main thread keeps the conclusions and the evidence it needs to
-  verify them, not the raw output. The main thread may still do directly:
-  reading the parts of this file and the rule sections it links to (Mandatory workflow, Required subsystem reading map) that it needs to brief sub-agents, one short command
-  or one small file whose output it needs anyway (for example `git status`, `git
-diff --stat`, or spot-checking a `file:line` a sub-agent cited), and git/PR
-  bookkeeping (commits, pushes, PR descriptions, replying to and resolving
-  review threads). Anything longer, and any edit to the repository's files, goes
-  to a sub-agent.
-- **Set model and effort on every sub-agent explicitly.** Never rely on the
-  inherited default. Choose the cheapest model and lowest effort that will still
-  do the task well, using the table below, and step up only where quality
-  depends on it.
-- **Run independent tasks in parallel.** Launch sub-agents that do not depend on
-  each other in a single message so they run concurrently. Read-only work
-  (search, reading, review) parallelizes freely; give parallel implementers
-  separate worktrees or non-overlapping files so they do not overwrite each
-  other.
-- **Brief each sub-agent completely.** A sub-agent starts with no context: give
-  it the goal, the relevant paths, the constraints from this file, the required-reading sections for the subsystems it touches (see Required subsystem reading map), whether it
-  may edit files, commit or push, and the exact shape of the result you want
-  back.
-- **Verify before trusting.** Check a sub-agent's claims (diffs, test output,
-  `file:line` references) before building on them or reporting them: spot-check
-  them yourself within the limits above, and send anything bigger (re-running
-  tests, reading a large diff) to a `fast`/`low` sub-agent. If a result is
-  wrong or shallow because the brief left something out, fix the brief and
-  re-run at the same tier; otherwise re-run that task one step up the escalation
-  ladder below rather than patching around it.
-- **Review with a fresh sub-agent.** The code review loop always uses a separate
-  reviewer sub-agent that did not write the change, and a new reviewer for each
-  round; fixes go to an implementer sub-agent. Repeat until the reviewer comes
-  back clean; stop conditions are in [Code Review Loop
-  (Sub-Agents)](CONTRIBUTING.md#agents-code-review-loop-sub-agents).
+- **Delegate every non-trivial step** — exploration, code search, reading large files or logs, implementation, test runs, and code review each go to a sub-agent; the main thread keeps conclusions and evidence, not raw output. It may directly: read the parts of this file and its linked rule sections (Mandatory workflow, Routing table) needed to brief sub-agents; run one short command or read one small file whose output it needs anyway (`git status`, `git diff --stat`, spot-checking a cited `file:line`); do git/PR bookkeeping (commits, pushes, PR descriptions, review threads). Anything longer, and any edit to the repository's files, goes to a sub-agent.
+- **Set model and effort on every sub-agent explicitly** — never rely on the inherited default. Choose the cheapest model and lowest effort that will still do the task well (table below), stepping up only where quality depends on it.
+- **Run independent tasks in parallel** — launch sub-agents that do not depend on each other in a single message. Read-only work (search, reading, review) parallelizes freely; give parallel implementers separate worktrees or non-overlapping files.
+- **Brief each sub-agent completely** — it starts with no context: give it the goal, the relevant paths, the constraints from this file, the Routing table rows for the subsystems it touches, whether it may edit files, commit or push, and the exact shape of the result you want back.
+- **Verify before trusting** — check a sub-agent's claims (diffs, test output, `file:line`) before building on them: spot-check within the limits above; send anything bigger (re-running tests, reading a large diff) to a `fast`/`low` sub-agent. If a result is wrong or shallow because the brief left something out, fix the brief and re-run at the same tier; otherwise re-run one step up the escalation ladder below rather than patching around it.
+- **Review with a fresh sub-agent** — the review loop always uses a separate reviewer that did not write the change, and a new reviewer for each round; fixes go to an implementer sub-agent. Repeat until the reviewer comes back clean (stop conditions in the [review loop](CONTRIBUTING.md#agents-code-review-loop-sub-agents)).
 
 ### Choosing model and effort
 
-Match the tier to how much judgment the task needs, not to how important the
-overall change is. This policy works with any agent tool and any model, not only
-Claude: it is written in three model tiers (`fast`, `balanced`, `strongest`) and
-five effort steps (`low`, `medium`, `high`, `xhigh`, `max`), and the two tables
-after the task table map them onto each tool's own settings.
+Match the tier to how much judgment the task needs, not to how important the overall change is. This policy works with any agent tool and any model, not only Claude: it is written in three model tiers (`fast`, `balanced`, `strongest`) and five effort steps (`low`, `medium`, `high`, `xhigh`, `max`), and the two tables after the task table map them onto each tool's own settings.
 
-| Task                                                                                                                                                                                                                                                                         | Tier        | Effort   |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- | -------- |
-| Finding files, grepping, listing usages, reading logs, summarizing docs                                                                                                                                                                                                      | `fast`      | `low`    |
-| Mechanical edit of exact text in one or two files (rename, formatting, applying a fix that is already decided)                                                                                                                                                               | `fast`      | `low`    |
-| Mechanical edit that spans several files or needs surrounding code read (including updating docs to match code)                                                                                                                                                              | `balanced`  | `low`    |
-| Running builds, tests and linters and reporting failures                                                                                                                                                                                                                     | `fast`      | `low`    |
-| Implementing a well-specified feature or fix, writing tests                                                                                                                                                                                                                  | `balanced`  | `medium` |
-| Root-causing a CI failure or a bug with a clear reproduction                                                                                                                                                                                                                 | `balanced`  | `medium` |
-| Implementing, root-causing or planning changes in high-risk areas: ActivityPub federation (signatures, JSON-LD, inbox/outbox, deletes), auth/OAuth/better-auth, actor and status visibility, migrator, baseline, schema dumps, storage-root and outbound-HTTP security rules | `strongest` | `high`   |
-| Architecture and design decisions, plans that touch several subsystems                                                                                                                                                                                                       | `strongest` | `high`   |
-| Hard debugging (concurrency, data loss, security, flaky behavior with no clear cause)                                                                                                                                                                                        | `strongest` | `high`   |
-| Code review of a change before it is pushed or merged                                                                                                                                                                                                                        | `strongest` | `high`   |
+| Task                                                                                                                                                                                                                       | Tier        | Effort   |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- | -------- |
+| Finding files, grepping, listing usages, reading logs, summarizing docs                                                                                                                                                    | `fast`      | `low`    |
+| Mechanical edit of exact text in one or two files (rename, formatting, an already-decided fix)                                                                                                                             | `fast`      | `low`    |
+| Mechanical edit spanning several files or needing surrounding code read (incl. updating docs to match code)                                                                                                                | `balanced`  | `low`    |
+| Running builds, tests and linters, reporting failures                                                                                                                                                                      | `fast`      | `low`    |
+| Implementing a well-specified feature or fix, writing tests                                                                                                                                                                | `balanced`  | `medium` |
+| Root-causing a CI failure or a bug with a clear reproduction                                                                                                                                                               | `balanced`  | `medium` |
+| High-risk areas: ActivityPub federation (signatures, JSON-LD, inbox/outbox, deletes), auth/OAuth/better-auth, actor and status visibility, migrator, baseline, schema dumps, storage-root and outbound-HTTP security rules | `strongest` | `high`   |
+| Architecture and design decisions, plans that touch several subsystems                                                                                                                                                     | `strongest` | `high`   |
+| Hard debugging (concurrency, data loss, security, flaky behavior with no clear cause)                                                                                                                                      | `strongest` | `high`   |
+| Code review of a change before it is pushed or merged                                                                                                                                                                      | `strongest` | `high`   |
 
-Example models per tier. Model names change every few months, so check the
-tool's current model list and use its newest model in the same tier; any model
-not listed here (another vendor, a local model, a new release) goes in the tier
-that matches its capability and cost.
+Model names change every few months — check the tool's current model list and use its newest model in the same tier; any model not listed here (another vendor, a local model, a new release) goes in the tier that matches its capability and cost.
 
-| Tier                                                             | Claude Code (Agent tool `model`) | OpenAI Codex                                      | Google Antigravity        | Open-weight (Qwen, DeepSeek, GLM, Kimi, gpt-oss, …)                                                      |
-| ---------------------------------------------------------------- | -------------------------------- | ------------------------------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `fast`: cheapest and quickest, for retrieval and mechanical work | `haiku`                          | the smallest current GPT model (for example Luna) | a Gemini Flash model      | a small model, such as Qwen3-Coder-30B-A3B or gpt-oss-20b                                                |
-| `balanced`: most implementation work                             | `sonnet`                         | the mid-tier current GPT model (for example Sol)  | Claude Sonnet             | a mid-size coding model, such as Qwen3-Coder-Next, DeepSeek V4 Flash or gpt-oss-120b                     |
-| `strongest`: design, hard debugging, high-risk code and review   | `opus`                           | the top current GPT model (for example Astra)     | Claude Opus or Gemini Pro | the largest current release of a frontier family, such as Qwen3.8, DeepSeek V4 Pro, GLM-5.2 or Kimi K2.6 |
+| Tier                                                           | Claude Code | OpenAI Codex               | Google Antigravity        | Open-weight (Qwen, DeepSeek, GLM, Kimi, gpt-oss, …)             |
+| -------------------------------------------------------------- | ----------- | -------------------------- | ------------------------- | --------------------------------------------------------------- |
+| `fast`: cheapest and quickest, retrieval and mechanical work   | `haiku`     | smallest current GPT model | a Gemini Flash model      | a small model, e.g. Qwen3-Coder-30B-A3B or gpt-oss-20b          |
+| `balanced`: most implementation work                           | `sonnet`    | mid-tier current GPT model | Claude Sonnet             | a mid-size coding model, e.g. Qwen3-Coder-Next or gpt-oss-120b  |
+| `strongest`: design, hard debugging, high-risk code and review | `opus`      | top current GPT model      | Claude Opus or Gemini Pro | the largest current frontier release, e.g. GLM-5.2 or Kimi K2.6 |
 
 How each tool sets the effort step:
 
-| Tool               | How to set effort                                                                                                                                                                                                                                                                                                                                             |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Claude Code        | The Agent tool's `effort` takes the five steps as written.                                                                                                                                                                                                                                                                                                    |
-| OpenAI Codex       | `model_reasoning_effort` in the config or in a custom agent's TOML file (`.codex/agents/`); use the config value Codex documents for each step (for example `low`, `medium`, `high`, `xhigh`), and map `max` to its highest documented value.                                                                                                                 |
-| Google Antigravity | For Gemini models, pick the effort level the model picker offers that is closest to the step. Models offered as a single thinking variant (such as Claude in Antigravity) have no effort steps, so skip them as the ladder says.                                                                                                                              |
-| Open-weight models | Use the serving stack's reasoning setting where it has one (`reasoning_effort`, a thinking on/off switch, or a thinking-token budget): thinking off for `low`, on with the default budget for `medium`, a larger budget for `high`, and the largest budget the stack allows for `xhigh` and `max`. If it has none, skip the effort steps, as the ladder says. |
+| Tool               | How to set effort                                                                                                                                                                                                                                                                                                                         |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Claude Code        | The Agent tool's `effort` takes the five steps as written.                                                                                                                                                                                                                                                                                |
+| OpenAI Codex       | `model_reasoning_effort` in the config or in a custom agent's TOML file (`.codex/agents/`); use the value Codex documents for each step (e.g. `low`, `medium`, `high`, `xhigh`), mapping `max` to its highest documented value.                                                                                                           |
+| Google Antigravity | For Gemini models, pick the effort level the model picker offers closest to the step. Models offered as a single thinking variant (such as Claude in Antigravity) have no effort steps — skip them as the ladder says.                                                                                                                    |
+| Open-weight models | Use the serving stack's reasoning setting where it has one (`reasoning_effort`, a thinking on/off switch, or a thinking-token budget): thinking off for `low`, on with the default budget for `medium`, a larger budget for `high`, the largest allowed for `xhigh` and `max`. If it has none, skip the effort steps, as the ladder says. |
 
 Guidelines:
 
-- When the table does not cover a task and you are unsure, use `balanced` at
-  `medium`, a good balance of quality and cost for most coding work.
-- Use `fast` freely for retrieval and mechanical changes. It is the cheapest and
-  quickest, and a wrong search result is cheap to redo.
-- Start at `strongest` or `high` effort only where a mistake is expensive:
-  design, the high-risk areas in the table, subtle bugs, and review. When a task
-  matches both a cheaper row and the high-risk row, the high-risk row wins.
-  Reaching them by escalation is fine.
-- Escalate one step at a time, starting from the task's row in the table. The
-  ladder is `fast`/`low` → `fast`/`medium` → `balanced`/`medium` →
-  `balanced`/`high` → `strongest`/`high` → `strongest`/`xhigh` →
-  `strongest`/`max`; a task that starts at `balanced`/`low` steps to
-  `balanced`/`medium`. Never set `fast` above `medium`, and use `max` only on
-  `strongest` after `xhigh` has fallen short. Where a tool has fewer effort
-  steps than this ladder, skip the steps it lacks.
-- Do not go beyond these tiers and steps (for example Claude Code's `fable`
-  model, or an effort level above `max`) unless the user asks for it.
-- Tools without a sub-agent feature still follow the same split as closely as
-  they allow (a separate session or pass for review, the cheapest adequate model
-  per task) rather than skipping it.
+- When the table does not cover a task and you are unsure, use `balanced` at `medium`, a good balance of quality and cost for most coding work.
+- Use `fast` freely for retrieval and mechanical changes. It is the cheapest and quickest, and a wrong search result is cheap to redo.
+- Start at `strongest` or `high` effort only where a mistake is expensive: design, the high-risk areas in the table, subtle bugs, and review. When a task matches both a cheaper row and the high-risk row, the high-risk row wins. Reaching them by escalation is fine.
+- Escalate one step at a time, starting from the task's row in the table. The ladder is `fast`/`low` → `fast`/`medium` → `balanced`/`medium` → `balanced`/`high` → `strongest`/`high` → `strongest`/`xhigh` → `strongest`/`max`; a task that starts at `balanced`/`low` steps to `balanced`/`medium`. Never set `fast` above `medium`, and use `max` only on `strongest` after `xhigh` has fallen short. Where a tool has fewer effort steps than this ladder, skip the steps it lacks.
+- Do not go beyond these tiers and steps (for example Claude Code's `fable` model, or an effort level above `max`) unless the user asks for it.
+- Tools without a sub-agent feature still follow the same split as closely as they allow (a separate session or pass for review, the cheapest adequate model per task) rather than skipping it.
 
 ## Project Structure & Module Organization
 
-- `app/` contains the Next.js App Router UI and API routes (see `app/api/` and route groups like `app/(nosidebar)/`).
-- `lib/` hosts core domain logic, database access, services, jobs, and shared utilities.
-- `migrations/` holds the TypeScript migrations that `yarn migrate` runs with Kysely's migrator, registered in `migrations/index.ts` (their names in `migrations/names.ts`); the first, `20261014000000_baseline`, loads the frozen schema in `migrations/baseline/` into an empty database or records it on one the Knex migrations of v1.192.34 built (see [Upgrading past the Knex handover](docs/maintenance.md#upgrading-past-the-knex-handover)).
-- `public/` serves static assets; `uploads/` and `data/` are used for local storage in some deployments.
-- `packages/` holds modular optional workspace packages (`packages/cloudtasks`, `packages/nodemailer`, `packages/pg`, `packages/qstash`, `packages/resend`, `packages/ses`) isolated from the root package so minimal Docker images omit heavy optional SDKs.
-- `docs/` includes setup and database-specific guides; `scripts/` includes repo utilities; `lint/` holds the local Oxlint JS plugin (`agentsRules.mjs`) that carries the AGENTS.md conventions Oxlint cannot express natively, plus its guard test.
-  - **`docs/` is for durable, general-purpose reference documentation only** (setup, architecture, environment variables, feature guides). **Do NOT add** implementation plans, design docs, task/PR-specific writeups, gap analyses, before/after screenshots, or any other artifact tied to a single change or pull request. Those belong in the PR description or issue tracker, not the repo. Do not create `docs/plans/`, `docs/specs/`, `docs/pr-screenshots/`, or similar scratch directories.
-  - `scripts/` is organized as `mock/`, `maintenance/`, `fitness/`, and `backup/`. Every script runs through the `scripts/run.cjs` bootstrap (`node scripts/run.cjs <script>.ts`), which is also wired into each script's shebang; `yarn search:reindex` is the packaged entry point for `scripts/maintenance/rebuildSearchIndex.ts`. `scripts/` has a dedicated storage-confinement lint pass and is not prettier-checked in CI — verify scripts by running them.
-- **`AGENTS.md` is canonical; `CLAUDE.md` is a symlink to `AGENTS.md`.** `CLAUDE.md` exists as a symbolic link pointing to `AGENTS.md` so that tools looking for either file read the exact same instructions without duplication or drift. Per-tool variants are deliberately not kept here — `.cursor/rules/agents.mdc`, `GEMINI.md` and `.github/copilot-instructions.md` each existed and were removed. Do not add another: point tools or symlinks at `AGENTS.md`.
+- `app/` — Next.js App Router UI and API routes (`app/api/`, route groups like `app/(nosidebar)/`). `lib/` — core domain logic, database access, services, jobs, shared utilities. `public/` — static assets; `uploads/` and `data/` — local storage in some deployments. `packages/` — modular optional workspace packages (`cloudtasks`, `nodemailer`, `pg`, `qstash`, `resend`, `ses`) isolated from the root package so minimal Docker images omit heavy optional SDKs. `docs/` — setup and database-specific guides. `lint/` — the local Oxlint JS plugin (`agentsRules.mjs`) carrying the AGENTS.md conventions Oxlint cannot express natively, plus its guard test.
+- `migrations/` — the TypeScript migrations `yarn migrate` runs with Kysely's migrator, registered in `migrations/index.ts` (names in `migrations/names.ts`); the first, `20261014000000_baseline`, loads the frozen schema in `migrations/baseline/` into an empty database or records it on one the Knex migrations of v1.192.34 built (see [Upgrading past the Knex handover](docs/maintenance.md#upgrading-past-the-knex-handover)).
+- **`docs/` is for durable, general-purpose reference documentation only** (setup, architecture, environment variables, feature guides). Do NOT add implementation plans, design docs, task/PR-specific writeups, gap analyses, before/after screenshots, or any other artifact tied to a single change or pull request — those belong in the PR description or issue tracker. Do not create `docs/plans/`, `docs/specs/`, `docs/pr-screenshots/`, or similar scratch directories.
+- `scripts/` — organized as `mock/`, `maintenance/`, `fitness/`, `backup/`; every script runs through the `scripts/run.cjs` bootstrap (`node scripts/run.cjs <script>.ts`), wired into each shebang; `yarn search:reindex` is the packaged entry point for `scripts/maintenance/rebuildSearchIndex.ts`. `scripts/` has a dedicated storage-confinement lint pass and is not prettier-checked in CI — verify scripts by running them.
+- **`AGENTS.md` is canonical; `CLAUDE.md` is a symlink to `AGENTS.md`**, so tools looking for either file read the exact same instructions without duplication or drift. Per-tool variants (`.cursor/rules/agents.mdc`, `GEMINI.md`, `.github/copilot-instructions.md`) each existed and were removed — do not add another; point tools or symlinks at `AGENTS.md`.
 - `proxy.ts` at the repo root is the Next.js middleware entrypoint (Next 16's rename of `middleware.ts`) — do **not** add a `middleware.ts`. It runs in the Edge runtime: import helpers via direct sub-paths (e.g. `@/lib/utils/http-headers/csp`), never barrels that transitively pull Node-only dependencies such as `@/lib/config`. It owns the ActivityPub content-negotiation rewrites and CSP header injection.
-- Configuration files live at the repo root only when their tool requires it (for example `.env.example`, `next.config.ts`, `postcss.config.mjs`, `vitest.config.ts`); Prettier's config is the `prettier` key in `package.json` and the scripts-only Oxlint config is `lint/oxlintrc.scripts.json`. Tests for root-level files (`next.config.ts`, `proxy.ts`, `instrumentation.ts`, `vitest.config.ts`) and the Vitest setup files live in `test/`, not beside those files — do not add `*.test.ts` files to the repo root.
-- `.gitignore` intentionally ignores several files agents commonly create: `docker-compose.yml`, `scripts/*.js`, `plans/`, `PR_DESCRIPTION.md`, `VERIFICATION_SUMMARY.md`, `AGENTS.override.md`, all `*.sql` (except the `!migrations/schema*.sql` and `!migrations/baseline/*.sql` negations), `*.sqlite3`/`*.sqlite`, and `.env*` variants. If a file you added is missing from `git status`, check `git status --ignored` before assuming the add failed.
+- Configuration files live at the repo root only when their tool requires it (`.env.example`, `next.config.ts`, `postcss.config.mjs`, `vitest.config.ts`); Prettier's config is the `prettier` key in `package.json`, the scripts-only Oxlint config is `lint/oxlintrc.scripts.json`. Tests for root-level files (`next.config.ts`, `proxy.ts`, `instrumentation.ts`, `vitest.config.ts`) and the Vitest setup files live in `test/`, not beside those files — do not add `*.test.ts` files to the repo root.
+- `.gitignore` intentionally ignores files agents commonly create: `docker-compose.yml`, `scripts/*.js`, `plans/`, `PR_DESCRIPTION.md`, `VERIFICATION_SUMMARY.md`, `AGENTS.override.md`, all `*.sql` (except `!migrations/schema*.sql` and `!migrations/baseline/*.sql`), `*.sqlite3`/`*.sqlite`, `.env*` variants. If a file you added is missing from `git status`, check `git status --ignored` before assuming the add failed.
 
 ## Runtime Configuration Guidelines
 
-- Deployment and instance configuration must be read at runtime, not at build time. Treat `ACTIVITIES_*`, `OTEL_EXPORTER_*`, secrets, database settings, storage settings, host settings, and auth settings as runtime-only inputs.
-- Do not read runtime deployment config in `next.config.ts`, static Next headers, `images.remotePatterns`, `allowedDevOrigins`, webpack config, `generateBuildId`, or other build-time/module-level Next configuration. Production/Docker builds must succeed when `ACTIVITIES_*` variables are missing or contain invalid placeholder values.
-- `next.config.ts` may read build-only flags such as `NODE_ENV`, `BUILD_STANDALONE`, and `NEXT_TELEMETRY_DISABLED`, but it must not derive app behavior from runtime deployment config.
-- Keep `next.config.ts` as a thin Next configuration entrypoint. Do not define reusable utility functions, parsing helpers, or shared constants there; move helper logic into an appropriate `lib/` module and import it.
-- If runtime config affects browser-visible behavior such as CSP, security headers, host redirects, or storage upload origins, implement it in request-time server code (for example `proxy.ts`, route handlers, or server services), not as static Next config.
-- Do not inject runtime app config through `nextConfig.env` or `NEXT_PUBLIC_*` variables unless the value is intentionally public, non-secret, and stable at build time.
-- Do not read `ACTIVITIES_*` or `OTEL_EXPORTER_*` variables directly, and do not define environment variable name constants, outside `lib/config/`. Add or reuse a config utility and import that instead.
+- Deployment and instance configuration must be read at runtime, not at build time: `ACTIVITIES_*`, `OTEL_EXPORTER_*`, secrets, database, storage, host, and auth settings are runtime-only inputs.
+- Do not read runtime deployment config in `next.config.ts`, static Next headers, `images.remotePatterns`, `allowedDevOrigins`, webpack config, `generateBuildId`, or other build-time/module-level Next configuration. Production/Docker builds must succeed when `ACTIVITIES_*` variables are missing or contain invalid placeholder values. `next.config.ts` may read build-only flags (`NODE_ENV`, `BUILD_STANDALONE`, `NEXT_TELEMETRY_DISABLED`) but must not derive app behavior from runtime deployment config.
+- Keep `next.config.ts` a thin Next configuration entrypoint — no reusable utility functions, parsing helpers, or shared constants there; move helper logic into an appropriate `lib/` module and import it.
+- If runtime config affects browser-visible behavior (CSP, security headers, host redirects, storage upload origins), implement it in request-time server code (`proxy.ts`, route handlers, server services), not static Next config. Do not inject runtime app config through `nextConfig.env` or `NEXT_PUBLIC_*` unless the value is intentionally public, non-secret, and stable at build time.
+- Do not read `ACTIVITIES_*` or `OTEL_EXPORTER_*` variables directly, and do not define environment variable name constants, outside `lib/config/` — add or reuse a config utility and import that instead.
 - When changing runtime config behavior, add a regression test that loads `next.config.ts` with missing or invalid `ACTIVITIES_*` values and verifies the build config does not consume them.
 
 ## Coding Style & Naming Conventions
 
-- TypeScript + React with 2-space indentation.
-- Prettier enforces no semicolons, single quotes, and import sorting (the `prettier` key in `package.json`).
-- Use absolute imports (for example `@/lib/...`) for anything outside the current directory.
-- Relative imports are allowed only for files in the same directory (for example `./helper`), and `../` imports are not allowed.
-- Apply the same import-path rule to `vi.mock(...)` module paths.
-- Oxlint (with its `typescript` and `nextjs` rule sets) runs via `yarn lint`; unused vars should be prefixed with `_`.
-- Tests are co-located with code and named `*.test.ts`/`*.test.tsx`.
+- TypeScript + React, 2-space indentation. Prettier enforces no semicolons, single quotes, and import sorting (the `prettier` key in `package.json`).
+- Use absolute imports (`@/lib/...`) for anything outside the current directory; relative imports only within the same directory (`./helper`); `../` imports are not allowed. Apply the same import-path rule to `vi.mock(...)` module paths.
+- Oxlint (with its `typescript` and `nextjs` rule sets) runs via `yarn lint`; unused vars should be prefixed with `_`. Tests are co-located with code and named `*.test.ts`/`*.test.tsx`.
 
 ### Tailwind CSS variables
 
-- **This project is on Tailwind v4. To use a bare CSS variable as an arbitrary value, use the parenthesis form — `w-(--radix-dropdown-menu-trigger-width)` — never the v3 bracket form `w-[--radix-…]`.** v3 wrapped the bracket form in `var()` for you; v4 removed that shorthand and now compiles it literally, to `width: --radix-…`, which is not a valid declaration. The browser drops it, the utility does nothing, and there is **no error and no build warning** — the element just silently falls back to its default sizing.
-- This is not hypothetical: the stale class shipped in both section-nav dropdowns at once, so each menu rendered narrower than its own trigger, sized to its content, until someone looked at the rendered page. `lib/components/tailwindCssVariableSyntax.test.ts` now fails on any occurrence in `app/` or `lib/` and names the replacement.
-- `[var(--x)]` is still valid in v4 and is not flagged, as are arbitrary variants (`[&_svg]`) and arbitrary values that merely contain a variable (`[calc(var(--x)-1px)]`).
+- **This project is on Tailwind v4. A bare CSS variable as an arbitrary value uses the parenthesis form — `w-(--radix-dropdown-menu-trigger-width)` — never the v3 bracket form `w-[--radix-…]`, which v4 compiles literally to an invalid declaration with no error and no build warning.** `[var(--x)]`, arbitrary variants (`[&_svg]`), and arbitrary values that merely contain a variable (`[calc(var(--x)-1px)]`) are still valid. `lib/components/tailwindCssVariableSyntax.test.ts` fails on any occurrence in `app/` or `lib/` and names the replacement.
 
 ## Logging Guidelines
 
-- **NEVER** use `console.log`, `console.warn`, `console.error`, or any `console.*` methods in committed code.
-- Migration files in `migrations/` and script files in `scripts/` are exceptions and may use `console.*` for CLI output.
-- For server-side code (API routes, services, jobs, models, lib utilities), use the logger from `@/lib/utils/logger`:
-
-  ```typescript
-  import { logger } from '@/lib/utils/logger'
-
-  logger.info({ message: 'Something happened' })
-  logger.warn({ message: 'Warning message' })
-  logger.error({ message: 'Error occurred' })
-  ```
-
-- **Do NOT** use logger in React components or client-side code—logging is for server-side only.
-- **When logging a caught error, pass the error object as `err`**, not only its message. The logger's formatter reads `err.stack` and emits it as `stack_trace`, which is what Cloud Error Reporting groups and displays; `error: someError.message` alone reports nothing actionable. Anything can be thrown, so normalize with `toLoggableError` from `@/lib/utils/toLoggableError`. Keep a human-readable `error: <message>` alongside it when the same string is also persisted.
-- **A failure that degrades a feature must not be logged as a `warn` and forgotten** — but record it in a signal scoped to what actually broke. If the user can see the degradation (a missing route map, an unrendered attachment), persist it wherever that feature's state lives so it is visible and retryable; a `logger.warn` with no persisted trace is how a permanent outage becomes invisible. Do **not** reach for a coarser flag that already means something bigger: `fitness_files.processingStatus: 'failed'` means "this activity is not usable" and gates the status detail dashboard, the post's stat grid, the fitness overview, the profile's Fitness tab and every stats/heatmap rollup, so a missing route map gets its own `mapError` column instead of hiding a good activity everywhere. Before reusing a status flag, grep for what reads it.
+- **NEVER** use `console.log`, `console.warn`, `console.error`, or any `console.*` methods in committed code. Migration files in `migrations/` and script files in `scripts/` are exceptions and may use `console.*` for CLI output.
+- For server-side code (API routes, services, jobs, models, lib utilities), use the logger from `@/lib/utils/logger` (`logger.info({ message: '…' })`, `logger.warn(...)`, `logger.error(...)`). **Do NOT** use logger in React components or client-side code — logging is server-side only.
+- **When logging a caught error, pass the error object as `err`**, not only its message: the formatter reads `err.stack` and emits it as `stack_trace`, which is what Cloud Error Reporting groups and displays; `error: someError.message` alone reports nothing actionable. Anything can be thrown — normalize with `toLoggableError` from `@/lib/utils/toLoggableError`, keeping a human-readable `error: <message>` alongside it when the same string is also persisted.
+- **A failure that degrades a feature must not be logged as a `warn` and forgotten** — record it in a signal scoped to what actually broke. If the user can see the degradation (a missing route map, an unrendered attachment), persist it wherever that feature's state lives so it is visible and retryable; a `logger.warn` with no persisted trace is how a permanent outage becomes invisible. Do **not** reach for a coarser flag that already means something bigger: `fitness_files.processingStatus: 'failed'` means "this activity is not usable" and gates the status detail dashboard, the post's stat grid, the fitness overview, the profile's Fitness tab and every stats/heatmap rollup — a missing route map gets its own `mapError` column instead of hiding a good activity everywhere. Before reusing a status flag, grep for what reads it.
 
 ## API Response Guidelines
 
-- Always use `apiResponse` and `apiErrorResponse` from `@/lib/utils/response` for API route responses.
-- **Do NOT** use `Response.json()` directly in API routes.
-- **Error responses use Mastodon's `{ error: "message" }` shape, never `{ status: ... }`.** `apiErrorResponse`, `apiCorsError`, and the shared `codeMap`/`ERROR_4xx` constants all emit `{ error }` (the HTTP reason phrase for the response `statusText` lives separately in `REASON_PHRASE`), matching the [Mastodon `Error` entity](https://docs.joinmastodon.org/entities/Error/). Mastodon-API clients read the human-readable message from the `error` field — masto.js, for one, leaves an error's `message` empty for any other shape and drops the body into `additionalProperties` — so a `{ status: ... }` error body breaks them (this is what surfaced Phanpy's Settings 404 toast). When you write an inline error body, use `data: { error: '…' }`. Only success acknowledgements (`DEFAULT_200`/`DEFAULT_202`) keep the `{ status: 'OK' }`/`{ status: 'Accepted' }` shape, because they are not errors.
-- On CORS-enabled endpoints (those that export `OPTIONS`), always use `apiResponse` — even for error responses — so CORS headers are included. Reserve `apiErrorResponse` for non-CORS routes or middleware.
-- Example usage:
-
-  ```typescript
-  import {
-    HTTP_STATUS,
-    apiErrorResponse,
-    apiResponse
-  } from '@/lib/utils/response'
-
-  // Success response
-  return apiResponse({ req, allowedMethods: ['GET'], data: result })
-
-  // Error response (non-CORS route)
-  return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
-
-  // Error response (CORS-enabled route — include req and allowedMethods)
-  return apiResponse({
-    req,
-    allowedMethods: CORS_HEADERS,
-    data: { error: 'Bad Request' },
-    responseStatusCode: 400
-  })
-  ```
+- Always use `apiResponse` and `apiErrorResponse` from `@/lib/utils/response` for API route responses. **Do NOT** use `Response.json()` directly in API routes.
+- **Error responses use Mastodon's `{ error: "message" }` shape, never `{ status: ... }`.** `apiErrorResponse`, `apiCorsError`, and the shared `codeMap`/`ERROR_4xx` constants all emit `{ error }` (the HTTP reason phrase for the response `statusText` lives separately in `REASON_PHRASE`), matching the [Mastodon `Error` entity](https://docs.joinmastodon.org/entities/Error/). Mastodon-API clients read the human-readable message from the `error` field — masto.js leaves an error's `message` empty for any other shape — so a `{ status: ... }` error body breaks them. Write inline error bodies as `data: { error: '…' }`. Only success acknowledgements (`DEFAULT_200`/`DEFAULT_202`) keep the `{ status: 'OK' }`/`{ status: 'Accepted' }` shape, because they are not errors.
+- On CORS-enabled endpoints (those that export `OPTIONS`), always use `apiResponse` — even for error responses (pass `req`, `allowedMethods`, `data: { error: '…' }`, `responseStatusCode`) — so CORS headers are included. Reserve `apiErrorResponse` for non-CORS routes or middleware.
 
 ## Build, Test, and Development Commands
 
@@ -233,29 +127,63 @@ For every change, read the [testing rules](CONTRIBUTING.md#agents-testing-guidel
 
 Open a feature-branch PR after all five local gates pass. Independently review the entire PR, post findings, address them, reply and resolve discussions, and repeat until clean or 20 rounds. Use the documented self-review exception only when sub-agents are unavailable. Never manually change the package version; use a conventional commit subject and PR title. A `major:` release requires a human maintainer to apply the `release:major` label; agents must never apply that label.
 
-## Required subsystem reading map
+## Routing table
 
-Read the destination guide before changing the subsystem. The links point to the moved rule source and are the durable authority for the detailed invariants.
+Read the linked guide before changing the area; the links are the durable authority for each subsystem's detailed invariants. When a task crosses areas, read every applicable row before editing.
 
-| Change area                                                                                      | Required reading                                                                                                                                                             |
-| ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Setup, commands, database backends, migrations                                                   | [Setup and local development rules](docs/setup.md#agents-build-test-and-development-commands) and [database setup rules](docs/setup.md#agents-database-backends-local-setup) |
-| Mastodon ids, API validation, ActivityPub, actor visibility, status actions                      | [Mastodon compatibility rules](docs/mastodon-api-compatibility.md#agents-client-facing-entity-ids)                                                                           |
-| Request boundaries, server/client modules, UI chrome, auth, email, previews, federation deletion | [Architecture rules](docs/architecture.md#agents-server-client-module-boundary)                                                                                              |
-| Fitness uploads, dates, maps, route heatmaps, and gear                                           | [Fitness storage and processing rules](docs/fitness-file-storage.md#agents-fitness-stat-strips)                                                                              |
-| Stored media, security, indexes, and database compatibility                                      | [Maintenance and storage rules](docs/maintenance.md#agents-security-configuration-tips)                                                                                      |
-| Visual design changes (tokens, components, layouts, screen states)                               | [Design library sync rules](CONTRIBUTING.md#agents-design-library-sync)                                                                                                      |
-| Tests, task recipes, documentation, commits, and review loop                                     | [Contributor workflow rules](CONTRIBUTING.md#agents-testing-guidelines) and the [review checklist](REVIEW.md)                                                                |
+| Change area                                           | Read first                                                                                                                                               |
+| ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Setup, commands, migrations, schema dumps             | [Setup guide](docs/setup.md#agents-build-test-and-development-commands)                                                                                  |
+| Database backends, local setup                        | [Database Backends & Local Setup](docs/setup.md#agents-database-backends-local-setup)                                                                    |
+| Mastodon client-facing ids, legacy shapes, cursors    | [Client-Facing Entity IDs](docs/mastodon-api-compatibility.md#agents-client-facing-entity-ids)                                                           |
+| Local usernames as actor-id path segments             | [Local Usernames Are Actor-Id Path Segments](docs/mastodon-api-compatibility.md#agents-local-usernames-are-actor-id-path-segments)                       |
+| Local actors ("does this server host this actor?")    | [Local Actors](docs/mastodon-api-compatibility.md#agents-local-actors-does-this-server-host-this-actor)                                                  |
+| Who may see an actor's statuses                       | [Who May See an Actor's Statuses](docs/mastodon-api-compatibility.md#agents-who-may-see-an-actor-s-statuses)                                             |
+| Publicly readable status ids                          | [Publicly Readable Status Ids](docs/mastodon-api-compatibility.md#agents-publicly-readable-status-ids)                                                   |
+| Actor username case handling                          | [Actor Usernames Are Case-Insensitive](docs/mastodon-api-compatibility.md#agents-actor-usernames-are-case-insensitive)                                   |
+| API request validation (Zod)                          | [Zod Validation in API Routes](docs/mastodon-api-compatibility.md#agents-zod-validation-in-api-routes)                                                   |
+| Status posts & actions, post media layout             | [Status Posts & Actions](docs/mastodon-api-compatibility.md#agents-status-posts-actions)                                                                 |
+| ActivityPub & JSON-LD (compaction, contexts)          | [ActivityPub & JSON-LD](docs/mastodon-api-compatibility.md#agents-activitypub-json-ld)                                                                   |
+| Trusting a fetched document's `id`                    | [A Fetched Document's Own `id` Is Not Evidence](docs/mastodon-api-compatibility.md#agents-a-fetched-document-s-own-id-is-not-evidence)                   |
+| Server/client module boundary                         | [Server/Client Module Boundary](docs/architecture.md#agents-server-client-module-boundary)                                                               |
+| Instance-wide values in client components             | [Instance Limits in Client Components](docs/architecture.md#agents-instance-limits-in-client-components)                                                 |
+| Dates crossing the server/client boundary             | [Date Serialization in Server Components](docs/architecture.md#agents-date-serialization-in-server-components)                                           |
+| Client-side API calls                                 | [Client-Side API Calls](docs/architecture.md#agents-client-side-api-calls)                                                                               |
+| Outbound server-side HTTP requests                    | [Outbound Server-Side HTTP Requests](docs/architecture.md#agents-outbound-server-side-http-requests)                                                     |
+| Link prefetching in feeds                             | [Link prefetching in feeds](docs/architecture.md#agents-link-prefetching-in-feeds)                                                                       |
+| Navigation customization                              | [Navigation Customization](docs/architecture.md#agents-navigation-customization)                                                                         |
+| Page headers & section sub-navigation                 | [Page Header & Sub-Navigation](docs/architecture.md#agents-page-header-sub-navigation)                                                                   |
+| Fitness overview calendar                             | [Fitness Overview Calendar](docs/architecture.md#agents-fitness-overview-calendar)                                                                       |
+| Shared surface kit (panels, lists, forms, states)     | [Surfaces](docs/architecture.md#agents-surfaces)                                                                                                         |
+| Settings forms (client components)                    | [Settings Forms (Client Components)](docs/architecture.md#agents-settings-forms-client-components)                                                       |
+| Transactional & notification emails                   | [Transactional & Notification Emails](docs/architecture.md#agents-transactional-notification-emails)                                                     |
+| Link preview cards                                    | [Link Preview Cards](docs/architecture.md#agents-link-preview-cards)                                                                                     |
+| Status delete & unboost federation                    | [Status Delete & Unboost Federation](docs/architecture.md#agents-status-delete-unboost-federation)                                                       |
+| Actor profile & deletion federation                   | [Actor Profile & Deletion Federation](docs/architecture.md#agents-actor-profile-deletion-federation)                                                     |
+| Better-auth plugin guidelines                         | [Better-auth Plugin Guidelines](docs/architecture.md#agents-better-auth-plugin-guidelines)                                                               |
+| Better-auth database joins                            | [Better-auth Database Joins](docs/architecture.md#agents-better-auth-database-joins)                                                                     |
+| Better-auth session refresh                           | [Better-auth Session Refresh](docs/architecture.md#agents-better-auth-session-refresh)                                                                   |
+| OAuth client registrations                            | [OAuth Client Registrations](docs/architecture.md#agents-oauth-client-registrations)                                                                     |
+| OAuth access token sliding expiry                     | [OAuth Access Token Sliding Expiry](docs/architecture.md#agents-oauth-access-token-sliding-expiry)                                                       |
+| OAuth grants resolving an actor                       | [OAuth Grants Must Resolve an Actor](docs/architecture.md#agents-oauth-grants-must-resolve-an-actor)                                                     |
+| Auth error page                                       | [Auth Error Page](docs/architecture.md#agents-auth-error-page)                                                                                           |
+| Unconfirmed accounts                                  | [An Unconfirmed Account May Not Act](docs/architecture.md#agents-an-unconfirmed-account-may-not-act)                                                     |
+| Fitness stat strips, activity dates                   | [stat strips](docs/fitness-file-storage.md#agents-fitness-stat-strips), [activity dates](docs/fitness-file-storage.md#agents-fitness-activity-dates)     |
+| Apple Maps basemap, route heatmaps                    | [basemap](docs/fitness-file-storage.md#agents-apple-maps-basemap), [heatmap pyramid](docs/fitness-file-storage.md#agents-fitness-route-heatmap-pyramid)  |
+| Fitness gear                                          | [Fitness Gear](docs/fitness-file-storage.md#agents-fitness-gear)                                                                                         |
+| Fitness uploads, file storage, processing             | [Storage Implementations](docs/fitness-file-storage.md#storage-implementations), [Processing Pipeline](docs/fitness-file-storage.md#processing-pipeline) |
+| Deleting media a post uses                            | [Deleting Media a Post Uses](docs/maintenance.md#agents-deleting-media-a-post-uses)                                                                      |
+| Security, storage-root confinement, stored media URLs | [Security & Configuration Tips](docs/maintenance.md#agents-security-configuration-tips)                                                                  |
+| Composite indexes on `statuses` (PostgreSQL 18)       | [Composite Index Column Order](docs/maintenance.md#agents-composite-index-column-order-on-statuses-postgresql-18)                                        |
+| Database compatibility                                | [Database Compatibility Guidelines](docs/maintenance.md#agents-database-compatibility-guidelines)                                                        |
+| Visual design changes (tokens, components, layouts)   | [Design Library Sync](CONTRIBUTING.md#agents-design-library-sync)                                                                                        |
+| Tests, known failure classes                          | [Testing Guidelines](CONTRIBUTING.md#agents-testing-guidelines), [Known failure classes](CONTRIBUTING.md#agents-known-failure-classes)                   |
+| Task recipes                                          | [Task Recipes](CONTRIBUTING.md#agents-task-recipes)                                                                                                      |
+| Commits and PRs                                       | [Commit & Pull Request Guidelines](CONTRIBUTING.md#agents-commit-pull-request-guidelines)                                                                |
+| Code review loop                                      | [Code Review Loop (Sub-Agents)](CONTRIBUTING.md#agents-code-review-loop-sub-agents)                                                                      |
+| Review checklist                                      | [REVIEW.md](REVIEW.md)                                                                                                                                   |
 
-When a task crosses areas, read the applicable rule sections in every relevant guide before editing. The topic links below identify the exact sections. Keep the root guide limited to cross-cutting rules and this routing map; durable subsystem detail belongs in the linked existing guide.
-
-## Cross-cutting data and protocol rules
-
-- A client-visible status or actor id is emitted with `getClientStatusId` / `getClientActorId`; accept every legacy id shape through the shared resolvers and batch-resolve ids in one query. Read the [client-id source rules](docs/mastodon-api-compatibility.md#agents-client-facing-entity-ids) before adding a serializer or route.
-- API handlers use `safeParse`, `apiResponse`, and `apiErrorResponse` as applicable. CORS-enabled routes use `apiResponse` for errors too. The full validation and response invariants are in [Mastodon compatibility](docs/mastodon-api-compatibility.md#agents-zod-validation-in-api-routes).
-- Inbound ActivityPub is compacted with the offline JSON-LD processor before validation; outbound Note terms must be declared in the emitted context. Read [ActivityPub and JSON-LD](docs/mastodon-api-compatibility.md#agents-activitypub-json-ld) before changing federation.
-- Preserve the server/client boundary, serialize dates before crossing it, use the shared client API and outbound HTTP helpers, and keep feed prefetching intentional. Read the [architecture source rules](docs/architecture.md#agents-server-client-module-boundary).
-- Use the local database and storage-root safety rules in the [setup](docs/setup.md#agents-database-backends-local-setup) and [maintenance](docs/maintenance.md#agents-security-configuration-tips) guides.
+Section pages always switch through the shared `SectionNavDropdown` (`lib/components/section-nav-dropdown.tsx`) — never a second navigation list, rail, tab strip or menu of a section's pages inside the content pane beside the app sidebar, at any width (the index pages `/settings`, `/account`, `/admin` are the only in-content lists, and they are the page, not a navigation); `lib/components/sectionNavPattern.test.ts` fails on a layout that reintroduces one. Details in [Page Header & Sub-Navigation](docs/architecture.md#agents-page-header-sub-navigation).
 
 ## Documentation Maintenance
 
@@ -264,198 +192,6 @@ Durable documentation changes belong in existing guides and must be updated in t
 ## Security & Data Safety
 
 Treat runtime configuration, credentials, uploaded names, storage paths, archive files, and remote URLs as untrusted or sensitive. Keep filesystem access confined to the configured storage root, use the canonical media and URL helpers, and verify local database targets before any write. The detailed rules and rationale are in [maintenance and storage](docs/maintenance.md#agents-security-configuration-tips).
-
-## Client-Facing Entity IDs
-
-The durable rule source moved to [docs/mastodon-api-compatibility.md](docs/mastodon-api-compatibility.md#agents-client-facing-entity-ids); read it before changing this subsystem.
-
-## Zod Validation in API Routes
-
-The durable rule source moved to [docs/mastodon-api-compatibility.md](docs/mastodon-api-compatibility.md#agents-zod-validation-in-api-routes); read it before changing this subsystem.
-
-## ActivityPub & JSON-LD
-
-The durable rule source moved to [docs/mastodon-api-compatibility.md](docs/mastodon-api-compatibility.md#agents-activitypub-json-ld); read it before changing this subsystem.
-
-## A Fetched Document's Own `id` Is Not Evidence
-
-The durable rule source moved to [docs/mastodon-api-compatibility.md](docs/mastodon-api-compatibility.md#agents-a-fetched-document-s-own-id-is-not-evidence); read it before changing this subsystem.
-
-## Actor Usernames Are Case-Insensitive
-
-The durable rule source moved to [docs/mastodon-api-compatibility.md](docs/mastodon-api-compatibility.md#agents-actor-usernames-are-case-insensitive); read it before changing this subsystem.
-
-## Server/Client Module Boundary
-
-The durable rule source moved to [docs/architecture.md](docs/architecture.md#agents-server-client-module-boundary); read it before changing this subsystem.
-
-## Instance Limits in Client Components
-
-The durable rule source moved to [docs/architecture.md](docs/architecture.md#agents-instance-limits-in-client-components); read it before changing this subsystem.
-
-## Date Serialization in Server Components
-
-The durable rule source moved to [docs/architecture.md](docs/architecture.md#agents-date-serialization-in-server-components); read it before changing this subsystem.
-
-## Client-Side API Calls
-
-The durable rule source moved to [docs/architecture.md](docs/architecture.md#agents-client-side-api-calls); read it before changing this subsystem.
-
-## Outbound Server-Side HTTP Requests
-
-The durable rule source moved to [docs/architecture.md](docs/architecture.md#agents-outbound-server-side-http-requests); read it before changing this subsystem.
-
-## Link prefetching in feeds
-
-The durable rule source moved to [docs/architecture.md](docs/architecture.md#agents-link-prefetching-in-feeds); read it before changing this subsystem.
-
-## Navigation Customization
-
-The durable rule source moved to [docs/architecture.md](docs/architecture.md#agents-navigation-customization); read it before changing this subsystem.
-
-## Page Header & Sub-Navigation
-
-The durable rule source moved to [docs/architecture.md](docs/architecture.md#agents-page-header-sub-navigation); read it before changing this subsystem. One rule is repeated here because it is easy to break by accident: **switching between the pages of a section always uses the shared `SectionNavDropdown`** (`lib/components/section-nav-dropdown.tsx`). Never render a second navigation list, rail, tab strip or menu of a section's pages inside the content pane beside the app sidebar, at any width; the index pages (`/settings`, `/account`, `/admin`) are the only in-content lists, and they are the page, not a navigation. `lib/components/sectionNavPattern.test.ts` fails on a layout that reintroduces one.
-
-## Fitness Overview Calendar
-
-The durable rule source lives in [docs/architecture.md](docs/architecture.md#agents-fitness-overview-calendar); read it before changing this subsystem.
-
-## Surfaces (Shared Surface Kit)
-
-The durable rule source lives in [docs/architecture.md](docs/architecture.md#agents-surfaces); read it before changing page layout or adding a panel, list, form, empty state, alert, tab row or loading state.
-
-## Settings Forms (Client Components)
-
-The durable rule source moved to [docs/architecture.md](docs/architecture.md#agents-settings-forms-client-components); read it before changing this subsystem.
-
-## Transactional & Notification Emails
-
-The durable rule source moved to [docs/architecture.md](docs/architecture.md#agents-transactional-notification-emails); read it before changing this subsystem.
-
-## Fitness Stat Strips
-
-The durable rule source moved to [docs/fitness-file-storage.md](docs/fitness-file-storage.md#agents-fitness-stat-strips); read it before changing this subsystem.
-
-## Apple Maps Basemap
-
-The durable rule source moved to [docs/fitness-file-storage.md](docs/fitness-file-storage.md#agents-apple-maps-basemap); read it before changing this subsystem.
-
-## Fitness Activity Dates
-
-The durable rule source moved to [docs/fitness-file-storage.md](docs/fitness-file-storage.md#agents-fitness-activity-dates); read it before changing this subsystem.
-
-## Fitness Route Heatmap Pyramid
-
-The durable rule source moved to [docs/fitness-file-storage.md](docs/fitness-file-storage.md#agents-fitness-route-heatmap-pyramid); read it before changing this subsystem.
-
-## Fitness Gear
-
-The durable rule source moved to [docs/fitness-file-storage.md](docs/fitness-file-storage.md#agents-fitness-gear); read it before changing this subsystem.
-
-## Link Preview Cards
-
-The durable rule source moved to [docs/architecture.md](docs/architecture.md#agents-link-preview-cards); read it before changing this subsystem.
-
-## Status Posts & Actions
-
-The durable rule source moved to [docs/mastodon-api-compatibility.md](docs/mastodon-api-compatibility.md#agents-status-posts-actions); read it before changing this subsystem.
-
-## Status Delete & Unboost Federation
-
-The durable rule source moved to [docs/architecture.md](docs/architecture.md#agents-status-delete-unboost-federation); read it before changing this subsystem.
-
-## Actor Profile & Deletion Federation
-
-The durable rule source lives in [docs/architecture.md](docs/architecture.md#agents-actor-profile-deletion-federation); read it before changing this subsystem.
-
-## Deleting Media a Post Uses
-
-The durable rule source moved to [docs/maintenance.md](docs/maintenance.md#agents-deleting-media-a-post-uses); read it before changing this subsystem.
-
-## Better-auth Plugin Guidelines
-
-The durable rule source moved to [docs/architecture.md](docs/architecture.md#agents-better-auth-plugin-guidelines); read it before changing this subsystem.
-
-## Better-auth Database Joins
-
-The durable rule source moved to [docs/architecture.md](docs/architecture.md#agents-better-auth-database-joins); read it before changing this subsystem.
-
-## Better-auth Session Refresh
-
-The durable rule source moved to [docs/architecture.md](docs/architecture.md#agents-better-auth-session-refresh); read it before changing this subsystem.
-
-## OAuth Client Registrations
-
-The durable rule source moved to [docs/architecture.md](docs/architecture.md#agents-oauth-client-registrations); read it before changing this subsystem.
-
-## OAuth Access Token Sliding Expiry
-
-The durable rule source lives in [docs/architecture.md](docs/architecture.md#agents-oauth-access-token-sliding-expiry); read it before changing this subsystem.
-
-## Auth Error Page
-
-The durable rule source moved to [docs/architecture.md](docs/architecture.md#agents-auth-error-page); read it before changing this subsystem.
-
-## OAuth Grants Must Resolve an Actor
-
-The durable rule source moved to [docs/architecture.md](docs/architecture.md#agents-oauth-grants-must-resolve-an-actor); read it before changing this subsystem.
-
-## An Unconfirmed Account May Not Act
-
-The durable rule source moved to [docs/architecture.md](docs/architecture.md#agents-an-unconfirmed-account-may-not-act); read it before changing this subsystem.
-
-## Design Library Sync
-
-The durable rule source lives in [CONTRIBUTING.md](CONTRIBUTING.md#agents-design-library-sync); read it before changing anything users see.
-
-## Testing Guidelines
-
-The durable rule source moved to [CONTRIBUTING.md](CONTRIBUTING.md#agents-testing-guidelines) (including [Known failure classes](CONTRIBUTING.md#agents-known-failure-classes)); read it before changing this subsystem.
-
-## Task Recipes
-
-The durable rule source moved to [CONTRIBUTING.md](CONTRIBUTING.md#agents-task-recipes); read it before changing this subsystem.
-
-## Commit & Pull Request Guidelines
-
-The durable rule source moved to [CONTRIBUTING.md](CONTRIBUTING.md#agents-commit-pull-request-guidelines); read it before changing this subsystem.
-
-## Code Review Loop (Sub-Agents)
-
-The durable rule source moved to [CONTRIBUTING.md](CONTRIBUTING.md#agents-code-review-loop-sub-agents); read it before changing this subsystem.
-
-## Security & Configuration Tips
-
-The durable rule source moved to [docs/maintenance.md](docs/maintenance.md#agents-security-configuration-tips); read it before changing this subsystem.
-
-## Database Backends & Local Setup
-
-The durable rule source moved to [docs/setup.md](docs/setup.md#agents-database-backends-local-setup); read it before changing this subsystem.
-
-## Local Usernames Are Actor-Id Path Segments
-
-The durable rule source moved to [docs/mastodon-api-compatibility.md](docs/mastodon-api-compatibility.md#agents-local-usernames-are-actor-id-path-segments); read it before changing this subsystem.
-
-## Local Actors ("does this server host this actor?")
-
-The durable rule source moved to [docs/mastodon-api-compatibility.md](docs/mastodon-api-compatibility.md#agents-local-actors-does-this-server-host-this-actor); read it before changing this subsystem.
-
-## Who May See an Actor's Statuses
-
-The durable rule source moved to [docs/mastodon-api-compatibility.md](docs/mastodon-api-compatibility.md#agents-who-may-see-an-actor-s-statuses); read it before changing this subsystem.
-
-## Publicly Readable Status Ids
-
-The durable rule source moved to [docs/mastodon-api-compatibility.md](docs/mastodon-api-compatibility.md#agents-publicly-readable-status-ids); read it before changing this subsystem.
-
-## Composite Index Column Order on `statuses` (PostgreSQL 18)
-
-The durable rule source moved to [docs/maintenance.md](docs/maintenance.md#agents-composite-index-column-order-on-statuses-postgresql-18); read it before changing this subsystem.
-
-## Database Compatibility Guidelines
-
-The durable rule source moved to [docs/maintenance.md](docs/maintenance.md#agents-database-compatibility-guidelines); read it before changing this subsystem.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

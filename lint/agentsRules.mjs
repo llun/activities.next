@@ -30,8 +30,8 @@ const restrictedSyntax = (description, entries) => ({
 })
 
 // ---------------------------------------------------------------------------
-// A stored path is confined to the storage root (AGENTS.md → A stored path is
-// confined to the storage root).
+// A stored path is confined to the storage root (docs/maintenance.md → A stored
+// path is confined to the storage root).
 //
 // These two rules replace `lib/services/medias/storagePathCallSites.test.ts`,
 // a raw-text scan that five review rounds each found a new hole in: alias
@@ -374,13 +374,13 @@ export default {
     ),
 
     'zod-safe-parse': restrictedSyntax(
-      'API routes validate with safeParse, never .parse() (AGENTS.md → Zod Validation in API Routes)',
+      'API routes validate with safeParse, never .parse() (docs/mastodon-api-compatibility.md → Zod Validation in API Routes)',
       [
         {
           selector:
             "CallExpression[callee.property.name='parse'][callee.object.name!='JSON'][callee.object.name!='Date']",
           message:
-            'Use safeParse, never .parse(), for Zod validation in API routes — .parse() throws and surfaces as a 500 (AGENTS.md → Zod Validation in API Routes). If this is not a Zod schema, add an oxlint-disable-next-line comment saying so.'
+            'Use safeParse, never .parse(), for Zod validation in API routes — .parse() throws and surfaces as a 500 (docs/mastodon-api-compatibility.md → Zod Validation in API Routes). If this is not a Zod schema, add an oxlint-disable-next-line comment saying so.'
         }
       ]
     ),
@@ -390,7 +390,7 @@ export default {
         type: 'problem',
         docs: {
           description:
-            'Local storage drivers build paths through resolveStorageFilePath/assertStorageFilePath (AGENTS.md → A stored path is confined to the storage root)'
+            'Local storage drivers build paths through resolveStorageFilePath/assertStorageFilePath (docs/maintenance.md → A stored path is confined to the storage root)'
         }
       },
       create(context) {
@@ -401,7 +401,7 @@ export default {
             context.report({
               node,
               message:
-                'Build a storage path with resolveStorageFilePath/assertStorageFilePath from @/lib/services/medias/storagePath, never path.resolve/path.join — a stored path is data, and resolving one walks straight out of the storage root given `../` or an absolute path (AGENTS.md → A stored path is confined to the storage root).'
+                'Build a storage path with resolveStorageFilePath/assertStorageFilePath from @/lib/services/medias/storagePath, never path.resolve/path.join — a stored path is data, and resolving one walks straight out of the storage root given `../` or an absolute path (docs/maintenance.md → A stored path is confined to the storage root).'
             })
           }
         }
@@ -413,7 +413,7 @@ export default {
         type: 'problem',
         docs: {
           description:
-            'A containment check compares against a resolved root with a separator boundary, not with startsWith (AGENTS.md → A stored path is confined to the storage root)'
+            'A containment check compares against a resolved root with a separator boundary, not with startsWith (docs/maintenance.md → A stored path is confined to the storage root)'
         }
       },
       create(context) {
@@ -428,7 +428,7 @@ export default {
             context.report({
               node,
               message:
-                'Comparing against a resolved path with startsWith has no separator boundary, so a sibling directory whose name the root prefixes passes it — root `/srv/uploads` accepts `/srv/uploads-backup/x`. Use resolveStorageFilePath/assertStorageFilePath from @/lib/services/medias/storagePath (AGENTS.md → A stored path is confined to the storage root).'
+                'Comparing against a resolved path with startsWith has no separator boundary, so a sibling directory whose name the root prefixes passes it — root `/srv/uploads` accepts `/srv/uploads-backup/x`. Use resolveStorageFilePath/assertStorageFilePath from @/lib/services/medias/storagePath (docs/maintenance.md → A stored path is confined to the storage root).'
             })
           }
         }
@@ -440,7 +440,7 @@ export default {
         type: 'problem',
         docs: {
           description:
-            'Components call named functions in lib/client.ts, never fetch() directly (AGENTS.md → Client-Side API Calls)'
+            'Components call named functions in lib/client.ts, never fetch() directly (docs/architecture.md → Client-Side API Calls)'
         },
         schema: [
           {
@@ -474,7 +474,7 @@ export default {
             context.report({
               node,
               message:
-                'Do not call fetch() directly in components — add a named function to lib/client.ts and import it (AGENTS.md → Client-Side API Calls).'
+                'Do not call fetch() directly in components — add a named function to lib/client.ts and import it (docs/architecture.md → Client-Side API Calls).'
             })
           }
         }
