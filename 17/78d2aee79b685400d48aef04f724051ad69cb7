@@ -1,0 +1,25 @@
+CONTRIBUTING.md
+  s_9cd638be269cb8::t_ccca568ad0fd8c 1162,1191
+docs/architecture.md
+  s_9cd638be269cb8::t_a813eea0763e2f 1326,1392,3060,3084,3160
+docs/fitness-file-storage.md
+  s_9cd638be269cb8::t_ba9e9580b07979 542
+docs/setup.md
+  s_9cd638be269cb8::t_a405ab8a2aa36a 380
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1778d2aee79b685400d48aef04f724051ad69cb7",
+  "prompts": {},
+  "sessions": {
+    "s_9cd638be269cb8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "66b43e74-61d5-41ba-ab08-e1d38482bdcb",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
