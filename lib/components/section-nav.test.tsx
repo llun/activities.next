@@ -3,6 +3,7 @@
  */
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen, within } from '@testing-library/react'
+import { Trash2, Truck } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 
 import {
@@ -104,14 +105,6 @@ describe('long names', () => {
 })
 
 describe('SectionIndex', () => {
-  it('renders blocks in order: groups, footer card, after-footer groups', () => {
-    render(<SectionIndex groups={groups} footer={footer} />)
-
-    expect(
-      screen.getAllByRole('link').map((link) => link.getAttribute('href'))
-    ).toEqual(['/s/one', '/s/two', '/s/three', '/other', '/s/last'])
-  })
-
   it('lists the groups, then the footer, then after-footer groups, without menu-only groups', () => {
     render(<SectionIndex groups={groups} footer={footer} />)
 
@@ -178,27 +171,46 @@ describe('SectionIndex', () => {
     const column = container.firstElementChild as HTMLElement
     expect(column).toHaveClass('max-w-[680px]', 'flex-col')
     expect(container.querySelector('.lg\\:grid-cols-2')).toBeNull()
+    // The fixture's four blocks are the column's only direct children, in
+    // order, and none of them nests another column or grid wrapper.
+    expect(column.children).toHaveLength(4)
+    expect(column.children[0]).toHaveTextContent('First')
+    expect(column.children[1]).toHaveTextContent('Second')
+    expect(column.children[2]).toHaveTextContent('Elsewhere')
+    expect(column.children[3]).toHaveTextContent('Last')
+    expect(
+      column.querySelectorAll('.flex-col.max-w-\\[680px\\], .grid')
+    ).toHaveLength(0)
   })
 
-  it('colours the name and icon of a danger item destructive', () => {
+  it('colours the name and icon of a danger item destructive, and only those', () => {
     render(
       <SectionIndex
         groups={[
           {
             heading: 'Danger',
             items: [
-              { name: 'Delete', url: '/delete', icon: null, danger: true }
+              {
+                name: 'Delete',
+                url: '/delete',
+                icon: <Trash2 />,
+                danger: true
+              },
+              { name: 'Moving', url: '/moving', icon: <Truck /> }
             ]
           }
         ]}
       />
     )
 
-    // The icon span and the name span both carry the destructive colour.
-    const link = screen.getByRole('link', { name: 'Delete' })
-    expect(link.querySelectorAll('.text-destructive')).toHaveLength(2)
-    expect(link.firstElementChild).toHaveClass('text-destructive')
+    // The icon span and the name span of the danger item both carry the
+    // destructive colour; the safe item's do not.
+    const iconOf = (name: string) =>
+      screen.getByRole('link', { name }).querySelector('svg')!.parentElement!
+    expect(iconOf('Delete')).toHaveClass('text-destructive')
     expect(screen.getByText('Delete')).toHaveClass('text-destructive')
+    expect(iconOf('Moving')).not.toHaveClass('text-destructive')
+    expect(screen.getByText('Moving')).not.toHaveClass('text-destructive')
   })
 })
 

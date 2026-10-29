@@ -67,7 +67,7 @@ describe('Settings Layout', () => {
     expect(screen.queryByText(/^For /)).not.toBeInTheDocument()
   })
 
-  it('groups the menu under Preferences and Privacy & safety, in order', async () => {
+  it('groups the menu under Preferences, Privacy & safety and This profile, in order', async () => {
     await renderLayout('/settings/appearance')
     const menu = await openMenu()
 
@@ -88,6 +88,7 @@ describe('Settings Layout', () => {
       'Muted accounts',
       'Filters'
     ])
+    expect(names('This profile')).toEqual(['Moving', 'Delete this profile'])
 
     // Edit profile leads the menu and no longer carries the handle.
     const items = within(menu).getAllByRole('menuitem')
@@ -186,9 +187,17 @@ describe('Settings Layout', () => {
     expect(within(deleteRow).getByText('Delete this profile')).toHaveClass(
       'text-destructive'
     )
-    expect(deleteRow.querySelector('span')!.className).toMatch(
+    expect(deleteRow.querySelector('svg')!.closest('span')!.className).toMatch(
       /(^|\s)text-destructive/
     )
+    // The Moving row in the same group keeps the regular colour.
+    const movingRow = screen.getByRole('link', { name: /Moving/ })
+    expect(within(movingRow).getByText('Moving')).not.toHaveClass(
+      'text-destructive'
+    )
+    expect(
+      movingRow.querySelector('svg')!.closest('span')!.className
+    ).not.toMatch(/(^|\s)text-destructive/)
     // The index rows carry each section's description.
     expect(screen.getByRole('link', { name: /Moving/ })).toHaveAttribute(
       'href',

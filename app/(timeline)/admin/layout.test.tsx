@@ -155,26 +155,6 @@ describe('Admin Layout', () => {
       screen.queryByRole('navigation', { name: 'Admin' })
     ).not.toBeInTheDocument()
 
-    for (const heading of [
-      'Moderation',
-      'Community',
-      'Server',
-      'Maintenance'
-    ]) {
-      expect(
-        screen.getByRole('heading', { level: 2, name: heading })
-      ).toBeInTheDocument()
-    }
-    // The headless Dashboard group lists its item without a heading.
-    expect(screen.getByRole('link', { name: /Dashboard/ })).toHaveAttribute(
-      'href',
-      '/admin/overview'
-    )
-  })
-
-  it('renders the grouped index in one column: Overview first, then Moderation, Community, Server and Maintenance', async () => {
-    await renderAt('/admin')
-
     const headings = screen
       .getAllByRole('heading', { level: 2 })
       .map((h) => h.textContent)
@@ -185,11 +165,12 @@ describe('Admin Layout', () => {
       'Server',
       'Maintenance'
     ])
-    // The headless Dashboard group lists its item without a heading.
-    expect(screen.getByRole('link', { name: /Dashboard/ })).toHaveAttribute(
-      'href',
-      '/admin/overview'
-    )
+    expect(
+      within(screen.getByRole('region', { name: 'Overview' })).getByRole(
+        'link',
+        { name: /Dashboard/ }
+      )
+    ).toHaveAttribute('href', '/admin/overview')
   })
 
   it('renders the Admin link and no Back row on item and detail pages', async () => {

@@ -45,7 +45,9 @@ const fitnessGroups: SectionNavGroup[] = [
   }
 ]
 
-// Admin: a headless Dashboard, then headed groups; Reports carries a count.
+// An Admin-like fixture: the first group is kept headless on purpose so the
+// headless-run path stays covered (the real Admin now heads it "Overview");
+// Reports carries a count.
 const adminGroups = (badge?: number): SectionNavGroup[] => [
   {
     items: [{ name: 'Dashboard', url: '/admin/overview', icon: <Activity /> }]
@@ -304,7 +306,15 @@ describe('SectionNavDropdown', () => {
       // The headed after-footer group is set off by its label, not a
       // separator; only the cross-link needs one.
       expect(within(menu).getAllByRole('separator')).toHaveLength(1)
-      expect(within(menu).getAllByRole('group').length).toBeGreaterThan(0)
+      // The after-footer group is headed and holds exactly its two pages.
+      const thisProfile = within(menu).getByRole('group', {
+        name: 'This profile'
+      })
+      expect(
+        within(thisProfile)
+          .getAllByRole('menuitem')
+          .map((item) => item.textContent)
+      ).toEqual(['Moving', 'Delete this profile'])
       expect(
         within(menu)
           .getAllByRole('menuitem')
@@ -564,10 +574,32 @@ describe('SectionNavDropdown', () => {
       expect(within(row).getByText('Delete this profile')).toHaveClass(
         'text-destructive'
       )
-      expect(row.querySelector('span')!.className).toMatch(
-        /(^|\s)text-destructive/
+      expect(row.querySelector('svg')!.parentElement).toHaveClass(
+        'text-destructive'
       )
       expect(row).toHaveAttribute('data-variant', 'default')
+    })
+
+    it('matches the trigger when the danger row is the current page', async () => {
+      setPath('/settings/delete')
+      renderSettings()
+
+      const menu = await openMenu('Settings')
+      const row = within(menu).getByRole('menuitem', {
+        name: 'Delete this profile'
+      })
+      // Current-page styling wins over danger: the icon takes `text-primary`
+      // and neither the name nor the icon is destructive.
+      expect(row).toHaveAttribute('aria-current', 'page')
+      expect(row.querySelector('svg')!.parentElement).toHaveClass(
+        'text-primary'
+      )
+      expect(row.querySelector('svg')!.parentElement).not.toHaveClass(
+        'text-destructive'
+      )
+      expect(within(row).getByText('Delete this profile')).not.toHaveClass(
+        'text-destructive'
+      )
     })
   })
 

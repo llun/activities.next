@@ -3,7 +3,7 @@
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { FC, useId } from 'react'
+import { FC, useEffect, useId, useRef } from 'react'
 
 import {
   SECTION_NAV_ICON_CLASS,
@@ -115,9 +115,9 @@ const revealRow = (menu: HTMLElement, row: HTMLElement) => {
 // `DropdownMenu.Content` keeps `onOpenAutoFocus` off its public types (only
 // the menu internals declare it) but passes every prop through to the menu's
 // `FocusScope`, which is where the event comes from. It is therefore spread
-// from a variable rather than written as a prop, and the component test
+// from a call's result rather than written as a prop, and the component test
 // "opens on the current page" fails if a Radix update stops honouring it.
-const focusCurrentRowOnOpen = {
+const focusCurrentRowOnOpen = (registerStop: (stop: () => void) => void) => ({
   onOpenAutoFocus: (event: Event) => {
     const menu = event.currentTarget as HTMLElement | null
     const current = menu?.querySelector<HTMLElement>('[aria-current="page"]')
@@ -153,8 +153,9 @@ const focusCurrentRowOnOpen = {
       reveal()
       stop()
     }, 300)
+    registerStop(stop)
   }
-}
+})
 
 /**
  * The section sub-navigation of every section (Settings, Account & security,
@@ -175,6 +176,16 @@ export const SectionNavDropdown: FC<SectionNavDropdownProps> = ({
 }) => {
   const pathname = usePathname()
   const id = useId()
+  // The 300ms re-reveal in `focusCurrentRowOnOpen` outlives the open
+  // animation; its `stop` (disconnect the ResizeObserver, remove the steering
+  // listeners, clear the timer) is registered here and run when the menu
+  // closes or the component unmounts. Calling it twice is safe.
+  const stopReveal = useRef<(() => void) | undefined>(undefined)
+  const clearReveal = () => {
+    stopReveal.current?.()
+    stopReveal.current = undefined
+  }
+  useEffect(() => clearReveal, [])
   const items = groups.flatMap((group) => group.items)
   if (items.length === 0) return null
 
@@ -193,6 +204,9 @@ export const SectionNavDropdown: FC<SectionNavDropdownProps> = ({
 
   const row = (item: SectionNavItem) => {
     const isActive = item === activeItem
+    // A danger page that is the current one must match the trigger (icon
+    // `text-primary`, name in the row's current colour); `text-destructive`
+    // marks only a danger row that is not current.
     return (
       <DropdownMenuItem
         key={item.url}
@@ -207,10 +221,10 @@ export const SectionNavDropdown: FC<SectionNavDropdownProps> = ({
           <span
             className={cn(
               SECTION_NAV_ICON_CLASS,
-              item.danger
-                ? 'text-destructive'
-                : isActive
-                  ? 'text-primary'
+              isActive
+                ? 'text-primary'
+                : item.danger
+                  ? 'text-destructive'
                   : 'text-popover-foreground'
             )}
           >
@@ -219,7 +233,7 @@ export const SectionNavDropdown: FC<SectionNavDropdownProps> = ({
           <span
             className={cn(
               'min-w-0 flex-1 truncate',
-              item.danger && 'text-destructive'
+              item.danger && !isActive && 'text-destructive'
             )}
           >
             {item.name}
@@ -287,7 +301,11 @@ export const SectionNavDropdown: FC<SectionNavDropdownProps> = ({
   )
 
   const menu = (
-    <DropdownMenu>
+    <DropdownMenu
+      onOpenChange={(open) => {
+        if (!open) clearReveal()
+      }}
+    >
       {trigger}
       {/* Rounder and lifted higher off the page than the shared menu default
           (rounded-xl / shadow-lg, not rounded-md / shadow-md). The width class
@@ -300,12 +318,15 @@ export const SectionNavDropdown: FC<SectionNavDropdownProps> = ({
         align="start"
         sideOffset={6}
         className="w-(--radix-dropdown-menu-trigger-width) rounded-xl shadow-lg"
-        {...focusCurrentRowOnOpen}
+        {...focusCurrentRowOnOpen((stop) => {
+          stopReveal.current = stop
+        })}
       >
         {before.map((group, index) => block(group, index, index > 0))}
-        {/* The cross-link, then the after-footer pages, as plain rows behind
-            a separator. The footer's url is not an active-page candidate: it
-            points at another section. */}
+        {/* The cross-link behind its separator, then the after-footer groups:
+            a headed group (Settings' "This profile") or, when the group is
+            headless, a plain run. The footer's url is not an active-page
+            candidate: it points at another section. */}
         {footer && (
           <>
             <DropdownMenuSeparator />

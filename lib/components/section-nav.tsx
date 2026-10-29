@@ -33,8 +33,9 @@ const IndexGroup: FC<{
   const id = useId()
   const Block = heading ? 'section' : 'div'
   return (
-    // A headless run (Delete) is a plain block: an unnamed <section> or
-    // group would only add noise for assistive tech.
+    // A headless run (Account & security's list of Email & name, Password &
+    // sign-in, …) is a plain block: an unnamed <section> or group would only
+    // add noise for assistive tech.
     <Block {...(heading ? { 'aria-labelledby': id } : null)}>
       {heading && (
         <h2
