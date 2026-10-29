@@ -1,0 +1,19 @@
+lib/services/accountArchive/actorArchive.ts
+  s_1db44fa22b4507::t_fcae1e81ad7f98 597-600
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e2f71ecd6f55548a88a70c9c65f8d165b174b5e0",
+  "prompts": {},
+  "sessions": {
+    "s_1db44fa22b4507": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "37af1346-b527-4206-b791-5c9a137b13cb",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
