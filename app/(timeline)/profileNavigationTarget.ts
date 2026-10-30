@@ -1,8 +1,10 @@
 // Dependency-free so the click handler and its tests share one definition of
 // "this click opens a profile".
 
-// `/@username@domain`, the `[actor]` profile route. Sub-routes (a status,
-// followers, fitness) have their own skeletons and are left alone.
+// `/@username@domain`, the `[actor]` profile route. Sub-routes are left
+// alone: followers, following and albums have their own route skeletons, and a
+// status has none on purpose but gets a delayed pending skeleton instead (see
+// `[actor]/[status]/loadingBoundary.test.ts`).
 const PROFILE_PATH = /^\/@[^/@]+@[^/@]+\/?$/
 
 const decodePathname = (pathname: string): string | null => {

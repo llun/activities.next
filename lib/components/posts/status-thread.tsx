@@ -37,6 +37,7 @@ import {
   getStatusUrl
 } from '@/lib/components/posts/threadModel'
 import { useInlineComposer } from '@/lib/components/posts/useInlineComposer'
+import { useOpenStatusPath } from '@/lib/components/posts/useOpenStatusPath'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
@@ -143,6 +144,7 @@ export const StatusThread: FC<StatusThreadProps> = ({
   onReplyCreated
 }) => {
   const router = useRouter()
+  const openStatusPath = useOpenStatusPath()
   const composer = useInlineComposer(Boolean(currentActor))
   const [modalMedias, setModalMedias] = useState<{
     medias: Attachment[]
@@ -410,7 +412,7 @@ export const StatusThread: FC<StatusThreadProps> = ({
   const openStatus = (statusToOpen: Status) => {
     void (async () => {
       const detailPath = await getStatusDetailPathClient(statusToOpen)
-      if (detailPath) router.push(detailPath)
+      if (detailPath) openStatusPath(detailPath)
     })()
   }
 

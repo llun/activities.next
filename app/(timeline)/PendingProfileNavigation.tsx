@@ -1,16 +1,19 @@
 'use client'
 
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import {
   FC,
   ReactNode,
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useState
 } from 'react'
 
 import { ProfileLoading } from '@/app/(timeline)/[actor]/(profile)/loading'
+import { StatusLoadingSkeleton } from '@/app/(timeline)/[actor]/[status]/StatusLoadingSkeleton'
+import { OpenStatusPathContext } from '@/lib/components/posts/useOpenStatusPath'
 import { cn } from '@/lib/utils'
 
 import { getProfileNavigationTarget } from './profileNavigationTarget'
@@ -19,10 +22,20 @@ import { getProfileNavigationTarget } from './profileNavigationTarget'
 // without changing the URL), stop covering the page that is still there.
 export const PENDING_PROFILE_TIMEOUT_MS = 15_000
 
+// A post opens fast enough (about 250 ms in production) that painting a
+// skeleton for it would only flash; only a slow open (for example a remote
+// post that is not stored yet, fetched before the page can render) gets one.
+export const PENDING_STATUS_DELAY_MS = 500
+
 interface PendingNavigation {
   href: string
   fromPathname: string | null
 }
+
+// `null` while nothing is pending or the delay has not elapsed.
+const VisibleStatusNavigationContext = createContext<PendingNavigation | null>(
+  null
+)
 
 const PendingProfileNavigationContext = createContext<PendingNavigation | null>(
   null
@@ -42,13 +55,33 @@ export const PendingProfileNavigationProvider: FC<{ children: ReactNode }> = ({
   children
 }) => {
   const pathname = usePathname()
+  const router = useRouter()
   const [pending, setPending] = useState<PendingNavigation | null>(null)
+  const [pendingStatus, setPendingStatus] = useState<PendingNavigation | null>(
+    null
+  )
+  // The pending status navigation whose delay has elapsed (compared by
+  // identity, so a newer navigation starts hidden again).
+  const [shownStatus, setShownStatus] = useState<PendingNavigation | null>(null)
 
   // The navigation committed (or the visitor went elsewhere): drop the
   // pending state during render so the destination never paints under it.
   if (pending && pending.fromPathname !== pathname) {
     setPending(null)
   }
+  if (pendingStatus && pendingStatus.fromPathname !== pathname) {
+    setPendingStatus(null)
+  }
+
+  const openStatusPath = useCallback(
+    (path: string) => {
+      if (path.split(/[?#]/)[0] !== pathname) {
+        setPendingStatus({ href: path, fromPathname: pathname })
+      }
+      router.push(path)
+    },
+    [router, pathname]
+  )
 
   useEffect(() => {
     // Capture phase: some profile links stop propagation of their click.
@@ -58,7 +91,10 @@ export const PendingProfileNavigationProvider: FC<{ children: ReactNode }> = ({
     }
     // A plain `<a>` reloads the document; coming back to it from the
     // back/forward cache must not restore the skeleton.
-    const onPageShow = () => setPending(null)
+    const onPageShow = () => {
+      setPending(null)
+      setPendingStatus(null)
+    }
     window.addEventListener('click', onClick, true)
     window.addEventListener('pageshow', onPageShow)
     return () => {
@@ -73,9 +109,31 @@ export const PendingProfileNavigationProvider: FC<{ children: ReactNode }> = ({
     return () => clearTimeout(timer)
   }, [pending])
 
+  useEffect(() => {
+    if (!pendingStatus) return
+    const showTimer = setTimeout(
+      () => setShownStatus(pendingStatus),
+      PENDING_STATUS_DELAY_MS
+    )
+    const clearTimer = setTimeout(
+      () => setPendingStatus(null),
+      PENDING_PROFILE_TIMEOUT_MS
+    )
+    return () => {
+      clearTimeout(showTimer)
+      clearTimeout(clearTimer)
+    }
+  }, [pendingStatus])
+
   return (
     <PendingProfileNavigationContext.Provider value={pending}>
-      {children}
+      <VisibleStatusNavigationContext.Provider
+        value={shownStatus === pendingStatus ? shownStatus : null}
+      >
+        <OpenStatusPathContext.Provider value={openStatusPath}>
+          {children}
+        </OpenStatusPathContext.Provider>
+      </VisibleStatusNavigationContext.Provider>
     </PendingProfileNavigationContext.Provider>
   )
 }
@@ -108,28 +166,38 @@ interface PendingProfileOverlayProps {
 }
 
 /**
- * The profile skeleton laid over the current page while a profile navigation
- * is pending. An overlay rather than a swap: the page underneath keeps its
- * height and scroll position, which the browser records for Back when the
- * navigation commits.
+ * The skeleton laid over the current page while a navigation is pending: the
+ * profile's at once, a post's only after `PENDING_STATUS_DELAY_MS`. An overlay
+ * rather than a swap: the page underneath keeps its height and scroll
+ * position, which the browser records for Back when the navigation commits.
  */
 export const PendingProfileOverlay: FC<PendingProfileOverlayProps> = ({
   variant
 }) => {
   const pending = usePendingProfileNavigation()
-  if (!pending) return null
+  const pendingStatus = useContext(VisibleStatusNavigationContext)
+
+  let testId: string
+  let skeleton: ReactNode
+  if (pending) {
+    testId = 'pending-profile-overlay'
+    skeleton = <ProfileLoading />
+  } else if (pendingStatus) {
+    testId = 'pending-status-overlay'
+    skeleton = <StatusLoadingSkeleton />
+  } else {
+    return null
+  }
 
   return (
     <div
-      data-testid="pending-profile-overlay"
+      data-testid={testId}
       className={cn(
         'app-backdrop fixed overflow-hidden',
         OVERLAY_CLASS[variant]
       )}
     >
-      <div className={COLUMN_CLASS[variant]}>
-        <ProfileLoading />
-      </div>
+      <div className={COLUMN_CLASS[variant]}>{skeleton}</div>
     </div>
   )
 }
