@@ -325,4 +325,9 @@ describe('post row overlays', () => {
       expect(() => openingTags('<div className="a" {')).toThrow()
     })
   })
+
+  it('documents a reason for every allowlisted entry', () => {
+    for (const reason of ALLOWED.values())
+      expect(reason.length).toBeGreaterThan(10)
+  })
 })

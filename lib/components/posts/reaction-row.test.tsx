@@ -260,6 +260,16 @@ describe('ReactionRow', () => {
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 
+  it('renders nothing on a post with no reactions', () => {
+    // The picker trigger lives in the action row now, so an unreacted post must
+    // not leave an empty chip row (and its top margin) behind.
+    const { container } = render(
+      <ReactionRow state={readOnlyReactionState(statusWith([]), true)} />
+    )
+
+    expect(container).toBeEmptyDOMElement()
+  })
+
   it('never truncates away the viewer own reaction', () => {
     // 12 older reactions fill the row; the viewer's own is the 13th and, being
     // newest, sorts last in the rollups.

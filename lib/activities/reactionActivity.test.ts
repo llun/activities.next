@@ -1,4 +1,5 @@
 import {
+  REACTION_CONTEXT,
   getReactionContent,
   getReactionEmojiTag,
   reactionActivityId
@@ -16,6 +17,20 @@ const customEmoji: CustomEmojiData = {
   createdAt: 1700000000000,
   updatedAt: 1700000000000
 }
+
+describe('REACTION_CONTEXT', () => {
+  it('declares the terms a Misskey-style reaction needs', () => {
+    // Receivers only read `_misskey_reaction` and the `Emoji` tag when the
+    // context defines them; dropping either silently degrades the reaction.
+    expect(REACTION_CONTEXT[0]).toBe('https://www.w3.org/ns/activitystreams')
+    expect(REACTION_CONTEXT[1]).toEqual({
+      misskey: 'https://misskey-hub.net/ns#',
+      _misskey_reaction: 'misskey:_misskey_reaction',
+      toot: 'http://joinmastodon.org/ns#',
+      Emoji: 'toot:Emoji'
+    })
+  })
+})
 
 describe('reactionActivityId', () => {
   const hash = (value: string) => `h(${value})`

@@ -158,6 +158,20 @@ describe('wellknown services', () => {
       expect(oauth.scopes_supported).not.toContain('offline_access')
     })
 
+    it('includes a literal claims_supported list', () => {
+      const config = getOpenIDConfiguration()
+
+      expect(config.claims_supported).toEqual([
+        'sub',
+        'name',
+        'preferred_username',
+        'picture',
+        'profile',
+        'email',
+        'email_verified'
+      ])
+    })
+
     it('advertises a provided baseURL host (issuer + endpoints) for a served alias domain', () => {
       const config = getOpenIDConfiguration('https://alias.example.com')
 
@@ -181,6 +195,15 @@ describe('wellknown services', () => {
   })
 
   describe('getHostMetaXML', () => {
+    it('returns valid XRD XML', () => {
+      const xml = getHostMetaXML()
+
+      expect(xml).toContain(
+        '<XRD xmlns="http://docs.oasis-open.org/ns/xri/xrd-1.0">'
+      )
+      expect(xml).toContain('rel="lrdd"')
+    })
+
     it('points WebFinger at the base URL it is given', () => {
       expect(getHostMetaXML('https://alias.example.com')).toContain(
         'template="https://alias.example.com/.well-known/webfinger?resource={uri}"'

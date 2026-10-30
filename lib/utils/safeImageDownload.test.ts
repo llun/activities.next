@@ -8,6 +8,7 @@ import {
   isRestrictedDownloadHostname,
   safeImageFetch
 } from './safeImageDownload'
+import { DEFAULT_SAFE_REMOTE_FETCH_MAX_REDIRECTS } from './safeRemoteFetch'
 import { isUnsafeAddress } from './unsafeAddress'
 
 // `node:dns/promises` is already mocked globally in `test/setup/vitest.setup.ts`; this
@@ -54,6 +55,18 @@ describe('isRestrictedDownloadHostname', () => {
     }
   ])('$description', ({ hostname, expected }) => {
     expect(isRestrictedDownloadHostname(hostname)).toBe(expected)
+  })
+})
+
+describe('MAX_SAFE_IMAGE_REDIRECTS', () => {
+  it('tracks the ceiling safeRemoteFetch applies', () => {
+    expect(MAX_SAFE_IMAGE_REDIRECTS).toBe(
+      DEFAULT_SAFE_REMOTE_FETCH_MAX_REDIRECTS
+    )
+  })
+
+  it('stays a small number', () => {
+    expect(MAX_SAFE_IMAGE_REDIRECTS).toBe(3)
   })
 })
 
