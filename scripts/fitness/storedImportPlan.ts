@@ -1,8 +1,8 @@
 import {
   FitnessOverlapActivity,
+  assignActivitiesToStatusIds,
   getOverlapContextFitnessFileIds,
-  groupFitnessActivitiesByOverlap,
-  selectMostOverlappingStatusId
+  groupFitnessActivitiesByOverlap
 } from '@/lib/jobs/fitnessImportOverlap'
 import { FitnessFile } from '@/lib/types/database/fitnessFile'
 
@@ -137,7 +137,7 @@ export const buildStoredImportPlan = ({
 
     // A group can reach more than one post (one long recording covering two
     // existing posts, or the duplicate posts this script repairs). The job
-    // then sends the targets to the post they overlap most, a tie going to the
+    // then sends each target to the post IT overlaps most, a tie going to the
     // earliest by sortFilesByActivityStart's order (start time, then
     // createdAt, then id), so mirror both or the plan would predict one post
     // and the run merge into the other.
@@ -155,7 +155,7 @@ export const buildStoredImportPlan = ({
     const groupActivityById = new Map(
       group.map((activity) => [activity.id, activity])
     )
-    const mergeStatusId = selectMostOverlappingStatusId({
+    const statusIdByTargetId = assignActivitiesToStatusIds({
       activities: groupTargets
         .map((file) => groupActivityById.get(file.id))
         .filter((activity): activity is FitnessOverlapActivity =>
@@ -169,10 +169,18 @@ export const buildStoredImportPlan = ({
       })
     })
 
-    groups.push({
-      targetFileNames: groupTargets.map((file) => file.fileName),
-      mergeStatusId
-    })
+    // One plan group per post the targets split across, in first-target order.
+    const targetNamesByStatusId = new Map<string | null, string[]>()
+    for (const file of groupTargets) {
+      const statusId = statusIdByTargetId.get(file.id) ?? null
+      targetNamesByStatusId.set(statusId, [
+        ...(targetNamesByStatusId.get(statusId) ?? []),
+        file.fileName
+      ])
+    }
+    for (const [mergeStatusId, targetFileNames] of targetNamesByStatusId) {
+      groups.push({ targetFileNames, mergeStatusId })
+    }
   }
 
   // A target the parse found no start time or duration for cannot be grouped at

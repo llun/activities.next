@@ -7,8 +7,8 @@ import {
 import { Database } from '@/lib/database/types'
 import { isIsolatedFromFitnessImport } from '@/lib/jobs/fitnessImportIsolation'
 import {
-  groupFitnessActivitiesByOverlap,
-  selectMostOverlappingStatusId
+  assignActivitiesToStatusIds,
+  groupFitnessActivitiesByOverlap
 } from '@/lib/jobs/fitnessImportOverlap'
 import { PROCESS_FITNESS_FILE_JOB_NAME } from '@/lib/jobs/names'
 import { isMovedActor } from '@/lib/services/accounts/movedAccount'
@@ -249,9 +249,10 @@ const toOverlapActivity = (item: ParsedImportFile) =>
  * Overlap grouping is transitive, so one long recording (a trainer session
  * covering a short warm-up route and the main route after it) pulls every post
  * it overlaps into a single group. Each file that already belongs to a post
- * stays in that post's group; the files that have no post yet go together to
- * the post they overlap most (`selectMostOverlappingStatusId`), ties to the
- * earliest. A revision's own status still wins, as in the single-post case.
+ * stays in that post's group; each file that has no post yet (a new
+ * recording) joins the post IT overlaps most (`assignActivitiesToStatusIds`),
+ * ties to the earliest. A revision's own status still takes all of them, as in
+ * the single-post case.
  */
 const splitGroupByExistingStatus = (
   group: ParsedImportFile[],
@@ -270,22 +271,27 @@ const splitGroupByExistingStatus = (
   }
 
   const unassigned = orderedGroup.filter((item) => !item.fitnessFile.statusId)
-  const joinStatusId =
-    statusIds.find((statusId) => revisionStatusIds.has(statusId)) ??
-    selectMostOverlappingStatusId({
-      activities: unassigned
-        .map(toOverlapActivity)
-        .filter((activity) => activity !== null),
-      candidates: orderedGroup.flatMap((item) => {
-        const activity = toOverlapActivity(item)
-        const statusId = item.fitnessFile.statusId
-        return activity && statusId ? [{ ...activity, statusId }] : []
+  const revisionStatusId = statusIds.find((statusId) =>
+    revisionStatusIds.has(statusId)
+  )
+  const assigned = revisionStatusId
+    ? new Map<string, string | null>()
+    : assignActivitiesToStatusIds({
+        activities: unassigned
+          .map(toOverlapActivity)
+          .filter((activity) => activity !== null),
+        candidates: orderedGroup.flatMap((item) => {
+          const activity = toOverlapActivity(item)
+          const statusId = item.fitnessFile.statusId
+          return activity && statusId ? [{ ...activity, statusId }] : []
+        })
       })
-    })
+  const joinedStatusId = (item: ParsedImportFile) =>
+    revisionStatusId ?? assigned.get(item.fitnessFile.id) ?? statusIds[0]
 
   return statusIds.map((statusId) => [
     ...orderedGroup.filter((item) => item.fitnessFile.statusId === statusId),
-    ...(statusId === joinStatusId ? unassigned : [])
+    ...unassigned.filter((item) => joinedStatusId(item) === statusId)
   ])
 }
 

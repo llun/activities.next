@@ -123,7 +123,7 @@ const getOverlapRatio = (
  * file of that post, summed over the recordings — and a tie goes to the post
  * listed first. `candidates` must therefore be in the caller's preference
  * order (the import job's activity-start order). Returns null when there is no
- * candidate.
+ * candidate. Call it with a single activity for one recording's own pick.
  */
 export const selectMostOverlappingStatusId = ({
   activities,
@@ -161,6 +161,36 @@ export const selectMostOverlappingStatusId = ({
     }
   }
   return selected
+}
+
+/**
+ * Assigns each new recording to the existing post IT overlaps most (its largest
+ * overlap with any file of that post, a tie going to the earliest candidate).
+ * A recording that overlaps no candidate directly — it reached the group only
+ * through another new recording — follows the post the combined score of all
+ * the new recordings picks. The value is null only when there is no candidate.
+ */
+export const assignActivitiesToStatusIds = ({
+  activities,
+  candidates
+}: {
+  activities: FitnessOverlapActivity[]
+  candidates: (FitnessOverlapActivity & { statusId: string })[]
+}): Map<string, string | null> => {
+  const combinedStatusId = selectMostOverlappingStatusId({
+    activities,
+    candidates
+  })
+  return new Map(
+    activities.map((activity) => [
+      activity.id,
+      candidates.some(
+        (candidate) => getOverlapDurationMs(activity, candidate) > 0
+      )
+        ? selectMostOverlappingStatusId({ activities: [activity], candidates })
+        : combinedStatusId
+    ])
+  )
 }
 
 class UnionFind {

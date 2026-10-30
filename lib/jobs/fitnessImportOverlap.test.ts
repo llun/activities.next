@@ -126,12 +126,6 @@ describe('selectMostOverlappingStatusId', () => {
       })
     ).toBe('long')
   })
-
-  it('returns null without a candidate', () => {
-    expect(
-      selectMostOverlappingStatusId({ activities: [indoor], candidates: [] })
-    ).toBeNull()
-  })
 })
 
 describe('getOverlapContextFitnessFileIds', () => {

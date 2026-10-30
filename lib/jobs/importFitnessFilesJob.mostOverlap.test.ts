@@ -188,40 +188,76 @@ describe('importFitnessFiles same-ride merge with several existing posts', () =>
     )
   })
 
-  it('ties go to the earliest existing post', async () => {
-    // Two existing posts of 600 s each, back to back, both fully inside a new
-    // 1,200 s recording: equal overlap, so the earlier post wins.
-    const first = await importOne({
-      name: 'most-overlap-tie-first',
-      activity: {
-        ...lakePukaki,
-        totalDurationSeconds: 600,
-        startTime: new Date('2026-10-29T10:00:00.000Z')
-      }
+  it('sends each new recording to the post it overlaps most', async () => {
+    const pukaki = await importOne({
+      name: 'per-file-pukaki',
+      activity: lakePukaki
     })
-    const second = await importOne({
-      name: 'most-overlap-tie-second',
-      activity: {
-        ...lakePukaki,
-        totalDurationSeconds: 600,
-        startTime: new Date('2026-10-29T10:10:00.000Z')
-      },
-      overlapFitnessFileIds: [first.fileId]
+    const slovenia = await importOne({
+      name: 'per-file-slovenia',
+      activity: tourOfSlovenia,
+      overlapFitnessFileIds: [pukaki.fileId]
     })
-    expect(second.statusId).not.toBe(first.statusId)
+    expect(slovenia.statusId).not.toBe(pukaki.statusId)
 
-    const whole = await importOne({
-      name: 'most-overlap-tie-whole',
-      activity: {
-        ...indoorCycling,
-        totalDurationSeconds: 1_200,
-        startTime: new Date('2026-10-29T10:00:00.000Z')
-      },
-      overlapFitnessFileIds: [second.fileId, first.fileId]
+    // One run: the trainer recording covers both posts, a second-device copy
+    // of the warm-up overlaps only the warm-up.
+    const trainer = await createFitnessFile(
+      'tcx',
+      'fitness/per-file-trainer.tcx',
+      'per-file-trainer'
+    )
+    const warmupCopy = await createFitnessFile(
+      'tcx',
+      'fitness/per-file-warmup-copy.tcx',
+      'per-file-warmup-copy'
+    )
+    mockParseFitnessFile
+      .mockResolvedValueOnce(indoorCycling)
+      .mockResolvedValueOnce({
+        ...lakePukaki,
+        startTime: new Date('2026-10-30T17:15:21.000Z')
+      })
+    await importFitnessFiles(database, {
+      actorId: actor.id,
+      batchId: 'per-file-run',
+      fitnessFileIds: [trainer!.id, warmupCopy!.id],
+      overlapFitnessFileIds: [pukaki.fileId, slovenia.fileId],
+      visibility: 'public'
     })
 
-    expect(whole.statusId).toBe(first.statusId)
-    expect(await fileStatusId(second.fileId)).toBe(second.statusId)
+    expect(await fileStatusId(trainer!.id)).toBe(slovenia.statusId)
+    expect(await fileStatusId(warmupCopy!.id)).toBe(pukaki.statusId)
+  })
+
+  it('lands a revision on its own post even when another post overlaps more', async () => {
+    const pukaki = await importOne({
+      name: 'revision-pukaki',
+      activity: lakePukaki
+    })
+    const slovenia = await importOne({
+      name: 'revision-slovenia',
+      activity: tourOfSlovenia,
+      overlapFitnessFileIds: [pukaki.fileId]
+    })
+    const indoor = await createFitnessFile(
+      'tcx',
+      'fitness/revision-indoor.tcx',
+      'revision-indoor'
+    )
+    mockParseFitnessFile.mockResolvedValueOnce(indoorCycling)
+    const groups = await importFitnessFiles(database, {
+      actorId: actor.id,
+      batchId: 'revision-run',
+      fitnessFileIds: [indoor!.id],
+      overlapFitnessFileIds: [pukaki.fileId, slovenia.fileId],
+      expectedExistingStatusId: pukaki.statusId,
+      visibility: 'public'
+    })
+
+    expect(groups.map((group) => group.statusId)).toEqual([pukaki.statusId])
+    expect(await fileStatusId(indoor!.id)).toBe(pukaki.statusId)
+    expect(await fileStatusId(slovenia.fileId)).toBe(slovenia.statusId)
   })
 
   it('never moves a re-imported file off the post it already belongs to', async () => {
