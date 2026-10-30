@@ -168,7 +168,10 @@ export const getProfileIdentity = async (
     database,
     actorHandle,
     isLoggedIn,
-    options
+    options,
+    // The identity is returned without `statuses`, so paying for the stored
+    // viewer-state overlay on them buys nothing.
+    { skipViewerStateOverlay: true }
   )
   if (!remoteProfile) return null
   return {
@@ -362,7 +365,8 @@ const getRemoteProfileData = async (
   database: Database,
   actorHandle: string,
   isLoggedIn: boolean,
-  options: ProfileDataOptions
+  options: ProfileDataOptions,
+  { skipViewerStateOverlay }: { skipViewerStateOverlay?: boolean } = {}
 ): Promise<ProfileData | null> => {
   // Remote actors: only fetch if user is logged in
   if (!isLoggedIn) {
@@ -547,12 +551,15 @@ const getRemoteProfileData = async (
 
   // The live outbox does not carry the viewer's like/bookmark state; overlay
   // what the stored rows say. With no viewer the helper returns the statuses
-  // unchanged.
-  const statuses = await overlayStoredViewerState({
-    database,
-    currentActor: options.currentActor,
-    statuses: actorPostsResponse.statuses
-  })
+  // unchanged. A caller that discards the statuses (the followers/following
+  // identity) skips the stored-row lookup entirely.
+  const statuses = skipViewerStateOverlay
+    ? actorPostsResponse.statuses
+    : await overlayStoredViewerState({
+        database,
+        currentActor: options.currentActor,
+        statuses: actorPostsResponse.statuses
+      })
 
   const resolvedStatusesCount =
     collectionCounts.statusesCount ??

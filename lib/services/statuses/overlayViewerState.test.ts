@@ -2,20 +2,17 @@ import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/types/domain/actor'
 import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import { logger } from '@/lib/utils/logger'
 
 import { overlayStoredViewerState } from './overlayViewerState'
 
-// Stand-in for the real access check: a stored row is readable when it is
-// publicly addressed, which is all the overlay behaviour under test relies on.
-vi.mock('@/lib/services/statusRouteAccess', () => ({
-  filterReadableStatuses: vi.fn(async ({ statuses }: { statuses: Status[] }) =>
-    statuses.filter((status) => status.to.includes(ACTIVITY_STREAM_PUBLIC))
-  )
-}))
-
 const mockGetStatusesByIds = vi.fn()
+// The access check in statusRouteAccess resolves the follower state through
+// this batched lookup; a non-following viewer is the empty array.
+const mockGetAcceptedFollowTargetActorIds = vi.fn()
 const mockDatabase = {
-  getStatusesByIds: mockGetStatusesByIds
+  getStatusesByIds: mockGetStatusesByIds,
+  getAcceptedFollowTargetActorIds: mockGetAcceptedFollowTargetActorIds
 } as unknown as Database
 
 const currentActor = {
@@ -57,6 +54,7 @@ describe('overlayStoredViewerState', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetStatusesByIds.mockResolvedValue([])
+    mockGetAcceptedFollowTargetActorIds.mockResolvedValue([])
   })
 
   it('a stored, liked status keeps its live text and attachments', async () => {
@@ -314,5 +312,201 @@ describe('overlayStoredViewerState', () => {
     expect(note.actorAnnounceStatusId).toBeNull()
     expect(note.totalLikes).toBe(0)
     expect(note.reactions).toBeUndefined()
+  })
+
+  it('a stored followers-only row is not overlaid when the viewer does not follow the author', async () => {
+    const liveStatusId = `${actorId}/statuses/followers-not-following`
+    const live = liveNote(liveStatusId, {
+      text: 'Followers only',
+      summary: null,
+      totalLikes: 2
+    })
+
+    mockGetStatusesByIds.mockResolvedValueOnce([
+      {
+        id: liveStatusId,
+        actorId,
+        to: [`${actorId}/followers`],
+        cc: [],
+        type: StatusType.enum.Note,
+        isActorLiked: true,
+        isActorBookmarked: true,
+        actorAnnounceStatusId: 'https://local.example/statuses/announce-fo',
+        totalLikes: 9,
+        reactions: [
+          {
+            name: '🎉',
+            count: 3,
+            me: true,
+            url: null,
+            static_url: null
+          }
+        ]
+      }
+    ])
+    mockGetAcceptedFollowTargetActorIds.mockResolvedValueOnce([])
+
+    const result = await overlayStoredViewerState({
+      database: mockDatabase,
+      currentActor,
+      statuses: [live]
+    })
+
+    const note = result[0] as StatusNote
+    expect(note.isActorLiked).toBe(false)
+    expect(note.isActorBookmarked).toBe(false)
+    expect(note.actorAnnounceStatusId).toBeNull()
+    expect(note.totalLikes).toBe(2)
+    expect(note.reactions).toBeUndefined()
+  })
+
+  it('a stored followers-only row is overlaid when the viewer follows the author', async () => {
+    const liveStatusId = `${actorId}/statuses/followers-following`
+    const live = liveNote(liveStatusId, {
+      text: 'Followers only',
+      summary: null,
+      totalLikes: 2
+    })
+    const storedReactions = [
+      {
+        name: '🎉',
+        count: 3,
+        me: true,
+        url: null,
+        static_url: null
+      }
+    ]
+
+    mockGetStatusesByIds.mockResolvedValueOnce([
+      {
+        id: liveStatusId,
+        actorId,
+        to: [`${actorId}/followers`],
+        cc: [],
+        type: StatusType.enum.Note,
+        isActorLiked: true,
+        isActorBookmarked: true,
+        actorAnnounceStatusId: 'https://local.example/statuses/announce-fo',
+        totalLikes: 9,
+        reactions: storedReactions
+      }
+    ])
+    mockGetAcceptedFollowTargetActorIds.mockResolvedValueOnce([actorId])
+
+    const result = await overlayStoredViewerState({
+      database: mockDatabase,
+      currentActor,
+      statuses: [live]
+    })
+
+    const note = result[0] as StatusNote
+    expect(note.isActorLiked).toBe(true)
+    expect(note.isActorBookmarked).toBe(true)
+    expect(note.actorAnnounceStatusId).toBe(
+      'https://local.example/statuses/announce-fo'
+    )
+    // The stored count only fills in when the live count is 0.
+    expect(note.totalLikes).toBe(2)
+    expect(note.reactions).toEqual(storedReactions)
+  })
+
+  it('a failing getStatusesByIds returns the live statuses and logs the error', async () => {
+    const liveStatusId = `${actorId}/statuses/db-error`
+    const live = liveNote(liveStatusId, {
+      text: 'Live note text',
+      summary: null
+    })
+    const loggerError = vi
+      .spyOn(logger, 'error')
+      .mockImplementation(() => undefined)
+    mockGetStatusesByIds.mockRejectedValueOnce(
+      new Error('database unavailable')
+    )
+
+    const result = await overlayStoredViewerState({
+      database: mockDatabase,
+      currentActor,
+      statuses: [live]
+    })
+
+    expect(result).toEqual([live])
+    expect(loggerError).toHaveBeenCalledWith({
+      message: 'Failed to overlay viewer state on live statuses',
+      err: expect.any(Error)
+    })
+  })
+
+  it('a liked post with a live totalLikes > 0 keeps its live count', async () => {
+    const liveStatusId = `${actorId}/statuses/live-count-wins`
+    const live = liveNote(liveStatusId, {
+      text: 'Live note text',
+      summary: null,
+      totalLikes: 5
+    })
+
+    mockGetStatusesByIds.mockResolvedValueOnce([
+      {
+        id: liveStatusId,
+        actorId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        type: StatusType.enum.Note,
+        isActorLiked: true,
+        isActorBookmarked: false,
+        actorAnnounceStatusId: null,
+        totalLikes: 10
+      }
+    ])
+
+    const result = await overlayStoredViewerState({
+      database: mockDatabase,
+      currentActor,
+      statuses: [live]
+    })
+
+    const note = result[0] as StatusNote
+    expect(note.isActorLiked).toBe(true)
+    expect(note.totalLikes).toBe(5)
+  })
+
+  it('stored reactions are applied when present', async () => {
+    const liveStatusId = `${actorId}/statuses/stored-reactions`
+    const live = liveNote(liveStatusId, {
+      text: 'Live note text',
+      summary: null
+    })
+    const storedReactions = [
+      {
+        name: '🔥',
+        count: 4,
+        me: false,
+        url: null,
+        static_url: null
+      }
+    ]
+
+    mockGetStatusesByIds.mockResolvedValueOnce([
+      {
+        id: liveStatusId,
+        actorId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        type: StatusType.enum.Note,
+        isActorLiked: false,
+        isActorBookmarked: false,
+        actorAnnounceStatusId: null,
+        totalLikes: 0,
+        reactions: storedReactions
+      }
+    ])
+
+    const result = await overlayStoredViewerState({
+      database: mockDatabase,
+      currentActor,
+      statuses: [live]
+    })
+
+    const note = result[0] as StatusNote
+    expect(note.reactions).toEqual(storedReactions)
   })
 })

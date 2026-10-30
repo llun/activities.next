@@ -30,7 +30,7 @@ import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getPersonFromActor } from '@/lib/utils/getPersonFromActor'
 
-import { getProfileData } from './getProfileData'
+import { getProfileData, getProfileIdentity } from './getProfileData'
 
 // Mock dependencies via Jest module name mapper aliases
 vi.mock('@/lib/activities/getActorCollectionCounts')
@@ -1312,6 +1312,110 @@ describe('getProfileData', () => {
         expect(note.isActorLiked).toBe(false)
         expect(note.isActorBookmarked).toBe(false)
       })
+    })
+
+    // `getProfileIdentity` returns no statuses, so it must not pay for the
+    // stored viewer-state overlay on them.
+    describe('profile identity', () => {
+      const viewer = {
+        id: 'viewer-actor-id',
+        username: 'viewer',
+        domain: 'example.com'
+      } as unknown as DomainActor
+
+      const liveNote: Status = {
+        id: 'https://remote.com/users/remoteuser/statuses/live-1',
+        actorId: 'https://remote.com/users/remoteuser',
+        actor: null,
+        to: [],
+        cc: [],
+        edits: [],
+        isLocalActor: false,
+        createdAt: 100,
+        updatedAt: 100,
+        type: StatusType.enum.Note,
+        url: 'https://remote.com/users/remoteuser/statuses/live-1',
+        text: 'Live status content',
+        summary: null,
+        reply: '',
+        replies: [],
+        actorAnnounceStatusId: null,
+        isActorLiked: false,
+        isActorBookmarked: false,
+        totalLikes: 0,
+        totalShares: 0,
+        attachments: [],
+        tags: []
+      }
+
+      it('never calls getStatusesByIds, even for a signed-in viewer', async () => {
+        ;(getActorPosts as jest.Mock).mockResolvedValueOnce({
+          statuses: [liveNote],
+          statusesCount: 1
+        })
+
+        const result = await getProfileIdentity(
+          mockDatabase,
+          '@remoteuser@remote.com',
+          true,
+          { currentActor: viewer }
+        )
+
+        expect(result).not.toBeNull()
+        expect(result?.person.id).toBe(mockPerson.id)
+        expect(mockDatabase.getStatusesByIds).not.toHaveBeenCalled()
+      })
+    })
+
+    // The overlay is best-effort: a failed stored-row lookup must not fail the
+    // profile, it just leaves the live flags as the outbox reported them.
+    it('returns the live statuses when getStatusesByIds rejects', async () => {
+      const viewer = {
+        id: 'viewer-actor-id',
+        username: 'viewer',
+        domain: 'example.com'
+      } as unknown as DomainActor
+      const liveNote: Status = {
+        id: 'https://remote.com/users/remoteuser/statuses/live-2',
+        actorId: 'https://remote.com/users/remoteuser',
+        actor: null,
+        to: [],
+        cc: [],
+        edits: [],
+        isLocalActor: false,
+        createdAt: 100,
+        updatedAt: 100,
+        type: StatusType.enum.Note,
+        url: 'https://remote.com/users/remoteuser/statuses/live-2',
+        text: 'Live status content',
+        summary: null,
+        reply: '',
+        replies: [],
+        actorAnnounceStatusId: null,
+        isActorLiked: false,
+        isActorBookmarked: false,
+        totalLikes: 0,
+        totalShares: 0,
+        attachments: [],
+        tags: []
+      }
+      ;(getActorPosts as jest.Mock).mockResolvedValueOnce({
+        statuses: [liveNote],
+        statusesCount: 1
+      })
+      ;(mockDatabase.getStatusesByIds as jest.Mock).mockRejectedValueOnce(
+        new Error('stored row lookup failed')
+      )
+
+      const result = await getProfileData(
+        mockDatabase,
+        '@remoteuser@remote.com',
+        true,
+        { currentActor: viewer }
+      )
+
+      expect(mockDatabase.getStatusesByIds).toHaveBeenCalled()
+      expect(result?.statuses).toEqual([liveNote])
     })
 
     // A remote actor's attachments are whatever their statuses brought here
