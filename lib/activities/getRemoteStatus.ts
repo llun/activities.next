@@ -32,26 +32,24 @@ const hasPublicAudience = (value: BaseNote['to'] | BaseNote['cc']) => {
   )
 }
 
-export const getRemoteStatus = async ({
-  statusId,
-  signingActor
-}: GetRemoteStatusParams): Promise<StatusNote | null> => {
-  let remoteNote: Awaited<ReturnType<typeof getNote>>
-  try {
-    remoteNote = await getNote({ statusId, signingActor })
-  } catch (error) {
-    logger.error({
-      message: 'Failed to fetch remote note',
-      err: toLoggableError(error)
-    })
-    return null
-  }
-  if (!remoteNote) return null
+export type EphemeralStatusFromNoteParams = {
+  note: BaseNote
+  signingActor?: DomainActor
+}
 
+/**
+ * Convert an already-fetched remote note into an ephemeral (unpersisted)
+ * StatusNote: parse/canonicalise, require a public audience, convert, then
+ * attach content-detected language and the author profile. Shared by
+ * getRemoteStatus (which fetches first) and callers that received the note
+ * from elsewhere and must not re-fetch the same URL.
+ */
+export const ephemeralStatusFromNote = async ({
+  note,
+  signingActor
+}: EphemeralStatusFromNoteParams): Promise<StatusNote | null> => {
   // getNote already canonicalises the fetched note via JSON-LD compaction.
-  const noteResult = BaseNoteSchema.safeParse(
-    normalizeActivityPubContent(remoteNote)
-  )
+  const noteResult = BaseNoteSchema.safeParse(normalizeActivityPubContent(note))
   if (!noteResult.success) {
     logger.error({
       message: 'Failed to parse remote note',
@@ -60,14 +58,14 @@ export const getRemoteStatus = async ({
     return null
   }
 
-  const note = noteResult.data
-  if (!hasPublicAudience(note.to) && !hasPublicAudience(note.cc)) {
+  const parsed = noteResult.data
+  if (!hasPublicAudience(parsed.to) && !hasPublicAudience(parsed.cc)) {
     return null
   }
 
   let status: StatusNote
   try {
-    status = fromNote(note)
+    status = fromNote(parsed)
   } catch (error) {
     logger.error({
       message: 'Failed to convert note to status',
@@ -93,4 +91,23 @@ export const getRemoteStatus = async ({
   status.actor = actorPerson ? getActorProfileFromPerson(actorPerson) : null
 
   return status
+}
+
+export const getRemoteStatus = async ({
+  statusId,
+  signingActor
+}: GetRemoteStatusParams): Promise<StatusNote | null> => {
+  let remoteNote: Awaited<ReturnType<typeof getNote>>
+  try {
+    remoteNote = await getNote({ statusId, signingActor })
+  } catch (error) {
+    logger.error({
+      message: 'Failed to fetch remote note',
+      err: toLoggableError(error)
+    })
+    return null
+  }
+  if (!remoteNote) return null
+
+  return ephemeralStatusFromNote({ note: remoteNote, signingActor })
 }

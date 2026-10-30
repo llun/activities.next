@@ -22,7 +22,9 @@ const mockGetWebfingerSelf = vi.fn()
 const mockGetActorPerson = vi.fn()
 const mockRecordActorIfNeeded = vi.fn()
 const mockGetRemoteStatus = vi.fn()
+const mockEphemeralStatusFromNote = vi.fn()
 const mockGetReadableStatusForAction = vi.fn()
+const mockGetReadableStatusAndFetchedNoteForAction = vi.fn()
 const mockGetFederationSigningActor = vi.fn()
 const mockLoggerWarn = vi.fn()
 const mockGetActorIdByPublicId = vi.fn()
@@ -102,12 +104,16 @@ vi.mock('@/lib/activities/getActorPerson', () => ({
 }))
 
 vi.mock('@/lib/activities/getRemoteStatus', () => ({
-  getRemoteStatus: (...args: unknown[]) => mockGetRemoteStatus(...args)
+  getRemoteStatus: (...args: unknown[]) => mockGetRemoteStatus(...args),
+  ephemeralStatusFromNote: (...args: unknown[]) =>
+    mockEphemeralStatusFromNote(...args)
 }))
 
 vi.mock('@/lib/services/statuses/getReadableStatusForAction', () => ({
   getReadableStatusForAction: (...args: unknown[]) =>
-    mockGetReadableStatusForAction(...args)
+    mockGetReadableStatusForAction(...args),
+  getReadableStatusAndFetchedNoteForAction: (...args: unknown[]) =>
+    mockGetReadableStatusAndFetchedNoteForAction(...args)
 }))
 
 vi.mock('@/lib/actions/utils', () => ({
@@ -201,9 +207,13 @@ describe('GET /api/v2/search', () => {
     mockGetActorPerson.mockResolvedValue(null)
     mockRecordActorIfNeeded.mockResolvedValue(null)
     mockGetRemoteStatus.mockResolvedValue(null)
-    // Default to the helper refusing: the ephemeral fallback tests below then
-    // exercise exactly the pre-existing getRemoteStatus behaviour.
-    mockGetReadableStatusForAction.mockResolvedValue(null)
+    // Default to the helper refusing with no note: the route then returns null
+    // with no fallback fetch (the helper is the only remote fetch left).
+    mockGetReadableStatusAndFetchedNoteForAction.mockResolvedValue({
+      status: null,
+      fetchedNote: null
+    })
+    mockEphemeralStatusFromNote.mockResolvedValue(null)
     mockGetFederationSigningActor.mockResolvedValue(mockInstanceActor)
   })
 
@@ -561,13 +571,18 @@ describe('GET /api/v2/search', () => {
     )
   })
 
-  it('resolves uncached remote status URLs', async () => {
+  it('resolves uncached remote status URLs through the store-first helper', async () => {
     const statusUrl = 'http://remote.test/users/alice/statuses/remote'
+    const fetchedNote = { id: statusUrl, type: 'Note' }
     const remoteStatus = {
       id: statusUrl,
       actorId: 'https://remote.test/users/alice'
     }
-    mockGetRemoteStatus.mockResolvedValue(remoteStatus)
+    mockGetReadableStatusAndFetchedNoteForAction.mockResolvedValue({
+      status: null,
+      fetchedNote
+    })
+    mockEphemeralStatusFromNote.mockResolvedValue(remoteStatus)
     mockRecordActorIfNeeded.mockResolvedValue({
       id: remoteStatus.actorId
     })
@@ -580,14 +595,21 @@ describe('GET /api/v2/search', () => {
       ),
       context
     )
+    const data = await response.json()
 
     expect(response.status).toBe(200)
-    // Remote status + actor resolution are server-to-server fetches signed by
-    // the instance actor, not the viewer.
-    expect(mockGetRemoteStatus).toHaveBeenCalledWith({
+    expect(mockGetReadableStatusAndFetchedNoteForAction).toHaveBeenCalledWith({
+      database: expect.any(Object),
       statusId: statusUrl,
+      currentActor: oauthActor
+    })
+    // The note the helper fetched is converted locally, signed by the
+    // instance actor — there is no second fetch of the same URL.
+    expect(mockEphemeralStatusFromNote).toHaveBeenCalledWith({
+      note: fetchedNote,
       signingActor: mockInstanceActor
     })
+    expect(mockGetRemoteStatus).not.toHaveBeenCalled()
     expect(mockRecordActorIfNeeded).toHaveBeenCalledWith({
       actorId: remoteStatus.actorId,
       database: expect.any(Object),
@@ -598,16 +620,22 @@ describe('GET /api/v2/search', () => {
       [remoteStatus],
       oauthActor.id
     )
+    expect(data.statuses).toEqual([{ id: statusUrl, content: statusUrl }])
   })
 
   it('resolves remote statuses unsigned and warns when the signing actor cannot be resolved', async () => {
     const statusUrl = 'http://remote.test/users/alice/statuses/remote'
+    const fetchedNote = { id: statusUrl, type: 'Note' }
     const remoteStatus = {
       id: statusUrl,
       actorId: 'https://remote.test/users/alice'
     }
     mockGetFederationSigningActor.mockRejectedValue(new Error('database down'))
-    mockGetRemoteStatus.mockResolvedValue(remoteStatus)
+    mockGetReadableStatusAndFetchedNoteForAction.mockResolvedValue({
+      status: null,
+      fetchedNote
+    })
+    mockEphemeralStatusFromNote.mockResolvedValue(remoteStatus)
     mockRecordActorIfNeeded.mockResolvedValue({ id: remoteStatus.actorId })
     mockSearchStatusIds.mockResolvedValue([])
 
@@ -622,7 +650,9 @@ describe('GET /api/v2/search', () => {
     expect(response.status).toBe(200)
     // `toHaveBeenCalledWith` treats an omitted key and an explicit `undefined`
     // as equal, so assert the signer directly to prove the fetch is unsigned.
-    expect(mockGetRemoteStatus.mock.calls[0][0].signingActor).toBe(undefined)
+    expect(mockEphemeralStatusFromNote.mock.calls[0][0].signingActor).toBe(
+      undefined
+    )
     expect(mockRecordActorIfNeeded.mock.calls[0][0].signingActor).toBe(
       undefined
     )
@@ -637,12 +667,17 @@ describe('GET /api/v2/search', () => {
 
   it('resolves remote statuses unsigned without warning when no signing actor exists', async () => {
     const statusUrl = 'http://remote.test/users/alice/statuses/remote'
+    const fetchedNote = { id: statusUrl, type: 'Note' }
     const remoteStatus = {
       id: statusUrl,
       actorId: 'https://remote.test/users/alice'
     }
     mockGetFederationSigningActor.mockResolvedValue(undefined)
-    mockGetRemoteStatus.mockResolvedValue(remoteStatus)
+    mockGetReadableStatusAndFetchedNoteForAction.mockResolvedValue({
+      status: null,
+      fetchedNote
+    })
+    mockEphemeralStatusFromNote.mockResolvedValue(remoteStatus)
     mockRecordActorIfNeeded.mockResolvedValue({ id: remoteStatus.actorId })
     mockSearchStatusIds.mockResolvedValue([])
 
@@ -655,7 +690,9 @@ describe('GET /api/v2/search', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(mockGetRemoteStatus.mock.calls[0][0].signingActor).toBe(undefined)
+    expect(mockEphemeralStatusFromNote.mock.calls[0][0].signingActor).toBe(
+      undefined
+    )
     expect(mockRecordActorIfNeeded.mock.calls[0][0].signingActor).toBe(
       undefined
     )
@@ -664,11 +701,16 @@ describe('GET /api/v2/search', () => {
 
   it('omits resolved remote statuses when actor recording fails', async () => {
     const statusUrl = 'http://remote.test/users/alice/statuses/remote'
+    const fetchedNote = { id: statusUrl, type: 'Note' }
     const remoteStatus = {
       id: statusUrl,
       actorId: 'https://remote.test/users/alice'
     }
-    mockGetRemoteStatus.mockResolvedValue(remoteStatus)
+    mockGetReadableStatusAndFetchedNoteForAction.mockResolvedValue({
+      status: null,
+      fetchedNote
+    })
+    mockEphemeralStatusFromNote.mockResolvedValue(remoteStatus)
     mockRecordActorIfNeeded.mockRejectedValue(new Error('blocked'))
     mockSearchStatusIds.mockResolvedValue([])
 
@@ -699,7 +741,10 @@ describe('GET /api/v2/search', () => {
       id: 'https://remote.test/users/alice/statuses/stored',
       actorId: 'https://remote.test/users/alice'
     }
-    mockGetReadableStatusForAction.mockResolvedValue(storedStatus)
+    mockGetReadableStatusAndFetchedNoteForAction.mockResolvedValue({
+      status: storedStatus,
+      fetchedNote: null
+    })
     mockSearchStatusIds.mockResolvedValue([])
 
     const response = await GET(
@@ -712,13 +757,14 @@ describe('GET /api/v2/search', () => {
     const data = await response.json()
 
     expect(response.status).toBe(200)
-    expect(mockGetReadableStatusForAction).toHaveBeenCalledWith({
+    expect(mockGetReadableStatusAndFetchedNoteForAction).toHaveBeenCalledWith({
       database: expect.any(Object),
       statusId: statusUrl,
       currentActor: oauthActor
     })
-    // The stored path must not fall through to the ephemeral fetch or record
-    // the actor again — storing the note already recorded its author.
+    // The stored path must not fall through to the ephemeral conversion or
+    // record the actor again — storing the note already recorded its author.
+    expect(mockEphemeralStatusFromNote).not.toHaveBeenCalled()
     expect(mockGetRemoteStatus).not.toHaveBeenCalled()
     expect(mockRecordActorIfNeeded).not.toHaveBeenCalled()
     expect(data.statuses).toEqual([
@@ -734,7 +780,10 @@ describe('GET /api/v2/search', () => {
       url: permalink,
       actorId: 'https://remote.test/users/alice'
     }
-    mockGetReadableStatusForAction.mockResolvedValue(storedStatus)
+    mockGetReadableStatusAndFetchedNoteForAction.mockResolvedValue({
+      status: storedStatus,
+      fetchedNote: null
+    })
     mockSearchStatusIds.mockResolvedValue([])
 
     const response = await GET(
@@ -750,21 +799,25 @@ describe('GET /api/v2/search', () => {
     // The viewer searched for the permalink; the helper's same-origin alias
     // fallback re-reads by note.id, so the route passes the permalink through
     // and gets the row stored under the note id back.
-    expect(mockGetReadableStatusForAction).toHaveBeenCalledWith(
+    expect(mockGetReadableStatusAndFetchedNoteForAction).toHaveBeenCalledWith(
       expect.objectContaining({ statusId: permalink })
     )
     expect(mockGetRemoteStatus).not.toHaveBeenCalled()
     expect(data.statuses).toEqual([{ id: noteId, content: noteId }])
   })
 
-  it('falls back to the ephemeral result when the store-first helper refuses', async () => {
+  it('builds the ephemeral status from the fetched note when storing it failed, with no second fetch', async () => {
     const statusUrl = 'http://remote.test/users/alice/statuses/unlisted'
+    const fetchedNote = { id: statusUrl, type: 'Note' }
     const remoteStatus = {
       id: statusUrl,
       actorId: 'https://remote.test/users/alice'
     }
-    mockGetReadableStatusForAction.mockResolvedValue(null)
-    mockGetRemoteStatus.mockResolvedValue(remoteStatus)
+    mockGetReadableStatusAndFetchedNoteForAction.mockResolvedValue({
+      status: null,
+      fetchedNote
+    })
+    mockEphemeralStatusFromNote.mockResolvedValue(remoteStatus)
     mockRecordActorIfNeeded.mockResolvedValue({ id: remoteStatus.actorId })
     mockSearchStatusIds.mockResolvedValue([])
 
@@ -778,17 +831,20 @@ describe('GET /api/v2/search', () => {
     const data = await response.json()
 
     expect(response.status).toBe(200)
-    expect(mockGetRemoteStatus).toHaveBeenCalledWith({
-      statusId: statusUrl,
+    expect(mockEphemeralStatusFromNote).toHaveBeenCalledWith({
+      note: fetchedNote,
       signingActor: mockInstanceActor
     })
+    expect(mockGetRemoteStatus).not.toHaveBeenCalled()
     expect(data.statuses).toEqual([{ id: statusUrl, content: statusUrl }])
   })
 
-  it('returns empty when the helper refuses and the ephemeral fetch finds nothing', async () => {
+  it('returns empty without a fallback fetch when the helper refuses with no note', async () => {
     const statusUrl = 'http://remote.test/users/alice/statuses/gone'
-    mockGetReadableStatusForAction.mockResolvedValue(null)
-    mockGetRemoteStatus.mockResolvedValue(null)
+    mockGetReadableStatusAndFetchedNoteForAction.mockResolvedValue({
+      status: null,
+      fetchedNote: null
+    })
     mockSearchStatusIds.mockResolvedValue([])
 
     const response = await GET(
@@ -802,6 +858,10 @@ describe('GET /api/v2/search', () => {
 
     expect(response.status).toBe(200)
     expect(data.statuses).toEqual([])
+    // A dead or refusing remote means exactly one fetch attempt (inside the
+    // helper): no second getRemoteStatus round trip, no ephemeral conversion.
+    expect(mockGetRemoteStatus).not.toHaveBeenCalled()
+    expect(mockEphemeralStatusFromNote).not.toHaveBeenCalled()
     expect(mockRecordActorIfNeeded).not.toHaveBeenCalled()
     expect(mockGetMastodonStatuses).not.toHaveBeenCalled()
   })
@@ -826,7 +886,8 @@ describe('GET /api/v2/search', () => {
     const data = await response.json()
 
     expect(response.status).toBe(200)
-    expect(mockGetReadableStatusForAction).not.toHaveBeenCalled()
+    expect(mockGetReadableStatusAndFetchedNoteForAction).not.toHaveBeenCalled()
+    expect(mockEphemeralStatusFromNote).not.toHaveBeenCalled()
     expect(mockGetRemoteStatus).not.toHaveBeenCalled()
     expect(data.statuses).toEqual([])
   })
@@ -850,7 +911,7 @@ describe('GET /api/v2/search', () => {
     const data = await response.json()
 
     expect(response.status).toBe(200)
-    expect(mockGetReadableStatusForAction).not.toHaveBeenCalled()
+    expect(mockGetReadableStatusAndFetchedNoteForAction).not.toHaveBeenCalled()
     expect(mockGetRemoteStatus).not.toHaveBeenCalled()
     expect(mockRecordActorIfNeeded).not.toHaveBeenCalled()
     expect(data.statuses).toEqual([
@@ -1504,6 +1565,7 @@ describe('GET /api/v2/search', () => {
     expect(response.status).toBe(200)
     expect(mockGetStatus).not.toHaveBeenCalled()
     expect(mockGetStatusFromUrl).not.toHaveBeenCalled()
+    expect(mockGetReadableStatusAndFetchedNoteForAction).not.toHaveBeenCalled()
     expect(mockGetRemoteStatus).not.toHaveBeenCalled()
     expect(mockGetStatusesByIds).toHaveBeenCalledWith({
       statusIds: ['https://remote.test/users/alice/statuses/1'],

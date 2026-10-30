@@ -7,6 +7,7 @@ import { isActivityPubDocumentResponse } from '@/lib/activities/activityPubRespo
 import { compactActivityPub } from '@/lib/activities/jsonld'
 import { BaseNote, BaseNoteSchema, getUrl } from '@/lib/activities/note'
 import { toCollectionItems } from '@/lib/activities/orderedCollection'
+import { isPubliclyAddressed } from '@/lib/database/domains/status/status'
 import { Database } from '@/lib/database/types'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
@@ -80,10 +81,11 @@ const isAuthoritativeNote = (
   isSameActivityPubOrigin(extractActivityPubId(note.attributedTo), note.id)
 
 // Stores the attachments and tags of a note this job inserted for the first
-// time. Both fetched notes are public here (the guards above refuse the
-// rest), so the hashtag counter can move for them. A failure storing
-// attachments or tags must not lose the already-inserted note nor abort the
-// thread walk, so each step is logged and swallowed.
+// time. Only a publicly addressed note may move the hashtag counter (it is
+// served to anonymous /tags/<tag> visitors), so the counter loop is gated on
+// `isPubliclyAddressed`. A failure storing attachments or tags must not lose
+// the already-inserted note nor abort the thread walk, so each step is logged
+// and swallowed.
 const storeNewNoteSideEffects = async (
   database: Database,
   statusId: string,
@@ -100,8 +102,17 @@ const storeNewNoteSideEffects = async (
   }
   try {
     const hashtags = await persistNoteTags({ database, statusId, note })
-    for (const hashtag of hashtags) {
-      await database.increaseHashtagCounter({ hashtag: hashtag.slice(1) })
+    // The count is served to anonymous /tags/<tag> visitors; a followers-only
+    // or direct note must not move it.
+    if (
+      isPubliclyAddressed({
+        to: toRecipientArray(note.to),
+        cc: toRecipientArray(note.cc)
+      })
+    ) {
+      for (const hashtag of hashtags) {
+        await database.increaseHashtagCounter({ hashtag: hashtag.slice(1) })
+      }
     }
     if (hashtags.length > 0) {
       await database.indexHashtagSearchDocuments({ hashtags })
@@ -164,7 +175,7 @@ const fetchRemoteStatus = async (
 
   let noteWasInserted = false
   try {
-    await database.createNote({
+    const { isNew } = await database.createNoteWithResult({
       id: sanitizedNote.id,
       url: getUrl(sanitizedNote.url) || sanitizedNote.id,
       // The recorded row's id: an alias author (`/@bob`) is stored under the
@@ -182,9 +193,7 @@ const fetchRemoteStatus = async (
         ? new Date(sanitizedNote.published).getTime()
         : Date.now()
     })
-    // createNote throws on a concurrent duplicate, so reaching here means
-    // this call inserted the row and the side effects run exactly once.
-    noteWasInserted = true
+    noteWasInserted = isNew
   } catch {
     // Ignore error if status already exists
   }
@@ -362,36 +371,31 @@ export const fetchRemoteStatusJob = createJobHandle(
           ? Date.now()
           : publishedTime
 
-        let replyWasInserted = false
         try {
-          await database.createNote({
-            id: sanitizedReply.id,
-            url: getUrl(sanitizedReply.url) || sanitizedReply.id,
-            actorId: actor.id,
-            text: Array.isArray(sanitizedReply.content)
-              ? sanitizedReply.content.join('')
-              : sanitizedReply.content || '',
-            summary: sanitizedReply.summary || '',
-            sensitive: sanitizedReply.sensitive === true,
-            to: toRecipientArray(sanitizedReply.to),
-            cc: toRecipientArray(sanitizedReply.cc),
-            reply: sanitizedReply.inReplyTo || '',
-            createdAt
-          })
-          // createNote throws on a concurrent duplicate, so reaching here
-          // means this call inserted the row and the side effects run exactly
-          // once.
-          replyWasInserted = true
+          const { isNew: replyWasInserted } =
+            await database.createNoteWithResult({
+              id: sanitizedReply.id,
+              url: getUrl(sanitizedReply.url) || sanitizedReply.id,
+              actorId: actor.id,
+              text: Array.isArray(sanitizedReply.content)
+                ? sanitizedReply.content.join('')
+                : sanitizedReply.content || '',
+              summary: sanitizedReply.summary || '',
+              sensitive: sanitizedReply.sensitive === true,
+              to: toRecipientArray(sanitizedReply.to),
+              cc: toRecipientArray(sanitizedReply.cc),
+              reply: sanitizedReply.inReplyTo || '',
+              createdAt
+            })
+          if (replyWasInserted) {
+            await storeNewNoteSideEffects(
+              database,
+              sanitizedReply.id,
+              sanitizedReply
+            )
+          }
         } catch {
           // Ignore error if status already exists
-        }
-
-        if (replyWasInserted) {
-          await storeNewNoteSideEffects(
-            database,
-            sanitizedReply.id,
-            sanitizedReply
-          )
         }
 
         return {

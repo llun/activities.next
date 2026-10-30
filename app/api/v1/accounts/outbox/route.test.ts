@@ -5,6 +5,7 @@ import { Database } from '@/lib/database/types'
 import { MAX_STORED_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 import { DELETE, POST } from './route'
 
@@ -30,11 +31,37 @@ vi.mock('@/lib/services/quotes/resolveQuoteForCreate', () => ({
     mockResolveQuoteForCreate(...args)
 }))
 
+// The remote fetch path getReadableStatusForAction drives for an unstored
+// reply target, and the store step behind it.
+const { mockGetNote, mockDispatchCreateNoteOrPollJob } = vi.hoisted(() => ({
+  mockGetNote: vi.fn(),
+  mockDispatchCreateNoteOrPollJob: vi.fn()
+}))
+vi.mock('@/lib/activities', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/activities')>()
+  return { ...actual, getNote: mockGetNote }
+})
+vi.mock('@/lib/jobs/dispatchCreateNoteOrPollJob', () => ({
+  dispatchCreateNoteOrPollJob: mockDispatchCreateNoteOrPollJob
+}))
+
 vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
-const mockDatabase = { getAllServerSettings: vi.fn() }
+// The stored-parent view the dispatch mock maintains: the store step writes the
+// fetched note under its CANONICAL id (the note's own `id`), never under the
+// permalink alias the client sent.
+const storedRemoteParents = new Map<string, unknown>()
+
+const mockDatabase = {
+  getAllServerSettings: vi.fn(),
+  getStatus: vi.fn(
+    async ({ statusId }: { statusId: string }) =>
+      storedRemoteParents.get(statusId) ?? null
+  ),
+  getDomainBlockForDomain: vi.fn().mockResolvedValue(null)
+}
 vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
@@ -62,6 +89,33 @@ const buildAttachments = (count: number) =>
     width: 100,
     height: 100
   }))
+
+// A shape complete enough for the route's 200 response serialization
+// (toActivityPubObject) to succeed on the stubbed create-action return.
+const buildNoteStatus = (id: string, replyTo?: string) => ({
+  id,
+  type: 'Note',
+  actorId: 'https://test.llun.dev/users/test1',
+  actor: null,
+  isLocalActor: true,
+  to: [ACTIVITY_STREAM_PUBLIC],
+  cc: [],
+  edits: [],
+  createdAt: Date.now(),
+  updatedAt: Date.now(),
+  url: id,
+  text: 'a remote reply',
+  summary: null,
+  reply: replyTo ?? '',
+  replies: [],
+  actorAnnounceStatusId: null,
+  isActorLiked: false,
+  isActorBookmarked: false,
+  totalLikes: 0,
+  totalShares: 0,
+  attachments: [],
+  tags: []
+})
 
 const testAccount = {
   id: 'account-1',
@@ -92,6 +146,20 @@ describe('POST /api/v1/accounts/outbox', () => {
     mockGetActorFromSession.mockResolvedValue(seedActor1)
     mockDatabase.getAllServerSettings.mockReset()
     mockDatabase.getAllServerSettings.mockResolvedValue([])
+    storedRemoteParents.clear()
+    mockGetNote.mockReset()
+    mockDispatchCreateNoteOrPollJob.mockReset()
+    mockDispatchCreateNoteOrPollJob.mockImplementation(
+      async (_database: Database, note: { id: string }) => {
+        storedRemoteParents.set(note.id, {
+          id: note.id,
+          type: 'Note',
+          actorId: 'https://remote.test/users/alice',
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: []
+        })
+      }
+    )
     // The resolver caches per database instance, and this mock is shared across
     // the file, so drop the cached view between cases.
     invalidateServerSettingsCache(mockDatabase as unknown as Database)
@@ -262,6 +330,56 @@ describe('POST /api/v1/accounts/outbox', () => {
 
     expect(res.status).toBe(422)
     expect(mockCreateNoteFromUserInput).not.toHaveBeenCalled()
+  })
+
+  // The outbox route must behave like POST /api/v1/statuses for replies:
+  // getReadableStatusForAction fetches and stores an unstored remote public
+  // parent, and the create action receives the parent id the lookup RETURNED
+  // (the canonical AP id the note was stored under), not the permalink alias
+  // the client sent.
+  it('stores an unstored remote public reply target and replies to its canonical id', async () => {
+    const remoteActorId = 'https://remote.test/users/alice'
+    const canonicalParentId =
+      'https://remote.test/users/alice/statuses/route-outbox-remote-reply-1'
+    const requestedPermalink =
+      'https://remote.test/@alice/route-outbox-remote-reply-1'
+    mockGetNote.mockResolvedValueOnce({
+      id: canonicalParentId,
+      type: 'Note',
+      attributedTo: remoteActorId,
+      content: 'remote parent to reply to',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      published: '2026-04-26T10:00:00Z'
+    })
+    mockCreateNoteFromUserInput.mockResolvedValueOnce(
+      buildNoteStatus('route-outbox-remote-reply', canonicalParentId)
+    )
+
+    const req = new NextRequest('http://localhost/api/v1/accounts/outbox', {
+      method: 'POST',
+      body: JSON.stringify({
+        type: 'note',
+        message: 'a remote reply',
+        inReplyToId: requestedPermalink
+      }),
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://test.llun.dev'
+      }
+    })
+
+    const res = await POST(req, { params: Promise.resolve({}) })
+
+    expect(res.status).toBe(200)
+    expect(mockDispatchCreateNoteOrPollJob).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ id: canonicalParentId })
+    )
+    expect(storedRemoteParents.get(canonicalParentId)).toBeDefined()
+    expect(mockCreateNoteFromUserInput).toHaveBeenCalledWith(
+      expect.objectContaining({ replyNoteId: canonicalParentId })
+    )
   })
 
   it('returns 422 when a poll request fails validation in the action', async () => {

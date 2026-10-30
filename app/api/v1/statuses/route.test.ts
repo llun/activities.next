@@ -300,6 +300,42 @@ describe('POST /api/v1/statuses', () => {
     })
   })
 
+  // The scheduled branch stores the reply target in the persisted params, and
+  // the publish job resolves params.in_reply_to_id exactly at publish time —
+  // so it must store the parent id getReadableStatusForAction RETURNED (the
+  // canonical AP id the note was stored under), not the permalink alias the
+  // client sent.
+  it('stores the resolved parent id in the scheduled params when a scheduled reply names the parent by a permalink alias', async () => {
+    const remoteActorId = EXTERNAL_ACTOR1
+    const canonicalParentId =
+      'https://llun.dev/users/test1/statuses/route-scheduled-alias-1'
+    const requestedPermalink = 'https://llun.dev/@test1/route-scheduled-alias-1'
+    mockGetNote.mockResolvedValueOnce({
+      id: canonicalParentId,
+      type: 'Note',
+      attributedTo: remoteActorId,
+      content: 'remote parent to reply to',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      published: '2026-04-26T10:00:00Z'
+    })
+
+    const response = await postStatus({
+      status: 'a scheduled remote reply via an alias',
+      in_reply_to_id: requestedPermalink,
+      scheduled_at: new Date(Date.now() + 60 * 60 * 1000).toISOString()
+    })
+
+    expect(response.status).toBe(200)
+    const scheduled = await response.json()
+
+    const stored = await database.getScheduledStatus({
+      actorId: ACTOR1_ID,
+      id: scheduled.id
+    })
+    expect(stored?.params.in_reply_to_id).toBe(canonicalParentId)
+  })
+
   describe('in_reply_to_id resolution', () => {
     // Regression coverage for the pre-existing bug: in_reply_to_id was never
     // decoded, so a colon-form (or publicId-form) reply target silently

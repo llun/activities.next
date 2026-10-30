@@ -4,7 +4,6 @@ import { sendPollVotes } from '@/lib/activities'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
-import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { getReadableStatusForAction } from '@/lib/services/statuses/getReadableStatusForAction'
 import { Scope } from '@/lib/types/database/operations'
 import { StatusType } from '@/lib/types/domain/status'
@@ -104,20 +103,6 @@ export const POST = traceApiRoute(
         withReplies: false
       })
       if (!status || status.type !== StatusType.enum.Poll) {
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_404,
-          responseStatusCode: 404
-        })
-      }
-
-      const hasAccess = await canActorReadStatus({
-        database,
-        status,
-        currentActor
-      })
-      if (!hasAccess) {
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,

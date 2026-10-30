@@ -232,7 +232,7 @@ describe('POST /api/v1/polls/[id]/votes', () => {
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: [],
         published: '2026-04-26T10:00:00Z',
-        endTime: '2027-06-26T10:00:00Z',
+        endTime: new Date(Date.now() + 86400_000).toISOString(),
         oneOf: [
           {
             type: 'Note',
@@ -267,6 +267,92 @@ describe('POST /api/v1/polls/[id]/votes', () => {
       ])
       expect(stored.choices.map((choice) => choice.totalVotes)).toEqual([1, 0])
       expect(mockSendPollVotes).toHaveBeenCalledTimes(1)
+    })
+
+    it('returns 404 for an unstored remote non-Question Note', async () => {
+      const remoteNoteId = `${REMOTE_ACTOR_ID}/statuses/remote-note-1`
+      mockGetNote.mockResolvedValueOnce({
+        id: remoteNoteId,
+        type: 'Note',
+        attributedTo: REMOTE_ACTOR_ID,
+        content: 'just a note',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        published: new Date(Date.now() - 60_000).toISOString()
+      })
+
+      const response = await vote(remoteNoteId, { choices: ['0'] })
+
+      expect(response.status).toBe(404)
+      expect(mockSendPollVotes).not.toHaveBeenCalled()
+    })
+
+    it('returns 422 for an unstored remote expired Question', async () => {
+      const remoteExpiredQuestionId = `${REMOTE_ACTOR_ID}/statuses/remote-expired-question-1`
+      mockGetNote.mockResolvedValueOnce({
+        id: remoteExpiredQuestionId,
+        type: 'Question',
+        attributedTo: REMOTE_ACTOR_ID,
+        content: 'expired question',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        published: new Date(Date.now() - 86400_000).toISOString(),
+        endTime: new Date(Date.now() - 1000).toISOString(),
+        oneOf: [
+          {
+            type: 'Note',
+            name: 'yes',
+            replies: { type: 'Collection', totalItems: 0 }
+          },
+          {
+            type: 'Note',
+            name: 'no',
+            replies: { type: 'Collection', totalItems: 0 }
+          }
+        ]
+      })
+
+      const response = await vote(remoteExpiredQuestionId, { choices: ['0'] })
+
+      expect(response.status).toBe(422)
+      await expectNoVotes(remoteExpiredQuestionId)
+      expect(mockSendPollVotes).not.toHaveBeenCalled()
+    })
+
+    it('returns 404 with nothing stored for an unstored remote followers-only Question', async () => {
+      const remoteFollowersQuestionId = `${REMOTE_ACTOR_ID}/statuses/remote-followers-question-1`
+      mockGetNote.mockResolvedValueOnce({
+        id: remoteFollowersQuestionId,
+        type: 'Question',
+        attributedTo: REMOTE_ACTOR_ID,
+        content: 'followers only question',
+        to: [`${REMOTE_ACTOR_ID}/followers`],
+        cc: [],
+        published: new Date(Date.now() - 60_000).toISOString(),
+        endTime: new Date(Date.now() + 86400_000).toISOString(),
+        oneOf: [
+          {
+            type: 'Note',
+            name: 'yes',
+            replies: { type: 'Collection', totalItems: 0 }
+          },
+          {
+            type: 'Note',
+            name: 'no',
+            replies: { type: 'Collection', totalItems: 0 }
+          }
+        ]
+      })
+
+      const response = await vote(remoteFollowersQuestionId, { choices: ['0'] })
+
+      expect(response.status).toBe(404)
+      const stored = await database.getStatus({
+        statusId: remoteFollowersQuestionId,
+        withReplies: false
+      })
+      expect(stored).toBeNull()
+      expect(mockSendPollVotes).not.toHaveBeenCalled()
     })
   })
 })
