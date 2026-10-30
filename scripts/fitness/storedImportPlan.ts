@@ -1,5 +1,6 @@
 import {
   FitnessOverlapActivity,
+  assignActivitiesToStatusIds,
   getOverlapContextFitnessFileIds,
   groupFitnessActivitiesByOverlap
 } from '@/lib/jobs/fitnessImportOverlap'
@@ -64,7 +65,8 @@ const toOverlapActivity = (
  * `overlapFitnessFileIds` is the sibling context handed to that job: files that
  * ALREADY own a status. When a target overlaps one of them by >=80% on start +
  * duration, the job reuses the sibling's status (the sibling stays primary and
- * keeps its route map) instead of creating a duplicate post for the same ride.
+ * keeps its route map) instead of creating a duplicate post for the same ride;
+ * when it reaches several posts, it joins the one it overlaps most.
  */
 export const buildStoredImportPlan = ({
   targets,
@@ -133,28 +135,52 @@ export const buildStoredImportPlan = ({
     // run does not touch.
     if (groupTargets.length === 0) continue
 
-    // The job picks the status from `orderedGroup`, which sortFilesByActivityStart
-    // orders by start time then createdAt then id. Mirror that ordering, or a
-    // group holding two siblings with DIFFERENT statuses (the duplicate-post case
-    // this script repairs) would predict one post and merge into the other.
-    const mergeStatusId =
-      group
-        .map((activity) => siblingById.get(activity.id))
-        .filter((file): file is FitnessFile => Boolean(file?.statusId))
-        .sort((first, second) => {
-          const firstStart = first.activityStartTime ?? Number.MAX_SAFE_INTEGER
-          const secondStart =
-            second.activityStartTime ?? Number.MAX_SAFE_INTEGER
-          if (firstStart !== secondStart) return firstStart - secondStart
-          if (first.createdAt !== second.createdAt)
-            return first.createdAt - second.createdAt
-          return first.id.localeCompare(second.id)
-        })[0]?.statusId ?? null
-
-    groups.push({
-      targetFileNames: groupTargets.map((file) => file.fileName),
-      mergeStatusId
+    // A group can reach more than one post (one long recording covering two
+    // existing posts, or the duplicate posts this script repairs). The job
+    // then sends each target to the post IT overlaps most, a tie going to the
+    // earliest by sortFilesByActivityStart's order (start time, then
+    // createdAt, then id), so mirror both or the plan would predict one post
+    // and the run merge into the other.
+    const siblings = group
+      .map((activity) => siblingById.get(activity.id))
+      .filter((file): file is FitnessFile => Boolean(file?.statusId))
+      .sort((first, second) => {
+        const firstStart = first.activityStartTime ?? Number.MAX_SAFE_INTEGER
+        const secondStart = second.activityStartTime ?? Number.MAX_SAFE_INTEGER
+        if (firstStart !== secondStart) return firstStart - secondStart
+        if (first.createdAt !== second.createdAt)
+          return first.createdAt - second.createdAt
+        return first.id.localeCompare(second.id)
+      })
+    const groupActivityById = new Map(
+      group.map((activity) => [activity.id, activity])
+    )
+    const statusIdByTargetId = assignActivitiesToStatusIds({
+      activities: groupTargets
+        .map((file) => groupActivityById.get(file.id))
+        .filter((activity): activity is FitnessOverlapActivity =>
+          Boolean(activity)
+        ),
+      candidates: siblings.flatMap((file) => {
+        const activity = groupActivityById.get(file.id)
+        return activity && file.statusId
+          ? [{ ...activity, statusId: file.statusId }]
+          : []
+      })
     })
+
+    // One plan group per post the targets split across, in the order the overlap groups were formed (union-find group order).
+    const targetNamesByStatusId = new Map<string | null, string[]>()
+    for (const file of groupTargets) {
+      const statusId = statusIdByTargetId.get(file.id) ?? null
+      targetNamesByStatusId.set(statusId, [
+        ...(targetNamesByStatusId.get(statusId) ?? []),
+        file.fileName
+      ])
+    }
+    for (const [mergeStatusId, targetFileNames] of targetNamesByStatusId) {
+      groups.push({ targetFileNames, mergeStatusId })
+    }
   }
 
   // A target the parse found no start time or duration for cannot be grouped at
