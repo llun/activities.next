@@ -1,0 +1,25 @@
+REVIEW.md
+  s_f147bf36f62485::t_9bfa43c0d084c4 12-14,29,33,41,43,47,49,51,81,83,85
+docs/postgresql-setup.md
+  s_f147bf36f62485::t_87a082d9b48f36 3-5,11-12,43,57,65
+docs/quickstart.md
+  s_f147bf36f62485::t_aab419493157d3 83-89,95-101
+docs/sqlite-setup.md
+  s_f147bf36f62485::t_3ad94e27f401f3 3,5,16,28,36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a093403b644539a67077bbade31b185a920b178a",
+  "prompts": {},
+  "sessions": {
+    "s_f147bf36f62485": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "25ee74e4-3619-4df9-8186-dcf3fd9b6ec2",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
