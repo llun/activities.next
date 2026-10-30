@@ -1,11 +1,8 @@
 # SQLite Setup Guide
 
-This guide will help you set up Activity.next using SQLite as your database backend. SQLite is the default database backend bundled with Activity.next (requiring no external database server or optional drivers) and is the backend included in the official minimal Docker image. It is a great choice for development environments or small instances with limited traffic.
+This guide covers the SQLite-specific configuration and deployment. SQLite is the default database backend bundled with Activity.next (requiring no external database server or optional drivers) and is the backend included in the official minimal Docker image. It is a great choice for development environments or small instances with limited traffic.
 
-## Prerequisites
-
-- Node.js 24 and Yarn 4 via Corepack (the exact version is pinned by the `packageManager` field in `package.json`)
-- Git (to clone the repository)
+For the shared local development setup (cloning the repository, Corepack/Yarn install, the core `.env.local` settings, sign-in and allow-list notes), see the [Quickstart](quickstart.md). Every database variable is documented in the [Environment Variables Guide](environment-variables.md#database).
 
 ## Database Configuration
 
@@ -16,7 +13,7 @@ ACTIVITIES_DATABASE_CLIENT=better-sqlite3
 ACTIVITIES_DATABASE_SQLITE_FILENAME=./dev.sqlite3
 ```
 
-Alternatively, both `yarn migrate` and the app runtime accept the whole configuration as a JSON string in `ACTIVITIES_DATABASE`. The app reads only `client`, `connection`, `pool.min`/`pool.max` and `acquireConnectionTimeout` from it and logs a warning naming any other key it ignores (see [Environment Variables](environment-variables.md#full-json-configuration)):
+Alternatively, both `yarn migrate` and the app runtime accept the whole configuration as a JSON string in `ACTIVITIES_DATABASE` (see [Environment Variables](environment-variables.md#full-json-configuration)):
 
 ```json
 {
@@ -28,7 +25,7 @@ Alternatively, both `yarn migrate` and the app runtime accept the whole configur
 }
 ```
 
-> **Note:** When `ACTIVITIES_DATABASE` is set it takes precedence over the individual `ACTIVITIES_DATABASE_*` variables, for `yarn migrate` as well as the app, and a value that is not a JSON object makes `yarn migrate` fail rather than fall back to the default `./activities.sqlite` file. For `yarn migrate` only, setting `ACTIVITIES_DATABASE_SQLITE_FILENAME` without `ACTIVITIES_DATABASE_CLIENT` selects `better-sqlite3`; the app runtime still requires `ACTIVITIES_DATABASE_CLIENT`, so set both.
+> **Note:** For `yarn migrate` only, setting `ACTIVITIES_DATABASE_SQLITE_FILENAME` without `ACTIVITIES_DATABASE_CLIENT` selects `better-sqlite3`; the app runtime still requires `ACTIVITIES_DATABASE_CLIENT`, so set both. An `ACTIVITIES_DATABASE` value that is not a JSON object makes `yarn migrate` fail rather than fall back to the default `./activities.sqlite` file.
 
 2. Run database migrations to set up the schema:
 
@@ -36,48 +33,7 @@ Alternatively, both `yarn migrate` and the app runtime accept the whole configur
 yarn migrate
 ```
 
-On an empty database the first migration loads the baseline schema (`migrations/baseline/sqlite.sql`), then every later migration in the [migrations directory](https://github.com/llun/activities.next/tree/main/migrations) runs. `yarn migrate` prints the database it resolved before it does anything, and `yarn migrate:status` lists the applied and pending migrations without writing to the database.
-
-## Development Setup
-
-1. Clone the repository:
-
-```bash
-git clone https://github.com/llun/activities.next.git
-cd activities.next
-```
-
-2. Enable Corepack and install dependencies:
-
-```bash
-corepack enable
-yarn install
-```
-
-3. Configure the environment (in addition to database settings above):
-
-```bash
-ACTIVITIES_HOST=your-domain.tld
-ACTIVITIES_SECRET_PHASE=your-random-secret-for-sessions
-ACTIVITIES_ALLOW_EMAILS='["your-email@example.com"]'
-ACTIVITIES_DATABASE_CLIENT=better-sqlite3
-ACTIVITIES_DATABASE_SQLITE_FILENAME=./dev.sqlite3
-```
-
-4. Run migrations and start the development server:
-
-```bash
-yarn migrate
-yarn dev
-```
-
-## Using with a Tunnel for Local Development
-
-To run Activity.next locally and communicate with other federated servers, you'll need a tunnel service that exposes your local server to the internet:
-
-1. Set up a tunnel service like [Cloudflare Tunnel](https://www.cloudflare.com/products/tunnel/) or [ngrok](https://ngrok.com/)
-2. Point the tunnel to localhost:3000
-3. Use your tunnel's domain as `ACTIVITIES_HOST`
+On an empty database the first migration loads the baseline schema (`migrations/baseline/sqlite.sql`), then every later migration in the [migrations directory](https://github.com/llun/activities.next/tree/main/migrations) runs.
 
 ## Production Deployment with SQLite
 
