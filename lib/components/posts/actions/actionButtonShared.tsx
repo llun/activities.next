@@ -75,15 +75,25 @@ const ACTION_ERROR_CLASS =
 interface ActionErrorProps {
   message: string
   testId: string
+  align?: 'start' | 'center'
 }
 
-/** The transient error tooltip rendered beneath an action button. */
+/**
+ * The transient error tooltip rendered beneath an action button. Trailing
+ * buttons centre their message because left-0 can pass the row's right edge
+ * once counts push them along, and right-0 can pass its left edge.
+ */
 export const ActionButtonError: FC<ActionErrorProps> = ({
   message,
-  testId
+  testId,
+  align = 'start'
 }) => (
   <span
-    className={cn('absolute right-0 top-full z-10 mt-1', ACTION_ERROR_CLASS)}
+    className={cn(
+      'absolute top-full z-10 mt-1',
+      align === 'center' ? 'left-1/2 -translate-x-1/2' : 'left-0',
+      ACTION_ERROR_CLASS
+    )}
     data-testid={testId}
     data-row-overlay
     role="alert"

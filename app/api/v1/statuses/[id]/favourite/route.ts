@@ -2,7 +2,7 @@ import { sendLike } from '@/lib/activities'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { refetchedStatusResponse } from '@/lib/services/mastodon/statusActionResponse'
-import { getReadableStatus } from '@/lib/services/statusRouteAccess'
+import { getReadableStatusForAction } from '@/lib/services/statuses/getReadableStatusForAction'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { apiCorsError, defaultOptions } from '@/lib/utils/response'
@@ -26,7 +26,7 @@ export const POST = traceApiRoute(
       if (!encodedStatusId) return apiCorsError(req, CORS_HEADERS, 404)
 
       const statusId = await resolveStatusIdParam(database, encodedStatusId)
-      const status = await getReadableStatus({
+      const status = await getReadableStatusForAction({
         database,
         statusId,
         currentActor,
@@ -40,7 +40,10 @@ export const POST = traceApiRoute(
         status.isActorLiked
 
       // Create like (database handles idempotency)
-      await database.createLike({ actorId: currentActor.id, statusId })
+      await database.createLike({
+        actorId: currentActor.id,
+        statusId: status.id
+      })
 
       // Only send Like activity if not already liked
       if (!alreadyLiked) {
@@ -52,7 +55,7 @@ export const POST = traceApiRoute(
         req,
         database,
         currentActor,
-        statusId,
+        statusId: status.id,
         allowedMethods: CORS_HEADERS
       })
     }

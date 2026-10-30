@@ -7,6 +7,7 @@ import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActorSafe } from '@/lib/services/federation/getFederationSigningActor'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
+import { overlayStoredViewerState } from '@/lib/services/statuses/overlayViewerState'
 import { Scope } from '@/lib/types/database/operations'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -33,7 +34,7 @@ const StatusQueryParams = z.object({
 export const GET = traceApiRoute(
   'getRemoteAccountStatuses',
   OAuthGuard<Params>([Scope.enum.read], async (req, context) => {
-    const { database, params } = context
+    const { currentActor, database, params } = context
     const encodedAccountId = (await params).id
     if (!encodedAccountId) return apiCorsError(req, CORS_HEADERS, 400)
 
@@ -91,11 +92,17 @@ export const GET = traceApiRoute(
       pageUrl: parsed.data.page_url
     })
 
+    const statuses = await overlayStoredViewerState({
+      database,
+      currentActor,
+      statuses: result.statuses
+    })
+
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
       data: {
-        statuses: result.statuses.map((status) => cleanJson(status)),
+        statuses: statuses.map((status) => cleanJson(status)),
         statusesCount: result.statusesCount,
         nextPageUrl: result.nextPageUrl,
         prevPageUrl: result.prevPageUrl

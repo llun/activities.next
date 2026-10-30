@@ -5,7 +5,7 @@ import { movedAccountResponse } from '@/lib/services/accounts/movedAccount'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { mastodonStatusResponse } from '@/lib/services/mastodon/statusActionResponse'
-import { getReadableStatus } from '@/lib/services/statusRouteAccess'
+import { getReadableStatusForAction } from '@/lib/services/statuses/getReadableStatusForAction'
 import { Scope } from '@/lib/types/database/operations'
 import { getRequestBody } from '@/lib/utils/getRequestBody'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -67,7 +67,7 @@ export const POST = traceApiRoute(
         })
 
       const statusId = await resolveStatusIdParam(database, encodedStatusId)
-      const status = await getReadableStatus({
+      const status = await getReadableStatusForAction({
         database,
         statusId,
         currentActor,
@@ -77,7 +77,7 @@ export const POST = traceApiRoute(
 
       const announceStatus = await userAnnounce({
         currentActor,
-        statusId,
+        statusId: status.id,
         database,
         visibility: parsedBody.data.visibility
       })

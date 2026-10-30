@@ -9,6 +9,7 @@ import {
   normalizeStoredReactionName
 } from '@/lib/services/reactions/reactionName'
 import { getReadableStatus } from '@/lib/services/statusRouteAccess'
+import { getReadableStatusForAction } from '@/lib/services/statuses/getReadableStatusForAction'
 import { MAX_REACTIONS_PER_ACTOR } from '@/lib/services/statuses/reactionLimits'
 import { NotificationType } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
@@ -122,16 +123,16 @@ export const reactStatus = async ({
   statusId,
   name
 }: ReactStatusParams): Promise<ReactStatusResult> => {
-  const status = await getReadableStatus({
+  const resolved = await resolveLocalReaction(database, name)
+  if (!resolved) return { ok: false, reason: 'invalid-emoji' }
+
+  const status = await getReadableStatusForAction({
     database,
     statusId,
     currentActor,
     withReplies: false
   })
   if (!status) return { ok: false, reason: 'not-found' }
-
-  const resolved = await resolveLocalReaction(database, name)
-  if (!resolved) return { ok: false, reason: 'invalid-emoji' }
 
   // Reacting to a boost reacts to the post it boosts. The serializer renders an
   // Announce wrapper with empty reactions by design (they belong to the

@@ -26,6 +26,7 @@ import {
   canActorReadStatus,
   resolveActorStatusesAudience
 } from '@/lib/services/statusAccess'
+import { overlayStoredViewerState } from '@/lib/services/statuses/overlayViewerState'
 import { Actor } from '@/lib/types/activitypub'
 import { Actor as DomainActor } from '@/lib/types/domain/actor'
 import { Attachment, isVisualAttachment } from '@/lib/types/domain/attachment'
@@ -167,7 +168,10 @@ export const getProfileIdentity = async (
     database,
     actorHandle,
     isLoggedIn,
-    options
+    options,
+    // The identity is returned without `statuses`, so paying for the stored
+    // viewer-state overlay on them buys nothing.
+    { skipViewerStateOverlay: true }
   )
   if (!remoteProfile) return null
   return {
@@ -361,7 +365,8 @@ const getRemoteProfileData = async (
   database: Database,
   actorHandle: string,
   isLoggedIn: boolean,
-  options: ProfileDataOptions
+  options: ProfileDataOptions,
+  { skipViewerStateOverlay }: { skipViewerStateOverlay?: boolean } = {}
 ): Promise<ProfileData | null> => {
   // Remote actors: only fetch if user is logged in
   if (!isLoggedIn) {
@@ -544,12 +549,22 @@ const getRemoteProfileData = async (
       remoteDomain ? getServerSoftwareInfo(remoteDomain) : Promise.resolve(null)
     ])
 
+  // The live outbox does not carry the viewer's like/bookmark state; overlay
+  // what the stored rows say. With no viewer the helper returns the statuses
+  // unchanged. A caller that discards the statuses (the followers/following
+  // identity) skips the stored-row lookup entirely.
+  const statuses = skipViewerStateOverlay
+    ? actorPostsResponse.statuses
+    : await overlayStoredViewerState({
+        database,
+        currentActor: options.currentActor,
+        statuses: actorPostsResponse.statuses
+      })
+
   const resolvedStatusesCount =
     collectionCounts.statusesCount ??
     actorPostsResponse.statusesCount ??
-    (actorPostsResponse.statuses.length > 0
-      ? actorPostsResponse.statuses.length
-      : null)
+    (statuses.length > 0 ? statuses.length : null)
 
   // Persist the freshly-fetched collection sizes for known actors so the
   // Mastodon API (which reads the counter rows) serves the same counts this
@@ -584,6 +599,7 @@ const getRemoteProfileData = async (
 
   return {
     ...actorPostsResponse,
+    statuses,
     person,
     // The live document's fields, with the verification of the stored row's
     // field of the same name and value (a changed value is not verified).
@@ -606,7 +622,7 @@ const getRemoteProfileData = async (
     attachments:
       attachments.length > 0
         ? attachments
-        : actorPostsResponse.statuses
+        : statuses
             .flatMap((status) =>
               status.type === StatusType.enum.Note ? status.attachments : []
             )

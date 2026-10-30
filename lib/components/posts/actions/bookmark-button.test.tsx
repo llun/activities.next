@@ -97,6 +97,21 @@ describe('BookmarkButton', () => {
     expect(onBookmarkChanged).not.toHaveBeenCalled()
   })
 
+  // Trailing buttons (bookmark, reaction) centre their error message so it
+  // cannot pass either edge of the action row once counts push them along.
+  it('centres the bookmark error under the button', async () => {
+    ;(bookmarkStatus as jest.Mock).mockResolvedValue(false)
+
+    render(<BookmarkAction status={status} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Bookmark' }))
+
+    expect(await screen.findByTestId('bookmark-error')).toHaveClass(
+      'left-1/2',
+      '-translate-x-1/2'
+    )
+  })
+
   it('shows an error and keeps state when removing a bookmark fails', async () => {
     ;(undoBookmarkStatus as jest.Mock).mockResolvedValue(false)
     const onBookmarkChanged = vi.fn()

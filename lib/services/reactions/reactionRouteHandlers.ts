@@ -92,7 +92,7 @@ export const reactionWriteHandler =
       req,
       database,
       currentActor,
-      statusId,
+      statusId: result.status?.id ?? statusId,
       allowedMethods: corsHeaders
     })
   }

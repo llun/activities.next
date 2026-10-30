@@ -373,7 +373,9 @@ a string>`, which returns an empty page, so that poller never detects new
   recent public posts live from their outbox when the local store cannot fill
   the first page for an authenticated viewer. A live-served page carries no
   `Link` pagination headers (remote ids cannot cursor the local store), and
-  the fetched statuses are display-only — they are not persisted.
+  the fetched statuses are display-only — they are not persisted. Acting on
+  one of them stores it first; see
+  [Status Posts & Actions](#agents-status-posts-actions).
 
 ### Lists & imports
 
@@ -1895,6 +1897,22 @@ page — MUST render it through the shared `Posts`/`Post` components in
 action row: a post offers the **same action set everywhere**, and that
 consistency is enforced by keeping the wiring in one place rather than per page.
 
+- **Interactions on unstored remote statuses fetch and store them first.**
+  Favouriting, reblogging, bookmarking or reacting to a remote status not stored
+  yet fetches the full note and stores it (attachments, tags, polls, emoji)
+  through the same path as an inbound boost of an unstored status. The requested
+  id is checked before fetching: non-URL ids and served domains are refused,
+  domain policy applies, and an existing row the viewer can't read is never
+  fetched. The fetched note must be on the same origin as the requested id, with
+  an author on that origin and a public or unlisted audience, and the re-read
+  after storing is gated by visibility. Because storing takes the inbound path,
+  the note can land in local followers' home timelines and notify mentioned
+  local users, matching Mastodon. The web profile list, on the server-rendered
+  first page and later pages alike, overlays the viewer's own like, repost and
+  bookmark state, plus the stored reactions, for stored statuses the viewer can
+  read, when the stored author matches the live one. A live like count of 0 is
+  filled from the stored count when the viewer liked the status. The overlay is
+  best-effort: if the lookup fails, the live statuses are shown unchanged.
 - **The action set is owned by `Posts`, not by pages.** `Posts` renders the full
   action row (reply, boost, like, bookmark, react) plus the `⋯` menu (quote,
   edit-own, change visibility / who-can-quote, delete-own; mute / block / report

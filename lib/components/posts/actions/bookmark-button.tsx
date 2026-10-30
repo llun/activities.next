@@ -40,7 +40,11 @@ export const BookmarkButton: FC<BookmarkButtonProps> = ({
         <Bookmark className={cn('h-4 w-4', { 'fill-current': isBookmarked })} />
       </button>
       {error ? (
-        <ActionButtonError message={error} testId="bookmark-error" />
+        <ActionButtonError
+          message={error}
+          testId="bookmark-error"
+          align="center"
+        />
       ) : null}
     </span>
   )

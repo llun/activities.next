@@ -79,7 +79,11 @@ export const ReactionButton: FC<Props> = ({
   } = state
   const isBusy = pendingName !== null
   const error = state.error ? (
-    <ActionButtonError message={state.error} testId="reaction-error" />
+    <ActionButtonError
+      message={state.error}
+      testId="reaction-error"
+      align="center"
+    />
   ) : null
 
   // Read inside the effect below without being one of its dependencies, so an

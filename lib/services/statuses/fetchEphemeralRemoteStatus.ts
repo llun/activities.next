@@ -16,7 +16,7 @@ import {
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
-const isUrl = (value: string): boolean => {
+export const isUrl = (value: string): boolean => {
   try {
     const { protocol } = new URL(value)
     return protocol === 'http:' || protocol === 'https:'

@@ -466,8 +466,9 @@ cannot read the list, it keeps the last one for up to five minutes, then trusts
 none of these domains. Hosts are compared case-insensitively,
 after IDNA mapping and without a trailing dot or a default port; a different
 port is a different host. Account search, lookup and v2 search, inbound quote
-requests, inbox forwarding, emoji reactions and the forwarded-activity and
-relay-announce self-echo guards use it: a served domain is not WebFingered as
+requests, inbox forwarding, emoji reactions, remote status actions (favourite,
+reblog, bookmark, react) and the forwarded-activity and relay-announce
+self-echo guards use it: a served domain is not WebFingered as
 if it were remote, never receives forwarded activities, and an actor on it
 reacts with this server's own custom emoji. A **wildcard** trusted host
 (`*.vercel.app`, say) is not a served domain: it exists so `X-Forwarded-Host`
