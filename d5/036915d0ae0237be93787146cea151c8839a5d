@@ -1,0 +1,21 @@
+README.md
+  s_f147bf36f62485::t_1f9705881a5bbf 102
+docs/setup.md
+  s_f147bf36f62485::t_f93a06e5555211 280
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d5036915d0ae0237be93787146cea151c8839a5d",
+  "prompts": {},
+  "sessions": {
+    "s_f147bf36f62485": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "25ee74e4-3619-4df9-8186-dcf3fd9b6ec2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
