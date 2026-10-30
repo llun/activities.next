@@ -122,4 +122,37 @@ describe('buildStoredImportPlan', () => {
       }
     ])
   })
+
+  it('predicts the post a target overlaps most when it reaches two', () => {
+    // A GPS-less trainer recording covering a short warm-up post and the main
+    // ride's post after it overlaps both by 100% of the shorter duration.
+    const indoorStart = Date.parse('2026-10-30T17:09:09.000Z')
+    const warmUp = buildFile({
+      id: 'warm-up',
+      statusId: 'status-warm-up',
+      activityStartTime: Date.parse('2026-10-30T17:15:19.000Z'),
+      totalDurationSeconds: 161
+    })
+    const mainRide = buildFile({
+      id: 'main-ride',
+      statusId: 'status-main-ride',
+      activityStartTime: Date.parse('2026-10-30T17:20:06.000Z'),
+      totalDurationSeconds: 5_428
+    })
+
+    const plan = buildStoredImportPlan({
+      targets: [
+        {
+          file: buildFile({ id: 'indoor', fileName: 'indoor.tcx' }),
+          startTimeMs: indoorStart,
+          durationSeconds: 6_154
+        }
+      ],
+      contextFiles: [warmUp, mainRide]
+    })
+
+    expect(plan.groups).toEqual([
+      { targetFileNames: ['indoor.tcx'], mergeStatusId: 'status-main-ride' }
+    ])
+  })
 })
