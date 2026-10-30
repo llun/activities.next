@@ -7,7 +7,7 @@ import { Actor } from '@/lib/types/domain/actor'
 import { actorIdsMatch } from '@/lib/utils/activitypub'
 import { HTTP_STATUS } from '@/lib/utils/response'
 
-import { DELETE, GET, POST } from './route'
+import { DELETE, GET, OPTIONS, POST } from './route'
 
 const mockCurrentActor: Actor = MockActor({
   id: 'https://llun.test/users/llun'
@@ -686,6 +686,19 @@ describe('Accounts Aliases API route', () => {
       expect(await schemaFailureRes.json()).toEqual({
         error: 'Invalid request'
       })
+    })
+  })
+
+  describe('OPTIONS', () => {
+    it('returns 200 with allowed methods', async () => {
+      const req = new NextRequest('http://localhost/api/v1/accounts/aliases', {
+        method: 'OPTIONS'
+      })
+      const res = await OPTIONS(req)
+      expect(res.status).toBe(200)
+      expect(res.headers.get('Access-Control-Allow-Methods')).toBe(
+        'GET,POST,DELETE'
+      )
     })
   })
 })

@@ -8,7 +8,7 @@ import {
   ERROR_500
 } from '@/lib/utils/response'
 
-import { DELETE } from './route'
+import { DELETE, OPTIONS } from './route'
 
 vi.mock('@/lib/utils/logger', () => ({
   logger: {
@@ -72,6 +72,25 @@ vi.mock('@/lib/services/medias', () => ({
 const mockDeleteMediaFile = deleteMediaFile as jest.MockedFunction<
   typeof deleteMediaFile
 >
+
+describe('OPTIONS /api/v1/accounts/media/[mediaId]', () => {
+  it('returns 200 with allowed CORS methods', async () => {
+    const req = new NextRequest(
+      'https://llun.test/api/v1/accounts/media/media-123',
+      {
+        method: 'OPTIONS',
+        headers: { Origin: 'https://llun.test' }
+      }
+    )
+    const res = await OPTIONS(req)
+    expect(res.status).toBe(200)
+    expect(res.headers.get('Access-Control-Allow-Methods')).toContain('OPTIONS')
+    expect(res.headers.get('Access-Control-Allow-Methods')).toContain('DELETE')
+    expect(res.headers.get('Access-Control-Allow-Origin')).toBe(
+      'https://llun.test'
+    )
+  })
+})
 
 describe('DELETE /api/v1/accounts/media/[mediaId]', () => {
   const sampleMedia = {

@@ -95,6 +95,25 @@ describe('ActivityAnalysisChart', () => {
     expect(within(rows[2]).getByText('160 bpm')).toBeInTheDocument()
   })
 
+  it('uses the AA-tested text-muted-foreground token and text-[11px] on lap labels', () => {
+    render(<ActivityAnalysisChart {...defaultProps} />)
+
+    const lapButton = screen.getByRole('button', { name: /Lap 1/ })
+    expect(lapButton).toHaveClass('text-muted-foreground')
+    expect(lapButton).toHaveClass('text-[11px]')
+  })
+
+  it('uses text-muted-foreground on scale labels in separate mode', () => {
+    render(<ActivityAnalysisChart {...defaultProps} mode="separate" />)
+
+    const scaleSpans = screen.getAllByText(/Scale \d+ – \d+/)
+    expect(scaleSpans.length).toBeGreaterThan(0)
+    for (const span of scaleSpans) {
+      expect(span).toHaveClass('text-muted-foreground')
+      expect(span).toHaveClass('text-xs')
+    }
+  })
+
   it('does not render the sr-only summary table when series is empty', () => {
     render(<ActivityAnalysisChart {...defaultProps} series={[]} />)
 

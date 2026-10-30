@@ -15,4 +15,15 @@ describe('RemoteStatusLoading', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Fetching the status')
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
+
+  it('names the page with one heading and offers Check again', () => {
+    render(<RemoteStatusLoading />)
+
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Fetching remote status' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Check again' })
+    ).toBeInTheDocument()
+  })
 })
