@@ -1255,4 +1255,163 @@ describe('fetchRemoteStatusJob', () => {
       }
     )
   })
+
+  describe('storing attachments and tags for fetched notes', () => {
+    // A fetched note carries its media documents and hashtags; both the
+    // top-level fetch and the reply walk must persist them.
+    const noteWithMedia = (statusId: string) => ({
+      id: statusId,
+      type: 'Note',
+      attributedTo: REMOTE_ACTOR_ID,
+      content: 'With media',
+      to: [PUBLIC_STREAM],
+      cc: [],
+      published: new Date().toISOString(),
+      attachment: [
+        {
+          type: 'Document',
+          mediaType: 'image/png',
+          url: 'https://mastodon.social/media/image.png'
+        }
+      ],
+      tag: [
+        {
+          type: 'Hashtag',
+          name: '#testing',
+          href: 'https://mastodon.social/tags/testing'
+        }
+      ]
+    })
+
+    it('stores the attachment and hashtag of a top-level fetched note', async () => {
+      const STATUS_ID = `${REMOTE_STATUS_ID}/tagged`
+      mockRemoteServers(async (req) => {
+        if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
+        if (req.url === STATUS_ID) {
+          return activityJson(noteWithMedia(STATUS_ID))
+        }
+        return activityJson({})
+      })
+
+      await fetchRemoteStatusJob(database, {
+        id: 'job-id',
+        name: FETCH_REMOTE_STATUS_JOB_NAME,
+        data: { statusId: STATUS_ID }
+      })
+
+      const attachments = await database.getAttachments({
+        statusId: STATUS_ID
+      })
+      expect(attachments).toHaveLength(1)
+      const tags = await database.getTags({ statusId: STATUS_ID })
+      const hashtagTags = tags.filter((t) => t.type === 'hashtag')
+      expect(hashtagTags).toHaveLength(1)
+      expect(hashtagTags[0].name).toEqual('#testing')
+    })
+
+    it('stores the attachment and hashtag of a reply stored during the walk', async () => {
+      const STATUS_ID = `${REMOTE_STATUS_ID}/reply-media`
+      const REPLY_ID = `${STATUS_ID}/reply`
+      mockRemoteServers(async (req) => {
+        if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
+        if (req.url === STATUS_ID) {
+          return activityJson({
+            id: STATUS_ID,
+            type: 'Note',
+            attributedTo: REMOTE_ACTOR_ID,
+            content: 'Root',
+            to: [PUBLIC_STREAM],
+            cc: [],
+            replies: `${STATUS_ID}/replies`
+          })
+        }
+        if (req.url === `${STATUS_ID}/replies`) {
+          return activityJson({
+            id: `${STATUS_ID}/replies`,
+            type: 'OrderedCollection',
+            orderedItems: [REPLY_ID]
+          })
+        }
+        if (req.url === REPLY_ID) {
+          return activityJson(noteWithMedia(REPLY_ID))
+        }
+        return activityJson({})
+      })
+
+      await fetchRemoteStatusJob(database, {
+        id: 'job-id',
+        name: FETCH_REMOTE_STATUS_JOB_NAME,
+        data: { statusId: STATUS_ID }
+      })
+
+      const attachments = await database.getAttachments({ statusId: REPLY_ID })
+      expect(attachments).toHaveLength(1)
+      const tags = await database.getTags({ statusId: REPLY_ID })
+      const hashtagTags = tags.filter((t) => t.type === 'hashtag')
+      expect(hashtagTags).toHaveLength(1)
+      expect(hashtagTags[0].name).toEqual('#testing')
+    })
+
+    it('does not store attachments or tags again when the note already existed', async () => {
+      const STATUS_ID = `${REMOTE_STATUS_ID}/already-stored`
+      mockRemoteServers(async (req) => {
+        if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
+        if (req.url === STATUS_ID) {
+          return activityJson(noteWithMedia(STATUS_ID))
+        }
+        return activityJson({})
+      })
+
+      await fetchRemoteStatusJob(database, {
+        id: 'job-id',
+        name: FETCH_REMOTE_STATUS_JOB_NAME,
+        data: { statusId: STATUS_ID }
+      })
+
+      const attachments = await database.getAttachments({
+        statusId: STATUS_ID
+      })
+      expect(attachments).toHaveLength(1)
+      const tags = await database.getTags({ statusId: STATUS_ID })
+      expect(tags.filter((t) => t.type === 'hashtag')).toHaveLength(1)
+
+      await fetchRemoteStatusJob(database, {
+        id: 'job-id-2',
+        name: FETCH_REMOTE_STATUS_JOB_NAME,
+        data: { statusId: STATUS_ID }
+      })
+
+      expect(
+        await database.getAttachments({ statusId: STATUS_ID })
+      ).toHaveLength(1)
+      expect(
+        (await database.getTags({ statusId: STATUS_ID })).filter(
+          (t) => t.type === 'hashtag'
+        )
+      ).toHaveLength(1)
+    })
+
+    it('keeps the note stored when attachment storage fails', async () => {
+      const STATUS_ID = `${REMOTE_STATUS_ID}/attachment-failure`
+      const createAttachmentSpy = vi
+        .spyOn(database, 'createAttachment')
+        .mockRejectedValue(new Error('attachment storage down'))
+      mockRemoteServers(async (req) => {
+        if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
+        if (req.url === STATUS_ID) {
+          return activityJson(noteWithMedia(STATUS_ID))
+        }
+        return activityJson({})
+      })
+
+      await fetchRemoteStatusJob(database, {
+        id: 'job-id',
+        name: FETCH_REMOTE_STATUS_JOB_NAME,
+        data: { statusId: STATUS_ID }
+      })
+
+      expect(await database.getStatus({ statusId: STATUS_ID })).toBeDefined()
+      expect(createAttachmentSpy).toHaveBeenCalled()
+    })
+  })
 })

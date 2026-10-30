@@ -5,6 +5,7 @@ import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
+import { getReadableStatusForAction } from '@/lib/services/statuses/getReadableStatusForAction'
 import { Scope } from '@/lib/types/database/operations'
 import { StatusType } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -94,9 +95,12 @@ export const POST = traceApiRoute(
 
       const encodedPollId = (await params).id
       const statusId = await resolveStatusIdParam(database, encodedPollId)
-      const status = await database.getStatus({
+      // Also fetches and stores an unstored remote public Question, so voting
+      // on a poll this instance has never seen works like any other vote.
+      const status = await getReadableStatusForAction({
+        database,
         statusId,
-        currentActorId: currentActor.id,
+        currentActor,
         withReplies: false
       })
       if (!status || status.type !== StatusType.enum.Poll) {
@@ -149,7 +153,7 @@ export const POST = traceApiRoute(
       }
 
       const votesRecorded = await database.recordPollVotes({
-        statusId,
+        statusId: status.id,
         actorId: currentActor.id,
         choices
       })
@@ -165,7 +169,7 @@ export const POST = traceApiRoute(
       await sendPollVotes({ currentActor, status, choices })
 
       const updatedStatus = await database.getStatus({
-        statusId,
+        statusId: status.id,
         currentActorId: currentActor.id,
         withReplies: false
       })

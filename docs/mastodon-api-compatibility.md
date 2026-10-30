@@ -1900,14 +1900,23 @@ consistency is enforced by keeping the wiring in one place rather than per page.
 - **Interactions on unstored remote statuses fetch and store them first.**
   Favouriting, reblogging, bookmarking or reacting to a remote status not stored
   yet fetches the full note and stores it (attachments, tags, polls, emoji)
-  through the same path as an inbound boost of an unstored status. The requested
+  through the same path as an inbound boost of an unstored status — and so do
+  replying to one (`in_reply_to_id` on POST /api/v1/statuses, the web composer
+  too), voting in its poll (POST /api/v1/polls/:id/votes) and muting its
+  conversation. `GET /api/v2/search` with `resolve=true` and a status URL stores
+  the status through this same path; when that is refused (served domain,
+  non-public note, fetch failure) it falls back to the old unstored ephemeral
+  result. The requested
   id is checked before fetching: non-URL ids and served domains are refused,
   domain policy applies, and an existing row the viewer can't read is never
   fetched. The fetched note must be on the same origin as the requested id, with
   an author on that origin and a public or unlisted audience, and the re-read
   after storing is gated by visibility. Because storing takes the inbound path,
   the note can land in local followers' home timelines and notify mentioned
-  local users, matching Mastodon. The web profile list, on the server-rendered
+  local users, matching Mastodon. The post page and the thread walk
+  (`fetchRemoteStatusJob`) deliberately do NOT take this path, so they never
+  touch home timelines or send notifications, but they do store a new note's
+  attachments, tags and emoji, and move hashtag counts. The web profile list, on the server-rendered
   first page and later pages alike, overlays the viewer's own like, repost and
   bookmark state, plus the stored reactions, for stored statuses the viewer can
   read, when the stored author matches the live one. A live like count of 0 is

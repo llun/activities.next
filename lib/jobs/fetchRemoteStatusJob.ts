@@ -5,7 +5,7 @@ import { getNote } from '@/lib/activities'
 import { activityPubRequestHeaders } from '@/lib/activities/activityPubHeaders'
 import { isActivityPubDocumentResponse } from '@/lib/activities/activityPubResponse'
 import { compactActivityPub } from '@/lib/activities/jsonld'
-import { BaseNoteSchema, getUrl } from '@/lib/activities/note'
+import { BaseNote, BaseNoteSchema, getUrl } from '@/lib/activities/note'
 import { toCollectionItems } from '@/lib/activities/orderedCollection'
 import { Database } from '@/lib/database/types'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
@@ -23,10 +23,14 @@ import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMPACT
 } from '@/lib/utils/activitystream'
+import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import { createJobHandle } from './createJobHandle'
 import { FETCH_REMOTE_STATUS_JOB_NAME } from './names'
+import { createRemoteAttachments } from './noteAttachments'
+import { persistNoteTags } from './noteTags'
 
 interface FetchRemoteStatusResult {
   status: Status
@@ -75,6 +79,42 @@ const isAuthoritativeNote = (
   isSameActivityPubOrigin(note.id, servedFrom) &&
   isSameActivityPubOrigin(extractActivityPubId(note.attributedTo), note.id)
 
+// Stores the attachments and tags of a note this job inserted for the first
+// time. Both fetched notes are public here (the guards above refuse the
+// rest), so the hashtag counter can move for them. A failure storing
+// attachments or tags must not lose the already-inserted note nor abort the
+// thread walk, so each step is logged and swallowed.
+const storeNewNoteSideEffects = async (
+  database: Database,
+  statusId: string,
+  note: BaseNote
+) => {
+  try {
+    await createRemoteAttachments({ database, statusId, note })
+  } catch (err) {
+    logger.warn({
+      message: 'Failed to store fetched note attachments',
+      statusId,
+      err: toLoggableError(err)
+    })
+  }
+  try {
+    const hashtags = await persistNoteTags({ database, statusId, note })
+    for (const hashtag of hashtags) {
+      await database.increaseHashtagCounter({ hashtag: hashtag.slice(1) })
+    }
+    if (hashtags.length > 0) {
+      await database.indexHashtagSearchDocuments({ hashtags })
+    }
+  } catch (err) {
+    logger.warn({
+      message: 'Failed to store fetched note tags',
+      statusId,
+      err: toLoggableError(err)
+    })
+  }
+}
+
 const fetchRemoteStatus = async (
   database: Database,
   statusId: string,
@@ -122,6 +162,7 @@ const fetchRemoteStatus = async (
   const to = toRecipientArray(sanitizedNote.to)
   const cc = toRecipientArray(sanitizedNote.cc)
 
+  let noteWasInserted = false
   try {
     await database.createNote({
       id: sanitizedNote.id,
@@ -141,8 +182,15 @@ const fetchRemoteStatus = async (
         ? new Date(sanitizedNote.published).getTime()
         : Date.now()
     })
+    // createNote throws on a concurrent duplicate, so reaching here means
+    // this call inserted the row and the side effects run exactly once.
+    noteWasInserted = true
   } catch {
     // Ignore error if status already exists
+  }
+
+  if (noteWasInserted) {
+    await storeNewNoteSideEffects(database, sanitizedNote.id, sanitizedNote)
   }
 
   // 6. Get the created status
@@ -314,6 +362,7 @@ export const fetchRemoteStatusJob = createJobHandle(
           ? Date.now()
           : publishedTime
 
+        let replyWasInserted = false
         try {
           await database.createNote({
             id: sanitizedReply.id,
@@ -329,8 +378,20 @@ export const fetchRemoteStatusJob = createJobHandle(
             reply: sanitizedReply.inReplyTo || '',
             createdAt
           })
+          // createNote throws on a concurrent duplicate, so reaching here
+          // means this call inserted the row and the side effects run exactly
+          // once.
+          replyWasInserted = true
         } catch {
           // Ignore error if status already exists
+        }
+
+        if (replyWasInserted) {
+          await storeNewNoteSideEffects(
+            database,
+            sanitizedReply.id,
+            sanitizedReply
+          )
         }
 
         return {

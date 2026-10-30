@@ -28,6 +28,7 @@ import { statusPublicId } from '@/lib/stub/publicIds'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
+import { EXTERNAL_ACTOR1 } from '@/lib/stub/seed/external1'
 import { createDeferred } from '@/lib/testing/deferred'
 import {
   Status,
@@ -35,6 +36,7 @@ import {
   StatusPoll,
   StatusType
 } from '@/lib/types/domain/status'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 import { generatePublicId, getPublicIdTimestamp } from '@/lib/utils/publicId'
@@ -72,6 +74,13 @@ vi.mock('@/lib/services/mastodon/getMastodonStatus', async (importOriginal) => {
       typeof import('@/lib/services/mastodon/getMastodonStatus')
     >()
   return { ...actual, getMastodonStatus: vi.fn(actual.getMastodonStatus) }
+})
+
+// The remote fetch path, wrapped so only the unstored-remote tests drive it.
+const { mockGetNote } = vi.hoisted(() => ({ mockGetNote: vi.fn() }))
+vi.mock('@/lib/activities', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/activities')>()
+  return { ...actual, getNote: mockGetNote }
 })
 
 vi.mock('@/lib/services/queue', () => ({
@@ -186,6 +195,109 @@ describe('POST /api/v1/statuses', () => {
       })
     ])
     expect(getQueue().publish).toHaveBeenCalledTimes(1)
+  })
+
+  describe('unstored remote reply target', () => {
+    const remoteActorId = EXTERNAL_ACTOR1
+
+    const postReply = async (inReplyToId: string, status: string) =>
+      POST(
+        new NextRequest('https://llun.test/api/v1/statuses', {
+          method: 'POST',
+          body: JSON.stringify({ status, in_reply_to_id: inReplyToId }),
+          headers: {
+            'Content-Type': 'application/json',
+            Origin: 'https://llun.test'
+          }
+        }),
+        { params: Promise.resolve({}) }
+      )
+
+    const readStored = async (statusId: string) => {
+      const stored = await database.getStatus({
+        statusId,
+        withReplies: false
+      })
+      expect(stored?.type).toBe(StatusType.enum.Note)
+      return getNoteFromStatus(stored as Status)
+    }
+
+    it('stores the unstored remote public parent and creates the reply with its author mentioned', async () => {
+      const remoteParentId = `${remoteActorId}/statuses/route-remote-reply-1`
+      mockGetNote.mockResolvedValueOnce({
+        id: remoteParentId,
+        type: 'Note',
+        attributedTo: remoteActorId,
+        content: 'remote parent to reply to',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        published: '2026-04-26T10:00:00Z'
+      })
+
+      const response = await postReply(remoteParentId, 'a remote reply')
+
+      expect(response.status).toBe(200)
+      const mastodonStatus = await response.json()
+      expect(mastodonStatus.in_reply_to_id).toBeTruthy()
+
+      const storedParent = await database.getStatus({
+        statusId: remoteParentId,
+        withReplies: false
+      })
+      expect(storedParent?.type).toBe(StatusType.enum.Note)
+
+      const storedReply = await database.getStatus({
+        statusId: mastodonStatus.uri,
+        withReplies: false
+      })
+      expect(storedReply?.type).toBe(StatusType.enum.Note)
+      if (!storedReply || storedReply.type !== StatusType.enum.Note) {
+        throw new Error('Expected note status')
+      }
+      expect(storedReply.reply).toBe(remoteParentId)
+      // The parent's author is carried in the reply's mention addressing.
+      const storedReplyNote = await readStored(mastodonStatus.uri)
+      expect(storedReplyNote?.cc).toContain(remoteActorId)
+    })
+
+    it('a non-public remote note → 404, no reply created, nothing stored', async () => {
+      const nonPublicId = `${remoteActorId}/statuses/route-remote-reply-private-1`
+      mockGetNote.mockResolvedValueOnce({
+        id: nonPublicId,
+        type: 'Note',
+        attributedTo: remoteActorId,
+        content: 'followers only',
+        to: [`${remoteActorId}/followers`],
+        cc: [],
+        published: '2026-04-26T10:00:00Z'
+      })
+
+      const response = await postReply(
+        nonPublicId,
+        'a reply to a followers-only post'
+      )
+
+      expect(response.status).toBe(404)
+      expect(
+        await database.getStatus({ statusId: nonPublicId, withReplies: false })
+      ).toBeNull()
+    })
+
+    it('a local-domain id → 404, no fetch, nothing stored', async () => {
+      const localStatusId =
+        'https://llun.test/users/test2/statuses/route-local-missing-1'
+
+      const response = await postReply(localStatusId, 'a reply to a local id')
+
+      expect(response.status).toBe(404)
+      expect(mockGetNote).not.toHaveBeenCalled()
+      expect(
+        await database.getStatus({
+          statusId: localStatusId,
+          withReplies: false
+        })
+      ).toBeNull()
+    })
   })
 
   describe('in_reply_to_id resolution', () => {

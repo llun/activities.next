@@ -23,6 +23,7 @@ import {
   resolveStatusIdParam
 } from '@/lib/services/mastodon/resolveClientId'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
+import { getReadableStatusForAction } from '@/lib/services/statuses/getReadableStatusForAction'
 import { Scope } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
 import { Status } from '@/lib/types/domain/status'
@@ -401,8 +402,24 @@ const getResolvedStatus = async ({
       currentActorId: currentActor.id
     }))
 
+  // A remote resolve used to be purely ephemeral: nothing was stored, so a
+  // like or reply from the search result failed. Mastodon stores the status
+  // here, so try the store-first helper before the ephemeral fetch. The
+  // helper refuses served domains, non-public notes and rows the viewer
+  // cannot read (an existing but unreadable local row makes it return null
+  // rather than leak it), so a null result means the ephemeral fallback below
+  // behaves exactly as before.
+  const storedStatus = localStatus
+    ? null
+    : await getReadableStatusForAction({
+        database,
+        statusId: query,
+        currentActor
+      })
+
   const status =
     localStatus ??
+    storedStatus ??
     (await getRemoteStatus({
       statusId: query,
       signingActor
@@ -410,7 +427,10 @@ const getResolvedStatus = async ({
 
   if (!status) return null
 
-  if (!localStatus) {
+  // Only the ephemeral path needs the actor recorded: the stored path
+  // persisted the actor alongside the note, and the local path recorded it
+  // when it was first fetched.
+  if (!localStatus && !storedStatus) {
     const actor = await recordRemoteActorBestEffort({
       actorId: status.actorId,
       database,

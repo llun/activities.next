@@ -22,6 +22,7 @@ const mockGetWebfingerSelf = vi.fn()
 const mockGetActorPerson = vi.fn()
 const mockRecordActorIfNeeded = vi.fn()
 const mockGetRemoteStatus = vi.fn()
+const mockGetReadableStatusForAction = vi.fn()
 const mockGetFederationSigningActor = vi.fn()
 const mockLoggerWarn = vi.fn()
 const mockGetActorIdByPublicId = vi.fn()
@@ -102,6 +103,11 @@ vi.mock('@/lib/activities/getActorPerson', () => ({
 
 vi.mock('@/lib/activities/getRemoteStatus', () => ({
   getRemoteStatus: (...args: unknown[]) => mockGetRemoteStatus(...args)
+}))
+
+vi.mock('@/lib/services/statuses/getReadableStatusForAction', () => ({
+  getReadableStatusForAction: (...args: unknown[]) =>
+    mockGetReadableStatusForAction(...args)
 }))
 
 vi.mock('@/lib/actions/utils', () => ({
@@ -195,6 +201,9 @@ describe('GET /api/v2/search', () => {
     mockGetActorPerson.mockResolvedValue(null)
     mockRecordActorIfNeeded.mockResolvedValue(null)
     mockGetRemoteStatus.mockResolvedValue(null)
+    // Default to the helper refusing: the ephemeral fallback tests below then
+    // exercise exactly the pre-existing getRemoteStatus behaviour.
+    mockGetReadableStatusForAction.mockResolvedValue(null)
     mockGetFederationSigningActor.mockResolvedValue(mockInstanceActor)
   })
 
@@ -682,6 +691,171 @@ describe('GET /api/v2/search', () => {
         actorId: remoteStatus.actorId
       })
     )
+  })
+
+  it('stores an unseen remote public status on resolve and returns it with its stored id', async () => {
+    const statusUrl = 'http://remote.test/users/alice/statuses/unseen'
+    const storedStatus = {
+      id: 'https://remote.test/users/alice/statuses/stored',
+      actorId: 'https://remote.test/users/alice'
+    }
+    mockGetReadableStatusForAction.mockResolvedValue(storedStatus)
+    mockSearchStatusIds.mockResolvedValue([])
+
+    const response = await GET(
+      new NextRequest(
+        `https://llun.test/api/v2/search?q=${encodeURIComponent(statusUrl)}&type=statuses&resolve=true`,
+        { headers: { Authorization: 'Bearer read-search-token' } }
+      ),
+      context
+    )
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(mockGetReadableStatusForAction).toHaveBeenCalledWith({
+      database: expect.any(Object),
+      statusId: statusUrl,
+      currentActor: oauthActor
+    })
+    // The stored path must not fall through to the ephemeral fetch or record
+    // the actor again — storing the note already recorded its author.
+    expect(mockGetRemoteStatus).not.toHaveBeenCalled()
+    expect(mockRecordActorIfNeeded).not.toHaveBeenCalled()
+    expect(data.statuses).toEqual([
+      { id: storedStatus.id, content: storedStatus.id }
+    ])
+  })
+
+  it('stores a permalink query under the note id and returns the stored row', async () => {
+    const permalink = 'https://remote.test/@alice/7'
+    const noteId = 'https://remote.test/users/alice/statuses/7'
+    const storedStatus = {
+      id: noteId,
+      url: permalink,
+      actorId: 'https://remote.test/users/alice'
+    }
+    mockGetReadableStatusForAction.mockResolvedValue(storedStatus)
+    mockSearchStatusIds.mockResolvedValue([])
+
+    const response = await GET(
+      new NextRequest(
+        `https://llun.test/api/v2/search?q=${encodeURIComponent(permalink)}&type=statuses&resolve=true`,
+        { headers: { Authorization: 'Bearer read-search-token' } }
+      ),
+      context
+    )
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    // The viewer searched for the permalink; the helper's same-origin alias
+    // fallback re-reads by note.id, so the route passes the permalink through
+    // and gets the row stored under the note id back.
+    expect(mockGetReadableStatusForAction).toHaveBeenCalledWith(
+      expect.objectContaining({ statusId: permalink })
+    )
+    expect(mockGetRemoteStatus).not.toHaveBeenCalled()
+    expect(data.statuses).toEqual([{ id: noteId, content: noteId }])
+  })
+
+  it('falls back to the ephemeral result when the store-first helper refuses', async () => {
+    const statusUrl = 'http://remote.test/users/alice/statuses/unlisted'
+    const remoteStatus = {
+      id: statusUrl,
+      actorId: 'https://remote.test/users/alice'
+    }
+    mockGetReadableStatusForAction.mockResolvedValue(null)
+    mockGetRemoteStatus.mockResolvedValue(remoteStatus)
+    mockRecordActorIfNeeded.mockResolvedValue({ id: remoteStatus.actorId })
+    mockSearchStatusIds.mockResolvedValue([])
+
+    const response = await GET(
+      new NextRequest(
+        `https://llun.test/api/v2/search?q=${encodeURIComponent(statusUrl)}&type=statuses&resolve=true`,
+        { headers: { Authorization: 'Bearer read-search-token' } }
+      ),
+      context
+    )
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(mockGetRemoteStatus).toHaveBeenCalledWith({
+      statusId: statusUrl,
+      signingActor: mockInstanceActor
+    })
+    expect(data.statuses).toEqual([{ id: statusUrl, content: statusUrl }])
+  })
+
+  it('returns empty when the helper refuses and the ephemeral fetch finds nothing', async () => {
+    const statusUrl = 'http://remote.test/users/alice/statuses/gone'
+    mockGetReadableStatusForAction.mockResolvedValue(null)
+    mockGetRemoteStatus.mockResolvedValue(null)
+    mockSearchStatusIds.mockResolvedValue([])
+
+    const response = await GET(
+      new NextRequest(
+        `https://llun.test/api/v2/search?q=${encodeURIComponent(statusUrl)}&type=statuses&resolve=true`,
+        { headers: { Authorization: 'Bearer read-search-token' } }
+      ),
+      context
+    )
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.statuses).toEqual([])
+    expect(mockRecordActorIfNeeded).not.toHaveBeenCalled()
+    expect(mockGetMastodonStatuses).not.toHaveBeenCalled()
+  })
+
+  it('omits a locally stored status the viewer cannot read', async () => {
+    const statusUrl = 'http://remote.test/users/alice/statuses/hidden'
+    const localStatus = {
+      id: 'https://remote.test/users/alice/statuses/hidden',
+      actorId: 'https://remote.test/users/alice'
+    }
+    mockGetStatus.mockResolvedValue(localStatus)
+    mockCanActorReadStatus.mockResolvedValue(false)
+    mockSearchStatusIds.mockResolvedValue([])
+
+    const response = await GET(
+      new NextRequest(
+        `https://llun.test/api/v2/search?q=${encodeURIComponent(statusUrl)}&type=statuses&resolve=true`,
+        { headers: { Authorization: 'Bearer read-search-token' } }
+      ),
+      context
+    )
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(mockGetReadableStatusForAction).not.toHaveBeenCalled()
+    expect(mockGetRemoteStatus).not.toHaveBeenCalled()
+    expect(data.statuses).toEqual([])
+  })
+
+  it('keeps an already stored status on the local path without fetching', async () => {
+    const statusUrl = 'http://remote.test/users/alice/statuses/local'
+    const localStatus = {
+      id: 'https://remote.test/users/alice/statuses/local',
+      actorId: 'https://remote.test/users/alice'
+    }
+    mockGetStatus.mockResolvedValue(localStatus)
+    mockSearchStatusIds.mockResolvedValue([])
+
+    const response = await GET(
+      new NextRequest(
+        `https://llun.test/api/v2/search?q=${encodeURIComponent(statusUrl)}&type=statuses&resolve=true`,
+        { headers: { Authorization: 'Bearer read-search-token' } }
+      ),
+      context
+    )
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(mockGetReadableStatusForAction).not.toHaveBeenCalled()
+    expect(mockGetRemoteStatus).not.toHaveBeenCalled()
+    expect(mockRecordActorIfNeeded).not.toHaveBeenCalled()
+    expect(data.statuses).toEqual([
+      { id: localStatus.id, content: localStatus.id }
+    ])
   })
 
   it('preserves indexed status order after hydrating statuses', async () => {
