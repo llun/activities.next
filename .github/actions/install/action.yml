@@ -9,7 +9,7 @@ runs:
   steps:
     - shell: bash
       run: |
-        set -uo pipefail
+        set +e -uo pipefail
         log=$(mktemp)
         for attempt in 1 2 3; do
           yarn install --immutable 2>&1 | tee "$log"
@@ -24,6 +24,6 @@ runs:
             exit "$status"
           fi
           [ "$attempt" -eq 3 ] && exit "$status"
-          echo "::warning::yarn install hit a transport error (attempt $attempt); retrying in $((attempt * 15))s"
-          sleep $((attempt * 15))
+          echo "::warning::yarn install hit a transport error (attempt $attempt); retrying in $((attempt * ${INSTALL_RETRY_BACKOFF_SECONDS:-15}))s"
+          sleep $((attempt * ${INSTALL_RETRY_BACKOFF_SECONDS:-15}))
         done

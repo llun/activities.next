@@ -1,6 +1,10 @@
 import { readFileSync } from 'node:fs'
 
-import { classifyRun } from '../scripts/classify-ci-rerun.mjs'
+import {
+  classifyRun,
+  decide,
+  formatOutput
+} from '../scripts/classify-ci-rerun.mjs'
 
 type Step = { name: string; conclusion: string | null }
 
@@ -40,8 +44,20 @@ describe('ci re-run classification', () => {
         runner_name: null,
         steps: []
       }),
-      job({ name: 'All Tests', conclusion: 'failure' }),
-      job({ name: 'CI Success', conclusion: 'failure' })
+      job({
+        name: 'All Tests',
+        steps: [
+          { name: 'Set up job', conclusion: 'success' },
+          { name: 'Verify all test shards succeeded', conclusion: 'failure' }
+        ]
+      }),
+      job({
+        name: 'CI Success',
+        steps: [
+          { name: 'Set up job', conclusion: 'success' },
+          { name: 'Verify all CI jobs succeeded', conclusion: 'failure' }
+        ]
+      })
     ])
 
     expect(result.rerun).toBe(true)
@@ -154,6 +170,75 @@ describe('ci re-run classification', () => {
     expect(result.rerun).toBe(false)
   })
 
+  it('re-runs a runner-less completed failure with no steps', () => {
+    const result = classifyRun([
+      job({
+        name: 'Docker Images Smoke Test (minimal)',
+        status: 'completed',
+        conclusion: 'failure',
+        runner_name: null,
+        steps: []
+      })
+    ])
+
+    expect(result.rerun).toBe(true)
+  })
+
+  it('keeps a runner-less cancelled job', () => {
+    const result = classifyRun([
+      job({
+        name: 'Docker Images Smoke Test (minimal)',
+        status: 'completed',
+        conclusion: 'cancelled',
+        runner_name: null,
+        steps: []
+      })
+    ])
+
+    expect(result.rerun).toBe(false)
+    expect(result.reason).toContain('was cancelled')
+  })
+
+  it('re-runs an aggregate that failed in Set up job alone', () => {
+    const result = classifyRun([
+      job({
+        name: 'All Tests',
+        steps: [{ name: 'Set up job', conclusion: 'failure' }]
+      })
+    ])
+
+    expect(result.rerun).toBe(true)
+  })
+
+  it('re-runs an aggregate that never got a runner', () => {
+    const result = classifyRun([
+      job({
+        name: 'CI Success',
+        status: 'queued',
+        conclusion: null,
+        runner_name: null,
+        steps: []
+      })
+    ])
+
+    expect(result.rerun).toBe(true)
+  })
+
+  it('keeps an aggregate that failed only in its Verify step', () => {
+    const result = classifyRun([
+      job({
+        name: 'All Tests',
+        steps: [
+          { name: 'Set up job', conclusion: 'success' },
+          { name: 'Verify all test shards succeeded', conclusion: 'failure' }
+        ]
+      })
+    ])
+
+    expect(result.rerun).toBe(false)
+    expect(result.reason).toContain('no failed job outside the aggregates')
+  })
+
   it('re-runs only on attempt 1: the workflow job stops a second attempt', () => {
     const workflow = readFileSync('.github/workflows/ci-rerun.yml', 'utf8')
 
@@ -168,5 +253,97 @@ describe('ci re-run classification', () => {
     expect(workflow).toContain('workflow_run')
     expect(workflow).not.toContain('ref:')
     expect(workflow).not.toContain('github.event.workflow_run.head_sha')
+  })
+
+  it('decide: does not re-run when a newer run exists', () => {
+    const result = decide(
+      [
+        job({
+          name: 'Build',
+          steps: [{ name: 'Set up job', conclusion: 'failure' }]
+        })
+      ],
+      111,
+      222
+    )
+
+    expect(result.rerun).toBe(false)
+    expect(result.reason).toContain('111')
+    expect(result.reason).toContain('222')
+  })
+
+  it('decide: delegates to classifyRun when the ids match as number vs string', () => {
+    const result = decide(
+      [
+        job({
+          name: 'Build',
+          steps: [{ name: 'Set up job', conclusion: 'failure' }]
+        })
+      ],
+      123,
+      '123'
+    )
+
+    expect(result.rerun).toBe(true)
+    expect(result.reason).toContain(
+      'every failed job never ran repository code'
+    )
+  })
+
+  it('decide: fails closed when the newest run id is missing', () => {
+    const result = decide(
+      [
+        job({
+          name: 'Build',
+          steps: [{ name: 'Set up job', conclusion: 'failure' }]
+        })
+      ],
+      123,
+      undefined
+    )
+
+    expect(result.rerun).toBe(false)
+    expect(result.reason).toContain('123')
+    expect(result.reason).toContain('missing')
+  })
+
+  it('formatOutput: a newline in the reason cannot inject output lines', () => {
+    const output = formatOutput(
+      classifyRun([completedCodeFailure('Evil\r\nrerun=true', 'Run lint')])
+    )
+
+    const lines = output.split('\n')
+    expect(lines).toHaveLength(3) // two lines plus the trailing newline
+    expect(lines.filter((line) => line.startsWith('rerun='))).toEqual([
+      'rerun=false'
+    ])
+    expect(lines[1]).toContain('Evil  rerun=true')
+  })
+
+  it('workflow: no ${{ inside a run block, env carries branch and event, newest-run lookup present', () => {
+    const workflow = readFileSync('.github/workflows/ci-rerun.yml', 'utf8')
+
+    expect(workflow).toContain(
+      'HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}'
+    )
+    expect(workflow).toContain('EVENT: ${{ github.event.workflow_run.event }}')
+    expect(workflow).toContain('actions/workflows/ci.yml/runs')
+
+    const lines = workflow.split('\n')
+    let inRunBlock = false
+    let runIndent = 0
+    for (const line of lines) {
+      const indent = line.length - line.trimStart().length
+      if (inRunBlock && line.trim() !== '' && indent <= runIndent)
+        inRunBlock = false
+      if (!inRunBlock) {
+        if (/^\s*(-\s+)?run: [>|]/.test(line)) {
+          inRunBlock = true
+          runIndent = indent
+        }
+      } else if (line.trim() !== '') {
+        expect(line).not.toContain('${{')
+      }
+    }
   })
 })

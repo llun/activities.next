@@ -15,10 +15,24 @@ export const INFRASTRUCTURE_STEPS = new Set([
   'Use Node.js 24'
 ])
 
+// The aggregate jobs only mirror their shards' outcomes through their own
+// `Verify …` steps, so an aggregate that failed elsewhere (or never got a
+// runner) is classified like any other job.
+const isAggregateShim = (job) => {
+  if (!AGGREGATE_JOBS.has(job.name)) return false
+  const failedSteps = (job.steps ?? [])
+    .filter((step) => step.conclusion === 'failure')
+    .map((step) => step.name)
+  return (
+    failedSteps.length > 0 &&
+    failedSteps.every((name) => name.startsWith('Verify '))
+  )
+}
+
 export const classifyRun = (jobs) => {
   const failed = jobs.filter(
     (job) =>
-      !AGGREGATE_JOBS.has(job.name) &&
+      !isAggregateShim(job) &&
       job.conclusion !== 'success' &&
       job.conclusion !== 'skipped'
   )
@@ -26,8 +40,12 @@ export const classifyRun = (jobs) => {
     return { rerun: false, reason: 'no failed job outside the aggregates' }
   for (const job of failed) {
     const steps = job.steps ?? []
-    if (job.status !== 'completed' && !job.runner_name && steps.length === 0)
-      continue // never started
+    if (
+      !job.runner_name &&
+      steps.length === 0 &&
+      job.conclusion !== 'cancelled'
+    )
+      continue // never got a runner
     if (job.conclusion === 'cancelled')
       return { rerun: false, reason: `${job.name} was cancelled` }
     const failedSteps = steps
@@ -49,17 +67,40 @@ export const classifyRun = (jobs) => {
   }
 }
 
+// A re-run joins CI's concurrency group, so re-running an older run would
+// cancel a newer run on the same ref: only the newest run may be re-run.
+export const decide = (jobs, runId, newestRunId) => {
+  if (runId == null || newestRunId == null)
+    return {
+      rerun: false,
+      reason: `not re-running run ${runId ?? 'missing'}: the newest CI run for its branch and event is ${newestRunId ?? 'missing'}`
+    }
+  if (String(runId) !== String(newestRunId))
+    return {
+      rerun: false,
+      reason: `not re-running run ${runId}: a newer CI run for its branch and event exists (${newestRunId})`
+    }
+  return classifyRun(jobs)
+}
+
+// GITHUB_OUTPUT is line-oriented: a job name (which lands in the reason)
+// carrying \r or \n must not be able to inject extra `rerun=` lines.
+export const formatOutput = (result) =>
+  `rerun=${result.rerun}\nreason=${sanitizeReason(result.reason)}\n`
+
+export const sanitizeReason = (reason) =>
+  reason.replace(/\r/g, ' ').replace(/\n/g, ' ')
+
 if (
   process.argv[1] &&
   import.meta.url.endsWith(process.argv[1].split('/').pop())
 ) {
   const { readFileSync, appendFileSync } = await import('node:fs')
   const jobs = JSON.parse(readFileSync(process.argv[2], 'utf8'))
-  const result = classifyRun(jobs)
-  console.log(`${result.rerun ? 'RERUN' : 'KEEP'}: ${result.reason}`)
+  const result = decide(jobs, process.env.RUN_ID, process.env.NEWEST_RUN_ID)
+  console.log(
+    `${result.rerun ? 'RERUN' : 'KEEP'}: ${sanitizeReason(result.reason)}`
+  )
   if (process.env.GITHUB_OUTPUT)
-    appendFileSync(
-      process.env.GITHUB_OUTPUT,
-      `rerun=${result.rerun}\nreason=${result.reason}\n`
-    )
+    appendFileSync(process.env.GITHUB_OUTPUT, formatOutput(result))
 }

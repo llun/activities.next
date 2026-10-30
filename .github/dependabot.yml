@@ -3,9 +3,7 @@ updates:
   - package-ecosystem: 'npm'
     directory: '/'
     schedule:
-      # daily so a security fix from the `/` job lands within a day; the
-      # per-workspace entries below carry no updates of their own
-      interval: 'daily'
+      interval: 'weekly'
     # Yarn's npmMinimalAgeGate rejects versions published less than a day ago,
     # so Dependabot must not propose them (its PRs would fail `yarn install`).
     cooldown:
