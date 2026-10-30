@@ -67,18 +67,33 @@ export const classifyRun = (jobs) => {
   }
 }
 
+// The newest run id among raw lookup results. Run ids are looked up per event
+// (push and workflow_dispatch share CI's concurrency group on a branch), so
+// anything that is not all digits — an empty string or `null` from a lookup
+// that found no run — is ignored, and the comparison uses BigInt to stay
+// exact for ids beyond Number's safe range.
+export const newestRunId = (ids) => {
+  let newest
+  for (const id of ids ?? []) {
+    const value = typeof id === 'number' ? String(id) : id
+    if (typeof value !== 'string' || !/^\d+$/.test(value)) continue
+    if (newest === undefined || BigInt(value) > BigInt(newest)) newest = value
+  }
+  return newest
+}
+
 // A re-run joins CI's concurrency group, so re-running an older run would
 // cancel a newer run on the same ref: only the newest run may be re-run.
 export const decide = (jobs, runId, newestRunId) => {
   if (runId == null || newestRunId == null)
     return {
       rerun: false,
-      reason: `not re-running run ${runId ?? 'missing'}: the newest CI run for its branch and event is ${newestRunId ?? 'missing'}`
+      reason: `not re-running run ${runId ?? 'missing'}: the newest CI run on its branch is ${newestRunId ?? 'missing'}`
     }
   if (String(runId) !== String(newestRunId))
     return {
       rerun: false,
-      reason: `not re-running run ${runId}: a newer CI run for its branch and event exists (${newestRunId})`
+      reason: `not re-running run ${runId}: a newer CI run on its branch exists (${newestRunId})`
     }
   return classifyRun(jobs)
 }
@@ -97,7 +112,11 @@ if (
 ) {
   const { readFileSync, appendFileSync } = await import('node:fs')
   const jobs = JSON.parse(readFileSync(process.argv[2], 'utf8'))
-  const result = decide(jobs, process.env.RUN_ID, process.env.NEWEST_RUN_ID)
+  const result = decide(
+    jobs,
+    process.env.RUN_ID,
+    newestRunId((process.env.NEWEST_RUN_IDS ?? '').split(/\s+/))
+  )
   console.log(
     `${result.rerun ? 'RERUN' : 'KEEP'}: ${sanitizeReason(result.reason)}`
   )
