@@ -122,4 +122,76 @@ describe('buildStoredImportPlan', () => {
       }
     ])
   })
+
+  it('predicts the post a target overlaps most when it reaches two', () => {
+    // A GPS-less trainer recording covering a short warm-up post and the main
+    // ride's post after it overlaps both by 100% of the shorter duration.
+    const indoorStart = Date.parse('2026-10-30T17:09:09.000Z')
+    const warmUp = buildFile({
+      id: 'warm-up',
+      statusId: 'status-warm-up',
+      activityStartTime: Date.parse('2026-10-30T17:15:19.000Z'),
+      totalDurationSeconds: 161
+    })
+    const mainRide = buildFile({
+      id: 'main-ride',
+      statusId: 'status-main-ride',
+      activityStartTime: Date.parse('2026-10-30T17:20:06.000Z'),
+      totalDurationSeconds: 5_428
+    })
+
+    const plan = buildStoredImportPlan({
+      targets: [
+        {
+          file: buildFile({ id: 'indoor', fileName: 'indoor.tcx' }),
+          startTimeMs: indoorStart,
+          durationSeconds: 6_154
+        }
+      ],
+      contextFiles: [warmUp, mainRide]
+    })
+
+    expect(plan.groups).toEqual([
+      { targetFileNames: ['indoor.tcx'], mergeStatusId: 'status-main-ride' }
+    ])
+  })
+
+  it('emits one group per post when targets split across two posts', () => {
+    const postA = buildFile({
+      id: 'post-a',
+      statusId: 'status-a',
+      activityStartTime: baseStart,
+      totalDurationSeconds: 1_200
+    })
+    const postB = buildFile({
+      id: 'post-b',
+      statusId: 'status-b',
+      activityStartTime: baseStart + 3_600_000,
+      totalDurationSeconds: 1_200
+    })
+
+    const plan = buildStoredImportPlan({
+      targets: [
+        {
+          file: buildFile({ id: 't-a', fileName: 't-a.tcx' }),
+          startTimeMs: baseStart,
+          durationSeconds: 1_200
+        },
+        {
+          file: buildFile({ id: 't-b', fileName: 't-b.tcx' }),
+          startTimeMs: baseStart + 3_600_000,
+          durationSeconds: 1_200
+        }
+      ],
+      contextFiles: [postA, postB]
+    })
+
+    expect(plan.groups).toHaveLength(2)
+    expect(plan.groups).toEqual(
+      expect.arrayContaining([
+        { targetFileNames: ['t-a.tcx'], mergeStatusId: 'status-a' },
+        { targetFileNames: ['t-b.tcx'], mergeStatusId: 'status-b' }
+      ])
+    )
+  })
 })

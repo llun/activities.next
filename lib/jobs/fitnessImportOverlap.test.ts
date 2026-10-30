@@ -2,8 +2,10 @@ import { FitnessFile } from '@/lib/types/database/fitnessFile'
 
 import {
   FitnessOverlapActivity,
+  assignActivitiesToStatusIds,
   getOverlapContextFitnessFileIds,
-  groupFitnessActivitiesByOverlap
+  groupFitnessActivitiesByOverlap,
+  selectMostOverlappingStatusId
 } from './fitnessImportOverlap'
 
 describe('groupFitnessActivitiesByOverlap', () => {
@@ -54,6 +56,76 @@ describe('groupFitnessActivitiesByOverlap', () => {
       ['a', 'b', 'c'],
       ['d']
     ])
+  })
+})
+
+describe('selectMostOverlappingStatusId', () => {
+  // 2026-10-30 18:09:09 CET: one GPS-less trainer recording covering a short
+  // Rouvy warm-up route and the main Rouvy route ridden right after it.
+  const indoorStart = Date.parse('2026-10-30T17:09:09.000Z')
+  const indoor: FitnessOverlapActivity = {
+    id: 'indoor',
+    startTimeMs: indoorStart,
+    durationSeconds: 6_154
+  }
+  const pukaki = {
+    id: 'pukaki',
+    statusId: 'status-pukaki',
+    startTimeMs: Date.parse('2026-10-30T17:15:19.000Z'),
+    durationSeconds: 161
+  }
+  const slovenia = {
+    id: 'slovenia',
+    statusId: 'status-slovenia',
+    startTimeMs: Date.parse('2026-10-30T17:20:06.000Z'),
+    durationSeconds: 5_428
+  }
+
+  it('picks the post the recording shares the most time with', () => {
+    expect(
+      selectMostOverlappingStatusId({
+        activities: [indoor],
+        candidates: [pukaki, slovenia]
+      })
+    ).toBe('status-slovenia')
+  })
+
+  it('gives a tie to the first candidate', () => {
+    const whole = { id: 'whole', startTimeMs: 0, durationSeconds: 1_200 }
+    expect(
+      selectMostOverlappingStatusId({
+        activities: [whole],
+        candidates: [
+          { id: 'a', statusId: 'first', startTimeMs: 0, durationSeconds: 600 },
+          {
+            id: 'b',
+            statusId: 'second',
+            startTimeMs: 600_000,
+            durationSeconds: 600
+          }
+        ]
+      })
+    ).toBe('first')
+  })
+
+  it('does not count two recordings of the same post twice', () => {
+    // The short post has two copies of the same 600 s; the other post has one
+    // 900 s file. Summing per file would favour the duplicated post.
+    expect(
+      selectMostOverlappingStatusId({
+        activities: [{ id: 'new', startTimeMs: 0, durationSeconds: 1_800 }],
+        candidates: [
+          { id: 'a1', statusId: 'short', startTimeMs: 0, durationSeconds: 600 },
+          { id: 'a2', statusId: 'short', startTimeMs: 0, durationSeconds: 600 },
+          {
+            id: 'b',
+            statusId: 'long',
+            startTimeMs: 900_000,
+            durationSeconds: 900
+          }
+        ]
+      })
+    ).toBe('long')
   })
 })
 
@@ -111,5 +183,50 @@ describe('getOverlapContextFitnessFileIds', () => {
         files: [buildFile(overrides as Partial<FitnessFile> & { id: string })]
       })
     ).toEqual([])
+  })
+})
+
+describe('assignActivitiesToStatusIds', () => {
+  const candidates = [
+    {
+      id: 'a',
+      statusId: 'first',
+      startTimeMs: 0,
+      durationSeconds: 600
+    },
+    {
+      id: 'b',
+      statusId: 'second',
+      startTimeMs: 600_000,
+      durationSeconds: 1_200
+    }
+  ]
+
+  it('gives each recording the post it overlaps most', () => {
+    const result = assignActivitiesToStatusIds({
+      activities: [{ id: 'new', startTimeMs: 0, durationSeconds: 1_800 }],
+      candidates
+    })
+    expect(result.get('new')).toBe('second')
+  })
+
+  it('makes a recording with no overlap follow the combined pick', () => {
+    const result = assignActivitiesToStatusIds({
+      activities: [
+        { id: 'covering', startTimeMs: 0, durationSeconds: 1_800 },
+        { id: 'detached', startTimeMs: 5_000_000, durationSeconds: 600 }
+      ],
+      candidates
+    })
+    expect(result.get('covering')).toBe('second')
+    expect(result.get('detached')).toBe('second')
+  })
+
+  it('returns null when there is no candidate', () => {
+    const result = assignActivitiesToStatusIds({
+      activities: [{ id: 'new', startTimeMs: 0, durationSeconds: 600 }],
+      candidates: []
+    })
+    expect(result.get('new')).toBeNull()
   })
 })

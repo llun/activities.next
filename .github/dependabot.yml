@@ -44,6 +44,52 @@ updates:
         patterns:
           - '@aws-sdk/*'
           - '@smithy/*'
+  # Yarn workspaces share the single yarn.lock at the root, so only the `/`
+  # entry above may bump a workspace's dependencies. GitHub's Dependabot
+  # security updates run one job per manifest the dependency graph indexes
+  # and use the entry whose directory matches it; a job rooted in a workspace
+  # folder finds no lockfile and opens a PR that edits package.json alone,
+  # which `yarn install --immutable` refuses on every job (PR #2591, 22 red
+  # jobs, 2026-10-23; its root-job twin #2592 updated the lockfile and
+  # merged). `ignore: '*'` also applies to security updates, so these entries
+  # make the workspace jobs open nothing; `open-pull-requests-limit: 0` turns
+  # their version updates off. Add an entry when a workspace is added.
+  - package-ecosystem: 'npm'
+    directory: '/packages/cloudtasks'
+    schedule: { interval: 'monthly' }
+    open-pull-requests-limit: 0
+    ignore:
+      - dependency-name: '*'
+  - package-ecosystem: 'npm'
+    directory: '/packages/nodemailer'
+    schedule: { interval: 'monthly' }
+    open-pull-requests-limit: 0
+    ignore:
+      - dependency-name: '*'
+  - package-ecosystem: 'npm'
+    directory: '/packages/pg'
+    schedule: { interval: 'monthly' }
+    open-pull-requests-limit: 0
+    ignore:
+      - dependency-name: '*'
+  - package-ecosystem: 'npm'
+    directory: '/packages/qstash'
+    schedule: { interval: 'monthly' }
+    open-pull-requests-limit: 0
+    ignore:
+      - dependency-name: '*'
+  - package-ecosystem: 'npm'
+    directory: '/packages/resend'
+    schedule: { interval: 'monthly' }
+    open-pull-requests-limit: 0
+    ignore:
+      - dependency-name: '*'
+  - package-ecosystem: 'npm'
+    directory: '/packages/ses'
+    schedule: { interval: 'monthly' }
+    open-pull-requests-limit: 0
+    ignore:
+      - dependency-name: '*'
   - package-ecosystem: 'github-actions'
     directory: '/'
     schedule:

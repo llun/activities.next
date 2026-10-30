@@ -78,7 +78,7 @@ export const getOverlapContextFitnessFileIds = ({
     .map((file) => file.id)
 }
 
-const getOverlapRatio = (
+const getOverlapDurationMs = (
   first: FitnessOverlapActivity,
   second: FitnessOverlapActivity
 ) => {
@@ -93,14 +93,104 @@ const getOverlapRatio = (
   const secondEnd = second.startTimeMs + secondDurationMs
   const overlapStart = Math.max(first.startTimeMs, second.startTimeMs)
   const overlapEnd = Math.min(firstEnd, secondEnd)
-  const overlapDuration = Math.max(0, overlapEnd - overlapStart)
+  return Math.max(0, overlapEnd - overlapStart)
+}
+
+const getOverlapRatio = (
+  first: FitnessOverlapActivity,
+  second: FitnessOverlapActivity
+) => {
+  const overlapDuration = getOverlapDurationMs(first, second)
 
   if (overlapDuration <= 0) {
     return 0
   }
 
-  const shortestDuration = Math.min(firstDurationMs, secondDurationMs)
+  const shortestDuration =
+    Math.min(first.durationSeconds, second.durationSeconds) * 1000
   return overlapDuration / shortestDuration
+}
+
+/**
+ * Picks the existing post that new recordings join when their overlap group
+ * reaches more than one post.
+ *
+ * Grouping is transitive and measured against the SHORTER recording, so one
+ * long recording can chain several existing posts into a group: a two-hour
+ * trainer recording fully covers both a three-minute warm-up route and the
+ * main route ridden after it, at 100% each. The recordings join the post they
+ * share the most time with — for each recording, its largest overlap with any
+ * file of that post, summed over the recordings — and a tie goes to the post
+ * listed first. `candidates` must therefore be in the caller's preference
+ * order (the import job's activity-start order). Returns null when there is no
+ * candidate. Call it with a single activity for one recording's own pick.
+ */
+export const selectMostOverlappingStatusId = ({
+  activities,
+  candidates
+}: {
+  activities: FitnessOverlapActivity[]
+  candidates: (FitnessOverlapActivity & { statusId: string })[]
+}): string | null => {
+  const scoreByStatusId = new Map<string, number>()
+  for (const candidate of candidates) {
+    if (scoreByStatusId.has(candidate.statusId)) continue
+    const statusFiles = candidates.filter(
+      (file) => file.statusId === candidate.statusId
+    )
+    scoreByStatusId.set(
+      candidate.statusId,
+      activities.reduce(
+        (sum, activity) =>
+          sum +
+          Math.max(
+            0,
+            ...statusFiles.map((file) => getOverlapDurationMs(activity, file))
+          ),
+        0
+      )
+    )
+  }
+
+  let selected: string | null = null
+  let selectedScore = -1
+  for (const [statusId, score] of scoreByStatusId) {
+    if (score > selectedScore) {
+      selected = statusId
+      selectedScore = score
+    }
+  }
+  return selected
+}
+
+/**
+ * Assigns each new recording to the existing post IT overlaps most (its largest
+ * overlap with any file of that post, a tie going to the earliest candidate).
+ * A recording that has no overlap at all with any candidate's file — it reached
+ * the group only through another new recording — follows the post the combined score of all
+ * the new recordings picks. The value is null only when there is no candidate.
+ */
+export const assignActivitiesToStatusIds = ({
+  activities,
+  candidates
+}: {
+  activities: FitnessOverlapActivity[]
+  candidates: (FitnessOverlapActivity & { statusId: string })[]
+}): Map<string, string | null> => {
+  const combinedStatusId = selectMostOverlappingStatusId({
+    activities,
+    candidates
+  })
+  return new Map(
+    activities.map((activity) => [
+      activity.id,
+      candidates.some(
+        (candidate) => getOverlapDurationMs(activity, candidate) > 0
+      )
+        ? selectMostOverlappingStatusId({ activities: [activity], candidates })
+        : combinedStatusId
+    ])
+  )
 }
 
 class UnionFind {

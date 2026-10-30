@@ -266,4 +266,133 @@ describe('importStravaActivityJob same-ride merge', () => {
     )
     expect(mapAttachments).toHaveLength(1)
   })
+
+  describe('an indoor evening of two Rouvy rides and one trainer recording', () => {
+    // 2026-10-30, CET (UTC+1). Both Rouvy rides carry virtual GPS; the trainer
+    // recording (Wahoo/Garmin, `trainer: true`) has none and covers both.
+    const rides = {
+      pukaki: {
+        name: 'ROUVY - Lake Pukaki',
+        sport_type: 'VirtualRide',
+        startOffsetSeconds: 6 * 60 + 10,
+        elapsed_time: 161,
+        hasRoute: true
+      },
+      slovenia: {
+        name: 'ROUVY - Tour of Slovenia',
+        sport_type: 'VirtualRide',
+        startOffsetSeconds: 10 * 60 + 57,
+        elapsed_time: 5_428,
+        hasRoute: true
+      },
+      indoor: {
+        name: 'Indoor Cycling',
+        sport_type: 'Ride',
+        startOffsetSeconds: 0,
+        elapsed_time: 6_154,
+        hasRoute: false
+      }
+    }
+    type RideKey = keyof typeof rides
+    // Parse results by Strava activity id, matched from the stored file name.
+    const parsedActivities = new Map<string, unknown>()
+
+    const importRide = async (
+      stravaActivityId: string,
+      key: RideKey,
+      indoorStartIso: string
+    ) => {
+      const ride = rides[key]
+      const startDate = new Date(
+        Date.parse(indoorStartIso) + ride.startOffsetSeconds * 1000
+      ).toISOString()
+      parsedActivities.set(stravaActivityId, {
+        coordinates: ride.hasRoute
+          ? [
+              { lat: 46.05, lng: 14.5 },
+              { lat: 46.06, lng: 14.51 }
+            ]
+          : [],
+        trackPoints: [],
+        totalDistanceMeters: 10_000,
+        totalDurationSeconds: ride.elapsed_time,
+        activityType:
+          ride.sport_type === 'VirtualRide' ? 'virtual_ride' : 'ride',
+        startTime: new Date(startDate)
+      })
+      mockGetStravaActivity.mockResolvedValueOnce({
+        id: Number(stravaActivityId),
+        name: ride.name,
+        distance: 10_000,
+        elapsed_time: ride.elapsed_time,
+        moving_time: ride.elapsed_time,
+        start_date: startDate,
+        sport_type: ride.sport_type,
+        trainer: !ride.hasRoute,
+        visibility: 'everyone'
+      } as never)
+
+      await importStravaActivityJob(database, {
+        id: `job-${stravaActivityId}`,
+        name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+        data: { actorId: actor.id, stravaActivityId }
+      })
+
+      const [file] = await database.getFitnessFilesByBatchId({
+        batchId: getStravaActivityBatchId(stravaActivityId)
+      })
+      return file
+    }
+
+    beforeEach(() => {
+      parsedActivities.clear()
+      mockGetFitnessFileBuffer.mockImplementation(async (_db, fitnessFileId) =>
+        Buffer.from(
+          (await database.getFitnessFile({ id: fitnessFileId }))?.fileName ?? ''
+        )
+      )
+      mockParseFitnessFile.mockImplementation(async ({ buffer }) => {
+        const stravaActivityId = /strava-(\d+)\./.exec(buffer.toString())?.[1]
+        const parsed = stravaActivityId
+          ? parsedActivities.get(stravaActivityId)
+          : undefined
+        if (!parsed) throw new Error(`No parse fixture for ${buffer}`)
+        return parsed as never
+      })
+    })
+
+    it('attaches the trainer recording imported last to the main ride, not the warm-up', async () => {
+      const indoorStart = '2026-10-30T17:09:09.000Z'
+      const pukaki = await importRide('3001', 'pukaki', indoorStart)
+      const slovenia = await importRide('3002', 'slovenia', indoorStart)
+      const indoor = await importRide('3003', 'indoor', indoorStart)
+
+      expect(pukaki.statusId).toBeTruthy()
+      expect(slovenia.statusId).toBeTruthy()
+      expect(slovenia.statusId).not.toBe(pukaki.statusId)
+      expect(indoor.statusId).toBe(slovenia.statusId)
+      expect(indoor.isPrimary).toBe(false)
+      expect(
+        await database.getFitnessFilesByStatus({
+          statusId: pukaki.statusId as string
+        })
+      ).toHaveLength(1)
+    })
+
+    it('collects both Rouvy rides on the trainer post when the trainer recording arrives first', async () => {
+      const indoorStart = '2026-10-23T16:09:09.000Z'
+      const indoor = await importRide('3101', 'indoor', indoorStart)
+      const pukaki = await importRide('3102', 'pukaki', indoorStart)
+      const slovenia = await importRide('3103', 'slovenia', indoorStart)
+
+      expect(indoor.statusId).toBeTruthy()
+      expect(pukaki.statusId).toBe(indoor.statusId)
+      expect(slovenia.statusId).toBe(indoor.statusId)
+      // The Strava importer never promotes a richer file, so the first
+      // recording stays the post's primary.
+      expect(
+        (await database.getFitnessFile({ id: indoor.id }))?.isPrimary
+      ).toBe(true)
+    })
+  })
 })

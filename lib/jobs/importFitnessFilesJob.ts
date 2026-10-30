@@ -6,7 +6,10 @@ import {
 } from '@/lib/actions/createNote'
 import { Database } from '@/lib/database/types'
 import { isIsolatedFromFitnessImport } from '@/lib/jobs/fitnessImportIsolation'
-import { groupFitnessActivitiesByOverlap } from '@/lib/jobs/fitnessImportOverlap'
+import {
+  assignActivitiesToStatusIds,
+  groupFitnessActivitiesByOverlap
+} from '@/lib/jobs/fitnessImportOverlap'
 import { PROCESS_FITNESS_FILE_JOB_NAME } from '@/lib/jobs/names'
 import { isMovedActor } from '@/lib/services/accounts/movedAccount'
 import { getFitnessFileBuffer } from '@/lib/services/fitness-files'
@@ -228,6 +231,68 @@ const groupFilesByOverlap = (
     const secondStart = secondGroup[0]?.startTimeMs ?? Number.MAX_SAFE_INTEGER
     return firstStart - secondStart
   })
+}
+
+const toOverlapActivity = (item: ParsedImportFile) =>
+  typeof item.startTimeMs === 'number' && item.totalDurationSeconds > 0
+    ? {
+        id: item.fitnessFile.id,
+        startTimeMs: item.startTimeMs,
+        durationSeconds: item.totalDurationSeconds
+      }
+    : null
+
+/**
+ * Splits an overlap group that reaches more than one existing post into one
+ * group per post, so a run never merges two posts or moves a file between them.
+ *
+ * Overlap grouping is transitive, so one long recording (a trainer session
+ * covering a short warm-up route and the main route after it) pulls every post
+ * it overlaps into a single group. Each file that already belongs to a post
+ * stays in that post's group; each file that has no post yet (a new
+ * recording) joins the post IT overlaps most (`assignActivitiesToStatusIds`),
+ * ties to the earliest. A revision's own status still takes all of them, as in
+ * the single-post case.
+ */
+const splitGroupByExistingStatus = (
+  group: ParsedImportFile[],
+  revisionStatusIds: Set<string>
+): ParsedImportFile[][] => {
+  const orderedGroup = sortFilesByActivityStart(group)
+  const statusIds = [
+    ...new Set(
+      orderedGroup
+        .map((item) => item.fitnessFile.statusId)
+        .filter((id): id is string => Boolean(id))
+    )
+  ]
+  if (statusIds.length <= 1) {
+    return [group]
+  }
+
+  const unassigned = orderedGroup.filter((item) => !item.fitnessFile.statusId)
+  const revisionStatusId = statusIds.find((statusId) =>
+    revisionStatusIds.has(statusId)
+  )
+  const assigned = revisionStatusId
+    ? new Map<string, string | null>()
+    : assignActivitiesToStatusIds({
+        activities: unassigned
+          .map(toOverlapActivity)
+          .filter((activity) => activity !== null),
+        candidates: orderedGroup.flatMap((item) => {
+          const activity = toOverlapActivity(item)
+          const statusId = item.fitnessFile.statusId
+          return activity && statusId ? [{ ...activity, statusId }] : []
+        })
+      })
+  const joinedStatusId = (item: ParsedImportFile) =>
+    revisionStatusId ?? assigned.get(item.fitnessFile.id) ?? statusIds[0]
+
+  return statusIds.map((statusId) => [
+    ...orderedGroup.filter((item) => item.fitnessFile.statusId === statusId),
+    ...unassigned.filter((item) => joinedStatusId(item) === statusId)
+  ])
 }
 
 const markImportFileFailed = async (
@@ -569,7 +634,7 @@ export const importFitnessFiles = async (
       parsedFiles.filter(
         (item) => !isolatedStatusIds.has(item.fitnessFile.statusId ?? '')
       )
-    ),
+    ).flatMap((group) => splitGroupByExistingStatus(group, revisionStatusIds)),
     ...Array.from(isolatedStatusIds, (statusId) =>
       parsedFiles.filter((item) => item.fitnessFile.statusId === statusId)
     )
@@ -601,24 +666,16 @@ export const importFitnessFiles = async (
     let createdStatusId: string | null = null
 
     try {
-      // A revision names the status it must land on, and the moved-account
-      // isolation above can leave that status overlapping another one (a
-      // pre-move post plus a hidden moved-time record of the same ride). When
-      // the group holds a file of a revision status, that status wins over the
-      // earliest-file rule; without this, a revision whose status is not the
-      // earliest file's would throw or quietly land on the wrong post.
+      // Every group holds at most one existing status by now: an isolated
+      // status is its own group, and splitGroupByExistingStatus gives each
+      // post that an overlap group reaches its own group, sending the files
+      // with no post yet to the one they overlap most (or to a revision's own
+      // status — the moved-account isolation above can leave that status
+      // overlapping another one, a pre-move post plus a hidden moved-time
+      // record of the same ride).
       const existingStatusId =
-        (revisionStatusIds.size > 0
-          ? orderedGroup.find(
-              (item) =>
-                item.fitnessFile.statusId != null &&
-                revisionStatusIds.has(item.fitnessFile.statusId)
-            )
-          : undefined
-        )?.fitnessFile.statusId ??
         orderedGroup.find((item) => item.fitnessFile.statusId)?.fitnessFile
-          .statusId ??
-        null
+          .statusId ?? null
 
       const existingStatus = existingStatusId
         ? await database.getStatus({
