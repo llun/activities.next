@@ -1,0 +1,33 @@
+app/(timeline)/[actor]/getProfileData.test.ts
+  s_195cb3eb51f376::t_39ae7f2b1c2d03 33,1317-1420
+app/(timeline)/[actor]/getProfileData.ts
+  s_195cb3eb51f376::t_604c321bb1b63c 171-174,368-369,554-562
+lib/components/posts/actions/actionButtonShared.tsx
+  s_195cb3eb51f376::t_8921914f94ac3b 78,81-85,88-89,92-96
+lib/components/posts/actions/bookmark-button.test.tsx
+  s_195cb3eb51f376::t_f6549cb949a61c 100-114
+lib/components/posts/actions/bookmark-button.tsx
+  s_195cb3eb51f376::t_5162d3d0b4729e 43-47
+lib/components/posts/actions/reaction-button.tsx
+  s_195cb3eb51f376::t_4262e83fef4216 82-86
+lib/services/statuses/overlayViewerState.test.ts
+  s_195cb3eb51f376::t_a97781a666a5cc 5,10-12,14-15,57,316-511
+lib/services/statuses/overlayViewerState.ts
+  s_195cb3eb51f376::t_0bb95a3c397f4f 6-7,51-58,60,62-68,70-74,76-100,103-104,106-109,112-120
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f51f9655c79f3576d91bd27a1739aa7e98367f16",
+  "prompts": {},
+  "sessions": {
+    "s_195cb3eb51f376": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0ddc170b-b456-4a8f-981e-76709f98f018",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
