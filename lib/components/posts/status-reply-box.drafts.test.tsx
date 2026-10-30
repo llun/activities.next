@@ -97,18 +97,15 @@ const ACCOUNT_ID = 'account-1'
 const EpochReady = () =>
   useDrafts()?.epoch != null ? <span data-testid="drafts-ready" /> : null
 
-// Runs `act` (typing, say) and then moves a fake clock past the autosave pause.
-// The fake clock goes in before `act`, so a timer armed by it is a fake one.
+// Runs `act` (typing, say) and then moves the fake clock past the autosave
+// pause. The caller installs the fake clock BEFORE rendering, so the timer the
+// box arms on mount or on typing is a fake one that this advance really moves.
+const FAKE_CLOCK = { toFake: ['Date', 'setTimeout', 'clearTimeout'] } as const
 const advanceDebounce = async (beforeAdvance: () => void = () => undefined) => {
-  vi.useFakeTimers()
-  try {
-    beforeAdvance()
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS + 300)
-    })
-  } finally {
-    vi.useRealTimers()
-  }
+  beforeAdvance()
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS + 300)
+  })
 }
 
 const renderBox = (
@@ -180,6 +177,8 @@ describe('StatusReplyBox on-device drafts', () => {
   })
 
   it('saves nothing for the mention pre-fill alone', async () => {
+    // Before the render, so the pre-fill's debounce timer is a fake one.
+    vi.useFakeTimers(FAKE_CLOCK)
     renderBox(
       {
         replyStatus: {
@@ -196,7 +195,7 @@ describe('StatusReplyBox on-device drafts', () => {
       { withEpochProbe: true }
     )
     await screen.findByDisplayValue(/@bob/)
-    // Real time: the drafts provider must be on before the fake clock moves.
+    // IndexedDB I/O is real: the drafts provider must be on before the clock moves.
     await screen.findByTestId('drafts-ready')
     await advanceDebounce()
 
@@ -205,6 +204,8 @@ describe('StatusReplyBox on-device drafts', () => {
 
     // Positive control: the same setup and advance store typed text.
     cleanup()
+    vi.useRealTimers()
+    vi.useFakeTimers(FAKE_CLOCK)
     renderBox({}, { withEpochProbe: true })
     await screen.findByTestId('drafts-ready')
     await advanceDebounce(() => type('Positive control'))
