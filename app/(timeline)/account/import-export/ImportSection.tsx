@@ -666,9 +666,9 @@ export const ImportSection = ({
     >
       <div className="space-y-4">
         <Alert tone="info" title={`Posts will be imported into ${handle}`}>
-          Switch profile first if they belong somewhere else. Imported posts
-          keep their original dates. They are not sent to your followers, and
-          nobody is notified.
+          Switch to the right profile from the account menu first if they belong
+          somewhere else. Imported posts keep their original dates. They are not
+          sent to your followers, and nobody is notified.
         </Alert>
 
         {selectionError ? (

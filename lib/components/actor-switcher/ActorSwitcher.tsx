@@ -1,13 +1,13 @@
 'use client'
 
 import {
-  Check,
   ChevronsUpDown,
   Clock,
   LogOut,
   Plus,
   ShieldCheck,
   SquarePen,
+  Undo2,
   UserRound
 } from 'lucide-react'
 import dynamic from 'next/dynamic'
@@ -29,6 +29,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -147,6 +148,15 @@ export function ActorSwitcher({
   }
 
   const getHandle = (actor: ActorInfo) => `@${actor.username}@${actor.domain}`
+  // The current profile is the header, so only the others are switch targets.
+  const otherActors = actors.filter((actor) => actor.id !== currentActor?.id)
+  // The current profile can itself be pending deletion (a non-default profile
+  // scheduled from /settings/delete); as it is not listed, the header and the
+  // first row of the group carry its notice and Cancel.
+  // Read from `actors`: only the layout's actor list carries `deletionStatus`.
+  const currentDeletionStatus = actors.find(
+    (a) => a.id === currentActor?.id
+  )?.deletionStatus
 
   const handleSwitchActor = async (actorId: string) => {
     if ((currentActor && actorId === currentActor.id) || isSwitching) return
@@ -336,14 +346,152 @@ export function ActorSwitcher({
                   displayName
                 )}
               </p>
-              <p className="text-xs text-muted-foreground truncate">{handle}</p>
+              <p className="text-xs text-muted-foreground truncate">
+                {currentDeletionStatus === 'scheduled' ? (
+                  <span className="text-warning-text flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    Pending deletion
+                  </span>
+                ) : currentDeletionStatus === 'deleting' ? (
+                  <span className="text-destructive-text">Deleting…</span>
+                ) : (
+                  handle
+                )}
+              </p>
             </div>
           </DropdownMenuLabel>
 
           {/* 2. Separator */}
           <DropdownMenuSeparator />
 
-          {/* 3. View profile */}
+          {/* 3. Other profiles, then Add another profile. The current profile
+              is the header, so it is not listed again. */}
+          <DropdownMenuGroup aria-label="Switch profile">
+            {currentActor && currentDeletionStatus === 'scheduled' ? (
+              <DropdownMenuItem
+                onSelect={() => {
+                  handleCancelDeletion(currentActor.id)
+                }}
+                aria-label={`Cancel deletion of ${spokenName}`}
+                disabled={isCancelling || isSwitching}
+                className={cn(
+                  'flex items-center gap-3 cursor-pointer',
+                  'pointer-coarse:min-h-[44px]'
+                )}
+              >
+                <span
+                  aria-hidden="true"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-[1.5px] border-muted-foreground/50"
+                >
+                  <Undo2 className="h-4 w-4 text-muted-foreground" />
+                </span>
+                Cancel deletion
+              </DropdownMenuItem>
+            ) : null}
+            {otherActors.map((actor) => {
+              const isPendingDeletion = actor.deletionStatus === 'scheduled'
+              const isDeleting = actor.deletionStatus === 'deleting'
+              const isDisabled = isSwitching || isDeleting || isCancelling
+              const reducedOpacity = isPendingDeletion || isDeleting
+              const actorName = actor.name || actor.username
+
+              return (
+                <DropdownMenuItem
+                  key={actor.id}
+                  onSelect={() => {
+                    if (isPendingDeletion) {
+                      handleCancelDeletion(actor.id)
+                    } else if (!isDeleting) {
+                      handleSwitchActor(actor.id)
+                    }
+                  }}
+                  disabled={isDisabled}
+                  className={cn(
+                    'flex items-center gap-3 cursor-pointer',
+                    'pointer-coarse:min-h-[44px]'
+                  )}
+                >
+                  <Avatar
+                    className={cn(
+                      'h-8 w-8 shrink-0',
+                      reducedOpacity && 'opacity-60'
+                    )}
+                  >
+                    {actor.iconUrl && <AvatarImage src={actor.iconUrl} />}
+                    <AvatarFallback className="bg-(--skeleton) font-semibold text-muted-foreground dark:bg-input text-xs">
+                      {getAvatarInitial(actor.username)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div
+                    className={cn(
+                      'flex-1 overflow-hidden min-w-0',
+                      reducedOpacity && 'opacity-60'
+                    )}
+                  >
+                    <p className="text-sm font-medium truncate">
+                      <ActorDisplayName name={actorName} tags={actor.tags} />
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {isPendingDeletion ? (
+                        <span className="text-warning-text flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          Pending deletion
+                        </span>
+                      ) : isDeleting ? (
+                        <span className="text-destructive-text">Deleting…</span>
+                      ) : (
+                        getHandle(actor)
+                      )}
+                    </p>
+                  </div>
+                  {isPendingDeletion && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        handleCancelDeletion(actor.id, e)
+                      }}
+                      disabled={isCancelling}
+                      className="text-xs text-primary-text hover:text-primary-text px-2 py-1 rounded hover:bg-muted cursor-pointer shrink-0"
+                      title="Cancel deletion"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </DropdownMenuItem>
+              )
+            })}
+
+            {/* 4. Add another profile, the last row of the group */}
+            <DropdownMenuItem
+              onSelect={() => {
+                deferredSelectRef.current = () => {
+                  // Waits for the chunk (preload retries a failed one), so a
+                  // retry after a blip mounts the loaded dialog.
+                  void preloadAddActorDialog().then(() => {
+                    setIsAddMounted(true)
+                    setIsDialogOpen(true)
+                  })
+                }
+              }}
+              className={cn(
+                'flex items-center gap-3 cursor-pointer',
+                'pointer-coarse:min-h-[44px]'
+              )}
+            >
+              <span
+                aria-hidden="true"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-[1.5px] border-dashed border-muted-foreground/50"
+              >
+                <Plus className="h-4 w-4 text-muted-foreground" />
+              </span>
+              Add another profile
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
+
+          {/* 5. Separator */}
+          <DropdownMenuSeparator />
+
+          {/* 6. View profile */}
           <DropdownMenuItem
             asChild
             className={cn('cursor-pointer', 'pointer-coarse:min-h-[44px]')}
@@ -354,7 +502,7 @@ export function ActorSwitcher({
             </Link>
           </DropdownMenuItem>
 
-          {/* 4. Edit profile */}
+          {/* 7. Edit profile */}
           <DropdownMenuItem
             asChild
             className={cn('cursor-pointer', 'pointer-coarse:min-h-[44px]')}
@@ -367,116 +515,6 @@ export function ActorSwitcher({
               <SquarePen className="h-4 w-4 mr-2" />
               Edit profile
             </Link>
-          </DropdownMenuItem>
-
-          {/* 5. Separator */}
-          <DropdownMenuSeparator />
-
-          {/* 6. Switch profile list (when actors.length > 1) */}
-          {actors.length > 1 && (
-            <>
-              <div className="px-2 pt-1.5 pb-0.5 text-xs font-semibold text-muted-foreground">
-                Switch profile
-              </div>
-              {actors.map((actor) => {
-                const isPendingDeletion = actor.deletionStatus === 'scheduled'
-                const isDeleting = actor.deletionStatus === 'deleting'
-                const isCurrent = currentActor && actor.id === currentActor.id
-                const isDisabled = isSwitching || isDeleting || isCancelling
-                const reducedOpacity = isPendingDeletion || isDeleting
-
-                return (
-                  <DropdownMenuItem
-                    key={actor.id}
-                    onSelect={() => {
-                      if (isPendingDeletion) {
-                        handleCancelDeletion(actor.id)
-                      } else if (!isDeleting) {
-                        handleSwitchActor(actor.id)
-                      }
-                    }}
-                    disabled={isDisabled}
-                    className={cn(
-                      'flex items-center gap-3 cursor-pointer',
-                      'pointer-coarse:min-h-[44px]'
-                    )}
-                  >
-                    <Avatar
-                      className={cn(
-                        'h-8 w-8 shrink-0',
-                        reducedOpacity && 'opacity-60'
-                      )}
-                    >
-                      {actor.iconUrl && <AvatarImage src={actor.iconUrl} />}
-                      <AvatarFallback className="bg-(--skeleton) font-semibold text-muted-foreground dark:bg-input text-xs">
-                        {getAvatarInitial(actor.username)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div
-                      className={cn(
-                        'flex-1 overflow-hidden min-w-0',
-                        reducedOpacity && 'opacity-60'
-                      )}
-                    >
-                      <p className="text-sm font-medium truncate">
-                        <ActorDisplayName
-                          name={actor.name || actor.username}
-                          tags={actor.tags}
-                        />
-                      </p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {isPendingDeletion ? (
-                          <span className="text-warning-text flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            Pending deletion
-                          </span>
-                        ) : isDeleting ? (
-                          <span className="text-destructive-text">
-                            Deleting…
-                          </span>
-                        ) : (
-                          getHandle(actor)
-                        )}
-                      </p>
-                    </div>
-                    {isCurrent && !isPendingDeletion && !isDeleting && (
-                      <Check className="h-4 w-4 text-primary shrink-0" />
-                    )}
-                    {isPendingDeletion && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          handleCancelDeletion(actor.id, e)
-                        }}
-                        disabled={isCancelling}
-                        className="text-xs text-primary-text hover:text-primary-text px-2 py-1 rounded hover:bg-muted cursor-pointer shrink-0"
-                        title="Cancel deletion"
-                      >
-                        Cancel
-                      </button>
-                    )}
-                  </DropdownMenuItem>
-                )
-              })}
-            </>
-          )}
-
-          {/* 7. Add another profile */}
-          <DropdownMenuItem
-            onSelect={() => {
-              deferredSelectRef.current = () => {
-                // Waits for the chunk (preload retries a failed one), so a
-                // retry after a blip mounts the loaded dialog.
-                void preloadAddActorDialog().then(() => {
-                  setIsAddMounted(true)
-                  setIsDialogOpen(true)
-                })
-              }
-            }}
-            className={cn('cursor-pointer', 'pointer-coarse:min-h-[44px]')}
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add another profile
           </DropdownMenuItem>
 
           {/* 8. Separator */}
