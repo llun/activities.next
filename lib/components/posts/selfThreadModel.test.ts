@@ -24,6 +24,7 @@ import {
 import { groupTimelinePage } from '@/lib/components/posts/timelineModel'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Status, StatusNote } from '@/lib/types/domain/status'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 const MINUTE = 60 * 1000
 
@@ -457,6 +458,224 @@ describe('selfThreadModel', () => {
       expect(model.replyingToByReplyId.has(replyToA4.id)).toBe(false)
     })
 
+    describe('ancestor runs for any author', () => {
+      const maytheeRun = () => {
+        const m1 = note('m1', { at: 0 })
+        const m2 = note('m2', { at: MINUTE, reply: m1.id })
+        return [m1, m2] as const
+      }
+
+      it('collects an ancestor run by another author when the opened post is by someone else', () => {
+        const [m1, m2] = maytheeRun()
+        const v1 = note('v1', { actor: mockBob, at: 2 * MINUTE, reply: m2.id })
+
+        const model = buildSelfThreadModel({
+          focusedStatus: v1,
+          ancestors: [m1, m2]
+        })
+
+        expect(model.ancestorRuns).toHaveLength(1)
+        expect(model.ancestorRuns[0].parts.map((p) => p.status.id)).toEqual([
+          m1.id,
+          m2.id
+        ])
+        // The opened post stays outside every run: its own row, never an
+        // inset, however short and recent it is.
+        const runStatusIds = model.ancestorRuns.flatMap((run) =>
+          run.parts.flatMap((part) => [
+            part.status.id,
+            ...part.insets.map((inset) => inset.id)
+          ])
+        )
+        expect(runStatusIds).not.toContain(v1.id)
+        expect(model.run).toBeNull()
+        expect(model.openedPartIndex).toBe(-1)
+      })
+
+      it('exposes the ancestor part the opened post replies to with its index and count', () => {
+        const [m1, m2] = maytheeRun()
+        const v1 = note('v1', { actor: mockBob, at: 2 * MINUTE, reply: m2.id })
+
+        const model = buildSelfThreadModel({
+          focusedStatus: v1,
+          ancestors: [m1, m2]
+        })
+
+        expect(model.focusedReplyingTo?.status).toBe(m2)
+        expect(model.focusedReplyingTo?.partIndex).toBe(1)
+        expect(model.focusedReplyingTo?.partCount).toBe(2)
+        expect([...model.ancestorRunAnchorIndexById]).toEqual([
+          [`combined:${m1.id}`, 1]
+        ])
+      })
+
+      it('collects two ancestor runs for a deep chain of two authors', () => {
+        const [m1, m2] = maytheeRun()
+        const v1 = note('v1', { actor: mockBob, at: 2 * MINUTE, reply: m2.id })
+        const v2 = note('v2', { actor: mockBob, at: 3 * MINUTE, reply: v1.id })
+        const c1 = note('c1', {
+          actor: mockCarol,
+          at: 4 * MINUTE,
+          reply: v2.id
+        })
+
+        const model = buildSelfThreadModel({
+          focusedStatus: c1,
+          ancestors: [m1, m2, v1, v2]
+        })
+
+        expect(
+          model.ancestorRuns.map((run) => run.parts.map((p) => p.status.id))
+        ).toEqual([
+          [m1.id, m2.id],
+          [v1.id, v2.id]
+        ])
+        // C replies to the last part of the second run.
+        expect(model.focusedReplyingTo?.status).toBe(v2)
+        expect(model.focusedReplyingTo?.partIndex).toBe(1)
+        expect(model.focusedReplyingTo?.partCount).toBe(2)
+        expect(model.run).toBeNull()
+      })
+
+      it('reports the ancestor part the focused run answers, from the run’s first part', () => {
+        const [m1, m2] = maytheeRun()
+        const v1 = note('v1', { actor: mockBob, at: 2 * MINUTE, reply: m2.id })
+        const v2 = note('v2', { actor: mockBob, at: 3 * MINUTE, reply: v1.id })
+
+        // The opened post is the run's first part (V1 opened, V2 a reply).
+        const openedFirst = buildSelfThreadModel({
+          focusedStatus: v1,
+          ancestors: [m1, m2],
+          descendants: [v2]
+        })
+        expect(openedFirst.run?.parts.map((p) => p.status.id)).toEqual([
+          v1.id,
+          v2.id
+        ])
+        expect(openedFirst.focusedReplyingTo?.status).toBe(m2)
+        expect(openedFirst.focusedReplyingTo?.partIndex).toBe(1)
+        expect(openedFirst.focusedReplyingTo?.partCount).toBe(2)
+        expect([...openedFirst.ancestorRunAnchorIndexById]).toEqual([
+          [`combined:${m1.id}`, 1]
+        ])
+
+        // The opened post is the run's last part (V2 opened, V1 an
+        // ancestor): the run as a whole still answers M2.
+        const openedLast = buildSelfThreadModel({
+          focusedStatus: v2,
+          ancestors: [m1, m2, v1]
+        })
+        expect(openedLast.run?.parts.map((p) => p.status.id)).toEqual([
+          v1.id,
+          v2.id
+        ])
+        expect(openedLast.focusedReplyingTo?.status).toBe(m2)
+        expect(openedLast.focusedReplyingTo?.partIndex).toBe(1)
+        expect(openedLast.focusedReplyingTo?.partCount).toBe(2)
+        expect([...openedLast.ancestorRunAnchorIndexById]).toEqual([
+          [`combined:${m1.id}`, 1]
+        ])
+      })
+
+      it('splits the ancestor stretch when the gap exceeds ten minutes', () => {
+        const m1 = note('m1', { at: 0 })
+        const m2 = note('m2', { at: 20 * MINUTE, reply: m1.id })
+        const v1 = note('v1', { actor: mockBob, at: 21 * MINUTE, reply: m2.id })
+
+        const model = buildSelfThreadModel({
+          focusedStatus: v1,
+          ancestors: [m1, m2]
+        })
+
+        expect(model.ancestorRuns).toEqual([])
+        expect(model.focusedReplyingTo).toBeNull()
+      })
+
+      it('splits the ancestor stretch when the visibility changes', () => {
+        const m1 = note('m1', { at: 0 })
+        const m2Unlisted = note('m2', {
+          at: MINUTE,
+          reply: m1.id,
+          to: [],
+          cc: [ACTIVITY_STREAM_PUBLIC]
+        })
+        const v1 = note('v1', {
+          actor: mockBob,
+          at: 2 * MINUTE,
+          reply: m2Unlisted.id
+        })
+
+        const model = buildSelfThreadModel({
+          focusedStatus: v1,
+          ancestors: [m1, m2Unlisted]
+        })
+
+        expect(model.ancestorRuns).toEqual([])
+        expect(model.focusedReplyingTo).toBeNull()
+      })
+
+      it('keeps one run across the opened post when its author is the run author', () => {
+        const a1 = note('a1', { at: 0 })
+        const a2 = note('a2', { at: MINUTE, reply: a1.id })
+        const a3 = note('a3', { at: 2 * MINUTE, reply: a2.id })
+
+        const model = buildSelfThreadModel({
+          focusedStatus: a3,
+          ancestors: [a1, a2]
+        })
+
+        expect(model.run?.parts.map((p) => p.status.id)).toEqual([
+          a1.id,
+          a2.id,
+          a3.id
+        ])
+        expect(model.ancestorRuns).toEqual([])
+        // One continuous self-thread: no "Replying to" line for the opened post.
+        expect(model.focusedReplyingTo).toBeNull()
+        expect(model.openedPartIndex).toBe(2)
+      })
+
+      it('drops the i of n numbers when earlier ancestors were not loaded', () => {
+        const [m1, m2] = maytheeRun()
+        const v1 = note('v1', { actor: mockBob, at: 2 * MINUTE, reply: m2.id })
+
+        const model = buildSelfThreadModel({
+          focusedStatus: v1,
+          ancestors: [m1, m2],
+          hasMoreAncestors: true
+        })
+
+        expect(model.focusedReplyingTo?.status).toBe(m2)
+        expect(model.focusedReplyingTo?.partIndex).toBeNull()
+        expect(model.focusedReplyingTo?.partCount).toBeNull()
+        // The anchor index within the loaded run is still known.
+        expect([...model.ancestorRunAnchorIndexById]).toEqual([
+          [`combined:${m1.id}`, 1]
+        ])
+      })
+
+      it("labels a reply to another author's ancestor run part under Replies", () => {
+        const [m1, m2] = maytheeRun()
+        const v1 = note('v1', { actor: mockBob, at: 2 * MINUTE, reply: m2.id })
+        const replyToM2 = note('reply-m2', {
+          actor: mockCarol,
+          at: 3 * MINUTE,
+          reply: m2.id
+        })
+
+        const model = buildSelfThreadModel({
+          focusedStatus: v1,
+          ancestors: [m1, m2],
+          descendants: [replyToM2]
+        })
+
+        expect(model.ancestorRuns).toHaveLength(1)
+        expect(model.replyingToByReplyId.get(replyToM2.id)).toBe(
+          'Replying to 2 of 2'
+        )
+      })
+    })
+
     describe('matches the timeline tuck decision', () => {
       const insetIds = (model: SelfThreadModel) =>
         model.parts.flatMap((part) => part.insets.map((inset) => inset.id))
@@ -725,6 +944,30 @@ describe('selfThreadModel', () => {
       const fromMiddle = collapseLongRun(parts, 4)
       expect(fromMiddle.isCollapsed).toBe(true)
       expect(fromMiddle.visiblePartIndices).toEqual([0, 1, 4, 7])
+    })
+
+    it('keeps the answered part visible when an ancestor run is longer than the cap', () => {
+      const parts = makeParts(8)
+      // The opened post is the last part and replies to part 4 (index 3).
+      const result = collapseLongRun(parts, 7, LONG_RUN_MAX_PARTS, 3)
+
+      expect(result.isCollapsed).toBe(true)
+      expect(result.visiblePartIndices).toEqual([0, 1, 3, 7])
+    })
+
+    it('ignores an anchor that is already visible, out of range, or absent', () => {
+      const parts = makeParts(8)
+
+      expect(
+        collapseLongRun(parts, 7, LONG_RUN_MAX_PARTS, 0).visiblePartIndices
+      ).toEqual([0, 1, 7])
+      expect(
+        collapseLongRun(parts, 7, LONG_RUN_MAX_PARTS, 9).visiblePartIndices
+      ).toEqual([0, 1, 7])
+      expect(collapseLongRun(parts, 7).visiblePartIndices).toEqual([0, 1, 7])
+      expect(
+        collapseLongRun(parts, 4, LONG_RUN_MAX_PARTS, 2).visiblePartIndices
+      ).toEqual([0, 1, 2, 4, 7])
     })
   })
 
