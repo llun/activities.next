@@ -1,6 +1,6 @@
-import bcrypt from 'bcrypt'
 import { z } from 'zod'
 
+import { comparePassword, hashPassword } from '@/lib/services/auth/passwordHash'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -53,7 +53,7 @@ export const POST = traceApiRoute(
 
     try {
       // Verify current password
-      const isPasswordCorrect = await bcrypt.compare(
+      const isPasswordCorrect = await comparePassword(
         currentPassword,
         currentActor.account.passwordHash
       )
@@ -68,7 +68,7 @@ export const POST = traceApiRoute(
       }
 
       // Hash new password
-      const newPasswordHash = await bcrypt.hash(newPassword, 10)
+      const newPasswordHash = await hashPassword(newPassword)
 
       // Update password
       await database.changePassword({

@@ -1,10 +1,10 @@
-import * as bcrypt from 'bcrypt'
 import crypto from 'crypto'
 
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { isUniqueConstraintError } from '@/lib/database/utils/isUniqueConstraintError'
 import { sendConfirmationEmail } from '@/lib/services/accounts/sendConfirmationEmail'
+import { hashPassword } from '@/lib/services/auth/passwordHash'
 import { resolveDomainIdentity } from '@/lib/services/domains/domainIdentity'
 import { resolveSignUpDomain } from '@/lib/services/domains/signUpDomain'
 import { getLocalActorId } from '@/lib/utils/activitypubId'
@@ -13,8 +13,6 @@ import { isEmailAllowed, normalizeEmail } from '@/lib/utils/normalizeEmail'
 import { normalizeUsername } from '@/lib/utils/normalizeUsername'
 import { generateKeyPair } from '@/lib/utils/signature'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
-
-const BCRYPT_ROUND = 10
 
 export type RegisterAccountResult =
   | { type: 'success'; accountId: string; username: string; actorId: string }
@@ -115,7 +113,7 @@ export const registerAccount = async ({
 
   const [keyPair, passwordHash] = await Promise.all([
     generateKeyPair(config.secretPhase),
-    bcrypt.hash(password, BCRYPT_ROUND)
+    hashPassword(password)
   ])
 
   const verificationCode = config.email

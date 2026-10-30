@@ -1,7 +1,7 @@
 import { Actor } from '@/lib/types/domain/actor'
 
 export const MOCK_SECRET_PHASES = 'secret phases'
-const MOCK_PUBLIC_KEY = `
+export const MOCK_PUBLIC_KEY = `
 -----BEGIN PUBLIC KEY-----
 MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAn2KRtMWF1GBZEKFta8Kp
 Fvy3rwK52sjk0ohkh+X4BN1tL/MTnHxmlgEVGhoQxnFo8Nq7iq79zdDlSQml6YL2
@@ -16,7 +16,7 @@ bwsXXLUv565CjCBgl2F2XLBy7XJsEJghAJIWhNvWExbaiufc696l82prTZa9GvbQ
 pS0FKLPKiirqxGR13p0szNc657NsqFYGa7pJTVtE/hhCMzMGNxZ1T8jPwrfIVnzX
 o+AgFvHbOoupWz+YO8oa9gsCAwEAAQ==
 -----END PUBLIC KEY-----`
-const MOCK_PRIVATE_KEY = `
+export const MOCK_PRIVATE_KEY = `
 -----BEGIN ENCRYPTED PRIVATE KEY-----
 MIIJrTBXBgkqhkiG9w0BBQ0wSjApBgkqhkiG9w0BBQwwHAQIniXkufwg71gCAggA
 MAwGCCqGSIb3DQIJBQAwHQYJYIZIAWUDBAEqBBAS0+ccTuGhZmQ89whzQMaCBIIJ

@@ -242,6 +242,19 @@ export function DraftsProvider({
   // move: it failed, or claimed none of them. A new or changed item is not
   // one of them.
   const stalledRef = useRef<ReadonlySet<string>>(new Set())
+  // Whether the provider is mounted. A drain pass is a detached promise
+  // chain over IndexedDB and fetch; one that settles after unmount (a test
+  // file's teardown, a page change) must not set state, broadcast or start
+  // another pass: the broadcast lands in whatever is listening by then.
+  const liveRef = useRef(false)
+  // The phase the last progress broadcast reported, for the unmount idle.
+  const lastPhaseRef = useRef<SendQueueProgress['phase']>('idle')
+  useEffect(() => {
+    liveRef.current = true
+    return () => {
+      liveRef.current = false
+    }
+  }, [])
 
   const refreshCount = useCallback(() => {
     const token = ++refreshToken.current
@@ -331,6 +344,7 @@ export function DraftsProvider({
   // the future counts: coming back online, an epoch or a cancelled sign-out
   // drains on its own.
   const scheduleWake = useCallback(() => {
+    if (!liveRef.current) return
     clearWake()
     const token = wakeToken.current
     const now = Date.now()
@@ -338,6 +352,7 @@ export function DraftsProvider({
       .then((m) => m.listDrafts({ actorId }))
       .then((drafts) => {
         if (token !== wakeToken.current) return
+        if (!liveRef.current) return
         const queued = drafts.filter(
           (draft) => draft.accountId === accountId && draft.queue
         )
@@ -366,6 +381,7 @@ export function DraftsProvider({
   }, [accountId, actorId, canDrain, clearWake])
 
   const drain = useCallback(() => {
+    if (!liveRef.current) return
     // A trigger during a drain asks for one more pass when it ends.
     if (drainingRef.current) {
       rerunRef.current = true
@@ -380,11 +396,17 @@ export function DraftsProvider({
 
     const runPass = async () => {
       const controller = new AbortController()
+      // True once this pass may no longer touch the provider.
+      const stale = () =>
+        controller.signal.aborted ||
+        !liveRef.current ||
+        generationRef.current !== generation
       abortRef.current = controller
       const last: { phase: SendQueueProgress['phase'] } = { phase: 'idle' }
       let due: string[] = []
       try {
         const m = await loadDrafts()
+        if (stale()) return
         const epoch = epochRef.current
         if (epoch === null) return
         // Most triggers find nothing due: skip the sender's code and the lock.
@@ -392,6 +414,7 @@ export function DraftsProvider({
         const drafts = (await m.listDrafts({ actorId })).filter(
           (draft) => draft.accountId === accountId
         )
+        if (stale()) return
         // A 401 or profile switch holds the whole queue until the next load
         // lifts it (above), so no pass, rerun or trigger posts into it.
         due = drafts.some((draft) => holdsQueue(draft.queue))
@@ -401,10 +424,11 @@ export function DraftsProvider({
               .map(itemKey)
         if (due.length === 0) {
           stalledRef.current = new Set()
-          if (!controller.signal.aborted) setDrainFailed(false)
+          if (!stale()) setDrainFailed(false)
           return
         }
         const deps = await loadSendQueueDeps(m, accountId, actorId)
+        if (stale()) return
         let attempted = 0
         const ran = await m.withSenderLock(async () => {
           const result = await m.drainQueue({
@@ -417,7 +441,9 @@ export function DraftsProvider({
             onProgress: (next) => {
               // A drain that claimed nothing is silent: no one needs an idle.
               if (next.phase === 'idle' && last.phase === 'idle') return
+              if (!liveRef.current) return
               last.phase = next.phase
+              lastPhaseRef.current = next.phase
               postDraftsMessage({
                 type: 'queue-progress',
                 accountId,
@@ -436,18 +462,19 @@ export function DraftsProvider({
         // Storage or a chunk failed to load: the next trigger tries again,
         // and the Drafts page offers Retry meanwhile.
         stalledRef.current = new Set(due)
-        if (!controller.signal.aborted) setDrainFailed(true)
+        if (!stale()) setDrainFailed(true)
       } finally {
         abortRef.current = null
         // An aborted or failed drain wrote no result: don't leave other tabs
         // showing "Sending".
-        if (last.phase === 'sending') {
+        if (last.phase === 'sending' && liveRef.current) {
           postDraftsMessage({
             type: 'queue-progress',
             accountId,
             actorId,
             progress: IDLE_PROGRESS
           })
+          lastPhaseRef.current = 'idle'
         }
       }
     }
@@ -461,8 +488,10 @@ export function DraftsProvider({
         } while (rerunRef.current)
       } finally {
         drainingRef.current = false
-        if (generationRef.current !== generation) drainRef.current()
-        else scheduleWake()
+        if (liveRef.current) {
+          if (generationRef.current !== generation) drainRef.current()
+          else scheduleWake()
+        }
       }
     })()
   }, [accountId, actorId, canDrain, scheduleWake])
@@ -476,6 +505,18 @@ export function DraftsProvider({
     () => () => {
       generationRef.current += 1
       abortRef.current?.abort()
+      // A send in flight is abandoned with this provider; other tabs must
+      // not keep showing "Sending", and the broadcast goes out now, while
+      // this provider still exists, not from the pass's finally later.
+      if (lastPhaseRef.current === 'sending') {
+        lastPhaseRef.current = 'idle'
+        postDraftsMessage({
+          type: 'queue-progress',
+          accountId,
+          actorId,
+          progress: IDLE_PROGRESS
+        })
+      }
       clearWake()
     },
     [accountId, actorId, clearWake]

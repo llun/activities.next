@@ -1,12 +1,12 @@
 import { oauthProvider } from '@better-auth/oauth-provider'
 import { passkey } from '@better-auth/passkey'
-import bcrypt from 'bcrypt'
 import { betterAuth } from 'better-auth'
 import { jwt, twoFactor } from 'better-auth/plugins'
 
 import { getBaseURL, getConfig } from '@/lib/config'
 import { DEFAULT_SERVER_SETTINGS } from '@/lib/config/serverSettings'
 import { getDatabase, getKysely } from '@/lib/database'
+import { comparePassword, hashPassword } from '@/lib/services/auth/passwordHash'
 import { getActiveServedDomainNames } from '@/lib/services/domains/servedDomainSnapshot'
 import { UsableScopes } from '@/lib/types/database/operations'
 import { logger } from '@/lib/utils/logger'
@@ -205,9 +205,9 @@ const buildAuth = (baseURL: string, serviceName: string) => {
       disableSignUp: true,
       requireEmailVerification: true,
       password: {
-        hash: (password: string) => bcrypt.hash(password, 10),
+        hash: hashPassword,
         verify: ({ hash, password }: { hash: string; password: string }) =>
-          bcrypt.compare(password, hash)
+          comparePassword(password, hash)
       }
     },
     account: {

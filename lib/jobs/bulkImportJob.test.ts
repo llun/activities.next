@@ -756,16 +756,22 @@ describe('bulkImportJob', () => {
       it('stops quietly, without checkpointing, marking or publishing, when a renewal changes no row', async () => {
         const renew = vi.spyOn(database, 'renewBulkImportRun')
         const { run, finishUnit } = await startBlockedRun()
-        renew.mockResolvedValueOnce(false)
+        try {
+          renew.mockResolvedValueOnce(false)
 
-        // The heartbeat is the only renewal while the unit is open.
-        await tick(BULK_IMPORT_HEARTBEAT_MS)
-        expect(renew).toHaveBeenCalledTimes(1)
+          // The heartbeat is the only renewal while the unit is open.
+          await tick(BULK_IMPORT_HEARTBEAT_MS)
+          expect(renew).toHaveBeenCalledTimes(1)
 
-        finishUnit()
-        await settle()
-        await run
-        await expectNothingWritten()
+          finishUnit()
+          await settle()
+          await run
+          await expectNothingWritten()
+        } finally {
+          finishUnit()
+          await settle()
+          await run.catch(() => undefined)
+        }
       })
 
       it.each([
@@ -820,43 +826,53 @@ describe('bulkImportJob', () => {
         const renew = vi.spyOn(database, 'renewBulkImportRun')
         const { run, finishUnit } = await startBlockedRun()
         renew.mockRejectedValueOnce(new Error('db down'))
+        try {
+          await tick(BULK_IMPORT_HEARTBEAT_MS)
+          expect(renew).toHaveBeenCalledTimes(1)
 
-        await tick(BULK_IMPORT_HEARTBEAT_MS)
-        expect(renew).toHaveBeenCalledTimes(1)
-
-        finishUnit()
-        await settle()
-        await run
-        expect(await getImport()).toMatchObject({
-          state: 'finished',
-          processedItems: 1,
-          lastError: null
-        })
-        expect(vi.getTimerCount()).toBe(0)
+          finishUnit()
+          await settle()
+          await run
+          expect(await getImport()).toMatchObject({
+            state: 'finished',
+            processedItems: 1,
+            lastError: null
+          })
+          expect(vi.getTimerCount()).toBe(0)
+        } finally {
+          finishUnit()
+          await settle()
+          await run.catch(() => undefined)
+        }
       })
 
       it('fails the run with the renewal error, writing and publishing nothing, when the main path renewal throws', async () => {
         const renew = vi.spyOn(database, 'renewBulkImportRun')
         const { run, finishUnit } = await startBlockedRun()
         const outcome = expect(run).rejects.toThrow('db down')
+        try {
+          // The heartbeat renews the unit (really), the main path's own throws.
+          await tick(BULK_IMPORT_HEARTBEAT_MS)
+          expect(renew).toHaveBeenCalledTimes(1)
+          renew.mockRejectedValueOnce(new Error('db down'))
 
-        // The heartbeat renews the unit (really), the main path's own throws.
-        await tick(BULK_IMPORT_HEARTBEAT_MS)
-        expect(renew).toHaveBeenCalledTimes(1)
-        renew.mockRejectedValueOnce(new Error('db down'))
-
-        finishUnit()
-        await settle()
-        await outcome
-        await expectNothingWritten()
-        // The claim is released so the queue's retry can take the import.
-        expect(
-          await database.claimBulkImportRun({
-            id: IMPORT_ID,
-            runToken: 'retry',
-            leaseMs: 1000
-          })
-        ).toEqual({ claimed: true })
+          finishUnit()
+          await settle()
+          await outcome
+          await expectNothingWritten()
+          // The claim is released so the queue's retry can take the import.
+          expect(
+            await database.claimBulkImportRun({
+              id: IMPORT_ID,
+              runToken: 'retry',
+              leaseMs: 1000
+            })
+          ).toEqual({ claimed: true })
+        } finally {
+          finishUnit()
+          await settle()
+          await run.catch(() => undefined)
+        }
       })
     })
 

@@ -5,6 +5,8 @@ import {
   createTestDatabase
 } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
+import { registerAccount } from '@/lib/services/accounts/registerAccount'
+import { getAuth } from '@/lib/services/auth/auth'
 
 // Better Auth 1.7.3 identifies an account by the provider pair
 // `(providerId, accountId)`. The old issuer column is retained only for the
@@ -52,6 +54,30 @@ vi.mock('@/lib/services/serverSettings', () => {
   }
 })
 
+// Registration generates a 4096-bit RSA key and hashes at cost 10 on the
+// libuv threadpool every worker thread shares; neither is what these tests
+// check. A fixed key and a cost-4 hash (compare reads the cost from the
+// hash) keep the first test inside its budget on a loaded runner.
+vi.mock('@/lib/utils/signature', async (importOriginal) => {
+  const { MOCK_PUBLIC_KEY, MOCK_PRIVATE_KEY } = await import('@/lib/stub/actor')
+  return {
+    ...(await importOriginal<typeof import('@/lib/utils/signature')>()),
+    generateKeyPair: async () => ({
+      publicKey: MOCK_PUBLIC_KEY,
+      privateKey: MOCK_PRIVATE_KEY
+    })
+  }
+})
+vi.mock('@/lib/services/auth/passwordHash', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/lib/services/auth/passwordHash')>()
+  const bcrypt = (await import('bcrypt')).default
+  return {
+    ...actual,
+    hashPassword: (password: string) => bcrypt.hash(password, 4)
+  }
+})
+
 describe('credential identity', () => {
   const testDb = () => {
     if (!holder.testDb) throw new Error('The test database is not ready')
@@ -60,10 +86,7 @@ describe('credential identity', () => {
   const database = (): Database => testDb().database
   const db = () => testDb().db
 
-  const getAuthInstance = async () => {
-    const { getAuth } = await import('@/lib/services/auth/auth')
-    return getAuth(BASE_URL)
-  }
+  const getAuthInstance = async () => getAuth(BASE_URL)
 
   const signIn = async (email: string, password: string) => {
     const auth = await getAuthInstance()
@@ -94,8 +117,6 @@ describe('credential identity', () => {
   }
 
   const register = async (username: string, password = PASSWORD) => {
-    const { registerAccount } =
-      await import('@/lib/services/accounts/registerAccount')
     const email = `${username}@example.com`
     const result = await registerAccount({
       database: database(),

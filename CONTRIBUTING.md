@@ -682,6 +682,11 @@ docker stop test-postgres
 - **A test-suite OOM that appears when a Radix menu closes while a dialog opens is `@radix-ui/react-focus-scope` ↔ jsdom focus-event recursion (stack overflow), not a heap leak.** The CI test matrix runs 4 shards with `NODE_OPTIONS="--max-old-space-size=8192"`; the two focus scopes hand focus back and forth through jsdom's synchronous focus events until the stack overflows. `test/setup/vitest.setup.ts` bounds that re-entry; a new OOM in a test that opens a dialog from a menu is this class first.
 - **Probabilistic crypto chi-square tests (`lib/utils/crypto.test.ts`) flake at `alpha = 1e-4` by design and pass on re-run.** Do not "fix" a flake by shrinking the sample size — under the null hypothesis the test statistic stays `~chi-square(61)` regardless of sample size.
 - **Worker `SIGABRT` in production is heatmap fan-out × Cloud Run concurrency, not a single-job code fault.** Recover crash-orphaned fitness imports (`pending` with `statusId = NULL`) with `scripts/fitness/repairFailedFitnessImports.ts`.
+- **A broadcast or state update from a `DraftsProvider` (or any provider with a detached async loop) landing in the next test is a pass that outlived its unmount.** The provider gates every step after an `await` on `liveRef`; a test file that mounts it calls `cleanup()` first in `afterEach` so unmount precedes the IndexedDB/channel reset.
+- **A fake clock around real database I/O (`vi.useFakeTimers` with `pg`) is a flake by construction**: advance only inside the application's own sleep, or shorten the real wait through the module boundary as `fitness-files/[id]/primary/route.test.ts` does.
+- **A test whose first `it` pays a cold dynamic import, a 4096-bit keygen or a cost-10 bcrypt is at the mercy of the shared threadpool**; import statically, use the stub key and the `passwordHash` seam.
+- **Same-millisecond `createdAt` with a random-id tie-break** orders randomly; pin timestamps when order is contractual (`accountExports.test.ts`).
+- **Pushing results into a shared array inside `Promise.all` orders by pg completion**; derive order from the input (`noteTags.ts`).
 
 <a id="local-manual-browser-testing"></a>
 
