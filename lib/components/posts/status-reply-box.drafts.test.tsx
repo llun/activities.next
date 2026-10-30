@@ -100,7 +100,9 @@ const EpochReady = () =>
 // Runs `act` (typing, say) and then moves the fake clock past the autosave
 // pause. The caller installs the fake clock BEFORE rendering, so the timer the
 // box arms on mount or on typing is a fake one that this advance really moves.
-const FAKE_CLOCK = { toFake: ['Date', 'setTimeout', 'clearTimeout'] } as const
+const FAKE_CLOCK: Parameters<typeof vi.useFakeTimers>[0] = {
+  toFake: ['Date', 'setTimeout', 'clearTimeout']
+}
 const advanceDebounce = async (beforeAdvance: () => void = () => undefined) => {
   beforeAdvance()
   await act(async () => {
