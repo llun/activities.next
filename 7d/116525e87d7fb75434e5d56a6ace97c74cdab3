@@ -1,0 +1,23 @@
+docs/architecture.md
+  s_f147bf36f62485::t_44c0a1f8650a39 236-237
+docs/environment-variables.md
+  s_f147bf36f62485::t_bdd47c7a271cfd 24-38,40-43,57-59,63-66,75-80,86-87,99-111,115-117,125-127,180-182,184-188,272,279-283,313-322,335-337,343-362,442-449
+docs/features.md
+  s_f147bf36f62485::t_5d18833c237a8c 11,53,57,67,134
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7d116525e87d7fb75434e5d56a6ace97c74cdab3",
+  "prompts": {},
+  "sessions": {
+    "s_f147bf36f62485": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "25ee74e4-3619-4df9-8186-dcf3fd9b6ec2",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
