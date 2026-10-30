@@ -1,0 +1,27 @@
+CONTRIBUTING.md
+  s_f6091a1907b015::t_20c09e2f65f113 685
+app/api/v1/fitness-files/[id]/primary/route.test.ts
+  s_f6091a1907b015::t_bea5ca326daf02 6,49-52,64-66,68,70,100-101,184-193,381-383
+lib/components/drafts/DraftsProvider.test.tsx
+  s_f6091a1907b015::t_dfa8ea149fff76 324-336
+lib/components/drafts/DraftsProvider.tsx
+  s_f6091a1907b015::t_831e6384472ecc 460
+lib/jobs/bulkImportJob.test.ts
+  s_f6091a1907b015::t_4c2cdcc9efc7c4 724-733,735-740,742-748,813-832,886
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "39437fe2aabe354e3e230af967314cd8221f4274",
+  "prompts": {},
+  "sessions": {
+    "s_f6091a1907b015": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4002b74e-ccf2-4b38-b4b6-ddb1cc097d99",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
