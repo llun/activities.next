@@ -1546,8 +1546,8 @@ export const archiveStorage = async (
 // to one policy: only allowlisted, shape-checked fields survive, which for an
 // error means its syscall, code, name and HTTP status and never its message.
 // Scrubbing free text is a guess about the forms we thought of; an allowlist is
-// a guarantee. See AGENTS.md, "The archive manifest withholds where storage
-// lives", for what leaked and why the rule reads as it does.
+// a guarantee. See docs/maintenance.md, "The archive manifest withholds where
+// storage lives", for what leaked and why the rule reads as it does.
 
 // The fields `redactStorageSource` keeps.
 const STORAGE_SOURCE_MANIFEST_FIELDS: readonly string[] = ['kind', 'prefix']
@@ -1651,8 +1651,8 @@ const getErrorHttpStatusCode = (level: Record<string, unknown>) => {
 // — carrying no value in the SHAPE a bucket, region, endpoint, hostname,
 // address or local root takes. Two deliberate limits come with that: the token
 // pattern above bounds form and not content — argued there — and a vendor code
-// such as `XMinioStorageFull` still names the storage software, which AGENTS.md
-// argues. Both are the price of a code an operator can act on.
+// such as `XMinioStorageFull` still names the storage software, which
+// docs/maintenance.md argues. Both are the price of a code an operator can act on.
 //
 // `unknown` is the honest answer for a failure that classifies itself only in
 // its message; the export console still printed that message in full.

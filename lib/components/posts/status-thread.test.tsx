@@ -28,7 +28,8 @@ import {
   createMockPhoto,
   mockAlice,
   mockBob,
-  mockCarol
+  mockCarol,
+  mockDave
 } from '@/lib/components/posts/__fixtures__/timeline-context'
 import { StatusThread } from '@/lib/components/posts/status-thread'
 import type { Status } from '@/lib/types/domain/status'
@@ -1155,6 +1156,609 @@ describe('StatusThread', () => {
       )
     })
 
+    // A reply to a later part of an ancestor run must nest under the run (the
+    // row its first part keeps in the tree), not under the opened post's
+    // "Replies", even though the run folds its later parts into one row.
+    const makeAncestorRunWithOutsideReply = () => {
+      const m1 = createMockNote({
+        id: 'https://activities.local/users/maythee/statuses/m1',
+        actor: mockAlice,
+        actorId: mockAlice.id,
+        text: 'Maythee run part 1',
+        createdAt: BASE_TIME
+      })
+      const m2 = createMockNote({
+        id: 'https://activities.local/users/maythee/statuses/m2',
+        actor: mockAlice,
+        actorId: mockAlice.id,
+        reply: m1.id,
+        text: 'Maythee run part 2',
+        createdAt: BASE_TIME + MINUTE
+      })
+      const outsideReply = createMockNote({
+        id: 'https://activities.local/users/carol/statuses/reply-to-m2',
+        actor: mockCarol,
+        actorId: mockCarol.id,
+        reply: m2.id,
+        text: 'Carol replies to part 2',
+        createdAt: BASE_TIME + 4 * MINUTE
+      })
+      return { m1, m2, outsideReply }
+    }
+
+    const expectReplyUnderAncestorRun = () => {
+      expect(
+        within(screen.getByTestId('thread-ancestors')).getByText(
+          'Carol replies to part 2'
+        )
+      ).toBeInTheDocument()
+      const repliesSection = screen.queryByTestId('thread-descendants')
+      if (repliesSection) {
+        expect(
+          within(repliesSection).queryByText('Carol replies to part 2')
+        ).not.toBeInTheDocument()
+      }
+    }
+
+    it('nests a reply to a part of an ancestor run under the run when opening another author’s reply', () => {
+      const { m1, m2, outsideReply } = makeAncestorRunWithOutsideReply()
+      const opened = createMockNote({
+        id: 'https://activities.local/users/bob/statuses/opened-reply',
+        actor: mockBob,
+        actorId: mockBob.id,
+        reply: m2.id,
+        text: 'Veer opens their reply here',
+        createdAt: BASE_TIME + 2 * MINUTE
+      })
+
+      render(
+        <StatusThread
+          host={host}
+          status={opened}
+          ancestors={[m1, m2]}
+          descendants={[outsideReply]}
+          currentTime={BASE_TIME + 10 * MINUTE}
+        />
+      )
+
+      expect(screen.getByTestId('self-thread-run')).toHaveTextContent(
+        'Maythee run part 1'
+      )
+      expect(screen.getByTestId('ancestor-status')).toHaveTextContent(
+        'Carol replies to part 2'
+      )
+      expectReplyUnderAncestorRun()
+    })
+
+    it('nests a reply to a part of an ancestor run under the run even when the opened post is by the run author', () => {
+      const { m1, m2, outsideReply } = makeAncestorRunWithOutsideReply()
+      const veerBetween = createMockNote({
+        id: 'https://activities.local/users/bob/statuses/veer-between',
+        actor: mockBob,
+        actorId: mockBob.id,
+        reply: m2.id,
+        text: 'Veer post in between',
+        createdAt: BASE_TIME + 2 * MINUTE
+      })
+      const m3 = createMockNote({
+        id: 'https://activities.local/users/maythee/statuses/m3',
+        actor: mockAlice,
+        actorId: mockAlice.id,
+        reply: veerBetween.id,
+        text: 'Maythee continues after veer',
+        createdAt: BASE_TIME + 3 * MINUTE
+      })
+
+      render(
+        <StatusThread
+          host={host}
+          status={m3}
+          ancestors={[m1, m2, veerBetween]}
+          descendants={[outsideReply]}
+          currentTime={BASE_TIME + 10 * MINUTE}
+        />
+      )
+
+      const runRow = screen
+        .getAllByTestId('ancestor-status')
+        .find((row) => row.textContent?.includes('Maythee run part 1'))
+      expect(runRow).toBeDefined()
+      expect(runRow).toHaveTextContent('Carol replies to part 2')
+      expectReplyUnderAncestorRun()
+    })
+
+    // Maythee's two-part run with veer's reply to its second part: the shape
+    // the "Replying to" line and the opened-row marker are built for.
+    const makeAncestorRunWithOpenedReply = () => {
+      const m1 = createMockNote({
+        id: 'https://activities.local/users/maythee/statuses/run-m1',
+        actor: mockAlice,
+        actorId: mockAlice.id,
+        text: 'Maythee run part 1',
+        createdAt: BASE_TIME
+      })
+      const m2 = createMockNote({
+        id: 'https://activities.local/users/maythee/statuses/run-m2',
+        actor: mockAlice,
+        actorId: mockAlice.id,
+        reply: m1.id,
+        text: 'Maythee run part 2',
+        createdAt: BASE_TIME + MINUTE
+      })
+      const openedReply = createMockNote({
+        id: 'https://activities.local/users/bob/statuses/opened-veer-reply',
+        actor: mockBob,
+        actorId: mockBob.id,
+        reply: m2.id,
+        text: 'Veer opens their reply here',
+        createdAt: BASE_TIME + 2 * MINUTE
+      })
+      return { m1, m2, openedReply }
+    }
+
+    it('groups another author’s ancestors into a run with a "Replying to" line and the opened-row marker when opening their reply', () => {
+      const { m1, m2, openedReply } = makeAncestorRunWithOpenedReply()
+
+      render(
+        <StatusThread
+          host={host}
+          status={openedReply}
+          ancestors={[m1, m2]}
+          descendants={[]}
+          currentTime={BASE_TIME + 10 * MINUTE}
+        />
+      )
+
+      const run = screen.getByTestId('self-thread-run')
+      expect(run).toHaveTextContent('Maythee run part 1')
+      expect(run).toHaveTextContent('Maythee run part 2')
+      expect(
+        within(run).getByRole('button', { name: /Open part 2 of 2/i })
+      ).toBeInTheDocument()
+
+      // The line above the opened post's header links to the part it answers.
+      // The label sits inside the link, so match the line by its full text.
+      const replyingToLine = screen.getByText(
+        (_, element) =>
+          element?.textContent === 'Replying to Alice Smith · 2 of 2'
+      )
+      expect(replyingToLine).toBeInTheDocument()
+      const partLink = within(replyingToLine).getByRole('link', {
+        name: 'Part 2 of 2 by Alice Smith'
+      })
+      expect(partLink).toHaveAttribute('href', `#${m2.id}`)
+      expect(document.getElementById(m2.id)).toBe(
+        screen.getByTestId(`status-${m2.id}`)
+      )
+
+      // The opened post is the page's one marked row; the run above is not.
+      const openedRow = screen.getByTestId(`status-${openedReply.id}`)
+      expect(openedRow).toHaveAttribute('aria-current', 'location')
+      expect(openedRow).toHaveClass('border-l-primary')
+      expect(document.querySelectorAll('[aria-current]')).toHaveLength(1)
+    })
+
+    it('drops the "i of n" from the "Replying to" line when earlier ancestors were not loaded', () => {
+      const { m1, m2, openedReply } = makeAncestorRunWithOpenedReply()
+
+      render(
+        <StatusThread
+          host={host}
+          status={openedReply}
+          ancestors={[m1, m2]}
+          descendants={[]}
+          hasMoreAncestors
+          currentTime={BASE_TIME + 10 * MINUTE}
+        />
+      )
+
+      const replyingToLine = screen.getByText(
+        (_, element) => element?.textContent === 'Replying to Alice Smith'
+      )
+      expect(replyingToLine).toBeInTheDocument()
+      const nameLink = within(replyingToLine).getByRole('link', {
+        name: 'Post by Alice Smith'
+      })
+      expect(nameLink).toHaveAttribute('href', `#${m2.id}`)
+      expect(
+        screen.queryByText(
+          (_, element) =>
+            element?.textContent === 'Replying to Alice Smith · 2 of 2'
+        )
+      ).toBeNull()
+    })
+
+    it('shows the "Replying to" line above the focused run when the opened post is part of it', () => {
+      const { m1, m2, openedReply } = makeAncestorRunWithOpenedReply()
+      const veerPart2 = createMockNote({
+        id: 'https://activities.local/users/bob/statuses/veer-run-part-2',
+        actor: mockBob,
+        actorId: mockBob.id,
+        reply: openedReply.id,
+        text: 'Veer continues their own run',
+        createdAt: BASE_TIME + 3 * MINUTE
+      })
+
+      render(
+        <StatusThread
+          host={host}
+          status={openedReply}
+          ancestors={[m1, m2]}
+          descendants={[veerPart2]}
+          currentTime={BASE_TIME + 10 * MINUTE}
+        />
+      )
+
+      // The ancestor run above, and the focused run holding the opened post.
+      const runs = screen.getAllByTestId('self-thread-run')
+      expect(runs).toHaveLength(2)
+      const focusedRun = runs[1]
+      expect(focusedRun).toHaveTextContent('Veer opens their reply here')
+
+      const replyingToLine = within(focusedRun).getByText(
+        (_, element) =>
+          element?.textContent === 'Replying to Alice Smith · 2 of 2'
+      )
+      const partLink = within(replyingToLine).getByRole('link', {
+        name: 'Part 2 of 2 by Alice Smith'
+      })
+      expect(partLink).toHaveAttribute('href', `#${m2.id}`)
+
+      // The line sits above the focused run's part 1 header, so above the
+      // opened part's own text.
+      const openedPart = within(focusedRun).getByTestId(
+        `status-${openedReply.id}`
+      )
+      const openedText = within(openedPart).getByText(
+        'Veer opens their reply here'
+      )
+      expect(
+        replyingToLine.compareDocumentPosition(openedText) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+
+      // The opened part stays the page's one marked row.
+      expect(openedPart).toHaveAttribute('aria-current', 'location')
+      expect(document.querySelectorAll('[aria-current]')).toHaveLength(1)
+    })
+
+    it('links the "Replying to" line to the plain ancestor row after "Show as separate posts" splits the run', async () => {
+      const { m1, m2, openedReply } = makeAncestorRunWithOpenedReply()
+
+      render(
+        <StatusThread
+          host={host}
+          status={openedReply}
+          ancestors={[m1, m2]}
+          descendants={[]}
+          currentActor={mockBob}
+          currentTime={BASE_TIME + 10 * MINUTE}
+        />
+      )
+
+      expect(
+        screen.getByText(
+          (_, element) =>
+            element?.textContent === 'Replying to Alice Smith · 2 of 2'
+        )
+      ).toBeInTheDocument()
+
+      fireEvent.keyDown(
+        within(screen.getByTestId(`status-${m1.id}`)).getByRole('button', {
+          name: /^More actions/
+        }),
+        { key: 'ArrowDown' }
+      )
+      fireEvent.click(
+        await screen.findByRole('menuitem', { name: 'Show as separate posts' })
+      )
+
+      await waitFor(() =>
+        expect(screen.queryByTestId('self-thread-run')).not.toBeInTheDocument()
+      )
+
+      // The run no longer renders as a run, so its "2 of 2" numbering is
+      // gone: the name alone links to the part's plain row.
+      const replyingToLine = screen.getByText(
+        (_, element) => element?.textContent === 'Replying to Alice Smith'
+      )
+      const nameLink = within(replyingToLine).getByRole('link', {
+        name: 'Post by Alice Smith'
+      })
+      expect(nameLink).toHaveAttribute('href', `#${m2.id}`)
+      expect(document.getElementById(m2.id)).toBe(
+        screen.getByTestId(`status-${m2.id}`)
+      )
+      expect(
+        screen.queryByText(
+          (_, element) =>
+            element?.textContent === 'Replying to Alice Smith · 2 of 2'
+        )
+      ).toBeNull()
+    })
+
+    it('drops the ancestor run\'s line above the opened post after "Show as separate posts" splits the opened post\'s own run', async () => {
+      const { m1, m2 } = makeAncestorRunWithOpenedReply()
+      const v1 = createMockNote({
+        id: 'https://activities.local/users/bob/statuses/opened-run-v1',
+        actor: mockBob,
+        actorId: mockBob.id,
+        reply: m2.id,
+        text: 'Bob run part 1',
+        createdAt: BASE_TIME + 2 * MINUTE
+      })
+      const v2 = createMockNote({
+        id: 'https://activities.local/users/bob/statuses/opened-run-v2',
+        actor: mockBob,
+        actorId: mockBob.id,
+        reply: v1.id,
+        text: 'Bob run part 2',
+        createdAt: BASE_TIME + 4 * MINUTE
+      })
+
+      render(
+        <StatusThread
+          host={host}
+          status={v2}
+          ancestors={[m1, m2, v1]}
+          descendants={[]}
+          currentActor={mockBob}
+          currentTime={BASE_TIME + 10 * MINUTE}
+        />
+      )
+
+      // The focused run answers Alice's part 2 as a whole.
+      expect(
+        screen.getByText(
+          (_, element) =>
+            element?.textContent === 'Replying to Alice Smith · 2 of 2'
+        )
+      ).toBeInTheDocument()
+      expect(document.querySelectorAll('[aria-current]')).toHaveLength(1)
+
+      fireEvent.keyDown(
+        within(screen.getByTestId(`status-${v1.id}`)).getByRole('button', {
+          name: /^More actions/
+        }),
+        { key: 'ArrowDown' }
+      )
+      fireEvent.click(
+        await screen.findByRole('menuitem', { name: 'Show as separate posts' })
+      )
+
+      // The ancestor run stays combined; the focused run turns into plain rows.
+      await waitFor(() =>
+        expect(screen.getAllByTestId('self-thread-run')).toHaveLength(1)
+      )
+
+      // The opened post V2 replies to V1, not to Alice's part, so the run's
+      // line does not follow it onto the plain row.
+      expect(
+        screen.queryByText(
+          (_, element) => element?.textContent === 'Replying to Alice Smith'
+        )
+      ).toBeNull()
+      expect(
+        screen.queryByText(
+          (_, element) =>
+            element?.textContent === 'Replying to Alice Smith · 2 of 2'
+        )
+      ).toBeNull()
+      expect(document.querySelectorAll('[aria-current]')).toHaveLength(1)
+      expect(
+        document.querySelector('[aria-current]')?.getAttribute('data-testid')
+      ).toBe(`status-${v2.id}`)
+    })
+
+    it('falls back to the actor id handle when the answered part’s actor is missing', () => {
+      const m1 = createMockNote({
+        id: 'https://activities.local/users/maythee/statuses/no-actor-m1',
+        actor: mockAlice,
+        actorId: 'https://activities.local/users/maythee',
+        text: 'Maythee run part 1',
+        createdAt: BASE_TIME
+      })
+      const m2 = createMockNote({
+        id: 'https://activities.local/users/maythee/statuses/no-actor-m2',
+        actor: null,
+        actorId: 'https://activities.local/users/maythee',
+        url: 'https://activities.local/users/maythee/statuses/no-actor-m2',
+        reply: m1.id,
+        text: 'Maythee run part 2',
+        createdAt: BASE_TIME + MINUTE
+      })
+      const openedReply = createMockNote({
+        id: 'https://activities.local/users/bob/statuses/opened-veer-reply-3',
+        actor: mockBob,
+        actorId: mockBob.id,
+        reply: m2.id,
+        text: 'Veer opens their reply here',
+        createdAt: BASE_TIME + 2 * MINUTE
+      })
+
+      render(
+        <StatusThread
+          host={host}
+          status={openedReply}
+          ancestors={[m1, m2]}
+          descendants={[]}
+          currentTime={BASE_TIME + 10 * MINUTE}
+        />
+      )
+
+      const replyingToLine = screen.getByText(
+        (_, element) =>
+          element?.textContent ===
+          'Replying to @maythee@activities.local · 2 of 2'
+      )
+      const partLink = within(replyingToLine).getByRole('link', {
+        name: 'Part 2 of 2 by @maythee@activities.local'
+      })
+      expect(partLink).toHaveAttribute('href', `#${m2.id}`)
+    })
+
+    it('keeps the answered part of a long ancestor run visible without marking it', () => {
+      const parts = Array.from({ length: 8 }, (_, index) =>
+        createMockNote({
+          id: `https://activities.local/users/maythee/statuses/long-${index + 1}`,
+          actor: mockAlice,
+          actorId: mockAlice.id,
+          reply:
+            index === 0
+              ? ''
+              : `https://activities.local/users/maythee/statuses/long-${index}`,
+          text: `Long run part ${index + 1}`,
+          createdAt: BASE_TIME + index * MINUTE
+        })
+      )
+      const openedReply = createMockNote({
+        id: 'https://activities.local/users/bob/statuses/reply-to-long-part-4',
+        actor: mockBob,
+        actorId: mockBob.id,
+        reply: parts[3].id,
+        text: 'Veer answers part 4',
+        createdAt: BASE_TIME + 8 * MINUTE
+      })
+
+      render(
+        <StatusThread
+          host={host}
+          status={openedReply}
+          ancestors={parts}
+          descendants={[]}
+          currentTime={BASE_TIME + 10 * MINUTE}
+        />
+      )
+
+      // The run folds around the answered part: part 4 stays visible.
+      expect(
+        screen.getByRole('button', { name: /Open part 4 of 8/i })
+      ).toBeInTheDocument()
+      expect(
+        screen.getByText('Show 1 more post in this thread')
+      ).toBeInTheDocument()
+      expect(
+        screen.getByText('Show 3 more posts in this thread')
+      ).toBeInTheDocument()
+      const answeredPart = screen.getByTestId(`status-${parts[3].id}`)
+      expect(answeredPart).not.toHaveAttribute('aria-current')
+      expect(answeredPart.querySelector('.border-l-primary')).toBeNull()
+      // Only the opened post is marked.
+      expect(document.querySelectorAll('[aria-current]')).toHaveLength(1)
+      expect(screen.getByTestId(`status-${openedReply.id}`)).toHaveAttribute(
+        'aria-current',
+        'location'
+      )
+    })
+
+    it('marks the opened run part as the page’s one location when opening one’s own post', () => {
+      const [a1, a2] = makeAliceRun(2)
+
+      render(
+        <StatusThread
+          host={host}
+          status={a2}
+          ancestors={[a1]}
+          descendants={[]}
+          currentTime={BASE_TIME + 10 * MINUTE}
+        />
+      )
+
+      expect(document.querySelectorAll('[aria-current]')).toHaveLength(1)
+      expect(screen.getByTestId(`status-${a2.id}`)).toHaveAttribute(
+        'aria-current',
+        'location'
+      )
+    })
+
+    it('leaves a lone opened post unmarked: no ancestors above, no tint', () => {
+      const lone = createMockNote({
+        id: 'https://activities.local/users/bob/statuses/lone-post',
+        actor: mockBob,
+        actorId: mockBob.id,
+        text: 'A lone post with nothing above it',
+        createdAt: BASE_TIME
+      })
+
+      render(
+        <StatusThread
+          host={host}
+          status={lone}
+          ancestors={[]}
+          descendants={[]}
+          currentTime={BASE_TIME + 10 * MINUTE}
+        />
+      )
+
+      const openedRow = screen.getByTestId(`status-${lone.id}`)
+      expect(openedRow).not.toHaveAttribute('aria-current')
+      expect(openedRow).not.toHaveClass('border-l-primary')
+      expect(document.querySelectorAll('[aria-current]')).toHaveLength(0)
+    })
+
+    it('hides the Replies section when every loaded reply nests under an ancestor run', () => {
+      const { m1, m2, outsideReply } = makeAncestorRunWithOutsideReply()
+      const openedReply = createMockNote({
+        id: 'https://activities.local/users/bob/statuses/opened-veer-reply-2',
+        actor: mockBob,
+        actorId: mockBob.id,
+        reply: m2.id,
+        text: 'Veer opens their reply here',
+        createdAt: BASE_TIME + 2 * MINUTE
+      })
+
+      render(
+        <StatusThread
+          host={host}
+          status={openedReply}
+          ancestors={[m1, m2]}
+          descendants={[outsideReply]}
+          currentTime={BASE_TIME + 10 * MINUTE}
+        />
+      )
+
+      expectReplyUnderAncestorRun()
+      expect(screen.queryByTestId('thread-descendants')).not.toBeInTheDocument()
+      expect(screen.queryByText(/^Replies \(/)).not.toBeInTheDocument()
+    })
+
+    it('counts only the replies that render in the Replies section, not the ones nested under an ancestor run', () => {
+      const { m1, m2, outsideReply } = makeAncestorRunWithOutsideReply()
+      const openedReply = createMockNote({
+        id: 'https://activities.local/users/bob/statuses/opened-veer-reply-3',
+        actor: mockBob,
+        actorId: mockBob.id,
+        reply: m2.id,
+        text: 'Veer opens their reply here',
+        createdAt: BASE_TIME + 2 * MINUTE
+      })
+      const directReply = createMockNote({
+        id: 'https://activities.local/users/dave/statuses/direct-reply',
+        actor: mockDave,
+        actorId: mockDave.id,
+        reply: openedReply.id,
+        text: 'Dave replies to the opened post',
+        createdAt: BASE_TIME + 5 * MINUTE
+      })
+
+      render(
+        <StatusThread
+          host={host}
+          status={openedReply}
+          ancestors={[m1, m2]}
+          descendants={[outsideReply, directReply]}
+          currentTime={BASE_TIME + 10 * MINUTE}
+        />
+      )
+
+      const repliesSection = screen.getByTestId('thread-descendants')
+      expect(repliesSection).toHaveTextContent('Replies (1)')
+      expect(repliesSection).toHaveTextContent(
+        'Dave replies to the opened post'
+      )
+      expect(repliesSection).not.toHaveTextContent('Carol replies to part 2')
+    })
+
     it('renders a tucked reply inside the run as an inset card', () => {
       const [a1, a2] = makeAliceRun(2)
       const bobInset = createMockNote({
@@ -1623,8 +2227,18 @@ describe('StatusThread', () => {
           fireEvent.click(screen.getByRole('button', { name: 'Post' }))
 
           await waitFor(() => expect(mockCreateNote).toHaveBeenCalled())
-          const replies = await screen.findByTestId('thread-descendants')
-          expect(replies).toHaveTextContent('Reply to the earlier run')
+          // The reply nests under the earlier run's row and is not counted
+          // under the opened post's "Replies", so the section hides.
+          await waitFor(() =>
+            expect(
+              within(screen.getByTestId('ancestor-status')).getByText(
+                'Reply to the earlier run'
+              )
+            ).toBeInTheDocument()
+          )
+          expect(
+            screen.queryByTestId('thread-descendants')
+          ).not.toBeInTheDocument()
           expect(
             screen.queryByTestId('parent-unavailable-boundary')
           ).not.toBeInTheDocument()

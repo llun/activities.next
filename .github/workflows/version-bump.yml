@@ -12,8 +12,8 @@ permissions:
 
 env:
   # This gate waits for a whole CI run, not just for checks to be attached:
-  # "All Tests" is a fan-in job (`needs: [test-shards]`), so GitHub only creates
-  # its check run once the four-way shard matrix has finished — minutes after
+  # "All Tests" is a fan-in job (`needs: [...]`), so GitHub only creates
+  # its check run once the parallel matrix jobs have finished — minutes after
   # the PR is opened. 30 minutes covers a cold-cache run with headroom.
   CHECK_ATTEMPTS: 180
   CHECK_INTERVAL_SECONDS: 10
@@ -296,8 +296,8 @@ jobs:
           # run on the PR head commit.
           #
           # A required check that has no check run yet is PENDING, not missing.
-          # CI's "All Tests" is a fan-in job (`needs: [test-shards]`), so GitHub
-          # does not create its check run until the whole shard matrix finishes,
+          # CI's "All Tests" is a fan-in job (`needs: [...]`), so GitHub
+          # does not create its check run until the parallel jobs finish,
           # minutes into a perfectly healthy run. Treating that as "CI never
           # fired" is what made the self-heal reopen below fire on every bump PR:
           # the reopen cancelled the in-flight run, and the cancelled run's

@@ -238,7 +238,7 @@ describe('agents oxlint plugin', () => {
   // by wrapping the call. An AST rule resolves the callee through scope, so
   // they are all the same node to it and formatting is invisible.
   //
-  // The list is also the list AGENTS.md claims is caught, and every entry is
+  // The list is also the list docs/maintenance.md claims is caught, and every entry is
   // asserted here rather than taken on trust: emptying `PLATFORM_NAMESPACES`
   // or stubbing `isRequireOfPathModule` used to leave this file green.
   it('flags every spelling of a path builder in a local storage driver', () => {

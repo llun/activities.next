@@ -2,8 +2,9 @@
 
 A focused checklist for reviewing changes to **activities.next**. It captures the
 project-specific invariants that are easy to miss in a diff — both the rules in
-`AGENTS.md` and recurring patterns surfaced in past code review. `AGENTS.md`
-remains the authoritative source for the full rules. Skip sections that a given
+`AGENTS.md` and recurring patterns surfaced in past code review. The rules in
+`AGENTS.md` and the guides its routing table links to remain the authoritative
+source for the full rules. Skip sections that a given
 change doesn't touch.
 
 ## How to use this checklist
@@ -81,7 +82,7 @@ Review the diff against the linked canonical rule source. Check every applicable
 
 - [ ] **Commits & versioning** — Use a feature-branch PR and conventional title; never edit package version manually. [Detailed checks](CONTRIBUTING.md#review-commits-versioning).
 
-- [ ] **CI checklist** — Require all four protected checks, including CI Success and its complete upstream dependency set. [Detailed checks](CONTRIBUTING.md#review-ci-checklist).
+- [ ] **CI checklist** — Require the three ruleset checks (All Tests, Lint and Prettier, Build); CI Success is the fail-closed aggregate of every job. [Detailed checks](CONTRIBUTING.md#review-ci-checklist).
 
 ### Required final checks
 

@@ -157,6 +157,21 @@ describe('buildCombinedBlocks', () => {
       expect(run.kind === 'run' && run.parts[0].insets).toEqual([b1])
     })
 
+    it('keeps a reply listed in neverTuckIds a plain post instead of an inset', () => {
+      const a1 = note('a1', { at: 0 })
+      const b1 = note('b1', { actor: mockBob, at: MINUTE, reply: a1.id })
+      const a2 = note('a2', { at: 2 * MINUTE, reply: a1.id })
+
+      // Without the option the timeline tucks the reply into the run.
+      expect(shape(buildCombinedBlocks([a1, b1, a2]))).toEqual(['a1+b1 > a2'])
+      // With it, the reply stays a full row of its own.
+      expect(
+        shape(
+          buildCombinedBlocks([a1, b1, a2], { neverTuckIds: new Set([b1.id]) })
+        )
+      ).toEqual(['a1', 'b1', 'a2'])
+    })
+
     it('lets the author reply to the tucked-in reply', () => {
       const a1 = note('a1', { at: 0 })
       const b1 = note('b1', { actor: mockBob, at: MINUTE, reply: a1.id })

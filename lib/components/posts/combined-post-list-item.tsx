@@ -99,6 +99,13 @@ export const RAIL_LINE = 'absolute left-[19px] w-0.5 bg-border'
 const RAIL_DOT =
   'absolute left-[15px] top-[7px] size-2.5 rounded-full bg-muted-foreground/55'
 
+// The tint and orange left edge that mark the opened post: the focused card
+// pads its edges by 16px, so the tint bleeds through them (-mx-4, pl-[13px])
+// and runs into the card's own background. Shared by the opened part of a
+// run and the opened post when it renders as a plain full row.
+export const OPENED_ROW_TINT =
+  '-mx-4 border-l-[3px] border-l-primary bg-primary/[0.07] py-1.5 pr-4 pl-[13px]'
+
 export const createShowSeparateMenuItem = (
   onSelect: () => void
 ): PostMenuExtraItem => ({

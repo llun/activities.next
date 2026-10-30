@@ -82,7 +82,7 @@ export const createFitnessFile = (
       sourceUrl: params.sourceUrl ?? null,
       // Attribution happens after parsing, from the gear whose default sports
       // claim the parsed one — never at upload time, and never from an
-      // import's own record of the gear (see AGENTS.md → Fitness Gear).
+      // import's own record of the gear (see docs/fitness-file-storage.md → Fitness Gear).
       gearId: null,
       createdAt: currentTime,
       updatedAt: currentTime

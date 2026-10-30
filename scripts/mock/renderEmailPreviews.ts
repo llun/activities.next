@@ -89,6 +89,12 @@ const ben = fixtureActor(
   'https://www.gravatar.com/avatar/00000000000000000000000000000000?s=96&d=identicon'
 )
 const rin = fixtureActor('rin', 'pixelfed.social', 'Rin')
+const marisol = fixtureActor(
+  'marisolvega',
+  'social.example',
+  'Marisol Vega 🤔',
+  'https://www.gravatar.com/avatar/11111111111111111111111111111111?s=96&d=identicon'
+)
 
 // Only the fields the templates actually read are populated — a full
 // EditableStatus carries ~30 more (edits, reply, quote state, visibility, …)
@@ -196,6 +202,21 @@ const buildPreviews = (): Preview[] => [
         'This is brilliant — federated fitness is genuinely the dream. Adding it to my instance tonight.',
         'note-88214'
       )
+    })
+  },
+  {
+    // A long remote handle plus an emoji display name overflowed the quoted box on iPhone Mail.
+    slug: 'reply-long-remote',
+    group: 'Notifications',
+    email: buildReplyEmail({
+      recipient: anna,
+      actor: marisol,
+      status: fixtureStatus(
+        marisol,
+        '<p><span class="h-card"><a href="https://notes.example/@anna" class="u-url mention">@<span>anna</span></a></span> iphone and ipad also got dark mode, see <a href="https://example.com/a/very/long/path/without/any/break/opportunities/0123456789abcdefghijklmnopqrstuvwxyz">https://example.com/a/very/long/path/without/any/break/opportunities/0123456789abcdefghijklmnopqrstuvwxyz</a></p>',
+        'note-88215'
+      ),
+      brand: { name: 'Activities.next', domain: 'notes.example' }
     })
   },
   {

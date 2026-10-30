@@ -48,7 +48,8 @@ export type FetchQuoteTargetForCreateParams = {
  * Fetch, verify, and store an unstored remote note or poll on demand so a quote
  * edge can reference a persistent local status row.
  *
- * Guards follow "A Fetched Document's Own `id` Is Not Evidence" and mirror
+ * Guards follow "A Fetched Document's Own `id` Is Not Evidence" in
+ * docs/mastodon-api-compatibility.md and mirror
  * createAnnounceJob:
  * - skips local domains (a DB miss on our own domain does not exist);
  * - gates on federation domain policy (origin and author);

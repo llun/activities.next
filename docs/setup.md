@@ -349,6 +349,8 @@ To verify built Docker images locally:
 node scripts/run.cjs scripts/maintenance/verifyDockerImages.ts
 ```
 
+Pass `--only <minimal|full>` to verify just one of the two images; CI runs the verifier as two jobs (`Docker Images Smoke Test (minimal)` and `Docker Images Smoke Test (full)`), one per image.
+
 For database-specific Docker deployment instructions:
 
 - [SQLite Docker Deployment](sqlite-setup.md#docker-deployment-with-sqlite)
@@ -377,10 +379,10 @@ Read the applicable rules and review checks below before changing this subsystem
 - `yarn dev` runs the local Next.js development server. The package script binds Next.js to `0.0.0.0`, so the dev server is reachable from the local network — only run it on trusted networks.
 - `yarn build` builds the production app; `yarn start` serves it.
 - `yarn analyze` runs Next's Turbopack bundle analyzer (`next analyze`) and serves an interactive UI on port 4000; add `--output` (`yarn analyze --output`) to write the results to `.next/diagnostics/analyze` without serving. For per-page numbers, run `yarn build`, then `yarn bundle:report`: it prints each route's first-load JavaScript (uncompressed and gzip, largest first) and the size of the chunks every route shares. Save a baseline with `yarn bundle:report --json before.json` before a change and run `yarn bundle:report --compare before.json` after rebuilding to see the gzip change per route (see [Bundle Size Report](maintenance.md#bundle-size-report)).
-- `yarn lint` runs **Oxlint** over the app and lib code, then a **second** pass, `oxlint -c lint/oxlintrc.scripts.json scripts`. `.oxlintrc.json` ignores `scripts/**`, `migrations/**`, `plans/**`, and `*.config.*` files; the second pass exists because exactly one rule has to reach the otherwise-unlinted scripts tree (see **A stored path is confined to the storage root**), and keeping it to one rule is what avoids putting the whole rule set onto files that have never satisfied it. Several AGENTS.md conventions are **lint-enforced**: no `console.*`, no `../` imports, no `Response.json()`/`NextResponse.json()` or Zod `.parse()` in `app/api` routes (`agents/api-response-helpers`, `agents/zod-safe-parse`), no direct `fetch()` in component files (`agents/no-component-fetch`, whose `allowFiles` option in `.oxlintrc.json` is a frozen legacy-offender list — never add a file to it; shrink it by migrating callers to `lib/client.ts`), no `path.resolve`/`path.join` in a local storage driver (`agents/no-storage-path-builder`), and no `startsWith` against a resolved path anywhere (`agents/no-resolved-path-prefix-check`). Those five `agents/*` rules are a local Oxlint JS plugin, `lint/agentsRules.mjs`, because Oxlint has no `no-restricted-syntax`; `lint/agentsRules.test.ts` runs the linter against fixtures so an Oxlint upgrade that stopped loading the plugin fails `yarn test` instead of silently un-enforcing them, and also runs the repo's own configs over fixtures so a rule that stopped being pointed at anything fails too. Reach for a rule there rather than a raw-text Vitest scan whenever the convention depends on what a NAME refers to — aliases, destructuring, renamed imports — which a text scan decides wrongly in both directions. Suppress one line with `// oxlint-disable-next-line <rule>` (the `eslint-disable-next-line` spelling still works), but note Oxlint does **not** honor `/* global … */` block directives — declare globals in `.oxlintrc.json` instead, as the `public/sw.js` override does. That override carries more weight than it looks: the service worker is a static asset in **no** tsconfig and imported by nothing, so lint is the only thing that reads it at all — and `no-undef` is its only check for an undeclared global, which is what a typo there looks like. The no-env-reads-outside-`lib/config/` rule is enforced by `lib/config/envAccess.test.ts`; every `ACTIVITIES_*`/`OTEL_*` variable read in `lib/config/` must have a row in `docs/environment-variables.md` (`lib/config/envDocumentation.test.ts` fails otherwise); and server-only trees must not import a runtime value from a `'use client'` module (`lib/clientModuleBoundary.test.ts` — see **Server/Client Module Boundary**). Three more repo-wide guards live as tests: `test/next.config.test.ts` (the build config must not consume runtime deployment values), `app/globals.contrast.test.ts` (the WCAG contrast floor), and `lib/components/tailwindCssVariableSyntax.test.ts` (see **Tailwind CSS variables** below). The remaining conventions in this file are review-enforced.
+- `yarn lint` runs **Oxlint** over the app and lib code, then a **second** pass, `oxlint -c lint/oxlintrc.scripts.json scripts`. `.oxlintrc.json` ignores `scripts/**`, `migrations/**`, `plans/**`, and `*.config.*` files; the second pass exists because exactly one rule has to reach the otherwise-unlinted scripts tree (see **A stored path is confined to the storage root** in `docs/maintenance.md`), and keeping it to one rule is what avoids putting the whole rule set onto files that have never satisfied it. Several repository conventions are **lint-enforced**: no `console.*`, no `../` imports, no `Response.json()`/`NextResponse.json()` or Zod `.parse()` in `app/api` routes (`agents/api-response-helpers`, `agents/zod-safe-parse`), no direct `fetch()` in component files (`agents/no-component-fetch`, whose `allowFiles` option in `.oxlintrc.json` is a frozen legacy-offender list — never add a file to it; shrink it by migrating callers to `lib/client.ts`), no `path.resolve`/`path.join` in a local storage driver (`agents/no-storage-path-builder`), and no `startsWith` against a resolved path anywhere (`agents/no-resolved-path-prefix-check`). Those five `agents/*` rules are a local Oxlint JS plugin, `lint/agentsRules.mjs`, because Oxlint has no `no-restricted-syntax`; `lint/agentsRules.test.ts` runs the linter against fixtures so an Oxlint upgrade that stopped loading the plugin fails `yarn test` instead of silently un-enforcing them, and also runs the repo's own configs over fixtures so a rule that stopped being pointed at anything fails too. Reach for a rule there rather than a raw-text Vitest scan whenever the convention depends on what a NAME refers to — aliases, destructuring, renamed imports — which a text scan decides wrongly in both directions. Suppress one line with `// oxlint-disable-next-line <rule>` (the `eslint-disable-next-line` spelling still works), but note Oxlint does **not** honor `/* global … */` block directives — declare globals in `.oxlintrc.json` instead, as the `public/sw.js` override does. That override carries more weight than it looks: the service worker is a static asset in **no** tsconfig and imported by nothing, so lint is the only thing that reads it at all — and `no-undef` is its only check for an undeclared global, which is what a typo there looks like. The no-env-reads-outside-`lib/config/` rule is enforced by `lib/config/envAccess.test.ts`; every `ACTIVITIES_*`/`OTEL_*` variable read in `lib/config/` must have a row in `docs/environment-variables.md` (`lib/config/envDocumentation.test.ts` fails otherwise); and server-only trees must not import a runtime value from a `'use client'` module (`lib/clientModuleBoundary.test.ts` — see **Server/Client Module Boundary** in `docs/architecture.md`). Three more repo-wide guards live as tests: `test/next.config.test.ts` (the build config must not consume runtime deployment values), `app/globals.contrast.test.ts` (the WCAG contrast floor), and `lib/components/tailwindCssVariableSyntax.test.ts` (see **Tailwind CSS variables** below). The remaining conventions in this file are review-enforced.
 - `yarn test` runs the full Vitest suite (all tests run in parallel with SQLite in-memory databases).
 - `yarn run prettier` always **writes** (`"prettier": "prettier --write app migrations lib lint test"` in `package.json`, so even `yarn prettier --check` overwrites files); pass a trailing `.` (`yarn run prettier --write .`) to format the whole tree, or run `yarn prettier:check` for a read-only check.
-- **`yarn typecheck` type-checks the whole project; `yarn build` type-checks everything except tests.** TypeScript 7 has no compiler API, so `next build` type-checks by running the `tsc` CLI (`experimental.useTypeScriptCli`), which checks every file its tsconfig includes rather than only the app's module graph — the build therefore reads `tsconfig.build.json` (inherits `tsconfig.json`, drops `*.test.ts(x)`) and catches type errors in `scripts/` and in unimported `lib/` modules, which the old checker missed. `yarn typecheck` runs `tsc --noEmit` directly against `tsconfig.json` covering all files in the repository (production code, scripts, and all `*.test.ts(x)` files) with zero exclusions or ratchets. The base `exclude` drops `test/setup/` (the Vitest setup files). And **silently**, TypeScript resolves a wildcard `include` to one extension per basename, so a `foo.test.tsx` sitting beside a `foo.test.ts` is dropped from every program while Vitest still runs it — a live test file no compiler reads, which is what `lib/utils/text/cleanClassName.test.tsx` was until it was renamed. `lib/testFileTypeCoverage.test.ts` guards that last one. `incremental` is `false` in every tsconfig on purpose: TypeScript 7.0's `tsc` serves stale diagnostics from `.tsbuildinfo` after a global `.d.ts` changes (the microsoft/typescript-go#4664 class of bug), and a full check takes ~2s.
+- **`yarn typecheck` type-checks the whole project; `yarn build` type-checks everything except tests.** TypeScript 7 has no compiler API, so `next build` type-checks by running the `tsc` CLI (`experimental.useTypeScriptCli`), which checks every file its tsconfig includes rather than only the app's module graph — the build therefore reads `tsconfig.build.json` (inherits `tsconfig.json`, drops `*.test.ts(x)`) and catches type errors in `scripts/` and in unimported `lib/` modules, which the old checker missed. `yarn typecheck` runs `tsc --noEmit` directly against `tsconfig.json` covering all files in the repository (production code, scripts, and all `*.test.ts(x)` files) with zero exclusions or ratchets. The base `exclude` drops `test/setup/` (the Vitest setup files). And **silently**, TypeScript resolves a wildcard `include` to one extension per basename, so a `foo.test.tsx` sitting beside a `foo.test.ts` is dropped from every program while Vitest still runs it — a live test file no compiler reads. `lib/testFileTypeCoverage.test.ts` guards that last one. `incremental` is `false` in every tsconfig on purpose: TypeScript 7.0's `tsc` serves stale diagnostics from `.tsbuildinfo` after a global `.d.ts` changes (the microsoft/typescript-go#4664 class of bug), and a full check takes ~2s.
 - **TypeScript is on the `7.x` line — the native compiler, which ships a CLI and _no_ JavaScript compiler API** (`require('typescript')` exposes only `{ version }`; a new, different API is expected in 7.1). Nothing in the repo may depend on that API, which is why lint is **Oxlint** rather than ESLint + typescript-eslint (peer `<6.1.0`, and it throws on load under 7.x — [typescript-eslint#10940](https://github.com/typescript-eslint/typescript-eslint/issues/10940)), `scripts/run.cjs` boots with **tsx** rather than `@swc-node/register` (peer `<7`), `lib/clientModuleBoundary.test.ts` parses with **`@swc/core`**, and `next build` type-checks through the **`tsc` CLI** (see the `yarn typecheck` bullet above). Two traps worth knowing before changing any of this: Next resolves the CLI from the package named `typescript` and needs its `bin.tsc`, so aliasing that package for a side-by-side TypeScript 6 install (`typescript: npm:@typescript/typescript6`) makes `next build` run `yarn add --dev typescript` itself and rewrite `package.json` mid-build; and TypeScript 7.0's `tsc` serves **stale diagnostics** from `.tsbuildinfo` after a global `.d.ts` changes (the microsoft/typescript-go#4664 class of bug), so `incremental` stays `false` everywhere. Type-aware lint rules were never enabled here; if they are ever wanted, the TypeScript 7-native route is `oxlint --type-aware` (tsgolint), not a return to typescript-eslint.
 - `yarn migrate` applies every pending migration with Kysely's migrator (`scripts/database/migrate.ts`, which prints the database it resolved before it does anything); `yarn migrate:status` lists the applied and pending migrations, the Knex handover state and a held SQLite migration lock without writing anything (it creates no table and no SQLite file); `yarn migrate:down` rolls back the last migration, never the baseline; `yarn migrate:unlock` releases the SQLite migration lock a killed run left held; `yarn migrate:make <name>` creates `migrations/<timestamp>_<name>.ts` from `migrations/migration.stub`. Always create migrations with `yarn migrate:make`, then register the new module in `migrations/index.ts` and its name in `migrations/names.ts` — the runner reads that static map, not the directory, the startup check reads the names without loading the modules, `yarn typecheck` fails when the map and the names disagree, and `lib/database/migrate/index.test.ts` fails when they and the files do. A migration exports `up(db)` (and `down(db)`) taking a `Kysely<any>`; each runs in its own transaction on both backends unless it exports `config = { transaction: false }`. The first migration, `20261014000000_baseline`, is the Knex handover (see **Keeping the reference schema dumps in sync** below and the [handover section in docs/maintenance.md](maintenance.md#upgrading-past-the-knex-handover)); the 181 Knex migrations it stands for ran in v1.192.34 and earlier releases and are not in this checkout.
 - **Local database is local-only.** For development and tests, use either **SQLite** on `localhost` (`ACTIVITIES_DATABASE_CLIENT=better-sqlite3` with a local `*.sqlite3` file, or the `ACTIVITIES_DATABASE` JSON equivalent) or the **PostgreSQL in the docker-compose stack at `activities.local`**. **Never run the dev server, migrations, or tests against a remote/shared/production database** (e.g. a non-local `ACTIVITIES_DATABASE_PG_HOST` such as `<remote-db-host>`). Verify the resolved database target is local before migrating or starting the app. When working in a git worktree, do not copy a main-checkout `.env.local` that points at a remote DB; create a worktree-local SQLite config instead.
@@ -403,26 +405,105 @@ Use the one that matches the database you are reasoning about:
 
 "In lockstep" means they describe the same migration set, **not** that every column has the same type in both. A migration may deliberately be backend-conditional, and then the dumps legitimately disagree: the `20260207223000_fix_attachments_media_id_type` migration returned early unless the client was `pg`, so for a while `attachments.mediaId` was `integer` on PostgreSQL and `varchar(255)` on SQLite. That is not drift — do not "reconcile" it or regenerate the dumps over it. Check the migration before treating a per-column difference as a bug. (The `20261012100000_attachments_media_id_integer_sqlite` migration has since rebuilt the SQLite table with `mediaId integer`, so the two dumps agree on that column now.)
 
-The app (`yarn migrate`) runs the migrations, but the test suite does **not** — `createTestDatabase` (`lib/database/testing/`) builds every test database directly from these dumps (see Testing Guidelines). If the dumps drift from the migrations, tests run against a stale schema, so keeping them in lockstep is load-bearing, not just hygiene. They are gitignored by the blanket `*.sql` rule and re-included by explicit `!` negations in `.gitignore`.
+The app (`yarn migrate`) runs the migrations, but the test suite does **not** — `createTestDatabase` (`lib/database/testing/`) builds every test database directly from these dumps (see Testing Guidelines in `CONTRIBUTING.md`). If the dumps drift from the migrations, tests run against a stale schema, so keeping them in lockstep is load-bearing, not just hygiene. They are gitignored by the blanket `*.sql` rule and re-included by explicit `!` negations in `.gitignore`.
 
 - **The baseline is frozen.** `migrations/baseline/postgres.sql` and `migrations/baseline/sqlite.sql` are the schema the 181 Knex migrations built (the dumps at the handover, without the Knex bookkeeping tables); `yarn migrate` loads the right one into an empty database. Never edit or regenerate them — a schema change is a new migration on top. The PostgreSQL baseline must keep loading on PostgreSQL 14 (CI loads it on `postgres:14`).
-- **Any PR that adds, edits, or removes a migration in `migrations/` MUST regenerate BOTH `migrations/schema.sql` and `migrations/schema.sqlite.sql` in the same PR**, and then the Kysely DB types (see **Regenerating the Kysely DB types** below). Keep them in lockstep — they must always describe the same migration set. CI's **SQLite Schema Dump Sync** and **PostgreSQL Schema Dump Sync** jobs regenerate both reference dumps from the migrations on every push/PR and fail on drift.
+- **Any PR that adds, edits, or removes a migration in `migrations/` MUST regenerate BOTH `migrations/schema.sql` and `migrations/schema.sqlite.sql` in the same PR**, and then the Kysely DB types (see **Regenerating the Kysely DB types** below). Keep them in lockstep — they must always describe the same migration set. CI's schema drift checks (run in the first PostgreSQL test shard) regenerate both reference dumps from the migrations on every push/PR and fail on drift.
 - Regenerate them canonically rather than hand-editing — run every migration against a fresh database of each type and dump the result. In both cases verify `SELECT count(*) FROM kysely_migration` equals the number of `migrations/[0-9]*_*.ts` files first (the baseline is one of them). The dumps include the migrator's own `kysely_migration` and `kysely_migration_lock` tables; the Knex tables appear only in a database the Knex migrations built, never in a fresh one.
 
   Pass the DB settings **inline** on the `yarn migrate` line — do **not** write a `.env.local` (you'd clobber an existing one, and the cleanup would delete it). Because `yarn migrate` loads `.env*` files with `dotenv-flow`, which never overrides variables already in the environment, each inline value wins over the same variable in `.env.local` — but only that one: `.env.local` still supplies whatever the line leaves unset, and an `ACTIVITIES_DATABASE` JSON configuration wins over every individual `ACTIVITIES_DATABASE_*` variable. So start every line with an empty `ACTIVITIES_DATABASE=`, or a JSON configuration in `.env.local` would redirect `yarn migrate` to that database. For the same reason, run in a shell with **no** other `ACTIVITIES_DATABASE*` vars exported (a stray one would be merged in and could target a remote DB — check `env | grep ACTIVITIES_DATABASE`).
 
   **PostgreSQL (`migrations/schema.sql`):**
-  1. Start a **local** PostgreSQL 17 (e.g. a throwaway `postgres:17` Docker container, or the docker-compose stack) and wait until it accepts connections (`docker run -d` returns before `initdb` finishes; loop on `pg_isready`). Never point at a remote/shared/production DB.
-  2. Run migrations with the settings inline: `ACTIVITIES_DATABASE= ACTIVITIES_DATABASE_CLIENT=pg ACTIVITIES_DATABASE_PG_HOST=… ACTIVITIES_DATABASE_PG_PORT=… ACTIVITIES_DATABASE_PG_USER=… ACTIVITIES_DATABASE_PG_PASSWORD=… ACTIVITIES_DATABASE_PG_DATABASE=… yarn migrate`.
-  3. Dump schema only, without ownership/grants: `pg_dump --schema-only --no-owner --no-privileges` (run it against the PG 17 server so the dump matches that version).
+
+  1. Start a **local** PostgreSQL 17 — e.g. a throwaway `postgres:17` Docker container — and wait until it accepts connections (`docker run -d` returns before `initdb` finishes; loop on `pg_isready`). Never point at a remote/shared/production DB. To use the docker-compose stack's PostgreSQL instead (at `activities.local`; its port and credentials come from your local, gitignored `docker-compose.yml`), substitute its host/port/credentials in the step-2 environment variables, run `psql`/`pg_dump` via the compose service (e.g. `docker compose exec postgres …`) rather than `docker exec anext-schema-pg`, and skip the cleanup step.
+
+     ```bash
+     docker run -d --name anext-schema-pg \
+       -e POSTGRES_USER=activities \
+       -e POSTGRES_PASSWORD=activities \
+       -e POSTGRES_DB=activities \
+       -p 127.0.0.1:55432:5432 postgres:17
+
+     # Wait for readiness before continuing.
+     until docker exec anext-schema-pg pg_isready -U activities -q; do sleep 1; done
+     ```
+
+  2. Run migrations with the settings inline (the leading empty `ACTIVITIES_DATABASE=` neutralises a JSON configuration in `.env.local`):
+
+     ```bash
+     ACTIVITIES_DATABASE= \
+     ACTIVITIES_DATABASE_CLIENT=pg \
+     ACTIVITIES_DATABASE_PG_HOST=127.0.0.1 \
+     ACTIVITIES_DATABASE_PG_PORT=55432 \
+     ACTIVITIES_DATABASE_PG_USER=activities \
+     ACTIVITIES_DATABASE_PG_PASSWORD=activities \
+     ACTIVITIES_DATABASE_PG_DATABASE=activities \
+       yarn migrate
+     ```
+
+     Sanity check that every migration ran — the `kysely_migration` row count must equal the number of `migrations/[0-9]*_*.ts` files:
+
+     ```bash
+     docker exec anext-schema-pg \
+       psql -U activities -d activities -tAc 'SELECT count(*) FROM kysely_migration;'
+     ls migrations/[0-9]*_*.ts | wc -l
+     ```
+
+  3. Dump schema only, without ownership/grants, from the PG 17 server so the dump matches that version:
+
+     ```bash
+     docker exec anext-schema-pg \
+       pg_dump -U activities -d activities --schema-only --no-owner --no-privileges \
+       > /tmp/schema_raw.sql
+     ```
+
   4. Strip pg_dump's noise to match the existing pure-DDL file: the `\restrict`/`\unrestrict` session token (non-deterministic — never commit it), the `-- …` comment headers, and the `SET default_tablespace` / `SET default_table_access_method` lines. Keep the leading `SET`/`SELECT pg_catalog.set_config(...)` block and all `CREATE`/`ALTER` DDL.
 
-  **SQLite (`migrations/schema.sqlite.sql`):**
-  1. Run migrations against a throwaway file DB with the settings inline: `ACTIVITIES_DATABASE= ACTIVITIES_DATABASE_CLIENT=better-sqlite3 ACTIVITIES_DATABASE_SQLITE_FILENAME=./schema-dump.sqlite3 yarn migrate`.
-  2. Dump the schema with `sqlite3 ./schema-dump.sqlite3 .schema`.
-  3. Strip SQLite's auto-managed internal tables, which it recreates on its own and which must NOT be in the file: the `CREATE TABLE sqlite_sequence(...)` line, and the FTS5 shadow tables (`CREATE TABLE IF NOT EXISTS '<name>_fts_(data|idx|docsize|config|content)'`). Keep the `CREATE VIRTUAL TABLE … USING fts5(…)` statement and its triggers — those are real. A quick sanity check: `sqlite3 /tmp/x.sqlite3 < migrations/schema.sqlite.sql` should load cleanly.
+     ```bash
+     awk '
+       /^SET statement_timeout/ { started = 1 }
+       !started { next }
+       /^--/ { next }
+       /^\\(un)?restrict/ { next }
+       /^SET default_tablespace/ { next }
+       /^SET default_table_access_method/ { next }
+       { print }
+     ' /tmp/schema_raw.sql | cat -s > migrations/schema.sql
+     ```
 
-  Then remove the throwaway container / `.sqlite3` file; only the two schema files and `lib/database/kysely/db.ts` should change.
+  5. Clean up the throwaway container: `docker rm -f anext-schema-pg`.
+
+  **SQLite (`migrations/schema.sqlite.sql`):**
+
+  1. Run migrations against a throwaway file DB with the settings inline, then sanity check that every migration ran — the `kysely_migration` row count must equal the number of `migrations/[0-9]*_*.ts` files:
+
+     ```bash
+     ACTIVITIES_DATABASE= \
+     ACTIVITIES_DATABASE_CLIENT=better-sqlite3 \
+     ACTIVITIES_DATABASE_SQLITE_FILENAME=./schema-dump.sqlite3 \
+       yarn migrate
+     sqlite3 schema-dump.sqlite3 'SELECT count(*) FROM kysely_migration;'  # == ls migrations/[0-9]*_*.ts | wc -l
+     ```
+
+  2. Dump the schema and strip SQLite's auto-managed internal tables, which it recreates on its own and which must NOT be in the file: the `CREATE TABLE sqlite_sequence(...)` line, and the FTS5 shadow tables (`CREATE TABLE IF NOT EXISTS '<name>_fts_(data|idx|docsize|config|content)'`). Keep the `CREATE VIRTUAL TABLE … USING fts5(…)` statement and its triggers — those are real.
+
+     ```bash
+     sqlite3 schema-dump.sqlite3 '.schema' \
+       | grep -vE "^CREATE TABLE sqlite_sequence" \
+       | grep -vE "^CREATE TABLE IF NOT EXISTS '[A-Za-z_]+_fts_(data|idx|docsize|config|content)'" \
+       > migrations/schema.sqlite.sql
+     ```
+
+  3. Sanity-check that the result loads cleanly into a fresh database:
+
+     ```bash
+     rm -f /tmp/roundtrip.sqlite3
+     sqlite3 /tmp/roundtrip.sqlite3 < migrations/schema.sqlite.sql && echo OK
+     ```
+
+  4. Clean up the throwaway files: `rm -f schema-dump.sqlite3 /tmp/roundtrip.sqlite3`.
+
+  After both dumps, only `migrations/schema.sql` and `migrations/schema.sqlite.sql` should be left changed (plus `lib/database/kysely/db.ts` once you regenerate the Kysely DB types).
 
 - A Postgres regeneration is a full re-dump, so its diff can be large even for unchanged tables (formatting differs from older dumps). That is expected — do not try to reproduce the old line-by-line formatting by hand. Commit the schema regeneration as `none:` when it is the only change (they are reference artifacts and ship nothing).
 - **Use only a local database for local dev/tests:** SQLite on `localhost`, or the docker-compose PostgreSQL at `activities.local`. Never connect local dev, tests, or user creation to a remote/shared/production database.
@@ -437,4 +518,4 @@ The app (`yarn migrate`) runs the migrations, but the test suite does **not** �
 ACTIVITIES_DATABASE= ACTIVITIES_DATABASE_CLIENT=pg ACTIVITIES_DATABASE_PG_HOST=… ACTIVITIES_DATABASE_PG_PORT=… ACTIVITIES_DATABASE_PG_USER=… ACTIVITIES_DATABASE_PG_PASSWORD=… ACTIVITIES_DATABASE_PG_DATABASE=… node scripts/run.cjs scripts/maintenance/generateDatabaseTypes.ts
 ```
 
-Timestamp columns are typed as the branded `EpochMs` on read, so compare them only through `timestampValue()` from `lib/database/kysely/dialect.ts`; the brand stops bare numbers, not read-back values, which must also go through it. It types each column for what the Kysely driver returns on both backends and prints any column whose type differs between the two dumps in a way that changes what is read back (typed as either, and marked `Mismatch` in the file). CI's **PostgreSQL Schema Dump Sync** job regenerates the file with `--output` and fails on drift.
+Timestamp columns are typed as the branded `EpochMs` on read, so compare them only through `timestampValue()` from `lib/database/kysely/dialect.ts`; the brand stops bare numbers, not read-back values, which must also go through it. It types each column for what the Kysely driver returns on both backends and prints any column whose type differs between the two dumps in a way that changes what is read back (typed as either, and marked `Mismatch` in the file). CI's PostgreSQL schema drift check (run in the first PostgreSQL test shard) regenerates the file with `--output` and fails on drift.

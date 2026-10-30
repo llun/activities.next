@@ -18,7 +18,7 @@ import { GET, MAX_BATCH_RELATIONSHIPS } from './route'
 // `mockRejectedValueOnce`, after which calls fall back to the real impl. Read
 // through the STATIC import above, not vi.importMock: the factory awaits
 // importOriginal, so vi.importMock would hand back the original module instead
-// of this mock (per AGENTS.md, Testing Guidelines).
+// of this mock (per CONTRIBUTING.md, Testing Guidelines).
 vi.mock('@/lib/services/accounts/relationship', async (importOriginal) => {
   const actual =
     await importOriginal<

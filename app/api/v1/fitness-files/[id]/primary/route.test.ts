@@ -42,7 +42,7 @@ vi.mock('next/headers', () => ({
 }))
 
 describe('POST /api/v1/fitness-files/[id]/primary', () => {
-  const { database, prepare } = createTestDatabase()
+  const { database, db, prepare } = createTestDatabase()
   let slugCounter = 0
 
   beforeAll(async () => {
@@ -66,7 +66,10 @@ describe('POST /api/v1/fitness-files/[id]/primary', () => {
     })
   })
 
-  afterEach(() => {
+  afterEach(async () => {
+    // A route killed by a test timeout can leave its lock row behind; drop
+    // any so one failure cannot cascade into the next test's lock wait.
+    await db.deleteFrom('fitness_import_locks').execute()
     vi.useRealTimers()
     vi.restoreAllMocks()
   })
@@ -143,6 +146,72 @@ describe('POST /api/v1/fitness-files/[id]/primary', () => {
     Promise.all(
       ids.map(async (id) => (await database.getFitnessFile({ id }))?.isPrimary)
     )
+
+  // Spies on the lock acquire so the stepper below can see each poll that
+  // came back empty: the route schedules its 250ms sleep only after those.
+  const spyOnEmptyLockPolls = () => {
+    const realAcquire = database.acquireImportLock.bind(database)
+    let emptyPolls = 0
+    const acquire = vi.spyOn(database, 'acquireImportLock')
+    acquire.mockImplementation(async (...args) => {
+      const lock = await realAcquire(...args)
+      if (!lock) emptyPolls += 1
+      return lock
+    })
+    return { acquire, emptyPolls: () => emptyPolls }
+  }
+
+  // The route's poll loop alternates a real DB round-trip with a faked
+  // 250ms sleep, so the fake clock may only move while the route is
+  // provably inside that sleep: the moment an acquire came back empty
+  // (pg-pool schedules fake timers of its own per query, so a bare timer
+  // count cannot tell the route's sleep from those). Wait in real time
+  // (vi.waitFor keeps the timers it stashed before faking) for each
+  // empty poll, fire its sleep, repeat: slow I/O spends real time, not
+  // fake-clock budget, so the 15s deadline stays reachable. Throws once
+  // the step budget is spent, so a stalled route fails this test instead
+  // of hanging it to the timeout.
+  const advanceUntilSettled = async (
+    pending: Promise<unknown>,
+    emptyPolls: () => number,
+    steps = 64
+  ) => {
+    let settled = false
+    void pending.then(
+      () => {
+        settled = true
+      },
+      () => {
+        settled = true
+      }
+    )
+    let fired = 0
+    for (let step = 0; step < steps; step++) {
+      await vi.waitFor(
+        () => {
+          if (settled) return
+          expect(emptyPolls()).toBeGreaterThan(fired)
+        },
+        { timeout: 5000 }
+      )
+      if (settled) return
+      // One event-loop turn for the route's continuation to reach its
+      // delay() before the advance fires it.
+      await new Promise((resolve) => setImmediate(resolve))
+      await vi.advanceTimersByTimeAsync(250)
+      fired += 1
+    }
+    throw new Error(
+      `The response did not settle within ${steps * 250}ms of the fake clock`
+    )
+  }
+
+  // withImportLock stamps its wait deadline before its first acquire attempt,
+  // so wait for that attempt before advancing the fake clock: on PostgreSQL
+  // the round-trips land after the advance would otherwise have run. vi.waitFor
+  // runs on timers stashed before faking, so it waits in real time here.
+  const waitForPollStart = (acquire: { mock: { calls: unknown[] } }) =>
+    vi.waitFor(() => expect(acquire).toHaveBeenCalled(), { timeout: 5000 })
 
   it('swaps the primary flag and answers with the new primary', async () => {
     const { oldPrimary, chosen } = await createPair()
@@ -316,11 +385,15 @@ describe('POST /api/v1/fitness-files/[id]/primary', () => {
       ttlMs: 10 * 60 * 1000
     })
     expect(held).not.toBeNull()
+    const { acquire, emptyPolls } = spyOnEmptyLockPolls()
     vi.useFakeTimers({ toFake: ['Date', 'setTimeout'] })
+    const pending = post(chosen.id)
 
     try {
-      const pending = post(chosen.id)
-      await vi.advanceTimersByTimeAsync(16_000)
+      await waitForPollStart(acquire)
+      // Step past the 15s wait deadline one poll at a time: each 250ms
+      // advance fires only a sleep the route is provably in.
+      await advanceUntilSettled(pending, emptyPolls)
       const response = await pending
 
       expect(response.status).toBe(409)
@@ -331,8 +404,14 @@ describe('POST /api/v1/fitness-files/[id]/primary', () => {
       expect(await flags(oldPrimary.id, chosen.id)).toEqual([true, false])
       expect(mockPublish).not.toHaveBeenCalled()
     } finally {
+      // A failure above must not leak a still-polling route into the next
+      // test: fire the fake sleep it may be stuck in (real timers never
+      // run those), give the lock back so its next poll can finish, then
+      // await the response.
+      await vi.advanceTimersByTimeAsync(20_000)
       vi.useRealTimers()
       await database.releaseImportLock({ lockKey, token: held!.token })
+      await pending.catch(() => undefined)
     }
   })
 
@@ -340,19 +419,25 @@ describe('POST /api/v1/fitness-files/[id]/primary', () => {
     const { oldPrimary, chosen } = await createPair()
     const lockKey = `fitness-import:${ACTOR1_ID}`
     const held = await database.acquireImportLock({ lockKey, ttlMs: 60_000 })
+    const { acquire, emptyPolls } = spyOnEmptyLockPolls()
     vi.useFakeTimers({ toFake: ['Date', 'setTimeout'] })
+    const pending = post(chosen.id)
 
     try {
-      const pending = post(chosen.id)
+      await waitForPollStart(acquire)
       await vi.advanceTimersByTimeAsync(1_000)
       await database.releaseImportLock({ lockKey, token: held!.token })
-      await vi.advanceTimersByTimeAsync(1_000)
+      await advanceUntilSettled(pending, emptyPolls)
       const response = await pending
 
       expect(response.status).toBe(200)
       expect(await flags(oldPrimary.id, chosen.id)).toEqual([false, true])
     } finally {
+      // Same cleanup as the 409 test: never leak a still-polling route.
+      await vi.advanceTimersByTimeAsync(20_000)
       vi.useRealTimers()
+      await database.releaseImportLock({ lockKey, token: held!.token })
+      await pending.catch(() => undefined)
     }
   })
 
