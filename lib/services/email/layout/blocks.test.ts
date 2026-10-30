@@ -198,7 +198,10 @@ describe('quote', () => {
     // white-space:nowrap is allowed) sits before it in the row, and slicing
     // from the body div would never see this cell at all.
     const start = html.indexOf('<td valign="middle" style="padding-left:8px')
-    const cell = html.slice(start, html.indexOf('</td>', start))
+    const end = html.indexOf('</td>', start)
+    expect(start).toBeGreaterThan(-1)
+    expect(end).toBeGreaterThan(start)
+    const cell = html.slice(start, end)
     expect(cell).not.toContain('white-space:nowrap')
   })
 
@@ -416,11 +419,11 @@ describe('statCard', () => {
     expect(html).toContain(
       'style="margin:0 0 20px;width:100%;table-layout:fixed;"'
     )
-    // The timestamp column is an explicit 112px — "29 Oct 2026, 07:12" at 12px
-    // measures about 109px in WebKit with the system font — so the title keeps
-    // the rest; nowrap would defeat the fixed layout by forcing min-content
-    // width.
-    expect(html).toContain('width="112" style="width:112px;')
+    // The timestamp column is an explicit 126px — "28 Sept 2026, 23:59" at
+    // 12px measures 117.6px in WebKit with the system font (the widest month),
+    // so 126px fits it with slack — and the title keeps the rest; nowrap would
+    // defeat the fixed layout by forcing min-content width.
+    expect(html).toContain('width="126" style="width:126px;')
     expect(html).not.toContain('white-space:nowrap')
     // Title and filename break anywhere instead of pushing the card wide.
     expect(

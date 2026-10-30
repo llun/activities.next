@@ -305,7 +305,7 @@ export const quote = (options: {
       `<td width="${AVATAR_SIZE}" valign="middle" style="width:${AVATAR_SIZE}px;min-width:${AVATAR_SIZE}px;padding:0;">${avatarHtml}</td>` +
       // The name and handle share ONE cell, not one cell each. An auto-layout
       // table never shrinks below its min-content width, and the handle (e.g.
-      // @cheeaun@mastodon.social) offers no break opportunity of its own, so on
+      // @someone@mastodon.example) offers no break opportunity of its own, so on
       // a narrow screen (~390pt in iPhone Apple Mail) the two cells pushed the
       // row ~10px past the card's right edge. `table-layout:fixed` above and
       // on the inset table lets the single cell shrink; the handle drops under
@@ -366,13 +366,15 @@ export const statCard = (options: {
     // shrinks below its min-content width, which pushed the card past the
     // screen edge on narrow phones. With fixed layout the column widths come
     // from the first row's cells, so the title keeps `width:auto` (it takes
-    // the remaining space and wraps) and the timestamp gets an explicit 112px:
-    // "29 Oct 2026, 07:12" at 12px measures about 109px in WebKit with the
-    // system font, so 112px fits it while long titles keep their room at 600px.
+    // the remaining space and wraps) and the timestamp gets an explicit 126px.
+    // formatStartTime renders "28 Sept 2026, 23:59", whose widest month
+    // measures 117.6px at 12px in WebKit with the system font, so 126px fits
+    // the widest month plus ~8px slack while long titles keep their room at
+    // 600px.
     `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;table-layout:fixed;"><tr>` +
     `<td style="font-family:${FONT_STACK};font-size:15px;font-weight:600;color:${TEXT};word-wrap:break-word;overflow-wrap:anywhere;word-break:break-word;">${escapeHtml(title)}</td>` +
     (timestamp
-      ? `<td align="right" width="112" style="width:112px;font-family:${FONT_STACK};font-size:12px;color:${TEXT_MUTED};">${escapeHtml(timestamp)}</td>`
+      ? `<td align="right" width="126" style="width:126px;font-family:${FONT_STACK};font-size:12px;color:${TEXT_MUTED};">${escapeHtml(timestamp)}</td>`
       : '') +
     `</tr></table>`
 

@@ -1548,10 +1548,7 @@ legacy shape left to copy.
   http/https/mailto; anything else degrades to plain text rather than shipping a
   dead or dangerous link, since remote actors control `status.url`. The header
   logo, though, always comes from the configured host (`new URL('/logo-nav.png', getBaseURL())`, the same reasoning as `getBrandAssetSrc` for the web UI): an
-  alias domain may redirect elsewhere and not serve the `public/` assets — a
-  real llun.dev email pointed at `https://llun.dev/logo-nav.png`, which
-  302-redirects to `www.llun.me` (another site, no file) and rendered blank,
-  while the primary host serves the image. Links, the header host text and the
+  alias domain may redirect elsewhere and not serve the `public/` assets, while the primary host serves the image. Links, the header host text and the
   wordmark keep using the brand domain. The brand's
   domain is the account's own domain: every builder takes it through `brand`, and
   the confirmation and email-change links (`buildVerifyEmail`, `buildChangeEmail`)
@@ -1639,14 +1636,14 @@ legacy shape left to copy.
   code block gets `white-space:pre-wrap` with the same break properties (its
   line breaks survive; a long code line wraps), and the headline `h1` carries
   `overflow-wrap:anywhere`, for the same reason. The stat card gets the same
-  treatment: its title, stats and map tables carry
-  `width:100%;table-layout:fixed`, the timestamp column is an explicit 112px
-  ("29 Oct 2026, 07:12" at 12px measures about 109px in WebKit with the system
-  font, so 112px fits it while long titles keep their room at 600px) with no
+  treatment: the outer table and its title, stats and map tables carry
+  `width:100%;table-layout:fixed`, the timestamp column is an explicit 126px
+  ("28 Sept 2026, 23:59" — en-GB medium, the widest month — measures about
+  118px at 12px in WebKit with the system font, plus ~8px slack) with no
   `white-space:nowrap`, and the title and footnote carry the break properties.
   The header table is auto-layout: a normal wordmark and host keep their
   natural widths, so the 20px wordmark stays on one line even at a 320px
-  viewport (fixed layout with a 160px host column squeezed it onto two), and
+  viewport — it must never wrap mid-word — and
   only the host cell carries the break properties —
   `overflow-wrap:anywhere` lowers its min-content width, so a very long
   custom host can still make the header shrink instead of overflowing. The

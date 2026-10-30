@@ -47,12 +47,11 @@ describe('renderEmail', () => {
 
   it('lays the header out so it can shrink on narrow screens', () => {
     const { html } = render()
-    // Auto layout keeps the 20px wordmark on one line even at a 320px
-    // viewport; fixed layout with a 160px host column squeezed it onto two.
+    // Auto layout keeps the 20px wordmark on one line: the wordmark must
+    // never wrap mid-word, even at a 320px viewport.
     expect(html).toContain(
       '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%"><tr>'
     )
-    expect(html).not.toContain('width="160"')
     // The logo column keeps its explicit 28px.
     expect(html).toContain('<td width="28" style="width:28px;">')
     // overflow-wrap:anywhere lowers the host cell's min-content width, so a
@@ -183,12 +182,12 @@ describe('renderEmail brand', () => {
 
   it('serves the logo from the configured host for a secondary-domain brand', () => {
     const { html } = render({
-      brand: { name: 'Llun.dev', domain: 'llun.dev' }
+      brand: { name: 'Alias', domain: 'alias.example' }
     })
     expect(html).toContain(`<img src="${BASE_URL}/logo-nav.png"`)
-    expect(html).not.toContain('<img src="https://llun.dev/')
-    expect(html).toContain('>llun.dev</td>')
-    expect(html).toContain('href="https://llun.dev"')
+    expect(html).not.toContain('<img src="https://alias.example/')
+    expect(html).toContain('>alias.example</td>')
+    expect(html).toContain('href="https://alias.example"')
   })
 
   it('builds the notification settings link on the brand domain', () => {

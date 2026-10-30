@@ -62,10 +62,8 @@ const footerLinkStyle = `color:${TEXT_CHROME};text-decoration:underline;`
 const renderHeader = (host: string, name: string): string => {
   // The logo always comes from the configured host (getBaseURL()), never the
   // brand domain: an alias domain may redirect elsewhere and not serve the
-  // public/ assets — a real llun.dev email pointed at
-  // https://llun.dev/logo-nav.png, which 302-redirects to www.llun.me (another
-  // site, no file) and rendered blank, while the primary host serves the file.
-  // This is the same reason the web UI loads brand assets through
+  // public/ assets, while the primary host serves the file. This is the same
+  // reason the web UI loads brand assets through
   // getBrandAssetSrc. Absolute, because a root-relative src is unresolvable in
   // a mail client; getBaseURL() keeps it correct on http/custom-port
   // deployments and on instances whose host already carries a scheme.
