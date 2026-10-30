@@ -14,10 +14,10 @@ import {
 // `table oauthConsent has no column named requestedUserInfoClaims` while the
 // whole test suite stayed green.
 //
-// Nothing else catches this class. The CI "Schema Dump Sync" job regenerates
-// the dumps FROM the migrations, so a migration that omits a column still
-// produces a matching dump; and the suite never drives better-auth's real
-// endpoints for most plugins.
+// Nothing else catches this class. The schema drift checks in PostgreSQL test
+// shard 1 regenerate the dumps FROM the migrations, so a migration that omits
+// a column still produces a matching dump; and the suite never drives
+// better-auth's real endpoints for most plugins.
 //
 // This asks better-auth itself what schema it expects, for the exact plugin set
 // `auth.ts` registers, and diffs that against the committed schema dump of the
