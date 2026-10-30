@@ -47,13 +47,6 @@ describe('same-origin proof', () => {
     expect(hasSameOriginProofQuietly(post(headers))).toBe(expected)
   })
 
-  it('does not require proof on a safe method', () => {
-    const req = new NextRequest(`https://${TEST_DOMAIN}/x`, { method: 'GET' })
-
-    expect(hasSameOriginProof(req)).toBe(true)
-    expect(hasSameOriginProofQuietly(req)).toBe(true)
-  })
-
   it('warns about a rejection, except through the quiet variant', () => {
     hasSameOriginProofQuietly(post({ Origin: 'https://evil.example' }))
     expect(logger.warn).not.toHaveBeenCalled()

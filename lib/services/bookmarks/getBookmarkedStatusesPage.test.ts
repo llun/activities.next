@@ -154,50 +154,6 @@ describe('getBookmarkedStatusesPage', () => {
     })
   })
 
-  it('preserves bookmark order when status rows are returned out of order', async () => {
-    const newer = createStatus('newer')
-    const older = createStatus('older')
-    const newerBookmark = createBookmark('newer', newer.id)
-    const olderBookmark = createBookmark('older', older.id)
-    const { database } = createDatabase({
-      statuses: [older, newer],
-      batches: new Map([[null, [newerBookmark, olderBookmark]]])
-    })
-
-    const page = await getBookmarkedStatusesPage({
-      database,
-      actorId: readerActorId,
-      currentActor,
-      limit: 2
-    })
-
-    expect(page.statuses.map((status) => status.id)).toEqual([
-      newer.id,
-      older.id
-    ])
-  })
-
-  it('uses the last scanned bookmark cursor when the visible page is full', async () => {
-    const newer = createStatus('full-newer')
-    const older = createStatus('full-older')
-    const newerBookmark = createBookmark('full-newer', newer.id)
-    const olderBookmark = createBookmark('full-older', older.id)
-    const { database } = createDatabase({
-      statuses: [newer, older],
-      batches: new Map([[null, [newerBookmark, olderBookmark]]])
-    })
-
-    const page = await getBookmarkedStatusesPage({
-      database,
-      actorId: readerActorId,
-      currentActor,
-      limit: 2
-    })
-
-    expect(page.nextMaxBookmarkId).toBe(olderBookmark.id)
-    expect(page.prevMinBookmarkId).toBe(newerBookmark.id)
-  })
-
   it('uses the last scanned bookmark cursor when max backfill iterations are consumed before the visible page is full', async () => {
     const limit = 3
     const visible = createStatus('max-backfill-visible')

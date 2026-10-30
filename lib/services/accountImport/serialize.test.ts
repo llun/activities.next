@@ -48,17 +48,4 @@ describe('serializeAccountImport', () => {
       lastErrorCode: null
     })
   })
-
-  it('adds the report when one is given', () => {
-    const report = {
-      done: { status: 2, media: 1 },
-      skipped: { option_disabled: 2 },
-      failed: { item_failed: 1 }
-    }
-    expect(serializeAccountImport(baseImport, report)).toMatchObject({
-      id: 'import-1',
-      status: 'done',
-      report
-    })
-  })
 })

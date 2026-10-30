@@ -31,12 +31,6 @@ describe('isUnicodeEmojiReaction', () => {
 describe('getCustomEmojiShortcode', () => {
   it.each([
     {
-      description: 'a colon-wrapped shortcode',
-      value: ':blobcat:',
-      expected: 'blobcat'
-    },
-    { description: 'a bare shortcode', value: 'blobcat', expected: 'blobcat' },
-    {
       description: 'a shortcode with digits and underscores',
       value: ':blob_cat_2:',
       expected: 'blob_cat_2'

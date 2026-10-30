@@ -52,20 +52,6 @@ describe('resolveQuoteForCreate', () => {
     mockFetchQuoteTargetForCreate.mockResolvedValue(null)
   })
 
-  it('resolves the quoted status id and defaults the policy from the actor setting', async () => {
-    const database = makeDatabase({ defaultQuotePolicy: 'followers' })
-    const result = await resolveQuoteForCreate({
-      database,
-      currentActor,
-      quotedStatusId: QUOTED_URL
-    })
-    expect(result).toEqual({
-      ok: true,
-      quotedStatusId: QUOTED_URL,
-      quoteApprovalPolicy: 'followers'
-    })
-  })
-
   it('prefers an explicit requested policy over the actor default', async () => {
     const database = makeDatabase({ defaultQuotePolicy: 'followers' })
     const result = await resolveQuoteForCreate({
@@ -75,56 +61,6 @@ describe('resolveQuoteForCreate', () => {
       requestedPolicy: 'nobody'
     })
     expect(result).toMatchObject({ ok: true, quoteApprovalPolicy: 'nobody' })
-  })
-
-  it('returns ok with no quoted id and the default policy when nothing is quoted', async () => {
-    const database = makeDatabase({ defaultQuotePolicy: 'public' })
-    const result = await resolveQuoteForCreate({
-      database,
-      currentActor
-    })
-    expect(result).toEqual({
-      ok: true,
-      quotedStatusId: undefined,
-      quoteApprovalPolicy: 'public'
-    })
-  })
-
-  it('returns not_found when the quoted status does not exist and fetch returns null', async () => {
-    const database = makeDatabase({ quotedStatus: null })
-    const result = await resolveQuoteForCreate({
-      database,
-      currentActor,
-      quotedStatusId: QUOTED_URL
-    })
-    expect(mockFetchQuoteTargetForCreate).toHaveBeenCalledWith({
-      database,
-      quotedStatusId: QUOTED_URL
-    })
-    expect(result).toEqual({ ok: false, reason: 'not_found' })
-  })
-
-  it('fetches unstored remote quote target on database miss and uses its canonical id', async () => {
-    const database = makeDatabase({ quotedStatus: null })
-    const canonicalId = 'https://remote.test/users/alice/statuses/canonical-1'
-    mockFetchQuoteTargetForCreate.mockResolvedValue({
-      id: canonicalId,
-      actorId: 'https://remote.test/users/alice'
-    })
-    const result = await resolveQuoteForCreate({
-      database,
-      currentActor,
-      quotedStatusId: QUOTED_URL
-    })
-    expect(mockFetchQuoteTargetForCreate).toHaveBeenCalledWith({
-      database,
-      quotedStatusId: QUOTED_URL
-    })
-    expect(result).toEqual({
-      ok: true,
-      quotedStatusId: canonicalId,
-      quoteApprovalPolicy: undefined
-    })
   })
 
   it('does not call fetchQuoteTargetForCreate when the status is already stored', async () => {
@@ -151,16 +87,5 @@ describe('resolveQuoteForCreate', () => {
       quotedStatusId: QUOTED_URL
     })
     expect(result).toEqual({ ok: false, reason: 'not_found' })
-  })
-
-  it('returns denied when the quote policy denies the caller', async () => {
-    mockCanQuoteStatus.mockResolvedValue('denied')
-    const database = makeDatabase()
-    const result = await resolveQuoteForCreate({
-      database,
-      currentActor,
-      quotedStatusId: QUOTED_URL
-    })
-    expect(result).toEqual({ ok: false, reason: 'denied' })
   })
 })

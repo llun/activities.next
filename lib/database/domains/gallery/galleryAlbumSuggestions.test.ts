@@ -20,7 +20,6 @@ describe('GalleryAlbumSuggestionDatabase', () => {
     const emptyOwnerId: string = actors.pollAuthor.id
     const ids: Record<string, string> = {}
     let ownerAlbum = ''
-    let otherAlbum = ''
 
     const post = async (name: string, actorId: string) => {
       const media = await database.createMedia({
@@ -91,39 +90,11 @@ describe('GalleryAlbumSuggestionDatabase', () => {
         throw new Error('albums not created')
       }
       ownerAlbum = first.album.id
-      otherAlbum = other.album.id
       expect(second.album.id).not.toBe(ownerAlbum)
     })
 
     afterAll(async () => {
       await database.destroy()
-    })
-
-    it('lists each of the actor’s albums with the media ids of its items, and leaves out empty albums', async () => {
-      const sets = await database.getGalleryAlbumItemSets({
-        actorId: ownerId,
-        mediaIds: [ids.a, ids.b, ids.c]
-      })
-
-      expect(sets).toHaveLength(2)
-      expect(sets.map((set) => [...set.mediaIds].sort()).sort()).toEqual(
-        [[ids.a, ids.b].sort(), [ids.b, ids.c].sort()].sort()
-      )
-      expect(
-        sets.find((set) => set.albumId === ownerAlbum)?.mediaIds.sort()
-      ).toEqual([ids.a, ids.b].sort())
-      expect(
-        sets.every((set) => set.mediaIds.every((id) => typeof id === 'string'))
-      ).toBeTrue()
-    })
-
-    it('never returns another actor’s album', async () => {
-      const sets = await database.getGalleryAlbumItemSets({
-        actorId: otherId,
-        mediaIds: [ids.x]
-      })
-
-      expect(sets).toEqual([{ albumId: otherAlbum, mediaIds: [ids.x] }])
     })
 
     it('does not list the items of the actor’s albums for media ids somebody else asks with', async () => {

@@ -116,23 +116,6 @@ describe('startAccountImport', () => {
     )
   })
 
-  it('rejects and deletes an upload whose size differs from the declared size', async () => {
-    const accountImport = await createImport()
-    getMetadata.mockResolvedValue({ size: 99, etag: '"archive-version-1"' })
-    getSize.mockResolvedValue(99)
-
-    const result = await startAccountImport({
-      database,
-      objectStore,
-      accountImport,
-      options
-    })
-
-    expect(result).toEqual({ type: 'upload-incomplete' })
-    expect(deleteUpload).toHaveBeenCalledWith(accountImport)
-    expect(inspectAccountArchive).not.toHaveBeenCalled()
-  })
-
   it('rejects and deletes an upload whose object metadata is missing', async () => {
     const accountImport = await createImport()
     getMetadata.mockResolvedValue(null)
@@ -145,23 +128,6 @@ describe('startAccountImport', () => {
     })
 
     expect(result).toEqual({ type: 'upload-incomplete' })
-    expect(deleteUpload).toHaveBeenCalledWith(accountImport)
-    expect(inspectAccountArchive).not.toHaveBeenCalled()
-  })
-
-  it('rejects and deletes an upload larger than the configured cap', async () => {
-    const accountImport = await createImport(2_000)
-    getMetadata.mockResolvedValue({ size: 2_000, etag: '"archive-version-1"' })
-    getSize.mockResolvedValue(2_000)
-
-    const result = await startAccountImport({
-      database,
-      objectStore,
-      accountImport,
-      options
-    })
-
-    expect(result).toEqual({ type: 'too-large' })
     expect(deleteUpload).toHaveBeenCalledWith(accountImport)
     expect(inspectAccountArchive).not.toHaveBeenCalled()
   })

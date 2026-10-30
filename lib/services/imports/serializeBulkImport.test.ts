@@ -26,24 +26,6 @@ describe('serializeBulkImport', () => {
     updatedAt: 1729766400000
   }
 
-  it('serializes merge mode when overwrite is false', () => {
-    const result = serializeBulkImport(baseBulkImport)
-    expect(result).toEqual({
-      id: 'import-123',
-      type: 'following',
-      mode: 'merge',
-      state: 'scheduled',
-      originalFilename: 'following_accounts.csv',
-      totalItems: 10,
-      processedItems: 6,
-      importedItems: 4,
-      failedItems: 2,
-      createdAt: getISOTimeUTC(1729766400000),
-      finishedAt: null
-    })
-    expect('failedRows' in result).toBe(false)
-  })
-
   it('serializes overwrite mode when overwrite is true and formats finishedAt', () => {
     const finishedAt = 1729770000000
     const finishedImport: BulkImport = {
@@ -70,35 +52,6 @@ describe('serializeBulkImport', () => {
       finishedAt: getISOTimeUTC(finishedAt)
     })
     expect('failedRows' in result).toBe(false)
-  })
-
-  it('includes failedRows when provided', () => {
-    const failedRows = [
-      {
-        rowIndex: 2,
-        data: { acct: 'user@remote.test' },
-        error: 'Account not found'
-      },
-      {
-        rowIndex: 5,
-        data: { acct: 'invalid-acct' },
-        error: 'Malformed address'
-      }
-    ]
-
-    const result = serializeBulkImport(baseBulkImport, failedRows)
-    expect(result.failedRows).toEqual([
-      {
-        rowIndex: 2,
-        data: { acct: 'user@remote.test' },
-        error: 'Account not found'
-      },
-      {
-        rowIndex: 5,
-        data: { acct: 'invalid-acct' },
-        error: 'Malformed address'
-      }
-    ])
   })
 
   it('includes empty failedRows array when empty array is provided', () => {

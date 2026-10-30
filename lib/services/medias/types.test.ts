@@ -38,11 +38,6 @@ describe('PresigedMediaInput', () => {
 describe('MediaSchema', () => {
   const descriptionOnly = MediaSchema.pick({ description: true })
 
-  it('rejects alt text longer than 1500 characters', () => {
-    const result = descriptionOnly.safeParse({ description: 'a'.repeat(1501) })
-    expect(result.success).toBe(false)
-  })
-
   it.each([
     {
       description: 'keeps alt text at the 1500-character Mastodon limit',

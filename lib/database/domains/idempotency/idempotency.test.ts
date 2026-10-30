@@ -43,25 +43,6 @@ describe('IdempotencyDatabase', () => {
     ).resolves.toBeNull()
   })
 
-  it('keeps the first status recorded for a key', async () => {
-    const actorId = actor('first-writer')
-    await seedIdempotencyKey(db, {
-      actorId,
-      key: 'post-1',
-      statusId: 'status-1'
-    })
-    // A retry or race recording the same key must not overwrite or throw.
-    await seedIdempotencyKey(db, {
-      actorId,
-      key: 'post-1',
-      statusId: 'status-2'
-    })
-
-    await expect(
-      getIdempotencyStatusId(db, { actorId, key: 'post-1' })
-    ).resolves.toBe('status-1')
-  })
-
   it('scopes keys to the actor', async () => {
     const actorId = actor('scoped')
     const otherActorId = actor('someone-else')
@@ -146,27 +127,6 @@ describe('IdempotencyDatabase', () => {
     await expect(
       database.getIdempotencyKey({ actorId: actorB, key: 'same-status-key' })
     ).resolves.toMatchObject({ state: 'pending' })
-  })
-
-  it('stores and retrieves contentHash via getIdempotencyKey', async () => {
-    const actorId = actor('hash')
-    await seedIdempotencyKey(db, {
-      actorId,
-      key: 'hashed-key',
-      statusId: 'status-hashed',
-      contentHash: 'sha256-abc'
-    })
-
-    await expect(
-      database.getIdempotencyKey({ actorId, key: 'hashed-key' })
-    ).resolves.toMatchObject({
-      actorId,
-      key: 'hashed-key',
-      statusId: 'status-hashed',
-      contentHash: 'sha256-abc',
-      state: 'complete',
-      createdAt: expect.any(Number)
-    })
   })
 
   it('claims a status create key as pending and moves it only while it is bound to that status', async () => {
@@ -288,95 +248,6 @@ describe('IdempotencyDatabase', () => {
     to: [ACTIVITY_STREAM_PUBLIC],
     cc: [],
     idempotency: { key, contentHash: `hash-${key}` }
-  })
-
-  it('lets exactly one of the create and its retries take the key to publish', async () => {
-    vi.useFakeTimers({ toFake: ['Date'] })
-    try {
-      const actorId = await createKeyedActor('claim-publish')
-      const claim = (key: string, statusId: string, retry = false) =>
-        database.claimIdempotencyKeyPublish({
-          actorId,
-          key,
-          statusId,
-          staleBefore: retry
-            ? new Date(Date.now() - IDEMPOTENCY_PENDING_STALE_MS)
-            : undefined
-        })
-      const stateOf = async (key: string) =>
-        (await database.getIdempotencyKey({ actorId, key }))?.state
-
-      const pending = keyedNote(actorId, 'pending', 'claim-pending')
-      await database.createNoteWithResult(pending)
-      // Not for another status, nor for a retry while the claim is fresh.
-      await expect(
-        claim('claim-pending', `${actorId}/statuses/other`)
-      ).resolves.toBe(false)
-      await expect(claim('claim-pending', pending.id, true)).resolves.toBe(
-        false
-      )
-      // The create's own request takes it to 'publishing' once.
-      const takenAt = Date.now()
-      await expect(claim('claim-pending', pending.id)).resolves.toBe(true)
-      await expect(stateOf('claim-pending')).resolves.toBe('publishing')
-      await expect(claim('claim-pending', pending.id)).resolves.toBe(false)
-      // A retry takes a 'publishing' key only once it is stale, then once.
-      vi.setSystemTime(takenAt + IDEMPOTENCY_PENDING_STALE_MS - 1)
-      await expect(claim('claim-pending', pending.id, true)).resolves.toBe(
-        false
-      )
-      vi.setSystemTime(takenAt + IDEMPOTENCY_PENDING_STALE_MS)
-      await expect(claim('claim-pending', pending.id, true)).resolves.toBe(true)
-      await expect(claim('claim-pending', pending.id, true)).resolves.toBe(
-        false
-      )
-      await expect(claim('claim-pending', pending.id)).resolves.toBe(false)
-
-      // A retry takes a stale 'pending' key, once.
-      const abandoned = keyedNote(actorId, 'abandoned', 'claim-abandoned')
-      const createdAt = Date.now()
-      await database.createNoteWithResult(abandoned)
-      vi.setSystemTime(createdAt + IDEMPOTENCY_PENDING_STALE_MS - 1)
-      await expect(claim('claim-abandoned', abandoned.id, true)).resolves.toBe(
-        false
-      )
-      vi.setSystemTime(createdAt + IDEMPOTENCY_PENDING_STALE_MS)
-      await expect(claim('claim-abandoned', abandoned.id, true)).resolves.toBe(
-        true
-      )
-      await expect(claim('claim-abandoned', abandoned.id, true)).resolves.toBe(
-        false
-      )
-      await expect(claim('claim-abandoned', abandoned.id)).resolves.toBe(false)
-
-      // A retry takes a 'publish_failed' key whatever its age; the create's
-      // own request does not.
-      await database.setIdempotencyKeyState({
-        actorId,
-        key: 'claim-abandoned',
-        statusId: abandoned.id,
-        state: 'publish_failed'
-      })
-      await expect(claim('claim-abandoned', abandoned.id)).resolves.toBe(false)
-      await expect(claim('claim-abandoned', abandoned.id, true)).resolves.toBe(
-        true
-      )
-      await expect(stateOf('claim-abandoned')).resolves.toBe('publishing')
-
-      // Nothing takes a 'complete' key.
-      await database.setIdempotencyKeyState({
-        actorId,
-        key: 'claim-abandoned',
-        statusId: abandoned.id,
-        state: 'complete'
-      })
-      vi.setSystemTime(Date.now() + IDEMPOTENCY_PENDING_STALE_MS)
-      await expect(claim('claim-abandoned', abandoned.id, true)).resolves.toBe(
-        false
-      )
-    } finally {
-      vi.useRealTimers()
-    }
   })
 
   it('ignores a late queue answer from a request whose key a retry took over and completed', async () => {

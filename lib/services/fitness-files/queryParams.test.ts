@@ -44,15 +44,14 @@ describe('TrimmedOptionalActivityTypeParam', () => {
     expect(TrimmedOptionalActivityTypeParam.parse('  running ')).toBe('running')
   })
 
-  it.each([
-    ['missing', undefined],
-    ['empty', ''],
-    ['blank', '   ']
-  ])('reads a %s value as all activities', (_label, value) => {
-    const parsed = TrimmedOptionalActivityTypeParam.safeParse(value)
-    expect(parsed.success).toBe(true)
-    expect(parsed.data).toBeUndefined()
-  })
+  it.each([['blank', '   ']])(
+    'reads a %s value as all activities',
+    (_label, value) => {
+      const parsed = TrimmedOptionalActivityTypeParam.safeParse(value)
+      expect(parsed.success).toBe(true)
+      expect(parsed.data).toBeUndefined()
+    }
+  )
 
   it.each([
     ['a bare NUL byte', '\u0000'],

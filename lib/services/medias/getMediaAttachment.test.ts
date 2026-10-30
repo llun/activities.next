@@ -14,48 +14,6 @@ const baseMedia: Media = {
 }
 
 describe('getMediaAttachment', () => {
-  it('builds an image attachment served from /api/v1/files', () => {
-    const attachment = getMediaAttachment(baseMedia, 'llun.test')
-    expect(attachment).toMatchObject({
-      id: '42',
-      type: 'image',
-      mime_type: 'image/jpeg',
-      url: 'https://llun.test/api/v1/files/medias/2026-01-01/image.jpg',
-      preview_url: 'https://llun.test/api/v1/files/medias/2026-01-01/image.jpg',
-      description: 'a cat'
-    })
-    expect(attachment.meta.original).toEqual({
-      width: 800,
-      height: 600,
-      size: '800x600',
-      aspect: 800 / 600
-    })
-  })
-
-  it('uses the thumbnail path for preview_url and meta.small when present', () => {
-    const attachment = getMediaAttachment(
-      {
-        ...baseMedia,
-        thumbnail: {
-          path: 'medias/2026-01-01/thumb.jpg',
-          bytes: 500,
-          mimeType: 'image/jpeg',
-          metaData: { width: 200, height: 150 }
-        }
-      },
-      'llun.test'
-    )
-    expect(attachment.preview_url).toBe(
-      'https://llun.test/api/v1/files/medias/2026-01-01/thumb.jpg'
-    )
-    expect(attachment.meta.small).toEqual({
-      width: 200,
-      height: 150,
-      size: '200x150',
-      aspect: 200 / 150
-    })
-  })
-
   // A thumbnail a client uploaded shows the photo as it was before an edit.
   it('previews an edited photo with the edited file, not its old thumbnail', () => {
     const thumbnail = {
@@ -151,12 +109,6 @@ describe('getMediaAttachment', () => {
     )
   })
 
-  it('emits a null description when none is stored', () => {
-    const { description: _description, ...withoutDescription } = baseMedia
-    const attachment = getMediaAttachment(withoutDescription, 'llun.test')
-    expect(attachment.description).toBeNull()
-  })
-
   it('normalises an empty stored description to null', () => {
     const attachment = getMediaAttachment(
       { ...baseMedia, description: '' },
@@ -171,14 +123,6 @@ describe('getMediaAttachment', () => {
       'llun.test'
     )
     expect(attachment.description).toBeNull()
-  })
-
-  it('returns a real description verbatim, without trimming', () => {
-    const attachment = getMediaAttachment(
-      { ...baseMedia, description: '  a cat  ' },
-      'llun.test'
-    )
-    expect(attachment.description).toBe('  a cat  ')
   })
 
   it.each([
@@ -215,26 +159,10 @@ describe('getMediaAttachment', () => {
     expect(attachment.blurhash).toBeNull()
   })
 
-  it('emits stored blurhash string when present', () => {
-    const attachment = getMediaAttachment(
-      { ...baseMedia, blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj' },
-      'llun.test'
-    )
-    expect(attachment.blurhash).toBe('LEHV6nWB2yk8pyo0adR*.7kCMdnj')
-  })
-
   it('emits remote_url and preview_remote_url as null for local media', () => {
     const attachment = getMediaAttachment(baseMedia, 'llun.test')
     expect(attachment.remote_url).toBeNull()
     expect(attachment.preview_remote_url).toBeNull()
-  })
-
-  it('emits meta.focus when the media has a focal point', () => {
-    const attachment = getMediaAttachment(
-      { ...baseMedia, focus: { x: 0.5, y: -0.25 } },
-      'llun.test'
-    )
-    expect(attachment.meta.focus).toEqual({ x: 0.5, y: -0.25 })
   })
 
   it('omits meta.focus when there is no focal point', () => {

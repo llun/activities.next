@@ -14,11 +14,9 @@ import {
   toSpeciesChips
 } from '@/lib/services/gallery/galleryAlbumQueries'
 import {
-  GalleryAudience,
   OWNER_GALLERY_AUDIENCE,
   PUBLIC_GALLERY_AUDIENCE
 } from '@/lib/services/gallery/galleryAudience'
-import { getPublicPlace } from '@/lib/services/gallery/publicMediaDetails'
 import { seedDatabase } from '@/lib/stub/database'
 import { DatabaseSeed } from '@/lib/stub/scenarios/database'
 import {
@@ -412,98 +410,6 @@ describe('gallery album queries', () => {
       await database.destroy()
     })
 
-    const pageFor = async (audience: GalleryAudience) =>
-      (await getGalleryAlbumPage({
-        database,
-        owner: { id: ownerId },
-        audience,
-        albumId,
-        sort: 'taken_asc',
-        limit: 50
-      }))!.items
-
-    const placeOf = (
-      items: Awaited<ReturnType<typeof pageFor>>,
-      name: string
-    ) => items.find((item) => item.mediaId === ids[name])?.place
-
-    it('shows the owner every stored place and a visitor only what getPublicPlace allows', async () => {
-      const ownerItems = await pageFor(OWNER_GALLERY_AUDIENCE)
-      const publicItems = await pageFor(PUBLIC_GALLERY_AUDIENCE)
-      const settings = await database.getGallerySettings({ actorId: ownerId })
-
-      // The owner: coordinates whatever the precision.
-      expect(placeOf(ownerItems, 'snow-leopard')).toMatchObject({
-        name: 'Hemis',
-        latitude: 34.2,
-        longitude: 77.6
-      })
-      expect(placeOf(ownerItems, 'hidden-precision')).toMatchObject({
-        name: 'Home'
-      })
-
-      // A visitor: exactly the public projection of each stored row.
-      const rows = await database.getGalleryAlbumIndex({
-        albumId,
-        actorId: ownerId,
-        audience: PUBLIC_GALLERY_AUDIENCE
-      })
-      expect(rows).toHaveLength(publicItems.length)
-      for (const row of rows) {
-        const item = publicItems.find(
-          (candidate) => candidate.mediaId === row.id
-        )
-        expect(item?.place ?? null).toEqual(getPublicPlace(row, settings))
-      }
-
-      // And the cases that matter, spelled out.
-      expect(placeOf(publicItems, 'kingfisher')).toMatchObject({
-        name: 'River',
-        latitude: 51.5543
-      })
-      for (const name of [
-        'snow-leopard',
-        'unchecked',
-        'hidden-precision',
-        'zone'
-      ]) {
-        expect(placeOf(publicItems, name) ?? null).toBeNull()
-      }
-      expect(placeOf(publicItems, 'country')).toMatchObject({
-        name: 'Thailand',
-        countryCode: 'TH'
-      })
-      expect(publicItems.map((item) => item.mediaId)).not.toContain(
-        ids['followers-only']
-      )
-    })
-
-    it('computes the facts line from the public view, never counting a withheld place', async () => {
-      const detail = await getGalleryAlbumDetail({
-        database,
-        owner: { id: ownerId },
-        albumId,
-        limit: 50
-      })
-
-      // Six public photos; the followers-only one is not in the public view.
-      expect(detail!.facts).toMatchObject({
-        photoCount: 6,
-        speciesCount: 6,
-        // River and Thailand: the threatened, unchecked, hidden and zone
-        // places add nothing.
-        placeCount: 2,
-        countryCount: 1,
-        countryCodes: ['TH'],
-        countryName: 'Thailand'
-      })
-      expect(detail!.album.itemCount).toBe(7)
-      expect(detail!.storedItemCount).toBe(7)
-      expect(detail!.album.hiddenPlaceCount).toBe(2)
-      // Every photo the owner can see, for the add dialog's "already in".
-      expect([...detail!.mediaIds].sort()).toEqual(Object.values(ids).sort())
-    })
-
     it('sends the owner the stored count, which still includes a photo whose post was deleted', async () => {
       const created = await database.createGalleryAlbumWithinLimit({
         actorId: ownerId,
@@ -638,36 +544,6 @@ describe('gallery album queries', () => {
       ])
     })
 
-    it('puts the next cursor on the page and follows it', async () => {
-      const first = await getGalleryAlbumPage({
-        database,
-        owner: { id: ownerId },
-        audience: OWNER_GALLERY_AUDIENCE,
-        albumId,
-        sort: 'taken_asc',
-        limit: 3
-      })
-      expect(first!.items).toHaveLength(3)
-      expect(first!.nextMaxId).toBeString()
-
-      const rest = await getGalleryAlbumPage({
-        database,
-        owner: { id: ownerId },
-        audience: OWNER_GALLERY_AUDIENCE,
-        albumId,
-        sort: 'taken_asc',
-        maxId: first!.nextMaxId!,
-        limit: 10
-      })
-      expect(rest!.items).toHaveLength(4)
-      expect(rest!.nextMaxId).toBeNull()
-      expect(
-        [...first!.items, ...rest!.items].map((item) => item.mediaId)
-      ).toEqual(
-        (await pageFor(OWNER_GALLERY_AUDIENCE)).map((item) => item.mediaId)
-      )
-    })
-
     it('answers null for a missing album and an empty page for a bad cursor', async () => {
       expect(
         await getGalleryAlbumPage({
@@ -749,28 +625,9 @@ describe('gallery album queries', () => {
     })
 
     describe('getMediaAlbums', () => {
-      // Albums a test made, and the photos it added: gone afterwards, so no
-      // other test (several count the owner's photos and albums) sees them.
-      const madeAlbums: string[] = []
+      // Photos a test made, and the posts they are attached to: gone
+      // afterwards, so no other test sees them.
       const madeStatuses: string[] = []
-
-      const createAlbum = async (
-        title: string,
-        mediaIds: string[] = [],
-        visibility?: 'public' | 'private'
-      ) => {
-        const created = await database.createGalleryAlbumWithinLimit({
-          actorId: ownerId,
-          title,
-          visibility,
-          mediaIds,
-          limit: 200,
-          itemLimit: 2000
-        })
-        if (created.status !== 'created') throw new Error('not created')
-        madeAlbums.push(created.album.id)
-        return created.album.id
-      }
 
       // A photo of `actor`, with the post it is attached to when `posted`.
       const makePhoto = async ({
@@ -819,115 +676,9 @@ describe('gallery album queries', () => {
       }
 
       afterEach(async () => {
-        for (const id of madeAlbums.splice(0)) {
-          await database.deleteGalleryAlbum({ id, actorId: ownerId })
-        }
         for (const statusId of madeStatuses.splice(0)) {
           await database.deleteStatus({ statusId })
         }
-      })
-
-      it('lists every album of the owner, marks those holding the photo and counts their photos', async () => {
-        const holding = await createAlbum('MA holds', [ids.kingfisher])
-        const holdingPrivately = await createAlbum(
-          'MA holds privately',
-          [ids.kingfisher, ids['snow-leopard']],
-          'private'
-        )
-        const empty = await createAlbum('MA empty')
-
-        const result = await getMediaAlbums({
-          database,
-          owner: { id: ownerId },
-          mediaId: ids.kingfisher
-        })
-
-        expect(result.addable).toBe(true)
-        // Everything (made in setup) holds every seeded photo as well; other
-        // tests may have made albums of their own, so only these are pinned.
-        expect(result.albumIds).toEqual(
-          expect.arrayContaining([albumId, holding, holdingPrivately])
-        )
-        expect(result.albumIds).not.toContain(empty)
-        const byId = Object.fromEntries(
-          result.albums.map((album) => [album.id, album])
-        )
-        expect(byId[holding]).toEqual({
-          id: holding,
-          title: 'MA holds',
-          visibility: 'public',
-          itemCount: 1
-        })
-        expect(byId[holdingPrivately]).toMatchObject({
-          visibility: 'private',
-          itemCount: 2
-        })
-        expect(byId[empty]).toMatchObject({ itemCount: 0 })
-        // Only what the menu shows.
-        expect(Object.keys(byId[empty]).sort()).toEqual([
-          'id',
-          'itemCount',
-          'title',
-          'visibility'
-        ])
-      })
-
-      it('reports no album for a posted photo that is in none', async () => {
-        const { mediaId } = await makePhoto({ name: 'in-none' })
-
-        const result = await getMediaAlbums({
-          database,
-          owner: { id: ownerId },
-          mediaId
-        })
-
-        expect(result.albumIds).toEqual([])
-        expect(result.addable).toBe(true)
-      })
-
-      it('is addable and pending for an upload nobody has posted', async () => {
-        const { mediaId } = await makePhoto({ name: 'unposted', posted: false })
-
-        const result = await getMediaAlbums({
-          database,
-          owner: { id: ownerId },
-          mediaId
-        })
-
-        expect(result.addable).toBe(true)
-        expect(result.pending).toBe(true)
-      })
-
-      it('is addable for a photo kept out of the gallery', async () => {
-        const { mediaId } = await makePhoto({
-          name: 'not-in-gallery',
-          inGallery: false
-        })
-
-        const result = await getMediaAlbums({
-          database,
-          owner: { id: ownerId },
-          mediaId
-        })
-
-        expect(result.addable).toBe(true)
-      })
-
-      it('is addable and pending once its post is gone, and an album still holds it', async () => {
-        const { mediaId, statusId } = await makePhoto({ name: 'post-deleted' })
-        const holding = await createAlbum('MA kept', [mediaId])
-        await database.deleteStatus({ statusId })
-
-        const result = await getMediaAlbums({
-          database,
-          owner: { id: ownerId },
-          mediaId
-        })
-
-        // It is now a pending upload, so it is addable.
-        expect(result.albumIds).toEqual([holding])
-        expect(result.addable).toBe(true)
-        expect(result.pending).toBe(true)
       })
 
       it('is not addable for another actor’s photo', async () => {

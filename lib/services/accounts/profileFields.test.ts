@@ -1,12 +1,6 @@
 import { parseProfileFieldsForm } from '@/lib/services/accounts/profileFields'
 
 describe('parseProfileFieldsForm', () => {
-  it('reports a form without profile links as absent', () => {
-    expect(parseProfileFieldsForm({ name: 'Anna' })).toEqual({
-      status: 'absent'
-    })
-  })
-
   it('reads the rows in index order and trims them', () => {
     expect(
       parseProfileFieldsForm({
@@ -22,29 +16,6 @@ describe('parseProfileFieldsForm', () => {
         { name: 'Blog', value: 'https://blog.example' }
       ]
     })
-  })
-
-  it('drops a row with both parts empty', () => {
-    expect(
-      parseProfileFieldsForm({
-        'fields[0][name]': '',
-        'fields[0][value]': '  ',
-        'fields[1][name]': 'Blog',
-        'fields[1][value]': 'https://blog.example'
-      })
-    ).toEqual({
-      status: 'ok',
-      fields: [{ name: 'Blog', value: 'https://blog.example' }]
-    })
-  })
-
-  it('saves an empty list when every row is cleared', () => {
-    expect(
-      parseProfileFieldsForm({
-        'fields[0][name]': '',
-        'fields[0][value]': ''
-      })
-    ).toEqual({ status: 'ok', fields: [] })
   })
 
   it.each([

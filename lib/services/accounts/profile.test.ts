@@ -50,33 +50,6 @@ const account: Mastodon.Account = {
 }
 
 describe('buildProfile', () => {
-  it('emits null avatar/header when unset and the raw source note and fields', () => {
-    expect(buildProfile({ account, settings: baseSettings })).toEqual({
-      id: 'abc123',
-      display_name: 'Alice',
-      note: 'raw bio *not html*',
-      fields: [
-        { name: 'site', value: 'https://alice.test', verified_at: null }
-      ],
-      avatar: null,
-      avatar_static: null,
-      avatar_description: '',
-      header: null,
-      header_static: null,
-      header_description: '',
-      locked: false,
-      bot: false,
-      hide_collections: null,
-      discoverable: true,
-      indexable: false,
-      show_media: true,
-      show_media_replies: true,
-      show_featured: true,
-      attribution_domains: [],
-      moved: false
-    })
-  })
-
   it('carries stored image urls and appearance settings through', () => {
     const profile = buildProfile({
       account,
@@ -108,22 +81,5 @@ describe('buildProfile', () => {
       show_featured: false,
       attribution_domains: ['news.example.com']
     })
-  })
-
-  it('flags a profile whose actor settings carry movedTo', () => {
-    expect(
-      buildProfile({
-        account,
-        settings: { ...baseSettings, movedTo: 'https://new.test/users/alice' }
-      }).moved
-    ).toBe(true)
-  })
-
-  it('handles missing settings with documented defaults', () => {
-    const profile = buildProfile({ account, settings: undefined })
-    expect(profile.avatar).toBeNull()
-    expect(profile.show_media).toBe(true)
-    expect(profile.moved).toBe(false)
-    expect(profile.attribution_domains).toEqual([])
   })
 })

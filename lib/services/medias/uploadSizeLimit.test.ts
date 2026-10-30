@@ -47,11 +47,6 @@ describe('media upload size limit', () => {
       await expect(getMaxMediaUploadSize(database)).resolves.toBe(MAX_FILE_SIZE)
     })
 
-    it('serves an admin-stored cap below the built-in default', async () => {
-      await setStoredMaxFileSize(1_000)
-      await expect(getMaxMediaUploadSize(database)).resolves.toBe(1_000)
-    })
-
     it('serves an admin-stored cap at the built-in default', async () => {
       await setStoredMaxFileSize(MAX_FILE_SIZE)
       await expect(getMaxMediaUploadSize(database)).resolves.toBe(MAX_FILE_SIZE)

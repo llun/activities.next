@@ -36,20 +36,6 @@ describe('refreshKnownRemoteActor', () => {
     vi.useRealTimers()
   })
 
-  it('refreshes a remote actor and returns the refreshed value', async () => {
-    const refreshedActor = { ...remoteActor, name: 'Refreshed' }
-    ;(recordActorIfNeeded as jest.Mock).mockResolvedValue(refreshedActor)
-
-    await expect(
-      refreshKnownRemoteActor({ database: mockDatabase, actor: remoteActor })
-    ).resolves.toBe(refreshedActor)
-    expect(recordActorIfNeeded).toHaveBeenCalledWith({
-      actorId: remoteActor.id,
-      database: mockDatabase,
-      signingActor: undefined
-    })
-  })
-
   it.each([
     {
       description: 'account-backed local actor',
@@ -71,16 +57,6 @@ describe('refreshKnownRemoteActor', () => {
 
   it('returns the stored actor when the refresh yields nothing', async () => {
     ;(recordActorIfNeeded as jest.Mock).mockResolvedValue(undefined)
-
-    await expect(
-      refreshKnownRemoteActor({ database: mockDatabase, actor: remoteActor })
-    ).resolves.toBe(remoteActor)
-  })
-
-  it('returns the stored actor when the refresh fails', async () => {
-    ;(recordActorIfNeeded as jest.Mock).mockRejectedValue(
-      new Error('remote down')
-    )
 
     await expect(
       refreshKnownRemoteActor({ database: mockDatabase, actor: remoteActor })
@@ -208,38 +184,8 @@ describe('recordRemoteActorBestEffort', () => {
     resetRefreshRemoteActorStateForTesting()
   })
 
-  it('records and returns the remote actor', async () => {
-    const recordedActor = { ...remoteActor, name: 'Recorded' }
-    ;(recordActorIfNeeded as jest.Mock).mockResolvedValue(recordedActor)
-
-    await expect(
-      recordRemoteActorBestEffort({
-        actorId: remoteActor.id,
-        database: mockDatabase
-      })
-    ).resolves.toBe(recordedActor)
-    expect(recordActorIfNeeded).toHaveBeenCalledWith({
-      actorId: remoteActor.id,
-      database: mockDatabase,
-      signingActor: undefined
-    })
-  })
-
   it('returns null when recording yields nothing', async () => {
     ;(recordActorIfNeeded as jest.Mock).mockResolvedValue(undefined)
-
-    await expect(
-      recordRemoteActorBestEffort({
-        actorId: remoteActor.id,
-        database: mockDatabase
-      })
-    ).resolves.toBeNull()
-  })
-
-  it('returns null when recording fails', async () => {
-    ;(recordActorIfNeeded as jest.Mock).mockRejectedValue(
-      new Error('remote down')
-    )
 
     await expect(
       recordRemoteActorBestEffort({

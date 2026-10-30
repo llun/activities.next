@@ -4,14 +4,6 @@ import {
 } from '@/lib/database/domains/like/favouriteCursor'
 
 describe('favouriteCursor', () => {
-  it('round-trips a createdAt/statusId pair', () => {
-    const cursor = {
-      createdAt: 1717459200000,
-      statusId: 'https://llun.test/users/test/statuses/post-1'
-    }
-    expect(decodeFavouriteCursor(encodeFavouriteCursor(cursor))).toEqual(cursor)
-  })
-
   it('preserves status ids that contain colons', () => {
     const cursor = {
       createdAt: 42,

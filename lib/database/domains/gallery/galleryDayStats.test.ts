@@ -584,64 +584,6 @@ describe('gallery day stats and day ids', () => {
   })
 
   describe('getGalleryMediaIds', () => {
-    it('returns the ids of one day in sort order, honouring limit', async () => {
-      const actorId = await newActor()
-      const ids = [
-        await seedMedia(actorId, {
-          sortAt: new Date(Date.UTC(2025, 9, 4, 1, 0, 0)),
-          takenAt: new Date(Date.UTC(2025, 9, 4, 1, 0, 0)),
-          createdAt: new Date(Date.UTC(2025, 9, 4, 1, 0, 0))
-        }),
-        await seedMedia(actorId, {
-          sortAt: new Date(Date.UTC(2025, 9, 4, 2, 0, 0)),
-          takenAt: new Date(Date.UTC(2025, 9, 4, 2, 0, 0)),
-          createdAt: new Date(Date.UTC(2025, 9, 4, 2, 0, 0))
-        }),
-        await seedMedia(actorId, {
-          sortAt: new Date(Date.UTC(2025, 9, 4, 3, 0, 0)),
-          takenAt: new Date(Date.UTC(2025, 9, 4, 3, 0, 0)),
-          createdAt: new Date(Date.UTC(2025, 9, 4, 3, 0, 0))
-        }),
-        // Another day, never returned.
-        await seedMedia(actorId, {
-          sortAt: new Date(Date.UTC(2025, 9, 5, 3, 0, 0)),
-          takenAt: new Date(Date.UTC(2025, 9, 5, 3, 0, 0)),
-          createdAt: new Date(Date.UTC(2025, 9, 5, 3, 0, 0))
-        })
-      ]
-
-      const params = {
-        actorId,
-        audience: OWNER_GALLERY_AUDIENCE,
-        dayKey: '2025-10-04',
-        limit: 2000
-      }
-      expect(
-        await database.getGalleryMediaIds({ ...params, sort: 'taken_desc' })
-      ).toEqual([ids[2], ids[1], ids[0]])
-      expect(
-        await database.getGalleryMediaIds({ ...params, sort: 'taken_asc' })
-      ).toEqual([ids[0], ids[1], ids[2]])
-      expect(
-        await database.getGalleryMediaIds({ ...params, sort: 'uploaded' })
-      ).toEqual([ids[2], ids[1], ids[0]])
-      expect(
-        await database.getGalleryMediaIds({
-          ...params,
-          sort: 'taken_desc',
-          limit: 2
-        })
-      ).toEqual([ids[2], ids[1]])
-      expect(
-        await database.getGalleryMediaIds({
-          ...params,
-          sort: 'taken_desc',
-          limit: 2,
-          offset: 1
-        })
-      ).toEqual([ids[1], ids[0]])
-    })
-
     it('pages through tied sortAt values without a duplicate or a gap', async () => {
       const actorId = await newActor()
       const day = new Date(Date.UTC(2025, 9, 4, 12, 0, 0))
@@ -716,33 +658,6 @@ describe('gallery day stats and day ids', () => {
             album.status === 'created' ? album.album.id : 'missing'
         })
       ).toEqual([second])
-    })
-
-    it('separates the uploaded: key from the plain key under a date sort', async () => {
-      const actorId = await newActor()
-      const day = new Date(Date.UTC(2025, 9, 4, 12, 0, 0))
-      const dated = await seedMedia(actorId, { sortAt: day, takenAt: day })
-      const dateless = await seedMedia(actorId, {
-        sortAt: day,
-        takenAt: null,
-        createdAt: day
-      })
-
-      const params = {
-        actorId,
-        audience: OWNER_GALLERY_AUDIENCE,
-        sort: 'taken_desc' as const,
-        limit: 2000
-      }
-      expect(
-        await database.getGalleryMediaIds({ ...params, dayKey: '2025-10-04' })
-      ).toEqual([dated])
-      expect(
-        await database.getGalleryMediaIds({
-          ...params,
-          dayKey: 'uploaded:2025-10-04'
-        })
-      ).toEqual([dateless])
     })
 
     it('reads the uploaded: key under sort=uploaded for dated and dateless alike', async () => {

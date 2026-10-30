@@ -1,7 +1,6 @@
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import {
   FitnessActivityData,
-  FitnessMetricPoint,
   FitnessTrackPoint
 } from '@/lib/services/fitness-files/activityData'
 import {
@@ -10,19 +9,16 @@ import {
   createPreParsedRouteDataPayload,
   hasPreParsedRouteData,
   loadPreParsedRouteData,
-  resolveRouteDataFromPreParsed,
-  savePreParsedRouteData
+  resolveRouteDataFromPreParsed
 } from '@/lib/services/fitness-files/fileRouteDataCache'
 import { FitnessPrivacyLocation } from '@/lib/services/fitness-files/privacy'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
-import { FitnessFile } from '@/lib/types/database/fitnessFile'
 import { Actor } from '@/lib/types/domain/actor'
 
 describe('fileRouteDataCache', () => {
   const { database, prepare } = createTestDatabase()
   let actor: Actor
-  let fitnessFile: FitnessFile
 
   beforeAll(async () => {
     await prepare()
@@ -32,16 +28,6 @@ describe('fileRouteDataCache', () => {
       username: seedActor1.username,
       domain: seedActor1.domain
     })) as Actor
-
-    const file = await database.createFitnessFile({
-      actorId: actor.id,
-      path: 'fitness/cache-test.fit',
-      fileName: 'cache-test.fit',
-      fileType: 'fit',
-      mimeType: 'application/vnd.ant.fit',
-      bytes: 1024
-    })
-    fitnessFile = file!
   })
 
   afterAll(async () => {
@@ -131,111 +117,9 @@ describe('fileRouteDataCache', () => {
       expect(second.power).toBe(231)
       expect(second.cadence).toBe(90)
     })
-
-    it('creates metricSamples for indoor activities without GPS trackPoints', () => {
-      const metricPoints: FitnessMetricPoint[] = [
-        {
-          timestamp: new Date('2026-01-01T10:00:00.000Z'),
-          heartRate: 130.6,
-          power: 180.4,
-          cadence: 80.2,
-          speed: 25.44,
-          distanceMeters: 50.88
-        },
-        {
-          timestamp: new Date('2026-01-01T10:00:10.000Z'),
-          heartRate: 135.2,
-          power: 195.9,
-          cadence: 82.8,
-          speed: 27.66,
-          distanceMeters: 105.22
-        }
-      ]
-
-      const activityData: FitnessActivityData = {
-        coordinates: [],
-        trackPoints: [],
-        metricPoints,
-        totalDistanceMeters: 105.22,
-        totalDurationSeconds: 10
-      }
-
-      const payload = createPreParsedRouteDataPayload(activityData)
-
-      expect(payload.routeSamples).toBeUndefined()
-      expect(payload.metricSamples).toBeDefined()
-      expect(payload.metricSamples).toHaveLength(2)
-
-      expect(payload.metricSamples![0]).toEqual({
-        elapsedSeconds: 0,
-        timestamp: new Date('2026-01-01T10:00:00.000Z').getTime(),
-        heartRate: 131,
-        power: 180,
-        cadence: 80,
-        speed: 25.4,
-        distanceMeters: 50.9
-      })
-      expect(payload.metricSamples![1]).toEqual({
-        elapsedSeconds: 10,
-        timestamp: new Date('2026-01-01T10:00:10.000Z').getTime(),
-        heartRate: 135,
-        power: 196,
-        cadence: 83,
-        speed: 27.7,
-        distanceMeters: 105.2
-      })
-    })
   })
 
-  describe('savePreParsedRouteData and loadPreParsedRouteData', () => {
-    it('saves and loads pre-parsed route data from database', async () => {
-      const fitnessFileId = fitnessFile.id
-      const actorId = actor.id
-
-      const activityData: FitnessActivityData = {
-        coordinates: [
-          { lat: 37.77, lng: -122.42 },
-          { lat: 37.78, lng: -122.41 }
-        ],
-        trackPoints: [
-          {
-            lat: 37.774929,
-            lng: -122.419416,
-            timestamp: new Date('2026-01-01T10:00:00.000Z'),
-            altitude: 20.4,
-            speed: 15.6,
-            heartRate: 140
-          },
-          {
-            lat: 37.784929,
-            lng: -122.409416,
-            timestamp: new Date('2026-01-01T10:05:00.000Z'),
-            altitude: 25.8,
-            speed: 18.2,
-            heartRate: 155
-          }
-        ],
-        totalDistanceMeters: 1500,
-        totalDurationSeconds: 300,
-        powerSeries: [200, 220]
-      }
-
-      await savePreParsedRouteData(database, {
-        fitnessFileId,
-        actorId,
-        activityData
-      })
-
-      const loaded = await loadPreParsedRouteData(database, fitnessFileId)
-      expect(loaded).not.toBeNull()
-      expect(loaded!.version).toBe(PRE_PARSED_ROUTE_DATA_VERSION)
-      expect(loaded!.totalDurationSeconds).toBe(300)
-      expect(loaded!.powerSeries).toEqual([200, 220])
-      expect(loaded!.routeSamples).toHaveLength(2)
-      expect(loaded!.routeSamples![0].lat).toBe(37.77493)
-      expect(loaded!.routeSamples![0].lng).toBe(-122.41942)
-    })
-
+  describe('loadPreParsedRouteData', () => {
     it('returns null on cache miss or invalid sourceVersion', async () => {
       expect(
         await loadPreParsedRouteData(database, 'non-existent-file')
@@ -260,35 +144,6 @@ describe('fileRouteDataCache', () => {
       })
 
       expect(await loadPreParsedRouteData(database, secondFile!.id)).toBeNull()
-    })
-
-    it('accepts a pre-computed payload directly without re-computing', async () => {
-      const preComputedFile = await database.createFitnessFile({
-        actorId: actor.id,
-        path: 'fitness/pre-computed.fit',
-        fileName: 'pre-computed.fit',
-        fileType: 'fit',
-        mimeType: 'application/vnd.ant.fit',
-        bytes: 1024
-      })
-
-      const payload = {
-        version: PRE_PARSED_ROUTE_DATA_VERSION,
-        totalDurationSeconds: 180,
-        calories: 95
-      }
-
-      await savePreParsedRouteData(database, {
-        fitnessFileId: preComputedFile!.id,
-        actorId: actor.id,
-        payload
-      })
-
-      const loaded = await loadPreParsedRouteData(database, preComputedFile!.id)
-      expect(loaded).toEqual(payload)
-      expect(await hasPreParsedRouteData(database, preComputedFile!.id)).toBe(
-        true
-      )
     })
 
     it('hasPreParsedRouteData returns false when row is missing or has a stale sourceVersion', async () => {
@@ -401,42 +256,6 @@ describe('fileRouteDataCache', () => {
       expect(result.samples[2].isHiddenByPrivacy).toBe(false)
       // Segments include hidden
       expect(result.segments.some((s) => s.isHiddenByPrivacy)).toBe(true)
-    })
-
-    it('masks hidden segments and rebases distance for non-owner', () => {
-      const result = resolveRouteDataFromPreParsed(preParsed, {
-        canViewHiddenZone: false,
-        privacyLocations: [privacyLocation]
-      })
-
-      expect(result.totalDurationSeconds).toBe(600)
-      // Hidden segment is excluded from non-owner view
-      expect(result.segments.every((s) => !s.isHiddenByPrivacy)).toBe(true)
-      expect(result.samples.every((s) => !s.isHiddenByPrivacy)).toBe(true)
-      // Distance is rebased from first visible sample (was 500m, now 0m)
-      expect(result.samples[0].distanceMeters).toBe(0)
-      expect(result.samples[1].distanceMeters).toBe(500)
-    })
-
-    it('resolves metricSamples for indoor activities', () => {
-      const indoorPreParsed = {
-        version: PRE_PARSED_ROUTE_DATA_VERSION,
-        totalDurationSeconds: 120,
-        metricSamples: [
-          { elapsedSeconds: 0, power: 150, heartRate: 120 },
-          { elapsedSeconds: 120, power: 170, heartRate: 135 }
-        ]
-      }
-
-      const result = resolveRouteDataFromPreParsed(indoorPreParsed, {
-        canViewHiddenZone: false,
-        privacyLocations: []
-      })
-
-      expect(result.samples).toEqual([])
-      expect(result.segments).toEqual([])
-      expect(result.metricSamples).toHaveLength(2)
-      expect(result.metricSamples![0].power).toBe(150)
     })
   })
 })

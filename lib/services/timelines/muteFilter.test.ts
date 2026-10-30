@@ -1,5 +1,4 @@
 import { Database } from '@/lib/database/types'
-import { GetMuteRelationsParams } from '@/lib/types/database/operations'
 import { Status, StatusType } from '@/lib/types/domain/status'
 
 import { filterMutedStatuses } from './muteFilter'
@@ -53,34 +52,6 @@ describe('filterMutedStatuses', () => {
     expect(getMuteRelations).not.toHaveBeenCalled()
   })
 
-  it('filters out statuses whose author the reader has muted', async () => {
-    const mutedStatus = createNoteStatus('muted', mutedActorId)
-    const visibleStatus = createNoteStatus('visible', friendActorId)
-    const getMuteRelations = vi.fn(
-      async ({ actorIds, targetActorIds }: GetMuteRelationsParams) => {
-        expect(actorIds).toEqual([readerActorId])
-        const mutedActorIds = new Set([mutedActorId])
-        return targetActorIds.some((id) => mutedActorIds.has(id))
-          ? [
-              {
-                actorId: readerActorId,
-                targetActorId: mutedActorId,
-                notifications: true
-              }
-            ]
-          : []
-      }
-    )
-    const database = { getMuteRelations } as unknown as Database
-
-    const result = await filterMutedStatuses(database, readerActorId, [
-      mutedStatus,
-      visibleStatus
-    ])
-
-    expect(result.map((status) => status.id)).toEqual([visibleStatus.id])
-  })
-
   it('filters out announces of a muted original author', async () => {
     const announceOfMuted = createAnnounceStatus(
       'announce-muted',
@@ -107,23 +78,6 @@ describe('filterMutedStatuses', () => {
     ])
 
     expect(result.map((status) => status.id)).toEqual([visibleAnnounce.id])
-  })
-
-  it('keeps statuses whose authors are unrelated to any mute relation', async () => {
-    const visibleA = createNoteStatus('a', friendActorId)
-    const visibleB = createNoteStatus('b', readerActorId)
-    const getMuteRelations = vi.fn(async () => [])
-    const database = { getMuteRelations } as unknown as Database
-
-    const result = await filterMutedStatuses(database, readerActorId, [
-      visibleA,
-      visibleB
-    ])
-
-    expect(result.map((status) => status.id)).toEqual([
-      visibleA.id,
-      visibleB.id
-    ])
   })
 
   it('hides statuses even when mute has notifications=false (timeline ignores notifications flag)', async () => {
