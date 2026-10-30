@@ -25,6 +25,7 @@ import {
   uploadFitnessFile
 } from '@/lib/client'
 import { resetConnectionForTesting } from '@/lib/client/connection'
+import * as draftsStore from '@/lib/client/drafts'
 import {
   type DraftRecord,
   deleteDraftIfRevision,
@@ -56,6 +57,9 @@ import {
 } from './post-box-media.testUtils'
 import { choosePostOption } from './post-box.testUtils'
 import { DRAFT_SAVE_DEBOUNCE_MS } from './useComposerDraft'
+
+// The file fakes setTimeout in beforeEach; this one stays real.
+const realSetTimeout = globalThis.setTimeout
 
 vi.mock('@/lib/client', () => ({
   createNote: vi.fn(),
@@ -163,6 +167,21 @@ const expectAutosaveStillStores = async () => {
   type('Positive control')
   await advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS + 300)
   expect(await storedDrafts()).toMatchObject([{ text: 'Positive control' }])
+}
+
+// Runs the emptying save to its end. The fake clock fires the debounce timer,
+// but the save's IndexedDB work finishes in real time, so wait for the guarded
+// delete the emptying save ends with to settle, then for its follow-up work.
+const settleEmptyingSave = async (): Promise<void> => {
+  const spy = vi.spyOn(draftsStore, 'deleteDraftIfRevision')
+  await advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS + 300)
+  await waitFor(() => expect(spy).toHaveBeenCalled())
+  // It rejects with a conflict when another tab saved a newer revision.
+  await Promise.resolve(spy.mock.results[0].value).catch(() => undefined)
+  // deleteRemoved runs right after the awaited delete returns.
+  await act(async () => {
+    await new Promise<void>((resolve) => realSetTimeout(resolve, 50))
+  })
 }
 
 // Real IndexedDB plus a loaded machine: the 1 s default is too tight.
@@ -972,12 +991,31 @@ describe('PostBox on-device drafts', () => {
       await saveInAnotherTab()
 
       removePhoto()
-      // The debounced emptying delete has run and found the newer revision.
-      await advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS + 300)
+      // Wait until the emptying save has run its guarded delete and found the
+      // newer revision, so the check below is not made before it ends.
+      await settleEmptyingSave()
 
       expect(deleteUnpostedMedia).not.toHaveBeenCalled()
       const [stored] = await storedDrafts()
       expect(stored.attachments[0]?.mediaId).toBe('media-a.png')
+    })
+
+    // Positive control: the same wait, without the other tab's change, does
+    // delete the photo, so the wait above is long enough to see a delete.
+    it('an emptied composer deletes its photo after the same wait when no other tab saved', async () => {
+      render(composer())
+      attach('a.png')
+      await waitFor(async () =>
+        expect((await storedDrafts())[0]?.attachments[0]?.mediaId).toBe(
+          'media-a.png'
+        )
+      )
+      await waitForSaved()
+
+      removePhoto()
+      await settleEmptyingSave()
+
+      expect(deleteUnpostedMedia).toHaveBeenCalledExactlyOnceWith('media-a.png')
     })
 
     it('a fresh upload removed before any save is deleted at once', async () => {
@@ -1106,8 +1144,9 @@ describe('PostBox on-device drafts', () => {
       await sendFromAnotherTab()
       removePhoto()
 
-      // The debounced emptying delete has run and found no record.
-      await advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS + 300)
+      // Wait until the emptying save has run its guarded delete and found no
+      // record, so the check below is not made before it ends.
+      await settleEmptyingSave()
       expect(deleteUnpostedMedia).not.toHaveBeenCalled()
     })
 

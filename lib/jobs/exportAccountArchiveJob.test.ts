@@ -309,7 +309,7 @@ describe('exportAccountArchiveJob', () => {
     expect(extraId).toBeTruthy()
 
     const id = await makeArchive(secondAccountId)
-    await runToCompletion(id)
+    await runToCompletion(id, 400, 0)
     const { names, files } = await readArchive(id)
 
     // The default profile is the Mastodon root; the other one is in its own folder.
