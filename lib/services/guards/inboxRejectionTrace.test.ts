@@ -27,6 +27,29 @@ describe('inboxRejectionTrace', () => {
       expect(getActivityTraceAttributes([])).toEqual({})
     })
 
+    it('extracts activity metadata for a standard Create activity with nested object', () => {
+      const body = {
+        id: 'https://writing.exchange/users/ninetiger/statuses/12345/activity',
+        type: 'Create',
+        actor: 'https://writing.exchange/users/ninetiger',
+        object: {
+          id: 'https://writing.exchange/users/ninetiger/statuses/12345',
+          type: 'Note'
+        }
+      }
+
+      expect(getActivityTraceAttributes(body)).toEqual({
+        activity_id:
+          'https://writing.exchange/users/ninetiger/statuses/12345/activity',
+        activity_type: 'Create',
+        activity_actor: 'https://writing.exchange/users/ninetiger',
+        activity_object_id:
+          'https://writing.exchange/users/ninetiger/statuses/12345',
+        activity_object_type: 'Note',
+        activity_target_id: undefined
+      })
+    })
+
     it('extracts string object URI for Delete or Announce activities', () => {
       const body = {
         id: 'https://remote.test/users/alice/activities/delete-1',
@@ -89,6 +112,38 @@ describe('inboxRejectionTrace', () => {
   })
 
   describe('annotateInboxRejection', () => {
+    it('sets reject_reason and extra attributes on the active recording span', async () => {
+      await trace
+        .getTracer('test')
+        .startActiveSpan('api.sharedInbox', async () => {
+          annotateInboxRejection('sender_actor_mismatch', {
+            verified_sender: 'https://mstdn.social/users/grickle',
+            ...getActivityTraceAttributes({
+              id: 'https://writing.exchange/users/ninetiger/statuses/123/activity',
+              type: 'Create',
+              actor: 'https://writing.exchange/users/ninetiger',
+              object: {
+                id: 'https://writing.exchange/users/ninetiger/statuses/123',
+                type: 'Note'
+              }
+            })
+          })
+        })
+
+      expect(harness.recordedSpans).toHaveLength(1)
+      expect(harness.recordedSpans[0].attributes).toMatchObject({
+        'inbox.reject_reason': 'sender_actor_mismatch',
+        'inbox.verified_sender': 'https://mstdn.social/users/grickle',
+        'inbox.activity_id':
+          'https://writing.exchange/users/ninetiger/statuses/123/activity',
+        'inbox.activity_type': 'Create',
+        'inbox.activity_actor': 'https://writing.exchange/users/ninetiger',
+        'inbox.activity_object_id':
+          'https://writing.exchange/users/ninetiger/statuses/123',
+        'inbox.activity_object_type': 'Note'
+      })
+    })
+
     it('truncates oversized string attributes to 500 characters', async () => {
       await trace
         .getTracer('test')

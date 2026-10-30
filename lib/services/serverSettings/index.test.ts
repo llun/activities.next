@@ -48,6 +48,14 @@ describe('server settings resolver', () => {
     }
   })
 
+  it('returns registry defaults with no env and no stored rows', async () => {
+    const database = await freshDatabase()
+    await expect(getResolvedServerSettings(database)).resolves.toEqual(
+      DEFAULT_SERVER_SETTINGS
+    )
+    await database.destroy()
+  })
+
   it('lets an env override win over a stored value and locks the field', async () => {
     const database = await freshDatabase()
     await database.setServerSettings([
@@ -62,6 +70,41 @@ describe('server settings resolver', () => {
       locked: true,
       envVar: 'ACTIVITIES_SERVICE_NAME'
     })
+    await database.destroy()
+  })
+
+  it('marks fields without an env override as unlocked', async () => {
+    const database = await freshDatabase()
+    const view = await getServerSettingsView(database)
+    expect(view.locks['instance.name'].locked).toBe(false)
+    expect(view.locks['posts.maxCharacters'].locked).toBe(false)
+    await database.destroy()
+  })
+
+  it('reports when each stored value last changed, and null otherwise', async () => {
+    const database = await freshDatabase()
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      vi.setSystemTime(new Date('2026-03-04T05:06:07.000Z'))
+      await database.setServerSettings([
+        { key: 'policies.termsOfService', value: 'Be excellent' },
+        { key: 'instance.name', value: 'DB Name' },
+        { key: 'posts.maxCharacters', value: -5 }
+      ])
+    } finally {
+      vi.useRealTimers()
+    }
+    process.env.ACTIVITIES_SERVICE_NAME = 'Env Name'
+    invalidateServerSettingsCache(database)
+
+    const view = await getServerSettingsView(database)
+    expect(view.updatedAt['policies.termsOfService']).toBe(
+      Date.UTC(2026, 2, 4, 5, 6, 7)
+    )
+    // Env-pinned, invalid and never-stored values have no date.
+    expect(view.updatedAt['instance.name']).toBeNull()
+    expect(view.updatedAt['posts.maxCharacters']).toBeNull()
+    expect(view.updatedAt['policies.privacyPolicy']).toBeNull()
     await database.destroy()
   })
 
@@ -281,6 +324,30 @@ describe('server settings resolver', () => {
       const settings = await getResolvedServerSettings(database)
       expect(settings.network.speciesLookups).toBe(false)
       expect(settings.network.placeLookups).toBe(false)
+      await database.destroy()
+    })
+
+    it('rejects the whole patch when a key is env-locked and writes nothing', async () => {
+      const database = await freshDatabase()
+      process.env.ACTIVITIES_SERVICE_NAME = 'Env Name'
+      invalidateServerSettingsCache(database)
+
+      const result = await updateServerSettings(database, {
+        'instance.name': 'Should Not Save',
+        'posts.maxCharacters': 900
+      })
+
+      expect(result.applied).toBe(false)
+      expect(result.rejected).toContainEqual({
+        key: 'instance.name',
+        reason: 'locked'
+      })
+
+      invalidateServerSettingsCache(database)
+      const settings = await getResolvedServerSettings(database)
+      expect(settings.posts.maxCharacters).toBe(
+        DEFAULT_SERVER_SETTINGS.posts.maxCharacters
+      )
       await database.destroy()
     })
 

@@ -114,6 +114,53 @@ describe('getNotificationGroupsEnvelope', () => {
     expect(envelope.statuses).toHaveLength(1)
   })
 
+  it('rewrites group ids to publicIds that join against the envelope arrays', async () => {
+    const ALICE_PUBLIC_ID = '019a0000-0000-7000-8000-00000000000a'
+    const STATUS_PUBLIC_ID = '019a0000-0000-7000-8000-00000000000b'
+    const mockDatabase = {
+      getMastodonActorsFromIds: vi
+        .fn()
+        .mockResolvedValue([{ id: ALICE_PUBLIC_ID }]),
+      getStatusesByIds: vi
+        .fn()
+        .mockImplementation(({ statusIds }: { statusIds: string[] }) =>
+          Promise.resolve(statusIds.map((id) => ({ id })))
+        ),
+      getActorPublicIds: vi
+        .fn()
+        .mockResolvedValue(new Map([[ALICE, ALICE_PUBLIC_ID]])),
+      getStatusPublicIds: vi
+        .fn()
+        .mockResolvedValue(new Map([[STATUS, STATUS_PUBLIC_ID]]))
+    } as unknown as Database
+    mockSerializedStatusesWithId(STATUS_PUBLIC_ID)
+
+    const envelope = await getNotificationGroupsEnvelope(
+      mockDatabase,
+      [
+        grouped({
+          id: 'g1',
+          groupKey: `like:${STATUS}`,
+          statusId: STATUS,
+          groupedActors: [ALICE],
+          groupedCount: 1
+        })
+      ],
+      'https://llun.test/users/me'
+    )
+
+    const [group] = envelope.notification_groups
+    expect(group.sample_account_ids).toEqual([ALICE_PUBLIC_ID])
+    expect(group.status_id).toBe(STATUS_PUBLIC_ID)
+    // The ids the group references must exist in the envelope's own arrays.
+    expect(envelope.accounts.map((account) => account.id)).toContain(
+      ALICE_PUBLIC_ID
+    )
+    expect(envelope.statuses.map((status) => status.id)).toContain(
+      STATUS_PUBLIC_ID
+    )
+  })
+
   it('returns empty accounts/statuses when there is nothing to resolve', async () => {
     const mockDatabase = {
       getMastodonActorsFromIds: vi.fn().mockResolvedValue([]),

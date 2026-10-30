@@ -410,6 +410,32 @@ describe('gallery album queries', () => {
       await database.destroy()
     })
 
+    it('computes the facts line from the public view, never counting a withheld place', async () => {
+      const detail = await getGalleryAlbumDetail({
+        database,
+        owner: { id: ownerId },
+        albumId,
+        limit: 50
+      })
+
+      // Six public photos; the followers-only one is not in the public view.
+      expect(detail!.facts).toMatchObject({
+        photoCount: 6,
+        speciesCount: 6,
+        // River and Thailand: the threatened, unchecked, hidden and zone
+        // places add nothing.
+        placeCount: 2,
+        countryCount: 1,
+        countryCodes: ['TH'],
+        countryName: 'Thailand'
+      })
+      expect(detail!.album.itemCount).toBe(7)
+      expect(detail!.storedItemCount).toBe(7)
+      expect(detail!.album.hiddenPlaceCount).toBe(2)
+      // Every photo the owner can see, for the add dialog's "already in".
+      expect([...detail!.mediaIds].sort()).toEqual(Object.values(ids).sort())
+    })
+
     it('sends the owner the stored count, which still includes a photo whose post was deleted', async () => {
       const created = await database.createGalleryAlbumWithinLimit({
         actorId: ownerId,

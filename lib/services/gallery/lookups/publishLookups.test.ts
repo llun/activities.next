@@ -72,6 +72,19 @@ describe('publishLookups', () => {
       }
     })
 
+    it('uses a new id for each fresh publish of the same subject', async () => {
+      await publishSubjectLookup({ ...subject, fresh: true })
+      const first = idOf()
+      await publishSubjectLookup({ ...subject, fresh: true })
+      expect(idOf()).not.toBe(first)
+
+      await publishSubjectLookup({ ...subject, fresh: true, retry: true })
+      expect(mockPublish.mock.calls.at(-1)?.[0].data).toEqual({
+        mediaId: '7',
+        retry: true
+      })
+    })
+
     it('does not confuse fields that join to the same text', async () => {
       await publishSubjectLookup({
         ...subject,

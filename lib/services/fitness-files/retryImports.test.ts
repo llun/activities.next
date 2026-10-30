@@ -1,4 +1,8 @@
 import { Database } from '@/lib/database/types'
+import {
+  IMPORT_FITNESS_FILES_JOB_NAME,
+  IMPORT_STRAVA_ACTIVITY_JOB_NAME
+} from '@/lib/jobs/names'
 import { STUCK_PROCESSING_THRESHOLD_MS } from '@/lib/services/fitness-files/processingState'
 import {
   isRetriableFitnessFile,
@@ -139,6 +143,86 @@ describe('retryFitnessImportBatch', () => {
     expect(getQueue().publish).not.toHaveBeenCalled()
   })
 
+  it('resets only the columns that failed and requeues the Strava importer without visibility', async () => {
+    const database = makeDatabase()
+    const result = await retryFitnessImportBatch({
+      database,
+      batchId: 'strava-activity:777',
+      batchActorId: 'actor-1',
+      files: [
+        // Import succeeded, processing failed: import status must NOT be reset.
+        file({
+          id: 'f1',
+          statusId: 'actor-1/statuses/s1',
+          importStatus: 'completed',
+          processingStatus: 'failed'
+        })
+      ],
+      visibility: 'private',
+      now: NOW
+    })
+
+    expect(result.retried).toBe(1)
+    expect(database.updateFitnessFilesImportStatus).not.toHaveBeenCalled()
+    expect(database.updateFitnessFilesProcessingStatus).toHaveBeenCalledWith({
+      fitnessFileIds: ['f1'],
+      processingStatus: 'pending'
+    })
+    expect(getQueue().publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+        data: { actorId: 'actor-1', stravaActivityId: '777' }
+      })
+    )
+    // Strava retries use the configured default visibility server-side, so it must be omitted.
+    const job = (getQueue().publish as jest.Mock).mock.calls[0][0]
+    expect(job.data).not.toHaveProperty('visibility')
+    // A retry sweep runs over every failed batch an actor has. Opting it into
+    // federation would deliver a Create per recovered activity.
+    expect(job.data).not.toHaveProperty('publishSendNote')
+  })
+
+  it('requeues the file importer with completed overlap context for non-Strava batches', async () => {
+    const database = makeDatabase()
+    const result = await retryFitnessImportBatch({
+      database,
+      batchId: 'manual-batch',
+      batchActorId: 'actor-1',
+      files: [
+        file({ id: 'failed', importStatus: 'failed' }),
+        file({
+          id: 'done',
+          statusId: 'actor-1/statuses/s2',
+          importStatus: 'completed',
+          processingStatus: 'completed'
+        })
+      ],
+      visibility: 'unlisted',
+      now: NOW
+    })
+
+    expect(result.retried).toBe(1)
+    expect(database.updateFitnessFilesImportStatus).toHaveBeenCalledWith({
+      fitnessFileIds: ['failed'],
+      importStatus: 'pending'
+    })
+    expect(getQueue().publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: IMPORT_FITNESS_FILES_JOB_NAME,
+        data: expect.objectContaining({
+          actorId: 'actor-1',
+          batchId: 'manual-batch',
+          fitnessFileIds: ['failed'],
+          overlapFitnessFileIds: ['done'],
+          visibility: 'unlisted'
+        })
+      })
+    )
+    // Same as the Strava branch: a recovery sweep must stay local-only.
+    const job = (getQueue().publish as jest.Mock).mock.calls[0][0]
+    expect(job.data).not.toHaveProperty('publishSendNote')
+  })
+
   it('retries a stuck-processing file by resetting it to pending', async () => {
     const database = makeDatabase()
     const result = await retryFitnessImportBatch({
@@ -163,6 +247,89 @@ describe('retryFitnessImportBatch', () => {
       fitnessFileIds: ['stuck'],
       processingStatus: 'pending'
     })
+  })
+
+  it('restores pre-retry state and rethrows when the queue publish fails', async () => {
+    const database = makeDatabase()
+    ;(getQueue().publish as jest.Mock).mockRejectedValueOnce(
+      new Error('queue down')
+    )
+
+    await expect(
+      retryFitnessImportBatch({
+        database,
+        batchId: 'manual-batch',
+        batchActorId: 'actor-1',
+        files: [
+          file({ id: 'failed', importStatus: 'failed', importError: 'x' })
+        ],
+        visibility: 'private',
+        now: NOW
+      })
+    ).rejects.toThrow('queue down')
+
+    expect(database.updateFitnessFileImportStatus).toHaveBeenCalledWith(
+      'failed',
+      'failed',
+      'x'
+    )
+  })
+
+  it('gives the same job id on redelivery of the same generation', async () => {
+    const database = makeDatabase()
+    const generationId = 'gen-123'
+
+    await retryFitnessImportBatch({
+      database,
+      batchId: 'manual-batch',
+      batchActorId: 'actor-1',
+      files: [file({ id: 'failed', importStatus: 'failed' })],
+      visibility: 'private',
+      generationId,
+      now: NOW
+    })
+    const firstJobId = (getQueue().publish as jest.Mock).mock.calls[0][0].id
+
+    vi.clearAllMocks()
+    await retryFitnessImportBatch({
+      database,
+      batchId: 'manual-batch',
+      batchActorId: 'actor-1',
+      files: [file({ id: 'failed', importStatus: 'failed' })],
+      visibility: 'private',
+      generationId,
+      now: NOW
+    })
+    const secondJobId = (getQueue().publish as jest.Mock).mock.calls[0][0].id
+
+    expect(secondJobId).toBe(firstJobId)
+  })
+
+  it('gives different job ids for two successive retries of the same batch', async () => {
+    const database = makeDatabase()
+
+    await retryFitnessImportBatch({
+      database,
+      batchId: 'manual-batch',
+      batchActorId: 'actor-1',
+      files: [file({ id: 'failed', importStatus: 'failed' })],
+      visibility: 'private',
+      now: NOW
+    })
+    const firstJobId = (getQueue().publish as jest.Mock).mock.calls[0][0].id
+
+    vi.clearAllMocks()
+    await retryFitnessImportBatch({
+      database,
+      batchId: 'manual-batch',
+      batchActorId: 'actor-1',
+      files: [file({ id: 'failed', importStatus: 'failed' })],
+      visibility: 'private',
+      now: NOW
+    })
+    const secondJobId = (getQueue().publish as jest.Mock).mock.calls[0][0].id
+
+    expect(secondJobId).not.toBe(firstJobId)
   })
 
   it('gives different job ids for two successive retries of a Strava batch while redelivery stays stable', async () => {

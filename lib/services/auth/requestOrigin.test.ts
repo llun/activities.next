@@ -28,6 +28,13 @@ describe('resolveAuthBaseURL', () => {
     expect(resolveAuthBaseURL(headers, config)).toBe('https://second.example')
   })
 
+  it('falls back to the configured host for an untrusted host header', () => {
+    const headers = new Headers({ [FORWARDED_HOST]: 'evil.example' })
+    expect(resolveAuthBaseURL(headers, config)).toBe(
+      'https://activities.example'
+    )
+  })
+
   it('treats a missing trustedHosts list as no extra trusted hosts', () => {
     const headers = new Headers({ [FORWARDED_HOST]: 'alias.example' })
     expect(resolveAuthBaseURL(headers, { host: 'activities.example' })).toBe(

@@ -63,6 +63,21 @@ describe('localUsernameSchema', () => {
     }
   )
 
+  it.each([
+    { description: 'a literal slash', username: 'a/b' },
+    { description: 'relative path segments', username: '..' },
+    { description: 'a leading dot', username: '.hidden' },
+    { description: 'a leading dash', username: '-lead' },
+    { description: 'an at sign', username: 'user@host' },
+    { description: 'a colon', username: 'a:b' },
+    { description: 'inner whitespace', username: 'a b' },
+    { description: 'a hash', username: 'a#main-key' },
+    { description: 'a question mark', username: 'a?b' },
+    { description: 'an empty string', username: '' }
+  ])('rejects $description', ({ username }) => {
+    expect(parse(username).success).toBe(false)
+  })
+
   it('rejects the federation signing actor username', () => {
     expect(parse('__instance__').success).toBe(false)
     expect(parse('__instance__1').success).toBe(false)

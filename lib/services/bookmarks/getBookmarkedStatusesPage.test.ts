@@ -154,6 +154,27 @@ describe('getBookmarkedStatusesPage', () => {
     })
   })
 
+  it('uses the last scanned bookmark cursor when the visible page is full', async () => {
+    const newer = createStatus('full-newer')
+    const older = createStatus('full-older')
+    const newerBookmark = createBookmark('full-newer', newer.id)
+    const olderBookmark = createBookmark('full-older', older.id)
+    const { database } = createDatabase({
+      statuses: [newer, older],
+      batches: new Map([[null, [newerBookmark, olderBookmark]]])
+    })
+
+    const page = await getBookmarkedStatusesPage({
+      database,
+      actorId: readerActorId,
+      currentActor,
+      limit: 2
+    })
+
+    expect(page.nextMaxBookmarkId).toBe(olderBookmark.id)
+    expect(page.prevMinBookmarkId).toBe(newerBookmark.id)
+  })
+
   it('uses the last scanned bookmark cursor when max backfill iterations are consumed before the visible page is full', async () => {
     const limit = 3
     const visible = createStatus('max-backfill-visible')

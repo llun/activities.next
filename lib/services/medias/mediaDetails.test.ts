@@ -27,6 +27,85 @@ const database = (names: Record<string, string> = {}) => ({
 })
 
 describe('buildOwnerMediaDetails', () => {
+  it('returns every field, with the stored coordinates, to the owner', async () => {
+    const db = database({ cam: 'Canon EOS R5', lens: 'RF100-500mm' })
+
+    expect(
+      await buildOwnerMediaDetails(
+        db,
+        media({
+          subjectName: 'Common Kingfisher',
+          subjectScientificName: 'Alcedo atthis',
+          subjectCategory: 'bird',
+          takenAt: Date.UTC(2024, 4, 6, 7, 8, 9),
+          cameraGearId: 'cam',
+          lensGearId: 'lens',
+          exposure: { focalLengthMm: 500, exposureTime: '1/2000' },
+          placeName: 'Lea Valley',
+          placeLatitude: 51.5543,
+          placeLongitude: -0.0231,
+          placePrecision: 'area',
+          inGallery: true
+        })
+      )
+    ).toEqual({
+      subject: {
+        name: 'Common Kingfisher',
+        scientificName: 'Alcedo atthis',
+        category: 'bird',
+        taxonKey: null,
+        taxonPath: null,
+        iucnCategory: null,
+        threatStatus: 'unchecked',
+        lookupStatus: null,
+        lookupAt: null,
+        lookupStale: false
+      },
+      takenAt: '2024-05-06T07:08:09.000Z',
+      camera: { id: 'cam', name: 'Canon EOS R5' },
+      lens: { id: 'lens', name: 'RF100-500mm' },
+      exposure: {
+        focalLengthMm: 500,
+        aperture: null,
+        exposureTime: '1/2000',
+        iso: null
+      },
+      place: {
+        name: 'Lea Valley',
+        latitude: 51.5543,
+        longitude: -0.0231,
+        precision: 'area',
+        countryCode: null,
+        nameSource: null,
+        lookupStatus: null,
+        lookupAt: null,
+        lookupStale: false
+      },
+      inGallery: true,
+      subjectSuggestions: null
+    })
+    expect(db.getGalleryGearNamesByIds).toHaveBeenCalledOnce()
+  })
+
+  it('shows the owner a subject known only by its taxon key', async () => {
+    const details = await buildOwnerMediaDetails(
+      database(),
+      media({
+        subjectTaxonKey: '5219416',
+        subjectLookupStatus: 'failed',
+        subjectLookupAt: Date.UTC(2026, 9, 8)
+      })
+    )
+
+    expect(details.subject).toMatchObject({
+      name: null,
+      scientificName: null,
+      category: null,
+      taxonKey: '5219416',
+      lookupStatus: 'failed'
+    })
+  })
+
   it('does not query gear for a media that has none', async () => {
     const db = database()
 
@@ -141,6 +220,15 @@ describe('buildOwnerMediaDetails lookupStale', () => {
         media({ subjectScientificName: 'Alcedo atthis', ...details })
       )
     ).subject?.lookupStale
+
+  it('is false for a lookup that only just became pending', async () => {
+    expect(
+      await staleOf({
+        subjectLookupStatus: 'pending',
+        subjectLookupAt: Date.now() - (STALE_SUBJECT_LOOKUP_MS - 1)
+      })
+    ).toBe(false)
+  })
 
   it('is true once pending for too long, or with no start time', async () => {
     expect(

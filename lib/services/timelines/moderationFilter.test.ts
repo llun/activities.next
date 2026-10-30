@@ -9,6 +9,7 @@ import { filterModeratedStatuses } from './moderationFilter'
 
 const cleanActorId = 'https://llun.test/users/clean'
 const suspendedActorId = 'https://remote.test/users/suspended'
+const silencedActorId = 'https://remote.test/users/silenced'
 
 const createNoteStatus = (name: string, actorId: string) =>
   ({
@@ -83,6 +84,29 @@ describe('filterModeratedStatuses', () => {
       ])
     }
   )
+
+  it('drops silenced authors only when includeSilenced is false', async () => {
+    const database = databaseWithStates({
+      [silencedActorId]: stateOf({ silencedAt: 1 })
+    })
+    const statuses = [createNoteStatus('note-silenced', silencedActorId)]
+
+    const publicResult = await filterModeratedStatuses(
+      database,
+      statuses,
+      false
+    )
+    expect(publicResult).toHaveLength(0)
+
+    const followingResult = await filterModeratedStatuses(
+      database,
+      statuses,
+      true
+    )
+    expect(followingResult.map((status) => status.id)).toEqual([
+      'https://llun.test/statuses/note-silenced'
+    ])
+  })
 
   it('checks the announced original author as well as the announcing actor', async () => {
     const database = databaseWithStates({

@@ -17,6 +17,17 @@ const announce = (id: string, actorId: string, originalActorId: string) =>
   }) as unknown as Status
 
 describe('getRelevantStatusDomains', () => {
+  it('returns the author domain for a note', () => {
+    expect(
+      getRelevantStatusDomains(
+        note(
+          'https://llun.test/users/a/statuses/1',
+          'https://llun.test/users/a'
+        )
+      )
+    ).toEqual(['llun.test'])
+  })
+
   it('includes the boosted author domain for an announce', () => {
     expect(
       getRelevantStatusDomains(

@@ -97,6 +97,24 @@ describe('GalleryAlbumSuggestionDatabase', () => {
       await database.destroy()
     })
 
+    it('lists each of the actor’s albums with the media ids of its items, and leaves out empty albums', async () => {
+      const sets = await database.getGalleryAlbumItemSets({
+        actorId: ownerId,
+        mediaIds: [ids.a, ids.b, ids.c]
+      })
+
+      expect(sets).toHaveLength(2)
+      expect(sets.map((set) => [...set.mediaIds].sort()).sort()).toEqual(
+        [[ids.a, ids.b].sort(), [ids.b, ids.c].sort()].sort()
+      )
+      expect(
+        sets.find((set) => set.albumId === ownerAlbum)?.mediaIds.sort()
+      ).toEqual([ids.a, ids.b].sort())
+      expect(
+        sets.every((set) => set.mediaIds.every((id) => typeof id === 'string'))
+      ).toBeTrue()
+    })
+
     it('does not list the items of the actor’s albums for media ids somebody else asks with', async () => {
       // The owner's photos asked for as the other actor: that actor holds none.
       expect(

@@ -68,6 +68,51 @@ const createTaggedNote = async (
 }
 
 describe('getTrendingTags', () => {
+  it('ranks tags by distinct status uses with distinct account counts', async () => {
+    await withFreshDatabase(async (database) => {
+      await createActor(database, FIRST_ACTOR_ID, 'first')
+      await createActor(database, SECOND_ACTOR_ID, 'second')
+
+      const now = Date.now()
+      // alpha: three statuses by two actors (mixed casing normalizes together).
+      await createTaggedNote(database, {
+        actorId: FIRST_ACTOR_ID,
+        id: `${FIRST_ACTOR_ID}/statuses/1`,
+        tag: 'Alpha',
+        createdAt: now - 1000
+      })
+      await createTaggedNote(database, {
+        actorId: FIRST_ACTOR_ID,
+        id: `${FIRST_ACTOR_ID}/statuses/2`,
+        tag: 'alpha',
+        createdAt: now - 2000
+      })
+      await createTaggedNote(database, {
+        actorId: SECOND_ACTOR_ID,
+        id: `${SECOND_ACTOR_ID}/statuses/1`,
+        tag: 'alpha',
+        createdAt: now - 3000
+      })
+      // beta: one status by one actor.
+      await createTaggedNote(database, {
+        actorId: FIRST_ACTOR_ID,
+        id: `${FIRST_ACTOR_ID}/statuses/3`,
+        tag: 'beta',
+        createdAt: now - 4000
+      })
+
+      const tags = await database.getTrendingTags({
+        days: 7,
+        limit: 10,
+        offset: 0
+      })
+      expect(tags).toEqual([
+        { name: 'alpha', uses: 3, accounts: 2 },
+        { name: 'beta', uses: 1, accounts: 1 }
+      ])
+    })
+  })
+
   it('excludes tag uses outside the day window', async () => {
     await withFreshDatabase(async (database) => {
       await createActor(database, FIRST_ACTOR_ID, 'first')

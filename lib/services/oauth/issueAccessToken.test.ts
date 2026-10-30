@@ -211,4 +211,15 @@ describe('issueAccessToken', () => {
       ).toBe(401)
     })
   })
+
+  it('rejects an unissued (forged) token', async () => {
+    const response = await verifyCredentials(
+      new NextRequest('https://llun.test/api/v1/accounts/verify_credentials', {
+        headers: { Authorization: 'Bearer not-a-real-token' }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(401)
+  })
 })

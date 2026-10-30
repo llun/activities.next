@@ -3,6 +3,12 @@ import {
   MAX_BULK_NOTIFICATION_REQUEST_IDS
 } from './bulkRequestIds'
 
+const overCapIds = () =>
+  Array.from(
+    { length: MAX_BULK_NOTIFICATION_REQUEST_IDS + 1 },
+    (_, index) => `id-${index}`
+  )
+
 describe('BulkNotificationRequestIdsBody', () => {
   it.each([
     {
@@ -33,4 +39,13 @@ describe('BulkNotificationRequestIdsBody', () => {
     expect(parsed.success).toBe(true)
     expect(parsed.success && parsed.data).toEqual(expected)
   })
+
+  it.each([{ description: 'the id field', input: { id: overCapIds() } }])(
+    'rejects an over-cap list in $description',
+    ({ input }) => {
+      expect(BulkNotificationRequestIdsBody.safeParse(input).success).toBe(
+        false
+      )
+    }
+  )
 })

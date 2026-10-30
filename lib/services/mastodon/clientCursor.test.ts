@@ -24,6 +24,21 @@ const buildDatabase = (publicIds: Map<string, string>) => {
 }
 
 describe('getClientStatusCursors', () => {
+  it('reads a boundary publicId off the page without querying', async () => {
+    const publicId = generatePublicId()
+    const status = buildStatus('on-page', publicId)
+    const { database, getStatusPublicIds } = buildDatabase(new Map())
+
+    const cursors = await getClientStatusCursors(
+      database,
+      [status],
+      [status.id]
+    )
+
+    expect(cursors).toEqual([publicId])
+    expect(getStatusPublicIds).not.toHaveBeenCalled()
+  })
+
   it('looks up only the boundaries that are not on the page', async () => {
     const onPage = buildStatus('on-page', generatePublicId())
     const offPageId = `${ACTOR_ID}/statuses/off-page`

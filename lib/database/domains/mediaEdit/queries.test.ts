@@ -1,7 +1,9 @@
 import { mediaEditQueries } from '@/lib/database/domains/mediaEdit/queries'
 import type { MediaEditRender } from '@/lib/database/domains/mediaEdit/types'
+import { increaseCounterValue } from '@/lib/database/kysely/counter'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { withStaleFirstRead } from '@/lib/database/testing/staleRead'
+import { CounterKey } from '@/lib/database/utils/counter'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
@@ -148,6 +150,36 @@ describe('MediaEditDatabase', () => {
     expect(await usage()).toBe(before + 700)
   })
 
+  it('answers stale with the current version and save id', async () => {
+    const media = await createPhoto('stale')
+    await database.applyMediaEdit({
+      mediaId: media.id,
+      accountId,
+      baseVersion: 0,
+      saveId: 'stale-save',
+      recipe: RECIPE,
+      render: render('stale-a')
+    })
+    const before = await usage()
+
+    const result = await database.applyMediaEdit({
+      mediaId: media.id,
+      accountId,
+      baseVersion: 0,
+      saveId: 'stale-retry',
+      recipe: RECIPE,
+      render: render('stale-b')
+    })
+
+    expect(result).toEqual({
+      status: 'stale',
+      version: 1,
+      saveId: 'stale-save'
+    })
+    expect(await usage()).toBe(before)
+    expect(await slotsOf(media.id)).toEqual(['original'])
+  })
+
   it('lets only one of two concurrent saves land', async () => {
     const media = await createPhoto('race')
     await database.applyMediaEdit({
@@ -186,6 +218,82 @@ describe('MediaEditDatabase', () => {
     expect(current?.original.path).toBe('medias/race-winner.webp')
     expect(await slotsOf(media.id)).toEqual(['original'])
     expect(await usage()).toBe(before)
+  })
+
+  it('reverts every field the first save changed', async () => {
+    const media = await createPhoto('revert')
+    await database.applyMediaEdit({
+      mediaId: media.id,
+      accountId,
+      baseVersion: 0,
+      saveId: 'revert-save',
+      recipe: RECIPE,
+      render: render('revert-render', 600)
+    })
+    // A phase 2 mask, to show a revert frees it.
+    await testDb.db
+      .insertInto('media_edit_files')
+      .values({
+        id: crypto.randomUUID(),
+        mediaId: Number(media.id),
+        actorId: ACTOR1_ID,
+        slot: 'mask:m1',
+        path: 'medias/revert-mask.png',
+        bytes: 50,
+        mimeType: 'image/png',
+        metaData: JSON.stringify({ width: 512, height: 384 }),
+        createdAt: new Date()
+      })
+      .execute()
+    await increaseCounterValue(testDb.db, CounterKey.mediaUsage(accountId), 50)
+    const before = await usage()
+
+    const result = await database.revertMediaEdit({
+      mediaId: media.id,
+      accountId,
+      baseVersion: 1,
+      saveId: 'revert-id'
+    })
+
+    expect(result).toMatchObject({
+      status: 'ok',
+      version: 2,
+      removedPaths: ['medias/revert-mask.png']
+    })
+    const reverted = await database.getMediaByIdForAccount({
+      mediaId: media.id,
+      accountId
+    })
+    expect(reverted).toMatchObject({
+      original: {
+        path: 'medias/revert.webp',
+        bytes: 1000,
+        mimeType: 'image/jpeg',
+        metaData: {
+          width: 4000,
+          height: 3000,
+          upload: { state: 'verified', clientPath: 'uploads/revert.jpg' }
+        }
+      },
+      blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
+      focus: { x: 0.25, y: -0.5 },
+      edit: { version: 2, editedAt: null }
+    })
+    expect(reverted?.original.metaData).not.toHaveProperty('blurhash')
+    expect(reverted?.original.metaData).not.toHaveProperty('focus')
+
+    const state = await database.getMediaEditState({ mediaId: media.id })
+    expect(state).toMatchObject({
+      version: 2,
+      recipe: null,
+      editedAt: null,
+      saveId: 'revert-id',
+      original: null,
+      masks: []
+    })
+    // The render stays until it is pruned: a post may still show it.
+    expect(await slotsOf(media.id)).toEqual(['superseded'])
+    expect(await usage()).toBe(before - 50)
   })
 
   describe('masks', () => {
@@ -378,6 +486,41 @@ describe('MediaEditDatabase', () => {
       })
     ).resolves.toEqual([])
     expect(await slotsOf(media.id)).toEqual([])
+  })
+
+  it('prunes superseded renders, returning their paths and freeing their bytes', async () => {
+    const media = await createPhoto('prune')
+    for (const [index, name] of ['prune-a', 'prune-b', 'prune-c'].entries()) {
+      await database.applyMediaEdit({
+        mediaId: media.id,
+        accountId,
+        baseVersion: index,
+        saveId: name,
+        recipe: RECIPE,
+        render: render(name, 100 * (index + 1))
+      })
+    }
+    const before = await usage()
+
+    const pruned = await database.pruneSupersededMediaEditFiles({
+      mediaId: media.id,
+      accountId,
+      version: 3
+    })
+
+    expect(pruned.sort()).toEqual([
+      'medias/prune-a.webp',
+      'medias/prune-b.webp'
+    ])
+    expect(await slotsOf(media.id)).toEqual(['original'])
+    expect(await usage()).toBe(before - 300)
+    await expect(
+      database.pruneSupersededMediaEditFiles({
+        mediaId: media.id,
+        accountId,
+        version: 3
+      })
+    ).resolves.toEqual([])
   })
 
   // A save's prune runs after its posts were updated, which can take seconds.

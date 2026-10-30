@@ -31,6 +31,10 @@ describe('resolveStravaDefaultVisibility', () => {
   // an actor who never picked a visibility must not have their activities
   // posted more widely than their followers.
   it.each([
+    {
+      description: 'defaults an unset visibility to private',
+      stored: undefined
+    },
     { description: 'defaults a null visibility to private', stored: null },
     { description: 'defaults an empty string to private', stored: '' }
   ])('$description', ({ stored }) => {
@@ -47,6 +51,7 @@ describe('resolveStravaDefaultVisibility', () => {
   // The column is a plain varchar and the row mapper asserts rather than parses,
   // so a value the write path never would have produced still reaches here.
   it.each([
+    { description: 'refuses an unknown visibility', stored: 'followers-only' },
     { description: 'refuses a cased visibility', stored: 'Public' },
     { description: 'refuses a numeric value', stored: '0' }
   ])('$description', ({ stored }) => {

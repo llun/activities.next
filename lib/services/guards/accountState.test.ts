@@ -40,6 +40,15 @@ describe('accountState predicates', () => {
     })
 
   describe('isAccountConfirmationPending', () => {
+    it('returns true when verificationCode is set and emailVerified is false', () => {
+      expect(
+        isAccountConfirmationPending({
+          verificationCode: 'code123',
+          emailVerified: false
+        })
+      ).toBe(true)
+    })
+
     it('returns true when verificationCode is set and emailVerified is null or undefined', () => {
       expect(
         isAccountConfirmationPending({
@@ -108,11 +117,42 @@ describe('accountState predicates', () => {
   })
 
   describe('isActorModerationBlocked', () => {
+    it('returns false for an unblocked actor with an active account', () => {
+      const actor = createBaseActor({
+        account: createBaseAccount()
+      })
+      expect(isActorModerationBlocked(actor)).toBe(false)
+    })
+
     it('returns false for an actor with no account and no suspendedAt (e.g. signing actor)', () => {
       const actor = createBaseActor({
         account: undefined
       })
       expect(isActorModerationBlocked(actor)).toBe(false)
+    })
+
+    it('returns true when actor.suspendedAt is set, regardless of account status', () => {
+      const actorWithAccount = createBaseActor({
+        suspendedAt: Date.now(),
+        account: createBaseAccount()
+      })
+      expect(isActorModerationBlocked(actorWithAccount)).toBe(true)
+
+      const actorWithoutAccount = createBaseActor({
+        suspendedAt: Date.now(),
+        account: undefined
+      })
+      expect(isActorModerationBlocked(actorWithoutAccount)).toBe(true)
+    })
+
+    it('returns true when actor.account.disabledAt is set, even if actor.suspendedAt is null', () => {
+      const actor = createBaseActor({
+        suspendedAt: null,
+        account: createBaseAccount({
+          disabledAt: Date.now()
+        })
+      })
+      expect(isActorModerationBlocked(actor)).toBe(true)
     })
 
     it('returns true when both suspendedAt and disabledAt are set', () => {
@@ -143,6 +183,26 @@ describe('accountState predicates', () => {
         account: undefined
       })
       expect(isActorConfirmationPending(actor)).toBe(false)
+    })
+
+    it('returns false when actor has a confirmed account', () => {
+      const actor = createBaseActor({
+        account: createBaseAccount({
+          verificationCode: null,
+          emailVerified: true
+        })
+      })
+      expect(isActorConfirmationPending(actor)).toBe(false)
+    })
+
+    it('returns true when actor account has verificationCode and emailVerified false', () => {
+      const actor = createBaseActor({
+        account: createBaseAccount({
+          verificationCode: 'code-123',
+          emailVerified: false
+        })
+      })
+      expect(isActorConfirmationPending(actor)).toBe(true)
     })
 
     it('returns false when actor account has verificationCode but emailVerified true (backfilled cohort)', () => {
