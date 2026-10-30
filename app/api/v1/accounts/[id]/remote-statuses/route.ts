@@ -8,6 +8,7 @@ import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActorSafe } from '@/lib/services/federation/getFederationSigningActor'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
+import { filterReadableStatuses } from '@/lib/services/statusRouteAccess'
 import { Scope } from '@/lib/types/database/operations'
 import type { Actor } from '@/lib/types/domain/actor'
 import {
@@ -90,26 +91,35 @@ const overlayStatusesWithViewerState = async (
     withReplies: false
   })
 
+  const readableStoredStatuses = await filterReadableStatuses({
+    database,
+    statuses: storedStatuses,
+    currentActor
+  })
+
   const storedMap = new Map<string, Status>()
-  for (const stored of storedStatuses) {
+  for (const stored of readableStoredStatuses) {
     storedMap.set(stored.id, stored)
   }
 
   return statuses.map((status) => {
     if (status.type === StatusType.enum.Announce) {
-      const originalId = status.originalStatus?.id
+      const original = status.originalStatus
+      const originalId = original?.id
       if (!originalId) return status
       const stored = storedMap.get(originalId)
+      // Live ids are claimed by the remote outbox; verify the stored row belongs to the same actor
       if (
         !stored ||
-        (status.originalStatus.type !== StatusType.enum.Note &&
-          status.originalStatus.type !== StatusType.enum.Poll)
+        stored.actorId !== original.actorId ||
+        (original.type !== StatusType.enum.Note &&
+          original.type !== StatusType.enum.Poll)
       ) {
         return status
       }
       return {
         ...status,
-        originalStatus: overlayViewerState(status.originalStatus, stored)
+        originalStatus: overlayViewerState(original, stored)
       }
     }
 
@@ -118,7 +128,8 @@ const overlayStatusesWithViewerState = async (
       status.type === StatusType.enum.Poll
     ) {
       const stored = storedMap.get(status.id)
-      if (!stored) return status
+      // Live ids are claimed by the remote outbox; verify the stored row belongs to the same actor
+      if (!stored || stored.actorId !== status.actorId) return status
       return overlayViewerState(status, stored)
     }
 

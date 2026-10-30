@@ -5,13 +5,16 @@ import { getActorPosts } from '@/lib/activities/getActorPosts'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActorSafe } from '@/lib/services/federation/getFederationSigningActor'
 import { Status, StatusType } from '@/lib/types/domain/status'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { urlToId } from '@/lib/utils/urlToId'
 
 import { GET } from './route'
 
 const mockGetStatusesByIds = vi.fn()
+const mockGetAcceptedFollowTargetActorIds = vi.fn()
 const mockDatabase = {
-  getStatusesByIds: mockGetStatusesByIds
+  getStatusesByIds: mockGetStatusesByIds,
+  getAcceptedFollowTargetActorIds: mockGetAcceptedFollowTargetActorIds
 }
 let mockCurrentActor: { id: string } | null = {
   id: 'https://local.example/users/me'
@@ -63,6 +66,7 @@ describe('GET /api/v1/accounts/[id]/remote-statuses', () => {
       id: 'https://local.example/users/me'
     }
     mockGetStatusesByIds.mockResolvedValue([])
+    mockGetAcceptedFollowTargetActorIds.mockResolvedValue([])
     ;(canFederateWithDomain as jest.Mock).mockResolvedValue(true)
     ;(getFederationSigningActorSafe as jest.Mock).mockResolvedValue(
       mockInstanceActor
@@ -241,6 +245,9 @@ describe('GET /api/v1/accounts/[id]/remote-statuses', () => {
       mockGetStatusesByIds.mockResolvedValueOnce([
         {
           id: liveStatusId,
+          actorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
           type: StatusType.enum.Note,
           isActorLiked: true,
           isActorBookmarked: false,
@@ -310,6 +317,9 @@ describe('GET /api/v1/accounts/[id]/remote-statuses', () => {
       mockGetStatusesByIds.mockResolvedValueOnce([
         {
           id: liveStatusId,
+          actorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
           type: StatusType.enum.Note,
           isActorLiked: false,
           isActorBookmarked: true,
@@ -427,6 +437,9 @@ describe('GET /api/v1/accounts/[id]/remote-statuses', () => {
       mockGetStatusesByIds.mockResolvedValueOnce([
         {
           id: originalStatusId,
+          actorId: 'https://other.example/users/bob',
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
           type: StatusType.enum.Note,
           isActorLiked: true,
           isActorBookmarked: true,
@@ -455,6 +468,150 @@ describe('GET /api/v1/accounts/[id]/remote-statuses', () => {
         'https://local.example/statuses/announce-bob'
       )
       expect(data.statuses[0].originalStatus.totalLikes).toBe(3)
+    })
+
+    it('a live note matching an unreadable stored status comes back with no overlay', async () => {
+      const liveStatusId = `${actorId}/statuses/unreadable-stored`
+      const liveNote: Status = {
+        id: liveStatusId,
+        actorId,
+        actor: null,
+        to: [],
+        cc: [],
+        edits: [],
+        isLocalActor: false,
+        createdAt: 100,
+        updatedAt: 100,
+        type: StatusType.enum.Note,
+        url: liveStatusId,
+        text: 'Live note text',
+        summary: null,
+        reply: '',
+        replies: [],
+        actorAnnounceStatusId: null,
+        isActorLiked: false,
+        isActorBookmarked: false,
+        totalLikes: 0,
+        totalShares: 0,
+        attachments: [],
+        tags: []
+      }
+      ;(getActorPosts as jest.Mock).mockResolvedValueOnce({
+        statuses: [liveNote],
+        statusesCount: 1,
+        nextPageUrl: null,
+        prevPageUrl: null
+      })
+
+      // Stored status has same id and actorId, but is private/unreadable for the viewer
+      mockGetStatusesByIds.mockResolvedValueOnce([
+        {
+          id: liveStatusId,
+          actorId,
+          to: ['https://remote.example/users/secret'],
+          cc: [],
+          type: StatusType.enum.Note,
+          isActorLiked: true,
+          isActorBookmarked: true,
+          actorAnnounceStatusId:
+            'https://local.example/statuses/announce-unreadable',
+          totalLikes: 42,
+          reactions: [
+            {
+              name: '❤️',
+              count: 1,
+              me: true,
+              url: null,
+              static_url: null
+            }
+          ]
+        }
+      ])
+
+      const response = await GET(createRequest(), {
+        params: Promise.resolve({ id: urlToId(actorId) })
+      })
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.statuses[0].id).toBe(liveStatusId)
+      expect(data.statuses[0].isActorLiked).toBe(false)
+      expect(data.statuses[0].isActorBookmarked).toBe(false)
+      expect(data.statuses[0].actorAnnounceStatusId).toBeNull()
+      expect(data.statuses[0].totalLikes).toBe(0)
+      expect(data.statuses[0].reactions).toBeUndefined()
+    })
+
+    it('a live note matching a stored public status with a different actorId comes back unchanged', async () => {
+      const hijackedStatusId = `${actorId}/statuses/hijacked-target`
+      const liveNote: Status = {
+        id: hijackedStatusId,
+        actorId,
+        actor: null,
+        to: [],
+        cc: [],
+        edits: [],
+        isLocalActor: false,
+        createdAt: 100,
+        updatedAt: 100,
+        type: StatusType.enum.Note,
+        url: hijackedStatusId,
+        text: 'Live note text claiming another status id',
+        summary: null,
+        reply: '',
+        replies: [],
+        actorAnnounceStatusId: null,
+        isActorLiked: false,
+        isActorBookmarked: false,
+        totalLikes: 0,
+        totalShares: 0,
+        attachments: [],
+        tags: []
+      }
+      ;(getActorPosts as jest.Mock).mockResolvedValueOnce({
+        statuses: [liveNote],
+        statusesCount: 1,
+        nextPageUrl: null,
+        prevPageUrl: null
+      })
+
+      // Stored status is public and liked, but authored by a different actor
+      mockGetStatusesByIds.mockResolvedValueOnce([
+        {
+          id: hijackedStatusId,
+          actorId: 'https://victim.example/users/victim',
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          type: StatusType.enum.Note,
+          isActorLiked: true,
+          isActorBookmarked: true,
+          actorAnnounceStatusId:
+            'https://local.example/statuses/announce-victim',
+          totalLikes: 99,
+          reactions: [
+            {
+              name: '🔥',
+              count: 5,
+              me: true,
+              url: null,
+              static_url: null
+            }
+          ]
+        }
+      ])
+
+      const response = await GET(createRequest(), {
+        params: Promise.resolve({ id: urlToId(actorId) })
+      })
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.statuses[0].id).toBe(hijackedStatusId)
+      expect(data.statuses[0].isActorLiked).toBe(false)
+      expect(data.statuses[0].isActorBookmarked).toBe(false)
+      expect(data.statuses[0].actorAnnounceStatusId).toBeNull()
+      expect(data.statuses[0].totalLikes).toBe(0)
+      expect(data.statuses[0].reactions).toBeUndefined()
     })
 
     it('rejects signed-out requests with 401 and looks up nothing', async () => {
