@@ -26,15 +26,20 @@ const Loading: FC = () => (
       }
     />
     <div className="flex flex-col gap-2.5">
-      {/* sm+: Type, Show and one Filters bar, with the count and Sort at
-          the row's right end like the sheet-mode filter bar. Type and Show
-          cap at 260px like the real selects (`w-full sm:max-w-[260px]`). */}
+      {/* sm+: Type, Show and one Filters bar, then the count and Sort in
+          one right-aligned group like the sheet-mode filter bar, so they
+          wrap together and stay right-aligned when the row is tight. Type
+          and Show cap at 260px like the real selects
+          (`w-full sm:max-w-[260px]`); the count and Sort bars match the
+          real count text (~81px) and Sort menu (~204px). */}
       <div className="hidden sm:flex flex-wrap items-center gap-2">
         <SkeletonBar className="h-10 w-[260px] rounded-lg" />
         <SkeletonBar className="h-10 w-[260px] rounded-lg" />
-        <SkeletonBar className="h-10 w-24 rounded-lg" />
-        <SkeletonBar className="ml-auto h-4 w-12" />
-        <SkeletonBar className="h-10 w-36 rounded-lg" />
+        <SkeletonBar className="h-10 w-18 rounded-lg" />
+        <div className="ml-auto flex items-center gap-2">
+          <SkeletonBar className="h-4 w-20" />
+          <SkeletonBar className="h-10 w-[204px] rounded-lg" />
+        </div>
       </div>
       {/* Phones: Type, Show and the Filters button stacked full width in
           the row's lead, the compact Sort beside them — the sheet-mode
@@ -44,7 +49,7 @@ const Loading: FC = () => (
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <SkeletonBar className="h-10 w-full" />
             <SkeletonBar className="h-10 w-full" />
-            <SkeletonBar className="h-10 w-24 rounded-lg" />
+            <SkeletonBar className="h-10 w-18 rounded-lg" />
           </div>
           <SkeletonBar className="h-10 w-36 rounded-lg" />
         </div>

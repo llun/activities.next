@@ -66,9 +66,10 @@ describe('gallery all media loading', () => {
   it('mirrors the filter row at sm+ and keeps the phone bars stacked', () => {
     const { container } = render(<Loading />)
 
-    // sm+: Type, Show and one Filters bar, with the count and Sort at the
-    // row's right end. Type and Show cap at 260px like the real selects
-    // (`w-full sm:max-w-[260px]`).
+    // sm+: Type, Show and one Filters bar, then the count and Sort in one
+    // right-aligned group like the sheet-mode filter bar. Type and Show cap
+    // at 260px like the real selects (`w-full sm:max-w-[260px]`); the
+    // Filters, count and Sort bars match the real controls' widths.
     const smRow = container.querySelector(
       '[data-slot="skeleton-bar"].w-\\[260px\\]'
     )?.parentElement as HTMLElement
@@ -78,7 +79,15 @@ describe('gallery all media loading', () => {
       smRow.querySelectorAll('[data-slot="skeleton-bar"].w-\\[260px\\]')
     ).toHaveLength(2)
     expect(
-      smRow.querySelector('[data-slot="skeleton-bar"].ml-auto')
+      smRow.querySelector('[data-slot="skeleton-bar"].w-18')
+    ).toBeInTheDocument()
+    const endGroup = smRow.querySelector('.ml-auto') as HTMLElement
+    expect(endGroup).toHaveClass('flex', 'items-center', 'gap-2')
+    expect(
+      endGroup.querySelector('[data-slot="skeleton-bar"].w-20')
+    ).toBeInTheDocument()
+    expect(
+      endGroup.querySelector('[data-slot="skeleton-bar"].w-\\[204px\\]')
     ).toBeInTheDocument()
 
     // Phones: Type, Show and the Filters button stacked in the row's lead,

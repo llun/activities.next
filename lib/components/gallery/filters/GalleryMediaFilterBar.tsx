@@ -100,41 +100,46 @@ export const GalleryMediaFilterBar: FC<GalleryMediaFilterBarProps> = ({
   // only below sm, where its menus are replaced by the sheet.
   const chips =
     filters.order.length > 0 ? (
-      <div className="flex items-center gap-2 overflow-x-auto py-2">
-        {filters.order.map((key) => {
-          const label = formatFilterActiveValue(filters, key, facets)
-          return (
-            <div
-              key={key}
-              className="border-primary bg-primary/10 text-primary-text inline-flex max-w-full shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium"
-            >
-              <span className="min-w-0 truncate">{label}</span>
-              <button
-                type="button"
-                aria-label={`Clear ${label} filter`}
-                disabled={disabled}
-                onClick={() =>
-                  onChange(
-                    setGalleryFilter(
-                      filters,
-                      key,
-                      (key === 'notInAlbum' ? false : null) as never
-                    )
-                  )
-                }
-                className="hover:bg-primary/20 focus-visible:ring-primary/50 -m-3 flex size-11 shrink-0 items-center justify-center rounded-full focus-visible:ring-2 focus-visible:outline-none"
+      <div className="flex items-center gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto py-2">
+          {filters.order.map((key) => {
+            const label = formatFilterActiveValue(filters, key, facets)
+            return (
+              <div
+                key={key}
+                className="border-primary bg-primary/10 text-primary-text inline-flex max-w-full shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium"
               >
-                <X className="size-3 shrink-0" />
-              </button>
-            </div>
-          )
-        })}
+                <span className="min-w-0 truncate">{label}</span>
+                <button
+                  type="button"
+                  aria-label={`Clear ${label} filter`}
+                  disabled={disabled}
+                  onClick={() =>
+                    onChange(
+                      setGalleryFilter(
+                        filters,
+                        key,
+                        (key === 'notInAlbum' ? false : null) as never
+                      )
+                    )
+                  }
+                  className="hover:bg-primary/20 focus-visible:ring-primary/50 -m-3 flex size-11 shrink-0 items-center justify-center rounded-full focus-visible:ring-2 focus-visible:outline-none"
+                >
+                  <X className="size-3 shrink-0" />
+                </button>
+              </div>
+            )
+          })}
+        </div>
 
-        {/* One-click clear from sm up, as the row's last item so it never
-            stretches to the row's width or makes the whole row clickable.
-            Only once more than one filter is active: with one, its chip's ✕
-            is the shorter path. A menu host never sees it (its chips render
-            only below sm). */}
+        {/* One-click clear from sm up, a shrink-0 sibling of the scroller in
+            the same outer row so it never scrolls out of view with many long
+            chips, and never stretches to the row's width or makes the whole
+            row clickable. Only once more than one filter is active: with
+            one, its chip's ✕ is the shorter path. A menu host never sees it
+            (its chips render only below sm). The negative coarse margins
+            repay the 44px target's extra height so the chips row does not
+            grow. */}
         {filtersInSheet && activeFilterCount > 1 ? (
           <Button
             type="button"
@@ -142,7 +147,7 @@ export const GalleryMediaFilterBar: FC<GalleryMediaFilterBarProps> = ({
             size="sm"
             disabled={disabled}
             onClick={() => onChange(clearGalleryFilters(filters))}
-            className="text-muted-foreground hover:text-foreground pointer-coarse:min-h-11 hidden h-auto shrink-0 px-2 font-normal hover:bg-transparent sm:inline-flex"
+            className="text-muted-foreground hover:text-foreground pointer-coarse:-my-3 pointer-coarse:min-h-11 hidden h-auto shrink-0 px-2 font-normal hover:bg-transparent sm:inline-flex"
           >
             Clear filters
           </Button>
@@ -187,7 +192,7 @@ export const GalleryMediaFilterBar: FC<GalleryMediaFilterBarProps> = ({
           >
             <span className="sr-only">Loading filters</span>
             {filtersInSheet ? (
-              <SkeletonBar className="h-10 w-24 rounded-lg" />
+              <SkeletonBar className="h-10 w-18 rounded-lg" />
             ) : (
               <>
                 <SkeletonBar className="h-10 w-28 rounded-lg" />
@@ -422,31 +427,41 @@ export const GalleryMediaFilterBar: FC<GalleryMediaFilterBarProps> = ({
           </Button>
         ) : null}
 
-        {/* Count and Sort share the row's right end in sheet mode; the count
-            stays a live region so changes are announced. */}
+        {/* Count and Sort share one right-aligned group in sheet mode, so
+            they wrap together as a unit and stay at the row's right end; the
+            count stays a live region so changes are announced. */}
         {filtersInSheet ? (
-          <span
-            data-testid={`${idPrefix}-count`}
-            role="status"
-            aria-live="polite"
-            className="text-muted-foreground ml-auto text-sm"
-          >
-            {total !== null
-              ? `${pluralize(total, 'photo')}${
-                  typeof inAlbumTotal === 'number'
-                    ? ` · ${inAlbumTotal.toLocaleString('en-US')} already in this album`
-                    : ''
-                }`
-              : null}
-          </span>
-        ) : null}
-        <GallerySortMenu
-          value={filters.sort}
-          onChange={(sort) => onChange({ ...filters, sort })}
-          compact={false}
-          disabled={disabled}
-          className={filtersInSheet ? undefined : 'ml-auto'}
-        />
+          <div className="ml-auto flex items-center gap-2">
+            <span
+              data-testid={`${idPrefix}-count`}
+              role="status"
+              aria-live="polite"
+              className="text-muted-foreground text-sm"
+            >
+              {total !== null
+                ? `${pluralize(total, 'photo')}${
+                    typeof inAlbumTotal === 'number'
+                      ? ` · ${inAlbumTotal.toLocaleString('en-US')} already in this album`
+                      : ''
+                  }`
+                : null}
+            </span>
+            <GallerySortMenu
+              value={filters.sort}
+              onChange={(sort) => onChange({ ...filters, sort })}
+              compact={false}
+              disabled={disabled}
+            />
+          </div>
+        ) : (
+          <GallerySortMenu
+            value={filters.sort}
+            onChange={(sort) => onChange({ ...filters, sort })}
+            compact={false}
+            disabled={disabled}
+            className="ml-auto"
+          />
+        )}
       </div>
 
       {/* Mobile layout */}
@@ -516,7 +531,7 @@ export const GalleryMediaFilterBar: FC<GalleryMediaFilterBarProps> = ({
               size="sm"
               disabled={disabled}
               onClick={() => onChange(clearGalleryFilters(filters))}
-              className="text-muted-foreground hover:text-foreground pointer-coarse:min-h-11 h-auto px-2 font-normal hover:bg-transparent"
+              className="text-muted-foreground hover:text-foreground pointer-coarse:-my-3 pointer-coarse:min-h-11 h-auto px-2 font-normal hover:bg-transparent"
             >
               Clear
             </Button>

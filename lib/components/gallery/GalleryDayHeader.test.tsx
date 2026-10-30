@@ -519,27 +519,39 @@ describe('GalleryDayHeader page surface', () => {
     }
   }
 
-  // Fires an entry for a sentinel whose box top sits at `boundingTop` in a
-  // root whose top edge sits at `rootTop` (the shrunken viewport).
+  // Fires entries for sentinels whose box tops sit at each `boundingTop`
+  // in a root whose top edge sits at `rootTop` (the shrunken viewport).
+  const fireEntries = (
+    observer: MockIntersectionObserver,
+    entries: Array<{
+      boundingTop: number
+      rootTop: number
+      isIntersecting?: boolean
+    }>
+  ) => {
+    act(() => {
+      observer.callback(
+        entries.map(
+          ({ boundingTop, rootTop, isIntersecting = false }) =>
+            ({
+              isIntersecting,
+              boundingClientRect: { top: boundingTop },
+              rootBounds: { top: rootTop }
+            }) as unknown as IntersectionObserverEntry
+        ),
+        observer as unknown as IntersectionObserver
+      )
+    })
+  }
+
+  // Fires one entry for a sentinel whose box top sits at `boundingTop` in
+  // a root whose top edge sits at `rootTop` (the shrunken viewport).
   const fireEntry = (
     observer: MockIntersectionObserver,
     boundingTop: number,
     rootTop: number,
     isIntersecting = false
-  ) => {
-    act(() => {
-      observer.callback(
-        [
-          {
-            isIntersecting,
-            boundingClientRect: { top: boundingTop },
-            rootBounds: { top: rootTop }
-          } as unknown as IntersectionObserverEntry
-        ],
-        observer as unknown as IntersectionObserver
-      )
-    })
-  }
+  ) => fireEntries(observer, [{ boundingTop, rootTop, isIntersecting }])
 
   // Stubs the observer for the duration of `run`, awaiting it first: an
   // async run must not outlive the stub.
@@ -682,6 +694,26 @@ describe('GalleryDayHeader page surface', () => {
       // root top: intersecting, but its top sits above the edge. The header
       // is back in flow, so it must not stay frosted.
       fireEntry(observer, 95.5, 96, true)
+      expect(header).not.toHaveAttribute('data-stuck')
+      expect(header).not.toHaveClass('bg-surface-chrome')
+    })
+  })
+
+  it('follows the newest entry when one callback batches several', async () => {
+    await withMockObserver(() => {
+      render(<GalleryDayHeader {...baseProps} surface="page" />)
+
+      const header = pageHeader()
+      const observer = MockIntersectionObserver.instances.at(-1)!
+
+      // One callback can batch the sentinel's older and newer positions:
+      // first scrolled out above the root top (which alone would read
+      // stuck), then back intersecting. The newest entry wins, so the
+      // header must not stay frosted on the stale first one.
+      fireEntries(observer, [
+        { boundingTop: -1, rootTop: 0 },
+        { boundingTop: 95.5, rootTop: 96, isIntersecting: true }
+      ])
       expect(header).not.toHaveAttribute('data-stuck')
       expect(header).not.toHaveClass('bg-surface-chrome')
     })
@@ -836,6 +868,36 @@ describe('GalleryDayHeader page surface', () => {
           document.documentElement.style.setProperty('--status-strip-h', '4px')
         })
         expect(MockIntersectionObserver.instances).toHaveLength(4)
+      } finally {
+        await act(async () => {
+          document.documentElement.style.removeProperty('--status-strip-h')
+        })
+      }
+    })
+  })
+
+  it('does not rebuild the observer again when the grid remounts the header', async () => {
+    await withMockObserver(async () => {
+      const { rerender } = render(
+        <GalleryDayHeader key="a" {...baseProps} surface="page" />
+      )
+      expect(MockIntersectionObserver.instances).toHaveLength(1)
+
+      try {
+        // Move the offset so the epoch is non-zero.
+        await act(async () => {
+          document.documentElement.style.setProperty('--status-strip-h', '4px')
+        })
+        expect(MockIntersectionObserver.instances).toHaveLength(2)
+
+        // A filter change remounts GalleryPagedGrid: one commit unmounts
+        // the old header — tearing the shared store down with it — and
+        // mounts the new one, which rebuilds the store. The epoch must
+        // not go backwards (a fresh store restarting at 0 would read as a
+        // change), or every remounted header would re-render and build a
+        // second observer for nothing.
+        rerender(<GalleryDayHeader key="b" {...baseProps} surface="page" />)
+        expect(MockIntersectionObserver.instances).toHaveLength(3)
       } finally {
         await act(async () => {
           document.documentElement.style.removeProperty('--status-strip-h')

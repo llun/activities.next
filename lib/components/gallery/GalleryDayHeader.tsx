@@ -53,8 +53,8 @@ export interface GalleryDayHeaderProps {
    * Where the header sticks. `'dialog'` (default) keeps the album picker's
    * look: the host's `className` supplies the sticky offset and background.
    * `'page'` draws its own background — transparent at rest, the house
-   * chrome surface (`bg-surface-chrome` + backdrop blur + hairline) while
-   * stuck, via a sentinel observed before the header — so the host's
+   * Surface Chrome token (plus backdrop blur and a hairline) while stuck,
+   * via a sentinel observed before the header — so the host's
    * `className` only supplies the sticky offset there.
    */
   surface?: 'page' | 'dialog'
@@ -65,11 +65,6 @@ export interface GalleryDayHeaderProps {
   className?: string
 }
 
-/**
- * One day's sticky header: the date, the meta line, the activity chip and,
- * while selecting, the Select day button. The host supplies the sticky
- * offset through `className`; on the dialog surface the background too.
- */
 // The sticky offset moves when the viewport crosses md (48rem) or the
 // connection strip's measured `--status-strip-h` changes. Every page-surface
 // header needs to know, but they share ONE subscription: a single
@@ -80,14 +75,20 @@ export interface GalleryDayHeaderProps {
 // IntersectionObservers. The snapshot is an epoch that increments only when
 // the md match or the `--status-strip-h` value actually changed.
 interface StickyOffsetStore {
-  epoch: number
   listeners: Set<() => void>
   release: () => void
 }
 
 let stickyOffsetStore: StickyOffsetStore | null = null
 
-const getStickyOffsetEpoch = () => stickyOffsetStore?.epoch ?? 0
+// The epoch is module-level and only ever increases: the store dies with
+// its last header and is rebuilt from scratch (GalleryPagedGrid remounts
+// on every filter change), and a per-store counter would restart at 0 —
+// a lower snapshot than the remounted headers rendered with, so each
+// would re-render and build a second IntersectionObserver for nothing.
+let stickyOffsetEpoch = 0
+
+const getStickyOffsetEpoch = () => stickyOffsetEpoch
 
 const getServerStickyOffsetEpoch = () => 0
 
@@ -101,7 +102,6 @@ const createStickyOffsetStore = (): StickyOffsetStore => {
       : null
   let md = media?.matches ?? false
   const store: StickyOffsetStore = {
-    epoch: 0,
     listeners,
     release: () => {
       media?.removeEventListener('change', onMaybeMove)
@@ -114,7 +114,7 @@ const createStickyOffsetStore = (): StickyOffsetStore => {
     if (nextStripH === stripH && nextMd === md) return
     stripH = nextStripH
     md = nextMd
-    store.epoch += 1
+    stickyOffsetEpoch += 1
     for (const listener of listeners) listener()
   }
   media?.addEventListener('change', onMaybeMove)
@@ -144,6 +144,11 @@ const subscribeStickyOffsets = (onStoreChange: () => void): (() => void) => {
 
 const subscribeToNothing = () => () => {}
 
+/**
+ * One day's sticky header: the date, the meta line, the activity chip and,
+ * while selecting, the Select day button. The host supplies the sticky
+ * offset through `className`; on the dialog surface the background too.
+ */
 export const GalleryDayHeader: FC<GalleryDayHeaderProps> = ({
   dayKey,
   stats,
@@ -194,7 +199,9 @@ export const GalleryDayHeader: FC<GalleryDayHeaderProps> = ({
       : '0px'
     const observer = new IntersectionObserver(
       (entries) => {
-        const entry = entries[0]
+        // One callback can batch several entries; the newest one is the
+        // sentinel's current position, so it wins over the older ones.
+        const entry = entries[entries.length - 1]
         if (!entry) return
         // Stuck once the sentinel has crossed above the shrunken
         // viewport's top edge, not merely when it stops intersecting:

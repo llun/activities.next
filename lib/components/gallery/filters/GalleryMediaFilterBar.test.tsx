@@ -903,9 +903,12 @@ describe('GalleryMediaFilterBar', () => {
       expect(count).toHaveAttribute('role', 'status')
       expect(count).toHaveAttribute('aria-live', 'polite')
       expect(count).toHaveTextContent('774 photos')
-      expect(count).toHaveClass('ml-auto')
+      // The count and Sort share one right-aligned group, so they wrap
+      // together when the row is tight.
+      const group = count.parentElement as HTMLElement
+      expect(group).toHaveClass('ml-auto', 'flex', 'items-center', 'gap-2')
       expect(
-        within(desktop).getByRole('group', { name: 'Sort' })
+        within(group).getByRole('group', { name: 'Sort' })
       ).toBeInTheDocument()
       // The separate count line survives only on phones.
       expect(screen.getByTestId('test-count-line')).toHaveClass('sm:hidden')
@@ -932,10 +935,11 @@ describe('GalleryMediaFilterBar', () => {
       const countLine = screen.getByTestId('test-count-line')
       expect(countLine).toHaveClass('sm:hidden')
       expect(within(countLine).getByText('19 photos')).toBeInTheDocument()
-      // The phone's own Clear keeps a coarse-pointer target.
+      // The phone's own Clear keeps a coarse-pointer target whose negative
+      // margins repay the 44px height, so the 20px count line stays put.
       expect(
         within(countLine).getByRole('button', { name: 'Clear' })
-      ).toHaveClass('pointer-coarse:min-h-11')
+      ).toHaveClass('pointer-coarse:min-h-11', 'pointer-coarse:-my-3')
     })
 
     it('renders one skeleton for the Filters button while facets load', () => {
@@ -953,6 +957,12 @@ describe('GalleryMediaFilterBar', () => {
       expect(
         screen.getByRole('status', { name: 'Loading filters' })
       ).toBeInTheDocument()
+      // The placeholder matches the real Filters button's width (~72px).
+      expect(
+        screen
+          .getByRole('status', { name: 'Loading filters' })
+          .querySelector('[data-slot="skeleton-bar"]')
+      ).toHaveClass('w-18')
       expect(
         screen.queryByRole('button', { name: 'Filters' })
       ).not.toBeEnabled()
@@ -1004,18 +1014,25 @@ describe('GalleryMediaFilterBar', () => {
       const clear = screen.getByRole('button', { name: 'Clear filters' })
       // Phones clear from their own count line instead.
       expect(clear).toHaveClass('hidden', 'sm:inline-flex')
-      // It rides at the chips row's end — never a full-width row of its
-      // own — and keeps a coarse-pointer target.
-      expect(clear).toHaveClass('shrink-0', 'pointer-coarse:min-h-11')
-      const chipsRow = clear.parentElement as HTMLElement
-      expect(chipsRow).toHaveClass(
-        'flex',
-        'items-center',
-        'gap-2',
+      // It keeps a coarse-pointer target whose negative margins repay the
+      // 44px height, so the chips row does not grow.
+      expect(clear).toHaveClass(
+        'shrink-0',
+        'pointer-coarse:min-h-11',
+        'pointer-coarse:-my-3'
+      )
+      // It sits outside the chip scroller, in the same outer row, so it
+      // never scrolls out of view with many long chips.
+      const row = clear.parentElement as HTMLElement
+      expect(row).toHaveClass('flex', 'items-center', 'gap-2')
+      const scroller = row.firstElementChild as HTMLElement
+      expect(scroller).toHaveClass(
+        'min-w-0',
+        'flex-1',
         'overflow-x-auto',
         'py-2'
       )
-      expect(chipsRow).toContainElement(screen.getByText('Red Fox'))
+      expect(scroller).toContainElement(screen.getByText('Red Fox'))
     })
 
     it('clears every active filter from the one-click Clear filters', () => {
