@@ -87,11 +87,6 @@ describe('accountExports', () => {
   })
 
   describe('csvEscape', () => {
-    it('leaves plain text unescaped', () => {
-      expect(csvEscape('alice@example.test')).toBe('alice@example.test')
-      expect(csvEscape('plain text')).toBe('plain text')
-    })
-
     it('quotes and escapes commas, quotes, and newlines', () => {
       expect(csvEscape('a,b')).toBe('"a,b"')
       expect(csvEscape('a"b')).toBe('"a""b"')

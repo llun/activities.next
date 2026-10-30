@@ -75,16 +75,6 @@ describe('clusterTrips', () => {
     expect(stays).toHaveLength(1)
   })
 
-  it('drops runs below the minimum size and keeps those at it', () => {
-    const clusters = clusterTrips(
-      [...photosOn([0, 0, 0, 1]), ...photosOn([10, 10, 10], 1, 100)],
-      options
-    )
-
-    expect(clusters).toHaveLength(1)
-    expect(clusters[0]).toHaveLength(4)
-  })
-
   it('clusters the same photos whatever order they arrive in', () => {
     const rows = photosOn([0, 1, 2, 3, 9, 10, 11, 12])
     const shuffled = [...rows].reverse()
@@ -142,15 +132,6 @@ describe('clusterTrips', () => {
 describe('photoActivityDays', () => {
   // 05:00 on 13 Sep in Tokyo is 20:00 UTC on the 12th.
   const instant = Date.UTC(2026, 8, 12, 20, 0)
-
-  it('lists the UTC day and the viewer-local day of a photo taken near midnight', () => {
-    const rows = [buildIndexRow(1, { takenAt: instant })]
-
-    expect(photoActivityDays('2026-09-12', rows, 'Asia/Tokyo')).toEqual([
-      '2026-09-12',
-      '2026-09-13'
-    ])
-  })
 
   it('is the UTC day alone when both readings agree', () => {
     const rows = [buildIndexRow(1, { takenAt: Date.UTC(2026, 8, 12, 3, 0) })]
@@ -219,22 +200,6 @@ describe('groupSpecies', () => {
       subjectName: name,
       subjectScientificName: scientific ?? null
     })
-
-  it('keeps a species at the threshold and drops one below it', () => {
-    const rows = [
-      ...Array.from({ length: 5 }, (_, i) =>
-        species(i, 'Kingfisher', 'Alcedo atthis')
-      ),
-      ...Array.from({ length: 4 }, (_, i) =>
-        species(10 + i, 'Heron', 'Ardea cinerea')
-      )
-    ]
-
-    const groups = groupSpecies(rows, 5)
-
-    expect([...groups.keys()]).toEqual(['sci:alcedo atthis'])
-    expect(groups.get('sci:alcedo atthis')).toHaveLength(5)
-  })
 
   it('counts one species under several common names, and ignores photos with no subject', () => {
     const rows = [

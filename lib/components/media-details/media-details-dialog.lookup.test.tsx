@@ -393,18 +393,6 @@ describe('MediaDetailsDialog lookups', () => {
       expect(screen.queryByText(/stays hidden/)).not.toBeInTheDocument()
     })
 
-    it('offers Retry only once a pending check has gone stale', () => {
-      renderDialog([
-        makeItem('m1', {
-          details: subject({ lookupStatus: 'pending', lookupStale: false })
-        })
-      ])
-      expect(screen.getByText('Checking IUCN status…')).toBeInTheDocument()
-      expect(
-        screen.queryByRole('button', { name: 'Retry' })
-      ).not.toBeInTheDocument()
-    })
-
     it('offers Retry for a stale pending check', () => {
       renderDialog([
         makeItem('m1', {

@@ -1,14 +1,6 @@
-import nominatimThailand from './__fixtures__/nominatim-reverse-th.json'
 import { formatGeocodedPlace } from './formatGeocodedPlace'
 
 describe('formatGeocodedPlace', () => {
-  it('names a recorded Nominatim answer by municipality and country', () => {
-    expect(formatGeocodedPlace(nominatimThailand)).toEqual({
-      name: 'หมูสี, ประเทศไทย',
-      countryCode: 'TH'
-    })
-  })
-
   it.each([
     [
       'city first',

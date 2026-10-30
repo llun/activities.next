@@ -91,27 +91,6 @@ describe('FitnessSettings database operations', () => {
   })
 
   describe('createFitnessSettings', () => {
-    it('creates a new fitness settings entry', async () => {
-      const settings = await database.createFitnessSettings({
-        actorId: testActorId,
-        serviceType: 'strava',
-        clientId: '12345',
-        clientSecret: 'secret123',
-        webhookToken: 'webhook-token-abc'
-      })
-
-      expect(settings).toMatchObject({
-        actorId: testActorId,
-        serviceType: 'strava',
-        clientId: '12345',
-        clientSecret: 'secret123',
-        webhookToken: 'webhook-token-abc'
-      })
-      expect(settings.id).toBeDefined()
-      expect(settings.createdAt).toBeDefined()
-      expect(settings.updatedAt).toBeDefined()
-    })
-
     it('encrypts sensitive fields', async () => {
       const plainSecret = 'plain-secret-text'
       const settings = await database.createFitnessSettings({

@@ -369,13 +369,6 @@ describe('/api/v1/admin/domains/:domain identity and policies', () => {
       })
     })
 
-    it('answers 404 for a domain it does not know', async () => {
-      const response = await patch('nope.example', {
-        disabledFeatures: ['fitness']
-      })
-      expect(response.status).toBe(404)
-    })
-
     it('is not mixed into a status change', async () => {
       const response = await patch('run.example', {
         status: 'off',

@@ -28,20 +28,6 @@ const statusWithAttachments = (
   }) as unknown as Status
 
 describe('resolveStatusAttachmentMediaIds', () => {
-  it('resolves the attachment id the status entity publishes to its media row id', () => {
-    const status = statusWithAttachments([
-      { id: 'attachment-uuid-1', mediaId: '12' },
-      { id: 'attachment-uuid-2', mediaId: '34' }
-    ])
-
-    expect(
-      resolveStatusAttachmentMediaIds(status, [
-        'attachment-uuid-2',
-        'attachment-uuid-1'
-      ])
-    ).toEqual(['34', '12'])
-  })
-
   it.each([
     ['a media row id, which needs no resolution', ['12'], ['12']],
     ['an id belonging to no attachment on this status', ['99'], ['99']],

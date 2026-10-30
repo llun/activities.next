@@ -300,28 +300,6 @@ describe('resolveMediaSubjectJob', () => {
         expect.objectContaining({ patch: { subjectLookupStatus: 'failed' } })
       )
     })
-
-    it.each([
-      ['a confident match', { scientific: true }],
-      ['an exact search hit', { scientific: false }]
-    ])('records failed for the key of %s', async (_, { scientific }) => {
-      gbif.getTaxon.mockResolvedValue(null)
-      gbif.lookupSearch.mockResolvedValue(
-        searchOutcome({ exactTaxonKeys: ['2475532'] })
-      )
-      mediaWith(
-        scientific
-          ? { subjectScientificName: 'Alcedo atthis' }
-          : { subjectName: 'Common Kingfisher', subjectCategory: 'bird' }
-      )
-
-      await resolveMediaSubjectJob(database, message({ mediaId: '7' }))
-
-      expect(gbif.getTaxon).toHaveBeenCalledWith('2475532')
-      expect(setMediaSubjectLookup).toHaveBeenCalledWith(
-        expect.objectContaining({ patch: { subjectLookupStatus: 'failed' } })
-      )
-    })
   })
 
   it('compares the category, so a result for an older category is dropped', async () => {

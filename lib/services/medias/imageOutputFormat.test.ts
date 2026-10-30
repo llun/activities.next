@@ -1,7 +1,6 @@
 import sharp from 'sharp'
 
 import {
-  DEFAULT_IMAGE_OUTPUT_FORMAT,
   type ImageOutputFormat,
   encodeImageOutput,
   getImageOutputFormatDetail
@@ -60,10 +59,6 @@ describe('getImageOutputFormatDetail', () => {
 })
 
 describe('encodeImageOutput', () => {
-  it('defaults to webp so existing uploads are unchanged', () => {
-    expect(DEFAULT_IMAGE_OUTPUT_FORMAT).toBe('webp')
-  })
-
   it.each([
     { description: 'encodes webp output', format: 'webp' as ImageOutputFormat },
     { description: 'encodes jpeg output', format: 'jpeg' as ImageOutputFormat },

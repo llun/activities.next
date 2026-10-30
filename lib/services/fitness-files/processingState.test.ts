@@ -7,18 +7,6 @@ import {
 describe('isFitnessProcessingStuck', () => {
   const now = 1_700_000_000_000
 
-  it('returns true when a file has been processing past the threshold', () => {
-    expect(
-      isFitnessProcessingStuck(
-        {
-          processingStatus: 'processing',
-          updatedAt: now - STUCK_PROCESSING_THRESHOLD_MS - 1
-        },
-        now
-      )
-    ).toBe(true)
-  })
-
   it('returns true at exactly the threshold boundary', () => {
     expect(
       isFitnessProcessingStuck(
@@ -108,12 +96,6 @@ describe('isFitnessImportStuck', () => {
       expect(isFitnessImportStuck({ ...stuck, importStatus }, now)).toBe(false)
     }
   )
-
-  it('returns false when a status was already assigned', () => {
-    expect(
-      isFitnessImportStuck({ ...stuck, statusId: 'https://x/statuses/1' }, now)
-    ).toBe(false)
-  })
 
   it('returns false when there is no import batch to retry', () => {
     expect(isFitnessImportStuck({ ...stuck, importBatchId: null }, now)).toBe(

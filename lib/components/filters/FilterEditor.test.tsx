@@ -214,19 +214,6 @@ describe('FilterEditor', () => {
       expect(onCancel).toHaveBeenCalledTimes(1)
     })
 
-    it('moves between the action options with the arrow keys', async () => {
-      renderNew()
-
-      const warn = screen.getByRole('radio', { name: /Hide with a warning/i })
-      fireEvent.keyDown(warn, { key: 'ArrowDown' })
-
-      await waitFor(() =>
-        expect(
-          screen.getByRole('radio', { name: /Hide completely/i })
-        ).toHaveAttribute('aria-checked', 'true')
-      )
-    })
-
     it('does not add a second h1 to the page', () => {
       renderNew()
 

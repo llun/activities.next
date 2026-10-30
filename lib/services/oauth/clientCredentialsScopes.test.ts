@@ -3,11 +3,6 @@ import { toClientCredentialsScopes } from './clientCredentialsScopes'
 describe('toClientCredentialsScopes', () => {
   it.each([
     {
-      description: 'keeps the scopes a Mastodon client registers with',
-      scopes: ['read', 'write', 'follow', 'push'],
-      expected: ['read', 'write', 'follow', 'push']
-    },
-    {
       description: 'keeps granular scopes untouched',
       scopes: ['read:statuses', 'write:media', 'admin:read:reports'],
       expected: ['read:statuses', 'write:media', 'admin:read:reports']

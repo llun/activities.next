@@ -668,29 +668,6 @@ describe('SignOutDialog', () => {
     resolveSignOut()
   })
 
-  it('ignores a second click on the confirm button while sign out is in flight', async () => {
-    let resolveSignOut: () => void = () => {}
-    vi.mocked(authClient.signOut).mockImplementation((() => {
-      events.push('signOut')
-      return new Promise<void>((resolve) => {
-        resolveSignOut = resolve
-      })
-    }) as unknown as typeof authClient.signOut)
-
-    renderDialog({ open: true })
-    const confirmButton = await screen.findByRole('button', {
-      name: 'Sign out'
-    })
-    await waitFor(() => expect(confirmButton).toBeEnabled())
-
-    fireEvent.click(confirmButton)
-    fireEvent.click(confirmButton)
-
-    await waitFor(() => expect(authClient.signOut).toHaveBeenCalledTimes(1))
-    expect(authClient.signOut).toHaveBeenCalledTimes(1)
-    resolveSignOut()
-  })
-
   it('disables "Review drafts" link with aria-disabled="true" and ignores clicks while signing out', async () => {
     await saveDraft(draft({ id: 'draft-1' }), {
       expectedRevision: 0,

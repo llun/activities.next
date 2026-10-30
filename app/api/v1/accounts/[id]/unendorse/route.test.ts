@@ -41,6 +41,7 @@ const createRequest = (targetId: string) =>
     { method: 'POST', headers: { origin: 'https://llun.test' } }
   )
 
+// The error cases are covered by the pin/unpin route tests; this pins the alias route's own wiring.
 describe('POST /api/v1/accounts/:id/unendorse', () => {
   const database = getTestSQLDatabase()
 
@@ -83,33 +84,5 @@ describe('POST /api/v1/accounts/:id/unendorse', () => {
       targetActorId: ACTOR4_ID
     })
     expect(stored).toBeNull()
-  })
-
-  it('returns 200 when there is no endorsement to remove', async () => {
-    // Actor3 follows Actor4 but no endorsement exists — unendorse is idempotent.
-    mockGetServerSession.mockResolvedValue({
-      user: { email: seedActor3.email }
-    })
-
-    const response = await POST(createRequest(ACTOR4_ID), {
-      params: Promise.resolve({ id: urlToId(ACTOR4_ID) })
-    })
-
-    expect(response.status).toBe(200)
-    const data = await response.json()
-    expect(data.endorsed).toBe(false)
-  })
-
-  it('returns 404 for an unknown account', async () => {
-    mockGetServerSession.mockResolvedValue({
-      user: { email: seedActor3.email }
-    })
-    const unknown = 'https://llun.test/users/does-not-exist'
-
-    const response = await POST(createRequest(unknown), {
-      params: Promise.resolve({ id: urlToId(unknown) })
-    })
-
-    expect(response.status).toBe(404)
   })
 })

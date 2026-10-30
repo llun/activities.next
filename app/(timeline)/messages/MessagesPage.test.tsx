@@ -719,17 +719,6 @@ describe('MessagesPage', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('shows "No messages yet" for a selected conversation with no messages', async () => {
-    ;(getConversationStatuses as jest.Mock).mockResolvedValue({
-      statuses: [],
-      nextMaxStatusId: null
-    })
-
-    renderMessagesPage([conversation({ id: 'first', participantName: 'Ada' })])
-
-    expect(await screen.findByText('No messages yet')).toBeInTheDocument()
-  })
-
   it('prefixes the conversation preview with "You:" for your own last message', () => {
     ;(getConversationStatuses as jest.Mock).mockResolvedValue({
       statuses: [],

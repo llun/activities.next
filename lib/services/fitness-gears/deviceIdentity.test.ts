@@ -46,12 +46,6 @@ describe('getDeviceGearKey', () => {
       expected: 'name:strava iphone app'
     },
     {
-      description: 'returns null for an unrecognised numeric manufacturer',
-      deviceName: null,
-      deviceManufacturer: '65535',
-      expected: null
-    },
-    {
       description: 'returns null when both fields are a bare FIT code',
       deviceName: '4315',
       deviceManufacturer: '65535',

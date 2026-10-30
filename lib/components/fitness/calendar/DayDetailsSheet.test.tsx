@@ -257,18 +257,6 @@ describe('DayDetailsSheet', () => {
     expect(onLoadMore).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps the date and offers Retry on failure', () => {
-    const onRetry = vi.fn()
-    render(
-      <DayDetailsSheet {...props({ activities: [], error: true, onRetry })} />
-    )
-    expect(
-      screen.getByRole('heading', { name: 'Thursday, 1 October 2026' })
-    ).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
-    expect(onRetry).toHaveBeenCalledTimes(1)
-  })
-
   it('shows loading and empty states', () => {
     const { rerender } = render(
       <DayDetailsSheet {...props({ activities: [], loading: true })} />

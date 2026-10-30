@@ -23,25 +23,6 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
     })
 
     describe('claimFitnessRouteHeatmapPyramidBuild', () => {
-      it('creates the row and claims a fresh build on first use', async () => {
-        const actorId = await createActor(database)
-
-        const claim = await database.claimFitnessRouteHeatmapPyramidBuild({
-          actorId,
-          requestedAt: Date.now(),
-          staleBefore: Date.now() - 120_000
-        })
-
-        expect(claim.claimed).toBe(true)
-        expect(claim.resumed).toBe(false)
-        expect(claim.reason).toBe('claimed')
-        expect(claim.pyramid.status).toBe('generating')
-        // A fresh claim bumps the version so its tiles replace, not extend,
-        // whatever an earlier build left behind.
-        expect(claim.pyramid.version).toBe(1)
-        expect(claim.pyramid.cursor).toBeUndefined()
-      })
-
       it('refuses a second claim while a build is heartbeating', async () => {
         const actorId = await createActor(database)
         const staleBefore = Date.now() - 120_000

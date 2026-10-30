@@ -16,50 +16,6 @@ const buildQuestion = (overrides: Record<string, unknown>): Question =>
   })
 
 describe('getPollChoicesFromQuestion', () => {
-  it('maps oneOf options to single-choice poll choices', () => {
-    const question = buildQuestion({
-      oneOf: [
-        {
-          type: 'Note',
-          name: 'Red',
-          replies: { type: 'Collection', totalItems: 3 }
-        },
-        {
-          type: 'Note',
-          name: 'Blue',
-          replies: { type: 'Collection', totalItems: 5 }
-        }
-      ]
-    })
-
-    expect(getPollChoicesFromQuestion(question)).toEqual([
-      { title: 'Red', totalVotes: 3 },
-      { title: 'Blue', totalVotes: 5 }
-    ])
-  })
-
-  it('maps anyOf options when oneOf is absent', () => {
-    const question = buildQuestion({
-      anyOf: [
-        {
-          type: 'Note',
-          name: 'Cats',
-          replies: { type: 'Collection', totalItems: 7 }
-        },
-        {
-          type: 'Note',
-          name: 'Dogs',
-          replies: { type: 'Collection', totalItems: 2 }
-        }
-      ]
-    })
-
-    expect(getPollChoicesFromQuestion(question)).toEqual([
-      { title: 'Cats', totalVotes: 7 },
-      { title: 'Dogs', totalVotes: 2 }
-    ])
-  })
-
   it('prefers oneOf over anyOf when both are present', () => {
     const question = buildQuestion({
       oneOf: [

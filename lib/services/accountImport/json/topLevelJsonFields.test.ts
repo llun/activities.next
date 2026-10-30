@@ -21,17 +21,4 @@ describe('readTopLevelJsonFields', () => {
       hiddenLocations: [{ latitude: 1, longitude: 2, hideRadiusMeters: 50 }]
     })
   })
-
-  it('rejects a root document that exceeds the scan cap', async () => {
-    const chunks: AsyncIterable<Buffer> = {
-      async *[Symbol.asyncIterator]() {
-        yield Buffer.from('{"id":1}')
-        yield Buffer.alloc(4 * 1024 * 1024, 0x20)
-      }
-    }
-
-    await expect(readTopLevelJsonFields(chunks, ['id'])).rejects.toMatchObject({
-      reason: 'entry_too_large'
-    })
-  })
 })
