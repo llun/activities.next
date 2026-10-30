@@ -6,6 +6,7 @@ import matchGenus from './__fixtures__/gbif-match-genus.json'
 import matchGenusOnly from './__fixtures__/gbif-match-higherrank-genus.json'
 import matchPongoHigherRank from './__fixtures__/gbif-match-higherrank-pongo.json'
 import matchNone from './__fixtures__/gbif-match-none.json'
+import matchSynonym from './__fixtures__/gbif-match-synonym.json'
 import searchKingfisher from './__fixtures__/gbif-search-kingfisher.json'
 import taxonKingfisher from './__fixtures__/gbif-taxon-kingfisher.json'
 import {
@@ -39,6 +40,13 @@ describe('normalizeMatch', () => {
   it('accepts a fuzzy match at or above 90', () => {
     expect(matchFuzzy.matchType).toBe('FUZZY')
     expect(normalizeMatch(matchFuzzy)?.taxonKey).toBe('2475532')
+  })
+
+  it('reports a synonym under the accepted key', () => {
+    expect(normalizeMatch(matchSynonym)).toMatchObject({
+      taxonKey: '2487879',
+      synonym: true
+    })
   })
 
   it('rejects a genus unless a group pick allows it', () => {

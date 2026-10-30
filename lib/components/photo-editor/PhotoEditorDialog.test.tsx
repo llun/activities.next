@@ -726,6 +726,17 @@ describe('PhotoEditorDialog', () => {
       expect(screen.getByRole('button', { name: 'Brush' })).toBeInTheDocument()
     })
 
+    it('hides Select subject without a model, and the brush still works', async () => {
+      await setup({ subjectModel: null })
+      openMasks()
+      expect(
+        await screen.findByRole('button', { name: 'Brush' })
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Select subject' })
+      ).toBeNull()
+    })
+
     it('a new brush mask needs an adjustment to save, undoes, and uploads its PNG', async () => {
       const { onSaved } = await setup()
       openMasks()

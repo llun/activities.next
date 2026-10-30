@@ -1,7 +1,7 @@
 import { Fragment, createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 
-import { cleanClassName, extractTagFromHref } from './cleanClassName'
+import { TAG_REGEX, cleanClassName, extractTagFromHref } from './cleanClassName'
 
 describe('extractTagFromHref', () => {
   it('extracts tag from absolute remote URL', () => {
@@ -113,6 +113,12 @@ describe('extractTagFromHref', () => {
         expect(performance.now() - start).toBeLessThan(500)
       }
     )
+
+    it('runs the tag regex itself in linear time on a long non-matching name', () => {
+      const start = performance.now()
+      expect(TAG_REGEX.test(`${'a'.repeat(200_000)}!`)).toBe(false)
+      expect(performance.now() - start).toBeLessThan(500)
+    })
 
     it('accepts a name at the hashtag length limit and refuses a longer one', () => {
       expect(extractTagFromHref(`/tags/${'a'.repeat(255)}`)).toBe(

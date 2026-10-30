@@ -91,6 +91,18 @@ describe('/auth/confirmation page', () => {
     expect(verifyAccountMock).not.toHaveBeenCalled()
   })
 
+  it('redirects to home when an active session exists and verification code is empty', async () => {
+    vi.mocked(getServerAuthSession).mockResolvedValue(aSession)
+
+    await Page({
+      searchParams: Promise.resolve({ verificationCode: '' })
+    })
+
+    expect(redirectMock).toHaveBeenCalledTimes(1)
+    expect(redirectMock).toHaveBeenCalledWith('/')
+    expect(verifyAccountMock).not.toHaveBeenCalled()
+  })
+
   it('consumes the verification code for a logged-out visitor', async () => {
     vi.mocked(getServerAuthSession).mockResolvedValue(null)
     verifyAccountMock.mockResolvedValue({ id: 'account-1' })

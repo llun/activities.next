@@ -244,6 +244,7 @@ describe('resolveMediaSubjectJob', () => {
 
   describe('a kingdom hint', () => {
     it.each([
+      ['NONE', { kind: 'none' }],
       ['a kingdom (unplaced)', { kind: 'unplaced' }],
       [
         'an uncertain answer',
