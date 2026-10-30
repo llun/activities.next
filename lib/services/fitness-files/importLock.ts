@@ -10,8 +10,8 @@ import { logger } from '@/lib/utils/logger'
 // two imports can't run the critical section concurrently. 120s gives ample
 // margin over the 30s job cap.
 export const IMPORT_LOCK_TTL_MS = 120 * 1000
-const DEFAULT_MAX_WAIT_MS = 15 * 1000
-const DEFAULT_POLL_INTERVAL_MS = 250
+export const DEFAULT_MAX_WAIT_MS = 15 * 1000
+export const DEFAULT_POLL_INTERVAL_MS = 250
 
 /**
  * Thrown by `withImportLock` with `failOnTimeout` when the lock stayed held for

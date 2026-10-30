@@ -1,5 +1,9 @@
 import { Database } from '@/lib/database/types'
-import { withImportLock } from '@/lib/services/fitness-files/importLock'
+import {
+  DEFAULT_MAX_WAIT_MS,
+  DEFAULT_POLL_INTERVAL_MS,
+  withImportLock
+} from '@/lib/services/fitness-files/importLock'
 
 const makeDatabase = (
   acquireImportLock: Database['acquireImportLock'],
@@ -13,6 +17,11 @@ const makeDatabase = (
   }) as unknown as Database
 
 describe('withImportLock', () => {
+  it('uses the production wait defaults', () => {
+    expect(DEFAULT_MAX_WAIT_MS).toBe(15 * 1000)
+    expect(DEFAULT_POLL_INTERVAL_MS).toBe(250)
+  })
+
   it('releases the lock even when fn throws', async () => {
     const release = vi.fn().mockResolvedValue(true)
     const database = makeDatabase(

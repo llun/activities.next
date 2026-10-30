@@ -94,6 +94,7 @@ describe('POST /api/v1/fitness-files/[id]/primary', () => {
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
+    wrapperOptions.length = 0
   })
 
   afterEach(async () => {
@@ -183,8 +184,10 @@ describe('POST /api/v1/fitness-files/[id]/primary', () => {
 
   it('passes its real wait options to the import lock, leaving the defaults to apply', async () => {
     const { chosen } = await createPair()
-    await post(chosen.id)
+    const response = await post(chosen.id)
 
+    expect(response.status).toBe(200)
+    expect(wrapperOptions).toHaveLength(1)
     const options = wrapperOptions.at(-1)
     expect(options).toMatchObject({ failOnTimeout: true })
     expect(options?.maxWaitMs).toBeUndefined()
@@ -386,7 +389,7 @@ describe('POST /api/v1/fitness-files/[id]/primary', () => {
     const held = await database.acquireImportLock({ lockKey, ttlMs: 60_000 })
     const pending = post(chosen.id)
     try {
-      // Three or four polls in, well inside the 600ms test wait.
+      // Three or four polls in, well inside the widened wait.
       await new Promise((resolve) => setTimeout(resolve, 150))
       await database.releaseImportLock({ lockKey, token: held!.token })
       const response = await pending

@@ -789,28 +789,28 @@ describe('bulkImportJob', () => {
             { acct: 'bob@remote.test' },
             { acct: 'carol@remote.test' }
           ])
-          // Mid-unit, the actor starts a new import; the idle one is abandoned.
-          await db
-            .updateTable('bulk_imports')
-            .set({
-              updatedAt: new Date(Date.now() - idleMs),
-              claimedUntil: new Date(Date.now() - 1000)
-            })
-            .where('id', '=', IMPORT_ID)
-            .execute()
-          expect(
-            await database.createBulkImport({
-              id: 'import-2',
-              actorId: actor.id,
-              type: 'following',
-              overwrite: false,
-              originalFilename: 'new.csv',
-              rows: [{ acct: 'dave@remote.test' }]
-            })
-          ).not.toBeNull()
-
           const mark = vi.spyOn(database, 'markBulkImportRowProcessed')
           try {
+            // Mid-unit, the actor starts a new import; the idle one is abandoned.
+            await db
+              .updateTable('bulk_imports')
+              .set({
+                updatedAt: new Date(Date.now() - idleMs),
+                claimedUntil: new Date(Date.now() - 1000)
+              })
+              .where('id', '=', IMPORT_ID)
+              .execute()
+            expect(
+              await database.createBulkImport({
+                id: 'import-2',
+                actorId: actor.id,
+                type: 'following',
+                overwrite: false,
+                originalFilename: 'new.csv',
+                rows: [{ acct: 'dave@remote.test' }]
+              })
+            ).not.toBeNull()
+
             finishUnit()
             await settle()
             await run
