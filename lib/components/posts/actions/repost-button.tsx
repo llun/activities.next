@@ -43,7 +43,8 @@ export const RepostButton: FC<RepostButtonProps> = ({
 
   useEffect(() => {
     setRepostedStatusId(mainStatus.actorAnnounceStatusId)
-  }, [mainStatus.actorAnnounceStatusId])
+    setError(null)
+  }, [mainStatus.actorAnnounceStatusId, setError])
 
   if (!currentActor) return null
   const repostLabel = targetLabel
@@ -51,6 +52,7 @@ export const RepostButton: FC<RepostButtonProps> = ({
     : repostedStatusId
       ? 'Undo repost'
       : 'Repost'
+  const failureMessage = 'Failed to repost. Please try again.'
 
   return (
     <span className="relative inline-flex items-center justify-center">
@@ -84,11 +86,19 @@ export const RepostButton: FC<RepostButtonProps> = ({
               return
             }
             setIsLoading(true)
-            const repostedStatus = await repostStatus({ statusId: status.id })
-            if (repostedStatus) {
-              setRepostedStatusId(repostedStatus.statusId)
+            setError(null)
+            try {
+              const repostedStatus = await repostStatus({ statusId: status.id })
+              if (repostedStatus) {
+                setRepostedStatusId(repostedStatus.statusId)
+              } else {
+                setError(failureMessage)
+              }
+            } catch {
+              setError(failureMessage)
+            } finally {
+              setIsLoading(false)
             }
-            setIsLoading(false)
           }}
         >
           <Repeat2 className="h-4 w-4" />

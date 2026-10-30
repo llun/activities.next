@@ -373,7 +373,9 @@ a string>`, which returns an empty page, so that poller never detects new
   recent public posts live from their outbox when the local store cannot fill
   the first page for an authenticated viewer. A live-served page carries no
   `Link` pagination headers (remote ids cannot cursor the local store), and
-  the fetched statuses are display-only — they are not persisted.
+  the fetched statuses are display-only — they are not persisted. Favouriting,
+  reblogging, bookmarking or reacting to a remote status not stored yet fetches and
+  stores it first with the same checks as the post page.
 
 ### Lists & imports
 
@@ -1895,6 +1897,12 @@ page — MUST render it through the shared `Posts`/`Post` components in
 action row: a post offers the **same action set everywhere**, and that
 consistency is enforced by keeping the wiring in one place rather than per page.
 
+- **Interactions on unstored remote statuses fetch and store them first.**
+  Favouriting, reblogging, bookmarking or reacting to a remote status not stored yet
+  fetches and stores it first with the same checks as the post page
+  (`fetchRemoteStatus`): non-URL ids, local domains and blocked federation domains
+  are refused, the fetched note and its author must be same-origin with the requested
+  URL, only public notes are stored, and existing unreadable posts are never fetched.
 - **The action set is owned by `Posts`, not by pages.** `Posts` renders the full
   action row (reply, boost, like, bookmark, react) plus the `⋯` menu (quote,
   edit-own, change visibility / who-can-quote, delete-own; mute / block / report

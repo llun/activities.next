@@ -9,6 +9,7 @@ import {
   normalizeStoredReactionName
 } from '@/lib/services/reactions/reactionName'
 import { getReadableStatus } from '@/lib/services/statusRouteAccess'
+import { getReadableStatusForAction } from '@/lib/services/statuses/getReadableStatusForAction'
 import { MAX_REACTIONS_PER_ACTOR } from '@/lib/services/statuses/reactionLimits'
 import { NotificationType } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
@@ -122,7 +123,7 @@ export const reactStatus = async ({
   statusId,
   name
 }: ReactStatusParams): Promise<ReactStatusResult> => {
-  const status = await getReadableStatus({
+  const status = await getReadableStatusForAction({
     database,
     statusId,
     currentActor,

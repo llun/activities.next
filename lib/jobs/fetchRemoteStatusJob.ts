@@ -75,7 +75,7 @@ const isAuthoritativeNote = (
   isSameActivityPubOrigin(note.id, servedFrom) &&
   isSameActivityPubOrigin(extractActivityPubId(note.attributedTo), note.id)
 
-const fetchRemoteStatus = async (
+export const fetchRemoteStatus = async (
   database: Database,
   statusId: string,
   depth = 0,

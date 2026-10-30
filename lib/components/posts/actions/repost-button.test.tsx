@@ -94,7 +94,7 @@ describe('RepostButton', () => {
     ).toBeInTheDocument()
   })
 
-  it('stays on Repost when the repost request returns nothing', async () => {
+  it('shows an error and stays on Repost when the repost request returns nothing', async () => {
     ;(repostStatus as jest.Mock).mockResolvedValue(null)
     render(<RepostButton currentActor={currentActor} status={status} />)
 
@@ -102,6 +102,29 @@ describe('RepostButton', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Repost' }))
     })
 
+    expect(
+      await screen.findByText('Failed to repost. Please try again.')
+    ).toHaveAttribute('role', 'alert')
+    expect(screen.getByTestId('repost-error')).toHaveAttribute(
+      'data-row-overlay'
+    )
+    expect(screen.getByRole('button', { name: 'Repost' })).toBeEnabled()
+  })
+
+  it('shows an error and keeps state when reposting throws', async () => {
+    ;(repostStatus as jest.Mock).mockRejectedValue(new Error('network down'))
+    render(<RepostButton currentActor={currentActor} status={status} />)
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Repost' }))
+    })
+
+    expect(
+      await screen.findByText('Failed to repost. Please try again.')
+    ).toHaveAttribute('role', 'alert')
+    expect(screen.getByTestId('repost-error')).toHaveAttribute(
+      'data-row-overlay'
+    )
     expect(screen.getByRole('button', { name: 'Repost' })).toBeEnabled()
   })
 
