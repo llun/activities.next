@@ -4,6 +4,8 @@
 import '@testing-library/jest-dom'
 import { render, screen } from '@testing-library/react'
 
+import { Alert } from '@/lib/components/surface/Alert'
+
 import {
   AuthCard,
   AuthCardActions,
@@ -86,5 +88,22 @@ describe('AuthCard', () => {
     expect(screen.getByRole('form')).toContainElement(
       screen.getByRole('button', { name: 'Go' })
     )
+  })
+
+  it('leaves the action band at normal text colour so an Alert in it is not muted or centred', () => {
+    render(
+      <AuthCardActions>
+        <Alert title="Passkey sign in failed" />
+        <AuthCardFooter>Sign up</AuthCardFooter>
+      </AuthCardActions>
+    )
+    const band = document.querySelector('[data-slot="auth-card-actions"]')
+    expect(band).not.toHaveClass('text-center')
+    expect(band).not.toHaveClass('text-muted-foreground')
+    expect(screen.getByText('Sign up')).toHaveClass(
+      'text-center',
+      'text-muted-foreground'
+    )
+    expect(band).toHaveClass('empty:hidden')
   })
 })

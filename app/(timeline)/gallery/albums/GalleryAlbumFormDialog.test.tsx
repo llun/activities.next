@@ -824,6 +824,14 @@ describe('GalleryAlbumFormDialog', () => {
     })
   })
 
+  it('pads and offsets the scroll container to prevent highlight clipping', () => {
+    renderDialog()
+    expect(screen.getByTestId('scroll-container')).toHaveClass(
+      'p-1.5',
+      '-m-1.5'
+    )
+  })
+
   describe('formatAlbumDatesChipLabel', () => {
     it.each`
       firstAt                       | lastAt                        | label
