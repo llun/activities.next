@@ -21,6 +21,12 @@ describe('headline', () => {
     )
   })
 
+  it('breaks an over-long headline instead of overflowing the card', () => {
+    expect(headline('Reset your password').html).toContain(
+      'word-wrap:break-word;overflow-wrap:anywhere;'
+    )
+  })
+
   it('carries the text into the plain-text part', () => {
     expect(headline('Reset your password').text).toBe('Reset your password')
   })
@@ -164,8 +170,50 @@ describe('quote', () => {
   it('renders the monogram, display name and handle', () => {
     const { html } = quote({ author })
     expect(html).toContain('>BC</td>')
-    expect(html).toContain('>Ben Carter</td>')
-    expect(html).toContain('>@ben@example.com</td>')
+    // Name and handle share ONE cell: an auto-layout table never shrinks below
+    // its min-content width, so separate cells pushed the row past the card
+    // edge on narrow screens.
+    expect(html).toContain('>Ben Carter</span> <span')
+    expect(html).toContain('>@ben@example.com</span>')
+  })
+
+  it('keeps the inset and author tables fixed-layout', () => {
+    const { html } = quote({ author })
+    const inset = html.match(
+      /<table [^>]*border="0" style="margin:0 0 20px;[^"]*">/
+    )?.[0]
+    expect(inset).toContain('table-layout:fixed')
+    const authorRow = html.match(
+      /<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;table-layout:fixed;">/
+    )?.[0]
+    expect(authorRow).toBeTruthy()
+  })
+
+  it('keeps white-space:nowrap out of the name/handle cell', () => {
+    const { html } = quote({
+      author,
+      body: { html: '<p>Hi</p>', text: 'Hi' }
+    })
+    // Slice the name/handle cell itself: the avatar cell (the one place
+    // white-space:nowrap is allowed) sits before it in the row, and slicing
+    // from the body div would never see this cell at all.
+    const start = html.indexOf('<td valign="middle" style="padding-left:8px')
+    const end = html.indexOf('</td>', start)
+    expect(start).toBeGreaterThan(-1)
+    expect(end).toBeGreaterThan(start)
+    const cell = html.slice(start, end)
+    expect(cell).not.toContain('white-space:nowrap')
+  })
+
+  it('gives the quoted body the break properties', () => {
+    const { html } = quote({
+      author,
+      body: { html: '<p>Hi</p>', text: 'Hi' }
+    })
+    const bodyHtml = html.slice(html.indexOf('margin-top:8px'))
+    expect(bodyHtml).toContain(
+      'word-wrap:break-word;overflow-wrap:anywhere;word-break:break-word'
+    )
   })
 
   describe('avatar', () => {
@@ -262,10 +310,12 @@ describe('quote', () => {
       )
     })
 
-    it('keeps a paragraph class and does not touch <pre>', () => {
+    it('keeps a paragraph class and wraps a quoted pre block', () => {
       const html = bodyOf('<p class="quote-inline">RE</p><pre>code</pre>')
       expect(html).toContain('<p class="quote-inline" style="margin:0;">RE</p>')
-      expect(html).toContain('<pre>code</pre>')
+      expect(html).toContain(
+        '<pre style="white-space:pre-wrap;word-wrap:break-word;overflow-wrap:anywhere;word-break:break-word;">code</pre>'
+      )
     })
 
     it.each([
@@ -353,6 +403,45 @@ describe('statCard', () => {
     expect(statCard({ title: 'a', stats: stats.slice(0, 2) }).html).toContain(
       'width="50%"'
     )
+  })
+
+  it('keeps the nested tables shrinkable on narrow phones', () => {
+    const { html } = statCard({
+      title: 'Morning run',
+      timestamp: '29 Oct 2026, 07:12',
+      stats,
+      mapImageUrl: 'https://example.com/api/v1/files/map.webp',
+      footnote: 'Imported from activity file · morning-run.fit'
+    })
+    // Outer, map, title and stats tables all shrink below their min-content
+    // width only under fixed layout — the 320-390px overflow fix.
+    expect(html.match(/table-layout:fixed/g)?.length).toBe(4)
+    expect(html).toContain(
+      'style="margin:0 0 20px;width:100%;table-layout:fixed;"'
+    )
+    // The timestamp column is an explicit 126px — "28 Sept 2026, 23:59" at
+    // 12px measures 117.6px in WebKit with the system font (the widest month),
+    // so 126px fits it with slack — and the title keeps the rest; nowrap would
+    // defeat the fixed layout by forcing min-content width.
+    expect(html).toContain('width="126" style="width:126px;')
+    expect(html).not.toContain('white-space:nowrap')
+    // Title and filename break anywhere instead of pushing the card wide.
+    expect(
+      html.match(
+        /word-wrap:break-word;overflow-wrap:anywhere;word-break:break-word/g
+      )?.length
+    ).toBe(2)
+  })
+
+  it('breaks an over-wide stat value instead of drawing over the next column', () => {
+    const { html } = statCard({ title: 'a', stats })
+    // Under fixed layout at a 320px viewport each of three stat columns is
+    // about 65px, and an 18px semibold value like 1:02:33 can be wider than
+    // that, so the value and label divs must break.
+    const value = html.match(/<div style="font-size:18px[^>]*>/)?.[0]
+    expect(value).toContain('word-wrap:break-word;overflow-wrap:anywhere')
+    const statLabel = html.match(/<div style="font-size:12px[^>]*>/)?.[0]
+    expect(statLabel).toContain('word-wrap:break-word;overflow-wrap:anywhere')
   })
 
   it('renders the route map when one is available', () => {

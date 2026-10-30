@@ -85,6 +85,117 @@ type CollectOptions = {
   includeSideEffects: boolean
 }
 
+// One runtime import site with the names it pulls in. `side-effect` entries
+// (`import 'x'`), `import('x')` and `export * from` carry no names;
+// `import * as x` carries the wildcard so a caller that needs to know which
+// bindings flow can tell. Type-only statements are dropped entirely, as are
+// import statements whose every specifier is type-only.
+export type ImportEntry = {
+  specifier: string
+  names: string[]
+  kind: 'runtime' | 'side-effect'
+}
+
+// The imported name of a specifier: what the module asks the source module
+// for (`a` in `import { a as b }`, `default` for a default import, `*` for a
+// namespace).
+const importedName = (specifier: {
+  type: string
+  imported?: { value?: string; type?: string }
+  local: { value: string }
+}): string => {
+  if (specifier.type === 'ImportDefaultSpecifier') return 'default'
+  if (specifier.type === 'ImportNamespaceSpecifier') return '*'
+  const imported = specifier.imported
+  if (imported && typeof imported.value === 'string') return imported.value
+  return specifier.local.value
+}
+
+// Every runtime import site of the file with its imported names, in source
+// order (static imports and re-exports first, dynamic imports last). Type-only
+// imports and exports — erased by TypeScript — are left out.
+export const collectImportEntries = (
+  fileName: string,
+  source: string
+): ImportEntry[] => {
+  const module: Module = parseSync(source, {
+    syntax: 'typescript',
+    tsx: fileName.endsWith('.tsx'),
+    decorators: true
+  })
+
+  const staticEntries = module.body.flatMap((statement): ImportEntry[] => {
+    if (statement.type === 'ImportDeclaration') {
+      if (statement.typeOnly) return []
+      if (statement.specifiers.length === 0) {
+        return [
+          {
+            specifier: statement.source.value,
+            names: [],
+            kind: 'side-effect'
+          }
+        ]
+      }
+      const names = statement.specifiers
+        .filter(
+          (specifier) =>
+            !(specifier.type === 'ImportSpecifier' && specifier.isTypeOnly)
+        )
+        .map(importedName)
+      return names.length > 0
+        ? [{ specifier: statement.source.value, names, kind: 'runtime' }]
+        : []
+    }
+
+    if (statement.type === 'ExportNamedDeclaration' && statement.source) {
+      if (statement.typeOnly) return []
+      const names = statement.specifiers
+        .filter(
+          (specifier) =>
+            !(specifier.type === 'ExportSpecifier' && specifier.isTypeOnly)
+        )
+        .map((specifier) => {
+          // `export * as x from './mod'` has no `orig`, only the alias; the
+          // module still flows through x, so it counts as the wildcard.
+          if (specifier.type === 'ExportNamespaceSpecifier') return '*'
+          // `export x from './mod'` (the export-default-from proposal) is
+          // modelled as `ExportDefaultSpecifier` in @swc/types, but the
+          // TypeScript parser rejects the syntax — this is defensive, so the
+          // default binding is never silently dropped if a parser version
+          // emits the node.
+          if (specifier.type === 'ExportDefaultSpecifier') return 'default'
+          const orig = (specifier as { orig?: { value?: string } }).orig
+          return typeof orig?.value === 'string' ? orig.value : ''
+        })
+        .filter((name) => name !== '')
+      return names.length > 0
+        ? [{ specifier: statement.source.value, names, kind: 'runtime' }]
+        : []
+    }
+
+    if (statement.type === 'ExportAllDeclaration') {
+      // `export type * from` is parsed with `typeOnly: true`; @swc/types does
+      // not declare the field on this node yet, hence the `in` check.
+      const isTypeOnly = 'typeOnly' in statement && statement.typeOnly === true
+      return isTypeOnly
+        ? []
+        : [{ specifier: statement.source.value, names: [], kind: 'runtime' }]
+    }
+
+    return []
+  })
+
+  const dynamicEntries = collectDynamicImports(module.body, []).map(
+    (specifier): ImportEntry => ({
+      specifier,
+      names: [],
+      kind: 'runtime'
+    })
+  )
+
+  return [...staticEntries, ...dynamicEntries]
+}
+
 // Every module specifier the file imports or re-exports at runtime: static
 // value imports, `export … from` and `import('x')`. Type-only imports and
 // exports are erased by TypeScript and excluded.
@@ -99,44 +210,7 @@ export const collectImports = (
   fileName: string,
   source: string,
   { includeSideEffects }: CollectOptions
-): string[] => {
-  const module: Module = parseSync(source, {
-    syntax: 'typescript',
-    tsx: fileName.endsWith('.tsx'),
-    decorators: true
-  })
-
-  const staticImports = module.body.flatMap((statement) => {
-    if (statement.type === 'ImportDeclaration') {
-      if (statement.typeOnly) return []
-      if (statement.specifiers.length === 0) {
-        return includeSideEffects ? [statement.source.value] : []
-      }
-      const isEveryBindingTypeOnly = statement.specifiers.every(
-        (specifier) =>
-          specifier.type === 'ImportSpecifier' && specifier.isTypeOnly
-      )
-      return isEveryBindingTypeOnly ? [] : [statement.source.value]
-    }
-
-    if (statement.type === 'ExportNamedDeclaration' && statement.source) {
-      if (statement.typeOnly) return []
-      const isEveryBindingTypeOnly = statement.specifiers.every(
-        (specifier) =>
-          specifier.type === 'ExportSpecifier' && specifier.isTypeOnly
-      )
-      return isEveryBindingTypeOnly ? [] : [statement.source.value]
-    }
-
-    if (statement.type === 'ExportAllDeclaration') {
-      // `export type * from` is parsed with `typeOnly: true`; @swc/types does
-      // not declare the field on this node yet, hence the `in` check.
-      const isTypeOnly = 'typeOnly' in statement && statement.typeOnly === true
-      return isTypeOnly ? [] : [statement.source.value]
-    }
-
-    return []
-  })
-
-  return [...staticImports, ...collectDynamicImports(module.body, [])]
-}
+): string[] =>
+  collectImportEntries(fileName, source)
+    .filter((entry) => entry.kind === 'runtime' || includeSideEffects)
+    .map((entry) => entry.specifier)

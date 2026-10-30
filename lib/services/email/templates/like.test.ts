@@ -68,8 +68,8 @@ describe('buildLikeEmail', () => {
   it('labels the quote as the recipient own post', () => {
     const { html } = build()
     expect(html).toContain('>Your post:</p>')
-    expect(html).toContain('>Anna</td>')
-    expect(html).toContain(`>@anna@${HOST}</td>`)
+    expect(html).toContain('>Anna</span>')
+    expect(html).toContain(`>@anna@${HOST}</span>`)
   })
 
   it('includes the post body in both media', () => {
@@ -93,6 +93,9 @@ describe('buildLikeEmail brand', () => {
     expect(subject).toBe('@ben liked your post in run.example')
     expect(html).toContain('>Run Club</td>')
     expect(html).toContain('href="https://run.example/settings/notifications"')
-    expect(html).not.toContain(BASE_URL)
+    // The header logo is the one exception that always points at the configured
+    // host (an alias domain may not serve the public/ assets); every LINK uses
+    // the brand domain.
+    expect(html).not.toContain(`href="${BASE_URL}`)
   })
 })

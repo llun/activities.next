@@ -85,9 +85,13 @@ export const canTuck = (status: Status): boolean => {
  * run carries at most `COMBINE_MAX_INSETS` of them, the reply has nothing but
  * text and the author's next post follows it; otherwise the run splits there and
  * those replies are looked at again, each one free to start a run of its own.
+ *
+ * `neverTuckIds` lists status ids the run must never swallow as insets — on
+ * the post page, the ancestors and the opened post must stay full rows.
  */
 export const buildCombinedBlocks = (
-  statuses: readonly Status[]
+  statuses: readonly Status[],
+  { neverTuckIds }: { neverTuckIds?: ReadonlySet<string> } = {}
 ): CombinedBlock[] => {
   const aliasToId = new Map<string, string>()
   for (const status of statuses) {
@@ -106,7 +110,7 @@ export const buildCombinedBlocks = (
       createdAt: getStatusCreatedAtMs(actual),
       parentId: parentId === status.id ? null : parentId,
       visibility: getVisibility(actual.to, actual.cc),
-      canTuck: canTuck(status)
+      canTuck: !neverTuckIds?.has(status.id) && canTuck(status)
     }
   }
 

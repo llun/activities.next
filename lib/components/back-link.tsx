@@ -26,7 +26,7 @@ export interface BackLinkProps {
   iconOnlyFrom?: 'md'
   className?: string
   iconClassName?: string
-  /** `false` for a per-user `[actor]` route (see Link prefetching in feeds). */
+  /** `false` for a per-user `[actor]` route (see Link prefetching in feeds in docs/architecture.md). */
   prefetch?: boolean
   /**
    * For a Back that leaves an editor held in the page's own state: it runs on

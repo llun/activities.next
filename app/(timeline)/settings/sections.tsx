@@ -106,6 +106,7 @@ export const getSettingsGroups = (
   },
   {
     afterFooter: true,
+    heading: 'This profile',
     items: [
       {
         name: 'Moving',
@@ -117,6 +118,7 @@ export const getSettingsGroups = (
         name: 'Delete this profile',
         url: '/settings/delete',
         icon: <Trash2 />,
+        danger: true,
         description: profile
           ? `Remove @${profile.username} and its posts from this server`
           : 'Remove this profile and its posts from this server'

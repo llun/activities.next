@@ -1,6 +1,6 @@
 {
   "name": "activities.next",
-  "version": "1.227.3",
+  "version": "1.227.8",
   "license": "MIT",
   "type": "module",
   "workspaces": [
@@ -125,7 +125,7 @@
     "@trivago/prettier-plugin-sort-imports": "^6.0.2",
     "@types/bcrypt": "^6.0.0",
     "@types/jsonld": "^1.5.15",
-    "@types/lodash": "^4.17.26",
+    "@types/lodash": "^4.17.27",
     "@types/mime-types": "^3.0.1",
     "@types/node": "^26.6.5",
     "@types/pg": "^8.23.1",

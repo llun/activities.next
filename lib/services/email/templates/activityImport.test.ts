@@ -193,6 +193,17 @@ describe('buildActivityImportEmail', () => {
   it('uses the notification footer naming fitness imports', () => {
     expect(build().html).toContain('email notifications for fitness imports')
   })
+
+  it('fits the widest formatted timestamp inside the 126px timestamp column', () => {
+    // "September" is the month formatStartTime renders longest ("28 Sept
+    // 2026, 23:59"), so it is the tightest fit for the statCard timestamp
+    // column.
+    const { html } = build({
+      fitness: fitness({ activityStartTime: Date.UTC(2026, 8, 28, 23, 59) })
+    })
+    const cell = html.match(/<td [^>]*width="126"[^>]*>[\s\S]*?<\/td>/)?.[0]
+    expect(cell).toContain('28 Sept 2026, 23:59')
+  })
 })
 
 describe('buildActivityImportEmail title truncation', () => {

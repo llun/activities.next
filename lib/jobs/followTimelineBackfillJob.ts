@@ -60,7 +60,7 @@ const mergeStoredStatusesIntoFollowerTimeline = async (
   targetActor: Actor
 ) => {
   // Never call getActorStatuses without visibility arguments (it fails open —
-  // AGENTS.md → Who May See an Actor's Statuses). The resolver answers what
+  // docs/mastodon-api-compatibility.md → Who May See an Actor's Statuses). The resolver answers what
   // THIS follower may see; the follow is already Accepted, so followers-only
   // posts are legitimately in scope, mirroring the profile page.
   const audience = await resolveActorStatusesAudience({
@@ -82,7 +82,8 @@ const mergeStoredStatusesIntoFollowerTimeline = async (
       // Home timeline only — a direct message already reached the DIRECT
       // timeline through creation-time fan-out.
       if (isDirectStatus(status)) continue
-      // The SQL scope is necessary but not sufficient (AGENTS.md): it cannot
+      // The SQL scope is necessary but not sufficient (docs/mastodon-api-compatibility.md →
+      // Who May See an Actor's Statuses): it cannot
       // see through a boost, so pair it with canActorReadStatus — this drops
       // e.g. the target's public Announce of a third party's followers-only
       // post this follower cannot read.
@@ -193,7 +194,7 @@ export const followTimelineBackfillJob = createJobHandle(
           try {
             // Canonicalise the untrusted document before reading any AP terms
             // — mandatory for every new entry point parsing remote AP objects
-            // (AGENTS.md → ActivityPub & JSON-LD).
+            // (docs/mastodon-api-compatibility.md → ActivityPub & JSON-LD).
             const activity = await compactActivityPub(item)
             // Announces are deliberately skipped: storing a boost requires a
             // verified re-fetch of the third-party original and pulls in

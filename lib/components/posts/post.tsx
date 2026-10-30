@@ -111,7 +111,7 @@ export const BoostStatus: FC<BoostStatusProps> = ({ status }) => {
           // in `actor.tsx` carry: `prefetch={false}`, because a feed renders
           // this row once per boost and `/@user@domain` is a fully dynamic
           // route that federates out for a remote actor this instance has not
-          // persisted (see "Link prefetching in feeds" in AGENTS.md), and the
+          // persisted (see "Link prefetching in feeds" in docs/architecture.md), and the
           // same click guard, so opening a profile never doubles as a click on
           // whatever surface embeds the post.
           <Link

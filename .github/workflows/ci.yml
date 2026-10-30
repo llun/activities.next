@@ -1,13 +1,14 @@
 name: CI
 
 # Runs on every commit (push to any branch + pull requests). The lint/prettier,
-# typecheck, build, test, postgresql database test, schema-dump-sync, and docker-smoke jobs run in parallel (no `needs:` chain
-# between them) so the check finishes as fast as the slowest single job instead
-# of the sum of all of them. If any one of them fails, the run is reported as failed: the
-# `CI / CI Success` job aggregates every job's result and fails unless all
-# succeeded. Mark that job as the required status check in branch protection — it
-# avoids the skipped-job-counts-as-passing gap that requiring the individual jobs
-# would have. `cancel-in-progress` (below) also kills superseded runs so a new
+# typecheck, build, SQLite test shards, PostgreSQL test shards, and docker
+# smoke jobs run in parallel (no `needs:` chain between them) so the check
+# finishes as fast as the slowest single job instead of the sum of all of
+# them. The `All Tests` job (id `test`) fans in the SQLite test shards and the
+# PostgreSQL test shards and fails closed. Branch protection requires
+# `All Tests`, `Lint and Prettier` and `Build`. `CI Success` aggregates every
+# job and fails unless all of them succeeded (skipped or cancelled count as
+# failure). `cancel-in-progress` (below) also kills superseded runs so a new
 # push fails fast past the old one.
 #
 # Everything runs in the normal push/pull_request context: jobs use the default
@@ -146,173 +147,30 @@ jobs:
           # default (`??=`). On a UTC runner (the default) it could not fail.
           TZ: Pacific/Noumea
 
-  # Aggregate gate that keeps the required "All Tests" status check name stable
-  # while the work fans out across the shard matrix above. `if: always()` plus
-  # the explicit result check is required: without it a failed/skipped shard
-  # would leave this job skipped, and GitHub counts a skipped required check as
-  # passing.
-  test:
-    name: All Tests
-    runs-on: ubuntu-latest
-    needs: [test-shards]
-    if: ${{ always() }}
-    steps:
-      - name: Verify all test shards succeeded
-        env:
-          RESULT: ${{ needs.test-shards.result }}
-        run: |
-          echo "Test shards result: $RESULT"
-          if [ "$RESULT" != "success" ]; then
-            echo "::error::One or more test shards did not succeed (got: $RESULT)"
-            exit 1
-          fi
-          echo "All test shards succeeded."
-
-  # Bounded PostgreSQL integration test job covering database access layers:
-  # media (and media details/gallery, incl. gallery services), fitness files, gear, component periods, heatmap tiles, queue jobs,
-  # status deletion queue transactions, list membership row locking, likes,
-  # accounts (sessions and provider links), the small Kysely-ported domains
-  # (account notes, domain blocks, custom emojis, endorsements, followed tags,
-  # idempotency keys, import locks, instance rules, markers, relays, server
-  # settings, the translation cache, keyset pagination), actor deletion, the
-  # job, OAuth, push and scheduled-status domains (dead letter jobs, queue job
-  # claim and replay, OAuth clients and connected apps, push subscriptions,
-  # scheduled statuses), the filter, report, mute and suggestion domains
-  # (filters, server filters, reports, conversation mutes, detected languages,
-  # friends-of-friends suggestions), the block, actor mute, bookmark, status
-  # quote, status reaction and link preview domains (blocks and their counters,
-  # actor mutes, bookmarks, quote edges, emoji reactions, link preview cards),
-  # the announcement, notification and instance activity domains
-  # (announcements with their reads and reactions, notifications and their
-  # requests queue, weekly activity and login buckets), the search, featured
-  # tag and trends domains (the full-text index, account search by profile
-  # text, exact handle and followed accounts, hashtag aggregates, status search
-  # and which indexed statuses a viewer can find, featured tags with their
-  # stats, trending tags and statuses), the admin domain (account and hashtag
-  # listings, service statistics, domain block and allow rules with their
-  # import), the fitness settings, Wahoo import and Strava archive import
-  # domains (per-actor provider settings with their encrypted tokens and OAuth
-  # state, Wahoo workout and history imports and their calendar days kept
-  # whatever the process time zone, Strava archive imports), the account and
-  # moderation domains (account and actor creation with their counters and
-  # search documents, sessions and the OAuth token detach, e-mail change and
-  # password reset, actor and account moderation state, the admin account
-  # listing), the better-auth Kysely adapter and the auth flows over it (its
-  # CRUD, joins, consumeOne and incrementOne, the stored date and boolean
-  # representations, credential sign-in, session joins and refresh, two-factor
-  # sign-in, the OAuth provider grants and signing out a session that minted
-  # tokens, the JWKS, the error URL and the schema completeness check), the
-  # direct conversation domain (conversation listings and their cursors, read
-  # and hidden state, syncing statuses into conversations with their
-  # participants and blocks, the read-marker row lock), the actor domain (actor
-  # rows with their search documents, profile settings and the accepted-senders
-  # row lock, counters and NodeInfo statistics, the Mastodon account view and
-  # the profile directory, the federation signing actor, publicId and
-  # case-insensitive username lookups, deletion scheduling), the follow and list
-  # domains with the local actor predicate (follow edges and requests with their
-  # counters and cursors, remote actors stored with an empty key kept out of the
-  # local timelines, followers collections and fan-out, lists and their members,
-  # the materialized list timeline with its backfill and fan-out), the
-  # timeline domain (the home, direct,
-  # local public and federated timelines with their cursors, the local public
-  # count and its query shape, the timeline fan-out service), the fitness gear
-  # domain (bikes, shoes and recording devices, their components and install
-  # periods, default-sport auto-assign, distance, device and component rollups,
-  # service reminders, the gear a processed file is given and the gear and
-  # device names a status returns), the media reads (a status's attachments, an
-  # actor's attachments behind the Kysely actor-visible status filter and
-  # what it selects for every audience, the account's media listing with its
-  # counter total and paging, media by id and the statuses its owner's account
-  # attached it to, storage usage) with the media routes and the upload and
-  # attach services over them, the media writes (uploads and their
-  # verification with the account usage counters and hour buckets, attachment
-  # inserts, playback and remote-attachment swaps, media edits, the media
-  # deletes with their edit files and album items and covers behind the
-  # gallery album lock the album writes share, the subject and place
-  # lookups and subject suggestions) with the lookup, suggestion, quota and
-  # map-attachment code over them, and the other suites that read or write
-  # media on a real database (the media describe, album, photo-edit and
-  # photo-edit revert routes, status edits with media, the photo
-  # editor domain, status writes and deletes that hydrate attachments, the
-  # profile page data), the status lookups, poll reads, hashtag reads and pins
-  # (statuses by url, url hash, publicId and path segment, an actor's own
-  # boost, poll votes, the hashtag timeline, admin page and counter, pins with
-  # their per-actor cap and row lock, the favourited-by and reblogged-by pages
-  # behind the Kysely set form of the publicly-readable predicate) with the
-  # status action (pin included), status create and batch read, favourited-by,
-  # reblogged-by, unreblog, poll edit, account status, user status, bookmark,
-  # status filter routes, the announce, note emoji and
-  # poll actions, the create-note, create-poll and update-note jobs and the
-  # Mastodon status, filter, context, mention, notification and client id
-  # services over them, the status writes (note, poll and boost creates with
-  # their recipients, status, reblog and reply counters, hour buckets and
-  # lastStatusAt, a duplicate delivery recovered after its failed transaction,
-  # the note and poll edits with their revisions, attachments and tallies, the
-  # audience change that moves the public counts, the quote policy, tags and
-  # hashtag counters, poll votes) with the status edit, interaction policy,
-  # quote and scheduled status routes, the shared inbox, the create-note,
-  # update-note and visibility actions, the remote fetch, the announce, note,
-  # relay announce, forwarded activity, poll vote, update-note, update-poll,
-  # remote status fetch, follow backfill and scheduled status jobs and the
-  # edited-media refresh service over them, and the suites whose tests write
-  # their statuses through them (the home and album pages, the timeline,
-  # notification, trend, favourite, featured tag, quote, quote authorization,
-  # status, context, history, source, account media, gallery and admin report
-  # routes, the delete, like and unannounce actions, the actor posts reader,
-  # the send-note, send-announce, quote request, quote revoke and delete-object
-  # jobs, the favourites page, forwarding, status edits, quote notification,
-  # reaction, timeline and trending status services, the status type and the
-  # status text processing), the status reads and hydration (a status with its
-  # replies, an actor's statuses with their filters, cursors and count, statuses
-  # by id, the edit history, the reblog and reply counts, and the hydrated poll,
-  # fitness file, quote, link preview, reaction and viewer fields) with the
-  # personal inbox, the emoji reaction action and job, the actor posts reader's
-  # context and string-reference suites, the reaction list and the mention
-  # lookup over them, the status and actor deletions (a status's reply tree
-  # with every row keyed on it, its counters, hashtags, lastStatusAt, quote
-  # tombstones and queue job, an actor's purge with its counters, poll
-  # tallies and search documents, their chunking, rollbacks and row locks)
-  # with the actor deletion job over them, the fitness file domain (uploads with their
-  # storage and file counters and hourly buckets, deletes, processing and
-  # import status, primary assignment, the actor listing with its cursor and
-  # lenient paging, the account listing with its counter total, the overview
-  # summary, calendar, window and earliest activity, whether an actor has
-  # fitness data for a viewer) with the fitness routes, the import, processing,
-  # map regeneration and heatmap jobs, the actor archive export and the
-  # services over it, the gallery domain (gear with its limit and device keys,
-  # gallery settings, the gallery media, index, map and gear-usage reads with
-  # their cursors, media sortAt, filters, and facets, unposted media and adding
-  # it to the gallery, the lookup cache and its prune, the album suggestions'
-  # item read, the albums and their per-actor and per-album caps behind the
-  # actor row lock, the SQLite query plans of the gallery statements) with the
-  # account gallery, gallery gear, media and settings routes, the gallery album
-  # routes and the album page, the v2 media upload, note creation and the
-  # gallery lookup backfill (with its real place lookup) over it, the cached
-  # activity routes and route heatmap
-  # domain (route upserts with their bounding box, chunked route reads, the
-  # region count and bounds over countable activities, heatmaps by id, key and
-  # share token, the pyramid subscribers and their progress mirror, the
-  # per-actor listings and their filters, status updates with the clear-deleted
-  # cutoff, share tokens, cancels, soft deletes, region names), the route
-  # heatmap tile pyramid (the build claim with its compare-and-swap, fenced
-  # tile flushes and stale-tile sweeps, chunked key reads, viewport reads and
-  # totals, the per-actor clear, their row locks raced on two connections),
-  # the Kysely
-  # countable-activity predicate checked against its rule written out in
-  # JavaScript, the gallery media scope checked on the album reads' join, the
-  # Kysely status visibility, actor-visible status, list eligibility, replies
-  # policy, block/mute, follow-target, exclusive-list and publicly-readable
-  # predicates checked against the rows each selects, and the database
-  # connection (its pool, sqlcommenter tags, result normalisation pinned to
-  # golden values, the transaction guard, counters, bucket counters, chunked IN
-  # lists, savepoints), and the schema facts the reference dumps must keep
-  # (index columns, unique indexes, foreign keys and their delete rules, the
-  # full-text search index and triggers).
-  # Vitest worker concurrency is bounded (--maxWorkers=2) to avoid exhausting
-  # database connections or overloading disposable service containers.
+  # PostgreSQL database tests over every test file whose import graph reaches a
+  # PostgreSQL-capable test helper. The list is generated at run time by
+  # scripts/maintenance/listPostgresTestFiles.ts (414 files at the time of
+  # writing) and split into two shards for wall-clock parallelism. Env vars
+  # honour TEST_DATABASE_TYPE so the helpers pick the pg backend, pointed at
+  # the `postgres` service.
+  #
+  # Shard 1 also runs the schema drift checks, so they run exactly once per
+  # CI run: fresh SQLite and PostgreSQL databases are migrated, the reference
+  # dumps (migrations/schema.sqlite.sql, migrations/schema.sql) are
+  # regenerated and diffed, the Kysely DB types (lib/database/kysely/db.ts)
+  # are regenerated from the migrated PostgreSQL database and diffed, and the
+  # baseline is loaded on PostgreSQL 14 (the oldest version the docs support)
+  # and dumped the same way. There is no hand-written PostgreSQL test file
+  # list anywhere: a new database-reaching test file is picked up
+  # automatically.
   test-pg:
-    name: PostgreSQL Database Tests
+    name: PostgreSQL Tests (shard ${{ matrix.shard }}/2)
     runs-on: ubuntu-latest
+    strategy:
+      # Run every shard even if one fails, so all failures surface in one run.
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     services:
       postgres:
         image: postgres:17
@@ -323,474 +181,12 @@ jobs:
         ports:
           - 5432/tcp
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U activities"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-      - name: Enable corepack
-        run: corepack enable
-      - name: Use Node.js 24
-        uses: actions/setup-node@v7
-        with:
-          node-version: 24
-          cache: yarn
-      - name: Install dependencies
-        run: yarn install --immutable
-      - name: Wait for PostgreSQL readiness
-        run: |
-          until docker exec ${{ job.services.postgres.id }} pg_isready -U activities -d postgres -q; do
-            sleep 1
-          done
-      - name: Run PostgreSQL database integration tests
-        run: |
-          yarn test --maxWorkers=2 \
-            lib/database/domains/media/media.test.ts \
-            lib/database/domains/media/mediaAccountListing.test.ts \
-            lib/database/domains/media/mediaMutations.test.ts \
-            lib/database/domains/media/mediaDetails.test.ts \
-            lib/database/domains/media/mediaQueries.test.ts \
-            lib/database/domains/media/mediaWrites.test.ts \
-            lib/database/domains/media/attachmentVisibility.test.ts \
-            lib/database/kysely/visibility/actorVisible.test.ts \
-            app/api/v1/media/route.test.ts \
-            'app/api/v1/media/[id]/route.test.ts' \
-            lib/services/medias/saveMediaFileDetails.test.ts \
-            lib/services/statuses/mediaIds.test.ts \
-            'app/api/v1/media/[id]/lookups/route.test.ts' \
-            'app/api/v1/media/[id]/subject-suggestions/route.test.ts' \
-            'app/api/v1/media/[id]/describe/route.test.ts' \
-            'app/api/v1/media/[id]/edit/revert/route.test.ts' \
-            'app/api/v1/media/[id]/albums/route.test.ts' \
-            'app/api/v1/media/[id]/edit/route.test.ts' \
-            'app/api/v1/statuses/[id]/route.update.test.ts' \
-            'app/api/v1/statuses/[id]/route.update.galleryOnlyEdit.test.ts' \
-            'app/(timeline)/[actor]/getProfileData.test.ts' \
-            lib/services/medias/quota.test.ts \
-            lib/services/fitness-files/mapAttachments.test.ts \
-            lib/database/domains/mediaEdit/queries.test.ts \
-            lib/database/domains/status/statusWrite.test.ts \
-            lib/database/domains/status/statusDelete.test.ts \
-            lib/database/domains/gallery/gallery.test.ts \
-            lib/database/domains/gallery/galleryMedia.test.ts \
-            lib/database/domains/gallery/galleryAlbums.test.ts \
-            lib/database/domains/gallery/galleryAlbumsVisibility.test.ts \
-            lib/database/domains/gallery/galleryAlbumSuggestions.test.ts \
-            lib/services/gallery/galleryAlbumQueries.test.ts \
-            lib/services/gallery/galleryAlbumVisitor.test.ts \
-            lib/services/gallery/galleryAlbumSuggestions.test.ts \
-            lib/services/gallery/galleryQueries.test.ts \
-            lib/services/gallery/galleryGear.test.ts \
-            lib/services/gallery/subjectHashtags.test.ts \
-            lib/services/gallery/uploadMediaDetails.test.ts \
-            lib/database/domains/gallery/galleryLookupCache.test.ts \
-            lib/database/domains/gallery/galleryQueries.test.ts \
-            lib/database/domains/gallery/galleryAlbumQueries.test.ts \
-            lib/database/domains/gallery/galleryMediaQueryPlan.test.ts \
-            lib/database/kysely/visibility/galleryMediaEquivalence.test.ts \
-            'app/api/v1/accounts/[id]/gallery/albums/[albumId]/route.test.ts' \
-            'app/api/v1/accounts/[id]/gallery/albums/route.test.ts' \
-            'app/api/v1/accounts/[id]/gallery/life-list/route.test.ts' \
-            'app/api/v1/accounts/[id]/gallery/map/route.test.ts' \
-            'app/api/v1/accounts/[id]/gallery/media/route.test.ts' \
-            'app/api/v1/accounts/[id]/gallery/subjects/route.test.ts' \
-            app/api/v1/gallery/gears/route.test.ts \
-            'app/api/v1/gallery/gears/[id]/route.test.ts' \
-            'app/api/v1/gallery/gears/[id]/retire/route.test.ts' \
-            app/api/v1/gallery/media/route.test.ts \
-            'app/api/v1/gallery/media/[mediaId]/details/route.test.ts' \
-            app/api/v1/gallery/settings/route.test.ts \
-            app/api/v1/gallery/albums/route.test.ts \
-            'app/api/v1/gallery/albums/[id]/route.test.ts' \
-            'app/api/v1/gallery/albums/[id]/items/route.test.ts' \
-            app/api/v1/gallery/albums/suggestions/route.test.ts \
-            app/api/v1/gallery/albums/suggestions/media/route.test.ts \
-            'app/(timeline)/[actor]/albums/[id]/page.test.tsx' \
-            app/api/v2/media/route.test.ts \
-            lib/actions/createNote.test.ts \
-            lib/actions/createNote.visibility.test.ts \
-            scripts/maintenance/backfillGalleryLookups.test.ts \
-            scripts/maintenance/backfillGalleryLookups.nominatim.test.ts \
-            lib/database/migrate/addMediaSortAt.test.ts \
-            lib/database/domains/media/mediaSortAt.test.ts \
-            lib/database/domains/gallery/galleryMediaFilters.test.ts \
-            lib/database/domains/gallery/galleryDayStats.test.ts \
-            lib/database/kysely/dialect.test.ts \
-            lib/database/domains/gallery/galleryMediaFacets.test.ts \
-            lib/services/gallery/galleryMediaFacets.test.ts \
-            'app/api/v1/gallery/media/facets/route.test.ts' \
-            scripts/maintenance/backfillGifvMetadata.test.ts \
-            scripts/maintenance/backfillMissingLikeActors.test.ts \
-            scripts/maintenance/mediaEditReferences.test.ts \
-            scripts/mock/createMockFitnessCalendarData.checksum.test.ts \
-            lib/database/scriptDatabase.test.ts \
-            lib/database/domains/fitnessFile/fitnessFile.test.ts \
-            lib/database/domains/fitnessFile/fitnessFileActivityStats.test.ts \
-            lib/database/domains/fitnessFile/fitnessFileOverviewWindows.test.ts \
-            lib/database/domains/fitnessGear/fitnessGear.test.ts \
-            lib/database/domains/fitnessGear/fitnessGearComponents.test.ts \
-            lib/database/domains/fitnessGear/fitnessGearDevice.test.ts \
-            lib/database/domains/fitnessGear/fitnessGearComponentPeriods.test.ts \
-            lib/database/domains/fitnessGear/fitnessGearQueries.test.ts \
-            lib/services/fitness-gears/serviceReminders.test.ts \
-            lib/jobs/processFitnessFileJob.gearDevice.test.ts \
-            lib/database/domains/fitnessFile/fitnessFileQueries.test.ts \
-            lib/database/domains/fitnessFileRoute/fitnessFileRoute.test.ts \
-            lib/database/domains/fitnessRouteHeatmap/fitnessRouteHeatmap.test.ts \
-            lib/database/domains/fitnessFileRoute/fitnessFileRouteQueries.test.ts \
-            lib/database/domains/fitnessRouteHeatmap/fitnessRouteHeatmapQueries.test.ts \
-            "app/api/v1/fitness-files/[id]/route.test.ts" \
-            "app/api/v1/fitness-files/[id]/route-data/route.test.ts" \
-            app/api/v1/fitness-files/by-status/route.test.ts \
-            "app/api/v1/statuses/[id]/retry-fitness/route.test.ts" \
-            "app/api/v1/statuses/[id]/route.delete.test.ts" \
-            lib/actions/createNote.attachment.test.ts \
-            lib/jobs/importFitnessFilesJob.test.ts \
-            lib/jobs/importFitnessFilesJob.optIns.test.ts \
-            lib/jobs/importFitnessFilesJob.primary.test.ts \
-            lib/jobs/importStravaActivityJob.federation.test.ts \
-            lib/jobs/importStravaActivityJob.merge.test.ts \
-            lib/jobs/processFitnessFileJob.test.ts \
-            lib/jobs/processFitnessFileJob.notification.test.ts \
-            lib/jobs/processFitnessFileJob.routeCache.test.ts \
-            lib/jobs/processFitnessFileJob.routeMap.test.ts \
-            lib/jobs/regenerateFitnessMapsJob.test.ts \
-            lib/jobs/generateFitnessRouteHeatmapJob.test.ts \
-            lib/jobs/generateFitnessRouteHeatmapJob.pyramidBuild.test.ts \
-            lib/jobs/generateFitnessRouteHeatmapJob.pyramidContinuation.test.ts \
-            lib/jobs/generateFitnessRouteHeatmapJob.pyramidFlush.test.ts \
-            lib/jobs/generateFitnessRouteHeatmapJob.pyramidLoss.test.ts \
-            lib/jobs/generateFitnessRouteHeatmapJob.routeCache.test.ts \
-            lib/services/fitness-files/statusFitnessFiles.test.ts \
-            lib/services/mastodon/getMastodonStatus.fields.test.ts \
-            scripts/backup/actorArchive.test.ts \
-            scripts/backup/actorArchiveExport.test.ts \
-            scripts/backup/actorArchive.mediaEdits.test.ts \
-            scripts/backup/productionArchive.database.test.ts \
-            lib/database/migrate/index.test.ts \
-            scripts/database/migrate.test.ts \
-            lib/database/domains/status/status.test.ts \
-            lib/database/domains/fitnessRouteHeatmapTile/fitnessRouteHeatmapTile.test.ts \
-            lib/database/domains/fitnessRouteHeatmapTile/fitnessRouteHeatmapTileClaim.test.ts \
-            lib/database/domains/fitnessRouteHeatmapTile/fitnessRouteHeatmapTileClaimRace.test.ts \
-            lib/database/domains/fitnessRouteHeatmapTile/fitnessRouteHeatmapTileLocks.test.ts \
-            lib/database/domains/fitnessRouteHeatmapTile/fitnessRouteHeatmapTileQueries.test.ts \
-            lib/database/domains/queueJob/queueJob.test.ts \
-            lib/database/domains/status/statusDeletionQueue.test.ts \
-            lib/database/domains/stravaArchiveImport/stravaArchiveImport.test.ts \
-            lib/database/domains/stravaArchiveImport/stravaArchiveImportQueries.test.ts \
-            lib/database/domains/fitnessSettings/fitnessSettings.test.ts \
-            lib/database/domains/fitnessSettings/fitnessSettingsQueries.test.ts \
-            lib/database/domains/fitnessSettings/wahooFitnessSettings.test.ts \
-            lib/database/domains/wahooImport/wahooImport.test.ts \
-            lib/database/domains/wahooImport/wahooImportQueries.test.ts \
-            lib/database/domains/wahooImport/wahooImportDates.test.ts \
-            lib/database/domains/list/list.test.ts \
-            lib/database/domains/list/listMembershipEligibility.test.ts \
-            lib/database/domains/list/listTimeline.test.ts \
-            lib/database/domains/list/listMemberBackfill.test.ts \
-            lib/database/domains/list/listQueries.test.ts \
-            lib/database/domains/follow/followQueries.test.ts \
-            lib/database/domains/like/like.test.ts \
-            lib/database/domains/account/account.test.ts \
-            lib/database/domains/accountNote/accountNote.test.ts \
-            lib/database/domains/actorDomainBlock/actorDomainBlock.test.ts \
-            lib/database/domains/customEmoji/customEmoji.test.ts \
-            lib/database/domains/endorsement/endorsement.test.ts \
-            lib/database/domains/followedTag/followedTag.test.ts \
-            lib/database/domains/idempotency/idempotency.test.ts \
-            lib/database/domains/importLock/importLock.test.ts \
-            lib/database/domains/instanceRule/instanceRule.test.ts \
-            lib/database/domains/marker/marker.test.ts \
-            lib/database/domains/relay/relay.test.ts \
-            lib/database/domains/serverSetting/serverSetting.test.ts \
-            lib/database/domains/actor/actorDeletion.test.ts \
-            lib/database/domains/deadLetterJob/deadLetterJobs.test.ts \
-            lib/database/domains/oauth/oauth.test.ts \
-            lib/database/domains/oauth/oauthRouteQueries.test.ts \
-            lib/database/domains/pushSubscription/pushSubscription.test.ts \
-            lib/database/domains/scheduledStatus/scheduledStatus.test.ts \
-            lib/database/domains/filter/filter.test.ts \
-            lib/database/domains/serverFilter/serverFilter.test.ts \
-            lib/database/domains/report/report.test.ts \
-            lib/database/domains/statusDetectedLanguage/statusDetectedLanguage.test.ts \
-            lib/database/domains/statusMute/statusMute.test.ts \
-            lib/database/domains/suggestion/suggestion.test.ts \
-            lib/services/notifications/createConversationMuteSuppression.test.ts \
-            lib/database/domains/block/block.test.ts \
-            lib/database/domains/mute/mute.test.ts \
-            lib/database/domains/bookmark/bookmark.test.ts \
-            lib/database/domains/statusQuote/statusQuote.test.ts \
-            lib/database/domains/statusReaction/statusReaction.test.ts \
-            lib/database/domains/linkPreview/linkPreview.test.ts \
-            lib/database/domains/announcement/announcement.test.ts \
-            lib/database/domains/notification/notification.test.ts \
-            lib/database/domains/instanceActivity/instanceActivityDatabase.test.ts \
-            lib/database/domains/search/searchAccounts.test.ts \
-            lib/database/domains/search/searchAccountQueries.test.ts \
-            lib/database/domains/search/searchDocuments.test.ts \
-            lib/database/domains/search/searchDocumentFilter.test.ts \
-            lib/database/domains/search/searchHashtags.test.ts \
-            lib/database/domains/search/searchHashtagQueries.test.ts \
-            lib/database/domains/search/searchStatuses.test.ts \
-            lib/database/domains/search/searchStatusQueries.test.ts \
-            lib/database/domains/featuredTag/featuredTag.test.ts \
-            lib/database/domains/featuredTag/featuredTagQueries.test.ts \
-            lib/database/domains/trends/trends.test.ts \
-            lib/database/domains/trends/trendsQueries.test.ts \
-            lib/database/kysely/visibility/visibility.test.ts \
-            lib/database/kysely/countableActivity.test.ts \
-            lib/database/domains/admin/admin.test.ts \
-            lib/database/domains/admin/adminDomainRules.test.ts \
-            lib/database/domains/account/accountQueries.test.ts \
-            lib/database/domains/account/sessionTokenDetach.test.ts \
-            lib/database/domains/account/accountRouteQueries.test.ts \
-            lib/database/domains/moderation/moderation.test.ts \
-            lib/database/domains/moderation/moderationQueries.test.ts \
-            lib/database/domains/actor/actor.test.ts \
-            lib/database/domains/actor/actorQueries.test.ts \
-            lib/database/domains/actor/actorMastodonQueries.test.ts \
-            lib/database/domains/actor/actorFederationSigner.test.ts \
-            lib/database/domains/actor/actorLastStatusAt.test.ts \
-            lib/database/domains/actor/actorMastodon.test.ts \
-            lib/database/domains/actor/actorPublicId.test.ts \
-            lib/database/domains/actor/directory.test.ts \
-            lib/database/domains/actor/usernameMatch.test.ts \
-            lib/database/domains/follow/follow.test.ts \
-            lib/database/localActorPredicate.test.ts \
-            lib/database/domains/timeline/timeline.test.ts \
-            lib/database/domains/timeline/timeline.federated.test.ts \
-            lib/database/domains/timeline/timelineQueries.test.ts \
-            lib/database/domains/timeline/localPublicActorIds.test.ts \
-            lib/database/domains/timeline/localPublicQueryShape.test.ts \
-            lib/database/kysely/visibility/publiclyReadable.test.ts \
-            lib/services/timelines/index.test.ts \
-            lib/database/domains/status/statusLookup.test.ts \
-            lib/database/domains/status/statusLookupQueries.test.ts \
-            lib/database/domains/status/statusWriteQueries.test.ts \
-            lib/database/domains/status/statusHashtag.test.ts \
-            lib/database/domains/status/statusActorQueries.test.ts \
-            lib/database/domains/status/publicCounters.test.ts \
-            lib/database/publiclyReadableStatusCallSites.test.ts \
-            lib/database/publiclyReadableStatusQueryShape.test.ts \
-            lib/database/domains/status/statusReadableSql.test.ts \
-            'app/api/v1/statuses/[id]/actions.route.test.ts' \
-            'app/api/v1/statuses/[id]/favourited_by/route.test.ts' \
-            'app/api/v1/statuses/[id]/reblogged_by/route.test.ts' \
-            'app/api/v1/statuses/[id]/unreblog/route.test.ts' \
-            'app/api/v1/statuses/[id]/route.update.poll.test.ts' \
-            'app/api/v1/accounts/[id]/statuses/route.test.ts' \
-            'app/api/users/[username]/statuses/[statusId]/route.test.ts' \
-            app/api/v1/bookmarks/route.test.ts \
-            app/api/v1/statuses/route.test.ts \
-            'app/api/v2/filters/[id]/statuses/route.test.ts' \
-            'app/api/v2/filters/statuses/[id]/route.test.ts' \
-            lib/actions/announce.test.ts \
-            lib/actions/createNoteEmoji.test.ts \
-            lib/actions/createPoll.test.ts \
-            lib/jobs/sendUpdateNoteJob.test.ts \
-            lib/jobs/createNoteJob.test.ts \
-            lib/jobs/createPollJob.test.ts \
-            lib/services/mastodon/getMastodonStatus.bulk.test.ts \
-            lib/services/mastodon/getMastodonStatus.quotes.test.ts \
-            lib/services/mastodon/getMastodonFilter.test.ts \
-            lib/services/mastodon/resolveClientId.test.ts \
-            lib/services/statuses/getStatusContext.test.ts \
-            lib/services/timelines/mentionNotification.test.ts \
-            lib/services/notifications/getMastodonNotification.test.ts \
-            app/api/inbox/fediverseInterop.test.ts \
-            'app/api/v1/statuses/[id]/interaction_policy/route.test.ts' \
-            'app/api/v1/statuses/[id]/route.update.media.test.ts' \
-            'app/api/v1/statuses/[id]/route.update.mediaAttributes.test.ts' \
-            app/api/v1/statuses/quote.route.test.ts \
-            app/api/v1/statuses/scheduled.route.test.ts \
-            lib/actions/updateNote.test.ts \
-            lib/actions/updateNoteVisibility.test.ts \
-            lib/activities/fediverseInterop.test.ts \
-            lib/jobs/createAnnounceJob.test.ts \
-            lib/jobs/createNoteJob.attachments.test.ts \
-            lib/jobs/createNoteJob.forwarding.test.ts \
-            lib/jobs/createNoteJob.objectTypes.test.ts \
-            lib/jobs/createNoteJob.quote.test.ts \
-            lib/jobs/createPollVoteJob.test.ts \
-            lib/jobs/createRelayAnnounceJob.test.ts \
-            lib/jobs/fetchRemoteStatusJob.test.ts \
-            lib/jobs/followTimelineBackfillJob.test.ts \
-            lib/jobs/processForwardedActivityJob.test.ts \
-            lib/jobs/publishScheduledStatusJob.test.ts \
-            lib/jobs/updateNoteJob.test.ts \
-            lib/jobs/updatePollJob.test.ts \
-            lib/services/medias/edit/refreshPostsForEditedMedia.test.ts \
-            'app/(timeline)/(home)/homePageEnrichment.test.tsx' \
-            'app/api/users/[username]/quote_authorizations/[id]/route.test.ts' \
-            'app/api/v1/accounts/[id]/featured_tags/route.test.ts' \
-            'app/api/v1/accounts/[id]/media/route.test.ts' \
-            app/api/v1/admin/reports/adminReports.test.ts \
-            app/api/v1/favourites/route.test.ts \
-            app/api/v1/featured_tags/suggestions/route.test.ts \
-            'app/api/v1/notifications/requests/[id]/route.test.ts' \
-            app/api/v1/notifications/requests/route.test.ts \
-            app/api/v1/notifications/route.query.test.ts \
-            'app/api/v1/statuses/[id]/context/route.test.ts' \
-            'app/api/v1/statuses/[id]/favourite/route.test.ts' \
-            'app/api/v1/statuses/[id]/history/route.test.ts' \
-            'app/api/v1/statuses/[id]/quotes/[quoting_status_id]/revoke/route.test.ts' \
-            'app/api/v1/statuses/[id]/quotes/route.test.ts' \
-            'app/api/v1/statuses/[id]/route.test.ts' \
-            'app/api/v1/statuses/[id]/source/route.test.ts' \
-            'app/api/v1/timelines/[timeline]/gifTimelineEnrichment.test.ts' \
-            'app/api/v1/timelines/[timeline]/route.test.ts' \
-            'app/api/v1/timelines/list/[list_id]/route.test.ts' \
-            app/api/v1/timelines/public/route.test.ts \
-            app/api/v1/trends/statuses/route.test.ts \
-            app/api/v1/trends/tags/route.test.ts \
-            'app/api/v2/notifications/[group_key]/route.test.ts' \
-            lib/actions/deleteStatus.test.ts \
-            lib/actions/like.test.ts \
-            lib/actions/undoAnnounce.test.ts \
-            lib/activities/getActorPosts.announce.test.ts \
-            lib/jobs/deleteObjectJob.test.ts \
-            lib/jobs/sendAnnounceJob.test.ts \
-            lib/jobs/sendNoteJob.test.ts \
-            lib/jobs/sendQuoteRequestJob.test.ts \
-            lib/jobs/sendQuoteRevokeJob.test.ts \
-            lib/services/favourites/getFavouritedStatusesPage.test.ts \
-            lib/services/federation/forwardingDelivery.test.ts \
-            lib/services/link-previews/fetchLinkPreview.test.ts \
-            lib/services/mastodon/getMastodonStatusEdits.test.ts \
-            lib/services/notifications/notifyQuotedStatusUpdate.test.ts \
-            lib/services/reactions/reactStatus.test.ts \
-            lib/services/timelines/main.test.ts \
-            lib/services/trends/trendingStatuses.test.ts \
-            lib/types/domain/status.test.ts \
-            lib/utils/text/processStatusText.test.ts \
-            lib/database/domains/status/statusReadQueries.test.ts \
-            'app/api/users/[username]/inbox/fediverseInterop.test.ts' \
-            lib/actions/emojiReaction.test.ts \
-            lib/activities/getActorPosts.context.test.ts \
-            lib/activities/getActorPosts.stringRefs.test.ts \
-            lib/jobs/emojiReactionJob.test.ts \
-            lib/services/reactions/getStatusReactionList.test.ts \
-            lib/utils/text/getMentions.test.ts \
-            lib/database/domains/status/statusDeletionQueries.test.ts \
-            lib/database/domains/actor/actorDeletionQueries.test.ts \
-            lib/jobs/deleteActorJob.test.ts \
-            lib/database/domains/conversation/conversation.test.ts \
-            lib/database/domains/conversation/conversationQueries.test.ts \
-            lib/database/connection.test.ts \
-            lib/database/sqlcommenter.test.ts \
-            lib/database/kysely/normalizeGolden.test.ts \
-            lib/database/kysely/guard.test.ts \
-            lib/database/kysely/counter.test.ts \
-            lib/database/kysely/counterBucket.test.ts \
-            lib/database/kysely/keyset.test.ts \
-            lib/database/kysely/inList.test.ts \
-            lib/database/kysely/savepoint.test.ts \
-            lib/services/translation/translationCache.integration.test.ts \
-            lib/services/auth/kyselyAdapter.crud.test.ts \
-            lib/services/auth/kyselyAdapter.atomic.test.ts \
-            lib/services/auth/kyselyAdapter.joins.test.ts \
-            lib/services/auth/kyselyAdapter.storage.test.ts \
-            lib/services/auth/credentialIdentity.test.ts \
-            lib/services/auth/sessionJoins.test.ts \
-            lib/services/auth/sessionRefresh.test.ts \
-            lib/services/auth/twoFactorSignIn.test.ts \
-            lib/services/auth/oauthProviderFlow.test.ts \
-            lib/services/auth/jwks.test.ts \
-            lib/services/auth/errorURL.test.ts \
-            lib/services/auth/schemaCompleteness.test.ts \
-            lib/database/testing/createTestDatabase.test.ts \
-            lib/database/testing/queryCapture.test.ts \
-            lib/database/testing/fixtures.test.ts \
-            lib/database/testing/heldTransaction.test.ts \
-            lib/database/testing/schemaInvariants.test.ts
-        env:
-          TEST_DATABASE_TYPE: pg
-          TEST_DATABASE_HOST: 127.0.0.1
-          TEST_DATABASE_PORT: ${{ job.services.postgres.ports['5432'] }}
-          TEST_DATABASE_USERNAME: activities
-          TEST_DATABASE_PASSWORD: activities
-
-  # Drift gate for the committed SQLite reference schema dump. The Vitest
-  # suite builds every test database from migrations/schema.sqlite.sql (via
-  # lib/database/testing/schema.ts) instead of running the migrations, so
-  # a dump that lags the migrations makes the whole suite test a stale schema.
-  # This job runs `yarn migrate` against a fresh SQLite database (the baseline,
-  # then every migration after it), applies
-  # the documented dump-and-strip pipeline (CONTRIBUTING.md → "SQLite —
-  # migrations/schema.sqlite.sql"), and fails if the result differs from the
-  # committed file.
-  schema-dump-check:
-    name: SQLite Schema Dump Sync
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-      - name: Enable corepack
-        run: corepack enable
-      - name: Use Node.js 24
-        uses: actions/setup-node@v7
-        with:
-          node-version: 24
-          cache: yarn
-      - name: Install dependencies
-        run: yarn install --immutable
-      - name: Run migrations against a fresh SQLite database
-        run: |
-          ACTIVITIES_DATABASE_CLIENT=better-sqlite3 \
-          ACTIVITIES_DATABASE_SQLITE_FILENAME=/tmp/schema-check.sqlite3 \
-            yarn migrate
-      # One kysely_migration row per migration file: the baseline plus every
-      # migration after it (migrations/<timestamp>_<name>.ts).
-      - name: Verify every migration file ran
-        run: |
-          applied=$(sqlite3 /tmp/schema-check.sqlite3 'SELECT count(*) FROM kysely_migration;')
-          files=$(ls migrations/[0-9]*_*.ts | wc -l)
-          echo "applied=$applied files=$files"
-          if [ "$applied" -ne "$files" ]; then
-            echo "::error::kysely_migration has $applied rows but migrations/ has $files migration files"
-            exit 1
-          fi
-      - name: Diff regenerated dump against migrations/schema.sqlite.sql
-        run: |
-          sqlite3 /tmp/schema-check.sqlite3 '.schema' \
-            | grep -vE "^CREATE TABLE sqlite_sequence" \
-            | grep -vE "^CREATE TABLE IF NOT EXISTS '[A-Za-z_]+_fts_(data|idx|docsize|config|content)'" \
-            > /tmp/schema-regenerated.sql
-          if ! diff -u migrations/schema.sqlite.sql /tmp/schema-regenerated.sql; then
-            echo "::error::migrations/schema.sqlite.sql is out of sync with the migrations. Regenerate BOTH schema dumps in this PR — see AGENTS.md → 'Keeping the reference schema dumps in sync'."
-            exit 1
-          fi
-
-  # Drift gate for the committed PostgreSQL reference schema dump. This job
-  # starts a PostgreSQL 17 service container, waits for readiness, runs
-  # `yarn migrate` against a fresh database, verifies that every migration file ran,
-  # generates a schema-only dump using PostgreSQL 17 tooling, applies the
-  # documented normalization (CONTRIBUTING.md → "PostgreSQL —
-  # migrations/schema.sql"), and fails if the result differs from the committed file.
-  # It then regenerates the Kysely DB types (lib/database/kysely/db.ts) from the
-  # same database and fails if they differ from the committed file too. Last,
-  # it runs `yarn migrate` on PostgreSQL 14, the oldest version the docs
-  # support, where the baseline schema must load and dump the same.
-  schema-dump-check-pg:
-    name: PostgreSQL Schema Dump Sync
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:17
-        env:
-          POSTGRES_USER: activities
-          POSTGRES_PASSWORD: activities
-          POSTGRES_DB: activities
-        ports:
-          - 5432/tcp
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+      # Only used by the PostgreSQL 14 baseline migration-and-dump check in
+      # shard 1; the PostgreSQL 17 checks run against the `postgres` service.
       postgres14:
         image: postgres:14
         env:
@@ -800,7 +196,7 @@ jobs:
         ports:
           - 5432/tcp
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U activities"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -816,15 +212,69 @@ jobs:
           cache: yarn
       - name: Install dependencies
         run: yarn install --immutable
-      - name: Wait for PostgreSQL readiness
+      - name: Run PostgreSQL database tests (shard ${{ matrix.shard }}/2)
+        env:
+          TEST_DATABASE_TYPE: pg
+          TEST_DATABASE_HOST: 127.0.0.1
+          TEST_DATABASE_PORT: ${{ job.services.postgres.ports['5432'] }}
+          TEST_DATABASE_USERNAME: activities
+          TEST_DATABASE_PASSWORD: activities
         run: |
-          until docker exec ${{ job.services.postgres.id }} pg_isready -U activities -d activities -q; do
-            sleep 1
-          done
-          until docker exec ${{ job.services.postgres14.id }} pg_isready -U activities -d activities -q; do
-            sleep 1
-          done
+          node scripts/run.cjs scripts/maintenance/listPostgresTestFiles.ts \
+            > /tmp/pg-test-files.txt
+          count=$(wc -l < /tmp/pg-test-files.txt)
+          echo "Running $count PostgreSQL test files in shard ${{ matrix.shard }}/2"
+          if [ "$count" -eq 0 ]; then
+            echo "::error::The generated PostgreSQL test file list is empty; refusing to run the whole suite unfiltered."
+            exit 1
+          fi
+          xargs -a /tmp/pg-test-files.txt -d '\n' \
+            yarn test --shard=${{ matrix.shard }}/2 --maxWorkers=2
+      # --- Schema drift checks (shard 1 only) -----------------------------
+      # The Vitest suite builds every test database from
+      # migrations/schema.sqlite.sql (via lib/database/testing/schema.ts)
+      # instead of running the migrations, so a dump that lags the migrations
+      # makes the whole suite test a stale schema. Run `yarn migrate` against
+      # a fresh SQLite database, apply the documented dump-and-strip pipeline,
+      # and fail if the result differs from the committed file.
+      - name: Run migrations against a fresh SQLite database
+        if: ${{ matrix.shard == 1 && !cancelled() }}
+        run: |
+          ACTIVITIES_DATABASE_CLIENT=better-sqlite3 \
+          ACTIVITIES_DATABASE_SQLITE_FILENAME=/tmp/schema-check.sqlite3 \
+            yarn migrate
+      - name: Verify every migration file ran (SQLite)
+        if: ${{ matrix.shard == 1 && !cancelled() }}
+        run: |
+          applied=$(sqlite3 /tmp/schema-check.sqlite3 'SELECT count(*) FROM kysely_migration;')
+          files=$(ls migrations/[0-9]*_*.ts | wc -l)
+          echo "applied=$applied files=$files"
+          if [ "$applied" -ne "$files" ]; then
+            echo "::error::kysely_migration has $applied rows but migrations/ has $files migration files"
+            exit 1
+          fi
+      - name: Diff regenerated SQLite dump against migrations/schema.sqlite.sql
+        if: ${{ matrix.shard == 1 && !cancelled() }}
+        run: |
+          sqlite3 /tmp/schema-check.sqlite3 '.schema' \
+            | grep -vE "^CREATE TABLE sqlite_sequence" \
+            | grep -vE "^CREATE TABLE IF NOT EXISTS '[A-Za-z_]+_fts_(data|idx|docsize|config|content)'" \
+            > /tmp/schema-regenerated.sql
+          if ! diff -u migrations/schema.sqlite.sql /tmp/schema-regenerated.sql; then
+            echo "::error::migrations/schema.sqlite.sql is out of sync with the migrations. Regenerate BOTH schema dumps in this PR — see docs/setup.md → 'Keeping the reference schema dumps in sync'."
+            exit 1
+          fi
+      # PostgreSQL 17 drift checks against a fresh `activities` database on the
+      # `postgres` service, then the same schema loaded on PostgreSQL 14 and
+      # dumped with the same normalization.
+      - name: Create the schema-check database
+        if: ${{ matrix.shard == 1 && !cancelled() }}
+        run: |
+          docker exec ${{ job.services.postgres.id }} psql -U activities -d postgres \
+            -c 'DROP DATABASE IF EXISTS activities' \
+            -c 'CREATE DATABASE activities'
       - name: Run migrations against a fresh PostgreSQL database
+        if: ${{ matrix.shard == 1 && !cancelled() }}
         run: |
           ACTIVITIES_DATABASE_CLIENT=pg \
           ACTIVITIES_DATABASE_PG_HOST=127.0.0.1 \
@@ -833,9 +283,8 @@ jobs:
           ACTIVITIES_DATABASE_PG_PASSWORD=activities \
           ACTIVITIES_DATABASE_PG_DATABASE=activities \
             yarn migrate
-      # One kysely_migration row per migration file: the baseline plus every
-      # migration after it (migrations/<timestamp>_<name>.ts).
-      - name: Verify every migration file ran
+      - name: Verify every migration file ran (PostgreSQL)
+        if: ${{ matrix.shard == 1 && !cancelled() }}
         run: |
           applied=$(docker exec ${{ job.services.postgres.id }} psql -U activities -d activities -tAc 'SELECT count(*) FROM kysely_migration;')
           files=$(ls migrations/[0-9]*_*.ts | wc -l)
@@ -845,6 +294,7 @@ jobs:
             exit 1
           fi
       - name: Diff regenerated dump against migrations/schema.sql
+        if: ${{ matrix.shard == 1 && !cancelled() }}
         run: |
           docker exec ${{ job.services.postgres.id }} \
             pg_dump -U activities -d activities --schema-only --no-owner --no-privileges \
@@ -859,13 +309,14 @@ jobs:
             { print }
           ' /tmp/schema_raw.sql | cat -s > /tmp/schema-regenerated.sql
           if ! diff -u migrations/schema.sql /tmp/schema-regenerated.sql; then
-            echo "::error::migrations/schema.sql is out of sync with the migrations. Regenerate BOTH schema dumps in this PR — see AGENTS.md → 'Keeping the reference schema dumps in sync'."
+            echo "::error::migrations/schema.sql is out of sync with the migrations. Regenerate BOTH schema dumps in this PR — see docs/setup.md → 'Keeping the reference schema dumps in sync'."
             exit 1
           fi
       # The Kysely DB types (lib/database/kysely/db.ts) are generated from this
       # migrated database plus migrations/schema.sqlite.sql, so they drift
       # whenever a migration changes the schema.
       - name: Diff regenerated Kysely DB types against lib/database/kysely/db.ts
+        if: ${{ matrix.shard == 1 && !cancelled() }}
         run: |
           ACTIVITIES_DATABASE_CLIENT=pg \
           ACTIVITIES_DATABASE_PG_HOST=127.0.0.1 \
@@ -884,6 +335,7 @@ jobs:
       # dump is taken with the PostgreSQL 17 pg_dump, as above; only its
       # `SET transaction_timeout` preamble line is left out of the comparison.
       - name: Load the baseline on PostgreSQL 14 and diff its dump
+        if: ${{ matrix.shard == 1 && !cancelled() }}
         run: |
           ACTIVITIES_DATABASE_CLIENT=pg \
           ACTIVITIES_DATABASE_PG_HOST=127.0.0.1 \
@@ -911,13 +363,33 @@ jobs:
             exit 1
           fi
 
-  # Build and verify both minimal and full Docker images. Tests that the minimal
-  # image starts with SQLite, serves /api/v2/instance, exercises Sharp, and omits
-  # optional SDKs. Tests that the full image loads optional queue SDKs and
-  # executes queries against a local PostgreSQL database without contacting cloud
-  # services. Does not publish images to any registry.
-  docker-smoke:
-    name: Docker Images Smoke Test
+  # Aggregate gate for the test jobs: this is the job to mark required in
+  # branch protection as "All Tests". It always runs (`if: always()`) and
+  # fails closed unless every test shard and both PostgreSQL shards succeeded.
+  test:
+    name: All Tests
+    needs: [test-shards, test-pg]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify all test shards succeeded
+        env:
+          RESULTS: ${{ needs.test-shards.result }} ${{ needs.test-pg.result }}
+        run: |
+          echo "Test shard results: $RESULTS"
+          for result in $RESULTS; do
+            if [ "$result" != "success" ]; then
+              echo "::error::A required CI job did not succeed (got: $result)"
+              exit 1
+            fi
+          done
+          echo "All test shards succeeded."
+
+  # Build and verify the minimal Docker image: it starts with SQLite, serves
+  # /api/v2/instance, exercises Sharp, and omits the optional SDKs. Does not
+  # publish images to any registry.
+  docker-smoke-minimal:
+    name: Docker Images Smoke Test (minimal)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -933,24 +405,48 @@ jobs:
         run: yarn install --immutable
       - name: Build minimal Docker image
         run: docker build -t activities:test-minimal .
+      - name: Verify minimal Docker image
+        run: |
+          node scripts/run.cjs scripts/maintenance/verifyDockerImages.ts \
+            --skip-build \
+            --only minimal \
+            --minimal-image activities:test-minimal
+
+  # Build and verify the full Docker image: it loads the optional queue SDKs and
+  # executes queries against a local PostgreSQL database without contacting cloud
+  # services. Does not publish images to any registry.
+  docker-smoke-full:
+    name: Docker Images Smoke Test (full)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Enable corepack
+        run: corepack enable
+      - name: Use Node.js 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: yarn
+      - name: Install dependencies
+        run: yarn install --immutable
       - name: Build full Docker image with optional workspaces
         run: |
           docker build -t activities:test-full \
             --build-arg WORKSPACES="activities.next @activities/nodemailer @activities/resend @activities/ses @activities/pg @activities/cloudtasks @activities/qstash" \
             .
-      - name: Verify minimal and full Docker images
+      - name: Verify full Docker image
         run: |
           node scripts/run.cjs scripts/maintenance/verifyDockerImages.ts \
             --skip-build \
-            --minimal-image activities:test-minimal \
+            --only full \
             --full-image activities:test-full
 
-  # Aggregate gate: this is the single check to mark required in branch
-  # protection. It always runs (`if: always()`) and fails unless every upstream
-  # job succeeded, so a failure in any one of the parallel jobs fails the overall
-  # required check. It also covers the case where an upstream job is skipped or
-  # cancelled — GitHub treats a skipped required check as passing, so requiring
-  # the individual jobs directly would not reliably block a failure.
+  # Overall aggregate of every job in the workflow (`if: always()`, failing
+  # unless every upstream job succeeded). It is NOT required by the merge
+  # ruleset — the ruleset requires All Tests, Lint and Prettier, and Build.
+  # It also covers the case where an upstream job is skipped or cancelled,
+  # so nothing can merge green while a job was silently skipped.
   ci-success:
     name: CI Success
     runs-on: ubuntu-latest
@@ -959,17 +455,17 @@ jobs:
         lint-prettier,
         typecheck,
         build,
-        test,
+        test-shards,
         test-pg,
-        schema-dump-check,
-        schema-dump-check-pg,
-        docker-smoke
+        test,
+        docker-smoke-minimal,
+        docker-smoke-full
       ]
     if: ${{ always() }}
     steps:
       - name: Verify all CI jobs succeeded
         env:
-          RESULTS: ${{ needs.lint-prettier.result }} ${{ needs.typecheck.result }} ${{ needs.build.result }} ${{ needs.test.result }} ${{ needs.test-pg.result }} ${{ needs.schema-dump-check.result }} ${{ needs.schema-dump-check-pg.result }} ${{ needs.docker-smoke.result }}
+          RESULTS: ${{ needs.lint-prettier.result }} ${{ needs.typecheck.result }} ${{ needs.build.result }} ${{ needs.test-shards.result }} ${{ needs.test-pg.result }} ${{ needs.test.result }} ${{ needs.docker-smoke-minimal.result }} ${{ needs.docker-smoke-full.result }}
         run: |
           echo "Upstream job results: $RESULTS"
           for result in $RESULTS; do
