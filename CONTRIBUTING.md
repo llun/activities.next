@@ -370,7 +370,11 @@ activities.next/
   `/withTimeZone` (also catching generic, aliased or namespace calls), so a
   new such file needs no list edit and one the scan misses fails rather than
   passing. Each worker thread gets its own `VITEST_POOL_ID`, so the
-  `TEST_DATABASE_TYPE=pg` harness keeps one database per worker.
+  `TEST_DATABASE_TYPE=pg` harness keeps one database per worker. Two faster
+  options were measured and declined: `isolate: false` failed 163 files on
+  leaked cross-file state, and running the jsdom files on `vmThreads` breaks
+  any test that redefines `window.location` (unforgeable in a VM context) and
+  carries Vitest's documented VM-pool memory caveat.
 - **Import `date-fns` functions from their sub-path**
   (`import { format } from 'date-fns/format'`), never the barrel — the barrel
   evaluates every date-fns function in each isolated test file that
