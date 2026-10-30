@@ -179,7 +179,7 @@ Branch protection on `main` requires four status checks:
 - `Build`
 - `CI Success`
 
-`CI Success` is required but configured `strict: false` in branch protection, which is why the job itself must be fail-closed over all upstream CI checks: lint (`Lint and Prettier`), typecheck (`Type Check`), build (`Build`), test shards (`All Tests`), PostgreSQL database tests (`PostgreSQL Database Tests`), and schema dump checks (`SQLite Schema Dump Sync` and `PostgreSQL Schema Dump Sync`). If any upstream check fails, `CI Success` fails and blocks merging.
+`CI Success` is required but configured `strict: false` in branch protection. The job itself is fail-closed over all upstream CI checks — lint (`Lint and Prettier`), typecheck (`Type Check`), build (`Build`), test shards (`All Tests`), PostgreSQL database tests (`PostgreSQL Database Tests`), schema dump checks (`SQLite Schema Dump Sync` and `PostgreSQL Schema Dump Sync`), and the Docker image smoke test (`Docker Images Smoke Test`) — because GitHub treats a skipped required check as passing. If any upstream check fails, `CI Success` fails and blocks merging.
 
 The `Build` job persists only `.next/cache`, including Next.js's default Turbopack filesystem build cache. Its versioned cache key includes the runner OS, Yarn lockfile, build configuration, and application source; a lockfile-prefix restore lets changed source reuse a prior build cache. Generated build outputs outside `.next/cache` are rebuilt on every run, and Yarn's archive cache remains managed by `actions/setup-node`.
 
@@ -196,9 +196,9 @@ The separate Docker packaging workflow (`.github/workflows/package.yml`) reuses 
 ### Code Style
 
 Prettier formats (no semicolons, single quotes, import sorting, 2-space
-indentation) and Oxlint lints; the Husky pre-commit hook runs `lint-staged`
-(`prettier --write` on the staged files, re-staged before the commit) and then
-`yarn lint`, blocking the commit on lint errors. In VS Code, use the
+indentation) and Oxlint lints; the Husky pre-commit hook formats and lints the
+staged files before every commit (see [Commit & Pull Request
+Guidelines](#agents-commit-pull-request-guidelines)). In VS Code, use the
 `oxc.oxc-vscode` extension (the ESLint extension no longer applies). Import
 paths, naming, and the lint rule inventory (including why `yarn lint` runs a
 second pass over `scripts/` with `lint/oxlintrc.scripts.json`) live in
