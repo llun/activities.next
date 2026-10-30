@@ -32,9 +32,30 @@ export interface BuildSelfThreadParams {
    * itself, which stays unchanged, so those replies stay under "Replies".
    */
   tuckIntoFirstPart?: boolean
+  /**
+   * Whether ancestors before the loaded window may be missing (the server
+   * only sends a bounded page of them). When true, the replying-to data for
+   * the opened post keeps the part it answers but drops the "i of n" numbers,
+   * which the unloaded ancestors could change.
+   */
+  hasMoreAncestors?: boolean
 }
 
 export type SelfThreadRunBlock = Extract<CombinedBlock, { kind: 'run' }>
+
+/**
+ * A part of an ancestor run (any author) that the focused block replies to:
+ * the reply target of the opened post itself when it renders as a plain row,
+ * or of the first part of the run holding it (the run as a whole answers that
+ * part). `partIndex` is 0-based. Both numbers are null when earlier ancestors
+ * were not loaded (`hasMoreAncestors`): the numbering could be wrong, but the
+ * part itself still names what the opened post answers.
+ */
+export interface FocusedReplyingTo {
+  status: Status
+  partIndex: number | null
+  partCount: number | null
+}
 
 export interface SelfThreadModel {
   run: SelfThreadRunBlock | null
@@ -47,6 +68,14 @@ export interface SelfThreadModel {
   replyingToByReplyId: Map<string, string>
   ancestorRuns: SelfThreadRunBlock[]
   descendantRuns: SelfThreadRunBlock[]
+  /** The ancestor-run part the focused block replies to, when there is one. */
+  focusedReplyingTo: FocusedReplyingTo | null
+  /**
+   * For the ancestor run the opened post replies to, keyed by the run's `key`,
+   * the 0-based index of that part, so the renderer can keep it visible with
+   * `collapseLongRun` when the run is longer than the cap.
+   */
+  ancestorRunAnchorIndexById: Map<string, number>
 }
 
 const getAliases = (status: Status): string[] =>
@@ -166,11 +195,17 @@ export const formatLongRunCollapseLabel = (count: number): string =>
  * Collapses a long self-thread run (> `maxParts` posts) so the first two
  * parts, the opened part, and the last part remain visible while the middle
  * parts fold behind `"Show N more posts in this thread"`.
+ *
+ * `anchorPartIndex` is a separate keep-visible index — the part the opened
+ * post replies to, so an ancestor run longer than the cap never folds the
+ * part being answered. It only adds a visible part: it is not the opened
+ * part, and no opened-part marker semantics follow from it.
  */
 export const collapseLongRun = (
   parts: readonly CombinedPart[],
   openedPartIndex: number,
-  maxParts: number = LONG_RUN_MAX_PARTS
+  maxParts: number = LONG_RUN_MAX_PARTS,
+  anchorPartIndex?: number
 ): LongRunCollapseResult => {
   if (parts.length <= maxParts) {
     return {
@@ -182,6 +217,13 @@ export const collapseLongRun = (
   const indexSet = new Set<number>([0, 1, parts.length - 1])
   if (openedPartIndex > 1 && openedPartIndex < parts.length - 1) {
     indexSet.add(openedPartIndex)
+  }
+  if (
+    anchorPartIndex !== undefined &&
+    anchorPartIndex >= 0 &&
+    anchorPartIndex < parts.length
+  ) {
+    indexSet.add(anchorPartIndex)
   }
   return {
     isCollapsed: true,
@@ -217,12 +259,22 @@ const findBlockIndexContainingStatus = (
  * tuck in when they satisfy `buildCombinedBlocks`'s inset rules, and otherwise
  * stay in `repliesOutsideRun` with a `"Replying to i of n"` label in
  * `replyingToByReplyId`.
+ *
+ * The ancestors are structured the same way regardless of who wrote the opened
+ * post: every same-author stretch among them that `buildCombinedBlocks` would
+ * combine comes back in `ancestorRuns`, a lone post by another author stays a
+ * plain row in `ancestorsOutsideRun`, and nothing on the ancestor path — the
+ * ancestors or the opened post itself — is ever tucked into a run as an inset.
+ * When the focused block (the opened post, or the run holding it) replies to a
+ * part of an ancestor run, that part comes back in `focusedReplyingTo` for the
+ * renderer's "Replying to" line.
  */
 export const buildSelfThreadModel = ({
   focusedStatus,
   ancestors = [],
   descendants = [],
-  tuckIntoFirstPart = true
+  tuckIntoFirstPart = true,
+  hasMoreAncestors = false
 }: BuildSelfThreadParams): SelfThreadModel => {
   const focusedAuthorId = getAuthorId(focusedStatus)
   const authorAncestors = ancestors.filter(
@@ -290,9 +342,29 @@ export const buildSelfThreadModel = ({
     }
   }
 
-  const blocks = canRun
-    ? buildCombinedBlocks(orderLikeTimeline([...chain, ...accepted]))
-    : []
+  // Structure pass over every ancestor (any author), the opened post, its
+  // self-replies and the accepted insets. The ancestors and the opened post
+  // pass their ids as `neverTuckIds`, so no run can swallow them: every
+  // same-author stretch among the ancestors — whoever wrote the opened post —
+  // becomes a run of its own, a lone post by another author stays a plain
+  // row, and the opened post is never an inset. The accepted insets keep
+  // their real tuckability: they were accepted exactly because the timeline
+  // tucks them.
+  const structureStatuses = [
+    ...ancestors,
+    focusedStatus,
+    ...selfReplyChain,
+    ...accepted
+  ]
+  const neverTuckedIds = new Set(
+    [...ancestors, focusedStatus].map((status) => status.id)
+  )
+  const blocks =
+    structureStatuses.length > 1
+      ? buildCombinedBlocks(orderLikeTimeline(structureStatuses), {
+          neverTuckIds: neverTuckedIds
+        })
+      : []
   const focusedBlockIndex = findBlockIndexContainingStatus(
     blocks,
     focusedStatus.id
@@ -307,6 +379,36 @@ export const buildSelfThreadModel = ({
     focusedBlockIndex >= 0
       ? blocks.slice(focusedBlockIndex + 1).filter(isRunBlock)
       : []
+
+  // The part of an ancestor run that the focused block replies to, for the
+  // renderer's "Replying to <name> · i of n" line above the opened post or the
+  // focused run's first header. The target is the reply target of the focused
+  // block's first post — the opened post itself when it renders as a plain
+  // row, or the first part of the run holding it, since the run as a whole
+  // answers that part. The part numbers are only reported when every earlier
+  // ancestor was loaded: `hasMoreAncestors` keeps the part but drops them.
+  const focusedBlockFirstStatus =
+    focusedBlock && isRunBlock(focusedBlock)
+      ? focusedBlock.parts[0].status
+      : focusedStatus
+  const focusedTargetId = getReplyTargetId(focusedBlockFirstStatus)
+  let focusedReplyingTo: FocusedReplyingTo | null = null
+  const ancestorRunAnchorIndexById = new Map<string, number>()
+  if (focusedTargetId) {
+    for (const runBlock of ancestorRuns) {
+      const partIndex = runBlock.parts.findIndex((part) =>
+        getAliases(part.status).includes(focusedTargetId)
+      )
+      if (partIndex < 0) continue
+      focusedReplyingTo = {
+        status: runBlock.parts[partIndex].status,
+        partIndex: hasMoreAncestors ? null : partIndex,
+        partCount: hasMoreAncestors ? null : runBlock.parts.length
+      }
+      ancestorRunAnchorIndexById.set(runBlock.key, partIndex)
+      break
+    }
+  }
 
   const allRunBlocks: SelfThreadRunBlock[] = [
     ...ancestorRuns,
@@ -356,7 +458,9 @@ export const buildSelfThreadModel = ({
       repliesOutsideRun: [...descendants],
       replyingToByReplyId: getReplyingToLabels(descendants),
       ancestorRuns,
-      descendantRuns
+      descendantRuns,
+      focusedReplyingTo,
+      ancestorRunAnchorIndexById
     }
   }
 
@@ -392,6 +496,8 @@ export const buildSelfThreadModel = ({
     repliesOutsideRun,
     replyingToByReplyId: getReplyingToLabels(repliesOutsideRun),
     ancestorRuns,
-    descendantRuns
+    descendantRuns,
+    focusedReplyingTo,
+    ancestorRunAnchorIndexById
   }
 }

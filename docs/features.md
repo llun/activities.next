@@ -13,7 +13,7 @@ The features Activity.next ships today. Each line links to the documentation tha
 - ✅ **Handle rename (in place)** — Rename your account without changing its links, and keep old handles resolving forever ([Architecture](architecture.md#handle-rename))
 - ✅ **Replies** — Threaded conversation support, including on-demand fetching of full remote reply threads ([Architecture](architecture.md#reply-addressing-and-communities-fep-1b12))
 - ✅ **Combined self-replies in the timeline** — A run of quick replies by one author to their own posts shows as one post, with other people's short replies tucked in ([Architecture](architecture.md#client-component-patterns))
-- ✅ **Combined self-replies on the post page** — Opening any post of a run shows the author's quick self-replies around it as one run, with the opened part marked ([Architecture](architecture.md#client-component-patterns))
+- ✅ **Combined self-replies on the post page** — Opening any post of a run shows the author's quick self-replies around it as one run, with the opened part marked; same-author runs among its ancestors are grouped the same way ([Architecture](architecture.md#client-component-patterns))
 - ✅ **Federated Audio and Event objects** — Funkwhale tracks and Mobilizon/Gancio events from other servers are stored as posts ([Mastodon API](mastodon-api-compatibility.md#activitypub--json-ld))
 - ✅ **Image and video attachments** — Upload and display images and video in posts, with automatic preview frames and blurhash ([Architecture](architecture.md#media--file-storage))
 - ✅ **Boost / Repost** — Share other users' posts, with undo ([Mastodon API](mastodon-api-compatibility.md#status-posts--actions))
