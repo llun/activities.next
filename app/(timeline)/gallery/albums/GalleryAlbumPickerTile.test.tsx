@@ -314,6 +314,28 @@ describe('GalleryAlbumPickerTile', () => {
     )
   })
 
+  it('draws a dashed focus outline further out than the anchor ring', () => {
+    const item = buildGalleryItem('1')
+    render(
+      <GalleryAlbumPickerTile
+        item={item}
+        index={0}
+        isSelected
+        onToggle={vi.fn()}
+      />
+    )
+    const button = screen.getByRole('button')
+    expect(button).toHaveClass(
+      'focus-visible:outline-foreground',
+      'focus-visible:outline-dashed',
+      'focus-visible:outline-2',
+      'focus-visible:outline-offset-4'
+    )
+    expect(button).not.toHaveClass('focus-visible:outline-primary')
+    expect(button).not.toHaveClass('focus-visible:-outline-offset-2')
+    expect(button).not.toHaveClass('focus-visible:outline-offset-2')
+  })
+
   it('omits date from visible caption but includes getPickerTileDate in aria-label when showCaptionDate is false', () => {
     const item = buildGalleryItem('1', {
       subject: { name: 'Common kingfisher' } as never,

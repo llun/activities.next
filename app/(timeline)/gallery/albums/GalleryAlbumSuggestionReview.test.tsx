@@ -460,5 +460,23 @@ describe('GalleryAlbumSuggestionReview', () => {
 
       expect(onSubmit).not.toHaveBeenCalled()
     })
+
+    it('gives selects and date inputs pointer-coarse:h-10', async () => {
+      render(<Harness suggestion={suggestion} />)
+      await screen.findAllByRole('button', {
+        name: /^Select (Kingfisher|Heron)/
+      })
+
+      expect(screen.getByLabelText('Species')).toHaveClass(
+        'pointer-coarse:h-10'
+      )
+      expect(screen.getByLabelText('Place')).toHaveClass('pointer-coarse:h-10')
+      expect(screen.getByLabelText('Taken from')).toHaveClass(
+        'pointer-coarse:h-10'
+      )
+      expect(screen.getByLabelText('Taken to')).toHaveClass(
+        'pointer-coarse:h-10'
+      )
+    })
   })
 })
