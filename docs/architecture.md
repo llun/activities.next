@@ -1503,7 +1503,7 @@ The editor is `lib/components/photo-editor/`, opened from `PhotoEditPreview` (th
 
 ### Settings Forms (Client Components)
 
-- Settings forms that update user data (name, email, password, etc.) **must be client components** that submit JSON to the API — not plain HTML `<form method="post">` with server-side redirects.
+- Settings forms that update user data (name, email, password, etc.) **must be client components** that submit JSON to the API — not plain HTML `<form method="post">` with server-side redirects (this breaks error feedback and can cause redirect bugs (307 re-POSTs instead of 303 GET)).
 - Client component forms should:
   - Call a named function exported from `lib/client.ts` (which encapsulates the `fetch` call, method, headers, and body serialization), per the Client-Side API Calls section — do **not** call `fetch()` directly in the component
   - Show inline success and error messages (not raw error pages)
