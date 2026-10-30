@@ -99,6 +99,31 @@ const formatHeadingParts = (day: string, short: boolean): string => {
     : `${get('weekday')} ${get('day')} ${get('month')} ${get('year')}`
 }
 
+export interface DayHeadingParts {
+  /** The date phrase, e.g. "Wed 28 Oct 2026" (short: "Wed 28 Oct"). */
+  day: string
+  /** True when the day groups uploads, so callers can add an Uploaded suffix. */
+  uploaded: boolean
+}
+
+/**
+ * The heading split into its date phrase and whether it groups uploads, for
+ * hosts that style "Uploaded" separately from the date. "No date" for
+ * `UNDATED_DAY_KEY`. UTC, en-US, Intl weekday short — never the viewer's zone.
+ */
+export const formatDayHeadingParts = (
+  key: GalleryDayKey,
+  options?: { short?: boolean }
+): DayHeadingParts => {
+  if (key === UNDATED_DAY_KEY) return { day: 'No date', uploaded: false }
+  const parsed = parseGalleryDayKey(key)
+  if (!parsed) return { day: key, uploaded: false }
+  return {
+    day: formatHeadingParts(parsed.day, options?.short ?? false),
+    uploaded: parsed.uploaded
+  }
+}
+
 /**
  * "Sun 12 Oct 2025" / short "Sun 12 Oct"; "Uploaded Fri 3 Oct 2025" / short
  * "Uploaded Fri 3 Oct"; "No date" for `UNDATED_DAY_KEY`. UTC, en-US, Intl
@@ -108,11 +133,8 @@ export const formatDayHeading = (
   key: GalleryDayKey,
   options?: { short?: boolean }
 ): string => {
-  if (key === UNDATED_DAY_KEY) return 'No date'
-  const parsed = parseGalleryDayKey(key)
-  if (!parsed) return key
-  const heading = formatHeadingParts(parsed.day, options?.short ?? false)
-  return parsed.uploaded ? `Uploaded ${heading}` : heading
+  const parts = formatDayHeadingParts(key, options)
+  return parts.uploaded ? `Uploaded ${parts.day}` : parts.day
 }
 
 export interface DayMetaInput {

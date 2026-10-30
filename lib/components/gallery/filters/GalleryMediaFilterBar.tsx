@@ -48,6 +48,14 @@ export interface GalleryMediaFilterBarProps {
   leading?: ReactNode
   disabled?: boolean
   className?: string
+  /**
+   * Collapses the desktop facet menus into one "Filters" button that opens
+   * the same `GalleryMediaFilterSheet` phones use, shows the active filters
+   * as removable chips under the row at every width, and moves the count and
+   * Sort onto the row's right end instead of a count line below. Hosts with
+   * room for the full menu row (the album picker) leave it off.
+   */
+  filtersInSheet?: boolean
 }
 
 export const GalleryMediaFilterBar: FC<GalleryMediaFilterBarProps> = ({
@@ -64,12 +72,88 @@ export const GalleryMediaFilterBar: FC<GalleryMediaFilterBarProps> = ({
   countDraft,
   leading,
   disabled = false,
-  className
+  className,
+  filtersInSheet = false
 }) => {
   const [sheetOpen, setSheetOpen] = useState(false)
   const activeFilterCount = countActiveFilters(filters)
   const facetsLoading = facets === null && !facetsError
   const menusDisabled = disabled || facets === null
+
+  // The sheet trigger. Phones always use it; from sm up only a host that
+  // passes `filtersInSheet` does, in place of the four facet menus.
+  const filtersButton = (
+    <Button
+      type="button"
+      variant="outline"
+      disabled={menusDisabled}
+      onClick={() => setSheetOpen(true)}
+      className="h-10 rounded-lg font-normal"
+    >
+      {activeFilterCount > 0 ? `Filters · ${activeFilterCount}` : 'Filters'}
+    </Button>
+  )
+
+  // The active filters as the phone's removable chips, one per active filter
+  // in the order they were added. A sheet host shows them at every width (the
+  // collapsed trigger carries no per-filter state); the menu host shows them
+  // only below sm, where its menus are replaced by the sheet.
+  const chips =
+    filters.order.length > 0 ? (
+      <div className="flex items-center gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto py-2">
+          {filters.order.map((key) => {
+            const label = formatFilterActiveValue(filters, key, facets)
+            return (
+              <div
+                key={key}
+                className="border-primary bg-primary/10 text-primary-text inline-flex max-w-full shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium"
+              >
+                <span className="min-w-0 truncate">{label}</span>
+                <button
+                  type="button"
+                  aria-label={`Clear ${label} filter`}
+                  disabled={disabled}
+                  onClick={() =>
+                    onChange(
+                      setGalleryFilter(
+                        filters,
+                        key,
+                        (key === 'notInAlbum' ? false : null) as never
+                      )
+                    )
+                  }
+                  className="hover:bg-primary/20 focus-visible:ring-primary/50 -m-3 flex size-11 shrink-0 items-center justify-center rounded-full focus-visible:ring-2 focus-visible:outline-none"
+                >
+                  <X className="size-3 shrink-0" />
+                </button>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* One-click clear from sm up, a shrink-0 sibling of the scroller in
+            the same outer row so it never scrolls out of view with many long
+            chips, and never stretches to the row's width or makes the whole
+            row clickable. Only once more than one filter is active: with
+            one, its chip's ✕ is the shorter path. A menu host never sees it
+            (its chips render only below sm). The negative coarse margins
+            repay the 44px target's extra height so the chips row does not
+            grow. */}
+        {filtersInSheet && activeFilterCount > 1 ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={disabled}
+            onClick={() => onChange(clearGalleryFilters(filters))}
+            className="text-muted-foreground hover:text-foreground pointer-coarse:-my-3 pointer-coarse:min-h-11 hidden h-auto shrink-0 px-2 font-normal hover:bg-transparent sm:inline-flex"
+          >
+            Clear filters
+          </Button>
+        ) : null}
+      </div>
+    ) : null
 
   return (
     <div className={cn('flex flex-col gap-2.5', className)}>
@@ -107,11 +191,19 @@ export const GalleryMediaFilterBar: FC<GalleryMediaFilterBarProps> = ({
             className="flex items-center gap-2"
           >
             <span className="sr-only">Loading filters</span>
-            <SkeletonBar className="h-10 w-28 rounded-lg" />
-            <SkeletonBar className="h-10 w-28 rounded-lg" />
-            <SkeletonBar className="h-10 w-28 rounded-lg" />
-            <SkeletonBar className="h-10 w-28 rounded-lg" />
+            {filtersInSheet ? (
+              <SkeletonBar className="h-10 w-[75px] rounded-lg" />
+            ) : (
+              <>
+                <SkeletonBar className="h-10 w-28 rounded-lg" />
+                <SkeletonBar className="h-10 w-28 rounded-lg" />
+                <SkeletonBar className="h-10 w-28 rounded-lg" />
+                <SkeletonBar className="h-10 w-28 rounded-lg" />
+              </>
+            )}
           </div>
+        ) : filtersInSheet ? (
+          filtersButton
         ) : (
           <>
             {/* Species menu */}
@@ -313,8 +405,8 @@ export const GalleryMediaFilterBar: FC<GalleryMediaFilterBarProps> = ({
           </>
         )}
 
-        {/* Not in an album toggle */}
-        {showNotInAlbumToggle ? (
+        {/* Not in an album toggle (a sheet host's copy lives in the sheet) */}
+        {showNotInAlbumToggle && !filtersInSheet ? (
           <Button
             type="button"
             variant="outline"
@@ -335,14 +427,43 @@ export const GalleryMediaFilterBar: FC<GalleryMediaFilterBarProps> = ({
           </Button>
         ) : null}
 
-        {/* Sort menu */}
-        <GallerySortMenu
-          value={filters.sort}
-          onChange={(sort) => onChange({ ...filters, sort })}
-          compact={false}
-          disabled={disabled}
-          className="ml-auto"
-        />
+        {/* Count and Sort share one right-aligned group in sheet mode, so
+            they wrap together as a unit and stay at the row's right end; the
+            count stays a live region so changes are announced. Its fixed
+            minimum width and tabular figures keep the group's width stable
+            as the count loads and changes, so the row does not re-wrap. */}
+        {filtersInSheet ? (
+          <div className="ml-auto flex items-center gap-2">
+            <span
+              data-testid={`${idPrefix}-count`}
+              role="status"
+              aria-live="polite"
+              className="text-muted-foreground min-w-[5.5rem] text-right tabular-nums text-sm"
+            >
+              {total !== null
+                ? `${pluralize(total, 'photo')}${
+                    typeof inAlbumTotal === 'number'
+                      ? ` · ${inAlbumTotal.toLocaleString('en-US')} already in this album`
+                      : ''
+                  }`
+                : null}
+            </span>
+            <GallerySortMenu
+              value={filters.sort}
+              onChange={(sort) => onChange({ ...filters, sort })}
+              compact={false}
+              disabled={disabled}
+            />
+          </div>
+        ) : (
+          <GallerySortMenu
+            value={filters.sort}
+            onChange={(sort) => onChange({ ...filters, sort })}
+            compact={false}
+            disabled={disabled}
+            className="ml-auto"
+          />
+        )}
       </div>
 
       {/* Mobile layout */}
@@ -373,87 +494,85 @@ export const GalleryMediaFilterBar: FC<GalleryMediaFilterBarProps> = ({
           />
         </div>
 
-        {/* Active chips row */}
-        {filters.order.length > 0 ? (
-          <div className="flex items-center gap-2 overflow-x-auto py-1">
-            {filters.order.map((key) => {
-              const label = formatFilterActiveValue(filters, key, facets)
-              return (
-                <div
-                  key={key}
-                  className="border-primary bg-primary/10 text-primary-text inline-flex max-w-full shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium"
-                >
-                  <span className="min-w-0 truncate">{label}</span>
-                  <button
-                    type="button"
-                    aria-label={`Clear ${label} filter`}
-                    disabled={disabled}
-                    onClick={() =>
-                      onChange(
-                        setGalleryFilter(
-                          filters,
-                          key,
-                          (key === 'notInAlbum' ? false : null) as never
-                        )
-                      )
-                    }
-                    className="hover:bg-primary/20 focus-visible:ring-primary/50 flex size-4 shrink-0 items-center justify-center rounded-full focus-visible:ring-2 focus-visible:outline-none"
-                  >
-                    <X className="size-3 shrink-0" />
-                  </button>
-                </div>
-              )
-            })}
-          </div>
-        ) : null}
-
-        {/* Sheet instance */}
-        <GalleryMediaFilterSheet
-          open={sheetOpen}
-          onOpenChange={setSheetOpen}
-          filters={filters}
-          facets={facets}
-          showNotInAlbumToggle={showNotInAlbumToggle}
-          countDraft={countDraft}
-          onApply={onChange}
-        />
+        {/* Active chips row (a sheet host shows its chips at every width) */}
+        {!filtersInSheet ? chips : null}
       </div>
 
-      {/* Count line under filters; the button stays outside the live
-          region. The row wraps so "Clear filters" is never cut off at
-          the right edge on narrow screens. */}
-      <div
-        data-testid={`${idPrefix}-count-line`}
-        className="text-muted-foreground flex flex-wrap items-center justify-between gap-2 text-sm"
-      >
-        <div role="status" aria-live="polite">
-          {total !== null ? (
-            <>
-              <span className="hidden sm:inline">
-                {pluralize(total, 'photo')}
-                {typeof inAlbumTotal === 'number'
-                  ? ` · ${inAlbumTotal.toLocaleString('en-US')} already in this album`
-                  : ''}
-              </span>
-              <span className="sm:hidden">{pluralize(total, 'photo')}</span>
-            </>
+      {/* Active-filter chips at every width for a sheet host; the row also
+          carries the one-click Clear filters from sm up */}
+      {filtersInSheet ? chips : null}
+
+      {/* The sheet both layouts open; closed, it renders nothing. */}
+      <GalleryMediaFilterSheet
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        filters={filters}
+        facets={facets}
+        showNotInAlbumToggle={showNotInAlbumToggle}
+        countDraft={countDraft}
+        onApply={onChange}
+      />
+
+      {/* Count line. A menu host keeps today's line at every width; a sheet
+          host keeps it only on phones, its desktop count sitting at the
+          filter row's right end. The button stays outside the live region,
+          and the line wraps so "Clear filters" is never cut off at the
+          right edge on narrow screens. */}
+      {filtersInSheet ? (
+        <div
+          data-testid={`${idPrefix}-count-line`}
+          className="text-muted-foreground flex items-center justify-between gap-2 text-sm sm:hidden"
+        >
+          <div role="status" aria-live="polite">
+            {total !== null ? <span>{pluralize(total, 'photo')}</span> : null}
+          </div>
+          {activeFilterCount > 0 ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={disabled}
+              onClick={() => onChange(clearGalleryFilters(filters))}
+              className="text-muted-foreground hover:text-foreground pointer-coarse:-my-3 pointer-coarse:min-h-11 h-auto px-2 font-normal hover:bg-transparent"
+            >
+              Clear
+            </Button>
           ) : null}
         </div>
+      ) : (
+        <div
+          data-testid={`${idPrefix}-count-line`}
+          className="text-muted-foreground flex flex-wrap items-center justify-between gap-2 text-sm"
+        >
+          <div role="status" aria-live="polite">
+            {total !== null ? (
+              <>
+                <span className="hidden sm:inline">
+                  {pluralize(total, 'photo')}
+                  {typeof inAlbumTotal === 'number'
+                    ? ` · ${inAlbumTotal.toLocaleString('en-US')} already in this album`
+                    : ''}
+                </span>
+                <span className="sm:hidden">{pluralize(total, 'photo')}</span>
+              </>
+            ) : null}
+          </div>
 
-        {activeFilterCount > 0 ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={disabled}
-            onClick={() => onChange(clearGalleryFilters(filters))}
-            className="text-muted-foreground hover:text-foreground h-auto p-0 font-normal hover:bg-transparent"
-          >
-            <span className="hidden sm:inline">Clear filters</span>
-            <span className="sm:hidden">Clear</span>
-          </Button>
-        ) : null}
-      </div>
+          {activeFilterCount > 0 ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={disabled}
+              onClick={() => onChange(clearGalleryFilters(filters))}
+              className="text-muted-foreground hover:text-foreground h-auto p-0 font-normal hover:bg-transparent"
+            >
+              <span className="hidden sm:inline">Clear filters</span>
+              <span className="sm:hidden">Clear</span>
+            </Button>
+          ) : null}
+        </div>
+      )}
     </div>
   )
 }

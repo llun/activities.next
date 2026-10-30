@@ -14,6 +14,7 @@ import { buildGalleryItem } from '@/lib/components/gallery/__fixtures__/galleryI
 import type { Attachment } from '@/lib/types/domain/attachment'
 
 import { GalleryGrid } from './GalleryGrid'
+import { GALLERY_GRID_CLASSES } from './galleryGridClasses'
 
 vi.mock('@/lib/components/posts/media', () => ({
   Media: ({
@@ -112,6 +113,37 @@ const items = [
 ]
 
 describe('GalleryGrid', () => {
+  it('runs 3 columns on narrow screens, 4 from sm and 6 from lg', () => {
+    render(<GalleryGrid items={items} />)
+
+    expect(screen.getByRole('list')).toHaveClass(
+      'grid-cols-3',
+      'sm:grid-cols-4',
+      'lg:grid-cols-6'
+    )
+  })
+
+  it('renders the shared grid classes on the flat and the grouped grids', () => {
+    // The skeletons stand in for this grid, so both of its grids must carry
+    // the one shared class string they read.
+    const classes = GALLERY_GRID_CLASSES.split(' ')
+    const { container } = render(<GalleryGrid items={items} />)
+    expect(container.querySelector('ul')).toHaveClass(...classes)
+
+    const grouped = render(
+      <GalleryGrid
+        items={[items[0], items[1]]}
+        groups={[
+          { key: 'a', header: <h2>A</h2>, items: [items[0]] },
+          { key: 'b', header: <h2>B</h2>, items: [items[1]] }
+        ]}
+      />
+    )
+    const lists = grouped.container.querySelectorAll('ul[data-grid]')
+    expect(lists).toHaveLength(2)
+    for (const list of lists) expect(list).toHaveClass(...classes)
+  })
+
   it('keeps every tile lazy unless the first is prioritized', () => {
     const items = [buildGalleryItem('a'), buildGalleryItem('b')]
     const { container, rerender } = render(<GalleryGrid items={items} />)
@@ -200,6 +232,12 @@ describe('GalleryGrid', () => {
       screen.getByRole('button', { name: /^Open video/ })
     ).toBeInTheDocument()
     expect(screen.queryByLabelText('Video')).not.toBeInTheDocument()
+    // The top-right corner holds the state badges, so the marker sits in the
+    // bottom-right.
+    expect(screen.getByTestId('video-marker')).toHaveClass(
+      'right-1.5',
+      'bottom-1.5'
+    )
   })
 
   it('hands the viewer the owner id for the albums pill, when there is one', () => {
@@ -216,23 +254,29 @@ describe('GalleryGrid', () => {
   describe('hidden from the gallery', () => {
     const hidden = buildGalleryItem('4', { inGallery: false })
 
-    it('badges a photo the owner hid and says so in the tile name', () => {
+    it('badges a hidden photo with a round icon and says so in the tile name', () => {
       render(
         <GalleryGrid
           items={[buildGalleryItem('3', { inGallery: true }), hidden]}
         />
       )
 
-      expect(screen.getAllByTestId('hidden-badge')).toHaveLength(1)
+      const badge = screen.getByTestId('hidden-badge')
+      expect(badge).toHaveAttribute('title', 'Hidden')
+      expect(badge).toHaveClass(
+        'size-5',
+        'rounded-full',
+        'bg-black/55',
+        'grid',
+        'place-items-center'
+      )
+      // No visible text pill: the state is spoken in the tile's name instead.
+      expect(badge).toHaveTextContent('')
       expect(
         screen.getByRole('button', {
           name: 'Open media 2, hidden from your gallery'
         })
-      ).toHaveTextContent('Hidden')
-      // A photo in the gallery has no badge and no state in its name.
-      expect(
-        screen.getByRole('button', { name: 'Open media 1' })
-      ).not.toHaveTextContent('Hidden')
+      ).toBeInTheDocument()
     })
 
     it('keeps the state in the name when the tile has alt text or a subject', () => {
@@ -269,7 +313,7 @@ describe('GalleryGrid', () => {
       expect(screen.queryByText('Hidden')).not.toBeInTheDocument()
     })
 
-    it('moves the badge clear of the select mark in select mode', () => {
+    it('keeps the badge and the select mark in select mode', () => {
       render(
         <GalleryGrid
           items={[hidden]}
@@ -284,26 +328,51 @@ describe('GalleryGrid', () => {
       ).toContainElement(screen.getByTestId('hidden-badge'))
       expect(screen.getByTestId('select-mark')).toBeInTheDocument()
     })
+
+    it('leaves the badge off when the host already screens for hidden photos', () => {
+      render(<GalleryGrid items={[hidden]} showHiddenBadge={false} />)
+
+      expect(screen.queryByTestId('hidden-badge')).not.toBeInTheDocument()
+      // The accessible name still says it.
+      expect(
+        screen.getByRole('button', {
+          name: 'Open media 1, hidden from your gallery'
+        })
+      ).toBeInTheDocument()
+    })
+
+    it('renders no badge wrapper when no badge shows', () => {
+      render(<GalleryGrid items={[hidden]} showHiddenBadge={false} />)
+
+      // With the hidden badge screened off and nothing unposted, the
+      // top-right wrapper stays out of the tile's button entirely.
+      const tile = screen.getByRole('button', {
+        name: 'Open media 1, hidden from your gallery'
+      })
+      expect(tile.querySelector('[class*="right-1.5"]')).toBeNull()
+    })
   })
 
   describe('added in Gallery and not posted yet', () => {
     const unposted = buildGalleryItem('4', { statusId: null, posted: false })
 
-    it('badges the tile "Only you" and says so in its name', () => {
+    it('badges an unposted photo with a round icon and says so in its name', () => {
       render(
         <GalleryGrid
           items={[buildGalleryItem('3', { posted: true }), unposted]}
         />
       )
 
-      expect(screen.getAllByTestId('only-you-badge')).toHaveLength(1)
-      const tile = screen.getByRole('button', {
-        name: 'Open media 2, only you can see it, not posted'
-      })
-      expect(tile).toHaveTextContent('Only you')
+      const badge = screen.getByTestId('only-you-badge')
+      expect(badge).toHaveAttribute('title', 'Only you')
+      expect(badge).toHaveClass('size-5', 'rounded-full', 'bg-black/55')
+      // No visible text pill: the state is spoken in the tile's name instead.
+      expect(badge).toHaveTextContent('')
       expect(
-        screen.getByRole('button', { name: 'Open media 1' })
-      ).not.toHaveTextContent('Only you')
+        screen.getByRole('button', {
+          name: 'Open media 2, only you can see it, not posted'
+        })
+      ).toBeInTheDocument()
     })
 
     it('keeps the badge with the select mark and the hidden state', () => {
@@ -319,6 +388,15 @@ describe('GalleryGrid', () => {
           name: 'Select media 1, only you can see it, not posted, hidden from your gallery'
         })
       ).toContainElement(screen.getByTestId('only-you-badge'))
+      expect(screen.getByTestId('select-mark')).toBeInTheDocument()
+      // Both state badges share one row in the top-right, clear of the
+      // top-left select mark. The row is a span: a button takes phrasing
+      // content only.
+      const row = screen.getByTestId('hidden-badge')
+        .parentElement as HTMLElement
+      expect(row.tagName).toBe('SPAN')
+      expect(row).toHaveClass('top-1.5', 'right-1.5', 'flex', 'gap-1')
+      expect(row).toContainElement(screen.getByTestId('only-you-badge'))
     })
 
     it('shows nothing for a viewer, who never gets an unposted photo', () => {

@@ -87,6 +87,23 @@ describe('PageHeader', () => {
     ).toBeInTheDocument()
   })
 
+  it('hides the section title visually with srOnlyTitle but keeps it for screen readers', () => {
+    render(
+      <PageHeaderSectionProvider>
+        <PageHeader
+          title="All media"
+          srOnlyTitle
+          actions={<button type="button">Add</button>}
+        />
+      </PageHeaderSectionProvider>
+    )
+
+    const heading = screen.getByRole('heading', { level: 2, name: 'All media' })
+    expect(heading).toHaveClass('sr-only')
+    // The actions row stays: it is the reason the header renders at all.
+    expect(screen.getByRole('button', { name: 'Add' })).toBeInTheDocument()
+  })
+
   it('keeps actions inline by default when stackActionsOnMobile is not set', () => {
     const { container } = render(
       <PageHeader

@@ -17,7 +17,7 @@ Activity.next is a self-hosted [ActivityPub](https://www.w3.org/TR/activitypub/)
 - **Fitness tracking** — Upload .fit, .gpx, and .tcx activity files with route maps, stats, heatmaps, and Strava imports
 - **Docker-ready** — Official Docker image available at `ghcr.io/llun/activities.next`
 
-See the full [Feature Roadmap](docs/features.md) for current and planned features.
+See the full [Features](docs/features.md) list for the current features.
 
 ## 🏗️ Architecture Overview
 
@@ -85,7 +85,18 @@ For a more detailed architecture overview, see [docs/architecture.md](docs/archi
    # Edit .env.local with your configuration
    ```
 
-   At minimum, set `ACTIVITIES_HOST`, `ACTIVITIES_SECRET_PHASE`, and a database configuration (e.g., `ACTIVITIES_DATABASE_CLIENT=better-sqlite3`).
+   A minimal local `.env.local` looks like:
+
+   ```bash
+   ACTIVITIES_HOST=localhost:3000
+   ACTIVITIES_SECRET_PHASE=local-dev-secret-phrase-change-me
+   ACTIVITIES_INSECURE_AUTH=true
+   ACTIVITIES_ALLOW_EMAILS='["you@example.com"]'
+   ACTIVITIES_DATABASE_CLIENT=better-sqlite3
+   ACTIVITIES_DATABASE_SQLITE_FILENAME=./dev.sqlite3
+   ```
+
+   `ACTIVITIES_INSECURE_AUTH=true` allows sign-in over plain `http` for local development only — never set it in production. See the [Quickstart Guide](docs/quickstart.md) for details.
 
 5. **Run database migrations:**
 
@@ -99,7 +110,7 @@ For a more detailed architecture overview, see [docs/architecture.md](docs/archi
    yarn dev
    ```
 
-7. **Sign up** at `http://localhost:3000/auth/signup` (your email must be in the allow list, `ACTIVITIES_ALLOW_EMAILS`, e.g. `ACTIVITIES_ALLOW_EMAILS='["you@example.com"]'`).
+7. **Sign up** at `http://localhost:3000/auth/signup` (if you set `ACTIVITIES_ALLOW_EMAILS`, your email must be in it, e.g. `ACTIVITIES_ALLOW_EMAILS='["you@example.com"]'`; any email works if you left it unset).
 
 For detailed setup instructions, see the [Setup Guide](docs/setup.md).
 
@@ -145,7 +156,7 @@ For PostgreSQL or advanced Docker setups, see:
 | [SQLite Setup](docs/sqlite-setup.md)                             | SQLite database configuration and Docker deployment              |
 | [PostgreSQL Setup](docs/postgresql-setup.md)                     | PostgreSQL database configuration and Docker deployment          |
 | [Environment Variables](docs/environment-variables.md)           | Complete reference for all configuration options                 |
-| [Feature Roadmap](docs/features.md)                              | Current and planned features                                     |
+| [Features](docs/features.md)                                     | Current features                                                 |
 | [Fitness File Storage](docs/fitness-file-storage.md)             | Fitness upload, processing, Strava, and heatmap details          |
 | [Maintenance Scripts](docs/maintenance.md)                       | Admin scripts for media cleanup and user management              |
 | [Mastodon API Compatibility](docs/mastodon-api-compatibility.md) | Compatibility reference, intentional divergences, and extensions |

@@ -654,7 +654,8 @@ export const GalleryAllMediaView: FC<Props> = ({
             busyCount={day.busyKey === group.key ? day.busyCount : 0}
             onSelectDay={day.selectDay}
             onDeselectDay={day.deselectDay}
-            className="bg-background top-[calc(56px+env(safe-area-inset-top,0px)+var(--status-strip-h,0px))] md:top-[79px]"
+            surface="page"
+            className="top-[calc(56px+env(safe-area-inset-top,0px)+var(--status-strip-h,0px))] md:top-[79px]"
           />
         )
       })),
@@ -672,76 +673,92 @@ export const GalleryAllMediaView: FC<Props> = ({
   const hasFilters = countActiveFilters(filters) > 0
   const isDefaultFiltersAndSort = !hasFilters && filters.sort === 'taken_desc'
 
+  const actions = (
+    <div className="flex gap-2 sm:h-10 sm:items-center">
+      {isUploadEnabled ? (
+        <>
+          <input
+            ref={fileInput}
+            type="file"
+            multiple
+            accept={ADDABLE_TYPES.join(',')}
+            aria-label="Choose photos and videos to add"
+            className="hidden"
+            onChange={(event) => {
+              const input = event.currentTarget
+              const picked = input.files ? Array.from(input.files) : []
+              // Clear it so picking the same files again still fires `change`.
+              input.value = ''
+              if (picked.length > 0) startAdd(picked)
+            }}
+          />
+          <Button
+            ref={addButton}
+            type="button"
+            className="pointer-coarse:h-10"
+            onClick={() => fileInput.current?.click()}
+          >
+            <ImagePlus aria-hidden="true" />
+            Add
+          </Button>
+        </>
+      ) : null}
+      <Button
+        ref={selectButton}
+        type="button"
+        variant="outline"
+        className="pointer-coarse:h-10"
+        onClick={() => {
+          setOutcome(null)
+          // Select mode's bar takes the bottom of the page the toast is on.
+          setToast(null)
+          if (isSelecting) stopSelecting()
+          else setIsSelecting(true)
+        }}
+      >
+        {isSelecting ? (
+          <X aria-hidden="true" />
+        ) : (
+          <CheckSquare aria-hidden="true" />
+        )}
+        {isSelecting ? 'Cancel' : 'Select'}
+      </Button>
+    </div>
+  )
+
   return (
     <div className="space-y-6">
+      {/* The visible top is the layout's Gallery dropdown row; from sm up
+          these actions sit on its line (the wrapper is the positioning
+          parent), below sm they keep their own row under the dropdown. */}
       <PageHeader
         title="All media"
-        description="Every photo and video you've posted or added"
-        actions={
-          <div className="flex items-center gap-2">
-            {isUploadEnabled ? (
-              <>
-                <input
-                  ref={fileInput}
-                  type="file"
-                  multiple
-                  accept={ADDABLE_TYPES.join(',')}
-                  aria-label="Choose photos and videos to add"
-                  className="hidden"
-                  onChange={(event) => {
-                    const input = event.currentTarget
-                    const picked = input.files ? Array.from(input.files) : []
-                    // Clear it so picking the same files again still fires `change`.
-                    input.value = ''
-                    if (picked.length > 0) startAdd(picked)
-                  }}
-                />
-                <Button
-                  ref={addButton}
-                  type="button"
-                  className="pointer-coarse:h-10"
-                  onClick={() => fileInput.current?.click()}
-                >
-                  <ImagePlus aria-hidden="true" />
-                  Add
-                </Button>
-              </>
-            ) : null}
-            <Button
-              ref={selectButton}
-              type="button"
-              variant="outline"
-              className="pointer-coarse:h-10"
-              onClick={() => {
-                setOutcome(null)
-                // Select mode's bar takes the bottom of the page the toast is on.
-                setToast(null)
-                if (isSelecting) stopSelecting()
-                else setIsSelecting(true)
-              }}
-            >
-              {isSelecting ? (
-                <X aria-hidden="true" />
-              ) : (
-                <CheckSquare aria-hidden="true" />
-              )}
-              {isSelecting ? 'Cancel' : 'Select'}
-            </Button>
-          </div>
-        }
+        srOnlyTitle
+        className="sm:absolute sm:right-0 sm:top-0 md:top-4"
+        actions={actions}
       />
       <div ref={filterBarRef} className="md:scroll-mt-24">
         <GalleryMediaFilterBar
           idPrefix="all-media"
+          filtersInSheet
           leading={
             <>
+              {/* In sheet mode the row also carries the Filters button,
+                  count and Sort, so the selects cap 20px narrower than
+                  their 260px default to keep the row off the wrap
+                  threshold near iPad landscape width. */}
               <SectionNavSelect
                 label="Category"
                 tabs={FILTER_TABS}
                 active={filter}
                 onChange={setFilter}
+                className="sm:max-w-[240px]"
               />
-              <GalleryShowSelect value={show} onChange={setShow} />
+              <GalleryShowSelect
+                value={show}
+                onChange={setShow}
+                className="sm:max-w-[240px]"
+              />
             </>
           }
           filters={filters}
@@ -851,6 +868,9 @@ export const GalleryAllMediaView: FC<Props> = ({
           ) : undefined
         }
         selection={selection}
+        // The Show filter already screens this list for hidden photos, so the
+        // hidden badge would say what every tile here already says.
+        showHiddenBadge={show !== 'hidden'}
         albumsOwnerId={actorId}
         onPostItems={postMedia}
         onItemsDeleted={(ids) => {
