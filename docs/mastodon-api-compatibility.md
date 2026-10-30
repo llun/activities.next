@@ -1159,7 +1159,7 @@ ignored (no moderation-mail/presets subsystems).
 
 ## Contributor rules
 
-Read the applicable rules and review checks below before changing this subsystem. The mandatory workflow remains in [AGENTS.md](../AGENTS.md) and [CONTRIBUTING.md](../CONTRIBUTING.md).
+Read the applicable rules below before changing this subsystem. The mandatory workflow remains in [AGENTS.md](../AGENTS.md) and [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 - [Client-Facing Entity IDs](#agents-client-facing-entity-ids)
 - [Zod Validation in API Routes](#agents-zod-validation-in-api-routes)
@@ -1216,6 +1216,8 @@ Read the applicable rules and review checks below before changing this subsystem
     })
   }
   ```
+
+#### Responses, CORS and request handling
 
 - **Responses go through `apiResponse` / `apiErrorResponse` from
   `@/lib/utils/response` — never `Response.json()`.** On CORS-enabled routes
