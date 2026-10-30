@@ -196,8 +196,9 @@ The separate Docker packaging workflow (`.github/workflows/package.yml`) reuses 
 ### Code Style
 
 Prettier formats (no semicolons, single quotes, import sorting, 2-space
-indentation) and Oxlint lints; the Husky pre-commit hook formats and lints the
-staged files before every commit (see [Commit & Pull Request
+indentation) and Oxlint lints; the Husky pre-commit hook formats the staged
+files (lint-staged runs `prettier --write` on them) and then runs `yarn lint`
+over the whole repo before every commit (see [Commit & Pull Request
 Guidelines](#agents-commit-pull-request-guidelines)). In VS Code, use the
 `oxc.oxc-vscode` extension (the ESLint extension no longer applies). Import
 paths, naming, and the lint rule inventory (including why `yarn lint` runs a
@@ -399,11 +400,11 @@ activities.next/
   without settling and overflow the stack when a menu closes as a dialog
   opens; real focus flows never nest that deep, so normal `focus()` /
   `document.activeElement` behavior is unchanged.
-- CI (`.github/workflows/ci.yml`) runs lint + prettier-check, **type check**,
-  build, four parallel test shards aggregated into an `All Tests` step, and
-  schema dump sync jobs (regenerating both schema dumps from the migrations
-  and failing on drift) on every push and PR. The test job pins
-  `TEST_DATABASE_TYPE: sqlite`.
+- CI (`.github/workflows/ci.yml`) runs the full job set listed in [CI Status
+  Checks](#ci-status-checks) on every push and PR — including four parallel
+  test shards aggregated into an `All Tests` step and schema dump sync jobs
+  (regenerating both schema dumps from the migrations and failing on drift).
+  The test job pins `TEST_DATABASE_TYPE: sqlite`.
 - **New tests get their database from `createTestDatabase()`**
   (`lib/database/testing/createTestDatabase.ts`): the `Database` facade
   (`database`, with the schema-dump `migrate()`), a Kysely `db`, the
