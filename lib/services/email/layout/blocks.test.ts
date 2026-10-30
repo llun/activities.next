@@ -189,13 +189,25 @@ describe('quote', () => {
     expect(authorRow).toBeTruthy()
   })
 
-  it('keeps white-space:nowrap out of the row outside the avatar cell', () => {
+  it('keeps white-space:nowrap out of the name/handle cell', () => {
+    const { html } = quote({
+      author,
+      body: { html: '<p>Hi</p>', text: 'Hi' }
+    })
+    // Slice the name/handle cell itself: the avatar cell (the one place
+    // white-space:nowrap is allowed) sits before it in the row, and slicing
+    // from the body div would never see this cell at all.
+    const start = html.indexOf('<td valign="middle" style="padding-left:8px')
+    const cell = html.slice(start, html.indexOf('</td>', start))
+    expect(cell).not.toContain('white-space:nowrap')
+  })
+
+  it('gives the quoted body the break properties', () => {
     const { html } = quote({
       author,
       body: { html: '<p>Hi</p>', text: 'Hi' }
     })
     const bodyHtml = html.slice(html.indexOf('margin-top:8px'))
-    expect(bodyHtml).not.toContain('white-space:nowrap')
     expect(bodyHtml).toContain(
       'word-wrap:break-word;overflow-wrap:anywhere;word-break:break-word'
     )
@@ -398,12 +410,17 @@ describe('statCard', () => {
       mapImageUrl: 'https://example.com/api/v1/files/map.webp',
       footnote: 'Imported from activity file · morning-run.fit'
     })
-    // Map, title and stats tables all shrink below their min-content width
-    // only under fixed layout — the 320-390px overflow fix.
-    expect(html.match(/table-layout:fixed/g)?.length).toBe(3)
-    // The timestamp column is an explicit 120px so the title keeps the rest;
-    // nowrap would defeat the fixed layout by forcing min-content width.
-    expect(html).toContain('width="120" style="width:120px;')
+    // Outer, map, title and stats tables all shrink below their min-content
+    // width only under fixed layout — the 320-390px overflow fix.
+    expect(html.match(/table-layout:fixed/g)?.length).toBe(4)
+    expect(html).toContain(
+      'style="margin:0 0 20px;width:100%;table-layout:fixed;"'
+    )
+    // The timestamp column is an explicit 112px — "29 Oct 2026, 07:12" at 12px
+    // measures about 109px in WebKit with the system font — so the title keeps
+    // the rest; nowrap would defeat the fixed layout by forcing min-content
+    // width.
+    expect(html).toContain('width="112" style="width:112px;')
     expect(html).not.toContain('white-space:nowrap')
     // Title and filename break anywhere instead of pushing the card wide.
     expect(
@@ -411,6 +428,17 @@ describe('statCard', () => {
         /word-wrap:break-word;overflow-wrap:anywhere;word-break:break-word/g
       )?.length
     ).toBe(2)
+  })
+
+  it('breaks an over-wide stat value instead of drawing over the next column', () => {
+    const { html } = statCard({ title: 'a', stats })
+    // Under fixed layout at a 320px viewport each of three stat columns is
+    // about 65px, and an 18px semibold value like 1:02:33 can be wider than
+    // that, so the value and label divs must break.
+    const value = html.match(/<div style="font-size:18px[^>]*>/)?.[0]
+    expect(value).toContain('word-wrap:break-word;overflow-wrap:anywhere')
+    const statLabel = html.match(/<div style="font-size:12px[^>]*>/)?.[0]
+    expect(statLabel).toContain('word-wrap:break-word;overflow-wrap:anywhere')
   })
 
   it('renders the route map when one is available', () => {

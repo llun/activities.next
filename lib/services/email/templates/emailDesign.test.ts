@@ -478,6 +478,21 @@ describe('email design brand', () => {
     // The logo img src is the one exception: it is served from the configured
     // host, never the brand domain.
     expect(email.html).toContain(`<img src="https://${HOST}/logo-nav.png"`)
+    // Every other image src stays on the brand domain too. Two exceptions,
+    // both identified by what the layout itself emits rather than by fixture
+    // data: the header logo above (configured host, logo-nav.png), and the
+    // quoted-actor avatar — the only 24px image the layout renders
+    // (AVATAR_SIZE), which carries the actor's iconUrl as stored and so is
+    // off the brand domain by design.
+    const images = [...email.html.matchAll(/<img\s[^>]*>/g)].map(
+      (match) => match[0]
+    )
+    for (const image of images) {
+      if (image.includes(`src="https://${HOST}/logo-nav.png"`)) continue
+      if (image.includes('width="24"')) continue
+      const src = image.match(/src="([^"]+)"/)?.[1] ?? ''
+      expect(src).toContain(`//${BRAND_HOST}`)
+    }
   })
 
   it('absolutizes a post body link and the actor link on the brand', () => {

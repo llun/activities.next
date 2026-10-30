@@ -55,11 +55,15 @@ describe('renderEmail', () => {
     expect(html).not.toContain('width="160"')
     // The logo column keeps its explicit 28px.
     expect(html).toContain('<td width="28" style="width:28px;">')
-    // overflow-wrap:anywhere lowers the cells' min-content width, so a very
-    // long custom host can still make the header shrink instead of overflowing.
+    // overflow-wrap:anywhere lowers the host cell's min-content width, so a
+    // very long custom host can still make the header shrink instead of
+    // overflowing. The wordmark cell must NOT carry it: there it would also
+    // lower the wordmark's own min-content width, and a long host at a 320px
+    // viewport would break the wordmark mid-word.
     const wordmarkCell =
       html.match(/<td style="padding-left:8px;[^>]*>/)?.[0] ?? ''
-    expect(wordmarkCell).toContain('overflow-wrap:anywhere')
+    expect(wordmarkCell).toContain('word-wrap:break-word')
+    expect(wordmarkCell).not.toContain('overflow-wrap:anywhere')
     const hostCell = html.match(/<td align="right"[^>]*>/)?.[0] ?? ''
     expect(hostCell).toContain('overflow-wrap:anywhere')
   })

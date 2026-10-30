@@ -235,8 +235,8 @@ const CONTENT_LINK_CLASS = /\sclass="[^"]*\b(?:mention|hashtag)\b[^"]*"/
  *   body carries, so a long code line cannot push the card wide.
  *
  * Only literal `style` attributes are added to tags the sanitizer already
- * emitted (`p` and `a` allow no `style` of their own), so this cannot widen
- * what a remote post may contain.
+ * emitted (`p`, `a` and `pre` allow no `style` of their own), so this cannot
+ * widen what a remote post may contain.
  */
 const styleQuotedBody = (html: string): string => {
   let remaining = html.match(PARAGRAPH_OPEN_TAG)?.length ?? 0
@@ -311,8 +311,10 @@ export const quote = (options: {
       // on the inset table lets the single cell shrink; the handle drops under
       // the name only when the two do not fit, and an over-long handle breaks
       // (`overflow-wrap:anywhere`). A normal space plus `padding-left:2px` on
-      // the handle span keeps roughly today's 6px gap between name and handle,
-      // and `white-space:nowrap` stays OFF the name so it can wrap too.
+      // the handle span gives about a 6px gap between name and handle;
+      // Outlook's Word engine ignores padding on a span, so there the gap is
+      // just the space. `white-space:nowrap` stays OFF the name so it can
+      // wrap too.
       `<td valign="middle" style="padding-left:8px;font-family:${FONT_STACK};word-wrap:break-word;overflow-wrap:anywhere;word-break:break-word;"><span style="font-size:14px;font-weight:600;color:${TEXT_STRONG};">${escapeHtml(author.displayName)}</span> <span style="font-size:13px;color:${TEXT_CHROME};padding-left:2px;">${escapeHtml(author.handle)}</span></td>` +
       `</tr></table>${bodyHtml}` +
       `</td></tr></table>`,
@@ -364,18 +366,21 @@ export const statCard = (options: {
     // shrinks below its min-content width, which pushed the card past the
     // screen edge on narrow phones. With fixed layout the column widths come
     // from the first row's cells, so the title keeps `width:auto` (it takes
-    // the remaining space and wraps) and the timestamp gets an explicit 120px —
-    // roughly the room the en-GB medium "29 Oct 2026, 07:12" start time needs
-    // at 12px, matching how the right-aligned timestamp sits today at 600px.
+    // the remaining space and wraps) and the timestamp gets an explicit 112px:
+    // "29 Oct 2026, 07:12" at 12px measures about 109px in WebKit with the
+    // system font, so 112px fits it while long titles keep their room at 600px.
     `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;table-layout:fixed;"><tr>` +
     `<td style="font-family:${FONT_STACK};font-size:15px;font-weight:600;color:${TEXT};word-wrap:break-word;overflow-wrap:anywhere;word-break:break-word;">${escapeHtml(title)}</td>` +
     (timestamp
-      ? `<td align="right" width="120" style="width:120px;font-family:${FONT_STACK};font-size:12px;color:${TEXT_MUTED};">${escapeHtml(timestamp)}</td>`
+      ? `<td align="right" width="112" style="width:112px;font-family:${FONT_STACK};font-size:12px;color:${TEXT_MUTED};">${escapeHtml(timestamp)}</td>`
       : '') +
     `</tr></table>`
 
   // Explicit equal percentage widths on the cells: with fixed layout the first
-  // row's widths decide the columns, so the stats stay equal.
+  // row's widths decide the columns, so the stats stay equal. Each of three
+  // columns is about 65px at a 320px viewport, and an 18px semibold value like
+  // 1:02:33 can be wider than that, so the value and label divs break
+  // (`overflow-wrap:anywhere`) instead of drawing over the next column.
   const statWidth = stats.length > 0 ? Math.floor(100 / stats.length) : 100
   const statsHtml =
     stats.length > 0
@@ -384,8 +389,8 @@ export const statCard = (options: {
           .map(
             (stat) =>
               `<td width="${statWidth}%" style="font-family:${FONT_STACK};">` +
-              `<div style="font-size:12px;color:${TEXT_MUTED};">${escapeHtml(stat.label)}</div>` +
-              `<div style="font-size:18px;font-weight:600;letter-spacing:-0.01em;color:${TEXT};margin-top:2px;">${escapeHtml(stat.value)}</div>` +
+              `<div style="font-size:12px;color:${TEXT_MUTED};word-wrap:break-word;overflow-wrap:anywhere;">${escapeHtml(stat.label)}</div>` +
+              `<div style="font-size:18px;font-weight:600;letter-spacing:-0.01em;color:${TEXT};margin-top:2px;word-wrap:break-word;overflow-wrap:anywhere;">${escapeHtml(stat.value)}</div>` +
               `</td>`
           )
           .join('') +
@@ -404,7 +409,10 @@ export const statCard = (options: {
 
   return {
     html:
-      `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 20px;"><tr>` +
+      // Fixed layout like the quote's inset: an auto-layout outer table never
+      // shrinks below its min-content width, so the card itself would overflow
+      // on narrow screens.
+      `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 20px;width:100%;table-layout:fixed;"><tr>` +
       `<td bgcolor="${INSET_BACKGROUND}" style="background-color:${INSET_BACKGROUND};border:1px solid ${BORDER};border-radius:${RADIUS_INSET};padding:16px;">` +
       `${mapHtml}${titleHtml}${statsHtml}${footnoteHtml}` +
       `</td></tr></table>`,

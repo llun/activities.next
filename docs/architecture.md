@@ -1640,15 +1640,19 @@ legacy shape left to copy.
   line breaks survive; a long code line wraps), and the headline `h1` carries
   `overflow-wrap:anywhere`, for the same reason. The stat card gets the same
   treatment: its title, stats and map tables carry
-  `width:100%;table-layout:fixed`, the timestamp column is an explicit 120px
-  (roughly the room the medium start time needs at 12px) with no
+  `width:100%;table-layout:fixed`, the timestamp column is an explicit 112px
+  ("29 Oct 2026, 07:12" at 12px measures about 109px in WebKit with the system
+  font, so 112px fits it while long titles keep their room at 600px) with no
   `white-space:nowrap`, and the title and footnote carry the break properties.
   The header table is auto-layout: a normal wordmark and host keep their
   natural widths, so the 20px wordmark stays on one line even at a 320px
   viewport (fixed layout with a 160px host column squeezed it onto two), and
-  the wordmark and host cells still carry the break properties —
-  `overflow-wrap:anywhere` lowers their min-content width, so a very long
-  custom host can still make the header shrink instead of overflowing.
+  only the host cell carries the break properties —
+  `overflow-wrap:anywhere` lowers its min-content width, so a very long
+  custom host can still make the header shrink instead of overflowing. The
+  wordmark cell keeps only `word-wrap:break-word`: `overflow-wrap:anywhere`
+  there would lower the wordmark's own min-content width too, and a long host
+  at a 320px viewport would break the wordmark mid-word.
 - **The avatar is the one email image that is not on `getBaseURL()` and not a
   JPEG copy, and that is an accepted trade-off.** `iconUrl` is used as stored: a
   remote actor's own host, or this instance's media storage for a local actor

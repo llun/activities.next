@@ -73,9 +73,12 @@ const renderHeader = (host: string, name: string): string => {
   return (
     // Auto layout: a wordmark and host keep their natural widths, so the 20px
     // wordmark never wraps (fixed layout squeezed it onto two lines at a 320px
-    // viewport). The wordmark and host cells still carry overflow-wrap:anywhere,
-    // which lowers their min-content width, so a very long custom host can
-    // still make the header shrink instead of overflowing.
+    // viewport). Only the host cell carries overflow-wrap:anywhere: it lowers
+    // that cell's min-content width, so a very long custom host shrinks the
+    // header instead of overflowing it. On the wordmark cell it would lower
+    // the wordmark's own min-content width too, and a long host at a 320px
+    // viewport would then break "Activities.next" mid-word, so the wordmark
+    // keeps only word-wrap:break-word.
     `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%"><tr>` +
     // Explicit dimensions and display:block keep the three-column header intact
     // when the client blocks remote images, which most do by default. The
@@ -84,7 +87,7 @@ const renderHeader = (host: string, name: string): string => {
     // text, so alt text here would make a client with images off read
     // "Activities Activities example.com".
     `<td width="28" style="width:28px;"><img src="${escapeHtml(logoUrl)}" width="28" height="28" alt="" style="display:block;width:28px;height:28px;border-radius:6px;border:0;"></td>` +
-    `<td style="padding-left:8px;font-family:${FONT_STACK};font-size:20px;font-weight:600;letter-spacing:-0.01em;color:${TEXT_STRONG};word-wrap:break-word;overflow-wrap:anywhere;">${escapeHtml(name)}</td>` +
+    `<td style="padding-left:8px;font-family:${FONT_STACK};font-size:20px;font-weight:600;letter-spacing:-0.01em;color:${TEXT_STRONG};word-wrap:break-word;">${escapeHtml(name)}</td>` +
     `<td align="right" style="font-family:${FONT_STACK};font-size:13px;color:${TEXT_CHROME};word-wrap:break-word;overflow-wrap:anywhere;">${escapeHtml(host)}</td>` +
     `</tr></table>`
   )
