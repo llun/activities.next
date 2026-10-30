@@ -10,7 +10,7 @@ import {
   useState
 } from 'react'
 
-import { ProfileLoading } from '@/app/(timeline)/[actor]/loading'
+import { ProfileLoading } from '@/app/(timeline)/[actor]/(profile)/loading'
 import { cn } from '@/lib/utils'
 
 import { getProfileNavigationTarget } from './profileNavigationTarget'
