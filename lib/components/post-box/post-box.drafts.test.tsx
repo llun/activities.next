@@ -4,6 +4,7 @@
 import '@testing-library/jest-dom'
 import {
   act,
+  cleanup,
   configure,
   fireEvent,
   render,
@@ -24,6 +25,7 @@ import {
   uploadFitnessFile
 } from '@/lib/client'
 import { resetConnectionForTesting } from '@/lib/client/connection'
+import * as draftsStore from '@/lib/client/drafts'
 import {
   type DraftRecord,
   deleteDraftIfRevision,
@@ -54,6 +56,10 @@ import {
   uploaded
 } from './post-box-media.testUtils'
 import { choosePostOption } from './post-box.testUtils'
+import { DRAFT_SAVE_DEBOUNCE_MS } from './useComposerDraft'
+
+// The file fakes setTimeout in beforeEach; this one stays real.
+const realSetTimeout = globalThis.setTimeout
 
 vi.mock('@/lib/client', () => ({
   createNote: vi.fn(),
@@ -144,11 +150,46 @@ const makeFull = () =>
     throw new DOMException('full', 'QuotaExceededError')
   })
 
+const advanceTimersByTimeAsync = async (ms: number) => {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(ms)
+  })
+}
+
+// Positive control for the "nothing was saved" checks: the same advance of the
+// fake clock stores typed text in an ordinary composer. Without it, a drafts
+// provider that never turned on would make those checks pass whatever the
+// guarded code does.
+const expectAutosaveStillStores = async () => {
+  cleanup()
+  render(composer())
+  await waitForEpoch()
+  type('Positive control')
+  await advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS + 300)
+  expect(await storedDrafts()).toMatchObject([{ text: 'Positive control' }])
+}
+
+// Runs the emptying save to its end. The fake clock fires the debounce timer,
+// but the save's IndexedDB work finishes in real time, so wait for the guarded
+// delete the emptying save ends with to settle, then for its follow-up work.
+const settleEmptyingSave = async (): Promise<void> => {
+  const spy = vi.spyOn(draftsStore, 'deleteDraftIfRevision')
+  await advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS + 300)
+  await waitFor(() => expect(spy).toHaveBeenCalled())
+  // It rejects with a conflict when another tab saved a newer revision.
+  await Promise.resolve(spy.mock.results[0].value).catch(() => undefined)
+  // deleteRemoved runs right after the awaited delete returns.
+  await act(async () => {
+    await new Promise<void>((resolve) => realSetTimeout(resolve, 50))
+  })
+}
+
 // Real IndexedDB plus a loaded machine: the 1 s default is too tight.
 configure({ asyncUtilTimeout: 4000 })
 
 describe('PostBox on-device drafts', () => {
   beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] })
     resetPostBoxMediaMocks()
     installFakeBroadcastChannel()
     setDraftsIndexedDBFactory(new IDBFactory())
@@ -160,6 +201,7 @@ describe('PostBox on-device drafts', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.restoreAllMocks()
     resetConnectionForTesting()
     resetDraftsChannelForTesting()
@@ -203,11 +245,15 @@ describe('PostBox on-device drafts', () => {
       })
     )
 
+    // Real time: the epoch load is real IndexedDB I/O, and the drafts provider
+    // must be on before the fake clock moves.
+    await waitForEpoch()
     type('Original, edited')
-    await new Promise((resolve) => setTimeout(resolve, 1100))
+    await advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS + 300)
 
     expect(screen.queryByText(/Saving|Saved on this device/)).toBeNull()
     expect(await storedDrafts()).toHaveLength(0)
+    await expectAutosaveStillStores()
   })
 
   it('never offers a failed edit as a draft when the next post to edit opens', async () => {
@@ -267,7 +313,7 @@ describe('PostBox on-device drafts', () => {
     update.reject(new Error('offline'))
 
     expect(await findSendAlert()).toHaveTextContent("Couldn't update.")
-    await new Promise((resolve) => setTimeout(resolve, 300))
+    await advanceTimersByTimeAsync(300)
     expect(textarea()).toHaveValue('Original, edited')
   })
 
@@ -288,17 +334,19 @@ describe('PostBox on-device drafts', () => {
     const update = createDeferred<never>()
     vi.mocked(updateNote).mockImplementationOnce(() => update.promise)
     const { rerender } = render(composer({ editStatus: post }))
+    await waitForEpoch()
     type('Followers only, edited')
     fireEvent.click(screen.getByRole('button', { name: 'Update' }))
     await waitFor(() => expect(updateNote).toHaveBeenCalledTimes(1))
 
     rerender(composer({ quotedStatus: post }))
     // Longer than the autosave pause, while the update is still in flight.
-    await new Promise((resolve) => setTimeout(resolve, 1100))
+    await advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS + 300)
     update.reject(new Error('offline'))
-    await new Promise((resolve) => setTimeout(resolve, 300))
+    await advanceTimersByTimeAsync(300)
 
     expect(await storedDrafts()).toHaveLength(0)
+    await expectAutosaveStillStores()
   })
 
   it('keeps a failed quote in Drafts when the row turns into an edit mid-send', async () => {
@@ -396,9 +444,11 @@ describe('PostBox on-device drafts', () => {
       })
     )
     await screen.findByDisplayValue(/@bob/)
-    await new Promise((resolve) => setTimeout(resolve, 1100))
+    await waitForEpoch()
+    await advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS + 300)
 
     expect(await storedDrafts()).toHaveLength(0)
+    await expectAutosaveStillStores()
   })
 
   describe('re-targeted while a send is in flight', () => {
@@ -438,7 +488,7 @@ describe('PostBox on-device drafts', () => {
       await waitFor(() => expect(textarea().value).not.toContain('my reply'))
       await waitFor(async () => expect(await storedDrafts()).toHaveLength(0))
       // Sent: nothing is kept or offered on the way to the new target.
-      await new Promise((resolve) => setTimeout(resolve, 300))
+      await advanceTimersByTimeAsync(300)
       expect(screen.queryByText('Saved to Drafts')).toBeNull()
       expect(screen.queryByText('Couldn’t save to Drafts')).toBeNull()
     })
@@ -465,7 +515,7 @@ describe('PostBox on-device drafts', () => {
       send.resolve(undefined)
 
       await waitFor(() => expect(textarea().value).not.toContain('which one?'))
-      await new Promise((resolve) => setTimeout(resolve, 300))
+      await advanceTimersByTimeAsync(300)
       expect(screen.queryByText('Saved to Drafts')).toBeNull()
       expect(screen.queryByText('Couldn’t save to Drafts')).toBeNull()
     })
@@ -635,7 +685,7 @@ describe('PostBox on-device drafts', () => {
 
       expect(await findSendAlert()).toHaveTextContent("Couldn't send.")
       // Nothing moves on later either: no keep, no re-target.
-      await new Promise((resolve) => setTimeout(resolve, 300))
+      await advanceTimersByTimeAsync(300)
       expect(screen.queryByText('Saved to Drafts')).toBeNull()
       expect(textarea().value).toBe('@bob@activities.local my reply')
     })
@@ -654,7 +704,7 @@ describe('PostBox on-device drafts', () => {
       send.reject(new Error('offline'))
 
       expect(await findSendAlert()).toHaveTextContent("Couldn't send.")
-      await new Promise((resolve) => setTimeout(resolve, 300))
+      await advanceTimersByTimeAsync(300)
       expect(screen.queryByText('Saved to Drafts')).toBeNull()
       expect(textarea().value).toBe('@bob@activities.local my reply')
     })
@@ -686,7 +736,7 @@ describe('PostBox on-device drafts', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Post' }))
 
       expect(await findSendAlert()).toHaveTextContent("Couldn't send.")
-      await new Promise((resolve) => setTimeout(resolve, 300))
+      await advanceTimersByTimeAsync(300)
       expect(textarea().value).toBe('@bob@activities.local the third reply')
       expect(sendAlerts()).toHaveLength(1)
     })
@@ -773,7 +823,7 @@ describe('PostBox on-device drafts', () => {
       await screen.findByRole('button', { name: 'Remove media a.png' })
       await screen.findByText('Not saved, copy your text')
       // The debounced save has run and failed too: nothing is pending.
-      await new Promise((resolve) => setTimeout(resolve, 1100))
+      await advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS + 300)
 
       unmount()
 
@@ -941,12 +991,31 @@ describe('PostBox on-device drafts', () => {
       await saveInAnotherTab()
 
       removePhoto()
-      // The debounced emptying delete has run and found the newer revision.
-      await new Promise((resolve) => setTimeout(resolve, 1100))
+      // Wait until the emptying save has run its guarded delete and found the
+      // newer revision, so the check below is not made before it ends.
+      await settleEmptyingSave()
 
       expect(deleteUnpostedMedia).not.toHaveBeenCalled()
       const [stored] = await storedDrafts()
       expect(stored.attachments[0]?.mediaId).toBe('media-a.png')
+    })
+
+    // Positive control: the same wait, without the other tab's change, does
+    // delete the photo, so the wait above is long enough to see a delete.
+    it('an emptied composer deletes its photo after the same wait when no other tab saved', async () => {
+      render(composer())
+      attach('a.png')
+      await waitFor(async () =>
+        expect((await storedDrafts())[0]?.attachments[0]?.mediaId).toBe(
+          'media-a.png'
+        )
+      )
+      await waitForSaved()
+
+      removePhoto()
+      await settleEmptyingSave()
+
+      expect(deleteUnpostedMedia).toHaveBeenCalledExactlyOnceWith('media-a.png')
     })
 
     it('a fresh upload removed before any save is deleted at once', async () => {
@@ -1075,8 +1144,9 @@ describe('PostBox on-device drafts', () => {
       await sendFromAnotherTab()
       removePhoto()
 
-      // The debounced emptying delete has run and found no record.
-      await new Promise((resolve) => setTimeout(resolve, 1100))
+      // Wait until the emptying save has run its guarded delete and found no
+      // record, so the check below is not made before it ends.
+      await settleEmptyingSave()
       expect(deleteUnpostedMedia).not.toHaveBeenCalled()
     })
 
@@ -1389,7 +1459,7 @@ describe('PostBox on-device drafts', () => {
       await waitFor(() =>
         expect(screen.queryByText('Saved on this device')).toBeNull()
       )
-      await new Promise((resolve) => setTimeout(resolve, 1100))
+      await advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS + 300)
       type('hello')
       await waitForSaved()
       fireEvent.click(screen.getByRole('button', { name: 'Post' }))
@@ -1601,9 +1671,11 @@ describe('PostBox on-device drafts', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Post' }))
 
       // Released at once, not left for the next autosave (800 ms) to notice.
-      await waitFor(async () => expect(await storedDrafts()).toHaveLength(0), {
-        timeout: 500
-      })
+      for (let elapsed = 0; elapsed < 500; elapsed += 25) {
+        if ((await storedDrafts()).length === 0) break
+        await advanceTimersByTimeAsync(25)
+      }
+      expect(await storedDrafts()).toHaveLength(0)
       expect(await getDraftBlob('temp-0')).toBeUndefined()
       expect(deleteUnpostedMedia).not.toHaveBeenCalled()
     })
@@ -1620,7 +1692,7 @@ describe('PostBox on-device drafts', () => {
 
       expect(onDiscardQuote).toHaveBeenCalled()
       // Long enough for a discard to have finished deleting.
-      await new Promise((resolve) => setTimeout(resolve, 150))
+      await advanceTimersByTimeAsync(150)
       const [draft] = await storedDrafts()
       expect(draft).toMatchObject({
         text: 'my take',

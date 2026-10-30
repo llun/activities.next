@@ -26,7 +26,10 @@ import {
   setDraftsIndexedDBFactory
 } from '@/lib/client/drafts'
 import { checkServerHealth } from '@/lib/client/health'
-import { DraftsProvider } from '@/lib/components/drafts/DraftsProvider'
+import {
+  DraftsProvider,
+  useDrafts
+} from '@/lib/components/drafts/DraftsProvider'
 import { createDeferred } from '@/lib/testing/deferred'
 import { installFakeBroadcastChannel } from '@/lib/testing/fakeBroadcastChannel'
 import { findSendAlert } from '@/lib/testing/sendAlerts'
@@ -118,8 +121,17 @@ const composer = (props: Props = {}) => (
       onDiscardEdit={vi.fn()}
       {...props}
     />
+    <EpochReady />
   </DraftsProvider>
 )
+
+// The provider reads the account epoch after mount, and until it has, every
+// save is refused. The "nothing was written" checks wait for this marker
+// first, so they cannot pass because drafts were not on yet.
+const EpochReady = () =>
+  useDrafts()?.epoch != null ? <span data-testid="drafts-ready" /> : null
+
+const waitForEpoch = () => screen.findByTestId('drafts-ready')
 
 const textarea = () =>
   screen.getByPlaceholderText('What is on your mind?') as HTMLTextAreaElement
@@ -173,11 +185,18 @@ const failNextSave = () => {
   return gate
 }
 
+const advanceTimersByTimeAsync = async (ms: number) => {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(ms)
+  })
+}
+
 // Real IndexedDB plus a loaded machine: the 1 s default is too tight.
 configure({ asyncUtilTimeout: 4000 })
 
 describe('PostBox offline hand-off', () => {
   beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] })
     resetPostBoxMediaMocks()
     resetConnectionForTesting()
     installFakeBroadcastChannel()
@@ -187,6 +206,7 @@ describe('PostBox offline hand-off', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.restoreAllMocks()
     resetConnectionForTesting()
     resetDraftsChannelForTesting()
@@ -257,11 +277,12 @@ describe('PostBox offline hand-off', () => {
     it('has both buttons disabled for an untouched composer and writes nothing', async () => {
       render(composer())
       await goOffline()
+      await waitForEpoch()
 
       expect(saveDraftButton()).toBeDisabled()
       expect(queueButton()).toBeDisabled()
       fireEvent.click(saveDraftButton())
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      await advanceTimersByTimeAsync(100)
       expect(await storedDrafts()).toHaveLength(0)
     })
 
@@ -297,13 +318,14 @@ describe('PostBox offline hand-off', () => {
         }
       })
       await screen.findByRole('button', { name: 'Remove media clip.mp4' })
+      await waitForEpoch()
 
       expect(queueButton()).toHaveAttribute('aria-disabled', 'true')
       expect(queueButton()).toHaveAccessibleDescription(
         "Videos stay as drafts. Post this when you're back online."
       )
       fireEvent.click(queueButton())
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      await advanceTimersByTimeAsync(100)
       expect(await storedDrafts()).toHaveLength(0)
 
       fireEvent.click(saveDraftButton())
@@ -338,7 +360,7 @@ describe('PostBox offline hand-off', () => {
       // The queued record owns the photo: neither the hand-off nor leaving the
       // composer deletes it.
       view.unmount()
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      await advanceTimersByTimeAsync(100)
       expect(deleteUnpostedMedia).not.toHaveBeenCalled()
       expect(deleteAccountMedia).not.toHaveBeenCalled()
       expect(createNoteMock).not.toHaveBeenCalled()
@@ -499,7 +521,7 @@ describe('PostBox offline hand-off', () => {
     expect(saveDraftButton()).toBeDisabled()
 
     expect(fireEvent.submit(textarea().closest('form')!)).toBe(false)
-    await new Promise((resolve) => setTimeout(resolve, 50))
+    await advanceTimersByTimeAsync(50)
     expect(onHandedOff).not.toHaveBeenCalled()
   })
 
@@ -509,6 +531,7 @@ describe('PostBox offline hand-off', () => {
       render(composer({ replyStatus: replyTo('first'), onHandedOff }))
       await screen.findByDisplayValue(/@bob/)
       await goOffline()
+      await waitForEpoch()
       // Typed over and back: the buttons are live (there is text), yet nothing
       // differs from the pre-fill.
       const prefill = textarea().value
@@ -518,7 +541,7 @@ describe('PostBox offline hand-off', () => {
 
       fireEvent.click(queueButton())
       fireEvent.click(saveDraftButton())
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      await advanceTimersByTimeAsync(100)
       // Nothing was tried, so nothing failed either.
       expect(screen.queryByRole('alert')).toBeNull()
       expect(await storedDrafts()).toHaveLength(0)
@@ -567,7 +590,7 @@ describe('PostBox offline hand-off', () => {
         queue: { state: 'waiting' }
       })
       // Handed off: nothing is kept a second time on the way to the new target.
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      await advanceTimersByTimeAsync(100)
       expect(screen.queryByText('Saved to Drafts')).toBeNull()
       // The autosave, and the one hand-off.
       expect(saveDraft).toHaveBeenCalledTimes(2)
@@ -593,7 +616,7 @@ describe('PostBox offline hand-off', () => {
       // Guard held while the keep runs: a click starts no further save.
       fireEvent.click(saveDraftButton())
       fireEvent.click(queueButton())
-      await new Promise((resolve) => setTimeout(resolve, 50))
+      await advanceTimersByTimeAsync(50)
       expect(saveDraft).toHaveBeenCalledTimes(3)
       expect(textarea().value).toBe('@bob@activities.local my reply, more')
 
@@ -644,7 +667,7 @@ describe('PostBox offline hand-off', () => {
       )
       await goOnline()
 
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      await advanceTimersByTimeAsync(100)
       expect(uploadAttachment).not.toHaveBeenCalled()
       const [draft] = await storedDrafts()
       expect(draft.attachments).toEqual([

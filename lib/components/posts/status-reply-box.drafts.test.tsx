@@ -4,6 +4,7 @@
 import '@testing-library/jest-dom'
 import {
   act,
+  cleanup,
   configure,
   fireEvent,
   render,
@@ -23,7 +24,11 @@ import {
   setDraftsIndexedDBFactory
 } from '@/lib/client/drafts'
 import { ApiRequestError } from '@/lib/client/http'
-import { DraftsProvider } from '@/lib/components/drafts/DraftsProvider'
+import {
+  DraftsProvider,
+  useDrafts
+} from '@/lib/components/drafts/DraftsProvider'
+import { DRAFT_SAVE_DEBOUNCE_MS } from '@/lib/components/post-box/useComposerDraft'
 import { createDeferred } from '@/lib/testing/deferred'
 import { installFakeBroadcastChannel } from '@/lib/testing/fakeBroadcastChannel'
 import { findSendAlert, sendAlerts } from '@/lib/testing/sendAlerts'
@@ -85,8 +90,29 @@ const replyStatus = {
 
 const ACCOUNT_ID = 'account-1'
 
+// The provider reads the account epoch after mount (real IndexedDB I/O), and
+// until it has, nothing is saved. Tests that move a fake clock wait for this
+// marker first, so a "nothing saved" check cannot pass because the provider
+// was not on yet.
+const EpochReady = () =>
+  useDrafts()?.epoch != null ? <span data-testid="drafts-ready" /> : null
+
+// Runs `act` (typing, say) and then moves the fake clock past the autosave
+// pause. The caller installs the fake clock BEFORE rendering, so the timer the
+// box arms on mount or on typing is a fake one that this advance really moves.
+const FAKE_CLOCK: Parameters<typeof vi.useFakeTimers>[0] = {
+  toFake: ['Date', 'setTimeout', 'clearTimeout']
+}
+const advanceDebounce = async (beforeAdvance: () => void = () => undefined) => {
+  beforeAdvance()
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS + 300)
+  })
+}
+
 const renderBox = (
-  props: Partial<React.ComponentProps<typeof StatusReplyBox>> = {}
+  props: Partial<React.ComponentProps<typeof StatusReplyBox>> = {},
+  { withEpochProbe = false } = {}
 ) => {
   const onCancel = vi.fn()
   const view = render(
@@ -99,6 +125,7 @@ const renderBox = (
         onPostCreated={vi.fn()}
         {...props}
       />
+      {withEpochProbe ? <EpochReady /> : null}
     </DraftsProvider>
   )
   return { ...view, onCancel }
@@ -141,6 +168,7 @@ describe('StatusReplyBox on-device drafts', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.restoreAllMocks()
     vi.clearAllMocks()
     resetConnectionForTesting()
@@ -151,23 +179,39 @@ describe('StatusReplyBox on-device drafts', () => {
   })
 
   it('saves nothing for the mention pre-fill alone', async () => {
-    renderBox({
-      replyStatus: {
-        ...replyStatus,
-        actorId: 'https://activities.local/users/bob',
-        actor: {
-          ...profile,
-          id: 'https://activities.local/users/bob',
-          username: 'bob',
-          name: 'Bob'
-        }
-      } as unknown as StatusNote
-    })
+    // Before the render, so the pre-fill's debounce timer is a fake one.
+    vi.useFakeTimers(FAKE_CLOCK)
+    renderBox(
+      {
+        replyStatus: {
+          ...replyStatus,
+          actorId: 'https://activities.local/users/bob',
+          actor: {
+            ...profile,
+            id: 'https://activities.local/users/bob',
+            username: 'bob',
+            name: 'Bob'
+          }
+        } as unknown as StatusNote
+      },
+      { withEpochProbe: true }
+    )
     await screen.findByDisplayValue(/@bob/)
-    await new Promise((resolve) => setTimeout(resolve, 1100))
+    // IndexedDB I/O is real: the drafts provider must be on before the clock moves.
+    await screen.findByTestId('drafts-ready')
+    await advanceDebounce()
 
     expect(await stored()).toHaveLength(0)
     expect(screen.queryByText(/Saving|Saved on this device/)).toBeNull()
+
+    // Positive control: the same setup and advance store typed text.
+    cleanup()
+    vi.useRealTimers()
+    vi.useFakeTimers(FAKE_CLOCK)
+    renderBox({}, { withEpochProbe: true })
+    await screen.findByTestId('drafts-ready')
+    await advanceDebounce(() => type('Positive control'))
+    expect(await stored()).toMatchObject([{ text: 'Positive control' }])
   })
 
   it('saves typed text as a reply draft with the target', async () => {
