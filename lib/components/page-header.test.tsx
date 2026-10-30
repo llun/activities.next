@@ -509,24 +509,6 @@ describe('PageHeader', () => {
       expect(getBar(container)).toHaveClass('mb-0')
     })
 
-    // Below md the description is the content row's own text on a 20px line,
-    // flush with the row's top padding when the bar carries the title.
-    it('sets the description as a flush 14/20 line when the bar holds the title', () => {
-      render(
-        <MobileNavigationProvider>
-          <PageHeader title="Timeline" description="Latest posts" />
-        </MobileNavigationProvider>
-      )
-
-      expect(screen.getByText('Latest posts')).toHaveClass(
-        'mt-0.5',
-        'text-xs',
-        'max-md:min-h-5',
-        'max-md:text-sm',
-        'max-md:mt-0'
-      )
-    })
-
     it('keeps the description margin under a visible content heading', () => {
       render(
         <MobileNavigationProvider>

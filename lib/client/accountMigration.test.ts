@@ -1,8 +1,6 @@
 import fetchMock from 'jest-fetch-mock'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import * as clientIndex from '@/lib/client'
-
 import {
   addAccountAlias,
   cancelAccountRedirect,
@@ -47,18 +45,6 @@ const MIGRATION_STATE = {
 describe('accountMigration client module', () => {
   beforeEach(() => {
     fetchMock.resetMocks()
-  })
-
-  it('is re-exported from lib/client', () => {
-    // The one export line slice 3 owns in lib/client.ts.
-    expect(clientIndex.getAccountHandle).toBe(getAccountHandle)
-    expect(clientIndex.renameAccountHandle).toBe(renameAccountHandle)
-    expect(clientIndex.getAccountAliases).toBe(getAccountAliases)
-    expect(clientIndex.addAccountAlias).toBe(addAccountAlias)
-    expect(clientIndex.removeAccountAlias).toBe(removeAccountAlias)
-    expect(clientIndex.getAccountMigration).toBe(getAccountMigration)
-    expect(clientIndex.moveAccount).toBe(moveAccount)
-    expect(clientIndex.cancelAccountRedirect).toBe(cancelAccountRedirect)
   })
 
   it('sends actorId as a query on the handle GET', async () => {

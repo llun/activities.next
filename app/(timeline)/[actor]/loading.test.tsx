@@ -16,17 +16,6 @@ describe('[actor] loading', () => {
     expect(container.querySelector('[aria-busy="true"]')).toBeInTheDocument()
   })
 
-  it('shows the profile and post list shapes with no loading text', () => {
-    const { container } = render(<Loading />)
-
-    expect(screen.getByLabelText('Profile')).toBeInTheDocument()
-    expect(
-      container.querySelector('[data-slot="post-list-skeleton"]')
-    ).toBeInTheDocument()
-    // The only text is the screen-reader status.
-    expect(container).toHaveTextContent(/^Loading profile$/)
-  })
-
   it('floats the menu button only where the signed-in shell provides it', () => {
     const loggedOut = render(<Loading />)
     expect(

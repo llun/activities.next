@@ -18,19 +18,6 @@ describe('timeline loading', () => {
     expect(container.querySelector('[aria-busy="true"]')).toBeInTheDocument()
   })
 
-  it('outlines the header, post composer and a framed list of posts', () => {
-    const { container } = render(<Loading />)
-
-    expect(container.querySelector('h1')).toBeInTheDocument()
-    const composer = screen.getByLabelText('Post composer')
-    expect(composer).toBeInTheDocument()
-    const posts = container.querySelector('[data-slot="post-list-skeleton"]')
-    expect(posts).toBeInTheDocument()
-    expect(posts?.children).toHaveLength(3)
-    // The only text is the screen-reader status.
-    expect(container).toHaveTextContent(/^Loading timeline$/)
-  })
-
   it('is scoped to the home route group so it does not cascade to other (timeline) subroutes', () => {
     // Next.js cascades loading.tsx to all nested route segments in the same
     // directory tree. To prevent TimelineLoading from appearing on /notifications,

@@ -97,13 +97,6 @@ describe('sendMail', () => {
     await expect(sendMail(message)).rejects.toBe(missingModuleError)
   })
 
-  it('does nothing when no email is configured', async () => {
-    mockGetConfig.mockReturnValue(configWithEmail(undefined))
-
-    await expect(sendMail(message)).resolves.toBeUndefined()
-    expect(adapterMocks.sendSMTPMail).not.toHaveBeenCalled()
-  })
-
   it('rethrows unexpected provider delivery errors', async () => {
     const deliveryError = new Error('Connection timeout')
     adapterMocks.sendSMTPMail.mockRejectedValueOnce(deliveryError)

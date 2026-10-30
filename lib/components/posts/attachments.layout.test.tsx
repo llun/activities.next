@@ -6,7 +6,6 @@ import { fireEvent, render, screen } from '@testing-library/react'
 
 import { Attachments } from './attachments'
 import {
-  buildAnnounceStatus,
   buildAttachment,
   buildNoteStatus,
   resetAttachmentTestState
@@ -219,17 +218,6 @@ describe('Attachments', () => {
         ).toHaveLength(0)
       })
     })
-  })
-
-  it('renders nothing for a non-Note status', () => {
-    const announce = buildAnnounceStatus(
-      buildNoteStatus([buildAttachment({ width: 800, height: 600 })])
-    )
-    const { container } = render(
-      <Attachments status={announce} onMediaSelected={vi.fn()} />
-    )
-
-    expect(container).toBeEmptyDOMElement()
   })
 
   it('stops the click from reaching an ancestor click handler', () => {

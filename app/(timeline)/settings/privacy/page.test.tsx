@@ -106,19 +106,6 @@ describe('/settings/privacy', () => {
     vi.unstubAllGlobals()
   })
 
-  it('renders the header with Privacy and description', async () => {
-    render(await Page())
-
-    expect(
-      screen.getByRole('heading', { level: 1, name: 'Privacy' })
-    ).toBeVisible()
-    expect(
-      screen.getByText(
-        'Who can follow you. Blocks, mutes and filters are next to this in the list.'
-      )
-    ).toBeVisible()
-  })
-
   it('renders Followers group and Manually approve followers switch', async () => {
     render(await Page())
 

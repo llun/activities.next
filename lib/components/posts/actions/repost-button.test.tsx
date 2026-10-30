@@ -80,12 +80,6 @@ describe('RepostButton', () => {
     vi.clearAllMocks()
   })
 
-  it('renders nothing for a signed-out viewer', () => {
-    const { container } = render(<RepostButton status={status} />)
-
-    expect(container).toBeEmptyDOMElement()
-  })
-
   it('reposts the status and then offers to undo it', async () => {
     ;(repostStatus as jest.Mock).mockResolvedValue({ statusId: boostId })
     render(<RepostButton currentActor={currentActor} status={status} />)

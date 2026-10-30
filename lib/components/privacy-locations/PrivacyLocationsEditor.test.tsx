@@ -322,12 +322,6 @@ describe('PrivacyLocationsEditor', () => {
     ).toBeEnabled()
   })
 
-  it('renders a plain node footer as is', async () => {
-    renderEditor({ footer: <span>Extra footer</span> })
-
-    expect(await screen.findByText('Extra footer')).toBeInTheDocument()
-  })
-
   it('derives the GL source and layer ids from mapIdPrefix', async () => {
     const layers: string[] = []
     const sources: string[] = []

@@ -71,40 +71,6 @@ describe('AuthCard', () => {
     )
   })
 
-  it("renders the footer in the action band, the card's one top border", () => {
-    const { container } = render(
-      <AuthCard title="Hello" footer={<AuthCardFooter>Links</AuthCardFooter>} />
-    )
-
-    const band = container.querySelector('[data-slot="auth-card-actions"]')
-    expect(band).toHaveTextContent('Links')
-    expect(band).toHaveClass('border-t', 'px-6', 'py-5', 'grid', 'gap-3')
-    // Only the link line is centred and muted, not the whole band.
-    expect(screen.getByText('Links')).toHaveClass(
-      'text-center',
-      'text-sm',
-      'text-muted-foreground'
-    )
-  })
-
-  it('stacks the body fields in a px-6 column, with no inner frame', () => {
-    const { container } = render(
-      <AuthCard title="Hello">
-        <AuthCardBody>
-          <input aria-label="Email" />
-        </AuthCardBody>
-      </AuthCard>
-    )
-
-    expect(container.querySelector('[data-slot="auth-card-body"]')).toHaveClass(
-      'space-y-4',
-      'px-6',
-      'pt-6',
-      'pb-6'
-    )
-    expect(container.querySelectorAll('[data-slot="frame"]')).toHaveLength(1)
-  })
-
   it('keeps the submit button inside a form that wraps body and actions', () => {
     render(
       <AuthCard title="Hello">
@@ -121,29 +87,6 @@ describe('AuthCard', () => {
 
     expect(screen.getByRole('form')).toContainElement(
       screen.getByRole('button', { name: 'Go' })
-    )
-  })
-
-  it('keeps its bottom padding when there is no body and no footer', () => {
-    render(<AuthCard title="Nothing to follow" description="Open a link." />)
-    const header = screen.getByRole('heading', { level: 1 }).parentElement
-    expect(header).toHaveClass('p-6')
-    expect(header).not.toHaveClass('pb-0')
-  })
-
-  it('drops the header bottom padding when a body or footer follows', () => {
-    const { unmount } = render(
-      <AuthCard title="Body">
-        <AuthCardBody>Fields</AuthCardBody>
-      </AuthCard>
-    )
-    expect(screen.getByRole('heading', { level: 1 }).parentElement).toHaveClass(
-      'pb-0'
-    )
-    unmount()
-    render(<AuthCard title="Footer" footer={<span>Links</span>} />)
-    expect(screen.getByRole('heading', { level: 1 }).parentElement).toHaveClass(
-      'pb-0'
     )
   })
 

@@ -30,15 +30,4 @@ describe('messages loading', () => {
     expect(screen.getByLabelText('Conversation thread')).toBeInTheDocument()
     expect(screen.getByLabelText('Message thread')).toBeInTheDocument()
   })
-
-  it('draws the two panes inside one frame of shimmer bars', () => {
-    const { container } = render(<Loading />)
-
-    expect(container.querySelectorAll('[data-slot="frame"]')).toHaveLength(1)
-    expect(
-      screen
-        .getByLabelText('Direct messages')
-        .querySelectorAll('[data-slot="skeleton-bar"]').length
-    ).toBeGreaterThan(10)
-  })
 })

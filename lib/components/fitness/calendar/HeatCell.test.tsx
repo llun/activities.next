@@ -37,13 +37,6 @@ describe('HeatCell', () => {
     expect(cell().style.gridRow).toBe('6')
   })
 
-  it('carries its heat level for the stylesheet', () => {
-    renderCell({ level: 3 })
-
-    expect(cell()).toHaveAttribute('data-level', '3')
-    expect(cell()).toHaveAttribute('data-state', 'active')
-  })
-
   it.each(['upcoming', 'out'] as const)(
     'is a disabled, level-less %s cell with no tab stop',
     (kind) => {

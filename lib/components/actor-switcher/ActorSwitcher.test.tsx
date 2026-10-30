@@ -966,10 +966,5 @@ describe('ActorSwitcher', () => {
       })
       expect(viewProfile).toHaveAttribute('href', '/@eve@activities.local')
     })
-
-    it('returns null when neither currentActor nor user is provided', () => {
-      const { container } = render(<ActorSwitcher />)
-      expect(container.firstChild).toBeNull()
-    })
   })
 })

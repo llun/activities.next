@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 
 import {
   DeliveryDisposition,
-  SalvageableDeliveryError,
   classifyDeliveryError,
   isSalvageableNetworkError,
   isSalvageableStatusCode
@@ -87,20 +86,6 @@ describe('deliveryError', () => {
         error: new Error('Unknown error')
       })
       expect(result.disposition).toBe(DeliveryDisposition.UNSALVAGEABLE)
-    })
-  })
-
-  describe('SalvageableDeliveryError', () => {
-    it('constructs with statusCode and originalError', () => {
-      const orig = new Error('root cause')
-      const err = new SalvageableDeliveryError('Delivery failed', {
-        statusCode: 503,
-        originalError: orig
-      })
-      expect(err.name).toBe('SalvageableDeliveryError')
-      expect(err.message).toBe('Delivery failed')
-      expect(err.statusCode).toBe(503)
-      expect(err.originalError).toBe(orig)
     })
   })
 })

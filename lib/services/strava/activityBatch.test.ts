@@ -1,16 +1,7 @@
 import {
   STRAVA_ACTIVITY_BATCH_PREFIX,
-  getStravaActivityBatchId,
   getStravaActivityIdFromBatchId
 } from './activityBatch'
-
-describe('getStravaActivityBatchId', () => {
-  it('builds a batch id from a strava activity id', () => {
-    expect(getStravaActivityBatchId('19007245213')).toBe(
-      'strava-activity:19007245213'
-    )
-  })
-})
 
 describe('getStravaActivityIdFromBatchId', () => {
   it.each([

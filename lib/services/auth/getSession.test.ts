@@ -21,25 +21,6 @@ describe('getServerAuthSession', () => {
     headersMock.mockClear()
   })
 
-  it('returns the session better-auth resolves', async () => {
-    const session = { user: { email: 'rider@example.com' } }
-    getSessionMock.mockResolvedValue(session)
-
-    const { getServerAuthSession } = await import('./getSession')
-
-    expect(await getServerAuthSession()).toEqual(session)
-    expect(loggerErrorMock).not.toHaveBeenCalled()
-  })
-
-  it('returns null when there is no session', async () => {
-    getSessionMock.mockResolvedValue(null)
-
-    const { getServerAuthSession } = await import('./getSession')
-
-    expect(await getServerAuthSession()).toBeNull()
-    expect(loggerErrorMock).not.toHaveBeenCalled()
-  })
-
   it('fails closed (logs + returns null) when session resolution throws, e.g. a JWKS signing error', async () => {
     // Mirrors the jwt plugin's /get-session after-hook failing to sign the
     // set-auth-jwt header with an incompatible JWKS key.

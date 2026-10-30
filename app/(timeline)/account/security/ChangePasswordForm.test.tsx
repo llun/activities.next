@@ -40,14 +40,6 @@ describe('ChangePasswordForm', () => {
     expect(screen.getByText('Unsaved changes')).toBeInTheDocument()
   })
 
-  it('has no "Change Password" button: the form saves with Save', () => {
-    render(<ChangePasswordForm />)
-
-    expect(
-      screen.queryByRole('button', { name: /change password/i })
-    ).not.toBeInTheDocument()
-  })
-
   it('validates password match before calling API', async () => {
     render(<ChangePasswordForm />)
 

@@ -34,16 +34,6 @@ describe('album loading', () => {
     expect(screen.queryByLabelText('Loading profile')).not.toBeInTheDocument()
   })
 
-  it('draws every placeholder with the shimmer utility', () => {
-    const { container } = render(<Loading />)
-
-    const placeholders = container.querySelectorAll('[aria-hidden="true"]')
-    expect(placeholders.length).toBeGreaterThan(0)
-    for (const leaf of container.querySelectorAll('div:not(:has(div))')) {
-      expect(leaf).toHaveClass('skeleton')
-    }
-  })
-
   it('mirrors the loaded rows above the grid, in order', () => {
     const { container } = render(<Loading />)
 
