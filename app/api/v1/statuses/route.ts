@@ -59,6 +59,7 @@ import { QuoteApprovalPolicy, Status } from '@/lib/types/domain/status'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
+import { getClientStatusId } from '@/lib/utils/publicId'
 import {
   ERROR_400,
   ERROR_422,
@@ -431,11 +432,15 @@ export const POST = traceApiRoute(
           const scheduled = await database.createScheduledStatus({
             actorId: currentActor.id,
             scheduledAt,
-            // Store the resolved parent id, not the raw request value: the
-            // request may name the parent by a permalink alias, and the
-            // publish job resolves params.in_reply_to_id exactly.
+            // Store the parent's client-facing publicId, not the raw request
+            // value or the stored ActivityPub id: the request may name the
+            // parent by a permalink alias, and clients must only ever see
+            // publicIds. The publish job maps it back through
+            // resolveStatusIdParam.
             params: buildScheduledParams(
-              replyStatus ? { ...note, in_reply_to_id: replyStatus.id } : note,
+              replyStatus
+                ? { ...note, in_reply_to_id: getClientStatusId(replyStatus) }
+                : note,
               idempotencyKey ?? null,
               defaultPrivacy,
               clientId ?? null

@@ -96,11 +96,15 @@ export const POST = traceApiRoute(
       const statusId = await resolveStatusIdParam(database, encodedPollId)
       // Also fetches and stores an unstored remote public Question, so voting
       // on a poll this instance has never seen works like any other vote.
+      // requireType refuses fetched non-Question notes so they are never
+      // stored from a poll vote; the type check below still guards rows that
+      // were already stored as something else.
       const status = await getReadableStatusForAction({
         database,
         statusId,
         currentActor,
-        withReplies: false
+        withReplies: false,
+        requireType: 'Question'
       })
       if (!status || status.type !== StatusType.enum.Poll) {
         return apiResponse({

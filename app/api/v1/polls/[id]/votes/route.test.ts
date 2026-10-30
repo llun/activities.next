@@ -284,6 +284,11 @@ describe('POST /api/v1/polls/[id]/votes', () => {
       const response = await vote(remoteNoteId, { choices: ['0'] })
 
       expect(response.status).toBe(404)
+      const stored = await database.getStatus({
+        statusId: remoteNoteId,
+        withReplies: false
+      })
+      expect(stored).toBeNull()
       expect(mockSendPollVotes).not.toHaveBeenCalled()
     })
 

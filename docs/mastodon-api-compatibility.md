@@ -1908,10 +1908,11 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   this same path, so a resolve on an unseen URL takes as long as fetching and
   storing it. The requested id is checked before fetching: non-URL ids and
   served domains are refused, domain policy applies, and an existing row the
-  viewer can't read is never fetched. The fetched note must be on the same
-  origin as the requested id, with an author on that origin and a public or
-  unlisted audience, and the re-read after storing is gated by visibility. If
-  storing fails after a successful fetch of a public note, the result is an
+  viewer can't read is never fetched. A fetched note is accepted only when it
+  is on the same origin as the requested id, with an author on that origin
+  whose domain also passes federation policy, and a public or unlisted
+  audience; the re-read after storing is gated by visibility. If storing
+  fails after a successful fetch of a public note, the result is an
   unstored ephemeral status built from that fetched note, with no second
   fetch; if it was refused or the fetch failed, there is no status result.
   Because storing takes the inbound path, the note can land in local followers'

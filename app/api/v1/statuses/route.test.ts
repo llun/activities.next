@@ -17,6 +17,7 @@ import {
   MAX_STORED_MEDIA_ATTACHMENTS
 } from '@/lib/services/mastodon/constants'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
+import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { getQueue } from '@/lib/services/queue'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 import {
@@ -302,9 +303,9 @@ describe('POST /api/v1/statuses', () => {
 
   // The scheduled branch stores the reply target in the persisted params, and
   // the publish job resolves params.in_reply_to_id exactly at publish time —
-  // so it must store the parent id getReadableStatusForAction RETURNED (the
-  // canonical AP id the note was stored under), not the permalink alias the
-  // client sent.
+  // so it must store the parent's client-facing publicId (getClientStatusId of
+  // what getReadableStatusForAction returned), not the permalink alias the
+  // client sent and not the raw ActivityPub id.
   it('stores the resolved parent id in the scheduled params when a scheduled reply names the parent by a permalink alias', async () => {
     const remoteActorId = EXTERNAL_ACTOR1
     const canonicalParentId =
@@ -333,7 +334,16 @@ describe('POST /api/v1/statuses', () => {
       actorId: ACTOR1_ID,
       id: scheduled.id
     })
-    expect(stored?.params.in_reply_to_id).toBe(canonicalParentId)
+    const storedReplyToId = stored?.params.in_reply_to_id
+    const parentPublicId = await statusPublicId(database, canonicalParentId)
+    expect(storedReplyToId).toBe(parentPublicId)
+    expect(scheduled.params.in_reply_to_id).toBe(parentPublicId)
+    if (!storedReplyToId) {
+      throw new Error('Expected stored params.in_reply_to_id')
+    }
+    expect(await resolveStatusIdParam(database, storedReplyToId)).toBe(
+      canonicalParentId
+    )
   })
 
   describe('in_reply_to_id resolution', () => {

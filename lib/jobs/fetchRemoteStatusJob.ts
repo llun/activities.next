@@ -94,7 +94,7 @@ const storeNewNoteSideEffects = async (
   try {
     await createRemoteAttachments({ database, statusId, note })
   } catch (err) {
-    logger.warn({
+    logger.error({
       message: 'Failed to store fetched note attachments',
       statusId,
       err: toLoggableError(err)
@@ -118,7 +118,7 @@ const storeNewNoteSideEffects = async (
       await database.indexHashtagSearchDocuments({ hashtags })
     }
   } catch (err) {
-    logger.warn({
+    logger.error({
       message: 'Failed to store fetched note tags',
       statusId,
       err: toLoggableError(err)

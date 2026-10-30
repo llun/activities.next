@@ -407,7 +407,7 @@ describe('getReadableStatusForAction', () => {
       expect(mockGetNote).not.toHaveBeenCalled()
     })
 
-    it('returns fetchedNote null when the helper refuses before fetching (non-public note)', async () => {
+    it('returns fetchedNote null when the helper refuses after fetching (non-public note)', async () => {
       const nonPublicNote = {
         ...mockNote,
         to: ['https://remote.social/users/bob/followers'],
@@ -454,6 +454,42 @@ describe('getReadableStatusForAction', () => {
       })
     })
 
+    it('returns fetchedNote null when attributedTo is on another origin', async () => {
+      const forgedAuthorNote = {
+        ...mockNote,
+        attributedTo: 'https://evil.example/users/evil'
+      }
+      mockGetNote.mockResolvedValue(forgedAuthorNote)
+
+      await expect(variant(mockStatus.id)).resolves.toEqual({
+        status: null,
+        fetchedNote: null
+      })
+      expect(mockGetNote).toHaveBeenCalled()
+      expect(mockDispatchCreateNoteOrPollJob).not.toHaveBeenCalled()
+    })
+
+    it('still accepts an embedded actor object attributedTo on the same origin', async () => {
+      const embeddedActorNote = {
+        ...mockNote,
+        attributedTo: {
+          id: 'https://remote.social/users/bob',
+          type: 'Person',
+          preferredUsername: 'bob'
+        }
+      }
+      mockGetNote.mockResolvedValue(embeddedActorNote)
+
+      await expect(variant(mockStatus.id)).resolves.toEqual({
+        status: null,
+        fetchedNote: embeddedActorNote
+      })
+      expect(mockDispatchCreateNoteOrPollJob).toHaveBeenCalledWith(
+        database,
+        embeddedActorNote
+      )
+    })
+
     it('returns the checked fetchedNote when storing fails after the checks pass', async () => {
       mockGetNote.mockResolvedValue(mockNote)
       mockDispatchCreateNoteOrPollJob.mockRejectedValue(
@@ -484,15 +520,16 @@ describe('getReadableStatusForAction', () => {
       )
     })
 
-    it('returns the alias re-read status with fetchedNote null when the wrapper is used', async () => {
+    it('falls back to a note.id re-read when the alias re-read misses (wrapper used)', async () => {
       const aliasStatusId = 'https://remote.social/@bob/1'
       const canonicalNoteId = mockNote.id
       const noteWithCanonicalId = { ...mockNote, id: canonicalNoteId }
 
       mockGetNote.mockResolvedValue(noteWithCanonicalId)
       mockGetReadableStatus
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce(mockStatus)
+        .mockResolvedValueOnce(null) // initial check for the alias id
+        .mockResolvedValueOnce(null) // re-read for the alias id misses
+        .mockResolvedValueOnce(mockStatus) // fallback re-read for note.id
 
       await expect(
         getReadableStatusForAction({
@@ -501,6 +538,12 @@ describe('getReadableStatusForAction', () => {
           currentActor
         })
       ).resolves.toBe(mockStatus)
+      expect(mockGetReadableStatus).toHaveBeenNthCalledWith(3, {
+        database,
+        statusId: canonicalNoteId,
+        currentActor,
+        withReplies: undefined
+      })
     })
   })
 })

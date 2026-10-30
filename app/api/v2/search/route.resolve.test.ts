@@ -28,19 +28,35 @@ vi.mock('better-auth/oauth2', () => ({
   verifyBearerToken: vi.fn()
 }))
 
-const { mockGetNote } = vi.hoisted(() => ({
-  mockGetNote: vi.fn()
+const { mockGetNote, mockRecordRemoteActorBestEffort } = vi.hoisted(() => ({
+  mockGetNote: vi.fn(),
+  mockRecordRemoteActorBestEffort: vi.fn()
 }))
 
 // Only getNote is mocked: the real getReadableStatusAndFetchedNoteForAction,
 // dispatchCreateNoteOrPollJob and status storage all run against the test
 // database, so these tests prove the route consumes the helper's result
-// without a second remote fetch.
+// without a second remote fetch. recordRemoteActorBestEffort is stubbed
+// because the forged-author test needs the ephemeral fallback path to run to
+// completion: without the helper's author-origin check that path would build
+// an ephemeral status from the forged note, but recording its (nonexistent)
+// remote actor would fail first and mask the bug.
 vi.mock('@/lib/activities', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/activities')>()
   return {
     ...actual,
     getNote: mockGetNote
+  }
+})
+
+vi.mock('@/lib/services/actors/refreshRemoteActor', async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import('@/lib/services/actors/refreshRemoteActor')
+    >()
+  return {
+    ...actual,
+    recordRemoteActorBestEffort: mockRecordRemoteActorBestEffort
   }
 })
 
@@ -92,6 +108,9 @@ describe('GET /api/v2/search resolved remote statuses (real store-first helper)'
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetServerSession.mockResolvedValue(null)
+    mockRecordRemoteActorBestEffort.mockImplementation(({ actorId }) =>
+      Promise.resolve({ id: actorId })
+    )
   })
 
   it('stores a resolved remote note and returns the status with its stored id', async () => {
@@ -142,5 +161,47 @@ describe('GET /api/v2/search resolved remote statuses (real store-first helper)'
     const stored = await database.getStatus({ statusId: noteId })
     expect(stored).not.toBeNull()
     expect(stored?.actorId).toBe('https://remote.test/users/alice')
+  })
+
+  it('returns no statuses and stores nothing when attributedTo is on another origin', async () => {
+    const remoteStatusId = 'https://remote.test/users/bob/statuses/2'
+    mockGetNote.mockResolvedValueOnce({
+      id: remoteStatusId,
+      type: 'Note',
+      attributedTo: 'https://evil.example/users/evil',
+      content: 'forged author',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      published: '2026-04-26T10:00:00Z'
+    })
+
+    const response = await searchStatuses(remoteStatusId)
+    const data = await response.json()
+
+    expect(data.statuses).toHaveLength(0)
+    expect(mockGetNote).toHaveBeenCalledTimes(1)
+    const stored = await database.getStatus({ statusId: remoteStatusId })
+    expect(stored).toBeNull()
+  })
+
+  it('returns no statuses and stores nothing when a local actor is attributed to a note on another origin', async () => {
+    const remoteStatusId = 'https://evil.test/users/x/statuses/1'
+    mockGetNote.mockResolvedValueOnce({
+      id: remoteStatusId,
+      type: 'Note',
+      attributedTo: ACTOR1_ID,
+      content: 'local author, foreign id',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      published: '2026-04-26T10:00:00Z'
+    })
+
+    const response = await searchStatuses(remoteStatusId)
+    const data = await response.json()
+
+    expect(data.statuses).toHaveLength(0)
+    expect(mockGetNote).toHaveBeenCalledTimes(1)
+    const stored = await database.getStatus({ statusId: remoteStatusId })
+    expect(stored).toBeNull()
   })
 })
