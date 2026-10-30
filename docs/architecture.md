@@ -390,185 +390,204 @@ Export](maintenance.md#actor-archive-export)). It is built by
   `media_attachments/files/<storagePath>`) sit at the root, so the archive
   imports as a Mastodon export; in `actor.json` the `outbox`, `likes` and
   `bookmarks` properties name those sibling files by relative path, as
-  Mastodon's backup does (the operator CLI keeps the URLs). Every other profile
-  has the same files under `activities.next/actors/<domain>/<username>/`. The
-  extras per profile (`profile.json`, `statuses.jsonl`, `scheduled.json`,
-  `medias.jsonl`, `gallery/*`, `fitness/*`, `graph.json`) live in that same
-  directory. `activities.next/account.json` describes the account,
-  `activities.next/drafts.json` is there when the request carried drafts, and
-  `activities.next/manifest.json` is always the last entry (format, version,
-  `exportedAt`, the server host, the account's id, sign-up domain and default
-  actor id, every profile's id and handle with its counts, the entry list and
-  warnings). Mastodon's CSV files (`following_accounts.csv`, `lists.csv`,
-  `muted_accounts.csv`, `blocked_accounts.csv`, `blocked_domains.csv`,
-  `bookmarks.csv`) are written by the same functions as the web app's CSV
-  export (`exportPage` / `EXPORT_FILES` in
-  `lib/services/exports/accountExports.ts`, called from
-  `lib/services/accountArchive/stepsCsv.ts`), beside each profile's
-  `actor.json`: at the root for the default profile, in the profile's folder
-  for the others. The same data is also in `graph.json`. A file is written one
-  database page at a time (`exportPage`), with the page cursor in the step's
-  cursor, so a very long list is spread over slices instead of needing one. The
-  cursors survive edits between slices: every file pages by a keyset on the
-  row id read through the account export reader (`getAccountExportRows`), not
-  by a row that has to still exist, so a deleted or re-muted row cannot end a
-  file, skip a row or repeat one. Rows come in id order (oldest first only for
-  bookmarks; the other ids are random), so members of different lists can
-  interleave, which Mastodon's importer and ours accept. A list member
-  carries its list's title.
+  Mastodon's backup does (the operator CLI keeps the URLs).
+  - Every other profile has the same files under
+    `activities.next/actors/<domain>/<username>/`. The extras per profile
+    (`profile.json`, `statuses.jsonl`, `scheduled.json`, `medias.jsonl`,
+    `gallery/*`, `fitness/*`, `graph.json`) live in that same directory.
+  - `activities.next/account.json` describes the account,
+    `activities.next/drafts.json` is there when the request carried drafts, and
+    `activities.next/manifest.json` is always the last entry (format, version,
+    `exportedAt`, the server host, the account's id, sign-up domain and default
+    actor id, every profile's id and handle with its counts, the entry list and
+    warnings).
+  - Mastodon's CSV files (`following_accounts.csv`, `lists.csv`,
+    `muted_accounts.csv`, `blocked_accounts.csv`, `blocked_domains.csv`,
+    `bookmarks.csv`) are written by the same functions as the web app's CSV
+    export (`exportPage` / `EXPORT_FILES` in
+    `lib/services/exports/accountExports.ts`, called from
+    `lib/services/accountArchive/stepsCsv.ts`), beside each profile's
+    `actor.json`: at the root for the default profile, in the profile's folder
+    for the others. The same data is also in `graph.json`.
+  - A file is written one database page at a time (`exportPage`), with the page
+    cursor in the step's cursor, so a very long list is spread over slices
+    instead of needing one. The cursors survive edits between slices: every
+    file pages by a keyset on the row id read through the account export reader
+    (`getAccountExportRows`), not by a row that has to still exist, so a deleted
+    or re-muted row cannot end a file, skip a row or repeat one. Rows come in id
+    order (oldest first only for bookmarks; the other ids are random), so
+    members of different lists can interleave, which Mastodon's importer and ours
+    accept. A list member carries its list's title.
 - **Nothing secret, by construction.** The collectors read through
   `lib/database/domains/accountExport/`, which selects an explicit column
   allowlist per table (`tables.ts`); `profile.json` lists an allowlist of the
   actor's settings keys (`EXPORTED_ACTOR_SETTING_KEYS`), so a setting added
   later stays out until someone lists it. A new column is therefore absent until
-  someone lists it, which is the safe direction. Keys, password hashes, 2FA and
-  passkey material, sessions, OAuth grants and tokens, push subscriptions and
-  fitness tokens are not in any allowlist, and the job test scans every JSON
-  entry's key names. A file is copied into the archive only when its stored path
-  is the account's own media (a profile image must be one of the account's
-  `medias` rows) and lies under `medias/`; a path that names `archives/`,
-  fitness storage or anything else is refused with a warning.
-  `stripExactLocations` removes the media place coordinates, the Fitness
-  privacy home point and hidden circles and the Gallery hidden locations from
-  the JSON documents; it does not rewrite the owner's files (activity files
-  and the EXIF of photos are copied as they are).
+  someone lists it, which is the safe direction.
+  - Keys, password hashes, 2FA and passkey material, sessions, OAuth grants
+    and tokens, push subscriptions and fitness tokens are not in any allowlist,
+    and the job test scans every JSON entry's key names.
+  - A file is copied into the archive only when its stored path is the
+    account's own media (a profile image must be one of the account's `medias`
+    rows) and lies under `medias/`; a path that names `archives/`, fitness
+    storage or anything else is refused with a warning.
+  - `stripExactLocations` removes the media place coordinates, the Fitness
+    privacy home point and hidden circles and the Gallery hidden locations from
+    the JSON documents; it does not rewrite the owner's files (activity files
+    and the EXIF of photos are copied as they are).
 - **Resumable, idempotent slices.** The collect stage writes each page to a
   part key under `archives/<id>/<secret>/stage/` that has the writer's id in it,
   and then saves the cursor (`account_archives.progress`) with a compare-and-set
   that records the writer of every part it counts, so a slice killed at any
-  point reruns the page and its leftovers are never read. Every delivery takes a
-  lease (a random token and an expiry kept in the cursor). The queue messages are
-  numbered runs: message `n` is current only while the cursor says run `n - 1`
-  finished, so a duplicate of a finished run is dropped and a retry of an
-  unfinished one runs. The next message's id comes from its run number, and a
-  run finishes once, so a new run always gets a new id. The one deliberate
-  repeat is the recovery of a lost publish: a redelivery of a run that already
-  finished republishes the next run under the same id (a queue that dedupes
-  drops the copy if the first arrived; Cloud Tasks does not, and the lease and
-  run checks absorb a copy). The reaper's requeue id has the run number and the
-  reap count in it. A delivery that finds another worker's
-  live lease fails with a retryable error, without counting as a failure, so
-  the queue brings it back after the lease lapses; a worker that loses its lease
-  finds out at its next compare-and-set save and stops. The slice budget depends
-  on the queue (`budget.ts`): 20 seconds on QStash, whose jobs are cut off at 30,
-  and four minutes elsewhere. A slice that runs out of time saves its cursor and
-  publishes the next message. A slice that throws is retried; the failure count
-  resets only when a slice finishes its run, so three failing deliveries in a
-  row, in collection or in assembly, mark the export `failed` and delete its
-  files. Errors written to the logs have the `archives/<id>/<secret>` part of any
-  path redacted.
+  point reruns the page and its leftovers are never read.
+  - Every delivery takes a lease (a random token and an expiry kept in the
+    cursor). The queue messages are numbered runs: message `n` is current only
+    while the cursor says run `n - 1` finished, so a duplicate of a finished run
+    is dropped and a retry of an unfinished one runs. The next message's id comes
+    from its run number, and a run finishes once, so a new run always gets a new
+    id. The one deliberate repeat is the recovery of a lost publish: a
+    redelivery of a run that already finished republishes the next run under the
+    same id (a queue that dedupes drops the copy if the first arrived; Cloud
+    Tasks does not, and the lease and run checks absorb a copy). The reaper's
+    requeue id has the run number and the reap count in it.
+  - A delivery that finds another worker's live lease fails with a retryable
+    error, without counting as a failure, so the queue brings it back after the
+    lease lapses; a worker that loses its lease finds out at its next
+    compare-and-set save and stops.
+  - The slice budget depends on the queue (`budget.ts`): 20 seconds on QStash,
+    whose jobs are cut off at 30, and four minutes elsewhere. A slice that runs
+    out of time saves its cursor and publishes the next message.
+  - A slice that throws is retried; the failure count resets only when a slice
+    finishes its run, so three failing deliveries in a row, in collection or in
+    assembly, mark the export `failed` and delete its files. Errors written to
+    the logs have the `archives/<id>/<secret>` part of any path redacted.
 - **Resumable assembly.** Writing the zip is a stage of the same cursor, so a
   large export does not need to fit in one slice. `zipFormat.ts` is a small
   zip writer whose state fits in the cursor, with Zip64 records (readable by
   `unzip`, Python, Go, Java `ZipFile` and yauzl; the tests check several of
-  them). Staged documents (the JSON, JSON lines and CSV text) are deflated part
-  by part when they are staged, with a full flush after each part, so the
-  parts concatenate into one deflate stream (closed by an empty final block)
-  and no compressor state has to survive a slice; their sizes and CRC-32 are
-  recorded while staging, so these entries carry them in the header and have no
-  data descriptor, which lets a streaming reader such as Java's
-  `ZipInputStream` read them. A resume inside a staged document starts at the
-  right part and offset instead of reading the earlier parts again. Files
-  copied from storage (media, fitness files) are stored, not compressed, with a
-  Zip64 data descriptor, because their CRC is only known at the end: a reader
-  that does not use the central directory cannot read past the first of them.
-  Small documents built during assembly (`account.json`, the manifest) are
-  built once and kept in the stage, so every slice reads the same bytes. The
-  output goes through `ResumableSink` (`objectStore.ts`): on local disk a
-  `.partial` file that a resumed slice writes on in from the checkpoint offset
-  (opening it changes nothing) and that is cut to its final size and renamed at
-  the end; on S3 a multipart upload (8 MiB parts, so at least 5 MiB except the
-  last) whose UploadId and part ETags are in the cursor (completion uses the ETags
-  that `ListParts` lists, after checking their count and sizes against the
-  cursor, and falls back to the cursor's ETags with a warning when the
-  credentials may not list parts or the store answers NotImplemented), with the bytes that do
-  not fill a part kept in a staged tail object. A source file that changes
-  while it is exported can give a zip with a bad CRC on both sinks (the
-  accepted case; nothing detects it). Every checkpoint writes a tail
-  under a new name (the writer and a sequence number), and the older tail is
-  deleted only after the cursor that refers to the new one has been saved, so a
-  checkpoint whose save never lands cannot damage the saved state. S3 calls of
-  an export time out after 30 seconds in total, under the lease's grace (the
-  clients make a single attempt (on QStash the 30-second job is the tighter
-  limit and needs about 1.7 MB/s at 8 MiB parts), because the SDK's retries would triple it and
-  outlive the lease; the slice retry is the retry, and a transient error
-  reading a media or fitness file from storage fails the slice instead of
-  leaving the file out): the client is
-  built with `throwOnRequestTimeout`, which the SDK needs to reject a stalled
-  request (without it the handler only logs a warning), and the clients that
-  read the media and fitness source files use the same timeout. Parts are
-  8 MiB and grow by 8 MiB every 1,000 parts, so the 10,000-part limit of S3 is
-  out of reach before about 430 GiB; an upload that would pass it fails with a
-  clear message. Two rules keep a worker that stalled past its lease from
-  corrupting the export when it writes late. First, every staged object a
-  worker writes and the cursor later relies on has the worker's slice token in
-  its key, and the saved cursor records which writer's object it counts (staged
-  document parts, file index parts, the directory and name parts, generated
-  documents, the upload's tails); a late write creates a key nothing refers to,
-  and such orphans go with the archive's prefix when the export finishes, fails
-  or expires. Second, the zip output itself (the S3 parts, the local `.partial`
-  file) is shared by every worker that resumes from a saved cursor, so every
-  byte written to it is a function of the saved cursor and the objects it names:
-  a generated document (`manifest.json`, `account.json`) is stored and named by
-  a cursor save before any byte of it is written out, and the copied source
-  files are read as they are (one deleted during the export can be copied by one
-  worker and skipped by another, which is accepted). Before each write a worker
-  also checks its own lease with a 45-second margin and stops with a retryable
-  error, only so a stalled worker ends early; correctness does not depend on
-  it. A source file that sends nothing for 45 seconds fails the slice
-  (the request timeout ends at the response headers). A worker that fails after losing its lease logs and stops without writing a
-  failure into the new owner's cursor. A failed export aborts its upload from the saved state alone,
-  without reading the staged tail. A large source
-  file is copied across slices by byte range (`Range: bytes=n-`), and the set
-  of claimed entry names (to drop duplicates) is kept as eight-byte hashes in
-  staged parts, not read back from the central directory. Each attempt writes
-  its own `archive-<attempt>.zip`, so a second worker finishing the same slice
-  cannot clobber or delete the file the first one marked ready; the `ready`
-  update is a compare-and-set, and the loser deletes nothing. An abandoned S3
-  multipart upload that nothing aborts (a crashed worker) costs storage until it
-  is aborted: add a bucket lifecycle rule that aborts incomplete multipart
-  uploads after a day or two.
+  them).
+  - Staged documents (the JSON, JSON lines and CSV text) are deflated part
+    by part when they are staged, with a full flush after each part, so the
+    parts concatenate into one deflate stream (closed by an empty final block)
+    and no compressor state has to survive a slice; their sizes and CRC-32 are
+    recorded while staging, so these entries carry them in the header and have
+    no data descriptor, which lets a streaming reader such as Java's
+    `ZipInputStream` read them. A resume inside a staged document starts at
+    the right part and offset instead of reading the earlier parts again.
+  - Files copied from storage (media, fitness files) are stored, not
+    compressed, with a Zip64 data descriptor, because their CRC is only known
+    at the end: a reader that does not use the central directory cannot read
+    past the first of them. Small documents built during assembly
+    (`account.json`, the manifest) are built once and kept in the stage, so
+    every slice reads the same bytes.
+  - The output goes through `ResumableSink` (`objectStore.ts`): on local disk
+    a `.partial` file that a resumed slice writes on in from the checkpoint
+    offset (opening it changes nothing) and that is cut to its final size and
+    renamed at the end; on S3 a multipart upload (8 MiB parts, so at least
+    5 MiB except the last) whose UploadId and part ETags are in the cursor
+    (completion uses the ETags that `ListParts` lists, after checking their
+    count and sizes against the cursor, and falls back to the cursor's ETags
+    with a warning when the credentials may not list parts or the store
+    answers NotImplemented), with the bytes that do not fill a part kept in a
+    staged tail object.
+  - A source file that changes while it is exported can give a zip with a bad
+    CRC on both sinks (the accepted case; nothing detects it). Every
+    checkpoint writes a tail under a new name (the writer and a sequence
+    number), and the older tail is deleted only after the cursor that refers
+    to the new one has been saved, so a checkpoint whose save never lands
+    cannot damage the saved state.
+  - S3 calls of an export time out after 30 seconds in total, under the
+    lease's grace (the clients make a single attempt (on QStash the 30-second
+    job is the tighter limit and needs about 1.7 MB/s at 8 MiB parts), because
+    the SDK's retries would triple it and outlive the lease; the slice retry
+    is the retry, and a transient error reading a media or fitness file from
+    storage fails the slice instead of leaving the file out): the client is
+    built with `throwOnRequestTimeout`, which the SDK needs to reject a
+    stalled request (without it the handler only logs a warning), and the
+    clients that read the media and fitness source files use the same
+    timeout. Parts are 8 MiB and grow by 8 MiB every 1,000 parts, so the
+    10,000-part limit of S3 is out of reach before about 430 GiB; an upload
+    that would pass it fails with a clear message.
+  - Two rules keep a worker that stalled past its lease from corrupting the
+    export when it writes late. First, every staged object a worker writes
+    and the cursor later relies on has the worker's slice token in its key,
+    and the saved cursor records which writer's object it counts (staged
+    document parts, file index parts, the directory and name parts, generated
+    documents, the upload's tails); a late write creates a key nothing refers
+    to, and such orphans go with the archive's prefix when the export
+    finishes, fails or expires.
+  - Second, the zip output itself (the S3 parts, the local `.partial`
+    file) is shared by every worker that resumes from a saved cursor, so every
+    byte written to it is a function of the saved cursor and the objects it
+    names: a generated document (`manifest.json`, `account.json`) is stored
+    and named by a cursor save before any byte of it is written out, and the
+    copied source files are read as they are (one deleted during the export
+    can be copied by one worker and skipped by another, which is accepted).
+  - Before each write a worker also checks its own lease with a 45-second
+    margin and stops with a retryable error, only so a stalled worker ends
+    early; correctness does not depend on it. A source file that sends
+    nothing for 45 seconds fails the slice (the request timeout ends at the
+    response headers). A worker that fails after losing its lease logs and
+    stops without writing a failure into the new owner's cursor. A failed
+    export aborts its upload from the saved state alone, without reading the
+    staged tail.
+  - A large source file is copied across slices by byte range
+    (`Range: bytes=n-`), and the set of claimed entry names (to drop
+    duplicates) is kept as eight-byte hashes in staged parts, not read back
+    from the central directory. Each attempt writes its own
+    `archive-<attempt>.zip`, so a second worker finishing the same slice
+    cannot clobber or delete the file the first one marked ready; the
+    `ready` update is a compare-and-set, and the loser deletes nothing.
+  - An abandoned S3 multipart upload that nothing aborts (a crashed worker)
+    costs storage until it is aborted: add a bucket lifecycle rule that aborts
+    incomplete multipart uploads after a day or two.
 - **Storage.** The files use the media storage (local disk or S3-compatible),
   under the reserved `archives/` prefix, and the key holds a random secret
   segment that only the database row knows: `archives/<id>/<secret>/...`. The
   public files route refuses the prefix (`isReservedFitnessMediaPath`), and the
-  owner-only download route is the only way out. On a private bucket it
-  redirects to a five-minute signed URL (`Content-Disposition: attachment`); on
-  local disk, and on a bucket with `ACTIVITIES_MEDIA_STORAGE_HOSTNAME` set (it
-  may be served publicly, and a signed URL carries the secret key, so anyone
-  holding it could drop the signature), it streams the file through the server
-  after the owner check. The streamed download honours one range form,
-  `Range: bytes=n-` (206, or 416 past the end), so a broken download can
-  resume; the transfer still has to fit the host's request duration, so a
-  platform with a short function limit (serverless) needs the file served by
-  the bucket (leave the hostname unset) or a longer limit. A ready row whose object is gone answers 404. Do not
-  serve the bucket or the `archives/` prefix through a public CDN hostname: the
-  secret segment makes a key unguessable, but it is not an access control.
-  Deleting an export deletes `archives/<id>/`.
+  owner-only download route is the only way out.
+  - On a private bucket it redirects to a five-minute signed URL
+    (`Content-Disposition: attachment`); on local disk, and on a bucket with
+    `ACTIVITIES_MEDIA_STORAGE_HOSTNAME` set (it may be served publicly, and a
+    signed URL carries the secret key, so anyone holding it could drop the
+    signature), it streams the file through the server after the owner check.
+  - The streamed download honours one range form, `Range: bytes=n-` (206, or
+    416 past the end), so a broken download can resume; the transfer still has
+    to fit the host's request duration, so a platform with a short function
+    limit (serverless) needs the file served by the bucket (leave the hostname
+    unset) or a longer limit. A ready row whose object is gone answers 404.
+  - Do not serve the bucket or the `archives/` prefix through a public CDN
+    hostname: the secret segment makes a key unguessable, but it is not an
+    access control. Deleting an export deletes `archives/<id>/`.
 - **Limits.** One queued or running export per account (a partial unique index
-  on `account_archives`), one request per 7 days (`429` with `nextAllowedAt` and
-  a `Retry-After` header, whether the earlier export is running or finished; a
-  failed export does not count), drafts capped at 5 MiB and reduced to an
-  allowlist of fields with no attachment bytes; the request body is counted as
-  it arrives and refused past 6 MiB. A ready archive expires after 7 days: a
-  delayed `ExportAccountArchiveJob` (`action: 'expire'`) deletes it under a real
-  queue, `startActorDeletionSweep` does the same every ten minutes (the only
-  mechanism under the in-process queue), and the list and download routes expire
-  a due archive on access. Every cursor save moves `account_archives.heartbeatAt`;
-  an export whose heartbeat is an hour old (a dead worker, a lost message) is
-  reaped by the same sweep (oldest heartbeat first) and by
-  `GET /api/v1/account/archives`: its current run is requeued, counted in
-  `reapCount` (up to three times in a row: a run that makes progress sets it back to 0), or, behind the in-process queue or after the
-  third reap, it is marked `failed` (only if it did not resume since the row was read) and
-  its files and unfinished upload are discarded; a failed export does not count against the 7-day limit. A suspended
-  (moderation-blocked) account can still list and download its own exports, as
-  an export is the user's copy of their data. When an account's last actor is
-  deleted (`deleteActorJob`, checked again after the deletion for two actors
-  deleted at once) or a pending account is rejected, its exports' files are
-  deleted first and then its rows, so a deleted account's full export does not
-  linger. `scripts/maintenance/cleanupMediaStorage.ts` and the operator backup
-  (`scripts/backup/productionArchive.ts`) skip the `archives/` prefix like the
-  fitness prefix.
+  on `account_archives`), one request per 7 days (`429` with `nextAllowedAt`
+  and a `Retry-After` header, whether the earlier export is running or
+  finished; a failed export does not count), drafts capped at 5 MiB and
+  reduced to an allowlist of fields with no attachment bytes; the request body
+  is counted as it arrives and refused past 6 MiB.
+  - A ready archive expires after 7 days: a delayed `ExportAccountArchiveJob`
+    (`action: 'expire'`) deletes it under a real queue,
+    `startActorDeletionSweep` does the same every ten minutes (the only
+    mechanism under the in-process queue), and the list and download routes
+    expire a due archive on access.
+  - Every cursor save moves `account_archives.heartbeatAt`; an export whose
+    heartbeat is an hour old (a dead worker, a lost message) is reaped by the
+    same sweep (oldest heartbeat first) and by
+    `GET /api/v1/account/archives`: its current run is requeued, counted in
+    `reapCount` (up to three times in a row: a run that makes progress sets it
+    back to 0), or, behind the in-process queue or after the third reap, it is
+    marked `failed` (only if it did not resume since the row was read) and
+    its files and unfinished upload are discarded; a failed export does not
+    count against the 7-day limit.
+  - A suspended (moderation-blocked) account can still list and download its
+    own exports, as an export is the user's copy of their data.
+  - When an account's last actor is deleted (`deleteActorJob`, checked again
+    after the deletion for two actors deleted at once) or a pending account is
+    rejected, its exports' files are deleted first and then its rows, so a
+    deleted account's full export does not linger.
+    `scripts/maintenance/cleanupMediaStorage.ts` and the operator backup
+    (`scripts/backup/productionArchive.ts`) skip the `archives/` prefix like
+    the fitness prefix.
 
 ### Account data import
 
@@ -807,12 +826,13 @@ that both the web UI and the Mastodon API's `Status.card` render.
 
 ### Route Heatmap Tiles
 
-A fitness route heatmap used to be one pre-simplified blob of geometry per
-heatmap row. That blob is simplified once against a single global budget set by
-the actor's whole history, so it can only ever be drawn at one fidelity: zooming
-in revealed nothing the blob did not already contain. `fitness_route_heatmap_pyramids`
-and `fitness_route_heatmap_tiles` replace it with a per-actor tile pyramid, and
-every surface that draws a heatmap reads tiles when the row has them.
+A fitness route heatmap row can be tile-backed:
+`fitness_route_heatmap_pyramids` and `fitness_route_heatmap_tiles` hold a
+per-actor tile pyramid, and every surface that draws a heatmap reads tiles when
+the row has them. The stored geometry blob the row also carries is simplified
+once against a single global budget set by the actor's whole history, so it can
+only ever be drawn at one fidelity — zooming in reveals nothing the blob does
+not already contain.
 
 - The pyramid is built at a fixed **zoom ladder** — 4, 6, 8, 10, 12, 14, 16 —
   with a 256-unit tile extent, each rung simplified to about one pixel at its
@@ -837,7 +857,7 @@ Four surfaces read the pyramid:
   `MAX_TILES_PER_REQUEST` (128) tiles per request.
 - `GET /embed/heatmap/:token/tiles` — the public one. The capability is the
   share token; out-of-region tiles are settled before any geometry is read, the
-  privacy flag is stripped exactly as the public flattening has always done, and
+  privacy flag is stripped exactly as the public flattening strips it, and
   only a `completed` pyramid serves tiles, only at its own version.
 - The interactive maps (MapLibre GL and MapKit) fetch tiles for the current
   view, coarsening down the ladder rather than refusing when a view would need
@@ -854,7 +874,7 @@ Four surfaces read the pyramid:
   SVG. It is opt-in, so an existing embed keeps the scalable image; any other
   value takes the default.
 
-The stored blob has not gone away. It still renders every row the pyramid cannot
+The stored blob is still the fallback. It renders every row the pyramid cannot
 answer — any variant, and anything belonging to an actor whose pyramid has not
 completed a build (which is decided when the row is read, not when it was built) — and it is
 what the static image falls back to when a basemap renderer cannot draw tile
@@ -945,7 +965,7 @@ fails to parse (each route reports that differently) or is stored incomplete.
 The proxy's only work on an `/api/*` request is adding the CSP header, so its
 `config.matcher` skips `/api/*` requests whose `Content-Type` is
 `multipart/form-data` (case-insensitive), covering every multipart upload
-without a per-route list. Raising `proxyClientMaxBodySize` was rejected: it
+without a per-route list. Raising `proxyClientMaxBodySize` is not the fix: it
 would have to track the runtime upload caps, which `next.config.ts` must not
 read, and it buffers every in-flight upload in memory once more. Two paths are
 always matched whatever `Content-Type` is sent: bare `/api` (the catch-all
@@ -1249,7 +1269,7 @@ Read the applicable rules and review checks below before changing this subsystem
 - **Server-side outbound JSON and text HTTP requests MUST go through `safeRemoteFetch` (`@/lib/utils/safeRemoteFetch`).** Binary downloads use the guarded helper below.
 - Never call raw `fetch()` directly in server-side services or utilities.
 - `safeRemoteFetch` is backed by `got` and applies standard SSRF protection (requiring HTTPS, blocking private IP ranges such as loopback and RFC 1918 subnets), streaming response-size limits, timeout bounds, DNS pinning, and redirect handling.
-- A fetch whose response is trusted because of the host it came from — an ActivityPub object fetched to authenticate it (`getNote`, the forwarded-Delete confirmation, a `QuoteAuthorization` stamp) — passes `allowCrossHostRedirects: false`, so an open redirect on that host cannot hand the answer to another one. See [A Fetched Document's Own `id` Is Not Evidence](mastodon-api-compatibility.md#agents-a-fetched-document-s-own-id-is-not-evidence). Remote servers running in `AUTHORIZED_FETCH` / secure mode also reject unsigned ActivityPub GETs, so server-to-server fetches that resolve remote actors or statuses (`getActorPerson`, `getActorPosts`, `getNote`, search, remote statuses, profiles, status detail, Move target verification) sign the request with the headless instance actor from `getFederationSigningActor`, never the viewing user's actor (its key may not be publicly resolvable on a multi-domain setup; #1122 removed viewer signing), and degrade to an unsigned request when that signer cannot be resolved. Only outbound delivery POSTs sign as the user.
+- A fetch whose response is trusted because of the host it came from — an ActivityPub object fetched to authenticate it (`getNote`, the forwarded-Delete confirmation, a `QuoteAuthorization` stamp) — passes `allowCrossHostRedirects: false`, so an open redirect on that host cannot hand the answer to another one. See [A Fetched Document's Own `id` Is Not Evidence](mastodon-api-compatibility.md#agents-a-fetched-document-s-own-id-is-not-evidence). Remote servers running in `AUTHORIZED_FETCH` / secure mode also reject unsigned ActivityPub GETs, so server-to-server fetches that resolve remote actors or statuses (`getActorPerson`, `getActorPosts`, `getNote`, search, remote statuses, profiles, status detail, Move target verification) sign the request with the headless instance actor from `getFederationSigningActor`, never the viewing user's actor (its key may not be publicly resolvable on a multi-domain setup), and degrade to an unsigned request when that signer cannot be resolved. Only outbound delivery POSTs sign as the user.
 - Binary FIT and image downloads use `safeImageFetch` with `readResponseArrayBufferWithLimit` because the text response of `safeRemoteFetch` would corrupt those bytes. The binary helper checks each redirect and destination address; callers apply an overall timeout and byte cap and do not forward provider bearer tokens to file hosts.
 - Web Push delivery (`web-push`) is the one outbound POST to a URL a client chose. The subscribe routes refuse any endpoint `isAllowedPushEndpoint` rejects (`lib/services/notifications/pushEndpoint.ts`: HTTPS, no credentials, no local names, public addresses only), delivery skips a stored endpoint `isDeliverablePushEndpoint` rejects and connects through `pushDeliveryAgent`, whose lookup refuses a restricted address at connect time (so a rebound record is caught), with a per-request timeout. `createPushSubscription` keeps at most `MAX_PUSH_SUBSCRIPTIONS_PER_ACTOR` per actor (oldest dropped), which bounds the per-notification fan-out.
 - External cloud integrations (e.g. translation providers like DeepL, OpenAI, or Gemini, and alt-text vision generation) must target public HTTPS endpoints. Internal or self-hosted HTTP services running on private IP addresses are not supported.
@@ -1270,9 +1290,9 @@ Read the applicable rules and review checks below before changing this subsystem
 
 ### Link prefetching in feeds
 
-- **A `<Link>` rendered once per row of a feed or list MUST pass `prefetch={false}`.** Next's App Router `<Link>` defaults to prefetching every link that enters the viewport, and this app's feeds are infinite-scroll, so a repeated link is not one request — it is one request per row, fired continuously as the user scrolls. This is the bug that flooded production: `Posts` renders two author links per post (the avatar and the display name), so scrolling the home timeline issued a stream of `GET /@user@domain?_rsc=…` prefetches.
+- **A `<Link>` rendered once per row of a feed or list MUST pass `prefetch={false}`.** Next's App Router `<Link>` defaults to prefetching every link that enters the viewport, and this app's feeds are infinite-scroll, so a repeated link is not one request — it is one request per row, fired continuously as the user scrolls. `Posts` renders two author links per post (the avatar and the display name), so scrolling the home timeline issues a stream of `GET /@user@domain?_rsc=…` prefetches.
 - The cost is not just a page render. Every one of those targets is a fully dynamic route — `/@user@domain` runs a session lookup plus six actor queries — and for a remote actor this instance has not persisted yet, `getProfileData` additionally performs a **WebFinger lookup and a signed actor fetch against the remote server**. Viewport prefetching therefore turns idle scrolling into outbound federation traffic aimed at other people's instances.
-- There is no global switch: Next 16's `prefetch` prop (`boolean | 'auto' | null`) is per-`Link` and has no `next.config.ts` counterpart, so the opt-out is written at each call site. `prefetch={false}` disables prefetching on **both** viewport entry and hover — accept the hover loss. Without a prefetch the router has nothing to show until the server answers, so a profile click used to leave the old page frozen for the whole round trip; `PendingProfileNavigationProvider` (`app/(timeline)/PendingProfileNavigation.tsx`, mounted by the `(timeline)` layout) covers that gap instead: it watches same-tab clicks on links to `/@user@domain` and paints the `[actor]` route's own `ProfileLoading` skeleton over the content column (`PendingProfileOverlay`, in the signed-in `<main>` and in `PublicShell`) until the pathname changes, when the route's `loading.tsx` takes over. It is an overlay, not a swap, so the page underneath keeps the height and scroll position the browser records for Back. New profile links get this for free; do not re-enable prefetching on them to make profiles feel instant.
+- There is no global switch: Next 16's `prefetch` prop (`boolean | 'auto' | null`) is per-`Link` and has no `next.config.ts` counterpart, so the opt-out is written at each call site. `prefetch={false}` disables prefetching on **both** viewport entry and hover — accept the hover loss. Without a prefetch the router has nothing to show until the server answers, so a profile click leaves the old page frozen for the whole round trip; `PendingProfileNavigationProvider` (`app/(timeline)/PendingProfileNavigation.tsx`, mounted by the `(timeline)` layout) covers that gap: it watches same-tab clicks on links to `/@user@domain` and paints the `[actor]` route's own `ProfileLoading` skeleton over the content column (`PendingProfileOverlay`, in the signed-in `<main>` and in `PublicShell`) until the pathname changes, when the route's `loading.tsx` takes over. It is an overlay, not a swap, so the page underneath keeps the height and scroll position the browser records for Back. New profile links get this for free; do not re-enable prefetching on them to make profiles feel instant.
 - Current opt-outs: the shared post author links (`lib/components/posts/actor.tsx`), the booster link on the boosted-by line (`BoostStatus` in `lib/components/posts/post.tsx`), quote card links (`QuoteCard` in `lib/components/posts/quote-card.tsx`), notification rows (`NotificationItem`, `StatusNotification`, `ActivityImportNotification`), follower/following rows (`FollowList`), search account and hashtag rows, the likes list and chips (`StatusLikes`), and trending hashtag rows. Regression-tested in `lib/components/posts/actor.test.tsx`, `lib/components/posts/boost-status.test.tsx`, and `lib/components/posts/quote-card.test.tsx`, which mock `next/link` because the real one does not reflect `prefetch` into the DOM.
 - Navigation **chrome** keeps prefetching and should: the sidebar, mobile navigation drawer, section sub-nav, pagination, and one-off page links render a bounded handful of links, so prefetch is a straight latency win there. The rule is about links whose count scales with the number of rows on screen. **The one exception inside chrome** is the user profile link: both as a main nav item (`item.id === 'profile'` in `lib/components/layout/sidebar.tsx`) and in the account menu (`ActorSwitcher` in the sidebar bottom row, the tablet rail, and the mobile drawer): unlike other registry nav items, Profile's href is the viewer's own per-user `/@user@domain` (`profileUrl`) — the same fully-dynamic `[actor]` route the post-author links above opt out of (a per-user session lookup plus six actor queries on every render) — so it carries `prefetch={false}` while other registry items and the overflow (More) menu links around it keep default prefetching. Regression-tested in `lib/components/actor-switcher/ActorSwitcher.test.tsx`, which mocks `next/link` the same way. The same holds for a `BackLink` whose target is a profile — the signed-in followers/following Back and the post page's direct-entry Back — which pass `prefetch={false}`.
 
@@ -1282,13 +1302,13 @@ Read the applicable rules and review checks below before changing this subsystem
 
 - **The nav item registry is the single source of truth, and adding an item is two lines.** Its id goes in `NAV_ITEM_IDS` (`lib/services/navigation/navPreferences.ts`) and its presentation — icon, label, `shortLabel`, `blurb` — goes in `NAV_ITEM_DEFINITIONS` (`lib/components/layout/nav-items.ts`). Every surface derives from those: the full sidebar, the collapsed rail, the mobile navigation drawer and its More group, and the Settings → Sidebar manager (`/settings/sidebar`). Never hardcode a nav list in a component.
 - **`lib/services/navigation/navPreferences.ts` must stay dependency-free** — no React, no lucide, no env. Both sides import it: the `'use client'` surfaces render from it, and `app/api/v1/accounts/navigation-preferences/route.ts` validates writes against it. It owns which ids are pinned (`LOCKED_NAV_IDS`), which belong to an optional instance feature (`NAV_FEATURE_BY_ID`), and the order/split/move algebra. See **Server/Client Module Boundary**.
-- **Main navigation items and default order:** `NAV_ITEM_IDS` in `lib/services/navigation/navPreferences.ts`, ending `… notifications`, `admin`, `profile`, `settings`. The previous `account` ("Account & security") nav item was removed from the main navigation; `profile` ("Profile", `UserRound` icon) takes its slot before `settings`. Profile's href resolves to the current actor's profile page (`profileUrl`, like `fitnessUrl` and `galleryUrl`), active only when viewing your own profile pages.
+- **Main navigation items and default order:** `NAV_ITEM_IDS` in `lib/services/navigation/navPreferences.ts`, ending `… notifications`, `admin`, `profile`, `settings`. There is no `account` ("Account & security") item in the main navigation; `profile` ("Profile", `UserRound` icon) takes the slot before `settings`. Profile's href resolves to the current actor's profile page (`profileUrl`, like `fitnessUrl` and `galleryUrl`), active only when viewing your own profile pages.
 - **Pinned items (`LOCKED_NAV_IDS`):** `timeline`, `search`, `lists`, `notifications`, and `settings` can be reordered, but never hidden: they are either the core reading surfaces or the only way back to settings. `profile` is NOT locked (hideable under More); `settings` stays locked.
-- **Legacy alias for stored orders:** Saved preferences with the legacy `account` id map `account` to `profile` in the same position (`normalizedOrder` and `sanitizeNavOrder`, which also preserves the offline bootstrap copy). Any stored hidden `account` entry is dropped/ignored (`legacyAccount: 'drop'`) so that the previously locked item does not unexpectedly hide `profile`.
+- **Legacy alias for stored orders:** Saved preferences with the legacy `account` id map `account` to `profile` in the same position (`normalizedOrder` and `sanitizeNavOrder`, which also preserves the offline bootstrap copy). Any stored hidden `account` entry is dropped/ignored (`legacyAccount: 'drop'`) so that a stored hidden `account` cannot unexpectedly hide `profile`.
 - **Every nav surface reads `useNavPreferences()`; none of them keeps its own copy.** `NavPreferencesProvider` is rendered once by the `(timeline)` layout, seeded from `getActorSettings`, and wraps the nav chrome **and** `{children}` — the settings manager edits the very sidebar rendered beside it on wide viewports, and a soft navigation never re-runs the layout to re-seed two separate stores.
 - **`profile` and `gallery` are registry items with dynamic URLs.** `app/(timeline)/layout.tsx` sets `galleryUrl` when the actor has an account and passes it down like `fitnessUrl`; `Sidebar` derives `profileUrl` (`/@username@domain`) from the current actor itself (the mobile drawer renders `Sidebar`, so it gets it too), and `app/(timeline)/settings/sidebar/page.tsx` builds the same URL for `NavigationSettings`. `BuildNavItemsParams` and `availableNavIds` take both, and Profile is unavailable without a `profileUrl`. The Gallery pages are owner-only; the public surface is the profile Gallery tab.
 - **Settings → Sidebar (`/settings/sidebar`)** manages the list, showing Profile (hideable) and no Account & security row, accompanied by an explanatory note: "Account & security and Sign out are in the account menu at the bottom of the sidebar."
-- **Account menu (`ActorSwitcher`):** The whole account row at the bottom of the sidebar is the dropdown menu trigger, for both single-profile and multi-profile accounts (no longer a plain link to the profile). The menu provides:
+- **Account menu (`ActorSwitcher`):** The whole account row at the bottom of the sidebar is the dropdown menu trigger, for both single-profile and multi-profile accounts. The menu provides:
   1. Header: non-interactive user identity label (avatar, display name, handle).
   2. View profile (`profileHref`, `prefetch={false}`) and Edit profile (`/settings/profile`, `prefetch={false}`).
   3. When 2+ profiles exist: a "Switch profile" list with pending-deletion notices and cancellation, plus a checkmark on the active profile.
@@ -1296,7 +1316,7 @@ Read the applicable rules and review checks below before changing this subsystem
   5. "Account & security" (`/account`, `prefetch={false}`) — reachable only from this menu and the Settings index footer card.
   6. "Sign out" (opens `SignOutDialog`).
      On the tablet icon rail (`variant="rail"`), the avatar button acts as the trigger and opens the menu as a flyout to the right (`side="right"`). In the mobile phone drawer (`drawer={true}`), the account row opens the menu upward with 44px minimum height touch targets under coarse pointers (`pointer-coarse:min-h-[44px]`). Account & security is reachable only from this menu and the Settings index footer card.
-- **Saves carry the whole preference, not a delta**, so concurrent edits resolve to last-write-wins; the store keeps one request in flight with a single trailing save, and a drag persists once on drop rather than once per row it crosses. Dedupe is keyed on the **payload** (what goes over the wire), not on what the navigation looks like: Reset deliberately stores empty lists — that is what keeps the account following the shipped navigation as it changes — and keying on the visible state made Reset a no-op whenever the visible order already matched the defaults.
+- **Saves carry the whole preference, not a delta**, so concurrent edits resolve to last-write-wins; the store keeps one request in flight with a single trailing save, and a drag persists once on drop rather than once per row it crosses. Dedupe is keyed on the **payload** (what goes over the wire), not on what the navigation looks like: Reset deliberately stores empty lists — that is what keeps the account following the shipped navigation as it changes — and keying on the visible state would make Reset a no-op whenever the visible order already matched the defaults.
 - **Two reorder semantics, and the difference is deliberate.** The sidebar's `⋯` menu swaps with the nearest _visible_ neighbour (`moveNavItem`), because hidden items are not on screen there to move past. The settings manager lists hidden rows inline, so all three of its reorder paths — dragging a row, the grip's arrow keys, and the per-row Move up/down buttons — splice within the displayed list (`moveNavItemTo`). The keyboard and the buttons share `moveRow`, which is also what reports the move (and the ends of the list) to a screen reader; a drag calls `moveTo` per row crossed and `commit` on drop, because it is the pointer that reports it. Whatever a surface offers via drag it must also offer via the keyboard, and the buttons are what make it work on a touch device, where a pointer that cannot hover cannot drag and there is no keyboard either.
 - **A hidden item is tucked away, never taken away**: it stays reachable under More on every surface, `LOCKED_NAV_IDS` can never be hidden (the server strips them from `navHidden` as well, so a hand-edited preference cannot strand someone), and an item that is unavailable — admin for a non-admin, or a feature the instance turned off — keeps its slot in the stored order so re-enabling restores the account's layout.
 - **Instance feature switches (`features.*` server settings) only remove items from navigation.** A served domain can additionally turn a feature off for its own visitors (`domains.disabledFeatures`, effective switch = server switch AND NOT disabled on the visited domain), with the same nav-only effect. They do not gate routes, APIs, or the composer: an existing link keeps working. If that ever changes, it is a separate, deliberate decision — do not add a `notFound()` guard as a side effect of a nav change.
@@ -1468,7 +1488,7 @@ The fitness overview (`app/(timeline)/fitness/`, with its calendar components in
 - **Scoped heat and motion tokens.** Heat colours are the `--heat-0`…`--heat-4` fills, their `--heat-N-fg` numeral colours, `--heat-upcoming` and `--heat-out-of-range`, defined in `app/globals.css` under the `fitness-heat` class (light and `.dark`) that each calendar root carries. Never hard-code a heat colour, and do not move them to `:root`: green means intensity only inside the calendar. Durations are the `--fitness-t-*` tokens beside them. `--fitness-fade-start` and `--fitness-fade-end` are registered with `@property` so the annual scroller's edge-fade mask can transition; an unregistered custom property inside a gradient cannot.
 - **Reload control.** A surface that can be reloaded in place puts the shared `RefreshButton` at the end of its header or section row (the home timeline and the fitness overview do), rather than a hand-rolled Refresh button; pass a `size-*` class to match the row's other controls.
 - **One CSS module.** `lib/components/fitness/calendar/calendar.module.css` is the only `*.module.css` in `app/` and `lib/`. It holds only what Tailwind utilities cannot express: pseudo-element, mask, gradient and hit-band work such as the cell state marks and focus brackets, the slashed out-of-range cell, the skeleton cell, the edge-fade mask, the today marks, the legend swatch and the month-label hit band. Layout, spacing and type stay in Tailwind at the use site. State is read from data attributes (`data-level`, `data-state`, `data-loading`, `aria-pressed` and the like), never from extra classes, so tests assert a cell's state without knowing a hashed class name, and `calendar.module.css.test.ts` guards the selectors and tokens it relies on. Extend this module for calendar visuals rather than starting another.
-- **Section primitives.** Fitness pages build on the app-wide surface kit (`lib/components/surface/`, see **Surfaces**): `Section`, `StatStrip` / `StatCell`, `Alert`, `EmptyState` and `TABLE_HEAD_ROW_CLASS`, which started here as the `Fitness*` primitives and were promoted to neutral names. Loading is the shared shimmering `.skeleton` bars (still `--skeleton` blocks under `prefers-reduced-motion`), never a centred "Loading..." line; the calendar's cells, which cannot carry `.skeleton`, sweep one viewport-attached band in `calendar.module.css` instead. The overview, Gear, a gear's page, Files, Heatmaps and Privacy use the kit; the Strava and Wahoo connection pages are `Section`s each holding a `Frame form` of `FormRow`s (a hidden file input behind an outline `Button` for the archive upload, a labelled `role="group"` around each visibility picker, a read-only URL row with Copy), with hand-built `SaveBar`-style footers (on the left an always-mounted polite `role="status"` line for the save result, swapped for a `role="alert"` line when there is an error (as `SaveBar` does), the Unlink / Disconnect / Connect / Save buttons in an `ml-auto` group with a spinner inside Save while it saves), failed imports as a `FramedList` with an `EmptyState`, and import status cards and their `Alert`s below the `Frame`, while a settings form's standing warnings sit above the `Frame` in the `Section`'s stack. A new fitness surface reuses the kit; there is no `Card` component to reach for.
+- **Section primitives.** Fitness pages build on the app-wide surface kit (`lib/components/surface/`, see **Surfaces**): `Section`, `StatStrip` / `StatCell`, `Alert`, `EmptyState` and `TABLE_HEAD_ROW_CLASS`. Loading is the shared shimmering `.skeleton` bars (still `--skeleton` blocks under `prefers-reduced-motion`), never a centred "Loading..." line; the calendar's cells, which cannot carry `.skeleton`, sweep one viewport-attached band in `calendar.module.css` instead. The overview, Gear, a gear's page, Files, Heatmaps and Privacy use the kit; the Strava and Wahoo connection pages are `Section`s each holding a `Frame form` of `FormRow`s (a hidden file input behind an outline `Button` for the archive upload, a labelled `role="group"` around each visibility picker, a read-only URL row with Copy), with hand-built `SaveBar`-style footers (on the left an always-mounted polite `role="status"` line for the save result, swapped for a `role="alert"` line when there is an error (as `SaveBar` does), the Unlink / Disconnect / Connect / Save buttons in an `ml-auto` group with a spinner inside Save while it saves), failed imports as a `FramedList` with an `EmptyState`, and import status cards and their `Alert`s below the `Frame`, while a settings form's standing warnings sit above the `Frame` in the `Section`'s stack. A new fitness surface reuses the kit; there is no `Card` component to reach for.
 - **Popover.** `lib/components/ui/popover.tsx` wraps `@radix-ui/react-popover` like the other `ui/*` primitives. The range picker uses it when the whole panel fits beside its trigger and falls back to a bottom sheet otherwise (`rangePickerPresentation.ts`); it renders in a portal at the dropdowns' layer (50). The calendar's own cell tooltip is not `ui/tooltip` but one shared `CalendarTooltip` per calendar; its header comment says why.
 
 <a id="agents-surfaces"></a>
@@ -2964,11 +2984,11 @@ moved` (`movedAccountResponse`): on `POST /api/v1/statuses` (the check
 ### Better-auth Plugin Guidelines
 
 - **Do not register a better-auth plugin unless its required database tables exist** in the migrations. The custom `kyselyAdapter` (`lib/services/auth/kyselyAdapter.ts`) does not auto-create tables; missing tables will cause runtime errors.
-- **On any better-auth upgrade, diff the schema better-auth declares against ours — do not reason about which new fields are "reachable".** `kyselyAdapter.create` inserts whatever a plugin put in the record: it creates no tables and filters no columns, so a field a plugin writes and the schema lacks is a failed INSERT, not a degraded feature — and better-auth swallows the driver error into a 500. The better-auth 1.7 upgrade shipped a green suite while **every OAuth sign-in 500'd**, because the oauth-provider plugin had started writing `oauthConsent.requestedUserInfoClaims` (`[]`, not `undefined`, so the factory's `transformInput` does not drop it) and only the core `account`/`jwks` changes had been noticed. `lib/services/auth/schemaCompleteness.test.ts` now asks `getAuthTables(auth.options)` — the real plugin set, with our `modelName`/`fieldName` overrides applied — and diffs it against the committed schema dump of the backend it runs on (`migrations/schema.sqlite.sql`, or `migrations/schema.sql` in the PostgreSQL CI job), so the next upgrade fails a test instead of an OAuth login. Take that list as the migration's contents. **The CI "Schema Dump Sync" job cannot catch this**: it regenerates the dumps FROM the migrations, so a migration that omits a column still produces a perfectly matching dump.
+- **On any better-auth upgrade, diff the schema better-auth declares against ours — do not reason about which new fields are "reachable".** `kyselyAdapter.create` inserts whatever a plugin put in the record: it creates no tables and filters no columns, so a field a plugin writes and the schema lacks is a failed INSERT, not a degraded feature — and better-auth swallows the driver error into a 500. A plugin can start writing a field no migration added at any time (`oauthConsent.requestedUserInfoClaims` is written as `[]`, not `undefined`, so the factory's `transformInput` does not drop it), and a green suite does not catch it. `lib/services/auth/schemaCompleteness.test.ts` asks `getAuthTables(auth.options)` — the real plugin set, with our `modelName`/`fieldName` overrides applied — and diffs it against the committed schema dump of the backend it runs on (`migrations/schema.sqlite.sql`, or `migrations/schema.sql` in the PostgreSQL CI job), so an upgrade that omits a column fails a test instead of an OAuth login. Take that list as the migration's contents. **The CI "Schema Dump Sync" job cannot catch this**: it regenerates the dumps FROM the migrations, so a migration that omits a column still produces a perfectly matching dump.
 - **`lib/services/auth/oauthProviderFlow.test.ts` is the only thing that drives better-auth's real OAuth endpoints** (sign-in → authorize → consent → token exchange, against a database built from the committed dump). `app/(nosidebar)/oauth/token/route.test.ts` mocks `getAuth`, so it asserts our proxying and nothing about better-auth. Keep the flow test running all the way to an access token — each step is there for the rows it writes, and stopping at the first 200 skips exactly the INSERTs that break.
 - When adding a new plugin (e.g. `sso()`, `dash()`), first create the necessary migration with `yarn migrate:make <name>`, then register the plugin.
 - Plugins that expose admin or dashboard endpoints must be configured with explicit access control (e.g. `adminCredentials` or `adminRole`). Never register `dash()` without authentication gating.
-- **Account identity is the mapped provider key `(provider, providerId)`, not `issuer`.** better-auth 1.7.3 restores the 1.6 lookup semantics: in `lib/services/auth/auth.ts`, better-auth's `providerId` maps to this table's `provider`, and its `accountId` maps to `providerId`; the adapter and the account domain (`lib/database/domains/account/`) resolve and link rows by that pair. Direct writes therefore omit `issuer`. `account_providers.issuer` remains a nullable historical compatibility column; retain it and the 1.7.0–1.7.2 migrations/backfills, but do not make new code depend on or populate it. OAuth, JWT, and two-factor issuer settings are separate and remain active.
+- **Account identity is the mapped provider key `(provider, providerId)`, not `issuer`.** better-auth 1.7.3 restores the 1.6 lookup semantics: in `lib/services/auth/auth.ts`, better-auth's `providerId` maps to this table's `provider`, and its `accountId` maps to `providerId`; the adapter and the account domain (`lib/database/domains/account/`) resolve and link rows by that pair. Direct writes therefore omit `issuer`. `account_providers.issuer` remains a nullable compatibility column; retain it and the 1.7.0–1.7.2 migrations/backfills, but do not make new code depend on or populate it. OAuth, JWT, and two-factor issuer settings are separate and remain active.
 - **Preflight the real database before a 1.7.3 rollout.** The committed schema already has a nullable `issuer` and no issuer-based unique index, but a deployment that was manually migrated through 1.7.0–1.7.2 may still carry the old constraint or index. Drain and remove every 1.7.2 auth-serving instance before 1.7.3 accepts writes or authentication traffic: 1.7.3 can write `NULL` `issuer`, which 1.7.2 sign-in cannot read, so route this as a coordinated cutover with no overlapping auth traffic. Inspect the actual constraints and indexes, and check for duplicate mapped provider keys `(provider, providerId)` before new pods serve traffic; resolve ambiguous rows before deployment because better-auth rejects lookups with more than one match. If the preflight finds a constraint or duplicate, stop the rollout and keep the current release serving until the data and schema change is complete and reversible. Keep operational SQL in the deployment runbook, not this guide.
 - **Plan rollback separately.** A package-only rollback to 1.7.2 after 1.7.3 has written rows with `NULL` `issuer` can leave those rows unreadable by 1.7.2 sign-in. Preserve the nullable column for compatibility, and if rollback is required, restore issuer values for rows written while 1.7.3 served before handing traffic back; keep duplicate-key checks and constraint state aligned with the target release. Dropping the column is optional cleanup and should wait until rollback no longer matters.
 - **`kyselyAdapter` must implement `consumeOne` and `incrementOne` natively, even though better-auth 1.7.3 supplies guarded fallbacks.** Both are race-safe primitives better-auth relies on for correctness, not speed: `consumeOne` backs single-use credentials (verification tokens, OAuth authorization codes, device codes) and `incrementOne` backs guarded counters (2FA failed attempts, rate limits, an authorization code's remaining uses). The factory fallback relies on conditional `deleteMany` or `updateMany` mutations guarded by the selected row's identity and snapshot values, plus an accurate affected-row count. That fallback is safe only when those adapter methods preserve those guards atomically. Keep the native methods so the caller's predicate is enforced in the mutating statement; they also return `null` for an empty predicate rather than consuming or mutating an arbitrary row.
@@ -2981,7 +3001,7 @@ moved` (`movedAccountResponse`): on `POST /api/v1/statuses` (the check
 
 ### Better-auth Database Joins
 
-- **`advanced.database.joins` is ON (`lib/services/auth/auth.ts`), and answering every join is `kyselyAdapter`'s job — the fallback is a slower path, not a free one.** The flag lived at `experimental.joins` until better-auth 1.7 moved it here. On 1.6.x it was an assertion rather than a request: the adapter factory forwarded `join` to `findOne`/`findMany` and read the related rows straight off what the adapter returned (`data[tableName]`), with no capability check and no fallback, so an adapter that ignored a join shape handed back a session with no user, `findSession` turned that into `null`, and **every signed-in user was silently logged out** while sign-in still appeared to succeed. 1.7 checks whether the adapter included the key and falls back to separate queries, which turns that outage into a per-request extra statement. Nothing in the adapter's own unit tests catches either — they call the adapter directly, so they never see the factory's transform. `lib/services/auth/sessionJoins.test.ts` drives the real better-auth instance against a real database and asserts the single statement; keep it passing.
+- **`advanced.database.joins` is ON (`lib/services/auth/auth.ts`), and answering every join is `kyselyAdapter`'s job — the fallback is a slower path, not a free one.** The flag lived at `experimental.joins` until better-auth 1.7 moved it here. On 1.6.x the factory forwarded `join` to `findOne`/`findMany` and read the related rows straight off what the adapter returned (`data[tableName]`), with no capability check and no fallback, so an adapter that ignored a join shape handed back a session with no user and **silently logged out every signed-in user**; 1.7's fallback turns a missing join into a per-request extra statement. Nothing in the adapter's own unit tests catches either — they call the adapter directly, so they never see the factory's transform. `lib/services/auth/sessionJoins.test.ts` drives the real better-auth instance against a real database and asserts the single statement; keep it passing.
 - **A join key is the joined TABLE name, and the returned row must nest under exactly that key.** For this instance's model mapping, `join: { user: true }` on a session arrives as `{ accounts: { on: { from: 'accountId', to: 'id' }, limit: 1, relation: 'one-to-one' } }` — the columns are already resolved, so the adapter uses them as given.
 - **Joined columns must be aliased before they are selected.** `sessions` and `accounts` both have `id`, `createdAt` and `updatedAt`; selecting both tables unaliased overwrites the session's own id with the account's, which is a worse bug than the missing join. The adapter selects each joined column as `__j<n>_<column>` and re-nests it — the prefix is short on purpose, because PostgreSQL truncates identifiers at 63 bytes and a truncated alias merges two columns into one.
 - **Only `one-to-one` is folded into the base statement; anything else gets a follow-up query.** A `one-to-many` join carries a per-parent `limit` that plain SQL cannot express without window functions, and on `findMany` it would multiply the base rows and break `limit`/`offset`. The follow-up path is also the fallback for a table better-auth's schema does not describe — that path is always correct, so prefer it over a half-working join.
@@ -3003,10 +3023,10 @@ moved` (`movedAccountResponse`): on `POST /api/v1/statuses` (the check
 
 ### OAuth Client Registrations
 
-- **Never delete or expire rows in `oauthClient`.** Registrations created through `POST /api/v1/apps` are durable. Mastodon-API clients (Phanpy, Elk, Tusky, …) persist the `client_id`/`client_secret` they get from that endpoint indefinitely and only re-register when their stored copy is **missing** — so deleting a registration permanently wedges every client still holding it: it keeps presenting a `client_id` this server no longer knows and has no way to learn it must register again. A time-based cleanup does not help, because any finite TTL eventually deletes a live cached client. Mastodon hit exactly this and **removed its own application "vacuuming" in 4.3**. (A 24h "stale registration" collector used to live in `createApplication.ts` and broke Phanpy sign-in for this reason — the failure surfaced as `invalid_client` / `client_id is required`.) The trade-off is that abandoned registrations accumulate: `createApplication`'s per-source throttle only engages when `ACTIVITIES_TRUST_PROXY_IP_HEADERS` is set, so a default deployment does not bound them. Accept that, or add a guard that **rejects writes** — never one that deletes registrations.
-- **A registration must write `oauthClient.clientCredentialsScopes`, and that is not the same column as `scopes`.** better-auth 1.6 validated a `client_credentials` request against the client's registered `scopes`; 1.7 moved the decision to this separate, server-owned column and denies the grant outright when it is missing or empty — `400 unauthorized_client` / `client has no authorized client_credentials scopes`. The column arrived with the 1.7 schema migration and nothing ever wrote it, so every application on the instance was refused an app token — and a native Mastodon client asks for one **before** it offers to sign a user in (Ivory does, with the credentials `POST /api/v1/apps` just handed it), so the login never started and the only sign of it was that 400 in the token proxy's log. `createApplication` writes the column through `toClientCredentialsScopes` (`lib/services/oauth/clientCredentialsScopes.ts`); that module documents the derivation rule, why its reserved-scope filter is the only thing enforcing it on this path, and how it differs from 1.6 — read it there rather than re-deriving it, and do not simplify the filter away. Fixing the write path is **not sufficient on its own**: registrations are never deleted and clients cache their credentials indefinitely (see the bullet above), so every client already installed would stay wedged — the `20260828000000_backfill_oauth_client_credentials_scopes` migration (one of the migrations the baseline stands for) repaired the existing rows, with two gates of its own that refused public clients and clients not registered for the grant. This grants no new authority: an app token has no user, so only `OAuthAppGuard` accepts one — `apps/verify_credentials` and Mastodon's API account registration, itself gated on `registrations.open` — and every other guard requires an actor that an actor-less token never resolves.
+- **Never delete or expire rows in `oauthClient`.** Registrations created through `POST /api/v1/apps` are durable. Mastodon-API clients (Phanpy, Elk, Tusky, …) persist the `client_id`/`client_secret` they get from that endpoint indefinitely and only re-register when their stored copy is **missing** — so deleting a registration permanently wedges every client still holding it: it keeps presenting a `client_id` this server no longer knows and has no way to learn it must register again. A time-based cleanup does not help, because any finite TTL eventually deletes a live cached client; a client whose registration was deleted surfaces as `invalid_client` / `client_id is required`. The trade-off is that abandoned registrations accumulate: `createApplication`'s per-source throttle only engages when `ACTIVITIES_TRUST_PROXY_IP_HEADERS` is set, so a default deployment does not bound them. Accept that, or add a guard that **rejects writes** — never one that deletes registrations.
+- **A registration must write `oauthClient.clientCredentialsScopes`, and that is not the same column as `scopes`.** better-auth 1.6 validated a `client_credentials` request against the client's registered `scopes`; 1.7 moved the decision to this separate, server-owned column and denies the grant outright when it is missing or empty — `400 unauthorized_client` / `client has no authorized client_credentials scopes`. A native Mastodon client asks for an app token **before** it offers to sign a user in (with the credentials `POST /api/v1/apps` just handed it), so a registration without the column blocks login at that 400 in the token proxy's log. `createApplication` writes the column through `toClientCredentialsScopes` (`lib/services/oauth/clientCredentialsScopes.ts`); that module documents the derivation rule, why its reserved-scope filter is the only thing enforcing it on this path, and how it differs from 1.6 — read it there rather than re-deriving it, and do not simplify the filter away. Fixing the write path is **not sufficient on its own**: registrations are never deleted and clients cache their credentials indefinitely (see the bullet above), so every client already installed would stay wedged — the `20260828000000_backfill_oauth_client_credentials_scopes` migration (one of the migrations the baseline stands for) repaired the existing rows, with two gates of its own that refused public clients and clients not registered for the grant. This grants no new authority: an app token has no user, so only `OAuthAppGuard` accepts one — `apps/verify_credentials` and Mastodon's API account registration, itself gated on `registrations.open` — and every other guard requires an actor that an actor-less token never resolves.
 - **An app token lives one hour, not the 7-day sliding window `accessTokenExpiresIn` configures.** It does not slide either (see [OAuth Access Token Sliding Expiry](#agents-oauth-access-token-sliding-expiry)). `createUserTokens` reads `m2mAccessTokenExpiresIn` for a grant with no user and this server does not set it, so better-auth's 3600s default applies. Unrelated to the scope ceiling above; it is the other thing about app tokens that reads wrongly from `auth.ts`.
-- **An unknown `client_id` must fail at `/oauth/authorize`, not be forwarded to Better Auth.** Better Auth's authorize endpoint answers an unregistered client with `invalid_client` — before 1.7.10 with **`client_id is required`**, the same message it uses for a genuinely absent `client_id` and so very hard to read, and from 1.7.10 with `client not found` — and then redirects to the error page, so a failed login used to look like it silently did nothing (before `onAPIError.errorURL`, better-auth's own `/api/auth/error` 302'd straight on to the home timeline in production — see **Auth Error Page** below). `app/(nosidebar)/oauth/authorize/page.tsx` validates the client (and its `redirect_uri`) up front and returns `notFound()`; keep that check ahead of the Better Auth delegation. Per RFC 6749 §4.1.2.1 an invalid `client_id`/`redirect_uri` must be reported to the user rather than redirected to the requested `redirect_uri`.
+- **An unknown `client_id` must fail at `/oauth/authorize`, not be forwarded to Better Auth.** Better Auth's authorize endpoint answers an unregistered client with `invalid_client` — before 1.7.10 with **`client_id is required`**, the same message it uses for a genuinely absent `client_id` and so very hard to read, and from 1.7.10 with `client not found` — and then redirects to the error page, so the failed login reads as if it silently did nothing (see **Auth Error Page** below). `app/(nosidebar)/oauth/authorize/page.tsx` validates the client (and its `redirect_uri`) up front and returns `notFound()`; keep that check ahead of the Better Auth delegation. Per RFC 6749 §4.1.2.1 an invalid `client_id`/`redirect_uri` must be reported to the user rather than redirected to the requested `redirect_uri`.
 
 <a id="agents-oauth-access-token-sliding-expiry"></a>
 <a id="review-oauth-access-token-sliding-expiry"></a>
@@ -3044,7 +3064,7 @@ moved` (`movedAccountResponse`): on `POST /api/v1/statuses` (the check
 - This failure is **invisible on a first login and permanent afterwards**: approving the consent screen persists the session actor first (via `/api/v1/actors/switch`), so the initial grant works. Once consent is stored, Better Auth stops showing the consent screen, and every later login on a fresh session issues an actor-less token. Any change here must be exercised with a **second** login, not just the first.
 - `OAuthGuard` keeps a matching fallback: a token with a `userId` but no `referenceId` resolves that account's actor rather than failing closed, so tokens issued while a grant was broken recover without the client re-authorizing. Genuine app (`client_credentials`) tokens have neither a user nor an actor and stay actor-less.
 - Guard rejections log a `reason` through `oauthLogger` at **debug** level (`token_expired`, `insufficient_scope`, `no_actor_for_token`, …). Bearer failures are otherwise indistinguishable in production — every one is a bare 401. Set `LOG_LEVEL=debug` to tell them apart, and keep new rejection branches logging a reason. Never log the token.
-- **A handler asks whether a token is an APP token by reading `userId`, never `currentActor`.** `OAuthAppGuard` leaves `currentActor` null in two unrelated cases: a genuine `client_credentials` token that has no user, and a user-delegated token whose actor it merely FAILED to resolve — the grant recorded no `referenceId` (see the fallback above) and `resolveAccountActorId` found no selectable actor, which happens when every actor the account owns is pending deletion (`selectAccountActor` skips those). `registerViaApi` gated on `currentActor || !client` and so accepted that user as an app, letting them mint accounts and tokens. The guard therefore forwards `userId` on the handler context, and the route requires `userId === null`; a genuine app token has neither a user nor an actor. Do not re-derive "is this an app token" from the actor.
+- **A handler asks whether a token is an APP token by reading `userId`, never `currentActor`.** `OAuthAppGuard` leaves `currentActor` null in two unrelated cases: a genuine `client_credentials` token that has no user, and a user-delegated token whose actor it merely FAILED to resolve — the grant recorded no `referenceId` (see the fallback above) and `resolveAccountActorId` found no selectable actor, which happens when every actor the account owns is pending deletion (`selectAccountActor` skips those). Gating on `currentActor || !client` accepts that user as an app, letting them mint accounts and tokens. The guard therefore forwards `userId` on the handler context, and the route requires `userId === null`; a genuine app token has neither a user nor an actor. Do not re-derive "is this an app token" from the actor.
 
 <a id="agents-an-unconfirmed-account-may-not-act"></a>
 <a id="review-unconfirmed-accounts-app-tokens"></a>
