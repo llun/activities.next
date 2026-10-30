@@ -1,0 +1,63 @@
+.github/actions/install/action.yml
+  s_f6091a1907b015::t_98cdceed3e63b3 1-29
+.github/dependabot.yml
+  s_f6091a1907b015::t_9e17b0cda97ae8 47-92
+.github/scripts/classify-ci-rerun.mjs
+  s_f6091a1907b015::t_385d2bdd5779b6 1-106
+.github/workflows/ci-rerun.test.ts
+  s_f6091a1907b015::t_ba7abc6a387a6c 1-349
+.github/workflows/ci-rerun.yml
+  s_f6091a1907b015::t_1da7a6e8069b25 1-53
+.github/workflows/ci.test.ts
+  s_f6091a1907b015::t_3fd1037c389012 1-71
+.github/workflows/ci.yml
+  s_f6091a1907b015::t_40a63bda21b7b7 3-7,9-13,22,24,38-39,42-43,55,66-67,79,85-86,98,129-130,147,177-178,224,383-384,404-405,417,432-433,445,465-466
+.github/workflows/install-action.test.ts
+  s_f6091a1907b015::t_11aa4e97fbd144 1-143
+.yarnrc.yml
+  s_f6091a1907b015::t_b8e56bf076a387 4-8
+CONTRIBUTING.md
+  s_f6091a1907b015::t_fbe7126cf076c6 132,177-186,413,695-699
+docs/fitness-file-storage.md
+  s_f6091a1907b015::t_150e612d188416 371-372
+docs/setup.md
+  s_f6091a1907b015::t_7f64e4ccd34708 411
+lib/jobs/fitnessImportOverlap.test.ts
+  s_f6091a1907b015::t_60df7ab8e562f4 5,7-8,62-131,188-232
+lib/jobs/fitnessImportOverlap.ts
+  s_f6091a1907b015::t_9ed44286fbafbf 81,96-103,109-110,114-195
+lib/jobs/importFitnessFilesJob.mostOverlap.test.ts
+  s_f6091a1907b015::t_163df2c59c26e6 1-297
+lib/jobs/importFitnessFilesJob.ts
+  s_f6091a1907b015::t_4ae061e3a6e7d8 9-12,236-297,637,669-675,678
+lib/jobs/importStravaActivityJob.merge.test.ts
+  s_f6091a1907b015::t_50fad1aabd6191 269-397
+package.json
+  s_f6091a1907b015::t_cead5197b8ce6a 91,120,150
+packages/qstash/package.json
+  s_f6091a1907b015::t_20a7ed4812cd0e 8
+packages/ses/package.json
+  s_f6091a1907b015::t_f491b10d0c21f3 8
+scripts/fitness/storedImportPlan.test.ts
+  s_f6091a1907b015::t_f7bae30fa596f2 125-196
+scripts/fitness/storedImportPlan.ts
+  s_f6091a1907b015::t_80d67460d351da 3,68-69,138-169,171-183
+yarn.lock
+  s_f6091a1907b015::t_c8895756c199c3 38,54,129-131,141,2922-2924,2929-2931,2936-2938,2943-2945,2950-2952,2957-2959,2964-2966,2971-2973,2978-2980,2985-2987,2992-2994,2999-3001,3006-3008,3010-3021,3054,3643-3645,3650,3755,3790,3811,4897-4899,4902,6652,6663-6673
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b68e2847bb5883b401a4ec299ac3665fbd165b3c",
+  "prompts": {},
+  "sessions": {
+    "s_f6091a1907b015": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4002b74e-ccf2-4b38-b4b6-ddb1cc097d99",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
