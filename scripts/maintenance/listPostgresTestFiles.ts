@@ -20,8 +20,8 @@
 // `backend: 'sqlite'`, so a file calling `getTestDatabaseConfig('sqlite')` is
 // kept in the PostgreSQL list — a safe over-inclusion, since the run must not
 // drop a suite that in fact opens a PostgreSQL connection. The selection
-// reports both groups so the test suite can pin the SQLite-only ones down as
-// explicit exceptions.
+// reports both groups; the repository test pins the PostgreSQL group against
+// the frozen list, and the SQLite-only group is exercised on fixture suites.
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'

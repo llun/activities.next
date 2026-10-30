@@ -158,6 +158,12 @@ export const collectImportEntries = (
           // `export * as x from './mod'` has no `orig`, only the alias; the
           // module still flows through x, so it counts as the wildcard.
           if (specifier.type === 'ExportNamespaceSpecifier') return '*'
+          // `export x from './mod'` (the export-default-from proposal) is
+          // modelled as `ExportDefaultSpecifier` in @swc/types, but the
+          // TypeScript parser rejects the syntax — this is defensive, so the
+          // default binding is never silently dropped if a parser version
+          // emits the node.
+          if (specifier.type === 'ExportDefaultSpecifier') return 'default'
           const orig = (specifier as { orig?: { value?: string } }).orig
           return typeof orig?.value === 'string' ? orig.value : ''
         })

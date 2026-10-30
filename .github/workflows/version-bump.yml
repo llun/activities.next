@@ -280,7 +280,7 @@ jobs:
           # same name to one head commit (a reopen, a manual re-run, a run
           # superseded by CI's cancel-in-progress concurrency). Branch protection
           # resolves a duplicated name to the newest run, but `gh pr checks` does
-          # not — it reported the cancelled run's failed "CI Success" and never
+          # not — it reported the cancelled run's failed "All Tests" and never
           # looked at the green one, which is why this gate used to abandon every
           # bump PR.
           latest_check_run_states() {
@@ -301,7 +301,7 @@ jobs:
           # minutes into a perfectly healthy run. Treating that as "CI never
           # fired" is what made the self-heal reopen below fire on every bump PR:
           # the reopen cancelled the in-flight run, and the cancelled run's
-          # "CI Success" job (`if: always()`) then failed permanently on that
+          # "All Tests" job (`if: always()`) then failed permanently on that
           # commit, so the PR could never merge.
           wait_for_required_checks() {
             local pr_url="$1"

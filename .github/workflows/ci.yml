@@ -365,7 +365,7 @@ jobs:
 
   # Aggregate gate for the test jobs: this is the job to mark required in
   # branch protection as "All Tests". It always runs (`if: always()`) and
-  # fails closed unless every test shard and the PostgreSQL shard succeeded.
+  # fails closed unless every test shard and both PostgreSQL shards succeeded.
   test:
     name: All Tests
     needs: [test-shards, test-pg]

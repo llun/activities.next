@@ -9,10 +9,9 @@ import { selectPostgresTestFiles } from './listPostgresTestFiles'
 
 const REPO_ROOT = fileURLToPath(new URL('../..', import.meta.url))
 
-// Today's hand-written PostgreSQL list from the `test-pg` job in
-// .github/workflows/ci.yml, copied verbatim (one path per line, quotes
-// stripped). The fixture is the frozen list from the removed hand-written
-// test-pg job, so the assertion runs against it instead of ci.yml.
+// The fixture is the frozen list from the removed hand-written `test-pg` job
+// in .github/workflows/ci.yml, so the assertion runs against it instead of
+// ci.yml.
 const LEGACY_LIST_PATH =
   'scripts/maintenance/__fixtures__/legacyPostgresTestFiles.txt'
 

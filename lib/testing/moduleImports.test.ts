@@ -78,4 +78,14 @@ describe('collectImports', () => {
       { specifier: './namespace', names: ['*'], kind: 'runtime' }
     ])
   })
+
+  // `collectImportEntries` maps an `ExportDefaultSpecifier` node to the name
+  // `default`, but no source text reaches that branch: @swc/core's TypeScript
+  // parser rejects `export x from './mod'` outright, so this only pins the
+  // behaviour the defensive branch guards against.
+  it('rejects `export x from` — the parser never emits ExportDefaultSpecifier', () => {
+    expect(() =>
+      collectImportEntries('a.ts', `export x from './default'`)
+    ).toThrow()
+  })
 })

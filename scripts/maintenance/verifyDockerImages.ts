@@ -516,7 +516,12 @@ Options:
     await verifyFullImage(options.fullImage)
   }
 
-  console.log('\n=== All Docker Image Verifications Succeeded! ===\n')
+  if (only === 'both') {
+    console.log('\n=== All Docker Image Verifications Succeeded! ===\n')
+  } else {
+    const variant = only === 'minimal' ? 'Minimal' : 'Full'
+    console.log(`\n=== ${variant} Docker Image Verification Succeeded! ===\n`)
+  }
 }
 
 if (
