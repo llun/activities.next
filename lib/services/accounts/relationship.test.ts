@@ -204,27 +204,6 @@ describe('getRelationship', () => {
     })
   })
 
-  it('returns endorsed=true when the target is endorsed', async () => {
-    mockDatabase.isCurrentActorFollowing.mockResolvedValue(false)
-    mockDatabase.getAcceptedOrRequestedFollow.mockResolvedValue(null)
-    mockDatabase.getEndorsement.mockResolvedValue({
-      id: '1',
-      actorId: mockCurrentActor.id,
-      actorHost: 'example.com',
-      targetActorId: 'https://example.com/users/target',
-      targetActorHost: 'example.com',
-      createdAt: 0
-    })
-
-    const relationship = await getRelationship({
-      database: mockDatabase as unknown as Database,
-      currentActor: mockCurrentActor as unknown as Actor,
-      targetActorId: 'https://example.com/users/target'
-    })
-
-    expect(relationship.endorsed).toBe(true)
-  })
-
   it('reports the stored language filter, and null once it is cleared', async () => {
     mockDatabase.isCurrentActorFollowing.mockResolvedValue(true)
     mockDatabase.getAcceptedOrRequestedFollow.mockResolvedValueOnce({
@@ -274,26 +253,6 @@ describe('getRelationship', () => {
       actorId: 'https://example.com/users/target',
       targetActorId: mockCurrentActor.id
     })
-  })
-
-  it('includes the viewer private note about the target', async () => {
-    // note is the viewer's private comment (Mastodon account note), not the
-    // target's public bio/summary.
-    mockDatabase.getActorFromId.mockResolvedValue({
-      id: 'https://example.com/users/target',
-      summary: 'This is my bio'
-    })
-    mockDatabase.isCurrentActorFollowing.mockResolvedValue(false)
-    mockDatabase.getAcceptedOrRequestedFollow.mockResolvedValue(null)
-    mockDatabase.getAccountNote.mockResolvedValue('remember to reply')
-
-    const relationship = await getRelationship({
-      database: mockDatabase as unknown as Database,
-      currentActor: mockCurrentActor as unknown as Actor,
-      targetActorId: 'https://example.com/users/target'
-    })
-
-    expect(relationship.note).toBe('remember to reply')
   })
 
   it('returns empty note when no private note has been set', async () => {

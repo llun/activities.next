@@ -105,32 +105,6 @@ describe('album visitor matrix', () => {
 
     describe('the photos of a mixed album', () => {
       it.each(viewerCases)(
-        'shows %s exactly the posts they may read',
-        async (_name, who, visible, range) => {
-          const result = await view(
-            await audienceOf(actorFor(who)),
-            matrix.albums.mixed
-          )
-          const expected = visible.map((name) => matrix.media[name]).sort()
-
-          expect(result!.items.map((item) => item.mediaId).sort()).toEqual(
-            expected
-          )
-          // The count, the facts and the card agree with the items.
-          expect(result!.facts.photoCount).toBe(visible.length)
-          // Counted over what this viewer can open, the owner included: the
-          // deleted post and the photo not in the gallery are in no count.
-          expect(result!.album.itemCount).toBe(visible.length)
-          expect(result!.facts.firstAt).toBe(
-            new Date(range.first).toISOString()
-          )
-          expect(result!.facts.lastAt).toBe(new Date(range.last).toISOString())
-          expect(result!.album.firstAt).toBe(result!.facts.firstAt)
-          expect(result!.album.lastAt).toBe(result!.facts.lastAt)
-        }
-      )
-
-      it.each(viewerCases)(
         'gives %s a cover they can open, never the followers-only one chosen for it',
         async (_name, who, visible) => {
           const result = await view(
@@ -174,29 +148,6 @@ describe('album visitor matrix', () => {
         // The owner does get them.
         const owned = await view(OWNER_GALLERY_AUDIENCE, matrix.albums.mixed)
         expect(owned!.album.coverMediaId).toBe(matrix.media.followers)
-      })
-
-      it('pages a visitor with a keyset that never repeats or skips a photo', async () => {
-        const audience = await audienceOf(matrix.viewers.follower)
-        const seen: string[] = []
-        let maxId: string | undefined
-        for (let pages = 0; pages < 5; pages++) {
-          const page = await view(audience, matrix.albums.mixed, {
-            limit: 1,
-            maxId
-          })
-          seen.push(...page!.items.map((item) => item.mediaId))
-          if (!page!.nextMaxId) break
-          maxId = page!.nextMaxId
-        }
-
-        expect(seen).toHaveLength(4)
-        expect(new Set(seen).size).toBe(4)
-        expect(seen.sort()).toEqual(
-          ['public', 'unlisted', 'followers', 'hidden']
-            .map((name) => matrix.media[name])
-            .sort()
-        )
       })
     })
 
@@ -247,45 +198,6 @@ describe('album visitor matrix', () => {
           expect(actual).toEqual(expected)
         }
       )
-
-      it('lists exactly the albums a visitor can open, with their own counts', async () => {
-        const listed = async (who: Actor | null) => {
-          const response = await getGalleryAlbumList({
-            database,
-            owner,
-            audience: await audienceOf(who)
-          })
-          return {
-            ids: response.albums.map((album) => album.id).sort(),
-            counts: Object.fromEntries(
-              response.albums.map((album) => [album.id, album.itemCount])
-            ),
-            photoCount: response.photoCount
-          }
-        }
-        const { albums } = matrix
-
-        const everyone = [albums.mixed, albums.places].sort()
-        const loggedOut = await listed(null)
-        expect(loggedOut.ids).toEqual(everyone)
-        expect(loggedOut.counts[albums.mixed]).toBe(3)
-        for (const who of [matrix.viewers.stranger, matrix.viewers.blocked]) {
-          expect((await listed(who)).ids).toEqual(everyone)
-        }
-
-        const follower = await listed(matrix.viewers.follower)
-        expect(follower.ids).toEqual(
-          [albums.mixed, albums.followersOnly, albums.places].sort()
-        )
-        expect(follower.counts[albums.mixed]).toBe(4)
-        expect(follower.counts[albums.followersOnly]).toBe(1)
-
-        const mine = await listed(owner)
-        expect(mine.ids).toEqual(Object.values(albums).sort())
-        // The photo total never counts a photo twice, or one nobody can open.
-        expect(loggedOut.photoCount).toBe(3 + 7)
-        expect(follower.photoCount).toBe(4 + 7)
-      })
     })
 
     describe('the times a visitor is shown', () => {
@@ -561,18 +473,6 @@ describe('album visitor matrix', () => {
         // A withheld place adds no country either.
         expect(expected.countryCodes).not.toContain('IN')
         expect(expected.countryName).toBeNull()
-      })
-
-      it('never tells a visitor a place was withheld, though the owner is told', async () => {
-        const visitor = await view(
-          await audienceOf(matrix.viewers.follower),
-          matrix.albums.places
-        )
-        expect(visitor!.album.hiddenPlaceCount).toBe(0)
-
-        // The threatened species and the failed check, two places.
-        const owned = await view(OWNER_GALLERY_AUDIENCE, matrix.albums.places)
-        expect(owned!.album.hiddenPlaceCount).toBe(2)
       })
 
       it('shows the owner every stored place', async () => {

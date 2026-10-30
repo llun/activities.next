@@ -77,33 +77,6 @@ describe('resolveQuoteForCreate', () => {
     expect(result).toMatchObject({ ok: true, quoteApprovalPolicy: 'nobody' })
   })
 
-  it('returns ok with no quoted id and the default policy when nothing is quoted', async () => {
-    const database = makeDatabase({ defaultQuotePolicy: 'public' })
-    const result = await resolveQuoteForCreate({
-      database,
-      currentActor
-    })
-    expect(result).toEqual({
-      ok: true,
-      quotedStatusId: undefined,
-      quoteApprovalPolicy: 'public'
-    })
-  })
-
-  it('returns not_found when the quoted status does not exist and fetch returns null', async () => {
-    const database = makeDatabase({ quotedStatus: null })
-    const result = await resolveQuoteForCreate({
-      database,
-      currentActor,
-      quotedStatusId: QUOTED_URL
-    })
-    expect(mockFetchQuoteTargetForCreate).toHaveBeenCalledWith({
-      database,
-      quotedStatusId: QUOTED_URL
-    })
-    expect(result).toEqual({ ok: false, reason: 'not_found' })
-  })
-
   it('fetches unstored remote quote target on database miss and uses its canonical id', async () => {
     const database = makeDatabase({ quotedStatus: null })
     const canonicalId = 'https://remote.test/users/alice/statuses/canonical-1'

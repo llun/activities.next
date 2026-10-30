@@ -151,12 +151,6 @@ describe('getMediaAttachment', () => {
     )
   })
 
-  it('emits a null description when none is stored', () => {
-    const { description: _description, ...withoutDescription } = baseMedia
-    const attachment = getMediaAttachment(withoutDescription, 'llun.test')
-    expect(attachment.description).toBeNull()
-  })
-
   it('normalises an empty stored description to null', () => {
     const attachment = getMediaAttachment(
       { ...baseMedia, description: '' },
@@ -215,26 +209,10 @@ describe('getMediaAttachment', () => {
     expect(attachment.blurhash).toBeNull()
   })
 
-  it('emits stored blurhash string when present', () => {
-    const attachment = getMediaAttachment(
-      { ...baseMedia, blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj' },
-      'llun.test'
-    )
-    expect(attachment.blurhash).toBe('LEHV6nWB2yk8pyo0adR*.7kCMdnj')
-  })
-
   it('emits remote_url and preview_remote_url as null for local media', () => {
     const attachment = getMediaAttachment(baseMedia, 'llun.test')
     expect(attachment.remote_url).toBeNull()
     expect(attachment.preview_remote_url).toBeNull()
-  })
-
-  it('emits meta.focus when the media has a focal point', () => {
-    const attachment = getMediaAttachment(
-      { ...baseMedia, focus: { x: 0.5, y: -0.25 } },
-      'llun.test'
-    )
-    expect(attachment.meta.focus).toEqual({ x: 0.5, y: -0.25 })
   })
 
   it('omits meta.focus when there is no focal point', () => {

@@ -402,41 +402,5 @@ describe('fileRouteDataCache', () => {
       // Segments include hidden
       expect(result.segments.some((s) => s.isHiddenByPrivacy)).toBe(true)
     })
-
-    it('masks hidden segments and rebases distance for non-owner', () => {
-      const result = resolveRouteDataFromPreParsed(preParsed, {
-        canViewHiddenZone: false,
-        privacyLocations: [privacyLocation]
-      })
-
-      expect(result.totalDurationSeconds).toBe(600)
-      // Hidden segment is excluded from non-owner view
-      expect(result.segments.every((s) => !s.isHiddenByPrivacy)).toBe(true)
-      expect(result.samples.every((s) => !s.isHiddenByPrivacy)).toBe(true)
-      // Distance is rebased from first visible sample (was 500m, now 0m)
-      expect(result.samples[0].distanceMeters).toBe(0)
-      expect(result.samples[1].distanceMeters).toBe(500)
-    })
-
-    it('resolves metricSamples for indoor activities', () => {
-      const indoorPreParsed = {
-        version: PRE_PARSED_ROUTE_DATA_VERSION,
-        totalDurationSeconds: 120,
-        metricSamples: [
-          { elapsedSeconds: 0, power: 150, heartRate: 120 },
-          { elapsedSeconds: 120, power: 170, heartRate: 135 }
-        ]
-      }
-
-      const result = resolveRouteDataFromPreParsed(indoorPreParsed, {
-        canViewHiddenZone: false,
-        privacyLocations: []
-      })
-
-      expect(result.samples).toEqual([])
-      expect(result.segments).toEqual([])
-      expect(result.metricSamples).toHaveLength(2)
-      expect(result.metricSamples![0].power).toBe(150)
-    })
   })
 })

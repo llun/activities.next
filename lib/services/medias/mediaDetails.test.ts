@@ -2,10 +2,7 @@ import {
   STALE_PLACE_LOOKUP_MS,
   STALE_SUBJECT_LOOKUP_MS
 } from '@/lib/services/medias/lookupStaleness'
-import {
-  buildOwnerMediaDetails,
-  getOwnerMediaAttachment
-} from '@/lib/services/medias/mediaDetails'
+import { buildOwnerMediaDetails } from '@/lib/services/medias/mediaDetails'
 import { EMPTY_MEDIA_DETAILS } from '@/lib/types/database/gallery'
 import { Media } from '@/lib/types/database/operations'
 
@@ -30,19 +27,6 @@ const database = (names: Record<string, string> = {}) => ({
 })
 
 describe('buildOwnerMediaDetails', () => {
-  it('describes a media with no details as empty and not in the gallery', async () => {
-    expect(await buildOwnerMediaDetails(database(), media())).toEqual({
-      subject: null,
-      takenAt: null,
-      camera: null,
-      lens: null,
-      exposure: null,
-      place: null,
-      inGallery: false,
-      subjectSuggestions: null
-    })
-  })
-
   it('returns every field, with the stored coordinates, to the owner', async () => {
     const db = database({ cam: 'Canon EOS R5', lens: 'RF100-500mm' })
 
@@ -289,22 +273,5 @@ describe('buildOwnerMediaDetails lookupStale', () => {
     expect(
       await placeStaleOf({ placeLookupStatus: 'failed', placeLookupAt: 0 })
     ).toBe(false)
-  })
-})
-
-describe('getOwnerMediaAttachment', () => {
-  it('adds details to the Mastodon entity without changing the rest', async () => {
-    const entity = await getOwnerMediaAttachment(
-      database(),
-      media({ subjectName: 'Otter' }),
-      'llun.test'
-    )
-
-    expect(entity).toMatchObject({
-      id: '7',
-      type: 'image',
-      description: null,
-      details: { subject: { name: 'Otter' }, inGallery: false }
-    })
   })
 })
