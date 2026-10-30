@@ -169,7 +169,7 @@ export const buildStoredImportPlan = ({
       })
     })
 
-    // One plan group per post the targets split across, in first-target order.
+    // One plan group per post the targets split across, in the order the overlap groups were formed (union-find group order).
     const targetNamesByStatusId = new Map<string | null, string[]>()
     for (const file of groupTargets) {
       const statusId = statusIdByTargetId.get(file.id) ?? null

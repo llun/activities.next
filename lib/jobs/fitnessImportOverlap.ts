@@ -166,8 +166,8 @@ export const selectMostOverlappingStatusId = ({
 /**
  * Assigns each new recording to the existing post IT overlaps most (its largest
  * overlap with any file of that post, a tie going to the earliest candidate).
- * A recording that overlaps no candidate directly — it reached the group only
- * through another new recording — follows the post the combined score of all
+ * A recording that has no overlap at all with any candidate's file — it reached
+ * the group only through another new recording — follows the post the combined score of all
  * the new recordings picks. The value is null only when there is no candidate.
  */
 export const assignActivitiesToStatusIds = ({

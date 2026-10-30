@@ -155,4 +155,43 @@ describe('buildStoredImportPlan', () => {
       { targetFileNames: ['indoor.tcx'], mergeStatusId: 'status-main-ride' }
     ])
   })
+
+  it('emits one group per post when targets split across two posts', () => {
+    const postA = buildFile({
+      id: 'post-a',
+      statusId: 'status-a',
+      activityStartTime: baseStart,
+      totalDurationSeconds: 1_200
+    })
+    const postB = buildFile({
+      id: 'post-b',
+      statusId: 'status-b',
+      activityStartTime: baseStart + 3_600_000,
+      totalDurationSeconds: 1_200
+    })
+
+    const plan = buildStoredImportPlan({
+      targets: [
+        {
+          file: buildFile({ id: 't-a', fileName: 't-a.tcx' }),
+          startTimeMs: baseStart,
+          durationSeconds: 1_200
+        },
+        {
+          file: buildFile({ id: 't-b', fileName: 't-b.tcx' }),
+          startTimeMs: baseStart + 3_600_000,
+          durationSeconds: 1_200
+        }
+      ],
+      contextFiles: [postA, postB]
+    })
+
+    expect(plan.groups).toHaveLength(2)
+    expect(plan.groups).toEqual(
+      expect.arrayContaining([
+        { targetFileNames: ['t-a.tcx'], mergeStatusId: 'status-a' },
+        { targetFileNames: ['t-b.tcx'], mergeStatusId: 'status-b' }
+      ])
+    )
+  })
 })

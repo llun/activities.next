@@ -2,6 +2,7 @@ import { FitnessFile } from '@/lib/types/database/fitnessFile'
 
 import {
   FitnessOverlapActivity,
+  assignActivitiesToStatusIds,
   getOverlapContextFitnessFileIds,
   groupFitnessActivitiesByOverlap,
   selectMostOverlappingStatusId
@@ -182,5 +183,50 @@ describe('getOverlapContextFitnessFileIds', () => {
         files: [buildFile(overrides as Partial<FitnessFile> & { id: string })]
       })
     ).toEqual([])
+  })
+})
+
+describe('assignActivitiesToStatusIds', () => {
+  const candidates = [
+    {
+      id: 'a',
+      statusId: 'first',
+      startTimeMs: 0,
+      durationSeconds: 600
+    },
+    {
+      id: 'b',
+      statusId: 'second',
+      startTimeMs: 600_000,
+      durationSeconds: 1_200
+    }
+  ]
+
+  it('gives each recording the post it overlaps most', () => {
+    const result = assignActivitiesToStatusIds({
+      activities: [{ id: 'new', startTimeMs: 0, durationSeconds: 1_800 }],
+      candidates
+    })
+    expect(result.get('new')).toBe('second')
+  })
+
+  it('makes a recording with no overlap follow the combined pick', () => {
+    const result = assignActivitiesToStatusIds({
+      activities: [
+        { id: 'covering', startTimeMs: 0, durationSeconds: 1_800 },
+        { id: 'detached', startTimeMs: 5_000_000, durationSeconds: 600 }
+      ],
+      candidates
+    })
+    expect(result.get('covering')).toBe('second')
+    expect(result.get('detached')).toBe('second')
+  })
+
+  it('returns null when there is no candidate', () => {
+    const result = assignActivitiesToStatusIds({
+      activities: [{ id: 'new', startTimeMs: 0, durationSeconds: 600 }],
+      candidates: []
+    })
+    expect(result.get('new')).toBeNull()
   })
 })
