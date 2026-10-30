@@ -1,0 +1,53 @@
+app/(timeline)/settings/featured-hashtags/page.test.tsx
+  s_f147bf36f62485::t_86e271db6bc3f1 1-13
+app/(timeline)/settings/navigation/page.test.tsx
+  s_f147bf36f62485::t_83a48a889ad7e5 1-13
+app/api/v1/accounts/[id]/identity_proofs/route.test.ts
+  s_f147bf36f62485::t_67b6adfce49fa8 1-17
+app/api/v1/admin/domain_blocks/[id]/route.test.ts
+  s_f147bf36f62485::t_318a1fc7e2e260 3,162-174
+app/api/v1/filters/[id]/route.test.ts
+  s_f147bf36f62485::t_45141572403112 9,649-661
+lib/activities/reactionActivity.test.ts
+  s_f147bf36f62485::t_27a9f84288359f 2,21-34
+lib/client/lists.test.ts
+  s_f147bf36f62485::t_de38ec2a3fbda9 6,11,232-263
+lib/components/fitness/calendar/AnnualCalendar.test.tsx
+  s_f147bf36f62485::t_d572f992bb2e9f 866-872
+lib/components/fitness/routeHighlightMarker.test.ts
+  s_f147bf36f62485::t_2c7e91c25606f8 2,9-13
+lib/components/photo-editor/PhotoEditPreview.test.tsx
+  s_f147bf36f62485::t_3bbf2780838622 14,119-127
+lib/components/photo-editor/PhotoEditorDialog.test.tsx
+  s_f147bf36f62485::t_fc6084200d56e9 428-435
+lib/components/posts/reaction-row.test.tsx
+  s_f147bf36f62485::t_1dc05fc03c96af 263-272
+lib/components/profile/FeaturedTagsBlock.test.tsx
+  s_f147bf36f62485::t_82536fab5fc2ec 20-24
+lib/components/profile/ProfileFieldsBlock.test.tsx
+  s_f147bf36f62485::t_a343495ffec918 41-47
+lib/services/translation/openai.test.ts
+  s_f147bf36f62485::t_e0d7b85628467e 25-31
+lib/services/wellknown/index.test.ts
+  s_f147bf36f62485::t_59141f7baa6900 161-174,198-206
+lib/utils/safeImageDownload.test.ts
+  s_f147bf36f62485::t_b1d0f12df828b5 11,61-72
+test/feed-row-overlays.test.ts
+  s_f147bf36f62485::t_24ac17505f22eb 328-332
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f1a2a822c515c96f476cd38cbf89f0a18b12883c",
+  "prompts": {},
+  "sessions": {
+    "s_f147bf36f62485": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "25ee74e4-3619-4df9-8186-dcf3fd9b6ec2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
