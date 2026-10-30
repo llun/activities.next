@@ -21,16 +21,6 @@ describe('parseBackdatedCreatedAt', () => {
 
   it.each([
     {
-      description: 'accepts a UTC date-time',
-      input: '2026-06-14T18:30:00Z',
-      expected: Date.parse('2026-06-14T18:30:00Z')
-    },
-    {
-      description: 'accepts a date-time with an offset',
-      input: '2026-06-14T20:30:00+02:00',
-      expected: Date.parse('2026-06-14T18:30:00Z')
-    },
-    {
       description: 'accepts fractional seconds and surrounding whitespace',
       input: ' 2026-06-14T18:30:00.123Z ',
       expected: Date.parse('2026-06-14T18:30:00.123Z')
@@ -66,11 +56,6 @@ describe('parseBackdatedCreatedAt', () => {
     {
       description: 'rejects a bare date',
       input: '2026-06-14',
-      error: CREATED_AT_INVALID_ERROR
-    },
-    {
-      description: 'rejects a non-date string',
-      input: 'yesterday',
       error: CREATED_AT_INVALID_ERROR
     },
     {

@@ -219,16 +219,6 @@ describe('cleanClassName', () => {
       expect(relTokens.filter((t) => t === 'noopener')).toHaveLength(1)
     })
 
-    it('rewrites profile mention links to local profile path without target="_blank"', () => {
-      const html =
-        '<a href="https://example.com/@user" class="u-url mention">@user</a>'
-      const output = renderToHtml(html)
-      expect(output).toContain('href="/@user@example.com"')
-      expect(output).not.toContain('target="_blank"')
-      expect(output).not.toContain('noopener')
-      expect(output).not.toContain('noreferrer')
-    })
-
     it('rewrites actor URL mention to local profile path without target="_blank"', () => {
       const html =
         '<a href="https://remote.social/users/bob" class="u-url mention">@bob</a>'

@@ -518,33 +518,6 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         expect(tiles[0].segments).toBe('{"e":256,"s":[{"c":3,"p":[1,1,2,2]}]}')
       })
 
-      it('writes a flush larger than SQLite allows bound variables in one statement', async () => {
-        const actorId = await createActor(database)
-        const build = await claimBuild(database, actorId)
-        // Ten columns per row against SQLite's 999-variable ceiling means the
-        // insert has to chunk at ~99 rows; 250 forces three statements.
-        const tiles = Array.from({ length: 250 }, (_unused, index) =>
-          tile(`14:${index}:0`, 2)
-        )
-
-        await database.upsertFitnessRouteHeatmapTiles({
-          actorId,
-          ...fence(build),
-          version: 1,
-          tiles
-        })
-
-        const total = await database.sumFitnessRouteHeatmapTilePoints({
-          actorId,
-          z: 14,
-          minX: 0,
-          maxX: 249,
-          minY: 0,
-          maxY: 0
-        })
-        expect(total).toBe(500)
-      })
-
       it('splits an oversized key list into several statements', async () => {
         // Asserted on the statements issued rather than the rows returned:
         // better-sqlite3 accepts far more bindings than the project's

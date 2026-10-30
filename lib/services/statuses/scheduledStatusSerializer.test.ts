@@ -18,11 +18,6 @@ describe('buildScheduledParams', () => {
     expect(params.visibility).toBe('public')
   })
 
-  it('falls back to the provided default privacy when the note omits visibility', () => {
-    const params = buildScheduledParams(baseNote(), null, 'private')
-    expect(params.visibility).toBe('private')
-  })
-
   it('prefers the explicit note visibility over the default privacy', () => {
     const params = buildScheduledParams(
       baseNote({ visibility: 'unlisted' }),

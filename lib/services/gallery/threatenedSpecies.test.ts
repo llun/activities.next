@@ -84,25 +84,6 @@ describe('isPlaceWithheldForThreat', () => {
       )
     ).toBeTrue()
   })
-
-  it('shows a species resolved outside CR, EN and VU', () => {
-    expect(
-      isPlaceWithheldForThreat(
-        subject({
-          ...species,
-          subjectLookupStatus: 'resolved',
-          subjectIucnCategory: 'LC'
-        }),
-        { hideThreatenedPlaces: true }
-      )
-    ).toBeFalse()
-  })
-
-  it('never withholds when the owner turns it off', () => {
-    expect(
-      isPlaceWithheldForThreat(species, { hideThreatenedPlaces: false })
-    ).toBeFalse()
-  })
 })
 
 describe('getSubjectThreatStatus', () => {

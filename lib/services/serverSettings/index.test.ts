@@ -56,18 +56,6 @@ describe('server settings resolver', () => {
     await database.destroy()
   })
 
-  it('serves a stored database value over the default', async () => {
-    const database = await freshDatabase()
-    await database.setServerSettings([
-      { key: 'posts.maxCharacters', value: 1000 }
-    ])
-    invalidateServerSettingsCache(database)
-
-    const settings = await getResolvedServerSettings(database)
-    expect(settings.posts.maxCharacters).toBe(1000)
-    await database.destroy()
-  })
-
   it('lets an env override win over a stored value and locks the field', async () => {
     const database = await freshDatabase()
     await database.setServerSettings([

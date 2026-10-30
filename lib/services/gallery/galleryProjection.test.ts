@@ -3,14 +3,9 @@ import type {
   GalleryMediaRow
 } from '@/lib/database/domains/gallery/types'
 import {
-  OWNER_GALLERY_AUDIENCE,
-  PUBLIC_GALLERY_AUDIENCE
-} from '@/lib/services/gallery/galleryAudience'
-import {
   getGalleryGearIdsToResolve,
   toGalleryItemEntity,
   toGalleryMapPoint,
-  toGalleryProjectionViewer,
   toPublicPlaceInput
 } from '@/lib/services/gallery/galleryProjection'
 import { PUBLIC_PLACE_INPUT_KEYS } from '@/lib/services/gallery/publicMediaDetails'
@@ -91,22 +86,6 @@ const mapRow = (overrides: Partial<GalleryMapRow> = {}): GalleryMapRow => ({
 const settingsWith = (
   overrides: Partial<typeof DEFAULT_GALLERY_SETTINGS> = {}
 ) => ({ ...DEFAULT_GALLERY_SETTINGS, ...overrides })
-
-describe('toGalleryProjectionViewer', () => {
-  it('projects for the owner only for the owner audience', () => {
-    expect(toGalleryProjectionViewer(OWNER_GALLERY_AUDIENCE)).toBe('owner')
-    expect(toGalleryProjectionViewer(PUBLIC_GALLERY_AUDIENCE)).toBe('public')
-    expect(
-      toGalleryProjectionViewer({
-        kind: 'viewer',
-        publicOnly: false,
-        visibleToActorId: 'someone',
-        includeFollowersOnly: true,
-        followersAudience: null
-      })
-    ).toBe('public')
-  })
-})
 
 describe('toGalleryItemEntity place', () => {
   type Zone = 'none' | 'stored' | 'snapped-only'

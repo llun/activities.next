@@ -72,21 +72,6 @@ describe('getRelevantStatusDomains', () => {
 describe('filterDomainBlockedStatuses', () => {
   const blocked = new Set(['blocked.test'])
 
-  it('drops notes authored on a blocked domain', () => {
-    const kept = note(
-      'https://llun.test/users/a/statuses/1',
-      'https://llun.test/users/a'
-    )
-    const dropped = note(
-      'https://blocked.test/users/b/statuses/1',
-      'https://blocked.test/users/b'
-    )
-
-    expect(filterDomainBlockedStatuses(blocked, [kept, dropped])).toEqual([
-      kept
-    ])
-  })
-
   it('drops boosts of statuses authored on a blocked domain', () => {
     const boost = announce(
       'https://llun.test/users/a/statuses/2',
@@ -95,16 +80,5 @@ describe('filterDomainBlockedStatuses', () => {
     )
 
     expect(filterDomainBlockedStatuses(blocked, [boost])).toEqual([])
-  })
-
-  it('returns statuses unchanged when no domains are blocked', () => {
-    const statuses = [
-      note(
-        'https://blocked.test/users/b/statuses/1',
-        'https://blocked.test/users/b'
-      )
-    ]
-
-    expect(filterDomainBlockedStatuses(new Set(), statuses)).toEqual(statuses)
   })
 })

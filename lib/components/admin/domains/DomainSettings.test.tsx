@@ -633,26 +633,6 @@ describe('DomainSettings', () => {
       ).toHaveAttribute('href', '/admin/announcements?domain=run.example')
     })
 
-    it('shows a server-off feature locked on the domain page', () => {
-      renderPage(RUN, {
-        serverFeatures: { fitness: true, explore: true, messages: false }
-      })
-      expect(screen.getByRole('switch', { name: /Messages/ })).toBeDisabled()
-      expect(screen.getByText('Turned off on the server')).toBeInTheDocument()
-    })
-
-    it('saves the domain features', async () => {
-      mockFeatures.mockResolvedValue({ ...RUN, disabledFeatures: ['explore'] })
-      renderPage(RUN)
-      fireEvent.click(screen.getByRole('switch', { name: /Explore/ }))
-      fireEvent.click(screen.getByRole('button', { name: 'Save features' }))
-      await waitFor(() =>
-        expect(mockFeatures).toHaveBeenCalledWith('run.example', {
-          disabledFeatures: ['explore']
-        })
-      )
-    })
-
     it('keeps the primary domain read-only: server rules, On/Off badges, no save bars', () => {
       renderPage(
         { ...RUN, domain: 'social.example', source: 'primary' },

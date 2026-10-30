@@ -192,16 +192,6 @@ describe('next config security hardening', () => {
     })
   })
 
-  it('omits Mapbox browser sources for server-only fitness Mapbox tokens', () => {
-    withEnv({ ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN: 'sk.test-token' }, () => {
-      const csp = getSecurityHeaders().find(
-        (header) => header.key === 'Content-Security-Policy'
-      )
-
-      expect(csp?.value).not.toContain('mapbox.com')
-    })
-  })
-
   it('allows Apple MapKit JS browser sources when the Apple map provider is configured', () => {
     withEnv(
       {

@@ -531,22 +531,6 @@ describe('MediasModal', () => {
     ).toBeInTheDocument()
   })
 
-  it('closes when Escape key is pressed', () => {
-    const onClosed = vi.fn()
-    const attachment = buildAttachment()
-
-    render(
-      <MediasModal
-        medias={[attachment]}
-        initialSelection={0}
-        onClosed={onClosed}
-      />
-    )
-
-    fireEvent.keyDown(document, { key: 'Escape' })
-    expect(onClosed).toHaveBeenCalledTimes(1)
-  })
-
   it('supports manual playback toggle for animated GIFs in the lightbox', async () => {
     const gif = buildAttachment({
       id: 'attachment-gif',

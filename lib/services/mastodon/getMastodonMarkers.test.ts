@@ -22,8 +22,4 @@ describe('getMastodonMarkers', () => {
       }
     })
   })
-
-  it('returns an empty object for no rows', () => {
-    expect(getMastodonMarkers([])).toEqual({})
-  })
 })

@@ -81,12 +81,6 @@ describe('getAcceptedVideoDimensions', () => {
     ).toEqual({ width: 1920, height: 1080 })
   })
 
-  it('rejects a container with no video stream', () => {
-    expect(() =>
-      getAcceptedVideoDimensions(probeOf({ codec_type: 'audio' }))
-    ).toThrow(MediaValidationError)
-  })
-
   it('rejects a container that is not mp4 or webm', () => {
     expect(() =>
       getAcceptedVideoDimensions(

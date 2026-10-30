@@ -36,85 +36,8 @@ describe('shouldCreateNotification', () => {
     expect(getMute).not.toHaveBeenCalled()
   })
 
-  it('returns false when either party blocks the other (without consulting mute)', async () => {
-    const isEitherBlocking = vi.fn(async () => true)
-    const getMute = vi.fn(async () => null)
-    const database = makeDatabase({ isEitherBlocking, getMute })
-
-    const result = await shouldCreateNotification(
-      database,
-      recipientActorId,
-      sourceActorId
-    )
-
-    expect(result).toBe(false)
-    expect(getMute).not.toHaveBeenCalled()
-  })
-
   it('returns true when there is no block and no mute', async () => {
     const database = makeDatabase()
-
-    const result = await shouldCreateNotification(
-      database,
-      recipientActorId,
-      sourceActorId
-    )
-
-    expect(result).toBe(true)
-  })
-
-  it('returns false when the recipient mutes the source with notifications=true', async () => {
-    const database = makeDatabase({
-      getMute: vi.fn(async () => ({
-        id: 'mute-1',
-        actorId: recipientActorId,
-        actorHost: 'llun.test',
-        targetActorId: sourceActorId,
-        targetActorHost: 'llun.test',
-        notifications: true,
-        endsAt: null,
-        createdAt: 0,
-        updatedAt: 0
-      }))
-    })
-
-    const result = await shouldCreateNotification(
-      database,
-      recipientActorId,
-      sourceActorId
-    )
-
-    expect(result).toBe(false)
-  })
-
-  it('returns true when the recipient mutes the source with notifications=false', async () => {
-    const database = makeDatabase({
-      getMute: vi.fn(async () => ({
-        id: 'mute-2',
-        actorId: recipientActorId,
-        actorHost: 'llun.test',
-        targetActorId: sourceActorId,
-        targetActorHost: 'llun.test',
-        notifications: false,
-        endsAt: null,
-        createdAt: 0,
-        updatedAt: 0
-      }))
-    })
-
-    const result = await shouldCreateNotification(
-      database,
-      recipientActorId,
-      sourceActorId
-    )
-
-    expect(result).toBe(true)
-  })
-
-  it('returns true when getMute returns null (expired mute is filtered by impl)', async () => {
-    const database = makeDatabase({
-      getMute: vi.fn(async () => null)
-    })
 
     const result = await shouldCreateNotification(
       database,

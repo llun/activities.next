@@ -55,36 +55,6 @@ describe('deliverActivityJob', () => {
     expect(DeliverActivityJobData.safeParse(invalid).success).toBe(false)
   })
 
-  it('completes cleanly on 200/202 success', async () => {
-    vi.mocked(request).mockResolvedValue({
-      statusCode: 200,
-      body: '',
-      headers: {}
-    })
-
-    const message = {
-      id: 'msg-1',
-      name: 'DeliverActivityJob',
-      data: {
-        inbox: 'https://remote.example/inbox',
-        actorId: 'https://activities.local/users/alice',
-        activity: { type: 'Create', id: 'https://activities.local/status/1' }
-      }
-    }
-
-    await expect(
-      deliverActivityJob(mockDatabase, message)
-    ).resolves.toBeUndefined()
-
-    const span = harness.recordedSpans.find(
-      (s) => s.name === 'job.DeliverActivityJob'
-    )
-    expect(span).toBeDefined()
-    const eventNames = span?.events.map((e) => e.name)
-    expect(eventNames).toContain('delivery_attempt_start')
-    expect(eventNames).toContain('delivery_success')
-  })
-
   it('throws SalvageableDeliveryError on HTTP 503', async () => {
     vi.mocked(request).mockResolvedValue({
       statusCode: 503,

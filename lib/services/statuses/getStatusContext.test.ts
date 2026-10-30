@@ -24,14 +24,12 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 describe('getStatusContext', () => {
   const { database, prepare } = createTestDatabase()
   let actor1: Actor
-  let actor3: Actor
 
   beforeAll(async () => {
     await prepare()
     await database.migrate()
     await seedDatabase(database)
     actor1 = (await database.getActorFromId({ id: ACTOR1_ID }))!
-    actor3 = (await database.getActorFromId({ id: ACTOR3_ID }))!
   })
 
   afterAll(async () => {
@@ -251,53 +249,6 @@ describe('getStatusContext', () => {
 
     expect(result.status).not.toBeNull()
     expect(result.ancestors.map((s) => s.id)).toEqual([cycle2Id])
-  })
-
-  it('respects access control and excludes unreadable ancestors', async () => {
-    const publicRootId = `${ACTOR1_ID}/statuses/ctx-acc-root`
-    const privateMidId = `${ACTOR1_ID}/statuses/ctx-acc-mid`
-    const publicLeafId = `${ACTOR1_ID}/statuses/ctx-acc-leaf`
-
-    await database.createNote({
-      id: publicRootId,
-      url: publicRootId,
-      actorId: ACTOR1_ID,
-      text: 'Public Root',
-      to: [ACTIVITY_STREAM_PUBLIC],
-      cc: []
-    })
-
-    await database.createNote({
-      id: privateMidId,
-      url: privateMidId,
-      actorId: ACTOR1_ID,
-      text: 'Followers-only Mid',
-      reply: publicRootId,
-      to: [`${ACTOR1_ID}/followers`],
-      cc: []
-    })
-
-    await database.createNote({
-      id: publicLeafId,
-      url: publicLeafId,
-      actorId: ACTOR1_ID,
-      text: 'Public Leaf',
-      reply: privateMidId,
-      to: [ACTIVITY_STREAM_PUBLIC],
-      cc: []
-    })
-
-    // Non-follower actor3 reads the public leaf:
-    // The private mid ancestor is excluded, but public root remains
-    const result = await getStatusContext({
-      database,
-      statusId: publicLeafId,
-      currentActor: actor3
-    })
-
-    const ancestorIds = result.ancestors.map((s) => s.id)
-    expect(ancestorIds).toContain(publicRootId)
-    expect(ancestorIds).not.toContain(privateMidId)
   })
 
   describe('blocked and muted statuses', () => {

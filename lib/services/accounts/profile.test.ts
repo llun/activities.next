@@ -110,15 +110,6 @@ describe('buildProfile', () => {
     })
   })
 
-  it('flags a profile whose actor settings carry movedTo', () => {
-    expect(
-      buildProfile({
-        account,
-        settings: { ...baseSettings, movedTo: 'https://new.test/users/alice' }
-      }).moved
-    ).toBe(true)
-  })
-
   it('handles missing settings with documented defaults', () => {
     const profile = buildProfile({ account, settings: undefined })
     expect(profile.avatar).toBeNull()

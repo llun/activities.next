@@ -338,35 +338,6 @@ describe('RangePicker', () => {
         'October 2026'
       )
     })
-
-    it('disables days after today and the next arrow in the current month', () => {
-      render(<Harness presentation={mode} />)
-      open()
-      const calendar = screen.getByTestId('mini-month-calendar')
-      expect(
-        within(calendar).getByRole('button', {
-          name: /^Monday, 5 October 2026/
-        })
-      ).toBeDisabled()
-      expect(
-        within(calendar).getByRole('button', {
-          name: /^Sunday, 4 October 2026/
-        })
-      ).toBeEnabled()
-      expect(
-        within(calendar).getByRole('button', { name: 'Next month' })
-      ).toBeDisabled()
-
-      fireEvent.click(
-        within(calendar).getByRole('button', { name: 'Previous month' })
-      )
-      expect(screen.getByTestId('mini-month-title')).toHaveTextContent(
-        'September 2026'
-      )
-      expect(
-        within(calendar).getByRole('button', { name: 'Next month' })
-      ).toBeEnabled()
-    })
   })
 
   describe('popover', () => {

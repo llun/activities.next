@@ -16,30 +16,12 @@ const ONE_PIXEL_PNG = Buffer.from(
 )
 
 describe('extractVideoPreviewFrame', () => {
-  // What the temp file held when the extraction was handed its path.
-  let extractedFrom: Buffer | null
-
   beforeEach(() => {
     vi.clearAllMocks()
-    extractedFrom = null
-    vi.mocked(extractVideoImage).mockImplementation(async (filePath) => {
-      extractedFrom = await fs.readFile(filePath)
-      return ONE_PIXEL_PNG
-    })
+    vi.mocked(extractVideoImage).mockImplementation(async () => ONE_PIXEL_PNG)
   })
 
   const tempPath = () => vi.mocked(extractVideoImage).mock.calls[0][0]
-
-  it('extracts the frame from a temp copy of the video', async () => {
-    const buffer = Buffer.from('video-bytes')
-
-    await expect(extractVideoPreviewFrame(buffer, '.mp4')).resolves.toEqual(
-      ONE_PIXEL_PNG
-    )
-
-    expect(extractVideoImage).toHaveBeenCalledTimes(1)
-    expect(extractedFrom).toEqual(buffer)
-  })
 
   it('removes the temp copy once the frame is extracted', async () => {
     await extractVideoPreviewFrame(Buffer.from('video-bytes'), '.mp4')

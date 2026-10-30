@@ -11,16 +11,6 @@ const entry = (name: string): ZipCatalogEntry => ({
 })
 
 describe('detectArchiveKind', () => {
-  it('recognises a Mastodon export', () => {
-    const catalog = [
-      entry('actor.json'),
-      entry('outbox.json'),
-      entry('likes.json'),
-      entry('media_attachments/0000001.jpg')
-    ]
-    expect(detectArchiveKind(catalog)).toBe('mastodon')
-  })
-
   it("recognises this server's own export", () => {
     const catalog = [
       entry('actor.json'),

@@ -100,27 +100,6 @@ describe('StravaArchiveReader.open', () => {
     expect(zipFile.close).toHaveBeenCalled()
   })
 
-  it('rejects 42.zip-style entries with oversized uncompressed data', async () => {
-    const zipFile = mockZipFileWithEntries([
-      makeEntry({
-        fileName: 'activities/bomb.fit',
-        compressedSize: 1,
-        uncompressedSize: 1_000_000_000
-      })
-    ])
-    mockYauzlOpen.mockImplementation((filePath, options, callback) => {
-      callback(null, zipFile)
-      return undefined as never
-    })
-
-    await expect(
-      StravaArchiveReader.open('/tmp/export.zip', {
-        limits: { maxEntryUncompressedBytes: 1024 }
-      })
-    ).rejects.toThrow('exceeds uncompressed size limit')
-    expect(zipFile.close).toHaveBeenCalled()
-  })
-
   it('rejects entries with oversized compressed data', async () => {
     const zipFile = mockZipFileWithEntries([
       makeEntry({

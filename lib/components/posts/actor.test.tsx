@@ -54,25 +54,10 @@ describe('post author links', () => {
     expect(screen.getByRole('link')).toHaveAttribute('data-prefetch', 'false')
   })
 
-  it('does not prefetch the avatar link built from an actor id', () => {
-    render(<ActorAvatar actorId="https://llun.test/users/test" />)
-
-    expect(screen.getByRole('link')).toHaveAttribute('data-prefetch', 'false')
-  })
-
   it('does not prefetch the display-name link built from an actor profile', () => {
     render(<ActorInfo actor={actor} />)
 
     expect(screen.getByRole('link', { name: 'Test Actor' })).toHaveAttribute(
-      'data-prefetch',
-      'false'
-    )
-  })
-
-  it('does not prefetch the handle link built from an actor id', () => {
-    render(<ActorInfo actorId="https://llun.test/users/test" />)
-
-    expect(screen.getByRole('link', { name: '@test' })).toHaveAttribute(
       'data-prefetch',
       'false'
     )

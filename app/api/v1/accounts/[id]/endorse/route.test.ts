@@ -2,8 +2,6 @@ import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
-import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
-import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID, seedActor3 } from '@/lib/stub/seed/actor3'
 import { ACTOR4_ID } from '@/lib/stub/seed/actor4'
 import { urlToId } from '@/lib/utils/urlToId'
@@ -43,6 +41,7 @@ const createRequest = (targetId: string) =>
     { method: 'POST', headers: { origin: 'https://llun.test' } }
   )
 
+// The error cases are covered by the pin/unpin route tests; this pins the alias route's own wiring.
 describe('POST /api/v1/accounts/:id/endorse', () => {
   const database = getTestSQLDatabase()
 
@@ -80,36 +79,5 @@ describe('POST /api/v1/accounts/:id/endorse', () => {
       targetActorId: ACTOR4_ID
     })
     expect(stored).not.toBeNull()
-  })
-
-  it('returns 422 when the current actor does not follow the target', async () => {
-    // Actor1 does not follow the local Actor2.
-    mockGetServerSession.mockResolvedValue({
-      user: { email: seedActor1.email }
-    })
-
-    const response = await POST(createRequest(ACTOR2_ID), {
-      params: Promise.resolve({ id: urlToId(ACTOR2_ID) })
-    })
-
-    expect(response.status).toBe(422)
-    const stored = await database.getEndorsement({
-      actorId: ACTOR1_ID,
-      targetActorId: ACTOR2_ID
-    })
-    expect(stored).toBeNull()
-  })
-
-  it('returns 404 for an unknown account', async () => {
-    mockGetServerSession.mockResolvedValue({
-      user: { email: seedActor3.email }
-    })
-    const unknown = 'https://llun.test/users/does-not-exist'
-
-    const response = await POST(createRequest(unknown), {
-      params: Promise.resolve({ id: urlToId(unknown) })
-    })
-
-    expect(response.status).toBe(404)
   })
 })

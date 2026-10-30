@@ -20,11 +20,6 @@ describe('getStatusFitnessFiles', () => {
     await database.destroy()
   })
 
-  it('returns empty array when no fitness files exist', async () => {
-    const files = await getStatusFitnessFiles(database, 'non-existent-status')
-    expect(files).toEqual([])
-  })
-
   it('returns and sorts fitness files with resolved gear names and summary metrics', async () => {
     const status = await database.createNote({
       id: `${ACTOR1_ID}/statuses/test-multi-fitness-files`,

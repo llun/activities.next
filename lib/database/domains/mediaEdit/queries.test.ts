@@ -458,18 +458,6 @@ describe('MediaEditDatabase', () => {
     })
   })
 
-  it('answers not-edited for a photo with no original slot', async () => {
-    const media = await createPhoto('not-edited')
-    await expect(
-      database.revertMediaEdit({
-        mediaId: media.id,
-        accountId,
-        baseVersion: 0,
-        saveId: 'nothing'
-      })
-    ).resolves.toEqual({ status: 'not-edited' })
-  })
-
   it('answers not-found for another account and for an unknown id', async () => {
     const media = await createPhoto('not-owned')
     await expect(

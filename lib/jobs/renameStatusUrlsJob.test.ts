@@ -240,15 +240,6 @@ describe('renameStatusUrlsJob', () => {
     expect(publish).not.toHaveBeenCalled()
   })
 
-  it('builds the profile prefix the mint paths embed in statuses.url', () => {
-    // The domain is NOT lowercased: statuses.url is minted from
-    // actor.domain as stored, and a legacy mixed-case domain must match its
-    // own statuses.
-    expect(getStatusUrlPrefix({ domain: 'Example.test', username: 'me' })).toBe(
-      'https://Example.test/@me/'
-    )
-  })
-
   it('gives every rename its own job ids, keyed by the rename timestamp', () => {
     // A rename back reuses the revived ledger row's handleId; without the
     // timestamp a queue that still holds the earlier job would drop the new

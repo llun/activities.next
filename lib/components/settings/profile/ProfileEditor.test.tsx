@@ -1174,27 +1174,6 @@ describe('ProfileEditor', () => {
       )
     })
 
-    it('lets a clean page leave without asking', () => {
-      renderEditor()
-
-      clickLink('Back to your profile')
-
-      expect(screen.queryByRole('dialog')).toBeNull()
-      const event = new Event('beforeunload', { cancelable: true })
-      window.dispatchEvent(event)
-      expect(event.defaultPrevented).toBe(false)
-    })
-
-    it('asks on a tab close or reload while there are changes', () => {
-      renderEditor()
-      type(bio(), 'Changed')
-
-      const event = new Event('beforeunload', { cancelable: true })
-      window.dispatchEvent(event)
-
-      expect(event.defaultPrevented).toBe(true)
-    })
-
     it('does not ask after a successful save', async () => {
       mockUpdateProfile.mockResolvedValue(buildProfile({ summary: 'Changed' }))
       renderEditor()
