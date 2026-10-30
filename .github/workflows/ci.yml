@@ -1,15 +1,16 @@
 name: CI
 
-# Runs on every commit (push to any branch + pull requests). The lint/prettier,
-# typecheck, build, SQLite test shards, PostgreSQL test shards, and docker
-# smoke jobs run in parallel (no `needs:` chain between them) so the check
-# finishes as fast as the slowest single job instead of the sum of all of
+# Runs once per commit: on pull requests (the merge ref) and on pushes to
+# `main`; `workflow_dispatch` runs it on a branch without a PR. The
+# lint/prettier, typecheck, build, SQLite test shards, PostgreSQL test shards,
+# and docker smoke jobs run in parallel (no `needs:` chain between them) so the
+# check finishes as fast as the slowest single job instead of the sum of all of
 # them. The `All Tests` job (id `test`) fans in the SQLite test shards and the
-# PostgreSQL test shards and fails closed. Branch protection requires
-# `All Tests`, `Lint and Prettier` and `Build`. `CI Success` aggregates every
-# job and fails unless all of them succeeded (skipped or cancelled count as
-# failure). `cancel-in-progress` (below) also kills superseded runs so a new
-# push fails fast past the old one.
+# PostgreSQL test shards and fails closed. Branch protection requires `All
+# Tests`, `Lint and Prettier` and `Build`. `CI Success` aggregates every job and
+# fails unless all of them succeeded (skipped or cancelled count as failure).
+# `cancel-in-progress` (below) also kills superseded runs so a new push fails
+# fast past the old one.
 #
 # Everything runs in the normal push/pull_request context: jobs use the default
 # read-only token, pull_request runs check out the PR merge ref (catching
@@ -18,7 +19,9 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
+  workflow_dispatch:
 
 # Least privilege: every job only needs to read the repo to check it out. No job
 # writes statuses, contents, or packages.
@@ -32,9 +35,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Runner images are pinned deliberately: the moving "latest" label is
+  # migrating to Ubuntu 26, so move with care.
   lint-prettier:
     name: Lint and Prettier
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -46,7 +52,7 @@ jobs:
           node-version: 24
           cache: yarn
       - name: Install dependencies
-        run: yarn install --immutable
+        uses: ./.github/actions/install
       - name: Run lint
         run: yarn lint
       - name: Check prettier formatting
@@ -57,7 +63,8 @@ jobs:
   # tests and scripts) via `yarn typecheck`.
   typecheck:
     name: Type Check
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -69,13 +76,14 @@ jobs:
           node-version: 24
           cache: yarn
       - name: Install dependencies
-        run: yarn install --immutable
+        uses: ./.github/actions/install
       - name: Type check
         run: yarn typecheck
 
   build:
     name: Build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -87,7 +95,7 @@ jobs:
           node-version: 24
           cache: yarn
       - name: Install dependencies
-        run: yarn install --immutable
+        uses: ./.github/actions/install
       - name: Cache Next.js build
         uses: actions/cache@v6
         with:
@@ -118,7 +126,8 @@ jobs:
   # import the withTimeZone helper still run in forked processes.
   test-shards:
     name: Test Shard ${{ matrix.shard }} of 4
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     strategy:
       # Run every shard even if one fails, so all failures surface in one run.
       fail-fast: false
@@ -135,7 +144,7 @@ jobs:
           node-version: 24
           cache: yarn
       - name: Install dependencies
-        run: yarn install --immutable
+        uses: ./.github/actions/install
       - name: Run test shard
         run: yarn test --shard=${{ matrix.shard }}/4
         env:
@@ -165,7 +174,8 @@ jobs:
   # automatically.
   test-pg:
     name: PostgreSQL Tests (shard ${{ matrix.shard }}/2)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
     strategy:
       # Run every shard even if one fails, so all failures surface in one run.
       fail-fast: false
@@ -211,7 +221,7 @@ jobs:
           node-version: 24
           cache: yarn
       - name: Install dependencies
-        run: yarn install --immutable
+        uses: ./.github/actions/install
       - name: Run PostgreSQL database tests (shard ${{ matrix.shard }}/2)
         env:
           TEST_DATABASE_TYPE: pg
@@ -370,7 +380,8 @@ jobs:
     name: All Tests
     needs: [test-shards, test-pg]
     if: ${{ always() }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
     steps:
       - name: Verify all test shards succeeded
         env:
@@ -390,7 +401,8 @@ jobs:
   # publish images to any registry.
   docker-smoke-minimal:
     name: Docker Images Smoke Test (minimal)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -402,7 +414,7 @@ jobs:
           node-version: 24
           cache: yarn
       - name: Install dependencies
-        run: yarn install --immutable
+        uses: ./.github/actions/install
       - name: Build minimal Docker image
         run: docker build -t activities:test-minimal .
       - name: Verify minimal Docker image
@@ -417,7 +429,8 @@ jobs:
   # services. Does not publish images to any registry.
   docker-smoke-full:
     name: Docker Images Smoke Test (full)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -429,7 +442,7 @@ jobs:
           node-version: 24
           cache: yarn
       - name: Install dependencies
-        run: yarn install --immutable
+        uses: ./.github/actions/install
       - name: Build full Docker image with optional workspaces
         run: |
           docker build -t activities:test-full \
@@ -449,7 +462,8 @@ jobs:
   # so nothing can merge green while a job was silently skipped.
   ci-success:
     name: CI Success
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
     needs:
       [
         lint-prettier,

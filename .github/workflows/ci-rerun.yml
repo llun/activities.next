@@ -1,0 +1,46 @@
+name: CI Re-run
+
+# Re-runs the failed jobs of a CI run, once, when every failed job is an
+# infrastructure failure: a job GitHub never gave a runner to (reported as
+# `abandoned` to All Tests, as on PR #2688) or one whose only failed step is
+# the runner's own setup (an action that could not be resolved). Decided by
+# .github/scripts/classify-ci-rerun.mjs from the jobs API; a failed install,
+# lint, build, test or docker step blocks it. `workflow_run` executes this
+# file from `main` with the repository token and never checks out or runs
+# the PR's code; the re-run itself keeps the original event's permissions.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  rerun:
+    name: Re-run infrastructure failures
+    if: >-
+      github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RUN_ID: ${{ github.event.workflow_run.id }}
+      REPO: ${{ github.repository }}
+    steps:
+      - name: Checkout the classifier (from main, never the PR)
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+      - name: Classify the failed jobs
+        id: classify
+        run: |
+          set -euo pipefail
+          gh api --paginate "repos/$REPO/actions/runs/$RUN_ID/jobs?per_page=100" --jq '.jobs[]' | jq -s '.' > /tmp/jobs.json
+          node .github/scripts/classify-ci-rerun.mjs /tmp/jobs.json
+      - name: Re-run the failed jobs
+        if: steps.classify.outputs.rerun == 'true'
+        run: gh run rerun "$RUN_ID" --repo "$REPO" --failed

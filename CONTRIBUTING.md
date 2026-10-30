@@ -129,7 +129,7 @@ If the PR title uses a generic prefix (e.g. `feat:`) but an individual commit in
 
 Commits that change only files under `.github/` are also treated as no-bump by default, unless the commit message explicitly uses `major:` or `minor:`. When the repository has no version tag yet, the workflow still bootstraps `v1.0.0` regardless of commit history.
 
-After a merge to `main`, the version-bump workflow opens an auto-merging `Bump version to vX.Y.Z` PR from the reserved `version-bump/main` branch — leave that branch and PR alone. The merged bump commit is tagged by `tag-version.yml`, and `package.yml` builds and publishes multi-arch Docker images (tagged `main`) to GHCR and Docker Hub on every push to `main`. The sync to the production deployment does **not** follow each merge: `sync-main-to-prod-dispatch.yml` runs once a day at 01:17 UTC and dispatches the newest of the last 30 `main` commits on which CI, Package and CodeQL all succeeded (skipping the day with a warning if none has; a merge whose checks have not finished waits for the next run). To ship sooner, run activities.prod's `sync-upstream.yml` by hand, or run `sync-main-to-prod-dispatch.yml` to apply the same selection now.
+After a merge to `main`, the version-bump workflow opens an auto-merging `Bump version to vX.Y.Z` PR from the reserved `version-bump/main` branch — leave that branch and PR alone. That bump PR's first `pull_request` CI run can fail at startup with no jobs at all (the bot's force-push can race the workflow registration); the version-bump workflow's close/reopen kick re-fires the run, so such a failure is non-gating. The merged bump commit is tagged by `tag-version.yml`, and `package.yml` builds and publishes multi-arch Docker images (tagged `main`) to GHCR and Docker Hub on every push to `main`. The sync to the production deployment does **not** follow each merge: `sync-main-to-prod-dispatch.yml` runs once a day at 01:17 UTC and dispatches the newest of the last 30 `main` commits on which CI, Package and CodeQL all succeeded (skipping the day with a warning if none has; a merge whose checks have not finished waits for the next run). To ship sooner, run activities.prod's `sync-upstream.yml` by hand, or run `sync-main-to-prod-dispatch.yml` to apply the same selection now.
 
 ### Pull Request Process
 
@@ -173,6 +173,16 @@ Also:
 <a id="review-ci-checklist"></a>
 
 Branch protection on `main` requires the `All Tests`, `Lint and Prettier`, and `Build` checks (strict: false).
+
+The workflow fires on `pull_request`, on pushes to `main`, and on `workflow_dispatch`, once per commit: `cancel-in-progress` concurrency kills a superseded run when a new push lands on the same ref, so a PR has exactly one CI run per head commit.
+
+Every job pins the runner image (`runs-on: ubuntu-24.04`) and carries a `timeout-minutes` ceiling (5 to 40 depending on the job), so a hung job fails instead of burning GitHub's six-hour default.
+
+Every install step goes through the shared composite action `.github/actions/install`: `yarn install --immutable`, retried up to twice only when the log shows a YN0001 transport error with a network code (`ECONNREFUSED`, `ECANCELED`, `ECONNRESET`, `ETIMEDOUT`, `EAI_AGAIN`, `ENOTFOUND`, `EPIPE`, `socket hang up`, `ERR_SSL`, `ERR_TLS`). A YN0028 (the lockfile would change) or any other failure is a code error and runs once.
+
+`.github/workflows/ci-rerun.yml` re-runs the failed jobs of a failed CI run exactly once (`run_attempt == 1`) when every failed job provably ran no repository code: a job GitHub never gave a runner (reported as `abandoned`/`queued` with no steps) or one whose only failed steps are the runner's own setup steps. `.github/scripts/classify-ci-rerun.mjs` decides from the jobs API; any failed step that runs checkout code (install, lint, build, test, docker) blocks the re-run, and the workflow never checks out the PR's code.
+
+Dependabot runs one job per manifest the dependency graph indexes. Only the `/` npm entry (daily) may bump dependencies, because the Yarn workspaces share the root `yarn.lock`; the `/packages/*` entries carry `open-pull-requests-limit: 0` and `ignore: dependency-name: '*'` so their security-update jobs open nothing (see `.github/dependabot.yml`) — a workspace-rooted PR would edit `package.json` alone, which `yarn install --immutable` refuses.
 
 `All Tests` is the fail-closed fan-in over the four SQLite test shards and the two PostgreSQL test shards (`PostgreSQL Tests (shard N/2)` — shard 1 also runs the SQLite and PostgreSQL schema dump drift checks). `CI Success` is the overall aggregate of every job in the workflow: it fails closed over every upstream job (`Lint and Prettier`, `Type Check`, `Build`, `Test Shard N of 4`, `PostgreSQL Tests (shard N/2)`, `All Tests`, and the Docker smoke jobs `Docker Images Smoke Test (minimal)` / `(full)`). It is not required by the ruleset; it only reports the workflow-wide result.
 
@@ -400,7 +410,7 @@ activities.next/
   opens; real focus flows never nest that deep, so normal `focus()` /
   `document.activeElement` behavior is unchanged.
 - CI (`.github/workflows/ci.yml`) runs the full job set listed in [CI Status
-  Checks](#ci-status-checks) on every push and PR — lint + prettier-check,
+  Checks](#ci-status-checks) on every pull request and push to `main` — lint + prettier-check,
   **type check**, build, four parallel SQLite test shards, and two PostgreSQL
   test shards (built from the file list generated by
   `scripts/maintenance/listPostgresTestFiles.ts`; shard 1 also regenerates the
@@ -682,6 +692,11 @@ docker stop test-postgres
 - **A test-suite OOM that appears when a Radix menu closes while a dialog opens is `@radix-ui/react-focus-scope` ↔ jsdom focus-event recursion (stack overflow), not a heap leak.** The CI test matrix runs 4 shards with `NODE_OPTIONS="--max-old-space-size=8192"`; the two focus scopes hand focus back and forth through jsdom's synchronous focus events until the stack overflows. `test/setup/vitest.setup.ts` bounds that re-entry; a new OOM in a test that opens a dialog from a menu is this class first.
 - **Probabilistic crypto chi-square tests (`lib/utils/crypto.test.ts`) flake at `alpha = 1e-4` by design and pass on re-run.** Do not "fix" a flake by shrinking the sample size — under the null hypothesis the test statistic stays `~chi-square(61)` regardless of sample size.
 - **Worker `SIGABRT` in production is heatmap fan-out × Cloud Run concurrency, not a single-job code fault.** Recover crash-orphaned fitness imports (`pending` with `statusId = NULL`) with `scripts/fitness/repairFailedFitnessImports.ts`.
+- **A red `All Tests` whose upstream job is `abandoned`/`queued` with no runner is GitHub runner allocation, not code.** `ci-rerun.yml` re-runs it once; if it happened on attempt 2, re-run by hand.
+- **`Process completed with exit code 129` after the last `✓` with no Vitest summary is the runner's SIGHUP** (one-day incident on 2026-10-16); it is not auto re-run because the step ran repository code. Re-run by hand after checking the log has no `FAIL`.
+- **`YN0028` on a Dependabot branch whose name contains `packages/` is a security-update job rooted in a workspace** (see `dependabot.yml`); close it — the `/` job's twin PR carries the lockfile.
+- **A `pull_request`-only failure whose `push` sibling is green is merge-ref divergence first** (the PR branch's test against `main`'s changed contract, e.g. the 303/307 accounts redirect), not a flake.
+- **A zero-job `failure` run on `version-bump/main`** is the startup failure the version-bump close/reopen kick heals; ignore it.
 
 <a id="local-manual-browser-testing"></a>
 

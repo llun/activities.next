@@ -1,0 +1,29 @@
+name: Install dependencies
+description: >-
+  `yarn install --immutable`, retried only for a transport error (a registry
+  socket reset, timeout or TLS cancellation: YN0001 with a network error
+  code). A lockfile that would change (YN0028), a failing build script, a
+  checksum or resolver error is a code error and runs once.
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        set -uo pipefail
+        log=$(mktemp)
+        for attempt in 1 2 3; do
+          yarn install --immutable 2>&1 | tee "$log"
+          status=${PIPESTATUS[0]}
+          [ "$status" -eq 0 ] && exit 0
+          if grep -q 'YN0028' "$log"; then
+            echo "::error::yarn.lock would change (YN0028): commit the regenerated lockfile. Not retried."
+            exit "$status"
+          fi
+          if ! grep -q 'YN0001' "$log" || ! grep -Eq 'ECONNREFUSED|ECANCELED|ECONNRESET|ETIMEDOUT|EAI_AGAIN|ENOTFOUND|EPIPE|socket hang up|ERR_SSL|ERR_TLS' "$log"; then
+            echo "::error::yarn install failed with a non-transport error. Not retried."
+            exit "$status"
+          fi
+          [ "$attempt" -eq 3 ] && exit "$status"
+          echo "::warning::yarn install hit a transport error (attempt $attempt); retrying in $((attempt * 15))s"
+          sleep $((attempt * 15))
+        done
