@@ -169,6 +169,14 @@ describe.each([
       expect(mockOnClose).not.toHaveBeenCalled()
     })
 
+    it('has type="button" to prevent form submission', () => {
+      const status = createMockStatus()
+      render(<Preview host="example.com" status={status} />)
+
+      const closeButton = screen.getByRole('button', { name: dismissLabel })
+      expect(closeButton).toHaveAttribute('type', 'button')
+    })
+
     it('handles missing onClose gracefully', () => {
       const status = createMockStatus()
       render(<Preview host="example.com" status={status} />)

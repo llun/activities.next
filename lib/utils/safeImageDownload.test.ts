@@ -58,6 +58,10 @@ describe('isRestrictedDownloadHostname', () => {
   })
 })
 
+// The loop test asserts `MAX_SAFE_IMAGE_REDIRECTS + 1` fetches, which proves
+// the loop obeys the cap but not that the cap is small — widening it to 100
+// would keep every test green. The comment on the constant says it tracks
+// `safeRemoteFetch`'s ceiling, so pin that claim.
 describe('MAX_SAFE_IMAGE_REDIRECTS', () => {
   it('tracks the ceiling safeRemoteFetch applies', () => {
     expect(MAX_SAFE_IMAGE_REDIRECTS).toBe(

@@ -11,7 +11,8 @@ import {
   getStravaActivityStreams,
   getStravaActivityUrl,
   getStravaUpload,
-  getValidStravaAccessToken
+  getValidStravaAccessToken,
+  isSupportedStravaPhotoMimeType
 } from './activity'
 
 const mockFetch = vi.fn()
@@ -581,6 +582,17 @@ describe('getStravaActivityDurationSeconds', () => {
         moving_time: moving
       })
     ).toBe(expected)
+  })
+})
+
+describe('isSupportedStravaPhotoMimeType', () => {
+  it.each([
+    ['image/jpeg', true],
+    ['image/png', true],
+    ['image/gif', false],
+    ['video/mp4', false]
+  ])('%s -> %s', (mime, expected) => {
+    expect(isSupportedStravaPhotoMimeType(mime)).toBe(expected)
   })
 })
 

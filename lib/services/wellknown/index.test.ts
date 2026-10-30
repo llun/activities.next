@@ -1,5 +1,6 @@
 import { Database } from '@/lib/database/types'
 import { AUTH_BASE_PATH } from '@/lib/services/auth/constants'
+import { UsableScopes } from '@/lib/types/database/operations'
 
 import {
   getHostMetaXML,
@@ -40,6 +41,7 @@ describe('wellknown services', () => {
         service_documentation: 'https://github.com/llun/activities.next',
         app_registration_endpoint: 'https://test.example.com/api/v1/apps'
       })
+      expect(metadata.scopes_supported).toEqual(UsableScopes)
     })
 
     it('advertises a provided baseURL host instead of the configured host (multi-domain alias)', () => {
@@ -92,6 +94,7 @@ describe('wellknown services', () => {
         ],
         code_challenge_methods_supported: ['S256']
       })
+      expect(config.scopes_supported).toEqual(UsableScopes)
     })
 
     it('advertises the basePath issuer that Better Auth stamps on id_tokens', () => {

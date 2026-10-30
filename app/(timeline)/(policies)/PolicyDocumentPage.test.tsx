@@ -4,6 +4,7 @@
 import '@testing-library/jest-dom'
 import { render, screen, within } from '@testing-library/react'
 
+import { MobileNavigationProvider } from '@/lib/components/layout/mobile-navigation-context'
 import type {
   DomainIdentity,
   PolicyDocument
@@ -183,5 +184,26 @@ describe('policy routes', () => {
   it('render their own document', () => {
     expect(TermsPage().props).toEqual({ kind: 'terms' })
     expect(PrivacyPage().props).toEqual({ kind: 'privacy' })
+  })
+})
+
+describe('PolicyDocumentPage mobile navigation', () => {
+  beforeEach(() => {
+    mockIdentity.mockReset()
+    mockIdentity.mockResolvedValue(identity())
+  })
+
+  it('renders the Open navigation trigger when signed in', async () => {
+    render(
+      <MobileNavigationProvider>
+        {await PolicyDocumentPage({ kind: 'terms' })}
+      </MobileNavigationProvider>
+    )
+
+    expect(
+      screen.getByRole('button', { name: 'Open navigation' })
+    ).toBeInTheDocument()
+    // The bar is the h1 on phones; the article's h1 is hidden by the layout.
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(2)
   })
 })

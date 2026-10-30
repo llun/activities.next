@@ -368,6 +368,17 @@ describe('requestVisionCompletion redirects', () => {
     expect(args).not.toHaveProperty('allowCrossHostRedirects')
   })
 
+  it('passes allowCrossHostRedirects: false through when asked', async () => {
+    await requestVisionCompletion(config, Buffer.from('x'), 'image/jpeg', {
+      ...options,
+      allowCrossHostRedirects: false
+    })
+
+    expect(
+      vi.mocked(safeRemoteFetch).mock.calls[0]?.[0]?.allowCrossHostRedirects
+    ).toBe(false)
+  })
+
   it('does not change what alt text sends', async () => {
     await generateAltText(config, Buffer.from('x'), 'image/jpeg')
 

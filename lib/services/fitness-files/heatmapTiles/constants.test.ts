@@ -207,6 +207,17 @@ describe('heatOpacityForCount', () => {
   })
 })
 
+describe('HEAT_COUNT_COLOR_STOPS', () => {
+  it('ascends in count, which a GL interpolate requires', () => {
+    const counts = HEAT_COUNT_COLOR_STOPS.filter(
+      (_unused, index) => index % 2 === 0
+    ) as number[]
+    for (let i = 1; i < counts.length; i += 1) {
+      expect(counts[i]).toBeGreaterThan(counts[i - 1])
+    }
+  })
+})
+
 describe('heatColorForCount', () => {
   it.each([
     { description: 'a count of one', count: 1, expected: '#ef4444' },

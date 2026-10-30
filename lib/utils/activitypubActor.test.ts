@@ -104,6 +104,11 @@ describe('activitypubActor utils', () => {
       value: `Value ${index}`
     })
 
+    it("keeps Mastodon's limits for a remote account", () => {
+      expect(REMOTE_PROFILE_FIELD_LIMIT).toBe(50)
+      expect(REMOTE_PROFILE_FIELD_MAX_LENGTH).toBe(2047)
+    })
+
     it('keeps the first 50 fields, in order', () => {
       const fields = getActorProfileFields(
         personWith(Array.from({ length: 60 }, (_, index) => field(index)))
