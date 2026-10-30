@@ -147,7 +147,7 @@
     "lint-staged": "^17.6.0",
     "oxlint": "^1.90.0",
     "pino-pretty": "^13.2.0",
-    "postcss": "^8.5.30",
+    "postcss": "^8.5.32",
     "prettier": "^3.9.10",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.15",
