@@ -1909,8 +1909,10 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   the note can land in local followers' home timelines and notify mentioned
   local users, matching Mastodon. The web profile list, on the server-rendered
   first page and later pages alike, overlays the viewer's own like, repost and
-  bookmark state for stored statuses the viewer can read, when the stored
-  author matches the live one.
+  bookmark state, plus the stored reactions, for stored statuses the viewer can
+  read, when the stored author matches the live one. A live like count of 0 is
+  filled from the stored count when the viewer liked the status. The overlay is
+  best-effort: if the lookup fails, the live statuses are shown unchanged.
 - **The action set is owned by `Posts`, not by pages.** `Posts` renders the full
   action row (reply, boost, like, bookmark, react) plus the `⋯` menu (quote,
   edit-own, change visibility / who-can-quote, delete-own; mute / block / report

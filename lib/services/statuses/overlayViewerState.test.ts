@@ -434,6 +434,7 @@ describe('overlayStoredViewerState', () => {
       message: 'Failed to overlay viewer state on live statuses',
       err: expect.any(Error)
     })
+    loggerError.mockRestore()
   })
 
   it('a liked post with a live totalLikes > 0 keeps its live count', async () => {
