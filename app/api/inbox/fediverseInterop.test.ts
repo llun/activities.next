@@ -485,4 +485,17 @@ describe('fediverse interop: shared inbox', () => {
       expect(await deliver(activity)).toBeUndefined()
     })
   })
+
+  describe('no real RSA key generation', () => {
+    it('never calls node crypto keygen during a delivery', async () => {
+      const nodeCrypto = (await import('node:crypto')).default
+      const spy = vi.spyOn(nodeCrypto, 'generateKeyPair')
+      try {
+        await deliverAndRun(database, FEDIVERSE_ACTIVITIES.misskeyCreateNote)
+        expect(spy).not.toHaveBeenCalled()
+      } finally {
+        spy.mockRestore()
+      }
+    })
+  })
 })

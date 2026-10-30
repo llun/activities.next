@@ -41,8 +41,8 @@ import { migrations } from '@/migrations/index'
 import { MIGRATION_NAMES } from '@/migrations/names'
 
 // Runs on SQLite by default and on PostgreSQL under TEST_DATABASE_TYPE=pg.
-// Every test starts from an empty database (a new SQLite file, or the
-// worker's isolated PostgreSQL database recreated) and runs the real
+// Every test starts from an empty database (a fresh in-memory SQLite
+// database, or the worker's isolated PostgreSQL database recreated) and runs the real
 // migrations, or a registry of its own. `knex_migrations` is only rows here:
 // the tests build the state the Knex migrations left without Knex.
 const backend = process.env.TEST_DATABASE_TYPE === 'pg' ? 'pg' : 'sqlite'
@@ -190,6 +190,10 @@ describe('lib/database/migrate', () => {
     await fs.rm(tempDir, { force: true, recursive: true })
   })
 
+  // SQLite tests run on :memory: — on a CI runner with a saturated disk,
+  // each commit's fsync stalled the worker past the 30 s limit (run
+  // 41080853536). Only the tests that need a second connection on the same
+  // database use a file (openSqliteFileDatabase below).
   beforeEach(async () => {
     if (backend === 'pg') {
       await recreatePgDatabase(
@@ -198,18 +202,31 @@ describe('lib/database/migrate', () => {
       )
       config = getTestDatabaseConfig('pg', true)
     } else {
-      databaseCount += 1
-      config = {
-        client: 'better-sqlite3',
-        useNullAsDefault: true,
-        connection: {
-          filename: path.join(tempDir, `migrate-${databaseCount}.sqlite`)
-        }
-      }
+      config = getTestDatabaseConfig('sqlite')
     }
     connection = createDatabaseConnection(config)
     target = { db: connection.db, config }
   })
+
+  // The lock tests that a second connection joins run on a file, so both
+  // connections see the same database; every connection to it skips the
+  // per-commit journal fsyncs that made them slow.
+  const openSqliteFileDatabase = async () => {
+    databaseCount += 1
+    config = {
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: path.join(tempDir, `migrate-${databaseCount}.sqlite`)
+      }
+    }
+    await connection.destroy()
+    connection = createDatabaseConnection(config)
+    await connection.executeScript(
+      'PRAGMA journal_mode=MEMORY; PRAGMA synchronous=OFF'
+    )
+    target = { db: connection.db, config }
+  }
 
   afterEach(async () => {
     await connection.destroy()
@@ -625,14 +642,23 @@ describe('lib/database/migrate', () => {
 
     it('runs a migration that sorts before one already applied', async () => {
       const later = { up: createTable('later_table') }
-      await migrateToLatest(target, { '20300102000000_later': later })
-
-      expect(
-        await migrateToLatest(target, {
-          '20300101000000_earlier': { up: createTable('earlier_table') },
-          '20300102000000_later': later
-        })
-      ).toEqual(['20300101000000_earlier'])
+      // Two back-to-back runs can land in the same millisecond; pin the
+      // clock so the second run records a strictly later timestamp.
+      vi.useFakeTimers({ toFake: ['Date'] })
+      try {
+        const t = Date.now()
+        vi.setSystemTime(t)
+        await migrateToLatest(target, { '20300102000000_later': later })
+        vi.setSystemTime(t + 1000)
+        expect(
+          await migrateToLatest(target, {
+            '20300101000000_earlier': { up: createTable('earlier_table') },
+            '20300102000000_later': later
+          })
+        ).toEqual(['20300101000000_earlier'])
+      } finally {
+        vi.useRealTimers()
+      }
       expect(await getAppliedMigrationNames(target)).toEqual([
         '20300102000000_later',
         '20300101000000_earlier'
@@ -760,7 +786,11 @@ describe('lib/database/migrate', () => {
     it.runIf(backend === 'sqlite')(
       'refuses a second run on the same SQLite file while the first holds the lock',
       async () => {
+        await openSqliteFileDatabase()
         const other = createDatabaseConnection(config)
+        await other.executeScript(
+          'PRAGMA journal_mode=MEMORY; PRAGMA synchronous=OFF'
+        )
         let release!: () => void
         const gate = new Promise<void>((resolve) => (release = resolve))
         let entered!: () => void
@@ -833,6 +863,9 @@ describe('lib/database/migrate', () => {
     it.runIf(backend === 'sqlite')(
       'keeps the lock a killed run left until it is unlocked',
       async () => {
+        // A killed process leaves its lock on the file it ran against, so
+        // this one keeps the file-backed database.
+        await openSqliteFileDatabase()
         expect(await unlockMigrations(target)).toBe('not-held')
         expect(await getMigrationLockState(target)).toBe('free')
         await migrateToLatest(target)

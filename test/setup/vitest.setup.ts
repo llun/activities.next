@@ -1,14 +1,55 @@
+import crypto from 'crypto'
 import * as matchers from 'jest-extended'
 import fetchMock from 'jest-fetch-mock'
 import { TextDecoder, TextEncoder } from 'node:util'
 import { afterEach, beforeEach, expect, vi } from 'vitest'
 
 import { resetTrustProxyIpHeadersConfigCacheForTests } from '@/lib/config/trustProxyIpHeaders'
+import {
+  MOCK_PRIVATE_KEY,
+  MOCK_PUBLIC_KEY,
+  MOCK_SECRET_PHASES
+} from '@/lib/stub/actor'
 // Direct sub-path import required: the barrel loads cors.ts which imports
 // @/lib/config, interfering with per-test module mock isolation.
 import { resetContentSecurityPolicyCacheForTests } from '@/lib/utils/http-headers/csp'
 
 expect.extend(matchers)
+
+// Suite-wide: a 4096-bit RSA keygen runs on the libuv threadpool that every
+// worker thread shares, and under load it reached the 30 s test limit
+// (fediverseInterop.test.ts). Return the stub key pair instead. The stub
+// private key is stored encrypted with MOCK_SECRET_PHASES, but callers pass
+// their own secretPhase (generateKeyPair(getConfig().secretPhase)) and
+// signedHeaders later decrypts with getConfig().secretPhase — a test mocking
+// @/lib/config with a different secretPhase would otherwise fail every signed
+// request with "bad decrypt". Re-encrypt the stub key with the requested
+// secretPhase so the pair works under any config.
+vi.mock('@/lib/utils/signature', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/utils/signature')>()
+  const reencryptStubPrivateKey = (secretPhase: string): string =>
+    crypto
+      .createPrivateKey({
+        key: MOCK_PRIVATE_KEY,
+        passphrase: MOCK_SECRET_PHASES
+      })
+      .export({
+        type: 'pkcs8',
+        format: 'pem',
+        cipher: 'aes-256-cbc',
+        passphrase: secretPhase
+      }) as string
+  return {
+    ...actual,
+    generateKeyPair: async (secretPhase: string) => ({
+      publicKey: MOCK_PUBLIC_KEY,
+      privateKey:
+        secretPhase === MOCK_SECRET_PHASES
+          ? MOCK_PRIVATE_KEY
+          : reencryptStubPrivateKey(secretPhase)
+    })
+  }
+})
 
 fetchMock.enableMocks()
 // Default to the real `fetch` implementation; tests opt into mocking.

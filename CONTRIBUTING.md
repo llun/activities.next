@@ -702,6 +702,10 @@ docker stop test-postgres
 - **A test whose first `it` pays a cold dynamic import, a 4096-bit keygen or a cost-10 bcrypt is at the mercy of the shared threadpool**; import statically, use the stub key and the `passwordHash` seam.
 - **Same-millisecond `createdAt` with a random-id tie-break** orders randomly; pin timestamps when order is contractual (`accountExports.test.ts`).
 - **Pushing results into a shared array inside `Promise.all` orders by pg completion**; derive order from the input (`noteTags.ts`).
+- **A file-backed SQLite test database pays an fsync per commit, which stalls the worker on a slow disk**: use `:memory:` (`getTestDatabaseConfig('sqlite')`) unless a test opens a second connection on the same database, and set `PRAGMA journal_mode=MEMORY; PRAGMA synchronous=OFF` on those (`lib/database/migrate/index.test.ts`). Also: two runs that must order by timestamp pin the clock, since they can land in the same millisecond.
+- **Real RSA key generation runs on the libuv pool every worker thread shares**: `test/setup/vitest.setup.ts` stubs `generateKeyPair` suite-wide; a test that needs fresh keys opts out with `vi.importActual`.
+- **A 1 s default `waitFor` around multi-step async work** gives up on a loaded runner: pass an explicit timeout that stops short of the 30 s test limit (`FitnessStatusDetail.routeMap.test.tsx`). Do not `await act(() => deferred)` on something only a later effect resolves: `act` doesn't flush those effects until its scope ends, so it deadlocks.
+- **Under fake timers, Testing Library's `waitFor`/`findBy` timeout is counted in fake time**, so off-thread work (cold lazy imports, real I/O) must be awaited in real time (`findInRealTime` in `lib/components/post-box/post-box.drafts.test.tsx`).
 
 <a id="local-manual-browser-testing"></a>
 
