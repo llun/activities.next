@@ -1,0 +1,43 @@
+app/api/v1/accounts/outbox/route.test.ts
+  s_f6091a1907b015::t_a8c7bbddd413da 8,34-47,52-64,93-119,149-162,335-384
+app/api/v1/accounts/outbox/route.ts
+  s_f6091a1907b015::t_8ae960ac2f2994 18,185,252
+app/api/v1/polls/[id]/votes/route.test.ts
+  s_f6091a1907b015::t_a4a9a05d03ae54 235,271-356
+app/api/v1/statuses/route.test.ts
+  s_f6091a1907b015::t_25f76b9e9f64c1 301-336
+app/api/v2/search/route.resolve.test.ts
+  s_f6091a1907b015::t_154dcbbf4703ec 1-146
+app/api/v2/search/route.test.ts
+  s_f6091a1907b015::t_daffeb650d476e 25,27,107-109,114-116,210-216,574,576,581-585,598,601-602,604-609,612,623,628,634-638,653-655,670,676-680,693-695,704,709-713,744-747,760,765-767,783-786,802,809,811,816-820,834-835,838,842,844-847,861-864,889-890,914,1568
+app/api/v2/search/route.ts
+  s_f6091a1907b015::t_f4ea782598e3d3 5,26,407,410-411,413,418,420-424,428-433
+docs/mastodon-api-compatibility.md
+  s_f6091a1907b015::t_42e4ed1ba843a4 1904-1928
+lib/activities/getRemoteStatus.ts
+  s_f6091a1907b015::t_1ad17f659fb1cd 35-38,40-50,52,61-62,68,95-113
+lib/jobs/fetchRemoteStatusJob.test.ts
+  s_f6091a1907b015::t_6048944ee34f8c 1394-1478,1502-1581
+lib/jobs/fetchRemoteStatusJob.ts
+  s_f6091a1907b015::t_47f3b5f064b30a 10,84-88,105-115,178,196,375-396
+lib/services/statuses/getReadableStatusForAction.test.ts
+  s_f6091a1907b015::t_a62a768c2212c4 7-10,390-505
+lib/services/statuses/getReadableStatusForAction.ts
+  s_f6091a1907b015::t_9cbdbf8040ffd9 28-40,45,52,55,57-63,65-68,75-78,85,94-96,105,108,114,117,119-123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f4f1ed9282960c0481056f8deebfd53f270fa42c",
+  "prompts": {},
+  "sessions": {
+    "s_f6091a1907b015": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4002b74e-ccf2-4b38-b4b6-ddb1cc097d99",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
