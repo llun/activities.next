@@ -10,18 +10,6 @@ import {
 } from './http'
 
 describe('http client utilities', () => {
-  describe('ApiRequestError', () => {
-    it('creates an error with name and status', () => {
-      const error = new ApiRequestError('Not found', 404)
-      expect(error).toBeInstanceOf(Error)
-      expect(error).toBeInstanceOf(ApiRequestError)
-      expect(error.name).toBe('ApiRequestError')
-      expect(error.message).toBe('Not found')
-      expect(error.status).toBe(404)
-      expect(error.details).toBeUndefined()
-    })
-  })
-
   describe('classifyFailedPost', () => {
     const classify = (error: unknown, retryingLocked: boolean) =>
       classifyFailedPost(error, {

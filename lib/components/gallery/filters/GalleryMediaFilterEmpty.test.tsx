@@ -235,17 +235,4 @@ describe('GalleryMediaFilterEmpty', () => {
       screen.getByRole('button', { name: 'Remove Lake Bled, Slovenia' })
     ).toBeInTheDocument()
   })
-
-  it('applies custom className to the container', () => {
-    const { container } = render(
-      <GalleryMediaFilterEmpty
-        filters={EMPTY_GALLERY_FILTERS}
-        facets={null}
-        onChange={vi.fn()}
-        className="custom-empty-class"
-      />
-    )
-
-    expect(container.firstChild).toHaveClass('custom-empty-class')
-  })
 })

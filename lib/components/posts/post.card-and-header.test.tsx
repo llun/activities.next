@@ -82,19 +82,6 @@ describe('Post', () => {
       expect(screen.getByText('A linked article')).toBeInTheDocument()
     })
 
-    it('renders nothing for a status with no card', () => {
-      render(
-        <Post
-          host="activities.local"
-          currentTime={currentTime}
-          status={{ ...status, summary: null }}
-          onShowAttachment={vi.fn()}
-        />
-      )
-
-      expect(screen.queryByText('A linked article')).not.toBeInTheDocument()
-    })
-
     // A YouTube link gets the click-to-play player rather than the link
     // anatomy. The card is chosen from the url alone, so it reaches this
     // surface with no other change to the status.

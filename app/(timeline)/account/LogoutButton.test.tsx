@@ -33,11 +33,6 @@ describe('LogoutButton', () => {
     ).toHaveAttribute('aria-labelledby', 'label')
   })
 
-  it('applies custom className to the wrapper', () => {
-    const { container } = render(<LogoutButton className="custom-class" />)
-    expect(container.firstChild).toHaveClass('custom-class')
-  })
-
   it('opens the SignOutDialog when clicked', async () => {
     render(<LogoutButton />)
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()

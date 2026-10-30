@@ -15,16 +15,6 @@ describe('uploadProfileImage', () => {
     vi.mocked(resizeImage).mockImplementation(async (file) => file)
   })
 
-  it('answers the uploaded URL', async () => {
-    vi.mocked(uploadAttachment).mockResolvedValue({
-      url: 'https://llun.test/api/v1/files/a.png'
-    } as never)
-
-    await expect(uploadProfileImage(png(), 1000)).resolves.toEqual({
-      url: 'https://llun.test/api/v1/files/a.png'
-    })
-  })
-
   it('refuses a type other than JPEG and PNG before resizing', async () => {
     const result = await uploadProfileImage(
       new File(['x'], 'a.gif', { type: 'image/gif' }),

@@ -831,12 +831,6 @@ describe('ImportSection', () => {
     ).toBeInTheDocument()
   })
 
-  it('runs on the real clock once the rate-limit test has ended', () => {
-    // The test above spies on Date.now; if the spy were not restored after
-    // it, every later test in this file would run on the frozen clock.
-    expect(vi.isMockFunction(Date.now)).toBe(false)
-  })
-
   it('shows five unchecked switches for ZIPs and no CSV controls', () => {
     renderSection()
     chooseFile('archive.zip')

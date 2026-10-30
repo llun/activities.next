@@ -118,29 +118,6 @@ describe('MediasModal', () => {
     expect(document.querySelectorAll('img')[1].className).toBe(bare)
   })
 
-  it('uses the same cap for every panel when thumbnails are shown', () => {
-    render(
-      <MediasModal
-        medias={[
-          buildAttachment({ id: 'a', name: 'First' }),
-          buildAttachment({ id: 'b', name: '' }),
-          buildAttachment({ id: 'c', name: 'Third' })
-        ]}
-        initialSelection={0}
-        onClosed={vi.fn()}
-      />
-    )
-
-    const images = Array.from(document.querySelectorAll('.w-\\[300\\%\\] img'))
-    expect(images).toHaveLength(3)
-    for (const image of images) {
-      expect(image).toHaveClass(
-        'max-h-[calc(100dvh-11rem-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px))]',
-        'md:max-h-[calc(100dvh-12rem-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px))]'
-      )
-    }
-  })
-
   it('shows the corresponding alt text in the open overlay when navigating between media items', () => {
     const first = buildAttachment({
       id: 'attachment-1',

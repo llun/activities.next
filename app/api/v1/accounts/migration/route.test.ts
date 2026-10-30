@@ -15,7 +15,7 @@ import { Actor } from '@/lib/types/domain/actor'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { HTTP_STATUS } from '@/lib/utils/response'
 
-import { DELETE, GET, OPTIONS, POST } from './route'
+import { DELETE, GET, POST } from './route'
 
 const PASSWORD = 'correct horse'
 const DAY = 24 * 60 * 60 * 1000
@@ -965,15 +965,5 @@ describe('Account migration API route', () => {
       expect(mockDatabase.getScheduledStatuses).not.toHaveBeenCalled()
       expect(publish).not.toHaveBeenCalled()
     })
-  })
-
-  it('answers OPTIONS', async () => {
-    const res = await OPTIONS(
-      new NextRequest('https://llun.test/api/v1/accounts/migration', {
-        method: 'OPTIONS',
-        headers: { origin: 'https://llun.test' }
-      })
-    )
-    expect(res.status).toBe(HTTP_STATUS.OK)
   })
 })

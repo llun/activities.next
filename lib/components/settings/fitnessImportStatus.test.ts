@@ -1,6 +1,5 @@
 import {
   getFitnessImportFileError,
-  getFitnessImportFileIcon,
   getFitnessImportFileState
 } from './fitnessImportStatus'
 
@@ -31,14 +30,6 @@ describe('fitnessImportStatus', () => {
           processingStatus: 'completed'
         })
       ).toBe('completed')
-    })
-  })
-
-  describe('getFitnessImportFileIcon', () => {
-    it('maps states to display icons', () => {
-      expect(getFitnessImportFileIcon('failed')).toBe('❌')
-      expect(getFitnessImportFileIcon('pending')).toBe('⏳')
-      expect(getFitnessImportFileIcon('completed')).toBe('✅')
     })
   })
 

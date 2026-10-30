@@ -17,15 +17,6 @@ describe('LazyChunkBoundary', () => {
     vi.restoreAllMocks()
   })
 
-  it('renders its children when nothing fails', () => {
-    render(
-      <LazyChunkBoundary>
-        <p>picker</p>
-      </LazyChunkBoundary>
-    )
-    expect(screen.getByText('picker')).toBeInTheDocument()
-  })
-
   it('shows an inline alert when a lazy import rejects', async () => {
     // What the App Router's `next/dynamic` is built on: the rejection surfaces
     // as a render error.

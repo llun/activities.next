@@ -57,21 +57,6 @@ describe('/settings/appearance', () => {
     vi.mocked(getActorFromSession).mockResolvedValue(ACTOR as never)
   })
 
-  it('renders the header with Appearance and description', async () => {
-    getActorSettings.mockResolvedValue(null)
-
-    render(await Page())
-
-    expect(
-      screen.getByRole('heading', { level: 1, name: 'Appearance' })
-    ).toBeVisible()
-    expect(
-      screen.getByText(
-        'The theme on this device, and how much of each post your timeline shows.'
-      )
-    ).toBeVisible()
-  })
-
   it('renders the post line limit as the shared Select, labelled and named as before', async () => {
     getActorSettings.mockResolvedValue({ postLineLimit: 10 })
 

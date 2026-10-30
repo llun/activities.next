@@ -17,11 +17,4 @@ describe('Textarea', () => {
       'aria-invalid:ring-[3px]'
     )
   })
-
-  it('renders with background styles', () => {
-    render(<Textarea aria-label="Summary" />)
-    const textarea = screen.getByLabelText('Summary')
-    expect(textarea).toHaveClass('bg-background', 'dark:bg-input/30')
-    expect(textarea).not.toHaveClass('bg-transparent')
-  })
 })

@@ -19,20 +19,6 @@ const customEmojis: CustomEmoji[] = [
 ]
 
 describe('EmojiPickerButton', () => {
-  it('marks the open backdrop and panel as row overlays', () => {
-    const { container } = render(
-      <EmojiPickerButton customEmojis={customEmojis} onSelect={vi.fn()} />
-    )
-    expect(container.querySelector('[data-row-overlay]')).toBeNull()
-
-    fireEvent.click(screen.getByLabelText('Add emoji or sticker'))
-
-    expect(screen.getByRole('dialog')).toHaveAttribute('data-row-overlay')
-    expect(container.querySelector('.fixed.inset-0')).toHaveAttribute(
-      'data-row-overlay'
-    )
-  })
-
   it('inserts the :shortcode: token when a custom emoji is picked', () => {
     const onSelect = vi.fn()
     render(

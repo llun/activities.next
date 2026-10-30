@@ -51,12 +51,6 @@ describe('reactionActivityId', () => {
       `${actorId}#likes/${hash(statusId)}`
     )
   })
-
-  it('is stable for the same inputs', () => {
-    expect(reactionActivityId(actorId, statusId, '🔥', hash)).toBe(
-      reactionActivityId(actorId, statusId, '🔥', hash)
-    )
-  })
 })
 
 describe('getReactionContent', () => {

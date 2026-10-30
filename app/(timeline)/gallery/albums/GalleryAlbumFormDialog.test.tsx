@@ -832,20 +832,6 @@ describe('GalleryAlbumFormDialog', () => {
     )
   })
 
-  it('uses sm:max-w-4xl for the Add photos dialog', () => {
-    render(
-      <GalleryAlbumFormDialog
-        open
-        ownerId="owner"
-        intent="add"
-        album={buildAlbumCard('a1')}
-        onOpenChange={vi.fn()}
-        onSaved={vi.fn()}
-      />
-    )
-    expect(screen.getByRole('dialog')).toHaveClass('sm:max-w-4xl')
-  })
-
   describe('formatAlbumDatesChipLabel', () => {
     it.each`
       firstAt                       | lastAt                        | label

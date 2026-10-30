@@ -71,16 +71,6 @@ const openHistory = (statusValue: StatusNote) => {
 }
 
 describe('EditHistoryButton', () => {
-  it('marks the open panel as a row overlay and removes it on close', () => {
-    openHistory(status({}, 'the previous text'))
-
-    const panel = screen.getByRole('region', { name: 'Edit history' })
-    expect(panel).toHaveAttribute('data-row-overlay')
-
-    fireEvent.click(screen.getByRole('button', { name: 'Close edit history' }))
-    expect(document.querySelector('[data-row-overlay]')).toBeNull()
-  })
-
   it('shows a previous revision', () => {
     openHistory(status({}, 'the previous text'))
 

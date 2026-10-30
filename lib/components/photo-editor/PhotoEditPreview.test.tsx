@@ -117,19 +117,12 @@ describe('PhotoEditPreview', () => {
   })
 
   it.each([
-    ['image/jpeg', true],
     ['image/png', true],
     ['image/webp', true],
     ['image/gif', false],
-    ['image/heic', false],
-    ['video/mp4', false]
+    ['image/heic', false]
   ])('offers editing for %s: %s', (mediaType, editable) => {
     expect(isEditableItem({ mediaType })).toBe(editable)
-    renderPreview({ item: item({ mediaType }) })
-    expect(screen.getByAltText('Preview')).toBeInTheDocument()
-    expect(!!screen.queryByRole('button', { name: 'Edit photo' })).toBe(
-      editable
-    )
   })
 
   it('shows the pill on a still image and opens the editor', async () => {

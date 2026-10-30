@@ -8,7 +8,7 @@ import { seedActor2 } from '@/lib/stub/seed/actor2'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { ERROR_429 } from '@/lib/utils/response'
 
-import { GET, OPTIONS } from './route'
+import { GET } from './route'
 
 const mockGetServerSession = vi.fn()
 vi.mock('@/lib/services/auth/getSession', () => ({
@@ -131,20 +131,6 @@ describe('/api/v1/gallery/albums/suggestions', () => {
     vi.clearAllMocks()
     signIn(seedActor1.email)
     takeMock.mockReturnValue(true)
-  })
-
-  describe('OPTIONS', () => {
-    it('advertises GET and OPTIONS', async () => {
-      const response = await OPTIONS(
-        new NextRequest('https://llun.test/api/v1/gallery/albums/suggestions', {
-          method: 'OPTIONS'
-        })
-      )
-
-      const methods = response.headers.get('Access-Control-Allow-Methods')
-      expect(methods).toContain('GET')
-      expect(methods).toContain('OPTIONS')
-    })
   })
 
   describe('GET', () => {

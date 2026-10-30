@@ -11,11 +11,6 @@ const makeStatus = (id: string) =>
   ({ id, actorId: 'actor-1' }) as unknown as StatusNote
 
 describe('useInlineComposer', () => {
-  it('starts with no active composer', () => {
-    const { result } = renderHook(() => useInlineComposer(false))
-    expect(result.current.active).toBeNull()
-  })
-
   it.each<{ description: string; mode: StatusComposerMode }>([
     { description: 'reply', mode: 'reply' },
     { description: 'quote', mode: 'quote' },

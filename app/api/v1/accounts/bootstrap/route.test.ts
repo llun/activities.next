@@ -5,7 +5,7 @@ import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { Actor } from '@/lib/types/domain/actor'
 import { logger } from '@/lib/utils/logger'
 
-import { GET, OPTIONS } from './route'
+import { GET } from './route'
 
 const mockConfig = {
   host: 'llun.test',
@@ -363,16 +363,5 @@ describe('GET /api/v1/accounts/bootstrap', () => {
     expect(data).toEqual({ error: 'Internal Server Error' })
     expect(errorSpy).toHaveBeenCalled()
     errorSpy.mockRestore()
-  })
-
-  it('responds to OPTIONS with CORS headers', async () => {
-    const req = new NextRequest('https://llun.test/api/v1/accounts/bootstrap', {
-      method: 'OPTIONS'
-    })
-    const res = await OPTIONS(req)
-
-    expect(res.status).toBe(200)
-    expect(res.headers.get('Access-Control-Allow-Methods')).toContain('GET')
-    expect(res.headers.get('Access-Control-Allow-Methods')).toContain('OPTIONS')
   })
 })

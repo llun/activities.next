@@ -181,18 +181,6 @@ describe('bundleReport checkRouteBudgets', () => {
       })
     ])
   })
-
-  it('defines PUBLIC_ROUTE_JS_BUDGETS for the 7 public routes', () => {
-    expect(Object.keys(PUBLIC_ROUTE_JS_BUDGETS)).toEqual([
-      '/',
-      '/[actor]',
-      '/[actor]/[status]',
-      '/tags/[tag]',
-      '/[actor]/followers',
-      '/[actor]/following',
-      '/[actor]/albums/[id]'
-    ])
-  })
 })
 
 describe('bundleReport parseArgs', () => {

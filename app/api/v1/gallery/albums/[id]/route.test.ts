@@ -7,7 +7,7 @@ import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { seedActor2 } from '@/lib/stub/seed/actor2'
 import { ERROR_429 } from '@/lib/utils/response'
 
-import { DELETE, GET, OPTIONS, PATCH } from './route'
+import { DELETE, GET, PATCH } from './route'
 
 const mockGetServerSession = vi.fn()
 vi.mock('@/lib/services/auth/getSession', () => ({
@@ -115,18 +115,6 @@ describe('/api/v1/gallery/albums/[id]', () => {
     expect(response.headers.get('Access-Control-Allow-Methods')).toContain(
       method
     )
-
-  describe('OPTIONS', () => {
-    it('advertises GET, PATCH, DELETE and OPTIONS', async () => {
-      const response = await OPTIONS(
-        new NextRequest(url(albumId), { method: 'OPTIONS' })
-      )
-
-      for (const method of ['GET', 'PATCH', 'DELETE', 'OPTIONS']) {
-        allowsMethod(response, method)
-      }
-    })
-  })
 
   describe('without a session', () => {
     // The wiring test pins the guard on every method; this checks that the

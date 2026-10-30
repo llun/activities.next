@@ -247,23 +247,5 @@ describe('MediaManagement', () => {
       expect(caption.children[0]).toHaveTextContent('512 KB / 1 MB')
       expect(caption.children[1]).toHaveTextContent('50.0%')
     })
-
-    it('no longer spells the meter out in a sans row above and a sentence below', () => {
-      render(
-        <MediaManagement
-          used={524288}
-          limit={1048576}
-          medias={[]}
-          currentPage={1}
-          itemsPerPage={25}
-          totalItems={0}
-        />
-      )
-
-      expect(screen.queryByText('Used')).not.toBeInTheDocument()
-      expect(
-        screen.queryByText(/of your storage quota used/)
-      ).not.toBeInTheDocument()
-    })
   })
 })

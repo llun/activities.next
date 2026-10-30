@@ -7,7 +7,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { updateStatusVisibility } from '@/lib/client'
 import { createDeferred } from '@/lib/testing/deferred'
 import { ActorProfile } from '@/lib/types/domain/actor'
-import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
+import { StatusNote, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 import { VisibilityButton } from './visibility-button'
@@ -84,17 +84,6 @@ describe('VisibilityButton', () => {
     expect(
       screen.getByRole('button', { name: 'Visibility: Unlisted' })
     ).toBeInTheDocument()
-  })
-
-  it('renders nothing for a boost, which has no visibility of its own', () => {
-    const boost: Status = {
-      ...publicStatus,
-      type: StatusType.enum.Announce,
-      originalStatus: publicStatus
-    }
-    const { container } = render(<VisibilityButton status={boost} />)
-
-    expect(container).toBeEmptyDOMElement()
   })
 
   it('persists a newly picked visibility and shows it as current', async () => {

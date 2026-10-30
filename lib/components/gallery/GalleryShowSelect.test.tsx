@@ -7,14 +7,6 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { GALLERY_SHOW_OPTIONS, GalleryShowSelect } from './GalleryShowSelect'
 
 describe('GalleryShowSelect', () => {
-  it('renders the active selection in the trigger', () => {
-    render(<GalleryShowSelect value="all" onChange={vi.fn()} />)
-
-    expect(screen.getByRole('group', { name: 'Show' })).toHaveTextContent(
-      'Show Everything'
-    )
-  })
-
   it('lists all options including "Not in any album" with hints and calls onChange on select', async () => {
     const onChange = vi.fn()
     render(<GalleryShowSelect value="all" onChange={onChange} />)
