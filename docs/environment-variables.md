@@ -25,12 +25,13 @@ Every endpoint that creates or edits a status — `POST`/`PUT`
 `/api/v1/statuses[/:id]` (which the web composer and the inline reply box post
 through) and the deprecated `POST /api/v1/accounts/outbox` — enforces the
 resolved `posts.maxCharacters` and `polls.*` limits, and every upload endpoint
-(`POST /api/v1/media`, `POST /api/v2/media`, `PUT`/`PATCH `/api/v1/media/:id`thumbnails,`POST /api/v1/medias/presigned`, `PATCH
-/api/v1/accounts/update_credentials`avatars/headers, and admin custom emoji)
-enforces the resolved`media.maxFileSize`; all answer `422`above the limit. The
-status routes put the offending limit in the`error`message (except the
+(`POST /api/v1/media`, `POST /api/v2/media`, `PUT`/`PATCH /api/v1/media/:id`
+thumbnails, `POST /api/v1/medias/presigned`, `PATCH
+/api/v1/accounts/update_credentials` avatars/headers, and admin custom emoji)
+enforces the resolved `media.maxFileSize`; all answer `422` above the limit.
+The status routes put the offending limit in the `error` message (except the
 poll-expiry one, which just says it is out of range); the upload routes return
-the generic`Unprocessable entity`, apart from `update_credentials`, which says
+the generic `Unprocessable entity`, apart from `update_credentials`, which says
 `Invalid image file`. The web composer, its poll editor and media picker, the
 inline reply box, and the avatar/header picker all size themselves to the same
 resolved values rather than to fixed constants, so in normal use the client
@@ -61,9 +62,9 @@ Which settings can be set from the admin UI:
   anywhere from 1 byte up to the 1 GiB (`1073741824`) ceiling (default 200 MiB
   / `209715200`; an environment variable above the ceiling still applies,
   because it pins the setting outright). The ceiling is there because the
-  object-storage driver buffers a stored file in memory when it reads it back
-  out, and that read bounds itself by the same resolved `media.maxFileSize`, so
-  raising the cap never stores media the instance would then refuse to serve.
+  synchronous upload path still reads a whole upload into memory, so the 1 GiB
+  cap bounds that buffer; stored files are streamed when served, so the read
+  path never refuses a size this accepts.
 - Network switches, on **Admin → Network**, no environment variable:
   `network.linkPreviews`, `network.speciesLookups` (GBIF) and
   `network.placeLookups` (Nominatim), the latter two on by default. Turning
