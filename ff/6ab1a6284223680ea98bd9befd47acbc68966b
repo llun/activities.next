@@ -1,0 +1,21 @@
+.env.example
+  s_f147bf36f62485::t_67db2d90830e70 324-326
+README.md
+  s_f147bf36f62485::t_edf7dde2909fc4 88-99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ff6ab1a6284223680ea98bd9befd47acbc68966b",
+  "prompts": {},
+  "sessions": {
+    "s_f147bf36f62485": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "25ee74e4-3619-4df9-8186-dcf3fd9b6ec2",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
