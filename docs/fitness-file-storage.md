@@ -123,7 +123,7 @@ Heatmap generation builds the pyramid, two routes serve it as tiles, the static 
 
 Only the all-activities/all-time variant builds a pyramid, because that is the one the heatmap UI asks for. Region is orthogonal: tiles are stored unclipped and a region is applied when they are served, so whichever region row wins the claim builds the same per-actor pyramid. Every other variant — a specific activity type, a yearly or monthly period — is left entirely on the blob path.
 
-The client picks which rung to draw from the viewport, in `useHeatmapTiles`. It rounds UP to the smallest rung at least as detailed as the view, because a rung is simplified to one pixel AT ITS OWN zoom and drawing z12 tiles at view zoom 13 would magnify that simplification into view. Two unit conversions matter and both were wrong first: Mapbox and MapLibre report zoom on a 512px tile grid while the pyramid is built on 256px tiles, so GL's zoom is one level short of the pyramid's; and MapKit has no zoom at all, so it is derived from the region and the element width rather than through `getZoomLevelForBounds`, which walks integers and returns the FLOOR — feeding a floored value into a round-UP rule gives back a rung up to two levels coarser than the view.
+The client picks which rung to draw from the viewport, in `useHeatmapTiles`. It rounds UP to the smallest rung at least as detailed as the view, because a rung is simplified to one pixel AT ITS OWN zoom and drawing z12 tiles at view zoom 13 would magnify that simplification into view. Two unit conversions matter: Mapbox and MapLibre report zoom on a 512px tile grid while the pyramid is built on 256px tiles, so GL's zoom is one level short of the pyramid's; and MapKit has no zoom at all, so it is derived from the region and the element width rather than through `getZoomLevelForBounds`, which walks integers and returns the FLOOR — feeding a floored value into a round-UP rule gives back a rung up to two levels coarser than the view.
 
 A view routinely needs more tiles than one request carries, so batching is the normal path: the ladder steps by 2, and a view just past a rung rounds up nearly two levels — 273 tiles at 1280x720, 558 at 1920x1080 and 984 at 2560x1440 for a full-bleed embed, against a 128-tile request. `MAX_TILES_PER_VIEW` sits above all three deliberately, because a view that exceeds it is COARSENED — stepped down the ladder until it fits — and coarsening is not free: it draws the map a whole rung softer than its zoom asked for, which is the simplification this feature exists to remove. A ceiling below ~1000 would do that to an ordinary desktop map at every rung boundary rather than in some rare corner; a 4K map still coarsens, which is the right place for the trade to begin. Only a view that fits at no rung at all — a span of a whole world or more, which normalisation would otherwise collapse into a drawable sliver — falls back to the untiled geometry.
 
@@ -133,15 +133,15 @@ Tiles REPLACE the untiled geometry rather than drawing over it: the two describe
 
 Two routes serve the pyramid AS TILES: `GET /api/v1/accounts/[id]/fitness-route-heatmap/tiles` for the signed-in owner, and `GET /embed/heatmap/[token]/tiles` for a public share. (A third reader, the static share image, queries the tile rows directly rather than through either route — see The static share image below.) Both take a ladder zoom and a list of `x:y` indices (at most `MAX_TILES_PER_REQUEST`, rejected rather than truncated so a client cannot silently render a map with holes it has no way to notice) and answer `{version, tiles}` — one entry per requested index, `null` for empty, clipped away, or unavailable. A heatmap that has tiles says so with a `tileSource` on its own payload: the version its URLs must carry plus the ladder, which is null unless the row is the all-activities/all-time variant AND the actor's pyramid has completed a build.
 
-The public route refuses more than it clips. A share token resolves to a heatmap ROW, and that row carries three axes of scope — sport, period and region — of which the pyramid answers only the third. So the route asks `buildHeatmapTileSource` the same question the pages ask before advertising tiles, and a null answer is a 404: a share cut down to "runs in 2019" is not served from a store covering every sport and every year. Region clipping cannot catch that one, because such a share is usually world-wide. Deriving the refusal from the same helper the pages use, rather than re-deriving the conditions, is deliberate — the gate first shipped on the pages and missing from the route, which is precisely the drift one predicate prevents. It also decides `activityType` by testing for null rather than for falsiness, matching the job's own gate: a stored empty string would filter to nothing in the job while reading as "no filter" here, which is the disagreement that serves a whole history behind a row showing none of it. The OWNER route has no equivalent gate and needs none — its request names a region and nothing else, so there is no variant for it to contradict.
+The public route refuses more than it clips. A share token resolves to a heatmap ROW, and that row carries three axes of scope — sport, period and region — of which the pyramid answers only the third. So the route asks `buildHeatmapTileSource` the same question the pages ask before advertising tiles, and a null answer is a 404: a share cut down to "runs in 2019" is not served from a store covering every sport and every year. Region clipping cannot catch that one, because such a share is usually world-wide. Deriving the refusal from the same helper the pages use, rather than re-deriving the conditions, is deliberate: one predicate cannot drift between the serving path and the advertising path. It also decides `activityType` by testing for null rather than for falsiness, matching the job's own gate: a stored empty string would filter to nothing in the job while reading as "no filter" here, which is the disagreement that serves a whole history behind a row showing none of it. The OWNER route has no equivalent gate and needs none — its request names a region and nothing else, so there is no variant for it to contradict.
 
-Neither route reads the share's geometry. `segments` on that row is the entire untiled heatmap, and a panning viewport hits these routes many times; a summary-shaped read (`getFitnessRouteHeatmapSummaryByShareToken`) takes the actor, status, scope and region and leaves the megabytes on disk. The two routes also share one query parser, which is not tidiness: they had already drifted, resolving `?z=4&z=16` differently (`Object.fromEntries` takes the last value, `searchParams.get` the first) and disagreeing on a malformed `v`. Neither divergence leaked anything, but two routes that must behave identically disagreeing about how a query is read is how the next scope-bearing parameter becomes a leak.
+Neither route reads the share's geometry. `segments` on that row is the entire untiled heatmap, and a panning viewport hits these routes many times; a summary-shaped read (`getFitnessRouteHeatmapSummaryByShareToken`) takes the actor, status, scope and region and leaves the megabytes on disk. The two routes also share one query parser, which is not tidiness: two routes that must behave identically disagreeing about how a query is read (a repeated parameter resolving to its last value on one and its first on the other, a malformed `v`) is how the next scope-bearing parameter becomes a leak.
 
 Only a `completed` pyramid serves anything, and only tiles stamped with its own version. A build in flight has two versions in the table at once — the previous build's wherever it has not reached, and its own partial ones — and drawing those together shows heat that no build ever produced. The version filter also catches what the sweep failed to: completion and the sweep are separate steps, so a build that completes after its sweep throws leaves exactly those leftovers behind. The `v` request parameter is a cache-buster and never a tile filter: a well-formed version that has since moved is answered with the current tiles and the current version, because refusing it would blank a map the instant a rebuild finished underneath a client still holding the previous `tileSource`. A malformed one is a 400 on both routes — a client that believes it is busting a cache with a value the server cannot read should be told, not quietly served from the entry it meant to bypass.
 
 **On the public route, clipping to the shared row's region is the security boundary.** The pyramid covers the actor's whole history; a share covers one rectangle of it, and the caller sends tile indices and nothing else. Without server-side clipping a rect share is a lookup oracle for everywhere its owner has ever been. Tiles whose coordinates put them outside the region are settled before any read; a boundary tile is clipped vertex by vertex through the untiled heatmap's own `splitSegmentByBounds`, so the result cannot contain a point the region does not, and a run left with a single vertex is dropped because it draws no line and its presence alone would leak that something was there. The classification may be pessimistic — a union of rects covering a tile reads as straddling and clips to the same geometry, just more slowly — but never optimistic.
 
-The region resolver fails closed, which is subtler than it sounds. `getRegionBounds` answers an empty list both for the whole world and for a region string it could not parse a single rectangle out of, and an empty list means "clip nothing" everywhere downstream — so a rect share whose stored token failed to parse would hand back the world pyramid it was cut from. Only the empty string, the world sentinel `serializeRegions` emits, reaches the unclipped path; any other region that resolves to no bounds is a 404, and the resolution runs ahead of the conditional-request check so no response — 200 or 304 — can be produced without it. A writer really could produce one, which the review of this change is what established: `serializeRegions` validated a rectangle BEFORE rounding it to two decimal places, so a box thinner than 0.01° passed the check and then collapsed, and the token it emitted deserialized to nothing — world scope to every consumer. The generation job built the actor's whole unclipped history under it, while the share page titled it "Map area" (or the owner's saved label): a collapsed token is not the world sentinel, so the page did not call it the world, and it deserializes to no rectangles, so there was no bounding-box caption to contradict that either. Nothing a viewer could see said world. The rectangle's own bounding box does appear on the OWNER's heatmap page, whose region rows format the box they hold rather than the token they serialize to — which is how one row could read as a small area there and as an unnamed one on the share. Serialization now validates the rounded box, so such a scope becomes the world sentinel and is labelled as the world, and the region picker refuses to save a box that would collapse rather than letting it silently take the world's key. Rows written before that are still out there, and for them the job already baked the whole world into `segments` — there is nothing left to clip, so every PUBLIC surface refuses to render one: the share page, the embed page, the embed image and the embed tiles route. The OWNER tile route is deliberately not among them — it clips to the region its own caller sent, having authenticated that caller as the actor whose history it is. No backfill is performed; such a row keeps its data and simply stops being publishable. The refusal would stay regardless, because the cost of being wrong is asymmetric: a false refusal costs the whole share — page, embed and image all 404 — while a false pass publishes an actor's entire history. That asymmetry got sharper when the refusal moved onto the pages, which is worth stating plainly rather than leaving the older, gentler framing in place: this is no longer just about losing zoom detail.
+The region resolver fails closed, which is subtler than it sounds. `getRegionBounds` answers an empty list both for the whole world and for a region string it could not parse a single rectangle out of, and an empty list means "clip nothing" everywhere downstream — so a rect share whose stored token failed to parse would hand back the world pyramid it was cut from. Only the empty string, the world sentinel `serializeRegions` emits, reaches the unclipped path; any other region that resolves to no bounds is a 404, and the resolution runs ahead of the conditional-request check so no response — 200 or 304 — can be produced without it. A writer really can produce such a token: a rectangle thinner than the 0.01° serialization step is well formed, but rounding it collapses it, and the token it emits deserializes to nothing — world scope to every consumer. Serialization validates the rounded box, so such a scope becomes the world sentinel and is labelled as the world, and the region picker refuses to save a box that would collapse rather than letting it silently take the world's key. Rows written before that are still out there, and for them the job already baked the whole world into `segments` — there is nothing left to clip, so every PUBLIC surface refuses to render one: the share page, the embed page, the embed image and the embed tiles route. The OWNER tile route is deliberately not among them — it clips to the region its own caller sent, having authenticated that caller as the actor whose history it is. No backfill is performed; such a row keeps its data and simply stops being publishable. The refusal stays because the cost of being wrong is asymmetric: a false refusal costs the whole share — page, embed and image all 404 — while a false pass publishes an actor's entire history.
 
 The public route also strips the privacy class from every run while keeping its geometry, through `flattenTilePrivacyForPublic` — deliberately placed beside the untiled `flattenPrivacySegmentsForPublic` so both public surfaces answer to one doctrine rather than drifting apart. And it re-encodes every byte it returns: the owner route may forward a stored payload verbatim for a tile that needed neither clipping nor stripping, but a public response is always rebuilt from segments the decoder was willing to accept. Responses are cacheable for five minutes with a weak `ETag` of the pyramid version, matching the sibling image route's posture — the share URL is a capability that can be revoked, and the TTL bounds how long a CDN keeps serving what it already has.
 
@@ -155,17 +155,17 @@ _A build folds an activity only if its own cursor says it has not already._ The 
 
 The cursor advances for every file the pass finished with, GPS or not, so a treadmill session at the front of a history does not leave it stuck — and a file whose download or parse threw advances it too. That last case is not tidiness: a build with no cursor cannot be resumed, so a first pass whose every readable file threw (a storage outage, which is also how the time budget gets consumed) would hand its own continuation a token the claim then refuses, and every later pass carries a non-zero offset and can start nothing either. The pyramid would simply never be built.
 
-_A build is either fresh or continuing, and only a token proves which._ Keeping a build's version — adding to its tiles instead of replacing them — is safe only for a pass carrying on from where that build left off, so resuming requires presenting the build's own token. A caller's say-so is not enough and was the hole that shipped: the heatmap API sets `resume: true` on any retry of a failed or partial region row, carrying that row's offset and no pyramid token, and a run like that would adopt an abandoned build, skip every activity before its offset and then mark the pyramid completed over the hole — with the version unmoved, so the sweep could never clear it.
+_A build is either fresh or continuing, and only a token proves which._ Keeping a build's version — adding to its tiles instead of replacing them — is safe only for a pass carrying on from where that build left off, so resuming requires presenting the build's own token. A caller's say-so is not enough: the heatmap API sets `resume: true` on any retry of a failed or partial region row, carrying that row's offset and no pyramid token, and a run like that would adopt an abandoned build, skip every activity before its offset and then mark the pyramid completed over the hole — with the version unmoved, so the sweep could never clear it.
 
-Such a pass does not claim at all. Whether it could ever own a build is knowable from its job data — it needs either a token or a scan starting from the beginning — and that matters because the claim is destructive: its compare-and-swap bumps the version, stamps `generating`, and clears the counters, the cursor and `completedAt`. Claiming first and declining afterwards took a healthy completed pyramid to a failed, empty one over tiles it no longer described, and rebuilt nothing. A claimer scanning from the beginning without a token still gets a fresh version — a full rebuild that sweeps the old build away, which is merely wasteful where the alternative is silently wrong. And a pass that does end up holding a build it must not use hands it back rather than sitting on it: its claim has already stamped a fresh heartbeat, and a live-looking build with no writer blocks every other claimant until the staleness window lapses. That applies to every exit — a cancelled run, a continuation dropped because its region row moved on or was cleared under it (which holds the only copy of its build's token, so walking away strands the build _and_ refuses the Generate that displaced it), a run that stopped at the file page limit and so has no successor to finish what it started, a pass whose scan fell short of the history it was told to cover, and a pass that simply threw before it could claim.
+Such a pass does not claim at all. Whether it could ever own a build is knowable from its job data — it needs either a token or a scan starting from the beginning — and that matters because the claim is destructive: its compare-and-swap bumps the version, stamps `generating`, and clears the counters, the cursor and `completedAt`. Claiming first and declining afterwards would take a healthy completed pyramid to a failed, empty one over tiles it no longer described, and rebuild nothing. A claimer scanning from the beginning without a token still gets a fresh version — a full rebuild that sweeps the old build away, which is merely wasteful where the alternative is silently wrong. And a pass that does end up holding a build it must not use hands it back rather than sitting on it: its claim has already stamped a fresh heartbeat, and a live-looking build with no writer blocks every other claimant until the staleness window lapses. That applies to every exit — a cancelled run, a continuation dropped because its region row moved on or was cleared under it (which holds the only copy of its build's token, so walking away strands the build _and_ refuses the Generate that displaced it), a run that stopped at the file page limit and so has no successor to finish what it started, a pass whose scan fell short of the history it was told to cover, and a pass that simply threw before it could claim.
 
-Which is why the release for a build a pass was merely _carrying_ happens in one place — the handler's `finally` — rather than at each of those exits. Four separate guards drop a continuation, a per-guard release was missed on one of them twice, and none of them covers a throw between reading the token and making the claim. It runs unconditionally because it is fenced on the carried token and every claim moves that token: once this pass adopted the build, or anyone else took it over, the release matches nothing at all.
+Which is why the release for a build a pass was merely _carrying_ happens in one place — the handler's `finally` — rather than at each of those exits. Four separate guards drop a continuation, a per-guard release is easy to miss on any of them, and none of them covers a throw between reading the token and making the claim. It runs unconditionally because it is fenced on the carried token and every claim moves that token: once this pass adopted the build, or anyone else took it over, the release matches nothing at all.
 
 _A continuation carries the build forward in its job data._ Flushing _is_ the heartbeat, so the pass that just checkpointed leaves a fresh `generating` row that its own continuation would otherwise read as somebody else's live build, and no pyramid would ever outlive one checkpoint. What it carries names the pyramid ROW as well as the token, because `claimSeq` counts from zero per row and clearing an actor's heatmaps deletes the row — token 1 before a clear and token 1 after it are different builds, and that collision lands on the likeliest value of all. None of this bypasses the fence: the compare-and-swap still moves the token, so a continuation delivered twice has exactly one winner. A request from the API carries nothing and competes on the usual terms.
 
-Tiles and the progress describing them land in **one** guarded statement, and the cursor advances as each activity is folded rather than after it, so the cursor a flush commits always covers exactly the tiles committed with it — including the flushes that fire part-way through an activity, which is routine rather than exotic: the accumulation guard trips on a plain point counter, so every large build hits it. The region row's checkpoint follows, leaving the pyramid at or ahead of it and never behind — the harmless direction, since anything the region row hands back a second time is recognised by the cursor and skipped. Every write names the pyramid **row** as well as the token, for the same reason the claim does, and that includes the completion sweep: it is the write that _deletes_, so unfenced a build sweeping at version 2 whose call landed after a clear removed the replacement build's version-1 tiles, and that build then stamped itself `completed` over tiles that were gone. The claim's compare-and-swap and the read that confirms it share one transaction, which is what makes the row it reports the row it wrote: a failure between them used to leave the row stamped `generating` at a token the caller never learned it held, and a rival claim or a clear landing there would have been reported as this pass's own build.
+Tiles and the progress describing them land in **one** guarded statement, and the cursor advances as each activity is folded rather than after it, so the cursor a flush commits always covers exactly the tiles committed with it — including the flushes that fire part-way through an activity, which is routine rather than exotic: the accumulation guard trips on a plain point counter, so every large build hits it. The region row's checkpoint follows, leaving the pyramid at or ahead of it and never behind — the harmless direction, since anything the region row hands back a second time is recognised by the cursor and skipped. Every write names the pyramid **row** as well as the token, for the same reason the claim does, and that includes the completion sweep: it is the write that _deletes_, so unfenced a build sweeping at version 2 whose call landed after a clear would remove the replacement build's version-1 tiles, and that build would then stamp itself `completed` over tiles that were gone. The claim's compare-and-swap and the read that confirms it share one transaction, which is what makes the row it reports the row it wrote: a failure between them leaves the row stamped `generating` at a token the caller never learned it held, and a rival claim or a clear landing there would be reported as this pass's own build.
 
-Sweeping is not part of completing, either, and it is the only irreversible step in the whole path. It runs after the guarded completion write has already stamped the row, and the release a completion failure triggers is fenced on a token that write does not move — so a sweep sharing the completion's error handling rewrote a finished, correct pyramid to `failed` over the tiles it had just certified. A build that could not READ every file it walked past is a different matter, and not one the sweep can fix. The count is carried across continuations with the build's token rather than accumulated on the row, so the pass that completes reports the whole build's losses and not just its own — the pass that finishes a long history is rarely the one that hit the outage. Such a build still completes — an unreadable activity is skipped by the legacy blob too, and refusing to complete would wedge any actor with one permanently missing object — but it records the loss in the row's `error` instead of implying there was none. Withholding the sweep was tried first and does not protect the missing geometry: tiles are one row per `(actorId, tileKey)` and a merge REPLACES a tile whose stored version is older, so the moment a readable activity folds into a tile the unreadable one's contribution to that tile is gone. Measured on a partial outage, that left 66 of 224 tiles untouched and still lost 37% of the points — and it blocked the sweep forever for an actor with a permanently unreadable file, so activities deleted since the last build never left the pyramid. The whole of it is isolated from the legacy blob: any tile-path failure — the tiler, a flush, the completion — abandons the build, records why on the pyramid row, and lets the run finish the heatmap the user can actually see. Two writes have nothing to record on and are only logged: the CLAIM, since it is a transaction that either happened or did not, and the completion SWEEP, which runs after the build is already `completed`. The claim's one gap is a commit whose acknowledgement is lost, which leaves a claimed row its caller never learns about and which waits out the staleness window like any build whose worker died.
+Sweeping is not part of completing, either, and it is the only irreversible step in the whole path. It runs after the guarded completion write has already stamped the row, and the release a completion failure triggers is fenced on a token that write does not move — so a sweep sharing the completion's error handling would rewrite a finished, correct pyramid to `failed` over the tiles it had just certified. A build that could not READ every file it walked past is a different matter, and not one the sweep can fix. The count is carried across continuations with the build's token rather than accumulated on the row, so the pass that completes reports the whole build's losses and not just its own — the pass that finishes a long history is rarely the one that hit the outage. Such a build still completes — an unreadable activity is skipped by the legacy blob too, and refusing to complete would wedge any actor with one permanently missing object — but it records the loss in the row's `error` instead of implying there was none. Withholding the sweep does not protect the missing geometry: tiles are one row per `(actorId, tileKey)` and a merge REPLACES a tile whose stored version is older, so the moment a readable activity folds into a tile the unreadable one's contribution to that tile is gone — and it would block the sweep forever for an actor with a permanently unreadable file, so activities deleted since the last build never left the pyramid. The whole of it is isolated from the legacy blob: any tile-path failure — the tiler, a flush, the completion — abandons the build, records why on the pyramid row, and lets the run finish the heatmap the user can actually see. Two writes have nothing to record on and are only logged: the CLAIM, since it is a transaction that either happened or did not, and the completion SWEEP, which runs after the build is already `completed`. The claim's one gap is a commit whose acknowledgement is lost, which leaves a claimed row its caller never learns about and which waits out the staleness window like any build whose worker died.
 
 The pyramid tables are also wired into deletion, and it is one transaction rather than two statements. Order alone is not enough in either direction: tiles first lets a running build write more of them before the row goes, and those carry a version no later sweep can reach; the row first fences that build, but on its own lets a _new_ one claim the freshly-absent row and flush tiles that the tile delete then removes, leaving a build that completes over nothing. The transaction also creates the pyramid row when the actor has none, because a delete matching no row takes no lock and so serialises nothing.
 
@@ -267,36 +267,24 @@ it is deliberately not built.
 
 Bikes, shoes and recording devices all live in `fitness_gears`, the parts bolted to a bike in `fitness_gear_components`, and the stretches during which each part was fitted in `fitness_gear_component_periods` (the first two tables added by the `20260811000000_add_fitness_gear` migration; the device kind's identity and product-page columns by `20260813000000_add_fitness_device_gear`; the periods table by `20260826120000_add_fitness_gear_component_periods`).
 
-**Lifetime distance is never stored.** A gear total is `SUM(fitness_files.totalDistanceMeters) WHERE gearId = ?`, and a component total is the same sum restricted to activities whose `activityStartTime` falls inside one of the component's `[addedAt, removedAt)` install periods — a null `addedAt` means "since the gear's beginning" and a null `removedAt` means "still installed". Both rollups reuse the same `deletedAt IS NULL` + `processingStatus = 'completed'` + `isPrimary` filter as `getFitnessActivitySummary`, so gear numbers line up with the fitness overview. Storing the totals instead would have to be reconciled on every back-dated upload, archive re-import, activity edit and delete; derived totals are always consistent with the calendar for free.
-
-An activity with no `activityStartTime` — a GPX carrying no timestamps — counts toward its gear's total but only toward components with a period open on that side, because an activity that cannot be placed in time cannot be placed inside `[addedAt, removedAt)` either. A gear total may therefore exceed the sum of its components' totals. For the same reason such an activity is counted here but not by `getFitnessActivitySummary`, which additionally requires a non-null `activityStartTime` to bucket by. It does not require an `activityType`: an untyped activity is counted there as its own `activityType: null` group.
+**Lifetime distance is never stored** — a gear total is derived from the activities it is used on, and a component total from its install periods. The derivation, the shared stats predicate and the timestamp edge cases are ruled in [Fitness Gear](#agents-fitness-gear) under Contributor rules.
 
 `fitness_gears` columns: `id`, `actorId`, `kind` (`bike`, `shoes` or `device`), `name`, `brand`, `model`, `bikeType`, `weightKilograms`, `defaultSports` (a JSON-encoded array of canonical sport keys, in a `text` column so every backend behaves alike), `alertDistanceMeters`, `lastAlertedDistanceMeters`, `notes`, `deviceKey`, `productUrl`, `retiredAt`, and the usual timestamps with a soft-delete `deletedAt`.
 
-- **`productUrl` belongs to every kind.** A bike, a pair of shoes and a recording device all have a manufacturer's page worth linking to, and each one's page renders it the same way — through `GearProductLink`, which shows the hostname (`moots.com`, not the whole URL) and falls back to a "No product page — add one" prompt that opens the gear form. The API accepts it on create and update for every kind, and only http/https: the value becomes an `href`, so `javascript:`/`data:` there would be a script injection, and a bare `garmin.com` would render as a link back to this instance. `getProductUrlHostname` re-checks the protocol at render time, because rows written before that validation existed never passed through it. Only a device's is ever pre-filled — `resolveDeviceGear` seeds it from the brand map when the import creates the row.
+- **`productUrl` belongs to every kind** — a bike, a pair of shoes and a recording device alike. The validation and rendering rules live in [Fitness Gear](#agents-fitness-gear).
 
 `fitness_gear_components` columns: `id`, `gearId`, `componentType` (named that way to avoid the MySQL reserved word `type`), `brand`, `model`, `productUrl`, `serviceDistanceMeters`, `lastAlertedDistanceMeters`, timestamps and `deletedAt`.
 
 `fitness_gear_component_periods` columns: `id`, `componentId`, `installSequence`, `addedAt`, `removedAt` and timestamps, with `UNIQUE (componentId, installSequence)`.
 
-- **A part's install history is a list, not a single window.** `addedAt` and `removedAt` are not columns on the component: each stretch during which the part was fitted is a period row, and the component's own pair is derived from them — the first period's start and the _last_ period's end. They therefore still mean "when it first went on" and "when it last came off" (null while it is fitted), which is what every reader asks for. Retiring closes the open period at today; **Refit** (`POST /api/v1/fitness/gear/:id/components/:componentId/refit`) opens the _next_ period at today and leaves the closed one alone. `PATCH { removedAt: null }` is the different, precise operation of saying a retirement never happened — it reopens the last period — and PATCH's `addedAt`/`removedAt` reach only the outermost bounds, so an edit cannot make two periods overlap. Inverting one is a separate hazard, guarded in two places: the route checks each bound against the other end of the period it actually lands on (the component's own derived `addedAt`/`removedAt` come from two different periods as soon as a part has been refitted), and the write guards its own ordering too — because the route validates the periods it read, while the write resolves which period is first or last when it runs, and a refit arriving in between moves that target. Bounds landing on different rows each get an SQL predicate against the other end that row keeps; bounds landing on the same row (a component with one period) are written together with the ordering settled in code, since a predicate there would test the new start against the old end the same statement is replacing.
+- **A part's install history is a list of periods, not a single window** — each stretch during which the part was fitted is a period row, and the component's own `addedAt`/`removedAt` pair is derived from them. Retiring, refitting and editing periods are ruled in [Fitness Gear](#agents-fitness-gear).
 
-  The single window this replaced could not represent a part that comes off and goes back on. Clearing `removedAt` reopened the _original_ window, so a wheelset unretired after a winter on the shelf was credited every ride of that winter, and retiring it again did not take that back — it only closed the window at the new today. Periods make the gap explicit, and the components table shows one line per period in its Added and Retired columns so it is visible rather than inferred.
-
-  Periods must never overlap, because the rollup joins them and would count an activity once per matching period. `UNIQUE (componentId, installSequence)` is what makes a concurrent refit safe: both requests read the highest sequence, both try to claim the next one, and one loses at the database. It is deliberately a _plain_ unique index rather than a partial `(componentId) WHERE removedAt IS NULL`: it was chosen while MySQL-compatible clients, which drop a partial index's predicate, were still supported, and `schemaInvariants.test.ts` pins it.
-
-- **Default sports** map an incoming activity to gear automatically. `lib/services/fitness-files/sportTypes.ts` owns the canonical keys (`ride`, `gravel_ride`, `mountain_bike_ride`, `ebike_ride`, `virtual_ride`, `run`, `trail_run`, `walk`, `hike`); gear stores those keys, and `fitness_files.activityType` is now stored in the same vocabulary. Matching still goes through `normalizeActivityTypeToSportKey` rather than comparing strings, because older rows keep whichever raw spelling their source file used until the backfill script sweeps them. A sport belongs to at most one of an actor's gears; claiming it moves it off whichever gear held it. `processFitnessFileJob` assigns gear once the activity type is known, and only when the file has none — a manual assignment always wins. This mapping is the **only** source of automatic attribution, and it is editable from two places: each gear's own form, and the **Default gear** section of the Strava settings page, which lists it as activity type → gear.
-- **Retiring** takes gear out of the pickers and out of auto-assign; its total is frozen by the absence of new activities. Retired gear stays explicitly assignable, so old activities can still be attributed to a bike that has since been sold.
-- **A gear's page shows its activities as the posts they were published as**, through the same `Posts` feed the timelines use — same body, same stat chip, same action row. A bike switches between **Components** and **Activities** with an in-page dropdown; shoes and devices have no components card and so go straight to the feed. The Activities stat tile counts activities while the feed shows the ones still posted, so the two differ by any activity whose post was deleted.
-- **Recording devices are a third kind** (`kind: 'device'`, added by the `20260813000000_add_fitness_device_gear` migration), and they share very little with a bike: no components, no default sports, no distance total, no service reminder and no retiring. A device page reports an activity count and a first-used date, then its activities — a head unit records rides and runs alike, so summing their distances would produce a number that means nothing.
-  - `deviceKey` is the device's immutable **identity**, derived only from what the file recorded: `name:<lowercased, whitespace-collapsed deviceName>`, else `mfr:<brand key>` for a manufacturer the brand map knows, else nothing at all (and then no row is created). It is UNIQUE with `actorId` and is never rewritten. `name`, `brand`, `model` and `productUrl` are display overrides the owner may edit freely — keying on the name instead would fork a duplicate row the first time someone renamed "Garmin Edge 840" to "the Edge".
-  - **Devices are system-created only.** `resolveDeviceGear` is the sole writer, called by the import jobs wherever they write the device columns; `POST /api/v1/fitness/gear` rejects `device` with a 422, because a hand-made row would carry no `deviceKey` and so would match no upload. `productUrl` is seeded from the brand map on creation, so the manufacturer link the activity page used to render inline moves onto the device row.
-  - Deleting a device **releases its `deviceKey`** in the same transaction that soft-deletes it, alongside detaching `fitness_files.deviceGearId`. The unique index covers soft-deleted rows, so without that release the next upload from that device could never create a row again.
-  - The device rollups **replace** the shared predicate's `isPrimary` clause with a per-ride-per-device rule. `isPrimary` answers the wrong question for a device: the same-ride merge groups files by time overlap and never looks at the device columns, so which file won says nothing about which device recorded it. Two devices on one ride leave two files and the non-primary one is the only record the second device left; one device that produced two files for one ride (a `.fit` beside a `.gpx`, a manual upload beside the Strava sync) also leaves two, and counting both would report the ride twice. So of the countable files sharing a `(statusId, deviceGearId)`, exactly one counts — the primary if that device owns it, otherwise the lowest id — and the rule never defers to a sibling that is itself uncountable, since a merge writes the primary as `pending`. The activity list applies the same predicate, so the count and the page can only ever differ by an activity whose post was deleted — still counted, but with no post left to render.
-  - `fitness_files.gearId` never points at a device: `setFitnessFileGear` rejects one, so an activity cannot be attributed to the thing that recorded it (which would leave it out of every rollup at once).
-  - Existing history is linked by `scripts/fitness/backfillFitnessDevices.ts` (dry run by default, `--apply` to write).
-- **Strava's own gear is deliberately ignored.** Neither the webhook import (`activity.gear_id`) nor the archive import (the `Activity Gear` column and `bikes.csv`/`shoes.csv`) reads gear from Strava, and neither ever creates a gear row. Importing those values used to mint a local gear per Strava id or name, with a `kind` guessed from an undocumented id prefix or an optional CSV — and `kind` is immutable, so a wrong guess could only be fixed by deleting the gear and detaching every activity on it. An imported activity is attributed the same way an uploaded one is: from the owner's default-sport mapping.
-- **Service reminders** compare the derived totals against `alertDistanceMeters` (shoes) and `serviceDistanceMeters` (components), recording the distance they fired at in `lastAlertedDistanceMeters` so each crossing notifies exactly once — the claim is a conditional write, so two concurrent evaluations produce one notification rather than one each. Raising a threshold, replacing a part, or retiring and unretiring re-arms it. They are evaluated when a total can change — after an activity is marked `completed`, and when one is attributed by hand — because this instance has no recurring job infrastructure; the queue can delay a message but not repeat one. Evaluating before the `completed` write would read the total from before the activity that caused the crossing.
+- **Default sports** map an incoming activity to gear automatically — the canonical sport keys, the normalizer and the single-editor rules live in [Fitness Gear](#agents-fitness-gear).
+- **Retiring** takes gear out of the pickers and out of auto-assign while keeping it explicitly assignable — see [Fitness Gear](#agents-fitness-gear).
+- **A gear's page shows its activities as the posts they were published as**; a bike switches between **Components** and **Activities**, shoes and devices go straight to the feed — see [Fitness Gear](#agents-fitness-gear).
+- **Recording devices are a third kind** (`kind: 'device'`, added by the `20260813000000_add_fitness_device_gear` migration) with no components, no default sports, no distance total, no service reminder and no retiring; their rules live in [Fitness Gear](#agents-fitness-gear). Existing history is linked by `scripts/fitness/backfillFitnessDevices.ts` (dry run by default, `--apply` to write).
+- **Strava's own gear is deliberately ignored** — no import reads it or creates a gear row, and an imported activity is attributed from the owner's default-sport mapping like an uploaded one. See [Fitness Gear](#agents-fitness-gear).
+- **Service reminders** fire once per threshold crossing, evaluated on write rather than on a schedule — see [Fitness Gear](#agents-fitness-gear).
 
 ## API Endpoints
 
@@ -451,10 +439,10 @@ See [Maintenance Scripts](maintenance.md) for general script guidance.
 - Fitness files can contain sensitive location data.
 - Fitness posts default to private visibility in Strava flows unless the user chooses otherwise.
 - **An activity's own Strava privacy setting is not carried over.** Every activity imported from Strava is posted at the actor's configured import visibility, including ones marked "Only you" or "Followers" on Strava. The default is safe — `private` at every layer, which is followers-only — but an actor who selects public or unlisted federates those activities world-readable, route map and stats included. The setting is disclosed in the Strava settings form, which warns when public or unlisted is selected; the archive upload is the one import path that does not read it and carries its own visibility instead.
-- **One reader resolves that setting.** `resolveStravaDefaultVisibility` (`lib/services/strava/defaultVisibility.ts`) is what both the webhook route and the import job call. `fitness_settings.defaultVisibility` is a plain varchar whose row mapper asserts rather than parses, so a value the write path would have rejected can still be read back; anything that is not a visibility falls back to `private` and is logged. Before this was shared, the webhook route parsed and the job did not — and the job's arm is the one every retry and repair path takes.
+- **One reader resolves that setting.** `resolveStravaDefaultVisibility` (`lib/services/strava/defaultVisibility.ts`) is what both the webhook route and the import job call. `fitness_settings.defaultVisibility` is a plain varchar whose row mapper asserts rather than parses, so a value the write path would have rejected can still be read back; anything that is not a visibility falls back to `private` and is logged. Both arms must share the one reader: the job's arm is the one every retry and repair path takes.
 - Privacy locations trim the head and tail of a route — not its middle — from route maps and route-data responses. A route that re-enters a zone part-way through is exposed there; see the Processing Pipeline above for why. When the trims leave no route, the map image is not rendered at all.
 - **Route heatmaps are the exception, and always were: the trim changes what the owner's own view highlights, not what a public embed shows.** The heatmap cache stores the head/tail flag per activity — annotated per file, before the activities are pooled, so every activity's own ends are marked rather than only the first and last of the pool — and the owner's authenticated view renders those segments distinctly. `flattenPrivacySegmentsForPublic` then drops the flag for public and shared embeds while **keeping every coordinate**, deliberately: a hole where a route's ends should be pinpoints the private location as precisely as the coordinates do, so neither a gap nor a highlight is an option. Public heatmap embeds therefore render full near-home geometry, unchanged by this rule. See the comment on `flattenPrivacySegmentsForPublic` for the trade-off the instance owner accepted.
-- **The uploaded file is owner-only, because trimming cannot apply to bytes the server merely stores.** `GET /api/v1/fitness-files/:id` serves the original `.fit`/`.gpx`/`.tcx`, which still contains the full track including the ends the map and route data trim — so serving it to a viewer handed back exactly what every other surface had just hidden. It used to answer any request whenever the attached status was public or unlisted, and three surfaces linked it for every viewer — the activity detail's file row (since replaced by the picker's download button), the shared post's fitness card, and the fitness attachment card in a DM. The route and all three are now restricted to the owner. The activity detail no longer has a footer file row: the owner downloads the selected recording from the icon button beside the "Recorded with" picker (the "Original file" button where nothing names a device), and nobody else sees a download there. **The file name is not owner-only**: it still renders for every viewer on the shared post's fitness card and the DM attachment card, where it is the card's label, and the picker labels a recording by its device with the file name as the fallback when there is none, so a GPX export with no device information shows its file name to visitors in that menu. Only the download goes — if you would not want the file name itself read by strangers, rename it or keep the activity below public visibility. Nothing federated is affected: the URL is stripped from every outbound payload and never appeared in an email.
+- **The uploaded file is owner-only, because trimming cannot apply to bytes the server merely stores.** `GET /api/v1/fitness-files/:id` serves the original `.fit`/`.gpx`/`.tcx`, which still contains the full track including the ends the map and route data trim — so serving it to a viewer hands back exactly what every other surface had just hidden. The route is restricted to the owner, and so is every download surface: the owner downloads the selected recording from the icon button beside the "Recorded with" picker (the "Original file" button where nothing names a device), and nobody else sees a download there. **The file name is not owner-only**: it still renders for every viewer on the shared post's fitness card and the DM attachment card, where it is the card's label, and the picker labels a recording by its device with the file name as the fallback when there is none, so a GPX export with no device information shows its file name to visitors in that menu. Only the download goes — if you would not want the file name itself read by strangers, rename it or keep the activity below public visibility. Nothing federated is affected: the URL is stripped from every outbound payload and never appeared in an email.
 - **Fitness objects must never be reachable through the media route, and `GET /api/v1/files/*` refuses them.** This guard is load-bearing, not defensive: with `ACTIVITIES_FITNESS_STORAGE_TYPE` unset — the default — fitness storage falls back to media storage _inside the media root_, under a `fitness/` key prefix in the same S3 bucket, or a `fitness` directory under `ACTIVITIES_MEDIA_STORAGE_PATH`. The media route has no access control at all and redirects to the public CDN hostname when one is configured, so without the reservation it is a way around the owner-only gate above. The reserved prefixes come from `getMediaReservedFitnessPathPrefixes` and cover the configurable `ACTIVITIES_FITNESS_STORAGE_PREFIX` as well; media objects are written under `medias/` — including route maps and their JPEG email copies — so nothing legitimate is caught.
 - File type validation and quota enforcement prevent unsupported uploads and storage abuse.
 - Anonymous public route-data responses rely on HTTP caching plus upstream deployment controls for flood protection. Configure a CDN or reverse-proxy rate limiter for `/api/v1/fitness-files/*/route-data` on self-hosted public instances.
@@ -470,8 +458,6 @@ Read the applicable rules and review checks below before changing this subsystem
 - [Fitness Activity Dates](#agents-fitness-activity-dates)
 - [Fitness Route Heatmap Pyramid](#agents-fitness-route-heatmap-pyramid)
 - [Fitness Gear](#agents-fitness-gear)
-- [Review: Apple Maps basemap](#review-apple-maps-basemap)
-- [Review: Fitness route heatmap pyramid](#review-fitness-route-heatmap-pyramid)
 
 <a id="agents-fitness-stat-strips"></a>
 
@@ -489,10 +475,10 @@ Read the applicable rules and review checks below before changing this subsystem
   design system's `FitnessKit.StatGrid` and `FitnessChip` grids measure their
   own width with a `ResizeObserver` for the same reason `useCompactActionBar`
   does on the post action row: a strip can sit in a narrow column on a wide
-  window. The old `sm:grid-cols-4` looked at the viewport, so on a tablet the
-  detail page kept four `text-[28px]` tiles side by side in a 565px column and
-  wrapped "31.1 km/h" onto two lines, while a chip in a wide column stayed
-  needlessly 2-up at any window under 640px.
+  window. A viewport breakpoint cannot see the column a strip sits in: on a
+  tablet the detail page would keep four `text-[28px]` tiles side by side in a
+  565px column and wrap "31.1 km/h" onto two lines, while a chip in a wide
+  column stays needlessly 2-up at any window under 640px.
 - The three variants differ, and it is the type size that separates them.
   `detail` is 2×2 and 4-up from **560px** (values are 24px, so a cell needs
   ~130px), the activity design's own layout. `chip` is 2-up and 4-up from **424px**
@@ -514,6 +500,7 @@ Read the applicable rules and review checks below before changing this subsystem
   evaluate container queries, so check it in a browser.
 
 <a id="agents-apple-maps-basemap"></a>
+<a id="review-apple-maps-basemap"></a>
 
 ### Apple Maps Basemap
 
@@ -540,6 +527,9 @@ Read the applicable rules and review checks below before changing this subsystem
 - The snapshot module keeps its own copy of the literal rather than importing the
   component one: it is server-only (`lib/services/**`) and must not reach into
   the client component tree — see **Server/Client Module Boundary** in `docs/architecture.md`.
+- Adding a query parameter to the snapshot URL shifts `MAX_SNAPSHOT_OVERLAYS`,
+  which is derived from `buildPath`. Re-check the ceiling rather than assuming
+  it.
 - Changing the basemap does **not** restyle already-stored route images. They are
   re-rendered only by **Regenerate maps for old statuses** (`/fitness/privacy`,
   `POST /api/v1/fitness/general/regenerate-maps`).
@@ -588,9 +578,8 @@ Read the applicable rules and review checks below before changing this subsystem
   (`fitness?.activityStartTime ?? status.createdAt`) and
   `getActivityImportGroupKey` all do. The status payload carries
   `StatusFitnessFile.activityStartTime` precisely so a surface holding only a
-  status has it — the detail page's placeholder used `status.createdAt` as a
-  stand-in and silently started dating rides wrongly the moment those two
-  diverged. The post's own `createdAt` remains correct for what it means: when
+  status has it — a surface that substitutes `status.createdAt` silently
+  starts dating rides wrongly the moment the two diverge. The post's own `createdAt` remains correct for what it means: when
   the post was published, which is what the timeline, the relative timestamp and
   the ActivityPub `published` should show.
 - **The detail page shows that start time in the viewer's own time zone**, and
@@ -619,8 +608,11 @@ Read the applicable rules and review checks below before changing this subsystem
   Gear dates stay UTC.
 
 <a id="agents-fitness-route-heatmap-pyramid"></a>
+<a id="review-fitness-route-heatmap-pyramid"></a>
 
 ### Fitness Route Heatmap Pyramid
+
+#### Folding and claiming a build
 
 - **Tile visit counts ACCUMULATE, so an activity must be folded into a build
   exactly once.** Folding one twice inflates its heat permanently, and unlike a
@@ -658,8 +650,9 @@ Read the applicable rules and review checks below before changing this subsystem
   which matters because the claim is destructive: its compare-and-swap bumps
   `version`, stamps `generating`, and clears the counters, the cursor and
   `completedAt`. Deciding afterwards is too late; a routine region-row retry
-  took a healthy completed pyramid to a failed, empty one over tiles it no
-  longer described, and rebuilt nothing. A claimer at offset zero with no token
+  would take a healthy completed pyramid to a failed, empty one over tiles it
+  no longer described, and rebuild nothing. A claimer at offset zero with no
+  token
   still gets a fresh version — a full rebuild that sweeps the old build away,
   which is merely wasteful where the alternative is silently wrong.
 - **Every fence names the pyramid ROW as well as `claimSeq`.** The sequence
@@ -668,29 +661,34 @@ Read the applicable rules and review checks below before changing this subsystem
   likeliest collision there is. This applies to the claim, the tile flush, the
   progress/status write and the completion sweep alike — the sweep especially,
   since it is the write that DELETES: unfenced, a build sweeping at version 2
-  whose call landed after a clear deleted the replacement build's version-1
-  tiles, and that build then stamped itself `completed` over tiles that were
-  gone.
-- **Tile work never fails the run.** Every map now renders the pyramid, but only
+  whose call landed after a clear would delete the replacement build's
+  version-1 tiles, and that build would then stamp itself `completed` over
+  tiles that were gone.
+
+#### Failure handling and completion
+
+- **Tile work never fails the run.** Every map renders the pyramid, but only
   after its first batch of tiles resolves — until then, and whenever a fetch
   fails, it draws the untiled blob. So losing a build costs zoom detail while
-  failing the run costs the user the heatmap they can actually see. Every tile-path error — the tiler, a flush, the
-  completion — abandons the build, records why on the pyramid row, and lets the
-  legacy path finish. Two writes have nothing to record on and are only logged:
-  the CLAIM, because its compare-and-swap and the read confirming it share one
-  transaction, so it either happens and is reported or does not happen; and the
-  completion SWEEP, which runs after the build is already `completed`, so its
-  failure leaves stale tiles for the next build's sweep and nothing else. The
-  claim's exception is a transaction that commits and loses its
-  acknowledgement, where the row is claimed and the caller never learns it: that
-  build waits out the staleness window like any other whose worker died. The
-  same shape applies to the completion write, whose caller treats a lost
-  response as a failure and releases a build that is in fact finished; both are
-  what an at-least-once queue and a non-idempotent write cost, not something a
-  guard here removes.
+  failing the run costs the user the heatmap they can actually see.
+  - Every tile-path error — the tiler, a flush, the completion — abandons the
+    build, records why on the pyramid row, and lets the legacy path finish.
+  - Two writes have nothing to record on and are only logged: the CLAIM,
+    because its compare-and-swap and the read confirming it share one
+    transaction, so it either happens and is reported or does not happen; and
+    the completion SWEEP, which runs after the build is already `completed`,
+    so its failure leaves stale tiles for the next build's sweep and nothing
+    else.
+  - The claim's exception is a transaction that commits and loses its
+    acknowledgement, where the row is claimed and the caller never learns
+    it: that build waits out the staleness window like any other whose worker
+    died. The same shape applies to the completion write, whose caller treats
+    a lost response as a failure and releases a build that is in fact
+    finished; both are what an at-least-once queue and a non-idempotent write
+    cost, not something a guard here removes.
 - **A build this pass was CARRYING rather than holding is released from one
   place, the handler's `finally`.** Four separate guards drop a continuation,
-  and a per-guard release was missed on one of them twice; no per-guard release
+  and a per-guard release is easy to miss on any of them; no per-guard release
   covers a throw between reading the token and making the claim either. The
   release is unconditional because it is fenced on the carried token and every
   claim moves the token: once this pass adopted the build, or anyone else took
@@ -700,47 +698,53 @@ Read the applicable rules and review checks below before changing this subsystem
   build's token, so walking away strands the build AND refuses the Generate that
   displaced it, for the whole staleness window.
 - **A build only completes over a history it actually scanned, counted again at
-  the moment of the decision.** It catches an activity ADDED during the build,
-  where the recount rises above what the scan reached — but only while that rise
-  survives to the decision: the recount runs AFTER the scan, so a deletion
-  landing between the final page read and it cancels the shortfall exactly, and
-  the build completes having re-presented a file. That window is why the fold's
-  `foldedThisFile` guard is not redundant with this check. It does NOT catch an
-  activity DELETED from the already-scanned part either: that shift skips a file
-  AND lowers the recount by the same one, so the pass looks exactly as covered
-  as it would have been, and the build completes missing an activity until the
-  next full generate. `completedAt` is what makes the next claim
-  answer `already-fresh`, so certifying a scan that fell short does not merely
-  lose tiles — it refuses the regenerate that would have picked them up, turning
-  a transient hole permanent. An activity uploaded while the build runs sorts
-  first and lands before the offset a continuation resumes at, so it is never
-  presented to the fold gate at all; the pass hands the build back rather than
-  stamping it. The count comes from a fresh `countFitnessFilesByActor`, because
-  the snapshot taken before the scan is blind to exactly the upload in question.
+  the moment of the decision.** The count comes from a fresh
+  `countFitnessFilesByActor`, because the snapshot taken before the scan is
+  blind to exactly the upload in question.
+  - It catches an activity ADDED during the build, where the recount rises
+    above what the scan reached — but only while that rise survives to the
+    decision: the recount runs AFTER the scan, so a deletion landing between
+    the final page read and it cancels the shortfall exactly, and the build
+    completes having re-presented a file. That window is why the fold's
+    `foldedThisFile` guard is not redundant with this check.
+  - It does NOT catch an activity DELETED from the already-scanned part: that
+    shift skips a file AND lowers the recount by the same one, so the pass
+    looks exactly as covered as it would have been, and the build completes
+    missing an activity until the next full generate.
+  - `completedAt` is what makes the next claim answer `already-fresh`, so
+    certifying a scan that fell short does not merely lose tiles — it
+    refuses the regenerate that would have picked them up, turning a
+    transient hole permanent.
+  - An activity uploaded while the build runs sorts first and lands before
+    the offset a continuation resumes at, so it is never presented to the
+    fold gate at all; the pass hands the build back rather than stamping it.
 - **A build that could not READ every file it walked past still completes, and
   says so on the row.** The cursor advances for a file whose download or parse
   threw — it must, or the build is unresumable — so "reached the end" and "read
-  what it reached" are different facts, and the second one is a degradation the
-  row records in `error` rather than a reason to withhold the build. That count
-  is carried across continuations with the build's token, because the pass that
-  finishes a long history is rarely the one that hit the outage and a per-pass
-  count reads `error: null` over a build that lost activities. Refusing to
-  complete would wedge any actor with one permanently unreadable object, which
-  the legacy blob simply skips.
-  Withholding the SWEEP does not protect the missing geometry, which was tried
-  first and reverted: tiles are one row per `(actorId, tileKey)` and
-  `mergeTileDelta` REPLACES a tile whose stored version is older, so a readable
-  activity destroys an unreadable one's contribution to every tile they share —
-  measured, a partial outage kept 66 of 224 tiles and still lost 37% of the
-  points, while a permanently unreadable file blocked the sweep forever so
-  deleted activities never left the pyramid.
+  what it reached" are different facts, and the second one is a degradation
+  the row records in `error` rather than a reason to withhold the build.
+  Refusing to complete would wedge any actor with one permanently unreadable
+  object, which the legacy blob simply skips.
+  - The unreadable count is carried across continuations with the build's
+    token, because the pass that finishes a long history is rarely the one
+    that hit the outage and a per-pass count reads `error: null` over a build
+    that lost activities.
+  - Withholding the SWEEP does not protect the missing geometry: tiles are
+    one row per `(actorId, tileKey)` and `mergeTileDelta` REPLACES a tile
+    whose stored version is older, so a readable activity destroys an
+    unreadable one's contribution to every tile they share — and it would
+    block the sweep forever for an actor with a permanently unreadable
+    file, so activities deleted since the last build never left the pyramid.
 - **Completing a build and sweeping the previous one's tiles are separate
-  steps.** The sweep runs after the guarded completion write has already stamped
-  the row, and the release that a completion failure triggers is fenced on a
-  token completion does not move — so a sweep inside the same `try` rewrote a
-  finished, correct pyramid to `failed` over the very tiles it had just
-  certified. A failed sweep costs some tiles at an older version, which the next
-  build's own sweep removes.
+  steps.** The sweep runs after the guarded completion write has already
+  stamped the row, and the release that a completion failure triggers is
+  fenced on a token completion does not move — so a sweep inside the same
+  `try` would rewrite a finished, correct pyramid to `failed` over the very
+  tiles it had just certified. A failed sweep costs some tiles at an older
+  version, which the next build's own sweep removes.
+
+#### Gating and public shares
+
 - **Tiles are stored UNCLIPPED and a region is applied when they are served.**
   The pyramid is per-ACTOR and covers every activity over all time, so whichever
   region row wins the claim builds the same tiles — which is also why only the
@@ -756,8 +760,7 @@ Read the applicable rules and review checks below before changing this subsystem
   and every year — a leak that region clipping cannot catch, because such a
   share is usually world-wide. Deriving the route's go/no-go from
   `buildHeatmapTileSource` rather than re-deriving the conditions is what stops
-  the serving path and the advertising path drifting apart, which is exactly
-  how the gate came to be on the pages and missing on the route. The predicate
+  the serving path and the advertising path drifting apart. The predicate
   therefore tests `activityType` for null rather than for falsiness: the job's
   own gate is `activityType === null`, and reading an empty string as "no
   filter" here while the job read it as a filter matching nothing would serve a
@@ -774,28 +777,35 @@ Read the applicable rules and review checks below before changing this subsystem
   pessimistic (a union covering a tile reads `partial` and clips to the same
   geometry) but never optimistic.
 - **The region resolver FAILS CLOSED.** `getRegionBounds` answers `[]` both for
-  the whole world and for a region string it could not parse a rectangle out of,
-  and `[]` means "clip nothing" everywhere downstream — so a rect share whose
-  stored token failed to parse would serve the world. Only the empty string, the
-  world sentinel `serializeRegions` emits, reaches the unclipped path; anything
-  else that resolves to no bounds is refused — a case a writer really could
-  produce, since `serializeRegions` used to emit a rectangle that rounding had
-  collapsed, and rows written then still hold one. **All four PUBLIC surfaces
-  apply that rule**, through the one `resolveSharedHeatmapRegionBounds`: for
-  such a row the generation job baked the whole world into the untiled
-  `segments` too, so the share page, the embed page and the embed image refuse
-  it exactly as the embed tile route does. The OWNER tile route is deliberately
-  not among them — it clips to the region its own authenticated caller sent.
-  Over-refusing now costs the whole share, not just its zoom detail. Anything that PRODUCES a rectangle gates on
-  `isSerializableRect`, the same predicate `serializeRegions` applies, so a
-  producer and the serializer cannot drift — a box thinner than the 0.01°
-  serialization step is well formed and still has no canonical key of its own,
-  and saving one takes the WORLD's key. It runs before the conditional-request
-  check, so no response — 200 or 304 — is produced without it. The three
-  route-heatmap surfaces that take a region from a client normalize it with the
-  one shared `normalizeRegionParam`; the region-names route keeps its own
-  variant, which answers null rather than `''` for the world sentinel because a
-  world scope is not a nameable region.
+  the whole world and for a region string it could not parse a rectangle out
+  of, and `[]` means "clip nothing" everywhere downstream — so a rect share
+  whose stored token failed to parse would serve the world. Only the empty
+  string, the world sentinel `serializeRegions` emits, reaches the unclipped
+  path; anything else that resolves to no bounds is refused. It runs before
+  the conditional-request check, so no response — 200 or 304 — is produced
+  without it.
+  - A writer really can produce such a row: a rectangle thinner than the
+    0.01° serialization step is well formed, but rounding collapses it, and
+    rows written before the serializer validated the rounded box still hold
+    one. For such a row the generation job baked the whole world into the
+    untiled `segments` too, so **all four PUBLIC surfaces** refuse it through
+    the one `resolveSharedHeatmapRegionBounds` — the share page, the embed
+    page, the embed image and the embed tile route. The OWNER tile route is
+    deliberately not among them: it clips to the region its own
+    authenticated caller sent. Over-refusing costs the whole share, not just
+    its zoom detail.
+  - Anything that PRODUCES a rectangle gates on `isSerializableRect`, the
+    same predicate `serializeRegions` applies, so a producer and the
+    serializer cannot drift — a box thinner than the 0.01° serialization
+    step is well formed and still has no canonical key of its own, and
+    saving one takes the WORLD's key.
+  - The three route-heatmap surfaces that take a region from a client
+    normalize it with the one shared `normalizeRegionParam`; the region-names
+    route keeps its own variant, which answers null rather than `''` for the
+    world sentinel because a world scope is not a nameable region.
+
+#### Serving tiles
+
 - **The public tile route reads the share row WITHOUT its geometry**
   (`getFitnessRouteHeatmapSummaryByShareToken`). It answers from the pyramid
   and needs the row only for its actor, status, scope and variant, while
@@ -829,23 +839,25 @@ Read the applicable rules and review checks below before changing this subsystem
   cache with a value the server cannot read should be told, not quietly served
   from the entry it meant to bypass.
 - **Both tile routes parse their query through one `parseTileBatchQuery`.** Two
-  parsers had already drifted: `?z=4&z=16` resolved to 16 through
-  `Object.fromEntries` and to 4 through `searchParams.get`, and a malformed `v`
-  was a 400 on one route and ignored on the other. Neither was a leak, but a
-  divergence between two routes that must agree is how one becomes a leak the
-  next time either grows a scope-bearing parameter.
+  routes that must agree cannot each parse their own query: a divergence over
+  a repeated parameter or a malformed `v` is how the next scope-bearing
+  parameter becomes a leak.
+
+#### Client rendering
+
 - **The client picks its rung by rounding UP, and two unit conversions guard
   that.** GL reports zoom on a 512px tile grid while the pyramid is built on
   256px tiles, so `map.getZoom() + 1` is the pyramid's zoom; MapKit has no zoom
   at all and derives a FRACTIONAL one from its region and element width, never
   `getZoomLevelForBounds`, which returns the floor and would undo the rounding.
-  A view needing more than `MAX_TILES_PER_VIEW` is COARSENED down the ladder,
-  not refused; the ceiling is sized ABOVE what real viewports ask for (273 tiles
-  at 1280x720, 558 at 1920x1080, 984 at 2560x1440) because coarsening costs a
-  whole rung of detail. The tile cache must hold more than one view or a view
-  evicts its own fetched batches — and it is bounded by VERTICES as well as tile
-  count, since a decoded vertex is a ~82-byte object and the format has no
-  per-tile point ceiling. Eviction never touches the current view's tiles.
+  - A view needing more than `MAX_TILES_PER_VIEW` is COARSENED down the
+    ladder, not refused; the ceiling is sized ABOVE what real viewports ask
+    for (273 tiles at 1280x720, 558 at 1920x1080, 984 at 2560x1440) because
+    coarsening costs a whole rung of detail.
+  - The tile cache must hold more than one view or a view evicts its own
+    fetched batches — and it is bounded by VERTICES as well as tile count,
+    since a decoded vertex is a ~82-byte object and the format has no
+    per-tile point ceiling. Eviction never touches the current view's tiles.
 - **Tiles REPLACE the untiled geometry, never draw beside it.** The two describe
   the same roads at different fidelities, so together every line renders at
   twice its opacity. The swap waits for a batch to resolve, so a pan never
@@ -858,71 +870,84 @@ Read the applicable rules and review checks below before changing this subsystem
   `heatmapTiles/constants.ts` — rather than snapped to flat tiers, which painted
   every road ridden four to eleven times the same orange. Do not re-introduce a
   copy of the stops in either component.
+
+#### The static share image and link-preview card
+
 - **The STATIC share image reads the pyramid too, and enforces the same two
   boundaries the tile routes do.** `buildHeatmapSegmentsFromTiles` takes the
   heatmap ROW, not a bare actor id — pairing a scope with the wrong actor's
   history is the mistake the signature exists to prevent — gates on
   `buildHeatmapTileSource` BEFORE the read, and clips every tile to the shared
-  row's region. Clipping cannot substitute for the variant gate: it bounds
-  geography and nothing else, so a share scoped to one sport or one year drawn
-  from the whole-history pyramid publishes every sport and every year. The rung
-  comes from the IMAGE's own size along whichever axis the renderer fits by
-  (`min(width / spanX, height / spanY)`, in projected units — a degree of
-  latitude is not a fixed number of pixels in Mercator), and geometry is placed
-  with each ROW's own `z`/`x`/`y`, never the rung the view computed.
+  row's region.
+  - Clipping cannot substitute for the variant gate: it bounds geography and
+    nothing else, so a share scoped to one sport or one year drawn from the
+    whole-history pyramid publishes every sport and every year.
+  - The rung comes from the IMAGE's own size along whichever axis the
+    renderer fits by (`min(width / spanX, height / spanY)`, in projected
+    units — a degree of latitude is not a fixed number of pixels in
+    Mercator), and geometry is placed with each ROW's own `z`/`x`/`y`, never
+    the rung the view computed.
 - **Each static renderer is offered the tiles FIRST and the stored blob SECOND,
   and the blob is why the dual-write still exists.** Tile geometry is one run
   per way per tile where the blob is roughly one polyline per activity, so a
-  street-level view is hundreds of overlays rather than tens — a shape neither
-  basemap renderer can draw. Apple refuses outright past
-  `MAX_SNAPSHOT_OVERLAYS` (24), which dropped those instances to the keyless SVG
-  and cost them their basemap; Mapbox silently truncates at
-  `MAPBOX_STATIC_URL_BUDGET` (7000 chars) and then frames the image with
-  `/auto/` on only the overlays that survived, which — since tile runs arrive in
-  tile order — is one contiguous corner of the view blown up to fill the frame.
-  `requireAllOverlays` makes the tiled candidate refuse rather than truncate. Do
-  NOT remove the fallback, and do NOT make pyramid rows store `segments = null`,
-  until the raster path can stand alone (coarsening down the ladder until the
-  geometry fits a renderer's ceiling is the open design). Only the keyless SVG
-  renderer has neither limit — and it is the only one that shades and colours
-  strokes by visit count (orange to yellow along the interactive map's ramp);
-  Apple and Mapbox draw every stroke at a flat 0.9 in one colour.
+  street-level view is hundreds of overlays rather than tens — a shape
+  neither basemap renderer can draw.
+  - Apple refuses outright past `MAX_SNAPSHOT_OVERLAYS` (24), which drops
+    those instances to the keyless SVG and costs them their basemap; Mapbox
+    silently truncates at `MAPBOX_STATIC_URL_BUDGET` (7000 chars) and then
+    frames the image with `/auto/` on only the overlays that survived,
+    which — since tile runs arrive in tile order — is one contiguous corner
+    of the view blown up to fill the frame. `requireAllOverlays` makes the
+    tiled candidate refuse rather than truncate.
+  - Do NOT remove the fallback, and do NOT make pyramid rows store
+    `segments = null`, until the raster path can stand alone (coarsening
+    down the ladder until the geometry fits a renderer's ceiling is the
+    open design).
+  - Only the keyless SVG renderer has neither limit — and it is the only one
+    that shades and colours strokes by visit count (orange to yellow along
+    the interactive map's ramp); Apple and Mapbox draw every stroke at a
+    flat 0.9 in one colour.
 - **The share page's link-preview card points at that same image route, and
   `format=png` is what makes it work.** `/u/heatmaps/<token>` publishes
   OpenGraph and Twitter tags through `generateMetadata`; its `og:image` is the
   existing `/embed/heatmap/<token>/image`, deliberately NOT a fifth public
   surface, so the share guards that route already enforces are the ones that
-  apply. That route answers SVG whenever it falls through to the keyless
-  renderer — which is what every instance without a Mapbox token or Apple key
-  serves, llun.social included — and no card crawler (X, Facebook, Mastodon,
-  Slack, Discord) renders SVG, so the raster parameter is load-bearing rather
-  than a nicety. It is opt-in because the SVG scales and the embed snippet the
-  share dialog hands out already points at that URL, and anything but the exact
-  string `png` collapses onto the default, so the parameter cannot widen the
-  cache variants `DIMENSION_STEP` exists to bound. Both callers build that URL
-  through the one `buildHeatmapEmbedImageUrl` — the share dialog in the browser
-  and the card on the server — so the route's query shape has a single owner. A rasterization failure
-  degrades to the SVG rather than 500ing, on the same reasoning every other
-  tile-path failure follows. The declared `1200x600` is what the route will
-  actually serve — 630 snaps to 600, and only the Apple path differs (1280x640,
-  same ratio).
+  apply.
+  - That route answers SVG whenever it falls through to the keyless renderer
+    — which is what every instance without a Mapbox token or Apple key
+    serves — and no card crawler (X, Facebook, Mastodon, Slack, Discord)
+    renders SVG, so the raster parameter is load-bearing rather than a
+    nicety.
+  - It is opt-in because the SVG scales and the embed snippet the share
+    dialog hands out already points at that URL, and anything but the exact
+    string `png` collapses onto the default, so the parameter cannot widen
+    the cache variants `DIMENSION_STEP` exists to bound.
+  - Both callers build that URL through the one `buildHeatmapEmbedImageUrl`
+    — the share dialog in the browser and the card on the server — so the
+    route's query shape has a single owner. A rasterization failure degrades
+    to the SVG rather than 500ing, on the same reasoning every other
+    tile-path failure follows.
+  - The declared `1200x600` is what the route will actually serve — 630
+    snaps to 600, and only the Apple path differs (1280x640, same ratio).
 - **The card's facts come from the SAME view the page renders, and a share that
   will not render gets NO card.** One `cache()`-memoized `loadSharedHeatmap`
   feeds both `generateMetadata` and the page body, so a card cannot describe a
   share the page refuses — the alternative is a second lookup path free to
-  drift from the first. A revoked token, a share re-queued for generation and
-  an unresolvable region all 404, and each returns the bare metadata: an
-  `og:title` for one publishes the region name, the owner's handle and a
-  thumbnail that the refusal exists to withhold. The page stays `noindex`
-  because the token is the secret, which costs the card nothing — crawlers read
-  OpenGraph without consulting robots, this instance's own
-  `parseOpenGraph` included.
-- Full design and rationale: `docs/fitness-file-storage.md` → Route heatmap tile
-  pyramid.
+  drift from the first.
+  - A revoked token, a share re-queued for generation and an unresolvable
+    region all 404, and each returns the bare metadata: an `og:title` for one
+    publishes the region name, the owner's handle and a thumbnail that the
+    refusal exists to withhold.
+  - The page stays `noindex` because the token is the secret, which costs
+    the card nothing — crawlers read OpenGraph without consulting robots,
+    this instance's own `parseOpenGraph` included.
+- Full design and rationale: the [Route heatmap tile pyramid](#route-heatmap-tile-pyramid) section above.
 
 <a id="agents-fitness-gear"></a>
 
 ### Fitness Gear
+
+#### Storage model and retiring
 
 - **A gear total is derived, never stored.** `fitness_gears` and
   `fitness_gear_components` carry no distance column: a gear's lifetime distance
@@ -937,17 +962,16 @@ Read the applicable rules and review checks below before changing this subsystem
   (`installSequence`, `addedAt`, `removedAt`), and `fitness_gear_components` has
   no `addedAt`/`removedAt` columns at all. The component's own `addedAt` and
   `removedAt` are DERIVED — the first period's start and the LAST period's end —
-  so they still mean what they always did ("when it first went on", "when it
-  last came off", null while fitted) and every existing reader is unaffected,
-  including `evaluateGearServiceReminders`' "is it fitted now" and
-  `diffGearComponents`' `(type, brand, model, addedAt)` identity. One window
-  could not describe a part that comes off and goes back on: clearing
-  `removedAt` reopened the ORIGINAL window, so a part unretired months later was
-  credited every activity ridden while it sat off the bike, and re-retiring did
-  not take that back — it only closed the window again at the new today. Do not
-  reintroduce the columns as a denormalised copy of the latest period, for the
-  reason the totals are derived: a second source of truth for the same fact
-  drifts and nothing downstream can tell.
+  so they still mean "when it first went on" and "when it last came off" (null
+  while fitted), and every existing reader is unaffected, including
+  `evaluateGearServiceReminders`' "is it fitted now" and `diffGearComponents`'
+  `(type, brand, model, addedAt)` identity.
+  - A single window cannot describe a part that comes off and goes back on:
+    clearing `removedAt` would reopen the ORIGINAL window and credit the part
+    every activity ridden while it sat off the bike.
+  - Do not reintroduce the columns as a denormalised copy of the latest
+    period, for the reason the totals are derived: a second source of truth
+    for the same fact drifts and nothing downstream can tell.
 - **Retiring closes the open period; refitting opens the NEXT one at today.**
   `POST /api/v1/fitness/gear/:id/components/:componentId/refit` is its own
   endpoint precisely because it is NOT the mirror of `/retire` — reopening the
@@ -955,33 +979,41 @@ Read the applicable rules and review checks below before changing this subsystem
   gap between the retirement and the refit: seconds for a misclick (so the
   card's one-click, unarmed Refit still reads as an undo), and the truth for a
   wheelset that really did spend a winter on the shelf. Retired components offer
-  Refit and Delete (Edit is reserved for active components). `PATCH { removedAt:
-null }` remains the precise "this retirement never happened" — it reopens the
-  LAST period — and PATCH's `addedAt`/`removedAt` reach only the outermost
-  bounds (first period's start, last period's end), which is what keeps an edit
-  from making two periods OVERLAP. It does not on its own keep a period from
-  being INVERTED, and the route has to check each bound against the other end
-  of the period it lands on to do that: the component's own `addedAt` and
-  `removedAt` are derived from two DIFFERENT periods once a part has been
-  refitted, so validating the request against that derived pair compares bounds
-  that do not belong together and lets `[May 1, Feb 15)` through — a period no
-  activity can fall inside, which drops its distance silently and for good. The
-  bug reads as correct because for a single-period component the first and last
-  period are the same row and the two formulations coincide.
-  **The route's check is not sufficient on its own, and the write guards its
-  own ordering too.** The route validates the periods it READ;
-  `updateFitnessGearComponent` resolves which period is first or last when it
-  WRITES, and a refit landing between the two appends one — so a bound lands on
-  a row the check never saw. Once a further refit buries that period in the
-  middle, nothing re-examines it, because only the first and last are ever
-  checked. How the write guards it depends on where the bounds land, and the
-  split is the whole subtlety: when they land on DIFFERENT rows each carries an
-  SQL predicate against the other end that row keeps, but when they land on the
-  SAME row — one period, which is every component never refitted — they are
-  written together and the ordering is settled in JS. Per-bound predicates
-  there would compare the new `addedAt` against the OLD `removedAt` the same
-  statement is about to replace, so a wholesale window move applied one half
-  and silently dropped the other behind a 200.
+  Refit and Delete (Edit is reserved for active components).
+  - `PATCH { removedAt: null }` remains the precise "this retirement never
+    happened" — it reopens the LAST period — and PATCH's
+    `addedAt`/`removedAt` reach only the outermost bounds (first period's
+    start, last period's end), which is what keeps an edit from making two
+    periods OVERLAP.
+  - Keeping a period from being INVERTED is a separate hazard, and the route
+    checks each bound against the other end of the period it lands on: the
+    component's own `addedAt` and `removedAt` are derived from two DIFFERENT
+    periods once a part has been refitted, so validating the request against
+    that derived pair compares bounds that do not belong together and lets
+    `[May 1, Feb 15)` through — a period no activity can fall inside, which
+    drops its distance silently and for good. The mistake is easy to miss
+    because for a single-period component the first and last period are the
+    same row and the two formulations coincide.
+  - **The route's check is not sufficient on its own, and the write guards
+    its own ordering too.** The route validates the periods it READ;
+    `updateFitnessGearComponent` resolves which period is first or last when
+    it WRITES, and a refit landing between the two appends one — so a bound
+    lands on a row the check never saw. Once a further refit buries that
+    period in the middle, nothing re-examines it, because only the first and
+    last are ever checked. How the write guards it depends on where the
+    bounds land: when they land on DIFFERENT rows each carries an SQL
+    predicate against the other end that row keeps, but when they land on
+    the SAME row — one period, which is every component never refitted —
+    they are written together and the ordering is settled in JS.
+    Per-bound predicates there would compare the new `addedAt` against the
+    OLD `removedAt` the same statement is about to replace, so a wholesale
+    window move would apply one half and silently drop the other behind a 200.
+- **Retiring is not deleting and not un-assignable.** Retired gear is out of the
+  pickers and out of auto-assign, but stays explicitly assignable so old
+  activities can still be attributed to a bike that has since been sold.
+  A retired gear's detail page provides a **Delete** action with a confirmation
+  modal, which soft-deletes the gear, detaches all past activities (clearing
+  their `gearId`), and navigates back to `/fitness/gear`.
 - **Periods must never overlap, and `UNIQUE (componentId, installSequence)` is
   what enforces it against a race.** The rollup joins the periods and sums over
   them, so an activity inside two of them is counted twice — a permanently wrong
@@ -993,15 +1025,23 @@ null }` remains the precise "this retirement never happened" — it reopens the
   cannot tell that transaction's unique violation from a dropped connection or a
   bug in either write, and would report a real fault as a tidy 404. Do
   **not** replace it with the partial `(componentId) WHERE removedAt IS NULL`
-  that expresses "at most one open period" directly as a tidy-up: the plain
-  index was chosen while MySQL-compatible clients, which drop a partial
-  index's predicate (leaving a bare `UNIQUE(componentId)` that forbids a second
-  period outright), were still supported, and the refit path and its tests are
-  written against it. Changing it is a migration and a review of this path.
+  that expresses "at most one open period" directly as a tidy-up:
+  MySQL-compatible clients drop a partial index's predicate (leaving a bare
+  `UNIQUE(componentId)` that forbids a second period outright), and the refit
+  path and its tests are written against the plain index —
+  `schemaInvariants.test.ts` pins it. Changing it is a migration and a review
+  of this path.
 - **`installSequence`, not `addedAt`, is the ordering key.** The first period's
   `addedAt` is nullable ("since the gear's beginning") and the backends disagree
   on where NULLs sort — the same reason `getFitnessGearComponents` splits its own
   list in JS rather than in SQL.
+- **`fitness_files.gearId` has no database-level foreign key**, because adding
+  one via `alterTable` needs a table rebuild on SQLite. Ownership is enforced in
+  `lib/database/domains/fitnessGear/queries.ts`, and `deleteFitnessGear` nulls
+  the column in the same transaction that soft-deletes the gear.
+
+#### Distance rollups and service reminders
+
 - **Both rollups reuse the stats predicate**
   (`deletedAt IS NULL` + `processingStatus = 'completed'` + `isPrimary`) that
   `getFitnessActivitySummary` uses, so gear numbers line up with the fitness
@@ -1014,87 +1054,6 @@ null }` remains the precise "this retirement never happened" — it reopens the
   period open on that side, since it cannot be placed inside
   `[addedAt, removedAt)`. A gear total may therefore exceed the sum of its
   components.
-- **The components table pins both bookends (`Type` left, `Actions` right) on
-  a scroller of at least 480px, and snaps whole middle columns whenever not all
-  columns fit** — `useGearTableColumns`
-  (`@/app/(timeline)/fitness/gear/useGearTableColumns`), which is the design
-  system's `useGKSnapCols`. It pins the first column (`Type`, 120px) to the left
-  edge (`STICKY_COLUMN`) and the last column (`Actions`, 140px) to the right edge
-  (`STICKY_RIGHT_COLUMN`), so the action buttons ("Edit" and "Retire" on active
-  rows, "Refit" and "Delete" on retired rows) stay in reach without scrolling,
-  centred between symmetric `px-2` padding. Only the components table uses the
-  hook so far: the gear list's bikes/shoes/devices tables pin but do not snap,
-  and still carry a `min-w-[560px]`. That is a **known gap against the design**,
-  not a decision — `GearKit.jsx` runs all four tables through `useGKSnapCols`
-  (150px for the three gear tables, 104px for the components one), so on a phone
-  the gear list scrolls as one block where the design snaps it, which is the same
-  failure `min-w-[720px]` used to cause on the components table.
-  Whenever the middle scroll area ($W_{\text{avail}} = W - 120 - 140$) cannot fit
-  all 6 middle data columns at the 150px target width (a scroller under 1160px),
-  `useGearTableColumns` enables whole-column scroll snapping
-  (`scroll-snap-type: x mandatory`, `scroll-padding-left: 120px`,
-  `scroll-padding-right: 140px`, and `scroll-snap-align: start` on the middle
-  columns). It divides the middle area among an exact integer number of columns,
-  $N_{\text{fit}} = \max(1, \min(6, \lfloor W_{\text{avail}} / 150 \rfloor))$,
-  each $W_{\text{col}} = \lfloor W_{\text{avail}} / N_{\text{fit}} \rfloor$ wide,
-  so columns fit edge-to-edge without cutting off a half column. On the standard
-  timeline desktop content width (`max-w-content` 940px, a ~906px scroller
-  inside the card's padding and border, leaving ~646px between the pins) that is
-  **exactly 4 whole middle columns** (6 of the 8 columns on screen at once).
-  **On a phone the actions column is not pinned.** Below a 480px scroller (the
-  120px left pin plus two columns at the 180px `DEFAULT_TARGET_COLUMN_WIDTH`),
-  where only `Type` and one more column fit, a second pin would squeeze the data
-  into a ~130px sliver between the two. There `useGearTableColumns` reports
-  `isRightPinned: false` and the actions column becomes the 7th snapped data
-  column again, exactly as before it was pinned: one whole column per swipe
-  beside `Type`, $\max(1, \lfloor (W - 120) / 180 \rfloor) = 1$ with the floor
-  and overhang rules below, buttons right-aligned (`justify-end`), and no
-  `scroll-padding-right`. The right pin holds before the first measurement (the
-  server-rendered wide layout), and the first client layout corrects it before
-  paint.
-  While snapping, the snapped columns animate their `width`, `min-width` and
-  `max-width` (250ms, `cubic-bezier(0.4, 0, 0.2, 1)`) as the scroller resizes,
-  so a change in the visible column count does not jump; crossing into the wide
-  layout is not animated. Scroll cues show which way content is hidden: an edge
-  shadow on a pinned column (`STICKY_LEFT_SHADOW`, `STICKY_RIGHT_SHADOW`),
-  fading in over 200ms (`EDGE_SHADOW_TRANSITION`) while content sits past it, and `<`/`>` chevrons in the card header that step one
-  column at a time. The chevrons are `aria-disabled` at either end, never
-  `disabled`, so keyboard focus survives reaching the edge (the same rule as the
-  post media strip). The hook observes the table as well as its scroller, so the
-  cues follow content that re-snaps, animates or grows without the scroller
-  resizing. Revealing retired components fades each revealed row in
-  (`animate-in fade-in-0 duration-300`) through its **cells** — and through the
-  pinned cells' content, never the pinned cells — for the dimming rule's reason
-  below, and the toggle's chevron rotates. Under `prefers-reduced-motion` none
-  of it animates: the columns resize instantly, the chevrons step without smooth
-  scrolling, the edge shadows switch without fading, and the row fade and
-  chevron rotation are off.
-  An armed action reads **"Confirm"**, with what it confirms kept in its
-  accessible name ("Confirm retire Chain", "Confirm delete Chain"): "Refit" beside
-  "Confirm delete" measured 152px against the 124px inside the pinned column's
-  padding and spilled across its divider and off the card. Widen the column, or
-  keep armed labels to one word — never let a pinned cell's content overflow.
-  Under the single-column threshold ($N_{\text{fit}} = 1$), the column width is
-  floored at 184px so the distance cell's wear line still fits, subject to a
-  12px overhang allowance (the cell's own right padding) to prevent clipping on
-  small viewports (such as 320px). The hook measures the table's **own scroll
-  container** with a `ResizeObserver`, attaching through a **callback** ref so
-  it reliably binds when components mount.
-- **Do not put `min-w-[720px]` back on the components table.** The per-cell
-  minimums (120 Type + 140 Brand + 160 Model + 130 Product page + 140 Distance +
-  130 Added + 110 Retired + 140 Actions = 1070px) already provide generous room
-  for values and keep action buttons on a single line, and dynamic whole-column
-  snapping with dual-pinned bookends automatically adapts the visible column count
-  to any container width without stranding cut-off columns.
-
-- **Every cell in the components table carries `wrap-anywhere`.** A `<td>`'s
-  width is advisory, and the component type, brand and model are all free text
-  to 255 characters (`gearRequests.ts`) — a long unbroken value widens its
-  column past the snap interval, and under `x mandatory` a column wider than its
-  interval has a tail the scroller can never rest on. `break-words` is **not** a
-  substitute: `overflow-wrap: break-word` does not reduce a box's min-content
-  contribution, only `anywhere` does, and the difference is invisible in
-  Chromium (which honours the explicit width anyway) while breaking elsewhere.
 - **Evaluate service reminders only after the activity is `completed`.** The
   rollups count completed activities, so a reminder computed while the file is
   still `processing` reads the total from before the ride that caused the
@@ -1107,16 +1066,113 @@ null }` remains the precise "this retirement never happened" — it reopens the
   a row and counts 0. The window compares `activityStartTime` column-to-column
   against the bounds, which is safe because all three are written in the same
   representation per backend — never add raw date arithmetic there without a
-  dialect helper in `lib/database/kysely/dialect.ts`. The component query additionally joins
-  `fitness_gear_component_periods` and carries `p.id IS NOT NULL` in the file
-  join: a component with no period row is a shape nothing creates, but without
-  that clause BOTH window tests read as TRUE against the missing row's NULLs and
-  the component claims every activity on the gear
-  (`fitnessGearComponentPeriods.test.ts`).
-- **`fitness_files.gearId` has no database-level foreign key**, because adding
-  one via `alterTable` needs a table rebuild on SQLite. Ownership is enforced in
-  `lib/database/domains/fitnessGear/queries.ts`, and `deleteFitnessGear` nulls the column in
-  the same transaction that soft-deletes the gear.
+  dialect helper in `lib/database/kysely/dialect.ts`. The component query
+  additionally joins `fitness_gear_component_periods` and carries
+  `p.id IS NOT NULL` in the file join: a component with no period row is a
+  shape nothing creates, but without that clause BOTH window tests read as
+  TRUE against the missing row's NULLs and the component claims every activity
+  on the gear (`fitnessGearComponentPeriods.test.ts`).
+- **Service reminders are evaluated on write, not on a schedule** — this
+  instance has no recurring job infrastructure (the queue can delay a message
+  but not repeat one). `evaluateGearServiceReminders` runs where a total can
+  change — after an activity is marked `completed`, and when one is attributed
+  by hand — and compares the derived totals against `alertDistanceMeters`
+  (shoes) and `serviceDistanceMeters` (components), recording the distance it
+  fired at in `lastAlertedDistanceMeters` so each crossing notifies exactly
+  once. A raised threshold, replacing a part, or retiring and unretiring
+  re-arms it.
+
+#### The components table
+
+- **The components table pins both bookends (`Type` left, `Actions` right) on
+  a scroller of at least 480px, and snaps whole middle columns whenever not all
+  columns fit** — `useGearTableColumns`
+  (`@/app/(timeline)/fitness/gear/useGearTableColumns`), which is the design
+  system's `useGKSnapCols`. It pins the first column (`Type`, 120px) to the left
+  edge (`STICKY_COLUMN`) and the last column (`Actions`, 140px) to the right edge
+  (`STICKY_RIGHT_COLUMN`), so the action buttons ("Edit" and "Retire" on active
+  rows, "Refit" and "Delete" on retired rows) stay in reach without scrolling,
+  centred between symmetric `px-2` padding.
+  - Only the components table uses the hook so far: the gear list's
+    bikes/shoes/devices tables pin but do not snap, and still carry a
+    `min-w-[560px]`. That is a **known gap against the design**, not a
+    decision — the design runs all four tables through whole-column snapping
+    (150px targets for the three gear tables, 104px for the components one),
+    so on a phone the gear list scrolls as one block where the design snaps
+    it.
+  - Whenever the middle scroll area ($W_{\text{avail}} = W - 120 - 140$)
+    cannot fit all 6 middle data columns at the 150px target width (a
+    scroller under 1160px), `useGearTableColumns` enables whole-column
+    scroll snapping (`scroll-snap-type: x mandatory`, `scroll-padding-left:
+120px`, `scroll-padding-right: 140px`, and `scroll-snap-align: start` on
+    the middle columns). It divides the middle area among an exact integer
+    number of columns, $N_{\text{fit}} = \max(1, \min(6, \lfloor
+    W_{\text{avail}} / 150 \rfloor))$, each $W_{\text{col}} = \lfloor
+    W_{\text{avail}} / N_{\text{fit}} \rfloor$ wide, so columns fit
+    edge-to-edge without cutting off a half column. On the standard timeline
+    desktop content width (`max-w-content` 940px, a ~906px scroller inside
+    the card's padding and border, leaving ~646px between the pins) that is
+    **exactly 4 whole middle columns** (6 of the 8 columns on screen at
+    once).
+  - **On a phone the actions column is not pinned.** Below a 480px scroller
+    (the 120px left pin plus two columns at the 180px
+    `DEFAULT_TARGET_COLUMN_WIDTH`), where only `Type` and one more column
+    fit, a second pin would squeeze the data into a ~130px sliver between
+    the two. There `useGearTableColumns` reports `isRightPinned: false` and
+    the actions column becomes the 7th snapped data column again: one whole
+    column per swipe beside `Type`, $\max(1, \lfloor (W - 120) / 180 \rfloor)
+    = 1$ with the floor and overhang rules below, buttons right-aligned
+    (`justify-end`), and no `scroll-padding-right`. The right pin holds
+    before the first measurement (the server-rendered wide layout), and the
+    first client layout corrects it before paint.
+  - While snapping, the snapped columns animate their `width`, `min-width`
+    and `max-width` (250ms, `cubic-bezier(0.4, 0, 0.2, 1)`) as the scroller
+    resizes, so a change in the visible column count does not jump;
+    crossing into the wide layout is not animated. Scroll cues show which
+    way content is hidden: an edge shadow on a pinned column
+    (`STICKY_LEFT_SHADOW`, `STICKY_RIGHT_SHADOW`), fading in over 200ms
+    (`EDGE_SHADOW_TRANSITION`) while content sits past it, and `<`/`>`
+    chevrons in the card header that step one column at a time. The
+    chevrons are `aria-disabled` at either end, never `disabled`, so
+    keyboard focus survives reaching the edge (the same rule as the post
+    media strip). The hook observes the table as well as its scroller, so
+    the cues follow content that re-snaps, animates or grows without the
+    scroller resizing. Revealing retired components fades each revealed row
+    in (`animate-in fade-in-0 duration-300`) through its **cells** — and
+    through the pinned cells' content, never the pinned cells — for the
+    dimming rule's reason below, and the toggle's chevron rotates. Under
+    `prefers-reduced-motion` none of it animates: the columns resize
+    instantly, the chevrons step without smooth scrolling, the edge shadows
+    switch without fading, and the row fade and chevron rotation are off.
+  - An armed action reads **"Confirm"**, with what it confirms kept in its
+    accessible name ("Confirm retire Chain", "Confirm delete Chain"):
+    "Refit" beside "Confirm delete" measures 152px against the 124px inside
+    the pinned column's padding and spills across its divider and off the
+    card. Widen the column, or keep armed labels to one word — never let a
+    pinned cell's content overflow. Under the single-column threshold
+    ($N_{\text{fit}} = 1$), the column width is floored at 184px so the
+    distance cell's wear line still fits, subject to a 12px overhang
+    allowance (the cell's own right padding) to prevent clipping on small
+    viewports (such as 320px). The hook measures the table's **own scroll
+    container** with a `ResizeObserver`, attaching through a **callback**
+    ref so it reliably binds when components mount.
+- **Do not put `min-w-[720px]` back on the components table.** The per-cell
+  minimums (120 Type + 140 Brand + 160 Model + 130 Product page + 140 Distance +
+  130 Added + 110 Retired + 140 Actions = 1070px) already provide generous room
+  for values and keep action buttons on a single line, and dynamic whole-column
+  snapping with dual-pinned bookends automatically adapts the visible column count
+  to any container width without stranding cut-off columns.
+- **Every cell in the components table carries `wrap-anywhere`.** A `<td>`'s
+  width is advisory, and the component type, brand and model are all free text
+  to 255 characters (`gearRequests.ts`) — a long unbroken value widens its
+  column past the snap interval, and under `x mandatory` a column wider than its
+  interval has a tail the scroller can never rest on. `break-word` is **not** a
+  substitute: `overflow-wrap: break-word` does not reduce a box's min-content
+  contribution, only `anywhere` does, and the difference is invisible in
+  Chromium (which honours the explicit width anyway) while breaking elsewhere.
+
+#### Sport attribution and imports
+
 - **Match sports through `normalizeActivityTypeToSportKey`**
   (`@/lib/services/fitness-files/sportTypes`), never against the raw
   `activityType`. Gear stores canonical keys; the normalizer maps the dialects
@@ -1135,6 +1191,44 @@ null }` remains the precise "this retirement never happened" — it reopens the
   canonical non-gear activities (`swim`, `training`, `rowing`, `yoga`, `climbing`,
   `ski`, `skating`, `surfing`, `racket_sports`, `martial_arts`, `team_sports`, `golf`,
   and defaulting anything else to `other`). Missing or whitespace-only values normalize to null.
+- **A sport belongs to at most one of an actor's gears**, retired ones included
+  — scoping the invariant to active gear only would let unretiring produce two
+  holders and make auto-assign arbitrary. Claiming a sport takes it off whoever
+  had it, inside the create/update transaction. It is enforced by that
+  read-then-write rather than by a constraint (`defaultSports` is a JSON text
+  column), so two genuinely concurrent creates can both end up holding a sport;
+  auto-assign stays deterministic regardless, because
+  `findFitnessGearByDefaultSport` resolves oldest-first.
+- **Nothing is imported from Strava's own gear, and no import ever creates a
+  gear row.** Neither the webhook path (`activity.gear_id` plus
+  `GET /gear/{id}`) nor the archive path (the `Activity Gear` column and
+  `bikes.csv`/`shoes.csv`) reads gear from Strava. The reason is `kind`: an
+  imported gear would need its `kind` guessed from an undocumented id prefix
+  or an optional CSV, `kind` is immutable by design, and a bike filed as shoes
+  shows no components card, refuses a frame type, and offers shoe advice in
+  its reminder — repairable only by deleting the gear and detaching every
+  activity on it. So the shed is the athlete's alone: an imported activity is
+  attributed exactly like an uploaded one, by `processFitnessFileJob` from
+  the gear whose `defaultSports` claims the parsed sport. Do not reintroduce a
+  "create the gear we saw" path in any importer.
+- **The default-sport mapping has a second editor, on the Strava settings
+  page** (`StravaGearDefaultsSection`), listing it the other way round —
+  activity type → gear — because that is the question someone connecting an
+  import source is asking. It is a view over `fitness_gears.defaultSports`,
+  **not** a table of its own: pointing a sport at a gear is one PATCH of that
+  gear, and the database's own steal takes the sport off whoever held it. That
+  is also why the editor re-reads the whole list after every write — the
+  response carries only the gear that was written, never the one it was taken
+  from.
+- **Import jobs assign with `assignFitnessFileGearIfUnset`**, whose
+  `whereNull('gearId')` guard is the correctness guarantee rather than an
+  optimisation: those jobs re-run, and a manual assignment made between a read
+  and the write must survive. This mapping is the **only** source of automatic
+  attribution. Only the owner's own PATCH uses `setFitnessFileGear`, which
+  overwrites.
+
+#### Activity captions
+
 - **Naming a sport for a post caption is `getActivityPresentation`**
   (`@/lib/services/fitness-files/activityPresentation`) — the import job and the
   Strava summary builder both go through it, and nothing else should grow its
@@ -1151,25 +1245,14 @@ null }` remains the precise "this retirement never happened" — it reopens the
   answering that, and "Cycling" erases a distinction the athlete made. Those
   three have their own entries in `SPECIFIC_ACTIVITY_LABELS`, checked **before**
   the sport-key lookup because they do resolve to a key and would never reach
-  the unmodelled table. Reading the stored key here made a directly uploaded
-  handcycle ride disagree with the same ride imported from Strava, which
-  captions from its own raw `sport_type` — guarded end to end in
+  the unmodelled table. Reading the stored key here would make a directly
+  uploaded handcycle ride disagree with the same ride imported from Strava,
+  which captions from its own raw `sport_type` — guarded end to end in
   `processFitnessFileJob.test.ts`, since a unit test on the presenter alone
   cannot catch a caller handing it the wrong value.
-- **A sport belongs to at most one of an actor's gears**, retired ones included
-  — scoping the invariant to active gear only would let unretiring produce two
-  holders and make auto-assign arbitrary. Claiming a sport takes it off whoever
-  had it, inside the create/update transaction. It is enforced by that
-  read-then-write rather than by a constraint (`defaultSports` is a JSON text
-  column), so two genuinely concurrent creates can both end up holding a sport;
-  auto-assign stays deterministic regardless, because
-  `findFitnessGearByDefaultSport` resolves oldest-first.
-- **Retiring is not deleting and not un-assignable.** Retired gear is out of the
-  pickers and out of auto-assign, but stays explicitly assignable so old
-  activities can still be attributed to a bike that has since been sold.
-  A retired gear's detail page provides a **Delete** action with a confirmation
-  modal, which soft-deletes the gear, detaches all past activities (clearing
-  their `gearId`), and navigates back to `/fitness/gear`.
+
+#### The activity page and gear feeds
+
 - **The activity page carries gear inline in the header's metadata line** —
   `date · visibility · gear`, the way `FAGearRow` does in the design system's
   `ui_kits/web/FitnessActivity.jsx`, not as a labelled field with a row of its
@@ -1187,49 +1270,55 @@ null }` remains the precise "this retirement never happened" — it reopens the
   `extraMenuItems`, which can only **add** to the action set (see **Status Posts
   & Actions**), and it is absent entirely for an owner with nothing to pick — a
   submenu whose only entry is "No gear" is dead UI, the same rule that keeps the
-  metadata line clear. The submenu trigger is disabled along with its rows while
-  the PATCH is in flight, because two quick changes otherwise race and the
-  loser's rollback restores a value the server has already replaced; a menu of
-  choices none of which respond is worse than one that will not open. A failure
-  reports on the metadata line beside the gear it was for, not in the menu,
-  which closes itself on select. Whatever is assigned is always in the list even
-  when the kind filter or its retirement would drop it: a picker that cannot
-  represent its own value renders the assignment as something else, which reads
-  as the gear having changed on its own. In a post's inline chip, gear instead
-  rides along with the distance cell ("42.6 km · Moots") rather than taking a
-  cell of its own.
-- **Nothing is imported from Strava's own gear, and no import ever creates a
-  gear row.** Neither the webhook path (`activity.gear_id` plus
-  `GET /gear/{id}`) nor the archive path (the `Activity Gear` column and
-  `bikes.csv`/`shoes.csv`) reads gear from Strava any more, and the
-  `stravaGearId` column is gone with them. The reason is `kind`: it was guessed
-  from an undocumented `b`/`g` id prefix or from an optional CSV, it is
-  immutable by design, and a bike filed as shoes shows no components card,
-  refuses a frame type, and offers shoe advice in its reminder — repairable
-  only by deleting the gear and detaching every activity on it. So the shed is
-  the athlete's alone: an imported activity is attributed exactly like an
-  uploaded one, by `processFitnessFileJob` from the gear whose `defaultSports`
-  claims the parsed sport. Do not reintroduce a "create the gear we saw" path
-  in any importer.
-- **The default-sport mapping has a second editor, on the Strava settings
-  page** (`StravaGearDefaultsSection`), listing it the other way round —
-  activity type → gear — because that is the question someone connecting an
-  import source is asking. It is a view over `fitness_gears.defaultSports`,
-  **not** a table of its own: pointing a sport at a gear is one PATCH of that
-  gear, and the database's own steal takes the sport off whoever held it. That
-  is also why the editor re-reads the whole list after every write — the
-  response carries only the gear that was written, never the one it was taken
-  from.
-- **Import jobs assign with `assignFitnessFileGearIfUnset`**, whose
-  `whereNull('gearId')` guard is the correctness guarantee rather than an
-  optimisation: those jobs re-run, and a manual assignment made between a read
-  and the write must survive. Only the owner's own PATCH uses
-  `setFitnessFileGear`, which overwrites.
-- **Service reminders are evaluated on write, not on a schedule** — this
-  instance has no recurring job infrastructure (the queue can delay a message
-  but not repeat one). `evaluateGearServiceReminders` runs where a total can
-  change and records the distance it fired at in `lastAlertedDistanceMeters`, so
-  each crossing notifies once and a raised threshold re-arms on its own.
+  metadata line clear.
+  - The submenu trigger is disabled along with its rows while the PATCH is in
+    flight, because two quick changes otherwise race and the loser's rollback
+    restores a value the server has already replaced; a menu of choices none
+    of which respond is worse than one that will not open. A failure reports
+    on the metadata line beside the gear it was for, not in the menu, which
+    closes itself on select.
+  - Whatever is assigned is always in the list even when the kind filter or
+    its retirement would drop it: a picker that cannot represent its own value
+    renders the assignment as something else, which reads as the gear having
+    changed on its own. In a post's inline chip, gear instead rides along with
+    the distance cell ("42.6 km · Moots") rather than taking a cell of its own.
+- **A gear's activities are the POSTS they were published as, rendered through
+  the shared `Posts` feed.** `GearActivitiesFeed`
+  (`app/(timeline)/fitness/gear/[id]/GearActivitiesFeed.tsx`) is the single
+  implementation, used by a bike's Activities view and by the whole of a
+  device's page, so the same ride reads identically on either — same body, same
+  stat chip, same action row as in the timeline. It is not a bespoke list: a
+  fitness activity is a status, and **Status Posts & Actions** in
+  `docs/mastodon-api-compatibility.md` applies to it like every other surface.
+  - The feed pages over ACTIVITY ROWS and the endpoint answers `nextOffset`
+    from those rows, not from the statuses in the page: deleting a status only
+    nulls `fitness_files.statusId`, so a row with no post left still occupies
+    an offset (and still counts toward the gear's totals), and paging from
+    `statuses.length` would re-request everything in between forever.
+  - Because such a row yields nothing to render, the **Activities tile and
+    the feed may legitimately disagree** — the tile counts activities, the
+    feed shows the ones still posted. A page that comes back entirely
+    postless is walked past rather than handed to the reader as a "Load
+    more" that adds nothing — by the INITIAL load as much as by "Load more",
+    both of which go through the same walk, because a first page empty for
+    that reason would otherwise render "no activities" above an enabled
+    button that disproves it — capped the way the bookmarks timeline caps
+    its own continuations. The empty state is therefore gated on `!hasMore`
+    rather than on an empty list: the walk makes that state rare and
+    `onPostDeleted` can produce it at any time regardless.
+- **A bike switches between Components and Activities; shoes and devices do
+  not.** The switcher is `SectionNavSelect`
+  (`@/lib/components/section-nav-select`), the state-driven twin of
+  `SectionNavDropdown` — same chrome, but its rows call `onChange` instead of
+  navigating, and the current one is marked with the boolean `aria-current`
+  because nothing is a page. Only a bike renders a components card, so only a
+  bike has a second view to reach: shoes and devices go straight to the feed,
+  since a menu with one entry is dead UI (the same rule that keeps the "No
+  gear" picker off an empty shed). Do not write a third copy of this dropdown —
+  the fitness activity detail's section nav is the other consumer.
+
+#### Gear table chrome
+
 - **Orange TEXT uses `text-primary-text`, not `text-primary`.** `--primary`
   (`hsl(24 95% 46%)`) is the brand orange for icons, fills and accents; as a
   foreground it is only 3.37:1 on the card, so link text set in it fails WCAG 2.1
@@ -1247,162 +1336,166 @@ null }` remains the precise "this retirement never happened" — it reopens the
 - **Every gear table pins its first column, through the shared constants in
   `app/(timeline)/fitness/gear/gearUi.ts`** — `STICKY_COLUMN` and
   `STICKY_CLICKABLE_COLUMN`, used by the gear list's bikes/shoes/devices tables
-  and by the components table on a gear's page. The design system's
-  `ui_kits/web/GearKit.jsx` builds these tables from a pinned first column with a
-  hairline down its right edge, and that hairline is the table's structure — it
-  is the table's only vertical rule, and it is what separates each row's subject
-  from its numbers. Rendered as plain columns with no rule, the rows read as
-  loose text, which is what these tables looked like before. Four details are
-  load-bearing. **The pinned column's surface is the surface the table sits on.** Since the
-  fitness pages took the overview's layout, the tables sit on the page in a
-  `rounded-lg border` frame rather than in a `Card`, so that is `bg-background`;
-  the pinned header cell paints the header band's tint pre-mixed and opaque
-  (`STICKY_HEAD_CELL`). This is the design's own relationship, verified against
-  the kit: `useGKSnapCols` pins the cell with the colour of what holds the
-  table, so the hairline is the only thing separating it. That literal colour is
-  there to make the sticky cell opaque, not to step the column off anything —
-  there is no recessed lane anywhere in the kit; a colour other than the table's
-  own came out a bright stripe in light mode — a third of the table's width on a
-  phone — and a sunk well in dark. Whatever the colour, it must be **opaque**, or the data
-  columns
-  scroll straight through the pinned cell. The divider is an inset shadow, not a
-  `border-r`, because `border-collapse: collapse` (Tailwind's preflight default)
-  hands border painting to the table and drops a sticky cell's own right border.
-  A dimmed row (retired gear, a retired component) dims its **cells**, never the
-  `<tr>` and never the pinned `<td>` itself — `opacity` fades an element's
-  background along with its text, so either one takes the pinned column's surface
-  down with it. And the hover colour is the OPAQUE `bg-muted` on both the row and
-  its pinned cell, never `bg-muted/50`: a translucent hover replaces the cell's
-  own surface rather than layering over it, so the cell would turn 50%
-  transparent exactly while the pointer is on the row. Rows separate with
-  `border-t`, so the header carries no rule of its own and the last row no
-  trailing one. The pinned width is not part of the constants — the design pins
-  the gear and device tables at 150px and the denser components table at 104px,
-  and the components table takes **120px** rather than that 104px because our
-  pinned cell is `px-4` where the design runs a flat `px-3`: at 104px the content
-  box was 72px and "Handlebar" (72.6px at `text-sm font-medium`) broke mid-word,
-  which is what `wrap-anywhere` does to a word that does not fit. 120px leaves 88px, clear of "Chainrings" at 74.7px, the widest single word in
-  `COMPONENT_TYPE_OPTIONS`; multi-word values still wrap at their spaces, and
-  fitting "Front brake pads" on one line would take a 149px pin, 38% of a 390px
-  phone. Similarly, the Brand column takes at least **140px** off-snap rather
-  than 96px: at 96px with `px-3` (24px horizontal padding), the 72px content box
-  caused "Continental" (~75px at `text-sm font-normal`) to wrap its trailing 'l'
-  to a new line under `wrap-anywhere`. 140px leaves 116px of content width,
-  fitting "Continental" with ample slack across platform system fonts. The
-  actions column takes **140px** and keeps its two buttons on one line
-  (`flex-nowrap`): pinned, a wrapped pair would double the row's height for
-  every row, and unpinned on a phone the snapped column is wider than that
-  anyway (see the components table bullet above for the armed-label budget).
-  `STICKY_CLICKABLE_COLUMN` belongs only on a row that has its own `hover:` and
-  the `group` class — a row carrying `group` without a `hover:` lights the
-  first column alone, and a row with neither never matches the variant at all.
+  and by the components table on a gear's page. The design builds these tables
+  from a pinned first column with a hairline down its right edge, and that
+  hairline is the table's structure — it is the table's only vertical rule, and
+  it is what separates each row's subject from its numbers. Rendered as plain
+  columns with no rule, the rows read as loose text. Four details are
+  load-bearing.
+  - **The pinned column's surface is the surface the table sits on.** The
+    tables sit on the page in a `rounded-lg border` frame rather than in a
+    `Card`, so that is `bg-background`; the pinned header cell paints the
+    header band's tint pre-mixed and opaque (`STICKY_HEAD_CELL`), and the
+    pinned cell itself takes the table's own colour so the hairline is the
+    only thing separating it. That literal colour is there to make the sticky
+    cell opaque, not to step the column off anything — a colour other than
+    the table's own reads as a bright stripe in light mode and a sunk well in
+    dark. Whatever the colour, it must be **opaque**, or the data columns
+    scroll straight through the pinned cell.
+  - The divider is an inset shadow, not a `border-r`, because
+    `border-collapse: collapse` (Tailwind's preflight default) hands border
+    painting to the table and drops a sticky cell's own right border. A dimmed
+    row (retired gear, a retired component) dims its **cells**, never the
+    `<tr>` and never the pinned `<td>` itself — `opacity` fades an element's
+    background along with its text, so either one takes the pinned column's
+    surface down with it. The hover colour is the OPAQUE `bg-muted` on both
+    the row and its pinned cell, never `bg-muted/50`: a translucent hover
+    replaces the cell's own surface rather than layering over it, so the cell
+    would turn 50% transparent exactly while the pointer is on the row. Rows
+    separate with `border-t`, so the header carries no rule of its own and
+    the last row no trailing one.
+  - The pinned width is not part of the constants — the components table
+    takes **120px** rather than the design's 104px because our pinned cell is
+    `px-4` where the design runs a flat `px-3`: at 104px the content box is
+    72px and "Handlebar" (72.6px at `text-sm font-medium`) breaks mid-word,
+    which is what `wrap-anywhere` does to a word that does not fit. 120px
+    leaves 88px, clear of "Chainrings" at 74.7px, the widest single word in
+    `COMPONENT_TYPE_OPTIONS`; multi-word values still wrap at their spaces,
+    and fitting "Front brake pads" on one line would take a 149px pin, 38% of
+    a 390px phone. Similarly, the Brand column takes at least **140px**
+    off-snap rather than 96px: at 96px with `px-3` (24px horizontal padding),
+    the 72px content box wraps "Continental" (~75px at `text-sm font-normal`)
+    — its trailing 'l' to a new line under `wrap-anywhere`. 140px leaves
+    116px of content width, fitting "Continental" with ample slack across
+    platform system fonts. The actions column takes **140px** and keeps its
+    two buttons on one line (`flex-nowrap`): pinned, a wrapped pair would
+    double the row's height for every row, and unpinned on a phone the snapped
+    column is wider than that anyway (see the components table bullet above
+    for the armed-label budget).
+  - `STICKY_CLICKABLE_COLUMN` belongs only on a row that has its own `hover:`
+    and the `group` class — a row carrying `group` without a `hover:` lights the
+    first column alone, and a row with neither never matches the variant at
+    all.
 - **Every gear table's horizontal scroller is `GEAR_TABLE_SCROLLER`
   (`relative overflow-x-auto`), and the `relative` is load-bearing.** The
   tables carry `sr-only` spans — `position: absolute` — in cells that are not
   positioned: the "Actions" headers (always on the gear and device tables; on
   the components table once its actions column unpins on a phone), the gear
-  list's "Edit" button text on a narrow table,
-  and the "Install N:" labels in a refitted component's Added/Retired cells.
-  `overflow` clips an absolutely positioned descendant only when its containing
-  block is the scroller or inside it, so with no positioned scroller those
-  spans resolved against the page, escaped the clip at their unscrolled x and
-  widened the document: a 390px phone grew to ~1,770px wide on a gear's page
-  and ~560px on the gear list, scrolling sideways into blank space. Never wrap
-  a gear table in a bare `overflow-x-auto`.
-- **A gear's activities are the POSTS they were published as, rendered through
-  the shared `Posts` feed.** `GearActivitiesFeed`
-  (`app/(timeline)/fitness/gear/[id]/GearActivitiesFeed.tsx`) is the single
-  implementation, used by a bike's Activities view and by the whole of a
-  device's page, so the same ride reads identically on either — same body, same
-  stat chip, same action row as in the timeline. It is not a bespoke list: a
-  fitness activity is a status, and **Status Posts & Actions** in
-  `docs/mastodon-api-compatibility.md` applies to it like every other surface. Two consequences are load-bearing. The feed pages
-  over ACTIVITY ROWS and the endpoint answers `nextOffset` from those rows, not
-  from the statuses in the page: deleting a status only nulls
-  `fitness_files.statusId`, so a row with no post left still occupies an offset
-  (and still counts toward the gear's totals), and paging from
-  `statuses.length` would re-request everything in between forever. And because
-  such a row yields nothing to render, the **Activities tile and the feed may
-  legitimately disagree** — the tile counts activities, the feed shows the ones
-  still posted. A page that comes back entirely postless is walked past rather
-  than handed to the reader as a "Load more" that adds nothing — by the INITIAL
-  load as much as by "Load more", both of which go through the same walk,
-  because a first page empty for that reason would otherwise render "no
-  activities" above an enabled button that disproves it — capped the way the
-  bookmarks timeline caps its own continuations. The empty state is therefore
-  gated on `!hasMore` rather than on an empty list: the walk makes that state
-  rare and `onPostDeleted` can produce it at any time regardless.
-- **A bike switches between Components and Activities; shoes and devices do
-  not.** The switcher is `SectionNavSelect`
-  (`@/lib/components/section-nav-select`), the state-driven twin of
-  `SectionNavDropdown` — same chrome, but its rows call `onChange` instead of
-  navigating, and the current one is marked with the boolean `aria-current`
-  because nothing is a page. Only a bike renders a components card, so only a
-  bike has a second view to reach: shoes and devices go straight to the feed,
-  since a menu with one entry is dead UI (the same rule that keeps the "No
-  gear" picker off an empty shed). Do not write a third copy of this dropdown —
-  the fitness activity detail's section nav is the other consumer.
-- **Every kind and component carries a product page, and one component renders it.**
-  `fitness_gears.productUrl` and `fitness_gear_components.productUrl` are the manufacturer's page for a bike, a pair of
-  shoes, a head unit, or an individual component alike. It is edited in the "Product page" field of
-  `GearFormDialog` or `GearComponentFormDialog` (`app/(timeline)/fitness/gear/[id]/GearComponentFormDialog.tsx`)
-  used for creating and editing components in `GearComponentsCard`, and rendered by the one `GearProductLink`
-  (`app/(timeline)/fitness/gear/`) everywhere it appears — every gear page header, the gear list's bikes/shoes/devices tables,
-  and the components table alike. Hostname only ("moots.com", not the whole
-  URL), leading `ExternalLink`, `target="_blank"` with
-  `rel="noopener noreferrer"`, and an `aria-label` because a bare domain is no
-  accessible name. It was device-only and the API 422'd it for anything else;
-  that restriction is gone, so do not reintroduce a kind check around it. The
-  anchor is gated on `getProductUrlHostname`, never on the string being
-  non-empty: it returns null for anything that is not an http(s) URL, which is
-  what stops a row written before the API validated the column from rendering a
-  `javascript:` href. Two props are what let one component serve every surface:
-  `onEdit` makes the empty state the prompt that opens the gear form, and
-  without it that state is an em dash (the component table has no form to open from the cell); `onClick`
-  is where a clickable row passes `stopPropagation`, without which the anchor
-  opens the vendor's page and the row pushes the gear's route behind it. The
-  hostname takes `text-primary-text` — `text-primary` is 3.37:1 on the card and
-  fails AA for text. Only a device's is ever pre-filled: `resolveDeviceGear`
-  seeds it from the brand map when the import creates the row.
-- **Gear list tables use fixed column widths, and the three tables line up.** In `app/(timeline)/fitness/gear/GearListView.tsx`, all tables
-  (Bikes, Shoes, Devices) use `table-fixed w-full min-w-[560px] text-sm` and define fixed column widths via `<colgroup>`.
-  Bikes and Shoes (5 columns) allocate `33.5%` (Name), `22.5%` (Product page), `14.5%` (Default sports), `19.5%` (Distance), and `10%` (Actions);
-  Name, Product page and Distance are sized from their widest content and Default sports is the column that gives, truncating its cells (the comment above that `<colgroup>` has the arithmetic).
-  Devices (4 columns) allocates `33.5%` (Device), `22.5%` (Product page), `34%` (Activities), and `10%` (Actions).
-  The first two columns and the Actions column are the same on all three tables, so Name and Product page start at the same edges, and every table's data columns end at `90%`:
-  the right-aligned Distance (Bikes / Shoes) and Activities (Devices) values and the Actions column align vertically.
-  The Actions cell is `px-2` with its button centred (the components table's pinned actions use the same padding), and the **"Edit" label shows only where its own cell has the room for it**.
-  The column is `10%` of the table, so its width follows the table's (56px at the 560px minimum, 90.6px at the 906px maximum) and "pencil + Edit" measures 62.5px:
-  the label is `sr-only @min-[4rem]:not-sr-only` inside an `@container` wrapper that is as wide as the cell's content, so a table of about 800px or more shows it and a narrower one shows the pencil alone, with the accessible name `Edit <gear>` either way.
-  Do not use a viewport breakpoint for it (`sm:` showed the label from 640px and overflowed the column by up to 14px): the table's width follows the page's side navigation, not the viewport.
-  Unlike the components table's, this Actions column is **not pinned right**: these tables do not snap to whole columns (the known gap in the components bullet above), and a pinned cell over a table that overflows its scroller (a scroller under 560px) covers the end of the Distance column until the table is scrolled.
-- **A recording device is a third kind, and almost nothing above applies to it.**
-  `kind: 'device'` rows have no components, no default sports, no distance
-  total, no service reminder and cannot be retired; a device page reports an
-  activity count and a first-used date, then its activities.
-  The device rollups **replace** `isPrimary` rather than relaxing it, because
-  for a device it answers the wrong question: the merge groups files by TIME
-  OVERLAP and never looks at the device columns, so which file won says nothing
-  about which device recorded it. Two devices on one ride leave two files and
-  the non-primary one is the only evidence the second device exists (with
-  `isPrimary` it reports 0 activities forever); one device that produced two
-  files for one ride — a `.fit` beside a `.gpx`, a manual upload beside the
-  Strava sync — also leaves two, and counting both reports one ride twice. The
-  rule is therefore per RIDE per DEVICE, not per file: of the countable files
-  sharing a `(statusId, deviceGearId)`, exactly one survives — the primary if
-  that device owns it, otherwise the lowest id. It is written as "nothing else
-  beats me", so it needs no window function and reads the same on both backends.
-  It deliberately never defers to a file that is itself uncountable: a merge
-  writes the primary `pending` and the secondaries `completed`, so deferring to
-  an unfinished (or permanently `failed`) primary would drop the ride from the
-  device entirely. The rollup and the activity list apply the identical
-  predicate, so the count and the page can only ever differ by an activity whose
-  post was deleted — which the rollup still counts and the feed has nothing to
-  render for. A head unit records rides and
-  runs alike, so one summed distance would be a number with no meaning, and
-  claiming a sport would take that sport off the bike or shoes that should hold
-  it. `SPORT_KIND` is therefore typed `Record<SportKey, UserCreatableGearKind>`
-  and `getSportKeysForKind('device')` answers `[]` with no special case.
+  list's "Edit" button text on a narrow table, and the "Install N:" labels in
+  a refitted component's Added/Retired cells. `overflow` clips an absolutely
+  positioned descendant only when its containing block is the scroller or
+  inside it, so with no positioned scroller those spans resolve against the
+  page, escape the clip at their unscrolled x and widen the document sideways
+  into blank space. Never wrap a gear table in a bare `overflow-x-auto`.
+- **Gear list tables use fixed column widths, and the three tables line up.**
+  In `app/(timeline)/fitness/gear/GearListView.tsx`, all tables (Bikes, Shoes,
+  Devices) use `table-fixed w-full min-w-[560px] text-sm` and define fixed
+  column widths via `<colgroup>`.
+  - Bikes and Shoes (5 columns) allocate `33.5%` (Name), `22.5%` (Product
+    page), `14.5%` (Default sports), `19.5%` (Distance), and `10%` (Actions);
+    Name, Product page and Distance are sized from their widest content and
+    Default sports is the column that gives, truncating its cells (the
+    comment above that `<colgroup>` has the arithmetic). Devices (4 columns)
+    allocates `33.5%` (Device), `22.5%` (Product page), `34%` (Activities),
+    and `10%` (Actions).
+  - The first two columns and the Actions column are the same on all three
+    tables, so Name and Product page start at the same edges, and every
+    table's data columns end at `90%`: the right-aligned Distance (Bikes /
+    Shoes) and Activities (Devices) values and the Actions column align
+    vertically. The Actions cell is `px-2` with its button centred (the
+    components table's pinned actions use the same padding).
+  - The **"Edit" label shows only where its own cell has the room for it**.
+    The column is `10%` of the table, so its width follows the table's (56px
+    at the 560px minimum, 90.6px at the 906px maximum) and "pencil + Edit"
+    measures 62.5px: the label is `sr-only @min-[4rem]:not-sr-only` inside
+    an `@container` wrapper that is as wide as the cell's content, so a
+    table of about 800px or more shows it and a narrower one shows the
+    pencil alone, with the accessible name `Edit <gear>` either way. Do not
+    use a viewport breakpoint for it (`sm:` would show the label from 640px
+    and overflow the column by up to 14px): the table's width follows the
+    page's side navigation, not the viewport.
+  - Unlike the components table's, this Actions column is **not pinned
+    right**: these tables do not snap to whole columns (the known gap in the
+    components bullet above), and a pinned cell over a table that overflows
+    its scroller (a scroller under 560px) covers the end of the Distance
+    column until the table is scrolled.
+
+#### Product pages
+
+- **Every kind and component carries a product page, and one component renders
+  it.** `fitness_gears.productUrl` and `fitness_gear_components.productUrl`
+  are the manufacturer's page for a bike, a pair of shoes, a head unit, or an
+  individual component alike. It is edited in the "Product page" field of
+  `GearFormDialog` or `GearComponentFormDialog`
+  (`app/(timeline)/fitness/gear/[id]/GearComponentFormDialog.tsx`) used for
+  creating and editing components in `GearComponentsCard`, and rendered by the
+  one `GearProductLink` (`app/(timeline)/fitness/gear/`) everywhere it appears
+  — every gear page header, the gear list's bikes/shoes/devices tables, and
+  the components table alike.
+  - The API accepts the field on create and update for every kind, and only
+    http/https: the value becomes an `href`, so `javascript:`/`data:` there
+    would be a script injection, and a bare `garmin.com` would render as a
+    link back to this instance. Do not reintroduce a kind check around it.
+  - Hostname only ("moots.com", not the whole URL), leading `ExternalLink`,
+    `target="_blank"` with `rel="noopener noreferrer"`, and an `aria-label`
+    because a bare domain is no accessible name. The anchor is gated on
+    `getProductUrlHostname`, never on the string being non-empty: it returns
+    null for anything that is not an http(s) URL, which is what stops a row
+    written before the API validated the column from rendering a
+    `javascript:` href.
+  - Two props are what let one component serve every surface: `onEdit` makes
+    the empty state the prompt that opens the gear form, and without it that
+    state is an em dash (the component table has no form to open from the
+    cell); `onClick` is where a clickable row passes `stopPropagation`,
+    without which the anchor opens the vendor's page and the row pushes the
+    gear's route behind it. The hostname takes `text-primary-text` —
+    `text-primary` is 3.37:1 on the card and fails AA for text.
+  - Only a device's is ever pre-filled: `resolveDeviceGear` seeds it from the
+    brand map when the import creates the row.
+
+#### Recording devices
+
+- **A recording device is a third kind, and almost nothing above applies to
+  it.** `kind: 'device'` rows have no components, no default sports, no
+  distance total, no service reminder and cannot be retired; a device page
+  reports an activity count and a first-used date, then its activities. A
+  head unit records rides and runs alike, so one summed distance would be a
+  number with no meaning, and claiming a sport would take that sport off the
+  bike or shoes that should hold it. `SPORT_KIND` is therefore typed
+  `Record<SportKey, UserCreatableGearKind>` and `getSportKeysForKind('device')`
+  answers `[]` with no special case.
+  - The device rollups **replace** `isPrimary` rather than relaxing it,
+    because for a device it answers the wrong question: the merge groups
+    files by TIME OVERLAP and never looks at the device columns, so which
+    file won says nothing about which device recorded it. Two devices on one
+    ride leave two files and the non-primary one is the only evidence the
+    second device exists (with `isPrimary` it reports 0 activities forever);
+    one device that produced two files for one ride — a `.fit` beside a
+    `.gpx`, a manual upload beside the Strava sync — also leaves two, and
+    counting both reports one ride twice.
+  - The rule is therefore per RIDE per DEVICE, not per file: of the
+    countable files sharing a `(statusId, deviceGearId)`, exactly one
+    survives — the primary if that device owns it, otherwise the lowest id.
+    It is written as "nothing else beats me", so it needs no window function
+    and reads the same on both backends. It deliberately never defers to a
+    file that is itself uncountable: a merge writes the primary `pending`
+    and the secondaries `completed`, so deferring to an unfinished (or
+    permanently `failed`) primary would drop the ride from the device
+    entirely.
+  - The rollup and the activity list apply the identical predicate, so the
+    count and the page can only ever differ by an activity whose post was
+    deleted — which the rollup still counts and the feed has nothing to
+    render for.
 - **A device's identity and its display fields are separate on purpose.**
   `fitness_gears.deviceKey` is derived only from what the file recorded
   (`name:<lowercased, whitespace-collapsed deviceName>`, else `mfr:<brand key>`,
@@ -1458,6 +1551,9 @@ null }` remains the precise "this retirement never happened" — it reopens the
   with a gear row, otherwise "<Brand> website" (new tab) when the brand
   resolves, and neither the item nor the separator when `BrandedDeviceLink`
   would have rendered plain text.
+
+#### Concurrent writes
+
 - **A state change is a predicate on the UPDATE, never a decision taken from a
   read in front of it** — that goes for the reminder claim and for the
   retire/unretire toggle alike. Two concurrent requests (two tabs, a retry, any
@@ -1465,92 +1561,3 @@ null }` remains the precise "this retirement never happened" — it reopens the
   no-op legitimately writes no row, the result comes from a re-read rather than
   the affected-row count, so "already in that state" stays distinguishable from
   "no such gear of yours" — the latter is the route's 404.
-
-<a id="review-apple-maps-basemap"></a>
-
-### Review: Apple Maps basemap
-
-- Every Apple-rendered map draws `mutedStandard`, interactive and static alike:
-  the four MapKit components pass `mapType: mutedStandardMapType(mapkit)` to
-  `new mapkit.Map(...)`, and the Web Snapshot URL carries `t=mutedStandard`. A
-  surface with its own map type, or a re-enabled `showsMapTypeControl`, loses the
-  contrast the route lines, heat runs and privacy circles depend on.
-- `mutedStandardMapType` falls back to the literal rather than reading straight
-  through `mapkit.Map.MapTypes` — that static belongs to the `map` library, not
-  `mapkit.core.js`, and every component builds its map inside a `try` that drops
-  the whole map to the static/OSM fallback on throw. Don't "simplify" the
-  fallback away.
-- The snapshot module keeps its own copy of the literal instead of importing the
-  component one: `lib/services/**` is server-only and must not reach into the
-  client component tree.
-- Adding a query parameter to the snapshot URL shifts `MAX_SNAPSHOT_OVERLAYS`,
-  which is derived from `buildPath`. Re-check the ceiling rather than assuming it.
-
-<a id="review-fitness-route-heatmap-pyramid"></a>
-
-### Review: Fitness route heatmap pyramid
-
-- An activity is folded into a build **exactly once** — the gate is positional
-  (`(createdAt, id)` against the build's own cursor), never a counter, and the
-  cursor advances for every file the pass finished with, including one whose
-  parse threw.
-- Resuming requires the build's **own token** (row id + `claimSeq`), not a
-  `resume: true` flag; a pass that can present neither a token nor an offset of
-  zero must not claim at all, because the claim itself is destructive.
-- Every fence — claim, tile flush, progress/status write, completion sweep —
-  names the pyramid **row** as well as `claimSeq`.
-- Any tile-path failure abandons the build rather than failing the legacy
-  heatmap. A build the pass was CARRYING is released from one place — the
-  handler's `finally` — rather than at each of the four exits that drop a
-  continuation; a build it went on to CLAIM is released at each exit that can
-  abandon one.
-- A build only stamps `completed` over a history it actually scanned, recounted
-  at the decision: `completedAt` is what makes the next claim answer
-  `already-fresh`, so certifying short refuses the rebuild that would heal it.
-  The recount runs after the scan, so it catches an addition only while nothing
-  cancels the shortfall — which is why the fold keeps its own already-folded
-  guard — and it cannot catch a deletion from the scanned part at all.
-- Completion and the stale-tile sweep are separate steps: a failing sweep must
-  not demote a build that already wrote `completed`.
-- A build that could not read every file still completes, and records the loss
-  on the row — withholding the sweep does not preserve the missing geometry,
-  because a merge replaces any tile a readable activity also touched.
-- Tiles are stored unclipped; a region is applied when they are served. Only
-  the all-activities/all-time heatmap can be tile-backed.
-- The public token route refuses any share the pyramid cannot answer, through
-  the same `buildHeatmapTileSource` that decides whether a heatmap advertises
-  tiles — a share scoped to one sport or one year would otherwise be served the
-  actor's whole history, which region clipping cannot catch. The owner route
-  names no variant and needs no such gate.
-- On the public token route the region comes from the **shared row**, never from
-  the caller, and the resolver **fails closed**: a non-empty region that yields
-  no bounds is refused, because no bounds means no clipping. It runs before the
-  conditional-request check. Out-of-region tiles are answered before any read.
-- **All four PUBLIC surfaces** — the share page, the embed page, the embed image
-  and the embed tiles route — refuse through the one
-  `resolveSharedHeatmapRegionBounds`, because for such a row the untiled
-  geometry was built unclipped too. The OWNER tile route is not one of them: it
-  clips to the region its own authenticated caller sent.
-- Anything that PRODUCES a rectangle gates on `isSerializableRect`, the same rule
-  `serializeRegions` applies. A box thinner than the 0.01° step is well formed
-  and has no canonical key of its own; saved, it takes the WORLD's key.
-- Both tile routes share one query parser, and read the share row without its
-  geometry.
-- The public route strips the privacy flag and keeps the geometry
-  (`flattenTilePrivacyForPublic`, beside the untiled doctrine), and re-encodes
-  every byte it returns rather than forwarding a stored payload.
-- Only a `completed` pyramid serves tiles, only at its own `version`, and the
-  response's keys are the ones the request named. A well-formed `v` busts caches
-  and never filters tiles; a malformed one is a 400 on both routes.
-- The static share image is a pyramid reader like the tile routes: it gates on
-  `buildHeatmapTileSource` before reading, takes the heatmap row rather than a
-  bare actor id, clips each tile to the shared row's region, and places geometry
-  with the row's own `z`/`x`/`y`. Its rung comes from the image's own size along
-  the axis the renderer fits by.
-- A static renderer takes the tiles first and the stored blob second. Apple
-  refuses past `MAX_SNAPSHOT_OVERLAYS`; Mapbox truncates at its URL budget and
-  then frames on what survived, so the tiled candidate passes
-  `requireAllOverlays`. Removing that fallback, or nulling `segments` on pyramid
-  rows, costs Apple/Mapbox instances their basemap — reject it unless the raster
-  path has been made to stand alone.
-- See [Fitness Route Heatmap Pyramid](#agents-fitness-route-heatmap-pyramid) above.
