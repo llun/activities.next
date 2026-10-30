@@ -1,0 +1,238 @@
+lib/components/section-nav-dropdown.test.tsx
+  s_fff20077269c0b::t_3b0899c7e5a83d 48-50,96,99-104,294,306-317,412-456,521-666,755,763-770,772-798
+lib/services/fitness-files/heatmapTiles/tiler.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 19
+scripts/maintenance/generateDatabaseTypes.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 269-270
+lib/components/settings/ImageUploadField.tsx
+  s_fff20077269c0b::t_3b0899c7e5a83d 80-81
+docs/mastodon-api-compatibility.md
+  s_fff20077269c0b::t_3b0899c7e5a83d 23-24,43-44,67,74-79,119-120,144-148,150-161,178-240,262,264-300,311-335,337,378,431-486,513-517,532,619-646,667-673,716-717,745,767,789,812,821,826,847-866,963,966-988,991,1020-1107,1111,1123-1124,1140,1162,1176,1181,1183-1185,1188,1192,1220-1250,1260-1306,1311-1340,1464-1482,1489,1496-1532,1534,1539-1545,1547,1551,1556-1583,1585,1588,1590-1685,1688-1777,1780,1786-1804,1807-1855,1858-1884,2078-2085,2091-2112,2124-2188,2196-2238,2251-2291,2298-2327
+app/(timeline)/account/AccountIdentityCard.tsx
+  s_fff20077269c0b::t_3b0899c7e5a83d 23
+docs/architecture.md
+  s_fff20077269c0b::t_ecf7b224e4c431 1339,1526
+  s_fff20077269c0b::t_3b0899c7e5a83d 394-421,427-438,443-464,469-544,549-562,564-591,830-836,861,878,969,1164,1170,1177,1191-1193,1197,1201-1202,1205-1207,1227-1228,1240-1264,1272,1293,1295,1305,1307,1311,1319,1325,1333,1367-1368,1371-1373,1375,1436-1437,1441,1457,1472,1474,1476,1480,1492,1496,1500,1523,1527-1529,1534-1537,1542,1544-1556,1572,1577,1582,1592-1593,1606-1607,1615-1618,1635,1641,1689-1715,1732-1735,1738,1757-1761,1827-1828,1832,1835,1838-1841,1882-1885,1908,1923-1924,1928-1930,1934-1935,1974,1985-1988,1999,2014,2036-2038,2061-2064,2071,2085-2086,2121-2125,2138,2145-2153,2155-2172,2174-2201,2204-2214,2218-2325,2328-2331,2333-2465,2468-2505,2510-2646,2653-2683,2686-2729,2736-2781,2793-2819,2825-2856,2859-2876,2878-2893,2895-2935,2938-2991,2999-3001,3017,3021,3034,3043,3048,3056-3057,3059,3062,3067,3072,3076,3080,3097,3100,3105-3106,3112,3116,3120-3121,3136-3137,3141,3143,3145-3146,3150-3152,3165,3167,3175-3184,3207-3210,3230-3232,3255-3263,3287,3294-3296,3312,3319-3321,3329,3336-3341
+lib/components/post-box/post-box.drafts.test.tsx
+  s_fff20077269c0b::t_3b0899c7e5a83d 38-41,106,120-128,736
+lib/services/fitness-files/heatmapTiles/tileCodec.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 14
+lib/services/statuses/fetchEphemeralRemoteStatus.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 39-40
+AGENTS.md
+  s_fff20077269c0b::t_3b0899c7e5a83d 12-14,17,21,25-30,34-55,59-64,68-73,77-81,83-84,88-92,97-99,103,107-110,114-116,130-186
+docs/fitness-file-storage.md
+  s_fff20077269c0b::t_3b0899c7e5a83d 542,1318-1319,1556
+lib/components/posts/selfThreadModel.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 35-41,46-59,71-78,198-202,207-208,221-227,262-270,276-277,345-367,383-412,461-463,499-501
+lib/services/guards/accountState.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 25
+lib/services/email/layout/renderEmail.test.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 48-69,173,177-190
+lib/services/email/templates/mention.test.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 73-74
+lib/components/posts/threadModel.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 34-39,88-89,156-161
+lib/database/kysely/db.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 4-5
+lib/services/auth/schemaCompleteness.test.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 17-20
+app/(timeline)/admin/layout.test.tsx
+  s_fff20077269c0b::t_3b0899c7e5a83d 82,91,158-162,169-172
+app/api/v1/fitness-files/[id]/primary/route.test.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 45,69-72,150-215,388,390,393-396,407-411,414,422,424,427,430,436-437,439-440
+docs/maintenance.md
+  s_fff20077269c0b::t_3b0899c7e5a83d 15-42,261,396,400-404,406,630-632,636-642,644-650,652-658,662-675,677,703,740-741,743,746,842-843,869,871,879-889,897-899,911-919,955,973-976,998,1049,1052-1061,1130-1131,1135-1141,1152-1153,1159,1161,1185,1188,1193,1197,1199,1201-1205,1208-1210,1212-1213,1216,1223-1224,1226,1228-1229,1231-1235,1239,1244,1251-1261,1266-1268,1270-1271,1274,1278-1279,1286-1302,1314,1322,1352-1361
+lib/components/back-link.tsx
+  s_fff20077269c0b::t_3b0899c7e5a83d 29
+lib/components/drafts/DraftsProvider.tsx
+  s_fff20077269c0b::t_3b0899c7e5a83d 404,434
+lib/components/posts/self-thread-run.tsx
+  s_fff20077269c0b::t_3b0899c7e5a83d 27,53-58,79-83,99,135,203-205,212,229-238,357,374,387-394,480
+lib/services/email/templates/emailDesign.test.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 466-469,473,478-495,507
+lib/services/email/templates/reply.test.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 77
+lib/types/activitypub/activities.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 120-121,131-132
+lib/types/database/galleryAlbums.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 4
+lib/components/posts/reaction-picker.tsx
+  s_fff20077269c0b::t_3b0899c7e5a83d 48-50
+lint/agentsRules.mjs
+  s_fff20077269c0b::t_3b0899c7e5a83d 33-34,377,383,393,404,416,431,443,477
+lib/database/testing/schema.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 9-10
+app/(timeline)/admin/sections.tsx
+  s_fff20077269c0b::t_3b0899c7e5a83d 4-6,9
+lib/components/section-nav-dropdown.tsx
+  s_fff20077269c0b::t_3b0899c7e5a83d 6,118,120-129,131-143,145,147-161,183-203,222-224,239-243,248-255,319-323,339-342
+lib/components/sign-out/SignOutDialog.test.tsx
+  s_fff20077269c0b::t_3b0899c7e5a83d 100-109
+.github/workflows/ci.yml
+  s_fff20077269c0b::t_3b0899c7e5a83d 4-11,150-165,167,169-173,184-199,215,222-239,241,246-247,256-257,264,267-271,273-275,277,286-287,297,312,319,338,366-392,408-432,438,442,445-449,458,460-462,468
+lib/actions/emojiReaction.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 39-40
+app/(timeline)/admin/accounts/[id]/accountDetails.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 3-4
+lib/components/section-nav.tsx
+  s_fff20077269c0b::t_3b0899c7e5a83d 36-38,58-59,65-70,101-102,107,131,204
+lib/components/posts/status-thread.tsx
+  s_fff20077269c0b::t_3b0899c7e5a83d 17-21,36-37,51,73-127,256-257,259,309-330,370-372,379,395-396,405-406,562-564,574,601,615-689,757-762,766,870-881,888-894,896-898,1002
+lib/components/posts/actor.tsx
+  s_fff20077269c0b::t_3b0899c7e5a83d 214,256
+app/(timeline)/admin/layout.tsx
+  s_fff20077269c0b::t_3b0899c7e5a83d 14
+lib/services/email/layout/blocks.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 109,217,233-235,238-239,253-255,292,297,299,306-318,358,365-375,377,381-385,389,394-395,403,414-417
+lib/services/guards/OAuthGuard.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 752
+lint/agentsRules.test.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 241
+lib/jobs/followTimelineBackfillJob.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 63,85-86,197
+package.json
+  s_fff20077269c0b::t_3b0899c7e5a83d 3,128
+lib/jobs/createRelayAnnounceJob.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 22
+lib/types/database/gallery.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 4
+lib/services/quotes/fetchQuoteTargetForCreate.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 51-52
+lib/services/statuses/reactionLimits.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 7
+lib/services/fitness-files/heatmapTiles/edgeMerge.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 8
+lib/components/posts/combinedThreadModel.test.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 160-174
+lib/services/email/templates/activityImport.test.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 196-206
+lib/services/polls/syncRemotePoll.test.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 329-330
+next.config.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 39-40
+app/(timeline)/settings/sections.tsx
+  s_fff20077269c0b::t_3b0899c7e5a83d 109,121
+scripts/backup/productionArchive.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 1549-1550,1654-1655
+lib/services/email/layout/renderEmail.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 1,43-47,62-70,72-80,88-89,186
+app/(timeline)/account/loading.tsx
+  s_fff20077269c0b::t_3b0899c7e5a83d 7-12
+app/(timeline)/settings/layout.test.tsx
+  s_fff20077269c0b::t_3b0899c7e5a83d 70,91,172-173,178-200
+lib/components/posts/combinedThreadModel.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 88-90,93-94,113
+.github/workflows/version-bump.yml
+  s_fff20077269c0b::t_3b0899c7e5a83d 15-16,299-300
+lib/activities/index.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 192
+lib/services/fitness-gears/deviceIdentity.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 25
+app/(timeline)/account/sessions/AccountSessions.tsx
+  s_fff20077269c0b::t_3b0899c7e5a83d 55-56
+lib/components/posts/post.tsx
+  s_fff20077269c0b::t_3b0899c7e5a83d 114
+.oxlintrc.json
+  s_fff20077269c0b::t_3b0899c7e5a83d 4,210,230
+lib/components/posts/combined-post-list-item.tsx
+  s_fff20077269c0b::t_3b0899c7e5a83d 102-108
+lib/services/email/templates/follow.test.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 46-47
+lib/services/fitness-files/sportTypes.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 16
+app/api/v1/accounts/relationships/route.test.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 21
+lib/components/section-nav.test.tsx
+  s_fff20077269c0b::t_3b0899c7e5a83d 6,164-166,171-183,186-203,206-213,380,393
+README.md
+  s_fff20077269c0b::t_3b0899c7e5a83d 102,115
+scripts/maintenance/listPostgresTestFiles.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 1-288
+app/(timeline)/settings/loading.tsx
+  s_fff20077269c0b::t_3b0899c7e5a83d 7-12
+docs/features.md
+  s_fff20077269c0b::t_3b0899c7e5a83d 16
+lib/components/posts/actions/actions.tsx
+  s_fff20077269c0b::t_3b0899c7e5a83d 46
+lib/components/posts/actions/post-menu.tsx
+  s_fff20077269c0b::t_3b0899c7e5a83d 173
+lib/components/posts/status-thread.test.tsx
+  s_fff20077269c0b::t_3b0899c7e5a83d 31-32,1159-1761,2230-2241
+lib/services/accountArchive/actorArchive.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 584
+REVIEW.md
+  s_fff20077269c0b::t_3b0899c7e5a83d 5-7,85
+CONTRIBUTING.md
+  s_fff20077269c0b::t_3b0899c7e5a83d 3,12-17,23,26,101,103,105-152,154-173,175-181,193-202,246,250,254,258,262,319,323-372,374-377,379-382,385-386,389-391,394-413,415-418,420-426,428-445,447-453,463-468,470-478,480-498,500-511,513-523,525-532,534-538,541-545,552-559,561-564,568-582,584-588,592-593,596-597,600-604,609-610,614-676,682,767-768,775-781,784-788,802-803,812,824,834,837,843-849,856,858,860,897,916,918-923,925,927-929,931,933
+scripts/maintenance/__fixtures__/legacyPostgresTestFiles.txt
+  s_fff20077269c0b::t_3b0899c7e5a83d 1-359
+scripts/mock/renderEmailPreviews.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 92-97,207-219
+  s_fff20077269c0b::t_086e9a550099d0 220-221
+test/docLinks.test.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 1-322
+docs/postgresql-setup.md
+  s_fff20077269c0b::t_3b0899c7e5a83d 155
+lib/testing/moduleImports.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 88-117,119-120,127,131-137,139-147,152-173,180-182,188-196,198-216
+app/(timeline)/settings/page.tsx
+  s_fff20077269c0b::t_3b0899c7e5a83d 42,73
+scripts/maintenance/verifyDockerImages.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 9-10,19,23-29,38-41,61,483,490-491,494-495,498-507,512-517,519-524
+lib/services/navigation/navPreferences.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 10
+scripts/maintenance/verifyDockerImages.test.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 74-95
+docs/setup.md
+  s_fff20077269c0b::t_3b0899c7e5a83d 352-353,382,385,408,411,417-459,462-475,478-506,521
+lib/services/email/templates/like.test.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 71-72,96-99
+lib/jobs/processFitnessFileJob.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 581
+lib/testing/moduleImports.test.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 1-4,48-90
+lib/components/section-nav-shared.tsx
+  s_fff20077269c0b::t_3b0899c7e5a83d 29-30
+.github/PULL_REQUEST_TEMPLATE.md
+  s_fff20077269c0b::t_3b0899c7e5a83d 2-6
+app/api/v1/admin/custom_emojis/route.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 188
+app/api/v1/files/[...pathname]/route.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 28
+lib/components/posts/selfThreadModel.test.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 27,461-678,948-971
+lib/services/fitness-files/heatmapTiles/constants.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 7,139
+lib/database/domains/fitnessFile/writes.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 85
+lib/services/auth/twoFactorSignIn.test.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 20-21
+lib/services/email/layout/blocks.test.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 24-29,173-216,313,316-318,408-445
+  s_fff20077269c0b::t_93c621b9703c4d 446
+lib/utils/activitypub.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 55-56
+scripts/maintenance/listPostgresTestFiles.test.ts
+  s_fff20077269c0b::t_3b0899c7e5a83d 1-240
+CLAUDE.md
+  s_fff20077269c0b::t_11d41de2f6418b 1
+yarn.lock
+  s_fff20077269c0b::t_f95ec2f25be9fe 3397-3400,3763
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "64257d182e2c764a1c8a89327f8d77dcfe69559c",
+  "prompts": {},
+  "sessions": {
+    "s_fff20077269c0b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cca5018b-df6d-449f-8437-9f272c4a26e5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
