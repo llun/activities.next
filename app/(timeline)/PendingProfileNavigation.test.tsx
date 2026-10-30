@@ -296,11 +296,24 @@ describe('pending status navigation', () => {
     expect(statusOverlay()).toBeInTheDocument()
   })
 
-  it('shows the profile overlay when both are pending', () => {
+  it('a profile click replaces a shown status skeleton with the profile one', () => {
     render(<StatusPage />)
     openAndShow()
 
     fireEvent.click(screen.getByText('Bob'))
+
+    expect(screen.queryByTestId('pending-profile-overlay')).toBeInTheDocument()
+    expect(statusOverlay()).toBeNull()
+  })
+
+  it('shows the profile overlay when a post opens after a profile click', () => {
+    render(<StatusPage />)
+
+    fireEvent.click(screen.getByText('Bob'))
+    fireEvent.click(screen.getByText('Open'))
+    act(() => {
+      vi.advanceTimersByTime(PENDING_STATUS_DELAY_MS + 100)
+    })
 
     expect(screen.queryByTestId('pending-profile-overlay')).toBeInTheDocument()
     expect(statusOverlay()).toBeNull()

@@ -3,7 +3,8 @@
  */
 import {
   getProfileNavigationTarget,
-  isProfilePathname
+  isProfilePathname,
+  isSameTabNavigationClick
 } from './profileNavigationTarget'
 
 const location = { origin: window.location.origin, pathname: '/' }
@@ -95,5 +96,35 @@ describe('getProfileNavigationTarget', () => {
         pathname: '/%40a%40b.test'
       })
     ).toBeNull()
+  })
+})
+
+describe('isSameTabNavigationClick', () => {
+  it('is true for a plain primary click on a link', () => {
+    expect(
+      isSameTabNavigationClick(clickOn('<a href="/notifications">x</a>'))
+    ).toBe(true)
+  })
+
+  it('is true for a click on an element inside the link', () => {
+    expect(
+      isSameTabNavigationClick(
+        clickOn('<a href="/notifications"><span>x</span></a>')
+      )
+    ).toBe(true)
+  })
+
+  it.each([
+    ['a link opening another tab', '<a href="/a" target="_blank">x</a>', {}],
+    ['a download link', '<a href="/a" download>x</a>', {}],
+    ['a non-primary button', '<a href="/a">x</a>', { button: 1 }],
+    ['a meta-click', '<a href="/a">x</a>', { metaKey: true }],
+    ['a ctrl-click', '<a href="/a">x</a>', { ctrlKey: true }],
+    ['a shift-click', '<a href="/a">x</a>', { shiftKey: true }],
+    ['an alt-click', '<a href="/a">x</a>', { altKey: true }],
+    ['a cancelled click', '<a href="/a">x</a>', { defaultPrevented: true }],
+    ['a click outside any link', '<p>x</p>', {}]
+  ])('is false for %s', (_name, html, overrides) => {
+    expect(isSameTabNavigationClick(clickOn(html, overrides))).toBe(false)
   })
 })
