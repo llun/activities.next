@@ -54,6 +54,7 @@ import {
   uploaded
 } from './post-box-media.testUtils'
 import { choosePostOption } from './post-box.testUtils'
+import { DRAFT_SAVE_DEBOUNCE_MS } from './useComposerDraft'
 
 vi.mock('@/lib/client', () => ({
   createNote: vi.fn(),
@@ -144,11 +145,18 @@ const makeFull = () =>
     throw new DOMException('full', 'QuotaExceededError')
   })
 
+const advanceTimersByTimeAsync = async (ms: number) => {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(ms)
+  })
+}
+
 // Real IndexedDB plus a loaded machine: the 1 s default is too tight.
 configure({ asyncUtilTimeout: 4000 })
 
 describe('PostBox on-device drafts', () => {
   beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] })
     resetPostBoxMediaMocks()
     installFakeBroadcastChannel()
     setDraftsIndexedDBFactory(new IDBFactory())
@@ -160,6 +168,7 @@ describe('PostBox on-device drafts', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.restoreAllMocks()
     resetConnectionForTesting()
     resetDraftsChannelForTesting()
@@ -204,7 +213,7 @@ describe('PostBox on-device drafts', () => {
     )
 
     type('Original, edited')
-    await new Promise((resolve) => setTimeout(resolve, 1100))
+    await advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS + 300)
 
     expect(screen.queryByText(/Saving|Saved on this device/)).toBeNull()
     expect(await storedDrafts()).toHaveLength(0)
@@ -267,7 +276,7 @@ describe('PostBox on-device drafts', () => {
     update.reject(new Error('offline'))
 
     expect(await findSendAlert()).toHaveTextContent("Couldn't update.")
-    await new Promise((resolve) => setTimeout(resolve, 300))
+    await advanceTimersByTimeAsync(300)
     expect(textarea()).toHaveValue('Original, edited')
   })
 
@@ -294,9 +303,9 @@ describe('PostBox on-device drafts', () => {
 
     rerender(composer({ quotedStatus: post }))
     // Longer than the autosave pause, while the update is still in flight.
-    await new Promise((resolve) => setTimeout(resolve, 1100))
+    await advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS + 300)
     update.reject(new Error('offline'))
-    await new Promise((resolve) => setTimeout(resolve, 300))
+    await advanceTimersByTimeAsync(300)
 
     expect(await storedDrafts()).toHaveLength(0)
   })
@@ -396,7 +405,7 @@ describe('PostBox on-device drafts', () => {
       })
     )
     await screen.findByDisplayValue(/@bob/)
-    await new Promise((resolve) => setTimeout(resolve, 1100))
+    await advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS + 300)
 
     expect(await storedDrafts()).toHaveLength(0)
   })
@@ -438,7 +447,7 @@ describe('PostBox on-device drafts', () => {
       await waitFor(() => expect(textarea().value).not.toContain('my reply'))
       await waitFor(async () => expect(await storedDrafts()).toHaveLength(0))
       // Sent: nothing is kept or offered on the way to the new target.
-      await new Promise((resolve) => setTimeout(resolve, 300))
+      await advanceTimersByTimeAsync(300)
       expect(screen.queryByText('Saved to Drafts')).toBeNull()
       expect(screen.queryByText('Couldn’t save to Drafts')).toBeNull()
     })
@@ -465,7 +474,7 @@ describe('PostBox on-device drafts', () => {
       send.resolve(undefined)
 
       await waitFor(() => expect(textarea().value).not.toContain('which one?'))
-      await new Promise((resolve) => setTimeout(resolve, 300))
+      await advanceTimersByTimeAsync(300)
       expect(screen.queryByText('Saved to Drafts')).toBeNull()
       expect(screen.queryByText('Couldn’t save to Drafts')).toBeNull()
     })
@@ -635,7 +644,7 @@ describe('PostBox on-device drafts', () => {
 
       expect(await findSendAlert()).toHaveTextContent("Couldn't send.")
       // Nothing moves on later either: no keep, no re-target.
-      await new Promise((resolve) => setTimeout(resolve, 300))
+      await advanceTimersByTimeAsync(300)
       expect(screen.queryByText('Saved to Drafts')).toBeNull()
       expect(textarea().value).toBe('@bob@activities.local my reply')
     })
@@ -654,7 +663,7 @@ describe('PostBox on-device drafts', () => {
       send.reject(new Error('offline'))
 
       expect(await findSendAlert()).toHaveTextContent("Couldn't send.")
-      await new Promise((resolve) => setTimeout(resolve, 300))
+      await advanceTimersByTimeAsync(300)
       expect(screen.queryByText('Saved to Drafts')).toBeNull()
       expect(textarea().value).toBe('@bob@activities.local my reply')
     })
@@ -686,7 +695,7 @@ describe('PostBox on-device drafts', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Post' }))
 
       expect(await findSendAlert()).toHaveTextContent("Couldn't send.")
-      await new Promise((resolve) => setTimeout(resolve, 300))
+      await advanceTimersByTimeAsync(300)
       expect(textarea().value).toBe('@bob@activities.local the third reply')
       expect(sendAlerts()).toHaveLength(1)
     })
@@ -773,7 +782,7 @@ describe('PostBox on-device drafts', () => {
       await screen.findByRole('button', { name: 'Remove media a.png' })
       await screen.findByText('Not saved, copy your text')
       // The debounced save has run and failed too: nothing is pending.
-      await new Promise((resolve) => setTimeout(resolve, 1100))
+      await advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS + 300)
 
       unmount()
 
@@ -942,7 +951,7 @@ describe('PostBox on-device drafts', () => {
 
       removePhoto()
       // The debounced emptying delete has run and found the newer revision.
-      await new Promise((resolve) => setTimeout(resolve, 1100))
+      await advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS + 300)
 
       expect(deleteUnpostedMedia).not.toHaveBeenCalled()
       const [stored] = await storedDrafts()
@@ -1076,7 +1085,7 @@ describe('PostBox on-device drafts', () => {
       removePhoto()
 
       // The debounced emptying delete has run and found no record.
-      await new Promise((resolve) => setTimeout(resolve, 1100))
+      await advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS + 300)
       expect(deleteUnpostedMedia).not.toHaveBeenCalled()
     })
 
@@ -1389,7 +1398,7 @@ describe('PostBox on-device drafts', () => {
       await waitFor(() =>
         expect(screen.queryByText('Saved on this device')).toBeNull()
       )
-      await new Promise((resolve) => setTimeout(resolve, 1100))
+      await advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS + 300)
       type('hello')
       await waitForSaved()
       fireEvent.click(screen.getByRole('button', { name: 'Post' }))
@@ -1601,9 +1610,11 @@ describe('PostBox on-device drafts', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Post' }))
 
       // Released at once, not left for the next autosave (800 ms) to notice.
-      await waitFor(async () => expect(await storedDrafts()).toHaveLength(0), {
-        timeout: 500
-      })
+      for (let elapsed = 0; elapsed < 500; elapsed += 25) {
+        if ((await storedDrafts()).length === 0) break
+        await advanceTimersByTimeAsync(25)
+      }
+      expect(await storedDrafts()).toHaveLength(0)
       expect(await getDraftBlob('temp-0')).toBeUndefined()
       expect(deleteUnpostedMedia).not.toHaveBeenCalled()
     })
@@ -1620,7 +1631,7 @@ describe('PostBox on-device drafts', () => {
 
       expect(onDiscardQuote).toHaveBeenCalled()
       // Long enough for a discard to have finished deleting.
-      await new Promise((resolve) => setTimeout(resolve, 150))
+      await advanceTimersByTimeAsync(150)
       const [draft] = await storedDrafts()
       expect(draft).toMatchObject({
         text: 'my take',

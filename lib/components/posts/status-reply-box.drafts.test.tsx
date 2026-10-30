@@ -24,6 +24,7 @@ import {
 } from '@/lib/client/drafts'
 import { ApiRequestError } from '@/lib/client/http'
 import { DraftsProvider } from '@/lib/components/drafts/DraftsProvider'
+import { DRAFT_SAVE_DEBOUNCE_MS } from '@/lib/components/post-box/useComposerDraft'
 import { createDeferred } from '@/lib/testing/deferred'
 import { installFakeBroadcastChannel } from '@/lib/testing/fakeBroadcastChannel'
 import { findSendAlert, sendAlerts } from '@/lib/testing/sendAlerts'
@@ -141,6 +142,7 @@ describe('StatusReplyBox on-device drafts', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.restoreAllMocks()
     vi.clearAllMocks()
     resetConnectionForTesting()
@@ -151,6 +153,7 @@ describe('StatusReplyBox on-device drafts', () => {
   })
 
   it('saves nothing for the mention pre-fill alone', async () => {
+    vi.useFakeTimers()
     renderBox({
       replyStatus: {
         ...replyStatus,
@@ -164,7 +167,10 @@ describe('StatusReplyBox on-device drafts', () => {
       } as unknown as StatusNote
     })
     await screen.findByDisplayValue(/@bob/)
-    await new Promise((resolve) => setTimeout(resolve, 1100))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS + 300)
+    })
+    vi.useRealTimers()
 
     expect(await stored()).toHaveLength(0)
     expect(screen.queryByText(/Saving|Saved on this device/)).toBeNull()

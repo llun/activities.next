@@ -154,7 +154,12 @@ describe('exportAccountArchiveJob', () => {
     })
 
   /** Delivers each published continuation, as the queue would. */
-  const runToCompletion = async (archiveId: string, maxSlices = 400) => {
+  const runToCompletion = async (
+    archiveId: string,
+    maxSlices = 400,
+    sliceBudgetMs = 10 * 60 * 1000
+  ) => {
+    sliceBudget.ms = sliceBudgetMs
     await run(archiveId, 0)
     for (let slices = 0; slices < maxSlices; slices += 1) {
       const next = published.find(
@@ -186,7 +191,7 @@ describe('exportAccountArchiveJob', () => {
 
   it('builds a Mastodon-shaped archive across many resumed slices', async () => {
     const id = await makeArchive(accountId)
-    const archive = await runToCompletion(id)
+    const archive = await runToCompletion(id, 400, 0)
 
     expect(archive.status).toBe('ready')
     expect(archive.progress).toBeNull()

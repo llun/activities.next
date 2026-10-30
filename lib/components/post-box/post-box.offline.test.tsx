@@ -173,11 +173,18 @@ const failNextSave = () => {
   return gate
 }
 
+const advanceTimersByTimeAsync = async (ms: number) => {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(ms)
+  })
+}
+
 // Real IndexedDB plus a loaded machine: the 1 s default is too tight.
 configure({ asyncUtilTimeout: 4000 })
 
 describe('PostBox offline hand-off', () => {
   beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] })
     resetPostBoxMediaMocks()
     resetConnectionForTesting()
     installFakeBroadcastChannel()
@@ -187,6 +194,7 @@ describe('PostBox offline hand-off', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.restoreAllMocks()
     resetConnectionForTesting()
     resetDraftsChannelForTesting()
@@ -261,7 +269,7 @@ describe('PostBox offline hand-off', () => {
       expect(saveDraftButton()).toBeDisabled()
       expect(queueButton()).toBeDisabled()
       fireEvent.click(saveDraftButton())
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      await advanceTimersByTimeAsync(100)
       expect(await storedDrafts()).toHaveLength(0)
     })
 
@@ -303,7 +311,7 @@ describe('PostBox offline hand-off', () => {
         "Videos stay as drafts. Post this when you're back online."
       )
       fireEvent.click(queueButton())
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      await advanceTimersByTimeAsync(100)
       expect(await storedDrafts()).toHaveLength(0)
 
       fireEvent.click(saveDraftButton())
@@ -338,7 +346,7 @@ describe('PostBox offline hand-off', () => {
       // The queued record owns the photo: neither the hand-off nor leaving the
       // composer deletes it.
       view.unmount()
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      await advanceTimersByTimeAsync(100)
       expect(deleteUnpostedMedia).not.toHaveBeenCalled()
       expect(deleteAccountMedia).not.toHaveBeenCalled()
       expect(createNoteMock).not.toHaveBeenCalled()
@@ -499,7 +507,7 @@ describe('PostBox offline hand-off', () => {
     expect(saveDraftButton()).toBeDisabled()
 
     expect(fireEvent.submit(textarea().closest('form')!)).toBe(false)
-    await new Promise((resolve) => setTimeout(resolve, 50))
+    await advanceTimersByTimeAsync(50)
     expect(onHandedOff).not.toHaveBeenCalled()
   })
 
@@ -518,7 +526,7 @@ describe('PostBox offline hand-off', () => {
 
       fireEvent.click(queueButton())
       fireEvent.click(saveDraftButton())
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      await advanceTimersByTimeAsync(100)
       // Nothing was tried, so nothing failed either.
       expect(screen.queryByRole('alert')).toBeNull()
       expect(await storedDrafts()).toHaveLength(0)
@@ -567,7 +575,7 @@ describe('PostBox offline hand-off', () => {
         queue: { state: 'waiting' }
       })
       // Handed off: nothing is kept a second time on the way to the new target.
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      await advanceTimersByTimeAsync(100)
       expect(screen.queryByText('Saved to Drafts')).toBeNull()
       // The autosave, and the one hand-off.
       expect(saveDraft).toHaveBeenCalledTimes(2)
@@ -593,7 +601,7 @@ describe('PostBox offline hand-off', () => {
       // Guard held while the keep runs: a click starts no further save.
       fireEvent.click(saveDraftButton())
       fireEvent.click(queueButton())
-      await new Promise((resolve) => setTimeout(resolve, 50))
+      await advanceTimersByTimeAsync(50)
       expect(saveDraft).toHaveBeenCalledTimes(3)
       expect(textarea().value).toBe('@bob@activities.local my reply, more')
 
@@ -644,7 +652,7 @@ describe('PostBox offline hand-off', () => {
       )
       await goOnline()
 
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      await advanceTimersByTimeAsync(100)
       expect(uploadAttachment).not.toHaveBeenCalled()
       const [draft] = await storedDrafts()
       expect(draft.attachments).toEqual([

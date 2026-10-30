@@ -63,6 +63,17 @@ vi.mock('@/lib/utils/safeRemoteFetch', () => ({
   safeRemoteFetch: (params: { url: string }) => mockFetch(params)
 }))
 
+vi.mock('@/lib/services/gallery/lookups/rateLimit', async (importOriginal) => {
+  const original =
+    await importOriginal<
+      typeof import('@/lib/services/gallery/lookups/rateLimit')
+    >()
+  return {
+    ...original,
+    createLimiter: () => (callback: () => Promise<unknown>) => callback()
+  }
+})
+
 vi.mock('@/lib/config', () => ({
   getConfig: () => ({
     host: 'llun.test',
