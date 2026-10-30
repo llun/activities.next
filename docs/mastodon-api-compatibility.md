@@ -1901,7 +1901,7 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   Favouriting, reblogging, bookmarking or reacting to a remote status not stored
   yet fetches the full note and stores it (attachments, tags, polls, emoji)
   through the same path as an inbound boost of an unstored status. The requested
-  id is checked before fetching: non-URL ids and local domains are refused,
+  id is checked before fetching: non-URL ids and served domains are refused,
   domain policy applies, and an existing row the viewer can't read is never
   fetched. The fetched note must be on the same origin as the requested id, with
   an author on that origin and a public or unlisted audience, and the re-read

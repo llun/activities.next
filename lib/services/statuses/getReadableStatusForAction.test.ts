@@ -10,14 +10,14 @@ const {
   mockGetReadableStatus,
   mockGetNote,
   mockDispatchCreateNoteOrPollJob,
-  mockIsLocalFederationDomain,
+  mockIsLocalDomain,
   mockCanFederateWithDomain,
   mockGetFederationSigningActorSafe
 } = vi.hoisted(() => ({
   mockGetReadableStatus: vi.fn(),
   mockGetNote: vi.fn(),
   mockDispatchCreateNoteOrPollJob: vi.fn(),
-  mockIsLocalFederationDomain: vi.fn(),
+  mockIsLocalDomain: vi.fn(),
   mockCanFederateWithDomain: vi.fn(),
   mockGetFederationSigningActorSafe: vi.fn()
 }))
@@ -34,8 +34,11 @@ vi.mock('@/lib/jobs/dispatchCreateNoteOrPollJob', () => ({
   dispatchCreateNoteOrPollJob: mockDispatchCreateNoteOrPollJob
 }))
 
+vi.mock('@/lib/services/domains/localDomains', () => ({
+  isLocalDomain: mockIsLocalDomain
+}))
+
 vi.mock('@/lib/services/federation/domainPolicy', () => ({
-  isLocalFederationDomain: mockIsLocalFederationDomain,
   canFederateWithDomain: mockCanFederateWithDomain
 }))
 
@@ -79,7 +82,7 @@ describe('getReadableStatusForAction', () => {
     mockGetStatus.mockResolvedValue(null)
     mockGetNote.mockResolvedValue(null)
     mockDispatchCreateNoteOrPollJob.mockResolvedValue(undefined)
-    mockIsLocalFederationDomain.mockResolvedValue(false)
+    mockIsLocalDomain.mockResolvedValue(false)
     mockCanFederateWithDomain.mockResolvedValue(true)
     mockGetFederationSigningActorSafe.mockResolvedValue(signingActor)
   })
@@ -138,7 +141,7 @@ describe('getReadableStatusForAction', () => {
   })
 
   it('returns null without fetching if statusId is on a local domain', async () => {
-    mockIsLocalFederationDomain.mockResolvedValue(true)
+    mockIsLocalDomain.mockResolvedValue(true)
 
     const result = await getReadableStatusForAction({
       database,
@@ -147,7 +150,7 @@ describe('getReadableStatusForAction', () => {
     })
 
     expect(result).toBeNull()
-    expect(mockIsLocalFederationDomain).toHaveBeenCalledWith(
+    expect(mockIsLocalDomain).toHaveBeenCalledWith(
       database,
       'https://llun.test/users/bob/statuses/999'
     )

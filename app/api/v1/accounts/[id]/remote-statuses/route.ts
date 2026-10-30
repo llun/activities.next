@@ -55,7 +55,7 @@ const overlayViewerState = <T extends StatusNote | StatusPoll>(
   // 0, so the heart isn't shown liked with no count; the reblog count stays live.
   const totalLikes =
     isActorLiked && (live.totalLikes ?? 0) === 0
-      ? Math.max(live.totalLikes ?? 0, stored.totalLikes ?? 0)
+      ? (stored.totalLikes ?? 0)
       : live.totalLikes
 
   return {
@@ -87,6 +87,7 @@ const overlayStatusesWithViewerState = async (
 
   if (targetIds.length === 0) return statuses
 
+  // Rows are looked up by the live id, so a note stored under a different same-origin canonical id is not overlaid (rare).
   const storedStatuses = await database.getStatusesByIds({
     statusIds: targetIds,
     currentActorId: currentActor.id,

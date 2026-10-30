@@ -3,10 +3,8 @@ import type { BaseNote } from '@/lib/activities/note'
 import { isPubliclyAddressed } from '@/lib/database/domains/status/status'
 import type { Database } from '@/lib/database/types'
 import { dispatchCreateNoteOrPollJob } from '@/lib/jobs/dispatchCreateNoteOrPollJob'
-import {
-  canFederateWithDomain,
-  isLocalFederationDomain
-} from '@/lib/services/federation/domainPolicy'
+import { isLocalDomain } from '@/lib/services/domains/localDomains'
+import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActorSafe } from '@/lib/services/federation/getFederationSigningActor'
 import { getReadableStatus } from '@/lib/services/statusRouteAccess'
 import type { Actor } from '@/lib/types/domain/actor'
@@ -45,7 +43,7 @@ export const getReadableStatusForAction = async ({
   if (existing) return null
 
   if (!isUrl(statusId)) return null
-  if (await isLocalFederationDomain(database, statusId)) return null
+  if (await isLocalDomain(database, statusId)) return null
   if (!(await canFederateWithDomain(database, statusId))) return null
 
   let note: BaseNote | null
