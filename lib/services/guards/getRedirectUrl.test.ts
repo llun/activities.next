@@ -15,6 +15,14 @@ describe('getRedirectUrl', () => {
     })
   })
 
+  it('returns URL with https protocol and path', () => {
+    const req = new NextRequest('https://example.com/some/path', {
+      headers: { Host: 'example.com' }
+    })
+    const result = getRedirectUrl(req, '/signin')
+    expect(result).toEqual('https://example.com/signin')
+  })
+
   it('uses X-Forwarded-Host when it is configured as a trusted local host', () => {
     const req = new NextRequest('https://internal.example.com/path', {
       headers: {
@@ -54,5 +62,13 @@ describe('getRedirectUrl', () => {
     })
     const result = getRedirectUrl(req, '/')
     expect(result).toEqual('https://example.com/')
+  })
+
+  it('handles nested paths', () => {
+    const req = new NextRequest('https://example.com/current', {
+      headers: { Host: 'example.com' }
+    })
+    const result = getRedirectUrl(req, '/auth/callback')
+    expect(result).toEqual('https://example.com/auth/callback')
   })
 })

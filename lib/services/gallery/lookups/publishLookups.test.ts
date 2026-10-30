@@ -50,6 +50,13 @@ describe('publishLookups', () => {
         retry: true
       })
     })
+
+    it('swallows a queue failure and says so', async () => {
+      mockPublish.mockRejectedValue(new Error('queue down'))
+      await expect(
+        publishPlaceLookup({ mediaId: '7', latitude: 1, longitude: 2 })
+      ).resolves.toBe(false)
+    })
   })
 
   describe('publishSubjectLookup', () => {
@@ -99,6 +106,11 @@ describe('publishLookups', () => {
       })
 
       expect(idOf()).not.toBe(first)
+    })
+
+    it('swallows a queue failure and says so', async () => {
+      mockPublish.mockRejectedValue(new Error('queue down'))
+      await expect(publishSubjectLookup(subject)).resolves.toBe(false)
     })
   })
 })
