@@ -8,7 +8,7 @@ exactly as documented upstream.
 This page is the durable reference for the places where Activity.next
 **intentionally diverges** from Mastodon, the endpoints it **does not plan** to
 implement, and the **extensions** it adds on top of the Mastodon surface. It is
-not an exhaustive endpoint list — see the [Feature Roadmap](./features.md) for
+not an exhaustive endpoint list — see the [Features](./features.md) for
 the feature-level status.
 
 > Keeping this page current is part of the definition of done: any change that

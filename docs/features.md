@@ -1,6 +1,6 @@
 # Features
 
-The features Activity.next ships today. Each line links to the documentation that covers the feature in detail.
+The features Activity.next ships today. Most lines link to the documentation that covers the feature in detail; some features have no separate doc.
 
 ## Current Features
 
@@ -28,7 +28,7 @@ The features Activity.next ships today. Each line links to the documentation tha
 - ✅ **Custom emoji** — Instance-defined custom emoji with a picker in the post box and `:shortcode:` support across names, bios, fields, warnings, poll choices and media descriptions ([Mastodon API](mastodon-api-compatibility.md#extensions))
 - ✅ **Profile links** — Up to four label/content fields under the bio, federated in the actor document, with background link-back verification as on Mastodon ([Architecture](architecture.md#profile-links-fields-storage-and-formatting))
 - ✅ **Featured hashtags** — Feature hashtags on your profile and manage them in the Featured hashtags section of Edit profile ([Mastodon API](mastodon-api-compatibility.md#intentional-divergences))
-- ✅ **Status translation** — Translate posts into your language via DeepL, LibreTranslate, or an OpenAI-compatible backend ([Environment Variables](environment-variables.md#translation))
+- ✅ **Status translation** — Translate posts into your language via DeepL, Gemini, or an OpenAI-compatible backend ([Environment Variables](environment-variables.md#translation))
 - ✅ **Public & logged-out pages** — Logged-out landing page plus publicly viewable profile and status pages, with design-system error pages (404/500) ([Mastodon API](mastodon-api-compatibility.md#publicly-readable-status-ids))
 
 ### Authentication & OAuth
@@ -87,8 +87,8 @@ The features Activity.next ships today. Each line links to the documentation tha
 - ✅ **Fitness route heatmaps** — Per-region heatmaps by actor, aggregated across all activities and all time, drawn from a tile pyramid so zooming in reveals street-level detail ([Fitness File Storage](fitness-file-storage.md#route-heatmap-tile-pyramid))
 - ✅ **Gear tracking** — Track bikes and shoes and the components fitted to a bike, with lifetime distance derived from activities and optional service reminders ([Fitness File Storage](fitness-file-storage.md#gear-tracking))
 - ✅ **Recording devices** — The head unit or watch each activity was recorded on becomes gear of its own, created automatically from the file ([Fitness File Storage](fitness-file-storage.md#recording-devices))
-- ✅ **Strava import** — Import activities through Strava OAuth/webhooks and uploaded Strava archive ZIP files ([Fitness File Storage](fitness-file-storage.md#overview))
-- ✅ **Fitness import resilience** — Recover stuck or orphaned imports, resumable Strava archive retries, same-ride upload merging, and per-file retry from the UI ([Fitness File Storage](fitness-file-storage.md#several-recordings-of-one-activity))
+- ✅ **Strava import** — Import activities through Strava OAuth/webhooks and uploaded Strava archive ZIP files ([Fitness File Storage](fitness-file-storage.md#user-facing-features))
+- ✅ **Fitness import resilience** — Recover stuck or orphaned imports, resumable Strava archive retries, same-ride upload merging, and per-file retry from the UI ([Fitness File Storage](fitness-file-storage.md#maintenance-scripts))
 - ✅ **Fitness privacy locations** — Trim the start and finish of a route around configured locations on route maps and route data ([Fitness File Storage](fitness-file-storage.md#security-and-privacy))
 - ✅ **Storage quotas** — Per-account file size and storage limits ([Environment Variables](environment-variables.md#media-storage))
 
@@ -105,11 +105,11 @@ The features Activity.next ships today. Each line links to the documentation tha
 - ✅ **Admin moderation** — Moderate accounts and reports via the Mastodon admin API, enforced instance-wide, with a reports queue in the admin area ([Mastodon API](mastodon-api-compatibility.md#extensions))
 - ✅ **Markers** — Save and restore per-timeline read positions ([Mastodon API](mastodon-api-compatibility.md#intentional-divergences))
 - ✅ **Announcements** — Read, dismiss and react to instance announcements, per served domain, managed in the admin area ([Mastodon API](mastodon-api-compatibility.md#extensions))
-- ✅ **Endorsements** — Feature accounts on your profile ([Mastodon API](mastodon-api-compatibility.md))
-- ✅ **Account notes & preferences** — Private per-account notes and client preferences ([Mastodon API](mastodon-api-compatibility.md))
+- ✅ **Endorsements** — Feature accounts on your profile
+- ✅ **Account notes & preferences** — Private per-account notes and client preferences
 - ✅ **Profile entity** — `GET`/`PATCH /api/v1/profile` return the Mastodon 4.6 `Profile` entity with appearance preferences ([Architecture](architecture.md#actor-profile--deletion-federation))
 - ✅ **Featured tags API** — `/api/v1/featured_tags` endpoints plus the Mastodon 4.4 feature/unfeature aliases ([Mastodon API](mastodon-api-compatibility.md#intentional-divergences))
-- ✅ **Follow suggestions** — Friends-of-friends suggestions via `GET /api/v2/suggestions`, with per-account dismissal ([Mastodon API](mastodon-api-compatibility.md))
+- ✅ **Follow suggestions** — Friends-of-friends suggestions via `GET /api/v2/suggestions`, with per-account dismissal
 - ✅ **Trends** — Local trending hashtags and statuses computed live from the last seven days of public local activity; `GET /api/v1/trends/links` intentionally stays empty ([Mastodon API](mastodon-api-compatibility.md#intentional-divergences))
 - ✅ **Followed hashtags** — Follow and unfollow hashtags and view a followed-tags timeline ([Mastodon API](mastodon-api-compatibility.md#intentional-divergences))
 - ✅ **Mutes** — Mute and unmute accounts ([Mastodon API](mastodon-api-compatibility.md#intentional-divergences))
@@ -121,7 +121,7 @@ The features Activity.next ships today. Each line links to the documentation tha
 - ✅ **Health check** — Unauthenticated `GET /health` liveness probe returning `{"status":"UP"}` ([Architecture](architecture.md#directory-structure))
 - ✅ **Browser Web Vitals (opt-in)** — A sampled share of page loads reports LCP, CLS and INP to `POST /api/v1/web-vitals` ([Architecture](architecture.md#browser-web-vitals))
 - ✅ **oEmbed provider** — `GET /api/oembed` returns rich embed metadata for this instance's public/unlisted status pages ([Architecture](architecture.md#directory-structure))
-- ✅ **Notification policy** — Filtered-notification policy via `GET|PUT|PATCH /api/v2/notifications/policy`, plus the deprecated v1 alias ([Mastodon API](mastodon-api-compatibility.md))
+- ✅ **Notification policy** — Filtered-notification policy via `GET|PUT|PATCH /api/v2/notifications/policy`, plus the deprecated v1 alias
 - ✅ **CSV export and import** — Mastodon-format CSV exports, and resumable background CSV imports via `POST /api/v1/imports` ([Architecture](architecture.md#bulk-imports-csv))
 - 📖 **[Mastodon API compatibility reference](./mastodon-api-compatibility.md)** — Intentional divergences, unplanned endpoints, and activities.next-only extensions
 
