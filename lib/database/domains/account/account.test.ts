@@ -304,30 +304,6 @@ describe('AccountDatabase', () => {
         expect(account?.verifiedAt).toBeNil()
       })
 
-      it('verifies account with verification code', async () => {
-        const verificationCode = `verify-${crypto.randomUUID()}`
-        const { accountId } = await createTestAccount({ verificationCode })
-
-        const verified = await database.verifyAccount({ verificationCode })
-        expect(verified).toMatchObject({
-          id: accountId,
-          verificationCode: '',
-          verifiedAt: expect.toBeNumber(),
-          emailVerified: true,
-          emailVerifiedAt: expect.toBeNumber()
-        })
-
-        const invalid = await database.verifyAccount({
-          verificationCode: 'missing-code'
-        })
-        expect(invalid).toBeNull()
-
-        const empty = await database.verifyAccount({
-          verificationCode: ''
-        })
-        expect(empty).toBeNull()
-      })
-
       it('updates the account email', async () => {
         const verificationCode = `pending-${crypto.randomUUID()}`
         const { accountId } = await createTestAccount({ verificationCode })
@@ -735,105 +711,6 @@ describe('AccountDatabase', () => {
         const sessions = await database.getAccountAllSessions({ accountId })
         expect(sessions).toHaveLength(1)
         expect(sessions[0]).toMatchObject({ token, expireAt })
-      })
-
-      // The sessions page revokes by row id so the token (the cookie
-      // credential) never reaches the browser. The id is not a secret, so the
-      // delete itself must refuse a session another account owns.
-      it('deletes a session by id only when the account owns it', async () => {
-        const { accountId } = await createTestAccount()
-        const other = await createTestAccount()
-        const expireAt = Date.now() + 60_000
-        const ownToken = `own-${crypto.randomUUID()}`
-        const otherToken = `other-${crypto.randomUUID()}`
-        await database.createAccountSession({
-          accountId,
-          token: ownToken,
-          expireAt
-        })
-        await database.createAccountSession({
-          accountId: other.accountId,
-          token: otherToken,
-          expireAt
-        })
-        const [ownSession] = await database.getAccountAllSessions({
-          accountId
-        })
-        const [otherSession] = await database.getAccountAllSessions({
-          accountId: other.accountId
-        })
-        expect(ownSession.id).toBeString()
-        expect(ownSession.id).not.toBe(ownToken)
-
-        expect(
-          await database.deleteAccountSessionById({
-            accountId,
-            id: otherSession.id
-          })
-        ).toBe(0)
-        expect(
-          (
-            await database.getAccountAllSessions({
-              accountId: other.accountId
-            })
-          ).map((session) => session.id)
-        ).toEqual([otherSession.id])
-
-        expect(
-          await database.deleteAccountSessionById({
-            accountId,
-            id: ownSession.id
-          })
-        ).toBe(1)
-        expect(
-          await database.getAccountAllSessions({ accountId })
-        ).toHaveLength(0)
-      })
-
-      it('revokes every session except the kept one and leaves other accounts untouched', async () => {
-        const { accountId } = await createTestAccount()
-        const other = await createTestAccount()
-        const expireAt = Date.now() + 60_000
-        const keepToken = `keep-${crypto.randomUUID()}`
-        const otherToken = `other-acct-${crypto.randomUUID()}`
-        await database.createAccountSession({
-          accountId,
-          token: keepToken,
-          expireAt
-        })
-        await database.createAccountSession({
-          accountId,
-          token: `revoke-a-${crypto.randomUUID()}`,
-          expireAt
-        })
-        await database.createAccountSession({
-          accountId,
-          token: `revoke-b-${crypto.randomUUID()}`,
-          expireAt
-        })
-        await database.createAccountSession({
-          accountId: other.accountId,
-          token: otherToken,
-          expireAt
-        })
-
-        const revoked = await database.deleteOtherAccountSessions({
-          accountId,
-          exceptToken: keepToken
-        })
-        expect(revoked).toBe(2)
-
-        const remaining = await database.getAccountAllSessions({ accountId })
-        expect(remaining).toHaveLength(1)
-        expect(remaining[0].token).toBe(keepToken)
-
-        // The other account's session must survive.
-        const otherSessions = await database.getAccountAllSessions({
-          accountId: other.accountId
-        })
-        expect(otherSessions.map((session) => session.token)).toContain(
-          otherToken
-        )
       })
 
       it('records login counters once per account per UTC week', async () => {

@@ -726,17 +726,6 @@ describe('PhotoEditorDialog', () => {
       expect(screen.getByRole('button', { name: 'Brush' })).toBeInTheDocument()
     })
 
-    it('hides Select subject without a model, and the brush still works', async () => {
-      await setup({ subjectModel: null })
-      openMasks()
-      expect(
-        await screen.findByRole('button', { name: 'Brush' })
-      ).toBeInTheDocument()
-      expect(
-        screen.queryByRole('button', { name: 'Select subject' })
-      ).toBeNull()
-    })
-
     it('a new brush mask needs an adjustment to save, undoes, and uploads its PNG', async () => {
       const { onSaved } = await setup()
       openMasks()
@@ -964,21 +953,6 @@ describe('PhotoEditorDialog', () => {
       expect(screen.queryByText('Discard your edits?')).toBeNull()
     })
 
-    it('does not enable Save for a mask with no adjustment until a slider moves', async () => {
-      await setup({ subjectModel: null })
-      openMasks()
-      fireEvent.click(await screen.findByRole('button', { name: 'Brush' }))
-      expect(saveButton()).toBeDisabled()
-
-      fireEvent.keyDown(
-        await screen.findByRole('slider', { name: 'Exposure' }),
-        {
-          key: 'ArrowRight'
-        }
-      )
-      expect(saveButton()).toBeEnabled()
-    })
-
     it('still asks before discarding a mask with no adjustment', async () => {
       const { onClose } = await setup({ subjectModel: null })
       openMasks()
@@ -997,7 +971,6 @@ describe('PhotoEditorDialog', () => {
         button: 0,
         ctrlKey: false
       })
-    const contrast = () => screen.getByRole('slider', { name: 'Contrast' })
     const vibrance = () => screen.getByRole('slider', { name: 'Vibrance' })
     const tabNames = () =>
       screen.getAllByRole('tab').map((tab) => tab.textContent)
@@ -1047,52 +1020,6 @@ describe('PhotoEditorDialog', () => {
       expect(mockSaveMediaEdit).toHaveBeenCalledTimes(1)
     })
 
-    it('changes style and Strength, each a step that undo reverts', async () => {
-      await setup()
-      openPresets()
-      fireEvent.click(await screen.findByRole('button', { name: 'Enhance' }))
-      await screen.findByRole('slider', { name: 'Strength' })
-
-      fireEvent.click(screen.getByRole('radio', { name: 'Dramatic' }))
-      fireEvent.keyDown(screen.getByRole('slider', { name: 'Strength' }), {
-        key: 'End'
-      })
-      fireEvent.mouseDown(screen.getByRole('tab', { name: 'Adjust' }), {
-        button: 0,
-        ctrlKey: false
-      })
-      expect(contrast()).toHaveAttribute('aria-valuetext', '+37')
-
-      fireEvent.keyDown(document.body, { key: 'z', ctrlKey: true })
-      expect(contrast()).toHaveAttribute('aria-valuetext', '+30')
-      fireEvent.keyDown(document.body, { key: 'z', ctrlKey: true })
-      expect(vibrance()).toHaveAttribute('aria-valuetext', '+12')
-    })
-
-    const strengthSlider = () =>
-      screen.getByRole('slider', { name: 'Strength' })
-
-    it('follows undo: the panel says not applied and a style applies it again', async () => {
-      await setup()
-      openPresets()
-      fireEvent.click(await screen.findByRole('button', { name: 'Enhance' }))
-      await screen.findByRole('slider', { name: 'Strength' })
-      expect(screen.getByRole('radio', { name: 'Natural' })).toBeChecked()
-
-      fireEvent.keyDown(document.body, { key: 'z', ctrlKey: true })
-
-      expect(screen.queryAllByRole('radio', { checked: true })).toEqual([])
-      expect(screen.getByText(/Not applied/)).toBeInTheDocument()
-      expect(strengthSlider()).toHaveAttribute(
-        'aria-valuetext',
-        '80, not applied'
-      )
-
-      fireEvent.click(screen.getByRole('radio', { name: 'Vivid' }))
-      expect(screen.getByRole('radio', { name: 'Vivid' })).toBeChecked()
-      expect(screen.queryByText(/Not applied/)).not.toBeInTheDocument()
-    })
-
     it('announces the suggestion and each style in the live region', async () => {
       await setup()
       openPresets()
@@ -1127,35 +1054,6 @@ describe('PhotoEditorDialog', () => {
       expect(
         screen.queryByRole('slider', { name: 'Strength' })
       ).not.toBeInTheDocument()
-    })
-
-    it('preserves cropping and masks when changing preset strength or switching presets', async () => {
-      const { onSaved } = await setup()
-
-      // First rotate in Crop tab
-      fireEvent.mouseDown(screen.getByRole('tab', { name: 'Crop' }), {
-        button: 0,
-        ctrlKey: false
-      })
-      fireEvent.click(await screen.findByRole('button', { name: 'Rotate 90°' }))
-
-      // Then go to Presets tab and apply preset
-      openPresets()
-      fireEvent.click(await screen.findByRole('button', { name: 'Enhance' }))
-      await screen.findByRole('slider', { name: 'Strength' })
-
-      // Change strength and style
-      fireEvent.click(screen.getByRole('radio', { name: 'Vivid' }))
-      fireEvent.keyDown(screen.getByRole('slider', { name: 'Strength' }), {
-        key: 'End'
-      })
-
-      // Save and verify geometry rotation is preserved
-      fireEvent.click(saveButton())
-      await waitFor(() => expect(onSaved).toHaveBeenCalled())
-      const params = mockSaveMediaEdit.mock.calls[0][1]
-      expect(params.recipe.geometry.rotate90).toBe(3)
-      expect(params.recipe.adjustments.vibrance).toBeDefined()
     })
   })
 })

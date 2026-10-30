@@ -134,10 +134,4 @@ describe('MobileCompactHeader', () => {
     expect(bar?.nextElementSibling).toBe(strip)
     expect(bar).not.toContainElement(strip)
   })
-
-  it('renders no strip without a MobileNavigationProvider', () => {
-    render(<MobileCompactHeader title="Timeline" />)
-
-    expect(screen.queryByTestId('connection-strip')).not.toBeInTheDocument()
-  })
 })

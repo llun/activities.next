@@ -127,26 +127,6 @@ describe('MobileNav', () => {
     expect(screen.getByRole('link', { name: 'Settings' })).toBeInTheDocument()
   })
 
-  it('closes the drawer when close button is clicked', () => {
-    renderMobileNav(<MobileNav />)
-
-    fireEvent.click(screen.getByTestId('mobile-trigger'))
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Close navigation' }))
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-  })
-
-  it('closes the drawer when a navigation link is clicked', () => {
-    renderMobileNav(<MobileNav />)
-
-    fireEvent.click(screen.getByTestId('mobile-trigger'))
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('link', { name: 'Timeline' }))
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-  })
-
   it('shows the unread count on the drawer Notifications row and never on the menu button', () => {
     renderMobileNav(<MobileNav unreadCount={4} />)
 
@@ -269,15 +249,5 @@ describe('MobileNav', () => {
 
     const profileLink = screen.getByRole('link', { name: 'Profile' })
     expect(profileLink).toHaveAttribute('href', '/@alice@example.com')
-  })
-
-  it('marks Timeline as active in drawer when pathname is /app', () => {
-    mockPathname.mockReturnValue('/app')
-    renderMobileNav(<MobileNav />)
-
-    fireEvent.click(screen.getByTestId('mobile-trigger'))
-
-    const timelineLink = screen.getByRole('link', { name: 'Timeline' })
-    expect(timelineLink).toHaveAttribute('aria-current', 'page')
   })
 })

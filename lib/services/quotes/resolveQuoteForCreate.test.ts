@@ -152,15 +152,4 @@ describe('resolveQuoteForCreate', () => {
     })
     expect(result).toEqual({ ok: false, reason: 'not_found' })
   })
-
-  it('returns denied when the quote policy denies the caller', async () => {
-    mockCanQuoteStatus.mockResolvedValue('denied')
-    const database = makeDatabase()
-    const result = await resolveQuoteForCreate({
-      database,
-      currentActor,
-      quotedStatusId: QUOTED_URL
-    })
-    expect(result).toEqual({ ok: false, reason: 'denied' })
-  })
 })

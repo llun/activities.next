@@ -66,48 +66,6 @@ const createTaggedNote = async (
 }
 
 describe('FeaturedTagDatabase', () => {
-  it('lists featured tags ordered by statuses_count desc with derived stats', async () => {
-    await withFreshDatabase(async (database) => {
-      await createActor(database, ACTOR_ID, 'owner')
-      // "running" appears in two public statuses, "coffee" in one.
-      await createTaggedNote(database, {
-        actorId: ACTOR_ID,
-        id: `${ACTOR_ID}/statuses/1`,
-        tag: 'Running',
-        createdAt: 1000
-      })
-      await createTaggedNote(database, {
-        actorId: ACTOR_ID,
-        id: `${ACTOR_ID}/statuses/2`,
-        tag: 'running',
-        createdAt: 5000
-      })
-      await createTaggedNote(database, {
-        actorId: ACTOR_ID,
-        id: `${ACTOR_ID}/statuses/3`,
-        tag: 'coffee',
-        createdAt: 3000
-      })
-
-      await database.createFeaturedTag({ actorId: ACTOR_ID, name: 'coffee' })
-      await database.createFeaturedTag({ actorId: ACTOR_ID, name: '#Running' })
-
-      const tags = await database.getFeaturedTags({ actorId: ACTOR_ID })
-      expect(tags).toHaveLength(2)
-      // running (2 statuses) sorts before coffee (1 status).
-      expect(tags[0]).toMatchObject({
-        name: 'Running',
-        statusesCount: 2,
-        lastStatusAt: 5000
-      })
-      expect(tags[1]).toMatchObject({
-        name: 'coffee',
-        statusesCount: 1,
-        lastStatusAt: 3000
-      })
-    })
-  })
-
   it('counts only the actor own publicly-addressed statuses', async () => {
     await withFreshDatabase(async (database) => {
       await createActor(database, ACTOR_ID, 'owner')

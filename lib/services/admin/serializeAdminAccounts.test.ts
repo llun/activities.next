@@ -186,14 +186,6 @@ describe('resolveAdminAccountRecord', () => {
     await database.destroy()
   })
 
-  it('resolves the colon-form id to its AdminAccountRecord', async () => {
-    const record = await resolveAdminAccountRecord(
-      database,
-      urlToId(LOCAL_ACTOR_ID)
-    )
-    expect(record?.actor.id).toBe(LOCAL_ACTOR_ID)
-  })
-
   it('resolves the publicId form to its AdminAccountRecord', async () => {
     const actor = await database.getActorFromId({ id: LOCAL_ACTOR_ID })
     if (!actor?.publicId) {

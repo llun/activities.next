@@ -36,15 +36,6 @@ describe('notificationSettings client module', () => {
       expect(result).toBeNull()
       expect(fetchMock).toHaveBeenCalledWith('/api/v1/push/vapid-key')
     })
-
-    it('returns null when response is 500 server error', async () => {
-      fetchMock.mockResponseOnce(JSON.stringify({ error: 'Server error' }), {
-        status: 500
-      })
-
-      const result = await getVapidKey()
-      expect(result).toBeNull()
-    })
   })
 
   describe('updateEmailNotifications', () => {

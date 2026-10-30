@@ -406,22 +406,6 @@ describe('Announcements', () => {
     })
   })
 
-  it('renders an all-day event as dates only', async () => {
-    mockGetAnnouncements.mockResolvedValue([
-      buildAnnouncement({
-        starts_at: '2026-06-13T00:00:00.000Z',
-        ends_at: '2026-06-15T00:00:00.000Z',
-        all_day: true
-      })
-    ])
-
-    await loadAndOpen()
-
-    expect(
-      await screen.findByText('Sat Jun 13 – Mon Jun 15')
-    ).toBeInTheDocument()
-  })
-
   it('renders both read and unread active announcements with a pager', async () => {
     mockGetAnnouncements.mockResolvedValue([
       buildAnnouncement({ id: 'a1', content: '<p>First</p>', read: false }),

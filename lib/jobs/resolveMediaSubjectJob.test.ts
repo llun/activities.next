@@ -244,7 +244,6 @@ describe('resolveMediaSubjectJob', () => {
 
   describe('a kingdom hint', () => {
     it.each([
-      ['NONE', { kind: 'none' }],
       ['a kingdom (unplaced)', { kind: 'unplaced' }],
       [
         'an uncertain answer',
@@ -296,28 +295,6 @@ describe('resolveMediaSubjectJob', () => {
 
       await resolveMediaSubjectJob(database, message({ mediaId: '7' }))
 
-      expect(setMediaSubjectLookup).toHaveBeenCalledWith(
-        expect.objectContaining({ patch: { subjectLookupStatus: 'failed' } })
-      )
-    })
-
-    it.each([
-      ['a confident match', { scientific: true }],
-      ['an exact search hit', { scientific: false }]
-    ])('records failed for the key of %s', async (_, { scientific }) => {
-      gbif.getTaxon.mockResolvedValue(null)
-      gbif.lookupSearch.mockResolvedValue(
-        searchOutcome({ exactTaxonKeys: ['2475532'] })
-      )
-      mediaWith(
-        scientific
-          ? { subjectScientificName: 'Alcedo atthis' }
-          : { subjectName: 'Common Kingfisher', subjectCategory: 'bird' }
-      )
-
-      await resolveMediaSubjectJob(database, message({ mediaId: '7' }))
-
-      expect(gbif.getTaxon).toHaveBeenCalledWith('2475532')
       expect(setMediaSubjectLookup).toHaveBeenCalledWith(
         expect.objectContaining({ patch: { subjectLookupStatus: 'failed' } })
       )

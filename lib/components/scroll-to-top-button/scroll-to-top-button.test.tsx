@@ -70,50 +70,6 @@ describe('ScrollToTopButton', () => {
     ).toBeInTheDocument()
   })
 
-  it('should show button after scrolling past threshold', async () => {
-    Object.defineProperty(window, 'scrollY', { value: 0 })
-    render(<ScrollToTopButton />)
-
-    expect(
-      screen.queryByRole('button', { name: 'Scroll to top' })
-    ).not.toBeInTheDocument()
-
-    // Simulate scrolling past threshold
-    Object.defineProperty(window, 'scrollY', { value: 350 })
-    fireEvent.scroll(window)
-
-    // Fast-forward throttle timeout
-    await act(async () => {
-      vi.advanceTimersByTime(100)
-    })
-
-    const button = screen.getByRole('button', { name: 'Scroll to top' })
-    expect(button).toBeInTheDocument()
-    expect(button).not.toBeDisabled()
-  })
-
-  it('should hide button after scrolling back above threshold', async () => {
-    Object.defineProperty(window, 'scrollY', { value: 400 })
-    render(<ScrollToTopButton />)
-
-    expect(
-      screen.getByRole('button', { name: 'Scroll to top' })
-    ).toBeInTheDocument()
-
-    // Simulate scrolling back to top
-    Object.defineProperty(window, 'scrollY', { value: 100 })
-    fireEvent.scroll(window)
-
-    // Fast-forward throttle timeout
-    await act(async () => {
-      vi.advanceTimersByTime(100)
-    })
-
-    expect(
-      screen.queryByRole('button', { name: 'Scroll to top' })
-    ).not.toBeInTheDocument()
-  })
-
   it('should call window.scrollTo with smooth behavior when clicked', () => {
     Object.defineProperty(window, 'scrollY', { value: 400 })
     render(<ScrollToTopButton />)

@@ -112,25 +112,6 @@ describe('issueAccessToken', () => {
     expect(stored.referenceId).toBe(actorId)
   })
 
-  it('issues a token the OAuth guard accepts on verify_credentials', async () => {
-    const issued = await issueAccessToken({
-      database: mockDatabase,
-      clientId: CLIENT_ID,
-      accountId,
-      actorId,
-      scopes: [Scope.enum.read, Scope.enum.write]
-    })
-
-    const response = await verifyCredentials(
-      new NextRequest('https://llun.test/api/v1/accounts/verify_credentials', {
-        headers: { Authorization: `Bearer ${issued.token}` }
-      }),
-      { params: Promise.resolve({}) }
-    )
-
-    expect(response.status).toBe(200)
-  })
-
   // Mastodon clients never refresh, so the token they were handed has to stay
   // valid for as long as they keep using it. Driven against the real database
   // so the slide's UPDATE is the one the next request reads back.

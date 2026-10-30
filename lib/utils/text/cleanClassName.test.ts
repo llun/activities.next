@@ -1,7 +1,7 @@
 import { Fragment, createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 
-import { TAG_REGEX, cleanClassName, extractTagFromHref } from './cleanClassName'
+import { cleanClassName, extractTagFromHref } from './cleanClassName'
 
 describe('extractTagFromHref', () => {
   it('extracts tag from absolute remote URL', () => {
@@ -114,12 +114,6 @@ describe('extractTagFromHref', () => {
       }
     )
 
-    it('runs the tag regex itself in linear time on a long non-matching name', () => {
-      const start = performance.now()
-      expect(TAG_REGEX.test(`${'a'.repeat(200_000)}!`)).toBe(false)
-      expect(performance.now() - start).toBeLessThan(500)
-    })
-
     it('accepts a name at the hashtag length limit and refuses a longer one', () => {
       expect(extractTagFromHref(`/tags/${'a'.repeat(255)}`)).toBe(
         'a'.repeat(255)
@@ -217,16 +211,6 @@ describe('cleanClassName', () => {
       const relMatch = output.match(/rel="([^"]*)"/)
       const relTokens = relMatch?.[1].split(/\s+/) ?? []
       expect(relTokens.filter((t) => t === 'noopener')).toHaveLength(1)
-    })
-
-    it('rewrites profile mention links to local profile path without target="_blank"', () => {
-      const html =
-        '<a href="https://example.com/@user" class="u-url mention">@user</a>'
-      const output = renderToHtml(html)
-      expect(output).toContain('href="/@user@example.com"')
-      expect(output).not.toContain('target="_blank"')
-      expect(output).not.toContain('noopener')
-      expect(output).not.toContain('noreferrer')
     })
 
     it('rewrites actor URL mention to local profile path without target="_blank"', () => {

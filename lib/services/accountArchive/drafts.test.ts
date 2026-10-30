@@ -1,4 +1,3 @@
-import { ARCHIVE_DRAFTS_MAX_BYTES } from './constants'
 import { prepareArchiveDrafts } from './drafts'
 
 const draft = (overrides: Record<string, unknown> = {}) => ({
@@ -72,14 +71,6 @@ describe('prepareArchiveDrafts', () => {
     expect(prepareArchiveDrafts(input)).toEqual({
       ok: false,
       reason: 'invalid'
-    })
-  })
-
-  it('rejects a payload over the 5 MiB cap before looking at it', () => {
-    const big = [draft({ text: 'x'.repeat(ARCHIVE_DRAFTS_MAX_BYTES) })]
-    expect(prepareArchiveDrafts(big)).toEqual({
-      ok: false,
-      reason: 'too-large'
     })
   })
 

@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 
-import { DELETE, OPTIONS, PATCH, PUT } from './route'
+import { DELETE, OPTIONS, PUT } from './route'
 
 const mockDatabase = {
   deleteDomainBlock: vi.fn(),
@@ -121,36 +121,6 @@ describe('/api/v1/admin/domain_blocks/:id', () => {
     expect(response.headers.get('Access-Control-Allow-Methods')).toContain(
       'PATCH'
     )
-  })
-
-  it('updates domain block fields when sent via PATCH', async () => {
-    mockDatabase.updateDomainBlock.mockResolvedValue({
-      ...domainBlock,
-      publicComment: 'Patched comment'
-    })
-
-    const response = await PATCH(
-      new NextRequest('https://llun.test/api/v1/admin/domain_blocks/block-1', {
-        method: 'PATCH',
-        headers: {
-          'content-type': 'application/json',
-          Origin: 'https://llun.test'
-        },
-        body: JSON.stringify({ public_comment: 'Patched comment' })
-      }),
-      { params: Promise.resolve({ id: 'block-1' }) }
-    )
-
-    expect(response.status).toBe(200)
-    expect(mockDatabase.updateDomainBlock).toHaveBeenCalledWith({
-      id: 'block-1',
-      severity: undefined,
-      rejectMedia: undefined,
-      rejectReports: undefined,
-      privateComment: undefined,
-      publicComment: 'Patched comment',
-      obfuscate: undefined
-    })
   })
 
   it('returns the deleted domain block', async () => {

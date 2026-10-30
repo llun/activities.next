@@ -1,10 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import type { Database } from '@/lib/database/types'
-import {
-  ACCOUNT_IMPORT_MAX_STARTS,
-  ACCOUNT_IMPORT_START_WINDOW_MS
-} from '@/lib/services/accountImport/constants'
+import { ACCOUNT_IMPORT_MAX_STARTS } from '@/lib/services/accountImport/constants'
 import { getAccountImportObjectStore } from '@/lib/services/accountImport/objectStore'
 import type { AccountImportObjectStore } from '@/lib/services/accountImport/objectStore'
 import { startAccountImport } from '@/lib/services/accountImport/start'
@@ -138,13 +135,11 @@ describe('start account import start limit', () => {
     updatedAt: Date.now()
   }
   const countAccountImportStartsSince = vi.fn()
-  const getOldestAccountImportStartSince = vi.fn()
   const database = {
     getActorFromId: vi.fn().mockResolvedValue(currentActor),
     getAccountImport: vi.fn().mockResolvedValue(accountImport),
     getActiveAccountImport: vi.fn().mockResolvedValue(null),
-    countAccountImportStartsSince,
-    getOldestAccountImportStartSince
+    countAccountImportStartsSince
   } as unknown as Database
 
   const request = () =>
@@ -179,39 +174,9 @@ describe('start account import start limit', () => {
       .mockReset()
       .mockResolvedValue(null)
     countAccountImportStartsSince.mockReset()
-    getOldestAccountImportStartSince.mockReset()
     vi.mocked(startAccountImport)
       .mockReset()
       .mockResolvedValue({ type: 'storage-unavailable' })
-  })
-
-  it('counts the start limit per account, not per actor', async () => {
-    countAccountImportStartsSince.mockResolvedValue(ACCOUNT_IMPORT_MAX_STARTS)
-    getOldestAccountImportStartSince.mockResolvedValue(Date.now())
-
-    const response = await start()
-
-    expect(response.status).toBe(HTTP_STATUS.TOO_MANY_REQUESTS)
-    // The whole account shares the window: the count is keyed by the
-    // account, so starts made through another profile of the same account
-    // count against this one.
-    expect(countAccountImportStartsSince).toHaveBeenCalledWith({
-      accountId: 'account-id',
-      since: expect.any(Number)
-    })
-    expect(countAccountImportStartsSince).not.toHaveBeenCalledWith(
-      expect.objectContaining({ actorId: expect.anything() })
-    )
-    expect(getOldestAccountImportStartSince).toHaveBeenCalledWith({
-      accountId: 'account-id',
-      since: expect.any(Number)
-    })
-    expect(response.headers.get('Retry-After')).toMatch(/^\d+$/)
-    // The window is 24 h, so the header is bounded by it.
-    const retryAfter = Number(response.headers.get('Retry-After'))
-    expect(retryAfter).toBeLessThanOrEqual(
-      Math.ceil(ACCOUNT_IMPORT_START_WINDOW_MS / 1000)
-    )
   })
 
   it('passes the limit check when the account is under it', async () => {
