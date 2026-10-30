@@ -1,0 +1,21 @@
+CONTRIBUTING.md
+  s_0caa234e761ef6::t_33d4b22f7d7dc7 182,199-201
+docs/setup.md
+  s_0caa234e761ef6::t_00af2f6eafbc66 416
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "261a9e56605e7a18a11123a8b172c40c2626bd48",
+  "prompts": {},
+  "sessions": {
+    "s_0caa234e761ef6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b79d5feb-bfae-447f-afad-19355f5d00c6",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
