@@ -655,6 +655,7 @@ describe('SectionNavDropdown', () => {
       const first = revealObserver(menu)
       clickTrigger(trigger)
       settleShortTimers()
+      expect(first.disconnect).toHaveBeenCalled()
 
       const reopened = openMenuNow(trigger)
       const second = revealObserver(reopened)
