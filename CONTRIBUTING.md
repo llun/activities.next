@@ -402,7 +402,7 @@ activities.next/
   `document.activeElement` behavior is unchanged.
 - CI (`.github/workflows/ci.yml`) runs the full job set listed in [CI Status
   Checks](#ci-status-checks) on every push and PR — including four parallel
-  test shards aggregated into an `All Tests` step and schema dump sync jobs
+  test shards aggregated into an `All Tests` job and schema dump sync jobs
   (regenerating both schema dumps from the migrations and failing on drift).
   The test job pins `TEST_DATABASE_TYPE: sqlite`.
 - **New tests get their database from `createTestDatabase()`**

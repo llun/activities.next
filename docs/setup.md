@@ -413,7 +413,7 @@ The app (`yarn migrate`) runs the migrations, but the test suite does **not** �
 
   **PostgreSQL (`migrations/schema.sql`):**
 
-  1. Start a **local** PostgreSQL 17 — e.g. a throwaway `postgres:17` Docker container — and wait until it accepts connections (`docker run -d` returns before `initdb` finishes; loop on `pg_isready`). Never point at a remote/shared/production DB. To use the docker-compose stack's PostgreSQL instead (its host, port, and credentials are in [docs/postgresql-setup.md](postgresql-setup.md)), substitute its host/port/credentials in the step-2 environment variables, run `psql`/`pg_dump` via the compose service (e.g. `docker compose exec postgres …`) rather than `docker exec anext-schema-pg`, and skip the cleanup step.
+  1. Start a **local** PostgreSQL 17 — e.g. a throwaway `postgres:17` Docker container — and wait until it accepts connections (`docker run -d` returns before `initdb` finishes; loop on `pg_isready`). Never point at a remote/shared/production DB. To use the docker-compose stack's PostgreSQL instead (at `activities.local`; its port and credentials come from your local, gitignored `docker-compose.yml`), substitute its host/port/credentials in the step-2 environment variables, run `psql`/`pg_dump` via the compose service (e.g. `docker compose exec postgres …`) rather than `docker exec anext-schema-pg`, and skip the cleanup step.
 
      ```bash
      docker run -d --name anext-schema-pg \
