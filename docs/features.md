@@ -8,7 +8,7 @@ The features Activity.next ships today. Most lines link to the documentation tha
 
 - ✅ **ActivityPub federation** — Send and receive activities with other Fediverse servers ([Architecture](architecture.md#activitypub-federation))
 - ✅ **Notes** — Create, receive, edit, and delete posts ([Mastodon API](mastodon-api-compatibility.md#status-posts--actions))
-- ✅ **Profile federation** — Profile edits, deletions, moves and aliases federate as `Update(Person)`, `Delete(actor)` and `Move`, and the "mark media as sensitive" flag travels with notes ([Architecture](architecture.md#actor-profile--deletion-federation))
+- ✅ **Profile federation** — Profile edits, deletions, moves and aliases federate as `Update(Person)`, `Delete(actor)` and `Move`, and the "mark media as sensitive" flag travels with notes ([Architecture: profile & deletion](architecture.md#actor-profile--deletion-federation), [migration](architecture.md#account-migration-move))
 - ✅ **Account migration (outgoing)** — Move your followers to another account, or leave a redirect pointer behind ([Architecture](architecture.md#account-migration-move))
 - ✅ **Handle rename (in place)** — Rename your account without changing its links, and keep old handles resolving forever ([Architecture](architecture.md#handle-rename))
 - ✅ **Replies** — Threaded conversation support, including on-demand fetching of full remote reply threads ([Architecture](architecture.md#reply-addressing-and-communities-fep-1b12))
@@ -50,11 +50,11 @@ The features Activity.next ships today. Most lines link to the documentation tha
 - ✅ **List timelines** — Per-list timelines honoring replies policy, exclusive lists, and block/mute/keyword filtering; you can add yourself to your own list ([Mastodon API](mastodon-api-compatibility.md#intentional-divergences))
 - ✅ **Notifications** — Like, follow, mention, reblog, follow request, quote, quote-update, and emoji reaction notifications ([Mastodon API](mastodon-api-compatibility.md#intentional-divergences))
 - ✅ **Notification grouping** — Group similar notifications together ([Mastodon API](mastodon-api-compatibility.md#intentional-divergences))
-- ✅ **Email notifications** — Configurable email alerts for each notification type, including fitness activity imports ([Architecture](architecture.md#transactional--notification-emails))
+- ✅ **Email notifications** — Configurable email alerts for each notification type, including fitness activity imports, managed under **Settings → Notifications** (where "Change email address" links to Account & security at `/account/email`) ([Architecture](architecture.md#transactional--notification-emails))
 - ✅ **Push notifications** — Web Push subscriptions with VAPID configuration ([Setup](setup.md#push-notifications-optional))
 - ✅ **Unread count** — Badge showing the unread notification count on the Notifications row, never on the mobile menu button; the Admin row carries the unresolved report count ([Architecture](architecture.md#navigation-customization))
 - ✅ **Customizable navigation** — Hide, restore, and reorder the sidebar per account, with hidden items tucked under a More group ([Architecture](architecture.md#navigation-customization))
-- ✅ **Status emoji reactions** — React to any post with a unicode or custom emoji, federating both ways with Pleroma/Akkoma and the Misskey family ([Mastodon API](mastodon-api-compatibility.md#intentional-divergences))
+- ✅ **Status emoji reactions** — React to any post with a unicode or custom emoji, federating both ways with Pleroma/Akkoma and the Misskey family ([Mastodon API](mastodon-api-compatibility.md#emoji-reactions))
 - ✅ **Link preview cards** — A post containing a link shows a card with the page's title, description, publisher and thumbnail, with a click-to-play YouTube player for video links ([Architecture](architecture.md#link-preview-cards))
 
 ### Storage & Media
@@ -64,7 +64,7 @@ The features Activity.next ships today. Most lines link to the documentation tha
 - ✅ **Blurhash & smart focal points** — Automatic server-side blurhash placeholders and saliency-based focal point detection on uploaded images and video preview frames ([Architecture](architecture.md#media--file-storage))
 - ✅ **Automated alt text** — Generate accessibility descriptions for uploaded images and videos from a configured OpenAI-compatible vision endpoint ([Environment Variables](environment-variables.md#alt-text-generation))
 - ✅ **Account data export** — Download a zip of everything an account owns, plus Mastodon-compatible CSV exports ([Architecture](architecture.md#account-data-export))
-- ✅ **Account archive import** — Import a Mastodon archive or this server's own export, and Mastodon-compatible CSV files, into the current profile ([Architecture](architecture.md#account-data-import))
+- ✅ **Account archive import** — Import a Mastodon archive or this server's own export, and Mastodon-compatible CSV files, into the current profile; import options default to likes off, bookmarks off, replies to other people skipped, profile off and settings off ([Architecture](architecture.md#account-data-import))
 - ✅ **Media management** — Browse, view, and delete uploaded media from the settings page with storage usage display ([Maintenance](maintenance.md#deleting-media-a-post-uses))
 - ✅ **Media details & EXIF** — Uploaded photos carry optional subject, taken-at, gear, exposure and place details, with EXIF read once at upload to pre-fill them ([Maintenance](maintenance.md#media-details-exif-and-gallery-settings))
 - ✅ **Photo editor** — Crop, straighten and adjust your own photos in the browser, with local adjustments on up to four masks and curated presets ([Architecture](architecture.md#photo-editor-client))
@@ -131,7 +131,7 @@ The features Activity.next ships today. Most lines link to the documentation tha
 - ✅ **Email sending** — SMTP, Resend, or AWS SES (optional; notification delivery is best effort) ([Setup](setup.md#email-configuration-optional))
 - ✅ **Docker support** — Official minimal container image at `ghcr.io/llun/activities.next` (SQLite default) ([Setup](setup.md#docker-deployment))
 - ✅ **Vercel deployment** — Deploy as a serverless Next.js application ([Setup](setup.md#vercel-deployment))
-- ✅ **Federation controls** — Admin allow/block rules, import for domain blocks, and allowlist mode ([Environment Variables](environment-variables.md#domain-controls))
+- ✅ **Federation controls** — Admin allow/block rules, import for domain blocks, and allowlist mode ([Environment Variables](environment-variables.md#domain-controls), [Mastodon API](mastodon-api-compatibility.md#admin--per-domain-settings))
 - ✅ **Multiple domains** — Serve profiles on more than one domain from one server, each with its own sign-ups, identity, policies, rules, announcements, features and reports ([Architecture](architecture.md#served-domains))
 - ✅ **Database-backed server settings** — Edit instance identity, registrations, post/poll/upload limits, and federation policy from the admin area, resolved `env → database → default` (an environment variable wins and locks the field). See [Environment Variables](environment-variables.md#database-backed-server-settings-env--database--default)
 

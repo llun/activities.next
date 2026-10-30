@@ -233,6 +233,8 @@ Inbound `audience` is not stored (no migration, and the schema accepts any shape
 
 Because our own notes do not store it either, `sendNoteJob` and `sendUpdateNoteJob` re-derive it (`sendUpdateNote` receives the audience from `sendUpdateNoteJob`) with `getStatusCommunityActorId`: the reply and its parent must both be public or unlisted, the parent's community is looked up as above, and it is used only if the reply's own `to`/`cc` names it. A Group that is merely mentioned, or one mentioned in a private reply, is therefore never used as the audience. `audience` is emitted on the `Create`/`Update` activity and on its note, as Lemmy and PieFed do; the ActivityPub GET/outbox representations of a note do not include it yet.
 
+- **On-demand fetching of full remote reply threads.** Opening a remote status that is not yet stored live-fetches it, and for a signed-in viewer the status page also queues `FetchRemoteStatusJob` to persist the status plus its full remote reply thread: the in-process synchronous queue keeps the awaited run to the focused note's direct replies so the page stays fast, while a real queue walks the whole thread out of band and it appears on a later view (later views resolve the focused status from the database and skip the branch). A queue failure logs and continues — the live-fetched status still renders.
+
 #### Outbound Inbox Forwarding (W3C ActivityPub §7.1.2)
 
 When enabled via the `ACTIVITIES_ENABLE_INBOX_FORWARDING` environment variable (default: `false`), the instance fans out verified public replies and mentions targeting local users to those users' remote followers:
