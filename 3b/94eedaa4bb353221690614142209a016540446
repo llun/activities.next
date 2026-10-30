@@ -1,0 +1,25 @@
+README.md
+  s_0caa234e761ef6::t_4de4d29de69345 20,148
+docs/environment-variables.md
+  s_0caa234e761ef6::t_0e2c8d903bb1da 26-30,60-61,69-73,82-94,108-110,259-260
+docs/features.md
+  s_0caa234e761ef6::t_e33c10c3a97a02 3,31,90-91,108-109,112,124
+docs/mastodon-api-compatibility.md
+  s_0caa234e761ef6::t_087c25d68bd2d0 11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3b94eedaa4bb353221690614142209a016540446",
+  "prompts": {},
+  "sessions": {
+    "s_0caa234e761ef6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b79d5feb-bfae-447f-afad-19355f5d00c6",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
