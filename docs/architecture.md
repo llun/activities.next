@@ -1146,12 +1146,14 @@ Read the applicable rules and review checks below before changing this subsystem
 - [Instance Limits in Client Components](#agents-instance-limits-in-client-components)
 - [Date Serialization in Server Components](#agents-date-serialization-in-server-components)
 - [Client-Side API Calls](#agents-client-side-api-calls)
+- [Client Component Patterns](#review-client-components-data-flow)
 - [Outbound Server-Side HTTP Requests](#agents-outbound-server-side-http-requests)
 - [Link prefetching in feeds](#agents-link-prefetching-in-feeds)
 - [Navigation Customization](#agents-navigation-customization)
 - [Page Header & Sub-Navigation](#agents-page-header-sub-navigation)
 - [Fitness Overview Calendar](#agents-fitness-overview-calendar)
 - [Surfaces (Shared Surface Kit)](#agents-surfaces)
+- [Accessibility](#accessibility)
 - [Settings Forms (Client Components)](#agents-settings-forms-client-components)
 - [Transactional & Notification Emails](#agents-transactional-notification-emails)
 - [Link Preview Cards](#agents-link-preview-cards)
@@ -1165,19 +1167,9 @@ Read the applicable rules and review checks below before changing this subsystem
 - [Auth Error Page](#agents-auth-error-page)
 - [OAuth Grants Must Resolve an Actor](#agents-oauth-grants-must-resolve-an-actor)
 - [An Unconfirmed Account May Not Act](#agents-an-unconfirmed-account-may-not-act)
-- [Review: Runtime vs. build-time configuration](#review-runtime-vs-build-time-configuration)
-- [Review: Client components & data flow](#review-client-components-data-flow)
-- [Review: Page chrome, layout & accessibility](#review-page-chrome-layout-accessibility)
-- [Review: Surfaces](#review-surfaces)
-- [Review: Logging](#review-logging)
-- [Review: Auth error page](#review-auth-error-page)
-- [Review: Better-auth session refresh](#review-better-auth-session-refresh)
-- [Review: OAuth access token sliding expiry](#review-oauth-access-token-sliding-expiry)
-- [Review: Unconfirmed accounts & app tokens](#review-unconfirmed-accounts-app-tokens)
-- [Review: Emails](#review-emails)
-- [Review: Post media layout](#review-post-media-layout)
-- [Review: Status delete & unboost federation](#review-status-delete-unboost-federation)
-- [Review: Link preview cards](#review-link-preview-cards)
+- [Runtime vs. build-time configuration](#review-runtime-vs-build-time-configuration)
+- [Logging](#review-logging)
+- [Post media layout](#review-post-media-layout)
 - [Offline-First PWA Launch & Timeline Caching](#agents-offline-first-pwa-launch-timeline-caching)
 
 <a id="agents-server-client-module-boundary"></a>
@@ -1185,9 +1177,12 @@ Read the applicable rules and review checks below before changing this subsystem
 ### Server/Client Module Boundary
 
 - **Server-only code must never import a runtime value from a `'use client'` module.** Under the App Router such a module resolves to a _client reference_ on the server: components still render, but a plain value read out of it (a constant object, a lookup table) is empty. Types are erased, so `import type` is fine, and a Server Component rendering a Client Component is the normal composition pattern — this is specifically about reading values.
-- The failure is invisible to the test suite: Vitest has no RSC boundary, so the import returns the real module there and tests pass while production silently gets nothing. It cost a complete outage of poll creation — `app/api/v1/accounts/outbox/types.ts` validated `durationInSeconds` against `SecondsToDurationText` exported from the `'use client'` poll editor, `Object.keys(...)` came back empty, and every poll was rejected with a 400 that no test could see.
+- The failure is invisible to the test suite: Vitest has no RSC boundary, so the import returns the real module there and tests pass while production silently gets nothing — a constant read out of a client reference comes back empty, so a validator keyed on it rejects every request with a 400 no test can see.
 - `lib/clientModuleBoundary.test.ts` enforces this across `app/api/`, `lib/services/`, `lib/actions/`, `lib/jobs/`, `lib/database/`, and `lib/config/`. When both sides need a constant, put it in a dependency-free module both can import — `lib/services/statuses/pollDurations.ts` and `lib/services/mastodon/constants.ts` are the existing examples — not in the component that happens to render it.
 - **Client bundles must not reach server-only packages.** Nothing a `'use client'` module imports (statically or via `import()`; type-only imports, `import` types and `'use server'` files excluded) may be a Node builtin (`crypto`, `fs`, `stream`, `node:*`), the whole `lodash` package (use `lodash/<method>`), or `@/lib/utils/logger` (pino). The walk is transitive through first-party modules only (`@/` and relative imports); npm packages are checked by name and not followed. Next would bundle polyfills or the library into the browser. `lib/clientImportGraph.test.ts` walks the import graph from every client module and fails with the chain; use the pure-JS `getStatusDetailPathSync` / `getHashFromStringSync` in browser-reachable code instead of `getHashFromString`.
+- **A lazily loaded client component keeps SSR whenever it can be the primary content of some page; `ssr: false` only for UI that cannot exist before an interaction.** The inline composer and the reaction picker mount only after a click, so they render nothing on the server: the composer is imported from `lazy-inline-status-composer` (a `next/dynamic`, `ssr: false` wrapper that keeps `PostBox` out of anonymous first-load JS), and its chunk is preloaded at idle for a signed-in viewer (`useInlineComposer(canCompose)`, where `canCompose` is a required boolean; feeds pass `Boolean(currentActor) && showActions`, so a feed that renders no action row never downloads it) and never for an anonymous one; the picker chunk is preloaded at idle when a signed-in viewer's reaction button renders, and when its trigger is hovered or focused, or when the compact row's ⋯ menu opens (`preloadReactionPicker`). `FitnessStatusDetail` (status page) and the profile gallery panels (`ActorMediaGallery`, `ProfileGalleryTab`) are a page's primary content, so they stay in the server HTML; each gallery panel is preloaded at idle, and when the profile tab bar is hovered or focused, only if the profile has a panel that shows it (a Media or Gallery tab, or the media-only gallery).
+- **Preloaded splits render synchronously (`createPreloadable`).** A `next/dynamic` component is a `React.lazy`, which suspends on the first render of each lazy instance even when its module is already loaded, and React then holds the Suspense reveal for ~300ms after a fallback commits, so preloading with `import()` alone still leaves a ~300ms first open. Each split therefore keeps its module-scope `dynamic(load, {...})` call (Next's compiler needs the inline options object) and passes it with `load` to `createPreloadable` (`lib/components/lazy/createPreloadable.tsx`), which returns `{ Component, preload }`: `Component` renders the dynamic component until `preload()` has resolved, then the loaded component directly. Each mounted instance picks its implementation once (`useState`) and keeps it: a preload resolving while an instance is mounted never swaps it, because that would remount it and drop its state (gallery pagination, an open viewer, a composer draft); only instances that mount afterwards use the preloaded component. `preload()` shares an in-flight or successful load across calls (each reaction button calls it) and retries only after a failure. Start preloads from an event handler or an effect (`runWhenIdle`), never at module top level, so the server render and hydration still use the dynamic (SSR'd) path and cannot mismatch.
+- **Every split sits inside a `LazyChunkBoundary`**, so a chunk that fails to download (deploy skew) shows an inline `Alert` ("Couldn't load. Reload the page to try again.") instead of reaching the route error boundary. The boundary catches only chunk-load failures (`ChunkLoadError`, "Failed to load chunk", "Loading chunk", dynamic-import failures) and rethrows every other render error, so real bugs still reach the route error boundary.
 - **Browser caching of favicons and app icons:** Browser favicon and PWA icons in `metadata.icons` (like `app/layout.tsx`) and `manifest.ts` must be wrapped with `withVersion` from `@/lib/utils/version`. This ensures browser caches (especially Safari's persistent SQLite icon cache) invalidate across releases.
 
 <a id="agents-instance-limits-in-client-components"></a>
@@ -1207,6 +1202,8 @@ Read the applicable rules and review checks below before changing this subsystem
 - Always pass timestamps as `number` (e.g. `Date.now()`) from Server Components.
 - Client Components should accept `currentTime: number` and construct `new Date(currentTime)` internally before use.
 - This pattern is already used throughout the codebase (e.g. `HashtagTimeline` accepts `currentTime: number` and forwards the number unchanged to `<Posts>`, which also takes `currentTime: number`; only leaf components construct `Date` objects from it).
+- **Client Components that render relative timestamps (or fan out to `Posts`/`Post`) never call `Date.now()` / `new Date()` during render** — they receive and forward `currentTime` from the server to avoid hydration mismatches. A post header shows the compact form from `formatCompactRelativeTime` (`lib/components/posts/compactRelativeTime.ts`: `now`, `35m`, `2h`, `3d`, `2w`, `4mo`, `1y`) — a pure difference, so no time zone or locale can make the server and the browser disagree — while the timestamp button's accessible name keeps the spelled-out `posted 5 minutes ago`. Notifications, sessions, the edit-history panel and quote cards print date-fns' `formatDistance`, and the fitness heatmap chrome prints `formatRelativeTime` (`lib/fitness/relativeTime.ts`).
+- **A Client Component that prints a clock time or date in the viewer's own time zone renders a zone-fixed value (UTC) until `useHasHydrated` (`lib/hooks/useHasHydrated.ts`) turns true, then the local one.** The server cannot know the viewer's zone, and `suppressHydrationWarning` only silences the mismatch — React keeps the server's text, so the reader never sees their local time. The fitness activity detail page's `ActivityStartTime` is the reference; its test hydrates server HTML under `withTimeZone`. A formatter that follows the viewer's locale as well (`Intl.DateTimeFormat(undefined, …)`, `toLocaleString(undefined, …)`) pins the locale too until then, because the server's default locale is no more the reader's than its zone is. That pre-hydration value must come from a formatter that is identical in every engine — date-fns `format` on a `UTCDate`, as `useMessageTimeFormat` (`app/(timeline)/messages/useMessageTimeFormat.ts`) does for the direct-message list and bubbles — not from `Intl` with a fixed locale, whose output varies with the engine's ICU (Safari renders `Oct 4 at 3:05 PM` where Node renders `Oct 4, 3:05 PM`) and would mismatch on hydration. Build the reader-locale `Intl.DateTimeFormat` once per component (`useMemo`), not per render. A date that only appears after a client-side fetch (the announcements popover and the admin announcements list) is never in the server HTML, so it needs neither.
 
 <a id="agents-client-side-api-calls"></a>
 
@@ -1217,6 +1214,33 @@ Read the applicable rules and review checks below before changing this subsystem
 - Import those functions in components: `import { myApiCall } from '@/lib/client'`.
 - `lib/client.ts` is an API facade that re-exports functions across all domain modules in `lib/client/`. This keeps domain logic cleanly partitioned while preserving a unified import boundary for components.
 - Status creation from the web composer (`PostBox`) and inline reply box (`StatusReplyBox`) goes through `createNote` and `createPoll` in `lib/client/statuses.ts`, which post to `POST /api/v1/statuses` (accepting `fitness_file_id`, `quoted_status_id`, and `quote_approval_policy` alongside standard Mastodon fields) with a UUIDv7 `Idempotency-Key` header minted once per submit attempt series (`generatePublicId()`) and reused across retries of the same draft, adapting the returned `Mastodon.Status` entity into `{ status, attachments }` for `onPostCreated` callbacks. After the server keeps a create (503 or 409, `isPostKeptByServer`) the composer locks the draft (text, content warning, visibility, attachments, poll, fitness file are read-only or disabled) and shows the saved-post message with `DRAFT_LOCKED_NOTICE` in a persistent `role="status"` line, so Post can only retry the same payload under the same key; a success unlocks and resets it. `classifyFailedPost` (`lib/client/http.ts`) decides for both composers: on a locked retry only a 410 (the kept post was deleted) unlocks the draft and drops the key; every other failure (400, 422, any other 4xx, a 5xx or a network error) keeps the lock and key and shows the server's message as its own sentence ("Couldn't send your saved post (<reason>). Press Post to retry or discard the draft.", "…or cancel the reply." in the reply box), and a 401 or 403 shows `SESSION_EXPIRED_NOTICE`, since the route can answer 400 or 422 while the post is still kept and a new key would duplicate it. The way out is explicit: PostBox's lock line has a "Discard draft" button, and the reply box's Cancel does the same while locked and is disabled while a submit is in flight; both clear the composer and the key and leave the kept post's media and fitness file in place. A media batch that settles after a submit began or the draft locked is dropped, and the reply box's attachment tiles are `inert` while locked. A new reply or quote target that arrives while a send is in flight waits until the send settles (the reply and quote previews cannot be closed meanwhile), so the send, its lock and its draft always stay with the target they were written for; a re-target of an idle composer leaves its draft in Drafts under its own target, with its attachments, and unlocks the composer. While the connection is down the composers swap Post for "Save draft" and "Send when online" (`OfflineSubmitButtons`); the second hands the draft to the send queue (see Send queue below), which builds its `Idempotency-Key` and fingerprint with the composer's own code (`submitRequest.ts`), so a retry from either sends the same key. The legacy `POST /api/v1/accounts/outbox` route remains only for backward compatibility.
+
+<a id="review-client-components-data-flow"></a>
+
+### Client Component Patterns
+
+- **The edit-history panel** lists prior revisions newest-first and labels each transition to the following version, including text, image or attachment, content-warning, sensitivity and poll-option changes. Its relative time is the transition time. Blank prior text is shown as **No text in this version**; missing or malformed prior text is shown as **Previous text is unavailable**. Incomplete legacy snapshots are called out as unavailable rather than guessed.
+- **Timeline grouping and nested status threads.** `TimelineFeed` (`lib/components/posts/timeline-feed.tsx`) renders grouped home timelines, connecting related posts into visual threads and multi-author conversations with accessible badges, compact collapsed middle runs for long chains, and an optional boost carousel (`BoostCarousel`). `StatusThread` (`lib/components/posts/status-thread.tsx`) renders post detail conversation trees, structuring ancestors root-to-parent and nesting descendants by direct reply edges with author-continuation promotion and branch collapse controls. `PostHeader` and `PostBody` are the header and body halves of `Post`, shared with the combined post.
+  - **Combined self-replies.** Inside a thread or conversation row, a run of quick self-replies renders as one feed row (`CombinedPostListItem`, `lib/components/posts/combined-post-list-item.tsx`) instead of one row per post. `buildCombinedBlocks` (`combinedThreadModel.ts`, pure) decides the runs from the row's chain-ordered statuses: two or more posts by the same author where each replies to the previous one (or to a reply tucked into the run), the author's next post is at most `COMBINE_MAX_GAP_MS` (10 minutes, inclusive) after the post it replies to (not after a reply that happens to be waiting in between), a tucked-in reply is at most that after the last tucked-in reply still waiting, or after the run's latest post when none is waiting, and all posts share one visibility. Someone else's reply to a run post is tucked into the run as an inset card when the run carries at most two of them, the reply is text only (no media, poll, quote or fitness activity) and the author's next post follows it; otherwise the run splits there, that reply renders as an ordinary post, and it is re-scanned and may start a run of its own. The author may also reply to a tucked-in reply, whether it is still waiting or already part of the run. A long thread (more than three posts) keeps its collapsed first post, expander and last post and combines once expanded; threads of two or three posts and conversations combine straight away. The combined post shows the first post's header with the span "first – last", a thread rail down the avatar column with a dot and a "2 of 4 · 15m" label (a button to that post's detail page, with an edit-history button for an edited part) per later post, and one action bar. Reply acts on the latest post; Boost, Like, Bookmark and React act on the first (`Actions`' `splitTargets`, which changes which post a control reaches, never what a post offers — and each button's accessible name says which: "Reply to the latest post", "Like the first post"). Every later part and every tucked-in reply keeps its own ⋯ menu (the same `PostMenu` a single post has, named "More actions for part 2 of 4" / "More actions for Mira Park's reply"), so quote, copy link, mute, block, report, translate and edit/delete-own work on the post they belong to; a tucked-in reply also has its own Reply and Like. The group ⋯ menu ("More actions for this post group") has a "Post group" heading over "Show as separate posts" and a "First post" heading over the items that act on the first post only. "Show as separate posts" turns the row back to one row per post (run after the menu closes, then focus moves to the row). The choice is kept per page view as every status id of the row, so it survives replies being added, the root post being deleted or an older parent paging in. The status page combines through the same model (next bullet).
+  - **Combined self-replies on the post page.** `StatusThread` and the fitness `ActivityReplies` (`app/(timeline)/[actor]/[status]/ActivityReplies.tsx`) feed `buildCombinedBlocks` through `selfThreadModel.ts` (pure): `extractSelfReplyChain` takes the author's direct self-reply chain (the earliest reply continues it), and the model builds the run holding the opened post from the ancestors, the opened post and that chain with the timeline's rules unchanged. Other people's short text-only replies to the chain are added one at a time in the timeline's thread-row order (`sortComponentNodes`: parent before child, oldest first), and each is kept only if `buildCombinedBlocks` still tucks it and every reply kept before it, so the post page tucks what the timeline would and a reply that would split the run is left out instead. Other multi-part runs of the same chain, each started by a gap over `COMBINE_MAX_GAP_MS`, come back as `ancestorRuns` and `descendantRuns` and render as their own runs with their own header. It returns the run, the opened part's index and `repliesOutsideRun`, with a `replyingToByReplyId` entry for a reply to an earlier part that cannot tuck in, or to any part of an ancestor run; that reply stays under Replies with a "Replying to i of n" line instead of splitting the run. `SelfThreadRun` (`self-thread-run.tsx`) renders it: one header with the span, the rail with "i of n" labels, and for each part its own small action row with its own counts (no `splitTargets`, no clamp), `aria-current="location"`, a tint and an orange dot on the opened part, which is scrolled into view. Runs over `LONG_RUN_MAX_PARTS` (6) collapse the middle, and part 1's ⋯ menu has "Show as separate posts". "Replies (N)" and "No replies yet" count only replies outside the run. On a fitness activity `ActivityReplies` builds the same model with `tuckIntoFirstPart: false` (the activity itself stays unchanged, so other people's replies to it stay under Replies with "Replying to 1 of n"), and the athlete's follow-ups (`parts` from part 2) render as a rail under the action bar and are excluded from the replies count, paging and the Hide/Show toggle.
+  - **Reply context.** Reply context follows the displayed original post for boosts, including nested boosts. `getTimelineContext` resolves stored parents through the same readability, block, mute, and content-warning rules as ordinary replies. A readable parent gets an author/snippet preview; when no permitted parent preview is available, the feed shows "In reply to a post" (that fallback alone does not identify whether the parent is missing or restricted). Replying from any feed row or nested thread status targets the selected post's ID, preserving mentions and recipient audience without flattening threads or redirecting replies to the root.
+- **Composer toolbar (`PostBox`).** The toolbar is one row that stays on one line from 320 px up with the default character limit (it falls back to wrapping if an admin-raised limit makes the counter too wide), on desktop and phone alike: the media picker ("Add media (n/m)"), the emoji picker ("Add emoji or sticker") and **Post options** on the left (40 px square below `md`, 32 px from `md` up), then the character counter, **Cancel Edit** (when editing; only a 32 px `X` icon below `md`, still named "Cancel Edit" with a matching `title`) and **Post**/**Update** on the right. Everything else lives in the **Post options** menu (`post-options-menu.tsx`, `DropdownMenu`, aligned to the start), in this order: **Fitness file** (new posts only, so not when replying or editing), **Poll**, a separator, **Visibility**, **Content warning** and **Preview**.
+  - **Visibility** is a submenu holding the visibility and "Who can quote" choices, shared with `VisibilitySelector` through `VisibilityMenuOptions`; its row shows the current value, followed by the quote policy's own icon (Followers or No one, with "Followers can quote" / "No one can quote" as screen-reader text) when the quote policy is restricted. Below `md` the submenu is pulled back over the menu (one `SUBMENU_WIDTH` constant drives its width and offset) because two menus do not fit side by side; it scrolls when the viewport is short.
+  - **Poll**, **Content warning** and **Preview** are all `menuitemcheckbox` rows with `aria-checked`. Poll shows a check and closes the menu; it is disabled while quoting, and its explanation is the row's accessible description (its name stays "Poll"). Content warning and Preview show a purely visual switch (never a nested `role="switch"`) and keep the menu open (`onSelect` calls `preventDefault`).
+  - The Post options button takes the `bg-primary/10 text-primary` tint while a poll, content warning or preview is on.
+  - The fitness picker's hidden `<input type="file">` is `FitnessFileInput`, kept mounted next to the toolbar and opened through its imperative `open()` handle by the menu item, so the menu closing does not unmount it. Menu rows, including the submenu's quote-policy rows, are at least 40 px tall below `md`.
+  - The reply composer (`StatusReplyBox`) is a separate, compact component and keeps its own buttons.
+- **Composer vertical sizing & auto-growth.** Both the main composer (`PostBox`, used standalone on timelines and for quotes/edits) and the reply composer (`StatusReplyBox`, used for inline replies and fitness activity comments) automatically grow vertically with typing, wrapped lines, newlines, and pasted text while preserving caret positioning, focus, and existing controls:
+  - Sizing classes on the message textareas: `field-sizing-content min-h-[72px]` (or `min-h-[60px]` for replies) `max-h-[min(320px,40dvh)] overflow-y-auto`.
+  - Browsers supporting CSS `field-sizing: content` (Chrome 123+) size the textareas natively without JavaScript intervention.
+  - For browsers lacking native `field-sizing: content` support (such as Safari and Firefox), the shared `useAutoResizeTextarea` hook (`@/lib/hooks/useAutoResizeTextarea`) provides a measured-height fallback that updates `element.style.height` based on `scrollHeight` on mount, input, value changes, and container width changes, while preserving `scrollTop` so internal scrolling does not jump. It adds the element's own border (`offsetHeight - clientHeight`, 0 for the borderless composers) to the measured `scrollHeight`, because a `border-box` textarea's `height` includes its border and `scrollHeight` does not: a bordered box fitted without it is 2px short and scrolls its last line away. The share dialog's read-only snippet box on the heatmap page (`HeatmapShareEmbed`) is the bordered caller; it uses this hook with the shared `Textarea`'s own `field-sizing-content` rather than a hook of its own.
+  - Height is capped at `min(320px, 40dvh)`. On extremely short viewports, CSS `min-height` takes precedence over `max-height`. Textareas scroll internally after reaching the cap and shrink smoothly back to the minimum height when text is deleted or draft-reset clears the content.
+- **Validate any user-controlled URL before using it as an `href`**: parse with `new URL()` and allow only the `http:` or `https:` protocols — not a `startsWith` or regex check — so a `javascript:` (or other) scheme can't become a DOM-XSS sink (see `lib/utils/fitness.ts`).
+- **React state updater functions stay pure** — no side effects, and don't fire another variable's state update from inside an updater. Do the separate `setState` calls in the event handler instead, so Strict Mode's double-invoke can't misfire them.
+- **Optimistic UI (e.g. optimistic delete with rollback on failure) disables the create/edit actions while the operation is in flight**, so a rollback can't discard items added in the meantime.
+- **Don't wrap a callback in `useCallback` when its dependencies change on every render.** The compiler memoizes most components, but not per `.map` iteration, so list rows still need `memo` to skip re-rendering with the list. Post list rows (`PostListItem`, shared by `Posts` and `TimelineFeed`) are `memo` because the React Compiler does not memoize per loop iteration: without it, opening the inline composer re-renders every row. Pass a row plain values, its own slice of shared state (`activeComposer` is null for every other row) and stable callbacks (`useCallback` in the page, above any early return), and build per-row closures inside the row.
+- **The React Compiler is on** (`reactCompiler: true` in `next.config.ts`, `babel-plugin-react-compiler` pinned in `package.json`) for client components only; server components are not compiled. New components and hooks need no manual `useMemo`/`useCallback`/`memo` for performance; leave the existing ones in place. It compiles in `infer` mode and skips a function where it detects a Rules-of-React violation (a ref read or written during render, mutating props, a `react-hooks` lint suppression) and any function containing `try/finally` (so `MainPageTimeline` and `post-box` stay uncompiled). It cannot see globals (`window.*`, `navigator.*`), module-level mutable state, mutable objects read during render, calls with no reactive arguments (`Date.now()`, `new Date()`, `localStorage.getItem()`), or `useMemo`/`useCallback` deps the body never reads. Those are compiled with changed behavior (computed once, not invalidated), so read such values through state, `useSyncExternalStore` or an effect. Unit tests run without the compiler, but a client component should still be rendered as an element (`<Component />`), not called as a function, because a compiled one needs a renderer.
+- **Post list rows carry the `feed-row` class**, which `app/globals.css` gives `content-visibility: auto` (with `contain-intrinsic-block-size: auto 380px`, the content box of a not-yet-rendered row, about 405px with padding and divider) so long timelines skip layout and paint of off-screen rows. The containment applies to on-screen rows too: the row becomes a stacking context and the containing block of absolute and fixed descendants, and it clips like `overflow: clip` to its rounded padding box. An overlay rendered inside a row (a panel, error bubble, picker or composer that is not portaled) MUST either be portaled (Radix dropdowns, tooltips, popovers and dialogs, the reaction picker, the media modal) or carry the `data-row-overlay` attribute on an element that exists only while it is open (a bare attribute, never `={bool}`: React renders `data-row-overlay="false"`, which still matches). Passing a `container` inside a row to `ui/popover.tsx` defeats its portal. `.feed-row:has([data-row-overlay])` turns containment off. The rules sit in an `@supports` block whose condition is `@supports selector(:has(a)) and (overflow-anchor: auto)`, so browsers without `:has()` or scroll anchoring (older Chrome, Safari) never contain a row. `app/globals.css` is guarded by `test/feed-row-css.test.ts`, and `test/feed-row-overlays.test.ts` scans the post components for unmarked overlays: any `fixed` tag (including responsive variants), or an `absolute` tag with a `top-full`/`bottom-full`/`left-full`/`right-full` offset, unless it is marked or inside `createPortal`, and any valued `data-row-overlay=`. It is a lint, not an audit: arbitrary offsets, `-translate-y-full`, margin- or numeric-offset placement (`absolute mt-2`, `absolute -top-10`) and classes built outside the tag are not seen.
 
 <a id="agents-outbound-server-side-http-requests"></a>
 
@@ -1285,13 +1309,13 @@ The **design system is the source of truth** for page chrome. There is one
 section-navigation pattern: the shared section dropdown. There is no second one to pick.
 
 - Use `PageHeader` from `@/lib/components/page-header` for every page title in the `(timeline)` route group. From `md` (768px) up it renders the sticky, full-width chrome (translucent background + backdrop blur + bottom border) and centers the title above the content column. Below `md`, under a mobile navigation provider, it renders the mobile compact bar instead and its own box becomes plain content (see **Mobile chrome** below). Pages always call `<PageHeader title="…" description="…" actions={…} />`; they don't need to know which sub-nav pattern (if any) wraps them. Five optional props exist for the mobile split:
-  - `back={{ href, accessibleName, label?, prefetch? }}` — a parent-route Back. Never put a back arrow inside `title`: below `md` it is a row at the top of the content reading "Back" (or "Back to profile" — pass `...profileBack(name)` from `lib/components/navigation-history/backDestination.ts` when it returns to a profile), from `md` up it is the same icon beside the title it always was (rendered by `BackLink`, outside the `h1`). `accessibleName` names the destination ("Back to lists") — see **Mobile chrome**.
+  - `back={{ href, accessibleName, label?, prefetch? }}` — a parent-route Back. Never put a back arrow inside `title`: below `md` it is a row at the top of the content reading "Back" (or "Back to profile" — pass `...profileBack(name)` from `lib/components/navigation-history/backDestination.ts` when it returns to a profile), from `md` up it is the same icon beside the title (rendered by `BackLink`, outside the `h1`). `accessibleName` names the destination ("Back to lists") — see **Mobile chrome**.
   - `compactTitle` — a short section title for the mobile bar when the content keeps a more specific heading (the list timeline's bar says "Lists" over the list's name). Without it the bar's title is the page's `h1` below `md` and the box's `h1` is `max-md:hidden`, so exactly one `h1` is displayed at any width.
   - `flushOnMobile` — below `md` the content directly below meets the header's bottom edge instead of the parent's `space-y-*` rhythm: signed in, the compact bar's hairline when the box has nothing to show there (the bar keeps `mb-0`), else the box; logged out, the sticky box (`max-md:mb-0`). For a full-bleed surface that must not show a band above it (the home timeline's composer, see **Home timeline boundaries** below). The geometry lives in `PageHeader`; callers never pull themselves up with a negative margin.
   - `actionsInMobileBar` — signed in, below `md` `actions` render at the end of the compact bar instead of in the content row, whose copy is `max-md:hidden` (the home timeline's Refresh, which sits beside the title as it did before the redesign). Every other page keeps its actions in the content, where they scroll away; do not opt a page in without a design decision.
   - `mobileBarActions` — signed in, below `md` controls passed here sit at the end of the mobile compact bar while `actions` stays in the content row (for example, Notifications puts `PageRefreshButton` in the compact bar and keeps `MarkAllReadButton` in the content row). In section mode (`PageHeaderSectionProvider`) or without the signed-in mobile navigation, `mobileBarActions` renders alongside `actions` at the trailing end of the header actions row.
   - None of the five props splits into a mobile bar in section mode (under `PageHeaderSectionProvider`): the section layout owns the bar, so a section detail page renders its own `BackLink` above its section-mode heading (the admin account, report and hashtag pages).
-- **Unified desktop content width.** Every top-level page in the `(timeline)` group shares **one** content width on desktop so the column stays aligned as you switch tabs. The `(timeline)` layout wrapper centers content at `max-w-content` (a single `--container-content: 940px` token defined in `app/globals.css`'s `@theme`), and `PageHeader` centers its title row at the same `max-w-content`. There is **no** per-page width tier any more: do **not** reintroduce the old two-tier `max-w-2xl` (timeline) / `max-w-4xl` (sections) split, a `contentWidth` prop on `PageHeader`, or the `data-layout-width="wide"` opt-in CSS rule. Every section (Settings, Account & security, Admin, Fitness, Gallery, Messages) inherits `max-w-content`; none sets its own width. The former `--container-section` / `max-w-section` / `data-section-layout` widening for a navigation rail is gone and must not come back.
+- **Unified desktop content width.** Every top-level page in the `(timeline)` group shares **one** content width on desktop so the column stays aligned as you switch tabs. The `(timeline)` layout wrapper centers content at `max-w-content` (a single `--container-content: 940px` token defined in `app/globals.css`'s `@theme`), and `PageHeader` centers its title row at the same `max-w-content`. There is **no** per-page width tier: do **not** reintroduce the two-tier `max-w-2xl` (timeline) / `max-w-4xl` (sections) split, a `contentWidth` prop on `PageHeader`, or the `data-layout-width="wide"` opt-in CSS rule. Every section (Settings, Account & security, Admin, Fitness, Gallery, Messages) inherits `max-w-content`; none sets its own width. The `--container-section` / `max-w-section` / `data-section-layout` widening for a navigation rail must not come back.
 - **Page skeleton alignment (`loading.tsx`).** Route loading skeletons for logged-in pages in `(timeline)` must align with the rendered page so that transition causes no visual jumping of either the header or the content box below it:
   - **Reuse `PageHeader` directly on top-level timeline pages.** Never hand-roll a sticky header div or breakout style. Rendering `<PageHeader>` from `@/lib/components/page-header` ensures sticky breakout styling, padding (`px-4 py-4`), bottom border, and total header height (79px from `md` up, also for a header with actions and no description: the title row then takes a `md:min-h-[46px]` floor, the 28px title plus the 2px and 16px description it would have had, as on the home timeline's Refresh; a title-only header keeps its own height; below `md` the 56px compact bar plus the content row) match the loaded page pixel-for-pixel.
   - **Mirror font and action metrics.** Pass `title={<span className="skeleton block h-7 w-… rounded-md" />}` to match `h1 text-xl` (28px line height = `h-7`), `description={<span className="skeleton block h-4 w-… rounded" />}` to match `mt-0.5 text-xs text-muted-foreground` (16px line height = `h-4`), and action button skeletons in `actions={…}` (e.g. `size-9` for standard icon buttons, `h-8 w-18` for small buttons). `PageHeader` centers actions vertically via `.shrink-0.self-center`; hand-rolled headers default to top-aligned (`items-start`), which makes action buttons jump down 7px when the page hydrates.
@@ -1319,7 +1343,7 @@ section-navigation pattern: the shared section dropdown. There is no second one 
 
 #### Section navigation: one dropdown, never an in-pane list
 
-- **Every section switches between its pages with `SectionNavDropdown`** (`@/lib/components/section-nav-dropdown`), at every width, above the page content. Settings (`app/(timeline)/settings/layout.tsx`), Account & security (`account/layout.tsx`) and Admin (`admin/layout.tsx`) render it through `SectionLayout` (`@/lib/components/section-nav`), which also owns their index pages; Fitness, Gallery and Fitness › Connections render it themselves. Do **not** re-inline dropdown markup, and do **not** render a navigation list, rail, tab strip or second menu of a section's pages inside the content column beside the app sidebar at any width — the rail that Settings, Account & security and Admin had from `lg` (app PRs #2594 and #2597), its "Back to …" row below `lg` and the wider `--container-section` column were removed on purpose. `lib/components/sectionNavPattern.test.ts` fails on a reintroduction.
+- **Every section switches between its pages with `SectionNavDropdown`** (`@/lib/components/section-nav-dropdown`), at every width, above the page content. Settings (`app/(timeline)/settings/layout.tsx`), Account & security (`account/layout.tsx`) and Admin (`admin/layout.tsx`) render it through `SectionLayout` (`@/lib/components/section-nav`), which also owns their index pages; Fitness, Gallery and Fitness › Connections render it themselves. Do **not** re-inline dropdown markup, and do **not** render a navigation list, rail, tab strip or second menu of a section's pages inside the content column beside the app sidebar at any width — no rail, no "Back to …" row below `lg`, no wider `--container-section` column. `lib/components/sectionNavPattern.test.ts` fails on a reintroduction.
 - **Input:** `label` (the `<nav>` landmark's name), `groups: SectionNavGroup[]` (`{ heading?, items: SectionNavItem[], menuOnly?, afterFooter? }`, each item `{ name, url, icon: ReactNode, description?, alsoMatches?, badge?, badgeLabel? }`), an optional `footer: SectionNavFooter` (`{ heading, item }`) and, for a section with a list page, `indexUrl` (and `shortLabel` for a long name: Account & security's "Account" below `md`). The shapes live in `lib/components/section-nav-shared.tsx` and each section's `sections.tsx` exports them; Fitness and Gallery pass one headless group and no `indexUrl`. Icons are rendered elements (`<Sun />`), not components, so a server layout can pass the list straight through. Sentence-case names ("Blocked accounts"); long names truncate in the trigger and the rows.
 - **The row:** with `indexUrl`, a plain link to the section's list page (visible "Admin", "Settings", "Account & security" / "Account" below `md`; accessible name "Admin (all pages)" etc.), a "/" and the trigger, in one `<nav aria-label="Admin">` — not a breadcrumb landmark, and no crumb after the trigger. Without `indexUrl` (Fitness, Gallery) the row is the trigger alone. A page nested under an item (an admin account, report, hashtag or domain, Add domain, a signed-in verify-email under Email & name via `alsoMatches`, a bike under Gear) shows its parent on the trigger and keeps its own `BackLink` under the row.
 - **Trigger:** an outline `Button` (`h-10 rounded-lg`, `w-full` below `sm`, `sm:w-64`) showing the active page's icon in `text-primary`, its name, and a muted `ChevronDown`; no group name, no count. The active page is the longest-prefix match of the pathname against the items' urls and `alsoMatches` (`resolveActiveSectionUrl`, `@/lib/components/sectionNavActive`); when nothing matches the trigger reads the section's name and no row is current.
@@ -1327,7 +1351,7 @@ section-navigation pattern: the shared section dropdown. There is no second one 
   - **Index routes (`/settings`, `/account`, `/admin`):** Settings, Account & security and Admin serve index pages across all breakpoints. There is no dropdown row on the index; `SectionLayout` renders `SectionIndex` below the page's top card: groups displayed as framed lists (`FramedList`), with descriptions visible from `lg` up and names only on phones. From `lg` up, the first `splitAt` blocks (default 1) fill the left column, while the remaining groups, the footer cross-link card, and ungrouped items render in the right column:
     - **Settings (`/settings`):** Profile card (desktop: avatar, name, handle, View profile / Edit profile buttons; phones: avatar and Edit profile row) followed by `SectionIndex` with Settings groups, the footer cross-link ("Shared across your profiles" → Account & security at `/account`), and the `afterFooter` ungrouped items ("Moving" at `/settings/moving`, then "Delete this profile" at `/settings/delete`).
     - **Account & security (`/account`):** Reachable from the account menu at the bottom of the sidebar (as well as the tablet rail flyout and mobile drawer) and the Settings index footer card. Renders `AccountIdentityCard` (name, email, account photo) followed by `SectionIndex` with Account groups (Email & name, Password & sign-in, Sessions & apps, Profiles, Import and export), and the footer cross-link card ("Settings for @handle" → `/settings`).
-    - **Admin (`/admin`):** Admin is the grouped index at every width: `app/(timeline)/admin/page.tsx` renders nothing and the layout renders `SectionIndex` (`indexUrl="/admin"`), the list sitting flush under the header (the index wrapper's top margin applies only when the page above rendered something). The stats page moved to `/admin/overview` ("Dashboard"). The groups (`app/(timeline)/admin/sections.tsx`) are a headless Dashboard run, then Moderation (Reports, Accounts, Hashtags, Server filters, Federation), Community (Announcements, Custom emojis), Server (Server settings at `/admin/instance`, Server rules, Posts & media, Network, Served domains at `/admin/domains`, Relays) and Maintenance (Queues, System); `splitAt={3}` fills the index's left column with Dashboard, Moderation and Community from `lg` up (the default 1 keeps Settings and Account unchanged). Admins see the unresolved report count, capped at 100, on Reports in both the dropdown menu and the index; resolving or reopening a report refreshes it.
+    - **Admin (`/admin`):** Admin is the grouped index at every width: `app/(timeline)/admin/page.tsx` renders nothing and the layout renders `SectionIndex` (`indexUrl="/admin"`), the list sitting flush under the header (the index wrapper's top margin applies only when the page above rendered something). The stats page is `/admin/overview` ("Dashboard"). The groups (`app/(timeline)/admin/sections.tsx`) are a headless Dashboard run, then Moderation (Reports, Accounts, Hashtags, Server filters, Federation), Community (Announcements, Custom emojis), Server (Server settings at `/admin/instance`, Server rules, Posts & media, Network, Served domains at `/admin/domains`, Relays) and Maintenance (Queues, System); `splitAt={3}` fills the index's left column with Dashboard, Moderation and Community from `lg` up (the default 1 keeps Settings and Account unchanged). Admins see the unresolved report count, capped at 100, on Reports in both the dropdown menu and the index; resolving or reopening a report refreshes it.
 - **The sidebar's Admin item** carries the unresolved report count for admins (`openReportCount` from `app/(timeline)/layout.tsx`, capped at 100, on the desktop row, the tablet rail icon and the drawer row with the sr-only "(N unresolved reports)"), as the Notifications item carries the unread count; resolving or reopening a report refreshes it through `router.refresh()`.
 - **Shared longest-prefix active URL matching:** `resolveActiveSectionUrl` from `@/lib/components/sectionNavActive`.
 - **Two tiers of header:**
@@ -1388,12 +1412,12 @@ section-navigation pattern: the shared section dropdown. There is no second one 
 
 - **`SectionNavSelect` is the state-driven twin of `SectionNavDropdown`**, and there is one implementation of each — do not re-inline either. Both render the same chrome: an outline trigger carrying the active tab's Lucide icon in `text-primary`, a sentence-case label and a muted `ChevronDown`, over a `rounded-xl` menu sized with `w-(--radix-dropdown-menu-trigger-width)`. They differ only in what a row does. `SectionNavDropdown`'s rows are `<Link>`s, its active row is resolved from `usePathname()` and marked `aria-current="page"`; `SectionNavSelect` takes `{ tabs, active, onChange }`, its rows are `DropdownMenuItem`s calling `onChange`, and the current one is marked with the **boolean** `aria-current` — nothing here is a page. `SectionNavSelect`'s menu has no groups, footer or list-page link; only the chrome is shared.
 - The fitness activity page's recording picker (`FitnessRecordingPicker`) is not a third consumer but wears the same chrome — an outline trigger with a muted `ChevronDown`, a `rounded-xl` menu, `rounded-lg` rows and the current row on `bg-primary/10 text-primary-text` with the same focus ring, marked with the boolean `aria-current` — because the two menus sit within a screen of each other. Keep them in step.
-- Its two consumers are a bike's gear page (Components / Activities) and the profile's Gallery tab (`ProfileGalleryTab`: Subjects / Recent / Albums / Map / Life list, limited to the subviews the viewer may open). With five profile tabs the tab list scrolls sideways below `sm` (`overflow-x-auto`, `justify-start`, `flex-none` triggers); with four or fewer it is unchanged. A third copy of that markup is exactly what extracting it removed.
-- **Both** active rows take `text-primary-text`, not `text-primary` — see the orange-text rule under **Fitness Gear** in `docs/fitness-file-storage.md`. That is the one place the pairing is load-bearing rather than cosmetic: the two dropdowns now appear on one screen (a bike's page carries the fitness section's nav above its own view switcher), so a mismatch reads as a mistake, and `--primary` as a foreground is under the AA floor either way. Each keeps its wash on `focus:` and therefore also carries `focus:ring-2`, or a keyboard user watching the highlight move down the list would see it vanish on precisely the current row.
+- Its two consumers are a bike's gear page (Components / Activities) and the profile's Gallery tab (`ProfileGalleryTab`: Subjects / Recent / Albums / Map / Life list, limited to the subviews the viewer may open). With five profile tabs the tab list scrolls sideways below `sm` (`overflow-x-auto`, `justify-start`, `flex-none` triggers); with four or fewer it is unchanged. Do not hand-roll a third copy of that markup.
+- **Both** active rows take `text-primary-text`, not `text-primary` — see the orange-text rule under **Fitness Gear** in `docs/fitness-file-storage.md`. That is the one place the pairing is load-bearing rather than cosmetic: the two dropdowns appear on one screen (a bike's page carries the fitness section's nav above its own view switcher), so a mismatch reads as a mistake, and `--primary` as a foreground is under the AA floor either way. Each keeps its wash on `focus:` and therefore also carries `focus:ring-2`, or a keyboard user watching the highlight move down the list would see it vanish on precisely the current row.
 
 #### Sticky-header sub-nav (`PageSubnavProvider`)
 
-- `PageSubnavProvider` remains available for sections that need horizontal tabs **inside** the sticky header: wrap the layout's `{children}` in it and pass the rendered tabs as `subnav`. The closest `PageHeader` renders the tabs directly under the title row, inside the sticky chrome. Do **not** render the sub-nav directly in the layout JSX above the header. No settings-style section layout uses this any more (admin moved to `SectionLayout` to match the design system), but the top-level Notifications page (`app/(timeline)/notifications/page.tsx`) uses it for its sticky-header filter tabs (sticky from `md` up; below `md` they sit in the content row under the compact bar and scroll with the page), and the primitive also backs the nested in-content segmented-control pattern.
+- `PageSubnavProvider` remains available for sections that need horizontal tabs **inside** the sticky header: wrap the layout's `{children}` in it and pass the rendered tabs as `subnav`. The closest `PageHeader` renders the tabs directly under the title row, inside the sticky chrome. Do **not** render the sub-nav directly in the layout JSX above the header. No settings-style section layout uses this; the top-level Notifications page (`app/(timeline)/notifications/page.tsx`) uses it for its sticky-header filter tabs (sticky from `md` up; below `md` they sit in the content row under the compact bar and scroll with the page), and the primitive also backs the nested in-content segmented-control pattern.
 
   ```tsx
   import { PageSubnavProvider } from '@/lib/components/page-header'
@@ -1409,7 +1433,7 @@ section-navigation pattern: the shared section dropdown. There is no second one 
 - **Connection status strip (`ConnectionStatusStrip`).** While the app is not online, a `bg-info-surface` strip (52px minimum, taller when its title wraps) is a sibling right under the compact bar (`MobileCompactHeader` returns both and gives the strip the bar's own spacing class, and the bar drops its margin while the strip follows it, so a parent's `space-y-*` gap opens only under the pair: never under a strip that continues a `PageHeader` box, and under the strip, not between bar and strip, on a title-only page), sticky at 56px plus the top safe area, `z-30`, with `data-connection-strip`. `app/globals.css` keys `--status-strip-h` on it (`html:has([data-connection-strip])`, 52px), and the strip overrides that with its measured height (a `ResizeObserver` sets it inline on `<html>` while the strip shows and removes it when it goes); the variable is added to both `scroll-padding-top` rules and `--backdrop-top`, and pushes the compact bar's overlay slot (`data-compact-header-overlay`, the home "N new posts" pill) below it; the pill rule targets that data attribute, never the `top-full` utility class. The profile has no compact bar, so it has no strip. The strip is purely visual: `ConnectionAnnouncer` is the one live region.
 - **Compact bar (`MobileCompactHeader`).** A 56px sticky row (a 55px content box plus its 1px bottom border, so the top safe-area inset is added on top), `bg-surface-chrome`, bottom border: the menu button and one truncating title (the full string stays in `title`). The bar's `pl-2` and the trigger's own 44px hit area, with no negative margin, put the 20px icon at x=20 and the title (`text-lg font-semibold`; this repo's `text-lg` is the design's 18/24, see `--text-lg--line-height` in `app/globals.css`) at x=60. No logo, subtitle, breadcrumb, badge or Back. The one exception is the `actions` slot after the title, used only by the home timeline's Refresh (`PageHeader`'s `actionsInMobileBar`); the bar's `pr-4` puts that 36px button on the 16px content gutter. `PageHeader` renders it for every top-level page; pages without a `PageHeader` render it themselves (status, the redirect card, the terms and privacy policy pages). Section layouts' bars carry the section name ("Settings", "Fitness", "Gallery", "Admin", "Account & security"); in `SectionLayout` (Settings, Account & security, Admin) below `md`, the section header box shows only on the index, so child pages open on the section row (the list-page link and the dropdown); in Fitness and Gallery the section's description, the dropdown and the child page's section-mode heading stay in the content.
 - **Profile.** No bar at any scroll position: the cover is full-bleed and flush to the top, and the `floating` trigger is fixed at a 16px (+ safe-area) inset with a solid `bg-popover` surface, border, shadow and a two-part focus indicator: the `ring-2 ring-ring ring-offset-2` ring plus a 1px `outline-foreground` outline at offset 4, which keeps the indicator visible where the orange ring vanishes against an orange cover. Do not put `focus-visible:outline-hidden` on that button; it sets the outline style to none and cancels the outline. The button fades to `opacity-40` while the window is actively scrolling (a passive `scroll` listener; it returns `FLOATING_TRIGGER_SCROLL_IDLE_MS`, 200ms, after the last scroll event) so it does not sit over the text being read. It is never faded while the drawer is open, `focus-visible:opacity-100` keeps it opaque under keyboard focus, `motion-reduce:transition-none` drops the fade animation, and opacity never blocks the click.
-- **Back goes in the content.** A parent-route Back is a `BackLink` (or `PageHeader`'s `back`) — a 44px row (`gap-2`, a 16px arrow on the 16px content gutter with no negative margin or padding, then a `text-sm font-medium text-muted-foreground` label at x=40); from `md` up it collapses to the 20px icon it always was. The post page's history Back is the same row (`MOBILE_BACK_ROW_CLASS`), and its container carries `max-md:px-4` so the arrow lines up with the card's avatar. The post/activity page's Back is history-based: `router.back()` only when `InAppHistoryTracker` (root layout) has recorded an earlier, different page in this tab, otherwise a real link to the author's profile built from the handle parsed out of the URL — never from the raw path segment, which can decode to an off-site `//host` (`useInAppBack`; its server snapshot is `null`, so a direct entry renders the link on both sides of hydration and the history Back takes over after). The record is a pathname heuristic, not a guarantee: a new pathname is a push (so a link back to a page already visited still names the page just left), a `popstate` is a pop to the nearest earlier entry, and `lib/components/navigation-history/inAppHistory.ts` documents where it errs in each direction (a multi-step `history.go(-n)` over a repeated pathname, for one). In-pane Backs (message conversation, filter editor, gear detail, heatmap region) are unchanged, and gallery arrows and pagination are not navigation headers.
+- **Back goes in the content.** A parent-route Back is a `BackLink` (or `PageHeader`'s `back`) — a 44px row (`gap-2`, a 16px arrow on the 16px content gutter with no negative margin or padding, then a `text-sm font-medium text-muted-foreground` label at x=40); from `md` up it collapses to the 20px icon. The post page's history Back is the same row (`MOBILE_BACK_ROW_CLASS`), and its container carries `max-md:px-4` so the arrow lines up with the card's avatar. The post/activity page's Back is history-based: `router.back()` only when `InAppHistoryTracker` (root layout) has recorded an earlier, different page in this tab, otherwise a real link to the author's profile built from the handle parsed out of the URL — never from the raw path segment, which can decode to an off-site `//host` (`useInAppBack`; its server snapshot is `null`, so a direct entry renders the link on both sides of hydration and the history Back takes over after). The record is a pathname heuristic, not a guarantee: a new pathname is a push (so a link back to a page already visited still names the page just left), a `popstate` is a pop to the nearest earlier entry, and `lib/components/navigation-history/inAppHistory.ts` documents where it errs in each direction (a multi-step `history.go(-n)` over a repeated pathname, for one). In-pane Backs (message conversation, filter editor, gear detail, heatmap region) keep their own patterns, and gallery arrows and pagination are not navigation headers.
 - **Back labels.** The visible text is "Back" everywhere — list and admin detail Backs, and the post page's history Back — except a Back whose destination is a profile, which reads "Back to profile": the signed-in followers/following Back, the post page's direct-entry fallback, and a history Back whose previous page was a profile. The accessible name always names the destination and contains the visible text (WCAG 2.5.3): "Back to lists", "Back to accounts list", and for a profile "Back to profile, <display name>" (the visible words come first, as written; `profileBack`/`profileName` in `lib/components/navigation-history/backDestination.ts`; the full `@user@domain` when there is no display name, and custom-emoji `:shortcodes:` are dropped from the name because it is spoken). The history Back names the page it returns to from that page's recorded pathname (`resolveBackDestination`), with registry labels from `nav-items.ts` where one exists:
 
   | Previous pathname                                                                                                                                     | Accessible name                                                                                                               | Visible         |
@@ -1424,14 +1448,15 @@ section-navigation pattern: the shared section dropdown. There is no second one 
   | `/@user@domain/<status>`                                                                                                                              | Back to post                                                                                                                  | Back            |
   | anything else                                                                                                                                         | Back to previous page                                                                                                         | Back            |
 
-  The desktop icon Back on the post page carries the same name when there is an in-app page to return to, and "Go back" otherwise (it calls `router.back()` either way, as it always has). The name is only ever text: the history Back is a `router.back()` button, never a link built from the recorded pathname.
+  The desktop icon Back on the post page carries the same name when there is an in-app page to return to, and "Go back" otherwise (it calls `router.back()` either way). The name is only ever text: the history Back is a `router.back()` button, never a link built from the recorded pathname.
 
-- **Logged-out pages keep the branded top bar.** The redesign's chrome is for signed-in viewers only. What a logged-out viewer gets of it is the same page content on the same kit surfaces, inside a different shell: profiles (the flat header with `ProfileCover`, the `counts` strip, the tabs and the post list frame), posts, followers/following (`FramedList`), hashtags (a `text-xl` heading over the post list frame) and their loading skeletons are the pages a signed-in viewer sees, with `PublicShell`'s 680px column and its own spacing, apart from the deliberate visual exceptions below. The terms of service and privacy policy pages (`/terms-of-service`, `/privacy-policy`, `app/(timeline)/(policies)/`) use `PublicShell footer={false}` for logged-out visitors, since the page prints its own footer (the other policy's link and the instance's contact); signed-in visitors get the page inside the nav chrome with `MobileCompactHeader` (title "Terms of service"/"Privacy policy") below `md` and a `md:pt-8` top gap from `md` up in place of the shell's `py-6`. The remote-actor redirect card and the shared heatmap (`/u/heatmaps/[token]`) are unchanged (the shared heatmap's logo also now loads from the canonical-origin URL, which looks the same; every brand logo on these pages and the landing comes from `getBrandAssetSrc`, which keeps that absolute URL except in `next dev`, where it stays root-relative so the logo loads when the browser is on a host other than `ACTIVITIES_HOST`). What stays logged-out only is the chrome: `PublicTopBar` (logo, Sign in, and Create account only while registration is open) at every width, no compact bar, menu button or drawer. `PublicShell` mounts no `MobileNavigationProvider`, so `MobileCompactHeader`, `MobileNavigationTrigger` and `PageHeader`'s mobile split render nothing there; a page or skeleton shared by both viewers keeps its logged-out geometry by gating mobile-only classes on the provider (`ProfileCover`, `PageHeader`'s mobile split), on the session (the status page's inset cards), or on `group-data-[shell=public]/shell:` variants (skeletons). Embeds and the centred auth pages get no chrome.
+- **Logged-out pages keep the branded top bar.** This chrome is for signed-in viewers only. What a logged-out viewer gets of it is the same page content on the same kit surfaces, inside a different shell: profiles (the flat header with `ProfileCover`, the `counts` strip, the tabs and the post list frame), posts, followers/following (`FramedList`), hashtags (a `text-xl` heading over the post list frame) and their loading skeletons are the pages a signed-in viewer sees, with `PublicShell`'s 680px column and its own spacing, apart from the deliberate visual exceptions below. The terms of service and privacy policy pages (`/terms-of-service`, `/privacy-policy`, `app/(timeline)/(policies)/`) use `PublicShell footer={false}` for logged-out visitors, since the page prints its own footer (the other policy's link and the instance's contact); signed-in visitors get the page inside the nav chrome with `MobileCompactHeader` (title "Terms of service"/"Privacy policy") below `md` and a `md:pt-8` top gap from `md` up in place of the shell's `py-6`. The remote-actor redirect card and the shared heatmap (`/u/heatmaps/[token]`) keep their own layout (the shared heatmap's logo loads from the canonical-origin URL; every brand logo on these pages and the landing comes from `getBrandAssetSrc`, which keeps that absolute URL except in `next dev`, where it stays root-relative so the logo loads when the browser is on a host other than `ACTIVITIES_HOST`). What stays logged-out only is the chrome: `PublicTopBar` (logo, Sign in, and Create account only while registration is open) at every width, no compact bar, menu button or drawer. `PublicShell` mounts no `MobileNavigationProvider`, so `MobileCompactHeader`, `MobileNavigationTrigger` and `PageHeader`'s mobile split render nothing there; a page or skeleton shared by both viewers keeps its logged-out geometry by gating mobile-only classes on the provider (`ProfileCover`, `PageHeader`'s mobile split), on the session (the status page's inset cards), or on `group-data-[shell=public]/shell:` variants (skeletons). Embeds and the centred auth pages get no chrome.
 - **A logged-out visitor never triggers a remote profile fetch.** `getRemoteProfileData` returns `null` when the viewer is not signed in, so `app/(timeline)/[actor]/page.tsx` shows the remote-actor redirect card when `getNonLocalActorRedirectTarget` finds a target and `notFound()` otherwise. A 404 for a remote profile while logged out is by design, not a federation failure.
-- **Exception: the logged-out status page is inset cards below `md`.** A logged-out post or activity (`/@actor/<status>`) is the one logged-out page that no longer looks like `main` on a phone, at the owner's request. Its media rows bleed to the card's inner edge, since the card is their owning frame there. `main` pulled the thread flush under `PublicTopBar` (`max-md:-mt-6`) as one full-bleed surface (`MOBILE_FEED_SURFACE_CLASS`), while "Join the conversation" and `PublicFooter` were framed blocks, so the post read as bleeding out of the page. Below `md` the page's outer frame takes `MOBILE_INSET_STACK_CLASS` instead (`lib/components/posts/feedLayout.ts`): it stops painting its own frame and stacks two cards 24px apart, the thread (the post and its replies, or the activity, each a `rounded-lg border` frame) and the `SignInCallout`, both at `PublicShell`'s 16px gutter, the footer's inset. The 24px is also the gap under the top bar, which is `PublicShell`'s own `py-6` (the negative margin is gone), so the thread starts one gap below the bar and the gap to the callout matches it. The first row of the thread keeps `rounded-t-lg` at every width (`StatusThread` resets its rows with `max-md:rounded-none` only for a signed-in viewer, since a logged-out thread is a card, not the surface); the activity's replies are inside its post, which is flush in the page card with no frame of its own, so they follow that card. Every class is `max-md:`-scoped: from `md` up a logged-out page is still one rounded card with the callout inside it, and a signed-in page (below or above `md`) is unchanged. The loading skeleton (`[status]/loading.tsx`) matches with `group-data-[shell=public]/shell:max-md:` variants that undo the feed surface on its single placeholder card (gutter back, radius, border) and no `-mt-6`; it has no callout placeholder, as before.
+- **Exception: the logged-out status page is inset cards below `md`.** A logged-out post or activity (`/@actor/<status>`) is the one logged-out page that does not look like `main` on a phone. Its media rows bleed to the card's inner edge, since the card is their owning frame there. Below `md` the page's outer frame takes `MOBILE_INSET_STACK_CLASS` instead (`lib/components/posts/feedLayout.ts`): it stops painting its own frame and stacks two cards 24px apart, the thread (the post and its replies, or the activity, each a `rounded-lg border` frame) and the `SignInCallout`, both at `PublicShell`'s 16px gutter, the footer's inset. The 24px is also the gap under the top bar, which is `PublicShell`'s own `py-6`, so the thread starts one gap below the bar and the gap to the callout matches it. The first row of the thread keeps `rounded-t-lg` at every width (`StatusThread` resets its rows with `max-md:rounded-none` only for a signed-in viewer, since a logged-out thread is a card, not the surface); the activity's replies are inside its post, which is flush in the page card with no frame of its own, so they follow that card. Every class is `max-md:`-scoped: from `md` up a logged-out page is still one rounded card with the callout inside it, and a signed-in page (below or above `md`) keeps the full-bleed surface. The loading skeleton (`[status]/loading.tsx`) matches with `group-data-[shell=public]/shell:max-md:` variants that undo the feed surface on its single placeholder card (gutter back, radius, border) and no `-mt-6`; it has no callout placeholder.
 - **Intro row and section spacing.** Below `md` a `PageHeader` whose bar already holds the title shows its description as `text-sm` text on a 20px line, flush with the box's 16px top padding. In `SectionLayout` (Settings, Account & security and Admin), below `md` the header box shows only on the index (`/settings` with "For @handle", `/account` with "Shared across your profiles · email", `/admin` with its description), where it renders flush (`pt-0`), followed by the top identity card (profile card or `AccountIdentityCard`) and `SectionIndex` (Admin's page renders nothing, so its list sits flush under the header box). On child pages below `md`, the header box is hidden (`max-md:hidden`), so the page opens on the section row 12px under the compact bar (`max-md:pt-3`), the child page's heading 20px below it (`max-md:mb-5`); from `md` up the row sits 16px (`pt-4`) under the sticky header, like Fitness. Admin's detail pages (an account, a report, a hashtag, a domain's page or its new form) keep their own Back link under the row. For content sections using `SectionNavDropdown` (Fitness, Gallery), the description is followed by `SectionNavDropdown` 16px below (the layout's `pt-4` is `max-md:pt-0`, so only the box's bottom padding separates them) and the child page's heading 20px below the dropdown (`max-md:mb-5`). The margin belongs to `SectionNavDropdown`, so the nested Fitness › Connections dropdown also sits 20px above its content below `md`. Each of these is `max-md:`-scoped; from `md` up the description stays `text-xs` and the 32px / 16px spacing is unchanged.
 - **Z-order.** Desktop sticky `PageHeader` 20; mobile compact bar, the connection status strip, `PublicTopBar`, the floating profile button, scroll-to-top and the post reaction-picker backdrop 30 (the floating button renders first in the DOM, so a later same-z backdrop paints over it); in-content popovers 40 (the announcements panel is 30 inside the header's own stacking context, so post popovers paint above it); the drawer, dialogs, dropdowns, tooltips, `MediasModal` and the "Saved to Drafts" note 50. `app/globals.css` pads the scroll snapport under the mobile chrome so focus is never hidden beneath it.
 - **Server-rendered components read chrome values from `lib/components/layout/chromeLayout.ts`** (`breakoutStyle`, the bar and back-row class strings) — `BackLink` when a server page renders it, the followers/following loading skeleton — never from the client components that use them — see **Server/Client Module Boundary**.
+- **The desktop rendering (≥768px) is visually unchanged by the mobile chrome.** Mobile-only nodes (the compact bar, the floating trigger, Back rows) stay in the markup at every width but are `md:hidden`; mobile styles are `max-md:`-scoped and desktop chrome classes are `md:`-prefixed.
 
 <a id="agents-fitness-overview-calendar"></a>
 
@@ -1447,10 +1472,12 @@ The fitness overview (`app/(timeline)/fitness/`, with its calendar components in
 - **Popover.** `lib/components/ui/popover.tsx` wraps `@radix-ui/react-popover` like the other `ui/*` primitives. The range picker uses it when the whole panel fits beside its trigger and falls back to a bottom sheet otherwise (`rangePickerPresentation.ts`); it renders in a portal at the dropdowns' layer (50). The calendar's own cell tooltip is not `ui/tooltip` but one shared `CalendarTooltip` per calendar; its header comment says why.
 
 <a id="agents-surfaces"></a>
+<a id="review-surfaces"></a>
+<a id="review-page-chrome-layout-accessibility"></a>
 
 ### Surfaces (Shared Surface Kit)
 
-Every page is laid out from one kit in `lib/components/surface/` (import each piece from its own file, for example `@/lib/components/surface/Frame`; `index.ts` re-exports the lot plus `RefreshButton`). The kit began as the Fitness overview's own primitives, which Gallery already borrowed; they were promoted to neutral names, and the `Fitness*` files no longer exist. Fitness, Gallery, Albums, Settings, Account, Admin, Notifications, Messages, Lists and the timeline pages (Home, Bookmarks, Favorites, hashtags, lists, profile, status, followers and following, Explore, Search) and the auth pages under `app/(nosidebar)/` use it, so a new surface reuses it instead of a `Card`, a `rounded-2xl` panel or a hand-coloured banner.
+Every page is laid out from one kit in `lib/components/surface/` (import each piece from its own file, for example `@/lib/components/surface/Frame`; `index.ts` re-exports the lot plus `RefreshButton`). Fitness, Gallery, Albums, Settings, Account, Admin, Notifications, Messages, Lists and the timeline pages (Home, Bookmarks, Favorites, hashtags, lists, profile, status, followers and following, Explore, Search) and the auth pages under `app/(nosidebar)/` use it, so a new surface reuses it instead of a `Card`, a `rounded-2xl` panel or a hand-coloured banner.
 
 | Component                                                            | Use it for                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -1476,18 +1503,37 @@ Rules:
 - **Radii.** `rounded-lg` frames and panels, `rounded-md` controls and media tiles, `rounded-full` only for avatars and pills, `rounded-xl` only for dialogs. Never `rounded-2xl`, and no shadow on a panel: shadows belong to popovers, menus, dialogs and map overlays.
 - **Copy.** Sentence case for every heading, label and button.
 - **Colour.** Theme tokens only. Say success, warning, info and error with `Alert` (an opaque `bg-<tone>-surface` fill and tinted outline besides the left rule and icon; a caller must not override the fill with its own `bg-*`) and the `success` / `warning` / `info` / `destructive` tokens (`bg-*`, `*-foreground`, and `text-*-text` for text, which clear WCAG AA in both themes; `app/globals.contrast.test.ts` recomputes it), a state label with a `Badge` tone, and a link inside rendered HTML with `--link-color` (`[&_a]:text-(color:--link-color)`). No `text-green-600`, `bg-yellow-50`, `text-neutral-400` and the like. A surface that must stay dark in either theme (the photo viewer's album menu and toast, the admin `.env` block) takes the `dark` class on its root, which re-resolves the tokens to their dark values for that subtree, instead of fixed greys. The one exception is data: a fixed colour that says WHICH series or category something is (the fitness chart series in `lib/components/fitness/palette.ts`) lives in a named palette module, one per domain, that the guard lists by path with a reason.
-- **Failures.** A request that fails is an `Alert` (error tone, `title` says what failed, `onRetry` where the action can be repeated, set above the box it belongs to, never inside it; the exceptions are an `AuthCard` and the Messages chat panes, which are themselves the page's surface), never a bare `text-sm text-destructive` line: in a page, a dialog or under a button alike. A message standing in a post that is rendered with it (a failed fitness import) passes `live={false}`; the failure of an action the reader just took announces itself. Field validation under one input is its own state (`fieldError`, never the form's request `error`) and stays a small inline `text-xs text-destructive-text` line with an `id` that the input names in `aria-describedby` (plus `aria-invalid`); a validation failure moves focus to the invalid input (the first one when several) so its described error is read; a rule about a group with no single input (an album needs a photo) is the same line with `role="alert"`. Text in the error colour names `text-destructive-text` (the `text-destructive` utility is aliased to it in `globals.css`, but `bg-destructive` is the fill and does not clear contrast as text). A row detail inside a list or table (a failed import's error in its row) is plain text in that row; a standing error read at load (Wahoo's last provider error) is an `Alert` with `live={false}`. A failure that surfaces only as an announcement from the page's own live region (an upload that failed in the composer) is spoken once, by that region, not by a second `role="alert"` on the tile. PostBox's failure to send or update is an `Alert` ("Couldn't send." / "Couldn't update.", with Retry, and "Your post is saved as a draft." when the draft saved) drawn after the composer card, as the design shows it: the home composer passes `frameClassName` so PostBox draws the card itself and the Alert follows it, never inside it; a locked create (the server kept the post) shows only the lock line. The exception is the composer's `warningMsg` line, which now carries only rejected files and the reply box's request failures, as one inline `role="alert"` line.
+- **Translucent chrome uses `bg-surface-chrome`** (`--surface-chrome`: white at 72 % light, #141414 at 80 % dark) with `backdrop-blur`, never `bg-background/NN`: the sticky page header, the sidebar, the icon rail, the mobile compact bar, and the sticky bars of the public shell (`PublicTopBar`), the logged-out landing page's public-feed header, the shared heatmap page and the status page header. `lib/components/surfaceChromeUsage.test.ts` lists the bars.
+- **A status or label pill is the shared `Badge`**, never a hand-copied `rounded-full bg-… px-2 py-0.5` span (the shared `Badge`'s `px-2.5` is 4 px wider across and it carries the design's dark tints). Its six tones: `gray` (the default), `primary` and `destructive` (the text token for the label and a lighter hue at 16 % for the dark fill), and `success`, `warning` and `info`, which are a `bg-<tone>/10` (light) or `/25` (dark) tint of the status colour behind its `-text` token, which clears AA on it in both themes (`Alert` does not use these tints; it has its own opaque `-surface` tokens). There is no `blue` tone; a "Sign-in" or other neutral-informational label is `info`. Do not hand-roll badge colours with fixed `hsl()` values — a pill that has no `dark:` variant renders as a light chip on the dark surface. A pill that is not a tone — the 10–11 px file-type and position tags, the filter context chips — stays its own element.
+- **Palette tokens beyond the shadcn set** (the values live in `app/globals.css` and are guarded by `app/globals.contrast.test.ts`): `--control-off` (`bg-control-off`, the Switch track when off: #CCCCCC light, #545454 dark), `--surface-accent` (`bg-surface-accent`, the pale orange tile behind an accent icon: #FFF6F0 light, #271A11 dark; a selected tile keeps `bg-primary/20`), the four opaque tinted fills of `Alert` (`--destructive-surface`, `--success-surface`, `--warning-surface`, `--info-surface`), and the dark brand backdrop on `body` (#492812 top-left and #193543 top-right at 60 %).
+- **Failures.** A request that fails is an `Alert` (error tone, `title` says what failed, `onRetry` where the action can be repeated, set above the box it belongs to, never inside it; the exceptions are an `AuthCard` and the Messages chat panes, which are themselves the page's surface), never a bare `text-sm text-destructive` line: in a page, a dialog or under a button alike. A message standing in a post that is rendered with it (a failed fitness import) passes `live={false}`; the failure of an action the reader just took announces itself. Field validation under one input is its own state (`fieldError`, never the form's request `error`) and stays a small inline `text-xs text-destructive-text` line with an `id` that the input names in `aria-describedby` (plus `aria-invalid`); a validation failure moves focus to the invalid input (the first one when several) so its described error is read; a rule about a group with no single input (an album needs a photo) is the same line with `role="alert"`. Text in the error colour names `text-destructive-text` (the `text-destructive` utility is aliased to it in `globals.css`, but `bg-destructive` is the fill and does not clear contrast as text). A row detail inside a list or table (a failed import's error in its row) is plain text in that row; a standing error read at load (Wahoo's last provider error) is an `Alert` with `live={false}`. A failure that surfaces only as an announcement from the page's own live region (an upload that failed in the composer) is spoken once, by that region, not by a second `role="alert"` on the tile. PostBox's failure to send or update is an `Alert` ("Couldn't send." / "Couldn't update.", with Retry, and "Your post is saved as a draft." when the draft saved) drawn after the composer card, as the design shows it: the home composer passes `frameClassName` so PostBox draws the card itself and the Alert follows it, never inside it; a locked create (the server kept the post) shows only the lock line. The exception is the composer's `warningMsg` line, which carries only rejected files and the reply box's request failures, as one inline `role="alert"` line.
 - **Lists.** Every list, post lists included, is one frame with dividers (Home and the Fitness recent activities), never separate cards. The one exception is an admin account's actors: each is its own `Frame` (summary and moderation actions) with its moderation status `Alert` above it, `space-y-6` apart, because each actor carries its own status.
   - Exception: the profile fields on the profile page are an unframed inline line under the bio (like the software line), not a framed list.
 - **Post lists.** Every list of posts (Home, Bookmarks, Favorites, hashtags, a list, the profile tabs, a status's replies, Explore and Search posts, the admin hashtag page, the logged-out landing feed) is `Posts` (or `TimelineFeed`) framed with `POST_LIST_FRAME_CLASS` (`rounded-lg border bg-background`, no shadow, `divide-y` rows) from `lib/components/posts/feedLayout.ts`; below `md` `MOBILE_FEED_SURFACE_CLASS` makes it full-bleed. A feed that can be empty shows an `EmptyState` with the page's icon (and an action where one is obvious: "Find people to follow" on Home, "Add people" on a list), a failed load is an `Alert` with Retry where the feed can refetch, and its `loading.tsx` draws `PostListSkeleton` (the frame with avatar-and-bars rows) under one `<span role="status" className="sr-only">` naming the wait (an `aria-label` on a plain `div` is not announced). Tabs on these pages are `SegmentedControl` (in-page state on Explore, Search and the profile, which switch panels without a route change).
 - **Forms.** One form is one box: a form whose fields save together sits in ONE `Frame form` of `FormRow`s (and `FormGroup`s when it spans several former sections; `stickyFooter` on a long one), with no rules between fields, only spacing, and one rule above the action: the `SaveBar` footer, an auth card's action band, or a form dialog's `DialogFooter separated` (`-mx-6 -mb-6 border-t px-6 py-4`, edge to edge of the dialog, 16px under the content from the dialog's own gap; not used in yes/no confirmations, which have no fields). Controls that save as they change use `Frame form` with no footer and a `SavedIndicator`. Lists keep their dividers (`Frame divided`, `FramedList`, `TableFrame`, `DetailList`). A single-item add box is an `AddBar`, not a `Frame form` with a `SaveBar`; choice cards are `RadioCard`. Stacked on a phone. Field validation keeps its small red line; a page-level error is an `Alert`.
+- **Native form controls are the shared primitives, never raw HTML.** A native `<select>` is the shared `Select` (`@/lib/components/ui/select`): 36 px, the design's 3 px focus ring, `shadow-xs`, the OS arrow hidden and the muted chevron painted in its place; a call site that needs a different width passes it as a `className` (`w-auto` for a select that shares a row with other controls), and the chevron class is private to the primitive, so there is no raw `<select>` to append it to. A checkbox is the shared `Checkbox` (`@/lib/components/ui/checkbox`): 16 px, radius 4, an orange fill and a white tick when checked, instead of the browser's blue control; it is still a real `<input type="checkbox">`, so a label that wraps it or points at it with `htmlFor` toggles it and a form posts it as before. `lib/components/ui/formControlUsage.test.ts` fails on a raw `<select>` or `<input type="checkbox">` outside the primitives; the fitness activity page's recording switcher is a menu, not a select (see **Several recordings of one activity** in [Fitness file storage](fitness-file-storage.md)).
+- **The shared `Dialog`** is 440 px wide by default (a dialog that needs more sets its own `sm:max-w-*`, as the gear forms do at `sm:max-w-lg`), has a 16 px radius, and sits on `bg-card` in dark mode (`bg-background` in light) so it reads lighter than the dimmed page. The light `outline` Button is filled with `bg-card` (#FAFAFA); dark stays the translucent `bg-input/30`, except the scroll-to-top pill (`bg-popover`), the timeline refresh button (`bg-card`) and the announcements icon button beside it (`bg-card`), which are solid `#171717` with the `--border` hairline in dark. The `pill` Button variant likewise stays translucent except the floating pill that sits over posts ("N new posts"), which is solid `bg-popover` with `shadow-lg` in both themes so post text never shows through it; its up arrow is `text-muted-foreground`, not `primary`.
+- **Dropdown menu rows** highlight with `--accent` in light and `--muted` (#2B2B2B) in dark, and a radio item's indicator is a 6 px dot. A row that paints its own `focus:` wash (the current row of `SectionNavDropdown` / `SectionNavSelect`, the visibility selector, the Strava gear menu) repeats it as `dark:focus:`: the shared item's `dark:focus:bg-muted` survives tailwind-merge unless the row names its own `dark:focus:` background, so the hovered row would turn grey in dark. Loading placeholders use the shared `.skeleton` utility rather than `bg-muted`, which sits almost on the card and is near-invisible.
+- **Full-height layouts use the dynamic viewport unit `min-h-dvh`** (not `min-h-screen` / `100vh`), so mobile browser toolbars don't break centering.
 - **Settings and Account.** Every Settings and Account page (`/settings/*`, `/account/*`, verify-email included) is built from the kit: one `PageHeader` h1 (the section layouts render a child title as h2), `Section`s of `Frame form` + `FormRow` (Settings uses `SectionLayout`: `/settings` is the index with a profile card and `SectionIndex` below it; focused pages like Appearance at `/settings/appearance` and Privacy at `/settings/privacy` use `Frame form` with `NativeFormSaveBar` and `returnTo`; the Edit profile page (`/settings/profile`) is one `Section` per box, each a `Frame form`, with a page-wide sticky `SaveBar` (`dirtyLabel="You have unsaved changes"`, Cancel in `actions`); Preferences' Posting & reading and Sidebar likewise; Account & security uses `SectionLayout` as well: `/account` is the index with `AccountIdentityCard` and `SectionIndex` listing Email & name, Password & sign-in, Sessions & apps, Profiles, and Import and export, and `/account?error=` redirects to `/account/email?error=`; `/account/email` handles Email & name with email, account name, account photo, and image upload 303s to `/account/email[?error=]`; `/account/security` handles Password & sign-in; `/account/sessions` handles Sessions & apps with active sessions, connected apps and the "Sign out" button; `/account/profiles` lists account profiles via `ActorsSection`; `/account/import-export` handles the archive export, the CSV exports and imports), a `SaveBar` footer for forms (`NativeFormSaveBar` for native-POST profile forms), a `Frame divided` only for lists, `FramedList` / `TableFrame` lists with `EmptyState`s, `Alert`s for errors and a danger-zone `Alert` card for destructive actions (Delete this profile at `/settings/delete`). Each route has a `loading.tsx` drawn with `SectionSkeleton`.
 - **Admin.** Every Admin page (`/admin/*`) is built from the kit the same way: the Dashboard (`/admin/overview`) is a `SegmentedControl` time range over two `StatStrip`s whose selectable cells choose the chart; list pages (accounts, hashtags, reports, dead-lettered jobs) are `TableFrame`s with an `EmptyState` and the shared `Pagination` (`lib/components/admin/`); below `sm` a table keeps only its primary column and folds the rest into a muted second line (`lib/components/admin/adminTable.ts`), so no value or row action is left behind a sideways scroll, detail pages put a `DetailList` (label and value rows in one `Frame`) under a `Section` (an account's actors are one `Frame` each, summary and moderation actions, with the moderation status `Alert` above it; see **Lists**), and sort or status choices that navigate are `SegmentedControl asLinks`. Server settings forms are `Section` + `Frame form` + `SettingsField` (a `FormRow` that also shows the "Set by environment" lock) with a `SaveBar`; relays, federation, rules, announcements, filters and custom emoji are framed lists (`FramedList`, or `Frame divided` rows) next to an `AddBar` for a single-field add (relay inbox, rule, domain allow) or a `Frame form` with a `SaveBar variant="create"` footer for a multi-field one (domain block, announcement, custom emoji). A status carried in the URL (`?status=`) or a request failure is an `Alert` (with Retry for a load); a state label is a `Badge` with a tone (`success`, `warning`, `info`, `destructive`, `primary`, `gray`), never a hand-coloured pill. Each `/admin/*` route but `/admin` itself has a `loading.tsx` — `SectionSkeleton` everywhere except the Dashboard's own shape at `/admin/overview` — and the index deliberately has none, because its page renders nothing and a streamed loading boundary would turn the non-admin `redirect()` into a 200 with a skeleton (see Loading below) — and the admin page icons live in `lib/components/admin/adminIcons.ts` so the menu and the page share them.
   **Admin › Server filters** narrows the loaded list by action, any selected context, and expiry status, using dropdown chips on wider screens and a Filters sheet on phones; account Settings › Filters keeps its existing controls and list.
 - **Notifications, Messages and Lists.** The timeline-side pages that are not post feeds use the kit too, keeping their `PageHeader` h1 (they are top-level routes, not section layouts). Notifications is the All / Mentions `SegmentedControl asLinks` in the header's sub-navigation slot, `MarkAllReadButton` in the header `actions` and `PageRefreshButton` in `mobileBarActions` (placing Refresh in the mobile compact bar below `md` and at the trailing end of the header actions row from `md` up, while Mark all read stays in the content row on mobile), one `Frame divided` of rows (the unread row keeps its primary left rule and tint), an `EmptyState` per filter (Mentions offers "Show all notifications") and, when marking rows read fails, an `Alert` with Retry that sends the still-pending ids again; the type badges are the `info`, `success`, `warning`, `destructive` and `primary` tokens. Messages is one flat two-pane `Frame` (the message bubbles keep their `rounded-2xl` tail shape on purpose): the conversation list is `ul` rows (`FramedListItem`) inside it with an unread dot plus a screen-reader "Unread", an `EmptyState` with a New message action when there are none, `MessageThreadSkeleton` instead of a spinner while a thread loads, the recipient results a `FramedList`, and an `Alert` for every failure, with Retry where the request can be repeated (thread, older messages, more conversations, mark read, recipient search, hide); these sit inside the panes, the one place an `Alert` lives inside a `Frame` besides an `AuthCard`. Lists is a `Section` of `FramedList` rows with an `EmptyState` carrying the create action. The list editors are a "Details" `Section` of `Frame form` + `FormRow`s with a `SaveBar` (Save stays off until a setting changes; new items are always dirty; Cancel is the bar's `actions`), a "Members" / "People" `Section` whose rows are a `FramedList` and whose empty state is an `EmptyState` (members save as they change, so they never make the form dirty), a "Danger zone" `Alert` card for delete, and an `Alert` beside whatever failed. Each of these routes has a `loading.tsx` drawn from the kit's skeletons (`EditorLoading` for the two editors).
-- **Auth pages.** The standalone pages under `app/(nosidebar)/` (`auth/signin|signup|forgot-password|reset-password|two-factor|select-actor|confirmation|error`, `authorize_interaction`, `oauth/authorize`) keep their deliberate centred single column (the layout caps it at 28rem) and are not the section chrome. Each page is an `AuthCard` (`app/(nosidebar)/AuthCard.tsx`): the kit `Frame` look (`rounded-lg border bg-background`, no shadow) as the form's one box: the logo (`getAuthLogoSrc`, an absolute URL on the configured host, or root-relative in `next dev`; see `getBrandAssetSrc`), the page's one `text-xl` sentence-case h1 and a muted description in the header, then `AuthCardBody` (a `px-6 pt-6 pb-6 space-y-4` column of `FormRow stacked className="p-0"` fields, labels above controls, no inner `Frame`) and `AuthCardActions` (the card's one top border, `px-6 py-5`: the full-width primary submit button, a secondary action such as the passkey button, and the "Don't have an account? Sign up" line). A form page wraps both in its `<form>` so submit stays inside it (sign-in passes the passkey button and sign-up line to `CredentialForm` as `actions`; forgot- and reset-password take a `footer`); the card's `footer` prop is for a page with no form (today only `auth/error`; confirmation renders its own `AuthCardActions`, select-actor has none) and renders in an `AuthCardActions` band. The band keeps normal text colour and alignment (an `Alert` in it reads as everywhere else; only `AuthCardFooter` is centred and muted) and hides itself while empty. The OAuth consent card has no inner `Frame`: "Authorize as" is a stacked `FormRow` with a select-height actor trigger (avatar inside) and the permissions are plain checkbox rows. A missing or invalid field is the inline field-error line under its input (see Failures and Forms), never the page-level `Alert`; every request failure or confirmation is an `Alert` (`error` for a failed sign-in, passkey or code, `success` for a sent reset link or a reset password, `info` for the "passkeys aren't available" notice), and the confirmation page's verified or invalid result is an `Alert` with `live={false}` because it is page content at load, not the result of an action. `auth/error` is the failure page itself: the card's title, description and a single link in `footer`. A two-factor method switch is a `SegmentedControl`. `ui/card.tsx` is gone: nothing uses a shadowed `Card` any more, so a new surface starts from `Frame`.
+- **Auth pages.** The standalone pages under `app/(nosidebar)/` (`auth/signin|signup|forgot-password|reset-password|two-factor|select-actor|confirmation|error`, `authorize_interaction`, `oauth/authorize`) keep their deliberate centred single column (the layout caps it at 28rem) and are not the section chrome. Each page is an `AuthCard` (`app/(nosidebar)/AuthCard.tsx`): the kit `Frame` look (`rounded-lg border bg-background`, no shadow) as the form's one box: the logo (`getAuthLogoSrc`, an absolute URL on the configured host, or root-relative in `next dev`; see `getBrandAssetSrc`), the page's one `text-xl` sentence-case h1 and a muted description in the header, then `AuthCardBody` (a `px-6 pt-6 pb-6 space-y-4` column of `FormRow stacked className="p-0"` fields, labels above controls, no inner `Frame`) and `AuthCardActions` (the card's one top border, `px-6 py-5`: the full-width primary submit button, a secondary action such as the passkey button, and the "Don't have an account? Sign up" line). A form page wraps both in its `<form>` so submit stays inside it (sign-in passes the passkey button and sign-up line to `CredentialForm` as `actions`; forgot- and reset-password take a `footer`); the card's `footer` prop is for a page with no form (today only `auth/error`; confirmation renders its own `AuthCardActions`, select-actor has none) and renders in an `AuthCardActions` band. The band keeps normal text colour and alignment (an `Alert` in it reads as everywhere else; only `AuthCardFooter` is centred and muted) and hides itself while empty. The OAuth consent card has no inner `Frame`: "Authorize as" is a stacked `FormRow` with a select-height actor trigger (avatar inside) and the permissions are plain checkbox rows. A missing or invalid field is the inline field-error line under its input (see Failures and Forms), never the page-level `Alert`; every request failure or confirmation is an `Alert` (`error` for a failed sign-in, passkey or code, `success` for a sent reset link or a reset password, `info` for the "passkeys aren't available" notice), and the confirmation page's verified or invalid result is an `Alert` with `live={false}` because it is page content at load, not the result of an action. `auth/error` is the failure page itself: the card's title, description and a single link in `footer`. A two-factor method switch is a `SegmentedControl`. `ui/card.tsx` is gone: nothing uses a shadowed `Card`, so a new surface starts from `Frame`.
 - **Loading.** Skeleton bars in the final layout's shape under one polite `role="status"` with an `sr-only` label, never "Loading..." text. Every route that reads on the server has a `loading.tsx` (Settings, Account, Admin, Fitness, Gallery and Albums, Lists and every timeline route), drawn in the page's loaded geometry so nothing jumps at 390 or 1280px: a section page is `ScreenSkeleton` (or `SectionSkeleton` with the real section and row counts) under the layout's own header and dropdown, a feed is `PostFeedLoading` / `PostListSkeleton`, and a photo grid is `GalleryGridSkeleton` (`captions` where the loaded tile prints one). A page whose client view already has its own first-load skeleton (the gear lists, a gear's page, the Fitness overview) reuses that export, so the route's skeleton and the view's are the same shape. The one exception in the tree is `/admin` itself, the Admin index: it deliberately has no `loading.tsx`, because its page renders nothing and a streamed loading boundary would turn the non-admin `redirect()` into a 200 with a skeleton — the same reason the redirecting pages below have none. A screen announces its wait once: exactly one `role="status"`, never a second one from a nested skeleton. Pages that a signed-out visitor, a crawler or another server opens directly and that redirect or 404 (the auth pages, OAuth, the shared heatmap and its embed, the terms of service and privacy policy pages, which 404 while their document is unset) have no `loading.tsx`, because a streamed loading boundary turns `redirect()` / `notFound()` into a 200; signed-in section pages accept that trade. A spinner (`Loader2`) is for inside a pending button only: a map that has not drawn yet is `MapLoadingOverlay` (`lib/components/map/`, a shimmer block over the map with one "Loading map" status), an attachment that is uploading gets a shimmer over its thumbnail, and a task that is queued or generating shows a static `Hourglass`. A pending button's label is a present participle and an ellipsis character (`Saving…`, `Posting…`, never three dots); the label may also say what it is doing (`Loading more…`).
-- **Guard.** `lib/components/surface/surfaceKitUsage.test.ts` counts `rounded-2xl` + `shadow-sm` panels, raw palette colour utilities (every Tailwind palette family with a shade, on any colour utility) and "Loading…" text in the `.tsx` and `.ts` files under `app/` and `lib/` (tests, `.d.ts` and the kit excluded) with comments stripped first, and **fails when any of the three is not zero**: the migration is finished, so a new copy is a regression, not something to baseline. It also counts an arbitrary hex (`bg-[#ff0000]`) and the palette variable (`text-(--color-red-500)`, `text-[var(--color-red-500)]`), and covers every family Tailwind ships, `mauve`, `olive`, `mist` and `taupe` included. The only skipped files are the fixed-colour files listed in that test, each by path with a one-line reason: `DATA_PALETTE_FILES` (today `lib/components/fitness/palette.ts`, the chart series colours, and `lib/components/photo-editor/histogramPalette.ts`, the photo editor histogram's channel colours and dark frame) and `DESIGN_HEX_FILES` (the two badge files that carry the design's hex fills; only the arbitrary hex is skipped there, a palette utility in them still counts); the test also fails if a listed file is missing or no longer holds a raw colour (for the badge files, a hex), so the list cannot go stale. Do not add a file for a colour that means success, warning, info or an error: use `Alert`, `Badge` or the tokens. `surfaceChromeUsage.test.ts` separately guards the translucent chrome bars. `alertOutsideFrame.test.ts` separately fails on an `<Alert` (or `ActorInfoBanner`, whose root is one) nested in a `Frame`, `FramedList` or `AddBar` in the same file (only `MessagesPage.tsx` is allowed); it cannot see an Alert passed in from another component.
+- **Guard.** `lib/components/surface/surfaceKitUsage.test.ts` counts `rounded-2xl` + `shadow-sm` panels, raw palette colour utilities (every Tailwind palette family with a shade, on any colour utility) and "Loading…" text in the `.tsx` and `.ts` files under `app/` and `lib/` (tests, `.d.ts` and the kit excluded) with comments stripped first, and **fails when any of the three is not zero**: a new copy is a regression, not something to baseline. It also counts an arbitrary hex (`bg-[#ff0000]`) and the palette variable (`text-(--color-red-500)`, `text-[var(--color-red-500)]`), and covers every family Tailwind ships, `mauve`, `olive`, `mist` and `taupe` included. The only skipped files are the fixed-colour files listed in that test, each by path with a one-line reason: `DATA_PALETTE_FILES` (today `lib/components/fitness/palette.ts`, the chart series colours, and `lib/components/photo-editor/histogramPalette.ts`, the photo editor histogram's channel colours and dark frame) and `DESIGN_HEX_FILES` (the two badge files that carry the design's hex fills; only the arbitrary hex is skipped there, a palette utility in them still counts); the test also fails if a listed file is missing or no longer holds a raw colour (for the badge files, a hex), so the list cannot go stale. Do not add a file for a colour that means success, warning, info or an error: use `Alert`, `Badge` or the tokens. `surfaceChromeUsage.test.ts` separately guards the translucent chrome bars. `alertOutsideFrame.test.ts` separately fails on an `<Alert` (or `ActorInfoBanner`, whose root is one) nested in a `Frame`, `FramedList` or `AddBar` in the same file (only `MessagesPage.tsx` is allowed); it cannot see an Alert passed in from another component.
+
+### Accessibility
+
+Contrast and screen-reader rules that hold across `app/` and `lib/`. The orange-text core rule lives under **Fitness Gear** in [Fitness file storage](fitness-file-storage.md), which points here for the exceptions.
+
+- **Orange text uses `text-primary-text`, not `text-primary`** (see **Fitness Gear** in [Fitness file storage](fitness-file-storage.md) for the contrast rationale). The rule reaches every orange text node in `app/` and `lib/`: the `link` Button variant, the `primary` Badge tone, active nav labels, chips, "Hide replies"-style toggles, the highlighted stat value and text-bearing tiles (a rule number, a count) all use `text-primary-text` (and its `hover:`, `focus:` and `data-[state=…]:` variants). Icons, fills, borders and rings keep `primary`, so when one element colours both an icon and a label, put `text-primary-text` on the element and `text-primary` on the icon (the sidebar's active rows do this). Two things stay `text-primary` on purpose: icon-only controls (a toggle button holding just an icon or glyph, the collapsed rail) and the large display numeral on the 404/500 card, which the design draws in the brand orange. `app/globals.contrast.test.ts` guards the token values in `globals.css`, not whether a component used `text-primary-text` vs `text-primary`.
+- **Destructive text and link labels use `text-destructive-text`** (the `text-destructive` utility maps to it; `bg-destructive` is the fill — see **Failures** under Surfaces). Variant modifiers such as `hover:text-destructive-text` and `focus:text-destructive-text` must use the `-text` suffix explicitly, as Tailwind v4 variant compilation targets theme tokens. Light `--destructive` (#EF4444) is for fills only — 3.76:1 as a foreground, never a text colour; light `--destructive-text` is #B7282E (6.26:1 on white). Dark `--destructive` (#7F1D1D) is tuned to preserve 9:1 white-on-destructive contrast for `bg-destructive` button and badge backgrounds but only reaches ~1.8:1 on dark surfaces, so dark mode lightens `--destructive-text` to #F87171 to meet WCAG 2.1 AA (4.5:1) on every dark surface. `app/globals.contrast.test.ts` guards the token.
+- **The count beside a liked heart uses `text-like-text`** (`--like-text`: #B7282E light, #F87171 dark — the design's "Like Text", equal to the destructive text values but named separately so the like button never reads as a destructive action). The heart icon itself (the like button's and the "N likes" heart under a post) is `text-like-icon` (`--like-icon`, #FB2C36, the same in both themes).
+- **The other post action icons have tokens of their own** rather than borrowing a status tone: `text-bookmark-icon` (bookmarked, and the hover on an unbookmarked post; amber-500), `text-repost-icon` (reposted or hovering; green-500) and `text-reply-icon` (hovering reply; blue-500), the same in both themes. A bookmark is not a warning and a repost is not a success, and the darker `-text` shades would blur "on" and "off".
+- **The unread-count pill (`NotificationBadge`) is filled `#B7282E` in light** — the design's count-badge red, darker than the `#EF4444` `--destructive` token that white text only reaches 3.8:1 on — and `--destructive` (`#7F1D1D`) in dark.
+- **When pairing a visible count with `sr-only` text, put only the noun (e.g. "boosts") in the `sr-only` span, not the number** — the visible digit is already announced, so including it double-reads (see `posts/read-only-stats.tsx`).
+- **One `<main>` landmark per page**: don't render `<main>` in a `page.tsx` when an ancestor layout already provides one.
 
 ### Photo Editor (Client)
 
@@ -1513,6 +1559,7 @@ The editor is `lib/components/photo-editor/`, opened from `PhotoEditPreview` (th
 - `GalleryPrivacySettings` (`/gallery/privacy`) follows this, lays itself out with the surface kit (a `Section` per group, `Frame form` of `FormRow`s with an inline switch or a select, and `GallerySettingsStatus` drawing load and save failures as `Alert`s and the saved state as a `SavedIndicator`), and auto-saves each switch and select on its own through `gallerySettingsForm.tsx` (`lib/components/settings/`), the load and per-key save logic it shares with `MediaDetailsSettings`. Hidden locations save through `PrivacyLocationsEditor` (`lib/components/privacy-locations/`), which `FitnessPrivacyLocationSettings` also wraps; a second consumer passes its own `mapIdPrefix` so the GL source and layer ids stay distinct. "Hide the place for threatened species" (`hideThreatenedPlaces`, default on) sits under the default precision as one more auto-saving switch; when `speciesLookupsAvailable` is false it carries a `ToggleRow` `notice` saying the server cannot check IUCN status, so places of photos with a species name stay hidden while it is on. `MediaDetailsSettings` (Settings → Media) is where the subject suggestion mode and confidence threshold are set.
 
 <a id="agents-transactional-notification-emails"></a>
+<a id="review-emails"></a>
 
 ### Transactional & Notification Emails
 
@@ -1522,11 +1569,8 @@ legacy shape left to copy.
 
 - **One module per email** in `lib/services/email/templates/`, exporting a single
   `build<Name>Email(params): RenderedEmail` (`{ subject, text, html }`). **Never
-  inline a subject or an HTML/text body at a call site** — three of the four
-  account emails used to, which is exactly why they could not be restyled
-  together. (`actorDeleted` was already a module; its problem was hand-written
-  raw markup.) The caller supplies `from`/`to` and spreads the result into
-  `sendMail`.
+  inline a subject or an HTML/text body at a call site.** The caller supplies
+  `from`/`to` and spreads the result into `sendMail`.
 - **Templates never write markup.** They compose blocks from
   `@/lib/services/email/layout/blocks` and hand them to `renderEmail`
   (`@/lib/services/email/layout/renderEmail`), which owns the 600px table
@@ -1565,16 +1609,13 @@ legacy shape left to copy.
   alone, which can name a remote server. A template never takes a domain
   straight from a stored row.
 - **The plain-text alternative is derived from the same block list**, never
-  hand-written beside the HTML. Both used to be maintained by hand and had
-  already drifted apart.
+  hand-written beside the HTML.
 - **A local `vi.mock('@/lib/config', …)` in a test MUST include `getBaseURL`
   and `buildBaseURL`, for every email builder (each link goes through
   `brandBaseURL`, which calls `buildBaseURL` for a branded email).** It shadows the global mock from `test/setup/vitest.setup.ts`, and because most email call
   sites deliberately catch delivery errors, omitting it does **not** fail loudly:
   the template throws, the catch swallows it, and the test keeps passing while
-  the email silently stops sending. This has already happened twice
-  (`deleteActorJob.test.ts` and the password-reset route test), in both cases
-  hiding that `sendMail` was never reached at all.
+  the email silently stops sending.
 - **Verify a template change by rendering it**:
   `./scripts/mock/renderEmailPreviews.ts` writes every template to HTML with
   fixture data, plus an index showing each one beside its plain-text twin (see
@@ -1638,10 +1679,13 @@ legacy shape left to copy.
   carry the rendition on the actor and make `iconUrl` the live fallback.
 - A browser is a lower bar than a mail client. For a change to the shared layout,
   also send one to a real inbox and check Gmail, Apple Mail and Outlook —
-  Outlook's Word engine is the one that needs `mso-` properties and the ghost
-  table, and none of that is observable in a browser.
+  Outlook's Word engine is the one that needs the `mso-` properties
+  (`mso-padding-alt` on both the button cell and its anchor, `mso-hide:all`) and
+  the MSO ghost table pinning the column to 600px, all load-bearing and
+  invisible in a browser. Don't drop them as dead style.
 
 <a id="agents-link-preview-cards"></a>
+<a id="review-link-preview-cards"></a>
 
 ### Link Preview Cards
 
@@ -1660,14 +1704,11 @@ legacy shape left to copy.
 - **A failure goes through `recordLinkPreviewFailure`, NEVER through
   `upsertLinkPreview`.** The row is shared by every status linking that URL, and
   `upsertLinkPreview` writes the whole row — so recording a failure through it
-  nulled `title`/`description`/`imageUrl`, and because `getStatusLinkPreviews`
-  filters on `completed`, one transient 502 on a weekly refresh blanked the card
-  for **every** post linking that page. There was no repair path either: the
-  negative cache then suppressed the retry, and nothing sweeps existing rows, so
-  an older link lost its card permanently. A row that is already `completed`
-  therefore keeps its content AND its status and records only the error; the
-  refresh is deferred to the next window rather than retried against a host that
-  just failed.
+  blanks the card for **every** post linking that page (`getStatusLinkPreviews`
+  filters on `completed`), and the negative cache then suppresses the retry
+  that would repair it. A row that is already `completed` therefore keeps its
+  content AND its status and records only the error; the refresh is deferred to
+  the next window rather than retried against a host that just failed.
 - **The job re-resolves the URL before attaching a card.** An edit enqueues a
   job for the new URL under a different id, so the pre-edit job is still queued —
   and a remote fetch is delayed, which makes "old job lands last" the likely
@@ -1733,21 +1774,21 @@ legacy shape left to copy.
   the first pass has already approved and the second will keep if the allowlist
   permits it. (The local path is safe by construction: `getEmojiTags` resolves
   `:shortcode:` tokens against this instance's own emoji table.)
-  **Four separate things went wrong here, and the shape of the function is the
-  fix for all four.** Do not simplify it back toward
+  **The shape of the function is the fix for four distinct failure modes.** Do
+  not simplify it back toward
   `tags.reduce((t, tag) => t.replaceAll(tag.name, '<img …>'), text)`.
   1. It searches for a shortcode-shaped TOKEN and then looks the name up, rather
      than using the stored name as the search string. A name shaped like
-     `<a href="…">` matched the post's own anchor and consumed it; escaping the
+     `<a href="…">` matches the post's own anchor and consumes it; escaping the
      output can never fix a bad search term.
   2. It is a SINGLE pass over the original text. Every replacement writes an
-     `alt=":shortcode:"` of its own, so feeding each result into the next let
+     `alt=":shortcode:"` of its own, so feeding each result into the next lets
      one tag match another's output and nest markup inside an attribute.
   3. It substitutes only in TEXT pieces, never inside tags. A `:` survives
-     sanitization in an href, so blind substitution rewrote the very link a
-     preview card was for — the reader got a corrupted url while the card named
-     the original. This one needed no hostile input: an ordinary custom emoji
-     plus any link with a `:word:` path segment did it.
+     sanitization in an href, so blind substitution rewrites the very link a
+     preview card was for — the reader gets a corrupted url while the card names
+     the original. This one needs no hostile input: an ordinary custom emoji
+     plus any link with a `:word:` path segment does it.
   4. The replacement is a FUNCTION, which is what makes `$` literal. A string
      replacement re-reads `$&` and `` $` `` AFTER escaping, so a url carrying
      those spliced raw `<`, `>` and `"` from elsewhere in the post into the src
@@ -1788,11 +1829,10 @@ legacy shape left to copy.
   Not a rearrangement of its parts — the same function the rendered post, the
   notifications and (with emoji replacement disabled per the client spec) the
   Mastodon API all use, for local and remote statuses alike. That is the only way
-  to know what the reader sees, and every time this ran a subset of the pipeline
-  something got through:
-  walking marked's tokens missed hidden ancestors and entity-only link text;
-  sanitizing but skipping the emoji step MEASURED TEXT THE RENDERER THEN
-  DELETED (`sanitizeTrustedStatusText` serves emoji images over https only and
+  to know what the reader sees, and a subset of the pipeline is not enough:
+  walking marked's tokens misses hidden ancestors and entity-only link text;
+  sanitizing but skipping the emoji step MEASURES TEXT THE RENDERER THEN
+  DELETES (`sanitizeTrustedStatusText` serves emoji images over https only and
   drops an img left without a `src`, so a remote `Emoji` tag pointing at
   `http://` emptied an anchor whose `:blob:` had just been counted as its
   visible text — and the card went to that anchor). This is also why
@@ -1815,7 +1855,7 @@ legacy shape left to copy.
   anchor: the algorithm pops the outer one at the inner one's START TAG, so the
   inner anchor AND everything after it — inline or block — is reparented
   outside. `getVisibleText` therefore stops at the first descendant anchor, in
-  document order. Three separate phishing cards came out of getting this wrong:
+  document order. Reject all three ways of getting this wrong:
   counting the inner anchor's text; counting a trailing `" — worth a read."`
   that the reader sees as prose beside an empty anchor; and checking
   hidden-ness BEFORE the nested-anchor stop, so a nest that was itself
@@ -1830,18 +1870,19 @@ legacy shape left to copy.
   one allowed tag in between to reach this, and all fourteen work.
   If a construction rule other than nested anchors ever matters here, prefer
   giving the extractor a spec-compliant parser over adding a second special
-  case.
+  case, and put new cases in `parserAgreement.test.ts`, which checks the
+  extractor against a jsdom DOM rather than against hand-written expectations.
   Anchors that are mentions or hashtags are rejected by the markers the
   renderer itself emits (`rel="tag"` and the `mention`/`hashtag`/`u-url`
   classes).
-  Do not "simplify" the local path back to walking marked's token tree. It was
-  written that way and the tokens are the wrong shape for this job three times
-  over: marked flattens raw inline HTML into flat SIBLING tokens, so a link
+  Do not "simplify" the local path back to walking marked's token tree: the
+  tokens are the wrong shape for this job three times
+  over — marked flattens raw inline HTML into flat SIBLING tokens, so a link
   inside `<span class="hidden">…</span>` has no ancestor to inherit hidden-ness
   from and beat the visible link below it; link text written as an entity
   (`[&#8203;](url)`) reads as non-empty in source while rendering to nothing;
-  and a table cell carries its own `header` BOOLEAN, which crashed the walker
-  and silently turned every post containing a table into "no links". Rendering
+  and a table cell carries its own `header` BOOLEAN, which crashes the walker
+  and silently turns every post containing a table into "no links". Rendering
   first removes all three, because the HTML walker inherits hidden-ness and the
   parser decodes entities.
 - **Every optional field of the Mastodon `PreviewCard` gets an `''`/`0`
@@ -1880,8 +1921,7 @@ legacy shape left to copy.
   framed however it is spelled.
   The feature's entire third-party surface is two fixed hosts, both in
   `csp.ts`: the player is framed from `https://www.youtube-nocookie.com`, the
-  only origin in `frame-src` (there was no `frame-src` at all before this —
-  `default-src 'none'` blocks every iframe), and the poster comes from
+  only origin in `frame-src` (`default-src 'none'` blocks every iframe), and the poster comes from
   `https://i.ytimg.com`, which is an **unconditional** `img-src` source rather
   than one of `remoteMediaSources`, so narrowing (or emptying)
   `ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS` cannot blank the thumbnail of every
@@ -1892,11 +1932,10 @@ legacy shape left to copy.
   `key` on the video id**, so a card replaced in place is REMOUNTED and cannot
   inherit the previous video's consent and autoplay something nobody clicked.
   Do not delete that key as redundant: the component also remembers which video
-  was played, but that alone was the original guard and it was insufficient —
-  the remembered id was only ever compared against, never cleared, so it
-  defended a change A→B and not a change back A→B→A, which re-entered the
-  playing branch with no gesture. A remount clears it in both directions, and
-  happens in the same commit, so there is still no painted frame of autoplay.
+  was played, but that alone is insufficient — a remembered id is only ever
+  compared against, never cleared, so it defends a change A→B and not a change
+  back A→B→A, which re-enters the playing branch with no gesture. A remount
+  clears it in both directions, so there is no painted frame of autoplay.
   `autoplay` is set only on a player the reader mounted, and must be in the
   iframe's `allow` list to reach the frame at all.
   **The facade's focus indicator lives on a child OVERLAY, not on the button**,
@@ -1907,8 +1946,7 @@ legacy shape left to copy.
   that are flush with it and survives only along the bottom, whose edge is
   interior to the wrapper — a full-width 2px line between the video and the
   caption, measured at 1416 pixels against the shipped overlay's 4412. Unusable
-  as an indicator, not invisible; do not repeat the earlier claim that it
-  measured zero, which was an artefact of the measurement method below.
+  as an indicator, not invisible.
   Anything painted inward (`ring-inset`, a negative-offset outline) IS
   effectively invisible — 14 pixels — because it paints BELOW the button's own
   descendants, where the full-bleed poster covers its box exactly. The
@@ -1923,8 +1961,7 @@ legacy shape left to copy.
   Verify any focus change by COUNTING INDICATOR PIXELS on an element
   screenshot, **with a poster loaded and with `forced-colors: active` as
   well**, never by reading `getComputedStyle` — a box-shadow that is computed
-  is not a box-shadow that is painted, and that mistake cost this feature two
-  review rounds. Screenshot the WRAPPER, not the focused element, whenever the
+  is not a box-shadow that is painted. Screenshot the WRAPPER, not the focused element, whenever the
   candidate paints outward: an element screenshot cannot see anything outside
   that element's own box, so it reports zero for every outward indicator and
   will walk you into calling one invisible when it is merely clipped. Two more
@@ -1946,7 +1983,9 @@ legacy shape left to copy.
   requests to third-party sites, which is what an operator turning it off
   actually cares about. It lives on Admin → Network with the other
   outbound-request settings and has no env var, so the kill switch can never be
-  locked shut by the environment. It gates FETCHING only: the cleanup that drops
+  locked shut by the environment. It is checked both when scheduling and inside
+  the job — a delayed job must not drain after an operator turns it off. It
+  gates FETCHING only: the cleanup that drops
   a card when an edit removes its link runs either way, so turning previews off
   cannot strand a card on a post that no longer links anything.
 - **Known gaps, all deliberate — none of them is an oversight to "fix" by
@@ -1969,17 +2008,17 @@ legacy shape left to copy.
   both handle any status.
   There IS a storage asymmetry — `createPoll` stores `convertMarkdownText(...)`'s
   rendered HTML where `createNote` stores raw markdown, and `extractPreviewUrl`
-  still picks its branch from `isLocalActor` — but it stopped mattering when
-  extraction moved to rendering the text and walking the result: marked leaves
-  already-rendered HTML untouched, so a poll body run through the local branch
-  renders to itself and yields the same URL the remote branch would. Verified
-  both ways round. So this is now a one-line change, and the thing to check
+  still picks its branch from `isLocalActor` — but it does not matter here:
+  marked leaves already-rendered HTML untouched, so a poll body run through the
+  local branch renders to itself and yields the same URL the remote branch
+  would. So this is a one-line change, and the thing to check
   before making it is not the parser but the ordering rule the note actions
   follow — schedule the sync AFTER the poll has published, or on the default
   in-process queue the author waits on a third-party fetch before their poll
   goes anywhere.
 
 <a id="agents-status-delete-unboost-federation"></a>
+<a id="review-status-delete-unboost-federation"></a>
 
 ### Status Delete & Unboost Federation
 
@@ -1993,9 +2032,8 @@ legacy shape left to copy.
   (`{ actorId, statusId, to, cc }`), and `getFederatedStatusDeliveryInboxes`
   takes `Pick<Status, 'to' | 'cc'>` rather than a whole `Status` so a caller
   holding only that payload can still resolve inboxes. **Do not "unify" either job
-  onto `loadStatusAndActor`**: that is exactly the bug `sendUndoAnnounceJob`
-  shipped with — `undoAnnounce` hard-deletes then enqueues, the job bailed on
-  `!status`, and no unboost ever federated. Every delivery test in
+  onto `loadStatusAndActor`**: after the hard delete there is nothing to load,
+  the job bails on `!status`, and no unboost ever federates. Every delivery test in
   `lib/jobs/sendDeleteNoteJob.test.ts` and `lib/jobs/sendUndoAnnounceJob.test.ts`
   uses a statusId that is deliberately NOT in the database for that reason.
 - **The dedup id is `getHashFromString(`${statusId}#delete`)`, and the suffix is
@@ -2030,7 +2068,11 @@ legacy shape left to copy.
   `deleteStatusWithQueueJob`: deletion and queue insertion share one transaction,
   so a transaction failure propagates and rolls the local delete back. External
   and synchronous queues commit through `database.deleteStatus` first and publish
-  afterwards; a post-commit publish failure is logged without reporting the
+  afterwards — never inline fan-out ahead of the commit, which makes the
+  response wait on remote inboxes and lets inbox-resolution errors abandon the
+  local deletion (a failing remote server alone is not that risk: the sender
+  and `getActorPerson` swallow remote lookup and network failures). A
+  post-commit publish failure is logged without reporting the
   committed deletion as a failed request, which would tell the author their post
   is still present when it is gone. Unboost keeps delete-then-publish and the same isolation for every queue backend.
   A post-commit delete publication failure must not skip the route's media cleanup.
@@ -2043,7 +2085,7 @@ legacy shape left to copy.
   sender does not reject. A test that fails the _socket_ therefore proves nothing
   about the job's per-inbox guard — mock the **sender** to reject, which is the
   only seam that can.
-- Known gap, unchanged by the move to a job: a cascaded reply subtree is deleted
+- Known gap: a cascaded reply subtree is deleted
   locally but only the top status's `Delete` federates.
 
 <a id="agents-actor-profile-deletion-federation"></a>
@@ -2831,11 +2873,12 @@ moved` (reject stays allowed). While
 - **`experimental.joins` was removed in 1.7 in favor of `advanced.database.joins` — it is not a compatible alias for the new key.** better-auth's options type accepts unknown keys, so a stale `experimental: { joins: true }` neither fails to compile nor warns; it just stops requesting joins, and every authenticated request quietly costs a second statement again. Check the option's location against the installed version's `advanced.database` on any better-auth upgrade.
 
 <a id="agents-better-auth-session-refresh"></a>
+<a id="review-better-auth-session-refresh"></a>
 
 ### Better-auth Session Refresh
 
 - **A session may only slide forward where its cookie can be written.** A better-auth refresh does two writes together: it extends the `sessions.expireAt` row and re-issues the session cookie with a fresh `Max-Age` (`session.expiresIn`, 7 days by default). Server Components cannot set cookies, and route handlers that call `auth.api.*` directly drop the `Set-Cookie` the call produced, so a refresh in either place lands only the database write.
-- **That is why `getServerAuthSession` passes `query: { disableRefresh: true }`.** Before it did, every page render could refresh the row behind the cookie's back: the database kept extending, the browser cookie kept the `Max-Age` it got at sign-in, and every user was signed out seven days after signing in however active they were — and because the row had just been refreshed, nothing re-issued the cookie before it lapsed. With releases going out several times a day, it looked as though each deploy logged people out.
+- **That is why `getServerAuthSession` passes `query: { disableRefresh: true }`.** Without it, every page render can refresh the row behind the cookie's back: the database keeps extending while the browser cookie keeps the `Max-Age` it got at sign-in, and the user is signed out when the cookie lapses, with nothing left to re-issue it.
 - **Refreshes happen only inside better-auth's own `/api/auth/*` handler** (`app/api/auth/[...all]/route.ts`), which returns the cookie with the refreshed row so the two stay in step. Any endpoint there that resolves a session can do it (`/get-session`, authorize/consent, passkey, two-factor, …); the one the app relies on is `/get-session`, called by `SessionKeepAlive` (`lib/components/session-keep-alive.tsx`, via `refreshAuthSession` in `lib/client/session.ts`). It is mounted in the signed-in branch of `app/(timeline)/layout.tsx` and refreshes on mount, then at most once per `SESSION_REFRESH_INTERVAL_MS` while the tab is visible — on a timer, because the layout stays mounted across client-side navigation and a window that is never hidden fires no `visibilitychange`, and when the tab becomes visible again.
 - Don't add a server-side session read that refreshes. That covers every `auth.api.*` call that resolves a session — not only `getSession`, but any endpoint behind better-auth's `sessionMiddleware` / `getSessionFromCtx` (e.g. `auth.api.getOAuthConsent`, `auth.api.listPasskeys`), which refreshes a due session the same way. Called outside better-auth's handler, such a call passes `disableRefresh: true` where the endpoint accepts it, or runs in a route handler that returns better-auth's `Set-Cookie` to the browser (`asResponse` / `returnHeaders`); a Server Component can do neither, so it must use `getServerAuthSession`. `lib/services/auth/sessionRefresh.test.ts` drives the real instance and checks both halves: a server-render read leaves a due session untouched, and `/get-session` extends it and re-issues the cookie.
 
@@ -2849,23 +2892,25 @@ moved` (reject stays allowed). While
 - **An unknown `client_id` must fail at `/oauth/authorize`, not be forwarded to Better Auth.** Better Auth's authorize endpoint answers an unregistered client with `invalid_client` — before 1.7.10 with **`client_id is required`**, the same message it uses for a genuinely absent `client_id` and so very hard to read, and from 1.7.10 with `client not found` — and then redirects to the error page, so a failed login used to look like it silently did nothing (before `onAPIError.errorURL`, better-auth's own `/api/auth/error` 302'd straight on to the home timeline in production — see **Auth Error Page** below). `app/(nosidebar)/oauth/authorize/page.tsx` validates the client (and its `redirect_uri`) up front and returns `notFound()`; keep that check ahead of the Better Auth delegation. Per RFC 6749 §4.1.2.1 an invalid `client_id`/`redirect_uri` must be reported to the user rather than redirected to the requested `redirect_uri`.
 
 <a id="agents-oauth-access-token-sliding-expiry"></a>
+<a id="review-oauth-access-token-sliding-expiry"></a>
 
 ### OAuth Access Token Sliding Expiry
 
 - **A user's opaque access token lasts as long as its client keeps using it.** better-auth issues it with `accessTokenExpiresIn` = `OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS` (7 days, `lib/services/auth/constants.ts`), and every bearer guard — `OAuthGuard`, `OAuthGuardAnyScope`, `OptionalOAuthGuard` and `OAuthAppGuard` — slides `expiresAt` to now + that window when it accepts a request (`extendAccessTokenIfDue` in `lib/services/guards/OAuthGuard.ts`). The token lapses a full window after its last slide — so between 6 and 7 days after its last accepted request, because a request inside the once-a-day slide interval below does not write.
-- **The slide is the only thing keeping any OAuth client signed in.** This server cannot issue refresh tokens: better-auth mints one only for the `offline_access` scope, which is not in this server's scope vocabulary. Mastodon clients would not use one anyway — Mastodon's own tokens never expire, so Ivory, Ice Cubes, Tusky, Phanpy, Elk and the rest store the token once. A fixed lifetime therefore signs every client out on schedule: the first request after `expiresAt` is a `401` (`token_expired`), which a client reads as "this account is gone". The pre-better-auth OAuth server's `tokens` table had a sliding session; the move to better-auth's `oauthAccessToken` dropped it, and from then on every client was signed out seven days after authorizing, however active it was. With releases going out several times a day that looked like each deploy logging the apps out — no deploy-time code path touches these rows. Don't remove the slide.
+- **The slide is the only thing keeping any OAuth client signed in.** This server cannot issue refresh tokens: better-auth mints one only for the `offline_access` scope, which is not in this server's scope vocabulary. Mastodon clients would not use one anyway — Mastodon's own tokens never expire, so Ivory, Ice Cubes, Tusky, Phanpy, Elk and the rest store the token once. A fixed lifetime therefore signs every client out on schedule: the first request after `expiresAt` is a `401` (`token_expired`), which a client reads as "this account is gone". Don't remove the slide.
 - **The `refresh_token` grant is neither advertised nor served.** `OAUTH_GRANT_TYPES` (`lib/services/auth/constants.ts`) is the single list behind better-auth's `grantTypes` (so `POST /oauth/token` answers `grant_type=refresh_token` with `unsupported_grant_type`), the `grantTypes` a new `POST /api/v1/apps` registration records, and `grant_types_supported` in both `/.well-known/oauth-authorization-server` and `/.well-known/openid-configuration`. Advertising a grant no client can ever be issued sends discovery-driven clients after a token that never comes. Registrations written before the change still list `refresh_token` in `oauthClient.grantTypes`; leave them (see [OAuth Client Registrations](#agents-oauth-client-registrations)) — better-auth checks a client's `authorization_code`/`client_credentials` grant per request, which those rows still list, and the only path that re-validates a stored registration against the server list (its update-client endpoints) is unreachable for them. Supporting refresh tokens means adding `offline_access` end to end — scope vocabulary, consent, the reserved-scope filter in `clientCredentialsScopes.ts` — and adding the grant back here, not just re-advertising it.
 - **Only a request the guard accepts slides the token.** `resolveTokenContext` checks the row, expiry and scope and hands back what the slide needs; each guard applies it only after its actor, moderation and confirmation checks pass. A token refused for scope or expiry, one whose actor no longer exists, and a suspended account's client polling into `403`s are never extended — otherwise the token would outlive the suspension.
 - **Only user tokens on the opaque path slide.** App (`client_credentials`) tokens have no `userId` and keep better-auth's one-hour `m2mAccessTokenExpiresIn`; a JWT access token's `exp` is signed into the token and cannot be moved.
 - **It writes at most once a day per token.** The guard only updates a row that has been in use for `OAUTH_ACCESS_TOKEN_SLIDE_INTERVAL_SECONDS` since it was issued or last extended, through `database.extendOAuthAccessToken` (keyed on the token hash). A failed write is logged and the request still succeeds; the row is still due, so the next request retries.
-- **Deleting a token is what ends it.** Signing an app out in Account & security → Sessions & apps (`/account/sessions`) and `POST /oauth/revoke` delete its rows, so a slide racing a revoke matches nothing. better-auth's soft revocation — the `revoked` column its session-delete hook stamps on tokens minted from a web session that is signed out or expires — is deliberately not honoured, by the guard or by the slide: as on Mastodon, signing out of the web does not sign apps out (see `deleteSessionsWithTokenDetach`). Honouring it would bring the weekly sign-out back for most clients.
+- **Deleting a token is what ends it.** Signing an app out in Account & security → Sessions & apps (`/account/sessions`) and `POST /oauth/revoke` delete its rows, so a slide racing a revoke matches nothing. better-auth's soft revocation — the `revoked` column its session-delete hook stamps on tokens minted from a web session that is signed out or expires — is deliberately not honoured, by the guard or by the slide: as on Mastodon, signing out of the web does not sign apps out (see `deleteSessionsWithTokenDetach`). Honouring it would sign every client out when its user's web session lapses.
 - **Every path that mints a user token uses the same window.** better-auth's grants read it through `auth.ts`; `issueAccessToken` (the token `POST /api/v1/accounts` hands back) reads it directly.
 
 <a id="agents-auth-error-page"></a>
+<a id="review-auth-error-page"></a>
 
 ### Auth Error Page
 
-- **Failed auth/OAuth requests land on our own `/auth/error`, never better-auth's `/api/auth/error`.** `lib/services/auth/auth.ts` sets `onAPIError.errorURL` to `AUTH_ERROR_PATH` (`lib/services/auth/constants.ts`), and `app/(nosidebar)/auth/error/page.tsx` renders it. Better-auth's built-in page is a development affordance: in production it does not render at all — it 302s to `/?error=...&error_description=...`, so a client presenting a `client_id` this server no longer knows just landed on the home timeline and its sign-in appeared to do nothing.
+- **Failed auth/OAuth requests land on our own `/auth/error`, never better-auth's `/api/auth/error`.** `lib/services/auth/auth.ts` sets `onAPIError.errorURL` to `AUTH_ERROR_PATH` (`lib/services/auth/constants.ts`), and `app/(nosidebar)/auth/error/page.tsx` renders it. Better-auth's built-in page is a development affordance: in production it does not render at all — it 302s to `/?error=...&error_description=...`, dropping a failed sign-in on the home timeline.
 - **`AUTH_ERROR_PATH` is root-relative on purpose.** Better-auth copies the value straight into the `Location` header (`ctx.redirect` and `formatErrorURL` do no resolution), so a relative path keeps the visitor on the host the request arrived on. An absolute URL built from `getBaseURL()` would bounce a login started on a trusted alias domain over to `ACTIVITIES_HOST` mid-flow, the same trap `/oauth/authorize` avoids by building its sign-in redirects from the request host.
 - **Never render `error_description`, and render the `error` code only when it is allow-listed.** Both are free text better-auth puts in the query string, and anyone can hand-craft a link to `/auth/error` with any value in either — prose we did not write, shown on our own auth card, is a ready-made phishing surface. Token-shaped is **not** sufficient: `?error=Account-locked-please-call-1-800-555-0100` clears `sanitizeAuthErrorCode`'s character class and 64-char cap while reading as ordinary prose, so the technical-detail line is gated on `isKnownAuthErrorCode` (`lib/services/auth/errorPage.ts`), never on `sanitizeAuthErrorCode` alone. Copy comes from `resolveAuthErrorContent`, with generic fallback copy for anything unmapped. **The allow-list gates rendering only — never logging.** Both the code and the description are logged whatever the code is. Allow-listing bounds nothing in the log (a caller can pair any description with a mapped code; the 200-character description cap and 64-character code cap are the real bounds), and an unmapped code is the case the description matters _most_ for: better-auth's own `/error` endpoint rewrites any code it cannot classify to `UNKNOWN` while forwarding the real description verbatim, and an upgrade can add a rejection we have no copy for. Gating there would blank the description for exactly those, and blunt the tell a description carries: every oauth-provider rejection passes one, so a missing description on an authorize-time code suggests a hand-crafted link — a tell that holds for that class only, since core's `INVALID_TOKEN` redirect legitimately carries none. Codes are looked up with `Object.hasOwn` — a bare lookup answers `constructor`/`toString` with an inherited function, which is truthy and would render an empty card.
 - **The redirect behaviour is pinned end-to-end by `lib/services/auth/errorURL.test.ts`**, which drives the real better-auth handler against in-memory SQLite and asserts the `Location` header — not the shape of `auth.options`. Assert with `startsWith`, never `toContain`: the untouched default `/api/auth/error?…` _contains_ `/auth/error?…` as a substring and would pass with the option removed.
@@ -2885,40 +2930,28 @@ moved` (reject stays allowed). While
 - **A handler asks whether a token is an APP token by reading `userId`, never `currentActor`.** `OAuthAppGuard` leaves `currentActor` null in two unrelated cases: a genuine `client_credentials` token that has no user, and a user-delegated token whose actor it merely FAILED to resolve — the grant recorded no `referenceId` (see the fallback above) and `resolveAccountActorId` found no selectable actor, which happens when every actor the account owns is pending deletion (`selectAccountActor` skips those). `registerViaApi` gated on `currentActor || !client` and so accepted that user as an app, letting them mint accounts and tokens. The guard therefore forwards `userId` on the handler context, and the route requires `userId === null`; a genuine app token has neither a user nor an actor. Do not re-derive "is this an app token" from the actor.
 
 <a id="agents-an-unconfirmed-account-may-not-act"></a>
+<a id="review-unconfirmed-accounts-app-tokens"></a>
 
 ### An Unconfirmed Account May Not Act
 
 - **An account whose confirmation e-mail has not been clicked is refused with 403 on every surface behind the OAuth guard family, `AuthenticatedGuard`, and `AdminApiGuard` — bearer and cookie alike — and `isActorConfirmationPending` (`lib/services/guards/OAuthGuard.ts`) is the check.** This is Mastodon's `require_user!` rule ("Your login is missing a confirmed e-mail address"), and it matters because `POST /api/v1/accounts` hands out a real 7-day user access token the moment an account is registered. `POST /api/v1/apps` is unauthenticated and its throttle only engages when `ACTIVITIES_TRUST_PROXY_IP_HEADERS` is set, so without this an anonymous party could script fully usable accounts — posting, uploading, following, federating — for addresses nobody has proven they control. **The gate exists only where `config.email` does:** with no e-mail configured `registerAccount` mints no `verificationCode` and `createAccount` writes the account pre-verified, so registration still hands out a working token exactly as before. That is inherent — an instance that cannot send mail cannot demand confirmation — but it means this mitigation is conditional on an optional setting. The token is still issued, exactly as Mastodon issues it; what changes is that it is not a working credential until the address is confirmed. `OAuthGuard`, `AuthenticatedGuard`, and `AdminApiGuard` enforce `isActorModerationBlocked` and `isActorConfirmationPending`, answering 403 when an actor is suspended or its account is disabled or unconfirmed.
-- **Confirmation is read from `verificationCode` AND `emailVerified`, never from `verifiedAt`, and none of that is a style choice.** `verificationCode` says a code is outstanding; `emailVerified` is better-auth's own column, which `requireEmailVerification` has gated credential sign-in on since 2026-03-20. An account better-auth already treats as verified is not held pending here either — that grants nothing new and is what grandfathers the cohort the buggy backfill created (below). `accounts.verifiedAt` originally carried `DEFAULT CURRENT_TIMESTAMP` (`20230824181927_add_accounts_verification`, dropped in `drop_accounts_verifiedat_default`), so `createAccount` could not leave it unset by omitting it: the database stamped `now()` on every pending registration, and `canCreateSessionForAccount`'s `verifiedAt` test has consequently **never fired**. A check keyed on `verifiedAt` is a no-op that reads as a working gate. `createAccount` now writes an explicit `verifiedAt: null` for a pending registration, so that column is accurate for anything created from here on — but rows written before that still carry the default, so `verifiedAt` covers nothing on its own and the other two columns carry the whole answer. `verificationCode` is set once at registration, cleared to `''` by `verifyAccount`, and never set at all on an instance with no e-mail configured.
-- **The credential sign-in path was never open FOR AN ACCOUNT REGISTERED AFTER 2026-03-20, which is why this is mostly a token-path fix.** better-auth's own `emailAndPassword.requireEmailVerification` reads `accounts.emailVerified` — a different column, which `createAccount` correctly leaves false — and answers `403 EMAIL_NOT_VERIFIED`. **Older accounts are the exception, and it is not a small one:** `20260320072514_better_auth_columns` populated that column with `whereNotNull('verifiedAt')`, and `verifiedAt` was non-null for every row because of the same default, so the backfill declared EVERY account of that era verified — pending ones included. Those accounts have been signing in with a password ever since. That cohort is grandfathered by the predicate itself, which reads `emailVerified`, so the guard never refuses an account that has worked for months. `20260828140000_clear_stale_verification_codes` then brings the two columns into agreement so a reader of the row is not misled — it is a TIDY-UP, not the mechanism, and its bound decides only whether a stale row is tidied, never whether anyone keeps access. Two earlier attempts to make that bound the mechanism were wrong in opposite directions (a filename timestamp no deployment coincides with; then a batch comparison that is also true whenever the migration is merely first in a new pass), which is why the predicate carries it instead. Do not read the sentence above as covering the whole account table. Both columns are on the domain `Account`, and the guard reads both — that pairing IS the mechanism, not an accident to be simplified away. Removing `emailVerified` from either the schema or the predicate re-locks out the cohort with no way back, which is why this is written as an instruction rather than a description.
+- **Confirmation is read from `verificationCode` AND `emailVerified`, never from `verifiedAt`, and none of that is a style choice.** `verificationCode` says a code is outstanding; `emailVerified` is better-auth's own column, which `requireEmailVerification` has gated credential sign-in on since 2026-03-20. An account better-auth already treats as verified is not held pending here either — that grants nothing new and is what grandfathers the cohort the buggy backfill created (below). `accounts.verifiedAt` originally carried `DEFAULT CURRENT_TIMESTAMP` (`20230824181927_add_accounts_verification`, dropped in `drop_accounts_verifiedat_default`), so `createAccount` could not leave it unset by omitting it: the database stamped `now()` on every pending registration, and `canCreateSessionForAccount`'s `verifiedAt` test has consequently **never fired**. A check keyed on `verifiedAt` is a no-op that reads as a working gate — `serializeAdminAccounts`' `confirmed` field reads the predicate for the same reason, never `verifiedAt`. `createAccount` now writes an explicit `verifiedAt: null` for a pending registration, so that column is accurate for anything created from here on — but rows written before that still carry the default, so `verifiedAt` covers nothing on its own and the other two columns carry the whole answer. `verificationCode` is set once at registration, cleared to `''` by `verifyAccount`, and never set at all on an instance with no e-mail configured.
+- **The credential sign-in path was never open FOR AN ACCOUNT REGISTERED AFTER 2026-03-20, which is why this is mostly a token-path fix.** better-auth's own `emailAndPassword.requireEmailVerification` reads `accounts.emailVerified` — a different column, which `createAccount` correctly leaves false — and answers `403 EMAIL_NOT_VERIFIED`. **Older accounts are the exception, and it is not a small one:** `20260320072514_better_auth_columns` populated that column with `whereNotNull('verifiedAt')`, and `verifiedAt` was non-null for every row because of the same default, so the backfill declared EVERY account of that era verified — pending ones included. Those accounts have been signing in with a password ever since. That cohort is grandfathered by the predicate itself, which reads `emailVerified`, so the guard never refuses an account that better-auth already admits. `20260828140000_clear_stale_verification_codes` then brings the two columns into agreement so a reader of the row is not misled — it is a TIDY-UP, not the mechanism, and its bound decides only whether a stale row is tidied, never whether anyone keeps access. A repair keyed on when a migration ran is not the mechanism (a filename timestamp no deployment coincides with; a batch comparison that is also true whenever the migration is merely first in a new pass) — the predicate carries the bound instead. Do not read the sentence above as covering the whole account table. Both columns are on the domain `Account`, and the guard reads both — that pairing IS the mechanism, not an accident to be simplified away. Removing `emailVerified` from either the schema or the predicate re-locks out the cohort with no way back, which is why this is written as an instruction rather than a description.
 - **`unconfirmedAccount: 'allow'` is the one carve-out that lets an unconfirmed account act AS ITSELF, and it exists for exactly one endpoint.** `POST /api/v1/emails/confirmations` resends an account's own confirmation e-mail, so refusing it for being unconfirmed makes the state unrecoverable for a client that lost the message — Mastodon carves out the same controller (`Api::V1::Emails::ConfirmationsController` never calls `require_user!`). It relaxes the confirmation test and **nothing else**: `isActorModerationBlocked` still runs, so a suspended actor or a disabled account is refused there too, and the handler applies `isAccountConfirmationPending` itself. That handler check must be the PREDICATE, never the raw `verificationCode` column: the two disagree for the backfilled cohort, and because this route is bearer-reachable with `write` while the flow that proves an address is cookie-only, reading the raw column let a client token re-point a confirmed account's address and take the account over. The guard admits any account here; the handler alone decides, on the signal every other surface uses. Do not add a second consumer without the same argument.
 - **`allowModerationBlocked` is the carve-out on `AuthenticatedGuard` for restrictive session and connected-app revocations.** `DELETE /api/v1/accounts/sessions`, `DELETE /api/v1/accounts/sessions/[id]` (keyed by `sessions.id`, never the session token, which is the cookie credential and must not reach a URL, a trace or the browser), and `DELETE /api/v1/accounts/connected-apps/[clientId]` pass `allowModerationBlocked: true` so a legitimate account owner can terminate attacker sessions and revoke authorized OAuth apps during compromise containment even if the account is disabled or an actor is suspended. Revocation only ever _reduces_ capability (destroying sessions and tokens) and cannot post, follow, or federate on the platform. It relaxes `isActorModerationBlocked` only; CSRF same-origin proof and `isActorConfirmationPending` remain strictly enforced (unconfirmed accounts are still refused with 403).
 - **Account-level actor endpoints (`actors/switch`, `actors/cancel-deletion`) authenticate the session's account directly rather than fronting an arbitrary `currentActor`.** `POST /api/v1/actors/cancel-deletion` operates on the target `actorId`, so gating on the session's selected actor would 403 whenever another actor on the same account is suspended (and fail if the only active actor is pending deletion). Like `switch`, it validates same-origin CSRF proof, resolves the account via `getAccountFromSession`, enforces `isAccountConfirmationPending`, and checks that the account owns `actorId`. It also refuses (403) when the **target** actor is suspended: the admin hard delete (`DELETE /api/v1/admin/accounts/:id`) requires suspension, marks the actor `scheduled` and only then enqueues the job, which exits if the status is no longer `scheduled` — so a suspended owner cancelling would win that race and undo the moderator's decision. A disabled account, or a different suspended actor on the same account, does not block it.
 - **`OptionalOAuthGuard` neither refuses nor accepts such a token — it DOWNGRADES it to the anonymous path** (`unconfirmedAccount: 'anonymous'`), which is a third answer and not a second use of the carve-out. Both alternatives are wrong there. Refusing made presenting a valid token FAIL a public read — `timelines/public`, `statuses/:id`, search — that succeeds with no `Authorization` header at all; a token must never make a request worse than sending none. Accepting the actor hands an unverified account real capability rather than "just public reads": `canActorReadSingleStatus`'s `isDirectRecipient` lets it read direct messages addressed to it, and `search`/`accounts/lookup` gate `resolve=true` on a non-null actor, so it can drive outbound WebFinger and signed remote fetches from this instance. **Mastodon is not a precedent for granting those** — its search controller applies `require_user!`, so an unconfirmed account never reaches `resolve` there, even though `authorize_if_got_token!` is otherwise the model for this guard. Suspension stays global on the same guard, so `isActorModerationBlocked` still refuses.
 - **The check costs no query.** `verificationCode` is already on `actor.account` in both resolution paths — `getActorFromId` loads the account row for the bearer path and `getActorsForAccount` does for the cookie path — which is the same reason `isActorModerationBlocked` can read `account.disabledAt`. An actor with **no** account is left alone, the direction `isActorModerationBlocked` also fails in; the only accountless local actor is the federation signing actor, which never authenticates.
-- **`Account.verifiedAt` is `.nullish()`, not `.optional()`, and `SQLAccount.verifiedAt` is nullable to match.** Both row-to-domain mappers hand the column through as a literal `null` (`getActor` writes one explicitly; `toDomainAccount` spreads the raw row, whose conditional override is a no-op for null), so under `z.number().optional()` `Actor.parse` threw the moment the column really was null — the first request by an unconfirmed actor would have 500'd rather than loading. The column default is what had been hiding that.
+- **`Account.verifiedAt` is `.nullish()`, not `.optional()`, and `SQLAccount.verifiedAt` is nullable to match.** Both row-to-domain mappers hand the column through as a literal `null` (`getActor` writes one explicitly; `toDomainAccount` spreads the raw row, whose conditional override is a no-op for null), so `.optional()` makes `Actor.parse` throw the moment the column really is null — the first request by an unconfirmed actor 500s rather than loading. The column default is what hides that.
 - **Existing accounts are grandfathered by the PREDICATE — `isAccountConfirmationPending` reading `emailVerified` — not by the migration and not by leaving `verifiedAt` alone.** Nothing backfills `verifiedAt` — so on its own the `verificationCode` half of the check still reaches every legacy pending account, and for the pre-2026-03-20 cohort described above that meant losing a working password login with no way back (the resend endpoint needs a credential, which is what is being refused). `isAccountConfirmationPending`'s `emailVerified` half is what actually grandfathers them; the migration only tidies the row. For an account registered after that date, the only tokens the gate withdraws are ones minted through the hole being closed — `registerViaApi` is the sole path that mints a user token for an unconfirmed account, since credential sign-in is refused and the authorize flow needs a session.
 - **The `verifiedAt` column has no default (the `drop_accounts_verifiedat_default` migration, one of the migrations the baseline stands for, dropped it; on SQLite it rebuilt the table).** All **seven** tables carrying a foreign key to `accounts` on both backends (`actors`, `oauthClient`, `oauthRefreshToken`, `oauthAccessToken`, `oauthConsent`, `passkey`, `twoFactor`) and all four indexes on `accounts` survived the rebuild (`lib/database/testing/schemaInvariants.test.ts` pins the missing default, the foreign keys and their delete rules, and the indexes on both backends). Count these referencing tables by matching case-insensitively and on both quoting styles: `actors` is emitted as `CREATE TABLE IF NOT EXISTS "actors"` with uppercase `REFERENCES`, so a grep written for backticks and lowercase silently reports six. Existing rows were deliberately NOT backfilled: accounts created before the explicit-null fix keep their defaulted value so confirmed status is not altered retroactively.
 
-- **A re-point clears every proof about the old address, in the same write.** `repointUnconfirmedAccountEmail` writes the rotated code, `emailVerified: false`, `verifiedAt: null` and `emailVerifiedAt: null` together, because each proves control of the address it was set for and none may outlive it. The state change is a predicate on the UPDATE statement (`verificationCode` non-empty, `emailVerified` false/null) rather than a decision taken from a read in front of it, and the method re-reads the row to return `Account | null` so the caller distinguishes "no such account of yours" (404) from "no longer pending" (403). Clearing the code alone is not enough for the backfilled cohort: those rows are not pending (the predicate reads `emailVerified`), so a re-point moved their address to an arbitrary one while they stayed verified, and BOTH OIDC surfaces then asserted a verified address to any relying party that links accounts on the claim. They did so by different routes, and the difference is the whole reason clearing the flag works: the id_token (`lib/services/auth/auth.ts`) reads `emailVerified` and asserted it directly, while `/oauth/userinfo` read `verifiedAt` until round 6 moved it — so it was never the flag that made that route answer, it was that such a row is NOT pending (`Boolean(code) && !emailVerified` is false while the flag stands), so the guard admitted the request at all. Clearing the flag closes both: it makes the account pending, and `isActorConfirmationPending` then 403s before the serializer runs. Do not read "userinfo did not read the flag" as "userinfo was unaffected" — that inversion was written here once and is what this sentence replaces. Two costs are named rather than hidden. The confirmations route writes before it sends and answers 500 on a send failure, so a genuinely pending account whose mail fails at that moment must resend to recover. (A backfilled-cohort account cannot reach that write at all — the handler 403s it — so this cost is not theirs.) And `verifyAccount` restores `verifiedAt`, `emailVerified` and `emailVerifiedAt` when the new address is confirmed, so an account that re-points an unconfirmed address recovers every verification proof — including the `/account/email` "Verified" badge — upon confirmation.
+- **A re-point clears every proof about the old address, in the same write.** `repointUnconfirmedAccountEmail` writes the rotated code, `emailVerified: false`, `verifiedAt: null` and `emailVerifiedAt: null` together, because each proves control of the address it was set for and none may outlive it. The state change is a predicate on the UPDATE statement (`verificationCode` non-empty, `emailVerified` false/null) rather than a decision taken from a read in front of it, and the method re-reads the row to return `Account | null` so the caller distinguishes "no such account of yours" (404) from "no longer pending" (403). Clearing the code alone is not enough for the backfilled cohort: those rows are not pending (the predicate reads `emailVerified`), so a re-point moved their address to an arbitrary one while they stayed verified, and BOTH OIDC surfaces then asserted a verified address to any relying party that links accounts on the claim. They did so by different routes, and the difference is the whole reason clearing the flag works: the id_token (`lib/services/auth/auth.ts`) reads `emailVerified` and asserted it directly, while `/oauth/userinfo` admitted the request because such a row is NOT pending (`Boolean(code) && !emailVerified` is false while the flag stands). Clearing the flag closes both: it makes the account pending, and `isActorConfirmationPending` then 403s before the serializer runs. The confirmations route writes before it sends and answers 500 on a send failure, so a genuinely pending account whose mail fails at that moment must resend to recover. (A backfilled-cohort account cannot reach that write at all — the handler 403s it — so this cost is not theirs.) And `verifyAccount` restores `verifiedAt`, `emailVerified` and `emailVerifiedAt` when the new address is confirmed, so an account that re-points an unconfirmed address recovers every verification proof — including the `/account/email` "Verified" badge — upon confirmation.
 
 <a id="review-runtime-vs-build-time-configuration"></a>
 
-### Review: Runtime vs. build-time configuration
+### Runtime vs. build-time configuration
 
-- No `ACTIVITIES_*` or `OTEL_EXPORTER_*` reads outside `lib/config/`, and no env
-  var name constants defined elsewhere — callers import a config utility instead.
-- `next.config.ts` stays a thin entrypoint and must not _read_ runtime deployment
-  config — directly or via `images.remotePatterns`, `headers()`,
-  `allowedDevOrigins`, webpack config, or `generateBuildId`. Those constructs are
-  fine as long as they consume only build-safe values (delegate to `lib/config/`
-  helpers, as the committed config does); the build must still succeed with
-  `ACTIVITIES_*` missing. Don't define reusable helpers/parsers/constants here —
-  move them to `lib/`. Build-only flags (`NODE_ENV`, `BUILD_STANDALONE`,
-  `NEXT_TELEMETRY_DISABLED`) are fine to read.
-- Runtime config that affects browser-visible behavior (CSP, security headers,
-  host redirects, upload origins) lives in request-time server code, not static
-  Next config.
 - CSP sources that follow runtime config are computed per process in
   `lib/utils/http-headers/csp.ts` from `getSecurityHeaderConfig()` and added only
   while the feature is on. The photo editor's subject model
@@ -2932,758 +2965,24 @@ moved` (reject stays allowed). While
   Node APIs or the logger: `lib/config/photoEditor.ts` reports an invalid value
   through a callback, and only the `@/lib/config` barrel's
   `getPhotoEditorConfig` logs it.
-- A build must succeed with `ACTIVITIES_*` missing or set to placeholder values.
-  Changes to runtime-config handling should ship a regression test asserting the
-  build config does not consume those values.
-- Optional external SDKs, email providers, and database drivers
-  (`@google-cloud/tasks`, `@upstash/qstash`, `nodemailer`, `resend`,
-  `@aws-sdk/client-ses`, `pg`) must reside in dedicated workspace packages under
-  `packages/*` and be imported dynamically (via `dynamicImport`, with type stubs
-  in `lib/types/optional-modules.d.ts` for queue and email SDKs), never through
-  static top-level imports in core `app/` or `lib/` modules, so minimal
-  standalone builds run without them. A package loaded that way is invisible to
-  the standalone tracer, so list it and its dependencies in
-  `outputFileTracingIncludes` (`next.config.ts`), as `pg` is.
 
-<a id="review-client-components-data-flow"></a>
-
-### Review: Client components & data flow
-
-- React components never call `fetch()` directly — every client→server call is a
-  named, typed, exported function in `lib/client/<domain>.ts` re-exported from `lib/client.ts`,
-  imported from there.
-  (Lint-enforced; the frozen legacy exception list in `.oxlintrc.json` must
-  only ever shrink.)
-- Server Components never pass `new Date()` to a Client Component. Pass
-  `Date.now()` (a `number`); the client takes `currentTime: number` and builds
-  `new Date(currentTime)` itself.
-- A `<Link>` rendered once per feed/list row passes `prefetch={false}`. `<Link>`
-  prefetches on viewport entry, so in an infinite-scroll feed that is one RSC
-  request per row — against dynamic routes that also federate out for
-  unpersisted remote actors. Navigation chrome (sidebar, sub-nav, pagination)
-  keeps prefetching. See **Link prefetching in feeds** above.
-- Client Components that render relative timestamps (or fan out to `Posts`/`Post`)
-  never call `Date.now()` / `new Date()` during render — they receive and forward
-  `currentTime` from the server to avoid hydration mismatches.
-  A post header shows the compact form from `formatCompactRelativeTime`
-  (`lib/components/posts/compactRelativeTime.ts`: `now`, `35m`, `2h`, `3d`, `2w`,
-  `4mo`, `1y`) — a pure difference, so no time zone or locale can make the server
-  and the browser disagree — while the timestamp button's accessible name keeps
-  the spelled-out `posted 5 minutes ago`. Notifications, sessions, the
-  edit-history panel and quote cards print date-fns' `formatDistance`, and the
-  fitness heatmap chrome prints `formatRelativeTime`
-  (`lib/fitness/relativeTime.ts`).
-- A Client Component that prints a clock time or date in the viewer's own time
-  zone renders a zone-fixed value (UTC) until `useHasHydrated`
-  (`lib/hooks/useHasHydrated.ts`) turns true, then the local one. The server
-  cannot know the viewer's zone, and `suppressHydrationWarning` only silences
-  the mismatch — React keeps the server's text, so the reader never sees their
-  local time. The fitness activity detail page's `ActivityStartTime` is the
-  reference; its test hydrates server HTML under `withTimeZone`. A formatter
-  that follows the viewer's locale as well (`Intl.DateTimeFormat(undefined, …)`,
-  `toLocaleString(undefined, …)`) pins the locale too until then, because the
-  server's default locale is no more the reader's than its zone is. That
-  pre-hydration value must come from a formatter that is identical in every
-  engine — date-fns `format` on a `UTCDate`, as `useMessageTimeFormat`
-  (`app/(timeline)/messages/useMessageTimeFormat.ts`) does for the
-  direct-message list and bubbles — not from `Intl` with a fixed locale, whose
-  output varies with the engine's ICU (Safari renders `Oct 4 at 3:05 PM` where
-  Node renders `Oct 4, 3:05 PM`) and would mismatch on hydration. Build the
-  reader-locale `Intl.DateTimeFormat` once per component (`useMemo`), not per
-  render. A date that only appears after a client-side fetch (the announcements
-  popover and the admin announcements list) is never in the server HTML, so it
-  needs neither.
-- Status posts render through the shared `Posts`/`Post` components with the same
-  action set on every surface. A page turns actions on with `currentActor` +
-  `showActions`; it must not pass per-status action callbacks (`onReply`/`onQuote`/
-  `onEdit`), hide individual actions, or build a bespoke post/action row.
-  Reply/quote/edit use the shared `InlineStatusComposer`, imported from
-  `lazy-inline-status-composer` (a `next/dynamic`, `ssr: false` wrapper that
-  keeps `PostBox` out of anonymous first-load JS; `useInlineComposer(canCompose)`
-  preloads the chunk at idle for signed-in viewers, never for anonymous ones).
-  The pieces split out of first-load JS each have their own rule:
-  - **Inline composer and reaction picker: `ssr: false`.** Neither can be
-    primary content (they mount only after a click), so they render nothing on
-    the server. The composer chunk is preloaded at idle for a signed-in viewer
-    (`useInlineComposer(canCompose)`, where `canCompose` is a required
-    boolean; feeds pass `Boolean(currentActor) && showActions`, so a feed that
-    renders no action row never downloads it) and never for an anonymous one; the picker chunk is preloaded at idle
-    when a signed-in viewer's reaction button renders, and when
-    its trigger is hovered or focused, or when the compact row's ⋯ menu opens
-    (`preloadReactionPicker`). Both are wrapped in `LazyChunkBoundary`, so a
-    chunk that fails to download (deploy skew) shows an inline `Alert`
-    ("Couldn't load. Reload the page to try again.") instead of reaching the
-    route error boundary.
-  - **Preloaded splits render synchronously (`createPreloadable`).** A
-    `next/dynamic` component is a `React.lazy`, which suspends on the first
-    render of each lazy instance even when its module is already loaded, and
-    React then holds the Suspense reveal for ~300ms after a fallback commits.
-    So preloading with `import()` alone still leaves a ~300ms first open. Each
-    split therefore keeps its module-scope `dynamic(load, {...})` call (Next's
-    compiler needs the inline options object) and passes it with `load` to
-    `createPreloadable` (`lib/components/lazy/createPreloadable.tsx`), which
-    returns `{ Component, preload }`: `Component` renders the dynamic component
-    until `preload()` has resolved, then the loaded component directly. Each
-    mounted instance picks its implementation once (`useState`) and keeps it: a
-    preload resolving while an instance is mounted never swaps it, because that
-    would remount it and drop its state (gallery pagination, an open viewer, a
-    composer draft); only instances that mount afterwards use the preloaded
-    component. `preload()` shares an in-flight or successful load across calls
-    (each reaction button calls it) and retries only after a failure. Start
-    preloads from an event handler or an effect (`runWhenIdle`), never at
-    module top level, so the server render and hydration still use the dynamic
-    (SSR'd) path and cannot mismatch. The composer and reaction picker preload
-    at idle for signed-in viewers; each gallery panel at idle and on tab-bar
-    hover or focus, but only when the profile has a panel that shows it (a Media
-    or Gallery tab, or the media-only gallery; Media loads `ActorMediaGallery`,
-    Gallery loads `ProfileGalleryTab`).
-  - **`FitnessStatusDetail` (status page) and the profile gallery panels
-    (`ActorMediaGallery`, `ProfileGalleryTab`): SSR kept.** A fitness post's
-    detail and a media-only profile's gallery are the page's primary content,
-    so they stay in the server HTML. `FitnessStatusDetail` shows a skeleton
-    while it loads on a client-side navigation; each gallery panel is
-    preloaded at idle, and when the profile tab bar is hovered or focused, only
-    if the profile has a panel that shows it (a Media or Gallery tab, or the
-    media-only gallery). All of them sit inside a
-    `LazyChunkBoundary`, so a failed chunk renders the inline message rather
-    than the route error page. The boundary catches only chunk-load failures
-    (`ChunkLoadError`, "Failed to load chunk", "Loading chunk", dynamic-import
-    failures) and rethrows every other render error, so real bugs still reach
-    the route error boundary.
-  - **The rule: a lazily loaded component keeps SSR whenever it can be the
-    primary content of some page.** Use `ssr: false` only for UI that cannot
-    exist before an interaction.
-
-  Pages pass only
-  data-sync callbacks (`onStatusCreated`/`onPostUpdated`/`onPostDeleted`/
-  `onLikeChanged`/`onBookmarkChanged`/`onReactionsChanged`) and
-  `isMediaUploadEnabled`. See **Status Posts & Actions** in `docs/mastodon-api-compatibility.md`.
-  The edit-history panel lists prior revisions newest-first and labels each
-  transition to the following version, including text, image or attachment,
-  content-warning, sensitivity and poll-option changes. Its relative time is
-  the transition time. Blank prior text is shown as **No text in this version**;
-  missing or malformed prior text is shown as **Previous text is unavailable**.
-  Incomplete legacy snapshots are called out as unavailable rather than guessed.
-  - Two **detail** surfaces are the standing exception, and they are not feeds:
-    `StatusBox` and `FitnessStatusDetail` each render a single post and drive the
-    shared `useInlineComposer`/`InlineStatusComposer` themselves, so they do pass
-    `editable` + `onEdit` + `onQuote`. That is the shared layer doing the wiring,
-    not a page opting into per-status callbacks — a _feed_ passing them is still
-    the defect this rule is about.
-  - A surface may **add** a `⋯` item for something only it knows about the post,
-    via `Actions`' `extraMenuItems` (today: the fitness detail's "Change gear"
-    submenu). An extra item is either one action or a submenu of pick-one
-    choices, it renders after any items a compact row displaced into the menu,
-    and there is deliberately no prop for removing or replacing one of the
-    menu's own items — flag any attempt to add one. The timeline's combined
-    post adds "Show as separate posts" this way.
-  - `Actions`' `splitTargets` is for a bar that belongs to several posts (the
-    timeline's combined post): Reply acts on, and counts the replies of, one
-    post while every other control acts on the bar's `status`, and each button's
-    accessible name says which ("Reply to the latest post", "Like the first
-    post"). It changes which post a control reaches, never what a post offers (the one exception, the combined post's per-part and per-reply ⋯ menus, is in **Status Posts & Actions** in `docs/mastodon-api-compatibility.md`).
-
-- **Timeline grouping and nested status threads.**
-  - `TimelineFeed` (`lib/components/posts/timeline-feed.tsx`) renders grouped home timelines, connecting related posts into visual threads and multi-author conversations with accessible badges, compact collapsed middle runs for long chains, and an optional boost carousel (`BoostCarousel`).
-  - **Combined self-replies.** Inside a thread or conversation row, a run of quick self-replies renders as one feed row (`CombinedPostListItem`, `lib/components/posts/combined-post-list-item.tsx`) instead of one row per post. `buildCombinedBlocks` (`combinedThreadModel.ts`, pure) decides the runs from the row's chain-ordered statuses: two or more posts by the same author where each replies to the previous one (or to a reply tucked into the run), the author's next post is at most `COMBINE_MAX_GAP_MS` (10 minutes, inclusive) after the post it replies to (not after a reply that happens to be waiting in between), a tucked-in reply is at most that after the last tucked-in reply still waiting, or after the run's latest post when none is waiting, and all posts share one visibility. Someone else's reply to a run post is tucked into the run as an inset card when the run carries at most two of them, the reply is text only (no media, poll, quote or fitness activity) and the author's next post follows it; otherwise the run splits there, that reply renders as an ordinary post, and it is re-scanned and may start a run of its own. The author may also reply to a tucked-in reply, whether it is still waiting or already part of the run. A long thread (more than three posts) keeps its collapsed first post, expander and last post exactly as before and combines once expanded; threads of two or three posts and conversations combine straight away. The combined post shows the first post's header with the span "first – last", a thread rail down the avatar column with a dot and a "2 of 4 · 15m" label (a button to that post's detail page, with an edit-history button for an edited part) per later post, and one action bar. Reply acts on the latest post; Boost, Like, Bookmark and React act on the first (see `splitTargets` above). Every later part and every tucked-in reply keeps its own ⋯ menu (the same `PostMenu` a single post has, named "More actions for part 2 of 4" / "More actions for Mira Park's reply"), so quote, copy link, mute, block, report, translate and edit/delete-own work on the post they belong to; a tucked-in reply also has its own Reply and Like. The group ⋯ menu ("More actions for this post group") has a "Post group" heading over "Show as separate posts" and a "First post" heading over the items that act on the first post only. The ⋯ menu's "Show as separate posts" turns the row back to one row per post (run after the menu closes, then focus moves to the row). The choice is kept per page view as every status id of the row, so it survives replies being added, the root post being deleted or an older parent paging in. The status page combines through the same model (next bullet). `PostHeader` and `PostBody` are the header and body halves of `Post`, shared with the combined post.
-  - **Combined self-replies on the post page.** `StatusThread` and the fitness `ActivityReplies` (`app/(timeline)/[actor]/[status]/ActivityReplies.tsx`) feed `buildCombinedBlocks` through `selfThreadModel.ts` (pure): `extractSelfReplyChain` takes the author's direct self-reply chain (the earliest reply continues it), and the model builds the run holding the opened post from the ancestors, the opened post and that chain with the timeline's rules unchanged. Other people's short text-only replies to the chain are added one at a time in the timeline's thread-row order (`sortComponentNodes`: parent before child, oldest first), and each is kept only if `buildCombinedBlocks` still tucks it and every reply kept before it, so the post page tucks what the timeline would and a reply that would split the run is left out instead. Other multi-part runs of the same chain, each started by a gap over `COMBINE_MAX_GAP_MS`, come back as `ancestorRuns` and `descendantRuns` and render as their own runs with their own header. It returns the run, the opened part's index and `repliesOutsideRun`, with a `replyingToByReplyId` entry for a reply to an earlier part that cannot tuck in, or to any part of an ancestor run (its last part included, since that run sits above the opened post); that reply stays under Replies with a "Replying to i of n" line instead of splitting the run. `SelfThreadRun` (`self-thread-run.tsx`) renders it: one header with the span, the rail with "i of n" labels, and for each part its own small action row with its own counts (no `splitTargets`, no clamp), `aria-current="location"`, a tint and an orange dot on the opened part, which is scrolled into view. Runs over `LONG_RUN_MAX_PARTS` (6) collapse the middle, and part 1's ⋯ menu has "Show as separate posts". "Replies (N)" and "No replies yet" count only replies outside the run. On a fitness activity `ActivityReplies` builds the same model with `tuckIntoFirstPart: false` (the activity itself stays unchanged, so other people's replies to it stay under Replies with "Replying to 1 of n"), and the athlete's follow-ups (`parts` from part 2) render as a rail under the action bar and are excluded from the replies count, paging and the Hide/Show toggle.
-  - Reply context follows the displayed original post for boosts, including nested boosts. `getTimelineContext` resolves stored parents through the same readability, block, mute, and content-warning rules as ordinary replies. A readable parent gets an author/snippet preview; when no permitted parent preview is available, the feed shows "In reply to a post". This fallback alone does not identify whether the parent is missing or restricted.
-  - `StatusThread` (`lib/components/posts/status-thread.tsx`) renders post detail conversation trees, structuring ancestors root-to-parent and nesting descendants by direct reply edges with author-continuation promotion and branch collapse controls.
-  - Replying from any feed row or nested thread status targets the selected post's ID, preserving mentions and recipient audience without flattening threads or redirecting replies to the root.
-- **Composer toolbar (`PostBox`).** The toolbar is one row that stays on one line from 320 px up with the default character limit (it falls back to wrapping if an admin-raised limit makes the counter too wide), on desktop and phone alike: the media picker ("Add media (n/m)"), the emoji picker ("Add emoji or sticker") and **Post options** on the left (40 px square below `md`, 32 px from `md` up), then the character counter, **Cancel Edit** (when editing; only a 32 px `X` icon below `md`, still named "Cancel Edit" with a matching `title`) and **Post**/**Update** on the right. Everything else lives in the **Post options** menu (`post-options-menu.tsx`, `DropdownMenu`, aligned to the start), in this order: **Fitness file** (new posts only, so not when replying or editing), **Poll**, a separator, **Visibility**, **Content warning** and **Preview**.
-  - **Visibility** is a submenu holding the visibility and "Who can quote" choices, shared with `VisibilitySelector` through `VisibilityMenuOptions`; its row shows the current value, followed by the quote policy's own icon (Followers or No one, with "Followers can quote" / "No one can quote" as screen-reader text) when the quote policy is restricted. Below `md` the submenu is pulled back over the menu (one `SUBMENU_WIDTH` constant drives its width and offset) because two menus do not fit side by side; it scrolls when the viewport is short.
-  - **Poll**, **Content warning** and **Preview** are all `menuitemcheckbox` rows with `aria-checked`. Poll shows a check and closes the menu; it is disabled while quoting, and its explanation is the row's accessible description (its name stays "Poll"). Content warning and Preview show a purely visual switch (never a nested `role="switch"`) and keep the menu open (`onSelect` calls `preventDefault`).
-  - The Post options button takes the `bg-primary/10 text-primary` tint while a poll, content warning or preview is on.
-  - The fitness picker's hidden `<input type="file">` is `FitnessFileInput`, kept mounted next to the toolbar and opened through its imperative `open()` handle by the menu item, so the menu closing does not unmount it. Menu rows, including the submenu's quote-policy rows, are at least 40 px tall below `md`.
-  - The reply composer (`StatusReplyBox`) is a separate, compact component and keeps its own buttons.
-- **Composer vertical sizing & auto-growth.** Both the main composer (`PostBox`,
-  used standalone on timelines and for quotes/edits) and the reply composer
-  (`StatusReplyBox`, used for inline replies and fitness activity comments)
-  automatically grow vertically with typing, wrapped lines, newlines, and pasted
-  text while preserving caret positioning, focus, and existing controls:
-  - Sizing classes on the message textareas: `field-sizing-content min-h-[72px]`
-    (or `min-h-[60px]` for replies) `max-h-[min(320px,40dvh)] overflow-y-auto`.
-  - Browsers supporting CSS `field-sizing: content` (Chrome 123+) size the
-    textareas natively without JavaScript intervention.
-  - For browsers lacking native `field-sizing: content` support (such as Safari and
-    Firefox), the shared `useAutoResizeTextarea` hook
-    (`@/lib/hooks/useAutoResizeTextarea`) provides a measured-height fallback that
-    updates `element.style.height` based on `scrollHeight` on mount, input, value
-    changes, and container width changes, while preserving `scrollTop` so internal
-    scrolling does not jump. It adds the element's own border
-    (`offsetHeight - clientHeight`, 0 for the borderless composers) to the
-    measured `scrollHeight`, because a `border-box` textarea's `height` includes
-    its border and `scrollHeight` does not: a bordered box fitted without it is
-    2px short and scrolls its last line away. The share dialog's read-only
-    snippet box on the heatmap page (`HeatmapShareEmbed`) is the bordered caller;
-    it uses this hook with the shared `Textarea`'s own `field-sizing-content`
-    rather than a hook of its own.
-  - Height is capped at `min(320px, 40dvh)`. On extremely short viewports, CSS
-    `min-height` takes precedence over `max-height`. Textareas scroll internally
-    after reaching the cap and shrink smoothly back to the minimum height when text
-    is deleted or draft-reset clears the content.
-- The reaction chips and the action row are both full-bleed (`-ml-13`), and the
-  action row packs every action into one `gap-1` cluster at the post's left edge
-  with only the `⋯` menu pushed right by an `ml-auto` on its wrapper. That auto
-  margin is what does the work — flexbox feeds free space to auto margins before
-  `justify-content` sees it, so it beats any `justify-content` the row might
-  carry — and the row therefore keeps none of its own. Dropping the margin
-  collapses `⋯` into the cluster; a `justify-between` without it spreads all
-  five actions across the full width. Each row carries its own
-  `fullBleed` prop and they default differently — `Actions` pulls unless told
-  not to, `ReactionRow` only when asked — so a surface with no avatar column to
-  pull back over (the fitness activity detail's post) correctly has neither.
-  The row still gets the full width of its container — the spacing between
-  actions is a width-independent `gap-1`, but `⋯` needs the post's right edge
-  to sit on. The edit-history
-  panel is anchored to the row (its trigger's wrapper is deliberately not
-  `relative`) and sits `right-0`, flush with the post's right edge — anchored to
-  the trigger, its 25rem width starts wherever the counts push that trigger and
-  the post's card clips the overhang. The picker trigger lives
-  in the action row (`ReactionButton`), not beside the chips, and both halves
-  share one `useReactionState`; `useBookmarkState` is held by `Actions` for the
-  same reason. A row narrower than 400px — measured by `ResizeObserver` on the
-  row itself, never a viewport breakpoint — hands bookmark and react to the `⋯`
-  menu, and a menu item opening a focus-taking surface uses `deferUntilClosed`
-  (which also suppresses Radix's focus restore). A control that moves into the
-  menu keeps a `disabled` state while its write is in flight and still surfaces
-  its error from the row, absolutely positioned so it adds no flex item.
-- Settings/account forms are client components that POST JSON and show inline
-  success/error, not HTML `<form method="post">` with server redirects; the route
-  returns JSON via `apiResponse()`.
-- Server-only code (`app/api/`, `lib/services|actions|jobs|database|config`)
-  never imports a **runtime value** from a `'use client'` module — on the server
-  it resolves to a client reference, so a constant read out of it is empty and no
-  test can see it (`lib/clientModuleBoundary.test.ts` enforces this).
-  Type-only imports are fine; `export … from` re-exports are not. Shared
-  constants live in a dependency-free module both sides import. See
-  **Server/Client Module Boundary** above.
-- Client authoring UI reads admin-configured limits from `useInstanceLimits()`
-  rather than hardcoding a constant, and new authoring/upload surfaces render
-  under `InstanceLimitsProvider`. The limits are still enforced server-side. See
-  **Instance Limits in Client Components** above.
-- Validate any user-controlled URL before using it as an `href`: parse with
-  `new URL()` and allow only the `http:` or `https:` protocols — not a `startsWith`
-  or regex check — so a `javascript:` (or other) scheme can't become a DOM-XSS
-  sink (see `lib/utils/fitness.ts`).
-- Fitness gear distance stays **derived**, never cached in a column, and every
-  rollup reuses the same completed/primary/not-deleted predicate as
-  `getFitnessActivitySummary` so the numbers reconcile across surfaces. Sport
-  matching goes through `normalizeActivityTypeToSportKey`, never the raw
-  `activityType`, and import jobs assign with `assignFitnessFileGearIfUnset` so a
-  re-run can't clobber a manual assignment. No importer reads gear from Strava or
-  creates a gear row — attribution comes only from the owner's `defaultSports`
-  mapping. See **Fitness Gear** in `docs/fitness-file-storage.md`.
-- A `kind: 'device'` gear is a recording device and follows different rules from
-  a bike or shoes. `deviceKey` is create-only — it is the identity an upload
-  matches against, while `name`/`brand`/`model`/`productUrl` are display fields
-  the owner edits — and `resolveDeviceGear` is the only thing that may create
-  one (the create route answers 422). Deleting a device must **release** its
-  `deviceKey` in the same transaction, because the unique index covers
-  soft-deleted rows. Devices are filtered out of the activity gear picker
-  **before** its kind narrowing, and `setFitnessFileGear` rejects one outright:
-  `gearId` means "what was this ride done on", and an activity pointed at a
-  device falls out of every rollup. The device rollups **replace** `isPrimary`
-  with a per-ride-per-device rule — of the countable files sharing a
-  `(statusId, deviceGearId)`, exactly one survives, the primary if that device
-  owns it and otherwise the lowest id — because the merge groups by time overlap
-  and never looks at the device columns. That counts the watch half of a
-  two-device ride while counting a `.fit`+`.gpx` pair from one device once, and
-  it must never defer to a sibling that is itself uncountable (a merge writes
-  the primary `pending`). The rollup and the activity list must apply the
-  identical predicate, so the only thing that may separate a device's count from
-  its page is an activity whose post was deleted. The device page link
-  is owner-only; everyone else gets the branded manufacturer link.
-- React state updater functions stay pure — no side effects, and don't fire another
-  variable's state update from inside an updater. Do the separate `setState` calls
-  in the event handler instead, so Strict Mode's double-invoke can't misfire them.
-- Optimistic UI (e.g. optimistic delete with rollback on failure) disables the
-  create/edit actions while the operation is in flight, so a rollback can't discard
-  items added in the meantime.
-- Don't wrap a callback in `useCallback` when its dependencies change on every
-  render. The compiler memoizes most components, but not per `.map` iteration,
-  so list rows still need `memo` to skip re-rendering with the list.
-- Post list rows (`PostListItem`, shared by `Posts` and `TimelineFeed`) are
-  `memo` because the React Compiler does not memoize per loop iteration: without
-  it, opening the inline composer re-renders every row. Pass a row plain values,
-  its own slice of shared state (`activeComposer` is null for every other row)
-  and stable callbacks (`useCallback` in the page, above any early return), and
-  build per-row closures inside the row.
-- The React Compiler is on (`reactCompiler: true` in `next.config.ts`,
-  `babel-plugin-react-compiler` pinned in `package.json`) for client components
-  only; server components are not compiled. New components and hooks need no
-  manual `useMemo`/`useCallback`/`memo` for performance; leave the existing ones
-  in place. It compiles in `infer` mode and skips a function where it detects a
-  Rules-of-React violation (a ref read or written during render, mutating props,
-  a `react-hooks` lint suppression) and any function containing `try/finally`
-  (so `MainPageTimeline` and `post-box` stay uncompiled). It cannot see globals
-  (`window.*`, `navigator.*`), module-level mutable state, mutable objects read
-  during render, calls with no reactive arguments (`Date.now()`, `new Date()`,
-  `localStorage.getItem()`), or `useMemo`/`useCallback` deps the body never
-  reads. Those are compiled with changed behavior (computed once, not
-  invalidated), so read such values through state, `useSyncExternalStore` or an
-  effect. Unit tests run without the compiler, but a client component should
-  still be rendered as an element (`<Component />`), not called as a function,
-  because a compiled one needs a renderer.
-- Post list rows carry the `feed-row` class, which `app/globals.css` gives
-  `content-visibility: auto` (with `contain-intrinsic-block-size: auto 380px`,
-  the content box of a not-yet-rendered row, about 405px with padding and
-  divider) so long timelines skip layout and paint of off-screen rows. The
-  containment applies to on-screen rows too: the row becomes a stacking context
-  and the containing block of absolute and fixed descendants, and it clips like
-  `overflow: clip` to its rounded padding box. An overlay rendered inside a row
-  (a panel, error bubble, picker or composer that is not portaled) MUST either
-  be portaled (Radix dropdowns, tooltips, popovers and dialogs, the reaction
-  picker, the media modal) or carry the `data-row-overlay` attribute on an
-  element that exists only while it is open (a bare attribute, never
-  `={bool}`: React renders `data-row-overlay="false"`, which still matches).
-  Passing a `container` inside a row to `ui/popover.tsx` defeats its portal.
-  `.feed-row:has([data-row-overlay])` turns containment off. The rules sit in
-  an `@supports` block whose condition is
-  `@supports selector(:has(a)) and (overflow-anchor: auto)`, so browsers without
-  `:has()` or scroll anchoring (older Chrome, Safari) never contain a row.
-  `app/globals.css` is guarded by `test/feed-row-css.test.ts`, and
-  `test/feed-row-overlays.test.ts` scans the post components for unmarked
-  overlays: any `fixed` tag (including responsive variants), or an `absolute`
-  tag with a `top-full`/`bottom-full`/`left-full`/`right-full` offset, unless it
-  is marked or inside `createPortal`, and any valued `data-row-overlay=`. It is
-  a lint, not an audit: arbitrary offsets, `-translate-y-full`, margin- or
-  numeric-offset placement (`absolute mt-2`, `absolute -top-10`) and classes
-  built outside the tag are not seen.
-
-<a id="review-page-chrome-layout-accessibility"></a>
-
-### Review: Page chrome, layout & accessibility
-
-- `(timeline)` pages use `PageHeader` from `@/lib/components/page-header` and share
-  the single `max-w-content` (940px) width. No reintroduced `max-w-2xl`/`max-w-4xl`
-  split, `contentWidth` prop, or `data-layout-width="wide"`.
-- Below `md` each screen shows one mobile compact bar (the profile: one floating
-  menu button, no bar) holding only the menu button and a short title — no logo,
-  badge, subtitle or back arrow in it. Back, descriptions, actions, counts and
-  filters stay in the content (the home timeline's Refresh is the one action
-  in the bar, via `actionsInMobileBar`; while the app is not online the connection status strip sits right under it); a Back is a `BackLink` row reading "Back" (or
-  "Back to profile" when it returns to a profile) with an accessible name that
-  names the destination, and the post page's history Back falls back to a
-  real link to the author's profile. All of it is signed-in only: logged-out
-  pages keep `PublicTopBar` at every width (see **Mobile chrome**). The
-  desktop rendering (≥768px) is visually unchanged: mobile-only nodes (the bar,
-  floating trigger, Back rows) stay in the markup but are `md:hidden`, mobile
-  styles are `max-md:`, and desktop chrome classes are `md:`-prefixed. See
-  **Mobile chrome**.
-- Route loading skeletons (`loading.tsx`) in `(timeline)` reuse `PageHeader` from
-  `@/lib/components/page-header` directly with `.skeleton` placeholders (title
-  `h-7`, description `h-4`, action button vertically centered via
-  `.shrink-0.self-center` in `actions`) so the header height (79px from `md` up) and action
-  placement match the hydrated page with 0px shift. Look at Timeline, Favorites,
-  Messages, and Search skeletons as reference.
-  - Top-level timeline routes (`(home)`, `favorites`, `messages`, `search`,
-    `bookmarks`, `notifications`, `explore`, `lists`,
-    `followers`/`following`) must use `PageHeader` in skeletons. Never hand-roll
-    sticky breakout headers (e.g. 75px hand-rolled headers cause 4px layout shifts).
-  - Notifications skeleton must preserve the sticky subnav tab container.
-  - Child routes in section layouts (`settings`, `fitness`, `admin`, `account`)
-    must not render sticky breakout headers in skeletons since the layout owns
-    the sticky section header; use in-panel section title skeletons instead.
-  - Non-header routes (status permalinks, profile pages) mirror their bespoke
-    card or banner geometry.
-  - Content panel skeletons must mirror real component metrics (no double borders
-    from `divide-y`, correct card heights and button sizes).
-- On the mobile home timeline, pagination renders as a visual overlay pill centered over the lower area of the final rendered timeline card without a blank band beneath the feed, with a dedicated in-flow observer sentinel (`h-px`) at the feed end. Other timeline and list pages on mobile render through `LoadMoreButton` with container safe-area spacing (`max-md:pt-6 max-md:pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)]`), and `ScrollToTopButton` uses fixed `bottom-[calc(env(safe-area-inset-bottom,0px)+0.75rem)]` so that neither the sentinel button nor the scroll-to-top pill sit flush against or float excessively high above the Safari address bar and home indicator.
-- Every section (Settings, Account & security, Admin, Fitness, Gallery) switches pages with the shared `SectionNavDropdown` at every width, inside the unified `max-w-content` column; never a list or rail beside the content. Active URLs resolve via shared longest-prefix matching (`resolveActiveSectionUrl`). Sentence-case labels ("Blocked accounts").
-- Fitness stat strips (the activity post's figure band and best efforts, the
-  inline chip in a post, the overview's totals) render through
-  `StatStrip` (`@/lib/components/surface/StatStrip`) and size themselves with **container** queries — no
-  hand-rolled `grid-cols-*` strip and no `sm:`/viewport breakpoint, which cannot
-  see a narrow column on a wide window. `@container` belongs on a wrapper, never on the grid it sizes. Every
-  other labelled totals strip (gear detail, Device, Gallery, Albums, Files)
-  uses the same component.
-- A gear's activities render through the shared `GearActivitiesFeed` → `Posts`,
-  never a bespoke row list, and the endpoint's `nextOffset` counts activity rows
-  rather than the statuses in the page (an activity whose post was deleted still
-  occupies an offset). Both the initial load and "Load more" walk past a page
-  that is postless, and the empty state is gated on `!hasMore` — "no activities"
-  above an enabled "Load more" is the bug that gate exists for.
-- A nested sub-nav that switches a **view** uses the shared `SectionNavSelect`
-  (state-driven); one that navigates to another route uses the in-content
-  segmented control via `PageSubnavProvider`. Neither is ever re-inlined. A bike
-  gets the Components/Activities switcher; shoes and devices render none,
-  because a menu with one entry is dead UI.
-- Gear tables (the gear list's bikes/shoes/devices, the components table on a
-  gear's page) pin their first column through `STICKY_COLUMN` /
-  `STICKY_CLICKABLE_COLUMN` in `app/(timeline)/fitness/gear/gearUi.ts` — never a
-  hand-rolled sticky cell. The pinned cell is painted in the surface the table
-  sits on — `bg-background`, since the tables sit on the page in the overview's
-  layout rather than in a `Card` — and its header cell in the header band's
-  opaque tint (`STICKY_HEAD_CELL`); the design paints the lane the colour of
-  what is behind it and sets a colour there only to keep the sticky cell
-  opaque, so any other colour reads as a stripe in light mode and a sunk well
-  in dark. It must
-  stay **opaque**, its hover must be the opaque `bg-muted` on both the row and
-  the cell (never `bg-muted/50`, which replaces the background rather than
-  layering over it), and a dimmed row dims its **cells**, never the `<tr>` or the
-  pinned `<td>` — `opacity` fades a background along with its text. Use
-  `STICKY_CLICKABLE_COLUMN` only on a row carrying `group` and its own `hover:`.
-  See **Fitness Gear** in `docs/fitness-file-storage.md`.
-- Orange **text** uses `text-primary-text`, not `text-primary`. `--primary` is
-  the accent orange for icons and fills and is only 3.37:1 on the card, below the
-  WCAG AA floor for body text; `--primary-text` is tuned per theme to clear 4.5:1
-  on every surface, including the `--muted` row hover. Applies to links, link-ish
-  buttons and any orange text node — icons keep `text-primary`. This holds
-  everywhere in `app/` and `lib/`: the `link` Button variant, the `primary`
-  Badge tone, active nav labels, chips, "Hide replies"-style toggles, the
-  highlighted stat value and text-bearing tiles (a rule number, a count) all use
-  `text-primary-text` (and its `hover:`, `focus:` and `data-[state=…]:`
-  variants). Icons, fills, borders and rings keep `primary`, so when one element
-  colours both an icon and a label, put `text-primary-text` on the element and
-  `text-primary` on the icon (the sidebar's active rows do this). Two things stay
-  `text-primary` on purpose: icon-only controls (a toggle button holding just an
-  icon or glyph, the collapsed rail) and the large display numeral on the 404/500
-  card, which the design draws in the brand orange. `app/globals.contrast.test.ts`
-  guards the token values in `globals.css`, not whether a component used
-  `text-primary-text` vs `text-primary`.
-- Destructive **text** and link labels use `text-destructive-text`
-  (or `text-destructive`, which maps to it in `@layer utilities`; note that
-  variant modifiers such as `hover:text-destructive-text` and
-  `focus:text-destructive-text` must use the `-text` suffix explicitly, as
-  Tailwind v4 variant compilation targets theme tokens), not raw `--destructive`.
-  Light `--destructive-text` is `hsl(357.5 64.1% 43.7%)` (#B7282E, the design's
-  Destructive Text, 6.26:1 on white); light `--destructive` stays #EF4444 for
-  fills and is only 3.76:1 as a foreground, so never use it as a text colour.
-  Dark `--destructive` is `hsl(0 62.8% 30.6%)` (#7F1D1D) to
-  preserve 9:1 white-on-destructive contrast for button and badge backgrounds
-  (`bg-destructive`), but only reaches ~1.8:1 on dark surfaces. `--destructive-text`
-  is lightened to `hsl(0 91% 71%)` (#F87171, Tailwind `red-400`) in dark mode
-  to meet WCAG 2.1 AA (4.5:1) on every dark surface (6.44:1 on card/popover,
-  7.3:1 on background). Fills and button backgrounds keep `bg-destructive`.
-  `app/globals.contrast.test.ts` guards the token.
-- The count beside a **liked** heart uses `text-like-text` (`--like-text`:
-  #B7282E light, #F87171 dark — the design's "Like Text", equal to the
-  destructive text values but named separately so the like button never reads as
-  a destructive action). The heart icon itself (the like button's and the "N likes" heart under a post) is `text-like-icon` (`--like-icon`, #FB2C36, the same in both themes).
-- The other post action icons have tokens of their own rather than borrowing a
-  status tone: `text-bookmark-icon` (bookmarked, and the hover on an unbookmarked
-  post; amber-500), `text-repost-icon` (reposted or hovering; green-500) and
-  `text-reply-icon` (hovering reply; blue-500), the same in both themes. A
-  bookmark is not a warning and a repost is not a success, and the darker
-  `-text` shades would blur "on" and "off".
-- Translucent chrome — the sticky page header, the sidebar, the icon rail, the
-  mobile compact bar, and the sticky bars of the public shell (`PublicTopBar`), the
-  logged-out landing page's public-feed header, the shared heatmap page and the
-  status page header — uses `bg-surface-chrome`
-  (`--surface-chrome`: white at 72 % light, #141414 at 80 % dark) with
-  `backdrop-blur`, not `bg-background/NN`. `lib/components/surfaceChromeUsage.test.ts`
-  lists the bars.
-- The shared `Badge` has six tones: `gray` (the default; `#383838` fill and
-  `#C2C2C2` label in dark, which the connected-app scope chips share), `primary`
-  and `destructive` (the text token for the label and a lighter hue at 16 % for
-  the dark fill, `#FA802E` / `#DF3A3A`), and `success`, `warning` and `info`,
-  which are the surface kit's status tokens: a `bg-<tone>/10` (light) or `/25`
-  (dark) tint of the status colour behind its `-text` token, which clears AA on
-  it in both themes. (`Alert` does not use these tints; it has its own opaque
-  `-surface` tokens, below.) There is no `blue` tone; a "Sign-in" or other neutral-informational
-  label is `info`. Do not hand-roll badge colours with
-  fixed `hsl()` values — a pill that has no `dark:` variant renders as a light
-  chip on the dark surface. A status or label pill whose meaning fits a tone is
-  `<Badge tone="…">` rather than a hand-copied `rounded-full bg-… px-2 py-0.5`
-  span: the Admin pill on the accounts list and detail, the report's Open /
-  Resolved, the moderation panel's state labels, the passkey domain pill, the account's Verified mark and a filter's
-  Expired pill are all the shared `Badge` (its `px-2.5` is 4 px wider across
-  than the hand-rolled `px-2`, and it carries the design's dark tints). A pill
-  that is not a tone — the 10–11 px file-type and position tags, the filter
-  context chips — stays its own element; the admin relay states are `Badge`
-  tones.
-- A native `<select>` is the shared `Select` (`@/lib/components/ui/select`):
-  36 px, the design's 3 px focus ring, `shadow-xs`, the OS arrow hidden and the
-  muted chevron painted in its place. A call site that needs a different width
-  passes it as a `className` (`w-auto` for a select that shares a row with other
-  controls); the chevron class is private to the primitive, so there is no
-  raw `<select>` to append it to, and `lib/components/ui/formControlUsage.test.ts`
-  fails on one. The post line limit, the admin statistic type, the report
-  category, the Wahoo environment, the notification actor and the privacy hide
-  radius are all `Select` at the standard 36 px height, with no exception for
-  the hide radius. There is no raw
-  `<select>` left in the app outside the primitive (`formControlUsage.test.ts`
-  pins it): the fitness activity page's recording switcher is a menu, not a
-  select (see **Several recordings of one activity** in
-  [Fitness file storage](fitness-file-storage.md)).
-- A checkbox is the shared `Checkbox` (`@/lib/components/ui/checkbox`): 16 px,
-  radius 4, an orange fill and a white tick when checked, instead of the
-  browser's blue control. It is still a real `<input type="checkbox">`, so a
-  label that wraps it or points at it with `htmlFor` toggles it and a form posts
-  it as before; the mute dialog's "Also hide notifications" option wraps it in
-  its label. `lib/components/ui/formControlUsage.test.ts` fails on a raw
-  `<input type="checkbox">` (and on a raw `<select>`).
-- The unread-count pill (`NotificationBadge`) is filled `#B7282E` in light — the
-  design's count-badge red, darker than the `#EF4444` `--destructive` token that
-  white text only reaches 3.8:1 on — and `--destructive` (`#7F1D1D`) in dark.
-- Palette tokens beyond the shadcn set: `--control-off` (`bg-control-off`, the
-  Switch track when off: `#CCCCCC` light, `#545454` dark) and `--surface-accent`
-  (`bg-surface-accent`, the pale orange tile behind an accent icon: `#FFF6F0`
-  light, `#271A11` dark; a selected tile keeps `bg-primary/20`) and the four
-  opaque tinted fills of `Alert`, `--destructive-surface`, `--success-surface`,
-  `--warning-surface` and `--info-surface` (`bg-<tone>-surface`: `hsl(0 86% 97%)`,
-  `hsl(138 76% 97%)`, `hsl(48 100% 96%)`, `hsl(214 100% 97%)` light;
-  `hsl(0 45% 11%)`, `hsl(142 35% 9%)`, `hsl(32 50% 10%)`, `hsl(222 45% 13%)`
-  dark). The dark brand
-  backdrop on `body` is `#492812` top-left and `#193543` top-right at 60 %.
-  `app/globals.contrast.test.ts` guards the values.
-- Dropdown menu rows highlight with `--accent` in light and `--muted` (#2B2B2B)
-  in dark, and a radio item's indicator is a 6 px dot. A row that paints its own
-  `focus:` wash (the current row of `SectionNavDropdown` / `SectionNavSelect`,
-  the visibility selector, the Strava gear menu) repeats it as `dark:focus:`:
-  the shared item's `dark:focus:bg-muted` survives tailwind-merge unless the row
-  names its own `dark:focus:` background, so the hovered row would turn grey in
-  dark. Loading placeholders use the shared `.skeleton` utility rather than
-  `bg-muted`, which sits almost on the card and is near-invisible.
-- The shared `Dialog` is 440 px wide by default (a dialog that needs more sets
-  its own `sm:max-w-*`, as the gear forms do at `sm:max-w-lg`), has a 16 px
-  radius, and sits on `bg-card` in dark mode (`bg-background` in light) so it
-  reads lighter than the dimmed page. The light `outline` Button is filled with
-  `bg-card` (#FAFAFA); dark stays the translucent `bg-input/30`, except the
-  scroll-to-top pill (`bg-popover`), the timeline refresh button (`bg-card`) and
-  the announcements icon button beside it (`bg-card`), which are solid `#171717`
-  with the `--border` hairline in dark. The `pill` Button variant likewise stays
-  translucent except the floating pill that sits over posts ("N new posts"),
-  which is solid `bg-popover` with `shadow-lg` in both themes so post text
-  never shows through it. Its up arrow is `text-muted-foreground`, not
-  `primary`: an orange arrow over the feed pulls the eye too hard.
-- When pairing a visible count with `sr-only` text, put only the noun (e.g.
-  "boosts") in the `sr-only` span, not the number — the visible digit is already
-  announced, so including it double-reads (see `posts/read-only-stats.tsx`).
-- Use the dynamic viewport unit `min-h-dvh` (not `min-h-screen` / `100vh`) for
-  full-height layouts, so mobile browser toolbars don't break centering.
-- One `<main>` landmark per page: don't render `<main>` in a `page.tsx` when an
-  ancestor layout already provides one.
-
-<a id="review-surfaces"></a>
-
-### Review: Surfaces
-
-- New page UI is built from the surface kit in `lib/components/surface/` (`Section`, `Frame`, `FormRow`, `SaveBar`, `StatStrip`, `FramedList`, `TableFrame`, `EmptyState`, `Alert`, `SegmentedControl`, `AddBar`, `RadioCard`, `ScreenSkeleton`/`DescriptionSkeleton`/`StatStripSkeleton`, `SectionSkeleton`, `SkeletonBar`/`SkeletonRows`, and `GalleryGridSkeleton` from `lib/components/gallery/` for a photo grid), not a `Card`, a hand-rolled panel, tab row, empty state or banner.
-- Radii are `rounded-lg` frames, `rounded-md` controls and tiles, `rounded-xl` dialogs only; no `rounded-2xl`, no panel `shadow-*`.
-- Headings, labels and buttons are sentence case; colours are theme tokens (`success`, `warning`, `info`, `destructive`, `primary`), never raw palette utilities.
-- Every list, post lists included, is one frame with `divide-y`, not separate cards (the one exception, an admin account's actors, is under **Lists**).
-  - Exception: the profile fields on the profile page are an unframed inline line under the bio (like the software line), not a framed list.
-- Settings rows are label-and-hint left, control right, stacked on a phone; the save button says "Save"; instant-save controls show `SavedIndicator`.
-- Loading draws skeleton bars in the final layout's shape, no "Loading…" text; messages and page-level errors are an `Alert` with the right tone and Retry where it helps.
-- The counts in `surfaceKitUsage.test.ts` only go down.
+The summary rules live in
+[AGENTS.md → Runtime Configuration Guidelines](../AGENTS.md#runtime-configuration-guidelines).
 
 <a id="review-logging"></a>
 
-### Review: Logging
+### Logging
 
-- No `console.*` in committed code (lint-enforced in `app/`/`lib/`). Server-side
-  code uses `logger` from `@/lib/utils/logger` (`logger.info({ message })`).
-  Migrations and `scripts/` may use `console.*`. Do not log from React/client
-  code.
-- A caught error is logged as `err: toLoggableError(error)`
-  (`@/lib/utils/toLoggableError`), not only as `error: err.message`. The
-  formatter reads `err.stack` to emit `stack_trace`; a message string alone
-  reports nothing actionable. Keep the human-readable `error: <message>` too
-  when that same string is persisted.
-- A user-visible degradation is not a `logger.warn` and nothing else — persist it
-  where that feature's state lives so it is visible and retryable. But scope the
-  signal to what broke: don't reuse a status flag that already means something
-  bigger (a missing route map records `fitness_files.mapError`; setting
-  `processingStatus: 'failed'` would hide the whole activity from the detail
-  dashboard, the stat grid, the fitness overview and every rollup). Grep for what
-  reads a flag before reusing it.
+- The `console.*` ban is lint-enforced in `app/` and `lib/`.
 
-<a id="review-auth-error-page"></a>
-
-### Review: Auth error page
-
-- Failed auth/OAuth requests must reach the in-app `/auth/error`, never
-  better-auth's built-in `/api/auth/error`: `onAPIError.errorURL` in
-  `lib/services/auth/auth.ts` stays set. The built-in page does not render in
-  production — it 302s to `/?error=...`, dropping a failed sign-in on the home
-  timeline.
-- `AUTH_ERROR_PATH` stays **root-relative**. better-auth copies it straight into
-  the `Location` header with no resolution, so an absolute URL built from
-  `getBaseURL()` bounces a login started on a trusted alias domain over to
-  `ACTIVITIES_HOST` mid-flow.
-- The error page never renders `error_description`, and renders the `error` code
-  only when it is **allow-listed** (`isKnownAuthErrorCode`) — not merely
-  token-shaped. Both are caller-controlled via a hand-crafted link, and
-  `?error=Account-locked-please-call-1-800-555-0100` passes the character class
-  and length cap while reading as prose on our own auth card.
-- That allow-list gates **rendering only**. Both fields are still logged for any
-  code: allow-listing bounds nothing in the log (any description can ride a
-  mapped code — the 200/64-character caps are the real bounds), and an unmapped
-  code is what most needs the description, since better-auth rewrites codes it
-  cannot classify to `UNKNOWN` while forwarding the real description.
-- Don't add `onAPIError.onError` for correlation: better-auth short-circuits it
-  for anything it redirects (`status === 'FOUND'`), which is exactly this class
-  of failure, and setting it suppresses better-auth's own built-in logging.
-- If `socialProviders`, `sso()` or `genericOAuth()` are added, pass
-  `errorCallbackURL` per flow as well — `onAPIError.errorURL` is only the default
-  for provider-callback failures.
-
-<a id="review-better-auth-session-refresh"></a>
-
-### Review: Better-auth session refresh
-
-- A server-side session read never slides the session. `getServerAuthSession`
-  keeps `query: { disableRefresh: true }`, and a new `auth.api.*` call that
-  resolves a session (anything behind `sessionMiddleware` /
-  `getSessionFromCtx`, not only `getSession`) either disables the refresh or
-  runs in a route handler that returns better-auth's `Set-Cookie`. A Server
-  Component can do neither, so it goes through `getServerAuthSession`.
-- Refreshes happen only inside better-auth's own `/api/auth/*` handler, where
-  the row and the cookie move together. `SessionKeepAlive` stays mounted in the
-  signed-in layout and keeps its timer, because the layout survives client-side
-  navigation and a window that is never hidden fires no `visibilitychange`.
-- `lib/services/auth/sessionRefresh.test.ts` keeps driving the real better-auth
-  instance: a server-render read leaves a due session untouched, and
-  `/get-session` extends it and re-issues the cookie. See
-  [Better-auth Session Refresh](#agents-better-auth-session-refresh).
-
-<a id="review-oauth-access-token-sliding-expiry"></a>
-
-### Review: OAuth access token sliding expiry
-
-- Every bearer guard still slides a user's opaque token when it accepts a
-  request (`extendAccessTokenIfDue`), and only then: after the expiry and scope
-  checks in `resolveTokenContext` and the actor, moderation and confirmation
-  checks in the guard. Never for an app token or a JWT. This server issues no
-  refresh tokens, so a change that drops or narrows the slide signs every
-  client out after one window; one that slides a refused request keeps a
-  suspended account's token alive.
-- `refresh_token` stays out of `OAUTH_GRANT_TYPES`, and the provider config,
-  registration and both discovery documents read that constant rather than a
-  literal, unless `offline_access` is deliberately supported end to end.
-- Every path that mints a user token takes its lifetime from
-  `OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS`, never a literal, so the issued
-  expiry and the slide agree.
-- A failed slide write never fails the request, and better-auth's `revoked`
-  column stays unread unless the web-sign-out behaviour is deliberately
-  changed. See
-  [OAuth Access Token Sliding Expiry](#agents-oauth-access-token-sliding-expiry).
-
-<a id="review-unconfirmed-accounts-app-tokens"></a>
-
-### Review: Unconfirmed accounts & app tokens
-
-- A check for "has this account confirmed its e-mail" reads `verificationCode`
-  AND `emailVerified`, never `verifiedAt`. The second column is what
-  grandfathers the accounts `20260320072514_better_auth_columns` wrongly marked
-  verified — better-auth's `requireEmailVerification` has been letting them sign
-  in ever since, so honouring it here grants nothing new and locks nobody out.
-  A repair keyed on when a migration ran is NOT a substitute: two attempts at
-  that bound shipped wrong in opposite directions. `accounts.verifiedAt` originally carried `DEFAULT CURRENT_TIMESTAMP`
-  (`20230824181927_add_accounts_verification`, dropped in `drop_accounts_verifiedat_default`), so a pending registration previously got a
-  timestamp anyway and a `verifiedAt` test is a **no-op that reads as a working
-  gate**. The column carried that default since 2023-08-24; every check
-  written against it since has been inert, `canCreateSessionForAccount`'s
-  included.
-  `createAccount` writes an explicit `verifiedAt: null` now, but rows written
-  before that still carry the default. The same trap bit
-  `20260320072514_better_auth_columns`, whose `whereNotNull('verifiedAt')`
-  backfill consequently set `emailVerified = true` on every account of that
-  era, pending ones included — which is why `20260828140000_clear_stale_verification_codes`
-  exists and why `serializeAdminAccounts`' `confirmed` field had to stop reading
-  `verifiedAt` too.
-- Every MANDATORY authenticated surface refuses an unconfirmed account with 403
-  (`isActorConfirmationPending` in `lib/services/guards/OAuthGuard.ts`,
-  `lib/services/guards/AuthenticatedGuard.ts`, and
-  `lib/services/guards/AdminApiGuard.ts`), matching Mastodon's
-  `require_user!`. `OptionalOAuthGuard` deliberately does NOT — it
-  DOWNGRADES such a token to the anonymous path
-  (`unconfirmedAccount: 'anonymous'`). Refusing made presenting a
-  valid token FAIL a public read that succeeds with no Authorization header at
-  all; accepting the actor would let an unverified account read DMs addressed
-  to it and drive outbound federation via `resolve=true`, which Mastodon does
-  not permit either — its search controller applies `require_user!`, so
-  `authorize_if_got_token!` is only a partial model here. Suspension is
-  different and stays global in both codebases. The reason it matters:
-  `POST /api/v1/accounts` returns a real user access token at registration and
-  `POST /api/v1/apps` is unauthenticated, so a token that works before
-  confirmation lets an anonymous party script usable accounts.
-- `unconfirmedAccount: 'allow'` (supported in `OAuthGuard` and
-  `AuthenticatedGuard` options) has exactly one active route consumer,
-  `POST /api/v1/emails/confirmations` — the endpoint that resends the
-  confirmation e-mail, which Mastodon exempts too. A second consumer needs the
-  same argument. It relaxes confirmation only: `isActorModerationBlocked` still
-  runs in both guards, so a suspended actor or disabled account is refused there
-  as well.
-  `OptionalOAuthGuard`'s `unconfirmedAccount: 'anonymous'` downgrade is a
-  different disposition and does not count against this.
-- `allowModerationBlocked` (supported in `AuthenticatedGuard` options) is
-  reserved for restrictive revocation endpoints (`accounts/sessions`,
-  `accounts/sessions/[id]`, `accounts/connected-apps/[clientId]`) so an owner
-  can terminate attacker sessions and revoke connected apps during suspected
-  account compromise even while suspended/disabled. It relaxes
-  `isActorModerationBlocked` only; CSRF same-origin proof and
-  `isActorConfirmationPending` remain enforced.
-- Account-level actor management (`actors/switch`, `actors/cancel-deletion`)
-  authenticates the account directly via session and same-origin CSRF proof,
-  checking account ownership of the target actor rather than gating on the
-  session's active actor. `cancel-deletion` still refuses a suspended target
-  actor, whose scheduled deletion may be the admin hard delete.
-- Do not "unify" this with better-auth's `emailAndPassword.requireEmailVerification`,
-  which covers credential sign-in only — but DO read the same column it reads.
-  `emailVerified` is on the domain `Account` precisely so the two gates agree;
-  removing it re-locks out the backfilled cohort. That gate is why the cookie
-  path was never open **for an account registered after 2026-03-20** — older
-  ones were marked `emailVerified` by that migration's backfill and have been
-  signing in ever since, which is the cohort
-  `20260828140000_clear_stale_verification_codes` exists for. Do not repeat the
-  unqualified form of this claim.
-- A handler that needs to know whether a bearer token is an **app**
-  (`client_credentials`) token reads `userId`, never `currentActor`.
-  `OAuthAppGuard` also leaves `currentActor` null when it merely fails to resolve
-  an actor for a user-delegated token (no grant `referenceId`, and every actor on
-  the account pending deletion), which is how a user was accepted as an app and
-  could mint accounts.
-- `Account.verifiedAt` stays `.nullish()` and `SQLAccount.verifiedAt` nullable:
-  both row-to-domain mappers pass a literal `null` through, so `.optional()`
-  makes `Actor.parse` throw and the first request by an unconfirmed actor 500s.
-
-<a id="review-emails"></a>
-
-### Review: Emails
-
-- Every email is built by a `build<Name>Email(params): RenderedEmail` module in
-  `lib/services/email/templates/`. No subject/HTML/text literals at a call site.
-  All active templates follow this; there is no legacy shape left to copy.
-- Templates compose blocks from `@/lib/services/email/layout/blocks` and render
-  through `renderEmail`; they never write markup. Escaping belongs to the block
-  builders, so a template hands in plain strings, and nothing in the layout emits
-  an unescaped value today.
-- Every `href`/`src` is absolute and built from `brandBaseURL(brand)`
-  (`buildBaseURL` of the brand's domain, a domain `getServedLinkDomain`
-  accepted; `getBaseURL()` when no brand is passed or the brand is the primary). Root-relative URLs are unresolvable in a mail client, and a
-  hardcoded `https://${config.host}` is wrong under
-  `ACTIVITIES_INSECURE_AUTH=true`.
-- The plain-text part is derived from the same block list, never hand-written
-  alongside the HTML.
-- **A local `vi.mock('@/lib/config', …)` must include `getBaseURL` and
-  `buildBaseURL`** for every email builder. It shadows
-  the global mock, and because most email call sites catch delivery errors, an
-  omission does not fail loudly: the template throws, the catch swallows it, and
-  the test passes while the email silently stops sending. This has bitten twice.
-- Template changes are verified by rendering:
-  `./scripts/mock/renderEmailPreviews.ts` (see `docs/maintenance.md`). A PR
-  migrating a template must add it to `buildPreviews()`, and fixtures must be
-  production-shaped (43-char codes).
-- Outlook-only properties (`mso-padding-alt` on both the button cell and its
-  anchor, `mso-hide:all`, the MSO ghost table pinning the column to 600px) are
-  load-bearing and invisible in a browser. Don't drop them as dead style.
-- **An email image never points at a stored media path directly.** Stored images
-  are WebP unless the caller asked for another format, and Outlook desktop and
-  Windows Mail cannot decode WebP. An email image needs a stored JPEG copy
-  (`saveMediaImageRendition(…, 'jpeg')`) and a column remembering it — the route
-  map uses `fitness_files.mapImageEmailPath` — with the WebP as a **live**
-  fallback for every case where no copy exists (storage unconfigured, over quota,
-  failed encode, or a row predating the column), not legacy-only dead code. A
-  stored file with no `medias` row is invisible to generic media cleanup, backup
-  and deletion, so check each of those knows about it and that the file is
-  deleted wherever its reference is dropped.
+The full rules live in
+[AGENTS.md → Logging Guidelines](../AGENTS.md#logging-guidelines).
 
 <a id="review-post-media-layout"></a>
 
-### Review: Post media layout
+### Post media layout
+
+#### Feed framing below `md`
 
 - **Feed framing is breakpoint-scoped and owned by the element that renders the
   feed's outer frame**, through `MOBILE_FEED_SURFACE_CLASS` in
@@ -3696,9 +2995,9 @@ moved` (reject stays allowed). While
   home composer — and to it alone: `Posts` always draws the frame. The margin
   is deliberately `calc(50% - 50vw)`, not a fixed `-mx-4`: the shared `/` loading boundary renders under both the signed-in
   `px-4` column and the raw logged-out landing branch with no padding, so a
-  fixed gutter overflowed the viewport in the second one. `max-md:w-auto` is
+  fixed gutter overflows the viewport in the second one. `max-md:w-auto` is
   load-bearing — with `width: 100%` the negative margins only shift a `w-full`
-  frame left instead of widening it. Explore and Search no longer wrap their posts in a
+  frame left instead of widening it. Explore and Search do not wrap their posts in a
   card: the posts frame is the post list frame itself, with no `backdrop-filter`
   (which would make it the containing block for the `max-md:fixed` edit-history
   panel) and no `overflow-hidden`, so embedded posts' non-portalled overlays
@@ -3706,6 +3005,16 @@ moved` (reject stays allowed). While
   their 680px reading-column cap below `md` (`max-md:max-w-none`) so the page's other
   content and chrome stay aligned with the full-bleed feed below `md` (the
   frame margin already reaches the viewport edges either way).
+
+#### Strip layout and alignment
+
+- A status's media is **one attachment at its own size, or a horizontally
+  scrollable strip — never a grid.** `lib/components/posts/attachments.tsx` owns
+  this for every surface that renders a post. The media row is never narrowed
+  to achieve alignment: a lone picture keeps its own aspect ratio and sizes
+  naturally at `min(100%, Npx)`, scaled by WIDTH — a wide one spans the message
+  column, a narrow one keeps its own width on the text's left line — and the
+  strip keeps its item widths, gaps and snapping. No ancestor may clip the row.
 - **A visual attachment scroller bleeds out to the owning feed frame's inner edges at every
   breakpoint so cards can scroll beneath the avatar mid-scroll, but at rest and initial scroll position, the media aligns with the post text's left line.** `Attachments` pulls the
   row out by `--post-media-bleed-left` / `--post-media-bleed-right`, whose
@@ -3728,11 +3037,10 @@ moved` (reject stays allowed). While
   carries the cards to its own inset text column. Captions align with their own card — the card
   already sits on the text line. The strip's overlay arrows are positioned
   against the media row itself, not the text column, so they sit at the row's
-  frame edges. The media row
-  must not be narrowed to achieve this: a lone picture still sizes naturally at
-  `min(100%, Npx)` — a wide one spans the message column, a narrow one keeps
-  its own width on the left line — the strip keeps its item widths, gaps and
-  snapping, and no ancestor may clip the row.
+  frame edges.
+
+#### Corner rounding
+
 - **Media corner rounding follows attachment order:** A single attachment rounds
   all four outer corners (`rounded-2xl`). For a horizontal media strip: the first item
   rounds only its top-left and bottom-left corners (`rounded-l-2xl`), middle items
@@ -3752,11 +3060,9 @@ moved` (reject stays allowed). While
   resolves through the wrapper's own explicit corner, transitively equal to the
   button's radius — so media frames never bleed square pixels past rounded
   parent edges.
-- A status's media is **one attachment at its own size, or a horizontally
-  scrollable strip — never a grid.** `lib/components/posts/attachments.tsx` owns
-  this for every surface that renders a post. A lone picture keeps its own
-  aspect ratio and starts on the post text's left line, scaled by WIDTH;
-  the branch this replaced cropped every portrait photo to a full-width 16:9.
+
+#### Strip chrome: captions, arrows and the position counter
+
 - The gallery uses 240px image boxes, 12px gaps, aspect-ratio-based card widths
   with a 160px minimum and 78% maximum, and `scroll-snap-type: x proximity`.
   Captions sit below their images, preserve line breaks and custom emoji, and
@@ -3779,6 +3085,15 @@ moved` (reject stays allowed). While
   exists yet, a press falls back to one visible width (`clientWidth`) in the
   requested direction. Scrolling stays smooth unless reduced motion is
   requested.
+- The counter names the 1-based card the strip is on. At the end of the strip
+  it is the last card, so it reads `N / N` exactly when the forward arrow is
+  disabled. Otherwise it is the first card whose left edge has reached the
+  viewport's left edge, within a 4px tolerance; a card still partly scrolled
+  off to the left counts as passed. It re-reads on scroll, on resize, and when
+  the item widths change without a scroll event.
+
+#### Lazy loading and the eager first image
+
 - **There is no item cap and no `+N` overlay** — scrolling reaches everything —
   so anything the strip renders unboundedly needs a deferral: images pass
   `loading="lazy"`, videos `preload="none"` (`loading` is image-only) — but only
@@ -3802,19 +3117,16 @@ moved` (reject stays allowed). While
   the album has no cover. `loading="eager"` is set only where the image would
   be lazy (the first tile of a multi-attachment strip, grid tile 0); a single
   image keeps the browser default. Search, gear, fitness and other pages with content
-  above the list never opt in. `revealImmediately` on `Media` (and, as before,
+  above the list never opt in. `revealImmediately` on `Media` (and
   `fetchPriority="high"`, used by the activity map preview) skips its
   opacity-until-hydration gate: the real LCP win is that paint gate, not fetch
   order. Do not add `fetchPriority="high"` to post or album images: those are
   already eager with a preload link, so it brings no fetch speedup, and it makes
   Lighthouse's simulated LCP count the large image, inflating modeled mobile
   LCP. The landing hero watermark is likewise `loading="eager"` only.
-- The counter names the 1-based card the strip is on. At the end of the strip
-  it is the last card, so it reads `N / N` exactly when the forward arrow is
-  disabled. Otherwise it is the first card whose left edge has reached the
-  viewport's left edge, within a 4px tolerance; a card still partly scrolled
-  off to the left counts as passed. It re-reads on scroll, on resize, and when
-  the item widths change without a scroll event.
+
+#### Media types: filtering, video and unknown dimensions
+
 - **Filtering is layout-only.** `isVisualAttachment` picks what gets a picture
   box and `isAudibleAttachment` what becomes an inline player; a `.fit` file or
   PDF is skipped rather than rendering an empty box. But the lightbox is handed
@@ -3830,13 +3142,16 @@ moved` (reject stays allowed). While
   controlled video un-prevented (a default-prevented click does not toggle
   playback in Chromium). A looping gifv and a GIF keep the animation card with
   its own play/pause chip and zoom button. The lightbox is still handed every
-  visual attachment, videos included. The sensitive-content gate is unchanged:
+  visual attachment, videos included. The sensitive-content gate applies:
   `ContentWarning` mounts nothing while collapsed, so no `<video>` exists, and no
   request is made, until it is expanded.
 - **A stored dimension of `0` means "unknown", not "zero pixels"** — several
   media-storage paths persist `metaData.width ?? 0` — so every read goes through
   `getMediaGeometry`, which also clamps pathological shapes and falls back to a
   4:3 box so blurhash has something to reserve.
+
+#### Focus indicators and scroll plumbing
+
 - **A media button's focus indicator is an `outline` with a NEGATIVE offset,
   never an outset ring.** The strip's own `overflow-x-auto` clips an outset
   ring, and the media box can still reach the frame's inner edge — a wide lone
@@ -3844,15 +3159,18 @@ moved` (reject stays allowed). While
   `main`'s `overflow-x-clip` cuts the ring's outer edge off below `md`. An
   inset `box-shadow` does not work either — it paints beneath content and the
   button's only child is an opaque image. `Attachments` uses one spelling for
-  both shapes; it has been got wrong twice and is pinned by a test.
+  both shapes; it is pinned by a test.
 - `useMediaStripScroll` measures the strip's own container, never a viewport
   breakpoint, through a **callback** ref because the strip is conditional. Its
   `contentKey` must describe item WIDTHS, not their count: the observer watches
   the container, which does not resize when an edit swaps a panorama for a
   portrait.
 - `no-scrollbar` belongs only on a row that carries its own overflow affordance.
-  It was applied in the emoji and reaction pickers while defined nowhere, so
-  defining it would have removed their only cue.
+  The emoji and reaction pickers apply it while it is defined nowhere; defining
+  it would remove their only overflow cue, so the class stays undefined.
+
+#### Composer attachment tiles
+
 - The composer's attached-media tiles (`composer-attachment-tiles.tsx`) are
   never a grid either: one horizontally scrolling row of fixed-width
   (`w-36`/`sm:w-40`) `flex-none` tiles. The row carries the status strip's own
@@ -3873,132 +3191,6 @@ moved` (reject stays allowed). While
   media, which load after the first render with none of those, leave it at the
   first tile. `scroll-pl-16` keeps a snapped tile clear of the left fade and
   Previous arrow, as the status strip's `scroll-pl` inset does.
-
-<a id="review-status-delete-unboost-federation"></a>
-
-### Review: Status delete & unboost federation
-
-- **Local deletion commits before external and synchronous fan-out.** The database
-  queue uses `deleteStatusWithQueueJob`, which inserts the delete job and removes
-  the status in one transaction; a transaction failure propagates and rolls back.
-  `SendDeleteNoteJob` federates the `Delete`/`Tombstone` after commit. For other
-  queues, flag any change that reintroduces inline fan-out ahead of
-  `database.deleteStatus`: it makes the response wait on remote inboxes and lets
-  inbox-resolution errors abandon the local deletion. A failing remote server
-  alone is not that trigger: the sender and `getActorPerson` swallow remote
-  lookup/network failures. Once the local deletion has committed, a publish error
-  must be logged without telling the author the post remains.
-- Neither job may load the status it federates: `database.deleteStatus` is a
-  cascading hard delete, so the data travels in the payload — `to`/`cc` for the
-  `Delete`, plus `originalStatusId`/`createdAt` for the `Undo`, all captured
-  pre-delete. `getFederatedStatusDeliveryInboxes` takes `Pick<Status, 'to' | 'cc'>`
-  and the `undoAnnounce` sender takes a matching narrowed `announce`. A
-  "consistency" refactor onto `loadStatusAndActor` silently stops federation —
-  that is precisely how `sendUndoAnnounceJob` shipped broken.
-- Dedup ids keep their `#delete` / `#undo` suffix; the bare status id collides
-  with `SendNoteJob`/`SendUpdateNoteJob`/`SendAnnounceJob` in the queue's global
-  dedup window.
-- `sendUndoAnnounceJob` and `sendAnnounceJob` must resolve inboxes the same way
-  (`getFollowersInbox` + `filterFederatedUrls`), or an unboost reaches a
-  different audience than the boost did.
-- The activities `deleteStatus` sender never rejects (`postActivityToInbox`
-  swallows and returns `undefined`), so a per-inbox isolation test must mock the
-  sender, not the socket, or it asserts nothing.
-
-<a id="review-link-preview-cards"></a>
-
-### Review: Link preview cards
-
-- A card is cached **per URL** in `link_previews` and mapped to a status by
-  `status_link_previews`. A change that moves card data onto `statuses`, or
-  keys the cache per status, loses the whole point: a widely-shared link is
-  fetched once per refresh window, not once per post.
-- **A failure must go through `recordLinkPreviewFailure`, never
-  `upsertLinkPreview`.** The latter writes the whole row, so recording a failure
-  through it blanks a card that every status linking that URL is still showing —
-  and the negative cache then suppresses the retry that would repair it. A row
-  that is already `completed` keeps its content and its status.
-- `fetchLinkPreviewJob` must re-resolve the status's URL before attaching
-  (`resolveStatusPreviewUrl`). An edit leaves the pre-edit job queued; without
-  the re-check it re-attaches the old card, or resurrects one an edit removed.
-  The scheduler and the job must keep using that single resolver.
-- Extraction runs the **whole** `processStatusTextContent` and walks its output,
-  on both paths — not a rearrangement of its parts, so the extractor sees the
-  reader's DOM. Check that `extractPreviewUrl` is still given `tags` and that
-  `resolveStatusPreviewUrl` still passes `status.tags`: the emoji substitution
-  can EMPTY an anchor whose text the extractor already counted (a non-https
-  `Emoji` icon url is dropped entirely by `sanitizeTrustedStatusText`), and
-  dropping that one argument silently restores a phishing card.
-- **The extractor and the reader parse that shared string with DIFFERENT
-  parsers** — htmlparser2 on the server, the browser's own tree construction in
-  the client bundle — so any HTML5 rule that MOVES content between elements is a
-  divergence. Nested anchors are the known one: `getVisibleText` must keep
-  stopping at the FIRST descendant `<a>`, in document order, because a browser
-  pops the outer anchor at the inner one's start tag — so the inner anchor and
-  everything after it ends up outside. Reject a change that counts a nested
-  anchor's text as its ancestor's, and equally one that counts the text AFTER
-  the nest (a trailing `" — worth a read."` reads as prose beside an empty
-  anchor). Reject "an anchor containing an anchor is invisible" too — text
-  before the nest survives and keeps the outer anchor eligible.
-  New cases belong in `parserAgreement.test.ts`, which checks the extractor
-  against a jsdom DOM rather than against hand-written expectations. A link whose text renders to nothing — empty,
-  entity-only, or hidden by `hidden`/`invisible` including via an ANCESTOR — is
-  skipped, because otherwise a link the reader cannot see gets a full-width
-  clickable card carrying an attacker-chosen title and image. `<template>` is
-  not an exception: the sanitizer unwraps it, so that anchor is genuinely
-  visible and keeps its card. Reject any change that walks marked's token tree
-  for local posts — it cannot see ancestors, cannot decode entities, and its
-  table cells crashed the walker into "no links at all".
-- **That short hidden-class list (`hidden`, `invisible`, `quote-inline`) is
-  only sufficient because `sanitizeText` allowlists the `class` attribute**
-  (`ALLOWED_CONTENT_CLASSES`, applied to `a` and `span`; `p` keeps `class`
-  filtered to `quote-inline` alone, for Mastodon's quote fallback). The class reaches the real DOM — `cleanClassName`
-  hands an anchor's straight to `className` — and this app compiles Tailwind, so
-  before the allowlist a remote post could hide a link with `sr-only`,
-  `opacity-0` or any other utility in the bundle and take the card while the
-  reader saw nothing. Treat the two lists as one mechanism: adding a class to
-  the allowlist without deciding whether it hides content reopens this, and the
-  coupling test in `extractUrl.test.ts` is what fails when someone tries. Reject
-  prefix globs (`h-*`, `p-*`) however much Mastodon's own config uses them —
-  here they would admit `h-screen` and `p-0`. Also reject a
-  `SANITIZED_TRUSTED_STATUS_OPTION` that REPLACES `allowedClasses` instead of
-  spreading it: a tag with no entry keeps its class untouched, so listing only
-  `img` hands `span`/`a` back an unrestricted class attribute.
-- **Anything that rewrites status HTML between the two sanitize passes is an
-  injection point, and `convertEmojisToImages` is the one that exists.** A
-  remote `Emoji` tag's `name` and `icon.url` are stored verbatim, so both are
-  attacker-controlled. Four distinct bugs have come out of this one function, so
-  reject any change that simplifies it back toward
-  `tags.reduce((t, tag) => t.replaceAll(tag.name, …), text)`. It must keep all
-  of: searching for a shortcode-shaped **token** and looking the name up (never
-  using the name as the search string); a **single** pass over the original text
-  (each replacement emits an `alt=":shortcode:"` that a later one would match);
-  substituting only in **text** pieces, never inside tags (a `:` survives in an
-  href, and rewriting there corrupted the very link the card was for — no
-  hostile input needed); and a **function** replacement, which is what makes `$`
-  literal (`$&` / `` $` `` are re-read after escaping and splice raw markup
-  from elsewhere in the post into the src). `escapeHtml` on the url is required
-  on top of those. Reject moving the check to ingest only: at render it also
-  covers rows already stored.
-- Every optional Mastodon `PreviewCard` field needs an `''`/`0` default. That
-  schema is non-nullable and `Status.parse` runs per status inside a handler
-  that **skips** what it cannot serialize, so one missing key drops the whole
-  status from the timeline rather than just losing the card.
-- `html`/`embed_url` stay empty (no oEmbed consumption, so no remote markup is
-  handed to clients), thumbnails are `https`-only and hotlinked with
-  `referrerPolicy="no-referrer"`, and the href goes through `safeExternalHref`.
-- The kill switch is `network.linkPreviews`, checked both when scheduling and
-  inside the job (a delayed job must not drain after an operator turns it off).
-  It is not a `features.*` flag: that namespace is navigation-only. It gates
-  fetching only — the cleanup that drops a card when an edit removes its link
-  runs regardless.
-- Known and deliberate: a first-fetch failure is never retried, an attached card
-  is only refreshed if someone posts the link again, `link_previews` rows are
-  never collected, and polls get no card at all. There is no recurring-job
-  infrastructure to hang a sweep on, and polls store rendered HTML where notes
-  store markdown (so wiring them up needs that asymmetry fixed first, not just
-  the call added). Don't flag these as bugs, and don't "fix" them with a sweep
-  that has nothing to run it.
 
 <a id="agents-offline-first-pwa-launch-timeline-caching"></a>
 
