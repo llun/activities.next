@@ -1,0 +1,25 @@
+.github/scripts/classify-ci-rerun.mjs
+  s_f6091a1907b015::t_c901829808c0a8 70-84,91,96,115-119
+.github/workflows/ci-rerun.test.ts
+  s_f6091a1907b015::t_1a1085f4a8f947 6-7,276-291,327-343,365-367
+.github/workflows/ci-rerun.yml
+  s_f6091a1907b015::t_bdd5951f9a43fd 10-13,50-56
+CONTRIBUTING.md
+  s_f6091a1907b015::t_da493e1bf9abd3 183
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ba927a8b04a1f02a6190df02201af25e35026a40",
+  "prompts": {},
+  "sessions": {
+    "s_f6091a1907b015": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4002b74e-ccf2-4b38-b4b6-ddb1cc097d99",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
