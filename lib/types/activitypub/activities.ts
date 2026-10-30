@@ -117,7 +117,8 @@ export type Reject = z.infer<typeof Reject>
 // are otherwise identical, so `EmojiReact` is just `Like` with another type.
 // Deciding which one a document is happens at the consumption boundary
 // (`getReactionContent` in lib/actions/emojiReaction), never here — the schemas
-// stay liberal per the ActivityPub & JSON-LD rules in AGENTS.md.
+// stay liberal per the ActivityPub & JSON-LD rules in
+// docs/mastodon-api-compatibility.md.
 
 export const ENTITY_TYPE_LIKE = 'Like'
 export const ENTITY_TYPE_EMOJI_REACT = 'EmojiReact'
@@ -127,7 +128,8 @@ export const Like = z.object({
   id: z.string(),
   actor: z.string(),
   object: z.union([z.string(), Note]),
-  // Liberal per the ActivityPub & JSON-LD rules: a sender whose document
+  // Liberal per the ActivityPub & JSON-LD rules in
+  // docs/mastodon-api-compatibility.md: a sender whose document
   // carries a default language can have compaction render `content` as a
   // language-tagged object rather than a scalar. Degrade that to `undefined`
   // instead of failing the whole activity — a `Like` we cannot read a reaction

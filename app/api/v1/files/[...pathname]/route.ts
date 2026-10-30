@@ -25,7 +25,7 @@ export const GET = traceApiRoute(
     // A client's own path reaches a storage driver here: the segments below go
     // to `getMedia`, which hands them to `LocalFileStorage.getFile`. Other
     // callers pass the driver a path they did not take from a request — see
-    // "A stored path is confined to the storage root" in AGENTS.md, which
+    // "A stored path is confined to the storage root" in docs/maintenance.md, which
     // keeps that inventory — so this refusal is the check for THIS input. The
     // driver's own `resolveStorageFilePath` does not make it redundant: an
     // absolute path resolves outside the storage root, which that helper

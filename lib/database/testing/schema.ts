@@ -6,7 +6,8 @@ import type { DatabaseHandle } from '@/lib/database/connection'
 // Tests build their schema from the committed reference dumps instead of running
 // the migrations. This keeps the migrations out of the test runtime and makes
 // per-file database setup dramatically faster. The dumps are kept in lockstep
-// with the migrations (see AGENTS.md), so the schema is identical to a
+// with the migrations (see docs/setup.md → Database Backends & Local Setup),
+// so the schema is identical to a
 // fully-migrated database; their `kysely_migration` table is empty, so a test
 // database is not one `yarn migrate` would run on.
 const SQLITE_SCHEMA_PATH = fileURLToPath(

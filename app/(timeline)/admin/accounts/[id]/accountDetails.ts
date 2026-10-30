@@ -1,6 +1,7 @@
 // "Jan 12, 2026, 10:30 AM": the account's created time without seconds, in the
 // design's en-US shape. It is a plain string computed on the server from epoch
-// ms — never a Date prop (see "Date Serialization in Server Components").
+// ms — never a Date prop (see "Date Serialization in Server Components" in
+// docs/architecture.md).
 const CREATED_AT_FORMAT: Intl.DateTimeFormatOptions = {
   dateStyle: 'medium',
   timeStyle: 'short'

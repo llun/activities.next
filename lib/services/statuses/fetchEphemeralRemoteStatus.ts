@@ -36,7 +36,8 @@ export type FetchEphemeralRemoteStatusParams = {
  * live outbox, whose statuses are never stored, so their ids miss the
  * database.
  *
- * Guards follow "A Fetched Document's Own `id` Is Not Evidence" and mirror
+ * Guards follow "A Fetched Document's Own `id` Is Not Evidence" in
+ * docs/mastodon-api-compatibility.md and mirror
  * fetchQuoteTargetForCreate:
  * - only http(s) ids; local domains are never fetched;
  * - federation domain policy gates the request URL and the author;

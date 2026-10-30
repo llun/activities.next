@@ -36,8 +36,8 @@ const HTTP_PROTOCOLS = new Set(['http:', 'https:'])
 
 // Liberal narrowing of an `Emoji` tag: the shared `Emoji` schema requires
 // `updated`, which Pleroma omits, so those tags arrive as the `Tag` union's
-// loose-object fallback. Model only what is consumed (AGENTS.md → ActivityPub &
-// JSON-LD).
+// loose-object fallback. Model only what is consumed (docs/mastodon-api-compatibility.md →
+// ActivityPub & JSON-LD).
 const ReactionEmojiTag = z.looseObject({
   type: z.literal('Emoji'),
   name: z.string(),

@@ -43,7 +43,7 @@ interface Props extends Omit<PostProps, 'currentTime'> {
    *
    * This can only ADD: there is no prop for removing or replacing one of the
    * menu's own items, because a post offers the same actions on every surface
-   * (see **Status Posts & Actions** in AGENTS.md).
+   * (see **Status Posts & Actions** in docs/mastodon-api-compatibility.md).
    */
   extraMenuItems?: PostMenuExtraItem[]
   /**
