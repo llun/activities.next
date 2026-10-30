@@ -45,6 +45,28 @@ describe('renderEmail', () => {
     expect(render().html).toContain(`>${HOST}</td>`)
   })
 
+  it('lays the header out so it can shrink on narrow screens', () => {
+    const { html } = render()
+    // Auto layout keeps the 20px wordmark on one line: the wordmark must
+    // never wrap mid-word, even at a 320px viewport.
+    expect(html).toContain(
+      '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%"><tr>'
+    )
+    // The logo column keeps its explicit 28px.
+    expect(html).toContain('<td width="28" style="width:28px;">')
+    // overflow-wrap:anywhere lowers the host cell's min-content width, so a
+    // very long custom host can still make the header shrink instead of
+    // overflowing. The wordmark cell must NOT carry it: there it would also
+    // lower the wordmark's own min-content width, and a long host at a 320px
+    // viewport would break the wordmark mid-word.
+    const wordmarkCell =
+      html.match(/<td style="padding-left:8px;[^>]*>/)?.[0] ?? ''
+    expect(wordmarkCell).toContain('word-wrap:break-word')
+    expect(wordmarkCell).not.toContain('overflow-wrap:anywhere')
+    const hostCell = html.match(/<td align="right"[^>]*>/)?.[0] ?? ''
+    expect(hostCell).toContain('overflow-wrap:anywhere')
+  })
+
   it('renders every block in order', () => {
     const { html } = render({
       blocks: [headline('First'), paragraph('Second')]
@@ -148,12 +170,24 @@ describe('renderEmail brand', () => {
     expect(html).not.toContain('>Activities</td>')
   })
 
-  it('names the brand domain in the header, logo and footer link', () => {
+  it('names the brand domain in the header, links and footer link', () => {
     const { html } = render({ brand })
     expect(html).toContain('>acme.example</td>')
-    expect(html).toContain('<img src="https://acme.example/logo-nav.png"')
     expect(html).toContain('href="https://acme.example"')
-    expect(html).not.toContain(HOST)
+    // The logo is the one exception: it comes from the configured host, since
+    // an alias domain may redirect elsewhere and not serve public/ assets.
+    expect(html).toContain(`<img src="${BASE_URL}/logo-nav.png"`)
+    expect(html).not.toContain('href="' + BASE_URL)
+  })
+
+  it('serves the logo from the configured host for a secondary-domain brand', () => {
+    const { html } = render({
+      brand: { name: 'Alias', domain: 'alias.example' }
+    })
+    expect(html).toContain(`<img src="${BASE_URL}/logo-nav.png"`)
+    expect(html).not.toContain('<img src="https://alias.example/')
+    expect(html).toContain('>alias.example</td>')
+    expect(html).toContain('href="https://alias.example"')
   })
 
   it('builds the notification settings link on the brand domain', () => {
