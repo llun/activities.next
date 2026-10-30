@@ -15,12 +15,14 @@ const {
   mockGetReadableStatus,
   mockGetNote,
   mockDispatchCreateNoteOrPollJob,
-  mockGetFederationSigningActorSafe
+  mockGetFederationSigningActorSafe,
+  mockGetServedHostConfig
 } = vi.hoisted(() => ({
   mockGetReadableStatus: vi.fn(),
   mockGetNote: vi.fn(),
   mockDispatchCreateNoteOrPollJob: vi.fn(),
-  mockGetFederationSigningActorSafe: vi.fn()
+  mockGetFederationSigningActorSafe: vi.fn(),
+  mockGetServedHostConfig: vi.fn()
 }))
 
 vi.mock('@/lib/services/statusRouteAccess', () => ({
@@ -48,11 +50,7 @@ vi.mock('@/lib/config', () => ({
 
 vi.mock('@/lib/services/domains/servedDomainSnapshot', () => ({
   ensureServedDomainsFresh: vi.fn(async () => {}),
-  getServedHostConfig: () => ({
-    host: 'llun.test',
-    trustedHosts: [],
-    servedDomains: []
-  })
+  getServedHostConfig: mockGetServedHostConfig
 }))
 
 vi.mock('@/lib/services/serverSettings', () => ({
@@ -100,6 +98,13 @@ describe('getReadableStatusForAction (real domain policy, allowlist mode)', () =
     mockGetNote.mockResolvedValue(null)
     mockDispatchCreateNoteOrPollJob.mockResolvedValue(undefined)
     mockGetFederationSigningActorSafe.mockResolvedValue(undefined)
+    // A fresh object per test: the local-domain matcher is cached by config
+    // identity, so a stale one would keep the previous test's trusted hosts.
+    mockGetServedHostConfig.mockReturnValue({
+      host: 'llun.test',
+      trustedHosts: [],
+      servedDomains: []
+    })
   })
 
   it('fetches and stores an allowlisted remote status that is not local and not stored', async () => {
@@ -133,5 +138,24 @@ describe('getReadableStatusForAction (real domain policy, allowlist mode)', () =
     // allowActorDomains entries are exempt from the per-domain allow row: the
     // policy's local matcher includes them, so no getDomainAllowForDomain read.
     expect(mockGetDomainAllowForDomain).not.toHaveBeenCalled()
+  })
+
+  it('treats a trusted alias host as local without fetching', async () => {
+    mockGetServedHostConfig.mockReturnValue({
+      host: 'llun.test',
+      trustedHosts: ['alias.llun.test'],
+      servedDomains: []
+    })
+
+    const result = await getReadableStatusForAction({
+      database,
+      statusId: 'https://alias.llun.test/users/a/statuses/1',
+      currentActor
+    })
+
+    // The real isLocalDomain reads the served-domain snapshot's trusted
+    // hosts, so the alias domain is ours and the fetch path never runs.
+    expect(result).toBeNull()
+    expect(mockGetNote).not.toHaveBeenCalled()
   })
 })

@@ -26,6 +26,7 @@ import {
   canActorReadStatus,
   resolveActorStatusesAudience
 } from '@/lib/services/statusAccess'
+import { overlayStoredViewerState } from '@/lib/services/statuses/overlayViewerState'
 import { Actor } from '@/lib/types/activitypub'
 import { Actor as DomainActor } from '@/lib/types/domain/actor'
 import { Attachment, isVisualAttachment } from '@/lib/types/domain/attachment'
@@ -544,12 +545,19 @@ const getRemoteProfileData = async (
       remoteDomain ? getServerSoftwareInfo(remoteDomain) : Promise.resolve(null)
     ])
 
+  // The live outbox does not carry the viewer's like/bookmark state; overlay
+  // what the stored rows say. With no viewer the helper returns the statuses
+  // unchanged.
+  const statuses = await overlayStoredViewerState({
+    database,
+    currentActor: options.currentActor,
+    statuses: actorPostsResponse.statuses
+  })
+
   const resolvedStatusesCount =
     collectionCounts.statusesCount ??
     actorPostsResponse.statusesCount ??
-    (actorPostsResponse.statuses.length > 0
-      ? actorPostsResponse.statuses.length
-      : null)
+    (statuses.length > 0 ? statuses.length : null)
 
   // Persist the freshly-fetched collection sizes for known actors so the
   // Mastodon API (which reads the counter rows) serves the same counts this
@@ -584,6 +592,7 @@ const getRemoteProfileData = async (
 
   return {
     ...actorPostsResponse,
+    statuses,
     person,
     // The live document's fields, with the verification of the stored row's
     // field of the same name and value (a changed value is not verified).
@@ -606,7 +615,7 @@ const getRemoteProfileData = async (
     attachments:
       attachments.length > 0
         ? attachments
-        : actorPostsResponse.statuses
+        : statuses
             .flatMap((status) =>
               status.type === StatusType.enum.Note ? status.attachments : []
             )

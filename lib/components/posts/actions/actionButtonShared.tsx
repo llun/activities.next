@@ -83,7 +83,7 @@ export const ActionButtonError: FC<ActionErrorProps> = ({
   testId
 }) => (
   <span
-    className={cn('absolute right-0 top-full z-10 mt-1', ACTION_ERROR_CLASS)}
+    className={cn('absolute left-0 top-full z-10 mt-1', ACTION_ERROR_CLASS)}
     data-testid={testId}
     data-row-overlay
     role="alert"

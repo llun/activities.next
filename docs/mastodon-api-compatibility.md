@@ -1907,9 +1907,10 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   an author on that origin and a public or unlisted audience, and the re-read
   after storing is gated by visibility. Because storing takes the inbound path,
   the note can land in local followers' home timelines and notify mentioned
-  local users, matching Mastodon. The web profile list overlays the viewer's own
-  like, repost and bookmark state for stored statuses the viewer can read, when
-  the stored author matches the live one.
+  local users, matching Mastodon. The web profile list, on the server-rendered
+  first page and later pages alike, overlays the viewer's own like, repost and
+  bookmark state for stored statuses the viewer can read, when the stored
+  author matches the live one.
 - **The action set is owned by `Posts`, not by pages.** `Posts` renders the full
   action row (reply, boost, like, bookmark, react) plus the `⋯` menu (quote,
   edit-own, change visibility / who-can-quote, delete-own; mute / block / report
