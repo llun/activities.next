@@ -41,6 +41,13 @@ interface PageHeaderProps {
    */
   compactTitle?: string
   /**
+   * Hides the `title` visually (screen readers still get the heading). Use
+   * when the visible page header is drawn by something else — a compact
+   * content pane that only needs the heading for the outline and the
+   * actions row for its controls.
+   */
+  srOnlyTitle?: boolean
+  /**
    * Below `md` the content directly below meets the header's bottom edge
    * instead of the parent's vertical rhythm — the bar's hairline when the box
    * has nothing to show there, else the box's — so a full-bleed surface (the
@@ -115,6 +122,7 @@ export const PageHeader = ({
   bottomSlot,
   back,
   compactTitle,
+  srOnlyTitle,
   flushOnMobile,
   actionsInMobileBar,
   mobileBarActions
@@ -145,7 +153,14 @@ export const PageHeader = ({
           >
             {/* The section layout's PageHeader is the page's one h1; this is
                 the child page's own title, so it is an h2 that looks the same. */}
-            <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
+            <h2
+              className={cn(
+                'text-xl font-semibold tracking-tight',
+                srOnlyTitle && 'sr-only'
+              )}
+            >
+              {title}
+            </h2>
             {description && (
               <div className="mt-1 text-sm text-muted-foreground">
                 {description}

@@ -45,6 +45,7 @@ import {
 } from '@/lib/client'
 import { BackLink } from '@/lib/components/back-link'
 import { GalleryGrid } from '@/lib/components/gallery/GalleryGrid'
+import { GALLERY_GRID_CLASSES } from '@/lib/components/gallery/galleryGridClasses'
 import {
   LOAD_MORE_CONTAINER_CLASS,
   LoadMoreButton
@@ -540,7 +541,7 @@ export const GalleryAlbumDetailView: FC<Props> = ({
                 No photos in this view.
               </p>
             ) : isEditing ? (
-              <ul className="grid grid-cols-3 gap-1 sm:grid-cols-4 sm:gap-2">
+              <ul className={GALLERY_GRID_CLASSES}>
                 {items.map((item, index) => {
                   const isCover = effectiveCoverId === item.mediaId
                   const isPinned = album.coverMediaId === item.mediaId
