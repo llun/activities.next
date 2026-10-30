@@ -2,10 +2,11 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { GalleryDayHeader } from '@/lib/components/gallery/GalleryDayHeader'
+import { breakoutStyle } from '@/lib/components/layout/chromeLayout'
 import type { GalleryDayStats } from '@/lib/services/gallery/galleryEntities'
 
 const DAY = '2025-10-04'
@@ -489,5 +490,436 @@ describe('GalleryDayHeader', () => {
       'sticky',
       'z-10'
     )
+  })
+})
+
+describe('GalleryDayHeader page surface', () => {
+  class MockIntersectionObserver implements IntersectionObserver {
+    static instances: MockIntersectionObserver[] = []
+    callback: IntersectionObserverCallback
+    root: Document | Element | null = null
+    rootMargin = ''
+    scrollMargin = ''
+    thresholds: number[] = []
+
+    constructor(
+      callback: IntersectionObserverCallback,
+      options?: IntersectionObserverInit
+    ) {
+      this.callback = callback
+      this.rootMargin = (options?.rootMargin as string) ?? ''
+      MockIntersectionObserver.instances.push(this)
+    }
+
+    observe = vi.fn()
+    unobserve = vi.fn()
+    disconnect = vi.fn()
+    takeRecords(): IntersectionObserverEntry[] {
+      return []
+    }
+  }
+
+  // Fires entries for sentinels whose box tops sit at each `boundingTop`
+  // in a root whose top edge sits at `rootTop` (the shrunken viewport).
+  const fireEntries = (
+    observer: MockIntersectionObserver,
+    entries: Array<{
+      boundingTop: number
+      rootTop: number
+      isIntersecting?: boolean
+    }>
+  ) => {
+    act(() => {
+      observer.callback(
+        entries.map(
+          ({ boundingTop, rootTop, isIntersecting = false }) =>
+            ({
+              isIntersecting,
+              boundingClientRect: { top: boundingTop },
+              rootBounds: { top: rootTop }
+            }) as unknown as IntersectionObserverEntry
+        ),
+        observer as unknown as IntersectionObserver
+      )
+    })
+  }
+
+  // Fires one entry for a sentinel whose box top sits at `boundingTop` in
+  // a root whose top edge sits at `rootTop` (the shrunken viewport).
+  const fireEntry = (
+    observer: MockIntersectionObserver,
+    boundingTop: number,
+    rootTop: number,
+    isIntersecting = false
+  ) => fireEntries(observer, [{ boundingTop, rootTop, isIntersecting }])
+
+  // Stubs the observer for the duration of `run`, awaiting it first: an
+  // async run must not outlive the stub.
+  const withMockObserver = async (run: () => void | Promise<void>) => {
+    vi.stubGlobal('IntersectionObserver', MockIntersectionObserver)
+    MockIntersectionObserver.instances = []
+    try {
+      await run()
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  }
+
+  // The page surface wraps the row in a breakout box: the sticky element the
+  // observer watches is the heading's sticky ancestor, not the row itself.
+  const pageHeader = () =>
+    screen.getByRole('heading').closest('div.sticky') as HTMLElement
+
+  it('is transparent at rest with a sentinel above it', () => {
+    const { container } = render(
+      <GalleryDayHeader {...baseProps} surface="page" />
+    )
+
+    const header = pageHeader()
+    expect(header).not.toHaveClass('bg-background')
+    expect(header).not.toHaveClass('bg-surface-chrome')
+    expect(header).not.toHaveClass('border-b')
+    expect(header).not.toHaveAttribute('data-stuck')
+    // The row inside the breakout box re-centres at max-w-content with the
+    // column's padding, so the text stays aligned with the tiles.
+    const row = screen.getByRole('heading').parentElement as HTMLElement
+    expect(row).toHaveClass('mx-auto', 'max-w-content', 'px-4')
+
+    const sentinel = container.firstElementChild as HTMLElement
+    expect(sentinel).toHaveAttribute('aria-hidden', 'true')
+    expect(sentinel).not.toBe(header)
+  })
+
+  it('breaks the stuck strip out to the pane like the title band', () => {
+    const { unmount } = render(
+      <GalleryDayHeader {...baseProps} surface="page" />
+    )
+
+    // The same mechanism the Gallery title band uses: the sticky box carries
+    // breakoutStyle, so its background spans the content pane edge to edge
+    // instead of stopping 16px past the photo column.
+    const header = pageHeader()
+    expect(header.style.marginLeft).toBe(breakoutStyle.marginLeft)
+    expect(header.style.marginRight).toBe(breakoutStyle.marginRight)
+    unmount()
+
+    // The dialog surface (the album picker) keeps its own box: no breakout.
+    render(<GalleryDayHeader {...baseProps} />)
+    const dialog = screen.getByRole('heading').parentElement as HTMLElement
+    expect(dialog.style.marginLeft).toBe('')
+    expect(dialog.style.marginRight).toBe('')
+    expect(dialog).toHaveClass('sticky')
+  })
+
+  it('gains the chrome surface and a 0px hairline shadow only while stuck', async () => {
+    await withMockObserver(() => {
+      const { container } = render(
+        <GalleryDayHeader {...baseProps} surface="page" />
+      )
+
+      const header = pageHeader()
+      const sentinel = container.firstElementChild as HTMLElement
+      const observer = MockIntersectionObserver.instances.at(-1)
+      expect(observer).toBeDefined()
+      expect(observer?.observe).toHaveBeenCalledWith(sentinel)
+
+      // The sentinel has scrolled behind the root's top edge.
+      fireEntry(observer!, -1, 0)
+      expect(header).toHaveAttribute('data-stuck', 'true')
+      expect(header).toHaveClass(
+        'data-[stuck]:bg-surface-chrome',
+        'data-[stuck]:backdrop-blur'
+      )
+      // The hairline is a shadow, not a border: pinning must not shift
+      // the tiles by growing the header.
+      expect(header).toHaveClass('data-[stuck]:shadow-[0_1px_0_var(--border)]')
+      expect(header).not.toHaveClass('data-[stuck]:border-b')
+
+      fireEntry(observer!, 10, 0)
+      expect(header).not.toHaveAttribute('data-stuck')
+      expect(header).not.toHaveClass('bg-surface-chrome')
+    })
+  })
+
+  it('never sticks without an IntersectionObserver', () => {
+    // jsdom ships no IntersectionObserver: the header stays transparent
+    // instead of guessing or crashing.
+    const { container } = render(
+      <GalleryDayHeader {...baseProps} surface="page" />
+    )
+
+    expect(container.querySelector('[data-stuck]')).toBeNull()
+    expect(pageHeader()).not.toHaveClass('bg-surface-chrome')
+  })
+
+  it('marks stuck when the sentinel has crossed above the root top', async () => {
+    await withMockObserver(() => {
+      render(<GalleryDayHeader {...baseProps} surface="page" />)
+
+      const header = pageHeader()
+      const observer = MockIntersectionObserver.instances.at(-1)!
+      expect(observer).toBeDefined()
+
+      fireEntry(observer, -1, 96)
+      expect(header).toHaveAttribute('data-stuck', 'true')
+
+      // Back below the root's top edge: not stuck again.
+      fireEntry(observer, 120, 96)
+      expect(header).not.toHaveAttribute('data-stuck')
+    })
+  })
+
+  it('stays unstuck while the sentinel is still below the viewport', async () => {
+    await withMockObserver(() => {
+      render(<GalleryDayHeader {...baseProps} surface="page" />)
+
+      const header = pageHeader()
+      const observer = MockIntersectionObserver.instances.at(-1)!
+
+      // The sentinel has not reached the shrunken viewport yet: the header
+      // must not pin just because the entry is not intersecting.
+      fireEntry(observer, 400, 96)
+      expect(header).not.toHaveAttribute('data-stuck')
+    })
+  })
+
+  it('stays unstuck while the sentinel straddles the root top', async () => {
+    await withMockObserver(() => {
+      render(<GalleryDayHeader {...baseProps} surface="page" />)
+
+      const header = pageHeader()
+      const observer = MockIntersectionObserver.instances.at(-1)!
+
+      // Scrolling back down, the 1px sentinel can re-enter straddling the
+      // root top: intersecting, but its top sits above the edge. The header
+      // is back in flow, so it must not stay frosted.
+      fireEntry(observer, 95.5, 96, true)
+      expect(header).not.toHaveAttribute('data-stuck')
+      expect(header).not.toHaveClass('bg-surface-chrome')
+    })
+  })
+
+  it('follows the newest entry when one callback batches several', async () => {
+    await withMockObserver(() => {
+      render(<GalleryDayHeader {...baseProps} surface="page" />)
+
+      const header = pageHeader()
+      const observer = MockIntersectionObserver.instances.at(-1)!
+
+      // One callback can batch the sentinel's older and newer positions:
+      // first scrolled out above the root top (which alone would read
+      // stuck), then back intersecting. The newest entry wins, so the
+      // header must not stay frosted on the stale first one.
+      fireEntries(observer, [
+        { boundingTop: -1, rootTop: 0 },
+        { boundingTop: 95.5, rootTop: 96, isIntersecting: true }
+      ])
+      expect(header).not.toHaveAttribute('data-stuck')
+      expect(header).not.toHaveClass('bg-surface-chrome')
+    })
+  })
+
+  it('cuts the rootMargin by the computed sticky offset', async () => {
+    await withMockObserver(() => {
+      const realGetComputedStyle = window.getComputedStyle
+      vi.spyOn(window, 'getComputedStyle').mockImplementation(((
+        element: Element
+      ) => {
+        if (
+          element instanceof HTMLElement &&
+          element.className.includes('sticky')
+        ) {
+          return { top: '79px' } as unknown as CSSStyleDeclaration
+        }
+        return realGetComputedStyle.call(window, element)
+      }) as typeof window.getComputedStyle)
+
+      render(<GalleryDayHeader {...baseProps} surface="page" />)
+
+      const observer = MockIntersectionObserver.instances.at(-1)
+      expect(observer).toBeDefined()
+      expect(observer?.rootMargin).toBe('-79px 0px 0px 0px')
+
+      vi.restoreAllMocks()
+    })
+  })
+
+  it('re-creates the observer when the sticky offset may move', async () => {
+    await withMockObserver(async () => {
+      // jsdom ships no matchMedia: stub one whose matches the test flips to
+      // cross md (48rem).
+      const mediaListeners = new Set<() => void>()
+      const media = {
+        matches: false,
+        addEventListener: (_type: string, listener: () => void) => {
+          mediaListeners.add(listener)
+        },
+        removeEventListener: (_type: string, listener: () => void) => {
+          mediaListeners.delete(listener)
+        }
+      }
+      vi.stubGlobal('matchMedia', () => media)
+
+      const { container } = render(
+        <GalleryDayHeader {...baseProps} surface="page" />
+      )
+      const sentinel = container.firstElementChild as HTMLElement
+      expect(MockIntersectionObserver.instances).toHaveLength(1)
+
+      try {
+        // --status-strip-h lands in <html>'s style attribute: the observer
+        // is re-created so the new offset reaches the rootMargin.
+        await act(async () => {
+          document.documentElement.style.setProperty('--status-strip-h', '4px')
+        })
+        expect(MockIntersectionObserver.instances).toHaveLength(2)
+
+        // Crossing md (48rem) moves the offset too.
+        media.matches = true
+        await act(async () => {
+          for (const listener of [...mediaListeners]) listener()
+        })
+        expect(MockIntersectionObserver.instances).toHaveLength(3)
+
+        // An unrelated <html> style change (the photo viewer's overflow
+        // toggle) moves nothing: no observer rebuild.
+        await act(async () => {
+          document.documentElement.style.overflow = 'hidden'
+        })
+        expect(MockIntersectionObserver.instances).toHaveLength(3)
+
+        // Every observer watched the sentinel, and the replaced ones were
+        // disconnected.
+        for (const observer of MockIntersectionObserver.instances) {
+          expect(observer.observe).toHaveBeenCalledWith(sentinel)
+        }
+        expect(
+          MockIntersectionObserver.instances[0].disconnect
+        ).toHaveBeenCalled()
+        expect(
+          MockIntersectionObserver.instances[1].disconnect
+        ).toHaveBeenCalled()
+      } finally {
+        await act(async () => {
+          document.documentElement.style.removeProperty('--status-strip-h')
+          document.documentElement.style.removeProperty('overflow')
+        })
+      }
+    })
+  })
+
+  it('shares one MutationObserver across headers and tears it down with the last', () => {
+    // A stand-in MutationObserver that counts constructions: the shared
+    // store must build exactly one while any header is mounted.
+    const instances: Array<{
+      observe: ReturnType<typeof vi.fn>
+      disconnect: ReturnType<typeof vi.fn>
+    }> = []
+    class CountingMutationObserver {
+      observe = vi.fn()
+      disconnect = vi.fn()
+      constructor(_callback: MutationCallback) {
+        instances.push(this)
+      }
+    }
+    vi.stubGlobal('MutationObserver', CountingMutationObserver)
+
+    try {
+      const { unmount } = render(
+        <>
+          <GalleryDayHeader {...baseProps} surface="page" />
+          <GalleryDayHeader {...baseProps} dayKey="2025-10-03" surface="page" />
+        </>
+      )
+      // Two headers, one shared <html> watcher.
+      expect(instances).toHaveLength(1)
+      expect(instances[0].observe).toHaveBeenCalledWith(
+        document.documentElement,
+        { attributes: true, attributeFilter: ['style'] }
+      )
+
+      unmount()
+      // The last unmount releases the store, so its watcher disconnects and
+      // the next mount builds a fresh one.
+      expect(instances[0].disconnect).toHaveBeenCalled()
+      render(<GalleryDayHeader {...baseProps} surface="page" />)
+      expect(instances).toHaveLength(2)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('re-reads --status-strip-h from scratch once the store was torn down', async () => {
+    await withMockObserver(async () => {
+      const first = render(<GalleryDayHeader {...baseProps} surface="page" />)
+      await act(async () => {
+        document.documentElement.style.setProperty('--status-strip-h', '4px')
+      })
+      expect(MockIntersectionObserver.instances).toHaveLength(2)
+      first.unmount()
+
+      try {
+        // The store died with the last header, so it cannot remember the
+        // old value: landing the same value again must bump a fresh store.
+        document.documentElement.style.removeProperty('--status-strip-h')
+        render(<GalleryDayHeader {...baseProps} surface="page" />)
+        expect(MockIntersectionObserver.instances).toHaveLength(3)
+        await act(async () => {
+          document.documentElement.style.setProperty('--status-strip-h', '4px')
+        })
+        expect(MockIntersectionObserver.instances).toHaveLength(4)
+      } finally {
+        await act(async () => {
+          document.documentElement.style.removeProperty('--status-strip-h')
+        })
+      }
+    })
+  })
+
+  it('does not rebuild the observer again when the grid remounts the header', async () => {
+    await withMockObserver(async () => {
+      const { rerender } = render(
+        <GalleryDayHeader key="a" {...baseProps} surface="page" />
+      )
+      expect(MockIntersectionObserver.instances).toHaveLength(1)
+
+      try {
+        // Move the offset so the epoch is non-zero.
+        await act(async () => {
+          document.documentElement.style.setProperty('--status-strip-h', '4px')
+        })
+        expect(MockIntersectionObserver.instances).toHaveLength(2)
+
+        // A filter change remounts GalleryPagedGrid: one commit unmounts
+        // the old header — tearing the shared store down with it — and
+        // mounts the new one, which rebuilds the store. The epoch must
+        // not go backwards (a fresh store restarting at 0 would read as a
+        // change), or every remounted header would re-render and build a
+        // second observer for nothing.
+        rerender(<GalleryDayHeader key="b" {...baseProps} surface="page" />)
+        expect(MockIntersectionObserver.instances).toHaveLength(3)
+      } finally {
+        await act(async () => {
+          document.documentElement.style.removeProperty('--status-strip-h')
+        })
+      }
+    })
+  })
+
+  it('marks the heading date with a muted Uploaded suffix', () => {
+    render(<GalleryDayHeader {...baseProps} dayKey="uploaded:2025-10-03" />)
+
+    const heading = screen.getByRole('heading')
+    expect(heading).toHaveTextContent('Fri 3 Oct 2025 · Uploaded')
+    for (const suffix of screen.getAllByText('· Uploaded')) {
+      expect(suffix).toHaveClass('text-muted-foreground', 'font-normal')
+    }
+  })
+
+  it('keeps the place name on the phone meta line', () => {
+    render(<GalleryDayHeader {...baseProps} stats={stats()} surface="page" />)
+
+    const meta = screen.getByText('Box Hill, Surrey · 14 · 2 picked')
+    expect(meta).toHaveClass('sm:hidden', 'min-w-0', 'truncate')
   })
 })

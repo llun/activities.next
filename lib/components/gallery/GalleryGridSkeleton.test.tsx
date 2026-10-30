@@ -4,9 +4,29 @@
 import '@testing-library/jest-dom'
 import { render, screen } from '@testing-library/react'
 
+import { GALLERY_GRID_CLASSES } from '@/lib/components/gallery/galleryGridClasses'
+
 import { GalleryGridSkeleton } from './GalleryGridSkeleton'
 
 describe('GalleryGridSkeleton', () => {
+  it('runs 3 columns on narrow screens, 4 from sm and 6 from lg, like the grid', () => {
+    const { container } = render(<GalleryGridSkeleton />)
+
+    expect(container.firstElementChild).toHaveClass(
+      'grid-cols-3',
+      'sm:grid-cols-4',
+      'lg:grid-cols-6'
+    )
+  })
+
+  it('renders the grid classes GalleryGrid shares, so nothing reflows on load', () => {
+    const { container } = render(<GalleryGridSkeleton />)
+
+    expect(container.firstElementChild).toHaveClass(
+      ...GALLERY_GRID_CLASSES.split(' ')
+    )
+  })
+
   it('draws the requested number of tiles, hidden from assistive tech', () => {
     const { container } = render(<GalleryGridSkeleton tiles={5} />)
 

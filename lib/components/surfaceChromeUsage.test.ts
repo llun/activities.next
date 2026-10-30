@@ -18,6 +18,10 @@ const CHROME_BARS: Array<[file: string, bars: number]> = [
   ['lib/components/layout/sidebar.tsx', 2],
   // The mobile compact page bar's class string (`MOBILE_COMPACT_HEADER_CLASS`).
   ['lib/components/layout/chromeLayout.ts', 1],
+  // The gallery day header is frosted only while stuck: its single
+  // `data-[stuck]:bg-surface-chrome` bar (comments say "the house Surface
+  // Chrome token" so the literal stays unique to the class).
+  ['lib/components/gallery/GalleryDayHeader.tsx', 1],
   ['app/(timeline)/PublicTopBar.tsx', 1],
   ['app/(timeline)/landing/LandingPublicFeed.tsx', 1],
   ['app/u/heatmaps/[token]/SharedHeatmapPage.tsx', 1],
