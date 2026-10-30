@@ -14,7 +14,10 @@ import {
 
 import { getAlbumsOwnerId } from '@/lib/components/gallery/mediaAlbumsUi'
 import { OwnPostMediasModal } from '@/lib/components/medias-modal/own-post-medias-modal'
-import { getActorDisplayName } from '@/lib/components/posts/actor'
+import {
+  getActorDisplayName,
+  getActorIdMention
+} from '@/lib/components/posts/actor'
 import { OPENED_ROW_TINT } from '@/lib/components/posts/combined-post-list-item'
 import { CombinedPart } from '@/lib/components/posts/combinedThreadModel'
 import { InlineStatusComposer } from '@/lib/components/posts/lazy-inline-status-composer'
@@ -66,6 +69,61 @@ export interface StatusThreadProps {
 }
 
 const EMPTY_STATUS_LIST: Status[] = []
+
+const REPLYING_TO_LINK_CLASS_NAME =
+  'rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50'
+
+interface ReplyingToLineProps {
+  /** The author of the part being answered, or the handle of its actor id. */
+  name: string
+  /** The part's row on this page: run parts and plain ancestor rows share it. */
+  statusId: string
+  partIndex: number | null
+  partCount: number | null
+  /** Extra classes for the wrapping line, e.g. the full row's avatar offset. */
+  className?: string
+}
+
+/**
+ * The muted line naming the ancestor-run part the focused block answers,
+ * rendered above the opened post's header or above the focused run's first
+ * header. With reliable part numbers the "i of n" label links to the part;
+ * without them (unloaded ancestors, or the run split into plain rows) the
+ * name itself is the link.
+ */
+const ReplyingToLine: FC<ReplyingToLineProps> = ({
+  name,
+  statusId,
+  partIndex,
+  partCount,
+  className
+}) => (
+  <div className={cn('mb-1 text-xs text-muted-foreground', className)}>
+    {partIndex !== null && partCount !== null ? (
+      <>
+        Replying to {name} ·{' '}
+        <a
+          href={`#${statusId}`}
+          className={REPLYING_TO_LINK_CLASS_NAME}
+          aria-label={`Part ${partIndex + 1} of ${partCount} by ${name}`}
+        >
+          {partIndex + 1} of {partCount}
+        </a>
+      </>
+    ) : (
+      <>
+        Replying to{' '}
+        <a
+          href={`#${statusId}`}
+          className={REPLYING_TO_LINK_CLASS_NAME}
+          aria-label={`Post by ${name}`}
+        >
+          {name}
+        </a>
+      </>
+    )}
+  </div>
+)
 
 export const StatusThread: FC<StatusThreadProps> = ({
   host,
@@ -502,7 +560,8 @@ export const StatusThread: FC<StatusThreadProps> = ({
     parts: readonly CombinedPart[],
     runStatusIds: ReadonlySet<string>,
     opened?: { openedPartIndex: number; focusedFooter: ReactNode },
-    anchorPartIndex?: number
+    anchorPartIndex?: number,
+    replyingTo?: ReactNode
   ): ReactNode => {
     const closeComposerAndRefresh = () => {
       composer.close()
@@ -539,6 +598,7 @@ export const StatusThread: FC<StatusThreadProps> = ({
           })
         }}
         onShowSeparate={showRowSeparate}
+        replyingTo={replyingTo}
         focusedFooter={opened?.focusedFooter}
         onReplyCreated={handleReplyCreated}
         onStatusCreated={closeComposerAndRefresh}
@@ -561,16 +621,46 @@ export const StatusThread: FC<StatusThreadProps> = ({
     0
   )
   const hasReplies = renderedReplyCount > 0
-  // The ancestor-run part the opened post answers, when it renders as a
-  // full row: the muted line above its header names it, its label linking
-  // to the part's row on this page.
-  const replyingToPart = isCombinedRun ? null : selfThread.focusedReplyingTo
-  const replyingToActor = replyingToPart
-    ? getActualStatus(replyingToPart.status).actor
-    : undefined
-  const replyingToName = replyingToActor
-    ? getActorDisplayName(replyingToActor) || replyingToActor.username
-    : ''
+  // The ancestor-run part the focused block answers — the opened post itself,
+  // or the run holding it. The model reports it whatever the authors and
+  // whether the opened post renders as a plain row or inside its run; the
+  // "i of n" numbers only stay while the run actually renders as a run: once
+  // the viewer splits it into plain rows the part keeps its own anchor, and
+  // the name alone links to it.
+  const replyingToPart = selfThread.focusedReplyingTo
+  const replyingToActualStatus = replyingToPart
+    ? getActualStatus(replyingToPart.status)
+    : null
+  const replyingToActor = replyingToActualStatus?.actor ?? null
+  // `Status.actor` is nullable: fall back to the handle its actor id carries
+  // (as the boost line does). A name that is only the "@" separators is all a
+  // degenerate id yields, so the line is skipped rather than naming nothing.
+  const replyingToName =
+    (replyingToActor &&
+      (getActorDisplayName(replyingToActor) || replyingToActor.username)) ||
+    (replyingToActualStatus &&
+      getActorIdMention(
+        replyingToActualStatus.actorId,
+        replyingToActualStatus.url
+      )) ||
+    ''
+  const replyingToRunIsActive = replyingToPart
+    ? activeAncestorRuns.some((run) =>
+        run.parts.some((part) => part.status.id === replyingToPart.status.id)
+      )
+    : false
+  const replyingToLineProps =
+    replyingToPart && replyingToName.replace(/@/g, '').trim()
+      ? {
+          name: replyingToName,
+          statusId: replyingToPart.status.id,
+          partIndex: replyingToRunIsActive ? replyingToPart.partIndex : null,
+          partCount: replyingToRunIsActive ? replyingToPart.partCount : null
+        }
+      : null
+  const replyingToLine = replyingToLineProps ? (
+    <ReplyingToLine {...replyingToLineProps} />
+  ) : null
   // The opened post carries the same marker as an opened run part, but only
   // when the page shows what it answers above it: a lone post with nothing
   // over it reads as itself, the way an own post only gets the tint as part
@@ -652,6 +742,7 @@ export const StatusThread: FC<StatusThreadProps> = ({
                 ) : (
                   <>
                     <div
+                      id={ancestor.id}
                       data-testid={`status-${ancestor.id}`}
                       data-row-status-ids={ancestor.id}
                       tabIndex={-1}
@@ -755,12 +846,18 @@ export const StatusThread: FC<StatusThreadProps> = ({
         )}
       >
         {isCombinedRun && selfThread.run ? (
-          renderSelfThreadRun(selfThread.parts, selfThread.mergedIds, {
-            openedPartIndex: selfThread.openedPartIndex,
-            focusedFooter:
-              focusedFooter ??
-              (renderFocusedFooter ? renderFocusedFooter(status) : null)
-          })
+          renderSelfThreadRun(
+            selfThread.parts,
+            selfThread.mergedIds,
+            {
+              openedPartIndex: selfThread.openedPartIndex,
+              focusedFooter:
+                focusedFooter ??
+                (renderFocusedFooter ? renderFocusedFooter(status) : null)
+            },
+            undefined,
+            replyingToLine
+          )
         ) : (
           <>
             <div
@@ -775,32 +872,8 @@ export const StatusThread: FC<StatusThreadProps> = ({
                 openedRowIsMarked && OPENED_ROW_TINT
               )}
             >
-              {replyingToPart ? (
-                <div className="mb-1 ml-13 text-xs text-muted-foreground">
-                  {replyingToPart.partIndex !== null &&
-                  replyingToPart.partCount !== null ? (
-                    <>
-                      Replying to {replyingToName} ·{' '}
-                      <a
-                        href={`#${replyingToPart.status.id}`}
-                        className="rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                      >
-                        {replyingToPart.partIndex + 1} of{' '}
-                        {replyingToPart.partCount}
-                      </a>
-                    </>
-                  ) : (
-                    <>
-                      Replying to{' '}
-                      <a
-                        href={`#${replyingToPart.status.id}`}
-                        className="rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                      >
-                        {replyingToName}
-                      </a>
-                    </>
-                  )}
-                </div>
+              {replyingToLineProps ? (
+                <ReplyingToLine {...replyingToLineProps} className="ml-13" />
               ) : null}
               <Post
                 host={host}

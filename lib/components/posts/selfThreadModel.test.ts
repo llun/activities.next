@@ -537,6 +537,46 @@ describe('selfThreadModel', () => {
         expect(model.run).toBeNull()
       })
 
+      it('reports the ancestor part the focused run answers, from the run’s first part', () => {
+        const [m1, m2] = maytheeRun()
+        const v1 = note('v1', { actor: mockBob, at: 2 * MINUTE, reply: m2.id })
+        const v2 = note('v2', { actor: mockBob, at: 3 * MINUTE, reply: v1.id })
+
+        // The opened post is the run's first part (V1 opened, V2 a reply).
+        const openedFirst = buildSelfThreadModel({
+          focusedStatus: v1,
+          ancestors: [m1, m2],
+          descendants: [v2]
+        })
+        expect(openedFirst.run?.parts.map((p) => p.status.id)).toEqual([
+          v1.id,
+          v2.id
+        ])
+        expect(openedFirst.focusedReplyingTo?.status).toBe(m2)
+        expect(openedFirst.focusedReplyingTo?.partIndex).toBe(1)
+        expect(openedFirst.focusedReplyingTo?.partCount).toBe(2)
+        expect([...openedFirst.ancestorRunAnchorIndexById]).toEqual([
+          [`combined:${m1.id}`, 1]
+        ])
+
+        // The opened post is the run's last part (V2 opened, V1 an
+        // ancestor): the run as a whole still answers M2.
+        const openedLast = buildSelfThreadModel({
+          focusedStatus: v2,
+          ancestors: [m1, m2, v1]
+        })
+        expect(openedLast.run?.parts.map((p) => p.status.id)).toEqual([
+          v1.id,
+          v2.id
+        ])
+        expect(openedLast.focusedReplyingTo?.status).toBe(m2)
+        expect(openedLast.focusedReplyingTo?.partIndex).toBe(1)
+        expect(openedLast.focusedReplyingTo?.partCount).toBe(2)
+        expect([...openedLast.ancestorRunAnchorIndexById]).toEqual([
+          [`combined:${m1.id}`, 1]
+        ])
+      })
+
       it('splits the ancestor stretch when the gap exceeds ten minutes', () => {
         const m1 = note('m1', { at: 0 })
         const m2 = note('m2', { at: 20 * MINUTE, reply: m1.id })

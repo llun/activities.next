@@ -76,6 +76,11 @@ export interface SelfThreadRunProps {
     actualStatus: StatusNote | StatusPoll
   ) => void
   onShowSeparate?: (statusIds: string[]) => void
+  /**
+   * Rendered above the run's first header — the "Replying to <name> · i of n"
+   * line when the run as a whole answers a part of an ancestor run.
+   */
+  replyingTo?: ReactNode
   focusedFooter?: ReactNode
   onReplyCreated?: (status: Status) => void
   onStatusCreated?: (status: Status) => void
@@ -91,6 +96,7 @@ interface SelfThreadPartProps {
   isLastRendered: boolean
   isOpened: boolean
   lastStatus: Status
+  replyingTo?: ReactNode
   openedPartRef?: RefObject<HTMLDivElement | null>
   extraMenuItems?: PostMenuExtraItem[]
   focusedFooter?: ReactNode
@@ -126,6 +132,7 @@ const SelfThreadPart: FC<SelfThreadPartProps> = ({
   isLastRendered,
   isOpened,
   lastStatus,
+  replyingTo,
   openedPartRef,
   extraMenuItems,
   focusedFooter,
@@ -219,13 +226,16 @@ const SelfThreadPart: FC<SelfThreadPartProps> = ({
           className={cn('min-h-0 min-w-0 flex-1', !isLastRendered && 'pb-3')}
         >
           {isFirstHeader ? (
-            <PostHeader
-              status={part.status}
-              currentTime={currentTime}
-              onOpenStatus={isOpened ? undefined : onOpenStatus}
-              lastStatus={lastStatus}
-              focused={isOpened}
-            />
+            <>
+              {replyingTo}
+              <PostHeader
+                status={part.status}
+                currentTime={currentTime}
+                onOpenStatus={isOpened ? undefined : onOpenStatus}
+                lastStatus={lastStatus}
+                focused={isOpened}
+              />
+            </>
           ) : (
             <div className="relative flex min-h-6 items-center justify-between gap-2 text-xs text-muted-foreground">
               {isOpened ? (
@@ -361,6 +371,7 @@ export const SelfThreadRun: FC<SelfThreadRunProps> = ({
   onOpenStatus,
   onShowMedia,
   onShowSeparate,
+  replyingTo,
   focusedFooter,
   onReplyCreated,
   onStatusCreated,
@@ -466,6 +477,7 @@ export const SelfThreadRun: FC<SelfThreadRunProps> = ({
               isLastRendered={isLastRendered}
               isOpened={isOpened}
               lastStatus={lastStatus}
+              replyingTo={isFirstHeader ? replyingTo : undefined}
               openedPartRef={openedPartRef}
               extraMenuItems={
                 isFirstHeader && separateItem ? [separateItem] : undefined

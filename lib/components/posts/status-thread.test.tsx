@@ -1324,7 +1324,7 @@ describe('StatusThread', () => {
       )
       expect(replyingToLine).toBeInTheDocument()
       const partLink = within(replyingToLine).getByRole('link', {
-        name: '2 of 2'
+        name: 'Part 2 of 2 by Alice Smith'
       })
       expect(partLink).toHaveAttribute('href', `#${m2.id}`)
       expect(document.getElementById(m2.id)).toBe(
@@ -1357,7 +1357,7 @@ describe('StatusThread', () => {
       )
       expect(replyingToLine).toBeInTheDocument()
       const nameLink = within(replyingToLine).getByRole('link', {
-        name: 'Alice Smith'
+        name: 'Post by Alice Smith'
       })
       expect(nameLink).toHaveAttribute('href', `#${m2.id}`)
       expect(
@@ -1366,6 +1366,162 @@ describe('StatusThread', () => {
             element?.textContent === 'Replying to Alice Smith · 2 of 2'
         )
       ).toBeNull()
+    })
+
+    it('shows the "Replying to" line above the focused run when the opened post is part of it', () => {
+      const { m1, m2, openedReply } = makeAncestorRunWithOpenedReply()
+      const veerPart2 = createMockNote({
+        id: 'https://activities.local/users/bob/statuses/veer-run-part-2',
+        actor: mockBob,
+        actorId: mockBob.id,
+        reply: openedReply.id,
+        text: 'Veer continues their own run',
+        createdAt: BASE_TIME + 3 * MINUTE
+      })
+
+      render(
+        <StatusThread
+          host={host}
+          status={openedReply}
+          ancestors={[m1, m2]}
+          descendants={[veerPart2]}
+          currentTime={BASE_TIME + 10 * MINUTE}
+        />
+      )
+
+      // The ancestor run above, and the focused run holding the opened post.
+      const runs = screen.getAllByTestId('self-thread-run')
+      expect(runs).toHaveLength(2)
+      const focusedRun = runs[1]
+      expect(focusedRun).toHaveTextContent('Veer opens their reply here')
+
+      const replyingToLine = within(focusedRun).getByText(
+        (_, element) =>
+          element?.textContent === 'Replying to Alice Smith · 2 of 2'
+      )
+      const partLink = within(replyingToLine).getByRole('link', {
+        name: 'Part 2 of 2 by Alice Smith'
+      })
+      expect(partLink).toHaveAttribute('href', `#${m2.id}`)
+
+      // The line sits above the focused run's part 1 header, so above the
+      // opened part's own text.
+      const openedPart = within(focusedRun).getByTestId(
+        `status-${openedReply.id}`
+      )
+      const openedText = within(openedPart).getByText(
+        'Veer opens their reply here'
+      )
+      expect(
+        replyingToLine.compareDocumentPosition(openedText) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+
+      // The opened part stays the page's one marked row.
+      expect(openedPart).toHaveAttribute('aria-current', 'location')
+      expect(document.querySelectorAll('[aria-current]')).toHaveLength(1)
+    })
+
+    it('links the "Replying to" line to the plain ancestor row after "Show as separate posts" splits the run', async () => {
+      const { m1, m2, openedReply } = makeAncestorRunWithOpenedReply()
+
+      render(
+        <StatusThread
+          host={host}
+          status={openedReply}
+          ancestors={[m1, m2]}
+          descendants={[]}
+          currentActor={mockBob}
+          currentTime={BASE_TIME + 10 * MINUTE}
+        />
+      )
+
+      expect(
+        screen.getByText(
+          (_, element) =>
+            element?.textContent === 'Replying to Alice Smith · 2 of 2'
+        )
+      ).toBeInTheDocument()
+
+      fireEvent.keyDown(
+        within(screen.getByTestId(`status-${m1.id}`)).getByRole('button', {
+          name: /^More actions/
+        }),
+        { key: 'ArrowDown' }
+      )
+      fireEvent.click(
+        await screen.findByRole('menuitem', { name: 'Show as separate posts' })
+      )
+
+      await waitFor(() =>
+        expect(screen.queryByTestId('self-thread-run')).not.toBeInTheDocument()
+      )
+
+      // The run no longer renders as a run, so its "2 of 2" numbering is
+      // gone: the name alone links to the part's plain row.
+      const replyingToLine = screen.getByText(
+        (_, element) => element?.textContent === 'Replying to Alice Smith'
+      )
+      const nameLink = within(replyingToLine).getByRole('link', {
+        name: 'Post by Alice Smith'
+      })
+      expect(nameLink).toHaveAttribute('href', `#${m2.id}`)
+      expect(document.getElementById(m2.id)).toBe(
+        screen.getByTestId(`status-${m2.id}`)
+      )
+      expect(
+        screen.queryByText(
+          (_, element) =>
+            element?.textContent === 'Replying to Alice Smith · 2 of 2'
+        )
+      ).toBeNull()
+    })
+
+    it('falls back to the actor id handle when the answered part’s actor is missing', () => {
+      const m1 = createMockNote({
+        id: 'https://activities.local/users/maythee/statuses/no-actor-m1',
+        actor: mockAlice,
+        actorId: 'https://activities.local/users/maythee',
+        text: 'Maythee run part 1',
+        createdAt: BASE_TIME
+      })
+      const m2 = createMockNote({
+        id: 'https://activities.local/users/maythee/statuses/no-actor-m2',
+        actor: null,
+        actorId: 'https://activities.local/users/maythee',
+        url: 'https://activities.local/users/maythee/statuses/no-actor-m2',
+        reply: m1.id,
+        text: 'Maythee run part 2',
+        createdAt: BASE_TIME + MINUTE
+      })
+      const openedReply = createMockNote({
+        id: 'https://activities.local/users/bob/statuses/opened-veer-reply-3',
+        actor: mockBob,
+        actorId: mockBob.id,
+        reply: m2.id,
+        text: 'Veer opens their reply here',
+        createdAt: BASE_TIME + 2 * MINUTE
+      })
+
+      render(
+        <StatusThread
+          host={host}
+          status={openedReply}
+          ancestors={[m1, m2]}
+          descendants={[]}
+          currentTime={BASE_TIME + 10 * MINUTE}
+        />
+      )
+
+      const replyingToLine = screen.getByText(
+        (_, element) =>
+          element?.textContent ===
+          'Replying to @maythee@activities.local · 2 of 2'
+      )
+      const partLink = within(replyingToLine).getByRole('link', {
+        name: 'Part 2 of 2 by @maythee@activities.local'
+      })
+      expect(partLink).toHaveAttribute('href', `#${m2.id}`)
     })
 
     it('keeps the answered part of a long ancestor run visible without marking it', () => {

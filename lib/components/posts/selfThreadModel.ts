@@ -44,10 +44,12 @@ export interface BuildSelfThreadParams {
 export type SelfThreadRunBlock = Extract<CombinedBlock, { kind: 'run' }>
 
 /**
- * The ancestor-run part the opened post replies to, when it replies to a part
- * of a run by someone else. `partIndex` is 0-based. Both numbers are null when
- * earlier ancestors were not loaded (`hasMoreAncestors`): the numbering could
- * be wrong, but the part itself still names what the opened post answers.
+ * A part of an ancestor run (any author) that the focused block replies to:
+ * the reply target of the opened post itself when it renders as a plain row,
+ * or of the first part of the run holding it (the run as a whole answers that
+ * part). `partIndex` is 0-based. Both numbers are null when earlier ancestors
+ * were not loaded (`hasMoreAncestors`): the numbering could be wrong, but the
+ * part itself still names what the opened post answers.
  */
 export interface FocusedReplyingTo {
   status: Status
@@ -66,7 +68,7 @@ export interface SelfThreadModel {
   replyingToByReplyId: Map<string, string>
   ancestorRuns: SelfThreadRunBlock[]
   descendantRuns: SelfThreadRunBlock[]
-  /** The ancestor-run part the opened post replies to, when there is one. */
+  /** The ancestor-run part the focused block replies to, when there is one. */
   focusedReplyingTo: FocusedReplyingTo | null
   /**
    * For the ancestor run the opened post replies to, keyed by the run's `key`,
@@ -263,8 +265,9 @@ const findBlockIndexContainingStatus = (
  * combine comes back in `ancestorRuns`, a lone post by another author stays a
  * plain row in `ancestorsOutsideRun`, and nothing on the ancestor path — the
  * ancestors or the opened post itself — is ever tucked into a run as an inset.
- * When the opened post replies to a part of an ancestor run, that part comes
- * back in `focusedReplyingTo` for the renderer's "Replying to" line.
+ * When the focused block (the opened post, or the run holding it) replies to a
+ * part of an ancestor run, that part comes back in `focusedReplyingTo` for the
+ * renderer's "Replying to" line.
  */
 export const buildSelfThreadModel = ({
   focusedStatus,
@@ -377,11 +380,18 @@ export const buildSelfThreadModel = ({
       ? blocks.slice(focusedBlockIndex + 1).filter(isRunBlock)
       : []
 
-  // The part of an ancestor run that the opened post replies to, for the
-  // renderer's "Replying to <name> · i of n" line above the opened post. The
-  // part numbers are only reported when every earlier ancestor was loaded:
-  // `hasMoreAncestors` keeps the part but drops the numbers.
-  const focusedTargetId = getReplyTargetId(focusedStatus)
+  // The part of an ancestor run that the focused block replies to, for the
+  // renderer's "Replying to <name> · i of n" line above the opened post or the
+  // focused run's first header. The target is the reply target of the focused
+  // block's first post — the opened post itself when it renders as a plain
+  // row, or the first part of the run holding it, since the run as a whole
+  // answers that part. The part numbers are only reported when every earlier
+  // ancestor was loaded: `hasMoreAncestors` keeps the part but drops them.
+  const focusedBlockFirstStatus =
+    focusedBlock && isRunBlock(focusedBlock)
+      ? focusedBlock.parts[0].status
+      : focusedStatus
+  const focusedTargetId = getReplyTargetId(focusedBlockFirstStatus)
   let focusedReplyingTo: FocusedReplyingTo | null = null
   const ancestorRunAnchorIndexById = new Map<string, number>()
   if (focusedTargetId) {
