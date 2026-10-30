@@ -1166,7 +1166,7 @@ Read the applicable rules and review checks below before changing this subsystem
 - [Instance Limits in Client Components](#agents-instance-limits-in-client-components)
 - [Date Serialization in Server Components](#agents-date-serialization-in-server-components)
 - [Client-Side API Calls](#agents-client-side-api-calls)
-- [Client Component Patterns](#review-client-components-data-flow)
+- [Client Component Patterns](#client-component-patterns)
 - [Outbound Server-Side HTTP Requests](#agents-outbound-server-side-http-requests)
 - [Link prefetching in feeds](#agents-link-prefetching-in-feeds)
 - [Navigation Customization](#agents-navigation-customization)
@@ -1193,10 +1193,11 @@ Read the applicable rules and review checks below before changing this subsystem
 - [Offline-First PWA Launch & Timeline Caching](#agents-offline-first-pwa-launch-timeline-caching)
 
 <a id="agents-server-client-module-boundary"></a>
+<a id="review-client-components-data-flow"></a>
 
 ### Server/Client Module Boundary
 
-- **Server-only code must never import a runtime value from a `'use client'` module.** Under the App Router such a module resolves to a _client reference_ on the server: components still render, but a plain value read out of it (a constant object, a lookup table) is empty. Types are erased, so `import type` is fine, and a Server Component rendering a Client Component is the normal composition pattern — this is specifically about reading values.
+- **Server-only code must never import a runtime value from a `'use client'` module.** Under the App Router such a module resolves to a _client reference_ on the server: components still render, but a plain value read out of it (a constant object, a lookup table) is empty. Types are erased, so `import type` is fine, and `export … from` re-exports are imports too; a Server Component rendering a Client Component is the normal composition pattern — this is specifically about reading values.
 - The failure is invisible to the test suite: Vitest has no RSC boundary, so the import returns the real module there and tests pass while production silently gets nothing — a constant read out of a client reference comes back empty, so a validator keyed on it rejects every request with a 400 no test can see.
 - `lib/clientModuleBoundary.test.ts` enforces this across `app/api/`, `lib/services/`, `lib/actions/`, `lib/jobs/`, `lib/database/`, and `lib/config/`. When both sides need a constant, put it in a dependency-free module both can import — `lib/services/statuses/pollDurations.ts` and `lib/services/mastodon/constants.ts` are the existing examples — not in the component that happens to render it.
 - **Client bundles must not reach server-only packages.** Nothing a `'use client'` module imports (statically or via `import()`; type-only imports, `import` types and `'use server'` files excluded) may be a Node builtin (`crypto`, `fs`, `stream`, `node:*`), the whole `lodash` package (use `lodash/<method>`), or `@/lib/utils/logger` (pino). The walk is transitive through first-party modules only (`@/` and relative imports); npm packages are checked by name and not followed. Next would bundle polyfills or the library into the browser. `lib/clientImportGraph.test.ts` walks the import graph from every client module and fails with the chain; use the pure-JS `getStatusDetailPathSync` / `getHashFromStringSync` in browser-reachable code instead of `getHashFromString`.
@@ -1234,8 +1235,6 @@ Read the applicable rules and review checks below before changing this subsystem
 - Import those functions in components: `import { myApiCall } from '@/lib/client'`.
 - `lib/client.ts` is an API facade that re-exports functions across all domain modules in `lib/client/`. This keeps domain logic cleanly partitioned while preserving a unified import boundary for components.
 - Status creation from the web composer (`PostBox`) and inline reply box (`StatusReplyBox`) goes through `createNote` and `createPoll` in `lib/client/statuses.ts`, which post to `POST /api/v1/statuses` (accepting `fitness_file_id`, `quoted_status_id`, and `quote_approval_policy` alongside standard Mastodon fields) with a UUIDv7 `Idempotency-Key` header minted once per submit attempt series (`generatePublicId()`) and reused across retries of the same draft, adapting the returned `Mastodon.Status` entity into `{ status, attachments }` for `onPostCreated` callbacks. After the server keeps a create (503 or 409, `isPostKeptByServer`) the composer locks the draft (text, content warning, visibility, attachments, poll, fitness file are read-only or disabled) and shows the saved-post message with `DRAFT_LOCKED_NOTICE` in a persistent `role="status"` line, so Post can only retry the same payload under the same key; a success unlocks and resets it. `classifyFailedPost` (`lib/client/http.ts`) decides for both composers: on a locked retry only a 410 (the kept post was deleted) unlocks the draft and drops the key; every other failure (400, 422, any other 4xx, a 5xx or a network error) keeps the lock and key and shows the server's message as its own sentence ("Couldn't send your saved post (<reason>). Press Post to retry or discard the draft.", "…or cancel the reply." in the reply box), and a 401 or 403 shows `SESSION_EXPIRED_NOTICE`, since the route can answer 400 or 422 while the post is still kept and a new key would duplicate it. The way out is explicit: PostBox's lock line has a "Discard draft" button, and the reply box's Cancel does the same while locked and is disabled while a submit is in flight; both clear the composer and the key and leave the kept post's media and fitness file in place. A media batch that settles after a submit began or the draft locked is dropped, and the reply box's attachment tiles are `inert` while locked. A new reply or quote target that arrives while a send is in flight waits until the send settles (the reply and quote previews cannot be closed meanwhile), so the send, its lock and its draft always stay with the target they were written for; a re-target of an idle composer leaves its draft in Drafts under its own target, with its attachments, and unlocks the composer. While the connection is down the composers swap Post for "Save draft" and "Send when online" (`OfflineSubmitButtons`); the second hands the draft to the send queue (see Send queue below), which builds its `Idempotency-Key` and fingerprint with the composer's own code (`submitRequest.ts`), so a retry from either sends the same key. The legacy `POST /api/v1/accounts/outbox` route remains only for backward compatibility.
-
-<a id="review-client-components-data-flow"></a>
 
 ### Client Component Patterns
 
@@ -1322,6 +1321,7 @@ Read the applicable rules and review checks below before changing this subsystem
 - **Instance feature switches (`features.*` server settings) only remove items from navigation.** A served domain can additionally turn a feature off for its own visitors (`domains.disabledFeatures`, effective switch = server switch AND NOT disabled on the visited domain), with the same nav-only effect. They do not gate routes, APIs, or the composer: an existing link keeps working. If that ever changes, it is a separate, deliberate decision — do not add a `notFound()` guard as a side effect of a nav change.
 
 <a id="agents-page-header-sub-navigation"></a>
+<a id="review-page-chrome-layout-accessibility"></a>
 
 ### Page Header & Sub-Navigation
 
@@ -1472,7 +1472,7 @@ section-navigation pattern: the shared section dropdown. There is no second one 
 
 - **Logged-out pages keep the branded top bar.** This chrome is for signed-in viewers only. What a logged-out viewer gets of it is the same page content on the same kit surfaces, inside a different shell: profiles (the flat header with `ProfileCover`, the `counts` strip, the tabs and the post list frame), posts, followers/following (`FramedList`), hashtags (a `text-xl` heading over the post list frame) and their loading skeletons are the pages a signed-in viewer sees, with `PublicShell`'s 680px column and its own spacing, apart from the deliberate visual exceptions below. The terms of service and privacy policy pages (`/terms-of-service`, `/privacy-policy`, `app/(timeline)/(policies)/`) use `PublicShell footer={false}` for logged-out visitors, since the page prints its own footer (the other policy's link and the instance's contact); signed-in visitors get the page inside the nav chrome with `MobileCompactHeader` (title "Terms of service"/"Privacy policy") below `md` and a `md:pt-8` top gap from `md` up in place of the shell's `py-6`. The remote-actor redirect card and the shared heatmap (`/u/heatmaps/[token]`) keep their own layout (the shared heatmap's logo loads from the canonical-origin URL; every brand logo on these pages and the landing comes from `getBrandAssetSrc`, which keeps that absolute URL except in `next dev`, where it stays root-relative so the logo loads when the browser is on a host other than `ACTIVITIES_HOST`). What stays logged-out only is the chrome: `PublicTopBar` (logo, Sign in, and Create account only while registration is open) at every width, no compact bar, menu button or drawer. `PublicShell` mounts no `MobileNavigationProvider`, so `MobileCompactHeader`, `MobileNavigationTrigger` and `PageHeader`'s mobile split render nothing there; a page or skeleton shared by both viewers keeps its logged-out geometry by gating mobile-only classes on the provider (`ProfileCover`, `PageHeader`'s mobile split), on the session (the status page's inset cards), or on `group-data-[shell=public]/shell:` variants (skeletons). Embeds and the centred auth pages get no chrome.
 - **A logged-out visitor never triggers a remote profile fetch.** `getRemoteProfileData` returns `null` when the viewer is not signed in, so `app/(timeline)/[actor]/page.tsx` shows the remote-actor redirect card when `getNonLocalActorRedirectTarget` finds a target and `notFound()` otherwise. A 404 for a remote profile while logged out is by design, not a federation failure.
-- **Exception: the logged-out status page is inset cards below `md`.** A logged-out post or activity (`/@actor/<status>`) is the one logged-out page that does not look like `main` on a phone. Its media rows bleed to the card's inner edge, since the card is their owning frame there. Below `md` the page's outer frame takes `MOBILE_INSET_STACK_CLASS` instead (`lib/components/posts/feedLayout.ts`): it stops painting its own frame and stacks two cards 24px apart, the thread (the post and its replies, or the activity, each a `rounded-lg border` frame) and the `SignInCallout`, both at `PublicShell`'s 16px gutter, the footer's inset. The 24px is also the gap under the top bar, which is `PublicShell`'s own `py-6`, so the thread starts one gap below the bar and the gap to the callout matches it. The first row of the thread keeps `rounded-t-lg` at every width (`StatusThread` resets its rows with `max-md:rounded-none` only for a signed-in viewer, since a logged-out thread is a card, not the surface); the activity's replies are inside its post, which is flush in the page card with no frame of its own, so they follow that card. Every class is `max-md:`-scoped: from `md` up a logged-out page is still one rounded card with the callout inside it, and a signed-in page (below or above `md`) keeps the full-bleed surface. The loading skeleton (`[status]/loading.tsx`) matches with `group-data-[shell=public]/shell:max-md:` variants that undo the feed surface on its single placeholder card (gutter back, radius, border) and no `-mt-6`; it has no callout placeholder.
+- **Exception: the logged-out status page is inset cards below `md`.** A logged-out post or activity (`/@actor/<status>`) is the one logged-out page that does not look like `main` on a phone. Its media rows bleed to the card's inner edge, since the card is their owning frame there. Full-bleed there reads as the post bleeding out of the page, because the callout and footer around it are framed blocks. Below `md` the page's outer frame takes `MOBILE_INSET_STACK_CLASS` instead (`lib/components/posts/feedLayout.ts`): it stops painting its own frame and stacks two cards 24px apart, the thread (the post and its replies, or the activity, each a `rounded-lg border` frame) and the `SignInCallout`, both at `PublicShell`'s 16px gutter, the footer's inset. The 24px is also the gap under the top bar, which is `PublicShell`'s own `py-6`, so the thread starts one gap below the bar and the gap to the callout matches it. The first row of the thread keeps `rounded-t-lg` at every width (`StatusThread` resets its rows with `max-md:rounded-none` only for a signed-in viewer, since a logged-out thread is a card, not the surface); the activity's replies are inside its post, which is flush in the page card with no frame of its own, so they follow that card. Every class is `max-md:`-scoped: from `md` up a logged-out page is still one rounded card with the callout inside it, and a signed-in page (below or above `md`) keeps the full-bleed surface. The loading skeleton (`[status]/loading.tsx`) matches with `group-data-[shell=public]/shell:max-md:` variants that undo the feed surface on its single placeholder card (gutter back, radius, border) and no `-mt-6`; it has no callout placeholder.
 - **Intro row and section spacing.** Below `md` a `PageHeader` whose bar already holds the title shows its description as `text-sm` text on a 20px line, flush with the box's 16px top padding. In `SectionLayout` (Settings, Account & security and Admin), below `md` the header box shows only on the index (`/settings` with "For @handle", `/account` with "Shared across your profiles · email", `/admin` with its description), where it renders flush (`pt-0`), followed by the top identity card (profile card or `AccountIdentityCard`) and `SectionIndex` (Admin's page renders nothing, so its list sits flush under the header box). On child pages below `md`, the header box is hidden (`max-md:hidden`), so the page opens on the section row 12px under the compact bar (`max-md:pt-3`), the child page's heading 20px below it (`max-md:mb-5`); from `md` up the row sits 16px (`pt-4`) under the sticky header, like Fitness. Admin's detail pages (an account, a report, a hashtag, a domain's page or its new form) keep their own Back link under the row. For content sections using `SectionNavDropdown` (Fitness, Gallery), the description is followed by `SectionNavDropdown` 16px below (the layout's `pt-4` is `max-md:pt-0`, so only the box's bottom padding separates them) and the child page's heading 20px below the dropdown (`max-md:mb-5`). The margin belongs to `SectionNavDropdown`, so the nested Fitness › Connections dropdown also sits 20px above its content below `md`. Each of these is `max-md:`-scoped; from `md` up the description stays `text-xs` and the 32px / 16px spacing is unchanged.
 - **Z-order.** Desktop sticky `PageHeader` 20; mobile compact bar, the connection status strip, `PublicTopBar`, the floating profile button, scroll-to-top and the post reaction-picker backdrop 30 (the floating button renders first in the DOM, so a later same-z backdrop paints over it); in-content popovers 40 (the announcements panel is 30 inside the header's own stacking context, so post popovers paint above it); the drawer, dialogs, dropdowns, tooltips, `MediasModal` and the "Saved to Drafts" note 50. `app/globals.css` pads the scroll snapport under the mobile chrome so focus is never hidden beneath it.
 - **Server-rendered components read chrome values from `lib/components/layout/chromeLayout.ts`** (`breakoutStyle`, the bar and back-row class strings) — `BackLink` when a server page renders it, the followers/following loading skeleton — never from the client components that use them — see **Server/Client Module Boundary**.
@@ -1493,7 +1493,6 @@ The fitness overview (`app/(timeline)/fitness/`, with its calendar components in
 
 <a id="agents-surfaces"></a>
 <a id="review-surfaces"></a>
-<a id="review-page-chrome-layout-accessibility"></a>
 
 ### Surfaces (Shared Surface Kit)
 
@@ -1520,11 +1519,11 @@ Every page is laid out from one kit in `lib/components/surface/` (import each pi
 
 Rules:
 
-- **Radii.** `rounded-lg` frames and panels, `rounded-md` controls and media tiles, `rounded-full` only for avatars and pills, `rounded-xl` only for dialogs. Never `rounded-2xl`, and no shadow on a panel: shadows belong to popovers, menus, dialogs and map overlays.
+- **Radii.** `rounded-lg` frames and panels, `rounded-md` controls and media tiles, `rounded-full` only for avatars, pills and round icon buttons (the media-strip arrows, the profile's floating trigger), `rounded-xl` only for dialogs. Never `rounded-2xl`, and no shadow on a panel: shadows belong to popovers, menus, dialogs and map overlays.
 - **Copy.** Sentence case for every heading, label and button.
 - **Colour.** Theme tokens only. Say success, warning, info and error with `Alert` (an opaque `bg-<tone>-surface` fill and tinted outline besides the left rule and icon; a caller must not override the fill with its own `bg-*`) and the `success` / `warning` / `info` / `destructive` tokens (`bg-*`, `*-foreground`, and `text-*-text` for text, which clear WCAG AA in both themes; `app/globals.contrast.test.ts` recomputes it), a state label with a `Badge` tone, and a link inside rendered HTML with `--link-color` (`[&_a]:text-(color:--link-color)`). No `text-green-600`, `bg-yellow-50`, `text-neutral-400` and the like. A surface that must stay dark in either theme (the photo viewer's album menu and toast, the admin `.env` block) takes the `dark` class on its root, which re-resolves the tokens to their dark values for that subtree, instead of fixed greys. The one exception is data: a fixed colour that says WHICH series or category something is (the fitness chart series in `lib/components/fitness/palette.ts`) lives in a named palette module, one per domain, that the guard lists by path with a reason.
 - **Translucent chrome uses `bg-surface-chrome`** (`--surface-chrome`: white at 72 % light, #141414 at 80 % dark) with `backdrop-blur`, never `bg-background/NN`: the sticky page header, the sidebar, the icon rail, the mobile compact bar, and the sticky bars of the public shell (`PublicTopBar`), the logged-out landing page's public-feed header, the shared heatmap page and the status page header. `lib/components/surfaceChromeUsage.test.ts` lists the bars.
-- **A status or label pill is the shared `Badge`**, never a hand-copied `rounded-full bg-… px-2 py-0.5` span (the shared `Badge`'s `px-2.5` is 4 px wider across and it carries the design's dark tints). Its six tones: `gray` (the default), `primary` and `destructive` (the text token for the label and a lighter hue at 16 % for the dark fill), and `success`, `warning` and `info`, which are a `bg-<tone>/10` (light) or `/25` (dark) tint of the status colour behind its `-text` token, which clears AA on it in both themes (`Alert` does not use these tints; it has its own opaque `-surface` tokens). There is no `blue` tone; a "Sign-in" or other neutral-informational label is `info`. Do not hand-roll badge colours with fixed `hsl()` values — a pill that has no `dark:` variant renders as a light chip on the dark surface. A pill that is not a tone — the 10–11 px file-type and position tags, the filter context chips — stays its own element.
+- **A status or label pill is the shared `Badge`**, never a hand-copied `rounded-full bg-… px-2 py-0.5` span (the shared `Badge`'s `px-2.5` is 4 px wider across and it carries the design's dark tints). Its six tones: `gray` (the default; `#383838` fill and `#C2C2C2` label in dark, which the connected-app scope chips share), `primary` and `destructive` (the text token for the label and a lighter hue at 16 % for the dark fill, `#FA802E` / `#DF3A3A`), and `success`, `warning` and `info`, which are a `bg-<tone>/10` (light) or `/25` (dark) tint of the status colour behind its `-text` token, which clears AA on it in both themes (`Alert` does not use these tints; it has its own opaque `-surface` tokens). There is no `blue` tone; a "Sign-in" or other neutral-informational label is `info`. Do not hand-roll badge colours with fixed `hsl()` values — a pill that has no `dark:` variant renders as a light chip on the dark surface. Today's consumers: the Admin pill on the accounts list and detail, the report's Open / Resolved, the moderation panel's state labels, the passkey domain pill, the account's Verified mark and a filter's Expired pill. A pill that is not a tone — the 10–11 px file-type and position tags, the filter context chips — stays its own element.
 - **Palette tokens beyond the shadcn set** (the values live in `app/globals.css` and are guarded by `app/globals.contrast.test.ts`): `--control-off` (`bg-control-off`, the Switch track when off: #CCCCCC light, #545454 dark), `--surface-accent` (`bg-surface-accent`, the pale orange tile behind an accent icon: #FFF6F0 light, #271A11 dark; a selected tile keeps `bg-primary/20`), the four opaque tinted fills of `Alert` (`--destructive-surface`, `--success-surface`, `--warning-surface`, `--info-surface`), and the dark brand backdrop on `body` (#492812 top-left and #193543 top-right at 60 %).
 - **Failures.** A request that fails is an `Alert` (error tone, `title` says what failed, `onRetry` where the action can be repeated, set above the box it belongs to, never inside it; the exceptions are an `AuthCard` and the Messages chat panes, which are themselves the page's surface), never a bare `text-sm text-destructive` line: in a page, a dialog or under a button alike. A message standing in a post that is rendered with it (a failed fitness import) passes `live={false}`; the failure of an action the reader just took announces itself. Field validation under one input is its own state (`fieldError`, never the form's request `error`) and stays a small inline `text-xs text-destructive-text` line with an `id` that the input names in `aria-describedby` (plus `aria-invalid`); a validation failure moves focus to the invalid input (the first one when several) so its described error is read; a rule about a group with no single input (an album needs a photo) is the same line with `role="alert"`. Text in the error colour names `text-destructive-text` (the `text-destructive` utility is aliased to it in `globals.css`, but `bg-destructive` is the fill and does not clear contrast as text). A row detail inside a list or table (a failed import's error in its row) is plain text in that row; a standing error read at load (Wahoo's last provider error) is an `Alert` with `live={false}`. A failure that surfaces only as an announcement from the page's own live region (an upload that failed in the composer) is spoken once, by that region, not by a second `role="alert"` on the tile. PostBox's failure to send or update is an `Alert` ("Couldn't send." / "Couldn't update.", with Retry, and "Your post is saved as a draft." when the draft saved) drawn after the composer card, as the design shows it: the home composer passes `frameClassName` so PostBox draws the card itself and the Alert follows it, never inside it; a locked create (the server kept the post) shows only the lock line. The exception is the composer's `warningMsg` line, which carries only rejected files and the reply box's request failures, as one inline `role="alert"` line.
 - **Lists.** Every list, post lists included, is one frame with dividers (Home and the Fitness recent activities), never separate cards. The one exception is an admin account's actors: each is its own `Frame` (summary and moderation actions) with its moderation status `Alert` above it, `space-y-6` apart, because each actor carries its own status.
@@ -2303,52 +2302,52 @@ false`), so users who never opted in are not advertised to remote servers
   `MoveWorker`) ignores a local or suspended origin and a Move where either
   domain fails `canFederateWithDomain`. An inbound Move may target a local
   account (aliases verified from the stored row, no fetch; a local origin is
-  refused, see the outgoing bullets below).
-  - **The claim:** the job claims the origin with Mastodon's
-    `move_in_progress:<account_id>` cooldown: `claimActorMove` stores
-    `moveProcessing: { at, activityId, target }` in the origin actor's
-    settings JSON (no migration), under a row lock, and any other Move of the
-    same origin within 7 days is refused. Only a retry with the same activity
-    id and the same target may claim again, so a reused activity id cannot
-    move an account elsewhere. A failed verification releases the claim
-    (`clearActorMove`: the target cannot be fetched, is not the fetched
-    document, does not list the origin in `alsoKnownAs`, or is suspended or
-    deleted/being deleted), so the 7-day limit applies to verified moves; a
-    retry of the same Move is never blocked by itself. Once `movedTo` is
-    recorded the claim is marked `verified` (`markActorMoveVerified`) and
-    `clearActorMove` refuses to clear it, so a verified move holds the 7-day
-    claim even if a later replay of the same Move fails verification. After
-    every follower job was published (`markActorMoveQueued`) the claim is
-    also marked `queued`, and a later run of the same activity returns without
-    doing anything; the verification-skipping retry applies only to a verified
-    claim that is not yet queued, and a claim older than 7 days is replaced
-    whole, with neither flag.
-  - **The target** is fetched with a signed request when a federation signing
-    actor is configured (a local target is read from storage without a
-    remote fetch). Only then does the job store the origin's `movedTo`.
-  - **Carried relationships:** notes, blocks (federated only for remote
-    targets via `SendBlockJob`, deterministic uri; a block carried onto a
-    local target is not federated) and mutes (notifications flag and end
-    time kept) are carried by `MoveRelationshipsJob`
-    (`lib/jobs/moveRelationshipsJob.ts`, Mastodon's `MoveWorker` parity) with
-    Mastodon's skip rules (already blocking/muting the target, or following
-    it) and Mastodon's note texts, regardless of whether the target has
-    itself moved. On retry or resume, `SendBlockJob` is re-published with the
-    deterministic id for remote targets; deduplicating queues drop it and
-    receivers treat duplicate blocks with the same uri as no-ops. A resume
-    also repeats the rest of the block, per direction (`endFollowsForBlock`):
-    the target's follow of the user is always ended while the block exists;
-    the user's follow of the target is ended only if it predates the block,
-    and one made after the carried block is left alone.
-  - **Follower jobs:** unless the target has itself moved (the `movedTo` is
-    still recorded, but nobody is rewired, as Mastodon does not follow a moved
-    account), the job publishes one `MoveFollowerJob` per accepted local
-    follower of the origin, each with a deterministic id from the origin
-    follow id and the target id. Cloud Tasks and NoQueue do not dedupe by job
-    id (only some backends do), so the id only helps where the queue honours
-    it; the follower job protects itself instead (below), and a retry or
-    redelivery may run a follower twice without harm. Only accepted local
-    followers are moved.
+  refused, see the outgoing bullets below). It then works in this order:
+  1. **The claim:** the job claims the origin with Mastodon's
+     `move_in_progress:<account_id>` cooldown: `claimActorMove` stores
+     `moveProcessing: { at, activityId, target }` in the origin actor's
+     settings JSON (no migration), under a row lock, and any other Move of the
+     same origin within 7 days is refused. Only a retry with the same activity
+     id and the same target may claim again, so a reused activity id cannot
+     move an account elsewhere. A failed verification releases the claim
+     (`clearActorMove`: the target cannot be fetched, is not the fetched
+     document, does not list the origin in `alsoKnownAs`, or is suspended or
+     deleted/being deleted), so the 7-day limit applies to verified moves; a
+     retry of the same Move is never blocked by itself. Once `movedTo` is
+     recorded the claim is marked `verified` (`markActorMoveVerified`) and
+     `clearActorMove` refuses to clear it, so a verified move holds the 7-day
+     claim even if a later replay of the same Move fails verification. After
+     every follower job was published (`markActorMoveQueued`) the claim is
+     also marked `queued`, and a later run of the same activity returns without
+     doing anything; the verification-skipping retry applies only to a verified
+     claim that is not yet queued, and a claim older than 7 days is replaced
+     whole, with neither flag.
+  2. **The target** is fetched with a signed request when a federation signing
+     actor is configured (a local target is read from storage without a
+     remote fetch). Only then does the job store the origin's `movedTo`.
+  3. **Carried relationships:** notes, blocks (federated only for remote
+     targets via `SendBlockJob`, deterministic uri; a block carried onto a
+     local target is not federated) and mutes (notifications flag and end
+     time kept) are carried by `MoveRelationshipsJob`
+     (`lib/jobs/moveRelationshipsJob.ts`, Mastodon's `MoveWorker` parity) with
+     Mastodon's skip rules (already blocking/muting the target, or following
+     it) and Mastodon's note texts, regardless of whether the target has
+     itself moved. On retry or resume, `SendBlockJob` is re-published with the
+     deterministic id for remote targets; deduplicating queues drop it and
+     receivers treat duplicate blocks with the same uri as no-ops. A resume
+     also repeats the rest of the block, per direction (`endFollowsForBlock`):
+     the target's follow of the user is always ended while the block exists;
+     the user's follow of the target is ended only if it predates the block,
+     and one made after the carried block is left alone.
+  4. **Follower jobs:** unless the target has itself moved (the `movedTo` is
+     still recorded, but nobody is rewired, as Mastodon does not follow a moved
+     account), the job publishes one `MoveFollowerJob` per accepted local
+     follower of the origin, each with a deterministic id from the origin
+     follow id and the target id. Cloud Tasks and NoQueue do not dedupe by job
+     id (only some backends do), so the id only helps where the queue honours
+     it; the follower job protects itself instead (below), and a retry or
+     redelivery may run a follower twice without harm. Only accepted local
+     followers are moved.
   - **`MoveFollowerJob`** (`UnfollowFollowWorker` plus `FollowMigrationService`)
     re-checks its own state and is safe to retry or to run twice at once. It
     stops if the origin follow is no longer `Accepted` or the origin's
@@ -3064,7 +3063,7 @@ moved` (`movedAccountResponse`): on `POST /api/v1/statuses` (the check
 - This failure is **invisible on a first login and permanent afterwards**: approving the consent screen persists the session actor first (via `/api/v1/actors/switch`), so the initial grant works. Once consent is stored, Better Auth stops showing the consent screen, and every later login on a fresh session issues an actor-less token. Any change here must be exercised with a **second** login, not just the first.
 - `OAuthGuard` keeps a matching fallback: a token with a `userId` but no `referenceId` resolves that account's actor rather than failing closed, so tokens issued while a grant was broken recover without the client re-authorizing. Genuine app (`client_credentials`) tokens have neither a user nor an actor and stay actor-less.
 - Guard rejections log a `reason` through `oauthLogger` at **debug** level (`token_expired`, `insufficient_scope`, `no_actor_for_token`, …). Bearer failures are otherwise indistinguishable in production — every one is a bare 401. Set `LOG_LEVEL=debug` to tell them apart, and keep new rejection branches logging a reason. Never log the token.
-- **A handler asks whether a token is an APP token by reading `userId`, never `currentActor`.** `OAuthAppGuard` leaves `currentActor` null in two unrelated cases: a genuine `client_credentials` token that has no user, and a user-delegated token whose actor it merely FAILED to resolve — the grant recorded no `referenceId` (see the fallback above) and `resolveAccountActorId` found no selectable actor, which happens when every actor the account owns is pending deletion (`selectAccountActor` skips those). Gating on `currentActor || !client` accepts that user as an app, letting them mint accounts and tokens. The guard therefore forwards `userId` on the handler context, and the route requires `userId === null`; a genuine app token has neither a user nor an actor. Do not re-derive "is this an app token" from the actor.
+- **A handler asks whether a token is an APP token by reading `userId`, never `currentActor`.** `OAuthAppGuard` leaves `currentActor` null in two unrelated cases: a genuine `client_credentials` token that has no user, and a user-delegated token whose actor it merely FAILED to resolve — the grant recorded no `referenceId` (see the fallback above) and `resolveAccountActorId` found no selectable actor, which happens when every actor the account owns is pending deletion (`selectAccountActor` skips those). Gating on `currentActor || !client` (as `registerViaApi` did) accepts that user as an app, letting them mint accounts and tokens. The guard therefore forwards `userId` on the handler context, and the route requires `userId === null`; a genuine app token has neither a user nor an actor. Do not re-derive "is this an app token" from the actor.
 
 <a id="agents-an-unconfirmed-account-may-not-act"></a>
 <a id="review-unconfirmed-accounts-app-tokens"></a>
