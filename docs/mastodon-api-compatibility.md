@@ -1173,6 +1173,7 @@ Read the applicable rules and review checks below before changing this subsystem
 - [Publicly Readable Status Ids](#agents-publicly-readable-status-ids)
 
 <a id="agents-client-facing-entity-ids"></a>
+<a id="review-mastodon-and-fediverse-interoperability-quirks"></a>
 
 ### Client-Facing Entity IDs
 
@@ -1246,7 +1247,6 @@ Read the applicable rules and review checks below before changing this subsystem
   `bookmarked: false`, not a redacted one.
 
 <a id="agents-activitypub-json-ld"></a>
-<a id="review-mastodon-and-fediverse-interoperability-quirks"></a>
 
 ### ActivityPub & JSON-LD
 
@@ -1878,7 +1878,8 @@ confirm` line is logged.
     dot or dash), so peers that apply Mastodon's rule can federate with it; existing local rows are
     untouched.
   - Rows stored before this check are not migrated; the CSV exports (`lib/services/exports/`) omit a
-    remote actor whose stored username is invalid and log it. Valid rows are exported byte for byte.
+    remote actor whose stored username is invalid and log it, as Mastodon could never hold such a row.
+    Valid rows are exported byte for byte.
 - **Remote usernames are stored verbatim.** A remote server mints its own ids and chooses its own casing; we fold when _matching_ them, never when persisting. WebFinger answers with the STORED casing too (`subject` and the profile-page alias are built from `actor.username`), so a client that echoes the subject back gets the canonical handle rather than the casing it asked with.
 
 <a id="agents-status-posts-actions"></a>
