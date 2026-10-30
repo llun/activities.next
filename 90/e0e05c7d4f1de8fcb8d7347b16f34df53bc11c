@@ -1,0 +1,84 @@
+docs/setup.md
+  s_0caa234e761ef6::t_23570f3b6a8b36 415-457,460-473,476-504
+lib/services/email/templates/emailDesign.test.ts
+  s_0caa234e761ef6::t_23570f3b6a8b36 466-469,473,478-495,507
+app/(timeline)/settings/page.tsx
+  s_0caa234e761ef6::t_23570f3b6a8b36 42,73
+lib/services/email/layout/blocks.test.ts
+  s_0caa234e761ef6::t_23570f3b6a8b36 24-29,173-216,313,316-318,408-445
+  s_0caa234e761ef6::t_518ad613cfe646 446
+package.json
+  s_0caa234e761ef6::t_23570f3b6a8b36 3
+.github/workflows/ci.yml
+  s_0caa234e761ef6::t_23570f3b6a8b36 722-724,772-774
+app/(timeline)/settings/layout.test.tsx
+  s_0caa234e761ef6::t_23570f3b6a8b36 70,91,172-173,178-200
+scripts/mock/renderEmailPreviews.ts
+  s_0caa234e761ef6::t_23570f3b6a8b36 92-97,207-219
+  s_0caa234e761ef6::t_0426e7e4ef33e9 220-221
+lib/services/email/layout/renderEmail.test.ts
+  s_0caa234e761ef6::t_23570f3b6a8b36 48-69,173,177-190
+lib/services/email/templates/follow.test.ts
+  s_0caa234e761ef6::t_23570f3b6a8b36 46-47
+docs/architecture.md
+  s_0caa234e761ef6::t_23570f3b6a8b36 393-420,426-437,442-463,468-543,548-561,563-590,829-835,860,877,968,1163,1169,1176,1190-1192,1196,1200-1201,1204-1206,1226-1227,1239-1243,1245-1263,1271,1292,1294,1304,1306,1310,1318,1324,1332,1338,1366-1367,1370-1372,1374,1435-1436,1440,1456,1471,1473,1475,1479,1491,1495,1499,1522,1525-1528,1533-1536,1541,1543-1555,1571,1581,1591-1592,1605-1606,1614-1617,1634,1640,1688-1714,1731-1734,1737,1756-1760,1826-1827,1831,1834,1837-1840,1881-1884,1907,1922-1923,1927-1929,1933-1934,1973,1984-1987,1998,2013,2035-2037,2060-2063,2070,2084-2085,2120-2124,2137,2144-2152,2154-2171,2173-2200,2203-2213,2217-2324,2327-2330,2332-2464,2467-2504,2509-2645,2652-2682,2685-2728,2735-2780,2792-2818,2824-2855,2858-2875,2877-2892,2894-2934,2937-2990,2998-3000,3016,3020,3033,3042,3047,3055-3056,3058,3061,3066,3071,3075,3079,3096,3099,3104-3105,3111,3115,3119-3120,3135-3136,3140,3142,3144-3145,3149-3151,3164,3166,3174-3183,3206-3209,3229-3231,3254-3262,3286,3293-3295,3311,3318-3320,3328,3335-3339
+  s_0caa234e761ef6::t_cf0e9ff64d86ea 1244
+lib/services/email/templates/mention.test.ts
+  s_0caa234e761ef6::t_23570f3b6a8b36 73-74
+lib/components/section-nav-dropdown.test.tsx
+  s_0caa234e761ef6::t_23570f3b6a8b36 48-50,96,99-104,294,306-317,412-456,521-666,755,763-770,772-798
+lib/components/section-nav-dropdown.tsx
+  s_0caa234e761ef6::t_23570f3b6a8b36 6,118,120-129,131-143,145,147-161,183-203,222-224,239-243,248-255,319-323,339-342
+app/(timeline)/settings/loading.tsx
+  s_0caa234e761ef6::t_23570f3b6a8b36 7-12
+lib/components/drafts/DraftsProvider.tsx
+  s_0caa234e761ef6::t_23570f3b6a8b36 404,434
+lib/components/section-nav.test.tsx
+  s_0caa234e761ef6::t_23570f3b6a8b36 6,164-166,171-183,186-203,206-213,380,393
+lib/services/email/layout/blocks.ts
+  s_0caa234e761ef6::t_23570f3b6a8b36 109,217,233-235,238-239,253-255,292,297,299,306-318,358,365-375,377,381-385,389,394-395,403,414-417
+lib/services/email/templates/like.test.ts
+  s_0caa234e761ef6::t_23570f3b6a8b36 71-72,96-99
+app/(timeline)/account/AccountIdentityCard.tsx
+  s_0caa234e761ef6::t_23570f3b6a8b36 23
+app/(timeline)/admin/layout.test.tsx
+  s_0caa234e761ef6::t_23570f3b6a8b36 82,91,158-162,169-172
+lib/services/email/templates/reply.test.ts
+  s_0caa234e761ef6::t_23570f3b6a8b36 77
+lib/services/email/templates/activityImport.test.ts
+  s_0caa234e761ef6::t_23570f3b6a8b36 196-206
+lib/components/post-box/post-box.drafts.test.tsx
+  s_0caa234e761ef6::t_23570f3b6a8b36 38-41,106,120-128,736
+CONTRIBUTING.md
+  s_0caa234e761ef6::t_23570f3b6a8b36 3,12-17,26,101,103,105-116,118,120-186,198-207,251,255,259,263,267,324,328-377,379-382,384-387,390-391,394-396,399-411,413-416,418-424,426-443,445-451,461-466,468-476,478-496,498-509,511-521,523-530,532-536,539-543,550-557,559-562,566-580,582-586,590-591,594-595,598-602,607-608,612-700,706,799-805,808-812,836,848,867-873,880,882,884,921,940,942-947,949,951-953,955,957
+lib/components/section-nav.tsx
+  s_0caa234e761ef6::t_23570f3b6a8b36 36-38,58-59,65-70,101-102,107,131,204
+app/(timeline)/account/loading.tsx
+  s_0caa234e761ef6::t_23570f3b6a8b36 7-12
+lib/components/section-nav-shared.tsx
+  s_0caa234e761ef6::t_23570f3b6a8b36 29-30
+app/(timeline)/admin/sections.tsx
+  s_0caa234e761ef6::t_23570f3b6a8b36 4-6,9
+app/(timeline)/admin/layout.tsx
+  s_0caa234e761ef6::t_23570f3b6a8b36 14
+app/(timeline)/settings/sections.tsx
+  s_0caa234e761ef6::t_23570f3b6a8b36 109,121
+lib/services/email/layout/renderEmail.ts
+  s_0caa234e761ef6::t_23570f3b6a8b36 1,43-47,62-70,72-80,88-89,186
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "90e0e05c7d4f1de8fcb8d7347b16f34df53bc11c",
+  "prompts": {},
+  "sessions": {
+    "s_0caa234e761ef6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b79d5feb-bfae-447f-afad-19355f5d00c6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
