@@ -1,0 +1,33 @@
+.github/workflows/ci.yml
+  s_f147bf36f62485::t_be2980f4747c9a 368
+.github/workflows/version-bump.yml
+  s_f147bf36f62485::t_15f7d578d9f10f 283,304
+CONTRIBUTING.md
+  s_f147bf36f62485::t_29c9f2791b2859 384,399,795-797,802-804,1447,1452-1453
+lib/testing/moduleImports.test.ts
+  s_f147bf36f62485::t_84ee518ab44690 81-90
+lib/testing/moduleImports.ts
+  s_f147bf36f62485::t_b69bc12816e37d 161-166
+scripts/maintenance/listPostgresTestFiles.test.ts
+  s_f147bf36f62485::t_3dd0dad9135d6c 12-14
+scripts/maintenance/listPostgresTestFiles.ts
+  s_f147bf36f62485::t_83e9146ea6f138 23-24
+scripts/maintenance/verifyDockerImages.ts
+  s_f147bf36f62485::t_29fef72ee1d58a 519-524
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ae91119d31e9ee19eaf669d6bf1ddef8fd62a986",
+  "prompts": {},
+  "sessions": {
+    "s_f147bf36f62485": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "25ee74e4-3619-4df9-8186-dcf3fd9b6ec2",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
