@@ -20,7 +20,7 @@ export const AccountIdentityCard: FC<Props> = ({ name, email, iconUrl }) => {
   const initial = [...displayName][0]?.toUpperCase() || '?'
 
   return (
-    <Frame className="flex items-center gap-4 px-4 py-4">
+    <Frame className="flex max-w-[680px] items-center gap-4 px-4 py-4">
       <Avatar className="h-16 w-16" aria-hidden="true">
         {iconUrl && <AvatarImage src={iconUrl} alt="" />}
         <AvatarFallback className="bg-(--skeleton) text-xl font-semibold text-muted-foreground dark:bg-input">

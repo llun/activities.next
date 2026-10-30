@@ -3,6 +3,7 @@
  */
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen, within } from '@testing-library/react'
+import { Trash2, Truck } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 
 import {
@@ -160,37 +161,56 @@ describe('SectionIndex', () => {
     }
   )
 
-  // The fixture's blocks: First, Second, the footer card, then the
-  // after-footer run (Last).
-  const columnHrefs = (container: HTMLElement) => {
-    const grid = container.firstElementChild as HTMLElement
-    return Array.from(grid.children).map((column) =>
-      Array.from(column.querySelectorAll('a')).map((link) =>
-        link.getAttribute('href')
-      )
-    )
-  }
-
-  it('keeps the first block in the left column by default', () => {
+  // The fixture's blocks in order: First, Second, the footer card, then the
+  // after-footer run (Last), all in one column.
+  it('renders one column capped at 680px', () => {
     const { container } = render(
       <SectionIndex groups={groups} footer={footer} />
     )
 
-    expect(columnHrefs(container)).toEqual([
-      ['/s/one', '/s/two'],
-      ['/s/three', '/other', '/s/last']
-    ])
+    const column = container.firstElementChild as HTMLElement
+    expect(column).toHaveClass('max-w-[680px]', 'flex-col')
+    expect(container.querySelector('.lg\\:grid-cols-2')).toBeNull()
+    // The fixture's four blocks are the column's only direct children, in
+    // order, and none of them nests another column or grid wrapper.
+    expect(column.children).toHaveLength(4)
+    expect(column.children[0]).toHaveTextContent('First')
+    expect(column.children[1]).toHaveTextContent('Second')
+    expect(column.children[2]).toHaveTextContent('Elsewhere')
+    expect(column.children[3]).toHaveTextContent('Last')
+    expect(
+      column.querySelectorAll('.flex-col.max-w-\\[680px\\], .grid')
+    ).toHaveLength(0)
   })
 
-  it('puts the first splitAt blocks in the left column', () => {
-    const { container } = render(
-      <SectionIndex groups={groups} footer={footer} splitAt={3} />
+  it('colours the name and icon of a danger item destructive, and only those', () => {
+    render(
+      <SectionIndex
+        groups={[
+          {
+            heading: 'Danger',
+            items: [
+              {
+                name: 'Delete',
+                url: '/delete',
+                icon: <Trash2 />,
+                danger: true
+              },
+              { name: 'Moving', url: '/moving', icon: <Truck /> }
+            ]
+          }
+        ]}
+      />
     )
 
-    expect(columnHrefs(container)).toEqual([
-      ['/s/one', '/s/two', '/s/three', '/other'],
-      ['/s/last']
-    ])
+    // The icon span and the name span of the danger item both carry the
+    // destructive colour; the safe item's do not.
+    const iconOf = (name: string) =>
+      screen.getByRole('link', { name }).querySelector('svg')!.parentElement!
+    expect(iconOf('Delete')).toHaveClass('text-destructive')
+    expect(screen.getByText('Delete')).toHaveClass('text-destructive')
+    expect(iconOf('Moving')).not.toHaveClass('text-destructive')
+    expect(screen.getByText('Moving')).not.toHaveClass('text-destructive')
   })
 })
 
@@ -357,7 +377,7 @@ describe('SectionLayout', () => {
 
     const wrapper = screen
       .getByRole('heading', { name: 'First' })
-      .closest('.grid')!.parentElement!
+      .closest('.max-w-\\[680px\\]')!.parentElement!
     // The margin is conditional: a null page leaves the wrapper the column's
     // first child, so `[&:not(:first-child)]:mt-6` does not apply.
     expect(wrapper).toHaveClass('[&:not(:first-child)]:mt-6')
@@ -370,36 +390,7 @@ describe('SectionLayout', () => {
 
     const wrapper = screen
       .getByRole('heading', { name: 'First' })
-      .closest('.grid')!.parentElement!
+      .closest('.max-w-\\[680px\\]')!.parentElement!
     expect(wrapper.previousElementSibling).toHaveTextContent('content')
-  })
-
-  it('passes splitAt through to the index', () => {
-    ;(usePathname as jest.Mock).mockReturnValue('/s')
-    render(
-      <SectionLayout
-        label="Things"
-        title="Things"
-        indexUrl="/s"
-        groups={groups}
-        footer={footer}
-        splitAt={3}
-      >
-        <div>content</div>
-      </SectionLayout>
-    )
-
-    const grid = screen
-      .getByRole('heading', { name: 'First' })
-      .closest('.grid')!
-    const columns = Array.from(grid.children).map((column) =>
-      Array.from(column.querySelectorAll('a')).map((link) =>
-        link.getAttribute('href')
-      )
-    )
-    expect(columns).toEqual([
-      ['/s/one', '/s/two', '/s/three', '/other'],
-      ['/s/last']
-    ])
   })
 })

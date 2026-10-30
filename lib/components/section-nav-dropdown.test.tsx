@@ -45,7 +45,9 @@ const fitnessGroups: SectionNavGroup[] = [
   }
 ]
 
-// Admin: a headless Dashboard, then headed groups; Reports carries a count.
+// An Admin-like fixture: the first group is kept headless on purpose so the
+// headless-run path stays covered (the real Admin now heads it "Overview");
+// Reports carries a count.
 const adminGroups = (badge?: number): SectionNavGroup[] => [
   {
     items: [{ name: 'Dashboard', url: '/admin/overview', icon: <Activity /> }]
@@ -91,9 +93,15 @@ const settingsGroups: SectionNavGroup[] = [
   },
   {
     afterFooter: true,
+    heading: 'This profile',
     items: [
       { name: 'Moving', url: '/settings/moving', icon: <Globe /> },
-      { name: 'Delete this profile', url: '/settings/delete', icon: <Trash2 /> }
+      {
+        name: 'Delete this profile',
+        url: '/settings/delete',
+        icon: <Trash2 />,
+        danger: true
+      }
     ]
   }
 ]
@@ -283,7 +291,7 @@ describe('SectionNavDropdown', () => {
       expect(names).toEqual(['Moderation', 'Maintenance'])
     })
 
-    it('separates the cross-link and the after-footer run, and keeps menu-only groups', async () => {
+    it('separates the cross-link from the headed after-footer group, and keeps menu-only groups', async () => {
       setPath('/settings/appearance')
       render(
         <SectionNavDropdown
@@ -295,7 +303,18 @@ describe('SectionNavDropdown', () => {
       )
 
       const menu = await openMenu('Settings')
-      expect(within(menu).getAllByRole('separator')).toHaveLength(2)
+      // The headed after-footer group is set off by its label, not a
+      // separator; only the cross-link needs one.
+      expect(within(menu).getAllByRole('separator')).toHaveLength(1)
+      // The after-footer group is headed and holds exactly its two pages.
+      const thisProfile = within(menu).getByRole('group', {
+        name: 'This profile'
+      })
+      expect(
+        within(thisProfile)
+          .getAllByRole('menuitem')
+          .map((item) => item.textContent)
+      ).toEqual(['Moving', 'Delete this profile'])
       expect(
         within(menu)
           .getAllByRole('menuitem')
@@ -499,6 +518,152 @@ describe('SectionNavDropdown', () => {
     }
   )
 
+  // The reveal's `stop` — disconnect the ResizeObserver, clear the 300ms
+  // timer, drop the steering listeners — must run when the menu closes and
+  // when the component unmounts, and a reopen must start a fresh reveal.
+  // jsdom has no ResizeObserver, so a stub stands in for it, and only
+  // setTimeout/clearTimeout are faked. The global `jest` shim still makes
+  // testing-library treat that clock as faked, so waitFor/findByRole
+  // advance it 50ms per poll while polling — the menu is therefore opened
+  // synchronously (openMenuNow below) so the open itself never moves the
+  // clock, and each test first asserts the reveal is still live (observer
+  // connected, timer pending) so the post-close assertions prove the close
+  // path stopped it, not that it never started.
+  describe('reveal cleanup', () => {
+    // floating-ui's autoUpdate (Radix's positioning) shares the global
+    // ResizeObserver and observes the trigger as well as the menu, so global
+    // call counts would count it too — and its cleanup disconnects on close,
+    // which would make any `disconnect` assertion pass on its own. Every
+    // stub instance therefore keeps its own spies, and the tests assert on
+    // the instance that observed the menu alone: the reveal's.
+    class ResizeObserverStub {
+      static instances: ResizeObserverStub[] = []
+      observe = vi.fn()
+      disconnect = vi.fn()
+      unobserve = vi.fn()
+      constructor() {
+        ResizeObserverStub.instances.push(this)
+      }
+    }
+
+    const renderSettings = () =>
+      render(
+        <SectionNavDropdown
+          label="Settings"
+          groups={settingsGroups}
+          footer={settingsFooter}
+          indexUrl="/settings"
+        />
+      )
+
+    // The trigger toggles on a left pointerdown (Radix listens for that, not
+    // for click). The pointerdown is on the trigger, outside the menu
+    // content, so no steering event runs `stop` before the close path does.
+    // The trigger must be captured before the menu opens: the open menu is
+    // modal and hides the rest of the page from role queries.
+    const clickTrigger = (trigger: HTMLElement) =>
+      fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false })
+
+    // Open synchronously: with the global `jest` shim, testing-library
+    // treats vi's fake timers as on, so the async openMenu's findByRole
+    // would advance the fake clock while polling. The keyDown opens the
+    // menu within the same act flush, so it is there immediately.
+    const openMenuNow = (trigger: HTMLElement) => {
+      fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+      return screen.getByRole('menu')
+    }
+
+    // Closing schedules short timers beyond the reveal's own too (Radix's
+    // unmount auto-focus at 0ms, next/link's idle callbacks at 1ms). Advance
+    // to just before the reveal's 300ms timer: everything else runs, and a
+    // reveal timer that `stop` failed to clear would still be pending.
+    const settleShortTimers = () => vi.advanceTimersByTime(299)
+
+    // The reveal's observer watches the menu and nothing else; the
+    // positioning observer watches the trigger too, so it never matches.
+    const revealObserver = (menu: HTMLElement) => {
+      const [observer] = ResizeObserverStub.instances.filter((instance) => {
+        const targets = instance.observe.mock.calls.map(([element]) => element)
+        return targets.length === 1 && targets[0] === menu
+      })
+      expect(observer).toBeDefined()
+      return observer!
+    }
+
+    beforeEach(() => {
+      ResizeObserverStub.instances = []
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+      vi.stubGlobal('ResizeObserver', ResizeObserverStub)
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+      vi.unstubAllGlobals()
+    })
+
+    it('stops the reveal when the menu is closed from the trigger', () => {
+      setPath('/settings/appearance')
+      renderSettings()
+      const trigger = within(
+        screen.getByRole('navigation', { name: 'Settings' })
+      ).getByRole('button')
+
+      const menu = openMenuNow(trigger)
+      const reveal = revealObserver(menu)
+      expect(reveal.observe).toHaveBeenCalledTimes(1)
+      // The reveal is live right up to the close: its observer is connected
+      // and its 300ms timer pending, so the assertions below prove the close
+      // path ran `stop`, not that the reveal never started.
+      expect(reveal.disconnect).not.toHaveBeenCalled()
+      expect(vi.getTimerCount()).toBeGreaterThan(0)
+
+      clickTrigger(trigger)
+      expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+      settleShortTimers()
+      expect(reveal.disconnect).toHaveBeenCalled()
+      expect(vi.getTimerCount()).toBe(0)
+    })
+
+    it('stops the reveal when the component unmounts', () => {
+      setPath('/settings/appearance')
+      const { unmount } = renderSettings()
+      const trigger = within(
+        screen.getByRole('navigation', { name: 'Settings' })
+      ).getByRole('button')
+
+      const menu = openMenuNow(trigger)
+      const reveal = revealObserver(menu)
+      expect(reveal.observe).toHaveBeenCalledTimes(1)
+      // Live before the unmount, for the same reason as above.
+      expect(reveal.disconnect).not.toHaveBeenCalled()
+      expect(vi.getTimerCount()).toBeGreaterThan(0)
+
+      unmount()
+      settleShortTimers()
+      expect(reveal.disconnect).toHaveBeenCalled()
+      expect(vi.getTimerCount()).toBe(0)
+    })
+
+    it('reveals again when the menu is reopened', () => {
+      setPath('/settings/appearance')
+      renderSettings()
+      const trigger = within(
+        screen.getByRole('navigation', { name: 'Settings' })
+      ).getByRole('button')
+
+      const menu = openMenuNow(trigger)
+      const first = revealObserver(menu)
+      clickTrigger(trigger)
+      settleShortTimers()
+      expect(first.disconnect).toHaveBeenCalled()
+
+      const reopened = openMenuNow(trigger)
+      const second = revealObserver(reopened)
+      expect(second).not.toBe(first)
+      expect(second.observe).toHaveBeenCalledTimes(1)
+    })
+  })
+
   it('sizes rows for touch and truncates long names', async () => {
     setPath('/fitness/strava')
     renderFitness()
@@ -587,7 +752,7 @@ describe('SectionNavDropdown', () => {
       ).not.toBeInTheDocument()
     })
 
-    it('does not colour "Delete this profile" as destructive: it is a page', async () => {
+    it('colours the danger "Delete this profile" row destructive', async () => {
       setPath('/settings/appearance')
       renderSettings()
 
@@ -595,8 +760,42 @@ describe('SectionNavDropdown', () => {
       const row = within(menu).getByRole('menuitem', {
         name: 'Delete this profile'
       })
-      expect(row.className).not.toMatch(DESTRUCTIVE_COLOUR)
+      // The name and the icon carry the destructive colour; the row itself
+      // keeps its default variant.
+      expect(within(row).getByText('Delete this profile')).toHaveClass(
+        'text-destructive'
+      )
+      expect(row.querySelector('svg')!.parentElement).toHaveClass(
+        'text-destructive'
+      )
       expect(row).toHaveAttribute('data-variant', 'default')
+      // The danger colour stays on its own row: the neighbour sharing the
+      // after-footer group keeps the default colour everywhere.
+      expect(
+        within(menu).getByRole('menuitem', { name: 'Moving' }).innerHTML
+      ).not.toMatch(DESTRUCTIVE_COLOUR)
+    })
+
+    it('matches the trigger when the danger row is the current page', async () => {
+      setPath('/settings/delete')
+      renderSettings()
+
+      const menu = await openMenu('Settings')
+      const row = within(menu).getByRole('menuitem', {
+        name: 'Delete this profile'
+      })
+      // Current-page styling wins over danger: the icon takes `text-primary`
+      // and neither the name nor the icon is destructive.
+      expect(row).toHaveAttribute('aria-current', 'page')
+      expect(row.querySelector('svg')!.parentElement).toHaveClass(
+        'text-primary'
+      )
+      expect(row.querySelector('svg')!.parentElement).not.toHaveClass(
+        'text-destructive'
+      )
+      expect(within(row).getByText('Delete this profile')).not.toHaveClass(
+        'text-destructive'
+      )
     })
   })
 
