@@ -1,0 +1,21 @@
+docs/maintenance.md
+  s_c499c28a1b66c8::t_435cc7b5d09c17 1035-1043,1114-1115,1119-1125,1136-1137,1143,1172,1177-1179,1183,1187-1188,1197,1200-1201,1204,1211-1212,1214,1216-1217,1219,1221-1223,1227,1232,1239-1249,1254-1256,1258,1265-1266,1273-1291,1303,1311,1341-1350
+docs/mastodon-api-compatibility.md
+  s_c499c28a1b66c8::t_17d0bb0b19c03a 1115,1118-1119,1122,1126,1154-1182,1184,1193,1329,1338,1343-1349,1351,1355,1362,1365,1367-1368,1376,1382,1385-1386,1390,1584-1591
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "51aa4d6d456b9441363c7a3d31f9d16d71d0d3ad",
+  "prompts": {},
+  "sessions": {
+    "s_c499c28a1b66c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-aa35d2c3a40e6d499",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
