@@ -321,16 +321,19 @@ describe('DraftsProvider', () => {
     unmount()
     const armedBefore = setTimeoutSpy.mock.calls.length
     listDrafts.resolve([]) // the pass continues after unmount
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 50))
-    })
-    expect(listSpy).toHaveBeenCalledTimes(1) // no second pass (the old finally restarted one)
-    expect(received).toEqual([])
-    // Only this test's own 50ms sleep was armed after unmount.
-    expect(setTimeoutSpy.mock.calls.length - armedBefore).toBe(1)
-    unsubscribe()
-    listSpy.mockRestore()
-    setTimeoutSpy.mockRestore()
+    try {
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 50))
+      })
+      expect(listSpy).toHaveBeenCalledTimes(1) // no second pass (the old finally restarted one)
+      expect(received).toEqual([])
+      // Only this test's own 50ms sleep was armed after unmount.
+      expect(setTimeoutSpy.mock.calls.length - armedBefore).toBe(1)
+    } finally {
+      unsubscribe()
+      listSpy.mockRestore()
+      setTimeoutSpy.mockRestore()
+    }
   })
 
   describe('Saved to Drafts note', () => {

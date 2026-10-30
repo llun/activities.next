@@ -721,26 +721,31 @@ describe('bulkImportJob', () => {
 
       it('keeps the lease through a unit longer than the lease', async () => {
         const { run, finishUnit } = await startBlockedRun()
+        try {
+          // Twice the 35s lease; only the heartbeat renews it.
+          for (let i = 0; i < 7; i += 1) await tick(BULK_IMPORT_HEARTBEAT_MS)
+          expect(
+            await database.claimBulkImportRun({
+              id: IMPORT_ID,
+              runToken: 'rival',
+              leaseMs: 1000
+            })
+          ).toMatchObject({ claimed: false })
 
-        // Twice the 35s lease; only the heartbeat renews it.
-        for (let i = 0; i < 7; i += 1) await tick(BULK_IMPORT_HEARTBEAT_MS)
-        expect(
-          await database.claimBulkImportRun({
-            id: IMPORT_ID,
-            runToken: 'rival',
-            leaseMs: 1000
+          finishUnit()
+          await settle()
+          await run
+          expect(await getImport()).toMatchObject({
+            state: 'finished',
+            processedItems: 1
           })
-        ).toMatchObject({ claimed: false })
-
-        finishUnit()
-        await settle()
-        await run
-        expect(await getImport()).toMatchObject({
-          state: 'finished',
-          processedItems: 1
-        })
-        // The timer does not outlive the run.
-        expect(vi.getTimerCount()).toBe(0)
+          // The timer does not outlive the run.
+          expect(vi.getTimerCount()).toBe(0)
+        } finally {
+          finishUnit()
+          await settle()
+          await run.catch(() => undefined)
+        }
       })
 
       const expectNothingWritten = async () => {
@@ -805,20 +810,26 @@ describe('bulkImportJob', () => {
           ).not.toBeNull()
 
           const mark = vi.spyOn(database, 'markBulkImportRowProcessed')
-          finishUnit()
-          await settle()
-          await run
+          try {
+            finishUnit()
+            await settle()
+            await run
 
-          // Only the in-flight row's follow; nothing marked, queued or followed.
-          expect(follow).toHaveBeenCalledTimes(1)
-          expect(mark).not.toHaveBeenCalled()
-          expect(jobMessages()).toEqual([])
-          expect(await getImport()).toMatchObject({
-            state: 'finished',
-            lastError: 'Abandoned: no progress',
-            processedItems: 0
-          })
-          expect(vi.getTimerCount()).toBe(0)
+            // Only the in-flight row's follow; nothing marked, queued or followed.
+            expect(follow).toHaveBeenCalledTimes(1)
+            expect(mark).not.toHaveBeenCalled()
+            expect(jobMessages()).toEqual([])
+            expect(await getImport()).toMatchObject({
+              state: 'finished',
+              lastError: 'Abandoned: no progress',
+              processedItems: 0
+            })
+            expect(vi.getTimerCount()).toBe(0)
+          } finally {
+            finishUnit()
+            await settle()
+            await run.catch(() => undefined)
+          }
         }
       )
 
@@ -872,6 +883,7 @@ describe('bulkImportJob', () => {
           finishUnit()
           await settle()
           await run.catch(() => undefined)
+          await outcome.catch(() => undefined)
         }
       })
     })

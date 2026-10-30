@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import type { Database } from '@/lib/database/types'
 import { PROCESS_FITNESS_FILE_JOB_NAME } from '@/lib/jobs/names'
+import type { WithImportLockOptions } from '@/lib/services/fitness-files/importLock'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
@@ -45,8 +46,10 @@ vi.mock('next/headers', () => ({
 // real database round-trip. These tests shorten that wait instead of faking
 // the clock: a fake clock stepped around real PostgreSQL I/O was the flake
 // (CONTRIBUTING.md, Known failure classes). ttlMs and failOnTimeout stay
-// whatever the route passes.
-const TEST_LOCK_WAIT = { maxWaitMs: 600, pollIntervalMs: 50 }
+// whatever the route passes. A test that needs a longer real window can widen
+// lockWait; afterEach resets maxWaitMs to 600.
+const lockWait = vi.hoisted(() => ({ maxWaitMs: 600, pollIntervalMs: 50 }))
+const wrapperOptions: Array<WithImportLockOptions> = []
 vi.mock('@/lib/services/fitness-files/importLock', async (importOriginal) => {
   const actual =
     await importOriginal<
@@ -58,11 +61,13 @@ vi.mock('@/lib/services/fitness-files/importLock', async (importOriginal) => {
       ...[database, lockKey, fn, options]: Parameters<
         typeof actual.withImportLock
       >
-    ) =>
-      actual.withImportLock(database, lockKey, fn, {
+    ) => {
+      wrapperOptions.push(options ?? {})
+      return actual.withImportLock(database, lockKey, fn, {
         ...options,
-        ...TEST_LOCK_WAIT
+        ...lockWait
       })
+    }
   }
 })
 
@@ -92,6 +97,8 @@ describe('POST /api/v1/fitness-files/[id]/primary', () => {
   })
 
   afterEach(async () => {
+    // Undo any widening of lockWait a test made.
+    lockWait.maxWaitMs = 600
     // A route killed by a test timeout can leave its lock row behind; drop
     // any so one failure cannot cascade into the next test's lock wait.
     await db.deleteFrom('fitness_import_locks').execute()
@@ -173,6 +180,16 @@ describe('POST /api/v1/fitness-files/[id]/primary', () => {
     Promise.all(
       ids.map(async (id) => (await database.getFitnessFile({ id }))?.isPrimary)
     )
+
+  it('passes its real wait options to the import lock, leaving the defaults to apply', async () => {
+    const { chosen } = await createPair()
+    await post(chosen.id)
+
+    const options = wrapperOptions.at(-1)
+    expect(options).toMatchObject({ failOnTimeout: true })
+    expect(options?.maxWaitMs).toBeUndefined()
+    expect(options?.pollIntervalMs).toBeUndefined()
+  })
 
   it('swaps the primary flag and answers with the new primary', async () => {
     const { oldPrimary, chosen } = await createPair()
@@ -361,6 +378,9 @@ describe('POST /api/v1/fitness-files/[id]/primary', () => {
   })
 
   it('succeeds once the lock frees up within the wait', async () => {
+    // It still returns as soon as the lock frees, and a real 600 ms window
+    // would be a race on a loaded runner.
+    lockWait.maxWaitMs = 10_000
     const { oldPrimary, chosen } = await createPair()
     const lockKey = `fitness-import:${ACTOR1_ID}`
     const held = await database.acquireImportLock({ lockKey, ttlMs: 60_000 })
