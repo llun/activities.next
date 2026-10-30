@@ -1255,4 +1255,328 @@ describe('fetchRemoteStatusJob', () => {
       }
     )
   })
+
+  describe('storing attachments and tags for fetched notes', () => {
+    // A fetched note carries its media documents and hashtags; both the
+    // top-level fetch and the reply walk must persist them.
+    const noteWithMedia = (statusId: string) => ({
+      id: statusId,
+      type: 'Note',
+      attributedTo: REMOTE_ACTOR_ID,
+      content: 'With media',
+      to: [PUBLIC_STREAM],
+      cc: [],
+      published: new Date().toISOString(),
+      attachment: [
+        {
+          type: 'Document',
+          mediaType: 'image/png',
+          url: 'https://mastodon.social/media/image.png'
+        }
+      ],
+      tag: [
+        {
+          type: 'Hashtag',
+          name: '#testing',
+          href: 'https://mastodon.social/tags/testing'
+        }
+      ]
+    })
+
+    it('stores the attachment and hashtag of a top-level fetched note', async () => {
+      const STATUS_ID = `${REMOTE_STATUS_ID}/tagged`
+      mockRemoteServers(async (req) => {
+        if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
+        if (req.url === STATUS_ID) {
+          return activityJson(noteWithMedia(STATUS_ID))
+        }
+        return activityJson({})
+      })
+
+      await fetchRemoteStatusJob(database, {
+        id: 'job-id',
+        name: FETCH_REMOTE_STATUS_JOB_NAME,
+        data: { statusId: STATUS_ID }
+      })
+
+      const attachments = await database.getAttachments({
+        statusId: STATUS_ID
+      })
+      expect(attachments).toHaveLength(1)
+      const tags = await database.getTags({ statusId: STATUS_ID })
+      const hashtagTags = tags.filter((t) => t.type === 'hashtag')
+      expect(hashtagTags).toHaveLength(1)
+      expect(hashtagTags[0].name).toEqual('#testing')
+    })
+
+    it('stores the attachment and hashtag of a reply stored during the walk', async () => {
+      const STATUS_ID = `${REMOTE_STATUS_ID}/reply-media`
+      const REPLY_ID = `${STATUS_ID}/reply`
+      mockRemoteServers(async (req) => {
+        if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
+        if (req.url === STATUS_ID) {
+          return activityJson({
+            id: STATUS_ID,
+            type: 'Note',
+            attributedTo: REMOTE_ACTOR_ID,
+            content: 'Root',
+            to: [PUBLIC_STREAM],
+            cc: [],
+            replies: `${STATUS_ID}/replies`
+          })
+        }
+        if (req.url === `${STATUS_ID}/replies`) {
+          return activityJson({
+            id: `${STATUS_ID}/replies`,
+            type: 'OrderedCollection',
+            orderedItems: [REPLY_ID]
+          })
+        }
+        if (req.url === REPLY_ID) {
+          return activityJson(noteWithMedia(REPLY_ID))
+        }
+        return activityJson({})
+      })
+
+      await fetchRemoteStatusJob(database, {
+        id: 'job-id',
+        name: FETCH_REMOTE_STATUS_JOB_NAME,
+        data: { statusId: STATUS_ID }
+      })
+
+      const attachments = await database.getAttachments({ statusId: REPLY_ID })
+      expect(attachments).toHaveLength(1)
+      const tags = await database.getTags({ statusId: REPLY_ID })
+      const hashtagTags = tags.filter((t) => t.type === 'hashtag')
+      expect(hashtagTags).toHaveLength(1)
+      expect(hashtagTags[0].name).toEqual('#testing')
+    })
+
+    it('does not store attachments or tags again when the note already existed', async () => {
+      const STATUS_ID = `${REMOTE_STATUS_ID}/already-stored`
+      mockRemoteServers(async (req) => {
+        if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
+        if (req.url === STATUS_ID) {
+          return activityJson(noteWithMedia(STATUS_ID))
+        }
+        return activityJson({})
+      })
+
+      await fetchRemoteStatusJob(database, {
+        id: 'job-id',
+        name: FETCH_REMOTE_STATUS_JOB_NAME,
+        data: { statusId: STATUS_ID }
+      })
+
+      const attachments = await database.getAttachments({
+        statusId: STATUS_ID
+      })
+      expect(attachments).toHaveLength(1)
+      const tags = await database.getTags({ statusId: STATUS_ID })
+      expect(tags.filter((t) => t.type === 'hashtag')).toHaveLength(1)
+
+      await fetchRemoteStatusJob(database, {
+        id: 'job-id-2',
+        name: FETCH_REMOTE_STATUS_JOB_NAME,
+        data: { statusId: STATUS_ID }
+      })
+
+      expect(
+        await database.getAttachments({ statusId: STATUS_ID })
+      ).toHaveLength(1)
+      expect(
+        (await database.getTags({ statusId: STATUS_ID })).filter(
+          (t) => t.type === 'hashtag'
+        )
+      ).toHaveLength(1)
+    })
+
+    it('does not repeat side effects when the top-level note is fetched via an alias permalink', async () => {
+      const CANONICAL_ID = `${REMOTE_STATUS_ID}/alias-top`
+      const ALIAS_ID = `${REMOTE_STATUS_ID}/@bob/1`
+      mockRemoteServers(async (req) => {
+        if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
+        if (req.url === CANONICAL_ID || req.url === ALIAS_ID) {
+          return activityJson(noteWithMedia(CANONICAL_ID))
+        }
+        return activityJson({})
+      })
+
+      await fetchRemoteStatusJob(database, {
+        id: 'job-id',
+        name: FETCH_REMOTE_STATUS_JOB_NAME,
+        data: { statusId: CANONICAL_ID }
+      })
+      const counterAfterFirstRun = await database.getHashtagCounter({
+        hashtag: 'testing'
+      })
+
+      await fetchRemoteStatusJob(database, {
+        id: 'job-id-2',
+        name: FETCH_REMOTE_STATUS_JOB_NAME,
+        data: { statusId: ALIAS_ID }
+      })
+
+      expect(
+        await database.getAttachments({ statusId: CANONICAL_ID })
+      ).toHaveLength(1)
+      expect(await database.getHashtagCounter({ hashtag: 'testing' })).toBe(
+        counterAfterFirstRun
+      )
+    })
+
+    it('does not repeat side effects when a walked reply is already stored', async () => {
+      const STATUS_ID = `${REMOTE_STATUS_ID}/already-stored-reply`
+      const REPLY_ID = `${STATUS_ID}/reply`
+      mockRemoteServers(async (req) => {
+        if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
+        if (req.url === STATUS_ID) {
+          return activityJson({
+            id: STATUS_ID,
+            type: 'Note',
+            attributedTo: REMOTE_ACTOR_ID,
+            content: 'Root',
+            to: [PUBLIC_STREAM],
+            replies: `${STATUS_ID}/replies`
+          })
+        }
+        if (req.url === `${STATUS_ID}/replies`) {
+          return activityJson({
+            id: `${STATUS_ID}/replies`,
+            type: 'OrderedCollection',
+            orderedItems: [REPLY_ID]
+          })
+        }
+        if (req.url === REPLY_ID) {
+          return activityJson(noteWithMedia(REPLY_ID))
+        }
+        return activityJson({})
+      })
+
+      await fetchRemoteStatusJob(database, {
+        id: 'job-id',
+        name: FETCH_REMOTE_STATUS_JOB_NAME,
+        data: { statusId: STATUS_ID }
+      })
+      const counterAfterFirstRun = await database.getHashtagCounter({
+        hashtag: 'testing'
+      })
+
+      await fetchRemoteStatusJob(database, {
+        id: 'job-id-2',
+        name: FETCH_REMOTE_STATUS_JOB_NAME,
+        data: { statusId: STATUS_ID }
+      })
+
+      expect(
+        await database.getAttachments({ statusId: REPLY_ID })
+      ).toHaveLength(1)
+      expect(await database.getHashtagCounter({ hashtag: 'testing' })).toBe(
+        counterAfterFirstRun
+      )
+    })
+
+    it('keeps the note stored when attachment storage fails', async () => {
+      const STATUS_ID = `${REMOTE_STATUS_ID}/attachment-failure`
+      const createAttachmentSpy = vi
+        .spyOn(database, 'createAttachment')
+        .mockRejectedValue(new Error('attachment storage down'))
+      mockRemoteServers(async (req) => {
+        if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
+        if (req.url === STATUS_ID) {
+          return activityJson(noteWithMedia(STATUS_ID))
+        }
+        return activityJson({})
+      })
+
+      await fetchRemoteStatusJob(database, {
+        id: 'job-id',
+        name: FETCH_REMOTE_STATUS_JOB_NAME,
+        data: { statusId: STATUS_ID }
+      })
+
+      expect(await database.getStatus({ statusId: STATUS_ID })).toBeDefined()
+      expect(createAttachmentSpy).toHaveBeenCalled()
+    })
+  })
+
+  describe('hashtag counter visibility for walked replies', () => {
+    const rootWithReplies = (statusId: string, reply: unknown) =>
+      mockRemoteServers(async (req) => {
+        if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
+        if (req.url === statusId) {
+          return activityJson({
+            id: statusId,
+            type: 'Note',
+            attributedTo: REMOTE_ACTOR_ID,
+            content: 'Root',
+            to: [PUBLIC_STREAM],
+            replies: `${statusId}/replies`
+          })
+        }
+        if (req.url === `${statusId}/replies`) {
+          return activityJson({
+            id: `${statusId}/replies`,
+            type: 'OrderedCollection',
+            orderedItems: [reply]
+          })
+        }
+        return activityJson({})
+      })
+
+    const replyWithHashtag = (id: string, inReplyTo: string) => ({
+      id,
+      type: 'Note',
+      attributedTo: REMOTE_ACTOR_ID,
+      content: 'A reply with #testing',
+      inReplyTo,
+      to: [PUBLIC_STREAM],
+      cc: [],
+      published: new Date().toISOString(),
+      tag: [
+        {
+          type: 'Hashtag',
+          name: '#testing',
+          href: 'https://mastodon.social/tags/testing'
+        }
+      ]
+    })
+
+    it('moves the hashtag counter for a public reply', async () => {
+      const STATUS_ID = `${REMOTE_STATUS_ID}/hashtag-public`
+      const REPLY_ID = `${STATUS_ID}/reply`
+      rootWithReplies(STATUS_ID, replyWithHashtag(REPLY_ID, STATUS_ID))
+      const counterSpy = vi.spyOn(database, 'increaseHashtagCounter')
+
+      await fetchRemoteStatusJob(database, {
+        id: 'job-id',
+        name: FETCH_REMOTE_STATUS_JOB_NAME,
+        data: { statusId: STATUS_ID }
+      })
+
+      expect(await database.getStatus({ statusId: REPLY_ID })).toBeDefined()
+      expect(counterSpy).toHaveBeenCalledWith({ hashtag: 'testing' })
+    })
+
+    it('does not move the hashtag counter for a non-public reply', async () => {
+      const STATUS_ID = `${REMOTE_STATUS_ID}/hashtag-private`
+      const REPLY_ID = `${STATUS_ID}/reply`
+      const reply = {
+        ...replyWithHashtag(REPLY_ID, STATUS_ID),
+        to: [REMOTE_ACTOR_ID],
+        cc: []
+      }
+      rootWithReplies(STATUS_ID, reply)
+      const counterSpy = vi.spyOn(database, 'increaseHashtagCounter')
+
+      await fetchRemoteStatusJob(database, {
+        id: 'job-id',
+        name: FETCH_REMOTE_STATUS_JOB_NAME,
+        data: { statusId: STATUS_ID }
+      })
+
+      expect(await database.getStatus({ statusId: REPLY_ID })).toBeDefined()
+      expect(counterSpy).not.toHaveBeenCalled()
+    })
+  })
 })

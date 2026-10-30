@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
 import { getActorPerson } from '@/lib/activities/getActorPerson'
-import { getRemoteStatus } from '@/lib/activities/getRemoteStatus'
+import { ephemeralStatusFromNote } from '@/lib/activities/getRemoteStatus'
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
 import { Database } from '@/lib/database/types'
 import { localizeAccounts } from '@/lib/services/accounts/localizeAccount'
@@ -23,6 +23,7 @@ import {
   resolveStatusIdParam
 } from '@/lib/services/mastodon/resolveClientId'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
+import { getReadableStatusAndFetchedNoteForAction } from '@/lib/services/statuses/getReadableStatusForAction'
 import { Scope } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
 import { Status } from '@/lib/types/domain/status'
@@ -401,16 +402,42 @@ const getResolvedStatus = async ({
       currentActorId: currentActor.id
     }))
 
+  // A remote resolve used to be purely ephemeral: nothing was stored, so a
+  // like or reply from the search result failed. Mastodon stores the status
+  // here, so the store-first helper runs before the ephemeral conversion. The
+  // helper refuses served domains, non-public notes and rows the viewer
+  // cannot read (an existing but unreadable local row makes it return null
+  // rather than leak it).
+  const stored = localStatus
+    ? null
+    : await getReadableStatusAndFetchedNoteForAction({
+        database,
+        statusId: query,
+        currentActor
+      })
+  const storedStatus = stored?.status ?? null
+
+  // The helper already fetched the note once. When storing it or re-reading
+  // the stored row failed, build the ephemeral status from that note instead
+  // of fetching the same URL a second time (a dead host would otherwise pay
+  // the fetch timeout twice). A refusal with no note means null with no
+  // fallback fetch.
   const status =
     localStatus ??
-    (await getRemoteStatus({
-      statusId: query,
-      signingActor
-    }))
+    storedStatus ??
+    (stored?.fetchedNote
+      ? await ephemeralStatusFromNote({
+          note: stored.fetchedNote,
+          signingActor
+        })
+      : null)
 
   if (!status) return null
 
-  if (!localStatus) {
+  // Only the ephemeral path needs the actor recorded: the stored path
+  // persisted the actor alongside the note, and the local path recorded it
+  // when it was first fetched.
+  if (!localStatus && !storedStatus) {
     const actor = await recordRemoteActorBestEffort({
       actorId: status.actorId,
       database,

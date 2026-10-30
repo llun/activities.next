@@ -4,7 +4,10 @@ import type { Actor } from '@/lib/types/domain/actor'
 import type { Status } from '@/lib/types/domain/status'
 import { logger } from '@/lib/utils/logger'
 
-import { getReadableStatusForAction } from './getReadableStatusForAction'
+import {
+  getReadableStatusAndFetchedNoteForAction,
+  getReadableStatusForAction
+} from './getReadableStatusForAction'
 
 const {
   mockGetReadableStatus,
@@ -383,5 +386,164 @@ describe('getReadableStatusForAction', () => {
       mockNote
     )
     expect(mockGetReadableStatus).toHaveBeenCalledTimes(2)
+  })
+
+  describe('getReadableStatusAndFetchedNoteForAction', () => {
+    const variant = async (statusId: string, withReplies?: boolean) =>
+      getReadableStatusAndFetchedNoteForAction({
+        database,
+        statusId,
+        currentActor,
+        withReplies
+      })
+
+    it('returns the stored status with fetchedNote null when the status is already readable', async () => {
+      mockGetReadableStatus.mockResolvedValue(mockStatus)
+
+      await expect(variant(mockStatus.id)).resolves.toEqual({
+        status: mockStatus,
+        fetchedNote: null
+      })
+      expect(mockGetNote).not.toHaveBeenCalled()
+    })
+
+    it('returns fetchedNote null when the helper refuses after fetching (non-public note)', async () => {
+      const nonPublicNote = {
+        ...mockNote,
+        to: ['https://remote.social/users/bob/followers'],
+        cc: []
+      }
+      mockGetNote.mockResolvedValue(nonPublicNote)
+
+      await expect(variant(mockStatus.id)).resolves.toEqual({
+        status: null,
+        fetchedNote: null
+      })
+      expect(mockGetNote).toHaveBeenCalled()
+      expect(mockDispatchCreateNoteOrPollJob).not.toHaveBeenCalled()
+    })
+
+    it('returns fetchedNote null when the helper refuses before fetching (not an http(s) URL)', async () => {
+      await expect(variant('not-a-url')).resolves.toEqual({
+        status: null,
+        fetchedNote: null
+      })
+      expect(mockGetNote).not.toHaveBeenCalled()
+    })
+
+    it('returns fetchedNote null on a note id origin mismatch', async () => {
+      const crossOriginNote = {
+        ...mockNote,
+        id: 'https://evil.social/users/bob/statuses/1'
+      }
+      mockGetNote.mockResolvedValue(crossOriginNote)
+
+      await expect(variant(mockStatus.id)).resolves.toEqual({
+        status: null,
+        fetchedNote: null
+      })
+      expect(mockDispatchCreateNoteOrPollJob).not.toHaveBeenCalled()
+    })
+
+    it('returns fetchedNote null when the fetch itself fails', async () => {
+      mockGetNote.mockRejectedValue(new Error('Connection refused'))
+
+      await expect(variant(mockStatus.id)).resolves.toEqual({
+        status: null,
+        fetchedNote: null
+      })
+    })
+
+    it('returns fetchedNote null when attributedTo is on another origin', async () => {
+      const forgedAuthorNote = {
+        ...mockNote,
+        attributedTo: 'https://evil.example/users/evil'
+      }
+      mockGetNote.mockResolvedValue(forgedAuthorNote)
+
+      await expect(variant(mockStatus.id)).resolves.toEqual({
+        status: null,
+        fetchedNote: null
+      })
+      expect(mockGetNote).toHaveBeenCalled()
+      expect(mockDispatchCreateNoteOrPollJob).not.toHaveBeenCalled()
+    })
+
+    it('still accepts an embedded actor object attributedTo on the same origin', async () => {
+      const embeddedActorNote = {
+        ...mockNote,
+        attributedTo: {
+          id: 'https://remote.social/users/bob',
+          type: 'Person',
+          preferredUsername: 'bob'
+        }
+      }
+      mockGetNote.mockResolvedValue(embeddedActorNote)
+
+      await expect(variant(mockStatus.id)).resolves.toEqual({
+        status: null,
+        fetchedNote: embeddedActorNote
+      })
+      expect(mockDispatchCreateNoteOrPollJob).toHaveBeenCalledWith(
+        database,
+        embeddedActorNote
+      )
+    })
+
+    it('returns the checked fetchedNote when storing fails after the checks pass', async () => {
+      mockGetNote.mockResolvedValue(mockNote)
+      mockDispatchCreateNoteOrPollJob.mockRejectedValue(
+        new Error('Database write failure')
+      )
+
+      await expect(variant(mockStatus.id)).resolves.toEqual({
+        status: null,
+        fetchedNote: mockNote
+      })
+      expect(mockDispatchCreateNoteOrPollJob).toHaveBeenCalledWith(
+        database,
+        mockNote
+      )
+    })
+
+    it('returns the checked fetchedNote when the re-read finds nothing after the checks pass', async () => {
+      mockGetNote.mockResolvedValue(mockNote)
+      mockGetReadableStatus.mockResolvedValue(null)
+
+      await expect(variant(mockStatus.id)).resolves.toEqual({
+        status: null,
+        fetchedNote: mockNote
+      })
+      expect(mockDispatchCreateNoteOrPollJob).toHaveBeenCalledWith(
+        database,
+        mockNote
+      )
+    })
+
+    it('falls back to a note.id re-read when the alias re-read misses (wrapper used)', async () => {
+      const aliasStatusId = 'https://remote.social/@bob/1'
+      const canonicalNoteId = mockNote.id
+      const noteWithCanonicalId = { ...mockNote, id: canonicalNoteId }
+
+      mockGetNote.mockResolvedValue(noteWithCanonicalId)
+      mockGetReadableStatus
+        .mockResolvedValueOnce(null) // initial check for the alias id
+        .mockResolvedValueOnce(null) // re-read for the alias id misses
+        .mockResolvedValueOnce(mockStatus) // fallback re-read for note.id
+
+      await expect(
+        getReadableStatusForAction({
+          database,
+          statusId: aliasStatusId,
+          currentActor
+        })
+      ).resolves.toBe(mockStatus)
+      expect(mockGetReadableStatus).toHaveBeenNthCalledWith(3, {
+        database,
+        statusId: canonicalNoteId,
+        currentActor,
+        withReplies: undefined
+      })
+    })
   })
 })

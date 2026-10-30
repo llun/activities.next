@@ -4,7 +4,7 @@ import { sendPollVotes } from '@/lib/activities'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
-import { canActorReadStatus } from '@/lib/services/statusAccess'
+import { getReadableStatusForAction } from '@/lib/services/statuses/getReadableStatusForAction'
 import { Scope } from '@/lib/types/database/operations'
 import { StatusType } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -94,26 +94,19 @@ export const POST = traceApiRoute(
 
       const encodedPollId = (await params).id
       const statusId = await resolveStatusIdParam(database, encodedPollId)
-      const status = await database.getStatus({
+      // Also fetches and stores an unstored remote public Question, so voting
+      // on a poll this instance has never seen works like any other vote.
+      // requireType refuses fetched non-Question notes so they are never
+      // stored from a poll vote; the type check below still guards rows that
+      // were already stored as something else.
+      const status = await getReadableStatusForAction({
+        database,
         statusId,
-        currentActorId: currentActor.id,
-        withReplies: false
+        currentActor,
+        withReplies: false,
+        requireType: 'Question'
       })
       if (!status || status.type !== StatusType.enum.Poll) {
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_404,
-          responseStatusCode: 404
-        })
-      }
-
-      const hasAccess = await canActorReadStatus({
-        database,
-        status,
-        currentActor
-      })
-      if (!hasAccess) {
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
@@ -149,7 +142,7 @@ export const POST = traceApiRoute(
       }
 
       const votesRecorded = await database.recordPollVotes({
-        statusId,
+        statusId: status.id,
         actorId: currentActor.id,
         choices
       })
@@ -165,7 +158,7 @@ export const POST = traceApiRoute(
       await sendPollVotes({ currentActor, status, choices })
 
       const updatedStatus = await database.getStatus({
-        statusId,
+        statusId: status.id,
         currentActorId: currentActor.id,
         withReplies: false
       })

@@ -14,8 +14,8 @@ import { MAX_STORED_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { resolveQuoteForCreate } from '@/lib/services/quotes/resolveQuoteForCreate'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
-import { getReadableStatus } from '@/lib/services/statusRouteAccess'
 import { validateStatusContentLimits } from '@/lib/services/statuses/contentLimits'
+import { getReadableStatusForAction } from '@/lib/services/statuses/getReadableStatusForAction'
 import { toActivityPubObject } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
@@ -182,7 +182,7 @@ export const POST = traceApiRoute(
               database,
               rawReplyTargetId
             )
-            const targetStatus = await getReadableStatus({
+            const targetStatus = await getReadableStatusForAction({
               database,
               statusId: resolvedReplyId,
               currentActor
@@ -249,7 +249,7 @@ export const POST = traceApiRoute(
               database,
               rawReplyTargetId
             )
-            const targetStatus = await getReadableStatus({
+            const targetStatus = await getReadableStatusForAction({
               database,
               statusId: resolvedReplyId,
               currentActor

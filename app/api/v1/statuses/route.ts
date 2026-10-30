@@ -37,13 +37,13 @@ import { getQueue } from '@/lib/services/queue'
 import { resolveQuoteForCreate } from '@/lib/services/quotes/resolveQuoteForCreate'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
-import { getReadableStatus } from '@/lib/services/statusRouteAccess'
 import {
   CREATED_AT_WITH_SCHEDULED_AT_ERROR,
   parseBackdatedCreatedAt
 } from '@/lib/services/statuses/backdatedCreatedAt'
 import { validateStatusContentLimits } from '@/lib/services/statuses/contentLimits'
 import { expectedActorMismatchResponse } from '@/lib/services/statuses/expectedActorMismatch'
+import { getReadableStatusForAction } from '@/lib/services/statuses/getReadableStatusForAction'
 import { getAttachmentsFromMediaIds } from '@/lib/services/statuses/mediaIds'
 import { parseStatusRequestBody } from '@/lib/services/statuses/parseStatusRequestBody'
 import {
@@ -59,6 +59,7 @@ import { QuoteApprovalPolicy, Status } from '@/lib/types/domain/status'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
+import { getClientStatusId } from '@/lib/utils/publicId'
 import {
   ERROR_400,
   ERROR_422,
@@ -398,7 +399,7 @@ export const POST = traceApiRoute(
           // parent at publish time.
           let replyStatus: Status | null = null
           if (note.in_reply_to_id) {
-            replyStatus = await getReadableStatus({
+            replyStatus = await getReadableStatusForAction({
               database,
               statusId: await resolveStatusIdParam(
                 database,
@@ -431,8 +432,15 @@ export const POST = traceApiRoute(
           const scheduled = await database.createScheduledStatus({
             actorId: currentActor.id,
             scheduledAt,
+            // Store the parent's client-facing publicId, not the raw request
+            // value or the stored ActivityPub id: the request may name the
+            // parent by a permalink alias, and clients must only ever see
+            // publicIds. The publish job maps it back through
+            // resolveStatusIdParam.
             params: buildScheduledParams(
-              note,
+              replyStatus
+                ? { ...note, in_reply_to_id: getClientStatusId(replyStatus) }
+                : note,
               idempotencyKey ?? null,
               defaultPrivacy,
               clientId ?? null
@@ -512,7 +520,7 @@ export const POST = traceApiRoute(
             database,
             note.in_reply_to_id
           )
-          const targetStatus = await getReadableStatus({
+          const targetStatus = await getReadableStatusForAction({
             database,
             statusId: resolvedReplyId,
             currentActor
