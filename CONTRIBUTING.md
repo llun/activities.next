@@ -174,7 +174,7 @@ Also:
 
 Branch protection on `main` requires the `All Tests`, `Lint and Prettier`, and `Build` checks (strict: false).
 
-`All Tests` is the fail-closed fan-in over the four SQLite test shards and the two PostgreSQL test shards (`PostgreSQL Tests (shard N/2)` — shard 1 also runs the SQLite and PostgreSQL schema dump drift checks). `CI Success` is the overall aggregate of every job in the workflow: it fails closed over every upstream job (`Lint and Prettier`, `Type Check`, `Build`, `Test Shard N of 4`, `PostgreSQL Tests (shard N/2)`, and the Docker smoke jobs `Docker Images Smoke Test (minimal)` / `(full)`). It is not required by the ruleset; it only reports the workflow-wide result.
+`All Tests` is the fail-closed fan-in over the four SQLite test shards and the two PostgreSQL test shards (`PostgreSQL Tests (shard N/2)` — shard 1 also runs the SQLite and PostgreSQL schema dump drift checks). `CI Success` is the overall aggregate of every job in the workflow: it fails closed over every upstream job (`Lint and Prettier`, `Type Check`, `Build`, `Test Shard N of 4`, `PostgreSQL Tests (shard N/2)`, `All Tests`, and the Docker smoke jobs `Docker Images Smoke Test (minimal)` / `(full)`). It is not required by the ruleset; it only reports the workflow-wide result.
 
 The `Build` job persists only `.next/cache`, including Next.js's default Turbopack filesystem build cache. Its versioned cache key includes the runner OS, Yarn lockfile, build configuration, and application source; a lockfile-prefix restore lets changed source reuse a prior build cache. Generated build outputs outside `.next/cache` are rebuilt on every run, and Yarn's archive cache remains managed by `actions/setup-node`.
 
@@ -410,7 +410,7 @@ activities.next/
   (strict: false); the `All Tests` job fans in the test shards and the
   PostgreSQL shards, and the `CI Success` job aggregates every job in the
   workflow without being required by the ruleset.
-  The test job pins `TEST_DATABASE_TYPE: sqlite`.
+  The SQLite test shards pin `TEST_DATABASE_TYPE: sqlite`.
 - **New tests get their database from `createTestDatabase()`**
   (`lib/database/testing/createTestDatabase.ts`): the `Database` facade
   (`database`, with the schema-dump `migrate()`), a Kysely `db`, the
