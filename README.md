@@ -17,7 +17,7 @@ Activity.next is a self-hosted [ActivityPub](https://www.w3.org/TR/activitypub/)
 - **Fitness tracking** — Upload .fit, .gpx, and .tcx activity files with route maps, stats, heatmaps, and Strava imports
 - **Docker-ready** — Official Docker image available at `ghcr.io/llun/activities.next`
 
-See the full [Feature Roadmap](docs/features.md) for current and planned features.
+See the full [Features](docs/features.md) list for the current features.
 
 ## 🏗️ Architecture Overview
 
@@ -145,7 +145,7 @@ For PostgreSQL or advanced Docker setups, see:
 | [SQLite Setup](docs/sqlite-setup.md)                             | SQLite database configuration and Docker deployment              |
 | [PostgreSQL Setup](docs/postgresql-setup.md)                     | PostgreSQL database configuration and Docker deployment          |
 | [Environment Variables](docs/environment-variables.md)           | Complete reference for all configuration options                 |
-| [Feature Roadmap](docs/features.md)                              | Current and planned features                                     |
+| [Features](docs/features.md)                                     | Current features                                                 |
 | [Fitness File Storage](docs/fitness-file-storage.md)             | Fitness upload, processing, Strava, and heatmap details          |
 | [Maintenance Scripts](docs/maintenance.md)                       | Admin scripts for media cleanup and user management              |
 | [Mastodon API Compatibility](docs/mastodon-api-compatibility.md) | Compatibility reference, intentional divergences, and extensions |
