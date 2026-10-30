@@ -36,6 +36,31 @@ interface LocationLike {
 }
 
 /**
+ * The `<a href>` a click is about to follow in this tab, or `null` for a
+ * modified or non-primary click (new tab/window, download), a click something
+ * already cancelled, or a link that opens elsewhere or downloads.
+ */
+const getSameTabAnchor = (event: ClickLike): HTMLAnchorElement | null => {
+  if (event.defaultPrevented || event.button !== 0) return null
+  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+    return null
+  }
+
+  const target = event.target
+  if (!target || typeof (target as Element).closest !== 'function') return null
+  const anchor = (target as Element).closest('a')
+  if (!anchor || !anchor.hasAttribute('href')) return null
+  if (anchor.hasAttribute('download')) return null
+  const anchorTarget = anchor.getAttribute('target')
+  if (anchorTarget && anchorTarget !== '_self') return null
+  return anchor
+}
+
+/** Whether a click is a plain same-tab primary click on an `<a href>`. */
+export const isSameTabNavigationClick = (event: ClickLike): boolean =>
+  getSameTabAnchor(event) !== null
+
+/**
  * The profile pathname a click is about to navigate this tab to, or `null`
  * when the click is not a same-tab navigation to a different profile: a
  * modified or non-primary click (new tab/window, download), a link that opens
@@ -52,18 +77,8 @@ export const getProfileNavigationTarget = (
   event: ClickLike,
   location: LocationLike
 ): string | null => {
-  if (event.defaultPrevented || event.button !== 0) return null
-  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
-    return null
-  }
-
-  const target = event.target
-  if (!target || typeof (target as Element).closest !== 'function') return null
-  const anchor = (target as Element).closest('a')
-  if (!anchor || !anchor.hasAttribute('href')) return null
-  if (anchor.hasAttribute('download')) return null
-  const anchorTarget = anchor.getAttribute('target')
-  if (anchorTarget && anchorTarget !== '_self') return null
+  const anchor = getSameTabAnchor(event)
+  if (!anchor) return null
 
   let url: URL
   try {

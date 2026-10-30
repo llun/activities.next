@@ -7,7 +7,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { useOpenStatusPath } from '@/lib/components/posts/useOpenStatusPath'
 
 import {
-  PENDING_PROFILE_TIMEOUT_MS,
+  PENDING_NAVIGATION_TIMEOUT_MS,
   PENDING_STATUS_DELAY_MS,
   PendingProfileNavigationProvider,
   PendingProfileOverlay
@@ -117,7 +117,7 @@ describe('PendingProfileNavigation', () => {
     fireEvent.click(screen.getByText('Alice'))
 
     act(() => {
-      vi.advanceTimersByTime(PENDING_PROFILE_TIMEOUT_MS)
+      vi.advanceTimersByTime(PENDING_NAVIGATION_TIMEOUT_MS)
     })
 
     expect(overlay()).toBeNull()
@@ -149,6 +149,12 @@ const OpenButton = () => {
 const StatusPage = () => (
   <PendingProfileNavigationProvider>
     <OpenButton />
+    <a href="/@bob@example.com" onClick={(event) => event.preventDefault()}>
+      Bob
+    </a>
+    <a href="/notifications" onClick={(event) => event.preventDefault()}>
+      Notifications
+    </a>
     <PendingProfileOverlay variant="signed-in" />
   </PendingProfileNavigationProvider>
 )
@@ -219,7 +225,7 @@ describe('pending status navigation', () => {
     render(<StatusPage />)
     fireEvent.click(screen.getByText('Open'))
     act(() => {
-      vi.advanceTimersByTime(PENDING_PROFILE_TIMEOUT_MS - 1)
+      vi.advanceTimersByTime(PENDING_NAVIGATION_TIMEOUT_MS - 1)
     })
     expect(statusOverlay()).toBeInTheDocument()
 
@@ -240,6 +246,81 @@ describe('pending status navigation', () => {
 
     expect(mockPush).toHaveBeenCalledWith('/@alice@example.com/abc')
     expect(statusOverlay()).toBeNull()
+  })
+
+  const openAndShow = () => {
+    fireEvent.click(screen.getByText('Open'))
+    act(() => {
+      vi.advanceTimersByTime(PENDING_STATUS_DELAY_MS)
+    })
+    expect(statusOverlay()).toBeInTheDocument()
+  }
+
+  it('clears when a same-tab link is clicked and the pathname stays', () => {
+    render(<StatusPage />)
+    openAndShow()
+
+    fireEvent.click(screen.getByText('Notifications'))
+
+    expect(statusOverlay()).toBeNull()
+  })
+
+  it('clears on popstate', () => {
+    render(<StatusPage />)
+    openAndShow()
+
+    act(() => {
+      window.dispatchEvent(new PopStateEvent('popstate'))
+    })
+
+    expect(statusOverlay()).toBeNull()
+  })
+
+  it('clears the pending status on pageshow', () => {
+    render(<StatusPage />)
+    openAndShow()
+
+    act(() => {
+      window.dispatchEvent(new Event('pageshow'))
+    })
+
+    expect(statusOverlay()).toBeNull()
+  })
+
+  it('keeps the skeleton on a modified click', () => {
+    render(<StatusPage />)
+    openAndShow()
+
+    fireEvent.click(screen.getByText('Notifications'), { metaKey: true })
+
+    expect(statusOverlay()).toBeInTheDocument()
+  })
+
+  it('shows the profile overlay when both are pending', () => {
+    render(<StatusPage />)
+    openAndShow()
+
+    fireEvent.click(screen.getByText('Bob'))
+
+    expect(screen.queryByTestId('pending-profile-overlay')).toBeInTheDocument()
+    expect(statusOverlay()).toBeNull()
+  })
+
+  it('hides the shown skeleton again on a second open and restarts the delay', () => {
+    render(<StatusPage />)
+    openAndShow()
+
+    fireEvent.click(screen.getByText('Open'))
+    expect(statusOverlay()).toBeNull()
+
+    act(() => {
+      vi.advanceTimersByTime(PENDING_STATUS_DELAY_MS - 1)
+    })
+    expect(statusOverlay()).toBeNull()
+    act(() => {
+      vi.advanceTimersByTime(1)
+    })
+    expect(statusOverlay()).toBeInTheDocument()
   })
 
   it('falls back to router.push without a provider', () => {

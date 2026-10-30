@@ -8,6 +8,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState
 } from 'react'
 
@@ -16,11 +17,14 @@ import { StatusLoadingSkeleton } from '@/app/(timeline)/[actor]/[status]/StatusL
 import { OpenStatusPathContext } from '@/lib/components/posts/useOpenStatusPath'
 import { cn } from '@/lib/utils'
 
-import { getProfileNavigationTarget } from './profileNavigationTarget'
+import {
+  getProfileNavigationTarget,
+  isSameTabNavigationClick
+} from './profileNavigationTarget'
 
 // If the router never commits (a navigation that was cancelled or failed
 // without changing the URL), stop covering the page that is still there.
-export const PENDING_PROFILE_TIMEOUT_MS = 15_000
+export const PENDING_NAVIGATION_TIMEOUT_MS = 15_000
 
 // A post opens fast enough (about 250 ms in production) that painting a
 // skeleton for it would only flash; only a slow open (for example a remote
@@ -73,21 +77,38 @@ export const PendingProfileNavigationProvider: FC<{ children: ReactNode }> = ({
     setPendingStatus(null)
   }
 
+  // Read through a ref so `openStatusPath` stays stable across navigations
+  // (memoized rows depend on it).
+  const pathnameRef = useRef(pathname)
+  useEffect(() => {
+    pathnameRef.current = pathname
+  }, [pathname])
+
   const openStatusPath = useCallback(
     (path: string) => {
-      if (path.split(/[?#]/)[0] !== pathname) {
-        setPendingStatus({ href: path, fromPathname: pathname })
+      const current = pathnameRef.current
+      if (path.split(/[?#]/)[0] !== current) {
+        setPendingStatus({ href: path, fromPathname: current })
       }
       router.push(path)
     },
-    [router, pathname]
+    [router]
   )
 
   useEffect(() => {
     // Capture phase: some profile links stop propagation of their click.
     const onClick = (event: MouseEvent) => {
       const href = getProfileNavigationTarget(event, window.location)
-      if (href) setPending({ href, fromPathname: pathname })
+      if (href) {
+        setPending({ href, fromPathname: pathname })
+        setPendingStatus(null)
+      } else if (isSameTabNavigationClick(event)) {
+        // Another same-tab link replaces whatever was pending. If it keeps
+        // the pathname, the render-phase clear would never fire and the
+        // skeleton would cover the page until the safety timeout.
+        setPending(null)
+        setPendingStatus(null)
+      }
     }
     // A plain `<a>` reloads the document; coming back to it from the
     // back/forward cache must not restore the skeleton.
@@ -95,17 +116,27 @@ export const PendingProfileNavigationProvider: FC<{ children: ReactNode }> = ({
       setPending(null)
       setPendingStatus(null)
     }
+    // Back/forward replaces the pending navigation too.
+    const onPopState = () => {
+      setPending(null)
+      setPendingStatus(null)
+    }
     window.addEventListener('click', onClick, true)
     window.addEventListener('pageshow', onPageShow)
+    window.addEventListener('popstate', onPopState)
     return () => {
       window.removeEventListener('click', onClick, true)
       window.removeEventListener('pageshow', onPageShow)
+      window.removeEventListener('popstate', onPopState)
     }
   }, [pathname])
 
   useEffect(() => {
     if (!pending) return
-    const timer = setTimeout(() => setPending(null), PENDING_PROFILE_TIMEOUT_MS)
+    const timer = setTimeout(
+      () => setPending(null),
+      PENDING_NAVIGATION_TIMEOUT_MS
+    )
     return () => clearTimeout(timer)
   }, [pending])
 
@@ -117,7 +148,7 @@ export const PendingProfileNavigationProvider: FC<{ children: ReactNode }> = ({
     )
     const clearTimer = setTimeout(
       () => setPendingStatus(null),
-      PENDING_PROFILE_TIMEOUT_MS
+      PENDING_NAVIGATION_TIMEOUT_MS
     )
     return () => {
       clearTimeout(showTimer)

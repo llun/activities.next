@@ -140,7 +140,7 @@ describe('[actor] page redirects and non-local handles', () => {
 
   // Pins the difference documented on getNonLocalActorRedirectTarget: unlike
   // followers/page.tsx and following/page.tsx (which redirect any visitor),
-  // [actor]/page.tsx only redirects a LOGGED-OUT visitor. A signed-in visitor
+  // [actor]/(profile)/page.tsx only redirects a LOGGED-OUT visitor. A signed-in visitor
   // to an unresolvable non-local actor still gets notFound, not a redirect
   // card, so they always get a chance to resolve the actor locally first.
   it('calls notFound instead of redirecting for a non-local actor when logged in', async () => {

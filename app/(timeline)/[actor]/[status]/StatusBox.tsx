@@ -11,6 +11,7 @@ import { LazyChunkBoundary } from '@/lib/components/posts/lazy-chunk-boundary'
 import { InlineStatusComposer } from '@/lib/components/posts/lazy-inline-status-composer'
 import { Post } from '@/lib/components/posts/post'
 import { useInlineComposer } from '@/lib/components/posts/useInlineComposer'
+import { useOpenStatusPath } from '@/lib/components/posts/useOpenStatusPath'
 import { SectionSkeleton } from '@/lib/components/surface/SectionSkeleton'
 import { SkeletonBar } from '@/lib/components/surface/Skeleton'
 import { ActorProfile } from '@/lib/types/domain/actor'
@@ -72,6 +73,7 @@ export const StatusBox: FC<Props> = ({
   fitnessFiles
 }) => {
   const router = useRouter()
+  const openStatusPath = useOpenStatusPath()
   const [modalMedias, setModalMedias] = useState<{
     medias: Attachment[]
     tags?: Tag[]
@@ -127,7 +129,7 @@ export const StatusBox: FC<Props> = ({
   const openStatus = (statusToOpen: Status) => {
     void (async () => {
       const detailPath = await getStatusDetailPathClient(statusToOpen)
-      if (detailPath) router.push(detailPath)
+      if (detailPath) openStatusPath(detailPath)
     })()
   }
 

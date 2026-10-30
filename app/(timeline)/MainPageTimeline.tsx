@@ -2,7 +2,6 @@
 
 import { Home } from 'lucide-react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import {
   FC,
   useCallback,
@@ -52,6 +51,7 @@ import {
 import { TimelineFeed } from '@/lib/components/posts/timeline-feed'
 import { getStatusReplyTargetId } from '@/lib/components/posts/timelineModel'
 import { useLoadMoreOnVisible } from '@/lib/components/posts/useLoadMoreOnVisible'
+import { useOpenStatusPath } from '@/lib/components/posts/useOpenStatusPath'
 import { RefreshButton } from '@/lib/components/refresh-button'
 import { scrollPageToTop } from '@/lib/components/scroll-to-top-button/scrollPageToTop'
 import { Alert } from '@/lib/components/surface/Alert'
@@ -196,7 +196,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   refreshOnMount = false,
   onUnauthorized
 }) => {
-  const router = useRouter()
+  const openStatusPath = useOpenStatusPath()
   // One announcements state for every copy the header renders (desktop box and
   // mobile bar), so there is one fetch, one timer and one open state.
   const announcements = useAnnouncements()
@@ -1530,7 +1530,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
           onViewReply={(statusToView) => {
             void (async () => {
               const detailPath = await getStatusDetailPathClient(statusToView)
-              if (detailPath) router.push(detailPath)
+              if (detailPath) openStatusPath(detailPath)
             })()
           }}
         />

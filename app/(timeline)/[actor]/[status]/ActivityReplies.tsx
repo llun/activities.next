@@ -13,6 +13,7 @@ import {
   buildThreadTree
 } from '@/lib/components/posts/threadModel'
 import type { InlineComposerControls } from '@/lib/components/posts/useInlineComposer'
+import { useOpenStatusPath } from '@/lib/components/posts/useOpenStatusPath'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
@@ -86,6 +87,7 @@ export const ActivityReplies: FC<ActivityRepliesProps> = ({
   onShowAttachment
 }) => {
   const router = useRouter()
+  const openStatusPath = useOpenStatusPath()
   const listId = useId()
   const [isExpanded, setIsExpanded] = useState(true)
   const [visibleCount, setVisibleCount] = useState(REPLIES_PAGE_SIZE)
@@ -219,7 +221,7 @@ export const ActivityReplies: FC<ActivityRepliesProps> = ({
   const openStatus = (statusToOpen: Status) => {
     void (async () => {
       const detailPath = await getStatusDetailPathClient(statusToOpen)
-      if (detailPath) router.push(detailPath)
+      if (detailPath) openStatusPath(detailPath)
     })()
   }
 

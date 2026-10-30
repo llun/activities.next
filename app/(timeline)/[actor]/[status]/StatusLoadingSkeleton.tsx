@@ -26,7 +26,10 @@ export const StatusLoadingSkeleton: FC = () => {
       {/* The loaded page's mobile bar (signed in only — the public shell
           provides no mobile navigation); its title ("Post" or "Activity") is
           not known until the status loads. */}
-      <MobileCompactHeader title={<SkeletonBar className="h-5 w-16" />} />
+      <MobileCompactHeader
+        as="p"
+        title={<SkeletonBar className="h-5 w-16" />}
+      />
       <div
         aria-busy="true"
         className={cn(
