@@ -2,7 +2,14 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 import type { AnchorHTMLAttributes, ReactNode } from 'react'
 
 import { cancelActorDeletion, switchActor } from '@/lib/client'
@@ -149,7 +156,7 @@ describe('ActorSwitcher', () => {
   })
 
   describe('with a single actor', () => {
-    it('renders a single button trigger that opens the menu with expected items and no switch profile list', async () => {
+    it('renders a single button trigger that opens the menu with expected items and only Add another profile in the Switch profile group', async () => {
       render(<ActorSwitcher currentActor={alice} actors={[alice]} />)
 
       expect(screen.queryByTestId('add-actor-dialog')).not.toBeInTheDocument()
@@ -173,24 +180,34 @@ describe('ActorSwitcher', () => {
       expect(menu).toHaveTextContent('Alice')
       expect(menu).toHaveTextContent('@alice@activities.local')
 
-      // 3. View profile
+      // 6. View profile
       const viewProfile = screen.getByRole('menuitem', {
         name: /View profile/
       })
       expect(viewProfile).toHaveAttribute('href', profileHref)
       expect(viewProfile).toHaveAttribute('data-prefetch', 'false')
 
-      // 4. Edit profile
+      // 7. Edit profile
       const editProfile = screen.getByRole('menuitem', {
         name: /Edit profile/
       })
       expect(editProfile).toHaveAttribute('href', '/settings/profile')
       expect(editProfile).toHaveAttribute('data-prefetch', 'false')
 
-      // 7. Add another profile
+      // 3-4. Add another profile is the only row of the Switch profile group,
+      // and comes before View profile
+      const addProfile = screen.getByRole('menuitem', {
+        name: /Add another profile/
+      })
       expect(
-        screen.getByRole('menuitem', { name: /Add another profile/ })
-      ).toBeInTheDocument()
+        within(
+          screen.getByRole('group', { name: 'Switch profile' })
+        ).getAllByRole('menuitem')
+      ).toEqual([addProfile])
+      expect(
+        addProfile.compareDocumentPosition(viewProfile) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
 
       // 9. Account & security
       const accountLink = screen.getByRole('menuitem', {
@@ -204,7 +221,7 @@ describe('ActorSwitcher', () => {
         screen.getByRole('menuitem', { name: /Sign out/ })
       ).toBeInTheDocument()
 
-      // NO switch profile list
+      // No other profiles to switch to, and no visible label
       expect(screen.queryByText('Switch profile')).not.toBeInTheDocument()
     })
 
@@ -238,7 +255,7 @@ describe('ActorSwitcher', () => {
       expect(screen.queryByRole('link')).not.toBeInTheDocument()
     })
 
-    it('shows Switch profile list with check on current actor and switches actor on selecting other', async () => {
+    it('lists only the other profiles, without the current one or a check, and switches on selecting one', async () => {
       vi.mocked(switchActor).mockResolvedValue(true)
       render(<ActorSwitcher currentActor={alice} actors={[alice, bob]} />)
 
@@ -248,16 +265,20 @@ describe('ActorSwitcher', () => {
       fireEvent.keyDown(trigger, { key: 'ArrowDown' })
       await screen.findByRole('menu')
 
-      expect(screen.getByText('Switch profile')).toBeInTheDocument()
-
-      const aliceItem = screen
-        .getAllByRole('menuitem')
-        .find(
-          (item) =>
-            item.textContent?.includes('Alice') &&
-            item.textContent?.includes('@alice@activities.local')
-        )
-      expect(aliceItem?.querySelector('.lucide-check')).toBeInTheDocument()
+      // The current profile is the header only: not a row, no check mark, and
+      // no visible group label.
+      expect(screen.queryByText('Switch profile')).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('menuitem', { name: /Alice/ })
+      ).not.toBeInTheDocument()
+      expect(
+        screen.getByRole('menu').querySelector('.lucide-check')
+      ).not.toBeInTheDocument()
+      expect(
+        screen.getByRole('menuitem', {
+          name: /Bob/
+        })
+      ).toBeInTheDocument()
 
       const bobItem = screen.getByText('Bob')
       fireEvent.click(bobItem)
@@ -416,26 +437,117 @@ describe('ActorSwitcher', () => {
       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     })
 
-    it('does not switch actor when clicking current actor', async () => {
-      render(<ActorSwitcher currentActor={alice} actors={[alice, bob]} />)
-
-      const trigger = screen.getByRole('button', {
-        name: 'Account menu for Alice'
-      })
-      fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+    it('puts the other profiles and Add another profile, in that order, before View profile', async () => {
+      render(
+        <ActorSwitcher
+          currentActor={alice}
+          actors={[alice, bob, deletingActor]}
+        />
+      )
+      fireEvent.keyDown(
+        screen.getByRole('button', { name: 'Account menu for Alice' }),
+        { key: 'ArrowDown' }
+      )
       await screen.findByRole('menu')
 
-      const aliceItem = screen
+      const names = screen
         .getAllByRole('menuitem')
-        .find(
-          (item) =>
-            item.textContent?.includes('Alice') &&
-            item.textContent?.includes('@alice@activities.local')
-        )
-      expect(aliceItem).toBeDefined()
-      fireEvent.click(aliceItem!)
+        .map((item) => item.textContent ?? '')
+      const indexOf = (text: string) =>
+        names.findIndex((name) => name.includes(text))
+      expect(indexOf('Bob')).toBeGreaterThanOrEqual(0)
+      expect(indexOf('Bob')).toBeLessThan(indexOf('Dave'))
+      expect(indexOf('Dave')).toBeLessThan(indexOf('Add another profile'))
+      expect(indexOf('Add another profile')).toBeLessThan(
+        indexOf('View profile')
+      )
+      expect(indexOf('View profile')).toBeLessThan(indexOf('Edit profile'))
+      expect(indexOf('Edit profile')).toBeLessThan(
+        indexOf('Account & security')
+      )
+      expect(indexOf('Account & security')).toBeLessThan(indexOf('Sign out'))
+    })
 
-      expect(switchActor).not.toHaveBeenCalled()
+    it('groups the other profiles and Add another profile under an accessible Switch profile label', async () => {
+      render(<ActorSwitcher currentActor={alice} actors={[alice, bob]} />)
+      fireEvent.keyDown(
+        screen.getByRole('button', { name: 'Account menu for Alice' }),
+        { key: 'ArrowDown' }
+      )
+      await screen.findByRole('menu')
+
+      const group = screen.getByRole('group', { name: 'Switch profile' })
+      const inGroup = within(group)
+        .getAllByRole('menuitem')
+        .map((item) => item.textContent ?? '')
+      expect(inGroup).toHaveLength(2)
+      expect(inGroup[0]).toContain('Bob')
+      expect(inGroup[1]).toContain('Add another profile')
+      expect(
+        within(group).queryByRole('menuitem', { name: /View profile/ })
+      ).not.toBeInTheDocument()
+    })
+
+    it('keeps the pending deletion notice and Cancel for a current profile scheduled for deletion', async () => {
+      vi.mocked(cancelActorDeletion).mockResolvedValue({
+        actorId: 'actor-3',
+        status: 'cancelled'
+      })
+
+      render(
+        <ActorSwitcher
+          currentActor={scheduledActor}
+          actors={[scheduledActor, bob]}
+        />
+      )
+
+      fireEvent.keyDown(
+        screen.getByRole('button', { name: 'Account menu for Charlie' }),
+        { key: 'ArrowDown' }
+      )
+      const menu = await screen.findByRole('menu')
+
+      expect(menu).toHaveTextContent('Pending deletion')
+      expect(screen.getByRole('menuitem', { name: /Bob/ })).toBeInTheDocument()
+      expect(menu).not.toHaveTextContent('@charlie@activities.local')
+      expect(
+        screen.queryByRole('menuitem', { name: /^Charlie/ })
+      ).not.toBeInTheDocument()
+      const first = within(
+        screen.getByRole('group', { name: 'Switch profile' })
+      ).getAllByRole('menuitem')[0]
+      expect(first).toHaveAccessibleName(/Cancel deletion/)
+      expect(first).toHaveAccessibleName(/Charlie/)
+
+      fireEvent.click(screen.getByRole('menuitem', { name: /Cancel deletion/ }))
+      expect(cancelActorDeletion).toHaveBeenCalledWith({ actorId: 'actor-3' })
+      await waitFor(() => {
+        expect(mockRefresh).toHaveBeenCalled()
+      })
+    })
+
+    it('shows Deleting and no Cancel for a current profile that is deleting', async () => {
+      render(
+        <ActorSwitcher
+          currentActor={deletingActor}
+          actors={[deletingActor, bob]}
+        />
+      )
+
+      fireEvent.keyDown(
+        screen.getByRole('button', { name: 'Account menu for Dave' }),
+        { key: 'ArrowDown' }
+      )
+      const menu = await screen.findByRole('menu')
+
+      expect(menu).toHaveTextContent('Deleting…')
+      expect(
+        screen.queryByRole('menuitem', { name: /Cancel deletion/ })
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('menuitem', { name: /^Dave/ })
+      ).not.toBeInTheDocument()
+      expect(screen.getByRole('menuitem', { name: /Bob/ })).toBeInTheDocument()
     })
 
     it('does not switch actor if actor is scheduled for deletion and instead cancels deletion', async () => {
