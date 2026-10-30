@@ -1,0 +1,55 @@
+app/api/v1/accounts/password/route.ts
+  s_0e05a88e27f4ad::t_d6a2a0dc3474ec 3,56,71
+lib/components/drafts/DraftsProvider.tsx
+  s_c012013951e612::t_7d319b2abc9e51 245-257,347,355,384,399-403,409,417,427,431,444,446,465,470,477,491-494,508-519
+CONTRIBUTING.md
+  s_c012013951e612::t_7ade121255e50c 685-689
+app/api/v1/accounts/password/reset/route.ts
+  s_c012013951e612::t_9d1fca64f2c34f 5,78
+app/api/v1/fitness-files/[id]/primary/route.test.ts
+  s_c012013951e612::t_90fe948185edca 44-68,98-99,350,369-370,376-378
+lib/components/drafts/DraftsProvider.test.tsx
+  s_c012013951e612::t_08015d78026f0f 5-12,23-24,26-27,75,302-335
+lib/components/sign-out/SignOutDialog.test.tsx
+  s_c012013951e612::t_533ea741a1fa7c 5-11,106-107,109,122
+lib/jobs/bulkImportJob.test.ts
+  s_c012013951e612::t_63070f0427ec48 759-760,762-764,766-774,829-831,833-846,853-857,859-875
+lib/services/accounts/migration/outgoingMove.ts
+  s_c012013951e612::t_91e8a3c90cf8b9 6,84
+lib/services/accounts/registerAccount.ts
+  s_c012013951e612::t_52f159d26a5722 7,116
+lib/services/auth/auth.ts
+  s_c012013951e612::t_f6b335f2cbd60d 9,208,210
+lib/services/auth/credentialIdentity.test.ts
+  s_c012013951e612::t_351c0b97a8ec8c 8-9,57-80,89
+lib/services/auth/passwordHash.test.ts
+  s_c012013951e612::t_12192937661cbb 1-25
+lib/services/auth/passwordHash.ts
+  s_c012013951e612::t_7eebde980f5969 1-13
+lib/stub/actor.ts
+  s_c012013951e612::t_abb0fa8ca73aa2 4,19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6a4790c5919ced14a8160dfc9abae9081fcc34a5",
+  "prompts": {},
+  "sessions": {
+    "s_0e05a88e27f4ad": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1d20bd18-8907-4249-b3c9-11700e3f21ba",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_c012013951e612": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1611d743-7cb6-4946-ab60-d80674e3256e",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
