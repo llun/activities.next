@@ -414,17 +414,96 @@ The app (`yarn migrate`) runs the migrations, but the test suite does **not** �
   Pass the DB settings **inline** on the `yarn migrate` line — do **not** write a `.env.local` (you'd clobber an existing one, and the cleanup would delete it). Because `yarn migrate` loads `.env*` files with `dotenv-flow`, which never overrides variables already in the environment, each inline value wins over the same variable in `.env.local` — but only that one: `.env.local` still supplies whatever the line leaves unset, and an `ACTIVITIES_DATABASE` JSON configuration wins over every individual `ACTIVITIES_DATABASE_*` variable. So start every line with an empty `ACTIVITIES_DATABASE=`, or a JSON configuration in `.env.local` would redirect `yarn migrate` to that database. For the same reason, run in a shell with **no** other `ACTIVITIES_DATABASE*` vars exported (a stray one would be merged in and could target a remote DB — check `env | grep ACTIVITIES_DATABASE`).
 
   **PostgreSQL (`migrations/schema.sql`):**
-  1. Start a **local** PostgreSQL 17 (e.g. a throwaway `postgres:17` Docker container, or the docker-compose stack) and wait until it accepts connections (`docker run -d` returns before `initdb` finishes; loop on `pg_isready`). Never point at a remote/shared/production DB.
-  2. Run migrations with the settings inline: `ACTIVITIES_DATABASE= ACTIVITIES_DATABASE_CLIENT=pg ACTIVITIES_DATABASE_PG_HOST=… ACTIVITIES_DATABASE_PG_PORT=… ACTIVITIES_DATABASE_PG_USER=… ACTIVITIES_DATABASE_PG_PASSWORD=… ACTIVITIES_DATABASE_PG_DATABASE=… yarn migrate`.
-  3. Dump schema only, without ownership/grants: `pg_dump --schema-only --no-owner --no-privileges` (run it against the PG 17 server so the dump matches that version).
+
+  1. Start a **local** PostgreSQL 17 — e.g. a throwaway `postgres:17` Docker container — and wait until it accepts connections (`docker run -d` returns before `initdb` finishes; loop on `pg_isready`). Never point at a remote/shared/production DB. To use the docker-compose stack's PostgreSQL instead (at `activities.local`; its port and credentials come from your local, gitignored `docker-compose.yml`), substitute its host/port/credentials in the step-2 environment variables, run `psql`/`pg_dump` via the compose service (e.g. `docker compose exec postgres …`) rather than `docker exec anext-schema-pg`, and skip the cleanup step.
+
+     ```bash
+     docker run -d --name anext-schema-pg \
+       -e POSTGRES_USER=activities \
+       -e POSTGRES_PASSWORD=activities \
+       -e POSTGRES_DB=activities \
+       -p 127.0.0.1:55432:5432 postgres:17
+
+     # Wait for readiness before continuing.
+     until docker exec anext-schema-pg pg_isready -U activities -q; do sleep 1; done
+     ```
+
+  2. Run migrations with the settings inline (the leading empty `ACTIVITIES_DATABASE=` neutralises a JSON configuration in `.env.local`):
+
+     ```bash
+     ACTIVITIES_DATABASE= \
+     ACTIVITIES_DATABASE_CLIENT=pg \
+     ACTIVITIES_DATABASE_PG_HOST=127.0.0.1 \
+     ACTIVITIES_DATABASE_PG_PORT=55432 \
+     ACTIVITIES_DATABASE_PG_USER=activities \
+     ACTIVITIES_DATABASE_PG_PASSWORD=activities \
+     ACTIVITIES_DATABASE_PG_DATABASE=activities \
+       yarn migrate
+     ```
+
+     Sanity check that every migration ran — the `kysely_migration` row count must equal the number of `migrations/[0-9]*_*.ts` files:
+
+     ```bash
+     docker exec anext-schema-pg \
+       psql -U activities -d activities -tAc 'SELECT count(*) FROM kysely_migration;'
+     ls migrations/[0-9]*_*.ts | wc -l
+     ```
+
+  3. Dump schema only, without ownership/grants, from the PG 17 server so the dump matches that version:
+
+     ```bash
+     docker exec anext-schema-pg \
+       pg_dump -U activities -d activities --schema-only --no-owner --no-privileges \
+       > /tmp/schema_raw.sql
+     ```
+
   4. Strip pg_dump's noise to match the existing pure-DDL file: the `\restrict`/`\unrestrict` session token (non-deterministic — never commit it), the `-- …` comment headers, and the `SET default_tablespace` / `SET default_table_access_method` lines. Keep the leading `SET`/`SELECT pg_catalog.set_config(...)` block and all `CREATE`/`ALTER` DDL.
 
-  **SQLite (`migrations/schema.sqlite.sql`):**
-  1. Run migrations against a throwaway file DB with the settings inline: `ACTIVITIES_DATABASE= ACTIVITIES_DATABASE_CLIENT=better-sqlite3 ACTIVITIES_DATABASE_SQLITE_FILENAME=./schema-dump.sqlite3 yarn migrate`.
-  2. Dump the schema with `sqlite3 ./schema-dump.sqlite3 .schema`.
-  3. Strip SQLite's auto-managed internal tables, which it recreates on its own and which must NOT be in the file: the `CREATE TABLE sqlite_sequence(...)` line, and the FTS5 shadow tables (`CREATE TABLE IF NOT EXISTS '<name>_fts_(data|idx|docsize|config|content)'`). Keep the `CREATE VIRTUAL TABLE … USING fts5(…)` statement and its triggers — those are real. A quick sanity check: `sqlite3 /tmp/x.sqlite3 < migrations/schema.sqlite.sql` should load cleanly.
+     ```bash
+     awk '
+       /^SET statement_timeout/ { started = 1 }
+       !started { next }
+       /^--/ { next }
+       /^\\(un)?restrict/ { next }
+       /^SET default_tablespace/ { next }
+       /^SET default_table_access_method/ { next }
+       { print }
+     ' /tmp/schema_raw.sql | cat -s > migrations/schema.sql
+     ```
 
-  Then remove the throwaway container / `.sqlite3` file; only the two schema files and `lib/database/kysely/db.ts` should change.
+  5. Clean up the throwaway container: `docker rm -f anext-schema-pg`.
+
+  **SQLite (`migrations/schema.sqlite.sql`):**
+
+  1. Run migrations against a throwaway file DB with the settings inline, then sanity check that every migration ran — the `kysely_migration` row count must equal the number of `migrations/[0-9]*_*.ts` files:
+
+     ```bash
+     ACTIVITIES_DATABASE= \
+     ACTIVITIES_DATABASE_CLIENT=better-sqlite3 \
+     ACTIVITIES_DATABASE_SQLITE_FILENAME=./schema-dump.sqlite3 \
+       yarn migrate
+     sqlite3 schema-dump.sqlite3 'SELECT count(*) FROM kysely_migration;'  # == ls migrations/[0-9]*_*.ts | wc -l
+     ```
+
+  2. Dump the schema and strip SQLite's auto-managed internal tables, which it recreates on its own and which must NOT be in the file: the `CREATE TABLE sqlite_sequence(...)` line, and the FTS5 shadow tables (`CREATE TABLE IF NOT EXISTS '<name>_fts_(data|idx|docsize|config|content)'`). Keep the `CREATE VIRTUAL TABLE … USING fts5(…)` statement and its triggers — those are real.
+
+     ```bash
+     sqlite3 schema-dump.sqlite3 '.schema' \
+       | grep -vE "^CREATE TABLE sqlite_sequence" \
+       | grep -vE "^CREATE TABLE IF NOT EXISTS '[A-Za-z_]+_fts_(data|idx|docsize|config|content)'" \
+       > migrations/schema.sqlite.sql
+     ```
+
+  3. Sanity-check that the result loads cleanly into a fresh database:
+
+     ```bash
+     rm -f /tmp/roundtrip.sqlite3
+     sqlite3 /tmp/roundtrip.sqlite3 < migrations/schema.sqlite.sql && echo OK
+     ```
+
+  4. Clean up the throwaway files: `rm -f schema-dump.sqlite3 /tmp/roundtrip.sqlite3`.
+
+  After both dumps, only `migrations/schema.sql` and `migrations/schema.sqlite.sql` should be left changed (plus `lib/database/kysely/db.ts` once you regenerate the Kysely DB types).
 
 - A Postgres regeneration is a full re-dump, so its diff can be large even for unchanged tables (formatting differs from older dumps). That is expected — do not try to reproduce the old line-by-line formatting by hand. Commit the schema regeneration as `none:` when it is the only change (they are reference artifacts and ship nothing).
 - **Use only a local database for local dev/tests:** SQLite on `localhost`, or the docker-compose PostgreSQL at `activities.local`. Never connect local dev, tests, or user creation to a remote/shared/production database.

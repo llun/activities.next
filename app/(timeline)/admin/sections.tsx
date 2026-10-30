@@ -1,10 +1,12 @@
 import { ADMIN_ICONS } from '@/lib/components/admin/adminIcons'
 import type { SectionNavGroup } from '@/lib/components/section-nav'
 
-// Grouped like Settings and Account: moderation and community tools first,
-// then the server's own configuration, then maintenance.
+// Grouped like Settings and Account: Overview (Dashboard) first, then
+// moderation and community tools, then the server's own configuration, then
+// maintenance.
 export const adminGroups = (openReports = 0): SectionNavGroup[] => [
   {
+    heading: 'Overview',
     items: [
       {
         name: 'Dashboard',

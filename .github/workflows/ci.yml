@@ -442,12 +442,11 @@ jobs:
             --only full \
             --full-image activities:test-full
 
-  # Aggregate gate: this is the single check to mark required in branch
-  # protection. It always runs (`if: always()`) and fails unless every upstream
-  # job succeeded, so a failure in any one of the parallel jobs fails the overall
-  # required check. It also covers the case where an upstream job is skipped or
-  # cancelled — GitHub treats a skipped required check as passing, so requiring
-  # the individual jobs directly would not reliably block a failure.
+  # Overall aggregate of every job in the workflow (`if: always()`, failing
+  # unless every upstream job succeeded). It is NOT required by the merge
+  # ruleset — the ruleset requires All Tests, Lint and Prettier, and Build.
+  # It also covers the case where an upstream job is skipped or cancelled,
+  # so nothing can merge green while a job was silently skipped.
   ci-success:
     name: CI Success
     runs-on: ubuntu-latest

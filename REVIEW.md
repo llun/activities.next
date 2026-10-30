@@ -82,7 +82,7 @@ Review the diff against the linked canonical rule source. Check every applicable
 
 - [ ] **Commits & versioning** — Use a feature-branch PR and conventional title; never edit package version manually. [Detailed checks](CONTRIBUTING.md#review-commits-versioning).
 
-- [ ] **CI checklist** — Require all four protected checks, including CI Success and its complete upstream dependency set. [Detailed checks](CONTRIBUTING.md#review-ci-checklist).
+- [ ] **CI checklist** — Require the three ruleset checks (All Tests, Lint and Prettier, Build); CI Success is the fail-closed aggregate of every job. [Detailed checks](CONTRIBUTING.md#review-ci-checklist).
 
 ### Required final checks
 

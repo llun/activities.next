@@ -96,7 +96,7 @@ export type ImportEntry = {
   kind: 'runtime' | 'side-effect'
 }
 
-// The imported name of a specifiers: what the module asks the source module
+// The imported name of a specifier: what the module asks the source module
 // for (`a` in `import { a as b }`, `default` for a default import, `*` for a
 // namespace).
 const importedName = (specifier: {

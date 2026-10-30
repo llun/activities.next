@@ -79,7 +79,7 @@ describe('Admin Layout', () => {
     await renderAt('/admin/reports')
 
     const menu = await openMenu()
-    // The headless first run holds Dashboard; the four headed groups follow.
+    // The five headed groups, Overview first.
     expect(
       within(menu)
         .getAllByRole('group')
@@ -88,7 +88,7 @@ describe('Admin Layout', () => {
             document.getElementById(group.getAttribute('aria-labelledby')!)
               ?.textContent
         )
-    ).toEqual(['Moderation', 'Community', 'Server', 'Maintenance'])
+    ).toEqual(['Overview', 'Moderation', 'Community', 'Server', 'Maintenance'])
 
     // The name span alone, so the badge's screen reader text does not pollute
     // Reports.
@@ -155,47 +155,22 @@ describe('Admin Layout', () => {
       screen.queryByRole('navigation', { name: 'Admin' })
     ).not.toBeInTheDocument()
 
-    for (const heading of [
+    const headings = screen
+      .getAllByRole('heading', { level: 2 })
+      .map((h) => h.textContent)
+    expect(headings).toEqual([
+      'Overview',
       'Moderation',
       'Community',
       'Server',
       'Maintenance'
-    ]) {
-      expect(
-        screen.getByRole('heading', { level: 2, name: heading })
-      ).toBeInTheDocument()
-    }
-    // The headless Dashboard group lists its item without a heading.
-    expect(screen.getByRole('link', { name: /Dashboard/ })).toHaveAttribute(
-      'href',
-      '/admin/overview'
-    )
-  })
-
-  it('splits the grouped index: Dashboard, Moderation and Community left; Server and Maintenance right', async () => {
-    await renderAt('/admin')
-
-    const grid = screen
-      .getByRole('heading', { level: 2, name: 'Moderation' })
-      .closest('.grid')!
-    const columns = Array.from(grid.children).map((column) =>
-      Array.from(column.querySelectorAll('h2')).map((h) => h.textContent)
-    )
-    expect(columns).toEqual([
-      ['Moderation', 'Community'],
-      ['Server', 'Maintenance']
     ])
-    // The headless Dashboard run leads the left column without a heading.
     expect(
-      within(grid.children[0] as HTMLElement).getByRole('link', {
-        name: /Dashboard/
-      })
+      within(screen.getByRole('region', { name: 'Overview' })).getByRole(
+        'link',
+        { name: /Dashboard/ }
+      )
     ).toHaveAttribute('href', '/admin/overview')
-    expect(
-      within(grid.children[1] as HTMLElement).queryByRole('link', {
-        name: /Dashboard/
-      })
-    ).toBeNull()
   })
 
   it('renders the Admin link and no Back row on item and detail pages', async () => {
