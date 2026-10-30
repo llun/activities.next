@@ -1,12 +1,14 @@
 # PostgreSQL Setup Guide
 
-This guide will help you set up Activity.next using PostgreSQL as your database backend. PostgreSQL is recommended for production deployments and instances with higher traffic.
+This guide covers the PostgreSQL-specific setup: creating the database and user, connection configuration, and deployment. PostgreSQL is recommended for production deployments and instances with higher traffic.
+
+For the shared local development setup (cloning the repository, Corepack/Yarn install, the core `.env.local` settings, sign-in and allow-list notes), see the [Quickstart](quickstart.md). Every database variable is documented in the [Environment Variables Guide](environment-variables.md#database).
 
 ## Prerequisites
 
-- Node.js 24 and Yarn 4 via Corepack (the exact version is pinned by the `packageManager` field in `package.json`)
-- Git (to clone the repository)
 - PostgreSQL server (version 14+; CI loads the baseline schema on PostgreSQL 14)
+
+> **Note:** `yarn install` at the repository root installs all workspaces by default (including `@activities/pg`), so PostgreSQL support is available immediately for development. You can also focus specifically on the core app and PostgreSQL workspace with `yarn workspaces focus activities.next @activities/pg`.
 
 ## PostgreSQL Database Setup
 
@@ -38,7 +40,7 @@ ACTIVITIES_DATABASE_PG_PASSWORD=your_strong_password
 ACTIVITIES_DATABASE_PG_DATABASE=activitynext
 ```
 
-Alternatively, both `yarn migrate` and the app runtime accept the whole configuration as a JSON string in `ACTIVITIES_DATABASE`. The app reads only `client`, `connection`, `pool.min`/`pool.max` and `acquireConnectionTimeout` from it and logs a warning naming any other key it ignores (see [Environment Variables](environment-variables.md#full-json-configuration)):
+Alternatively, both `yarn migrate` and the app runtime accept the whole configuration as a JSON string in `ACTIVITIES_DATABASE` (see [Environment Variables](environment-variables.md#full-json-configuration)):
 
 ```json
 {
@@ -52,7 +54,7 @@ Alternatively, both `yarn migrate` and the app runtime accept the whole configur
 }
 ```
 
-> **Note:** When `ACTIVITIES_DATABASE` is set it takes precedence over the individual `ACTIVITIES_DATABASE_*` variables, for `yarn migrate` as well as the app, and a value that is not a JSON object makes `yarn migrate` fail rather than fall back to a local SQLite file.
+> **Note:** An `ACTIVITIES_DATABASE` value that is not a JSON object makes `yarn migrate` fail rather than fall back to a local SQLite file.
 
 3. Run database migrations to set up the schema:
 
@@ -61,44 +63,6 @@ yarn migrate
 ```
 
 On an empty database the first migration loads the baseline schema (`migrations/baseline/postgres.sql`), then every later migration in the [migrations directory](https://github.com/llun/activities.next/tree/main/migrations) runs. `yarn migrate` prints the database it resolved before it does anything, and `yarn migrate:status` lists the applied and pending migrations without writing to the database. An existing database that ran the old Knex migrations needs one check first: see [Upgrading past the Knex handover](maintenance.md#upgrading-past-the-knex-handover).
-
-## Development Setup
-
-1. Clone the repository:
-
-```bash
-git clone https://github.com/llun/activities.next.git
-cd activities.next
-```
-
-2. Enable Corepack and install dependencies:
-
-```bash
-corepack enable
-yarn install
-```
-
-> **Note:** `yarn install` at the repository root installs all workspaces by default (including `@activities/pg`), so PostgreSQL support is available immediately for development. You can also focus specifically on the core app and PostgreSQL workspace with `yarn workspaces focus activities.next @activities/pg`.
-
-3. Configure the environment (in addition to database settings above):
-
-```bash
-ACTIVITIES_HOST=your-domain.tld
-ACTIVITIES_SECRET_PHASE=your-random-secret-for-sessions
-ACTIVITIES_ALLOW_EMAILS='["your-email@example.com"]'
-ACTIVITIES_DATABASE_CLIENT=pg
-ACTIVITIES_DATABASE_PG_HOST=localhost
-ACTIVITIES_DATABASE_PG_USER=activitynext
-ACTIVITIES_DATABASE_PG_PASSWORD=your_strong_password
-ACTIVITIES_DATABASE_PG_DATABASE=activitynext
-```
-
-4. Run migrations and start the development server:
-
-```bash
-yarn migrate
-yarn dev
-```
 
 ## Production Deployment with PostgreSQL
 

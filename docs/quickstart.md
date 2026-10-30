@@ -80,18 +80,25 @@ that is in `ACTIVITIES_ALLOW_EMAILS` (or any email if you left it unset).
 
 That's it — you now have a running instance.
 
+## Optional: federation from localhost
+
+To talk to other federated servers from your local instance, expose it through a
+tunnel service ([Cloudflare Tunnel](https://www.cloudflare.com/products/tunnel/)
+or [ngrok](https://ngrok.com/)), point the tunnel at localhost:3000, and use the
+tunnel's domain as `ACTIVITIES_HOST`.
+
 ## What's intentionally left out
 
 To keep this minimal, the steps above skip everything optional. Each is disabled
 or runs in a degraded-but-fine mode until you configure it:
 
-| Feature            | Default without config        | Where to enable                                                             |
-| ------------------ | ----------------------------- | --------------------------------------------------------------------------- |
-| Media uploads      | Disabled                      | [Setup Guide → Media Storage](setup.md#media-storage-optional)              |
-| Email verification | Disabled                      | [Setup Guide → Email](setup.md#email-configuration-optional)                |
-| Background jobs    | Run synchronously             | [Setup Guide → Queue](setup.md#queue-configuration-optional)                |
-| Push notifications | Disabled                      | [Setup Guide → Push Notifications](setup.md#push-notifications-optional)    |
-| Federation         | Needs a public domain + HTTPS | [Setup Guide → Starting the Application](setup.md#starting-the-application) |
+| Feature            | Default without config        | Where to enable                                                                                                                             |
+| ------------------ | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Media uploads      | Disabled                      | [Setup Guide → Media Storage](setup.md#media-storage-optional)                                                                              |
+| Email verification | Disabled                      | [Setup Guide → Email](setup.md#email-configuration-optional)                                                                                |
+| Background jobs    | Run synchronously             | [Setup Guide → Queue](setup.md#queue-configuration-optional)                                                                                |
+| Push notifications | Disabled                      | [Setup Guide → Push Notifications](setup.md#push-notifications-optional)                                                                    |
+| Federation         | Needs a public domain + HTTPS | [Setup Guide → Starting the Application](setup.md#starting-the-application) (local testing: [tunnels](#optional-federation-from-localhost)) |
 
 ## Next steps
 

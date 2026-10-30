@@ -85,7 +85,18 @@ For a more detailed architecture overview, see [docs/architecture.md](docs/archi
    # Edit .env.local with your configuration
    ```
 
-   At minimum, set `ACTIVITIES_HOST`, `ACTIVITIES_SECRET_PHASE`, and a database configuration (e.g., `ACTIVITIES_DATABASE_CLIENT=better-sqlite3`).
+   A minimal local `.env.local` looks like:
+
+   ```bash
+   ACTIVITIES_HOST=localhost:3000
+   ACTIVITIES_SECRET_PHASE=local-dev-secret-phrase-change-me
+   ACTIVITIES_INSECURE_AUTH=true
+   ACTIVITIES_ALLOW_EMAILS='["you@example.com"]'
+   ACTIVITIES_DATABASE_CLIENT=better-sqlite3
+   ACTIVITIES_DATABASE_SQLITE_FILENAME=./dev.sqlite3
+   ```
+
+   `ACTIVITIES_INSECURE_AUTH=true` allows sign-in over plain `http` for local development only — never set it in production. See the [Quickstart Guide](docs/quickstart.md) for details.
 
 5. **Run database migrations:**
 
@@ -99,7 +110,7 @@ For a more detailed architecture overview, see [docs/architecture.md](docs/archi
    yarn dev
    ```
 
-7. **Sign up** at `http://localhost:3000/auth/signup` (your email must be in the allow list, `ACTIVITIES_ALLOW_EMAILS`, e.g. `ACTIVITIES_ALLOW_EMAILS='["you@example.com"]'`).
+7. **Sign up** at `http://localhost:3000/auth/signup` (if you set `ACTIVITIES_ALLOW_EMAILS`, your email must be in it, e.g. `ACTIVITIES_ALLOW_EMAILS='["you@example.com"]'`; any email works if you left it unset).
 
 For detailed setup instructions, see the [Setup Guide](docs/setup.md).
 
