@@ -1,0 +1,27 @@
+lib/services/medias/videoPreview.test.ts
+  s_0caa234e761ef6::t_604a316021dc50 21
+app/api/v1/account/imports/[id]/start/route.test.ts
+  s_0caa234e761ef6::t_d544debcc9083e 5,144
+app/api/v1/admin/domain_blocks/[id]/route.test.ts
+  s_0caa234e761ef6::t_0fdbad86ef3447 3
+lib/components/ui/button.test.tsx
+  s_0caa234e761ef6::t_74c01ad6cdf24e 8
+lib/utils/text/cleanClassName.test.ts
+  s_0caa234e761ef6::t_3d9cb77bde6249 4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "78fd9335e95dd25437883de2353d52bc411db479",
+  "prompts": {},
+  "sessions": {
+    "s_0caa234e761ef6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b79d5feb-bfae-447f-afad-19355f5d00c6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
