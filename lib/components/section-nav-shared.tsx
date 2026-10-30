@@ -26,6 +26,8 @@ export interface SectionNavItem {
   badge?: number
   /** The count's accessible description (for example, "unresolved reports"). */
   badgeLabel?: string
+  /** Destructive action: icon and name in the destructive colour. */
+  danger?: boolean
 }
 
 export interface SectionNavGroup {

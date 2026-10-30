@@ -3,7 +3,7 @@
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { FC, useId } from 'react'
+import { FC, useEffect, useId, useRef } from 'react'
 
 import {
   SECTION_NAV_ICON_CLASS,
@@ -115,45 +115,50 @@ const revealRow = (menu: HTMLElement, row: HTMLElement) => {
 // `DropdownMenu.Content` keeps `onOpenAutoFocus` off its public types (only
 // the menu internals declare it) but passes every prop through to the menu's
 // `FocusScope`, which is where the event comes from. It is therefore spread
-// from a variable rather than written as a prop, and the component test
+// onto the content rather than written as a prop, and the component test
 // "opens on the current page" fails if a Radix update stops honouring it.
-const focusCurrentRowOnOpen = {
-  onOpenAutoFocus: (event: Event) => {
-    const menu = event.currentTarget as HTMLElement | null
-    const current = menu?.querySelector<HTMLElement>('[aria-current="page"]')
-    if (!menu || !current) return
-    event.preventDefault()
-    current.focus({ preventScroll: true })
-    revealRow(menu, current)
+//
+// Returns the `stop` cleanup for the caller to run when the menu closes or
+// the component unmounts, or undefined when there is no current row.
+const revealCurrentRow = (event: Event): (() => void) | undefined => {
+  const menu = event.currentTarget as HTMLElement | null
+  const current = menu?.querySelector<HTMLElement>('[aria-current="page"]')
+  if (!menu || !current) return undefined
+  event.preventDefault()
+  current.focus({ preventScroll: true })
+  revealRow(menu, current)
 
-    const menuEl = menu
-    const currentEl = current
-    // The late reveals only help while the user has not moved: once focus has
-    // left the current row, or they press a key, wheel or press inside the
-    // menu, they are steering and the menu must not be pulled back.
-    const observer =
-      typeof ResizeObserver === 'undefined'
-        ? null
-        : new ResizeObserver(() => reveal())
-    let timer: number | undefined
-    const stop = () => {
-      observer?.disconnect()
-      window.clearTimeout(timer)
-      for (const type of STEERING_EVENTS)
-        menu.removeEventListener(type, stop, LISTENER_OPTIONS[type])
-    }
-    function reveal() {
-      if (document.activeElement !== currentEl) return stop()
-      revealRow(menuEl, currentEl)
-    }
+  const menuEl = menu
+  const currentEl = current
+  // The late reveals only help while the user has not moved: once focus has
+  // left the current row, or they press a key, wheel or press inside the
+  // menu, they are steering and the menu must not be pulled back.
+  const observer =
+    typeof ResizeObserver === 'undefined'
+      ? null
+      : new ResizeObserver(() => reveal())
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const stop = () => {
+    observer?.disconnect()
+    clearTimeout(timer)
     for (const type of STEERING_EVENTS)
-      menu.addEventListener(type, stop, LISTENER_OPTIONS[type])
-    observer?.observe(menu)
-    timer = window.setTimeout(() => {
-      reveal()
-      stop()
-    }, 300)
+      menu.removeEventListener(type, stop, LISTENER_OPTIONS[type])
   }
+  function reveal() {
+    // A timer or observer that fires after the menu (or, in tests, the whole
+    // document) has gone away must be a no-op, not a crash.
+    if (!menuEl.isConnected) return stop()
+    if (menuEl.ownerDocument.activeElement !== currentEl) return stop()
+    revealRow(menuEl, currentEl)
+  }
+  for (const type of STEERING_EVENTS)
+    menu.addEventListener(type, stop, LISTENER_OPTIONS[type])
+  observer?.observe(menu)
+  timer = setTimeout(() => {
+    reveal()
+    stop()
+  }, 300)
+  return stop
 }
 
 /**
@@ -175,6 +180,27 @@ export const SectionNavDropdown: FC<SectionNavDropdownProps> = ({
 }) => {
   const pathname = usePathname()
   const id = useId()
+  // The 300ms re-reveal in `revealCurrentRow` outlives the open animation;
+  // its `stop` (disconnect the ResizeObserver, remove the steering listeners,
+  // clear the timer) is stored here by the `onOpenAutoFocus` handler below
+  // and run by `clearReveal` when the menu closes or the component unmounts.
+  // Calling it twice is safe. The extra `clearReveal()` at the start of
+  // `onOpenAutoFocus` covers that handler firing twice without a close in
+  // between (React StrictMode), so an earlier reveal never leaks.
+  const stopReveal = useRef<(() => void) | undefined>(undefined)
+  const clearReveal = () => {
+    stopReveal.current?.()
+    stopReveal.current = undefined
+  }
+  useEffect(() => clearReveal, [])
+  // Built as an object and spread because `onOpenAutoFocus` is not on the
+  // content's public types (see the comment above `revealCurrentRow`).
+  const focusCurrentRowOnOpen = {
+    onOpenAutoFocus: (event: Event) => {
+      clearReveal()
+      stopReveal.current = revealCurrentRow(event)
+    }
+  }
   const items = groups.flatMap((group) => group.items)
   if (items.length === 0) return null
 
@@ -193,6 +219,9 @@ export const SectionNavDropdown: FC<SectionNavDropdownProps> = ({
 
   const row = (item: SectionNavItem) => {
     const isActive = item === activeItem
+    // A danger page that is the current one must match the trigger (icon
+    // `text-primary`, name in the row's current colour); `text-destructive`
+    // marks only a danger row that is not current.
     return (
       <DropdownMenuItem
         key={item.url}
@@ -207,12 +236,23 @@ export const SectionNavDropdown: FC<SectionNavDropdownProps> = ({
           <span
             className={cn(
               SECTION_NAV_ICON_CLASS,
-              isActive ? 'text-primary' : 'text-popover-foreground'
+              isActive
+                ? 'text-primary'
+                : item.danger
+                  ? 'text-destructive'
+                  : 'text-popover-foreground'
             )}
           >
             {item.icon}
           </span>
-          <span className="min-w-0 flex-1 truncate">{item.name}</span>
+          <span
+            className={cn(
+              'min-w-0 flex-1 truncate',
+              item.danger && !isActive && 'text-destructive'
+            )}
+          >
+            {item.name}
+          </span>
           {/* The count beside the row, with its sr-only label. */}
           <SectionNavItemBadge count={item.badge} label={item.badgeLabel} />
         </Link>
@@ -276,7 +316,11 @@ export const SectionNavDropdown: FC<SectionNavDropdownProps> = ({
   )
 
   const menu = (
-    <DropdownMenu>
+    <DropdownMenu
+      onOpenChange={(open) => {
+        if (!open) clearReveal()
+      }}
+    >
       {trigger}
       {/* Rounder and lifted higher off the page than the shared menu default
           (rounded-xl / shadow-lg, not rounded-md / shadow-md). The width class
@@ -292,9 +336,10 @@ export const SectionNavDropdown: FC<SectionNavDropdownProps> = ({
         {...focusCurrentRowOnOpen}
       >
         {before.map((group, index) => block(group, index, index > 0))}
-        {/* The cross-link, then the after-footer pages, as plain rows behind
-            a separator. The footer's url is not an active-page candidate: it
-            points at another section. */}
+        {/* The cross-link behind its separator, then the after-footer groups:
+            a headed group (Settings' "This profile") or, when the group is
+            headless, a plain run. The footer's url is not an active-page
+            candidate: it points at another section. */}
         {footer && (
           <>
             <DropdownMenuSeparator />

@@ -35,7 +35,10 @@ import {
   setDraftsIndexedDBFactory
 } from '@/lib/client/drafts'
 import { ApiRequestError } from '@/lib/client/http'
-import { DraftsProvider } from '@/lib/components/drafts/DraftsProvider'
+import {
+  DraftsProvider,
+  useDrafts
+} from '@/lib/components/drafts/DraftsProvider'
 import { createDeferred } from '@/lib/testing/deferred'
 import { installFakeBroadcastChannel } from '@/lib/testing/fakeBroadcastChannel'
 import { findSendAlert, sendAlerts } from '@/lib/testing/sendAlerts'
@@ -100,6 +103,7 @@ type Props = Partial<React.ComponentProps<typeof PostBox>>
 
 const composer = (props: Props = {}) => (
   <DraftsProvider accountId={ACCOUNT_ID} actorId={profile.id}>
+    <EpochReady />
     <PostBox
       host="activities.local"
       profile={profile}
@@ -112,6 +116,15 @@ const composer = (props: Props = {}) => (
     />
   </DraftsProvider>
 )
+
+// The provider reads the account epoch after mount, and until it has, every
+// save is refused ("Drafts are not ready yet"). A test that unmounts straight
+// after editing loses that save under load, so each tree carries this marker
+// and the test waits for it instead of a fixed sleep.
+const EpochReady = () =>
+  useDrafts()?.epoch != null ? <span data-testid="drafts-ready" /> : null
+
+const waitForEpoch = () => screen.findByTestId('drafts-ready')
 
 const textarea = () =>
   screen.getByPlaceholderText('What is on your mind?') as HTMLTextAreaElement
@@ -720,7 +733,7 @@ describe('PostBox on-device drafts', () => {
     it('does not delete the media of a draft that is saved while the composer unmounts', async () => {
       const { unmount } = render(composer())
       // The provider resolves its epoch first: bytes are not written before.
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      await waitForEpoch()
       attach('a.png')
       await screen.findByRole('button', { name: 'Remove media a.png' })
 

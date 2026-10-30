@@ -11,8 +11,7 @@ interface Props {
   children: ReactNode
 }
 
-// Grouped like Settings and Account; the index splits after Community, so
-// Dashboard, Moderation and Community fill its left column.
+// Grouped like Settings and Account.
 const Layout: FC<Props> = async ({ children }) => {
   const database = getDatabase()
   const admin = database
@@ -30,7 +29,6 @@ const Layout: FC<Props> = async ({ children }) => {
       description="Moderate accounts, reports, and server settings"
       indexUrl="/admin"
       groups={groups}
-      splitAt={3}
     >
       {children}
     </SectionLayout>
