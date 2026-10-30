@@ -31,6 +31,12 @@ export interface BuildThreadTreeParams {
   hasMoreDescendants?: boolean
   priorityStatusIds?: Set<string>
   focusedGroupStatuses?: readonly Status[]
+  /**
+   * Maps an id that is not a tree row to the ancestor row id its replies
+   * belong under — e.g. the later parts of an ancestor self-thread run fold
+   * into the run's first row, so a reply to them nests under that row.
+   */
+  ancestorIdAliases?: Map<string, string>
 }
 
 export const THREAD_COLLAPSE_THRESHOLD = 10
@@ -79,7 +85,8 @@ export function buildThreadTree({
   hasMoreAncestors = false,
   hasMoreDescendants = false,
   priorityStatusIds,
-  focusedGroupStatuses
+  focusedGroupStatuses,
+  ancestorIdAliases
 }: BuildThreadTreeParams): ThreadTree {
   const focusedAuthorId = getStatusAuthorId(focusedStatus)
   const focusedUrl = getStatusUrl(focusedStatus)
@@ -146,7 +153,12 @@ export function buildThreadTree({
   }
 
   for (const item of descendants) {
-    const replyTarget = getStatusReplyTargetId(item)
+    const rawReplyTarget = getStatusReplyTargetId(item)
+    // A folded ancestor id (e.g. a later part of an ancestor run) counts as
+    // its alias target row, so replies to it nest under that row.
+    const replyTarget = rawReplyTarget
+      ? (ancestorIdAliases?.get(rawReplyTarget) ?? rawReplyTarget)
+      : null
 
     if (!replyTarget || focusedIds.has(replyTarget)) {
       // Direct reply to the focused post

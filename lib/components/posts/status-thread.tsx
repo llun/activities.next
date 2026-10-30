@@ -14,6 +14,11 @@ import {
 
 import { getAlbumsOwnerId } from '@/lib/components/gallery/mediaAlbumsUi'
 import { OwnPostMediasModal } from '@/lib/components/medias-modal/own-post-medias-modal'
+import {
+  getActorDisplayName,
+  getActorIdMention
+} from '@/lib/components/posts/actor'
+import { OPENED_ROW_TINT } from '@/lib/components/posts/combined-post-list-item'
 import { CombinedPart } from '@/lib/components/posts/combinedThreadModel'
 import { InlineStatusComposer } from '@/lib/components/posts/lazy-inline-status-composer'
 import { Post } from '@/lib/components/posts/post'
@@ -28,7 +33,8 @@ import { ThreadReplyNode } from '@/lib/components/posts/thread-reply-node'
 import {
   ThreadNode,
   buildThreadTree,
-  getStatusReplyTargetId
+  getStatusReplyTargetId,
+  getStatusUrl
 } from '@/lib/components/posts/threadModel'
 import { useInlineComposer } from '@/lib/components/posts/useInlineComposer'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
@@ -42,6 +48,7 @@ import {
 import { Tag } from '@/lib/types/domain/tag'
 import { cn } from '@/lib/utils'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
+import { getActualStatus } from '@/lib/utils/text/processStatusText'
 
 export interface StatusThreadProps {
   host: string
@@ -62,6 +69,61 @@ export interface StatusThreadProps {
 }
 
 const EMPTY_STATUS_LIST: Status[] = []
+
+const REPLYING_TO_LINK_CLASS_NAME =
+  'rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50'
+
+interface ReplyingToLineProps {
+  /** The author of the part being answered, or the handle of its actor id. */
+  name: string
+  /** The part's row on this page: run parts and plain ancestor rows share it. */
+  statusId: string
+  partIndex: number | null
+  partCount: number | null
+  /** Extra classes for the wrapping line, e.g. the full row's avatar offset. */
+  className?: string
+}
+
+/**
+ * The muted line naming the ancestor-run part the focused block answers,
+ * rendered above the opened post's header or above the focused run's first
+ * header. With reliable part numbers the "i of n" label links to the part;
+ * without them (unloaded ancestors, or the run split into plain rows) the
+ * name itself is the link.
+ */
+const ReplyingToLine: FC<ReplyingToLineProps> = ({
+  name,
+  statusId,
+  partIndex,
+  partCount,
+  className
+}) => (
+  <div className={cn('mb-1 text-xs text-muted-foreground', className)}>
+    {partIndex !== null && partCount !== null ? (
+      <>
+        Replying to {name} ·{' '}
+        <a
+          href={`#${statusId}`}
+          className={REPLYING_TO_LINK_CLASS_NAME}
+          aria-label={`Part ${partIndex + 1} of ${partCount} by ${name}`}
+        >
+          {partIndex + 1} of {partCount}
+        </a>
+      </>
+    ) : (
+      <>
+        Replying to{' '}
+        <a
+          href={`#${statusId}`}
+          className={REPLYING_TO_LINK_CLASS_NAME}
+          aria-label={`Post by ${name}`}
+        >
+          {name}
+        </a>
+      </>
+    )}
+  </div>
+)
 
 export const StatusThread: FC<StatusThreadProps> = ({
   host,
@@ -191,9 +253,10 @@ export const StatusThread: FC<StatusThreadProps> = ({
       buildSelfThreadModel({
         focusedStatus: status,
         ancestors: visibleAncestors,
-        descendants: allDescendants
+        descendants: allDescendants,
+        hasMoreAncestors
       }),
-    [status, visibleAncestors, allDescendants]
+    [status, visibleAncestors, allDescendants, hasMoreAncestors]
   )
 
   const runStatusIds = useMemo(
@@ -243,6 +306,28 @@ export const StatusThread: FC<StatusThreadProps> = ({
     [mergedSecondaryAncestorStatuses]
   )
 
+  // A reply to any status an ancestor run folds into one row — a later part
+  // or a tucked inset — belongs under the run, not under the opened post.
+  // The run's first part is the row that stays in the tree, so every other
+  // merged id aliases to it and `buildThreadTree` routes those replies there.
+  const ancestorRunReplyAliases = useMemo(() => {
+    const aliases = new Map<string, string>()
+    for (const run of activeAncestorRuns) {
+      const firstPartId = run.parts[0].status.id
+      for (const merged of getRunMergedStatuses(run)) {
+        if (merged.id === firstPartId) continue
+        for (const alias of [
+          merged.id,
+          getStatusUrl(merged),
+          merged.publicId
+        ]) {
+          if (alias && alias !== firstPartId) aliases.set(alias, firstPartId)
+        }
+      }
+    }
+    return aliases
+  }, [activeAncestorRuns])
+
   const descendantRunMergedStatuses = useMemo(
     () => activeDescendantRuns.flatMap(getRunMergedStatuses),
     [activeDescendantRuns]
@@ -282,19 +367,16 @@ export const StatusThread: FC<StatusThreadProps> = ({
     mergedSecondaryAncestorIds
   ])
 
+  // Replies to the opened post's own run and to later runs read as direct
+  // replies to the focused post; replies to ancestor-run parts route through
+  // `ancestorRunReplyAliases` to the run's first row instead.
   const focusedGroupStatuses = useMemo(() => {
     const list: Status[] = [
       ...(isCombinedRun ? selfThread.mergedStatuses : []),
-      ...mergedSecondaryAncestorStatuses,
       ...descendantRunMergedStatuses
     ]
     return list.length > 0 ? list : undefined
-  }, [
-    isCombinedRun,
-    selfThread.mergedStatuses,
-    mergedSecondaryAncestorStatuses,
-    descendantRunMergedStatuses
-  ])
+  }, [isCombinedRun, selfThread.mergedStatuses, descendantRunMergedStatuses])
 
   const hasAnyActiveRun =
     isCombinedRun ||
@@ -310,7 +392,8 @@ export const StatusThread: FC<StatusThreadProps> = ({
         hasMoreAncestors,
         hasMoreDescendants,
         priorityStatusIds,
-        focusedGroupStatuses
+        focusedGroupStatuses,
+        ancestorIdAliases: ancestorRunReplyAliases
       }),
     [
       status,
@@ -319,7 +402,8 @@ export const StatusThread: FC<StatusThreadProps> = ({
       hasMoreAncestors,
       hasMoreDescendants,
       priorityStatusIds,
-      focusedGroupStatuses
+      focusedGroupStatuses,
+      ancestorRunReplyAliases
     ]
   )
 
@@ -475,7 +559,9 @@ export const StatusThread: FC<StatusThreadProps> = ({
   const renderSelfThreadRun = (
     parts: readonly CombinedPart[],
     runStatusIds: ReadonlySet<string>,
-    opened?: { openedPartIndex: number; focusedFooter: ReactNode }
+    opened?: { openedPartIndex: number; focusedFooter: ReactNode },
+    anchorPartIndex?: number,
+    replyingTo?: ReactNode
   ): ReactNode => {
     const closeComposerAndRefresh = () => {
       composer.close()
@@ -485,6 +571,7 @@ export const StatusThread: FC<StatusThreadProps> = ({
       <SelfThreadRun
         parts={parts}
         openedPartIndex={opened?.openedPartIndex}
+        anchorPartIndex={anchorPartIndex}
         host={host}
         currentTime={currentTime}
         currentActor={currentActor ?? undefined}
@@ -511,6 +598,7 @@ export const StatusThread: FC<StatusThreadProps> = ({
           })
         }}
         onShowSeparate={showRowSeparate}
+        replyingTo={replyingTo}
         focusedFooter={opened?.focusedFooter}
         onReplyCreated={handleReplyCreated}
         onStatusCreated={closeComposerAndRefresh}
@@ -524,7 +612,81 @@ export const StatusThread: FC<StatusThreadProps> = ({
     status.type === StatusType.enum.Announce
       ? getOriginalStatus(status)
       : status
-  const hasReplies = tree.totalDescendants > 0
+  // Only the replies that render in the Replies section count: the ones the
+  // tree routes under an ancestor row (a reply to an ancestor-run part)
+  // render up there instead, so the heading never counts replies it does
+  // not list, and the section hides when nothing is left for it.
+  const renderedReplyCount = tree.descendants.reduce(
+    (sum, node) => sum + 1 + node.totalDescendantCount,
+    0
+  )
+  const hasReplies = renderedReplyCount > 0
+  // The ancestor-run part the focused block answers — the opened post itself,
+  // or the run holding it. The model reports it whatever the authors and
+  // whether the opened post renders as a plain row or inside its run; the
+  // "i of n" numbers only stay while the run actually renders as a run: once
+  // the viewer splits it into plain rows the part keeps its own anchor, and
+  // the name alone links to it.
+  const replyingToPart = selfThread.focusedReplyingTo
+  const replyingToActualStatus = replyingToPart
+    ? getActualStatus(replyingToPart.status)
+    : null
+  const replyingToActor = replyingToActualStatus?.actor ?? null
+  // `Status.actor` is nullable: fall back to the handle its actor id carries
+  // (as the boost line does). A name that is only the "@" separators is all a
+  // degenerate id yields, so the line is skipped rather than naming nothing.
+  const replyingToName =
+    (replyingToActor &&
+      (getActorDisplayName(replyingToActor) || replyingToActor.username)) ||
+    (replyingToActualStatus &&
+      getActorIdMention(
+        replyingToActualStatus.actorId,
+        replyingToActualStatus.url
+      )) ||
+    ''
+  const replyingToRunIsActive = replyingToPart
+    ? activeAncestorRuns.some((run) =>
+        run.parts.some((part) => part.status.id === replyingToPart.status.id)
+      )
+    : false
+  const replyingToLineProps =
+    replyingToPart && replyingToName.replace(/@/g, '').trim()
+      ? {
+          name: replyingToName,
+          statusId: replyingToPart.status.id,
+          partIndex: replyingToRunIsActive ? replyingToPart.partIndex : null,
+          partCount: replyingToRunIsActive ? replyingToPart.partCount : null
+        }
+      : null
+  const replyingToLine = replyingToLineProps ? (
+    <ReplyingToLine {...replyingToLineProps} />
+  ) : null
+  // On the plain opened-row path the line names what the opened post itself
+  // answers, not what its run's first part answers: once "Show as separate
+  // posts" splits the opened post's own run, its later parts render as plain
+  // rows whose reply target can differ from the run's, so the line only
+  // stays when the opened post's own reply target is that part.
+  const replyingToAliases = useMemo(
+    () =>
+      new Set(
+        replyingToPart
+          ? [
+              replyingToPart.status.id,
+              getStatusUrl(replyingToPart.status),
+              replyingToPart.status.publicId
+            ].filter((alias): alias is string => Boolean(alias))
+          : []
+      ),
+    [replyingToPart]
+  )
+  const openedRowReplyTarget = getStatusReplyTargetId(actualFocusedStatus)
+  const openedRowAnswersReplyingTo =
+    openedRowReplyTarget !== null && replyingToAliases.has(openedRowReplyTarget)
+  // The opened post carries the same marker as an opened run part, but only
+  // when the page shows what it answers above it: a lone post with nothing
+  // over it reads as itself, the way an own post only gets the tint as part
+  // of a run.
+  const openedRowIsMarked = tree.ancestors.length > 0
   // "No replies yet" only speaks for a post on its own. Under the last post of
   // a conversation it reads as if the whole thread were empty, so there the
   // page ends after the post, as on Mastodon. An open composer on the focused
@@ -592,10 +754,16 @@ export const StatusThread: FC<StatusThreadProps> = ({
                 )}
               >
                 {ancestorRun && ancestorRunIds ? (
-                  renderSelfThreadRun(ancestorRun.parts, ancestorRunIds)
+                  renderSelfThreadRun(
+                    ancestorRun.parts,
+                    ancestorRunIds,
+                    undefined,
+                    selfThread.ancestorRunAnchorIndexById.get(ancestorRun.key)
+                  )
                 ) : (
                   <>
                     <div
+                      id={ancestor.id}
                       data-testid={`status-${ancestor.id}`}
                       data-row-status-ids={ancestor.id}
                       tabIndex={-1}
@@ -699,20 +867,35 @@ export const StatusThread: FC<StatusThreadProps> = ({
         )}
       >
         {isCombinedRun && selfThread.run ? (
-          renderSelfThreadRun(selfThread.parts, selfThread.mergedIds, {
-            openedPartIndex: selfThread.openedPartIndex,
-            focusedFooter:
-              focusedFooter ??
-              (renderFocusedFooter ? renderFocusedFooter(status) : null)
-          })
+          renderSelfThreadRun(
+            selfThread.parts,
+            selfThread.mergedIds,
+            {
+              openedPartIndex: selfThread.openedPartIndex,
+              focusedFooter:
+                focusedFooter ??
+                (renderFocusedFooter ? renderFocusedFooter(status) : null)
+            },
+            undefined,
+            replyingToLine
+          )
         ) : (
           <>
             <div
               data-testid={`status-${status.id}`}
               data-row-status-ids={status.id}
               tabIndex={-1}
-              className="focus:outline-none"
+              aria-current={openedRowIsMarked ? 'location' : undefined}
+              className={cn(
+                'focus:outline-none',
+                // The opened post carries the same marker as an opened run
+                // part, so the page reads the same as opening one's own post.
+                openedRowIsMarked && OPENED_ROW_TINT
+              )}
             >
+              {replyingToLineProps && openedRowAnswersReplyingTo ? (
+                <ReplyingToLine {...replyingToLineProps} className="ml-13" />
+              ) : null}
               <Post
                 host={host}
                 currentActor={currentActor ?? undefined}
@@ -816,7 +999,7 @@ export const StatusThread: FC<StatusThreadProps> = ({
         <div data-testid="thread-descendants">
           <div className="border-b px-5 py-3">
             <h2 className="font-semibold text-sm">
-              Replies ({tree.totalDescendants})
+              Replies ({renderedReplyCount})
             </h2>
           </div>
 
