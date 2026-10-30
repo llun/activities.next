@@ -2092,558 +2092,643 @@ legacy shape left to copy.
 
 ### Actor Profile & Deletion Federation
 
-- **A local profile edit federates as `Update(Person)` from `SendUpdateActorJob`,
-  queued by `publishActorUpdate` (`lib/services/actors/actorUpdate.ts`) after
-  every route that writes a published profile field:
-  `PATCH /api/v1/accounts/update_credentials`, `PATCH /api/v1/profile`, the web
-  settings form `POST /api/v1/accounts/profile`, the profile editor's JSON save
-  `PATCH /api/v1/accounts/profile`, and
-  `DELETE /api/v1/profile/{avatar,header}`.** A save sends an Update **only when
-  something the federated Person carries changed**: the four save routes above
-  (not the avatar and header deletes, which always send) save with
-  `updateActorWithPrevious`, which returns the actor read under the save's own
-  row lock (`before`) and the saved one (`after`), and compare those two with
-  `hasFederatedProfileChange` (`lib/services/actors/hasFederatedProfileChange.ts`);
-  a `before` read earlier, outside the lock, would
-  let two interleaved saves each compare against a row the other already
-  replaced and skip an Update remote servers need (a null `before` next to a saved actor cannot happen, since both are read in one transaction; the guard publishes as a defensive default).
-  It compares the `getPersonFromActor` documents (emoji `updated` stamps
-  aside), so the list of federated fields is whatever that document carries.
-  A save of the post line limit, the profile tabs, image alt texts or any other
-  setting remote servers never see sends no Update(Person), and a save that
-  changes the profile sends exactly one. A new route that writes `name`,
+#### Profile edits federate as `Update(Person)`
+
+- **Every route that writes a published profile field queues
+  `publishActorUpdate`** (`lib/services/actors/actorUpdate.ts`), which queues
+  `SendUpdateActorJob` sending `Update(Person)`. The routes that do:
+  `PATCH /api/v1/accounts/update_credentials`, `PATCH /api/v1/profile`, the
+  web settings form `POST /api/v1/accounts/profile`, the profile editor's
+  JSON save `PATCH /api/v1/accounts/profile`, and
+  `DELETE /api/v1/profile/{avatar,header}`. A new route that writes `name`,
   `summary`, `iconUrl`, `headerImageUrl`, `manuallyApprovesFollowers` or
-  `fields` (the profile links) must call it too, or remote servers keep the old profile until their own periodic
-  re-fetch. Queueing is best effort and never fails the request: the profile is
+  `fields` (the profile links) must call it too, or remote servers keep the
+  old profile until their own periodic re-fetch.
+- **A save sends an Update only when something the federated Person carries
+  changed.** The four save routes above (not the avatar and header deletes,
+  which always send) save with `updateActorWithPrevious`, which returns the
+  actor read under the save's own row lock (`before`) and the saved one
+  (`after`), and compares the two with `hasFederatedProfileChange`
+  (`lib/services/actors/hasFederatedProfileChange.ts`); a `before` read
+  earlier, outside the lock, would let two interleaved saves each compare
+  against a row the other already replaced and skip an Update remote servers
+  need. A null `before` next to a saved actor cannot happen, since both are
+  read in one transaction; the guard publishes as a defensive default. It
+  compares the `getPersonFromActor` documents (emoji `updated` stamps aside),
+  so the list of federated fields is whatever that document carries: a save
+  of the post line limit, the profile tabs, image alt texts or any other
+  setting remote servers never see sends no Update(Person), and a save that
+  changes the profile sends exactly one.
+- **Queueing is best effort and never fails the request** — the profile is
   already saved. The profile link check still queues whenever the links
-  changed, whether or not an Update was sent, but only for an actor that was saved.
-  `updateActor` writes `name` and `summary` whenever they are not `undefined`, so an
-  empty string clears the display name or bio (profiles then show the username);
-  a caller that must not wipe a stored value leaves the key out, as remote
-  refresh does (`getPersistableProfile`). `PATCH /api/v1/accounts/profile` caps
-  name at 255 and bio at 500 characters only when the value differs from the
-  stored one. The object is `getPersonFromActor`, the same document the actor
-  URL serves, and the audience is follower inboxes plus accepted relays, as in
-  Mastodon. The activity id is `<actor>#updates/<updatedAt>`, with `updatedAt`
-  carried in the job so a retried job resends the same Update.
+  changed, whether or not an Update was sent, but only for an actor that was
+  saved.
+- **`updateActor` writes `name` and `summary` whenever they are not
+  `undefined`**, so an empty string clears the display name or bio (profiles
+  then show the username); a caller that must not wipe a stored value leaves
+  the key out, as remote refresh does (`getPersistableProfile`).
+  `PATCH /api/v1/accounts/profile` caps name at 255 and bio at 500 characters
+  only when the value differs from the stored one.
+- **The activity**: the object is `getPersonFromActor`, the same document the
+  actor URL serves, and the audience is follower inboxes plus accepted
+  relays, as in Mastodon. The activity id is
+  `<actor>#updates/<updatedAt>`, with `updatedAt` carried in the job so a
+  retried job resends the same Update.
+- **Discovery flags are opt-in on the wire.** `getPersonFromActor` emits
+  Mastodon's `discoverable` and `indexable` (declared as `toot:discoverable`
+  and `toot:indexable` in `@context`, next to `toot`), read from the actor's
+  settings (`update_credentials` `discoverable`/`indexable`). An unset flag
+  federates as `false`, as Mastodon's ActorSerializer does (`discoverable ||
+false`), so users who never opted in are not advertised to remote servers
+  (the local Account entity keeps its own defaults). A non-empty
+  `attributionDomains` setting (`update_credentials`
+  `attribution_domains`, Mastodon 4.4+) is emitted as `attributionDomains`
+  (declared `toot:attributionDomains` with `@type: @id` and
+  `@container: @set`, in `@context` and in the inbound canonical context),
+  keeping only valid hostnames.
+
+#### Profile tabs and the Edit profile page
+
 - **Profile tab visibility is presentation only.** A local actor's settings
   `showReplies`, `showMedia` (Mastodon's flag, reused for the Media tab),
-  `showGallery` and `showFitness` (each shown unless `false`) decide which tabs
-  `ActorTimelines` offers, to every viewer including the owner; Posts is always
-  offered and a media-only profile whose Media tab is hidden falls back to the
-  ordinary tabs, which open on Posts. `getProfileData` skips the attachments,
-  fitness and gallery queries of a hidden tab. Nothing else changes: the API,
-  the gallery pages and the outbox still serve the same data, and saving the
-  flags never calls `publishActorUpdate`. They are written with
-  `PATCH /api/v1/accounts/profile` (`updateProfile()` in `lib/client`) from the
-  Profile tabs section of the Edit profile page.
+  `showGallery` and `showFitness` (each shown unless `false`) decide which
+  tabs `ActorTimelines` offers, to every viewer including the owner; Posts is
+  always offered and a media-only profile whose Media tab is hidden falls
+  back to the ordinary tabs, which open on Posts.
+  - `getProfileData` skips the attachments, fitness and gallery queries of a
+    hidden tab. Nothing else changes: the API, the gallery pages and the
+    outbox still serve the same data, and saving the flags never calls
+    `publishActorUpdate`.
+  - The flags are written with `PATCH /api/v1/accounts/profile`
+    (`updateProfile()` in `lib/client`) from the Profile tabs section of the
+    Edit profile page.
 - **The Edit profile page is `/settings/profile`, the first section of
   Settings.** `app/(timeline)/settings/profile/page.tsx` (server, with its
   `loading.tsx`) builds a `SavedProfile` from the stored actor
-  (`database.getActorFromId`, never the session actor, which is partial: no tab
-  flags, links or tags) and its settings and hands it to the client `ProfileEditor` (`lib/components/settings/profile/`).
-  It owns the name, bio, avatar and header (with their alt texts), the profile
-  fields and the four profile tabs, replacing profile editing from the former General
-  page and the old Featured hashtags settings tab (the layout lists Edit profile first and
-  no Featured hashtags). One Save sends only the changed keys as JSON through
-  `updateProfile()` (never a form POST); `profileDraft.ts` compares the draft
-  with the last saved profile (the `SavedProfile` the PATCH answers with, so the
-  page is clean right after a save), builds that patch and maps a 422 message
-  (`Invalid <key>`) to its field. Photos are chosen with a file picker and
-  uploaded straight away through the composer's media upload
-  (`uploadProfileImage` → `uploadAttachment`, the same type check, resize and
-  instance size cap `ImageUploadField` uses); only the returned media URL joins
-  the draft, and it is saved with the rest. Featured hashtags keep their own
-  immediate save: `FeaturedTagsSection` (one section with `id="featured-hashtags"`) sits
-  outside the page's `<form>` because its add bar is a form of its own, and
-  never makes the page dirty. The page sets the `?switched=1` Alert ("Switched
-  to @handle. You're now posting as this profile.") above the editor, for the
-  button that switches to another profile you own: `EditOwnedProfileButton`
-  (`app/(timeline)/[actor]/`) shows "Edit profile" on a local profile of the
-  signed-in account that is not the active actor (and not pending deletion,
-  found with `getActorsForAccount`, read only for such profiles), calls
-  `switchActor` and `setActiveOfflineSession` like the actor switcher (the
-  latter's failure ignored), and loads `/settings/profile?switched=1` with a
-  full navigation; a failed switch shows an `Alert` and stays. The own
-  profile's "Edit profile" button links to `/settings/profile`, and
-  `/settings/featured-hashtags` is a server redirect to
-  `/settings/profile#featured-hashtags`. `useUnsavedChangesGuard`
-  holds back in-app link clicks to another path (a capture-phase click
-  listener; the same path with another query is not leaving) and the browser's
-  Back and Forward (the Navigation API's `navigate` event of a same-document
-  traversal is cancelled before the URL or Next's router change, and Discard
-  replays it with `traverseTo`; a traversal that only changes the query or hash
-  never asks) behind a "Discard changes?" `ConfirmDialog`, and asks the browser
-  through `beforeunload`. A browser without the Navigation API has only
-  `beforeunload`, and Chromium lets a page cancel a traversal only after the
-  person interacted with it since the last one, so a second Back before touching
-  the page again goes through and loses the edits. The hook reads the dirty state
-  when the event happens, and `allowNavigation()` lets one move through for
-  Cancel's confirmed discard: it ends with the first navigation to another
-  path, after 5 seconds without one, or when a clean page becomes unsaved again.
-  Once the person answers OK to the actor switcher's or the Add profile
-  dialog's own "Discard changes?" (`confirmDiscardProfileChanges()`), the guard's
-  `beforeunload` stands down with no time limit (creating a profile and switching
-  can take longer than 5 seconds), and the confirmation is taken back
-  (`revokeProfileUnloadAllowance()`) if the switch or creation fails. **Actor
-  check.** The editor sends the id of the profile it was loaded for with the
-  profile PATCH (`actorId` in the body) and with every featured hashtag save
-  (`actorId` in the `POST /api/v1/featured_tags` body, `?actorId=` on
-  `DELETE /api/v1/featured_tags/:id`); when the session is on another profile
-  by then (a switch in another tab), the route answers 409 `{ error: 'Actor
-changed' }` before any write. Mastodon clients do not send it and are
-  unaffected. The editor shows one Alert for either 409 ("You switched to another
-  profile, so this page is out of date", with Reload), moves focus to it, turns
-  the Save bar to "Couldn't save your profile." and keeps Save off, since every
-  retry would 409; the draft stays so the text can be copied. The editor's own
-  Cancel question closes when a save leaves the page clean, like the guard's. A save sends a
-  snapshot of the draft: what the person typed while it was in flight stays and
-  keeps the page dirty (`reconcileDraft`), and Save waits for a picture upload.
-  Enter in a field submits the form (the Save buttons are `type=submit` with
-  `form=`), and a failed save moves focus to the invalid control or the form's
-  `Alert`. The `?switched=1` notice (`SwitchedNotice`) has a Dismiss and goes
-  after the first save. A
-  successful save shows `ProfileSavedToast` (in the shape of
-  `GalleryAddedToast`, with the words also in an always-mounted polite region
-  that carries the save's number, so a second save is announced again)
-  and calls `router.refresh()`. When the editor is at least 860px wide (a
-  container query on the editor's own width) a live preview column
-  (`ProfilePreview`: avatar, header, name, handle, bio, the links through
-  `ProfileFieldsBlock` with "+N more", the tab strip, and a "Set in Settings"
-  card linking Who can follow you (`/settings/privacy`), Fitness privacy (`/fitness/privacy`) and Gallery privacy (`/gallery/privacy`)) sits
-  beside the form; below `md` the bar is Cancel, "Edit profile" and Save, sticky under the
-  settings mobile bar and the connection strip (and `scroll-padding-top` grows by its height while it is on the page), and the sticky bottom `SaveBar` is hidden. The former "General" page is removed: settings are split into focused pages under `SectionLayout` (`/settings` is the index with a profile card and `SectionIndex`; appearance preferences live at `/settings/appearance`, and follower approval lives at `/settings/privacy`). Native form POSTs to `/api/v1/accounts/profile` use a hidden `returnTo` field allow-listed to `/settings/appearance` and `/settings/privacy` (defaulting to `/settings` for its 303 redirect).
-- **Discovery flags and moved accounts.** `getPersonFromActor` emits Mastodon's
-  `discoverable` and `indexable` (declared as `toot:discoverable` and
-  `toot:indexable` in `@context`, next to `toot`), read from the actor's
-  settings (`update_credentials` `discoverable`/`indexable`). Both are opt-in
-  on the wire: an unset flag federates as `false`, as Mastodon's
-  ActorSerializer does (`discoverable || false`), so users who never opted in
-  are not advertised to remote servers (the local Account entity keeps its own
-  defaults). A non-empty `attributionDomains` setting (`update_credentials`
-  `attribution_domains`, Mastodon 4.4+) is emitted as `attributionDomains`
-  (declared `toot:attributionDomains` with `@type: @id` and `@container: @set`,
-  in `@context` and in the inbound canonical context), keeping only valid hostnames. Inbound,
-  `getPersistableProfile` stores a remote actor's `movedTo` and `alsoKnownAs`
-  in the actor `settings` JSON (a refresh without them clears them). The
-  Mastodon Account entity of a remote actor with `movedTo` carries `moved`: the
-  target account, but only when the target actor is already stored (no remote
-  fetch), and a target's own move is not followed. `moved` is hidden when the
-  origin is suspended or the target is suspended or deleted/being deleted
-  (Mastodon parity). Stored `alsoKnownAs` keeps only
-  http(s) URLs, at most 20, and an inbound `movedTo` that is not an http(s) URL
-  is dropped. Local aliases are supported via `GET/POST/DELETE /api/v1/accounts/aliases`
-  (up to 10 aliases; `alsoKnownAs` is set through the aliases API; `movedTo` is set by the outgoing migration API, see the outgoing bullets below; both are edited on Settings → Moving at `/settings/moving`).
+  (`database.getActorFromId`, never the session actor, which is partial: no
+  tab flags, links or tags) and its settings, and hands it to the client
+  `ProfileEditor` (`lib/components/settings/profile/`), which owns the name,
+  bio, avatar and header (with their alt texts), the profile fields and the
+  four profile tabs.
+  - **Saving:** one Save sends only the changed keys as JSON through
+    `updateProfile()` (never a form POST); `profileDraft.ts` compares the
+    draft with the last saved profile (the `SavedProfile` the PATCH answers
+    with, so the page is clean right after a save), builds that patch and
+    maps a 422 message (`Invalid <key>`) to its field. A save sends a
+    snapshot of the draft: what the person typed while it was in flight
+    stays and keeps the page dirty (`reconcileDraft`), and Save waits for a
+    picture upload. Enter in a field submits the form (the Save buttons
+    are `type=submit` with `form=`), and a failed save moves focus to the
+    invalid control or the form's `Alert`. A successful save shows
+    `ProfileSavedToast` (in the shape of `GalleryAddedToast`, with the words
+    also in an always-mounted polite region that carries the save's number,
+    so a second save is announced again) and calls `router.refresh()`. The
+    editor's own Cancel question closes when a save leaves the page clean,
+    like the guard's.
+  - **Photos** are chosen with a file picker and uploaded straight away
+    through the composer's media upload (`uploadProfileImage` →
+    `uploadAttachment`, the same type check, resize and instance size cap
+    `ImageUploadField` uses); only the returned media URL joins the draft,
+    and it is saved with the rest.
+  - **Featured hashtags keep their own immediate save:**
+    `FeaturedTagsSection` (one section with `id="featured-hashtags"`) sits
+    outside the page's `<form>` because its add bar is a form of its own,
+    and never makes the page dirty. `/settings/featured-hashtags` is a
+    server redirect to `/settings/profile#featured-hashtags`.
+  - **Switching profiles:** the page sets the `?switched=1` Alert ("Switched
+    to @handle. You're now posting as this profile.") above the editor, for
+    the button that switches to another profile you own:
+    `EditOwnedProfileButton` (`app/(timeline)/[actor]/`) shows "Edit
+    profile" on a local profile of the signed-in account that is not the
+    active actor (and not pending deletion, found with
+    `getActorsForAccount`, read only for such profiles), calls `switchActor`
+    and `setActiveOfflineSession` like the actor switcher (the latter's
+    failure ignored), and loads `/settings/profile?switched=1` with a full
+    navigation; a failed switch shows an `Alert` and stays. The own
+    profile's "Edit profile" button links to `/settings/profile`. The
+    `?switched=1` notice (`SwitchedNotice`) has a Dismiss and goes after
+    the first save.
+  - **Unsaved changes:** `useUnsavedChangesGuard` holds back in-app link
+    clicks to another path (a capture-phase click listener; the same path
+    with another query is not leaving) and the browser's Back and Forward
+    (the Navigation API's `navigate` event of a same-document traversal is
+    cancelled before the URL or Next's router change, and Discard replays
+    it with `traverseTo`; a traversal that only changes the query or hash
+    never asks) behind a "Discard changes?" `ConfirmDialog`, and asks the
+    browser through `beforeunload`. A browser without the Navigation API
+    has only `beforeunload`, and Chromium lets a page cancel a traversal
+    only after the person interacted with it since the last one, so a
+    second Back before touching the page again goes through and loses the
+    edits. The hook reads the dirty state when the event happens, and
+    `allowNavigation()` lets one move through for Cancel's confirmed
+    discard: it ends with the first navigation to another path, after 5
+    seconds without one, or when a clean page becomes unsaved again. Once
+    the person answers OK to the actor switcher's or the Add profile
+    dialog's own "Discard changes?"
+    (`confirmDiscardProfileChanges()`), the guard's `beforeunload` stands
+    down with no time limit (creating a profile and switching can take
+    longer than 5 seconds), and the confirmation is taken back
+    (`revokeProfileUnloadAllowance()`) if the switch or creation fails.
+  - **Actor check.** The editor sends the id of the profile it was loaded
+    for with the profile PATCH (`actorId` in the body) and with every
+    featured hashtag save (`actorId` in the `POST /api/v1/featured_tags`
+    body, `?actorId=` on `DELETE /api/v1/featured_tags/:id`); when the
+    session is on another profile by then (a switch in another tab), the
+    route answers 409 `{ error: 'Actor changed' }` before any write.
+    Mastodon clients do not send it and are unaffected. The editor shows
+    one Alert for either 409 ("You switched to another profile, so this
+    page is out of date", with Reload), moves focus to it, turns the Save
+    bar to "Couldn't save your profile." and keeps Save off, since every
+    retry would 409; the draft stays so the text can be copied.
+  - **Layout:** when the editor is at least 860px wide (a container query
+    on the editor's own width) a live preview column (`ProfilePreview`:
+    avatar, header, name, handle, bio, the links through
+    `ProfileFieldsBlock` with "+N more", the tab strip, and a "Set in
+    Settings" card linking Who can follow you (`/settings/privacy`),
+    Fitness privacy (`/fitness/privacy`) and Gallery privacy
+    (`/gallery/privacy`)) sits beside the form; below `md` the bar is
+    Cancel, "Edit profile" and Save, sticky under the settings mobile bar
+    and the connection strip (and `scroll-padding-top` grows by its height
+    while it is on the page), and the sticky bottom `SaveBar` is hidden.
+    Settings are split into focused pages under `SectionLayout`: `/settings`
+    is the index with a profile card and `SectionIndex`, appearance
+    preferences live at `/settings/appearance`, and follower approval lives
+    at `/settings/privacy`. Native form POSTs to
+    `/api/v1/accounts/profile` use a hidden `returnTo` field allow-listed
+    to `/settings/appearance` and `/settings/privacy` (defaulting to
+    `/settings` for its 303 redirect).
+
+#### Account migration (`Move`)
+
+- **Moved accounts on the wire.** Inbound, `getPersistableProfile` stores a
+  remote actor's `movedTo` and `alsoKnownAs` in the actor `settings` JSON (a
+  refresh without them clears them). The Mastodon Account entity of a remote
+  actor with `movedTo` carries `moved`: the target account, but only when the
+  target actor is already stored (no remote fetch), and a target's own move
+  is not followed. `moved` is hidden when the origin is suspended or the
+  target is suspended or deleted/being deleted (Mastodon parity). Stored
+  `alsoKnownAs` keeps only http(s) URLs, at most 20, and an inbound `movedTo`
+  that is not an http(s) URL is dropped. Local aliases are supported via
+  `GET/POST/DELETE /api/v1/accounts/aliases` (up to 10 aliases;
+  `alsoKnownAs` is set through the aliases API; `movedTo` is set by the
+  outgoing migration API, see the outgoing bullets below; both are edited on
+  Settings → Moving at `/settings/moving`).
 - **An inbound `Move` (account migration) goes to `MoveActorJob` from both
   inboxes, and nothing in its body is trusted beyond three ids.**
-  `getJobMessage` queues it only when the HTTP signer, `actor` and `object` are
-  the same account (the origin) and `target` is a different one; the job id
-  is `getInboxJobId(activity.id)`, which only some queue backends dedupe, so
-  the claim below is what makes a redelivery safe. The job
+  `getJobMessage` queues it only when the HTTP signer, `actor` and `object`
+  are the same account (the origin) and `target` is a different one; the job
+  id is `getInboxJobId(activity.id)`, which only some queue backends dedupe,
+  so the claim below is what makes a redelivery safe. The job
   (`lib/jobs/moveActorJob.ts`, Mastodon's `ActivityPub::Activity::Move` plus
-  `MoveWorker`) works in this order. It ignores a local or suspended origin and
-  a Move where either domain fails `canFederateWithDomain`. An inbound Move may
-  target a local account (aliases verified from the stored row, no fetch;
-  a local origin is refused, see the outgoing bullets below). It then claims
-  the origin with Mastodon's
-  `move_in_progress:<account_id>` cooldown: `claimActorMove` stores
-  `moveProcessing: { at, activityId, target }` in the origin actor's settings JSON (no
-  migration), under a row lock, and any other Move of the same origin within 7
-  days is refused. Only a retry with the same activity id and the same target
-  may claim again, so a reused activity id cannot move an account elsewhere. A
-  failed verification releases the claim (`clearActorMove`: the target cannot be
-  fetched, is not the fetched document, does not list the origin in
-  `alsoKnownAs`, or is suspended or deleted/being deleted), so the 7-day limit
-  applies to verified moves; a retry of the same Move is never blocked by
-  itself. Once `movedTo` is recorded the claim is marked `verified`
-  (`markActorMoveVerified`) and `clearActorMove` refuses to clear it, so a
-  verified move holds the 7-day claim even if a later replay of the same Move
-  fails verification. After every follower job was published
-  (`markActorMoveQueued`) the claim is also marked `queued`, and a later run of
-  the same activity returns without doing anything; the verification-skipping
-  retry applies only to a verified claim that is not yet queued, and a claim
-  older than 7 days is replaced whole, with neither flag. The target is fetched with a signed request
-  when a federation signing actor is configured (a local target is read from
-  storage without a remote fetch). Only then does the job store the origin's
-  `movedTo`. Notes, blocks (federated only for remote targets via
-  `SendBlockJob`, deterministic uri; a block carried onto a local target is not
-  federated) and mutes (notifications flag and end time kept) are carried by
-  `MoveRelationshipsJob` (`lib/jobs/moveRelationshipsJob.ts`, Mastodon's
-  `MoveWorker` parity) with Mastodon's skip rules (already blocking/muting the
-  target, or following it) and Mastodon's note texts, regardless of whether the
-  target has itself moved. On retry or resume, `SendBlockJob` is re-published
-  with the deterministic id for remote targets; deduplicating queues drop it and
-  receivers treat duplicate blocks with the same uri as no-ops. A resume also
-  repeats the rest of the block, per direction (`endFollowsForBlock`): the
-  target's follow of the user is always ended while the block exists; the
-  user's follow of the target is ended only if it predates the block, and one
-  made after the carried block is left alone. Unless the target has itself moved (the `movedTo` is still
-  recorded, but nobody is rewired, as Mastodon does not follow a moved account),
-  the job publishes one `MoveFollowerJob` per accepted local follower of the
-  origin. Each has a deterministic id from the origin follow id and the
-  target id. Cloud Tasks and NoQueue do not dedupe by job id (only some backends
-  do), so the id only helps where the queue honours it; the follower job protects
-  itself instead (below), and a retry or redelivery may run a follower twice
-  without harm.
-  `MoveFollowerJob` (`UnfollowFollowWorker` plus `FollowMigrationService`)
-  re-checks its own state and is safe to retry or to run twice at once. It
-  stops if the origin follow is no longer `Accepted` or the origin's `movedTo`
-  is not that target. It checks the target again (not suspended, not deleted,
-  `canFederateWithDomain`, not itself moved) and leaves the origin follow if it
-  is unavailable, or if the follower and the target block each other or the
-  follower blocks the target's domain. The follow it makes has a deterministic
-  id derived from `originFollowId/move/targetId` (a UUID), and `createFollowIfAbsent`
-  inserts it with a conflict-ignoring insert on the primary key, so two concurrent
-  runs cannot leave two rows. Only the run that inserted the follow notifies the
-  local target, and a retry notifies only when no notification exists yet for that
-  follow, so a duplicate notification needs a redelivery that lands in the short
-  gap between one run's insert and its notification. An unsilenced local follower moving onto
-  a local target is repointed directly (`Accepted` even when locked, the target
-  gets a `follow` notification, no Follow over the network; the Undo to the remote
-  origin is still sent). A silenced local follower moving onto a local target gets
-  a follow request (`Requested` status and a `follow_request` notification, as in
-  Mastodon's `FollowService`), even when the target is unlocked; the Undo to the
-  remote origin is still sent. For a remote target, only a follow with that id is the job's own
-  leftover: if it is `Requested`, the Follow is sent again for that row (a failed
-  send keeps the row, as Mastodon does, instead of undoing it, so a late Accept
-  never leaves two Accepted follows); if it is `Accepted`, the move is finished.
-  Any other follow of the target, `Requested` or `Accepted`, is the user's own:
-  as in `FollowMigrationService` only `reblogs`/`notify`/`languages` are copied
-  (a language filter the origin does not have is left alone), the target is added
-  to the lists that hold the origin, and the origin follow and the origin in
-  those lists are kept. Otherwise the job creates a `Requested` follow (or
-  `Accepted` directly for an unsilenced follower on a local target) with the origin's options (and stops if
-  that row turns out to be ended already), sends the Follow (skipped for a local
-  target), adds the target to the follower's lists that hold the origin, marks the
-  origin follow `Undo` (which drops the origin from those lists in the same
-  transaction, so an `Accepted` origin never leaves a list early) and only then
-  queues `SendUndoFollowJob` (deterministic id). The flip must come first:
-  `SendUndoFollowJob` does nothing unless the stored follow is already `Undo`,
-  and NoQueue runs the handler inline inside `publish()`. This is the order
-  `applyBlock` and `acceptFollowRequest` use. If it crashed before the flip the
-  retry repeats the idempotent steps; if it crashed after, the retry only
-  repeats the Undo job: when the origin follow is already `Undo`, `movedTo` is
-  that target and the job's own follow exists, the lists were finished before
-  the flip. A Follow that cannot be delivered keeps the origin follow and
-  throws for a retry. Only accepted local followers are moved.
-- **An outgoing move is `POST /api/v1/accounts/migration`, and it checks things
-  in a fixed order.** `app/api/v1/accounts/migration/route.ts` parses the body
-  (`acct`, `kind` as `move` or `redirect`, and the optional `password`,
-  `username` and `actorId`): bad JSON is 400 `Invalid request`, a body that
-  fails the schema is 422, and an `actorId` other than the session's is 409
-  `Actor changed`. Then `verifyChallenge` re-authenticates. When the account has
-  a `passwordHash`, the password must match by bcrypt (`Invalid password`); a
-  passwordless account must send its current username, compared
-  case-insensitively (`Invalid username`); both are 422. Then `acct` (with a
-  leading `@` stripped) is resolved: `invalid` is 422 `Invalid account`,
-  `forbidden` is 403 `Federation with that server is not allowed` (the aliases
-  route answers the same) and `not-found` is 404. `performOutgoingMove`
-  (`lib/services/accounts/migration/outgoingMove.ts`) then refuses, all as 422:
-  first an origin that is being deleted (`This account is being deleted`; the
-  route has already resolved the target, so an unknown target still answers
-  first), then the account itself, a target that is
-  suspended or being deleted, a target
-  whose `movedTo` is set, and an account whose `movedTo` already equals this
-  target (`Already moved to this account`, whether by a started move or a
-  redirect, except a retry of a `move` whose job was never queued, see below).
-  For `move`, a user inside the 30-day cooldown that is not such a retry gets
-  429 at once, before the target is read. For `move` only, it reads the target's `alsoKnownAs` and
-  `movedTo` fresh (a stored row for a local target; for a remote one, the Person
-  from its origin, signed when a signing actor is configured, never the cache).
-  An unreachable target is 502 `Could not reach the new account, try again
-later`; with no federation signing actor to fetch with it is 500 `This server
-cannot fetch remote accounts right now` (logged); a reachable target that has moved is 422, and so is one whose aliases
-  do not list the account (`Add this account as an alias on the new account
-first`). The 30-day cooldown answers 429 with `cooldownUntil`; the check before the
-  fetch is a shortcut, and the one made when the move is recorded, below, stays
-  authoritative. `redirect` skips the fresh alias read (the target is still
-  resolved and checked for being moved, suspended or deleted) and the cooldown
-  check.
+  `MoveWorker`) ignores a local or suspended origin and a Move where either
+  domain fails `canFederateWithDomain`. An inbound Move may target a local
+  account (aliases verified from the stored row, no fetch; a local origin is
+  refused, see the outgoing bullets below).
+  - **The claim:** the job claims the origin with Mastodon's
+    `move_in_progress:<account_id>` cooldown: `claimActorMove` stores
+    `moveProcessing: { at, activityId, target }` in the origin actor's
+    settings JSON (no migration), under a row lock, and any other Move of the
+    same origin within 7 days is refused. Only a retry with the same activity
+    id and the same target may claim again, so a reused activity id cannot
+    move an account elsewhere. A failed verification releases the claim
+    (`clearActorMove`: the target cannot be fetched, is not the fetched
+    document, does not list the origin in `alsoKnownAs`, or is suspended or
+    deleted/being deleted), so the 7-day limit applies to verified moves; a
+    retry of the same Move is never blocked by itself. Once `movedTo` is
+    recorded the claim is marked `verified` (`markActorMoveVerified`) and
+    `clearActorMove` refuses to clear it, so a verified move holds the 7-day
+    claim even if a later replay of the same Move fails verification. After
+    every follower job was published (`markActorMoveQueued`) the claim is
+    also marked `queued`, and a later run of the same activity returns without
+    doing anything; the verification-skipping retry applies only to a verified
+    claim that is not yet queued, and a claim older than 7 days is replaced
+    whole, with neither flag.
+  - **The target** is fetched with a signed request when a federation signing
+    actor is configured (a local target is read from storage without a
+    remote fetch). Only then does the job store the origin's `movedTo`.
+  - **Carried relationships:** notes, blocks (federated only for remote
+    targets via `SendBlockJob`, deterministic uri; a block carried onto a
+    local target is not federated) and mutes (notifications flag and end
+    time kept) are carried by `MoveRelationshipsJob`
+    (`lib/jobs/moveRelationshipsJob.ts`, Mastodon's `MoveWorker` parity) with
+    Mastodon's skip rules (already blocking/muting the target, or following
+    it) and Mastodon's note texts, regardless of whether the target has
+    itself moved. On retry or resume, `SendBlockJob` is re-published with the
+    deterministic id for remote targets; deduplicating queues drop it and
+    receivers treat duplicate blocks with the same uri as no-ops. A resume
+    also repeats the rest of the block, per direction (`endFollowsForBlock`):
+    the target's follow of the user is always ended while the block exists;
+    the user's follow of the target is ended only if it predates the block,
+    and one made after the carried block is left alone.
+  - **Follower jobs:** unless the target has itself moved (the `movedTo` is
+    still recorded, but nobody is rewired, as Mastodon does not follow a moved
+    account), the job publishes one `MoveFollowerJob` per accepted local
+    follower of the origin, each with a deterministic id from the origin
+    follow id and the target id. Cloud Tasks and NoQueue do not dedupe by job
+    id (only some backends do), so the id only helps where the queue honours
+    it; the follower job protects itself instead (below), and a retry or
+    redelivery may run a follower twice without harm. Only accepted local
+    followers are moved.
+  - **`MoveFollowerJob`** (`UnfollowFollowWorker` plus `FollowMigrationService`)
+    re-checks its own state and is safe to retry or to run twice at once. It
+    stops if the origin follow is no longer `Accepted` or the origin's
+    `movedTo` is not that target. It checks the target again (not suspended,
+    not deleted, `canFederateWithDomain`, not itself moved) and leaves the
+    origin follow if it is unavailable, or if the follower and the target
+    block each other or the follower blocks the target's domain. The follow it
+    makes has a deterministic id derived from `originFollowId/move/targetId`
+    (a UUID), and `createFollowIfAbsent` inserts it with a conflict-ignoring
+    insert on the primary key, so two concurrent runs cannot leave two rows.
+    Only the run that inserted the follow notifies the local target, and a
+    retry notifies only when no notification exists yet for that follow, so a
+    duplicate notification needs a redelivery that lands in the short gap
+    between one run's insert and its notification.
+  - **Local targets:** an unsilenced local follower moving onto a local
+    target is repointed directly (`Accepted` even when locked, the target
+    gets a `follow` notification, no Follow over the network; the Undo to the
+    remote origin is still sent). A silenced local follower moving onto a
+    local target gets a follow request (`Requested` status and a
+    `follow_request` notification, as in Mastodon's `FollowService`), even
+    when the target is unlocked; the Undo to the remote origin is still sent.
+  - **A leftover follow for a remote target:** only a follow with that id is
+    the job's own leftover: if it is `Requested`, the Follow is sent again
+    for that row (a failed send keeps the row, as Mastodon does, instead of
+    undoing it, so a late Accept never leaves two Accepted follows); if it is
+    `Accepted`, the move is finished. Any other follow of the target,
+    `Requested` or `Accepted`, is the user's own: as in
+    `FollowMigrationService` only `reblogs`/`notify`/`languages` are copied
+    (a language filter the origin does not have is left alone), the target is
+    added to the lists that hold the origin, and the origin follow and the
+    origin in those lists are kept.
+  - **Otherwise** the job creates a `Requested` follow (or `Accepted`
+    directly for an unsilenced follower on a local target) with the origin's
+    options (and stops if that row turns out to be ended already), sends the
+    Follow (skipped for a local target), adds the target to the follower's
+    lists that hold the origin, marks the origin follow `Undo` (which drops
+    the origin from those lists in the same transaction, so an `Accepted`
+    origin never leaves a list early) and only then queues `SendUndoFollowJob`
+    (deterministic id). The flip must come first: `SendUndoFollowJob` does
+    nothing unless the stored follow is already `Undo`, and NoQueue runs the
+    handler inline inside `publish()`. This is the order `applyBlock` and
+    `acceptFollowRequest` use. If it crashed before the flip the retry
+    repeats the idempotent steps; if it crashed after, the retry only
+    repeats the Undo job: when the origin follow is already `Undo`, `movedTo`
+    is that target and the job's own follow exists, the lists were finished
+    before the flip. A Follow that cannot be delivered keeps the origin
+    follow and throws for a retry.
+- **An outgoing move is `POST /api/v1/accounts/migration`, and it checks
+  things in a fixed order.**
+  - `app/api/v1/accounts/migration/route.ts` parses the body (`acct`, `kind`
+    as `move` or `redirect`, and the optional `password`, `username` and
+    `actorId`): bad JSON is 400 `Invalid request`, a body that fails the
+    schema is 422, and an `actorId` other than the session's is 409 `Actor
+changed`. Then `verifyChallenge` re-authenticates: when the account has a
+    `passwordHash`, the password must match by bcrypt (`Invalid password`); a
+    passwordless account must send its current username, compared
+    case-insensitively (`Invalid username`); both are 422. Then `acct` (with
+    a leading `@` stripped) is resolved: `invalid` is 422 `Invalid account`,
+    `forbidden` is 403 `Federation with that server is not allowed` (the
+    aliases route answers the same) and `not-found` is 404.
+  - `performOutgoingMove`
+    (`lib/services/accounts/migration/outgoingMove.ts`) then refuses, all as
+    422: first an origin that is being deleted (`This account is being
+deleted`; the route has already resolved the target, so an unknown
+    target still answers first), then the account itself, a target that is
+    suspended or being deleted, a target whose `movedTo` is set, and an
+    account whose `movedTo` already equals this target (`Already moved to
+this account`, whether by a started move or a redirect, except a retry
+    of a `move` whose job was never queued, see below). For `move`, a user
+    inside the 30-day cooldown that is not such a retry gets 429 at once,
+    before the target is read.
+  - For `move` only, it reads the target's `alsoKnownAs` and `movedTo` fresh
+    (a stored row for a local target; for a remote one, the Person from its
+    origin, signed when a signing actor is configured, never the cache). An
+    unreachable target is 502 `Could not reach the new account, try again
+later`; with no federation signing actor to fetch with it is 500 `This
+server cannot fetch remote accounts right now` (logged); a reachable
+    target that has moved is 422, and so is one whose aliases do not list the
+    account (`Add this account as an alias on the new account first`). The
+    30-day cooldown answers 429 with `cooldownUntil`; the check before the
+    fetch is a shortcut, and the one made when the move is recorded, below,
+    stays authoritative. `redirect` skips the fresh alias read (the target
+    is still resolved and checked for being moved, suspended or deleted) and
+    the cooldown check.
 - **A move is recorded in one locked transaction, then published.**
   `recordActorMigration` (`lib/database/domains/actorMigration/queries.ts`)
-  locks the actor row, checks the cooldown for a `move` (the newest `move` row
-  less than 30 days old, else 429), then inserts the `actor_migrations` row (kind,
-  `targetAcct`, the followers count) with explicit timestamps and sets
-  `movedTo` in the actor's settings, all in one commit. A retry of a `move`
-  returns the existing row instead of a new one only while every one of these
-  holds: the newest row of any kind is that move, it names this target, its
-  `startedAt` is null (the job was never queued), it is inside the cooldown and
-  `movedTo` still points at the target. Any other `move` inside the cooldown is 429. Before that, `performOutgoingMove` answers 422 `Already moved to this
-account` whenever `movedTo` already equals the target and the request is not
-  such a retry, started row or not, and also after a redirect to that target
-  (Mastodon's `AccountMigration` refuses `already_moved` the same way); a
-  `DELETE` followed by a redirect to the same account cannot bring a cancelled
-  move back, and a repeat of a successful move queues nothing. After the commit,
-  `publishActorUpdate` sends `Update(Person)`, and only for `move` is
-  `SendMoveJob` queued with id `${migrationId}:start`, after which
-  `markActorMigrationStarted` sets `startedAt` and closes the retry window. A
-  failed queue publish is logged and answered with 503 `Could not start the
-move, try again later`, but nothing is rolled back: the row, `movedTo` and the
-  Update stay, and `startedAt` stays null. Retrying the same POST publishes the
-  same job id (the id is the migration's) and sends `Update(Person)` again, which
-  is bounded to the failed attempts because the retry ends once the move is
-  started, and completes the move. The cooldown still counts after `DELETE`,
-  because the rows stay. A move whose start failed (503) and was never retried
-  keeps `movedTo` and still counts toward the 30-day cooldown, as Mastodon's
-  cooldown counts every recorded migration; `DELETE` clears the pointer, not the
-  cooldown. `performOutgoingMove` skips the alias read only for a retry that a
-  newer migration row has already superseded (expected to answer 429); it then
-  passes `aliasVerified: false`, and the transaction never creates a `move` row
-  for it (answer `unverified`, 429, even if the cooldown ended meanwhile), while
-  an unstarted retry of the same verified move still returns `existing`. A redirect that succeeds
-  sets `movedTo` and sends `Update(Person)` and nothing more. `GET` returns
-  `getMigrationState` (`movedTo`, the migrations, `cooldownUntil`,
-  `followersCount`).
+  locks the actor row, checks the cooldown for a `move` (the newest `move`
+  row less than 30 days old, else 429), then inserts the `actor_migrations`
+  row (kind, `targetAcct`, the followers count) with explicit timestamps and
+  sets `movedTo` in the actor's settings, all in one commit.
+  - **Retry window:** a retry of a `move` returns the existing row instead of
+    a new one only while every one of these holds: the newest row of any
+    kind is that move, it names this target, its `startedAt` is null (the
+    job was never queued), it is inside the cooldown and `movedTo` still
+    points at the target. Any other `move` inside the cooldown is 429.
+    Before that, `performOutgoingMove` answers 422 `Already moved to this
+account` whenever `movedTo` already equals the target and the request is
+    not such a retry, started row or not, and also after a redirect to that
+    target (Mastodon's `AccountMigration` refuses `already_moved` the same
+    way); a `DELETE` followed by a redirect to the same account cannot bring
+    a cancelled move back, and a repeat of a successful move queues nothing.
+  - **Publish:** after the commit, `publishActorUpdate` sends
+    `Update(Person)`, and only for `move` is `SendMoveJob` queued with id
+    `${migrationId}:start`, after which `markActorMigrationStarted` sets
+    `startedAt` and closes the retry window. A failed queue publish is logged
+    and answered with 503 `Could not start the move, try again later`, but
+    nothing is rolled back: the row, `movedTo` and the Update stay, and
+    `startedAt` stays null. Retrying the same POST publishes the same job id
+    (the id is the migration's) and sends `Update(Person)` again, which is
+    bounded to the failed attempts because the retry ends once the move is
+    started, and completes the move.
+  - **The cooldown still counts after `DELETE`**, because the rows stay. A
+    move whose start failed (503) and was never retried keeps `movedTo` and
+    still counts toward the 30-day cooldown, as Mastodon's cooldown counts
+    every recorded migration; `DELETE` clears the pointer, not the cooldown.
+  - **A superseded retry:** `performOutgoingMove` skips the alias read only
+    for a retry that a newer migration row has already superseded (expected
+    to answer 429); it then passes `aliasVerified: false`, and the
+    transaction never creates a `move` row for it (answer `unverified`, 429,
+    even if the cooldown ended meanwhile), while an unstarted retry of the
+    same verified move still returns `existing`. A redirect that succeeds
+    sets `movedTo` and sends `Update(Person)` and nothing more. `GET` returns
+    `getMigrationState` (`movedTo`, the migrations, `cooldownUntil`,
+    `followersCount`).
 - **`SendMoveJob` (`lib/jobs/sendMoveJob.ts`, Mastodon's `MoveWorker` and
   `MoveDistributionWorker`) sends the Move.** The activity
   (`lib/activities/move.ts`) has id `${origin}#moves/${migrationId}`, type
   `Move`, `actor` and `object` set to the origin, `target` set to the new
-  account, and no `to`, as Mastodon's `MoveSerializer` builds it. The job does
-  nothing unless the origin is local with a private key and the job's
-  `migrationId` names a `move` row for this origin and target
-  (`isOutgoingMoveAuthorized`, `lib/jobs/isOutgoingMoveAuthorized.ts`). The row
-  authorizes the work, not the live pointer, so a `DELETE` after the move
-  started does not stop the fan-out (Mastodon never stops a performed move).
-  `startedAt` is set only after the start job is published, so the first slice
-  may run before it: until then `movedTo` must still name the target, and a
-  `DELETE` in that window cancels the move (a small window remains: a `DELETE`
-  that lands between the job's publish and `markActorMigrationStarted` can still
-  let the start run, because the `POST` is still pending then). The job
-  passes its `migrationId` in the data of every `MoveFollowerJob` and
-  `MoveRelationshipsJob` it publishes (job ids unchanged). On its first slice it
-  publishes one `MoveRelationshipsJob` per local blocker, muter and note author
-  of the origin, for any target, local or remote, and fails the run if one
-  cannot be queued. It also delivers the Move to every accepted relay inbox on
-  that first slice only (Mastodon's `Relay.enabled`). Then it pages the origin's
-  followers 100 at a time by follow id, and after them the remote actors that
-  block the origin (`getRemoteBlockers`, paged 100 at a time by block id;
-  Mastodon's `account.blocked_by.inboxes`). Each distinct remote shared inbox
-  (or inbox) gets one delivery of the activity, keyed on the migration id so one
-  Move goes to each inbox across all continuations and both phases, even when a
-  follower and a blocker share it. A target that is suspended or being deleted
-  when the job runs does not stop the remote Move (Mastodon's
-  `MoveDistributionWorker` does not re-check it); only the local rewiring skips
-  it, in `MoveFollowerJob`. That one-per-inbox guarantee relies on the queue dropping
-  duplicate job ids (the database-backed queue and QStash do); a queue driver
-  that does not dedupe may deliver the same Move twice, which receivers treat as
-  a no-op. Each local follower gets a `MoveFollowerJob`, but only when
-  the target has not itself moved. Every job id is deterministic. A run stops after
-  the page that crosses a 20-second budget and queues
-  `${migrationId}:continue:<phase>:<cursor>` (`followers` or `blockers`, with
-  `start` when the phase has no cursor yet). On a real queue a refused delivery fails
-  the run for a retry; the in-process queue records the error and carries on.
-- **`MoveFollowerJob` and `MoveRelationshipsJob` accept a local origin.** Both
-  used to refuse an origin with a private key. Now a local origin with a recorded
-  `move` row for the target is accepted, read by the `migrationId` in the job's
-  data (`getActorMigration`; started, or `movedTo` still the target before the
-  start; a job for a local origin without a `migrationId` is refused, so an old
-  started move to the same target never authorizes the jobs of a newer move that
-  was cancelled before it started; a remote origin still needs `movedTo` at the
-  target). The mute note on resume uses the migration row's `createdAt` as the
-  claim time for an outgoing move (`moveProcessing.at` is only written for an
-  inbound one),
-  because the origin of an outgoing move is ours, and a `DELETE` after the start
-  does not strand the remaining followers. `MoveFollowerJob` then sends no `Undo` for the old follow (`publishUndo`
-  returns for a local origin), so that follow simply ends locally. In a
-  local-to-local move a request the follower already has pending to the target
-  is authorized through `acceptFollowRequest` with `silent: true`, as Mastodon's
-  `MoveWorker#rewrite_follows!` does (`follow_request.authorize!` sends no alert):
-  no follow email or push goes to the target, and the target's pending
-  `follow_request` notification is deleted. A silenced follower's request stays
-  pending.
-- **Clearing a move, posting, and deletion.** `DELETE
-/api/v1/accounts/migration` (`actorId` from the query or a JSON body; 409 on a
-  mismatch) clears `movedTo`, publishes `Update(Person)`, and requeues the
-  account's scheduled statuses that are already due. Each replay job uses a
-  deterministic ID scoped to the latest migration row (or a legacy fallback
-  when no row exists), so concurrent or redelivered publishes within one
-  replay de-duplicate on their queue IDs. A redirect set again during the replay scan
-  cancels that replay; the next `DELETE`, scoped to the new migration, replays
-  those posts. A partial queue failure can still leave due posts unpublished
-  with no `DELETE` left to retry them: `PUT /api/v1/scheduled_statuses/:id` is
-  the recovery path, as its minimum-ahead check is the only gate on
-  rescheduling. Mastodon's
-  `RedirectsController#destroy` clears the redirect. It cancels a
-  redirect, but a performed move is not undone and an in-flight one still
-  completes: the queued `SendMoveJob` continuations and follower jobs go on, the
-  followers already moved keep their new follows, and the `actor_migrations`
-  rows stay. A moved local account (`movedTo` set) takes no new follower: an
-  inbound `Follow` is answered with `Reject` (as for a blocked follower, like
-  Mastodon's `reject_follow_request!`), and `POST /api/v1/accounts/:id/follow`
-  answers 403 `Target account has moved` for a moved local or remote target
-  without a follow already, as Mastodon's `FollowService` refuses it, and
-  `POST /api/v1/follow_requests/:id/authorize` answers 422 `This account has
-moved` (reject stays allowed). While
-  `movedTo` is set (`isMovedActor` in `lib/services/accounts/movedAccount.ts`),
-  posting is refused with 422 `This account has moved` (`movedAccountResponse`)
-  on `POST /api/v1/statuses` (the check runs first, so polls, replies and
-  scheduled posts are refused too), on `POST /api/v1/statuses/:id/reblog`, and
-  on the deprecated `POST /api/v1/accounts/outbox` and `POST
-/api/v1/accounts/repost`. A scheduled status whose author has moved when it is
-  due remains queued without being published; clearing a redirect requeues
-  already-due statuses for the publish job.
-  Editing a status (`PUT /api/v1/statuses/:id`) and its interaction policy
-  (`PUT /api/v1/statuses/:id/interaction_policy`) are refused the same way (see
-  `app/api/v1/statuses/[id]/route.ts` and `.../interaction_policy/route.ts`).
-  **The other API write routes remain available to a moved author under their
-  ordinary permission checks**: deleting its own statuses; rejecting follow
-  requests; favourites, bookmarks, poll votes, reactions and quote revocation;
-  following accounts that have not moved and unfollowing accounts regardless
-  of whether the target has moved; media upload and update; lists, filters,
-  reports, mutes, blocks, account notes, pins, featured
-  and followed tags, endorsements, gallery and albums; fitness uploads and
-  retries; settings and account deletion; and `PUT /api/v1/scheduled_statuses/:id`.
-  Fitness imports retain the backing status needed to link activity data, but
-  do not insert a new post in timelines, notify followers or federate it while
-  the author is moved. Clearing the redirect does not publish a status created
-  during the move: a text edit keeps it hidden, and only a visibility change
-  whose audience differs from the current one clears the marker and makes it
-  an ordinary post that merges with later imports like any other. Choosing
-  `direct` on a still-hidden status with no mentions is the same audience and
-  keeps it, so the status stays isolated; a change to `direct` clears the
-  marker only when the status had another audience before, or when mentions
-  are added. Such a status is marked
-  `createdWhileMoved` (in the status content blob), because an ordinary
-  `direct` import also has empty recipients; a later overlapping fitness
-  import creates a separate published status rather than merging into a
-  marked one that is still hidden, while unmarked statuses — including
-  direct imports from an account that never moved — merge as before
-  (`isIsolatedFromFitnessImport` in `lib/jobs/fitnessImportIsolation.ts`).
-  A Wahoo revision of an already-imported workout is not a new recording, so
-  it stays on its existing status across the move boundary instead of being
-  isolated into a new one.
-  CSV and archive export, migration GET/POST/DELETE, and
-  timeline and notification reads remain available. Posting and follow-request
-  refusals are explicit here. Mastodon's API base skips the
-  inherited `require_functional!` gate except in limited federation mode, and
-  its `require_user!` checks `User#nonfunctional_reason`, which does not include
-  a moved account. Its signed-in web path checks `User#functional?`, which does
-  exclude moved accounts; individual Mastodon API actions can have their own
-  checks. The profile response
-  (`lib/services/accounts/profile.ts`) carries `moved: true` while `movedTo` is
-  set. `deleteActorData` (`lib/database/domains/actor/deletion.ts`) removes the
-  account's `actor_migrations` rows with the rest of its data.
+  account, and no `to`, as Mastodon's `MoveSerializer` builds it.
+  - **Authorization:** the job does nothing unless the origin is local with a
+    private key and the job's `migrationId` names a `move` row for this
+    origin and target (`isOutgoingMoveAuthorized`,
+    `lib/jobs/isOutgoingMoveAuthorized.ts`). The row authorizes the work, not
+    the live pointer, so a `DELETE` after the move started does not stop the
+    fan-out (Mastodon never stops a performed move). `startedAt` is set only
+    after the start job is published, so the first slice may run before it:
+    until then `movedTo` must still name the target, and a `DELETE` in that
+    window cancels the move (a small window remains: a `DELETE` that lands
+    between the job's publish and `markActorMigrationStarted` can still let
+    the start run, because the `POST` is still pending then). The job passes
+    its `migrationId` in the data of every `MoveFollowerJob` and
+    `MoveRelationshipsJob` it publishes (job ids unchanged).
+  - **First slice:** it publishes one `MoveRelationshipsJob` per local
+    blocker, muter and note author of the origin, for any target, local or
+    remote, and fails the run if one cannot be queued. It also delivers the
+    Move to every accepted relay inbox on that first slice only (Mastodon's
+    `Relay.enabled`).
+  - **Paging:** it pages the origin's followers 100 at a time by follow id,
+    and after them the remote actors that block the origin
+    (`getRemoteBlockers`, paged 100 at a time by block id; Mastodon's
+    `account.blocked_by.inboxes`). Each distinct remote shared inbox (or
+    inbox) gets one delivery of the activity, keyed on the migration id so
+    one Move goes to each inbox across all continuations and both phases,
+    even when a follower and a blocker share it. A target that is suspended
+    or being deleted when the job runs does not stop the remote Move
+    (Mastodon's `MoveDistributionWorker` does not re-check it); only the
+    local rewiring skips it, in `MoveFollowerJob`. That one-per-inbox
+    guarantee relies on the queue dropping duplicate job ids (the
+    database-backed queue and QStash do); a queue driver that does not
+    dedupe may deliver the same Move twice, which receivers treat as a
+    no-op. Each local follower gets a `MoveFollowerJob`, but only when the
+    target has not itself moved. Every job id is deterministic. A run stops
+    after the page that crosses a 20-second budget and queues
+    `${migrationId}:continue:<phase>:<cursor>` (`followers` or `blockers`,
+    with `start` when the phase has no cursor yet). On a real queue a
+    refused delivery fails the run for a retry; the in-process queue records
+    the error and carries on.
+- **`MoveFollowerJob` and `MoveRelationshipsJob` accept a local origin with
+  a recorded `move` row for the target**, read by the `migrationId` in the
+  job's data (`getActorMigration`; started, or `movedTo` still the target
+  before the start; a job for a local origin without a `migrationId` is
+  refused, so an old started move to the same target never authorizes the
+  jobs of a newer move that was cancelled before it started; a remote origin
+  still needs `movedTo` at the target).
+  - The mute note on resume uses the migration row's `createdAt` as the claim
+    time for an outgoing move (`moveProcessing.at` is only written for an
+    inbound one), because the origin of an outgoing move is ours, and a
+    `DELETE` after the start does not strand the remaining followers.
+  - `MoveFollowerJob` then sends no `Undo` for the old follow (`publishUndo`
+    returns for a local origin), so that follow simply ends locally. In a
+    local-to-local move a request the follower already has pending to the
+    target is authorized through `acceptFollowRequest` with `silent: true`,
+    as Mastodon's `MoveWorker#rewrite_follows!` does
+    (`follow_request.authorize!` sends no alert): no follow email or push
+    goes to the target, and the target's pending `follow_request`
+    notification is deleted. A silenced follower's request stays pending.
+- **Clearing a move: `DELETE /api/v1/accounts/migration`** (`actorId` from
+  the query or a JSON body; 409 on a mismatch) clears `movedTo`, publishes
+  `Update(Person)`, and requeues the account's scheduled statuses that are
+  already due.
+  - Each replay job uses a deterministic ID scoped to the latest migration
+    row (or a legacy fallback when no row exists), so concurrent or
+    redelivered publishes within one replay de-duplicate on their queue IDs.
+    A redirect set again during the replay scan cancels that replay; the
+    next `DELETE`, scoped to the new migration, replays those posts. A
+    partial queue failure can still leave due posts unpublished with no
+    `DELETE` left to retry them: `PUT /api/v1/scheduled_statuses/:id` is the
+    recovery path, as its minimum-ahead check is the only gate on
+    rescheduling. Mastodon's `RedirectsController#destroy` clears the
+    redirect.
+  - It cancels a redirect, but a performed move is not undone and an
+    in-flight one still completes: the queued `SendMoveJob` continuations and
+    follower jobs go on, the followers already moved keep their new follows,
+    and the `actor_migrations` rows stay.
+  - **No new followers:** a moved local account (`movedTo` set) takes no new
+    follower: an inbound `Follow` is answered with `Reject` (as for a blocked
+    follower, like Mastodon's `reject_follow_request!`), and
+    `POST /api/v1/accounts/:id/follow` answers 403 `Target account has moved`
+    for a moved local or remote target without a follow already, as
+    Mastodon's `FollowService` refuses it, and
+    `POST /api/v1/follow_requests/:id/authorize` answers 422 `This account
+has moved` (reject stays allowed).
+  - **Posting is refused** while `movedTo` is set (`isMovedActor` in
+    `lib/services/accounts/movedAccount.ts`), with 422 `This account has
+moved` (`movedAccountResponse`): on `POST /api/v1/statuses` (the check
+    runs first, so polls, replies and scheduled posts are refused too), on
+    `POST /api/v1/statuses/:id/reblog`, and on the deprecated
+    `POST /api/v1/accounts/outbox` and `POST /api/v1/accounts/repost`. A
+    scheduled status whose author has moved when it is due remains queued
+    without being published; clearing a redirect requeues already-due
+    statuses for the publish job. Editing a status
+    (`PUT /api/v1/statuses/:id`) and its interaction policy
+    (`PUT /api/v1/statuses/:id/interaction_policy`) are refused the same way
+    (see `app/api/v1/statuses/[id]/route.ts` and
+    `.../interaction_policy/route.ts`).
+  - **The other API write routes remain available to a moved author under
+    their ordinary permission checks**: deleting its own statuses; rejecting
+    follow requests; favourites, bookmarks, poll votes, reactions and quote
+    revocation; following accounts that have not moved and unfollowing
+    accounts regardless of whether the target has moved; media upload and
+    update; lists, filters, reports, mutes, blocks, account notes, pins,
+    featured and followed tags, endorsements, gallery and albums; fitness
+    uploads and retries; settings and account deletion; and
+    `PUT /api/v1/scheduled_statuses/:id`. CSV and archive export, migration
+    GET/POST/DELETE, and timeline and notification reads remain available.
+    Posting and follow-request refusals are explicit here. Mastodon's API
+    base skips the inherited `require_functional!` gate except in limited
+    federation mode, and its `require_user!` checks
+    `User#nonfunctional_reason`, which does not include a moved account. Its
+    signed-in web path checks `User#functional?`, which does exclude moved
+    accounts; individual Mastodon API actions can have their own checks. The
+    profile response (`lib/services/accounts/profile.ts`) carries
+    `moved: true` while `movedTo` is set. `deleteActorData`
+    (`lib/database/domains/actor/deletion.ts`) removes the account's
+    `actor_migrations` rows with the rest of its data.
+  - **Fitness imports while moved** retain the backing status needed to link
+    activity data, but do not insert a new post in timelines, notify
+    followers or federate it while the author is moved. Clearing the
+    redirect does not publish a status created during the move: a text edit
+    keeps it hidden, and only a visibility change whose audience differs from
+    the current one clears the marker and makes it an ordinary post that
+    merges with later imports like any other. Choosing `direct` on a
+    still-hidden status with no mentions is the same audience and keeps it,
+    so the status stays isolated; a change to `direct` clears the marker only
+    when the status had another audience before, or when mentions are added.
+    Such a status is marked `createdWhileMoved` (in the status content blob),
+    because an ordinary `direct` import also has empty recipients; a later
+    overlapping fitness import creates a separate published status rather
+    than merging into a marked one that is still hidden, while unmarked
+    statuses — including direct imports from an account that never moved —
+    merge as before (`isIsolatedFromFitnessImport` in
+    `lib/jobs/fitnessImportIsolation.ts`). A Wahoo revision of an
+    already-imported workout is not a new recording, so it stays on its
+    existing status across the move boundary instead of being isolated into
+    a new one.
 - **`actor_migrations` (migration `20261024131756_add_actor_migrations`) holds
   one row per move or redirect**: the target actor, `targetAcct`
   (`username@domain` at the time), `kind`, the followers count and `startedAt`
   (null until the Move job is queued). The cooldown
   reads only the newest `move` row (`getLastActorMove`), so a redirect never
   starts one.
-- **A local actor can rename in place, and the `actor_handles` ledger is what
-  makes that safe.** `actor_handles` (migration `20261025141323_add_actor_handles`)
-  holds one row per handle the actor has ever had: the current row
-  (`replacedAt` null) plus one row per replaced handle. A unique index on
-  `(lower(username), domain)` means at most one row per handle across every
-  actor, current or retired; a second index on `(actorId, replacedAt)` serves
-  the history and cooldown reads. Domains fold at write and at read. The
-  migration backfills one current row per account-backed local actor
-  (`privateKey` non-empty, keyset pages, the oldest of a case-colliding pair
-  wins, idempotent through `WHERE NOT EXISTS` on the actor id);
-  `createAccount` and `createActorForAccount` insert the current row inside
-  their existing transactions, and a rename mints a missing current row
-  lazily. `isUsernameExists` consults the ledger too, so a handle any row
-  holds — current or replaced, any actor — can never be registered again, and
-  `getActorFromUsername` gains a ledger arm that resolves any `actor_handles`
-  row for the folded handle, current or replaced, to its holder (a replaced
-  row returns the actor that gave the handle up; a current row answers a
-  casing miss with the handle's holder), so an old handle keeps working
-  everywhere a handle resolves (`OnlyLocalUserGuard`, WebFinger, mentions,
-  lookup, search). The arm runs after the exact actors match but BEFORE the
-  case-folded one: a retired ledger row is the reservation that says who the
-  handle is, so a legacy case twin still sitting in `actors` (a backfill's
-  skipped younger twin) can never take over a renamed actor's old handle —
-  the id path, WebFinger and mentions keep answering the renamed actor, and
-  null once it is deleted, never the twin.
+
+#### Handle rename
+
+- **A local actor can rename in place, and the `actor_handles` ledger is
+  what makes that safe.** `actor_handles` (migration
+  `20261025141323_add_actor_handles`) holds one row per handle the actor has
+  ever had: the current row (`replacedAt` null) plus one row per replaced
+  handle. A unique index on `(lower(username), domain)` means at most one row
+  per handle across every actor, current or retired; a second index on
+  `(actorId, replacedAt)` serves the history and cooldown reads. Domains fold
+  at write and at read.
+  - The migration backfills one current row per account-backed local actor
+    (`privateKey` non-empty, keyset pages, the oldest of a case-colliding pair
+    wins, idempotent through `WHERE NOT EXISTS` on the actor id);
+    `createAccount` and `createActorForAccount` insert the current row inside
+    their existing transactions, and a rename mints a missing current row
+    lazily.
+  - `isUsernameExists` consults the ledger too, so a handle any row holds —
+    current or replaced, any actor — can never be registered again, and
+    `getActorFromUsername` gains a ledger arm that resolves any
+    `actor_handles` row for the folded handle, current or replaced, to its
+    holder (a replaced row returns the actor that gave the handle up; a
+    current row answers a casing miss with the handle's holder), so an old
+    handle keeps working everywhere a handle resolves
+    (`OnlyLocalUserGuard`, WebFinger, mentions, lookup, search). The arm runs
+    after the exact actors match but BEFORE the case-folded one: a retired
+    ledger row is the reservation that says who the handle is, so a legacy
+    case twin still sitting in `actors` (a backfill's skipped younger twin)
+    can never take over a renamed actor's old handle — the id path,
+    WebFinger and mentions keep answering the renamed actor, and null once
+    it is deleted, never the twin.
 - **The rename itself is `recordActorHandleRename`
   (`lib/database/domains/actorHandle/queries.ts`), one transaction under a
-  `forUpdate` lock on the actors row** (the actorMigration pattern; a no-op on
-  SQLite). It refuses, as a discriminated result rather than a throw: a
-  missing or non-local actor (`not_found`); a moved or redirecting one
-  (`moved` — `settings.movedTo` is written in the same transaction that
-  records an outgoing migration, so the pointer is the active migration); a
-  suspended or deleting one (`unavailable`); an actor with no current row
-  whose handle another actor's ledger row occupies, or any actor — with a
-  current row or without — whose current handle another `actors` row folds
-  to (either side of a backfill case pair, `cannot_rename`: retiring the
-  handle would hand its folded lookup to the twin); the same handle back, case-only renames included
-  (`unchanged`); a rename inside the 30-day cooldown measured from the latest
-  `replacedAt` (`cooldown`, answering `cooldownUntil`; backfilled and lazily
-  minted rows have a null `replacedAt` and never trigger it); and a target
-  held by another actor's live actors row or any of its ledger rows
-  (`taken`) — including a concurrent claim that commits between the checks
-  and the write: the folded unique index is what stops the double claim, and
-  the collision reads as `taken`, never a thrown 500. The actor's own
-  replaced row for the target is the rename-back case and is revived
-  (`replacedAt` back to null, under the target's exact spelling so the
-  history never shows a casing the actor does not hold), never duplicated —
-  the folded unique index would refuse a second row anyway. Otherwise a new
-  current row is minted, the previous current row gets `replacedAt = now`, the
-  actors row's `username`, `domain` (lowercased) and `updatedAt` are updated —
-  `actors.id` never changes — and the search document is re-indexed in the
-  same transaction, so search sees the new handle exactly when the actors row
-  does. The result's `previous` is the locked actors row's stored spelling
-  (what the status permalinks were minted from), and `renamedAt` is the
-  rename's timestamp.
-- **Deleting an approved actor keeps its handles reserved (a behaviour
-  change).** `deleteActorData` (`lib/database/domains/actor/deletion.ts`) no
-  longer frees the username: inside the purge transaction it sets
-  `replacedAt = now` on the actor's current ledger row and deletes nothing
-  from `actor_handles`, so the handle — and the username path inside the
-  federated id — can never be re-issued on that domain, as in Mastodon. A
-  REJECTED never-approved sign-up is the exception: `rejectPendingAccount`
-  (`lib/database/domains/moderation/queries.ts`) deletes those actors'
-  `actor_handles` rows in the same transaction, because a never-approved
-  account never federated and its handles were never observable. The retired
-  rows keep resolving only while an actor row exists — the deletion removes
-  the actor, so the reservation is what survives, not the resolution.
+  `forUpdate` lock on the actors row** (the actorMigration pattern; a no-op
+  on SQLite). It refuses, as a discriminated result rather than a throw:
+  - a missing or non-local actor (`not_found`); a moved or redirecting one
+    (`moved` — `settings.movedTo` is written in the same transaction that
+    records an outgoing migration, so the pointer is the active migration); a
+    suspended or deleting one (`unavailable`);
+  - an actor with no current row whose handle another actor's ledger row
+    occupies, or any actor — with a current row or without — whose current
+    handle another `actors` row folds to (either side of a backfill case
+    pair, `cannot_rename`: retiring the handle would hand its folded lookup
+    to the twin);
+  - the same handle back, case-only renames included (`unchanged`); a rename
+    inside the 30-day cooldown measured from the latest `replacedAt`
+    (`cooldown`, answering `cooldownUntil`; backfilled and lazily minted
+    rows have a null `replacedAt` and never trigger it); and a target held
+    by another actor's live actors row or any of its ledger rows (`taken`) —
+    including a concurrent claim that commits between the checks and the
+    write: the folded unique index is what stops the double claim, and the
+    collision reads as `taken`, never a thrown 500.
+  - The actor's own replaced row for the target is the rename-back case and
+    is revived (`replacedAt` back to null, under the target's exact spelling
+    so the history never shows a casing the actor does not hold), never
+    duplicated — the folded unique index would refuse a second row anyway.
+    Otherwise a new current row is minted, the previous current row gets
+    `replacedAt = now`, the actors row's `username`, `domain` (lowercased)
+    and `updatedAt` are updated — `actors.id` never changes — and the search
+    document is re-indexed in the same transaction, so search sees the new
+    handle exactly when the actors row does. The result's `previous` is the
+    locked actors row's stored spelling (what the status permalinks were
+    minted from), and `renamedAt` is the rename's timestamp.
+- **Deleting an approved actor keeps its handles reserved.** `deleteActorData`
+  (`lib/database/domains/actor/deletion.ts`) keeps the username reserved:
+  inside the purge transaction it sets `replacedAt = now` on the actor's
+  current ledger row and deletes nothing from `actor_handles`, so the handle —
+  and the username path inside the federated id — can never be re-issued on
+  that domain, as in Mastodon.
+  - A REJECTED never-approved sign-up is the exception:
+    `rejectPendingAccount` (`lib/database/domains/moderation/queries.ts`)
+    deletes those actors' `actor_handles` rows in the same transaction,
+    because a never-approved account never federated and its handles were
+    never observable.
+  - The retired rows keep resolving only while an actor row exists — the
+    deletion removes the actor, so the reservation is what survives, not the
+    resolution.
 - **`RenameStatusUrlsJob` (`lib/jobs/renameStatusUrlsJob.ts`) rewrites the
   renamed actor's status permalinks in the background.** `statuses.url` and
   its `urlHash` twin embed the handle the status was minted with
   (`https://<domain>/@<username>/<publicId>`; `createNote`, `createPoll` and
   the fitness imports all build it that way), so after a rename every url
   under the old profile prefix is rewritten to the new one and `urlHash` is
-  recomputed, leaving `status_history` alone. The job pages 200 statuses at a
-  time by `statuses.id` (keyset), has a 20-second budget checked between
-  pages, and publishes a continuation when the budget runs out, under
-  deterministic ids that embed the rename's timestamp
-  (`${handleId}:${renamedAt}:statusUrls:start`, then
-  `${handleId}:${renamedAt}:statusUrls:<lastId>`) — a rename back reuses the
-  revived row's `handleId`, so without the timestamp its job id would
-  collide with the earlier rename's and a deduplicating queue would drop the
-  rewrite. The prefix keeps the stored domain's casing, because the mint
-  paths build the url from `actor.domain` as stored. Because both prefixes end in `/` and a
-  username cannot contain `/`, a rewritten url can never re-match the old
-  prefix, so a redelivery or retry re-runs the same page, matches no rows and
-  changes nothing. The rename route queues the start job after the commit,
-  best effort.
-- **Old handles keep answering everywhere.** WebFinger tries an http(s)
-  resource as the immutable actor id first, then reads its path as a handle;
-  a historical handle answers 200 with the CURRENT handle as the `subject`,
-  the same actor id verbatim in both `self` links, and the requested old
-  profile URL and `acct:` URI among the aliases — never 404, 410 or a
-  redirect (`lib/services/wellknown/webfinger.ts`). The Person document
-  (`lib/utils/getPersonFromActor.ts`) carries the FEP-2c59 `webfinger`
-  property — the bare `username@domain` string, Mastodon's form — and adds
-  `https://purl.archive.org/socialweb/webfinger` to `@context` as a plain
-  context URL. On the web, a profile page (or a nested status, followers or
-  album path) reached under an old handle 308-redirects to the same page
-  under the current handle: `getLocalHandleRedirect`
-  (`app/(timeline)/[actor]/getLocalHandleRedirect.ts`) is a pure helper that
-  returns the same path and query under the current handle and falls through
-  unchanged for remote and unknown handles, and the actor layout calls
-  `permanentRedirect` with it. The proxy is the only writer of the two
-  request headers the helper reads (`x-activities-local-handle-path` and
-  `-search`, constants in `lib/utils/http-headers/localHandleRedirect.ts`):
-  it deletes a client-sent pair on every request the proxy runs on and sets
-  them only on the branches that rewrite to the profile — the matcher skips
-  multipart `/api/*` requests, which can fall through to the
-  `[actor]`/`[status]` pages with the client's headers intact — and the
-  helper itself refuses a captured path whose first segment is not the
-  requested handle or that climbs with `..`, so a forged value can never
-  steer the 308; that first-segment check is the backstop for the requests
-  the proxy never runs on. `resolveStatusFromPath` builds the legacy
-  status id from the resolved actor's immutable id, so `/@old/<id>` style
-  paths keep resolving across a rename.
+  recomputed, leaving `status_history` alone.
+  - The job pages 200 statuses at a time by `statuses.id` (keyset), has a
+    20-second budget checked between pages, and publishes a continuation
+    when the budget runs out, under deterministic ids that embed the
+    rename's timestamp (`${handleId}:${renamedAt}:statusUrls:start`, then
+    `${handleId}:${renamedAt}:statusUrls:<lastId>`) — a rename back reuses
+    the revived row's `handleId`, so without the timestamp its job id would
+    collide with the earlier rename's and a deduplicating queue would drop
+    the rewrite. The prefix keeps the stored domain's casing, because the
+    mint paths build the url from `actor.domain` as stored.
+  - Because both prefixes end in `/` and a username cannot contain `/`, a
+    rewritten url can never re-match the old prefix, so a redelivery or
+    retry re-runs the same page, matches no rows and changes nothing. The
+    rename route queues the start job after the commit, best effort.
+- **Old handles keep answering everywhere.**
+  - **WebFinger** tries an http(s) resource as the immutable actor id first,
+    then reads its path as a handle; a historical handle answers 200 with
+    the CURRENT handle as the `subject`, the same actor id verbatim in both
+    `self` links, and the requested old profile URL and `acct:` URI among
+    the aliases — never 404, 410 or a redirect
+    (`lib/services/wellknown/webfinger.ts`). The Person document
+    (`lib/utils/getPersonFromActor.ts`) carries the FEP-2c59 `webfinger`
+    property — the bare `username@domain` string, Mastodon's form — and
+    adds `https://purl.archive.org/socialweb/webfinger` to `@context` as a
+    plain context URL.
+  - **On the web**, a profile page (or a nested status, followers or album
+    path) reached under an old handle 308-redirects to the same page under
+    the current handle: `getLocalHandleRedirect`
+    (`app/(timeline)/[actor]/getLocalHandleRedirect.ts`) is a pure helper
+    that returns the same path and query under the current handle and falls
+    through unchanged for remote and unknown handles, and the actor layout
+    calls `permanentRedirect` with it.
+  - **The redirect headers:** the proxy is the only writer of the two
+    request headers the helper reads (`x-activities-local-handle-path` and
+    `-search`, constants in
+    `lib/utils/http-headers/localHandleRedirect.ts`): it deletes a
+    client-sent pair on every request the proxy runs on and sets them only
+    on the branches that rewrite to the profile — the matcher skips
+    multipart `/api/*` requests, which can fall through to the
+    `[actor]`/`[status]` pages with the client's headers intact — and the
+    helper itself refuses a captured path whose first segment is not the
+    requested handle or that climbs with `..`, so a forged value can never
+    steer the 308; that first-segment check is the backstop for the requests
+    the proxy never runs on. `resolveStatusFromPath` builds the legacy
+    status id from the resolved actor's immutable id, so `/@old/<id>` style
+    paths keep resolving across a rename.
 - **The domain admin refusal follows the rename too.** Turning a domain off
   (`setDomainStatus` with status `off`) or removing it (`removeDomain`) is
   refused with `has-profiles` while any local actor still uses it — by handle
@@ -2655,176 +2740,205 @@ moved` (reject stays allowed). While
   actors listed (`{ id, acct }` each, the acct always fully qualified).
 - **A remote actor's rename is followed only when WebFinger confirms it.**
   Mastodon has no REST rename either: it applies a remote account's rename
-  when an `Update(Person)` changes the handle, verified by `check_webfinger!`.
-  Here the refresh branch of `recordActorIfNeeded`
-  (`lib/actions/utils.ts`) runs `confirmRemoteHandleChange` before the profile
-  write: the handle the document claims (`getClaimedActorHandle` in
-  `lib/activities/confirmActorHandle.ts` — the FEP-2c59 `webfinger` property
-  when it parses, else `preferredUsername` on the actor id's host, Mastodon's
-  `extract_username_and_domain!`) is compared with the stored one, and when it
-  differs `confirmActorHandle` must confirm it: a WebFinger `self` link must
-  name the actor's id (normalized), the cross-domain question goes to exactly
-  one domain (the one the property names, else the `subject` the id host
-  answered with, Mastodon's subject redirect — never a second hop, the lookup
-  does not follow cross-host redirects), and that domain's answer must carry
-  the same handle as its `subject`. On confirmation
-  `updateRemoteActorHandle` (`lib/database/domains/actor/writes.ts`) rewrites
-  the stored row in one locked transaction; another STALE REMOTE row still
-  holding the handle is displaced with Mastodon's `invalidate_username!`
-  tombstone (`!` + the row id tail, unmatchable by every lookup), while a
-  LOCAL holder or a handle another actor's ledger row reserves refuses the
-  write (null, nothing changed), and both rows' search documents are
-  re-indexed. A claim that does not confirm aborts the whole refresh — the
-  stored profile is never written under an unconfirmed handle.
+  when an `Update(Person)` changes the handle, verified by
+  `check_webfinger!`. Here the refresh branch of `recordActorIfNeeded`
+  (`lib/actions/utils.ts`) runs `confirmRemoteHandleChange` before the
+  profile write.
+  - The handle the document claims (`getClaimedActorHandle` in
+    `lib/activities/confirmActorHandle.ts` — the FEP-2c59 `webfinger`
+    property when it parses, else `preferredUsername` on the actor id's
+    host, Mastodon's `extract_username_and_domain!`) is compared with the
+    stored one, and when it differs `confirmActorHandle` must confirm it: a
+    WebFinger `self` link must name the actor's id (normalized), the
+    cross-domain question goes to exactly one domain (the one the property
+    names, else the `subject` the id host answered with, Mastodon's subject
+    redirect — never a second hop, the lookup does not follow cross-host
+    redirects), and that domain's answer must carry the same handle as its
+    `subject`.
+  - On confirmation `updateRemoteActorHandle`
+    (`lib/database/domains/actor/writes.ts`) rewrites the stored row in one
+    locked transaction; another STALE REMOTE row still holding the handle is
+    displaced with Mastodon's `invalidate_username!` tombstone (`!` + the row
+    id tail, unmatchable by every lookup), while a LOCAL holder or a handle
+    another actor's ledger row reserves refuses the write (null, nothing
+    changed), and both rows' search documents are re-indexed. A claim that
+    does not confirm aborts the whole refresh — the stored profile is never
+    written under an unconfirmed handle.
+
+#### Profile links (`fields`) storage and formatting
+
 - **Profile links (`fields`) are plain text in storage and HTML everywhere
   they leave.** `formatProfileFieldValue`
   (`lib/utils/text/formatProfileFieldValue.ts`) is the one formatter, a
   deliberate subset of Mastodon's TextFormatter: only a value that is exactly
   one http(s) URL becomes a link (what `rel="me"` verification needs; URLs,
-  mentions and hashtags inside other text stay plain text), in Mastodon's link
-  markup (the link has
-  `rel="nofollow noopener me"`, the scheme and `www.` sit in a leading
-  `invisible` span, an address over 30 characters is cut with `ellipsis`),
-  anything else is HTML-escaped text.
-  `getPersonFromActor` emits the result as `PropertyValue` attachments (and the
-  `schema`/`PropertyValue`/`value` terms in `@context`, only when there are
-  fields), and the Account entity uses it for a local actor's `fields[].value`
-  (a remote actor's stored HTML is sanitized instead; `source.fields` stays
-  raw). The profile page reads the attachments for local and remote actors
-  alike and renders them through `ProfileFieldsBlock`, which sanitizes. Both
-  the settings form (`parseProfileFieldsForm`) and `update_credentials` cap
-  them at four rows, label 255 and content 2047 characters. Both drop a row
-  whose label and content are both blank; `update_credentials` keeps a
-  half-filled row (as Mastodon does), which the settings form refuses and flags
-  on load. A remote actor's fields are capped where they are read from its
-  document, `getActorProfileFields` (`lib/utils/activitypubActor.ts`), which
-  both the stored row (`getPersistableProfile`) and the profile page use, with
-  Mastodon's remote numbers: the first 50 attachments typed `PropertyValue`
-  (`MAX_PROFILE_FIELDS` in `ActivityPub::ProcessAccountService`; other
-  attachment types do not count), any whose name or value is not a string
-  dropped, and each name and value trimmed (`String#trim`) and cut to 2047 characters
-  (`Account::Field::MAX_CHARACTERS_COMPAT`, counted in code points). The value
-  is the remote server's raw HTML, so a cut can end inside a tag; every surface
-  sanitizes it before showing it, which closes or drops the broken markup. A
-  row stored before the cap keeps its old fields until the actor is refreshed.
+  mentions and hashtags inside other text stay plain text), in Mastodon's
+  link markup (the link has `rel="nofollow noopener me"`, the scheme and
+  `www.` sit in a leading `invisible` span, an address over 30 characters is
+  cut with `ellipsis`), anything else is HTML-escaped text.
+  - `getPersonFromActor` emits the result as `PropertyValue` attachments
+    (and the `schema`/`PropertyValue`/`value` terms in `@context`, only when
+    there are fields), and the Account entity uses it for a local actor's
+    `fields[].value` (a remote actor's stored HTML is sanitized instead;
+    `source.fields` stays raw). The profile page reads the attachments for
+    local and remote actors alike and renders them through
+    `ProfileFieldsBlock`, which sanitizes.
+  - **Local caps:** both the settings form (`parseProfileFieldsForm`) and
+    `update_credentials` cap them at four rows, label 255 and content 2047
+    characters. Both drop a row whose label and content are both blank;
+    `update_credentials` keeps a half-filled row (as Mastodon does), which
+    the settings form refuses and flags on load.
+  - **Remote caps:** a remote actor's fields are capped where they are read
+    from its document, `getActorProfileFields`
+    (`lib/utils/activitypubActor.ts`), which both the stored row
+    (`getPersistableProfile`) and the profile page use, with Mastodon's
+    remote numbers: the first 50 attachments typed `PropertyValue`
+    (`MAX_PROFILE_FIELDS` in `ActivityPub::ProcessAccountService`; other
+    attachment types do not count), any whose name or value is not a string
+    dropped, and each name and value trimmed (`String#trim`) and cut to
+    2047 characters (`Account::Field::MAX_CHARACTERS_COMPAT`, counted in
+    code points). The value is the remote server's raw HTML, so a cut can
+    end inside a tag; every surface sanitizes it before showing it, which
+    closes or drops the broken markup. A row stored before the cap keeps
+    its old fields until the actor is refreshed.
+
+#### Profile link verification (`VerifyProfileLinksJob`)
+
 - **Profile links are verified with `rel="me"`, as on Mastodon, by
   `VerifyProfileLinksJob` (`lib/jobs/verifyProfileLinksJob.ts`).** A field is
-  checked only when its value is a single https URL: the raw value for a local
-  actor, and for a remote actor the href of the one `<a>` whose text equals its
-  href (or a bare URL), as Mastodon's `extract_url_from_html` reads it
-  (`getVerifiableFieldUrl`, `lib/services/profile-links/html.ts`). The job
-  fetches the page through `verifyProfileLink` (`safeRemoteFetch`: HTTPS only,
-  SSRF guard, 5 s connect + 5 s read per hop, 1 MiB body that fails rather than
-  truncates, `200` and `text/html` or `application/xhtml+xml` only, two
-  redirects, which are followed for the page itself) and tokenizes it with
-  `htmlparser2`'s `Parser` (linear, no tree) looking for an `<a>` or `<link>`
-  whose `rel` has the token `me` and whose `href` equals, case-insensitively,
-  the profile URL (`https://<domain>/@<username>`, `getActorProfileUrl`), the
-  actor id, or — since the in-place rename — the profile URL of any REPLACED
-  handle in the actor's `actor_handles` ledger, so a page linking to the
-  previous profile keeps its verification after a rename. The link back itself
-  is never fetched or resolved. Every failure is
-  just "not verified". A remote actor's own `url` is not stored, so its profile
-  URL is derived the same way (`/@username`) plus its id, and at most four
-  fields are checked.
+  checked only when its value is a single https URL: the raw value for a
+  local actor, and for a remote actor the href of the one `<a>` whose text
+  equals its href (or a bare URL), as Mastodon's `extract_url_from_html`
+  reads it (`getVerifiableFieldUrl`, `lib/services/profile-links/html.ts`).
+  - **The fetch:** the job fetches the page through `verifyProfileLink`
+    (`safeRemoteFetch`: HTTPS only, SSRF guard, 5 s connect + 5 s read per
+    hop, 1 MiB body that fails rather than truncates, `200` and `text/html`
+    or `application/xhtml+xml` only, two redirects, which are followed for
+    the page itself) and tokenizes it with `htmlparser2`'s `Parser` (linear,
+    no tree) looking for an `<a>` or `<link>` whose `rel` has the token `me`
+    and whose `href` equals, case-insensitively, the profile URL
+    (`https://<domain>/@<username>`, `getActorProfileUrl`), the actor id, or
+    the profile URL of any REPLACED handle in the actor's `actor_handles`
+    ledger, so a page linking to the previous profile keeps its verification
+    after a rename. The link back itself is never fetched or resolved.
+    Every failure is just "not verified". A remote actor's own `url` is not
+    stored, so its profile URL is derived the same way (`/@username`) plus
+    its id, and at most four fields are checked.
   - **Storage:** `verifiedAt` (epoch ms) on each entry of `settings.fields`
-    (a JSON column, so no migration). `updateActor` keeps it for a field whose
-    value is unchanged and drops it for a changed value
-    (`carryOverFieldVerification`, `lib/utils/profileFieldVerification.ts`), so
-    every write path gets "edit the link, lose the check" for free; a
-    `verifiedAt` in the incoming fields (for example in `update_credentials`
-    JSON) is ignored, only the stored row decides. The job
-    writes through `markActorProfileFieldsVerified`, which re-reads the row
-    under a lock and stamps only fields that still hold a checked value, and
-    leaves `updatedAt` alone (it is the remote refresh clock). `updateActor`
-    re-reads `settings` under the same lock inside its transaction and builds
-    the result on that row, so a mark that committed meanwhile is not
-    overwritten. The job also stamps `linksCheckedAt` (epoch ms, in `settings`)
-    on every run, whatever the outcome; `updateActor` carries it over. Like
-    `verifiedAt` it is local state: `getPersonFromActor` never emits it (a test
-    pins this), and it is not in the API. Receiving servers verify for themselves.
+    (a JSON column, so no migration). `updateActor` keeps it for a field
+    whose value is unchanged and drops it for a changed value
+    (`carryOverFieldVerification`, `lib/utils/profileFieldVerification.ts`),
+    so every write path gets "edit the link, lose the check" for free; a
+    `verifiedAt` in the incoming fields (for example in
+    `update_credentials` JSON) is ignored, only the stored row decides. The
+    job writes through `markActorProfileFieldsVerified`, which re-reads the
+    row under a lock and stamps only fields that still hold a checked
+    value, and leaves `updatedAt` alone (it is the remote refresh clock).
+    `updateActor` re-reads `settings` under the same lock inside its
+    transaction and builds the result on that row, so a mark that committed
+    meanwhile is not overwritten. The job also stamps `linksCheckedAt` (epoch
+    ms, in `settings`) on every run, whatever the outcome; `updateActor`
+    carries it over. Like `verifiedAt` it is local state:
+    `getPersonFromActor` never emits it (a test pins this), and it is not in
+    the API. Receiving servers verify for themselves.
   - **When:** `queueProfileLinkVerification`
-    (`lib/services/profile-links/queueProfileLinkVerification.ts`) queues the
-    job, best effort like `publishActorUpdate`, whenever any field is verifiable
-    (`getVerifiableFieldUrl`, with the local or remote flag) and has no
-    `verifiedAt` after the stored check is carried over. A changed verifiable
-    value is always unverified, so this also covers a changed list; it is
-    Mastodon's `requires_verification?` test in `check_links`. So saving the
-    same link again after adding `<a rel="me">` to the site re-checks it, while
-    a profile whose links are all verified, empty, plain text or http queues
-    nothing. It is called after the settings form, `update_credentials` and
-    `PATCH /api/v1/profile` (the last two share `updateCredentialsHandler`)
-    save links, and after a remote actor is created or refreshed
-    (`recordActorIfNeeded`, `getProfileData`). `getProfileData` runs on every
-    render of a remote profile, so there the call passes `renderCheckedAt` (the
-    actor's `linksCheckedAt`; `updatedAt` moves on every render, so it cannot
-    be the gate) and nothing is queued while the last check is newer than 1
-    hour for a changed value, or 3 days for an unchanged unverified one. That
-    bounds the fetches even when a hostile remote serves different values on
-    every request. The local saves and `recordActorIfNeeded` (inbox
-    `Update(Person)`, real refreshes) ignore the stamp and always queue. The job id is a hash of the actor id, the sorted
-    field values and a 30 second window, so concurrent queues of the same state
-    collapse (the database queue ignores a second job under a taken id, and
-    QStash deduplicates by id) but a save a minute later runs again. A verified
-    link is never checked again until its value changes. `http:` links are not
-    verifiable, as in Mastodon (`Account::Field` accepts only `https`), and
-    `safeRemoteFetch` refuses plain http anyway, so they get no status in Settings or on the profile and are never
-    queued. On `NoQueue` the job runs inside `publish`, so the request that
-    saved the links waits for the check (about 30 s per link with two redirects, and up to four links run at once), and for a
-    remote actor it also runs inside the `getProfileData` render that
-    created or refreshed it, so that page waits for the check too (`NoQueue`
-    does not deduplicate).
-  - **Where it shows:** `fields[].verified_at` and `source.fields[].verified_at`
-    of the Account entity (ISO time or `null`); `ProfileFieldsBlock` (the
-    profile page passes `profileFields` from `getProfileData`: a local actor's
-    stored field, or a remote document's field matched by name and value to the
-    stored row); and the "Profile fields" editor on the Edit profile page (`ProfileFieldsField`,
+    (`lib/services/profile-links/queueProfileLinkVerification.ts`) queues
+    the job, best effort like `publishActorUpdate`, whenever any field is
+    verifiable (`getVerifiableFieldUrl`, with the local or remote flag) and
+    has no `verifiedAt` after the stored check is carried over. A changed
+    verifiable value is always unverified, so this also covers a changed
+    list; it is Mastodon's `requires_verification?` test in `check_links`. So
+    saving the same link again after adding `<a rel="me">` to the site
+    re-checks it, while a profile whose links are all verified, empty, plain
+    text or http queues nothing.
+    - It is called after the settings form, `update_credentials` and
+      `PATCH /api/v1/profile` (the last two share `updateCredentialsHandler`)
+      save links, and after a remote actor is created or refreshed
+      (`recordActorIfNeeded`, `getProfileData`). `getProfileData` runs on
+      every render of a remote profile, so there the call passes
+      `renderCheckedAt` (the actor's `linksCheckedAt`; `updatedAt` moves on
+      every render, so it cannot be the gate) and nothing is queued while
+      the last check is newer than 1 hour for a changed value, or 3 days
+      for an unchanged unverified one. That bounds the fetches even when a
+      hostile remote serves different values on every request. The local
+      saves and `recordActorIfNeeded` (inbox `Update(Person)`, real
+      refreshes) ignore the stamp and always queue.
+    - The job id is a hash of the actor id, the sorted field values and a
+      30 second window, so concurrent queues of the same state collapse
+      (the database queue ignores a second job under a taken id, and QStash
+      deduplicates by id) but a save a minute later runs again. A verified
+      link is never checked again until its value changes.
+    - `http:` links are not verifiable, as in Mastodon (`Account::Field`
+      accepts only `https`), and `safeRemoteFetch` refuses plain http
+      anyway, so they get no status in Settings or on the profile and are
+      never queued. On `NoQueue` the job runs inside `publish`, so the
+      request that saved the links waits for the check (about 30 s per link
+      with two redirects, and up to four links run at once), and for a
+      remote actor it also runs inside the `getProfileData` render that
+      created or refreshed it, so that page waits for the check too
+      (`NoQueue` does not deduplicate).
+  - **Where it shows:** `fields[].verified_at` and
+    `source.fields[].verified_at` of the Account entity (ISO time or
+    `null`); `ProfileFieldsBlock` (the profile page passes `profileFields`
+    from `getProfileData`: a local actor's stored field, or a remote
+    document's field matched by name and value to the stored row); and the
+    "Profile fields" editor on the Edit profile page (`ProfileFieldsField`,
     `lib/components/settings/`), which shows a green "Verified" or a muted
     "Not verified" under each row whose current content (trimmed) equals a
-    saved https value, matched by value and not by position because rows can
-    move (nothing for an empty, text or http row, and nothing once the content
-    was edited to something unsaved, because the status describes the saved
-    value), wired into the content input's `aria-describedby`. The editor's
-    "On your profile" preview renders the filled rows through
-    `ProfileFieldsBlock` with `verifiedAt` only for such saved values, and
-    each row's icon comes from `chooseProfileFieldIcon` on the same sanitized
-    value the profile uses, drawn from the one `PROFILE_FIELD_ICONS` map
-    (`profileFieldIcons.ts`). The editor always submits four
-    `fields[i][name]`/`fields[i][value]` pairs in row order, padding unused
-    slots with empty hidden inputs, because `parseProfileFieldsForm` keeps the
-    stored fields when a form has no `fields[...]` key and emptying the list
-    must clear them. Reordering or relabelling keeps `verifiedAt`, since
-    `carryOverFieldVerification` matches by value. The Edit profile page uses the
-    same field with `showLinkChecks` and no inline preview (it has its own live
-    preview column), and its rows are reported to the page through
-    `onRowsChange` and the saved values come back from the PATCH, so it submits
-    JSON instead of the four hidden pairs. With link checks on, an https value
-    that is new, changed or just saved without a check mark reads "Checking for
-    a link back to your profile…" (client state only; the server does not say
-    when a check runs, so the label lasts until the page loads again).
-- **Account deletion sends `Delete(actor)` from `deleteActorJob` itself, inline,
-  while the row is still `scheduled`: after the due-time checks and BEFORE
-  `startActorDeletion`.** The Delete must be signed with the actor's key, and
-  `deleteActorData` removes the row that holds it, so a queued
-  `DeliverActivityJob` would find no actor on retry and discard itself. Do not
-  move the sends after the data delete or onto the queue. Do not move them after
-  `startActorDeletion` either: a worker that dies mid-fan-out is retried, and a
-  retry of a row already marked `deleting` stops at the status check, which
-  would leave the account in `deleting` with its data never removed. The job
-  re-reads the status after the sends so a cancel that landed meanwhile still
-  keeps the account locally; the Deletes already sent cannot be recalled, so
-  remote servers that processed one have dropped the account's copy and its
-  follows there. The sends share a wall-clock budget
-  (`ACTOR_DELETION_FEDERATION_BUDGET_MS`, under QStash's 30s job limit) and
-  each uses a short timeout (the request layer never retries a POST): a
-  hosted queue cuts the job off at its deadline and retries from the top, so a
-  fan-out that never fits would
-  keep the account from ever being deleted. Inboxes not reached in time are
-  skipped. Inboxes
-  of LOCAL followers (`getLocalFollowersForActorId`) are left out: delivering
-  there would run the inbound actor delete (`deleteObjectJob` →
-  `database.deleteActor`) on the row the job is still emptying. Sending is best
-  effort and never stops the local deletion.
+    saved https value, matched by value and not by position because rows
+    can move (nothing for an empty, text or http row, and nothing once the
+    content was edited to something unsaved, because the status describes
+    the saved value), wired into the content input's `aria-describedby`.
+    - The editor's "On your profile" preview renders the filled rows
+      through `ProfileFieldsBlock` with `verifiedAt` only for such saved
+      values, and each row's icon comes from `chooseProfileFieldIcon` on
+      the same sanitized value the profile uses, drawn from the one
+      `PROFILE_FIELD_ICONS` map (`profileFieldIcons.ts`).
+    - The editor always submits four `fields[i][name]`/`fields[i][value]`
+      pairs in row order, padding unused slots with empty hidden inputs,
+      because `parseProfileFieldsForm` keeps the stored fields when a form
+      has no `fields[...]` key and emptying the list must clear them.
+      Reordering or relabelling keeps `verifiedAt`, since
+      `carryOverFieldVerification` matches by value.
+    - The Edit profile page uses the same field with `showLinkChecks` and
+      no inline preview (it has its own live preview column), and its rows
+      are reported to the page through `onRowsChange` and the saved values
+      come back from the PATCH, so it submits JSON instead of the four
+      hidden pairs. With link checks on, an https value that is new,
+      changed or just saved without a check mark reads "Checking for a
+      link back to your profile…" (client state only; the server does
+      not say when a check runs, so the label lasts until the page loads
+      again).
+
+#### Actor deletion federation
+
+- **Account deletion sends `Delete(actor)` from `deleteActorJob` itself,
+  inline, while the row is still `scheduled`: after the due-time checks and
+  BEFORE `startActorDeletion`.** The Delete must be signed with the actor's
+  key, and `deleteActorData` removes the row that holds it, so a queued
+  `DeliverActivityJob` would find no actor on retry and discard itself. Do
+  not move the sends after the data delete or onto the queue. Do not move
+  them after `startActorDeletion` either: a worker that dies mid-fan-out is
+  retried, and a retry of a row already marked `deleting` stops at the
+  status check, which would leave the account in `deleting` with its data
+  never removed.
+  - The job re-reads the status after the sends so a cancel that landed
+    meanwhile still keeps the account locally; the Deletes already sent
+    cannot be recalled, so remote servers that processed one have dropped
+    the account's copy and its follows there.
+  - The sends share a wall-clock budget
+    (`ACTOR_DELETION_FEDERATION_BUDGET_MS`, under QStash's 30s job limit)
+    and each uses a short timeout (the request layer never retries a POST):
+    a hosted queue cuts the job off at its deadline and retries from the
+    top, so a fan-out that never fits would keep the account from ever being
+    deleted. Inboxes not reached in time are skipped. Inboxes of LOCAL
+    followers (`getLocalFollowersForActorId`) are left out: delivering there
+    would run the inbound actor delete (`deleteObjectJob` →
+    `database.deleteActor`) on the row the job is still emptying. Sending is
+    best effort and never stops the local deletion.
+
+#### Inbound actor profile updates
+
 - **An inbound `Update` whose object is an actor (an actor type, or a bare id
   equal to the activity's actor) goes to `UpdateActorJob`, which re-fetches the
   profile from its origin through `recordActorIfNeeded({ forceRefresh: true })`
@@ -2832,6 +2946,9 @@ moved` (reject stays allowed). While
   signer, the activity's `actor` and the object id are the same actor. The job
   refreshes only a stored remote row: an actor never stored has nothing to
   refresh, and a local row is never rewritten from the network.
+
+#### The `sensitive` flag federates both ways
+
 - **`sensitive` federates both ways.** Outbound notes always carry it as a
   boolean (both `getNoteFromStatus` and `toActivityPubObject`), as Mastodon does.
   Omitting `false` would leave an un-marked post sensitive on any receiver that
