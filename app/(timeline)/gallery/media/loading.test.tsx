@@ -112,6 +112,11 @@ describe('gallery all media loading', () => {
       phoneLead.querySelector('[data-slot="skeleton-bar"].w-\\[75px\\]')
     ).toBeInTheDocument()
     const phoneRow = phoneLead.parentElement as HTMLElement
+    // The compact Sort placeholder matches the real compact Sort ("Newest"
+    // plus chevron) at about 100px.
+    expect(
+      phoneRow.querySelector('[data-slot="skeleton-bar"].w-\\[100px\\]')
+    ).toBeInTheDocument()
     expect(phoneRow).toHaveClass(
       'flex',
       'items-center',

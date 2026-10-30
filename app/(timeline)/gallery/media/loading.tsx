@@ -52,7 +52,7 @@ const Loading: FC = () => (
             <SkeletonBar className="h-10 w-full" />
             <SkeletonBar className="h-10 w-[75px] rounded-lg" />
           </div>
-          <SkeletonBar className="h-10 w-36 rounded-lg" />
+          <SkeletonBar className="h-10 w-[100px] rounded-lg" />
         </div>
       </div>
       {/* The count line a sheet host keeps on phones below the row. */}
