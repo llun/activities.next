@@ -8,6 +8,10 @@ import {
 import { SkeletonBar } from '@/lib/components/surface/Skeleton'
 import { cn } from '@/lib/utils'
 
+// Not a route `loading.tsx` on purpose: the status route has no loading
+// boundary (see `loadingBoundary.test.ts`). `PendingProfileOverlay` shows this
+// only when opening a post is still pending after `PENDING_STATUS_DELAY_MS`.
+
 // The loaded logged-out page is a stack of inset frames below `md` (see
 // `MOBILE_INSET_STACK_CLASS`), so this single placeholder frame, which stands in
 // for its thread frame, undoes `MOBILE_FEED_SURFACE_CLASS` there: it takes the
@@ -16,13 +20,16 @@ import { cn } from '@/lib/utils'
 const PUBLIC_MOBILE_INSET_CARD_CLASS =
   'group-data-[shell=public]/shell:max-md:mx-0 group-data-[shell=public]/shell:max-md:rounded-lg group-data-[shell=public]/shell:max-md:border'
 
-export const StatusLoading: FC = () => {
+export const StatusLoadingSkeleton: FC = () => {
   return (
     <>
       {/* The loaded page's mobile bar (signed in only — the public shell
           provides no mobile navigation); its title ("Post" or "Activity") is
           not known until the status loads. */}
-      <MobileCompactHeader title={<SkeletonBar className="h-5 w-16" />} />
+      <MobileCompactHeader
+        as="p"
+        title={<SkeletonBar className="h-5 w-16" />}
+      />
       <div
         aria-busy="true"
         className={cn(
@@ -73,5 +80,3 @@ export const StatusLoading: FC = () => {
     </>
   )
 }
-
-export default StatusLoading

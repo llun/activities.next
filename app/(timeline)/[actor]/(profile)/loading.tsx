@@ -1,11 +1,10 @@
 import { FC } from 'react'
 
+import { ProfileCover } from '@/app/(timeline)/[actor]/ProfileCover'
 import { MobileNavigationTrigger } from '@/lib/components/layout/mobile-navigation-trigger'
 import { PostListSkeleton } from '@/lib/components/posts/PostListSkeleton'
 import { SkeletonBar } from '@/lib/components/surface/Skeleton'
 import { StatStrip } from '@/lib/components/surface/StatStrip'
-
-import { ProfileCover } from './ProfileCover'
 
 // The profile's shape while it loads: the cover, the avatar over the name,
 // handle and bio, the counts strip, the tab track and a framed list of posts.

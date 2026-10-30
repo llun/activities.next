@@ -1,10 +1,10 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
 import { FC, useCallback, useMemo, useState } from 'react'
 
 import { getAlbumsOwnerId } from '@/lib/components/gallery/mediaAlbumsUi'
 import { OwnPostMediasModal } from '@/lib/components/medias-modal/own-post-medias-modal'
+import { useOpenStatusPath } from '@/lib/components/posts/useOpenStatusPath'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
@@ -106,7 +106,7 @@ export const Posts: FC<Props> = ({
   onLikeChanged,
   onReactionsChanged
 }) => {
-  const router = useRouter()
+  const openStatusPath = useOpenStatusPath()
   const [modalMedias, setModalMedias] = useState<{
     medias: Attachment[]
     tags?: Tag[]
@@ -123,10 +123,10 @@ export const Posts: FC<Props> = ({
     (status: Status) => {
       void (async () => {
         const detailPath = await getStatusDetailPathClient(status)
-        if (detailPath) router.push(detailPath)
+        if (detailPath) openStatusPath(detailPath)
       })()
     },
-    [router]
+    [openStatusPath]
   )
   const showMedia = useCallback(
     (

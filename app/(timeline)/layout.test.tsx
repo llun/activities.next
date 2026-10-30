@@ -17,6 +17,11 @@ const mockGetAllServerSettings = vi.fn()
 const mockGetActorSettings = vi.fn()
 const mockCountOpenReports = vi.fn()
 
+vi.mock('next/navigation', () => ({
+  usePathname: () => '/',
+  useRouter: () => ({ push: vi.fn() })
+}))
+
 vi.mock('@/lib/database', () => ({
   getDatabase: vi.fn(() => ({
     getActorsForAccount: mockGetActorsForAccount,

@@ -15,7 +15,7 @@ import { isLocalFederationDomain } from '@/lib/services/federation/domainPolicy'
  * result rather than the helper deciding for them — do not fold either gate
  * into this function:
  *
- *   - `[actor]/page.tsx` additionally gates on `!isLoggedIn`. A signed-in
+ *   - `[actor]/(profile)/page.tsx` additionally gates on `!isLoggedIn`. A signed-in
  *     visitor who follows a remote actor's canonical `/@user@domain` link
  *     still gets a chance to resolve the actor from this instance first (so
  *     their own relationship/follow state renders), so its page body only

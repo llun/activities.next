@@ -26,7 +26,7 @@ const CHROME_BARS: Array<[file: string, bars: number]> = [
   ['app/(timeline)/landing/LandingPublicFeed.tsx', 1],
   ['app/u/heatmaps/[token]/SharedHeatmapPage.tsx', 1],
   ['app/(timeline)/[actor]/[status]/Header.tsx', 1],
-  ['app/(timeline)/[actor]/[status]/loading.tsx', 1]
+  ['app/(timeline)/[actor]/[status]/StatusLoadingSkeleton.tsx', 1]
 ]
 
 const countOf = (source: string, pattern: RegExp) =>

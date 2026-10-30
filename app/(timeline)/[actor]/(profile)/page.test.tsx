@@ -4,13 +4,13 @@
 import '@testing-library/jest-dom'
 import { render, screen } from '@testing-library/react'
 
+import { getProfileData } from '@/app/(timeline)/[actor]/getProfileData'
 import { MobileNavigationProvider } from '@/lib/components/layout/mobile-navigation-context'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { isLocalFederationDomain } from '@/lib/services/federation/domainPolicy'
 import { Actor } from '@/lib/types/activitypub'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
-import { getProfileData } from './getProfileData'
 import Page from './page'
 
 const mockDatabase = {
@@ -50,12 +50,12 @@ vi.mock('@/lib/services/federation/domainPolicy', () => ({
   isLocalFederationDomain: vi.fn()
 }))
 
-vi.mock('./getProfileData', () => ({
+vi.mock('@/app/(timeline)/[actor]/getProfileData', () => ({
   getProfileData: vi.fn()
 }))
 
 const mockActorTimelines = vi.fn()
-vi.mock('./ActorTimelines', () => ({
+vi.mock('@/app/(timeline)/[actor]/ActorTimelines', () => ({
   ActorTimelines: (props: unknown) => {
     mockActorTimelines(props)
     return <div data-testid="actor-timelines" />
@@ -75,12 +75,12 @@ vi.mock('@/lib/components/ui/avatar', () => ({
   )
 }))
 
-vi.mock('./ProfileHeaderImage', () => ({
+vi.mock('@/app/(timeline)/[actor]/ProfileHeaderImage', () => ({
   ProfileHeaderImage: () => <div data-testid="header-image" />
 }))
 
 const mockRelationshipActionsProps = vi.fn()
-vi.mock('./ProfileRelationshipActions', () => ({
+vi.mock('@/app/(timeline)/[actor]/ProfileRelationshipActions', () => ({
   ProfileRelationshipActions: (props: unknown) => {
     mockRelationshipActionsProps(props)
     return <div data-testid="relationship-actions" />
@@ -96,7 +96,7 @@ vi.mock('@/lib/types/domain/actor', async (importOriginal) => ({
   getActorProfile: (actor: unknown) => actor
 }))
 
-vi.mock('./EditOwnedProfileButton', () => ({
+vi.mock('@/app/(timeline)/[actor]/EditOwnedProfileButton', () => ({
   EditOwnedProfileButton: (props: { actorId: string; handle: string }) => (
     <button data-testid="edit-owned" data-actor-id={props.actorId}>
       {props.handle}

@@ -5,12 +5,12 @@ import '@testing-library/jest-dom'
 import { render, screen, within } from '@testing-library/react'
 import { notFound } from 'next/navigation'
 
+import { getProfileData } from '@/app/(timeline)/[actor]/getProfileData'
 import { MobileNavigationProvider } from '@/lib/components/layout/mobile-navigation-context'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { isLocalFederationDomain } from '@/lib/services/federation/domainPolicy'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
-import { getProfileData } from './getProfileData'
 import Page, { generateMetadata } from './page'
 
 const mockDatabase = {}
@@ -44,19 +44,19 @@ vi.mock('@/lib/services/federation/domainPolicy', () => ({
   isLocalFederationDomain: vi.fn()
 }))
 
-vi.mock('./getProfileData', () => ({
+vi.mock('@/app/(timeline)/[actor]/getProfileData', () => ({
   getProfileData: vi.fn()
 }))
 
-vi.mock('./ActorTimelines', () => ({
+vi.mock('@/app/(timeline)/[actor]/ActorTimelines', () => ({
   ActorTimelines: () => <div data-testid="actor-timelines" />
 }))
 
-vi.mock('./ProfileHeaderImage', () => ({
+vi.mock('@/app/(timeline)/[actor]/ProfileHeaderImage', () => ({
   ProfileHeaderImage: () => <div data-testid="header-image" />
 }))
 
-vi.mock('./ProfileRelationshipActions', () => ({
+vi.mock('@/app/(timeline)/[actor]/ProfileRelationshipActions', () => ({
   ProfileRelationshipActions: () => <div data-testid="relationship-actions" />
 }))
 
@@ -140,7 +140,7 @@ describe('[actor] page redirects and non-local handles', () => {
 
   // Pins the difference documented on getNonLocalActorRedirectTarget: unlike
   // followers/page.tsx and following/page.tsx (which redirect any visitor),
-  // [actor]/page.tsx only redirects a LOGGED-OUT visitor. A signed-in visitor
+  // [actor]/(profile)/page.tsx only redirects a LOGGED-OUT visitor. A signed-in visitor
   // to an unresolvable non-local actor still gets notFound, not a redirect
   // card, so they always get a chance to resolve the actor locally first.
   it('calls notFound instead of redirecting for a non-local actor when logged in', async () => {
