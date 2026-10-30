@@ -1,0 +1,23 @@
+ci-flakes/analysis-argon.md
+  s_f6091a1907b015::t_76acaefd3cc5d4 1-747
+ci-flakes/analysis-astra.md
+  s_f6091a1907b015::t_c976cd70fe7889 1-306
+ci-flakes/analysis-glm53.md
+  s_f6091a1907b015::t_f3051e258ca3a8 1-333
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f4892753c92d442aa16ac92251d69536d8b6152b",
+  "prompts": {},
+  "sessions": {
+    "s_f6091a1907b015": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4002b74e-ccf2-4b38-b4b6-ddb1cc097d99",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
