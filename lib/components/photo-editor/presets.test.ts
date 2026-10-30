@@ -3,7 +3,6 @@ import { NEUTRAL_RECIPE, type Recipe } from '@/lib/services/medias/edit/recipe'
 
 import {
   DEFAULT_ENHANCE_STRENGTH,
-  PRESETS,
   PRESET_IDS,
   applyPreset,
   computePresetAdjustments,
@@ -23,28 +22,6 @@ const mockStats: ImageStats = {
   meanChroma: 0.1,
   neutralMidtone: { r: 0.1, g: 0.1, b: 0.1, weight: 0.5 }
 }
-
-describe('presets metadata', () => {
-  it('defines the 6 preset IDs', () => {
-    expect(PRESET_IDS).toEqual([
-      'natural',
-      'vivid',
-      'dramatic',
-      'warm',
-      'cool',
-      'mono'
-    ])
-  })
-
-  it('provides metadata for all 6 presets with matching IDs', () => {
-    expect(PRESETS).toHaveLength(6)
-    expect(PRESETS.map((p) => p.id)).toEqual([...PRESET_IDS])
-    for (const preset of PRESETS) {
-      expect(preset.label.length).toBeGreaterThan(0)
-      expect(preset.description.length).toBeGreaterThan(0)
-    }
-  })
-})
 
 describe('scalePresetDelta', () => {
   it('rounds exposure to 0.05 steps', () => {

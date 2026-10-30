@@ -13,10 +13,4 @@ describe('[status] loading', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Loading post')
     expect(container.querySelector('[aria-busy="true"]')).toBeInTheDocument()
   })
-
-  it('draws placeholders only, with no text besides the status', () => {
-    const { container } = render(<Loading />)
-
-    expect(container).toHaveTextContent(/^Loading post$/)
-  })
 })

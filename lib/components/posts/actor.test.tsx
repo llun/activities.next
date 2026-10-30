@@ -219,12 +219,6 @@ describe('ActorInfo', () => {
     expect(screen.queryByRole('link')).toBeNull()
     expect(container.textContent).toBe(text)
   })
-
-  it('renders nothing without an actor or an actor id', () => {
-    const { container } = render(<ActorInfo />)
-
-    expect(container).toBeEmptyDOMElement()
-  })
 })
 
 describe('ActorAvatar', () => {

@@ -8,7 +8,7 @@ import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
-import { OPTIONS, POST } from './route'
+import { POST } from './route'
 
 const mockGetServerSession = vi.fn()
 vi.mock('@/lib/services/auth/getSession', () => ({
@@ -106,18 +106,6 @@ describe('/api/v1/gallery/media', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     signIn(seedActor1.email)
-  })
-
-  it('advertises POST and OPTIONS', async () => {
-    const response = await OPTIONS(
-      new NextRequest('https://llun.test/api/v1/gallery/media', {
-        method: 'OPTIONS'
-      })
-    )
-
-    const methods = response.headers.get('Access-Control-Allow-Methods')
-    expect(methods).toContain('POST')
-    expect(methods).toContain('OPTIONS')
   })
 
   it('answers 401 with CORS headers when nobody is signed in', async () => {

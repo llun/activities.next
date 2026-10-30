@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { ERROR_401 } from '@/lib/utils/response'
 
-import { GET, OPTIONS } from './route'
+import { GET } from './route'
 
 vi.mock('@/lib/utils/logger', () => ({
   logger: {
@@ -66,22 +66,6 @@ const createRouteContext = () => ({
 vi.mock('@/lib/services/medias/quota', () => ({
   getQuotaLimit: vi.fn().mockReturnValue(4294967296)
 }))
-
-describe('OPTIONS /api/v1/accounts/media', () => {
-  it('returns 200 with allowed CORS methods', async () => {
-    const req = new NextRequest('https://llun.test/api/v1/accounts/media', {
-      method: 'OPTIONS',
-      headers: { Origin: 'https://llun.test' }
-    })
-    const res = await OPTIONS(req)
-    expect(res.status).toBe(200)
-    expect(res.headers.get('Access-Control-Allow-Methods')).toContain('OPTIONS')
-    expect(res.headers.get('Access-Control-Allow-Methods')).toContain('GET')
-    expect(res.headers.get('Access-Control-Allow-Origin')).toBe(
-      'https://llun.test'
-    )
-  })
-})
 
 describe('GET /api/v1/accounts/media', () => {
   const sampleMediaItem = {

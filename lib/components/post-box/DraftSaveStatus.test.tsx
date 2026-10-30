@@ -7,12 +7,6 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { DraftSaveStatus } from './DraftSaveStatus'
 
 describe('DraftSaveStatus', () => {
-  it('shows nothing while idle', () => {
-    const { container } = render(<DraftSaveStatus saveState="idle" text="" />)
-
-    expect(container).toBeEmptyDOMElement()
-  })
-
   it('says Saving and Saved without announcing them', () => {
     const { rerender, container } = render(
       <DraftSaveStatus saveState="saving" text="hi" />

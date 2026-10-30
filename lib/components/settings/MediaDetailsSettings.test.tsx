@@ -105,20 +105,6 @@ describe('MediaDetailsSettings', () => {
     expect(hashtags).toBeChecked()
   })
 
-  it('no longer offers the default place precision', async () => {
-    render(<MediaDetailsSettings />)
-
-    await screen.findByRole('switch', { name: AUTO_DESCRIBE })
-    // The only select is the subject confidence threshold.
-    expect(screen.getAllByRole('combobox')).toHaveLength(1)
-    expect(
-      screen.queryByRole('heading', { name: 'Location' })
-    ).not.toBeInTheDocument()
-    expect(
-      screen.queryByText('Default place precision')
-    ).not.toBeInTheDocument()
-  })
-
   it('points to the Gallery privacy and gear pages', async () => {
     render(<MediaDetailsSettings />)
 

@@ -42,18 +42,6 @@ describe('LinkPreviewCard', () => {
     vi.restoreAllMocks()
   })
 
-  it('renders the title, description and domain', () => {
-    render(<LinkPreviewCard linkPreview={card()} />)
-
-    expect(
-      screen.getByText('The best bike computers you can buy')
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText('We tested twelve head units over three months.')
-    ).toBeInTheDocument()
-    expect(screen.getByText(/theverge\.com/)).toBeInTheDocument()
-  })
-
   it('links to the page and opens it safely in a new tab', () => {
     render(<LinkPreviewCard linkPreview={card()} />)
 

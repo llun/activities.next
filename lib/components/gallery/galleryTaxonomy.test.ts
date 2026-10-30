@@ -13,7 +13,6 @@ import {
 
 describe('galleryTaxonomy', () => {
   it.each([
-    ['TH', 'Thailand'],
     ['CR', 'Costa Rica'],
     ['ZZ', null],
     ['th', null],

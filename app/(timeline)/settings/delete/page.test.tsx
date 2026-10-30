@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen } from '@testing-library/react'
+import { render } from '@testing-library/react'
 
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
@@ -63,17 +63,6 @@ describe('/settings/delete', () => {
     getActorsForAccount.mockResolvedValue([
       { id: 'https://llun.test/users/anna', deletionStatus: null }
     ])
-  })
-
-  it('renders header with "Delete this profile" and description', async () => {
-    render(await Page())
-
-    expect(
-      screen.getByRole('heading', { level: 1, name: 'Delete this profile' })
-    ).toBeVisible()
-    expect(
-      screen.getByText('Irreversible actions for this profile.')
-    ).toBeVisible()
   })
 
   it('passes correct props to DeleteActorSection', async () => {

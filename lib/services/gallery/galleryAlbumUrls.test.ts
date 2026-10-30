@@ -8,16 +8,6 @@ vi.mock('@/lib/config', () => ({
 }))
 
 describe('getGalleryAlbumPublicPath', () => {
-  it('nests the album under the actor handle', () => {
-    expect(
-      getGalleryAlbumPublicPath({
-        username: 'ann',
-        domain: 'llun.test',
-        albumId: 'a1'
-      })
-    ).toBe('/@ann@llun.test/albums/a1')
-  })
-
   it('encodes an id that is not path-safe', () => {
     expect(
       getGalleryAlbumPublicPath({

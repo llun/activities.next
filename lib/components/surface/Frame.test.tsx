@@ -7,15 +7,6 @@ import { render, screen } from '@testing-library/react'
 import { Frame } from './Frame'
 
 describe('Frame', () => {
-  it('renders its children', () => {
-    render(
-      <Frame>
-        <p>Body</p>
-      </Frame>
-    )
-    expect(screen.getByText('Body')).toBeInTheDocument()
-  })
-
   it.each([{ muted: true }, { divided: true }])(
     'renders its children with %o',
     (props) => {

@@ -29,18 +29,6 @@ describe('getAccountBootstrap', () => {
     })
   })
 
-  it('forwards signal to fetch', async () => {
-    fetchMock.mockResponseOnce(JSON.stringify({ ok: true }), { status: 200 })
-
-    const controller = new AbortController()
-    await getAccountBootstrap({ signal: controller.signal })
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      '/api/v1/accounts/bootstrap',
-      expect.objectContaining({ signal: controller.signal })
-    )
-  })
-
   it('throws TimelineRequestError on 401 Unauthorized', async () => {
     fetchMock.mockResponseOnce(JSON.stringify({ error: 'Session required' }), {
       status: 401

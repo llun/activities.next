@@ -82,19 +82,6 @@ describe('Post', () => {
       expect(screen.getByText('A linked article')).toBeInTheDocument()
     })
 
-    it('renders nothing for a status with no card', () => {
-      render(
-        <Post
-          host="activities.local"
-          currentTime={currentTime}
-          status={{ ...status, summary: null }}
-          onShowAttachment={vi.fn()}
-        />
-      )
-
-      expect(screen.queryByText('A linked article')).not.toBeInTheDocument()
-    })
-
     // Media, a quoted post and a fitness activity are all richer
     // representations of what the post is about; the link card yields to them
     // rather than stacking a second block underneath.

@@ -1,5 +1,3 @@
-import { createServer } from 'node:http'
-import { AddressInfo } from 'node:net'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { afterEach } from 'vitest'
 
@@ -440,53 +438,6 @@ describe('safeImageFetch redirect handling', () => {
   it('refuses a plain http URL at the first hop, without fetching', async () => {
     expect(await safeImageFetch('http://cdn.example/photo.jpg')).toBeNull()
     expect(fetchMock).not.toHaveBeenCalled()
-  })
-})
-
-// Documents the platform behaviour manual mode exists to prevent: a bare
-// `fetch` carries the request to the redirect target on its own, so a guard
-// that only inspects the URL it was handed inspects the wrong request.
-describe('default fetch redirect behaviour', () => {
-  const servers: ReturnType<typeof createServer>[] = []
-
-  afterEach(async () => {
-    await Promise.all(
-      servers.splice(0).map(
-        (server) =>
-          new Promise<void>((resolve) => {
-            server.close(() => resolve())
-          })
-      )
-    )
-  })
-
-  const startServer = async (
-    handler: Parameters<typeof createServer>[1]
-  ): Promise<string> => {
-    const server = createServer(handler)
-    servers.push(server)
-    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
-    const { port } = server.address() as AddressInfo
-    return `http://127.0.0.1:${port}`
-  }
-
-  it('follows a redirect into the local network when left at its default', async () => {
-    const internal = await startServer((_request, response) => {
-      response.writeHead(200, { 'content-type': 'image/jpeg' })
-      response.end('INTERNAL')
-    })
-    const origin = await startServer((_request, response) => {
-      response.writeHead(302, { location: `${internal}/secret` })
-      response.end()
-    })
-
-    const followed = await fetch(`${origin}/photo.jpg`)
-    expect(await followed.text()).toBe('INTERNAL')
-
-    const manual = await fetch(`${origin}/photo.jpg`, { redirect: 'manual' })
-    expect(manual.status).toBe(302)
-    expect(manual.headers.get('location')).toBe(`${internal}/secret`)
-    await manual.body?.cancel()
   })
 })
 

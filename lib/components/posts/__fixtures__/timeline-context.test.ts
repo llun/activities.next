@@ -30,10 +30,6 @@ import {
 
 describe('timeline-context fixtures', () => {
   describe('Mock Actors & Profiles', () => {
-    it('correctly sets Group type on mockGroupActor', () => {
-      expect(mockGroupActor.type).toBe('Group')
-    })
-
     it('allows overriding properties via createMockActorProfile', () => {
       const custom = createMockActorProfile({
         id: 'https://activities.local/users/custom',

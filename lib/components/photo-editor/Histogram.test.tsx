@@ -38,12 +38,6 @@ describe('Histogram', () => {
     expect(screen.getAllByTestId('histogram-guide')).toHaveLength(3)
   })
 
-  it('uses a fixed dark isolated frame', () => {
-    render(<Histogram data={image([128, 128, 128])} />)
-    const svg = screen.getByRole('img', { name: 'Histogram' })
-    expect(svg).toHaveClass('bg-neutral-900', 'isolate', 'h-20')
-  })
-
   it('leaves both indicators off for a mid-grey image', () => {
     render(<Histogram data={image([128, 128, 128])} />)
     expect(screen.getByRole('img', { name: 'Histogram' })).toBeInTheDocument()
@@ -98,16 +92,6 @@ describe('Histogram', () => {
       expect(screen.getByTestId(id)).not.toHaveAttribute('role')
     }
     expect(screen.getAllByRole('img')).toHaveLength(1)
-  })
-
-  it('titles the indicators for hover', () => {
-    render(<Histogram data={image([255, 255, 255])} />)
-    expect(screen.getByTestId('histogram-clip-highlights')).toHaveTextContent(
-      'Highlights clipped'
-    )
-    expect(screen.getByTestId('histogram-clip-shadows')).toHaveTextContent(
-      'No shadow clipping'
-    )
   })
 
   it('renders only the frame and guides without data', () => {

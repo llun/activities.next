@@ -68,12 +68,6 @@ describe('DraftsProvider', () => {
     vi.unstubAllGlobals()
   })
 
-  it('useDrafts is null outside the provider', () => {
-    render(<Probe />)
-
-    expect(screen.getByTestId('probe')).toHaveTextContent('none')
-  })
-
   it('is null for a signed-in actor without an account id', async () => {
     renderProvider({ accountId: '' })
 

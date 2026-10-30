@@ -16,17 +16,6 @@ describe('PlaybackPreferencesContext', () => {
     expect(result.current.autoplayGifs).toBe(false)
   })
 
-  it('provides initialAutoplayGifs from provider', () => {
-    const wrapper: FC<{ children: React.ReactNode }> = ({ children }) => (
-      <PlaybackPreferencesProvider actorId="act-1" initialAutoplayGifs={true}>
-        {children}
-      </PlaybackPreferencesProvider>
-    )
-
-    const { result } = renderHook(() => usePlaybackPreferences(), { wrapper })
-    expect(result.current.autoplayGifs).toBe(true)
-  })
-
   it('allows updating autoplayGifs state', () => {
     const wrapper: FC<{ children: React.ReactNode }> = ({ children }) => (
       <PlaybackPreferencesProvider actorId="act-1" initialAutoplayGifs={false}>

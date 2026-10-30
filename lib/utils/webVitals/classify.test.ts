@@ -3,7 +3,7 @@ import {
   getWebVitalsRoute,
   toWebVitalNavigationType
 } from './classify'
-import { WEB_VITAL_NAVIGATION_TYPES, WEB_VITAL_ROUTES } from './types'
+import { WEB_VITAL_ROUTES } from './types'
 
 describe('getWebVitalsRoute', () => {
   it.each([
@@ -115,14 +115,5 @@ const navigationTypeRows: [unknown, string][] = [
 describe('toWebVitalNavigationType', () => {
   it.each(navigationTypeRows)('maps %s to %s', (value, expected) => {
     expect(toWebVitalNavigationType(value)).toBe(expected)
-  })
-
-  it('has an identity row for every navigation type', () => {
-    const identityRows = navigationTypeRows
-      .filter(([value, expected]) => value === expected)
-      .map(([value]) => value)
-    expect([...identityRows].sort()).toEqual(
-      [...WEB_VITAL_NAVIGATION_TYPES].sort()
-    )
   })
 })

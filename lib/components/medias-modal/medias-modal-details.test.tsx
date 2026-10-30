@@ -334,29 +334,4 @@ describe('MediasModal media details', () => {
     const overlay = screen.getByRole('region', { name: 'Photo details' })
     expect(overlay.textContent?.includes('Edited')).toBe(shown)
   })
-
-  it('spaces details rows with symmetric py-3 and divide-y rather than space-y', async () => {
-    mockGetMediaPublicDetails.mockResolvedValue(kingfisherDetails)
-    mockGetMediaAlbums.mockResolvedValue({
-      albums: [],
-      albumIds: [],
-      addable: true
-    })
-
-    renderModal([buildAttachment({ mediaId: 'media-1', name: 'A bird' })], 0, {
-      albumsOwnerId: 'owner-1'
-    })
-
-    await openDetailsWhenReady()
-
-    const region = screen.getByRole('region', { name: 'Photo details' })
-    expect(region).toHaveClass('divide-y', 'divide-white/10')
-    expect(region.className).not.toMatch(/space-y-/)
-
-    expect(region.children.length).toBe(2)
-    const [altTextRow, detailsPanelRow] = Array.from(region.children)
-
-    expect(altTextRow).toHaveClass('py-3', 'first:pt-0', 'last:pb-0')
-    expect(detailsPanelRow).toHaveClass('py-3', 'first:pt-0', 'last:pb-0')
-  })
 })

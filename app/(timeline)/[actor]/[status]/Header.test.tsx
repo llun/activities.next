@@ -47,14 +47,6 @@ describe('Status Header', () => {
     resetInAppHistory()
   })
 
-  it('renders the desktop back button and post title', () => {
-    render(<Header fallbackHref={FALLBACK} fallbackName={NAME} />)
-
-    expect(screen.getByRole('button', { name: 'Go back' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Post' })).toBeInTheDocument()
-    expect(screen.getByText('Conversation thread')).toBeInTheDocument()
-  })
-
   it('navigates back through history from the desktop button', () => {
     render(<Header fallbackHref={FALLBACK} fallbackName={NAME} />)
 

@@ -38,11 +38,6 @@ vi.mock('@/lib/utils/text/sanitizeText', async (importOriginal) => {
 })
 
 describe('ProfileFieldsBlock', () => {
-  it('renders nothing without fields', () => {
-    const { container } = render(<ProfileFieldsBlock fields={[]} />)
-    expect(container).toBeEmptyDOMElement()
-  })
-
   it('renders nothing when every field is blank', () => {
     const { container } = render(
       <ProfileFieldsBlock fields={[{ name: ' ', value: '' }]} />

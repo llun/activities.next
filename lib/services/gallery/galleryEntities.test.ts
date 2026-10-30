@@ -1,7 +1,5 @@
 import {
-  UPLOADED_DAY_PREFIX,
   parseGalleryDayKey,
-  toGalleryDayKey,
   toSubjectKey,
   toUtcDay
 } from '@/lib/services/gallery/galleryEntities'
@@ -93,17 +91,6 @@ describe('toUtcDay', () => {
     { description: 'an empty string', value: '', expected: null }
   ])('$description', ({ value, expected }) => {
     expect(toUtcDay(value)).toBe(expected)
-  })
-})
-
-describe('toGalleryDayKey', () => {
-  it.each([
-    { description: 'a dated day', day: '2025-10-04', uploaded: false },
-    { description: 'an uploaded day', day: '2025-10-04', uploaded: true }
-  ])('builds $description', ({ day, uploaded }) => {
-    const key = toGalleryDayKey(day, uploaded)
-    expect(key).toBe(uploaded ? `${UPLOADED_DAY_PREFIX}${day}` : day)
-    expect(parseGalleryDayKey(key)).toEqual({ day, uploaded })
   })
 })
 

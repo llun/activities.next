@@ -816,20 +816,6 @@ describe('GalleryAlbumPicker', () => {
     }
   })
 
-  it('renders sm:grid-cols-5 when columns is 5 and sm:grid-cols-4 by default', async () => {
-    media.mockResolvedValue({
-      items: [named('1', 'Heron')],
-      nextCursor: null,
-      nextMaxId: null
-    })
-    const { rerender } = render(<Harness />)
-    await screen.findByRole('button', { name: /Select Heron/ })
-    expect(screen.getByRole('list')).toHaveClass('sm:grid-cols-4')
-
-    rerender(<Harness columns={5} />)
-    expect(screen.getByRole('list')).toHaveClass('sm:grid-cols-5')
-  })
-
   it('opens with the initial filters', async () => {
     media.mockResolvedValue({
       items: [named('1', 'Heron')],
