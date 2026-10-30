@@ -33,7 +33,7 @@ Alternatively, both `yarn migrate` and the app runtime accept the whole configur
 yarn migrate
 ```
 
-On an empty database the first migration loads the baseline schema (`migrations/baseline/sqlite.sql`), then every later migration in the [migrations directory](https://github.com/llun/activities.next/tree/main/migrations) runs.
+On an empty database the first migration loads the baseline schema (`migrations/baseline/sqlite.sql`), then every later migration in the [migrations directory](https://github.com/llun/activities.next/tree/main/migrations) runs. `yarn migrate` prints the database it resolved before it does anything, and `yarn migrate:status` lists the applied and pending migrations without writing to the database.
 
 ## Production Deployment with SQLite
 
