@@ -713,6 +713,56 @@ describe('AccountDatabase', () => {
         expect(sessions[0]).toMatchObject({ token, expireAt })
       })
 
+      it('deletes a session by id only when the account owns it', async () => {
+        const { accountId } = await createTestAccount()
+        const other = await createTestAccount()
+        const expireAt = Date.now() + 60_000
+        const ownToken = `own-${crypto.randomUUID()}`
+        const otherToken = `other-${crypto.randomUUID()}`
+        await database.createAccountSession({
+          accountId,
+          token: ownToken,
+          expireAt
+        })
+        await database.createAccountSession({
+          accountId: other.accountId,
+          token: otherToken,
+          expireAt
+        })
+        const [ownSession] = await database.getAccountAllSessions({
+          accountId
+        })
+        const [otherSession] = await database.getAccountAllSessions({
+          accountId: other.accountId
+        })
+        expect(ownSession.id).toBeString()
+        expect(ownSession.id).not.toBe(ownToken)
+
+        expect(
+          await database.deleteAccountSessionById({
+            accountId,
+            id: otherSession.id
+          })
+        ).toBe(0)
+        expect(
+          (
+            await database.getAccountAllSessions({
+              accountId: other.accountId
+            })
+          ).map((session) => session.id)
+        ).toEqual([otherSession.id])
+
+        expect(
+          await database.deleteAccountSessionById({
+            accountId,
+            id: ownSession.id
+          })
+        ).toBe(1)
+        expect(
+          await database.getAccountAllSessions({ accountId })
+        ).toHaveLength(0)
+      })
+
       it('records login counters once per account per UTC week', async () => {
         const testDb = createTestDatabase({ backend: 'sqlite' })
         const { db, database: sqlDatabase } = testDb
