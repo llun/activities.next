@@ -697,6 +697,11 @@ docker stop test-postgres
 - **`YN0028` on a Dependabot branch whose name contains `packages/` is a security-update job rooted in a workspace** (see `dependabot.yml`); close it — the `/` job's twin PR carries the lockfile.
 - **A PR run that fails but passes locally or in a `workflow_dispatch` run on the branch is merge-ref divergence first** (the PR branch's test against `main`'s changed contract, e.g. the 303/307 accounts redirect), not a flake.
 - **A zero-job `failure` run on `version-bump/main`** is the startup failure the version-bump close/reopen kick heals; ignore it.
+- **A broadcast or state update from a `DraftsProvider` (or any provider with a detached async loop) landing in the next test is a pass that outlived its unmount.** The provider gates its state updates, progress broadcasts, wakes and restarts on `liveRef`; a test file that mounts it calls `cleanup()` first in `afterEach` so unmount precedes the IndexedDB/channel reset. The `changed` broadcast when a pass releases its claim is intentional, because the draft's state did change and other tabs need to know.
+- **A fake clock around real database I/O (`vi.useFakeTimers` with `pg`) is a flake by construction**: advance only inside the application's own sleep, or shorten the real wait through the module boundary as `fitness-files/[id]/primary/route.test.ts` does.
+- **A test whose first `it` pays a cold dynamic import, a 4096-bit keygen or a cost-10 bcrypt is at the mercy of the shared threadpool**; import statically, use the stub key and the `passwordHash` seam.
+- **Same-millisecond `createdAt` with a random-id tie-break** orders randomly; pin timestamps when order is contractual (`accountExports.test.ts`).
+- **Pushing results into a shared array inside `Promise.all` orders by pg completion**; derive order from the input (`noteTags.ts`).
 
 <a id="local-manual-browser-testing"></a>
 

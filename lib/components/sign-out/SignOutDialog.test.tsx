@@ -2,7 +2,13 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor
+} from '@testing-library/react'
 import { IDBFactory } from 'fake-indexeddb'
 import { useState } from 'react'
 
@@ -97,14 +103,10 @@ describe('SignOutDialog', () => {
     installFakeBroadcastChannel()
     setDraftsIndexedDBFactory(new IDBFactory())
     unsubscribe = subscribeDraftsMessages((message) => {
-      // `changed` is every save. `queue-progress` is a send-queue drain's
-      // status: a provider mounted by an earlier test in this file (one that
-      // queued a post) can still be finishing its drain while this test runs,
-      // and its broadcasts are unrelated to the sign-out flow `events` asserts.
-      // They can land before the click or mid-sign-out, so they are dropped
-      // here rather than around the click. Any other message type still lands
+      // `changed` is every save; everything else, including a stray
+      // `queue-progress` from a provider an earlier test left draining, lands
       // in `events` and fails the exact assertions below.
-      if (message.type !== 'changed' && message.type !== 'queue-progress') {
+      if (message.type !== 'changed') {
         events.push(message.type)
       }
     })
@@ -117,6 +119,7 @@ describe('SignOutDialog', () => {
   })
 
   afterEach(() => {
+    cleanup()
     window.localStorage.clear()
     unsubscribe()
     resetDraftsChannelForTesting()

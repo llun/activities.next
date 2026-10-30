@@ -2,7 +2,14 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor
+} from '@testing-library/react'
 import { IDBFactory } from 'fake-indexeddb'
 
 import {
@@ -13,8 +20,11 @@ import {
   resetDraftsChannelForTesting,
   resetDraftsDbForTesting,
   saveDraft,
-  setDraftsIndexedDBFactory
+  setDraftsIndexedDBFactory,
+  subscribeDraftsMessages
 } from '@/lib/client/drafts'
+import * as draftsModule from '@/lib/client/drafts'
+import { createDeferred } from '@/lib/testing/deferred'
 import { installFakeBroadcastChannel } from '@/lib/testing/fakeBroadcastChannel'
 
 import { DraftsProvider, useDrafts, useSendQueueStatus } from './DraftsProvider'
@@ -62,6 +72,7 @@ describe('DraftsProvider', () => {
   })
 
   afterEach(() => {
+    cleanup()
     resetDraftsChannelForTesting()
     setDraftsIndexedDBFactory(null)
     resetDraftsDbForTesting()
@@ -286,6 +297,43 @@ describe('DraftsProvider', () => {
       expect(screen.getByTestId('probe')).toHaveTextContent('count=1')
     )
     expect(screen.getByTestId('probe')).toHaveTextContent('epoch=0')
+  })
+
+  it('does nothing once unmounted: a drain pass that settles after unmount neither restarts, broadcasts nor schedules', async () => {
+    await saveDraft(
+      {
+        ...draft('queued-1'),
+        queue: { state: 'waiting', queuedAt: 10, attempts: 0 }
+      },
+      { expectedRevision: 0, epoch: 0 }
+    )
+    const listDrafts = createDeferred<DraftRecord[]>()
+    const listSpy = vi
+      .spyOn(draftsModule, 'listDrafts')
+      .mockReturnValue(listDrafts.promise)
+    const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout')
+    const { unmount } = renderProvider()
+    await vi.waitFor(() => expect(listSpy).toHaveBeenCalled())
+    const received: string[] = []
+    const unsubscribe = subscribeDraftsMessages((message) =>
+      received.push(message.type)
+    )
+    unmount()
+    const armedBefore = setTimeoutSpy.mock.calls.length
+    listDrafts.resolve([]) // the pass continues after unmount
+    try {
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 50))
+      })
+      expect(listSpy).toHaveBeenCalledTimes(1) // no second pass (the old finally restarted one)
+      expect(received).toEqual([])
+      // Only this test's own 50ms sleep was armed after unmount.
+      expect(setTimeoutSpy.mock.calls.length - armedBefore).toBe(1)
+    } finally {
+      unsubscribe()
+      listSpy.mockRestore()
+      setTimeoutSpy.mockRestore()
+    }
   })
 
   describe('Saved to Drafts note', () => {

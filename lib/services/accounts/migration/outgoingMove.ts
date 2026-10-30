@@ -1,10 +1,9 @@
-import bcrypt from 'bcrypt'
-
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import type { ActorMigrationKind } from '@/lib/database/domains/actorMigration/types'
 import type { Database } from '@/lib/database/types'
 import { SEND_MOVE_JOB_NAME } from '@/lib/jobs/names'
 import { publishActorUpdate } from '@/lib/services/actors/actorUpdate'
+import { comparePassword } from '@/lib/services/auth/passwordHash'
 import { getFederationSigningActorSafe } from '@/lib/services/federation/getFederationSigningActor'
 import { getQueue } from '@/lib/services/queue'
 import { Actor } from '@/lib/types/domain/actor'
@@ -82,7 +81,7 @@ export const verifyChallenge = async ({
 }): Promise<string | null> => {
   const passwordHash = actor.account?.passwordHash
   if (passwordHash) {
-    if (!password || !(await bcrypt.compare(password, passwordHash))) {
+    if (!password || !(await comparePassword(password, passwordHash))) {
       return 'Invalid password'
     }
     return null

@@ -1,8 +1,8 @@
-import bcrypt from 'bcrypt'
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
 import { getDatabase } from '@/lib/database'
+import { hashPassword } from '@/lib/services/auth/passwordHash'
 import { hashPasswordResetCode } from '@/lib/services/auth/passwordResetCode'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
@@ -75,7 +75,7 @@ export const POST = traceApiRoute(
         })
       }
 
-      const newPasswordHash = await bcrypt.hash(newPassword, 10)
+      const newPasswordHash = await hashPassword(newPassword)
 
       const account = await database.resetPasswordWithCode({
         accountId,
