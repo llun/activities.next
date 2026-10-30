@@ -1,3 +1,4 @@
+import type { BaseNote } from '@/lib/activities/note'
 import type { Database } from '@/lib/database/types'
 import type { Actor } from '@/lib/types/domain/actor'
 import type { Status } from '@/lib/types/domain/status'
@@ -7,13 +8,17 @@ import { getReadableStatusForAction } from './getReadableStatusForAction'
 
 const {
   mockGetReadableStatus,
-  mockFetchRemoteStatus,
+  mockGetNote,
+  mockDispatchCreateNoteOrPollJob,
   mockIsLocalFederationDomain,
+  mockCanFederateWithDomain,
   mockGetFederationSigningActor
 } = vi.hoisted(() => ({
   mockGetReadableStatus: vi.fn(),
-  mockFetchRemoteStatus: vi.fn(),
+  mockGetNote: vi.fn(),
+  mockDispatchCreateNoteOrPollJob: vi.fn(),
   mockIsLocalFederationDomain: vi.fn(),
+  mockCanFederateWithDomain: vi.fn(),
   mockGetFederationSigningActor: vi.fn()
 }))
 
@@ -21,12 +26,17 @@ vi.mock('@/lib/services/statusRouteAccess', () => ({
   getReadableStatus: mockGetReadableStatus
 }))
 
-vi.mock('@/lib/jobs/fetchRemoteStatusJob', () => ({
-  fetchRemoteStatus: mockFetchRemoteStatus
+vi.mock('@/lib/activities', () => ({
+  getNote: mockGetNote
+}))
+
+vi.mock('@/lib/jobs/dispatchCreateNoteOrPollJob', () => ({
+  dispatchCreateNoteOrPollJob: mockDispatchCreateNoteOrPollJob
 }))
 
 vi.mock('@/lib/services/federation/domainPolicy', () => ({
-  isLocalFederationDomain: mockIsLocalFederationDomain
+  isLocalFederationDomain: mockIsLocalFederationDomain,
+  canFederateWithDomain: mockCanFederateWithDomain
 }))
 
 vi.mock('@/lib/services/federation/getFederationSigningActor', () => ({
@@ -41,6 +51,23 @@ describe('getReadableStatusForAction', () => {
     actorId: 'https://remote.social/users/bob'
   } as unknown as Status
 
+  const mockNote: BaseNote = {
+    id: 'https://remote.social/users/bob/statuses/1',
+    type: 'Note',
+    attributedTo: 'https://remote.social/users/bob',
+    content: 'hello with attachment',
+    to: ['https://www.w3.org/ns/activitystreams#Public'],
+    cc: [],
+    attachment: [
+      {
+        type: 'Document',
+        mediaType: 'image/jpeg',
+        url: 'https://remote.social/media/photo.jpg',
+        name: 'A scenic photo'
+      }
+    ]
+  } as unknown as BaseNote
+
   const mockGetStatus = vi.fn()
   const database = {
     getStatus: mockGetStatus
@@ -50,8 +77,10 @@ describe('getReadableStatusForAction', () => {
     vi.clearAllMocks()
     mockGetReadableStatus.mockResolvedValue(null)
     mockGetStatus.mockResolvedValue(null)
-    mockFetchRemoteStatus.mockResolvedValue(null)
+    mockGetNote.mockResolvedValue(null)
+    mockDispatchCreateNoteOrPollJob.mockResolvedValue(undefined)
     mockIsLocalFederationDomain.mockResolvedValue(false)
+    mockCanFederateWithDomain.mockResolvedValue(true)
     mockGetFederationSigningActor.mockResolvedValue(signingActor)
   })
 
@@ -73,7 +102,8 @@ describe('getReadableStatusForAction', () => {
       withReplies: false
     })
     expect(mockGetStatus).not.toHaveBeenCalled()
-    expect(mockFetchRemoteStatus).not.toHaveBeenCalled()
+    expect(mockGetNote).not.toHaveBeenCalled()
+    expect(mockDispatchCreateNoteOrPollJob).not.toHaveBeenCalled()
   })
 
   it('returns null without fetching if row exists but is unreadable for viewer', async () => {
@@ -88,7 +118,8 @@ describe('getReadableStatusForAction', () => {
 
     expect(result).toBeNull()
     expect(mockGetStatus).toHaveBeenCalledWith({ statusId: mockStatus.id })
-    expect(mockFetchRemoteStatus).not.toHaveBeenCalled()
+    expect(mockGetNote).not.toHaveBeenCalled()
+    expect(mockDispatchCreateNoteOrPollJob).not.toHaveBeenCalled()
   })
 
   it('returns null without fetching if statusId is not an http(s) URL', async () => {
@@ -99,7 +130,8 @@ describe('getReadableStatusForAction', () => {
     })
 
     expect(result).toBeNull()
-    expect(mockFetchRemoteStatus).not.toHaveBeenCalled()
+    expect(mockGetNote).not.toHaveBeenCalled()
+    expect(mockDispatchCreateNoteOrPollJob).not.toHaveBeenCalled()
   })
 
   it('returns null without fetching if statusId is on a local domain', async () => {
@@ -116,15 +148,34 @@ describe('getReadableStatusForAction', () => {
       database,
       'https://llun.test/users/bob/statuses/999'
     )
-    expect(mockFetchRemoteStatus).not.toHaveBeenCalled()
+    expect(mockGetNote).not.toHaveBeenCalled()
+    expect(mockDispatchCreateNoteOrPollJob).not.toHaveBeenCalled()
   })
 
-  it('fetches remote status and returns readable status when newly stored', async () => {
+  it('returns null without fetching if domain policy blocks federation', async () => {
+    mockCanFederateWithDomain.mockResolvedValue(false)
+
+    const result = await getReadableStatusForAction({
+      database,
+      statusId: mockStatus.id,
+      currentActor
+    })
+
+    expect(result).toBeNull()
+    expect(mockCanFederateWithDomain).toHaveBeenCalledWith(
+      database,
+      mockStatus.id
+    )
+    expect(mockGetNote).not.toHaveBeenCalled()
+    expect(mockDispatchCreateNoteOrPollJob).not.toHaveBeenCalled()
+  })
+
+  it('fetches remote status, calls dispatch with attachment-bearing note, and returns readable status', async () => {
     mockGetReadableStatus
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(mockStatus)
 
-    mockFetchRemoteStatus.mockResolvedValue({ status: mockStatus })
+    mockGetNote.mockResolvedValue(mockNote)
 
     const result = await getReadableStatusForAction({
       database,
@@ -135,19 +186,110 @@ describe('getReadableStatusForAction', () => {
 
     expect(result).toBe(mockStatus)
     expect(mockGetFederationSigningActor).toHaveBeenCalledWith(database)
-    expect(mockFetchRemoteStatus).toHaveBeenCalledWith(
-      database,
-      mockStatus.id,
-      0,
+    expect(mockGetNote).toHaveBeenCalledWith({
+      statusId: mockStatus.id,
       signingActor
+    })
+    expect(mockDispatchCreateNoteOrPollJob).toHaveBeenCalledWith(
+      database,
+      mockNote
     )
     expect(mockGetReadableStatus).toHaveBeenCalledTimes(2)
   })
 
-  it('logs warning and returns null when fetch throws a network failure', async () => {
+  it('alias case (note.id differs on the same origin) falls back to note.id', async () => {
+    const aliasStatusId = 'https://remote.social/@bob/1'
+    const canonicalNoteId = 'https://remote.social/users/bob/statuses/1'
+    const noteWithCanonicalId = {
+      ...mockNote,
+      id: canonicalNoteId
+    }
+
+    mockGetNote.mockResolvedValue(noteWithCanonicalId)
+    mockGetReadableStatus
+      .mockResolvedValueOnce(null) // initial check for alias
+      .mockResolvedValueOnce(null) // re-read for alias misses
+      .mockResolvedValueOnce(mockStatus) // fallback re-read for note.id succeeds
+
+    const result = await getReadableStatusForAction({
+      database,
+      statusId: aliasStatusId,
+      currentActor,
+      withReplies: true
+    })
+
+    expect(result).toBe(mockStatus)
+    expect(mockGetNote).toHaveBeenCalledWith({
+      statusId: aliasStatusId,
+      signingActor
+    })
+    expect(mockDispatchCreateNoteOrPollJob).toHaveBeenCalledWith(
+      database,
+      noteWithCanonicalId
+    )
+    expect(mockGetReadableStatus).toHaveBeenNthCalledWith(1, {
+      database,
+      statusId: aliasStatusId,
+      currentActor,
+      withReplies: true
+    })
+    expect(mockGetReadableStatus).toHaveBeenNthCalledWith(2, {
+      database,
+      statusId: aliasStatusId,
+      currentActor,
+      withReplies: true
+    })
+    expect(mockGetReadableStatus).toHaveBeenNthCalledWith(3, {
+      database,
+      statusId: canonicalNoteId,
+      currentActor,
+      withReplies: true
+    })
+  })
+
+  it('returns null and does not dispatch if note is non-public', async () => {
+    const nonPublicNote = {
+      ...mockNote,
+      to: ['https://remote.social/users/bob/followers'],
+      cc: []
+    }
+    mockGetNote.mockResolvedValue(nonPublicNote)
+
+    const result = await getReadableStatusForAction({
+      database,
+      statusId: mockStatus.id,
+      currentActor
+    })
+
+    expect(result).toBeNull()
+    expect(mockGetNote).toHaveBeenCalled()
+    expect(mockDispatchCreateNoteOrPollJob).not.toHaveBeenCalled()
+    expect(mockGetReadableStatus).toHaveBeenCalledTimes(1)
+  })
+
+  it('returns null and does not dispatch if note id has origin mismatch', async () => {
+    const crossOriginNote = {
+      ...mockNote,
+      id: 'https://evil.social/users/bob/statuses/1'
+    }
+    mockGetNote.mockResolvedValue(crossOriginNote)
+
+    const result = await getReadableStatusForAction({
+      database,
+      statusId: mockStatus.id,
+      currentActor
+    })
+
+    expect(result).toBeNull()
+    expect(mockGetNote).toHaveBeenCalled()
+    expect(mockDispatchCreateNoteOrPollJob).not.toHaveBeenCalled()
+    expect(mockGetReadableStatus).toHaveBeenCalledTimes(1)
+  })
+
+  it('logs warning and returns null when getNote throws an error', async () => {
     const warnSpy = vi.spyOn(logger, 'warn')
     const networkError = new Error('Connection refused')
-    mockFetchRemoteStatus.mockRejectedValue(networkError)
+    mockGetNote.mockRejectedValue(networkError)
 
     const result = await getReadableStatusForAction({
       database,
@@ -163,11 +305,35 @@ describe('getReadableStatusForAction', () => {
         err: networkError
       })
     )
+    expect(mockDispatchCreateNoteOrPollJob).not.toHaveBeenCalled()
+    expect(mockGetReadableStatus).toHaveBeenCalledTimes(1)
+  })
+
+  it('logs warning and returns null when dispatchCreateNoteOrPollJob throws an error', async () => {
+    const warnSpy = vi.spyOn(logger, 'warn')
+    const dispatchError = new Error('Database write failure')
+    mockGetNote.mockResolvedValue(mockNote)
+    mockDispatchCreateNoteOrPollJob.mockRejectedValue(dispatchError)
+
+    const result = await getReadableStatusForAction({
+      database,
+      statusId: mockStatus.id,
+      currentActor
+    })
+
+    expect(result).toBeNull()
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Failed to fetch remote status for action',
+        statusId: mockStatus.id,
+        err: dispatchError
+      })
+    )
     expect(mockGetReadableStatus).toHaveBeenCalledTimes(1)
   })
 
   it('returns null when remote fetch fails to store anything', async () => {
-    mockFetchRemoteStatus.mockResolvedValue(null)
+    mockGetNote.mockResolvedValue(mockNote)
     mockGetReadableStatus.mockResolvedValue(null)
 
     const result = await getReadableStatusForAction({
@@ -177,6 +343,10 @@ describe('getReadableStatusForAction', () => {
     })
 
     expect(result).toBeNull()
+    expect(mockDispatchCreateNoteOrPollJob).toHaveBeenCalledWith(
+      database,
+      mockNote
+    )
     expect(mockGetReadableStatus).toHaveBeenCalledTimes(2)
   })
 })

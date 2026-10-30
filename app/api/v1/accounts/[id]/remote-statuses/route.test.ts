@@ -4,13 +4,16 @@ import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { getActorPosts } from '@/lib/activities/getActorPosts'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActorSafe } from '@/lib/services/federation/getFederationSigningActor'
-import { StatusType } from '@/lib/types/domain/status'
+import { Status, StatusType } from '@/lib/types/domain/status'
 import { urlToId } from '@/lib/utils/urlToId'
 
 import { GET } from './route'
 
-const mockDatabase = {}
-const mockCurrentActor = {
+const mockGetStatusesByIds = vi.fn()
+const mockDatabase = {
+  getStatusesByIds: mockGetStatusesByIds
+}
+let mockCurrentActor: { id: string } | null = {
   id: 'https://local.example/users/me'
 }
 const mockInstanceActor = {
@@ -21,12 +24,18 @@ const mockLoggerWarn = vi.fn()
 vi.mock('@/lib/services/guards/OAuthGuard', () => ({
   OAuthGuard:
     (_scopes: unknown, handle: CallableFunction) =>
-    (req: NextRequest, context: { params: Promise<{ id: string }> }) =>
-      handle(req, {
+    (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
+      if (!mockCurrentActor) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401
+        })
+      }
+      return handle(req, {
         currentActor: mockCurrentActor,
         database: mockDatabase,
         params: context.params
       })
+    }
 }))
 
 vi.mock('@/lib/activities/getActorPerson')
@@ -50,6 +59,10 @@ const createRequest = (query = '') =>
 describe('GET /api/v1/accounts/[id]/remote-statuses', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockCurrentActor = {
+      id: 'https://local.example/users/me'
+    }
+    mockGetStatusesByIds.mockResolvedValue([])
     ;(canFederateWithDomain as jest.Mock).mockResolvedValue(true)
     ;(getFederationSigningActorSafe as jest.Mock).mockResolvedValue(
       mockInstanceActor
@@ -80,7 +93,9 @@ describe('GET /api/v1/accounts/[id]/remote-statuses', () => {
           replies: [],
           actorAnnounceStatusId: null,
           isActorLiked: false,
+          isActorBookmarked: false,
           totalLikes: 0,
+          totalShares: 0,
           attachments: [],
           tags: []
         }
@@ -176,5 +191,282 @@ describe('GET /api/v1/accounts/[id]/remote-statuses', () => {
 
     expect(response.status).toBe(400)
     expect(getActorPosts).not.toHaveBeenCalled()
+  })
+
+  describe('viewer state overlay', () => {
+    it('a stored, liked status comes back with isActorLiked true and keeps its live text and attachments', async () => {
+      const liveStatusId = `${actorId}/statuses/stored-liked`
+      const liveAttachment = {
+        id: 'https://remote.example/photo.jpg',
+        actorId,
+        statusId: liveStatusId,
+        type: 'Document' as const,
+        mediaType: 'image/jpeg',
+        url: 'https://remote.example/photo.jpg',
+        name: 'Live photo description',
+        createdAt: 100,
+        updatedAt: 100
+      }
+      const liveNote: Status = {
+        id: liveStatusId,
+        actorId,
+        actor: null,
+        to: [],
+        cc: [],
+        edits: [],
+        isLocalActor: false,
+        createdAt: 100,
+        updatedAt: 100,
+        type: StatusType.enum.Note,
+        url: liveStatusId,
+        text: 'Live status content',
+        summary: 'Live summary',
+        reply: '',
+        replies: [],
+        actorAnnounceStatusId: null,
+        isActorLiked: false,
+        isActorBookmarked: false,
+        totalLikes: 0,
+        totalShares: 0,
+        attachments: [liveAttachment],
+        tags: []
+      }
+      ;(getActorPosts as jest.Mock).mockResolvedValueOnce({
+        statuses: [liveNote],
+        statusesCount: 1,
+        nextPageUrl: null,
+        prevPageUrl: null
+      })
+
+      mockGetStatusesByIds.mockResolvedValueOnce([
+        {
+          id: liveStatusId,
+          type: StatusType.enum.Note,
+          isActorLiked: true,
+          isActorBookmarked: false,
+          actorAnnounceStatusId: null,
+          totalLikes: 1,
+          text: 'Stale stored text that must not overwrite live',
+          summary: 'Stale summary',
+          attachments: []
+        }
+      ])
+
+      const response = await GET(createRequest(), {
+        params: Promise.resolve({ id: urlToId(actorId) })
+      })
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(mockGetStatusesByIds).toHaveBeenCalledWith({
+        statusIds: [liveStatusId],
+        currentActorId: mockCurrentActor!.id,
+        withReplies: false
+      })
+      expect(data.statuses).toHaveLength(1)
+      const item = data.statuses[0]
+      expect(item.id).toBe(liveStatusId)
+      expect(item.isActorLiked).toBe(true)
+      expect(item.totalLikes).toBe(1)
+      expect(item.text).toBe('Live status content')
+      expect(item.summary).toBe('Live summary')
+      expect(item.attachments).toEqual([liveAttachment])
+    })
+
+    it('a stored, bookmarked and reposted one carries isActorBookmarked and actorAnnounceStatusId', async () => {
+      const liveStatusId = `${actorId}/statuses/stored-reposted`
+      const liveNote: Status = {
+        id: liveStatusId,
+        actorId,
+        actor: null,
+        to: [],
+        cc: [],
+        edits: [],
+        isLocalActor: false,
+        createdAt: 100,
+        updatedAt: 100,
+        type: StatusType.enum.Note,
+        url: liveStatusId,
+        text: 'Another live status',
+        summary: null,
+        reply: '',
+        replies: [],
+        actorAnnounceStatusId: null,
+        isActorLiked: false,
+        isActorBookmarked: false,
+        totalLikes: 0,
+        totalShares: 2,
+        attachments: [],
+        tags: []
+      }
+      ;(getActorPosts as jest.Mock).mockResolvedValueOnce({
+        statuses: [liveNote],
+        statusesCount: 1,
+        nextPageUrl: null,
+        prevPageUrl: null
+      })
+
+      const announceId = 'https://local.example/statuses/announce-777'
+      mockGetStatusesByIds.mockResolvedValueOnce([
+        {
+          id: liveStatusId,
+          type: StatusType.enum.Note,
+          isActorLiked: false,
+          isActorBookmarked: true,
+          actorAnnounceStatusId: announceId,
+          totalLikes: 0
+        }
+      ])
+
+      const response = await GET(createRequest(), {
+        params: Promise.resolve({ id: urlToId(actorId) })
+      })
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.statuses[0].isActorBookmarked).toBe(true)
+      expect(data.statuses[0].actorAnnounceStatusId).toBe(announceId)
+      expect(data.statuses[0].totalShares).toBe(2)
+    })
+
+    it('an unstored one is unchanged', async () => {
+      const unstoredStatusId = `${actorId}/statuses/unstored-1`
+      const liveNote: Status = {
+        id: unstoredStatusId,
+        actorId,
+        actor: null,
+        to: [],
+        cc: [],
+        edits: [],
+        isLocalActor: false,
+        createdAt: 100,
+        updatedAt: 100,
+        type: StatusType.enum.Note,
+        url: unstoredStatusId,
+        text: 'Unstored post',
+        summary: null,
+        reply: '',
+        replies: [],
+        actorAnnounceStatusId: null,
+        isActorLiked: false,
+        isActorBookmarked: false,
+        totalLikes: 0,
+        totalShares: 0,
+        attachments: [],
+        tags: []
+      }
+      ;(getActorPosts as jest.Mock).mockResolvedValueOnce({
+        statuses: [liveNote],
+        statusesCount: 1,
+        nextPageUrl: null,
+        prevPageUrl: null
+      })
+
+      mockGetStatusesByIds.mockResolvedValueOnce([])
+
+      const response = await GET(createRequest(), {
+        params: Promise.resolve({ id: urlToId(actorId) })
+      })
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.statuses[0].id).toBe(unstoredStatusId)
+      expect(data.statuses[0].isActorLiked).toBe(false)
+      expect(data.statuses[0].isActorBookmarked).toBe(false)
+      expect(data.statuses[0].actorAnnounceStatusId).toBeNull()
+      expect(data.statuses[0].totalLikes).toBe(0)
+    })
+
+    it('a live Announce gets the overlay on originalStatus', async () => {
+      const originalStatusId = 'https://other.example/users/bob/statuses/1'
+      const announceStatusId = `${actorId}/statuses/announce-live-1`
+      const originalLiveNote = {
+        id: originalStatusId,
+        actorId: 'https://other.example/users/bob',
+        actor: null,
+        to: [],
+        cc: [],
+        edits: [],
+        isLocalActor: false,
+        createdAt: 50,
+        updatedAt: 50,
+        type: StatusType.enum.Note,
+        url: originalStatusId,
+        text: 'Original bob status',
+        summary: null,
+        reply: '',
+        replies: [],
+        actorAnnounceStatusId: null,
+        isActorLiked: false,
+        isActorBookmarked: false,
+        totalLikes: 0,
+        totalShares: 0,
+        attachments: [],
+        tags: []
+      }
+      const liveAnnounce: Status = {
+        id: announceStatusId,
+        actorId,
+        actor: null,
+        to: [],
+        cc: [],
+        edits: [],
+        isLocalActor: false,
+        createdAt: 100,
+        updatedAt: 100,
+        type: StatusType.enum.Announce,
+        originalStatus: originalLiveNote as unknown as Status
+      }
+      ;(getActorPosts as jest.Mock).mockResolvedValueOnce({
+        statuses: [liveAnnounce],
+        statusesCount: 1,
+        nextPageUrl: null,
+        prevPageUrl: null
+      })
+
+      mockGetStatusesByIds.mockResolvedValueOnce([
+        {
+          id: originalStatusId,
+          type: StatusType.enum.Note,
+          isActorLiked: true,
+          isActorBookmarked: true,
+          actorAnnounceStatusId: 'https://local.example/statuses/announce-bob',
+          totalLikes: 3
+        }
+      ])
+
+      const response = await GET(createRequest(), {
+        params: Promise.resolve({ id: urlToId(actorId) })
+      })
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(mockGetStatusesByIds).toHaveBeenCalledWith({
+        statusIds: [originalStatusId],
+        currentActorId: mockCurrentActor!.id,
+        withReplies: false
+      })
+      expect(data.statuses[0].id).toBe(announceStatusId)
+      expect(data.statuses[0].type).toBe(StatusType.enum.Announce)
+      expect(data.statuses[0].originalStatus.id).toBe(originalStatusId)
+      expect(data.statuses[0].originalStatus.isActorLiked).toBe(true)
+      expect(data.statuses[0].originalStatus.isActorBookmarked).toBe(true)
+      expect(data.statuses[0].originalStatus.actorAnnounceStatusId).toBe(
+        'https://local.example/statuses/announce-bob'
+      )
+      expect(data.statuses[0].originalStatus.totalLikes).toBe(3)
+    })
+
+    it('rejects signed-out requests with 401 and looks up nothing', async () => {
+      mockCurrentActor = null
+
+      const response = await GET(createRequest(), {
+        params: Promise.resolve({ id: urlToId(actorId) })
+      })
+
+      expect(response.status).toBe(401)
+      expect(mockGetStatusesByIds).not.toHaveBeenCalled()
+      expect(getActorPosts).not.toHaveBeenCalled()
+    })
   })
 })

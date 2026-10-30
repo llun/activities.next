@@ -182,6 +182,58 @@ describe('POST /api/v1/statuses/[id]/favourite', () => {
       expect(mockSendLike).toHaveBeenCalledTimes(1)
     })
 
+    it('unstored remote public status with attachments → fetched, stored via real dispatch with attachments, 200', async () => {
+      const remoteStatusWithAttachmentId = `${remoteActorId}/statuses/remote-public-attachment-1`
+      mockGetNote.mockResolvedValueOnce({
+        id: remoteStatusWithAttachmentId,
+        type: 'Note',
+        attributedTo: remoteActorId,
+        content: 'hello with attachment',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        published: '2026-04-26T10:00:00Z',
+        attachment: [
+          {
+            type: 'Document',
+            mediaType: 'image/jpeg',
+            url: 'https://somewhere.test/media/photo.jpg',
+            width: 1200,
+            height: 800,
+            name: 'A scenic mountain'
+          }
+        ]
+      })
+
+      const response = await favourite(remoteStatusWithAttachmentId)
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data).toMatchObject({
+        uri: remoteStatusWithAttachmentId,
+        favourited: true,
+        favourites_count: 1
+      })
+      expect(data.media_attachments).toHaveLength(1)
+      expect(data.media_attachments[0]).toMatchObject({
+        type: 'image',
+        url: 'https://somewhere.test/media/photo.jpg',
+        description: 'A scenic mountain'
+      })
+
+      const attachments = await database.getAttachments({
+        statusId: remoteStatusWithAttachmentId
+      })
+      expect(attachments).toHaveLength(1)
+      expect(attachments[0]).toMatchObject({
+        statusId: remoteStatusWithAttachmentId,
+        actorId: remoteActorId,
+        mediaType: 'image/jpeg',
+        url: 'https://somewhere.test/media/photo.jpg',
+        name: 'A scenic mountain'
+      })
+      expect(mockSendLike).toHaveBeenCalledTimes(1)
+    })
+
     it('a local-domain id → 404, nothing stored, no fetch', async () => {
       const localStatusId =
         'https://llun.test/users/test2/statuses/local-missing-1'

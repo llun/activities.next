@@ -1,10 +1,20 @@
+import { getNote } from '@/lib/activities'
+import type { BaseNote } from '@/lib/activities/note'
+import { isPubliclyAddressed } from '@/lib/database/domains/status/status'
 import type { Database } from '@/lib/database/types'
-import { fetchRemoteStatus } from '@/lib/jobs/fetchRemoteStatusJob'
-import { isLocalFederationDomain } from '@/lib/services/federation/domainPolicy'
+import { dispatchCreateNoteOrPollJob } from '@/lib/jobs/dispatchCreateNoteOrPollJob'
+import {
+  canFederateWithDomain,
+  isLocalFederationDomain
+} from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { getReadableStatus } from '@/lib/services/statusRouteAccess'
 import type { Actor } from '@/lib/types/domain/actor'
 import type { Status } from '@/lib/types/domain/status'
+import {
+  isSameActivityPubOrigin,
+  toRecipientArray
+} from '@/lib/utils/activitypub'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
@@ -36,10 +46,23 @@ export const getReadableStatusForAction = async ({
 
   if (!isUrl(statusId)) return null
   if (await isLocalFederationDomain(database, statusId)) return null
+  if (!(await canFederateWithDomain(database, statusId))) return null
 
+  let note: BaseNote | null
   try {
     const signingActor = await getFederationSigningActor(database)
-    await fetchRemoteStatus(database, statusId, 0, signingActor)
+    note = await getNote({ statusId, signingActor })
+    if (!note) return null
+    if (!isSameActivityPubOrigin(note.id, statusId)) return null
+    if (
+      !isPubliclyAddressed({
+        to: toRecipientArray(note.to),
+        cc: toRecipientArray(note.cc)
+      })
+    ) {
+      return null
+    }
+    await dispatchCreateNoteOrPollJob(database, note)
   } catch (err) {
     logger.warn({
       message: 'Failed to fetch remote status for action',
@@ -49,10 +72,22 @@ export const getReadableStatusForAction = async ({
     return null
   }
 
-  return getReadableStatus({
+  const readableStatus = await getReadableStatus({
     database,
     statusId,
     currentActor,
     withReplies
   })
+  if (readableStatus) return readableStatus
+
+  if (note.id !== statusId) {
+    return getReadableStatus({
+      database,
+      statusId: note.id,
+      currentActor,
+      withReplies
+    })
+  }
+
+  return null
 }
