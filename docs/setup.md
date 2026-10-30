@@ -277,7 +277,7 @@ To communicate with other servers in the Fediverse while running locally, you'll
 
 After starting the application:
 
-1. Navigate to `https://your-domain.tld/auth/signup` (your email must be in the allow list)
+1. Navigate to `https://your-domain.tld/auth/signup` (if you set `ACTIVITIES_ALLOW_EMAILS`, your email must be in it; any email works if you left it unset)
 2. Create your account with email and password
 3. Log in and start interacting with the Fediverse
 

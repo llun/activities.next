@@ -99,7 +99,7 @@ For a more detailed architecture overview, see [docs/architecture.md](docs/archi
    yarn dev
    ```
 
-7. **Sign up** at `http://localhost:3000/auth/signup` (your email must be in the allow list, `ACTIVITIES_ALLOW_EMAILS`, e.g. `ACTIVITIES_ALLOW_EMAILS='["you@example.com"]'`).
+7. **Sign up** at `http://localhost:3000/auth/signup` (if you set `ACTIVITIES_ALLOW_EMAILS`, your email must be in it, e.g. `ACTIVITIES_ALLOW_EMAILS='["you@example.com"]'`; any email works if you left it unset).
 
 For detailed setup instructions, see the [Setup Guide](docs/setup.md).
 
