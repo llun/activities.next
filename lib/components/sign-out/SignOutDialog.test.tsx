@@ -97,7 +97,16 @@ describe('SignOutDialog', () => {
     installFakeBroadcastChannel()
     setDraftsIndexedDBFactory(new IDBFactory())
     unsubscribe = subscribeDraftsMessages((message) => {
-      if (message.type !== 'changed') events.push(message.type)
+      // `changed` is every save. `queue-progress` is a send-queue drain's
+      // status: a provider mounted by an earlier test in this file (one that
+      // queued a post) can still be finishing its drain while this test runs,
+      // and its broadcasts are unrelated to the sign-out flow `events` asserts.
+      // They can land before the click or mid-sign-out, so they are dropped
+      // here rather than around the click. Any other message type still lands
+      // in `events` and fails the exact assertions below.
+      if (message.type !== 'changed' && message.type !== 'queue-progress') {
+        events.push(message.type)
+      }
     })
     vi.stubGlobal('location', {
       set href(value: string) {
