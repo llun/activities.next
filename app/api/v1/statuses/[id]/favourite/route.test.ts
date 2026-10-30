@@ -283,14 +283,46 @@ describe('POST /api/v1/statuses/[id]/favourite', () => {
       expect(stored).toBeNull()
     })
 
+    it('a cross-host attributedTo → 404, nothing stored', async () => {
+      const crossHostId = `${remoteActorId}/statuses/remote-crosshost-1`
+      mockGetNote.mockResolvedValueOnce({
+        id: crossHostId,
+        type: 'Note',
+        attributedTo: 'https://other.test/users/carol',
+        content: 'note attributed elsewhere',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        published: '2026-04-26T10:00:00Z'
+      })
+
+      const response = await favourite(crossHostId)
+
+      expect(response.status).toBe(404)
+      const stored = await database.getStatus({ statusId: crossHostId })
+      expect(stored).toBeNull()
+    })
+
     it('an existing row the viewer cannot read → 404 and no fetch', async () => {
-      const unreadableId = `${ACTOR2_ID}/statuses/unreadable-existing-1`
+      // A remote actor the signed-in actor1 does not follow, so the seeded
+      // followers-only row is genuinely unreadable to the viewer.
+      const unfollowedActorId = 'https://llun.dev/users/unfollowed'
+      await database.createActor({
+        actorId: unfollowedActorId,
+        username: 'unfollowed',
+        domain: 'llun.dev',
+        publicKey: 'publicKey-unfollowed',
+        inboxUrl: `${unfollowedActorId}/inbox`,
+        sharedInboxUrl: 'https://llun.dev/inbox',
+        followersUrl: `${unfollowedActorId}/followers`,
+        createdAt: Date.now()
+      })
+      const unreadableId = `${unfollowedActorId}/statuses/unreadable-existing-1`
       await database.createNote({
         id: unreadableId,
         url: unreadableId,
-        actorId: ACTOR2_ID,
+        actorId: unfollowedActorId,
         text: 'secret',
-        to: [],
+        to: [`${unfollowedActorId}/followers`],
         cc: []
       })
 

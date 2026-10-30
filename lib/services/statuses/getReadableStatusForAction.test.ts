@@ -12,14 +12,14 @@ const {
   mockDispatchCreateNoteOrPollJob,
   mockIsLocalFederationDomain,
   mockCanFederateWithDomain,
-  mockGetFederationSigningActor
+  mockGetFederationSigningActorSafe
 } = vi.hoisted(() => ({
   mockGetReadableStatus: vi.fn(),
   mockGetNote: vi.fn(),
   mockDispatchCreateNoteOrPollJob: vi.fn(),
   mockIsLocalFederationDomain: vi.fn(),
   mockCanFederateWithDomain: vi.fn(),
-  mockGetFederationSigningActor: vi.fn()
+  mockGetFederationSigningActorSafe: vi.fn()
 }))
 
 vi.mock('@/lib/services/statusRouteAccess', () => ({
@@ -40,7 +40,7 @@ vi.mock('@/lib/services/federation/domainPolicy', () => ({
 }))
 
 vi.mock('@/lib/services/federation/getFederationSigningActor', () => ({
-  getFederationSigningActor: mockGetFederationSigningActor
+  getFederationSigningActorSafe: mockGetFederationSigningActorSafe
 }))
 
 describe('getReadableStatusForAction', () => {
@@ -81,7 +81,7 @@ describe('getReadableStatusForAction', () => {
     mockDispatchCreateNoteOrPollJob.mockResolvedValue(undefined)
     mockIsLocalFederationDomain.mockResolvedValue(false)
     mockCanFederateWithDomain.mockResolvedValue(true)
-    mockGetFederationSigningActor.mockResolvedValue(signingActor)
+    mockGetFederationSigningActorSafe.mockResolvedValue(signingActor)
   })
 
   it('returns status immediately if already readable', async () => {
@@ -117,7 +117,10 @@ describe('getReadableStatusForAction', () => {
     })
 
     expect(result).toBeNull()
-    expect(mockGetStatus).toHaveBeenCalledWith({ statusId: mockStatus.id })
+    expect(mockGetStatus).toHaveBeenCalledWith({
+      statusId: mockStatus.id,
+      withReplies: false
+    })
     expect(mockGetNote).not.toHaveBeenCalled()
     expect(mockDispatchCreateNoteOrPollJob).not.toHaveBeenCalled()
   })
@@ -185,7 +188,10 @@ describe('getReadableStatusForAction', () => {
     })
 
     expect(result).toBe(mockStatus)
-    expect(mockGetFederationSigningActor).toHaveBeenCalledWith(database)
+    expect(mockGetFederationSigningActorSafe).toHaveBeenCalledWith(
+      database,
+      'for remote status action'
+    )
     expect(mockGetNote).toHaveBeenCalledWith({
       statusId: mockStatus.id,
       signingActor
@@ -330,6 +336,32 @@ describe('getReadableStatusForAction', () => {
       })
     )
     expect(mockGetReadableStatus).toHaveBeenCalledTimes(1)
+  })
+
+  it('falls back to an unsigned fetch when the signer lookup fails', async () => {
+    // The real getFederationSigningActorSafe never rejects; a signer failure
+    // resolves to undefined so the fetch proceeds unsigned.
+    mockGetFederationSigningActorSafe.mockResolvedValue(undefined)
+    mockGetNote.mockResolvedValue(mockNote)
+    mockGetReadableStatus
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(mockStatus)
+
+    const result = await getReadableStatusForAction({
+      database,
+      statusId: mockStatus.id,
+      currentActor
+    })
+
+    expect(result).toBe(mockStatus)
+    expect(mockGetNote).toHaveBeenCalledWith({
+      statusId: mockStatus.id,
+      signingActor: undefined
+    })
+    expect(mockDispatchCreateNoteOrPollJob).toHaveBeenCalledWith(
+      database,
+      mockNote
+    )
   })
 
   it('returns null when remote fetch fails to store anything', async () => {

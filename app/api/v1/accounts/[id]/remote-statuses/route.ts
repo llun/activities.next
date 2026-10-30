@@ -51,6 +51,8 @@ const overlayViewerState = <T extends StatusNote | StatusPoll>(
   }
 
   const isActorLiked = stored.isActorLiked
+  // The stored count is only used when the viewer liked and the live count is
+  // 0, so the heart isn't shown liked with no count; the reblog count stays live.
   const totalLikes =
     isActorLiked && (live.totalLikes ?? 0) === 0
       ? Math.max(live.totalLikes ?? 0, stored.totalLikes ?? 0)

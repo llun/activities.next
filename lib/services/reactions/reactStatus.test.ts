@@ -14,10 +14,12 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 const mockSendReaction = vi.fn()
 const mockSendUndoReaction = vi.fn()
+const mockGetNote = vi.fn()
 
 vi.mock('@/lib/activities', () => ({
   sendReaction: (...params: unknown[]) => mockSendReaction(...params),
-  sendUndoReaction: (...params: unknown[]) => mockSendUndoReaction(...params)
+  sendUndoReaction: (...params: unknown[]) => mockSendUndoReaction(...params),
+  getNote: (...params: unknown[]) => mockGetNote(...params)
 }))
 
 describe('reactStatus', () => {
@@ -132,6 +134,18 @@ describe('reactStatus', () => {
     })
 
     expect(result).toEqual({ ok: false, reason: 'invalid-emoji' })
+  })
+
+  it('rejects an invalid reaction on an unstored remote id without fetching it', async () => {
+    const result = await reactStatus({
+      database,
+      currentActor: reactor,
+      statusId: 'https://remote.test/notes/unstored-1',
+      name: ':nosuch:'
+    })
+
+    expect(result).toEqual({ ok: false, reason: 'invalid-emoji' })
+    expect(mockGetNote).not.toHaveBeenCalled()
   })
 
   it('reports not-found for a status that does not exist', async () => {

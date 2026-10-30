@@ -7,7 +7,7 @@ import {
   canFederateWithDomain,
   isLocalFederationDomain
 } from '@/lib/services/federation/domainPolicy'
-import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
+import { getFederationSigningActorSafe } from '@/lib/services/federation/getFederationSigningActor'
 import { getReadableStatus } from '@/lib/services/statusRouteAccess'
 import type { Actor } from '@/lib/types/domain/actor'
 import type { Status } from '@/lib/types/domain/status'
@@ -41,7 +41,7 @@ export const getReadableStatusForAction = async ({
   })
   if (status) return status
 
-  const existing = await database.getStatus({ statusId })
+  const existing = await database.getStatus({ statusId, withReplies: false })
   if (existing) return null
 
   if (!isUrl(statusId)) return null
@@ -50,7 +50,10 @@ export const getReadableStatusForAction = async ({
 
   let note: BaseNote | null
   try {
-    const signingActor = await getFederationSigningActor(database)
+    const signingActor = await getFederationSigningActorSafe(
+      database,
+      'for remote status action'
+    )
     note = await getNote({ statusId, signingActor })
     if (!note) return null
     if (!isSameActivityPubOrigin(note.id, statusId)) return null

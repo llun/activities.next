@@ -4,7 +4,6 @@ import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import type { Database } from '@/lib/database/types'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
-import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { EXTERNAL_ACTOR1 } from '@/lib/stub/seed/external1'
 import { StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
@@ -176,13 +175,26 @@ describe('POST /api/v1/statuses/[id]/reblog', () => {
   })
 
   it('an existing row the viewer cannot read → 404 and no fetch', async () => {
-    const unreadableId = `${ACTOR2_ID}/statuses/unreadable-reblog-existing-1`
+    // A remote actor the signed-in actor1 does not follow, so the seeded
+    // followers-only row is genuinely unreadable to the viewer.
+    const unfollowedActorId = 'https://llun.dev/users/unfollowed'
+    await database.createActor({
+      actorId: unfollowedActorId,
+      username: 'unfollowed',
+      domain: 'llun.dev',
+      publicKey: 'publicKey-unfollowed',
+      inboxUrl: `${unfollowedActorId}/inbox`,
+      sharedInboxUrl: 'https://llun.dev/inbox',
+      followersUrl: `${unfollowedActorId}/followers`,
+      createdAt: Date.now()
+    })
+    const unreadableId = `${unfollowedActorId}/statuses/unreadable-reblog-existing-1`
     await database.createNote({
       id: unreadableId,
       url: unreadableId,
-      actorId: ACTOR2_ID,
+      actorId: unfollowedActorId,
       text: 'private note',
-      to: [],
+      to: [`${unfollowedActorId}/followers`],
       cc: []
     })
 

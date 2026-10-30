@@ -53,6 +53,7 @@ export const RepostButton: FC<RepostButtonProps> = ({
       ? 'Undo repost'
       : 'Repost'
   const failureMessage = 'Failed to repost. Please try again.'
+  const undoFailureMessage = 'Failed to undo repost. Please try again.'
 
   return (
     <span className="relative inline-flex items-center justify-center">
@@ -79,10 +80,18 @@ export const RepostButton: FC<RepostButtonProps> = ({
 
             if (repostedStatusId) {
               setIsLoading(true)
-              if (await undoRepostStatus({ statusId: repostedStatusId })) {
-                setRepostedStatusId(null)
+              setError(null)
+              try {
+                if (await undoRepostStatus({ statusId: repostedStatusId })) {
+                  setRepostedStatusId(null)
+                } else {
+                  setError(undoFailureMessage)
+                }
+              } catch {
+                setError(undoFailureMessage)
+              } finally {
+                setIsLoading(false)
               }
-              setIsLoading(false)
               return
             }
             setIsLoading(true)

@@ -123,6 +123,9 @@ export const reactStatus = async ({
   statusId,
   name
 }: ReactStatusParams): Promise<ReactStatusResult> => {
+  const resolved = await resolveLocalReaction(database, name)
+  if (!resolved) return { ok: false, reason: 'invalid-emoji' }
+
   const status = await getReadableStatusForAction({
     database,
     statusId,
@@ -130,9 +133,6 @@ export const reactStatus = async ({
     withReplies: false
   })
   if (!status) return { ok: false, reason: 'not-found' }
-
-  const resolved = await resolveLocalReaction(database, name)
-  if (!resolved) return { ok: false, reason: 'invalid-emoji' }
 
   // Reacting to a boost reacts to the post it boosts. The serializer renders an
   // Announce wrapper with empty reactions by design (they belong to the
