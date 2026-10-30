@@ -24,6 +24,7 @@ import {
   CombinedPartLabelButton,
   CombinedPartRailColumn,
   InsetReply,
+  OPENED_ROW_TINT,
   RAIL_LINE,
   createShowSeparateMenuItem
 } from './combined-post-list-item'
@@ -49,6 +50,12 @@ import { useReactionState } from './useReactionState'
 export interface SelfThreadRunProps {
   parts: readonly CombinedPart[]
   openedPartIndex?: number
+  /**
+   * A part to keep visible when the run collapses behind "Show N more posts
+   * in this thread" — the part the opened post replies to. Unlike the opened
+   * part it draws no tint and carries no `aria-current`.
+   */
+  anchorPartIndex?: number
   startAt?: number
   host: string
   currentTime: number
@@ -186,14 +193,16 @@ const SelfThreadPart: FC<SelfThreadPartProps> = ({
     >
       <div
         ref={isOpened ? openedPartRef : undefined}
+        // In-page anchor for links to this part, e.g. the opened post's
+        // "Replying to i of n" line.
+        id={part.status.id}
         data-node-id={part.status.id}
         data-testid={`status-${part.status.id}`}
         aria-current={isOpened ? 'location' : undefined}
         tabIndex={-1}
         className={cn(
           'flex min-h-0 min-w-0 gap-3 focus:outline-none',
-          isOpened &&
-            '-mx-4 border-l-[3px] border-l-primary bg-primary/[0.07] py-1.5 pr-4 pl-[13px]',
+          isOpened && OPENED_ROW_TINT,
           // The focused card pads its top by 16px: reach through it so the
           // tint on the first part meets the card edge, rounded as the card is.
           isOpened && isFirstHeader && '-mt-4 rounded-t-[inherit] pt-[22px]'
@@ -335,6 +344,7 @@ const SelfThreadPart: FC<SelfThreadPartProps> = ({
 export const SelfThreadRun: FC<SelfThreadRunProps> = ({
   parts,
   openedPartIndex = -1,
+  anchorPartIndex,
   startAt = 0,
   host,
   currentTime,
@@ -363,8 +373,14 @@ export const SelfThreadRun: FC<SelfThreadRunProps> = ({
   const focusAfterExpandRef = useRef<string | null>(null)
 
   const longRun = useMemo(
-    () => collapseLongRun(parts, openedPartIndex, LONG_RUN_MAX_PARTS),
-    [parts, openedPartIndex]
+    () =>
+      collapseLongRun(
+        parts,
+        openedPartIndex,
+        LONG_RUN_MAX_PARTS,
+        anchorPartIndex
+      ),
+    [parts, openedPartIndex, anchorPartIndex]
   )
   const showCollapsedView = longRun.isCollapsed && !isExpanded
 
