@@ -85,7 +85,18 @@ For a more detailed architecture overview, see [docs/architecture.md](docs/archi
    # Edit .env.local with your configuration
    ```
 
-   At minimum, set `ACTIVITIES_HOST`, `ACTIVITIES_SECRET_PHASE`, and a database configuration (e.g., `ACTIVITIES_DATABASE_CLIENT=better-sqlite3`). Also add `ACTIVITIES_INSECURE_AUTH=true` so the instance accepts `http://localhost` sign-in — without it, sign-up fails with `403 Invalid origin`. This is for local `http` development only, never in production.
+   A minimal local `.env.local` looks like:
+
+   ```bash
+   ACTIVITIES_HOST=localhost:3000
+   ACTIVITIES_SECRET_PHASE=local-dev-secret-phrase-change-me
+   ACTIVITIES_INSECURE_AUTH=true
+   ACTIVITIES_ALLOW_EMAILS='["you@example.com"]'
+   ACTIVITIES_DATABASE_CLIENT=better-sqlite3
+   ACTIVITIES_DATABASE_SQLITE_FILENAME=./dev.sqlite3
+   ```
+
+   `ACTIVITIES_INSECURE_AUTH=true` allows sign-in over plain `http` for local development only — never set it in production. See the [Quickstart Guide](docs/quickstart.md) for details.
 
 5. **Run database migrations:**
 
