@@ -1,0 +1,31 @@
+docs/architecture.md
+  s_3045e9aea563c2::t_e88bc61e95c9ab 1643-1645,1650-1655
+lib/services/email/layout/blocks.test.ts
+  s_3045e9aea563c2::t_20b17d9250ec25 192-205,413-423,433-443
+lib/services/email/layout/blocks.ts
+  s_3045e9aea563c2::t_a52fa2b7e90fe4 238-239,314-317,369-371,375,380-383,392-393,412-415
+lib/services/email/layout/renderEmail.test.ts
+  s_3045e9aea563c2::t_b8cdee95ad02c5 58-62,65-66
+lib/services/email/layout/renderEmail.ts
+  s_3045e9aea563c2::t_6aefdadf9b82e8 76-81,90
+lib/services/email/templates/emailDesign.test.ts
+  s_3045e9aea563c2::t_0b2a7adacee358 481-495
+scripts/mock/renderEmailPreviews.ts
+  s_3045e9aea563c2::t_c4dbf757137400 92-95,208,213,215-216,219
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "09a3dae0ea88e80f5cf881022700ab28269b4f98",
+  "prompts": {},
+  "sessions": {
+    "s_3045e9aea563c2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0e5c8494-05de-48e2-8fb2-cf20cedd4ce7",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
