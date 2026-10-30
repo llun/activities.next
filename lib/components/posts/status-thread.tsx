@@ -661,6 +661,27 @@ export const StatusThread: FC<StatusThreadProps> = ({
   const replyingToLine = replyingToLineProps ? (
     <ReplyingToLine {...replyingToLineProps} />
   ) : null
+  // On the plain opened-row path the line names what the opened post itself
+  // answers, not what its run's first part answers: once "Show as separate
+  // posts" splits the opened post's own run, its later parts render as plain
+  // rows whose reply target can differ from the run's, so the line only
+  // stays when the opened post's own reply target is that part.
+  const replyingToAliases = useMemo(
+    () =>
+      new Set(
+        replyingToPart
+          ? [
+              replyingToPart.status.id,
+              getStatusUrl(replyingToPart.status),
+              replyingToPart.status.publicId
+            ].filter((alias): alias is string => Boolean(alias))
+          : []
+      ),
+    [replyingToPart]
+  )
+  const openedRowReplyTarget = getStatusReplyTargetId(actualFocusedStatus)
+  const openedRowAnswersReplyingTo =
+    openedRowReplyTarget !== null && replyingToAliases.has(openedRowReplyTarget)
   // The opened post carries the same marker as an opened run part, but only
   // when the page shows what it answers above it: a lone post with nothing
   // over it reads as itself, the way an own post only gets the tint as part
@@ -872,7 +893,7 @@ export const StatusThread: FC<StatusThreadProps> = ({
                 openedRowIsMarked && OPENED_ROW_TINT
               )}
             >
-              {replyingToLineProps ? (
+              {replyingToLineProps && openedRowAnswersReplyingTo ? (
                 <ReplyingToLine {...replyingToLineProps} className="ml-13" />
               ) : null}
               <Post

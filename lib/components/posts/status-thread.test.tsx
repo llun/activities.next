@@ -1477,6 +1477,79 @@ describe('StatusThread', () => {
       ).toBeNull()
     })
 
+    it('drops the ancestor run\'s line above the opened post after "Show as separate posts" splits the opened post\'s own run', async () => {
+      const { m1, m2 } = makeAncestorRunWithOpenedReply()
+      const v1 = createMockNote({
+        id: 'https://activities.local/users/bob/statuses/opened-run-v1',
+        actor: mockBob,
+        actorId: mockBob.id,
+        reply: m2.id,
+        text: 'Bob run part 1',
+        createdAt: BASE_TIME + 2 * MINUTE
+      })
+      const v2 = createMockNote({
+        id: 'https://activities.local/users/bob/statuses/opened-run-v2',
+        actor: mockBob,
+        actorId: mockBob.id,
+        reply: v1.id,
+        text: 'Bob run part 2',
+        createdAt: BASE_TIME + 4 * MINUTE
+      })
+
+      render(
+        <StatusThread
+          host={host}
+          status={v2}
+          ancestors={[m1, m2, v1]}
+          descendants={[]}
+          currentActor={mockBob}
+          currentTime={BASE_TIME + 10 * MINUTE}
+        />
+      )
+
+      // The focused run answers Alice's part 2 as a whole.
+      expect(
+        screen.getByText(
+          (_, element) =>
+            element?.textContent === 'Replying to Alice Smith · 2 of 2'
+        )
+      ).toBeInTheDocument()
+      expect(document.querySelectorAll('[aria-current]')).toHaveLength(1)
+
+      fireEvent.keyDown(
+        within(screen.getByTestId(`status-${v1.id}`)).getByRole('button', {
+          name: /^More actions/
+        }),
+        { key: 'ArrowDown' }
+      )
+      fireEvent.click(
+        await screen.findByRole('menuitem', { name: 'Show as separate posts' })
+      )
+
+      // The ancestor run stays combined; the focused run turns into plain rows.
+      await waitFor(() =>
+        expect(screen.getAllByTestId('self-thread-run')).toHaveLength(1)
+      )
+
+      // The opened post V2 replies to V1, not to Alice's part, so the run's
+      // line does not follow it onto the plain row.
+      expect(
+        screen.queryByText(
+          (_, element) => element?.textContent === 'Replying to Alice Smith'
+        )
+      ).toBeNull()
+      expect(
+        screen.queryByText(
+          (_, element) =>
+            element?.textContent === 'Replying to Alice Smith · 2 of 2'
+        )
+      ).toBeNull()
+      expect(document.querySelectorAll('[aria-current]')).toHaveLength(1)
+      expect(
+        document.querySelector('[aria-current]')?.getAttribute('data-testid')
+      ).toBe(`status-${v2.id}`)
+    })
+
     it('falls back to the actor id handle when the answered part’s actor is missing', () => {
       const m1 = createMockNote({
         id: 'https://activities.local/users/maythee/statuses/no-actor-m1',
@@ -2154,8 +2227,6 @@ describe('StatusThread', () => {
           fireEvent.click(screen.getByRole('button', { name: 'Post' }))
 
           await waitFor(() => expect(mockCreateNote).toHaveBeenCalled())
-          // The reply nests under the earlier run's row, not under the opened
-          // post's Replies section.
           // The reply nests under the earlier run's row and is not counted
           // under the opened post's "Replies", so the section hides.
           await waitFor(() =>
