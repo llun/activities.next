@@ -743,13 +743,22 @@ export const GalleryAllMediaView: FC<Props> = ({
           filtersInSheet
           leading={
             <>
+              {/* In sheet mode the row also carries the Filters button,
+                  count and Sort, so the selects cap 20px narrower than
+                  their 260px default to keep the row off the wrap
+                  threshold near iPad landscape width. */}
               <SectionNavSelect
                 label="Category"
                 tabs={FILTER_TABS}
                 active={filter}
                 onChange={setFilter}
+                className="sm:max-w-[240px]"
               />
-              <GalleryShowSelect value={show} onChange={setShow} />
+              <GalleryShowSelect
+                value={show}
+                onChange={setShow}
+                className="sm:max-w-[240px]"
+              />
             </>
           }
           filters={filters}

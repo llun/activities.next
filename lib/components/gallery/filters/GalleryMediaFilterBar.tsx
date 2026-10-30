@@ -192,7 +192,7 @@ export const GalleryMediaFilterBar: FC<GalleryMediaFilterBarProps> = ({
           >
             <span className="sr-only">Loading filters</span>
             {filtersInSheet ? (
-              <SkeletonBar className="h-10 w-18 rounded-lg" />
+              <SkeletonBar className="h-10 w-[75px] rounded-lg" />
             ) : (
               <>
                 <SkeletonBar className="h-10 w-28 rounded-lg" />
@@ -429,14 +429,16 @@ export const GalleryMediaFilterBar: FC<GalleryMediaFilterBarProps> = ({
 
         {/* Count and Sort share one right-aligned group in sheet mode, so
             they wrap together as a unit and stay at the row's right end; the
-            count stays a live region so changes are announced. */}
+            count stays a live region so changes are announced. Its fixed
+            minimum width and tabular figures keep the group's width stable
+            as the count loads and changes, so the row does not re-wrap. */}
         {filtersInSheet ? (
           <div className="ml-auto flex items-center gap-2">
             <span
               data-testid={`${idPrefix}-count`}
               role="status"
               aria-live="polite"
-              className="text-muted-foreground text-sm"
+              className="text-muted-foreground min-w-[5.5rem] text-right tabular-nums text-sm"
             >
               {total !== null
                 ? `${pluralize(total, 'photo')}${

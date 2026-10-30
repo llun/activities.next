@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import { FC, ReactNode, useCallback, useMemo, useRef, useState } from 'react'
 
 import { formatGalleryDate } from '@/lib/components/gallery/galleryCategories'
+import { GALLERY_GRID_CLASSES } from '@/lib/components/gallery/galleryGridClasses'
 import { useRovingGridFocus } from '@/lib/components/gallery/useRovingGridFocus'
 import { MediasModal } from '@/lib/components/medias-modal/medias-modal'
 import { Media } from '@/lib/components/posts/media'
@@ -368,13 +369,7 @@ export const GalleryGrid: FC<Props> = ({
           {groups.map((group) => (
             <section key={group.key}>
               {group.header}
-              <ul
-                className={cn(
-                  'grid grid-cols-3 gap-1 sm:grid-cols-4 sm:gap-1.5 lg:grid-cols-6',
-                  className
-                )}
-                data-grid
-              >
+              <ul className={cn(GALLERY_GRID_CLASSES, className)} data-grid>
                 {group.items.map((item) =>
                   renderTile(
                     editedById[item.mediaId] ?? item,
@@ -387,10 +382,7 @@ export const GalleryGrid: FC<Props> = ({
         </div>
       ) : (
         <ul
-          className={cn(
-            'grid grid-cols-3 gap-1 sm:grid-cols-4 sm:gap-1.5 lg:grid-cols-6',
-            className
-          )}
+          className={cn(GALLERY_GRID_CLASSES, className)}
           data-grid={selection ? true : undefined}
           onKeyDown={selection ? roving.onKeyDown : undefined}
         >

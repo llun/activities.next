@@ -1,5 +1,6 @@
 import { FC } from 'react'
 
+import { GALLERY_GRID_CLASSES } from '@/lib/components/gallery/galleryGridClasses'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -31,10 +32,7 @@ export const GalleryGridSkeleton: FC<Props> = ({
     data-slot="gallery-grid-skeleton"
     role={label ? 'status' : undefined}
     aria-busy="true"
-    className={cn(
-      'grid grid-cols-3 gap-1 sm:grid-cols-4 sm:gap-1.5 lg:grid-cols-6',
-      className
-    )}
+    className={cn(GALLERY_GRID_CLASSES, className)}
   >
     {label ? <span className="sr-only">{label}</span> : null}
     {Array.from({ length: tiles }, (_, index) =>

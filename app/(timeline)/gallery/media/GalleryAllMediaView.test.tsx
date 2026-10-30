@@ -509,6 +509,16 @@ describe('GalleryAllMediaView', () => {
       />
     )
     expect(filterBarProps.current?.filtersInSheet).toBe(true)
+    // In sheet mode the row also carries the Filters button, count and
+    // Sort, so the leading selects cap 20px narrower than their 260px
+    // default to keep the row off the wrap threshold.
+    const filterBar = screen.getByTestId('filter-bar')
+    expect(
+      within(filterBar).getByRole('navigation', { name: 'Category' })
+    ).toHaveClass('sm:max-w-[240px]')
+    expect(within(filterBar).getByRole('group', { name: 'Show' })).toHaveClass(
+      'sm:max-w-[240px]'
+    )
   })
 
   it('rides the section dropdown row with the actions from sm up', () => {

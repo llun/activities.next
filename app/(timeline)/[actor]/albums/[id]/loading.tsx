@@ -1,5 +1,6 @@
 import { FC } from 'react'
 
+import { GalleryGridSkeleton } from '@/lib/components/gallery/GalleryGridSkeleton'
 import { MobileCompactHeader } from '@/lib/components/layout/mobile-compact-header'
 
 // The album page's skeleton: the Back row, the cover and a grid of tiles. It
@@ -28,14 +29,9 @@ const Loading: FC = () => (
         className="skeleton aspect-[4/3] w-full rounded-lg sm:aspect-[16/7]"
       />
       <div aria-hidden="true" className="skeleton h-5 w-2/3 rounded" />
-      <div
-        aria-hidden="true"
-        className="grid grid-cols-3 gap-1 sm:grid-cols-4 sm:gap-2"
-      >
-        {Array.from({ length: 12 }, (_, index) => (
-          <div key={index} className="skeleton aspect-square rounded-md" />
-        ))}
-      </div>
+      {/* The wrapper above already says "Loading album", so the skeleton stays
+          silent; its tiles are aria-hidden like the placeholders above. */}
+      <GalleryGridSkeleton />
     </div>
   </>
 )

@@ -723,6 +723,9 @@ describe('GalleryMediaFilterBar', () => {
         within(countLine).getByText('19 photos · 4 already in this album')
       ).toBeInTheDocument()
       expect(within(countLine).getByText('19 photos')).toBeInTheDocument()
+      // The menu host keeps its count in the line below the row; the
+      // sheet-mode inline count span does not exist here.
+      expect(screen.queryByTestId('test-count')).not.toBeInTheDocument()
     })
 
     it('shows no photo count when total is null', () => {
@@ -903,6 +906,10 @@ describe('GalleryMediaFilterBar', () => {
       expect(count).toHaveAttribute('role', 'status')
       expect(count).toHaveAttribute('aria-live', 'polite')
       expect(count).toHaveTextContent('774 photos')
+      // A stable minimum width, right-aligned tabular figures, so the
+      // group's width does not change as the count loads and changes and
+      // the row does not re-wrap.
+      expect(count).toHaveClass('min-w-[5.5rem]', 'text-right', 'tabular-nums')
       // The count and Sort share one right-aligned group, so they wrap
       // together when the row is tight.
       const group = count.parentElement as HTMLElement
@@ -957,12 +964,12 @@ describe('GalleryMediaFilterBar', () => {
       expect(
         screen.getByRole('status', { name: 'Loading filters' })
       ).toBeInTheDocument()
-      // The placeholder matches the real Filters button's width (~72px).
+      // The placeholder matches the real Filters button's width (75px).
       expect(
         screen
           .getByRole('status', { name: 'Loading filters' })
           .querySelector('[data-slot="skeleton-bar"]')
-      ).toHaveClass('w-18')
+      ).toHaveClass('w-[75px]')
       expect(
         screen.queryByRole('button', { name: 'Filters' })
       ).not.toBeEnabled()

@@ -14,6 +14,7 @@ import { buildGalleryItem } from '@/lib/components/gallery/__fixtures__/galleryI
 import type { Attachment } from '@/lib/types/domain/attachment'
 
 import { GalleryGrid } from './GalleryGrid'
+import { GALLERY_GRID_CLASSES } from './galleryGridClasses'
 
 vi.mock('@/lib/components/posts/media', () => ({
   Media: ({
@@ -120,6 +121,27 @@ describe('GalleryGrid', () => {
       'sm:grid-cols-4',
       'lg:grid-cols-6'
     )
+  })
+
+  it('renders the shared grid classes on the flat and the grouped grids', () => {
+    // The skeletons stand in for this grid, so both of its grids must carry
+    // the one shared class string they read.
+    const classes = GALLERY_GRID_CLASSES.split(' ')
+    const { container } = render(<GalleryGrid items={items} />)
+    expect(container.querySelector('ul')).toHaveClass(...classes)
+
+    const grouped = render(
+      <GalleryGrid
+        items={[items[0], items[1]]}
+        groups={[
+          { key: 'a', header: <h2>A</h2>, items: [items[0]] },
+          { key: 'b', header: <h2>B</h2>, items: [items[1]] }
+        ]}
+      />
+    )
+    const lists = grouped.container.querySelectorAll('ul[data-grid]')
+    expect(lists).toHaveLength(2)
+    for (const list of lists) expect(list).toHaveClass(...classes)
   })
 
   it('keeps every tile lazy unless the first is prioritized', () => {
