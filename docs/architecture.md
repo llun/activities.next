@@ -3332,8 +3332,9 @@ The full rules live in
   the container, which does not resize when an edit swaps a panorama for a
   portrait.
 - `no-scrollbar` belongs only on a row that carries its own overflow affordance.
-  The emoji and reaction pickers apply it while it is defined nowhere; defining
-  it would remove their only overflow cue, so the class stays undefined.
+  The utility is defined in `app/globals.css` for exactly those rows; the emoji
+  and reaction pickers' category rows carry no such affordance, so they keep a
+  plain scrollbar.
 
 #### Composer attachment tiles
 
