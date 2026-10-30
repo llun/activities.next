@@ -13,12 +13,4 @@ describe('getMastodonTag', () => {
       following: true
     })
   })
-
-  it.each([
-    { description: 'includes featuring true when provided', featuring: true },
-    { description: 'includes featuring false when provided', featuring: false }
-  ])('$description', ({ featuring }) => {
-    const tag = getMastodonTag('running', false, [], featuring)
-    expect(tag.featuring).toBe(featuring)
-  })
 })

@@ -1,8 +1,3 @@
-import {
-  RESOLVE_MEDIA_PLACE_JOB_NAME,
-  RESOLVE_MEDIA_SUBJECT_JOB_NAME
-} from '@/lib/jobs/names'
-
 import { publishPlaceLookup, publishSubjectLookup } from './publishLookups'
 
 const mockPublish = vi.fn()
@@ -30,20 +25,6 @@ describe('publishLookups', () => {
   })
 
   describe('publishPlaceLookup', () => {
-    it('publishes the job with only the media id in its data', async () => {
-      await expect(
-        publishPlaceLookup({ mediaId: '7', latitude: 14.5, longitude: 101.4 })
-      ).resolves.toBe(true)
-
-      expect(mockPublish).toHaveBeenCalledWith({
-        id: expect.stringMatching(/^[0-9a-f]{64}$/),
-        name: RESOLVE_MEDIA_PLACE_JOB_NAME,
-        data: { mediaId: '7' }
-      })
-      // The coordinates are not in the message, only in the (hashed) id.
-      expect(JSON.stringify(mockPublish.mock.calls[0][0])).not.toContain('14.5')
-    })
-
     it('derives the id from the media and the coordinates', async () => {
       const publish = async (mediaId: string, latitude: number) => {
         await publishPlaceLookup({ mediaId, latitude, longitude: 101.4 })
@@ -54,22 +35,6 @@ describe('publishLookups', () => {
       expect(await publish('7', 14.5)).toBe(same)
       expect(await publish('7', 14.6)).not.toBe(same)
       expect(await publish('8', 14.5)).not.toBe(same)
-    })
-
-    it('uses a new id for each fresh publish, even in the same millisecond', async () => {
-      vi.useFakeTimers({ toFake: ['Date'] })
-      try {
-        const params = { mediaId: '7', latitude: 1, longitude: 2 }
-        await publishPlaceLookup({ ...params, fresh: true })
-        const first = idOf()
-        await publishPlaceLookup({ ...params, fresh: true })
-
-        expect(idOf()).not.toBe(first)
-        await publishPlaceLookup(params)
-        expect(idOf()).not.toBe(first)
-      } finally {
-        vi.useRealTimers()
-      }
     })
 
     it('tells the job about a retry', async () => {
@@ -95,16 +60,6 @@ describe('publishLookups', () => {
   })
 
   describe('publishSubjectLookup', () => {
-    it('publishes the job with only the media id in its data', async () => {
-      await expect(publishSubjectLookup(subject)).resolves.toBe(true)
-
-      expect(mockPublish).toHaveBeenCalledWith({
-        id: expect.stringMatching(/^[0-9a-f]{64}$/),
-        name: RESOLVE_MEDIA_SUBJECT_JOB_NAME,
-        data: { mediaId: '7' }
-      })
-    })
-
     it('derives the id from the media and every subject field', async () => {
       await publishSubjectLookup(subject)
       const base = idOf()

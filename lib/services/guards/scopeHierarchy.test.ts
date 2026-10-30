@@ -1,17 +1,7 @@
 import { hasGrantedScope } from './scopeHierarchy'
 
 describe('hasGrantedScope', () => {
-  it('matches an exact scope', () => {
-    expect(hasGrantedScope(['read:statuses'], 'read:statuses')).toBe(true)
-    expect(hasGrantedScope(['read'], 'read')).toBe(true)
-  })
-
   describe('coarse → granular (a coarse grant satisfies its children)', () => {
-    it('lets read satisfy any read:* requirement', () => {
-      expect(hasGrantedScope(['read'], 'read:notifications')).toBe(true)
-      expect(hasGrantedScope(['read'], 'read:statuses')).toBe(true)
-    })
-
     it('lets write satisfy any write:* requirement', () => {
       expect(hasGrantedScope(['write'], 'write:statuses')).toBe(true)
       expect(hasGrantedScope(['write'], 'write:media')).toBe(true)

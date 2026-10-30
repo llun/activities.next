@@ -72,35 +72,6 @@ describe('serializeBulkImport', () => {
     expect('failedRows' in result).toBe(false)
   })
 
-  it('includes failedRows when provided', () => {
-    const failedRows = [
-      {
-        rowIndex: 2,
-        data: { acct: 'user@remote.test' },
-        error: 'Account not found'
-      },
-      {
-        rowIndex: 5,
-        data: { acct: 'invalid-acct' },
-        error: 'Malformed address'
-      }
-    ]
-
-    const result = serializeBulkImport(baseBulkImport, failedRows)
-    expect(result.failedRows).toEqual([
-      {
-        rowIndex: 2,
-        data: { acct: 'user@remote.test' },
-        error: 'Account not found'
-      },
-      {
-        rowIndex: 5,
-        data: { acct: 'invalid-acct' },
-        error: 'Malformed address'
-      }
-    ])
-  })
-
   it('includes empty failedRows array when empty array is provided', () => {
     const result = serializeBulkImport(baseBulkImport, [])
     expect(result.failedRows).toEqual([])

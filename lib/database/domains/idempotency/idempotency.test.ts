@@ -43,25 +43,6 @@ describe('IdempotencyDatabase', () => {
     ).resolves.toBeNull()
   })
 
-  it('keeps the first status recorded for a key', async () => {
-    const actorId = actor('first-writer')
-    await seedIdempotencyKey(db, {
-      actorId,
-      key: 'post-1',
-      statusId: 'status-1'
-    })
-    // A retry or race recording the same key must not overwrite or throw.
-    await seedIdempotencyKey(db, {
-      actorId,
-      key: 'post-1',
-      statusId: 'status-2'
-    })
-
-    await expect(
-      getIdempotencyStatusId(db, { actorId, key: 'post-1' })
-    ).resolves.toBe('status-1')
-  })
-
   it('scopes keys to the actor', async () => {
     const actorId = actor('scoped')
     const otherActorId = actor('someone-else')

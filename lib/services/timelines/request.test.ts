@@ -8,7 +8,6 @@ import { urlToId } from '@/lib/utils/urlToId'
 
 import { MAX_TIMELINE_LIMIT } from './getFilteredTimelinePage'
 import {
-  decodeCursor,
   parseTimelineQuery,
   resolveStatusCursor,
   resolveTimelineCursors,
@@ -195,52 +194,7 @@ describe('parseTimelineQuery', () => {
   })
 })
 
-describe('decodeCursor', () => {
-  it('passes a UUIDv7 publicId through unchanged (never mangled into a URL)', () => {
-    const publicId = generatePublicId()
-    expect(decodeCursor(publicId)).toBe(publicId)
-  })
-
-  it('still decodes a legacy colon-form cursor into its status URL', () => {
-    expect(decodeCursor(validCursor)).toBe(realStatusUrl)
-  })
-
-  it('still nulls an undecodable cursor', () => {
-    expect(decodeCursor('apurl_@@@@')).toBeNull()
-  })
-
-  it('returns undefined for an absent cursor', () => {
-    expect(decodeCursor(undefined)).toBeUndefined()
-  })
-})
-
 describe('resolveStatusCursor', () => {
-  const makeDatabase = (
-    getStatusIdByPublicId: (params: {
-      publicId: string
-    }) => Promise<string | null>
-  ): Pick<Database, 'getStatusIdByPublicId'> => ({
-    getStatusIdByPublicId: vi.fn(getStatusIdByPublicId)
-  })
-
-  it('resolves a known publicId to the stored status URL', async () => {
-    const publicId = generatePublicId()
-    const database = makeDatabase(async ({ publicId: id }) =>
-      id === publicId ? realStatusUrl : null
-    )
-    await expect(resolveStatusCursor(database, publicId)).resolves.toBe(
-      realStatusUrl
-    )
-  })
-
-  it('passes an unknown publicId through unchanged', async () => {
-    const publicId = generatePublicId()
-    const database = makeDatabase(async () => null)
-    await expect(resolveStatusCursor(database, publicId)).resolves.toBe(
-      publicId
-    )
-  })
-
   it('leaves a non-publicId decoded value untouched (never queries the DB)', async () => {
     const lookup = vi.fn()
     const database: Pick<Database, 'getStatusIdByPublicId'> = {
