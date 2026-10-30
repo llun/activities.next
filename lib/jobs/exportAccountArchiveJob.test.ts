@@ -485,7 +485,7 @@ describe('exportAccountArchiveJob', () => {
 
   it('finishes with the same content when a slice dies after staging a page', async () => {
     const baselineId = await makeArchive(accountId)
-    await runToCompletion(baselineId)
+    await runToCompletion(baselineId, 400, 0)
     const baseline = await readArchive(baselineId)
 
     const id = await makeArchive(accountId)
@@ -506,7 +506,7 @@ describe('exportAccountArchiveJob', () => {
     expect(interrupted!.status).toBe('running')
 
     // The queue delivers the same message again.
-    const archive = await runToCompletion(id)
+    const archive = await runToCompletion(id, 400, 0)
     expect(archive.status).toBe('ready')
     const resumed = await readArchive(id)
 
@@ -1481,7 +1481,7 @@ describe('exportAccountArchiveJob', () => {
           return original.call(this, key)
         }
       )
-      const archive = await runToCompletion(id)
+      const archive = await runToCompletion(id, 400, 0)
       expect(archive.status).toBe('ready')
       expect(reads.size).toBeGreaterThan(10)
       // Resuming inside an entry seeks to its part instead of re-reading the
@@ -1491,7 +1491,7 @@ describe('exportAccountArchiveJob', () => {
 
     it('deflates the staged JSON and stores copied files, and a streaming reader reads the JSON', async () => {
       const id = await makeArchive(accountId)
-      await runToCompletion(id)
+      await runToCompletion(id, 400, 0)
       const archive = (await database.getAccountArchive({ id }))!
       const file = path.join(root, archive.storagePath!)
       const { methods, files } = await readArchive(id)
@@ -1524,7 +1524,7 @@ describe('exportAccountArchiveJob', () => {
           return account && { ...account, signUpDomain: 'x'.repeat(calls * 50) }
         }
       )
-      await runToCompletion(id)
+      await runToCompletion(id, 400, 0)
       const { files } = await readArchive(id)
       for (const name of [
         'activities.next/account.json',

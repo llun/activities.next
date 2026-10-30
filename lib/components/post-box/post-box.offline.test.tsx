@@ -26,7 +26,10 @@ import {
   setDraftsIndexedDBFactory
 } from '@/lib/client/drafts'
 import { checkServerHealth } from '@/lib/client/health'
-import { DraftsProvider } from '@/lib/components/drafts/DraftsProvider'
+import {
+  DraftsProvider,
+  useDrafts
+} from '@/lib/components/drafts/DraftsProvider'
 import { createDeferred } from '@/lib/testing/deferred'
 import { installFakeBroadcastChannel } from '@/lib/testing/fakeBroadcastChannel'
 import { findSendAlert } from '@/lib/testing/sendAlerts'
@@ -118,8 +121,17 @@ const composer = (props: Props = {}) => (
       onDiscardEdit={vi.fn()}
       {...props}
     />
+    <EpochReady />
   </DraftsProvider>
 )
+
+// The provider reads the account epoch after mount, and until it has, every
+// save is refused. The "nothing was written" checks wait for this marker
+// first, so they cannot pass because drafts were not on yet.
+const EpochReady = () =>
+  useDrafts()?.epoch != null ? <span data-testid="drafts-ready" /> : null
+
+const waitForEpoch = () => screen.findByTestId('drafts-ready')
 
 const textarea = () =>
   screen.getByPlaceholderText('What is on your mind?') as HTMLTextAreaElement
@@ -265,6 +277,7 @@ describe('PostBox offline hand-off', () => {
     it('has both buttons disabled for an untouched composer and writes nothing', async () => {
       render(composer())
       await goOffline()
+      await waitForEpoch()
 
       expect(saveDraftButton()).toBeDisabled()
       expect(queueButton()).toBeDisabled()
@@ -305,6 +318,7 @@ describe('PostBox offline hand-off', () => {
         }
       })
       await screen.findByRole('button', { name: 'Remove media clip.mp4' })
+      await waitForEpoch()
 
       expect(queueButton()).toHaveAttribute('aria-disabled', 'true')
       expect(queueButton()).toHaveAccessibleDescription(
@@ -517,6 +531,7 @@ describe('PostBox offline hand-off', () => {
       render(composer({ replyStatus: replyTo('first'), onHandedOff }))
       await screen.findByDisplayValue(/@bob/)
       await goOffline()
+      await waitForEpoch()
       // Typed over and back: the buttons are live (there is text), yet nothing
       // differs from the pre-fill.
       const prefill = textarea().value

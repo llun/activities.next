@@ -70,7 +70,15 @@ vi.mock('@/lib/services/gallery/lookups/rateLimit', async (importOriginal) => {
     >()
   return {
     ...original,
-    createLimiter: () => (callback: () => Promise<unknown>) => callback()
+    createLimiter:
+      () =>
+      (
+        callback: () => Promise<unknown>,
+        options?: { beforeStart?: () => void }
+      ) => {
+        options?.beforeStart?.()
+        return callback()
+      }
   }
 })
 

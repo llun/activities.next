@@ -4,6 +4,7 @@
 import '@testing-library/jest-dom'
 import {
   act,
+  cleanup,
   configure,
   fireEvent,
   render,
@@ -151,6 +152,19 @@ const advanceTimersByTimeAsync = async (ms: number) => {
   })
 }
 
+// Positive control for the "nothing was saved" checks: the same advance of the
+// fake clock stores typed text in an ordinary composer. Without it, a drafts
+// provider that never turned on would make those checks pass whatever the
+// guarded code does.
+const expectAutosaveStillStores = async () => {
+  cleanup()
+  render(composer())
+  await waitForEpoch()
+  type('Positive control')
+  await advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS + 300)
+  expect(await storedDrafts()).toMatchObject([{ text: 'Positive control' }])
+}
+
 // Real IndexedDB plus a loaded machine: the 1 s default is too tight.
 configure({ asyncUtilTimeout: 4000 })
 
@@ -212,11 +226,15 @@ describe('PostBox on-device drafts', () => {
       })
     )
 
+    // Real time: the epoch load is real IndexedDB I/O, and the drafts provider
+    // must be on before the fake clock moves.
+    await waitForEpoch()
     type('Original, edited')
     await advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS + 300)
 
     expect(screen.queryByText(/Saving|Saved on this device/)).toBeNull()
     expect(await storedDrafts()).toHaveLength(0)
+    await expectAutosaveStillStores()
   })
 
   it('never offers a failed edit as a draft when the next post to edit opens', async () => {
@@ -297,6 +315,7 @@ describe('PostBox on-device drafts', () => {
     const update = createDeferred<never>()
     vi.mocked(updateNote).mockImplementationOnce(() => update.promise)
     const { rerender } = render(composer({ editStatus: post }))
+    await waitForEpoch()
     type('Followers only, edited')
     fireEvent.click(screen.getByRole('button', { name: 'Update' }))
     await waitFor(() => expect(updateNote).toHaveBeenCalledTimes(1))
@@ -308,6 +327,7 @@ describe('PostBox on-device drafts', () => {
     await advanceTimersByTimeAsync(300)
 
     expect(await storedDrafts()).toHaveLength(0)
+    await expectAutosaveStillStores()
   })
 
   it('keeps a failed quote in Drafts when the row turns into an edit mid-send', async () => {
@@ -405,9 +425,11 @@ describe('PostBox on-device drafts', () => {
       })
     )
     await screen.findByDisplayValue(/@bob/)
+    await waitForEpoch()
     await advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS + 300)
 
     expect(await storedDrafts()).toHaveLength(0)
+    await expectAutosaveStillStores()
   })
 
   describe('re-targeted while a send is in flight', () => {

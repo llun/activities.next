@@ -4,6 +4,7 @@
 import '@testing-library/jest-dom'
 import {
   act,
+  cleanup,
   configure,
   fireEvent,
   render,
@@ -23,7 +24,10 @@ import {
   setDraftsIndexedDBFactory
 } from '@/lib/client/drafts'
 import { ApiRequestError } from '@/lib/client/http'
-import { DraftsProvider } from '@/lib/components/drafts/DraftsProvider'
+import {
+  DraftsProvider,
+  useDrafts
+} from '@/lib/components/drafts/DraftsProvider'
 import { DRAFT_SAVE_DEBOUNCE_MS } from '@/lib/components/post-box/useComposerDraft'
 import { createDeferred } from '@/lib/testing/deferred'
 import { installFakeBroadcastChannel } from '@/lib/testing/fakeBroadcastChannel'
@@ -86,8 +90,30 @@ const replyStatus = {
 
 const ACCOUNT_ID = 'account-1'
 
+// The provider reads the account epoch after mount (real IndexedDB I/O), and
+// until it has, nothing is saved. Tests that move a fake clock wait for this
+// marker first, so a "nothing saved" check cannot pass because the provider
+// was not on yet.
+const EpochReady = () =>
+  useDrafts()?.epoch != null ? <span data-testid="drafts-ready" /> : null
+
+// Runs `act` (typing, say) and then moves a fake clock past the autosave pause.
+// The fake clock goes in before `act`, so a timer armed by it is a fake one.
+const advanceDebounce = async (beforeAdvance: () => void = () => undefined) => {
+  vi.useFakeTimers()
+  try {
+    beforeAdvance()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS + 300)
+    })
+  } finally {
+    vi.useRealTimers()
+  }
+}
+
 const renderBox = (
-  props: Partial<React.ComponentProps<typeof StatusReplyBox>> = {}
+  props: Partial<React.ComponentProps<typeof StatusReplyBox>> = {},
+  { withEpochProbe = false } = {}
 ) => {
   const onCancel = vi.fn()
   const view = render(
@@ -100,6 +126,7 @@ const renderBox = (
         onPostCreated={vi.fn()}
         {...props}
       />
+      {withEpochProbe ? <EpochReady /> : null}
     </DraftsProvider>
   )
   return { ...view, onCancel }
@@ -153,27 +180,35 @@ describe('StatusReplyBox on-device drafts', () => {
   })
 
   it('saves nothing for the mention pre-fill alone', async () => {
-    vi.useFakeTimers()
-    renderBox({
-      replyStatus: {
-        ...replyStatus,
-        actorId: 'https://activities.local/users/bob',
-        actor: {
-          ...profile,
-          id: 'https://activities.local/users/bob',
-          username: 'bob',
-          name: 'Bob'
-        }
-      } as unknown as StatusNote
-    })
+    renderBox(
+      {
+        replyStatus: {
+          ...replyStatus,
+          actorId: 'https://activities.local/users/bob',
+          actor: {
+            ...profile,
+            id: 'https://activities.local/users/bob',
+            username: 'bob',
+            name: 'Bob'
+          }
+        } as unknown as StatusNote
+      },
+      { withEpochProbe: true }
+    )
     await screen.findByDisplayValue(/@bob/)
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS + 300)
-    })
-    vi.useRealTimers()
+    // Real time: the drafts provider must be on before the fake clock moves.
+    await screen.findByTestId('drafts-ready')
+    await advanceDebounce()
 
     expect(await stored()).toHaveLength(0)
     expect(screen.queryByText(/Saving|Saved on this device/)).toBeNull()
+
+    // Positive control: the same setup and advance store typed text.
+    cleanup()
+    renderBox({}, { withEpochProbe: true })
+    await screen.findByTestId('drafts-ready')
+    await advanceDebounce(() => type('Positive control'))
+    expect(await stored()).toMatchObject([{ text: 'Positive control' }])
   })
 
   it('saves typed text as a reply draft with the target', async () => {
