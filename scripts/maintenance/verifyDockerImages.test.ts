@@ -71,4 +71,26 @@ describe('verifyDockerImages parseArgs', () => {
     expect(parseArgs(['--help']).help).toBe(true)
     expect(parseArgs(['-h']).help).toBe(true)
   })
+
+  it('leaves --only unset when not passed', () => {
+    expect(parseArgs([]).only).toBeUndefined()
+    expect(parseArgs(['--skip-build']).only).toBeUndefined()
+  })
+
+  it('parses --only minimal and --only full with spaces', () => {
+    expect(parseArgs(['--only', 'minimal']).only).toBe('minimal')
+    expect(parseArgs(['--only', 'full']).only).toBe('full')
+  })
+
+  it('parses --only with equals', () => {
+    expect(parseArgs(['--only=minimal']).only).toBe('minimal')
+    expect(parseArgs(['--only=full']).only).toBe('full')
+  })
+
+  it('rejects an unknown --only value', () => {
+    expect(() => parseArgs(['--only', 'both'])).toThrow(
+      '--only must be "minimal" or "full", got "both"'
+    )
+    expect(() => parseArgs(['--only=everything'])).toThrow()
+  })
 })

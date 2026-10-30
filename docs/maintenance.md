@@ -952,7 +952,7 @@ NODE_ENV=production node scripts/run.cjs scripts/maintenance/importRemoteStatus.
 
 ## Docker Image Verification
 
-The `verifyDockerImages.ts` script verifies both the minimal and full Docker images.
+The `verifyDockerImages.ts` script verifies both the minimal and full Docker images by default; pass `--only <minimal|full>` to verify just one. CI runs the same verifier in two jobs — `Docker Images Smoke Test (minimal)` and `Docker Images Smoke Test (full)` — each with `--only` set to its half.
 
 ### What it does
 
@@ -969,6 +969,10 @@ The `verifyDockerImages.ts` script verifies both the minimal and full Docker ima
 ```bash
 # Verify both minimal and full images (builds images if not present)
 node scripts/run.cjs scripts/maintenance/verifyDockerImages.ts
+
+# Verify only one of the two images (builds it if not present)
+node scripts/run.cjs scripts/maintenance/verifyDockerImages.ts --only minimal
+node scripts/run.cjs scripts/maintenance/verifyDockerImages.ts --only full
 
 # Force rebuild before verification
 node scripts/run.cjs scripts/maintenance/verifyDockerImages.ts --build
@@ -1291,7 +1295,7 @@ preserving legacy and fitness attachments` pins the surviving-null behaviour.
 
 #### Migrations & schema dumps
 
-- Any PR that adds/edits/removes a migration regenerates **both** `migrations/schema.sql` (PostgreSQL) and `migrations/schema.sqlite.sql` (SQLite) in the same PR, against fresh local DBs — never hand-edited — and then `lib/database/kysely/db.ts` (see [Regenerating the Kysely DB types](setup.md#regenerating-the-kysely-db-types)). Commit a schema-only regeneration as `none:`. CI's SQLite and PostgreSQL Schema Dump Sync jobs catch schema-dump and Kysely-type drift.
+- Any PR that adds/edits/removes a migration regenerates **both** `migrations/schema.sql` (PostgreSQL) and `migrations/schema.sqlite.sql` (SQLite) in the same PR, against fresh local DBs — never hand-edited — and then `lib/database/kysely/db.ts` (see [Regenerating the Kysely DB types](setup.md#regenerating-the-kysely-db-types)). Commit a schema-only regeneration as `none:`. (CI's schema drift checks, run in the first PostgreSQL test shard, catch schema-dump and Kysely-type drift.)
 - A new migration is a TypeScript module from `yarn migrate:make`, registered in `migrations/index.ts` with its name in `migrations/names.ts` (the runner reads that map, the startup check the names; `yarn typecheck` fails when the two disagree, and `lib/database/migrate/index.test.ts` when they and the files do). It takes the `Kysely<any>` it is given — a transaction unless it exports `config = { transaction: false }` — never the root instance (refused inside the transaction; under `transaction: false` on SQLite it would deadlock), and it works on both backends. `migrations/baseline/*.sql` is frozen: a schema change is a new migration on top, never an edit to it.
 - A per-column type difference between the two schema dumps is not automatically drift — a backend-conditional migration makes them legitimately differ (none does now: the `20260207223000_fix_attachments_media_id_type` migration converted `attachments.mediaId` on PostgreSQL only, and the `20261012100000_attachments_media_id_integer_sqlite` migration did the same on SQLite). Read the migration before asking for a regeneration.
 - SQLite cannot change a column's type in place, so a migration that does rebuilds the table in one transaction (the `20261012100000_attachments_media_id_integer_sqlite` migration, in v1.192.34's `migrations/`, is the pattern): rename the old table, create the new one with the original definition (backtick-quoted, so the schema dump keeps its style) and the new type, copy the rows through an explicit conversion, drop the old table and re-create its indexes from their stored definitions. It first checks that no table references the one it drops, because dropping a referenced table runs the foreign key actions of its children, and it fails, rolling back, if the row count changes. Its test (`attachmentsMediaIdIntegerMigration.test.ts`, in v1.192.34) pinned the column type, the copied values, the indexes and `down`; a new rebuild needs the same test. It re-creates indexes only: the rename moves the table's triggers to the old table and repoints views that name it, so the drop deletes those triggers and breaks those views — a rebuild of a table that has either must re-create them from their stored SQL too (or refuse, as this one does, for a referenced table, a trigger or a view). A rebuilt table sits at the end of `migrations/schema.sqlite.sql`, where its `CREATE TABLE` and indexes are re-emitted.

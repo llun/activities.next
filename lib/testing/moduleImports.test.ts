@@ -1,4 +1,7 @@
-import { collectImports } from '@/lib/testing/moduleImports'
+import {
+  collectImportEntries,
+  collectImports
+} from '@/lib/testing/moduleImports'
 
 const both = { includeSideEffects: true }
 
@@ -41,5 +44,48 @@ describe('collectImports', () => {
     expect(
       collectImports('a.ts', source, { includeSideEffects: false })
     ).toEqual(['./value'])
+  })
+
+  it('keeps `export * as ns` re-exports', () => {
+    const source = [
+      `export * as ns from './namespace'`,
+      `export * as inner from './outer/inner'`
+    ].join('\n')
+    expect(collectImports('a.ts', source, both)).toEqual([
+      './namespace',
+      './outer/inner'
+    ])
+  })
+
+  it('reports the names each import site pulls in', () => {
+    const source = [
+      `import def from './default'`,
+      `import * as ns from './namespace'`,
+      `import { a as b } from './aliased'`,
+      `import { type T, value } from './mixed'`
+    ].join('\n')
+    expect(collectImportEntries('a.ts', source)).toEqual([
+      { specifier: './default', names: ['default'], kind: 'runtime' },
+      { specifier: './namespace', names: ['*'], kind: 'runtime' },
+      { specifier: './aliased', names: ['a'], kind: 'runtime' },
+      { specifier: './mixed', names: ['value'], kind: 'runtime' }
+    ])
+  })
+
+  it('marks `export * as ns` with the wildcard name', () => {
+    const source = `export * as ns from './namespace'`
+    expect(collectImportEntries('a.ts', source)).toEqual([
+      { specifier: './namespace', names: ['*'], kind: 'runtime' }
+    ])
+  })
+
+  // `collectImportEntries` maps an `ExportDefaultSpecifier` node to the name
+  // `default`, but no source text reaches that branch: @swc/core's TypeScript
+  // parser rejects `export x from './mod'` outright, so this only pins the
+  // behaviour the defensive branch guards against.
+  it('rejects `export x from` — the parser never emits ExportDefaultSpecifier', () => {
+    expect(() =>
+      collectImportEntries('a.ts', `export x from './default'`)
+    ).toThrow()
   })
 })
