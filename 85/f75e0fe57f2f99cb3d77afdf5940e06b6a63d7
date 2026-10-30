@@ -1,0 +1,156 @@
+lib/services/fitness-files/queryParams.test.ts
+  s_3045e9aea563c2::t_040382646f41fb 47-55
+lib/services/fitness-files/retryImports.test.ts
+  s_3045e9aea563c2::t_040382646f41fb 2-5,146-225,252-333
+  s_3045e9aea563c2::t_15f9f0e86eeb71 334
+lib/services/notifications/notificationPolicy.test.ts
+  s_3045e9aea563c2::t_040382646f41fb 3-79,82-104
+lib/services/guards/inboxRejectionTrace.test.ts
+  s_3045e9aea563c2::t_040382646f41fb 30-52,115-146
+lib/services/notifications/groupNotifications.test.ts
+  s_3045e9aea563c2::t_040382646f41fb 3,44-99,134-181
+  s_3045e9aea563c2::t_2a9d468f98a04e 182
+lib/services/accountImport/start.test.ts
+  s_3045e9aea563c2::t_040382646f41fb 119-135,152-167
+  s_3045e9aea563c2::t_de3ef457d15ad0 168
+lib/services/actors/refreshRemoteActor.test.ts
+  s_3045e9aea563c2::t_040382646f41fb 39-52,80-89,211-227,238-242,244-248,250
+  s_3045e9aea563c2::t_4e95bb9ed2ef61 243
+  s_3045e9aea563c2::t_db460b4b74718f 249
+lib/services/timelines/getFilteredTimelinePage.test.ts
+  s_3045e9aea563c2::t_040382646f41fb 84-295
+lib/services/serverSettings/index.test.ts
+  s_3045e9aea563c2::t_040382646f41fb 330-353
+  s_3045e9aea563c2::t_82be34a1442cd5 51-58,76-110
+lib/services/timelines/muteFilter.test.ts
+  s_3045e9aea563c2::t_040382646f41fb 2,56-83,112-127
+  s_3045e9aea563c2::t_10e5aa40e1d675 128
+lib/services/auth/requestOrigin.test.ts
+  s_3045e9aea563c2::t_040382646f41fb 31-37
+lib/services/notifications/collectNotificationGroups.test.ts
+  s_3045e9aea563c2::t_040382646f41fb 193-256
+lib/services/guards/accountState.test.ts
+  s_3045e9aea563c2::t_040382646f41fb 43-51,120-126,134-157,188-206
+  s_3045e9aea563c2::t_3e37e7ced1bdc3 207
+lib/services/accounts/profileImageUrl.test.ts
+  s_3045e9aea563c2::t_040382646f41fb 94-118,213-217
+  s_3045e9aea563c2::t_062b2c3c6ba0c4 218-219
+lib/services/notifications/getNotificationGroupsEnvelope.test.ts
+  s_3045e9aea563c2::t_040382646f41fb 117-163
+lib/services/strava/defaultVisibility.test.ts
+  s_3045e9aea563c2::t_040382646f41fb 34-37,54
+lib/services/timelines/request.test.ts
+  s_3045e9aea563c2::t_040382646f41fb 37,59,79-89,98-138,230,243,259
+  s_3045e9aea563c2::t_cb93c697d4f0ed 34-36
+  s_3045e9aea563c2::t_65b3f4c61015d6 38-40,56-58
+  s_3045e9aea563c2::t_8f208b2c8c7c3c 60
+  s_3045e9aea563c2::t_c46a5be02a024e 139
+  s_3045e9aea563c2::t_3b2d558de82bbb 227-229
+  s_3045e9aea563c2::t_d328d77b9dba2f 231-233,240-242
+  s_3045e9aea563c2::t_8bbd3f3d84629d 244-245
+  s_3045e9aea563c2::t_b59fe6a8cb9158 256-258
+  s_3045e9aea563c2::t_eec84b8b0c6e77 260
+  s_3045e9aea563c2::t_7301d1bf85db6f 6-7,13,20,23-33,41-55,222-226,234-239,251-255
+lib/services/accounts/localUsername.test.ts
+  s_3045e9aea563c2::t_040382646f41fb 66-80
+lib/services/oauth/issueAccessToken.test.ts
+  s_3045e9aea563c2::t_040382646f41fb 214-224
+lib/services/quotes/resolveQuoteForCreate.test.ts
+  s_3045e9aea563c2::t_040382646f41fb 57-63,66-67,80-102
+  s_3045e9aea563c2::t_a9a69951b68e84 55-56
+  s_3045e9aea563c2::t_3477de2e78bc56 64-65
+  s_3045e9aea563c2::t_63c3fdce1855d3 68
+lib/services/oauth/userinfo.test.ts
+  s_3045e9aea563c2::t_040382646f41fb 53-97,115-143,172-209,238-258
+  s_3045e9aea563c2::t_88b4802b00cdac 259
+lib/services/accounts/profileFields.test.ts
+  s_3045e9aea563c2::t_040382646f41fb 4-9,27-48
+  s_3045e9aea563c2::t_2e491e8c9c6e78 49
+lib/services/accounts/relationship.test.ts
+  s_3045e9aea563c2::t_040382646f41fb 45-60,116,118-120,122,126,262-264,267-269,271,274
+  s_3045e9aea563c2::t_76b0014f5ee90f 113-115
+  s_3045e9aea563c2::t_6a716fc0e8db28 117
+  s_3045e9aea563c2::t_a2dfe192108ec6 121
+  s_3045e9aea563c2::t_e50f48bc83338d 123-125
+  s_3045e9aea563c2::t_ce0cc3d3a571ca 127
+  s_3045e9aea563c2::t_919a81dc21bcd1 259-261
+  s_3045e9aea563c2::t_fad14027ed5ca5 265-266
+  s_3045e9aea563c2::t_85b5b9757ae513 270
+  s_3045e9aea563c2::t_cc2783df3c2ff9 272-273
+  s_3045e9aea563c2::t_92e0a8fd00a985 275
+  s_3045e9aea563c2::t_fca59d9672193d 110-112,258
+lib/services/imports/serializeBulkImport.test.ts
+  s_0caa234e761ef6::t_5c295e627f268b 29-46
+lib/services/notifications/bulkRequestIds.test.ts
+  s_0caa234e761ef6::t_e6f3de07d822b3 6-11,42-50
+lib/database/domains/gallery/galleryAlbumSuggestions.test.ts
+  s_3045e9aea563c2::t_84ff82f9ab517e 100-117
+lib/database/domains/gallery/galleryDayStats.test.ts
+  s_3045e9aea563c2::t_4ec45a9dd8269e 587-644,721-747
+lib/database/domains/idempotency/idempotency.test.ts
+  s_3045e9aea563c2::t_73afd8fcf01ec0 132-152,274-362
+lib/database/domains/mediaEdit/queries.test.ts
+  s_3045e9aea563c2::t_66877fe21bf55f 3,6,153-182,223-298,491-525
+lib/database/domains/trends/trends.test.ts
+  s_3045e9aea563c2::t_d9312876990ad7 71-115
+lib/database/utils/isUniqueConstraintError.test.ts
+  s_3045e9aea563c2::t_f96910fc8ad1be 8-19
+lib/services/accountImport/detectArchiveKind.test.ts
+  s_3045e9aea563c2::t_6d8421cd351fdf 24-31
+lib/services/accounts/profile.test.ts
+  s_3045e9aea563c2::t_b071723bf08f49 53-79,112-119
+lib/services/bookmarks/getBookmarkedStatusesPage.test.ts
+  s_3045e9aea563c2::t_9a6f5019193bd5 157-177
+lib/services/fitness-files/fileRouteDataCache.test.ts
+  s_3045e9aea563c2::t_9d313e24dbf59b 4,13-14,19,25,35-44,134-187,190-238,265-293
+lib/services/gallery/galleryAlbumQueries.test.ts
+  s_3045e9aea563c2::t_3ba53715aa937d 413-438
+lib/services/gallery/galleryAlbumVisitor.test.ts
+  s_3045e9aea563c2::t_e13c7ccb2a7f1e 17,20,52-91,106-202,360-375,399-455,477-486
+lib/services/gallery/lookups/publishLookups.test.ts
+  s_3045e9aea563c2::t_af0dafb7ad0029 75-87
+lib/services/guards/sameOriginProof.test.ts
+  s_3045e9aea563c2::t_615ee7b230743e 50-56
+lib/services/mastodon/clientCursor.test.ts
+  s_3045e9aea563c2::t_cf3cf122526c03 27-41
+lib/services/medias/getMediaAttachment.test.ts
+  s_3045e9aea563c2::t_8d13a428681bf8 17-58,170-177
+lib/services/medias/mediaDetails.test.ts
+  s_3045e9aea563c2::t_3b8c6799e6deed 30-108,224-232
+lib/services/medias/uploadSizeLimit.test.ts
+  s_3045e9aea563c2::t_c0c764b0b05f2a 50-54
+lib/services/timelines/domainBlockFilter.test.ts
+  s_3045e9aea563c2::t_53efc4fe5a2edd 20-30
+lib/services/timelines/moderationFilter.test.ts
+  s_3045e9aea563c2::t_0ba33eca56aff8 12,88-110
+lib/services/trends/request.test.ts
+  s_3045e9aea563c2::t_7e09b5d2c8a8a0 8,14-18,34-38,43-52,61,79-83,98-102,108-119
+lib/services/trends/tagHistory.test.ts
+  s_3045e9aea563c2::t_78b2042c46872e 3,7-39
+lib/services/trends/trendingStatuses.test.ts
+  s_3045e9aea563c2::t_9333adc1d54acf 268-323
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "85f75e0fe57f2f99cb3d77afdf5940e06b6a63d7",
+  "prompts": {},
+  "sessions": {
+    "s_0caa234e761ef6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b79d5feb-bfae-447f-afad-19355f5d00c6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_3045e9aea563c2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0e5c8494-05de-48e2-8fb2-cf20cedd4ce7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
