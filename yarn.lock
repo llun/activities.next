@@ -35,7 +35,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@activities/qstash@workspace:packages/qstash"
   dependencies:
-    "@upstash/qstash": "npm:^2.12.0"
+    "@upstash/qstash": "npm:^2.12.1"
   languageName: unknown
   linkType: soft
 
@@ -3640,14 +3640,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@upstash/qstash@npm:^2.12.0":
-  version: 2.12.0
-  resolution: "@upstash/qstash@npm:2.12.0"
+"@upstash/qstash@npm:^2.12.1":
+  version: 2.12.1
+  resolution: "@upstash/qstash@npm:2.12.1"
   dependencies:
     jose: "npm:^5.2.3"
     neverthrow: "npm:^7.0.1"
     uncrypto: "npm:^0.1.3"
-  checksum: 10c0/6e93124db7051383ec75182a32e886ce5a753689e58357a94f61683bb9a8e669bf96d4bd4cfa387ae0e6199f0e24d5e5011a167214ffdf1b8ff307b52792c4af
+  checksum: 10c0/6690c7c4ed52ac82b56b7331b545a9932a4e9f41bfcdc4f4be439def76546b24acfbb463886ed16f10fb462a9b532d193e204575a24f249d1cf8f2a5b5290627
   languageName: node
   linkType: hard
 
