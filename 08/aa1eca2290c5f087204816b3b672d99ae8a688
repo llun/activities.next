@@ -1,0 +1,19 @@
+lib/components/sign-out/SignOutDialog.test.tsx
+  s_f147bf36f62485::t_202c8a11ed69bb 100-109
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "08aa1eca2290c5f087204816b3b672d99ae8a688",
+  "prompts": {},
+  "sessions": {
+    "s_f147bf36f62485": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "25ee74e4-3619-4df9-8186-dcf3fd9b6ec2",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
