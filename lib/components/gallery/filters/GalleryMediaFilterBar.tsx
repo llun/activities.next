@@ -129,6 +129,24 @@ export const GalleryMediaFilterBar: FC<GalleryMediaFilterBarProps> = ({
             </div>
           )
         })}
+
+        {/* One-click clear from sm up, as the row's last item so it never
+            stretches to the row's width or makes the whole row clickable.
+            Only once more than one filter is active: with one, its chip's ✕
+            is the shorter path. A menu host never sees it (its chips render
+            only below sm). */}
+        {filtersInSheet && activeFilterCount > 1 ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={disabled}
+            onClick={() => onChange(clearGalleryFilters(filters))}
+            className="text-muted-foreground hover:text-foreground pointer-coarse:min-h-11 hidden h-auto shrink-0 px-2 font-normal hover:bg-transparent sm:inline-flex"
+          >
+            Clear filters
+          </Button>
+        ) : null}
       </div>
     ) : null
 
@@ -463,24 +481,9 @@ export const GalleryMediaFilterBar: FC<GalleryMediaFilterBarProps> = ({
         {!filtersInSheet ? chips : null}
       </div>
 
-      {/* Active-filter chips at every width for a sheet host */}
+      {/* Active-filter chips at every width for a sheet host; the row also
+          carries the one-click Clear filters from sm up */}
       {filtersInSheet ? chips : null}
-
-      {/* One-click clear from sm up, where a sheet host shows no count line
-          for the phone's own Clear button to live in. Only once more than one
-          filter is active: with one, its chip's ✕ is the shorter path. */}
-      {filtersInSheet && activeFilterCount > 1 ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          disabled={disabled}
-          onClick={() => onChange(clearGalleryFilters(filters))}
-          className="text-muted-foreground hover:text-foreground hidden h-auto p-0 font-normal hover:bg-transparent sm:inline-flex"
-        >
-          Clear filters
-        </Button>
-      ) : null}
 
       {/* The sheet both layouts open; closed, it renders nothing. */}
       <GalleryMediaFilterSheet
@@ -513,7 +516,7 @@ export const GalleryMediaFilterBar: FC<GalleryMediaFilterBarProps> = ({
               size="sm"
               disabled={disabled}
               onClick={() => onChange(clearGalleryFilters(filters))}
-              className="text-muted-foreground hover:text-foreground h-auto p-0 font-normal hover:bg-transparent"
+              className="text-muted-foreground hover:text-foreground pointer-coarse:min-h-11 h-auto px-2 font-normal hover:bg-transparent"
             >
               Clear
             </Button>

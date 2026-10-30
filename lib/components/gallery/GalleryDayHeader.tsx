@@ -1,6 +1,12 @@
 'use client'
 
-import { type FC, useEffect, useRef, useState } from 'react'
+import {
+  type FC,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore
+} from 'react'
 
 import { breakoutStyle } from '@/lib/components/layout/chromeLayout'
 import { Button } from '@/lib/components/ui/button'
@@ -46,20 +52,98 @@ export interface GalleryDayHeaderProps {
   /**
    * Where the header sticks. `'dialog'` (default) keeps the album picker's
    * look: the host's `className` supplies the sticky offset and background.
-   * `'page'` is transparent at rest and gains the house chrome surface
-   * (`bg-surface-chrome` + backdrop blur + hairline) while stuck, via a
-   * sentinel observed before the header.
+   * `'page'` draws its own background — transparent at rest, the house
+   * chrome surface (`bg-surface-chrome` + backdrop blur + hairline) while
+   * stuck, via a sentinel observed before the header — so the host's
+   * `className` only supplies the sticky offset there.
    */
   surface?: 'page' | 'dialog'
-  /** The host's sticky offset + background classes. */
+  /**
+   * The host's sticky offset; on the dialog surface, the background too
+   * (the page surface draws its own).
+   */
   className?: string
 }
 
 /**
  * One day's sticky header: the date, the meta line, the activity chip and,
  * while selecting, the Select day button. The host supplies the sticky
- * offset and background through `className`.
+ * offset through `className`; on the dialog surface the background too.
  */
+// The sticky offset moves when the viewport crosses md (48rem) or the
+// connection strip's measured `--status-strip-h` changes. Every page-surface
+// header needs to know, but they share ONE subscription: a single
+// matchMedia listener and a single MutationObserver on <html>, created
+// lazily with the first subscriber and torn down with the last, so N
+// headers cost one observer and an unrelated <html> style change (the
+// photo viewer's overflow toggle, color-scheme) cannot rebuild N
+// IntersectionObservers. The snapshot is an epoch that increments only when
+// the md match or the `--status-strip-h` value actually changed.
+interface StickyOffsetStore {
+  epoch: number
+  listeners: Set<() => void>
+  release: () => void
+}
+
+let stickyOffsetStore: StickyOffsetStore | null = null
+
+const getStickyOffsetEpoch = () => stickyOffsetStore?.epoch ?? 0
+
+const getServerStickyOffsetEpoch = () => 0
+
+const createStickyOffsetStore = (): StickyOffsetStore => {
+  const listeners = new Set<() => void>()
+  const root = document.documentElement
+  let stripH = root.style.getPropertyValue('--status-strip-h')
+  const media =
+    typeof window.matchMedia === 'function'
+      ? window.matchMedia('(min-width: 48rem)')
+      : null
+  let md = media?.matches ?? false
+  const store: StickyOffsetStore = {
+    epoch: 0,
+    listeners,
+    release: () => {
+      media?.removeEventListener('change', onMaybeMove)
+      mutations?.disconnect()
+    }
+  }
+  const onMaybeMove = () => {
+    const nextStripH = root.style.getPropertyValue('--status-strip-h')
+    const nextMd = media?.matches ?? md
+    if (nextStripH === stripH && nextMd === md) return
+    stripH = nextStripH
+    md = nextMd
+    store.epoch += 1
+    for (const listener of listeners) listener()
+  }
+  media?.addEventListener('change', onMaybeMove)
+  const mutations =
+    typeof MutationObserver === 'undefined'
+      ? null
+      : new MutationObserver(onMaybeMove)
+  mutations?.observe(root, {
+    attributes: true,
+    attributeFilter: ['style']
+  })
+  return store
+}
+
+const subscribeStickyOffsets = (onStoreChange: () => void): (() => void) => {
+  const store = stickyOffsetStore ?? createStickyOffsetStore()
+  stickyOffsetStore = store
+  store.listeners.add(onStoreChange)
+  return () => {
+    store.listeners.delete(onStoreChange)
+    if (store.listeners.size === 0 && stickyOffsetStore === store) {
+      store.release()
+      stickyOffsetStore = null
+    }
+  }
+}
+
+const subscribeToNothing = () => () => {}
+
 export const GalleryDayHeader: FC<GalleryDayHeaderProps> = ({
   dayKey,
   stats,
@@ -83,44 +167,22 @@ export const GalleryDayHeader: FC<GalleryDayHeaderProps> = ({
   const [stuck, setStuck] = useState(false)
   const headerRef = useRef<HTMLDivElement | null>(null)
   const sentinelRef = useRef<HTMLDivElement | null>(null)
-  // Bumped whenever the sticky offset may have moved, re-creating the
-  // observer so it re-reads the header's computed `top`.
-  const [observeEpoch, setObserveEpoch] = useState(0)
-
-  // The offset moves when the viewport crosses md or the connection strip's
-  // measured --status-strip-h changes; either re-reads the rootMargin.
-  useEffect(() => {
-    if (!isPage) return
-    const onMaybeMove = () => setObserveEpoch((epoch) => epoch + 1)
-    const media =
-      typeof window.matchMedia === 'function'
-        ? window.matchMedia('(min-width: 48rem)')
-        : null
-    media?.addEventListener('change', onMaybeMove)
-    const mutations =
-      typeof MutationObserver === 'undefined'
-        ? null
-        : new MutationObserver((records) => {
-            if (records.some((record) => record.attributeName === 'style'))
-              onMaybeMove()
-          })
-    mutations?.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['style']
-    })
-    return () => {
-      media?.removeEventListener('change', onMaybeMove)
-      mutations?.disconnect()
-    }
-  }, [isPage])
+  // The shared offset epoch (see the store above) re-creates the observer
+  // so it re-reads the header's computed `top`. The dialog surface never
+  // pins and never subscribes.
+  const offsetEpoch = useSyncExternalStore(
+    isPage ? subscribeStickyOffsets : subscribeToNothing,
+    getStickyOffsetEpoch,
+    getServerStickyOffsetEpoch
+  )
 
   // Stuck when the sentinel just above the header has scrolled behind the
   // sticky offset: the observer's top rootMargin is minus that offset, so the
   // sentinel only leaves the shrunken viewport once the header is pinned.
   // The offset differs between phone and md, and with --status-strip-h, so a
   // matching media query or a style mutation on <html> re-creates the
-  // observer (see the epoch effect above). No observer (SSR, jsdom) means
-  // never stuck.
+  // observer (see the shared offset store above). No observer (SSR, jsdom)
+  // means never stuck.
   useEffect(() => {
     const header = headerRef.current
     const sentinel = sentinelRef.current
@@ -135,14 +197,20 @@ export const GalleryDayHeader: FC<GalleryDayHeaderProps> = ({
         const entry = entries[0]
         if (!entry) return
         // Stuck once the sentinel has crossed above the shrunken
-        // viewport's top edge, not merely when it stops intersecting.
-        setStuck(entry.boundingClientRect.top < (entry.rootBounds?.top ?? 0))
+        // viewport's top edge, not merely when it stops intersecting:
+        // scrolling back down, the 1px sentinel can re-enter straddling
+        // the root top (intersecting, but its top above the edge), and
+        // that must read as back in flow.
+        setStuck(
+          !entry.isIntersecting &&
+            entry.boundingClientRect.top < (entry.rootBounds?.top ?? 0)
+        )
       },
       { rootMargin }
     )
     observer.observe(sentinel)
     return () => observer.disconnect()
-  }, [isPage, observeEpoch])
+  }, [isPage, offsetEpoch])
   const count = stats?.count ?? loadedCount
   const inAlbum = stats?.inAlbum ?? loadedInAlbum
   const placeName = stats?.placeName ?? null

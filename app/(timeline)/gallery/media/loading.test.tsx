@@ -67,22 +67,76 @@ describe('gallery all media loading', () => {
     const { container } = render(<Loading />)
 
     // sm+: Type, Show and one Filters bar, with the count and Sort at the
-    // row's right end.
-    const smRow = container.querySelector('[data-slot="skeleton-bar"].w-64')
-      ?.parentElement as HTMLElement
+    // row's right end. Type and Show cap at 260px like the real selects
+    // (`w-full sm:max-w-[260px]`).
+    const smRow = container.querySelector(
+      '[data-slot="skeleton-bar"].w-\\[260px\\]'
+    )?.parentElement as HTMLElement
     expect(smRow).toHaveClass('hidden', 'sm:flex')
     expect(smRow.querySelectorAll('[data-slot="skeleton-bar"]')).toHaveLength(5)
+    expect(
+      smRow.querySelectorAll('[data-slot="skeleton-bar"].w-\\[260px\\]')
+    ).toHaveLength(2)
     expect(
       smRow.querySelector('[data-slot="skeleton-bar"].ml-auto')
     ).toBeInTheDocument()
 
-    // Phones keep their two full-width bars.
-    const phoneRow = container.querySelector(
+    // Phones: Type, Show and the Filters button stacked in the row's lead,
+    // the compact Sort beside them.
+    const phoneLead = container.querySelector(
       '[data-slot="skeleton-bar"].w-full'
     )?.parentElement as HTMLElement
-    expect(phoneRow).toHaveClass('sm:hidden')
+    expect(phoneLead).toHaveClass(
+      'flex',
+      'min-w-0',
+      'flex-wrap',
+      'items-center',
+      'gap-2'
+    )
     expect(
-      phoneRow.querySelectorAll('[data-slot="skeleton-bar"]')
+      phoneLead.querySelectorAll('[data-slot="skeleton-bar"].w-full')
     ).toHaveLength(2)
+    const phoneRow = phoneLead.parentElement as HTMLElement
+    expect(phoneRow).toHaveClass(
+      'flex',
+      'items-center',
+      'justify-between',
+      'gap-2'
+    )
+    expect(phoneRow.parentElement).toHaveClass(
+      'flex',
+      'flex-col',
+      'gap-2',
+      'sm:hidden'
+    )
+
+    // The count line a sheet host keeps on phones below the row.
+    const countLine = container.querySelector('[data-slot="skeleton-bar"].h-5')
+      ?.parentElement as HTMLElement
+    expect(countLine).toHaveClass(
+      'flex',
+      'items-center',
+      'justify-between',
+      'gap-2',
+      'text-sm',
+      'sm:hidden'
+    )
+  })
+
+  it('reserves the first day header’s height directly above the grid', () => {
+    const { container } = render(<Loading />)
+
+    const grid = container.querySelector(
+      '[data-slot="gallery-grid-skeleton"]'
+    ) as HTMLElement
+    const section = grid.parentElement as HTMLElement
+    // The page’s 1px sentinel plus its py-1.5 row around a text-[15px]
+    // line, with the tiles directly below like GalleryGrid’s section.
+    const placeholder = section.firstElementChild as HTMLElement
+    expect(placeholder).toHaveAttribute('aria-hidden', 'true')
+    const [sentinel, headerRow] = Array.from(placeholder.children)
+    expect(sentinel).toHaveClass('h-px')
+    expect(headerRow).toHaveClass('py-1.5', 'text-[15px]')
+    expect(placeholder.nextElementSibling).toBe(grid)
   })
 })

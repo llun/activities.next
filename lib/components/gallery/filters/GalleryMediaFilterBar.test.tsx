@@ -932,6 +932,10 @@ describe('GalleryMediaFilterBar', () => {
       const countLine = screen.getByTestId('test-count-line')
       expect(countLine).toHaveClass('sm:hidden')
       expect(within(countLine).getByText('19 photos')).toBeInTheDocument()
+      // The phone's own Clear keeps a coarse-pointer target.
+      expect(
+        within(countLine).getByRole('button', { name: 'Clear' })
+      ).toHaveClass('pointer-coarse:min-h-11')
     })
 
     it('renders one skeleton for the Filters button while facets load', () => {
@@ -1000,6 +1004,18 @@ describe('GalleryMediaFilterBar', () => {
       const clear = screen.getByRole('button', { name: 'Clear filters' })
       // Phones clear from their own count line instead.
       expect(clear).toHaveClass('hidden', 'sm:inline-flex')
+      // It rides at the chips row's end — never a full-width row of its
+      // own — and keeps a coarse-pointer target.
+      expect(clear).toHaveClass('shrink-0', 'pointer-coarse:min-h-11')
+      const chipsRow = clear.parentElement as HTMLElement
+      expect(chipsRow).toHaveClass(
+        'flex',
+        'items-center',
+        'gap-2',
+        'overflow-x-auto',
+        'py-2'
+      )
+      expect(chipsRow).toContainElement(screen.getByText('Red Fox'))
     })
 
     it('clears every active filter from the one-click Clear filters', () => {

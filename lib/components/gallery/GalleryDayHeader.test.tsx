@@ -524,13 +524,14 @@ describe('GalleryDayHeader page surface', () => {
   const fireEntry = (
     observer: MockIntersectionObserver,
     boundingTop: number,
-    rootTop: number
+    rootTop: number,
+    isIntersecting = false
   ) => {
     act(() => {
       observer.callback(
         [
           {
-            isIntersecting: false,
+            isIntersecting,
             boundingClientRect: { top: boundingTop },
             rootBounds: { top: rootTop }
           } as unknown as IntersectionObserverEntry
@@ -670,6 +671,22 @@ describe('GalleryDayHeader page surface', () => {
     })
   })
 
+  it('stays unstuck while the sentinel straddles the root top', async () => {
+    await withMockObserver(() => {
+      render(<GalleryDayHeader {...baseProps} surface="page" />)
+
+      const header = pageHeader()
+      const observer = MockIntersectionObserver.instances.at(-1)!
+
+      // Scrolling back down, the 1px sentinel can re-enter straddling the
+      // root top: intersecting, but its top sits above the edge. The header
+      // is back in flow, so it must not stay frosted.
+      fireEntry(observer, 95.5, 96, true)
+      expect(header).not.toHaveAttribute('data-stuck')
+      expect(header).not.toHaveClass('bg-surface-chrome')
+    })
+  })
+
   it('cuts the rootMargin by the computed sticky offset', async () => {
     await withMockObserver(() => {
       const realGetComputedStyle = window.getComputedStyle
@@ -697,19 +714,19 @@ describe('GalleryDayHeader page surface', () => {
 
   it('re-creates the observer when the sticky offset may move', async () => {
     await withMockObserver(async () => {
-      // jsdom ships no matchMedia: stub one that collects its change
-      // listeners so the test can fire the md crossing.
+      // jsdom ships no matchMedia: stub one whose matches the test flips to
+      // cross md (48rem).
       const mediaListeners = new Set<() => void>()
-      vi.stubGlobal('matchMedia', (query: string) => ({
+      const media = {
         matches: false,
-        media: query,
         addEventListener: (_type: string, listener: () => void) => {
           mediaListeners.add(listener)
         },
         removeEventListener: (_type: string, listener: () => void) => {
           mediaListeners.delete(listener)
         }
-      }))
+      }
+      vi.stubGlobal('matchMedia', () => media)
 
       const { container } = render(
         <GalleryDayHeader {...baseProps} surface="page" />
@@ -717,27 +734,113 @@ describe('GalleryDayHeader page surface', () => {
       const sentinel = container.firstElementChild as HTMLElement
       expect(MockIntersectionObserver.instances).toHaveLength(1)
 
-      // --status-strip-h lands in <html>'s style attribute: the observer is
-      // re-created so the new offset reaches the rootMargin.
+      try {
+        // --status-strip-h lands in <html>'s style attribute: the observer
+        // is re-created so the new offset reaches the rootMargin.
+        await act(async () => {
+          document.documentElement.style.setProperty('--status-strip-h', '4px')
+        })
+        expect(MockIntersectionObserver.instances).toHaveLength(2)
+
+        // Crossing md (48rem) moves the offset too.
+        media.matches = true
+        await act(async () => {
+          for (const listener of [...mediaListeners]) listener()
+        })
+        expect(MockIntersectionObserver.instances).toHaveLength(3)
+
+        // An unrelated <html> style change (the photo viewer's overflow
+        // toggle) moves nothing: no observer rebuild.
+        await act(async () => {
+          document.documentElement.style.overflow = 'hidden'
+        })
+        expect(MockIntersectionObserver.instances).toHaveLength(3)
+
+        // Every observer watched the sentinel, and the replaced ones were
+        // disconnected.
+        for (const observer of MockIntersectionObserver.instances) {
+          expect(observer.observe).toHaveBeenCalledWith(sentinel)
+        }
+        expect(
+          MockIntersectionObserver.instances[0].disconnect
+        ).toHaveBeenCalled()
+        expect(
+          MockIntersectionObserver.instances[1].disconnect
+        ).toHaveBeenCalled()
+      } finally {
+        await act(async () => {
+          document.documentElement.style.removeProperty('--status-strip-h')
+          document.documentElement.style.removeProperty('overflow')
+        })
+      }
+    })
+  })
+
+  it('shares one MutationObserver across headers and tears it down with the last', () => {
+    // A stand-in MutationObserver that counts constructions: the shared
+    // store must build exactly one while any header is mounted.
+    const instances: Array<{
+      observe: ReturnType<typeof vi.fn>
+      disconnect: ReturnType<typeof vi.fn>
+    }> = []
+    class CountingMutationObserver {
+      observe = vi.fn()
+      disconnect = vi.fn()
+      constructor(_callback: MutationCallback) {
+        instances.push(this)
+      }
+    }
+    vi.stubGlobal('MutationObserver', CountingMutationObserver)
+
+    try {
+      const { unmount } = render(
+        <>
+          <GalleryDayHeader {...baseProps} surface="page" />
+          <GalleryDayHeader {...baseProps} dayKey="2025-10-03" surface="page" />
+        </>
+      )
+      // Two headers, one shared <html> watcher.
+      expect(instances).toHaveLength(1)
+      expect(instances[0].observe).toHaveBeenCalledWith(
+        document.documentElement,
+        { attributes: true, attributeFilter: ['style'] }
+      )
+
+      unmount()
+      // The last unmount releases the store, so its watcher disconnects and
+      // the next mount builds a fresh one.
+      expect(instances[0].disconnect).toHaveBeenCalled()
+      render(<GalleryDayHeader {...baseProps} surface="page" />)
+      expect(instances).toHaveLength(2)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('re-reads --status-strip-h from scratch once the store was torn down', async () => {
+    await withMockObserver(async () => {
+      const first = render(<GalleryDayHeader {...baseProps} surface="page" />)
       await act(async () => {
         document.documentElement.style.setProperty('--status-strip-h', '4px')
       })
       expect(MockIntersectionObserver.instances).toHaveLength(2)
+      first.unmount()
 
-      // Crossing md (48rem) moves the offset too.
-      await act(async () => {
-        for (const listener of [...mediaListeners]) listener()
-      })
-      expect(MockIntersectionObserver.instances).toHaveLength(3)
-
-      // Every observer watched the sentinel, and the replaced ones were
-      // disconnected.
-      for (const observer of MockIntersectionObserver.instances) {
-        expect(observer.observe).toHaveBeenCalledWith(sentinel)
+      try {
+        // The store died with the last header, so it cannot remember the
+        // old value: landing the same value again must bump a fresh store.
+        document.documentElement.style.removeProperty('--status-strip-h')
+        render(<GalleryDayHeader {...baseProps} surface="page" />)
+        expect(MockIntersectionObserver.instances).toHaveLength(3)
+        await act(async () => {
+          document.documentElement.style.setProperty('--status-strip-h', '4px')
+        })
+        expect(MockIntersectionObserver.instances).toHaveLength(4)
+      } finally {
+        await act(async () => {
+          document.documentElement.style.removeProperty('--status-strip-h')
+        })
       }
-      expect(
-        MockIntersectionObserver.instances[0].disconnect
-      ).toHaveBeenCalled()
     })
   })
 
