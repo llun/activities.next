@@ -42,6 +42,9 @@ let customFactory: IDBFactory | null = null
 let cachedDb: IDBDatabase | null = null
 let openPromise: Promise<IDBDatabase> | null = null
 
+// Settles an open still in flight, so dropping it leaves no timeout armed.
+let cancelOpen: (() => void) | null = null
+
 const closeCachedDb = () => {
   const db = cachedDb
   cachedDb = null
@@ -55,12 +58,16 @@ const closeCachedDb = () => {
 /** Tests give every case a fresh factory (fake-indexeddb). */
 export const setDraftsIndexedDBFactory = (factory: IDBFactory | null) => {
   customFactory = factory
+  cancelOpen?.()
+  cancelOpen = null
   openPromise = null
   closeCachedDb()
 }
 
 /** Closes the cached connection; the next call opens again. */
 export const resetDraftsDbForTesting = () => {
+  cancelOpen?.()
+  cancelOpen = null
   openPromise = null
   closeCachedDb()
 }
@@ -120,6 +127,7 @@ const openDb = (): Promise<IDBDatabase> => {
       () => fail('Opening drafts storage timed out'),
       DRAFTS_OPEN_TIMEOUT_MS
     )
+    cancelOpen = () => fail('Drafts storage was reset')
 
     let request: IDBOpenDBRequest
     try {
@@ -156,7 +164,10 @@ const openDb = (): Promise<IDBDatabase> => {
   })
 
   const tracked = attempt.finally(() => {
-    if (openPromise === tracked) openPromise = null
+    if (openPromise === tracked) {
+      openPromise = null
+      cancelOpen = null
+    }
   })
   openPromise = tracked
   return tracked

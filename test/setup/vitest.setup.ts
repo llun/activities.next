@@ -1,8 +1,8 @@
 import crypto from 'crypto'
 import * as matchers from 'jest-extended'
 import fetchMock from 'jest-fetch-mock'
-import { TextDecoder, TextEncoder } from 'node:util'
-import { afterEach, beforeEach, expect, vi } from 'vitest'
+import { TextDecoder, TextEncoder, promisify } from 'node:util'
+import { afterEach, beforeEach, expect, onTestFinished, vi } from 'vitest'
 
 import { resetTrustProxyIpHeadersConfigCacheForTests } from '@/lib/config/trustProxyIpHeaders'
 import {
@@ -197,6 +197,85 @@ vi.mock('got', async () => {
 
   return { default: gotMock }
 })
+
+// A timer that is still armed when a jsdom test ends outlives its component
+// (React cleanups clear theirs on unmount, which runs in an afterEach hook
+// before the check below). It fires after the file's jsdom is torn down and
+// throws `window/document is not defined` as an unhandled error that fails
+// the shard without naming the test. Fail the test instead, with the stack
+// that armed the timer. Timers under LONG_TIMER_MS are left alone: Radix,
+// next/link and React itself arm 0–1ms timers that settle on their own.
+const LONG_TIMER_MS = 100
+if (typeof window !== 'undefined') {
+  type Armed = { delay: number; stack: string }
+  const armed = new Map<ReturnType<typeof setTimeout>, Armed>()
+  const nativeSetTimeout = globalThis.setTimeout
+  const nativeClearTimeout = globalThis.clearTimeout
+  let guarding = false
+  const guardedSetTimeout = ((
+    handler: TimerHandler,
+    delay?: number,
+    ...args: unknown[]
+  ) => {
+    if (typeof handler !== 'function') {
+      throw new TypeError('The "callback" argument must be of type function')
+    }
+    const id = nativeSetTimeout(
+      (...callbackArgs: unknown[]) => {
+        armed.delete(id)
+        handler(...callbackArgs)
+      },
+      delay,
+      ...args
+    )
+    if (guarding && (delay ?? 0) >= LONG_TIMER_MS) {
+      // The default of 10 frames can stop before the frame that armed the timer.
+      const stackTraceLimit = Error.stackTraceLimit
+      Error.stackTraceLimit = 50
+      const stack = new Error().stack ?? ''
+      Error.stackTraceLimit = stackTraceLimit
+      // next/dynamic's own loading delay: the framework clears it when the
+      // import settles, and no app code can clear it first.
+      if (!stack.includes('loadable.shared-runtime')) {
+        armed.set(id, { delay: delay ?? 0, stack })
+      }
+    }
+    return id
+  }) as typeof setTimeout
+  guardedSetTimeout.__promisify__ = nativeSetTimeout.__promisify__
+  Object.defineProperty(guardedSetTimeout, promisify.custom, {
+    value: Reflect.get(nativeSetTimeout, promisify.custom)
+  })
+  globalThis.setTimeout = guardedSetTimeout
+  globalThis.clearTimeout = ((id) => {
+    armed.delete(id as ReturnType<typeof setTimeout>)
+    return nativeClearTimeout(id)
+  }) as typeof clearTimeout
+
+  beforeEach(() => {
+    armed.clear()
+    guarding = true
+    // The check must run after every afterEach hook, so it lives in
+    // onTestFinished, not an afterEach: this file's hooks are registered
+    // before a test file imports @testing-library/react, which registers
+    // afterEach(cleanup) at import, so under `sequence.hooks: 'list'` an
+    // afterEach here would run before the tree unmounts and flag every
+    // timer a component clears on unmount.
+    onTestFinished(() => {
+      guarding = false
+      if (armed.size === 0) return
+      const leaked = [...armed.values()]
+      for (const id of armed.keys()) nativeClearTimeout(id)
+      armed.clear()
+      throw new Error(
+        `${leaked.length} timer(s) of ≥${LONG_TIMER_MS}ms still armed when the test ended; clear them on unmount or await them:\n` +
+          leaked
+            .map((timer) => `- ${timer.delay}ms armed at ${timer.stack}`)
+            .join('\n')
+      )
+    })
+  })
+}
 
 vi.mock('node:dns/promises', () => {
   const lookup = vi.fn(async (_hostname, options) => {

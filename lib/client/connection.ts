@@ -30,9 +30,11 @@ let generation = 0
 let inflight: Promise<void> | null = null
 let backoffIndex = 0
 let timer: ReturnType<typeof setTimeout> | null = null
+let cancelProbe: (() => void) | null = null
 let windowListenersInstalled = false
 const listeners = new Set<() => void>()
 const restoredListeners = new Set<() => void>()
+const hasObservers = () => listeners.size > 0 || restoredListeners.size > 0
 
 export const getConnectionSnapshot = (): ConnectionSnapshot => snapshot
 
@@ -77,6 +79,11 @@ export const probeNow = (): Promise<void> => {
   const run = (async () => {
     const controller = new AbortController()
     const abortTimer = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS)
+    const cancel = () => {
+      clearTimeout(abortTimer)
+      controller.abort()
+    }
+    cancelProbe = cancel
     let healthy = false
     try {
       healthy = await checkServerHealth({ signal: controller.signal })
@@ -84,6 +91,7 @@ export const probeNow = (): Promise<void> => {
       healthy = false
     } finally {
       clearTimeout(abortTimer)
+      if (cancelProbe === cancel) cancelProbe = null
     }
     if (startedIn !== generation) return
 
@@ -98,7 +106,12 @@ export const probeNow = (): Promise<void> => {
       typeof navigator !== 'undefined' && navigator.onLine === false
         ? 'offline'
         : 'unreachable'
-    setSnapshot({ state, nextProbeAt: scheduleProbe(), probing: false })
+    setSnapshot({
+      state,
+      // Nobody is listening: the next subscriber resumes probing.
+      nextProbeAt: hasObservers() ? scheduleProbe() : null,
+      probing: false
+    })
   })()
 
   const tracked = run.finally(() => {
@@ -119,13 +132,6 @@ const shouldProbeFor = (error: unknown): boolean => {
 /** Call from a request's non-401 catch; only network-shaped failures probe. */
 export const reportRequestFailure = (error: unknown): void => {
   if (shouldProbeFor(error)) void probeNow()
-}
-
-export const onConnectionRestored = (listener: () => void): (() => void) => {
-  restoredListeners.add(listener)
-  return () => {
-    restoredListeners.delete(listener)
-  }
 }
 
 const handleBrowserEvent = () => void probeNow()
@@ -158,26 +164,53 @@ const removeWindowListeners = () => {
   document.removeEventListener('visibilitychange', handleVisibilityChange)
 }
 
+// Nothing is left to tell, so no timer or request outlives the last observer.
+const stopProbing = () => {
+  generation += 1
+  clearTimer()
+  cancelProbe?.()
+  cancelProbe = null
+  inflight = null
+}
+
+const stopProbingIfUnobserved = () => {
+  if (hasObservers()) return
+  stopProbing()
+  setSnapshot({ ...snapshot, nextProbeAt: null, probing: false })
+}
+
+const resumeProbing = () => {
+  if (snapshot.state !== 'online' && isVisible() && !inflight && !timer) {
+    void probeNow()
+  }
+}
+
 export const subscribeConnection = (listener: () => void): (() => void) => {
   listeners.add(listener)
   installWindowListeners()
   // Probing stops with the last subscriber while hidden; resume it here.
-  if (snapshot.state !== 'online' && isVisible() && !inflight && !timer) {
-    void probeNow()
-  }
+  resumeProbing()
   return () => {
     listeners.delete(listener)
     if (listeners.size === 0) removeWindowListeners()
+    stopProbingIfUnobserved()
+  }
+}
+
+export const onConnectionRestored = (listener: () => void): (() => void) => {
+  restoredListeners.add(listener)
+  resumeProbing()
+  return () => {
+    restoredListeners.delete(listener)
+    stopProbingIfUnobserved()
   }
 }
 
 export const resetConnectionForTesting = (): void => {
-  generation += 1
-  clearTimer()
+  stopProbing()
   removeWindowListeners()
   listeners.clear()
   restoredListeners.clear()
-  inflight = null
   backoffIndex = 0
   snapshot = ONLINE_CONNECTION_SNAPSHOT
 }

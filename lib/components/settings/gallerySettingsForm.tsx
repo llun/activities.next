@@ -74,6 +74,8 @@ export const useGallerySettingsForm = <K extends keyof GallerySettings>({
     return () => {
       loadRequest.current += 1
       clearSavedTimer()
+      // A save still in flight is no longer the latest, so it arms no timer.
+      saveSequence.current = {}
     }
   }, [loadSettings, clearSavedTimer])
 
@@ -100,6 +102,7 @@ export const useGallerySettingsForm = <K extends keyof GallerySettings>({
       )
       setSavedStatus(SAVED_STATUS)
       setSavedKey(key)
+      clearSavedTimer()
       savedTimer.current = setTimeout(() => {
         savedTimer.current = null
         setSavedStatus(null)
