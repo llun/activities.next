@@ -789,6 +789,63 @@ describe('MainPageTimeline', () => {
       }
     })
 
+    it('removes the pill when a subsequent poll returns no statuses', async () => {
+      vi.useFakeTimers()
+      try {
+        const post1 = createStatus('https://activities.local/users/llun/s/1')
+        const newPostA = createStatus(
+          'https://activities.local/users/llun/s/new-a'
+        )
+        const newPostB = createStatus(
+          'https://activities.local/users/llun/s/new-b'
+        )
+
+        render(
+          <MainPageTimeline
+            host="activities.local"
+            currentTime={FIXED_CURRENT_TIME}
+            profile={profile}
+            isMediaUploadEnabled={false}
+            statuses={[post1]}
+          />
+        )
+
+        vi.mocked(getTimeline).mockResolvedValueOnce({
+          statuses: [newPostA, newPostB],
+          nextMaxStatusId: null,
+          prevMinStatusId: newPostA.id
+        })
+
+        await act(async () => {
+          vi.advanceTimersByTime(15000)
+          await Promise.resolve()
+          await Promise.resolve()
+        })
+
+        expect(
+          screen.getByRole('button', { name: '2 new posts' })
+        ).toBeInTheDocument()
+
+        vi.mocked(getTimeline).mockResolvedValueOnce({
+          statuses: [],
+          nextMaxStatusId: null,
+          prevMinStatusId: null
+        })
+
+        await act(async () => {
+          vi.advanceTimersByTime(15000)
+          await Promise.resolve()
+          await Promise.resolve()
+        })
+
+        expect(
+          screen.queryByRole('button', { name: /new post/i })
+        ).not.toBeInTheDocument()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
     it('renders "20+ new posts" when poll returns POLL_PAGE_LIMIT posts while scrolled down', async () => {
       vi.useFakeTimers()
       const originalScrollY = window.scrollY

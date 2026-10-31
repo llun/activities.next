@@ -1314,18 +1314,13 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
           prevMinStatusId: topStatus.id,
           limit: POLL_PAGE_LIMIT
         })
-        if (result.statuses && result.statuses.length > 0) {
-          const currentIds = new Set(
-            currentStatusesRef.current.map((s) => s.id)
-          )
-          const freshNewCount = result.statuses.filter(
-            (s) => !currentIds.has(s.id)
-          ).length
-          if (freshNewCount > 0) {
-            setNewerPostsCount(freshNewCount)
-            setHasMoreNewerPosts(result.statuses.length >= POLL_PAGE_LIMIT)
-          }
-        }
+        const currentIds = new Set(currentStatusesRef.current.map((s) => s.id))
+        const statuses = result.statuses ?? []
+        const freshNewCount = statuses.filter(
+          (s) => !currentIds.has(s.id)
+        ).length
+        setNewerPostsCount(freshNewCount)
+        setHasMoreNewerPosts(statuses.length >= POLL_PAGE_LIMIT)
       } catch (_error) {
         // Foreground polling failure is silent
       } finally {
