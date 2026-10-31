@@ -1,0 +1,23 @@
+.github/workflows/version-bump.test.ts
+  s_481fd9572e93f3::t_3e4344bcac121f 645-672
+.github/workflows/version-bump.yml
+  s_481fd9572e93f3::t_8b0c29fe192caa 334-336
+lib/components/actor-switcher/ActorSwitcher.test.tsx
+  s_481fd9572e93f3::t_9f705e4a2f406d 309
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4f2158bf8165986b49e92df0b7493d473f1c6404",
+  "prompts": {},
+  "sessions": {
+    "s_481fd9572e93f3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b3afe7c8-8030-44a3-9cea-12be54075fd8",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
