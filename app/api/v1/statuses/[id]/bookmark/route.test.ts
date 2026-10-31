@@ -84,6 +84,18 @@ describe('POST /api/v1/statuses/[id]/bookmark', () => {
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
+    // llun.dev is the one fixture domain that answers on the real internet:
+    // it served HTTP 404 for the fixture actor's document. Serve the same 404
+    // at the fetch boundary so the refresh path fails the same way without a
+    // connection.
+    fetchMock.resetMocks()
+    fetchMock.doMock()
+    fetchMock.mockResponse(async () => ({ status: 404, body: 'Not Found' }))
+  })
+
+  afterEach(() => {
+    fetchMock.resetMocks()
+    fetchMock.dontMock()
   })
 
   it('unstored remote public status → fetched, stored, 200', async () => {

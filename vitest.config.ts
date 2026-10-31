@@ -92,7 +92,14 @@ export default defineConfig({
     },
     // jest-global.ts must run first: it installs the minimal global `jest`
     // shim that jest-fetch-mock (imported by test/setup/vitest.setup.ts) relies on.
-    setupFiles: ['./test/setup/jest-global.ts', './test/setup/vitest.setup.ts'],
+    // blockOutboundNetwork.ts arms the outbound network trap before
+    // vitest.setup.ts turns fetch mocking on, so no setup code can slip a
+    // real request through.
+    setupFiles: [
+      './test/setup/jest-global.ts',
+      './test/setup/blockOutboundNetwork.ts',
+      './test/setup/vitest.setup.ts'
+    ],
     // `include` is set per project below: with `extends: true` a project's
     // arrays are appended to the root's, so a root `include` would pull every
     // test file into the forks project too.
