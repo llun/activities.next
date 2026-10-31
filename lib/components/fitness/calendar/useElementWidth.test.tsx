@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, render, screen } from '@testing-library/react'
+import { act, cleanup, render, screen } from '@testing-library/react'
 import { FC } from 'react'
 
 import { useElementWidth } from './useElementWidth'
@@ -51,6 +51,7 @@ describe('useElementWidth', () => {
   })
 
   afterEach(() => {
+    cleanup()
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
   })

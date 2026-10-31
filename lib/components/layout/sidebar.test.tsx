@@ -790,6 +790,7 @@ describe('Sidebar', () => {
     })
 
     afterEach(() => {
+      cleanup()
       window.scrollTo = originalScrollTo
       window.history.replaceState(null, '', '/')
       document.removeEventListener('click', stopDocumentNavigation)

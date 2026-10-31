@@ -3,6 +3,7 @@
  */
 import '@testing-library/jest-dom'
 import {
+  cleanup,
   fireEvent,
   render,
   screen,
@@ -156,6 +157,7 @@ const openMenu = async () => {
 
 describe('Actions', () => {
   afterEach(() => {
+    cleanup()
     vi.unstubAllGlobals()
     vi.clearAllMocks()
   })

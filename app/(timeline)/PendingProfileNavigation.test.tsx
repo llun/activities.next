@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 
 import { useOpenStatusPath } from '@/lib/components/posts/useOpenStatusPath'
 
@@ -47,6 +47,7 @@ describe('PendingProfileNavigation', () => {
   })
 
   afterEach(() => {
+    cleanup()
     vi.useRealTimers()
   })
 
@@ -169,6 +170,7 @@ describe('pending status navigation', () => {
   })
 
   afterEach(() => {
+    cleanup()
     vi.useRealTimers()
   })
 

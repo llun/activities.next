@@ -2,7 +2,14 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor
+} from '@testing-library/react'
 
 import { getTimeline } from '@/lib/client'
 import { clearAllOfflineData } from '@/lib/client/offline'
@@ -553,6 +560,7 @@ describe('MainPageTimeline', () => {
       })
 
       afterEach(() => {
+        cleanup()
         window.scrollTo = originalScrollTo
         vi.useRealTimers()
       })
@@ -724,6 +732,7 @@ describe('MainPageTimeline', () => {
     })
 
     afterEach(() => {
+      cleanup()
       window.scrollTo = originalScrollTo
       window.scrollBy = originalScrollBy
       HTMLElement.prototype.getBoundingClientRect = originalRect
@@ -1017,6 +1026,7 @@ describe('MainPageTimeline', () => {
     }
 
     afterEach(() => {
+      cleanup()
       vi.useRealTimers()
     })
 

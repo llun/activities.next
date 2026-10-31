@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { createRef } from 'react'
 
 import type { FitnessCalendarDay } from '@/lib/fitness/calendar/types'
@@ -55,6 +55,7 @@ const renderMonth = (props: Props = {}) => {
 
 describe('MonthCalendar', () => {
   afterEach(() => {
+    cleanup()
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
   })
@@ -354,6 +355,7 @@ describe('MonthCalendar', () => {
     })
 
     afterEach(() => {
+      cleanup()
       vi.useRealTimers()
     })
 
@@ -461,6 +463,7 @@ describe('MonthCalendar', () => {
     })
 
     afterEach(() => {
+      cleanup()
       vi.useRealTimers()
     })
 
@@ -567,6 +570,7 @@ describe('MonthCalendar', () => {
     })
 
     afterEach(() => {
+      cleanup()
       vi.useRealTimers()
     })
 

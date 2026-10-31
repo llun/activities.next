@@ -2,7 +2,13 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor
+} from '@testing-library/react'
 
 import { createFitnessGear, updateFitnessGear } from '@/lib/client'
 import type { GearEntity } from '@/lib/services/fitness-gears/gearEntities'
@@ -83,6 +89,7 @@ describe('GearFormDialog', () => {
   })
 
   afterEach(() => {
+    cleanup()
     vi.unstubAllGlobals()
   })
 

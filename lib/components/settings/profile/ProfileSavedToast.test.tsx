@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 
 import {
   PROFILE_SAVED_TOAST_DURATION_MS,
@@ -10,7 +10,10 @@ import {
 } from './ProfileSavedToast'
 
 describe('ProfileSavedToast', () => {
-  afterEach(() => vi.useRealTimers())
+  afterEach(() => {
+    cleanup()
+    vi.useRealTimers()
+  })
 
   it('says the profile was saved and when servers will show it', () => {
     render(<ProfileSavedToast id={1} onDismiss={vi.fn()} />)
