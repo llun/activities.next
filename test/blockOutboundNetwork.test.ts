@@ -86,7 +86,11 @@ describe('blockOutboundNetwork trap', () => {
     try {
       const socket = new net.Socket()
       socket.once('error', () => {})
-      socket.connect('80', PUBLIC_HOST)
+      // Node's types don't accept a numeric string here, but Node itself
+      // treats it as a port at runtime.
+      ;(
+        socket.connect as unknown as (port: string, host: string) => net.Socket
+      ).call(socket, '80', PUBLIC_HOST)
       socket.destroy()
     } catch {
       // The trap throws synchronously from connect().
