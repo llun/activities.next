@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 
 import {
   getConnectionSnapshot,
@@ -38,6 +38,7 @@ describe('ConnectionAnnouncer', () => {
   })
 
   afterEach(() => {
+    cleanup()
     resetConnectionForTesting()
     vi.restoreAllMocks()
   })
@@ -111,6 +112,7 @@ describe('ConnectionStatusBar and ConnectionStatusStrip', () => {
   })
 
   afterEach(() => {
+    cleanup()
     vi.useRealTimers()
     resetConnectionForTesting()
     vi.unstubAllGlobals()
@@ -320,6 +322,7 @@ describe('the send queue in the status slot', () => {
   })
 
   afterEach(() => {
+    cleanup()
     mockQueue = null
     resetConnectionForTesting()
     vi.restoreAllMocks()

@@ -4,6 +4,7 @@
 import '@testing-library/jest-dom'
 import {
   act,
+  cleanup,
   fireEvent,
   render,
   screen,
@@ -101,6 +102,7 @@ describe('DraftsList', () => {
   })
 
   afterEach(() => {
+    cleanup()
     resetDraftsChannelForTesting()
     setDraftsIndexedDBFactory(null)
     resetDraftsDbForTesting()

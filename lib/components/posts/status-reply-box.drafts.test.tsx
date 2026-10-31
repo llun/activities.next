@@ -168,6 +168,7 @@ describe('StatusReplyBox on-device drafts', () => {
   })
 
   afterEach(() => {
+    cleanup()
     vi.useRealTimers()
     vi.restoreAllMocks()
     vi.clearAllMocks()

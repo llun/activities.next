@@ -4,6 +4,7 @@
 import '@testing-library/jest-dom'
 import {
   act,
+  cleanup,
   configure,
   fireEvent,
   render,
@@ -178,6 +179,7 @@ describe('the send queue, end to end', () => {
   })
 
   afterEach(() => {
+    cleanup()
     vi.useRealTimers()
     resetConnectionForTesting()
     resetDraftsChannelForTesting()

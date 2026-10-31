@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { IDBFactory } from 'fake-indexeddb'
 
 import {
@@ -54,6 +54,7 @@ describe('DraftsLink', () => {
   })
 
   afterEach(() => {
+    cleanup()
     resetDraftsChannelForTesting()
     setDraftsIndexedDBFactory(null)
     resetDraftsDbForTesting()

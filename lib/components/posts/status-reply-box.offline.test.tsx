@@ -4,6 +4,7 @@
 import '@testing-library/jest-dom'
 import {
   act,
+  cleanup,
   configure,
   fireEvent,
   render,
@@ -203,6 +204,7 @@ describe('StatusReplyBox offline hand-off', () => {
   })
 
   afterEach(() => {
+    cleanup()
     vi.restoreAllMocks()
     resetConnectionForTesting()
     resetDraftsChannelForTesting()
