@@ -3,6 +3,7 @@
  */
 import '@testing-library/jest-dom'
 import {
+  cleanup,
   fireEvent,
   render,
   screen,
@@ -102,6 +103,7 @@ describe('GearListView', () => {
   })
 
   afterEach(() => {
+    cleanup()
     vi.unstubAllGlobals()
   })
 

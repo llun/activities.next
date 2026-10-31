@@ -4,6 +4,7 @@
 import '@testing-library/jest-dom'
 import {
   act,
+  cleanup,
   fireEvent,
   render,
   screen,
@@ -210,6 +211,7 @@ describe('ImportSection', () => {
   })
 
   afterEach(() => {
+    cleanup()
     vi.unstubAllGlobals()
     vi.useRealTimers()
     // Every spy (the rate-limit test's Date.now) is restored after its

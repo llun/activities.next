@@ -4,6 +4,7 @@
 import '@testing-library/jest-dom'
 import {
   act,
+  cleanup,
   fireEvent,
   render,
   screen,
@@ -735,6 +736,7 @@ describe('StatusThread', () => {
     })
 
     afterEach(() => {
+      cleanup()
       vi.useRealTimers()
       Reflect.deleteProperty(Element.prototype, 'scrollIntoView')
     })

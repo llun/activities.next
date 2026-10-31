@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 
 import { AlbumUndoToast } from './AlbumUndoToast'
 import { ALBUM_TOAST_DURATION_MS, type AlbumToast } from './useMediaAlbums'
@@ -20,6 +20,7 @@ describe('AlbumUndoToast', () => {
   })
 
   afterEach(() => {
+    cleanup()
     vi.useRealTimers()
   })
 

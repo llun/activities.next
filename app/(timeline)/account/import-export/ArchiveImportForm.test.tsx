@@ -2,7 +2,14 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor
+} from '@testing-library/react'
 import { useState } from 'react'
 import type { RefObject } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -157,6 +164,7 @@ describe('ArchiveImportForm', () => {
   })
 
   afterEach(() => {
+    cleanup()
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
     vi.clearAllMocks()

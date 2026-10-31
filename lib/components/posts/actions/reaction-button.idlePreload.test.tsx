@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { act, render } from '@testing-library/react'
+import { act, cleanup, render } from '@testing-library/react'
 
 import { ReactionButton } from '@/lib/components/posts/actions/reaction-button'
 import { ReactionState } from '@/lib/components/posts/useReactionState'
@@ -31,6 +31,7 @@ describe('ReactionButton idle preload', () => {
   })
 
   afterEach(() => {
+    cleanup()
     vi.useRealTimers()
     vi.unstubAllGlobals()
   })

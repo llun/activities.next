@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen, within } from '@testing-library/react'
+import { cleanup, render, screen, within } from '@testing-library/react'
 
 import { getVisitedFeatures } from '@/lib/services/domains/visitedFeatures'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
@@ -103,6 +103,7 @@ describe('/settings/privacy', () => {
   })
 
   afterEach(() => {
+    cleanup()
     vi.unstubAllGlobals()
   })
 

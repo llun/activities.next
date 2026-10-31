@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, render, screen } from '@testing-library/react'
+import { act, cleanup, render, screen } from '@testing-library/react'
 
 import { EditedTime, formatEditedAgo } from './EditedTime'
 
@@ -20,7 +20,10 @@ describe('formatEditedAgo', () => {
 })
 
 describe('EditedTime', () => {
-  afterEach(() => vi.useRealTimers())
+  afterEach(() => {
+    cleanup()
+    vi.useRealTimers()
+  })
 
   it('moves on from "just now" while the page stays open', () => {
     vi.useFakeTimers()

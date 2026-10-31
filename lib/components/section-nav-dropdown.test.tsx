@@ -3,6 +3,7 @@
  */
 import '@testing-library/jest-dom'
 import {
+  cleanup,
   fireEvent,
   render,
   screen,
@@ -597,6 +598,7 @@ describe('SectionNavDropdown', () => {
     })
 
     afterEach(() => {
+      cleanup()
       vi.useRealTimers()
       vi.unstubAllGlobals()
     })

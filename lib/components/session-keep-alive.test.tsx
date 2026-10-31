@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { act, render } from '@testing-library/react'
+import { act, cleanup, render } from '@testing-library/react'
 
 import { refreshAuthSession } from '@/lib/client'
 
@@ -57,6 +57,7 @@ describe('SessionKeepAlive', () => {
   })
 
   afterEach(() => {
+    cleanup()
     vi.useRealTimers()
     // The override is an own property of `document`; deleting it restores
     // jsdom's prototype getter for the next test.

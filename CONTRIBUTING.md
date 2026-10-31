@@ -377,7 +377,9 @@ activities.next/
   `SignOutDialog.test.tsx` do. A file that needs something done before the
   unmount does it inside the test. Hooks a setup file registers run before the
   test file's. Under `'list'` the cleanups returned from `beforeEach` also run
-  in registration order, while `onTestFinished` callbacks still run in reverse.
+  in registration order, after every `afterEach` including that unmount, so they
+  are a safe place for teardown that must happen after it, while
+  `onTestFinished` callbacks still run in reverse.
 - **Test files run on worker threads, except those that call `process.chdir()`
   or import `withTimeZone`.** `vitest.config.ts` defines two projects:
   `threads` (every test file, one fresh worker thread per file) and `forks`

@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 
 import {
   MobileNavigationProvider,
@@ -65,6 +65,7 @@ describe('MobileNavigationTrigger', () => {
     })
 
     afterEach(() => {
+      cleanup()
       vi.useRealTimers()
       vi.restoreAllMocks()
     })

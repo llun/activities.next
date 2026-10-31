@@ -2,7 +2,14 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor
+} from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import * as bulkImports from '@/lib/client/bulkImports'
@@ -105,6 +112,7 @@ describe('CsvImportForm', () => {
   })
 
   afterEach(() => {
+    cleanup()
     vi.unstubAllGlobals()
     vi.useRealTimers()
     vi.clearAllMocks()

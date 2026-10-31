@@ -2,7 +2,14 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor
+} from '@testing-library/react'
 
 import {
   STICKY_HEAD_CELL,
@@ -162,6 +169,7 @@ describe('GearComponentsCard', () => {
     })
 
     afterEach(() => {
+      cleanup()
       vi.unstubAllGlobals()
     })
 

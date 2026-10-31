@@ -4,6 +4,7 @@
 import '@testing-library/jest-dom'
 import {
   act,
+  cleanup,
   fireEvent,
   render,
   screen,
@@ -254,6 +255,7 @@ describe('Post', () => {
     }
 
     afterEach(() => {
+      cleanup()
       vi.unstubAllGlobals()
     })
 

@@ -2,7 +2,14 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within
+} from '@testing-library/react'
 import { createRef } from 'react'
 
 import { annualYearGrid } from '@/lib/fitness/calendar/geometry'
@@ -64,6 +71,7 @@ const renderCalendar = (props: Props = {}) => {
 
 describe('AnnualCalendar', () => {
   afterEach(() => {
+    cleanup()
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
   })
@@ -719,6 +727,7 @@ describe('AnnualCalendar', () => {
     })
 
     afterEach(() => {
+      cleanup()
       vi.useRealTimers()
     })
 

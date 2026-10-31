@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { act, renderHook, waitFor } from '@testing-library/react'
+import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 
 import type { FitnessRouteHeatmapTileBatch } from '@/lib/client'
 import {
@@ -64,6 +64,7 @@ describe('useHeatmapTiles', () => {
   })
 
   afterEach(() => {
+    cleanup()
     vi.useRealTimers()
   })
 

@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, render, screen } from '@testing-library/react'
+import { act, cleanup, render, screen } from '@testing-library/react'
 import { FC, useCallback } from 'react'
 
 import { useMediaStripScroll } from './useMediaStripScroll'
@@ -112,6 +112,7 @@ describe('useMediaStripScroll', () => {
   })
 
   afterEach(() => {
+    cleanup()
     vi.unstubAllGlobals()
   })
 

@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { FC } from 'react'
 
 import { DateKey } from '@/lib/fitness/calendar/localDay'
@@ -152,6 +152,7 @@ describe('calendar tooltip', () => {
   })
 
   afterEach(() => {
+    cleanup()
     vi.useRealTimers()
   })
 

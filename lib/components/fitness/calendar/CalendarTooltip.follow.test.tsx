@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 
 import { CalendarTooltip, useCalendarTooltip } from './CalendarTooltip'
 
@@ -68,6 +68,7 @@ describe('calendar tooltip follows its cell', () => {
     )
   })
   afterEach(() => {
+    cleanup()
     vi.restoreAllMocks()
     vi.useRealTimers()
   })

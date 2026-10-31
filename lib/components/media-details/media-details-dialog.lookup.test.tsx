@@ -2,7 +2,13 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, screen, waitFor } from '@testing-library/react'
+import {
+  act,
+  cleanup,
+  fireEvent,
+  screen,
+  waitFor
+} from '@testing-library/react'
 
 import { getMedia, updateMediaDetails } from '@/lib/client'
 import {
@@ -62,6 +68,7 @@ describe('MediaDetailsDialog lookups', () => {
   })
 
   afterEach(() => {
+    cleanup()
     global.ResizeObserver = originalResizeObserver
   })
 
@@ -168,6 +175,7 @@ describe('MediaDetailsDialog lookups', () => {
         vi.setSystemTime(NOW)
       })
       afterEach(() => {
+        cleanup()
         vi.useRealTimers()
       })
 

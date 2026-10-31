@@ -2,7 +2,14 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor
+} from '@testing-library/react'
 
 import { GlModule, RegionMap } from './RegionMap'
 
@@ -93,6 +100,7 @@ const renderRegionMap = (
 
 describe('RegionMap', () => {
   afterEach(() => {
+    cleanup()
     vi.restoreAllMocks()
     // @ts-expect-error reset between tests
     delete navigator.geolocation
@@ -264,6 +272,7 @@ describe('RegionMap', () => {
     })
 
     afterEach(() => {
+      cleanup()
       vi.unstubAllGlobals()
     })
 

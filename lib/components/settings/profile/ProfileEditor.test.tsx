@@ -4,6 +4,7 @@
 import '@testing-library/jest-dom'
 import {
   act,
+  cleanup,
   fireEvent,
   render,
   screen,
@@ -121,6 +122,7 @@ describe('ProfileEditor', () => {
   })
 
   afterEach(() => {
+    cleanup()
     vi.unstubAllGlobals()
     vi.useRealTimers()
   })
@@ -1235,7 +1237,10 @@ describe('ProfileEditor', () => {
           configurable: true
         })
       })
-      afterEach(() => Reflect.deleteProperty(window, 'navigation'))
+      afterEach(() => {
+        cleanup()
+        Reflect.deleteProperty(window, 'navigation')
+      })
 
       it('cancels Back with unsaved changes and asks, and Discard replays it', () => {
         renderEditor()

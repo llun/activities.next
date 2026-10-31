@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 
 import { NotificationSettings } from './NotificationSettings'
 
@@ -18,6 +18,7 @@ vi.mock('@/lib/client', () => ({
 
 describe('Notification settings', () => {
   afterEach(() => {
+    cleanup()
     vi.unstubAllGlobals()
   })
 

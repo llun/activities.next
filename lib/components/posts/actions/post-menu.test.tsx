@@ -4,6 +4,7 @@
 import '@testing-library/jest-dom'
 import {
   act,
+  cleanup,
   fireEvent,
   render,
   screen,
@@ -672,6 +673,7 @@ describe('PostMenu', () => {
     }
 
     afterEach(() => {
+      cleanup()
       vi.useRealTimers()
       setClipboard(undefined)
     })

@@ -3,6 +3,7 @@
  */
 import '@testing-library/jest-dom'
 import {
+  cleanup,
   fireEvent,
   render,
   screen,
@@ -71,6 +72,7 @@ describe('MoveForm', () => {
   })
 
   afterEach(() => {
+    cleanup()
     vi.unstubAllGlobals()
   })
 

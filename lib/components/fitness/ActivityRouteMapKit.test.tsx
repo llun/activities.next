@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 
 import type { FitnessRouteSegment } from '@/lib/client'
 import { ROUTE_PRIVACY_HINT_TAP_TIMEOUT_MS } from '@/lib/components/fitness/RoutePrivacyHint'
@@ -43,6 +43,7 @@ describe('ActivityRouteMapKit', () => {
   })
 
   afterEach(() => {
+    cleanup()
     vi.useRealTimers()
     vi.clearAllMocks()
   })
