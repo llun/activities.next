@@ -203,7 +203,6 @@ describe('automatic version-bump policy', () => {
   describe.skipIf(spawnSync('jq', ['--version']).status !== 0)(
     'required check gate and CI re-runs',
     () => {
-      const tab = '\t'
       const workflow = readFileSync(
         '.github/workflows/version-bump.yml',
         'utf8'
@@ -216,33 +215,68 @@ describe('automatic version-bump policy', () => {
 
       expect(script).toContain('gh pr merge')
 
-      const greenChecks = [
-        `All Tests${tab}1${tab}completed${tab}success`,
-        `Build${tab}2${tab}completed${tab}success`,
-        `Lint and Prettier${tab}3${tab}completed${tab}success`
+      type CheckRun = {
+        id: number
+        name: string
+        status: string
+        conclusion: string | null
+        head_sha: string
+      }
+
+      type RunJson = {
+        id: number
+        status: string
+        conclusion: string | null
+        run_attempt: number
+        head_sha: string
+        event: string
+      }
+
+      const greenChecks: CheckRun[] = [
+        {
+          id: 1,
+          name: 'All Tests',
+          status: 'completed',
+          conclusion: 'success',
+          head_sha: 'head-sha'
+        },
+        {
+          id: 2,
+          name: 'Build',
+          status: 'completed',
+          conclusion: 'success',
+          head_sha: 'head-sha'
+        },
+        {
+          id: 3,
+          name: 'Lint and Prettier',
+          status: 'completed',
+          conclusion: 'success',
+          head_sha: 'head-sha'
+        }
       ]
-      const failedAllTests = [
-        `All Tests${tab}1${tab}completed${tab}failure`,
+      const failedAllTests: CheckRun[] = [
+        { ...greenChecks[0], conclusion: 'failure' },
         ...greenChecks.slice(1)
       ]
-      const pendingAllTests = [
-        `All Tests${tab}10${tab}in_progress${tab}`,
+      const pendingAllTests: CheckRun[] = [
+        { ...greenChecks[0], id: 10, status: 'in_progress', conclusion: null },
         ...greenChecks.slice(1)
       ]
-      const rerunGreen = [
-        `All Tests${tab}10${tab}completed${tab}success`,
+      const rerunGreen: CheckRun[] = [
+        { ...greenChecks[0], id: 10 },
         ...greenChecks.slice(1)
       ]
 
       const infrastructureJobs = [
-        JSON.stringify({
+        {
           name: 'PostgreSQL Tests (shard 1/2)',
           status: 'queued',
           conclusion: null,
           runner_name: null,
           steps: []
-        }),
-        JSON.stringify({
+        },
+        {
           name: 'All Tests',
           status: 'completed',
           conclusion: 'failure',
@@ -251,10 +285,10 @@ describe('automatic version-bump policy', () => {
             { name: 'Set up job', conclusion: 'success' },
             { name: 'Verify all test shards succeeded', conclusion: 'failure' }
           ]
-        })
+        }
       ]
       const codeFailureJobs = [
-        JSON.stringify({
+        {
           name: 'Test Shard 1 of 4',
           status: 'completed',
           conclusion: 'failure',
@@ -263,11 +297,17 @@ describe('automatic version-bump policy', () => {
             { name: 'Set up job', conclusion: 'success' },
             { name: 'Run test shard', conclusion: 'failure' }
           ]
-        })
+        }
       ]
 
-      const runLine = (status: string, attempt: number) =>
-        `1${tab}${status}${tab}${attempt}`
+      const runJson = (status: string, attempt: number): RunJson => ({
+        id: 1,
+        status,
+        conclusion: status === 'completed' ? 'failure' : null,
+        run_attempt: attempt,
+        head_sha: 'head-sha',
+        event: 'pull_request'
+      })
 
       let dir: string
       let bin: string
@@ -281,19 +321,25 @@ describe('automatic version-bump policy', () => {
 
       const writeStep = (
         step: number,
-        checks: string[],
-        run: string,
-        jobs: string[]
+        checks: CheckRun[],
+        run: RunJson | null,
+        jobs: object[]
       ) => {
         writeFileSync(
           join(dir, `step-${step}.checks`),
-          `${checks.join('\n')}\n`
+          `${JSON.stringify({ total_count: checks.length, check_runs: checks })}\n`
         )
         writeFileSync(
           join(dir, `step-${step}.run`),
-          run === '' ? '' : `${run}\n`
+          `${JSON.stringify({
+            total_count: run ? 1 : 0,
+            workflow_runs: run ? [run] : []
+          })}\n`
         )
-        writeFileSync(join(dir, `step-${step}.jobs`), `${jobs.join('\n')}\n`)
+        writeFileSync(
+          join(dir, `step-${step}.jobs`),
+          `${JSON.stringify({ total_count: jobs.length, jobs })}\n`
+        )
         writeFileSync(join(dir, 'last-step'), `${step}\n`)
       }
 
@@ -304,6 +350,8 @@ describe('automatic version-bump policy', () => {
           GITHUB_REPOSITORY: 'o/r',
           PR_URL: 'https://example.test/pr/1',
           BASE_SHA: 'base-sha',
+          GH_TOKEN: 'pat-token',
+          ACTIONS_READ_TOKEN: 'workflow-token',
           CHECK_ATTEMPTS: '6',
           CHECK_RERUN_ATTEMPTS: '6',
           CHECK_INTERVAL_SECONDS: '0',
@@ -326,7 +374,8 @@ describe('automatic version-bump policy', () => {
             : 0,
           polls: Number(readFileSync(join(dir, 'polls'), 'utf8')),
           status: result.status,
-          stdout: result.stdout
+          stdout: result.stdout,
+          stderr: result.stderr
         }
       }
 
@@ -356,27 +405,69 @@ exit 0
         writeFake(
           'gh',
           `dir='${dir}'
+url=''
+jqarg=''
+prev=''
+for arg in "$@"; do
+  if [ "$prev" = '--jq' ]; then
+    jqarg="$arg"
+  fi
+  prev="$arg"
+done
+reply() {
+  if [ -n "$jqarg" ]; then
+    jq -r "$jqarg" "$1"
+  else
+    cat "$1"
+  fi
+}
 step_file() {
   n=$(cat "$dir/polls")
   last=$(cat "$dir/last-step")
   if [ "$n" -gt "$last" ]; then
     n=$last
   fi
-  cat "$dir/step-$n.$1"
+  reply "$dir/step-$n.$1"
 }
 if [ "$1" = pr ]; then
   case "$2" in
-    view) cat "$dir/pr-head"; exit 0 ;;
-    merge) echo merge >> "$dir/merges"; echo moved-sha > "$dir/main-sha"; exit 0 ;;
+    view)
+      printf '{"headRefOid":"%s"}\\n' "$(cat "$dir/pr-head")" > "$dir/pr-view.json"
+      reply "$dir/pr-view.json"
+      exit 0
+      ;;
+    merge)
+      echo merge >> "$dir/merges"
+      printf '%s\\n' "$GH_TOKEN" >> "$dir/merge-tokens"
+      echo moved-sha > "$dir/main-sha"
+      exit 0
+      ;;
     close|reopen) exit 0 ;;
   esac
 fi
-for arg in "$@"; do
-  case "$arg" in
+if [ "$1" = api ]; then
+  shift
+  skip=0
+  for arg in "$@"; do
+    if [ "$skip" = 1 ]; then
+      skip=0
+      continue
+    fi
+    case "$arg" in
+      --jq) skip=1 ;;
+      --*) ;;
+      *)
+        if [ -z "$url" ]; then
+          url="$arg"
+        fi
+        ;;
+    esac
+  done
+  printf '%s\\n' "$GH_TOKEN $url" >> "$dir/gh-calls"
+  case "$url" in
     *branches/main/protection*)
-      echo 'All Tests'
-      echo 'Build'
-      echo 'Lint and Prettier'
+      printf '%s\\n' '{"checks":[{"context":"All Tests"},{"context":"Build"}],"contexts":["Lint and Prettier"]}' > "$dir/protection.json"
+      reply "$dir/protection.json"
       exit 0
       ;;
     *check-runs*)
@@ -386,18 +477,31 @@ for arg in "$@"; do
       exit 0
       ;;
     *actions/workflows/ci.yml/runs*)
+      if [ "$GH_TOKEN" != 'workflow-token' ]; then
+        echo 'HTTP 403: Resource not accessible by personal access token' >&2
+        exit 1
+      fi
       if [ -f "$dir/runs-api-fails" ]; then
+        echo 'HTTP 500: Server Error' >&2
         exit 1
       fi
       step_file run
       exit 0
       ;;
     */jobs*)
+      if [ "$GH_TOKEN" != 'workflow-token' ]; then
+        echo 'HTTP 403: Resource not accessible by personal access token' >&2
+        exit 1
+      fi
+      if [ -f "$dir/jobs-api-fails" ]; then
+        echo 'HTTP 500: Server Error' >&2
+        exit 1
+      fi
       step_file jobs
       exit 0
       ;;
   esac
-done
+fi
 exit 0
 `
         )
@@ -415,16 +519,16 @@ exit 0
         writeStep(
           1,
           failedAllTests,
-          runLine('completed', 1),
+          runJson('completed', 1),
           infrastructureJobs
         )
         writeStep(
           2,
           pendingAllTests,
-          runLine('in_progress', 2),
+          runJson('in_progress', 2),
           infrastructureJobs
         )
-        writeStep(3, rerunGreen, runLine('completed', 2), infrastructureJobs)
+        writeStep(3, rerunGreen, runJson('completed', 2), infrastructureJobs)
 
         const result = runGate()
 
@@ -434,7 +538,7 @@ exit 0
       })
 
       it('merges once when attempt 1 succeeds', () => {
-        writeStep(1, greenChecks, runLine('completed', 1), [])
+        writeStep(1, greenChecks, runJson('completed', 1), [])
 
         const result = runGate()
 
@@ -444,7 +548,7 @@ exit 0
       })
 
       it('does not merge a real failure, and stops at the first look', () => {
-        writeStep(1, failedAllTests, runLine('completed', 1), codeFailureJobs)
+        writeStep(1, failedAllTests, runJson('completed', 1), codeFailureJobs)
 
         const result = runGate()
 
@@ -457,10 +561,10 @@ exit 0
         writeStep(
           1,
           failedAllTests,
-          runLine('in_progress', 1),
+          runJson('in_progress', 1),
           infrastructureJobs
         )
-        writeStep(2, failedAllTests, runLine('completed', 1), codeFailureJobs)
+        writeStep(2, failedAllTests, runJson('completed', 1), codeFailureJobs)
 
         const result = runGate()
 
@@ -473,10 +577,10 @@ exit 0
         writeStep(
           1,
           failedAllTests,
-          runLine('completed', 1),
+          runJson('completed', 1),
           infrastructureJobs
         )
-        writeStep(2, failedAllTests, runLine('completed', 2), codeFailureJobs)
+        writeStep(2, failedAllTests, runJson('completed', 2), codeFailureJobs)
 
         const result = runGate()
 
@@ -489,23 +593,23 @@ exit 0
         writeStep(
           1,
           failedAllTests,
-          runLine('completed', 1),
+          runJson('completed', 1),
           infrastructureJobs
         )
         writeStep(
           2,
           pendingAllTests,
-          runLine('in_progress', 2),
+          runJson('in_progress', 2),
           infrastructureJobs
         )
-        writeStep(3, rerunGreen, runLine('completed', 2), infrastructureJobs)
+        writeStep(3, rerunGreen, runJson('completed', 2), infrastructureJobs)
 
         const first = runGate()
         expect(first.status).toBe(0)
         expect(first.merges).toBe(1)
 
         writeFileSync(join(dir, 'polls'), '0\n')
-        writeStep(1, greenChecks, runLine('completed', 2), [])
+        writeStep(1, greenChecks, runJson('completed', 2), [])
 
         const second = runGate()
 
@@ -515,7 +619,7 @@ exit 0
 
       it('does not merge a head a newer run took over', () => {
         writeFileSync(join(dir, 'pr-head'), 'other-sha\n')
-        writeStep(1, greenChecks, runLine('completed', 1), [])
+        writeStep(1, greenChecks, runJson('completed', 1), [])
 
         const result = runGate()
 
@@ -527,7 +631,7 @@ exit 0
         writeStep(
           1,
           failedAllTests,
-          runLine('completed', 1),
+          runJson('completed', 1),
           infrastructureJobs
         )
 
@@ -543,7 +647,7 @@ exit 0
         writeStep(
           1,
           failedAllTests,
-          runLine('completed', 1),
+          runJson('completed', 1),
           infrastructureJobs
         )
 
@@ -555,13 +659,136 @@ exit 0
       })
 
       it('gives up when no CI run is found', () => {
-        writeStep(1, failedAllTests, '', [])
+        writeStep(1, failedAllTests, null, [])
 
         const result = runGate()
 
         expect(result.status).toBe(0)
         expect(result.merges).toBe(0)
         expect(result.polls).toBe(1)
+      })
+
+      it('asks for the CI run of this head on the pull_request event', () => {
+        writeStep(
+          1,
+          failedAllTests,
+          runJson('completed', 1),
+          infrastructureJobs
+        )
+        writeStep(
+          2,
+          pendingAllTests,
+          runJson('in_progress', 2),
+          infrastructureJobs
+        )
+        writeStep(3, rerunGreen, runJson('completed', 2), infrastructureJobs)
+
+        runGate()
+
+        const calls = readFileSync(join(dir, 'gh-calls'), 'utf8')
+          .split('\n')
+          .filter(Boolean)
+
+        expect(
+          calls.some(
+            (line) =>
+              line.includes('actions/workflows/ci.yml/runs?') &&
+              line.includes('head_sha=head-sha') &&
+              line.includes('event=pull_request')
+          )
+        ).toBe(true)
+      })
+
+      it('reads Actions with the workflow token and everything else with the PAT', () => {
+        writeStep(
+          1,
+          failedAllTests,
+          runJson('completed', 1),
+          infrastructureJobs
+        )
+        writeStep(
+          2,
+          pendingAllTests,
+          runJson('in_progress', 2),
+          infrastructureJobs
+        )
+        writeStep(3, rerunGreen, runJson('completed', 2), infrastructureJobs)
+
+        runGate()
+
+        const calls = readFileSync(join(dir, 'gh-calls'), 'utf8')
+          .split('\n')
+          .filter(Boolean)
+
+        expect(calls.length).toBeGreaterThan(0)
+        for (const line of calls) {
+          if (line.includes('/actions/')) {
+            expect(line.startsWith('workflow-token ')).toBe(true)
+          } else {
+            expect(line.startsWith('pat-token ')).toBe(true)
+          }
+        }
+
+        const mergeTokens = readFileSync(join(dir, 'merge-tokens'), 'utf8')
+          .split('\n')
+          .filter(Boolean)
+        expect(mergeTokens).toEqual(['pat-token'])
+      })
+
+      it('does not merge, and stops at the first look, when the PAT could not read Actions but the workflow token can', () => {
+        writeStep(1, failedAllTests, runJson('completed', 1), codeFailureJobs)
+
+        const result = runGate()
+
+        expect(result.status).toBe(0)
+        expect(result.merges).toBe(0)
+        expect(result.polls).toBe(1)
+      })
+
+      it('warns and keeps polling when the run lookup fails', () => {
+        writeFileSync(join(dir, 'runs-api-fails'), '')
+        writeStep(
+          1,
+          failedAllTests,
+          runJson('completed', 1),
+          infrastructureJobs
+        )
+
+        const result = runGate()
+
+        expect(result.status).toBe(0)
+        expect(result.stdout).toContain(
+          '::warning::Could not read the CI re-run state'
+        )
+        expect(result.stderr).toContain('HTTP 500')
+        expect(result.merges).toBe(0)
+        expect(result.polls).toBe(12)
+      })
+
+      it('warns and keeps polling when the jobs lookup fails', () => {
+        writeFileSync(join(dir, 'jobs-api-fails'), '')
+        writeStep(
+          1,
+          failedAllTests,
+          runJson('completed', 1),
+          infrastructureJobs
+        )
+
+        const result = runGate()
+
+        expect(result.status).toBe(0)
+        expect(result.stdout).toContain(
+          '::warning::Could not read the CI re-run state'
+        )
+        expect(result.stderr).toContain('HTTP 500')
+        expect(result.merges).toBe(0)
+        expect(result.polls).toBe(12)
+      })
+
+      it('grants the workflow token Actions read and nothing wider, and keeps the PAT for the PR step', () => {
+        expect(workflow).toMatch(/^\s+actions:\s*read\s*$/m)
+        expect(workflow).toContain('ACTIONS_READ_TOKEN: ${{ github.token }}')
+        expect(workflow).toContain('GH_TOKEN: ${{ secrets.PAT_TOKEN }}')
       })
     }
   )

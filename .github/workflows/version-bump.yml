@@ -6,6 +6,7 @@ on:
       - main
 
 permissions:
+  actions: read
   contents: write
   issues: read
   pull-requests: write
@@ -129,6 +130,7 @@ jobs:
       - name: Create or update version bump PR
         if: steps.bump.outputs.new_version != ''
         env:
+          ACTIONS_READ_TOKEN: ${{ github.token }}
           BASE_SHA: ${{ steps.bump.outputs.base_sha }}
           BUMP: ${{ steps.bump.outputs.bump }}
           COMMIT_COUNT: ${{ steps.bump.outputs.commit_count }}
@@ -298,8 +300,15 @@ jobs:
           # Whether a failed required check may still turn green through
           # ci-rerun.yml, which re-runs attempt 1 once when the classifier says
           # the failure is infrastructure only. Returns 1 only when the failure
-          # is final; an unreadable API answer keeps waiting, since the poll
-          # budget bounds that and a timeout leaves the PR open just the same.
+          # is final; a failed lookup of the run or its jobs keeps waiting,
+          # since the poll budget bounds that and a timeout leaves the PR open
+          # just the same. The two Actions reads use the workflow token: a
+          # fine-grained PAT may lack Actions: read, and every real failure
+          # would then wait out the budget.
+          rerun_lookup_failed() {
+            cat "$CHECKS_ERROR" >&2
+            echo "::warning::Could not read the CI re-run state for ${1}; still polling for required checks."
+          }
           ci_rerun_may_follow() {
             local sha="$1"
             local jobs_file
@@ -309,8 +318,11 @@ jobs:
             local run_status
             local verdict
 
-            run=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?head_sha=${sha}&event=pull_request&per_page=1" \
-              --jq '.workflow_runs[0] // empty | [.id, .status, .run_attempt] | @tsv') || return 0
+            run=$(GH_TOKEN="$ACTIONS_READ_TOKEN" gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?head_sha=${sha}&event=pull_request&per_page=1" \
+              --jq '.workflow_runs[0] // empty | [.id, .status, .run_attempt] | @tsv' 2> "$CHECKS_ERROR") || {
+              rerun_lookup_failed "$sha"
+              return 0
+            }
             [ -n "$run" ] || return 1
             IFS="$TAB" read -r run_id run_status run_attempt <<< "$run"
 
@@ -320,8 +332,9 @@ jobs:
             [ "$run_attempt" -eq 1 ] || return 1
 
             jobs_file=$(mktemp)
-            if ! gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs?per_page=100" --jq '.jobs[]' 2> "$CHECKS_ERROR" | jq -s '.' > "$jobs_file"; then
+            if ! GH_TOKEN="$ACTIONS_READ_TOKEN" gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs?per_page=100" --jq '.jobs[]' 2> "$CHECKS_ERROR" | jq -s '.' > "$jobs_file"; then
               rm -f "$jobs_file"
+              rerun_lookup_failed "$sha"
               return 0
             fi
             verdict=$(GITHUB_OUTPUT='' RUN_ID="$run_id" NEWEST_RUN_IDS="$run_id" node .github/scripts/classify-ci-rerun.mjs "$jobs_file") || verdict=""
