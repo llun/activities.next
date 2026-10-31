@@ -551,23 +551,33 @@ describe('MainPageTimeline', () => {
   describe('new post polling', () => {
     describe('polling banner', () => {
       const scrollToMock = vi.fn()
+      const scrollByMock = vi.fn()
       let originalScrollTo: typeof window.scrollTo
+      let originalScrollBy: typeof window.scrollBy
+      let originalRect: typeof HTMLElement.prototype.getBoundingClientRect
 
       beforeEach(() => {
         vi.useFakeTimers()
         originalScrollTo = window.scrollTo
+        originalScrollBy = window.scrollBy
+        originalRect = HTMLElement.prototype.getBoundingClientRect
         scrollToMock.mockReset()
+        scrollByMock.mockReset()
         window.scrollTo = scrollToMock
+        window.scrollBy = scrollByMock
       })
 
       afterEach(() => {
         cleanup()
         window.scrollTo = originalScrollTo
+        window.scrollBy = originalScrollBy
+        HTMLElement.prototype.getBoundingClientRect = originalRect
         vi.useRealTimers()
       })
 
       const renderWithTwoNewPostsDetected = async () => {
         const post1 = createStatus('https://activities.local/users/llun/s/1')
+        const post2 = createStatus('https://activities.local/users/llun/s/2')
         const newPostA = createStatus(
           'https://activities.local/users/llun/s/new-a'
         )
@@ -581,7 +591,7 @@ describe('MainPageTimeline', () => {
             currentTime={FIXED_CURRENT_TIME}
             profile={profile}
             isMediaUploadEnabled={false}
-            statuses={[post1]}
+            statuses={[post1, post2]}
           />
         )
 
@@ -598,7 +608,7 @@ describe('MainPageTimeline', () => {
           await Promise.resolve()
         })
 
-        return { post1, newPostA, newPostB }
+        return { post1, post2, newPostA, newPostB }
       }
 
       it('displays the polling banner when newer posts are detected', async () => {
@@ -617,14 +627,14 @@ describe('MainPageTimeline', () => {
       })
 
       it('clicking the banner refreshes the top snapshot and scrolls to top', async () => {
-        const { post1, newPostA, newPostB } =
+        const { post1, post2, newPostA, newPostB } =
           await renderWithTwoNewPostsDetected()
 
         const banner = screen.getByRole('button', { name: '2 new posts' })
 
         // Mock clean top snapshot fetch
         vi.mocked(getTimeline).mockResolvedValueOnce({
-          statuses: [newPostA, newPostB, post1],
+          statuses: [newPostA, newPostB, post1, post2],
           nextMaxStatusId: 'cursor-after-top',
           prevMinStatusId: null
         })
@@ -653,7 +663,7 @@ describe('MainPageTimeline', () => {
       it('tap the pill with fetch pending, reader scrolls down, response lands: window.scrollTo is not called with instant top 0', async () => {
         const originalScrollY = window.scrollY
         try {
-          const { post1, newPostA, newPostB } =
+          const { post1, post2, newPostA, newPostB } =
             await renderWithTwoNewPostsDetected()
 
           const banner = screen.getByRole('button', { name: '2 new posts' })
@@ -684,10 +694,73 @@ describe('MainPageTimeline', () => {
             await Promise.resolve()
           })
 
+          const shiftedTops: Record<string, number> = {
+            [newPostA.id]: -100,
+            [newPostB.id]: 0,
+            [post1.id]: 100,
+            [post2.id]: 300
+          }
+          scrollByMock.mockImplementation((opts?: ScrollToOptions | number) => {
+            const delta =
+              typeof opts === 'object' && opts !== null ? (opts.top ?? 0) : 0
+            for (const key of Object.keys(shiftedTops)) {
+              shiftedTops[key] -= delta
+            }
+          })
+          HTMLElement.prototype.getBoundingClientRect = function () {
+            const id =
+              this.getAttribute('data-status-id') ??
+              this.getAttribute('data-row-status-ids')
+            if (
+              id === newPostA.id ||
+              document.querySelector(`[data-status-id="${newPostA.id}"]`)
+            ) {
+              const top = id && id in shiftedTops ? shiftedTops[id] : 0
+              return {
+                top,
+                bottom: top + 100,
+                left: 0,
+                right: 0,
+                width: 0,
+                height: 100,
+                x: 0,
+                y: top,
+                toJSON: () => ({})
+              } as DOMRect
+            }
+            if (id === post1.id) {
+              return {
+                top: -100,
+                bottom: 0,
+                left: 0,
+                right: 0,
+                width: 0,
+                height: 100,
+                x: 0,
+                y: -100,
+                toJSON: () => ({})
+              } as DOMRect
+            }
+            if (id === post2.id) {
+              return {
+                top: 100,
+                bottom: 200,
+                left: 0,
+                right: 0,
+                width: 0,
+                height: 100,
+                x: 0,
+                y: 100,
+                toJSON: () => ({})
+              } as DOMRect
+            }
+            return originalRect.call(this)
+          }
+
           // Response lands
           await act(async () => {
             deferred.resolve({
-              statuses: [newPostA, newPostB, post1],
+              statuses: [newPostA, newPostB, post1, post2],
               nextMaxStatusId: 'cursor-after-top',
               prevMinStatusId: null
             })
@@ -700,6 +773,141 @@ describe('MainPageTimeline', () => {
             top: 0,
             behavior: 'instant'
           })
+
+          // Scroll correction runs against the post on screen at response time (post2)
+          expect(scrollByMock).toHaveBeenCalledWith({
+            top: 220,
+            behavior: 'instant'
+          })
+
+          // New posts are counted in the pill
+          expect(
+            screen.getByRole('button', { name: '2 new posts' })
+          ).toBeInTheDocument()
+        } finally {
+          Object.defineProperty(window, 'scrollY', {
+            value: originalScrollY,
+            configurable: true,
+            writable: true
+          })
+        }
+      })
+
+      it('a pill refresh fails, the reader scrolls far down, Retry succeeds, and the reader keeps their spot with the posts counted', async () => {
+        const originalScrollY = window.scrollY
+        try {
+          const { post1, post2, newPostA, newPostB } =
+            await renderWithTwoNewPostsDetected()
+
+          const banner = screen.getByRole('button', { name: '2 new posts' })
+
+          vi.mocked(getTimeline).mockRejectedValueOnce(
+            new Error('Network error')
+          )
+
+          await act(async () => {
+            fireEvent.click(banner)
+            await Promise.resolve()
+            await Promise.resolve()
+          })
+
+          const retryButton = screen.getByRole('button', { name: 'Retry' })
+          expect(retryButton).toBeInTheDocument()
+
+          // Reader scrolls far down
+          Object.defineProperty(window, 'scrollY', {
+            value: 800,
+            configurable: true,
+            writable: true
+          })
+          await act(async () => {
+            fireEvent.scroll(window)
+            await Promise.resolve()
+          })
+
+          const shiftedTops: Record<string, number> = {
+            [newPostA.id]: -100,
+            [newPostB.id]: 0,
+            [post1.id]: 100,
+            [post2.id]: 300
+          }
+          scrollByMock.mockImplementation((opts?: ScrollToOptions | number) => {
+            const delta =
+              typeof opts === 'object' && opts !== null ? (opts.top ?? 0) : 0
+            for (const key of Object.keys(shiftedTops)) {
+              shiftedTops[key] -= delta
+            }
+          })
+          HTMLElement.prototype.getBoundingClientRect = function () {
+            const id =
+              this.getAttribute('data-status-id') ??
+              this.getAttribute('data-row-status-ids')
+            if (
+              id === newPostA.id ||
+              document.querySelector(`[data-status-id="${newPostA.id}"]`)
+            ) {
+              const top = id && id in shiftedTops ? shiftedTops[id] : 0
+              return {
+                top,
+                bottom: top + 100,
+                left: 0,
+                right: 0,
+                width: 0,
+                height: 100,
+                x: 0,
+                y: top,
+                toJSON: () => ({})
+              } as DOMRect
+            }
+            if (id === post1.id) {
+              return {
+                top: -100,
+                bottom: 0,
+                left: 0,
+                right: 0,
+                width: 0,
+                height: 100,
+                x: 0,
+                y: -100,
+                toJSON: () => ({})
+              } as DOMRect
+            }
+            if (id === post2.id) {
+              return {
+                top: 100,
+                bottom: 200,
+                left: 0,
+                right: 0,
+                width: 0,
+                height: 100,
+                x: 0,
+                y: 100,
+                toJSON: () => ({})
+              } as DOMRect
+            }
+            return originalRect.call(this)
+          }
+
+          vi.mocked(getTimeline).mockResolvedValueOnce({
+            statuses: [newPostA, newPostB, post1, post2],
+            nextMaxStatusId: 'cursor-after-top',
+            prevMinStatusId: null
+          })
+
+          await act(async () => {
+            fireEvent.click(retryButton)
+            await Promise.resolve()
+            await Promise.resolve()
+          })
+
+          // Reader keeps their spot with the posts counted
+          expect(scrollByMock).toHaveBeenCalledWith({
+            top: 220,
+            behavior: 'instant'
+          })
+          expect(
+            screen.getByRole('button', { name: '2 new posts' })
+          ).toBeInTheDocument()
         } finally {
           Object.defineProperty(window, 'scrollY', {
             value: originalScrollY,
@@ -789,7 +997,7 @@ describe('MainPageTimeline', () => {
       }
     })
 
-    it('removes the pill when a subsequent poll returns no statuses', async () => {
+    it('an empty poll keeps the count', async () => {
       vi.useFakeTimers()
       try {
         const post1 = createStatus('https://activities.local/users/llun/s/1')
@@ -839,8 +1047,8 @@ describe('MainPageTimeline', () => {
         })
 
         expect(
-          screen.queryByRole('button', { name: /new post/i })
-        ).not.toBeInTheDocument()
+          screen.getByRole('button', { name: '2 new posts' })
+        ).toBeInTheDocument()
       } finally {
         vi.useRealTimers()
       }

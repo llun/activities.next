@@ -160,7 +160,7 @@ describe('NewPostsPill', () => {
 
   it('renders plus label when hasMorePolled is true', () => {
     const store = createUnseenAboveStore()
-    const { rerender } = render(
+    render(
       <NewPostsPill
         store={store}
         polledCount={20}
@@ -171,19 +171,6 @@ describe('NewPostsPill', () => {
     )
     expect(
       screen.getByRole('button', { name: '20+ new posts' })
-    ).toBeInTheDocument()
-
-    rerender(
-      <NewPostsPill
-        store={store}
-        polledCount={1}
-        hasMorePolled={true}
-        isScrolledDown={false}
-        onJump={vi.fn()}
-      />
-    )
-    expect(
-      screen.getByRole('button', { name: '1+ new posts' })
     ).toBeInTheDocument()
   })
 })

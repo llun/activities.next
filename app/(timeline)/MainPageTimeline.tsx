@@ -940,7 +940,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   })
 
   const refreshTimeline = useCallback(
-    async (options?: { preserveScroll?: boolean }) => {
+    async (options?: { preserveScroll?: true }) => {
       // isLoadingRef serializes refreshes, so only one runs at a time and there
       // is no concurrent request to guard against.
       if (isLoadingRef.current) return
@@ -981,7 +981,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
           scrollResetRevisionRef.current !== resetRevisionAtStart
         const shouldPreserve = isScrollingToTopRef.current
           ? false
-          : (options?.preserveScroll ?? isCurrentlyScrolledDown())
+          : options?.preserveScroll || isCurrentlyScrolledDown()
         const effectivePreserve = shouldPreserve && !resetWasTriggered
 
         let capturedAnchor: { statusId: string; offsetTop: number } | null =
@@ -1253,7 +1253,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     setNewerPostsCount(0)
     setHasMoreNewerPosts(false)
     clearScrollAnchorAndJumpToTop()
-    await refreshTimeline({ preserveScroll: false })
+    await refreshTimeline()
   }, [clearScrollAnchorAndJumpToTop, refreshTimeline])
 
   // The pill counts both kinds of new posts, or offers "Back to top" when
@@ -1314,13 +1314,18 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
           prevMinStatusId: topStatus.id,
           limit: POLL_PAGE_LIMIT
         })
-        const currentIds = new Set(currentStatusesRef.current.map((s) => s.id))
-        const statuses = result.statuses ?? []
-        const freshNewCount = statuses.filter(
-          (s) => !currentIds.has(s.id)
-        ).length
-        setNewerPostsCount(freshNewCount)
-        setHasMoreNewerPosts(statuses.length >= POLL_PAGE_LIMIT)
+        if (result.statuses && result.statuses.length > 0) {
+          const currentIds = new Set(
+            currentStatusesRef.current.map((s) => s.id)
+          )
+          const freshNewCount = result.statuses.filter(
+            (s) => !currentIds.has(s.id)
+          ).length
+          if (freshNewCount > 0) {
+            setNewerPostsCount(freshNewCount)
+            setHasMoreNewerPosts(result.statuses.length >= POLL_PAGE_LIMIT)
+          }
+        }
       } catch (_error) {
         // Foreground polling failure is silent
       } finally {
