@@ -548,6 +548,22 @@ describe('draftsDb', () => {
       expect(hanging.deleteDatabase).not.toHaveBeenCalled()
     })
 
+    it('clears the open timeout when the drafts database is reset', async () => {
+      vi.useFakeTimers()
+      const hanging = {
+        open: () => ({}) as IDBOpenDBRequest,
+        deleteDatabase: vi.fn()
+      } as unknown as IDBFactory
+      setDraftsIndexedDBFactory(hanging)
+      const pending = getDraft('a')
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(vi.getTimerCount()).toBe(1)
+      resetDraftsDbForTesting()
+      await expect(pending).rejects.toBeInstanceOf(DraftsUnavailableError)
+      expect(vi.getTimerCount()).toBe(0)
+    })
+
     it('never calls deleteDatabase while working normally', async () => {
       const deleteDatabase = vi.spyOn(factory, 'deleteDatabase')
 

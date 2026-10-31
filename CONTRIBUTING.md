@@ -380,6 +380,13 @@ activities.next/
   in registration order, after every `afterEach` including that unmount, so they
   are a safe place for teardown that must happen after it, while
   `onTestFinished` callbacks still run in reverse.
+- **A jsdom test fails if it ends with a timer of 100 ms or more still armed**
+  (`LONG_TIMER_MS` in `test/setup/vitest.setup.ts`). The check runs after every
+  `afterEach`, including the unmount, and the error carries the stack that armed
+  the timer. Fix a hit at its source: a component timer gets cleared on unmount,
+  a timer a test started itself gets awaited or cleared. Do not raise the
+  threshold or exempt a file. Fake timers are not tracked, and neither is
+  `next/dynamic`'s own loading delay.
 - **Test files run on worker threads, except those that call `process.chdir()`
   or import `withTimeZone`.** `vitest.config.ts` defines two projects:
   `threads` (every test file, one fresh worker thread per file) and `forks`
@@ -721,6 +728,7 @@ docker stop test-postgres
 - **Real RSA key generation runs on the libuv pool every worker thread shares**: `test/setup/vitest.setup.ts` stubs `generateKeyPair` suite-wide; a test that needs real keys opts out by re-mocking `@/lib/utils/signature` in its own file with `importOriginal` and returning the actual `generateKeyPair` (as `actorFederationSigner.test.ts` does).
 - **A 1 s default `waitFor` around multi-step async work** gives up on a loaded runner: pass an explicit timeout that stops short of the 30 s test limit (`FitnessStatusDetail.routeMap.test.tsx`). Do not `await act(() => deferred)` on something only a later effect resolves: `act` doesn't flush those effects until its scope ends, so it deadlocks.
 - **Under fake timers, Testing Library's `waitFor`/`findBy` timeout is counted in fake time**, so off-thread work (cold lazy imports, real I/O) must be awaited in real time (`findInRealTime` in `lib/components/post-box/post-box.drafts.test.tsx`).
+- **`N timer(s) of ≥100ms still armed when the test ended` is the timer guard, which replaced the unnamed post-teardown `ReferenceError: window/document is not defined`.** Its stack names the line that armed the timer; clear the timer on unmount or await it.
 
 <a id="local-manual-browser-testing"></a>
 

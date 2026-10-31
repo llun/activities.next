@@ -367,4 +367,58 @@ describe('connection store', () => {
     expect(getConnectionSnapshot().state).toBe('offline')
     second()
   })
+
+  it('clears the scheduled probe when the last subscriber leaves', async () => {
+    vi.useFakeTimers()
+    mockHealth.mockResolvedValue(false)
+    const stop = subscribeConnection(() => {})
+
+    await probeNow()
+
+    expect(vi.getTimerCount()).toBe(1)
+    stop()
+    expect(vi.getTimerCount()).toBe(0)
+    expect(getConnectionSnapshot().nextProbeAt).toBeNull()
+  })
+
+  it('keeps the scheduled probe while a restored listener still observes', async () => {
+    vi.useFakeTimers()
+    mockHealth.mockResolvedValue(false)
+    const stop = subscribeConnection(() => {})
+    const stopRestored = onConnectionRestored(() => {})
+
+    await probeNow()
+
+    expect(vi.getTimerCount()).toBe(1)
+    stop()
+    expect(vi.getTimerCount()).toBe(1)
+    stopRestored()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('clears the abort timer of a probe in flight when the last subscriber leaves', async () => {
+    vi.useFakeTimers()
+    mockHealth.mockImplementation(hangUntilAborted)
+    const stop = subscribeConnection(() => {})
+    void probeNow()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(vi.getTimerCount()).toBe(1)
+    stop()
+    expect(vi.getTimerCount()).toBe(0)
+    await vi.advanceTimersByTimeAsync(0)
+    // An abandoned probe must not change state.
+    expect(getConnectionSnapshot()).toEqual(ONLINE_CONNECTION_SNAPSHOT)
+  })
+
+  it('clears the abort timer of a probe in flight on reset', async () => {
+    vi.useFakeTimers()
+    mockHealth.mockImplementation(hangUntilAborted)
+    void probeNow()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(vi.getTimerCount()).toBe(1)
+    resetConnectionForTesting()
+    expect(vi.getTimerCount()).toBe(0)
+  })
 })
