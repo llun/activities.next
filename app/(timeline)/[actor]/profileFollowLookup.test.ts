@@ -135,6 +135,21 @@ describe('profile follow lookup', () => {
     return profile
   }
 
+  // The remote-branch WebFinger check has no test server: before the outbound
+  // trap it failed over the real network and the branch carried on with the
+  // unconfirmed handle. Reject fetches at the boundary so the same failure
+  // happens without a connection.
+  beforeEach(() => {
+    fetchMock.resetMocks()
+    fetchMock.doMock()
+    fetchMock.mockReject(new Error('network down'))
+  })
+
+  afterEach(() => {
+    fetchMock.resetMocks()
+    fetchMock.dontMock()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     mockDatabase.getActorFromUsername.mockResolvedValue(profileActor)

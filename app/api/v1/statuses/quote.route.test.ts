@@ -163,22 +163,36 @@ describe('POST /api/v1/statuses', () => {
   })
 
   it('404s when the quoted status does not exist', async () => {
-    const response = await POST(
-      new NextRequest('https://llun.test/api/v1/statuses', {
-        method: 'POST',
-        body: JSON.stringify({
-          status: 'quoting nothing',
-          quoted_status_id: 'this-status-does-not-exist'
-        }),
-        headers: {
-          'Content-Type': 'application/json',
-          Origin: 'https://llun.test'
-        }
-      }),
-      { params: Promise.resolve({}) }
+    // The colon-form id resolves to https://this-status-does-not-exist/…,
+    // which has no DNS entry: before the outbound trap the on-demand quote
+    // fetch failed with ENOTFOUND and the route fell back to 404. Reject the
+    // fetch at the boundary so the same failure happens without a connection.
+    fetchMock.resetMocks()
+    fetchMock.doMock()
+    fetchMock.mockReject(
+      new Error('getaddrinfo ENOTFOUND this-status-does-not-exist')
     )
+    try {
+      const response = await POST(
+        new NextRequest('https://llun.test/api/v1/statuses', {
+          method: 'POST',
+          body: JSON.stringify({
+            status: 'quoting nothing',
+            quoted_status_id: 'this-status-does-not-exist'
+          }),
+          headers: {
+            'Content-Type': 'application/json',
+            Origin: 'https://llun.test'
+          }
+        }),
+        { params: Promise.resolve({}) }
+      )
 
-    expect(response.status).toBe(404)
+      expect(response.status).toBe(404)
+    } finally {
+      fetchMock.resetMocks()
+      fetchMock.dontMock()
+    }
   })
 
   it('fetches and quotes an unstored remote public status on demand', async () => {

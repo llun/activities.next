@@ -111,6 +111,18 @@ describe('GET /api/v2/search resolved remote statuses (real store-first helper)'
     mockRecordRemoteActorBestEffort.mockImplementation(({ actorId }) =>
       Promise.resolve({ id: actorId })
     )
+    // The remote actor here has no test server: before the outbound trap it
+    // failed to fetch over the real network and the resolve carried on without
+    // a recorded actor. Reject fetches at the boundary so the same failure
+    // happens without a connection.
+    fetchMock.resetMocks()
+    fetchMock.doMock()
+    fetchMock.mockReject(new Error('network down'))
+  })
+
+  afterEach(() => {
+    fetchMock.resetMocks()
+    fetchMock.dontMock()
   })
 
   it('stores a resolved remote note and returns the status with its stored id', async () => {

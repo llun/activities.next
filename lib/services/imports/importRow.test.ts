@@ -44,9 +44,18 @@ describe('importRow', () => {
     vi.mocked(resolveAccountTarget)
       .mockReset()
       .mockImplementation(resolveStoredAccount)
+    // The remote actors here have no test server: before the outbound trap
+    // they failed to fetch over the real network and the import carried on.
+    // Reject fetches at the boundary so the same failure happens without a
+    // connection.
+    fetchMock.resetMocks()
+    fetchMock.doMock()
+    fetchMock.mockReject(new Error('network down'))
   })
 
   afterEach(async () => {
+    fetchMock.resetMocks()
+    fetchMock.dontMock()
     await database.destroy()
   })
 

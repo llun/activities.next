@@ -659,6 +659,11 @@ ago`); if the component calls `Date.now()` internally instead, the
 - **Test behavior**, not implementation details
 - Aim for high coverage of business logic; don't skip edge cases, test error
   conditions, and mock external dependencies appropriately
+- **The suite blocks outbound network** (`test/setup/blockOutboundNetwork.ts`
+  patches `net.Socket.prototype.connect`): any connection to a host other
+  than loopback, a unix socket or `TEST_DATABASE_HOST` throws and fails the
+  test even if the error is caught — stub the call with `fetchMock` (fetch
+  stays real by default) or `vi.mock`
 
 ### Running PostgreSQL database integration tests
 

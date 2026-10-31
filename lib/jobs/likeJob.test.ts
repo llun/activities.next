@@ -7,6 +7,21 @@ import { DatabaseSeed } from '@/lib/stub/scenarios/database'
 const REMOTE_ACTOR = 'https://remote.test/users/liker'
 const OTHER_ACTOR = 'https://other.test/users/mallory'
 
+// The remote actors here have no test server: before the outbound trap they
+// failed to fetch over the real network and the job carried on without a
+// recorded actor. Reject fetches at the boundary so the same failure happens
+// without a connection.
+beforeEach(() => {
+  fetchMock.resetMocks()
+  fetchMock.doMock()
+  fetchMock.mockReject(new Error('network down'))
+})
+
+afterEach(() => {
+  fetchMock.resetMocks()
+  fetchMock.dontMock()
+})
+
 describe('likeJob', () => {
   const { statuses } = DatabaseSeed
   const { database, prepare } = createTestDatabase()

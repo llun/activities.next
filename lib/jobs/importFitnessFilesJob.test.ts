@@ -1,3 +1,5 @@
+import sharp from 'sharp'
+
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import {
   importFitnessFiles,
@@ -20,6 +22,7 @@ import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { Actor } from '@/lib/types/domain/actor'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getPublicIdTimestamp, isPublicId } from '@/lib/utils/publicId'
+import { TILE_SIZE } from '@/lib/utils/webMercator'
 
 import { createImportFileHelpers } from './importFitnessFilesJob.testUtils'
 
@@ -56,6 +59,21 @@ const mockDeleteMediaFile = deleteMediaFile as jest.MockedFunction<
   typeof deleteMediaFile
 >
 
+// The map renderer fetches live OSM tiles; the outbound trap forbids that.
+// Serve a plain PNG tile so rendering composites the same way it did with the
+// real tiles. The same solid tile the job itself paints for out-of-range rows.
+const tilePng = async () =>
+  sharp({
+    create: {
+      width: TILE_SIZE,
+      height: TILE_SIZE,
+      channels: 4,
+      background: '#e5e7eb'
+    }
+  })
+    .png()
+    .toBuffer()
+
 describe('importFitnessFilesJob', () => {
   const { database, db, prepare } = createTestDatabase()
   let actor: Actor
@@ -81,6 +99,20 @@ describe('importFitnessFilesJob', () => {
       Buffer.from('fitness-file-bytes')
     )
     mockDeleteMediaFile.mockResolvedValue(true)
+
+    fetchMock.resetMocks()
+    fetchMock.doMock()
+    fetchMock.mockResponse(async (req) => {
+      if (req.url.startsWith('https://tile.openstreetmap.org/')) {
+        return new Response(await tilePng(), { status: 200 })
+      }
+      return Promise.reject(new Error(`Unexpected fetch in test: ${req.url}`))
+    })
+  })
+
+  afterEach(() => {
+    fetchMock.resetMocks()
+    fetchMock.dontMock()
   })
 
   const { createFitnessFile, routedActivity } = createImportFileHelpers(
