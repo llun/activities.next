@@ -1,0 +1,23 @@
+.github/workflows/ci-rerun.test.ts
+  s_f6091a1907b015::t_e5ef79b907cfea 292-307
+CONTRIBUTING.md
+  s_f6091a1907b015::t_4dbed6803bf61a 706
+lib/services/auth/credentialIdentity.test.ts
+  s_f6091a1907b015::t_53c9dcc2300bb0 57-61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8565c2c7278d0b22a7a370c80e8d9b281c20b544",
+  "prompts": {},
+  "sessions": {
+    "s_f6091a1907b015": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4002b74e-ccf2-4b38-b4b6-ddb1cc097d99",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
