@@ -289,6 +289,22 @@ describe('ci re-run classification', () => {
     expect(result.reason).toContain('222')
   })
 
+  it('decide: a leading space in NEWEST_RUN_IDS leaves an ignorable empty token', () => {
+    const ids = ' 111 222'.split(/\s+/)
+    expect(ids[0]).toBe('')
+    const newest = newestRunId(ids)
+    expect(newest).toBe('222')
+
+    const jobs = [
+      job({
+        name: 'Build',
+        steps: [{ name: 'Set up job', conclusion: 'failure' }]
+      })
+    ]
+    expect(decide(jobs, '222', newest).rerun).toBe(true)
+    expect(decide(jobs, '111', newest).rerun).toBe(false)
+  })
+
   it('decide: delegates to classifyRun when the ids match as number vs string', () => {
     const result = decide(
       [

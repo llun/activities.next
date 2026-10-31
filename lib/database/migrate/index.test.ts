@@ -863,9 +863,6 @@ describe('lib/database/migrate', () => {
     it.runIf(backend === 'sqlite')(
       'keeps the lock a killed run left until it is unlocked',
       async () => {
-        // A killed process leaves its lock on the file it ran against, so
-        // this one keeps the file-backed database.
-        await openSqliteFileDatabase()
         expect(await unlockMigrations(target)).toBe('not-held')
         expect(await getMigrationLockState(target)).toBe('free')
         await migrateToLatest(target)
