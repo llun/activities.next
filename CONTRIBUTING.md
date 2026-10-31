@@ -365,6 +365,14 @@ activities.next/
   both sides of the boundary: advance to `TIMEOUT - 1` and assert nothing
   happened, then by one more and assert it did. Restore with
   `vi.useRealTimers()` in `afterEach`.
+- **After-hooks run in definition order** (`vitest.config.ts` sets
+  `sequence.hooks: 'list'`), so `@testing-library/react`'s
+  `afterEach(cleanup)`, registered when a test file imports it, runs before
+  an `afterEach` the file defines later: the tree unmounts before the file's
+  teardown (IndexedDB, channel, globals). A file that needs something done
+  before the unmount does it inside the test. Hooks a setup file registers
+  run before the test file's, and a child suite's after-hooks still run
+  before its parent's.
 - **Test files run on worker threads, except those that call `process.chdir()`
   or import `withTimeZone`.** `vitest.config.ts` defines two projects:
   `threads` (every test file, one fresh worker thread per file) and `forks`
