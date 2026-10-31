@@ -83,6 +83,8 @@ import {
   createUnseenAboveStore
 } from './NewPostsPill'
 
+export const POLL_PAGE_LIMIT = 20
+
 export type CompatibleTimelineContext =
   | TimelineContext
   | {
@@ -254,6 +256,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     useState<boolean>(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [newerPostsCount, setNewerPostsCount] = useState<number>(0)
+  const [hasMoreNewerPosts, setHasMoreNewerPosts] = useState<boolean>(false)
   // Posts loaded above the reading spot that the reader has not scrolled to
   // yet. They count towards the "new posts" pill with the polled posts that
   // are not loaded at all.
@@ -968,29 +971,6 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
 
       const resetRevisionAtStart = scrollResetRevisionRef.current
       const previousFirstId = currentStatusesRef.current[0]?.id
-      let capturedAnchor: { statusId: string; offsetTop: number } | null = null
-      const shouldPreserve = isScrollingToTopRef.current
-        ? false
-        : (options?.preserveScroll ?? isCurrentlyScrolledDown())
-
-      if (shouldPreserve && typeof document !== 'undefined') {
-        const elements =
-          document.querySelectorAll<HTMLElement>('[data-status-id]')
-        for (let i = 0; i < elements.length; i++) {
-          const el = elements[i]
-          const rect = el.getBoundingClientRect()
-          if (rect.bottom > VIEW_TOP_EDGE) {
-            const statusId = el.getAttribute('data-status-id')
-            if (statusId) {
-              capturedAnchor = {
-                statusId,
-                offsetTop: Math.round(rect.top)
-              }
-            }
-            break
-          }
-        }
-      }
 
       try {
         const result = await getTimeline({
@@ -999,7 +979,31 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
 
         const resetWasTriggered =
           scrollResetRevisionRef.current !== resetRevisionAtStart
+        const shouldPreserve = isScrollingToTopRef.current
+          ? false
+          : (options?.preserveScroll ?? isCurrentlyScrolledDown())
         const effectivePreserve = shouldPreserve && !resetWasTriggered
+
+        let capturedAnchor: { statusId: string; offsetTop: number } | null =
+          null
+        if (effectivePreserve && typeof document !== 'undefined') {
+          const elements =
+            document.querySelectorAll<HTMLElement>('[data-status-id]')
+          for (let i = 0; i < elements.length; i++) {
+            const el = elements[i]
+            const rect = el.getBoundingClientRect()
+            if (rect.bottom > VIEW_TOP_EDGE) {
+              const statusId = el.getAttribute('data-status-id')
+              if (statusId) {
+                capturedAnchor = {
+                  statusId,
+                  offsetTop: Math.round(rect.top)
+                }
+              }
+              break
+            }
+          }
+        }
 
         const merged = mergeFreshPageIntoSegments({
           currentSegments: segmentsRef.current,
@@ -1069,6 +1073,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
 
         setLastRefreshedAt(now)
         setNewerPostsCount(0)
+        setHasMoreNewerPosts(false)
         lastFailedFetchRef.current = null
 
         if (willPreserveAnchor && capturedAnchor) {
@@ -1092,18 +1097,6 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
             window.scrollY <= VIEW_TOP_EDGE
           ) {
             setIsScrolledDown(false)
-          }
-          if (
-            !effectivePreserve &&
-            !resetWasTriggered &&
-            !isScrollingToTopRef.current &&
-            typeof window !== 'undefined' &&
-            window.scrollY > 0
-          ) {
-            window.scrollTo({
-              top: 0,
-              behavior: 'instant' as ScrollBehavior
-            })
           }
         }
 
@@ -1258,6 +1251,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
 
   const handleCleanTopSnapshot = useCallback(async () => {
     setNewerPostsCount(0)
+    setHasMoreNewerPosts(false)
     clearScrollAnchorAndJumpToTop()
     await refreshTimeline({ preserveScroll: false })
   }, [clearScrollAnchorAndJumpToTop, refreshTimeline])
@@ -1286,10 +1280,10 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
 
   useEffect(() => {
     if (refreshOnMount) {
-      const shouldPreserveOnMount =
-        currentScrollAnchorRef.current !== null ||
-        (typeof window !== 'undefined' && window.scrollY > VIEW_TOP_EDGE)
-      void refreshTimeline({ preserveScroll: shouldPreserveOnMount })
+      void refreshTimeline({
+        preserveScroll:
+          currentScrollAnchorRef.current !== null ? true : undefined
+      })
     }
   }, [refreshOnMount, refreshTimeline])
 
@@ -1318,7 +1312,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
           timeline: Timeline.MAIN,
           minStatusId: topStatus.id,
           prevMinStatusId: topStatus.id,
-          limit: 5
+          limit: POLL_PAGE_LIMIT
         })
         if (result.statuses && result.statuses.length > 0) {
           const currentIds = new Set(
@@ -1329,6 +1323,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
           ).length
           if (freshNewCount > 0) {
             setNewerPostsCount(freshNewCount)
+            setHasMoreNewerPosts(result.statuses.length >= POLL_PAGE_LIMIT)
           }
         }
       } catch (_error) {
@@ -1408,6 +1403,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
             <NewPostsPill
               store={unseenAbove}
               polledCount={newerPostsCount}
+              hasMorePolled={hasMoreNewerPosts}
               isScrolledDown={isScrolledDown}
               isRefreshing={isRefreshing}
               onJump={handleNewPostsPill}

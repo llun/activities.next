@@ -95,6 +95,8 @@ interface NewPostsPillProps {
   polledCount: number
   /** Whether the reader is scrolled down below the top of the feed. */
   isScrolledDown?: boolean
+  /** Whether the background poll reached its page limit for newer posts. */
+  hasMorePolled?: boolean
   /** Whether a background timeline refresh is currently in flight. */
   isRefreshing?: boolean
   onJump: () => void
@@ -110,6 +112,7 @@ export const NewPostsPill: FC<NewPostsPillProps> = ({
   store,
   polledCount,
   isScrolledDown = false,
+  hasMorePolled = false,
   isRefreshing = false,
   onJump
 }) => {
@@ -124,7 +127,9 @@ export const NewPostsPill: FC<NewPostsPillProps> = ({
         className="pointer-events-auto h-9 gap-2 bg-popover pl-3 pr-4 text-popover-foreground shadow-lg dark:bg-popover dark:hover:bg-accent animate-in fade-in-0 slide-in-from-top-1 duration-200"
       >
         <ArrowUp className="text-muted-foreground" aria-hidden="true" />
-        {total} new {total === 1 ? 'post' : 'posts'}
+        {total}
+        {hasMorePolled ? '+' : ''} new{' '}
+        {total === 1 && !hasMorePolled ? 'post' : 'posts'}
       </Button>
     )
   }
