@@ -188,7 +188,12 @@ describe('FitnessStatusDetail', () => {
       // The map is interactive from the start: no section to switch to and
       // no Play button to press.
       renderDetail()
-      await waitFor(() => expect(MapConstructor).toHaveBeenCalled())
+      // Building the map takes several render and fetch cycles. The default 1s
+      // waitFor is too short on a loaded runner; this stops short of the 30s test
+      // limit so a map that is never built still fails on this assertion.
+      await waitFor(() => expect(MapConstructor).toHaveBeenCalled(), {
+        timeout: 20_000
+      })
       await act(async () => {})
 
       return { map, canvas, handlers, layers }

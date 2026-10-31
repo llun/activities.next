@@ -61,6 +61,26 @@ import { DRAFT_SAVE_DEBOUNCE_MS } from './useComposerDraft'
 // The file fakes setTimeout in beforeEach; this one stays real.
 const realSetTimeout = globalThis.setTimeout
 
+// Wait for text in real time while the fake clock stands still. findByText's
+// budget is counted on the fake clock, so it can run out in well under a real
+// second on a loaded machine.
+const findInRealTime = async (text: string, timeout = 10_000) => {
+  const deadline = performance.now() + timeout
+  for (;;) {
+    const el = screen.queryByText(text)
+    if (el) return el
+    if (performance.now() > deadline) return screen.getByText(text)
+    await act(() => new Promise<void>((r) => realSetTimeout(r, 20)))
+  }
+}
+
+// PostBox shows the drafts note through next/dynamic. Importing the real
+// module once up front means a cold, loaded machine cannot make the first
+// "Saved to Drafts" assertion time out while it is still being fetched.
+beforeAll(async () => {
+  await import('@/lib/components/drafts/SavedToDraftsNote')
+})
+
 vi.mock('@/lib/client', () => ({
   createNote: vi.fn(),
   // The unguarded deletes: the composer must never call them.
@@ -184,7 +204,9 @@ const settleEmptyingSave = async (): Promise<void> => {
   })
 }
 
-// Real IndexedDB plus a loaded machine: the 1 s default is too tight.
+// Under this file's fake timers this budget is counted in fake time (each
+// poll advances the fake clock, roughly one event-loop turn per tick), so it
+// does not buy real seconds on a loaded machine.
 configure({ asyncUtilTimeout: 4000 })
 
 describe('PostBox on-device drafts', () => {
@@ -374,7 +396,7 @@ describe('PostBox on-device drafts', () => {
     rerender(composer({ editStatus: post }))
     send.reject(new Error('offline'))
 
-    expect(await screen.findByText('Saved to Drafts')).toBeVisible()
+    expect(await findInRealTime('Saved to Drafts')).toBeVisible()
     expect((await storedDrafts())[0]).toMatchObject({
       text: 'My take on it',
       quoteOf: expect.objectContaining({
@@ -414,7 +436,7 @@ describe('PostBox on-device drafts', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Update' }))
 
-    expect(await screen.findByText('Saved to Drafts')).toBeVisible()
+    expect(await findInRealTime('Saved to Drafts')).toBeVisible()
     expect(updateNote).not.toHaveBeenCalled()
   })
 
@@ -644,7 +666,7 @@ describe('PostBox on-device drafts', () => {
       rerender(composer({ replyStatus: replyTo('second') }))
       send.reject(new Error('offline'))
 
-      expect(await screen.findByText('Saved to Drafts')).toBeVisible()
+      expect(await findInRealTime('Saved to Drafts')).toBeVisible()
       await waitFor(() => expect(textarea().value).not.toContain('my reply'))
       const [draft] = await storedDrafts()
       expect(draft).toMatchObject({
@@ -727,7 +749,7 @@ describe('PostBox on-device drafts', () => {
       })
       // Changed again while that draft is being kept.
       rerender(composer({ replyStatus: replyTo('third') }))
-      expect(await screen.findByText('Saved to Drafts')).toBeVisible()
+      expect(await findInRealTime('Saved to Drafts')).toBeVisible()
       await waitFor(() => expect(textarea().value).not.toContain('my reply'))
 
       // The next send under the third target fails: it stays as it is.

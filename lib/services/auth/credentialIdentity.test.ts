@@ -54,20 +54,11 @@ vi.mock('@/lib/services/serverSettings', () => {
   }
 })
 
-// Registration generates a 4096-bit RSA key and hashes at cost 10 on the
-// libuv threadpool every worker thread shares; neither is what these tests
-// check. A fixed key and a cost-4 hash (compare reads the cost from the
-// hash) keep the first test inside its budget on a loaded runner.
-vi.mock('@/lib/utils/signature', async (importOriginal) => {
-  const { MOCK_PUBLIC_KEY, MOCK_PRIVATE_KEY } = await import('@/lib/stub/actor')
-  return {
-    ...(await importOriginal<typeof import('@/lib/utils/signature')>()),
-    generateKeyPair: async () => ({
-      publicKey: MOCK_PUBLIC_KEY,
-      privateKey: MOCK_PRIVATE_KEY
-    })
-  }
-})
+// Registration hashes at cost 10 on the libuv threadpool every worker thread
+// shares; that is not what these tests check, and a cost-4 hash (compare
+// reads the cost from the hash) keeps the first test inside its budget on a
+// loaded runner. The key comes from the suite-wide generateKeyPair stub in
+// test/setup/vitest.setup.ts.
 vi.mock('@/lib/services/auth/passwordHash', async (importOriginal) => {
   const actual =
     await importOriginal<typeof import('@/lib/services/auth/passwordHash')>()

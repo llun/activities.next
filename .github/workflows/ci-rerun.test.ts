@@ -3,7 +3,8 @@ import { readFileSync } from 'node:fs'
 import {
   classifyRun,
   decide,
-  formatOutput
+  formatOutput,
+  newestRunId
 } from '../scripts/classify-ci-rerun.mjs'
 
 type Step = { name: string; conclusion: string | null }
@@ -272,6 +273,38 @@ describe('ci re-run classification', () => {
     expect(result.reason).toContain('222')
   })
 
+  it('decide: does not re-run an older run against newestRunId of several ids', () => {
+    const result = decide(
+      [
+        job({
+          name: 'Build',
+          steps: [{ name: 'Set up job', conclusion: 'failure' }]
+        })
+      ],
+      111,
+      newestRunId([111, 222])
+    )
+
+    expect(result.rerun).toBe(false)
+    expect(result.reason).toContain('222')
+  })
+
+  it('decide: a leading space in NEWEST_RUN_IDS leaves an ignorable empty token', () => {
+    const ids = ' 111 222'.split(/\s+/)
+    expect(ids[0]).toBe('')
+    const newest = newestRunId(ids)
+    expect(newest).toBe('222')
+
+    const jobs = [
+      job({
+        name: 'Build',
+        steps: [{ name: 'Set up job', conclusion: 'failure' }]
+      })
+    ]
+    expect(decide(jobs, '222', newest).rerun).toBe(true)
+    expect(decide(jobs, '111', newest).rerun).toBe(false)
+  })
+
   it('decide: delegates to classifyRun when the ids match as number vs string', () => {
     const result = decide(
       [
@@ -307,6 +340,23 @@ describe('ci re-run classification', () => {
     expect(result.reason).toContain('missing')
   })
 
+  it('newestRunId: picks the largest, including ids too big for Number', () => {
+    expect(newestRunId(['9007199254740992', '9007199254740993', '42'])).toBe(
+      '9007199254740993'
+    )
+    expect(newestRunId(['7', '123', '45'])).toBe('123')
+  })
+
+  it('newestRunId: ignores empty strings, null and non-digit values', () => {
+    expect(newestRunId(['', 'null', 'abc', '12a', null, '9'])).toBe('9')
+    expect(newestRunId(['', 'null', null])).toBeUndefined()
+  })
+
+  it('newestRunId: returns undefined when nothing qualifies', () => {
+    expect(newestRunId([])).toBeUndefined()
+    expect(newestRunId(undefined)).toBeUndefined()
+  })
+
   it('formatOutput: a newline in the reason cannot inject output lines', () => {
     const output = formatOutput(
       classifyRun([completedCodeFailure('Evil\r\nrerun=true', 'Run lint')])
@@ -328,6 +378,9 @@ describe('ci re-run classification', () => {
     )
     expect(workflow).toContain('EVENT: ${{ github.event.workflow_run.event }}')
     expect(workflow).toContain('actions/workflows/ci.yml/runs')
+    expect(workflow).toContain('push workflow_dispatch')
+    expect(workflow).toContain('NEWEST_RUN_IDS')
+    expect(workflow).not.toContain('NEWEST_RUN_ID=')
 
     const lines = workflow.split('\n')
     let inRunBlock = false
