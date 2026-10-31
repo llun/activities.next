@@ -12,12 +12,17 @@ import {
 } from '@testing-library/react'
 
 import { type GetTimelineResult, getTimeline } from '@/lib/client'
-import { clearAllOfflineData } from '@/lib/client/offline'
+import { clearAllOfflineData, getOfflineTimeline } from '@/lib/client/offline'
 import { Timeline } from '@/lib/services/timelines/types'
 import { createDeferred } from '@/lib/testing/deferred'
 import { Attachment } from '@/lib/types/domain/attachment'
 
-import { MainPageTimeline, POLL_PAGE_LIMIT } from './MainPageTimeline'
+import {
+  MainPageTimeline,
+  POLL_PAGE_LIMIT,
+  SCROLL_REST_MAX_MS,
+  SCROLL_REST_MS
+} from './MainPageTimeline'
 import {
   FIXED_CURRENT_TIME,
   createAnnounceStatus,
@@ -778,8 +783,7 @@ describe('MainPageTimeline', () => {
               nextMaxStatusId: 'cursor-after-top',
               prevMinStatusId: null
             })
-            await Promise.resolve()
-            await Promise.resolve()
+            await vi.advanceTimersByTimeAsync(120)
           })
 
           // window.scrollTo is NOT called with instant top 0
@@ -910,8 +914,7 @@ describe('MainPageTimeline', () => {
 
           await act(async () => {
             fireEvent.click(retryButton)
-            await Promise.resolve()
-            await Promise.resolve()
+            await vi.advanceTimersByTimeAsync(120)
           })
 
           // Reader keeps their spot with the posts counted
@@ -1442,7 +1445,7 @@ describe('MainPageTimeline', () => {
       ).not.toBeInTheDocument()
     })
 
-    it('does not scroll down or show unseen pill when preserveScroll refresh at the top of the timeline prepends new posts', async () => {
+    it('holds reconnect refresh posts when the reader is at the top', async () => {
       const post1 = createStatus('https://activities.local/users/llun/s/1')
       const newA = createStatus('https://activities.local/users/llun/s/new-a')
       rowTops = { [post1.id]: 310 }
@@ -1467,11 +1470,11 @@ describe('MainPageTimeline', () => {
       await simulateOffline()
       await simulateBackOnline()
 
-      expect(screen.getByTestId(`post-${newA.id}`)).toBeInTheDocument()
+      expect(screen.queryByTestId(`post-${newA.id}`)).not.toBeInTheDocument()
       expect(scrollByMock).not.toHaveBeenCalled()
       expect(
-        screen.queryByRole('button', { name: /new post|Back to top/ })
-      ).not.toBeInTheDocument()
+        await screen.findByRole('button', { name: '1 new post' })
+      ).toBeInTheDocument()
     })
 
     it('does not correct scroll when a post is published during a top-of-feed reconnect refresh', async () => {
@@ -1515,7 +1518,12 @@ describe('MainPageTimeline', () => {
         await Promise.resolve()
       })
 
-      expect(screen.getByTestId(`post-${newerPost.id}`)).toBeInTheDocument()
+      expect(
+        screen.queryByTestId(`post-${newerPost.id}`)
+      ).not.toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: '1 new post' })
+      ).toBeInTheDocument()
       expect(scrollByMock).not.toHaveBeenCalled()
       expect(scrollToMock).not.toHaveBeenCalled()
     })
@@ -1582,7 +1590,7 @@ describe('MainPageTimeline', () => {
       }
     })
 
-    it('lands posts directly with no pill when reader stays at top during mount refresh with no saved anchor', async () => {
+    it('holds mount refresh posts at the top until the reader taps the pill', async () => {
       const post1 = createStatus('https://activities.local/users/llun/s/1')
       const newPost = createStatus('https://activities.local/users/llun/s/new')
 
@@ -1614,15 +1622,399 @@ describe('MainPageTimeline', () => {
       })
 
       expect(
+        await screen.findByRole('button', { name: '1 new post' })
+      ).toBeInTheDocument()
+      expect(screen.queryByTestId(`post-${newPost.id}`)).not.toBeInTheDocument()
+      expect(getTimeline).toHaveBeenCalledTimes(1)
+      expect(scrollToMock).not.toHaveBeenCalled()
+      expect(scrollByMock).not.toHaveBeenCalled()
+      const cached = await getOfflineTimeline({
+        actorId: profile.id,
+        timeline: 'home'
+      })
+      expect(
+        (cached?.statuses ?? []).some((status) => status.id === newPost.id)
+      ).toBe(false)
+
+      fireEvent.click(screen.getByRole('button', { name: '1 new post' }))
+      expect(
         await screen.findByTestId(`post-${newPost.id}`)
       ).toBeInTheDocument()
+      expect(getTimeline).toHaveBeenCalledTimes(1)
+    })
+
+    it('renders automatic refresh posts directly when the feed is empty', async () => {
+      const newPost = createStatus(
+        'https://activities.local/users/llun/s/empty'
+      )
+      vi.mocked(getTimeline).mockResolvedValueOnce({
+        statuses: [newPost],
+        nextMaxStatusId: null,
+        prevMinStatusId: newPost.id
+      })
+
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[]}
+          refreshOnMount
+        />
+      )
 
       expect(
-        screen.queryByRole('button', { name: /new post|Back to top/ })
+        await screen.findByTestId(`post-${newPost.id}`)
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /new post/ })
       ).not.toBeInTheDocument()
     })
 
+    it('does not show the pill when an automatic refresh finds no newer posts', async () => {
+      const post = createStatus('https://activities.local/users/llun/s/same')
+      vi.mocked(getTimeline).mockResolvedValueOnce({
+        statuses: [post],
+        nextMaxStatusId: null,
+        prevMinStatusId: post.id
+      })
+
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[post]}
+          refreshOnMount
+        />
+      )
+
+      await waitFor(() => expect(getTimeline).toHaveBeenCalledTimes(1))
+      expect(
+        screen.queryByRole('button', { name: /new post/ })
+      ).not.toBeInTheDocument()
+    })
+
+    it('lets header refresh apply and clear a held page', async () => {
+      const current = createStatus(
+        'https://activities.local/users/llun/s/current'
+      )
+      const held = createStatus('https://activities.local/users/llun/s/held')
+      vi.mocked(getTimeline)
+        .mockResolvedValueOnce({
+          statuses: [held, current],
+          nextMaxStatusId: null,
+          prevMinStatusId: held.id
+        })
+        .mockResolvedValueOnce({
+          statuses: [held, current],
+          nextMaxStatusId: null,
+          prevMinStatusId: held.id
+        })
+
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[current]}
+          refreshOnMount
+        />
+      )
+
+      expect(
+        await screen.findByRole('button', { name: '1 new post' })
+      ).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'Refresh timeline' }))
+      expect(await screen.findByTestId(`post-${held.id}`)).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /new post/ })
+      ).not.toBeInTheDocument()
+      expect(getTimeline).toHaveBeenCalledTimes(2)
+    })
+
+    it('holds an unconnected page with a gap marker shown as 20+ new posts', async () => {
+      const current = createStatus(
+        'https://activities.local/users/llun/s/current'
+      )
+      const incoming = Array.from({ length: 20 }, (_, index) =>
+        createStatus(
+          `https://activities.local/users/llun/s/no-overlap-${index}`
+        )
+      )
+      vi.mocked(getTimeline).mockResolvedValueOnce({
+        statuses: incoming,
+        nextMaxStatusId: 'gap-cursor',
+        prevMinStatusId: incoming[0].id
+      })
+
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[current]}
+          refreshOnMount
+        />
+      )
+
+      const pill = await screen.findByRole('button', { name: '20+ new posts' })
+      expect(
+        screen.queryByTestId(`post-${incoming[0].id}`)
+      ).not.toBeInTheDocument()
+      fireEvent.click(pill)
+      expect(
+        await screen.findByTestId(`post-${incoming[0].id}`)
+      ).toBeInTheDocument()
+      expect(
+        screen.getByTestId(`gap-after-${incoming.at(-1)?.id}`)
+      ).toBeInTheDocument()
+    })
+
+    it('discards a held page when the actor changes', async () => {
+      const current = createStatus(
+        'https://activities.local/users/llun/s/current'
+      )
+      const held = createStatus('https://activities.local/users/llun/s/held')
+      vi.mocked(getTimeline).mockResolvedValueOnce({
+        statuses: [held, current],
+        nextMaxStatusId: null,
+        prevMinStatusId: held.id
+      })
+      const { rerender } = render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[current]}
+          refreshOnMount
+        />
+      )
+      await waitFor(() => expect(getTimeline).toHaveBeenCalledTimes(1))
+      expect(
+        await screen.findByRole('button', { name: '1 new post' })
+      ).toBeInTheDocument()
+      rerender(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={{ ...profile, id: 'https://activities.local/users/other' }}
+          isMediaUploadEnabled={false}
+          statuses={[current]}
+          refreshOnMount
+        />
+      )
+      await waitFor(() =>
+        expect(
+          screen.queryByRole('button', { name: /new post/ })
+        ).not.toBeInTheDocument()
+      )
+      expect(screen.queryByTestId(`post-${held.id}`)).not.toBeInTheDocument()
+    })
+
+    it('applies a held page after an interrupted jump settles, without fetching again', async () => {
+      const current = createStatus(
+        'https://activities.local/users/llun/s/current'
+      )
+      const held = createStatus('https://activities.local/users/llun/s/held')
+      const originalScrollY = window.scrollY
+      vi.useFakeTimers()
+      try {
+        vi.mocked(getTimeline).mockResolvedValueOnce({
+          statuses: [held, current],
+          nextMaxStatusId: null,
+          prevMinStatusId: held.id
+        })
+        render(
+          <MainPageTimeline
+            host="activities.local"
+            currentTime={FIXED_CURRENT_TIME}
+            profile={profile}
+            isMediaUploadEnabled={false}
+            statuses={[current]}
+            refreshOnMount
+          />
+        )
+        const pill = await screen.findByRole('button', { name: '1 new post' })
+        Object.defineProperty(window, 'scrollY', {
+          value: 400,
+          configurable: true,
+          writable: true
+        })
+        rowTops[held.id] = -100
+        rowTops[current.id] = 20
+        fireEvent.click(pill)
+        Object.defineProperty(window, 'scrollY', {
+          value: 500,
+          configurable: true,
+          writable: true
+        })
+        fireEvent.scroll(window)
+        await act(async () => vi.advanceTimersByTimeAsync(SCROLL_REST_MS))
+        expect(await screen.findByTestId(`post-${held.id}`)).toBeInTheDocument()
+        expect(getTimeline).toHaveBeenCalledTimes(1)
+        expect(
+          screen.getByRole('button', { name: '1 new post' })
+        ).toBeInTheDocument()
+      } finally {
+        Object.defineProperty(window, 'scrollY', {
+          value: originalScrollY,
+          configurable: true,
+          writable: true
+        })
+        vi.useRealTimers()
+      }
+    })
+
+    it('polls from a staged page baseline, avoids double counting, then applies and refreshes', async () => {
+      vi.useFakeTimers()
+      try {
+        const current = createStatus(
+          'https://activities.local/users/llun/s/current'
+        )
+        const stagedOne = createStatus(
+          'https://activities.local/users/llun/s/staged-one'
+        )
+        const stagedTwo = createStatus(
+          'https://activities.local/users/llun/s/staged-two'
+        )
+        const polled = createStatus(
+          'https://activities.local/users/llun/s/polled'
+        )
+        vi.mocked(getTimeline)
+          .mockResolvedValueOnce({
+            statuses: [stagedOne, stagedTwo, current],
+            nextMaxStatusId: null,
+            prevMinStatusId: stagedOne.id
+          })
+          .mockResolvedValueOnce({
+            statuses: [stagedOne, polled],
+            nextMaxStatusId: null,
+            prevMinStatusId: stagedOne.id
+          })
+          .mockResolvedValueOnce({
+            statuses: [polled, stagedOne, stagedTwo, current],
+            nextMaxStatusId: null,
+            prevMinStatusId: polled.id
+          })
+        render(
+          <MainPageTimeline
+            host="activities.local"
+            currentTime={FIXED_CURRENT_TIME}
+            profile={profile}
+            isMediaUploadEnabled={false}
+            statuses={[current]}
+            refreshOnMount
+          />
+        )
+        await screen.findByRole('button', { name: '2 new posts' })
+        await act(async () => vi.advanceTimersByTimeAsync(15_000))
+        expect(getTimeline).toHaveBeenLastCalledWith(
+          expect.objectContaining({ minStatusId: stagedOne.id })
+        )
+        expect(
+          await screen.findByRole('button', { name: '3 new posts' })
+        ).toBeInTheDocument()
+        fireEvent.click(screen.getByRole('button', { name: '3 new posts' }))
+        expect(
+          await screen.findByTestId(`post-${polled.id}`)
+        ).toBeInTheDocument()
+        expect(getTimeline).toHaveBeenCalledTimes(3)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('applies held posts before prepending a locally published post', async () => {
+      const current = createStatus(
+        'https://activities.local/users/llun/s/current'
+      )
+      const held = createStatus('https://activities.local/users/llun/s/held')
+      const published = createStatus(
+        'https://activities.local/users/llun/s/published'
+      )
+      vi.mocked(getTimeline).mockResolvedValueOnce({
+        statuses: [held, current],
+        nextMaxStatusId: null,
+        prevMinStatusId: held.id
+      })
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[current]}
+          refreshOnMount
+        />
+      )
+      await screen.findByRole('button', { name: '1 new post' })
+      fireEvent.click(screen.getByTestId('trigger-post-created'))
+      expect(
+        await screen.findByTestId(`post-${published.id}`)
+      ).toBeInTheDocument()
+      const posts = screen.getAllByTestId(/^post-https:/)
+      expect(posts[0]).toHaveAttribute('data-testid', `post-${published.id}`)
+      expect(screen.getByTestId(`post-${held.id}`)).toBeInTheDocument()
+    })
+
+    it('applies a scrolled refresh after scrolling continues until the two second cap', async () => {
+      vi.useFakeTimers()
+      const originalScrollY = window.scrollY
+      try {
+        const current = createStatus(
+          'https://activities.local/users/llun/s/current'
+        )
+        const newer = createStatus(
+          'https://activities.local/users/llun/s/newer'
+        )
+        const deferred = createDeferred<GetTimelineResult>()
+        vi.mocked(getTimeline).mockReturnValueOnce(deferred.promise)
+        render(
+          <MainPageTimeline
+            host="activities.local"
+            currentTime={FIXED_CURRENT_TIME}
+            profile={profile}
+            isMediaUploadEnabled={false}
+            statuses={[current]}
+            refreshOnMount
+          />
+        )
+        Object.defineProperty(window, 'scrollY', {
+          value: 300,
+          configurable: true,
+          writable: true
+        })
+        fireEvent.scroll(window)
+        const keepScrolling = window.setInterval(
+          () => fireEvent.scroll(window),
+          100
+        )
+        deferred.resolve({
+          statuses: [newer, current],
+          nextMaxStatusId: null,
+          prevMinStatusId: newer.id
+        })
+        await act(async () => vi.advanceTimersByTimeAsync(SCROLL_REST_MAX_MS))
+        expect(screen.getByTestId(`post-${newer.id}`)).toBeInTheDocument()
+        window.clearInterval(keepScrolling)
+      } finally {
+        Object.defineProperty(window, 'scrollY', {
+          value: originalScrollY,
+          configurable: true,
+          writable: true
+        })
+        vi.useRealTimers()
+      }
+    })
+
     it('uses the post on screen at response time for scroll correction when reader scrolls to a different post during preserveScroll refresh', async () => {
+      vi.useFakeTimers()
       const post1 = createStatus('https://activities.local/users/llun/s/1')
       const post2 = createStatus('https://activities.local/users/llun/s/2')
       const post3 = createStatus('https://activities.local/users/llun/s/3')
@@ -1691,12 +2083,24 @@ describe('MainPageTimeline', () => {
           prevMinStatusId: newPost.id
         })
         await Promise.resolve()
+        window.dispatchEvent(new Event('scroll'))
+        expect(
+          screen.queryByTestId(`post-${newPost.id}`)
+        ).not.toBeInTheDocument()
+        const scrolling = window.setInterval(
+          () => window.dispatchEvent(new Event('scroll')),
+          50
+        )
+        await vi.advanceTimersByTimeAsync(200)
+        window.clearInterval(scrolling)
+        await vi.advanceTimersByTimeAsync(SCROLL_REST_MS)
       })
 
       expect(scrollByMock).toHaveBeenCalledWith({
         top: 270,
         behavior: 'instant'
       })
+      vi.useRealTimers()
     })
   })
 
