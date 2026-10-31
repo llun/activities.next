@@ -970,12 +970,13 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
       }
 
       const resetRevisionAtStart = scrollResetRevisionRef.current
-      const previousFirstId = currentStatusesRef.current[0]?.id
 
       try {
         const result = await getTimeline({
           timeline: Timeline.MAIN
         })
+
+        const previousFirstId = currentStatusesRef.current[0]?.id
 
         const resetWasTriggered =
           scrollResetRevisionRef.current !== resetRevisionAtStart

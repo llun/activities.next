@@ -61,7 +61,21 @@ vi.mock('@/lib/components/page-header', async () => ({
 }))
 
 vi.mock('@/lib/components/post-box/post-box', () => ({
-  PostBox: () => null
+  PostBox: ({
+    onPostCreated
+  }: {
+    onPostCreated?: (status: unknown) => void
+  }) => (
+    <button
+      type="button"
+      data-testid="trigger-post-created"
+      onClick={() =>
+        onPostCreated?.(
+          createStatus('https://activities.local/users/llun/s/published')
+        )
+      }
+    />
+  )
 }))
 
 vi.mock('@/lib/components/scroll-to-top-button', () => ({
@@ -1458,6 +1472,52 @@ describe('MainPageTimeline', () => {
       expect(
         screen.queryByRole('button', { name: /new post|Back to top/ })
       ).not.toBeInTheDocument()
+    })
+
+    it('does not correct scroll when a post is published during a top-of-feed reconnect refresh', async () => {
+      const post1 = createStatus('https://activities.local/users/llun/s/1')
+      const publishedPost = createStatus(
+        'https://activities.local/users/llun/s/published'
+      )
+      const newerPost = createStatus(
+        'https://activities.local/users/llun/s/newer'
+      )
+      rowTops = { [post1.id]: 120 }
+
+      const deferred = createDeferred<GetTimelineResult>()
+      vi.mocked(getTimeline).mockReturnValueOnce(deferred.promise)
+
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[post1]}
+        />
+      )
+
+      await simulateOffline()
+      await simulateBackOnline()
+      expect(getTimeline).toHaveBeenCalledTimes(1)
+
+      // A locally published post becomes the current first post while the
+      // reconnect request is still pending.
+      rowTops = { [publishedPost.id]: 120, [post1.id]: 370 }
+      fireEvent.click(screen.getByTestId('trigger-post-created'))
+
+      await act(async () => {
+        deferred.resolve({
+          statuses: [newerPost, publishedPost, post1],
+          nextMaxStatusId: null,
+          prevMinStatusId: newerPost.id
+        })
+        await Promise.resolve()
+      })
+
+      expect(screen.getByTestId(`post-${newerPost.id}`)).toBeInTheDocument()
+      expect(scrollByMock).not.toHaveBeenCalled()
+      expect(scrollToMock).not.toHaveBeenCalled()
     })
 
     it('does not scroll to top 0 and counts new posts in pill when reader scrolls past 80px during pending mount refresh with no saved anchor', async () => {
