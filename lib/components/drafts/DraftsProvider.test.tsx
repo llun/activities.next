@@ -189,7 +189,10 @@ describe('DraftsProvider', () => {
 
   describe('a purge pending from an earlier sign-out', () => {
     const KEY = 'activities-drafts-pending-purge'
-    afterEach(() => window.localStorage.clear())
+    afterEach(() => {
+      cleanup()
+      window.localStorage.clear()
+    })
 
     it('is finished before the epoch is read, and this account sees no drafts', async () => {
       await saveDraft(draft('a'), { expectedRevision: 0, epoch: 0 })

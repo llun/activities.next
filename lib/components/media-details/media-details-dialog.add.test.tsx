@@ -2,7 +2,13 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import {
+  cleanup,
+  fireEvent,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 
 import { updateMediaDetails } from '@/lib/client'
 
@@ -64,6 +70,7 @@ describe('MediaDetailsDialog adding to the gallery', () => {
   })
 
   afterEach(() => {
+    cleanup()
     global.ResizeObserver = originalResizeObserver
   })
 

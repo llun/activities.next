@@ -718,6 +718,7 @@ describe('AddActorDialog', () => {
 
   describe('with unsaved Edit profile changes', () => {
     afterEach(() => {
+      cleanup()
       setUnsavedProfileChanges(false)
       vi.restoreAllMocks()
     })

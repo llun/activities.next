@@ -3,6 +3,7 @@
  */
 import '@testing-library/jest-dom'
 import {
+  cleanup,
   fireEvent,
   render,
   screen,
@@ -80,6 +81,7 @@ describe('PostBox options menu', () => {
   })
 
   afterEach(() => {
+    cleanup()
     global.ResizeObserver = originalResizeObserver
   })
 

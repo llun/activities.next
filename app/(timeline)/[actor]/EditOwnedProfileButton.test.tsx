@@ -2,7 +2,13 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor
+} from '@testing-library/react'
 
 import { switchActor } from '@/lib/client'
 import { setActiveOfflineSession } from '@/lib/client/offline'
@@ -27,6 +33,7 @@ describe('EditOwnedProfileButton', () => {
   })
 
   afterEach(() => {
+    cleanup()
     Object.defineProperty(window, 'location', {
       configurable: true,
       value: originalLocation

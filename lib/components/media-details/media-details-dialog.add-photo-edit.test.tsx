@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 
 import type { MediaStorageSaveFileOutput } from '@/lib/services/medias/types'
@@ -90,6 +90,7 @@ describe('MediaDetailsDialog adding a photo edited in the photo editor', () => {
   })
 
   afterEach(() => {
+    cleanup()
     global.ResizeObserver = originalResizeObserver
   })
 

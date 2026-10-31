@@ -90,6 +90,7 @@ class FakeNavigation extends EventTarget {
 describe('useUnsavedChangesGuard', () => {
   describe('a confirmed discard in the profile switcher', () => {
     afterEach(() => {
+      cleanup()
       setUnsavedProfileChanges(false)
       vi.restoreAllMocks()
     })

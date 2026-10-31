@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 
 import {
   NewPostsPill,
@@ -31,6 +31,7 @@ describe('createUnseenAboveStore', () => {
   })
 
   afterEach(() => {
+    cleanup()
     HTMLElement.prototype.getBoundingClientRect = originalRect
     document.body.innerHTML = ''
   })

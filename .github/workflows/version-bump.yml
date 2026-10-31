@@ -305,6 +305,7 @@ jobs:
           # just the same. The two Actions reads use the workflow token: a
           # fine-grained PAT may lack Actions: read, and every real failure
           # would then wait out the budget.
+          rerun_expected_for=""
           rerun_lookup_failed() {
             cat "$CHECKS_ERROR" >&2
             echo "::warning::Could not read the CI re-run state for ${1}; still polling for required checks."
@@ -314,22 +315,28 @@ jobs:
             local jobs_file
             local run
             local run_attempt
+            local run_conclusion
             local run_id
             local run_status
             local verdict
 
             run=$(GH_TOKEN="$ACTIONS_READ_TOKEN" gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?head_sha=${sha}&event=pull_request&per_page=1" \
-              --jq '.workflow_runs[0] // empty | [.id, .status, .run_attempt] | @tsv' 2> "$CHECKS_ERROR") || {
+              --jq '.workflow_runs[0] // empty | [.id, .status, .run_attempt, .conclusion] | @tsv' 2> "$CHECKS_ERROR") || {
               rerun_lookup_failed "$sha"
               return 0
             }
             [ -n "$run" ] || return 1
-            IFS="$TAB" read -r run_id run_status run_attempt <<< "$run"
+            IFS="$TAB" read -r run_id run_status run_attempt run_conclusion <<< "$run"
 
             # Failed jobs can finish before the rest of the run, and a re-run in
             # progress still shows attempt 1's failure until its jobs are queued.
             [ "$run_status" = "completed" ] || return 0
             [ "$run_attempt" -eq 1 ] || return 1
+            # ci-rerun.yml only acts on a run that concluded `failure`.
+            [ "$run_conclusion" = "failure" ] || return 1
+            # A completed attempt's jobs no longer change, so one RERUN verdict
+            # holds until the re-run shows up as a newer attempt.
+            [ "$rerun_expected_for" != "$run_id" ] || return 0
 
             jobs_file=$(mktemp)
             if ! GH_TOKEN="$ACTIONS_READ_TOKEN" gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs?per_page=100" --jq '.jobs[]' 2> "$CHECKS_ERROR" | jq -s '.' > "$jobs_file"; then
@@ -342,7 +349,10 @@ jobs:
             echo "CI run ${run_id} attempt ${run_attempt}: ${verdict:-classifier failed}" >&2
 
             case "$verdict" in
-              RERUN*) return 0 ;;
+              RERUN*)
+                rerun_expected_for="$run_id"
+                return 0
+                ;;
               *) return 1 ;;
             esac
           }

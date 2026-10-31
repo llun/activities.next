@@ -692,6 +692,7 @@ describe('AnnualCalendar', () => {
       })
 
       afterEach(() => {
+        cleanup()
         Reflect.deleteProperty(Element.prototype, 'scrollIntoView')
       })
 

@@ -231,9 +231,13 @@ if (typeof window !== 'undefined') {
     if (guarding && (delay ?? 0) >= LONG_TIMER_MS) {
       // The default of 10 frames can stop before the frame that armed the timer.
       const stackTraceLimit = Error.stackTraceLimit
-      Error.stackTraceLimit = 50
-      const stack = new Error().stack ?? ''
-      Error.stackTraceLimit = stackTraceLimit
+      let stack = ''
+      try {
+        Error.stackTraceLimit = 50
+        stack = new Error().stack ?? ''
+      } finally {
+        Error.stackTraceLimit = stackTraceLimit
+      }
       // next/dynamic's own loading delay: the framework clears it when the
       // import settles, and no app code can clear it first.
       if (!stack.includes('loadable.shared-runtime')) {
@@ -242,7 +246,6 @@ if (typeof window !== 'undefined') {
     }
     return id
   }) as typeof setTimeout
-  guardedSetTimeout.__promisify__ = nativeSetTimeout.__promisify__
   Object.defineProperty(guardedSetTimeout, promisify.custom, {
     value: Reflect.get(nativeSetTimeout, promisify.custom)
   })

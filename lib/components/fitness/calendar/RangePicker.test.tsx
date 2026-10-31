@@ -4,6 +4,7 @@
 import '@testing-library/jest-dom'
 import {
   act,
+  cleanup,
   fireEvent,
   render,
   screen,
@@ -84,6 +85,7 @@ describe('RangePicker', () => {
   })
 
   afterEach(() => {
+    cleanup()
     Reflect.deleteProperty(globalThis, 'ResizeObserver')
     vi.restoreAllMocks()
   })
@@ -411,6 +413,7 @@ describe('RangePicker', () => {
       })
 
       afterEach(() => {
+        cleanup()
         listeners.clear()
         viewport.height = 800
         viewport.offsetTop = 0

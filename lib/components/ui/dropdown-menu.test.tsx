@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 
 import {
   DropdownMenu,
@@ -92,6 +92,7 @@ describe('DropdownMenu', () => {
     })
 
     afterEach(() => {
+      cleanup()
       window.matchMedia = originalMatchMedia
     })
 

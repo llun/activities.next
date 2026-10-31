@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 
 import { ThemeProvider, useTheme } from './ThemeProvider'
 import { THEME_STORAGE_KEY } from './theme-core'
@@ -28,6 +28,7 @@ const renderProvider = () =>
 
 describe('ThemeProvider', () => {
   afterEach(() => {
+    cleanup()
     localStorage.clear()
     document.documentElement.classList.remove('dark')
     document.documentElement.style.colorScheme = ''

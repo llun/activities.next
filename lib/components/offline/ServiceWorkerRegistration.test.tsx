@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, waitFor } from '@testing-library/react'
+import { cleanup, render, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ServiceWorkerRegistration } from '@/lib/components/offline/ServiceWorkerRegistration'
@@ -15,6 +15,7 @@ describe('ServiceWorkerRegistration', () => {
   })
 
   afterEach(() => {
+    cleanup()
     Object.defineProperty(navigator, 'serviceWorker', {
       value: originalServiceWorker,
       configurable: true,

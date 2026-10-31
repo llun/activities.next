@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { act, renderHook } from '@testing-library/react'
+import { act, cleanup, renderHook } from '@testing-library/react'
 import { createRef } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -12,6 +12,7 @@ describe('supportsFieldSizing', () => {
   const originalCSS = globalThis.CSS
 
   afterEach(() => {
+    cleanup()
     globalThis.CSS = originalCSS
   })
 
@@ -54,6 +55,7 @@ describe('useAutoResizeTextarea', () => {
   })
 
   afterEach(() => {
+    cleanup()
     globalThis.CSS = originalCSS
     textarea.remove()
   })
@@ -318,6 +320,7 @@ describe('useAutoResizeTextarea', () => {
     })
 
     afterEach(() => {
+      cleanup()
       globalThis.ResizeObserver = originalResizeObserver
     })
 
@@ -393,6 +396,7 @@ describe('useAutoResizeTextarea', () => {
     })
 
     afterEach(() => {
+      cleanup()
       Object.defineProperty(window, 'visualViewport', {
         configurable: true,
         value: originalVisualViewport

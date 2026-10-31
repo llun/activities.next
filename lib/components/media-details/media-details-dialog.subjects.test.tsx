@@ -2,7 +2,13 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, screen, waitFor } from '@testing-library/react'
+import {
+  act,
+  cleanup,
+  fireEvent,
+  screen,
+  waitFor
+} from '@testing-library/react'
 
 import { searchGalleryTaxa, updateMediaDetails } from '@/lib/client'
 import { createDeferred } from '@/lib/testing/deferred'
@@ -60,6 +66,7 @@ describe('MediaDetailsDialog smart subjects', () => {
   })
 
   afterEach(() => {
+    cleanup()
     global.ResizeObserver = originalResizeObserver
   })
 

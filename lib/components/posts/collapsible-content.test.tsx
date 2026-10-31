@@ -2,7 +2,13 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor
+} from '@testing-library/react'
 
 import { CollapsibleContent } from './collapsible-content'
 
@@ -54,6 +60,7 @@ describe('CollapsibleContent', () => {
   })
 
   afterEach(() => {
+    cleanup()
     if (originalResizeObserver) {
       Object.defineProperty(global, 'ResizeObserver', {
         configurable: true,
