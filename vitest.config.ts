@@ -98,13 +98,13 @@ export default defineConfig({
     // test file into the forks project too.
     exclude: EXCLUDED,
     testTimeout: 30000,
-    // Hooks run in definition order, "after" hooks included. With Vitest's
-    // default ('stack', after-hooks reversed) a file's own afterEach ran
-    // before the afterEach(cleanup) @testing-library/react registers at
-    // import, so a test's IndexedDB/channel/global reset ran while its React
-    // tree was still mounted and the tree's async work then landed in the
-    // next test. Nested suites are unaffected: a child's after-hooks still
-    // run before its parent's.
+    // Setup-file and top-level after-hooks run in definition order, not
+    // Vitest's default reverse ('stack'). @testing-library/react registers
+    // afterEach(cleanup) on the file suite at import, so it runs before a
+    // file's own top-level afterEach and the tree unmounts first. A describe's
+    // own afterEach is a child hook and still runs before the unmount under
+    // either order, so teardown there that resets shared state calls cleanup()
+    // itself first.
     sequence: { hooks: 'list' },
     // Match testTimeout. Vitest's 10s default is too tight for the
     // `TEST_DATABASE_TYPE=pg` harness: every test file's `beforeAll` drops and

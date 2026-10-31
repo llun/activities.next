@@ -2,7 +2,14 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within
+} from '@testing-library/react'
 
 import {
   DraftConflictError,
@@ -85,6 +92,7 @@ describe('DraftRow', () => {
   })
 
   afterEach(() => {
+    cleanup()
     vi.useRealTimers()
     vi.clearAllMocks()
     vi.restoreAllMocks()

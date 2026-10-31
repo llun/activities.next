@@ -366,13 +366,18 @@ activities.next/
   happened, then by one more and assert it did. Restore with
   `vi.useRealTimers()` in `afterEach`.
 - **After-hooks run in definition order** (`vitest.config.ts` sets
-  `sequence.hooks: 'list'`), so `@testing-library/react`'s
-  `afterEach(cleanup)`, registered when a test file imports it, runs before
-  an `afterEach` the file defines later: the tree unmounts before the file's
-  teardown (IndexedDB, channel, globals). A file that needs something done
-  before the unmount does it inside the test. Hooks a setup file registers
-  run before the test file's, and a child suite's after-hooks still run
-  before its parent's.
+  `sequence.hooks: 'list'`), which only orders hooks on the same suite.
+  `@testing-library/react` registers `afterEach(cleanup)` on the file suite
+  when a test file imports it, so it runs before a top-level `afterEach` the
+  file defines later, and the tree unmounts before that teardown. An
+  `afterEach` inside a `describe` is a child hook and runs before its parent's,
+  so before the unmount: teardown there that resets IndexedDB, channels,
+  connection state, timers or globals calls `cleanup()` from
+  `@testing-library/react` first, as `DraftsProvider.test.tsx` and
+  `SignOutDialog.test.tsx` do. A file that needs something done before the
+  unmount does it inside the test. Hooks a setup file registers run before the
+  test file's. Under `'list'` the cleanups returned from `beforeEach` also run
+  in registration order, while `onTestFinished` callbacks still run in reverse.
 - **Test files run on worker threads, except those that call `process.chdir()`
   or import `withTimeZone`.** `vitest.config.ts` defines two projects:
   `threads` (every test file, one fresh worker thread per file) and `forks`

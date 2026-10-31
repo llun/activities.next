@@ -223,6 +223,7 @@ describe('PostBox on-device drafts', () => {
   })
 
   afterEach(() => {
+    cleanup()
     vi.useRealTimers()
     vi.restoreAllMocks()
     resetConnectionForTesting()

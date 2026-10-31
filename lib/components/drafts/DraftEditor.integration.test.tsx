@@ -3,6 +3,7 @@
  */
 import '@testing-library/jest-dom'
 import {
+  cleanup,
   configure,
   fireEvent,
   render,
@@ -180,6 +181,7 @@ describe('DraftEditor with the real composers', () => {
   })
 
   afterEach(() => {
+    cleanup()
     resetConnectionForTesting()
     resetDraftsChannelForTesting()
     setDraftsIndexedDBFactory(null)

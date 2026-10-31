@@ -3,6 +3,7 @@
  */
 import '@testing-library/jest-dom'
 import {
+  cleanup,
   createEvent,
   fireEvent,
   render,
@@ -998,6 +999,7 @@ describe('Sidebar', () => {
     })
 
     afterEach(() => {
+      cleanup()
       resetDraftsChannelForTesting()
       setDraftsIndexedDBFactory(null)
       resetDraftsDbForTesting()

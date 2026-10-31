@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { act, renderHook } from '@testing-library/react'
+import { act, cleanup, renderHook } from '@testing-library/react'
 import { IDBFactory, IDBObjectStore } from 'fake-indexeddb'
 
 import {
@@ -121,6 +121,7 @@ describe('useComposerDraft', () => {
   })
 
   afterEach(() => {
+    cleanup()
     vi.useRealTimers()
     vi.restoreAllMocks()
     resetDraftsChannelForTesting()
