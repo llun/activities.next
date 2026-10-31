@@ -1,0 +1,21 @@
+vitest.config.ts
+  s_f6091a1907b015::t_a3d516f3543360 101-108
+CONTRIBUTING.md
+  s_f6091a1907b015::t_85d009375fd929 368-375
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "58958c80dc271a48cd818db1d3340989afb4b255",
+  "prompts": {},
+  "sessions": {
+    "s_f6091a1907b015": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4002b74e-ccf2-4b38-b4b6-ddb1cc097d99",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": null
+    }
+  }
+}
