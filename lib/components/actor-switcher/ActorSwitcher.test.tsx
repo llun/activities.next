@@ -306,6 +306,7 @@ describe('ActorSwitcher', () => {
       }
 
       afterEach(() => {
+        cleanup()
         setUnsavedProfileChanges(false)
         vi.restoreAllMocks()
       })

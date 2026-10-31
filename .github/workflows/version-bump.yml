@@ -331,6 +331,9 @@ jobs:
             # Failed jobs can finish before the rest of the run, and a re-run in
             # progress still shows attempt 1's failure until its jobs are queued.
             [ "$run_status" = "completed" ] || return 0
+            # GitHub can report a completed run before it has a conclusion, as it
+            # does for check runs; that is not a verdict yet.
+            [ -n "$run_conclusion" ] || return 0
             [ "$run_attempt" -eq 1 ] || return 1
             # ci-rerun.yml only acts on a run that concluded `failure`.
             [ "$run_conclusion" = "failure" ] || return 1
