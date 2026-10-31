@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Popover, PopoverContent, PopoverTrigger } from './popover'
@@ -23,6 +23,7 @@ describe('Popover', () => {
   })
 
   afterEach(() => {
+    cleanup()
     Reflect.deleteProperty(globalThis, 'ResizeObserver')
   })
 

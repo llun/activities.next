@@ -2,7 +2,14 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor
+} from '@testing-library/react'
 
 import { MobileNavigationProvider } from './mobile-navigation-context'
 import { MobileNavigationDrawer } from './mobile-navigation-drawer'
@@ -99,6 +106,7 @@ describe('MobileNavigationDrawer', () => {
     })
 
     afterEach(() => {
+      cleanup()
       window.matchMedia = originalMatchMedia
     })
 

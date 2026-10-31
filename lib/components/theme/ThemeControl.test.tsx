@@ -2,7 +2,13 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within
+} from '@testing-library/react'
 import { ReactElement } from 'react'
 
 import { ThemeControl } from './ThemeControl'
@@ -14,6 +20,7 @@ const renderWithTheme = (ui: ReactElement) =>
 
 describe('ThemeControl', () => {
   afterEach(() => {
+    cleanup()
     localStorage.clear()
     document.documentElement.classList.remove('dark')
     // Reset color-scheme too: clicking a segment sets it via applyTheme, and

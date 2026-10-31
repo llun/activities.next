@@ -4,6 +4,7 @@
 import '@testing-library/jest-dom'
 import {
   act,
+  cleanup,
   fireEvent,
   render,
   screen,
@@ -493,6 +494,7 @@ describe('PublicGalleryAlbumView', () => {
       })
 
       afterEach(() => {
+        cleanup()
         Reflect.deleteProperty(globalThis, 'IntersectionObserver')
       })
 

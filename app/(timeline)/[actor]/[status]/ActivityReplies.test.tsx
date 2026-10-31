@@ -2,6 +2,7 @@
 import '@testing-library/jest-dom'
 import {
   act,
+  cleanup,
   fireEvent,
   render,
   screen,
@@ -182,6 +183,7 @@ const StatefulActivityReplies = (
 
 describe('ActivityReplies', () => {
   afterEach(() => {
+    cleanup()
     window.localStorage.clear()
   })
 

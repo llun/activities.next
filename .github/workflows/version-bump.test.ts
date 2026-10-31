@@ -642,8 +642,35 @@ exit 0
         expect(result.polls).toBe(12)
       })
 
-      it('keeps polling when the run lookup fails', () => {
-        writeFileSync(join(dir, 'runs-api-fails'), '')
+      it('keeps polling on a completed run with no conclusion yet, then follows the re-run', () => {
+        writeStep(
+          1,
+          failedAllTests,
+          { ...runJson('completed', 1), conclusion: null },
+          infrastructureJobs
+        )
+        writeStep(
+          2,
+          failedAllTests,
+          runJson('completed', 1),
+          infrastructureJobs
+        )
+        writeStep(
+          3,
+          pendingAllTests,
+          runJson('in_progress', 2),
+          infrastructureJobs
+        )
+        writeStep(4, rerunGreen, runJson('completed', 2), infrastructureJobs)
+
+        const result = runGate()
+
+        expect(result.status).toBe(0)
+        expect(result.merges).toBe(1)
+        expect(result.polls).toBe(4)
+      })
+
+      it('classifies a completed attempt once per run', () => {
         writeStep(
           1,
           failedAllTests,
@@ -656,6 +683,37 @@ exit 0
         expect(result.status).toBe(0)
         expect(result.merges).toBe(0)
         expect(result.polls).toBe(12)
+
+        const jobsCalls = readFileSync(join(dir, 'gh-calls'), 'utf8')
+          .split('\n')
+          .filter((line) => line.includes('/jobs'))
+        expect(jobsCalls).toHaveLength(1)
+      })
+
+      it('classifies again when a newer run replaces it', () => {
+        writeStep(
+          1,
+          failedAllTests,
+          runJson('completed', 1),
+          infrastructureJobs
+        )
+        writeStep(
+          2,
+          failedAllTests,
+          { ...runJson('completed', 1), id: 2 },
+          codeFailureJobs
+        )
+
+        const result = runGate()
+
+        expect(result.status).toBe(0)
+        expect(result.merges).toBe(0)
+        expect(result.polls).toBe(2)
+
+        const jobsCalls = readFileSync(join(dir, 'gh-calls'), 'utf8')
+          .split('\n')
+          .filter((line) => line.includes('/jobs'))
+        expect(jobsCalls).toHaveLength(2)
       })
 
       it('gives up when no CI run is found', () => {
@@ -666,6 +724,26 @@ exit 0
         expect(result.status).toBe(0)
         expect(result.merges).toBe(0)
         expect(result.polls).toBe(1)
+      })
+
+      it('does not ask the classifier about a run that did not conclude failure', () => {
+        writeStep(
+          1,
+          failedAllTests,
+          { ...runJson('completed', 1), conclusion: 'cancelled' },
+          infrastructureJobs
+        )
+
+        const result = runGate()
+
+        expect(result.status).toBe(0)
+        expect(result.merges).toBe(0)
+        expect(result.polls).toBe(1)
+
+        const calls = readFileSync(join(dir, 'gh-calls'), 'utf8')
+          .split('\n')
+          .filter(Boolean)
+        expect(calls.some((line) => line.includes('/jobs'))).toBe(false)
       })
 
       it('asks for the CI run of this head on the pull_request event', () => {

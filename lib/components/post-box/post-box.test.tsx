@@ -2,7 +2,14 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor
+} from '@testing-library/react'
 
 import { deleteUnpostedMedia, getCustomEmojis } from '@/lib/client'
 import { resetConnectionForTesting } from '@/lib/client/connection'
@@ -462,6 +469,7 @@ describe('PostBox poll creation', () => {
   })
 
   afterEach(() => {
+    cleanup()
     global.ResizeObserver = originalResizeObserver
   })
 

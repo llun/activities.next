@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 
 import {
   ROUTE_PRIVACY_HINT_LABEL,
@@ -85,6 +85,7 @@ describe('getRoutePrivacyHintPlacement', () => {
 
 describe('isHoverCapablePointer', () => {
   afterEach(() => {
+    cleanup()
     Reflect.deleteProperty(window, 'matchMedia')
   })
 

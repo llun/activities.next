@@ -4,6 +4,7 @@
 import '@testing-library/jest-dom'
 import {
   act,
+  cleanup,
   fireEvent,
   render,
   screen,
@@ -149,6 +150,7 @@ describe('ActorSwitcher', () => {
   })
 
   afterEach(() => {
+    cleanup()
     Object.defineProperty(window, 'location', {
       configurable: true,
       value: originalLocation
@@ -304,6 +306,7 @@ describe('ActorSwitcher', () => {
       }
 
       afterEach(() => {
+        cleanup()
         setUnsavedProfileChanges(false)
         vi.restoreAllMocks()
       })

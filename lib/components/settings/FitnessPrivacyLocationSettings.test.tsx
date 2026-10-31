@@ -2,7 +2,13 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor
+} from '@testing-library/react'
 
 import { createDeferred } from '@/lib/testing/deferred'
 import { loadMaplibreModule } from '@/lib/utils/maplibre'
@@ -28,6 +34,7 @@ describe('FitnessPrivacyLocationSettings', () => {
   const originalGeolocation = global.navigator.geolocation
 
   afterEach(() => {
+    cleanup()
     vi.restoreAllMocks()
     // `restoreAllMocks` does not reset an implementation set on a vi.fn() from
     // a module mock factory, so a test that makes the GL loader resolve would

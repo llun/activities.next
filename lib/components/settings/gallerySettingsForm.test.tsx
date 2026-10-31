@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { act, renderHook, waitFor } from '@testing-library/react'
+import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 
 import type { GallerySettingsEntity } from '@/lib/services/gallery/galleryEntities'
 import { DEFAULT_GALLERY_SETTINGS } from '@/lib/types/database/gallery'
@@ -33,6 +33,7 @@ describe('useGallerySettingsForm saved-status timer', () => {
   })
 
   afterEach(() => {
+    cleanup()
     vi.useRealTimers()
     vi.clearAllMocks()
   })

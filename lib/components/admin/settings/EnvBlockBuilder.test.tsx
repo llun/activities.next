@@ -3,6 +3,7 @@
  */
 import '@testing-library/jest-dom'
 import {
+  cleanup,
   fireEvent,
   render,
   screen,
@@ -40,6 +41,7 @@ describe('EnvBlockBuilder', () => {
   })
 
   afterEach(() => {
+    cleanup()
     Reflect.deleteProperty(navigator, 'clipboard')
   })
 

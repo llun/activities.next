@@ -4,6 +4,7 @@
 import '@testing-library/jest-dom'
 import {
   act,
+  cleanup,
   fireEvent,
   render,
   screen,
@@ -77,6 +78,7 @@ describe('AnnouncementsPanel', () => {
   })
 
   afterEach(() => {
+    cleanup()
     Reflect.deleteProperty(globalThis, 'ResizeObserver')
   })
 

@@ -2,7 +2,13 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within
+} from '@testing-library/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 import {
@@ -132,6 +138,7 @@ describe('ExplorePageClient', () => {
   })
 
   afterEach(() => {
+    cleanup()
     Reflect.deleteProperty(globalThis, 'ResizeObserver')
   })
 

@@ -343,6 +343,7 @@ describe('useRovingDateFocus', () => {
     })
 
     afterEach(() => {
+      cleanup()
       Reflect.deleteProperty(Element.prototype, 'scrollIntoView')
     })
 
