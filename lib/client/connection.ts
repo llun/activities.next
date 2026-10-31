@@ -34,6 +34,7 @@ let cancelProbe: (() => void) | null = null
 let windowListenersInstalled = false
 const listeners = new Set<() => void>()
 const restoredListeners = new Set<() => void>()
+const hasObservers = () => listeners.size > 0 || restoredListeners.size > 0
 
 export const getConnectionSnapshot = (): ConnectionSnapshot => snapshot
 
@@ -105,7 +106,12 @@ export const probeNow = (): Promise<void> => {
       typeof navigator !== 'undefined' && navigator.onLine === false
         ? 'offline'
         : 'unreachable'
-    setSnapshot({ state, nextProbeAt: scheduleProbe(), probing: false })
+    setSnapshot({
+      state,
+      // Nobody is listening: the next subscriber resumes probing.
+      nextProbeAt: hasObservers() ? scheduleProbe() : null,
+      probing: false
+    })
   })()
 
   const tracked = run.finally(() => {
@@ -157,8 +163,6 @@ const removeWindowListeners = () => {
   window.removeEventListener('offline', handleBrowserEvent)
   document.removeEventListener('visibilitychange', handleVisibilityChange)
 }
-
-const hasObservers = () => listeners.size > 0 || restoredListeners.size > 0
 
 // Nothing is left to tell, so no timer or request outlives the last observer.
 const stopProbing = () => {

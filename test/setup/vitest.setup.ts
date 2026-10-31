@@ -1,7 +1,7 @@
 import crypto from 'crypto'
 import * as matchers from 'jest-extended'
 import fetchMock from 'jest-fetch-mock'
-import { TextDecoder, TextEncoder } from 'node:util'
+import { TextDecoder, TextEncoder, promisify } from 'node:util'
 import { afterEach, beforeEach, expect, onTestFinished, vi } from 'vitest'
 
 import { resetTrustProxyIpHeadersConfigCacheForTests } from '@/lib/config/trustProxyIpHeaders'
@@ -217,16 +217,23 @@ if (typeof window !== 'undefined') {
     delay?: number,
     ...args: unknown[]
   ) => {
+    if (typeof handler !== 'function') {
+      throw new TypeError('The "callback" argument must be of type function')
+    }
     const id = nativeSetTimeout(
       (...callbackArgs: unknown[]) => {
         armed.delete(id)
-        if (typeof handler === 'function') handler(...callbackArgs)
+        handler(...callbackArgs)
       },
       delay,
       ...args
     )
     if (guarding && (delay ?? 0) >= LONG_TIMER_MS) {
+      // The default of 10 frames can stop before the frame that armed the timer.
+      const stackTraceLimit = Error.stackTraceLimit
+      Error.stackTraceLimit = 50
       const stack = new Error().stack ?? ''
+      Error.stackTraceLimit = stackTraceLimit
       // next/dynamic's own loading delay: the framework clears it when the
       // import settles, and no app code can clear it first.
       if (!stack.includes('loadable.shared-runtime')) {
@@ -236,6 +243,9 @@ if (typeof window !== 'undefined') {
     return id
   }) as typeof setTimeout
   guardedSetTimeout.__promisify__ = nativeSetTimeout.__promisify__
+  Object.defineProperty(guardedSetTimeout, promisify.custom, {
+    value: Reflect.get(nativeSetTimeout, promisify.custom)
+  })
   globalThis.setTimeout = guardedSetTimeout
   globalThis.clearTimeout = ((id) => {
     armed.delete(id as ReturnType<typeof setTimeout>)

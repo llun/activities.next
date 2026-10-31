@@ -139,6 +139,7 @@ describe('connection store', () => {
   it('schedules the next probe on the backoff, one millisecond either side', async () => {
     vi.useFakeTimers()
     mockHealth.mockResolvedValue(false)
+    subscribeConnection(() => {})
     const start = Date.now()
 
     await probeNow()
@@ -161,6 +162,7 @@ describe('connection store', () => {
   it('repeats the last backoff value and resets it after a success', async () => {
     vi.useFakeTimers()
     mockHealth.mockResolvedValue(false)
+    subscribeConnection(() => {})
     await probeNow()
     for (const delay of PROBE_BACKOFF_MS.slice(0, -1)) {
       await vi.advanceTimersByTimeAsync(delay)
@@ -420,5 +422,41 @@ describe('connection store', () => {
     expect(vi.getTimerCount()).toBe(1)
     resetConnectionForTesting()
     expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('does not re-arm a probe with no observers, and resumes when a subscriber attaches', async () => {
+    vi.useFakeTimers()
+    mockHealth.mockResolvedValue(false)
+    reportRequestFailure(new TypeError('network'))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(vi.getTimerCount()).toBe(0)
+    expect(getConnectionSnapshot().nextProbeAt).toBeNull()
+    expect(getConnectionSnapshot().state).toBe('unreachable')
+    await vi.advanceTimersByTimeAsync(
+      PROBE_BACKOFF_MS[PROBE_BACKOFF_MS.length - 1]
+    )
+    expect(mockHealth).toHaveBeenCalledTimes(1)
+    subscribeConnection(() => {})
+    await vi.advanceTimersByTimeAsync(0)
+    expect(mockHealth).toHaveBeenCalledTimes(2)
+    expect(vi.getTimerCount()).toBe(1)
+  })
+
+  it('resumes probing when a restored listener attaches while disconnected', async () => {
+    vi.useFakeTimers()
+    mockHealth.mockResolvedValue(false)
+    reportRequestFailure(new TypeError('network'))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(vi.getTimerCount()).toBe(0)
+    expect(getConnectionSnapshot().nextProbeAt).toBeNull()
+    expect(getConnectionSnapshot().state).toBe('unreachable')
+    await vi.advanceTimersByTimeAsync(
+      PROBE_BACKOFF_MS[PROBE_BACKOFF_MS.length - 1]
+    )
+    expect(mockHealth).toHaveBeenCalledTimes(1)
+    onConnectionRestored(() => {})
+    await vi.advanceTimersByTimeAsync(0)
+    expect(mockHealth).toHaveBeenCalledTimes(2)
+    expect(vi.getTimerCount()).toBe(1)
   })
 })
