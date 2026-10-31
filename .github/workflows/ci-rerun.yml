@@ -13,6 +13,7 @@ name: CI Re-run
 # `workflow_run` executes this file from `main` with the repository
 # token and never checks out or runs the PR's code; the re-run itself keeps
 # the original event's permissions.
+# version-bump.yml's check gate waits for this re-run using the same classifier.
 on:
   workflow_run:
     workflows: [CI]
