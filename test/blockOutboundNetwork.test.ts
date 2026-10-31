@@ -80,6 +80,33 @@ describe('blockOutboundNetwork trap', () => {
     await expectOutboundViolation(PUBLIC_HOST)
   })
 
+  // A numeric string first argument is a port, not a unix path (Node's
+  // isPipeName says so), so this must be blocked.
+  it('blocks net.connect with a numeric string port and a host', async () => {
+    try {
+      const socket = new net.Socket()
+      socket.once('error', () => {})
+      socket.connect('80', PUBLIC_HOST)
+      socket.destroy()
+    } catch {
+      // The trap throws synchronously from connect().
+    }
+    await expectOutboundViolation(PUBLIC_HOST)
+  })
+
+  // Node decides between unix and TCP with !!path, so an empty `path` option
+  // must not turn a public TCP connect into an allowed unix connect.
+  it('blocks net.connect options with an empty path', async () => {
+    try {
+      const socket = net.connect({ host: PUBLIC_HOST, port: 80, path: '' })
+      socket.on('error', () => {})
+      socket.destroy()
+    } catch {
+      // The trap throws synchronously from net.connect.
+    }
+    await expectOutboundViolation(PUBLIC_HOST)
+  })
+
   it.each(['127.0.0.1', 'localhost', '::1'])(
     'allows a loopback connection to %s',
     async (host) => {

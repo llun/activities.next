@@ -11,7 +11,10 @@ import { afterAll, beforeEach, onTestFinished } from 'vitest'
 // connection errors — so each violation is recorded and fails its test in
 // onTestFinished (same pattern as the timer guard in vitest.setup.ts), naming
 // the host and the stack that armed the connection. A violation outside a
-// running test (at import, or in a hook) fails the file in afterAll.
+// running test (at import, or in a hook) fails the file in afterAll; under
+// sequence.hooks: 'list' this afterAll runs before a test file's own top-level
+// afterAll, so a connection there is still blocked by the throw but only fails
+// the run if that error isn't swallowed.
 
 export interface OutboundViolation {
   host: string | undefined
@@ -87,6 +90,13 @@ const recordViolation = (violation: OutboundViolation) => {
   }
 }
 
+// Node's own isPipeName/toNumber: a string is a unix path only when it isn't a
+// non-negative number, so '80' is a port, not a path.
+const toNumber = (value: string): number | false => {
+  const x = Number(value)
+  return x >= 0 ? x : false
+}
+
 const nativeConnect = net.Socket.prototype.connect
 
 // net.Socket#connect accepts (options[, listener]), (path[, listener]) and
@@ -103,12 +113,24 @@ net.Socket.prototype.connect = function (this: net.Socket, ...args: unknown[]) {
   let host: string | undefined
   let port: number | undefined
   if (typeof first === 'string') {
-    path = first
+    const numeric = toNumber(first)
+    if (numeric === false) {
+      path = first
+    } else {
+      port = numeric
+      if (typeof second === 'string') host = second
+    }
   } else if (first !== null && typeof first === 'object') {
     const options = first as { path?: unknown; host?: unknown; port?: unknown }
-    if (typeof options.path === 'string') path = options.path
+    // Node decides between unix and TCP with !!path, so '' stays TCP.
+    if (typeof options.path === 'string' && options.path) path = options.path
     if (typeof options.host === 'string') host = options.host
-    if (typeof options.port === 'number') port = options.port
+    if (typeof options.port === 'number') {
+      port = options.port
+    } else if (typeof options.port === 'string') {
+      const numeric = toNumber(options.port)
+      if (numeric !== false) port = numeric
+    }
   } else if (typeof first === 'number') {
     port = first
     if (typeof second === 'string') host = second
