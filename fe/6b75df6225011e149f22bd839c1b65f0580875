@@ -4,6 +4,18 @@ lib/client/drafts/draftsDb.ts
   s_0f9a522b386a17::t_4bf30dda8b06dd 45-47,61-62,69-70,130,167-170
 test/setup/vitest.setup.ts
   s_0f9a522b386a17::t_bb7bc0a4aa21d6 5,201-269
+lib/components/settings/gallerySettingsForm.tsx
+  s_0f9a522b386a17::t_0ae37015eb1008 77-78,105
+lib/client/drafts/draftsDb.test.ts
+  s_0f9a522b386a17::t_0ae37015eb1008 551-566
+test/vitest.setup.test.ts
+  s_0f9a522b386a17::t_0ae37015eb1008 1-52
+CONTRIBUTING.md
+  s_0f9a522b386a17::t_0ae37015eb1008 383-389,731
+lib/components/settings/gallerySettingsForm.test.tsx
+  s_0f9a522b386a17::t_0ae37015eb1008 1-100
+lib/client/connection.test.ts
+  s_0f9a522b386a17::t_0ae37015eb1008 370-423
 ---
 {
   "schema_version": "authorship/3.0.0",
