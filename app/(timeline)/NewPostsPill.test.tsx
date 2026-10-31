@@ -157,6 +157,22 @@ describe('NewPostsPill', () => {
       screen.queryByRole('button', { name: 'Back to top' })
     ).not.toBeInTheDocument()
   })
+
+  it('renders plus label when hasMorePolled is true', () => {
+    const store = createUnseenAboveStore()
+    render(
+      <NewPostsPill
+        store={store}
+        polledCount={20}
+        hasMorePolled={true}
+        isScrolledDown={false}
+        onJump={vi.fn()}
+      />
+    )
+    expect(
+      screen.getByRole('button', { name: '20+ new posts' })
+    ).toBeInTheDocument()
+  })
 })
 
 describe('TimelineScrollToTopButton', () => {
