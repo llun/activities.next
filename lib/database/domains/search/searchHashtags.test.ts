@@ -782,6 +782,55 @@ describe('SearchDatabase hashtags', () => {
     }
   })
 
+  it('refreshes hashtag search aggregates when deleting actor data', async () => {
+    const testDb = createTestDatabase()
+    const { database } = testDb
+    const actorId = 'https://remote.test/users/alice'
+    const statusId = `${actorId}/statuses/actor-delete-hashtag`
+
+    try {
+      await testDb.prepare()
+      await database.migrate()
+      await createSearchActor(database, {
+        id: actorId,
+        username: 'alice'
+      })
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'Actor deletion hashtag day',
+        createdAt: 1
+      })
+      await database.createTag({
+        statusId,
+        type: 'hashtag',
+        name: '#Cleanup',
+        value: 'https://remote.test/tags/cleanup'
+      })
+
+      await expect(
+        database.searchHashtags({
+          q: 'cleanup',
+          limit: 10
+        })
+      ).resolves.toHaveLength(1)
+
+      await database.deleteActorData({ actorId })
+
+      await expect(
+        database.searchHashtags({
+          q: 'cleanup',
+          limit: 10
+        })
+      ).resolves.toEqual([])
+    } finally {
+      await database.destroy()
+    }
+  })
+
   it('refreshes deleted actor hashtag search aggregates after actor data commits', async () => {
     const testDb = createTestDatabase()
     const { database } = testDb

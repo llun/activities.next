@@ -20,7 +20,7 @@ const withFreshDatabase = async (
   }
 }
 
-describe('directory and peers', () => {
+describe('directory', () => {
   const table = getTestDatabaseTable()
 
   beforeAll(async () => {

@@ -38,6 +38,22 @@ describe('ProfileMovedBanner', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('soft-links to a target on this server', () => {
+    render(
+      <ProfileMovedBanner
+        acct="may@llun.test"
+        href="/@may@llun.test"
+        external={false}
+        isOwner={false}
+        isRedirect={false}
+      />
+    )
+
+    const go = screen.getByRole('link', { name: /Go to new profile/ })
+    expect(go).toHaveAttribute('href', '/@may@llun.test')
+    expect(go).not.toHaveAttribute('target')
+  })
+
   it('gives the owner the Manage way into the Moving settings', () => {
     render(
       <ProfileMovedBanner
@@ -53,6 +69,24 @@ describe('ProfileMovedBanner', () => {
       'href',
       '/settings/moving'
     )
+  })
+
+  it('tells the owner of a redirect that followers have not moved', () => {
+    render(
+      <ProfileMovedBanner
+        acct="may@new.example"
+        href="https://new.example/users/may"
+        external
+        isOwner
+        isRedirect
+      />
+    )
+
+    expect(
+      screen.getByText(
+        'You are redirecting from this profile. Followers have not been moved.'
+      )
+    ).toBeInTheDocument()
   })
 
   it('draws the banner without a link when the target is not stored', () => {
