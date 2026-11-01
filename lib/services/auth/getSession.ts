@@ -33,20 +33,11 @@ export const getServerAuthSession = cache(async () => {
       query: { disableRefresh: true }
     })
   } catch (error) {
-    // better-auth resolves the session and THEN, via the jwt plugin's
-    // `/get-session` after-hook, signs a short-lived JWT for the `set-auth-jwt`
-    // response header (which this app does not consume). If that signing throws
-    // — e.g. a `jwks` key whose alg doesn't match the configured RS256 (a
-    // pre-#1040 Ed25519 key left behind on the rollout) raises
-    // `ERR_JOSE_NOT_SUPPORTED` — the whole getSession call rejects. Left
-    // unhandled that 500s every authenticated page, notably the
-    // `/oauth/authorize` consent page, breaking Mastodon/OAuth login while OIDC
-    // relying parties (which hit better-auth's authorize endpoint, not
-    // `/get-session`) keep working — an asymmetry that's hard to diagnose.
-    //
-    // Fail closed: log it (this is a deploy-config issue — clear stale `jwks`
-    // rows on the RS256 rollout) and treat the request as unauthenticated so
-    // public and sign-in paths still render instead of the whole app erroring.
+    // jwt({ disableSettingJwtHeader: true }) suppresses automatic set-auth-jwt
+    // signing in the /get-session after-hook. Session resolution can still
+    // throw on an adapter, database, or other plugin hook error. Fail closed:
+    // log it and treat the request as unauthenticated so public and sign-in
+    // pages still render instead of returning a 500.
     // Pass the error under `err` so the logger's GCP formatter extracts its
     // stack trace into `stack_trace` for Error Reporting (see lib/utils/logger).
     logger.error({ message: 'Failed to resolve auth session', err: error })

@@ -125,6 +125,34 @@ describe('session refresh', () => {
     await holder.testDb?.destroy()
   })
 
+  it('disables the standalone JWT token endpoint for an authenticated session', async () => {
+    const { auth, cookie } = await signIn()
+
+    const response = await auth.handler(
+      new Request(`${BASE_URL}/api/auth/token`, { headers: { cookie } })
+    )
+
+    expect(response.status).toBe(404)
+  })
+
+  it('resolves an authenticated session without minting or exposing an auth JWT header', async () => {
+    const { auth, cookie } = await signIn()
+
+    const response = await auth.handler(
+      new Request(`${BASE_URL}/api/auth/get-session`, { headers: { cookie } })
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({ user: { id: ACCOUNT_ID } })
+    expect(response.headers.get('set-auth-jwt')).toBeNull()
+    const exposedHeaders = (
+      response.headers.get('access-control-expose-headers') ?? ''
+    )
+      .split(',')
+      .map((header) => header.trim().toLowerCase())
+    expect(exposedHeaders).not.toContain('set-auth-jwt')
+  })
+
   it('leaves a due session untouched when it is read during a server render', async () => {
     const { cookie } = await signIn()
     await ageSessions()
