@@ -1,0 +1,23 @@
+app/(timeline)/MainPageTimeline.refresh.test.tsx
+  s_66786278560dcb::t_0dca5c909a6a42 1881-1912,1914-1916,1918,1920,1922-1929,1931-1934,1939-1943
+  s_66786278560dcb::t_6dc70690e6cd03 1913,1917,1919,1921,1930,1938
+  s_66786278560dcb::t_9f0a4d8d5ec016 1935-1937
+app/(timeline)/MainPageTimeline.tsx
+  s_66786278560dcb::t_3a1f9ca8e41208 1144,1323-1326
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "40d1da2890b4043faed30d05b6bfd3804ce33800",
+  "prompts": {},
+  "sessions": {
+    "s_66786278560dcb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19437-cee3-7841-b747-f9ae358c50df",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
