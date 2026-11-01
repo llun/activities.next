@@ -328,6 +328,14 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     initialSegments && initialSegments.length > 0 ? profile.id : null
   )
   const lastReconciledAtRef = useRef<number>(0)
+  const refreshTimelineRef = useRef<
+    | ((options?: {
+        preserveScroll?: true
+        automatic?: true
+        actorRetry?: true
+      }) => Promise<void>)
+    | null
+  >(null)
   const restoredAnchorRef = useRef<string | null>(null)
   const scrollAnchorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null
@@ -1269,7 +1277,11 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   applyFreshPageRef.current = applyFreshPage
 
   const refreshTimeline = useCallback(
-    async (options?: { preserveScroll?: true; automatic?: true }) => {
+    async (options?: {
+      preserveScroll?: true
+      automatic?: true
+      actorRetry?: true
+    }) => {
       // isLoadingRef serializes refreshes, so only one runs at a time and there
       // is no concurrent request to guard against.
       if (isLoadingRef.current) return
@@ -1281,6 +1293,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
 
       const resetRevisionAtStart = scrollResetRevisionRef.current
       const actorIdAtStart = activeProfileIdRef.current
+      let refreshActiveActorAfterDiscard = false
 
       try {
         const result = await getTimeline({
@@ -1289,7 +1302,10 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         const fetchedAt = Date.now()
 
         await waitForScrollRest()
-        if (activeProfileIdRef.current !== actorIdAtStart) return
+        if (activeProfileIdRef.current !== actorIdAtStart) {
+          refreshActiveActorAfterDiscard = true
+          return
+        }
         await applyFreshPage(result, options, resetRevisionAtStart, fetchedAt)
       } catch (error) {
         if (isUnauthorizedError(error)) {
@@ -1309,10 +1325,17 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         setLoadingMoreStatuses(false)
         isLoadingRef.current = false
         setIsRefreshing(false)
+        if (refreshActiveActorAfterDiscard && !options?.actorRetry) {
+          void refreshTimelineRef.current?.({
+            automatic: true,
+            actorRetry: true
+          })
+        }
       }
     },
     [applyFreshPage, onUnauthorized, waitForScrollRest]
   )
+  refreshTimelineRef.current = refreshTimeline
 
   const handleLoadGap = useCallback(
     async (segmentIndex: number) => {

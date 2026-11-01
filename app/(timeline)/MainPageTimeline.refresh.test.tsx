@@ -1755,7 +1755,39 @@ describe('MainPageTimeline', () => {
       expect(scrollByMock).not.toHaveBeenCalled()
     })
 
-    it('keeps a visible like and removes deleted statuses from the held page and its count', async () => {
+    it('keeps a visible like when the held copy is applied', async () => {
+      const current = createStatus(
+        'https://activities.local/users/llun/s/current'
+      )
+      const held = createStatus('https://activities.local/users/llun/s/held')
+      vi.mocked(getTimeline).mockResolvedValueOnce({
+        statuses: [held, current],
+        nextMaxStatusId: null,
+        prevMinStatusId: held.id
+      })
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[current]}
+          refreshOnMount
+        />
+      )
+      await screen.findByRole('button', { name: '1 new post' })
+      fireEvent.click(screen.getByTestId(`trigger-like-${current.id}`))
+      expect(screen.getByTestId(`post-liked-${current.id}`)).toHaveTextContent(
+        'true'
+      )
+      fireEvent.click(screen.getByRole('button', { name: '1 new post' }))
+      expect(await screen.findByTestId(`post-${held.id}`)).toBeInTheDocument()
+      expect(screen.getByTestId(`post-liked-${current.id}`)).toHaveTextContent(
+        'true'
+      )
+    })
+
+    it('removes deleted statuses from the held page and its count', async () => {
       const current = createStatus(
         'https://activities.local/users/llun/s/current'
       )
@@ -1780,10 +1812,6 @@ describe('MainPageTimeline', () => {
         />
       )
       await screen.findByRole('button', { name: '2 new posts' })
-      fireEvent.click(screen.getByTestId(`trigger-like-${current.id}`))
-      expect(screen.getByTestId(`post-liked-${current.id}`)).toHaveTextContent(
-        'true'
-      )
       fireEvent.click(screen.getByTestId(`trigger-delete-target-${current.id}`))
       expect(
         await screen.findByRole('button', { name: '1 new post' })
@@ -2304,8 +2332,8 @@ describe('MainPageTimeline', () => {
           prevMinStatusId: held.id
         })
         .mockResolvedValueOnce({
-          statuses: [fresh, held, current],
-          nextMaxStatusId: null,
+          statuses: [fresh, held],
+          nextMaxStatusId: 'cursor-after-held',
           prevMinStatusId: fresh.id
         })
       render(
@@ -2388,7 +2416,7 @@ describe('MainPageTimeline', () => {
       ).toHaveTextContent(parentId)
     })
 
-    it('discards a pending automatic response after the actor changes', async () => {
+    it('discards an old actor response and refreshes the new actor once unlocked', async () => {
       const current = createStatus(
         'https://activities.local/users/llun/s/current'
       )
@@ -2405,7 +2433,17 @@ describe('MainPageTimeline', () => {
         { actorId: otherActor.id, actor: otherActor }
       )
       const deferred = createDeferred<GetTimelineResult>()
-      vi.mocked(getTimeline).mockReturnValueOnce(deferred.promise)
+      const otherPost = createStatus(
+        'https://activities.local/users/other/s/newer',
+        { actorId: otherActor.id, actor: otherActor }
+      )
+      vi.mocked(getTimeline)
+        .mockReturnValueOnce(deferred.promise)
+        .mockResolvedValueOnce({
+          statuses: [otherPost, otherCurrent],
+          nextMaxStatusId: null,
+          prevMinStatusId: otherPost.id
+        })
       const { rerender } = render(
         <MainPageTimeline
           host="activities.local"
@@ -2427,19 +2465,22 @@ describe('MainPageTimeline', () => {
           refreshOnMount
         />
       )
+      expect(getTimeline).toHaveBeenCalledTimes(1)
       deferred.resolve({
         statuses: [incoming, current],
         nextMaxStatusId: null,
         prevMinStatusId: incoming.id
       })
-      await act(async () => Promise.resolve())
+      expect(
+        await screen.findByTestId(`post-${otherPost.id}`)
+      ).toBeInTheDocument()
       expect(
         screen.queryByTestId(`post-${incoming.id}`)
       ).not.toBeInTheDocument()
       expect(
         screen.queryByRole('button', { name: /new post/ })
       ).not.toBeInTheDocument()
-      expect(getTimeline).toHaveBeenCalledTimes(1)
+      expect(getTimeline).toHaveBeenCalledTimes(2)
     })
 
     it("shows the new actor's first automatic page instead of holding it", async () => {
