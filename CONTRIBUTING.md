@@ -677,8 +677,8 @@ use) — a single shared
 database would let one worker destroy the schema another worker is mid-test on.
 `prepare` compares a fingerprint of the live `public` schema (stored in
 `COMMENT ON DATABASE` together with the sha256 of the dump) with what
-`migrations/schema.sql` builds: on a match it only truncates the tables with
-rows, on a
+`migrations/schema.sql` builds: on a match it truncates the tables with rows
+and restarts the used sequences, on a
 mismatch — first run, changed dump, or a test that altered the schema — it
 resets the schema and replays the dump. The schema loader runs
 `migrations/schema.sql` on a connection of its own

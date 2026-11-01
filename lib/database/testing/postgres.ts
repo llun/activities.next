@@ -73,18 +73,26 @@ export const recreatePgDatabase = async (
 
 /**
  * One md5 over the whole `public` schema — tables with their columns (name,
- * type, notnull, default), indexes, constraints, triggers, functions, enum
- * values, views and sequences. A matching hash means the schema is what
- * `schema.sql` builds. One round trip, computed on the server.
+ * type, notnull, default, collation, identity), indexes, constraints,
+ * triggers (enabled state included), functions (bodies included), enum
+ * values, views, sequences (their options included), rules on non-views,
+ * row-level-security state and policies, plus the list of non-system schemas
+ * other than `public`. A matching hash means the schema is what `schema.sql`
+ * builds. Computed on the server, in a single query.
  */
 const SCHEMA_FINGERPRINT_SQL = `select md5(
-  (select coalesce(string_agg(t.relname || E'\\x1f' || a.attname || E'\\x1f' ||
-      format_type(a.atttypid, a.atttypmod) || E'\\x1f' || a.attnotnull::text ||
-      E'\\x1f' || coalesce(pg_get_expr(d.adbin, d.adrelid), ''),
+  (select coalesce(string_agg(t.relname || E'\\x1f' || coalesce(a.attname, '')
+      || E'\\x1f' || coalesce(format_type(a.atttypid, a.atttypmod), '')
+      || E'\\x1f' || coalesce(a.attnotnull::text, '')
+      || E'\\x1f' || coalesce(pg_get_expr(d.adbin, d.adrelid), '')
+      || E'\\x1f' || coalesce(a.attcollation::text, '')
+      || E'\\x1f' || coalesce(a.attidentity::text, '')
+      || E'\\x1f' || t.relrowsecurity::text || E'\\x1f' ||
+      t.relforcerowsecurity::text,
       E'\\x1e' order by t.relname, a.attnum), '')
     from pg_class t
     join pg_namespace tn on tn.oid = t.relnamespace and tn.nspname = 'public'
-    join pg_attribute a on a.attrelid = t.oid and a.attnum > 0
+    left join pg_attribute a on a.attrelid = t.oid and a.attnum > 0
       and not a.attisdropped
     left join pg_attrdef d on d.adrelid = t.oid and d.adnum = a.attnum
     where t.relkind in ('r', 'p'))
@@ -98,9 +106,10 @@ const SCHEMA_FINGERPRINT_SQL = `select md5(
       con.conname || E'\\x1f' || pg_get_constraintdef(con.oid),
       E'\\x1e' order by con.conname, con.oid::text), '')
     from pg_constraint con
-    where con.connamespace = 'public'::regnamespace)
+    join pg_namespace n on n.oid = con.connamespace and n.nspname = 'public')
   || E'\\x1d' ||
-  (select coalesce(string_agg(tr.tgname || E'\\x1f' || pg_get_triggerdef(tr.oid),
+  (select coalesce(string_agg(tr.tgname || E'\\x1f' || tr.tgenabled::text || E'\\x1f' ||
+      pg_get_triggerdef(tr.oid),
       E'\\x1e' order by tr.tgname, tr.oid::text), '')
     from pg_trigger tr
     join pg_class c on c.oid = tr.tgrelid
@@ -109,7 +118,9 @@ const SCHEMA_FINGERPRINT_SQL = `select md5(
   || E'\\x1d' ||
   (select coalesce(string_agg(p.proname || E'\\x1f' ||
       pg_get_function_identity_arguments(p.oid) || E'\\x1f' ||
-      format_type(p.prorettype, null),
+      format_type(p.prorettype, null) || E'\\x1f' || p.prokind::text || E'\\x1f' ||
+      case when p.prokind = 'a' then ''
+           else coalesce(pg_get_functiondef(p.oid), '') end,
       E'\\x1e' order by p.proname, p.oid::text), '')
     from pg_proc p
     join pg_namespace n on n.oid = p.pronamespace and n.nspname = 'public')
@@ -126,9 +137,35 @@ const SCHEMA_FINGERPRINT_SQL = `select md5(
     from pg_class c join pg_namespace n on n.oid = c.relnamespace
     where n.nspname = 'public' and c.relkind in ('v', 'm'))
   || E'\\x1d' ||
-  (select coalesce(string_agg(c.relname, E'\\x1e' order by c.relname), '')
-    from pg_class c join pg_namespace n on n.oid = c.relnamespace
-    where n.nspname = 'public' and c.relkind = 'S')
+  (select coalesce(string_agg(c.relname || E'\\x1f' || s.seqstart::text
+      || E'\\x1f' || s.seqincrement::text || E'\\x1f' || s.seqmin::text
+      || E'\\x1f' || s.seqmax::text || E'\\x1f' || s.seqcycle::text,
+      E'\\x1e' order by c.relname), '')
+    from pg_sequence s
+    join pg_class c on c.oid = s.seqrelid
+    join pg_namespace n on n.oid = c.relnamespace and n.nspname = 'public')
+  || E'\\x1d' ||
+  (select coalesce(string_agg(c.relname || E'\\x1f' || r.rulename || E'\\x1f' ||
+      pg_get_ruledef(r.oid, true),
+      E'\\x1e' order by c.relname, r.rulename), '')
+    from pg_rewrite r
+    join pg_class c on c.oid = r.ev_class
+    join pg_namespace n on n.oid = c.relnamespace and n.nspname = 'public'
+    where c.relkind in ('r', 'p'))
+  || E'\\x1d' ||
+  (select coalesce(string_agg(c.relname || E'\\x1f' || pol.polname || E'\\x1f' ||
+      pol.polcmd::text || E'\\x1f' || pol.polpermissive::text || E'\\x1f' ||
+      coalesce(pg_get_expr(pol.polqual, pol.polrelid, true), '') || E'\\x1f' ||
+      coalesce(pg_get_expr(pol.polwithcheck, pol.polrelid, true), ''),
+      E'\\x1e' order by c.relname, pol.polname), '')
+    from pg_policy pol
+    join pg_class c on c.oid = pol.polrelid
+    join pg_namespace n on n.oid = c.relnamespace and n.nspname = 'public')
+  || E'\\x1d' ||
+  (select coalesce(string_agg(n.nspname, E'\\x1e' order by n.nspname), '')
+    from pg_namespace n
+    where n.nspname <> 'public' and n.nspname not like 'pg\\_%'
+      and n.nspname <> 'information_schema')
 ) as fingerprint`
 
 // The stored fingerprint must have been computed from the dump this run ships.
@@ -145,7 +182,7 @@ const computeSchemaFingerprint = async (target: PostgresClient) => {
 
 /**
  * Empties the `public` tables that have rows and restarts every used sequence,
- * in one round trip after a catalog lookup. `TRUNCATE` allocates fresh files
+ * after a catalog lookup. `TRUNCATE` allocates fresh files
  * for every table and index it touches, so empty tables are skipped — found
  * with `SELECT 'tbl' WHERE EXISTS (SELECT 1 FROM "tbl") UNION ALL ...`. A
  * table can be empty while its sequence stands advanced (a deleted row, a
@@ -254,8 +291,23 @@ export const preparePgDatabase = async (
       await truncatePublicTables(target)
       return
     }
+    // The fingerprint covers every non-system schema, so a schema a test
+    // created has to go too — leaving it would keep the mismatch (and the
+    // rebuild) alive forever.
+    const { rows: extraSchemas } = await target.query<{ nspname: string }>(
+      `select nspname from pg_namespace
+       where nspname <> 'public' and nspname not like 'pg\\_%'
+         and nspname <> 'information_schema'`
+    )
     await target.query(
-      'DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;'
+      [
+        'DROP SCHEMA IF EXISTS public CASCADE',
+        ...extraSchemas.map(
+          ({ nspname }) =>
+            `DROP SCHEMA IF EXISTS ${quoteIdentifier(nspname)} CASCADE`
+        ),
+        'CREATE SCHEMA public'
+      ].join('; ')
     )
     await loadDump()
     // Re-read: the fingerprint of the schema the dump just built is what the

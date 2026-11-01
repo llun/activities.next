@@ -363,7 +363,9 @@ describe('PostgreSQL test connection paths', () => {
     process.env.TEST_DATABASE_PASSWORD = 'pgpassword'
 
     // The mock client reports the database as existing, with no stored
-    // fingerprint — `prepare` resets the schemas and replays the dump.
+    // fingerprint — `prepare` resets the schemas and replays the dump. A
+    // schema a test created shows up in the catalog lookup and is dropped
+    // along with `public`.
     mockPgClientQuery.mockImplementation((sql: string) =>
       sql.includes('shobj_description')
         ? { rows: [{ description: null }] }
@@ -371,7 +373,9 @@ describe('PostgreSQL test connection paths', () => {
           ? { rows: [{ '?column?': 1 }] }
           : sql.startsWith('select md5(')
             ? { rows: [{ fingerprint: 'a'.repeat(32) }] }
-            : { rows: [] }
+            : sql.startsWith('select nspname from pg_namespace')
+              ? { rows: [{ nspname: 'probe_schema' }] }
+              : { rows: [] }
     )
 
     const { prepare } = getTestDatabaseWithInstance(false, 'pg')
@@ -397,7 +401,7 @@ describe('PostgreSQL test connection paths', () => {
       database: expectedPgDatabase
     })
     expect(mockPgClientQuery).toHaveBeenCalledWith(
-      'DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;'
+      'DROP SCHEMA IF EXISTS public CASCADE; DROP SCHEMA IF EXISTS "probe_schema" CASCADE; CREATE SCHEMA public'
     )
     expect(mockPgClientQuery).not.toHaveBeenCalledWith(
       `CREATE DATABASE ${expectedPgDatabase}`

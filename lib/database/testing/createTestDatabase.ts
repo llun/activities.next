@@ -54,7 +54,8 @@ export type TestDatabase = {
   /**
    * Drops and recreates the PostgreSQL database, for a suite that runs
    * migrations or loads a dump of its own instead of the committed schema
-   * `prepare()` leaves behind. A no-op on SQLite.
+   * `prepare()` leaves behind. Afterwards `migrate()` loads the dump again. A
+   * no-op on SQLite (where `migrate()` always loads the dump).
    */
   prepareEmpty: () => Promise<void> | void
   /** Closes the pool behind `database` and `db`. */
@@ -171,6 +172,14 @@ const build = ({
       schemaReady = true
     }
   }
+  const wrappedPrepareEmpty = async () => {
+    await prepareEmpty()
+    // The database was dropped and recreated empty, so `migrate()` has to
+    // load the dump again.
+    if (backend === 'pg') {
+      schemaReady = false
+    }
+  }
   const { onQuery, captureQueries } = createQueryCapture(connection.onQuery)
   return {
     backend,
@@ -185,7 +194,7 @@ const build = ({
     }),
     db: connection.db,
     prepare: wrappedPrepare,
-    prepareEmpty,
+    prepareEmpty: wrappedPrepareEmpty,
     destroy: connection.destroy,
     captureQueries,
     onQuery,
