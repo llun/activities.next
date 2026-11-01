@@ -9,6 +9,7 @@ import { authClient } from '@/lib/services/auth/auth-client'
 import { createDeferred } from '@/lib/testing/deferred'
 
 import { CredentialForm } from './CredentialForm'
+import { EXPIRED_SIGN_IN_LINK_MESSAGE } from './signInErrorMessage'
 
 vi.mock('next/navigation', () => ({
   useRouter: vi.fn(),
@@ -273,5 +274,81 @@ describe('CredentialForm', () => {
     fireEvent.change(password, { target: { value: 'h' } })
     expect(password).not.toHaveAttribute('aria-invalid')
     expect(screen.queryByText('Password is required')).not.toBeInTheDocument()
+  })
+
+  it('refreshes an expired sign-in link via OAuth authorize when signature is invalid', async () => {
+    setSearchParams(
+      'response_type=code&client_id=docs&redirect_uri=https%3A%2F%2Fdocs.example%2Fcb&sig=S&exp=1700000000'
+    )
+    vi.mocked(authClient.signIn.email).mockResolvedValue({
+      data: null,
+      error: { status: 400, error: 'invalid_signature' }
+    } as never)
+    render(<CredentialForm providerName="credentials" />)
+    await signIn('me@example.com', 'hunter2')
+
+    expect(push).toHaveBeenCalledTimes(1)
+    const pushedUrl = push.mock.calls[0][0]
+    expect(pushedUrl.startsWith('/oauth/authorize?')).toBe(true)
+    expect(pushedUrl).toContain('link_refreshed=true')
+    expect(pushedUrl).not.toContain('sig=')
+    expect(pushedUrl).not.toContain('hunter2')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('shows expired sign-in link message on invalid_signature when restart path cannot be resolved', async () => {
+    setSearchParams('sig=S&response_type=code')
+    vi.mocked(authClient.signIn.email).mockResolvedValue({
+      data: null,
+      error: { status: 400, error: 'invalid_signature' }
+    } as never)
+    render(<CredentialForm providerName="credentials" />)
+    await signIn('me@example.com', 'hunter2')
+
+    expect(push).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      EXPIRED_SIGN_IN_LINK_MESSAGE
+    )
+  })
+
+  it('displays message from server when error includes message', async () => {
+    vi.mocked(authClient.signIn.email).mockResolvedValue({
+      data: null,
+      error: { message: 'Account locked' }
+    } as never)
+    render(<CredentialForm providerName="credentials" />)
+    await signIn('me@example.com', 'hunter2')
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Account locked')
+  })
+
+  it('displays fallback error message for unknown error', async () => {
+    vi.mocked(authClient.signIn.email).mockResolvedValue({
+      data: null,
+      error: {}
+    } as never)
+    render(<CredentialForm providerName="credentials" />)
+    await signIn('me@example.com', 'hunter2')
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Sign in failed')
+  })
+
+  it('renders notice prop and replaces it with error when error occurs', async () => {
+    vi.mocked(authClient.signIn.email).mockResolvedValue({
+      data: null,
+      error: { message: 'Invalid password' }
+    } as never)
+    render(
+      <CredentialForm
+        providerName="credentials"
+        notice={<div data-testid="test-notice">A notice</div>}
+      />
+    )
+    expect(screen.getByTestId('test-notice')).toBeInTheDocument()
+
+    await signIn('me@example.com', 'wrong')
+
+    expect(screen.queryByTestId('test-notice')).not.toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('Invalid password')
   })
 })

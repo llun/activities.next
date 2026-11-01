@@ -1,4 +1,7 @@
-import { resolveSignInRedirect } from './resolveSignInRedirect'
+import {
+  resolveSignInRedirect,
+  resolveSignInRestartPath
+} from './resolveSignInRedirect'
 
 describe('resolveSignInRedirect', () => {
   it('resumes an OIDC login redirect to the consent page without the login signature', () => {
@@ -253,5 +256,126 @@ describe('resolveSignInRedirect', () => {
     } else {
       expect(query.get('prompt')).toBe(expected)
     }
+  })
+
+  describe('resolveSignInRestartPath', () => {
+    it('drops signature envelope and redirectBack while keeping all OAuth parameters', () => {
+      const params = new URLSearchParams(
+        'response_type=code&client_id=docs&redirect_uri=https%3A%2F%2Fdocs.llun.social%2Fcb' +
+          '&scope=openid+profile&state=xyz' +
+          '&code_challenge=challenge&code_challenge_method=S256&nonce=n1' +
+          '&prompt=login&force_login=true' +
+          '&redirectBack=%2Fsettings' +
+          '&sig=signature&exp=1700000000&ba_iat=1700000000000&ba_param=client_id&ba_pl=payload'
+      )
+
+      const result = resolveSignInRestartPath(params)
+      expect(result).not.toBeNull()
+      expect(result!.startsWith('/oauth/authorize?')).toBe(true)
+
+      const query = new URLSearchParams(result!.split('?')[1])
+      expect(query.get('response_type')).toBe('code')
+      expect(query.get('client_id')).toBe('docs')
+      expect(query.get('redirect_uri')).toBe('https://docs.llun.social/cb')
+      expect(query.get('scope')).toBe('openid profile')
+      expect(query.get('state')).toBe('xyz')
+      expect(query.get('code_challenge')).toBe('challenge')
+      expect(query.get('code_challenge_method')).toBe('S256')
+      expect(query.get('nonce')).toBe('n1')
+      expect(query.get('prompt')).toBe('login')
+      expect(query.get('force_login')).toBe('true')
+
+      expect(query.has('sig')).toBe(false)
+      expect(query.has('exp')).toBe(false)
+      expect(query.has('ba_iat')).toBe(false)
+      expect(query.has('ba_param')).toBe(false)
+      expect(query.has('ba_pl')).toBe(false)
+      expect(query.has('redirectBack')).toBe(false)
+      expect(result).not.toContain('sig=')
+    })
+
+    it.each([
+      {
+        description: 'sig is missing',
+        query:
+          'response_type=code&client_id=docs&redirect_uri=https%3A%2F%2Fdocs.llun.social%2Fcb'
+      },
+      {
+        description: 'sig is empty',
+        query:
+          'response_type=code&client_id=docs&redirect_uri=https%3A%2F%2Fdocs.llun.social%2Fcb&sig='
+      },
+      {
+        description: 'response_type is not code',
+        query:
+          'response_type=token&client_id=docs&redirect_uri=https%3A%2F%2Fdocs.llun.social%2Fcb&sig=S'
+      },
+      {
+        description: 'client_id is missing',
+        query:
+          'response_type=code&redirect_uri=https%3A%2F%2Fdocs.llun.social%2Fcb&sig=S'
+      },
+      {
+        description: 'client_id is empty',
+        query:
+          'response_type=code&client_id=&redirect_uri=https%3A%2F%2Fdocs.llun.social%2Fcb&sig=S'
+      },
+      {
+        description: 'redirect_uri is missing',
+        query: 'response_type=code&client_id=docs&sig=S'
+      },
+      {
+        description: 'redirect_uri is empty',
+        query: 'response_type=code&client_id=docs&redirect_uri=&sig=S'
+      }
+    ])('returns null when $description', ({ query }) => {
+      expect(resolveSignInRestartPath(new URLSearchParams(query))).toBeNull()
+    })
+
+    it('never uses a redirectBack param even if pointed at an external origin', () => {
+      const params = new URLSearchParams(
+        'response_type=code&client_id=docs&redirect_uri=https%3A%2F%2Fx%2Fcb&sig=S&redirectBack=https%3A%2F%2Fevil.example'
+      )
+      const result = resolveSignInRestartPath(params)
+      expect(result).not.toBeNull()
+      expect(result!.startsWith('/oauth/authorize?')).toBe(true)
+      expect(result).not.toContain('evil.example')
+      const query = new URLSearchParams(result!.split('?')[1])
+      expect(query.has('redirectBack')).toBe(false)
+    })
+
+    it('yields a path without link_refreshed when signed query contains link_refreshed=true', () => {
+      const params = new URLSearchParams(
+        'response_type=code&client_id=docs&redirect_uri=https%3A%2F%2Fx%2Fcb&sig=S&link_refreshed=true'
+      )
+      const result = resolveSignInRestartPath(params)
+      expect(result).not.toBeNull()
+      expect(result!.startsWith('/oauth/authorize?')).toBe(true)
+      const query = new URLSearchParams(result!.split('?')[1])
+      expect(query.has('link_refreshed')).toBe(false)
+      expect(result).not.toContain('link_refreshed')
+    })
+
+    it('prevents prototype pollution from __proto__ keys', () => {
+      const params = new URLSearchParams(
+        'response_type=code&client_id=docs&redirect_uri=https%3A%2F%2Fx%2Fcb&sig=S&__proto__=polluted&constructor=polluted'
+      )
+      const result = resolveSignInRestartPath(params)
+      expect(result).not.toBeNull()
+      const query = new URLSearchParams(result!.split('?')[1])
+      expect(Array.from(query.keys())).toEqual([
+        'response_type',
+        'client_id',
+        'redirect_uri',
+        '__proto__',
+        'constructor'
+      ])
+      expect(query.get('__proto__')).toBe('polluted')
+      expect(query.get('constructor')).toBe('polluted')
+      expect('polluted' in Object.getPrototypeOf({})).toBe(false)
+      expect(
+        (Object.getPrototypeOf({}) as { polluted?: unknown }).polluted
+      ).toBeUndefined()
+    })
   })
 })
