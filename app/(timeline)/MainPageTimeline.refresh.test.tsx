@@ -2388,6 +2388,195 @@ describe('MainPageTimeline', () => {
       ).toHaveTextContent(parentId)
     })
 
+    it('discards a pending automatic response after the actor changes', async () => {
+      const current = createStatus(
+        'https://activities.local/users/llun/s/current'
+      )
+      const incoming = createStatus(
+        'https://activities.local/users/llun/s/incoming'
+      )
+      const otherActor = {
+        ...profile,
+        id: 'https://activities.local/users/other',
+        username: 'other'
+      }
+      const otherCurrent = createStatus(
+        'https://activities.local/users/other/s/current',
+        { actorId: otherActor.id, actor: otherActor }
+      )
+      const deferred = createDeferred<GetTimelineResult>()
+      vi.mocked(getTimeline).mockReturnValueOnce(deferred.promise)
+      const { rerender } = render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[current]}
+          refreshOnMount
+        />
+      )
+      await waitFor(() => expect(getTimeline).toHaveBeenCalledTimes(1))
+      rerender(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={otherActor}
+          isMediaUploadEnabled={false}
+          statuses={[otherCurrent]}
+          refreshOnMount
+        />
+      )
+      deferred.resolve({
+        statuses: [incoming, current],
+        nextMaxStatusId: null,
+        prevMinStatusId: incoming.id
+      })
+      await act(async () => Promise.resolve())
+      expect(
+        screen.queryByTestId(`post-${incoming.id}`)
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /new post/ })
+      ).not.toBeInTheDocument()
+      expect(getTimeline).toHaveBeenCalledTimes(1)
+    })
+
+    it("shows the new actor's first automatic page instead of holding it", async () => {
+      const oldStatus = createStatus(
+        'https://activities.local/users/llun/s/old'
+      )
+      const otherActor = {
+        ...profile,
+        id: 'https://activities.local/users/other',
+        username: 'other'
+      }
+      const current = createStatus(
+        'https://activities.local/users/other/s/current',
+        { actorId: otherActor.id, actor: otherActor }
+      )
+      const newer = createStatus(
+        'https://activities.local/users/other/s/newer',
+        { actorId: otherActor.id, actor: otherActor }
+      )
+      const { rerender } = render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[oldStatus]}
+        />
+      )
+      vi.mocked(getTimeline).mockResolvedValueOnce({
+        statuses: [newer, current],
+        nextMaxStatusId: null,
+        prevMinStatusId: newer.id
+      })
+      rerender(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={otherActor}
+          isMediaUploadEnabled={false}
+          statuses={[current]}
+          refreshOnMount
+        />
+      )
+      expect(await screen.findByTestId(`post-${newer.id}`)).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /new post/ })
+      ).not.toBeInTheDocument()
+    })
+
+    it('uses the fresh page edit for a visible post when refreshing with a held page', async () => {
+      const current = createStatus(
+        'https://activities.local/users/llun/s/current',
+        { text: 'original content' }
+      )
+      const held = createStatus('https://activities.local/users/llun/s/held')
+      const fresh = createStatus('https://activities.local/users/llun/s/fresh')
+      const edited = createStatus(current.id, {
+        text: 'edited by the fresh page'
+      })
+      vi.mocked(getTimeline)
+        .mockResolvedValueOnce({
+          statuses: [held, current],
+          nextMaxStatusId: null,
+          prevMinStatusId: held.id
+        })
+        .mockResolvedValueOnce({
+          statuses: [fresh, edited],
+          nextMaxStatusId: null,
+          prevMinStatusId: fresh.id
+        })
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[current]}
+          refreshOnMount
+        />
+      )
+      await screen.findByRole('button', { name: '1 new post' })
+      fireEvent.click(screen.getByRole('button', { name: 'Refresh timeline' }))
+      expect(await screen.findByTestId(`post-${fresh.id}`)).toBeInTheDocument()
+      expect(screen.getByTestId(`post-text-${current.id}`)).toHaveTextContent(
+        'edited by the fresh page'
+      )
+    })
+
+    it('uses the held page fetch time in the offline freshness line when tapped', async () => {
+      vi.useFakeTimers({ now: FIXED_CURRENT_TIME })
+      const current = createStatus(
+        'https://activities.local/users/llun/s/current'
+      )
+      const held = createStatus('https://activities.local/users/llun/s/held')
+      const deferred = createDeferred<GetTimelineResult>()
+      vi.mocked(getTimeline).mockReturnValueOnce(deferred.promise)
+      const { rerender } = render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[current]}
+          initialLastRefreshedAt={FIXED_CURRENT_TIME - 5 * 60 * 1000}
+          refreshOnMount
+        />
+      )
+      fireEvent.scroll(window)
+      await act(async () => {
+        deferred.resolve({
+          statuses: [held, current],
+          nextMaxStatusId: null,
+          prevMinStatusId: held.id
+        })
+        await Promise.resolve()
+        await vi.advanceTimersByTimeAsync(SCROLL_REST_MS)
+      })
+      await screen.findByRole('button', { name: '1 new post' })
+      await simulateOffline()
+      await act(async () => vi.advanceTimersByTimeAsync(60_000))
+      rerender(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME + 60_000}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[current]}
+          initialLastRefreshedAt={FIXED_CURRENT_TIME - 5 * 60 * 1000}
+          refreshOnMount
+        />
+      )
+      fireEvent.click(screen.getByRole('button', { name: '1 new post' }))
+      expect(await screen.findByTestId(`post-${held.id}`)).toBeInTheDocument()
+      expect(screen.getByText('Updated 1m ago')).toBeInTheDocument()
+      vi.useRealTimers()
+    })
+
     it('shows an automatic response on screen when the pill is tapped during its fetch', async () => {
       vi.useFakeTimers()
       const current = createStatus(

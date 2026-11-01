@@ -262,6 +262,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   newerPostsCountRef.current = newerPostsCount
   const [hasMoreNewerPosts, setHasMoreNewerPosts] = useState<boolean>(false)
   const stagedPageRef = useRef<GetTimelineResult | null>(null)
+  const stagedFetchedAtRef = useRef<number | null>(null)
   const applyFreshPageRef = useRef<
     | ((
         result: GetTimelineResult,
@@ -558,6 +559,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     if (stagedActorIdRef.current === profile.id) return
     stagedActorIdRef.current = profile.id
     stagedPageRef.current = null
+    stagedFetchedAtRef.current = null
     setStagedCount(0)
     setStagedHasGap(false)
     setNewerPostsCount(0)
@@ -1026,7 +1028,8 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         automatic?: true
         fromHeld?: true
       },
-      resetRevisionAtStart?: number
+      resetRevisionAtStart?: number,
+      fetchedAt?: number
     ) => {
       const isCurrentlyScrolledDown = () => {
         if (typeof window !== 'undefined' && window.scrollY > VIEW_TOP_EDGE) {
@@ -1078,16 +1081,9 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
       const currentIds = new Map(
         currentStatusesRef.current.map((status) => [status.id, status])
       )
-      const mergedResult =
-        options?.fromHeld ||
-        (!options?.automatic && stagedPageRef.current !== null)
-          ? {
-              ...result,
-              statuses: result.statuses.map(
-                (status) => currentIds.get(status.id) ?? status
-              )
-            }
-          : result
+      const incomingStatuses = options?.fromHeld
+        ? result.statuses.map((status) => currentIds.get(status.id) ?? status)
+        : result.statuses
       const heldPageToMerge =
         !options?.automatic && !options?.fromHeld ? stagedPageRef.current : null
       const heldBase = heldPageToMerge
@@ -1103,9 +1099,9 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
       const baseSegments = options?.fromHeld ? segmentsRef.current : heldBase
       const merged = mergeFreshPageIntoSegments({
         currentSegments: baseSegments,
-        incomingStatuses: mergedResult.statuses,
-        incomingNextMaxStatusId: mergedResult.nextMaxStatusId,
-        incomingPrevMinStatusId: mergedResult.prevMinStatusId
+        incomingStatuses,
+        incomingNextMaxStatusId: result.nextMaxStatusId,
+        incomingPrevMinStatusId: result.prevMinStatusId
       })
       const now = Date.now()
       const firstMergedId = merged.segments[0]?.statuses[0]?.id
@@ -1137,9 +1133,11 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         !resetWasTriggered &&
         !willPreserveAnchor &&
         hasNewerPrepended &&
+        segmentsActorIdRef.current === profile.id &&
         currentStatusesRef.current.length > 0
       ) {
         stagedPageRef.current = result
+        stagedFetchedAtRef.current = fetchedAt ?? now
         setStagedCount(merged.addedNewerCount)
         setStagedHasGap(merged.hasGap)
         setNewerPostsCount(0)
@@ -1155,6 +1153,10 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         markNewAsUnseen(currentStatusesRef.current, merged.segments)
       }
       stagedPageRef.current = null
+      const refreshedAt = options?.fromHeld
+        ? (stagedFetchedAtRef.current ?? now)
+        : now
+      stagedFetchedAtRef.current = null
       setStagedCount(0)
       setStagedHasGap(false)
       segmentsActorIdRef.current = profile.id
@@ -1190,7 +1192,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         }))
       }
 
-      setLastRefreshedAt(now)
+      setLastRefreshedAt(refreshedAt)
       if (!options?.fromHeld) {
         setNewerPostsCount(0)
         setHasMoreNewerPosts(false)
@@ -1278,14 +1280,17 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
       setFetchError(null)
 
       const resetRevisionAtStart = scrollResetRevisionRef.current
+      const actorIdAtStart = activeProfileIdRef.current
 
       try {
         const result = await getTimeline({
           timeline: Timeline.MAIN
         })
+        const fetchedAt = Date.now()
 
         await waitForScrollRest()
-        await applyFreshPage(result, options, resetRevisionAtStart)
+        if (activeProfileIdRef.current !== actorIdAtStart) return
+        await applyFreshPage(result, options, resetRevisionAtStart, fetchedAt)
       } catch (error) {
         if (isUnauthorizedError(error)) {
           try {
