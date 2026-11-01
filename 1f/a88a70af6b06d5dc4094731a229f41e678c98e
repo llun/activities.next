@@ -1,0 +1,42 @@
+app/(timeline)/(policies)/PolicyDocumentPage.tsx
+  s_2187214f8688d4::t_fc1d7fa9c4fabe 10-12,21,23-24,27-29,33,35,42,70,72,85,97
+  s_42cbedab6b659a::t_a8e001a35d4a79 25,30,36
+docs/architecture.md
+  s_2187214f8688d4::t_f0a85fa2a0b848 1332-1333,1549-1556
+  s_2187214f8688d4::t_21ce4cb4dd978a 1557
+app/(timeline)/(policies)/PolicyDocumentPage.test.tsx
+  s_2187214f8688d4::t_196eafd836c63b 174-259
+lib/utils/text/renderPolicyMarkdown.ts
+  s_2187214f8688d4::t_785404d610d11b 5,9-11,62-68,73-105,124,134,136-139,144,151,162-191
+app/(timeline)/(policies)/PolicyContents.tsx
+  s_2187214f8688d4::t_fc1d7fa9c4fabe 1-57
+lib/utils/text/renderPolicyMarkdown.test.ts
+  s_2187214f8688d4::t_74b33604d410fb 99-106,108-109,111,152-236,240
+  s_2187214f8688d4::t_f0a85fa2a0b848 1,114-117,132,134,136,138
+  s_2187214f8688d4::t_37cc58dd42c00f 237
+  s_2187214f8688d4::t_421100a0bceda1 113,238-239
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1fa88a70af6b06d5dc4094731a229f41e678c98e",
+  "prompts": {},
+  "sessions": {
+    "s_2187214f8688d4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a198b8-8be9-7423-95ed-cde3c50905f8",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_42cbedab6b659a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a198c2-9781-7f40-a2b6-dbbe7aed77d1",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
