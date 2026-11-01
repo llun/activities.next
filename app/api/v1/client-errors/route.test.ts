@@ -146,6 +146,105 @@ describe('POST /api/v1/client-errors', () => {
     )
   })
 
+  it.each(['/u/heatmaps', '/embed/heatmap', '/api/v1/webhooks/strava'])(
+    'redacts token paths in all logger arguments for %s',
+    async (prefix) => {
+      const response = await post(
+        createRequest(
+          validPayload({
+            pathname: `${prefix}/pathname-secret/tiles?query=secret#hash`,
+            message: `Failed https://host${prefix}/message-secret/image`,
+            stack: `fn@https://host${prefix}/stack-secret:1:2`
+          })
+        )
+      )
+      expect(response.status).toBe(202)
+      expect(mocks.error).toHaveBeenCalledTimes(1)
+      const log = mocks.error.mock.calls[0][0]
+      expect(log.pathname).toBe(`${prefix}/[token]/tiles`)
+      expect(log.err.message).toBe(`Failed https://host${prefix}/[token]/image`)
+      expect(log.err.stack).toBe(
+        `Error: Failed https://host${prefix}/[token]/image\n    at fn (https://host${prefix}/[token]:1:2)`
+      )
+      // Error properties are non-enumerable, so inspect them explicitly too.
+      const logged = JSON.stringify({
+        ...log,
+        err: {
+          name: log.err.name,
+          message: log.err.message,
+          stack: log.err.stack
+        }
+      })
+      for (const secret of [
+        'pathname-secret',
+        'message-secret',
+        'stack-secret'
+      ]) {
+        expect(logged).not.toContain(secret)
+      }
+    }
+  )
+
+  it('strips a query containing ) through the end of its URL token', async () => {
+    const response = await post(
+      createRequest(
+        validPayload({
+          message: 'Failed https://host/a.js?redirect=/a(b)&token=secret',
+          stack: '    at fn (https://host/a.js?redirect=/a(b)&token=secret:2:3)'
+        })
+      )
+    )
+    expect(response.status).toBe(202)
+    const { err } = mocks.error.mock.calls[0][0]
+    expect(err.message).toBe('Failed https://host/a.js')
+    expect(err.stack).toBe(
+      'Error: Failed https://host/a.js\n    at fn (https://host/a.js:2:3)'
+    )
+  })
+
+  it('drops URL userinfo from the logged message and stack', async () => {
+    const response = await post(
+      createRequest(
+        validPayload({
+          message: 'Failed https://user:password@host/a.js',
+          stack: 'fn@https://user:password@host/a.js:1:2'
+        })
+      )
+    )
+    expect(response.status).toBe(202)
+    const { err } = mocks.error.mock.calls[0][0]
+    expect(err.message).toBe('Failed https://host/a.js')
+    expect(err.stack).toBe(
+      'Error: Failed https://host/a.js\n    at fn (https://host/a.js:1:2)'
+    )
+  })
+
+  it('sanitises a query URL in name before setting err.name and its header', async () => {
+    const response = await post(
+      createRequest(
+        validPayload({
+          name: 'https://user:password@host/error?token=secret',
+          stack: undefined
+        })
+      )
+    )
+    expect(response.status).toBe(202)
+    const { err } = mocks.error.mock.calls[0][0]
+    expect(err.name).toBe('https://host/error')
+    expect(err.stack).toBe('https://host/error: Something broke')
+  })
+
+  it.each(['digest', 'buildVersion'])(
+    'returns 422 for invalid %s without logging',
+    async (field) => {
+      const response = await post(
+        createRequest(validPayload({ [field]: 'https://host/?token=secret' }))
+      )
+      expect(response.status).toBe(422)
+      expect(mocks.error).not.toHaveBeenCalled()
+    }
+  )
+
   it('sets err.stack to just the header line when no client stack is sent', async () => {
     const payload = validPayload({
       message: 'Stackless error',

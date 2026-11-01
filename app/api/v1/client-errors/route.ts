@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import {
+  sanitiseClientErrorPathname,
   sanitiseClientErrorStack,
   sanitiseClientErrorText
 } from '@/lib/services/clientErrors/sanitize'
@@ -91,9 +92,9 @@ export const POST = traceApiRoute('clientErrors', async (req: NextRequest) => {
     userAgent,
     buildVersion
   } = parsed.data
-  const name = submittedName ?? 'Error'
+  const name = sanitiseClientErrorText(submittedName ?? 'Error')
   const sanitisedMessage = sanitiseClientErrorText(message)
-  const sanitisedPathname = pathname.split(/[?#]/)[0]
+  const sanitisedPathname = sanitiseClientErrorPathname(pathname)
   const sanitisedStack = stack ? sanitiseClientErrorStack(stack) : undefined
 
   const header = `${name}: ${sanitisedMessage}`

@@ -25,7 +25,7 @@ const extractErrorInfo = (error: unknown) => {
       message:
         typeof value.message === 'string'
           ? value.message
-          : JSON.stringify(error),
+          : 'Non-Error object thrown',
       stack: typeof value.stack === 'string' ? value.stack : undefined,
       digest: typeof value.digest === 'string' ? value.digest : undefined
     }

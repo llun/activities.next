@@ -179,6 +179,35 @@ describe('reportClientError', () => {
     }).not.toThrow()
   })
 
+  it('never serialises a thrown object without a string message', async () => {
+    const beacon = vi.fn().mockReturnValue(true)
+    setBeacon(beacon)
+    const toJSON = vi.fn(() => ({ password: 'private-secret' }))
+    const thrown: Record<string, unknown> = {
+      message: 42,
+      password: 'private-secret',
+      toJSON
+    }
+    thrown.circular = thrown
+
+    reportClientError(thrown, 'error')
+
+    expect(toJSON).not.toHaveBeenCalled()
+    expect(beacon).toHaveBeenCalledTimes(1)
+    const body = await readBlob(beacon.mock.calls[0][1])
+    expect(JSON.parse(body).message).toBe('Non-Error object thrown')
+    expect(body).not.toContain('private-secret')
+  })
+
+  it('preserves a string message on a thrown object', async () => {
+    const beacon = vi.fn().mockReturnValue(true)
+    setBeacon(beacon)
+    reportClientError({ message: 'Object message' }, 'error')
+    expect(JSON.parse(await readBlob(beacon.mock.calls[0][1])).message).toBe(
+      'Object message'
+    )
+  })
+
   it('handles non-Error objects and strings safely', async () => {
     const beacon = vi.fn().mockReturnValue(true)
     setBeacon(beacon)
@@ -192,7 +221,7 @@ describe('reportClientError', () => {
     expect(beacon).toHaveBeenCalledTimes(2)
     const [, blob2] = beacon.mock.calls[1]
     expect(JSON.parse(await readBlob(blob2)).message).toBe(
-      JSON.stringify({ custom: 'object-failure' })
+      'Non-Error object thrown'
     )
   })
 })
