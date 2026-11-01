@@ -81,15 +81,18 @@ const isLongWait = (handler: unknown, delay: unknown): delay is number =>
 // captured this wrapper before the fakes were installed and wants a real
 // wait (as DraftsProvider.queue.test.tsx's settle() does) still gets one,
 // because waits under LONG_TIMER_MS are never judged.
-const fakeTimersActive = (): boolean =>
-  (globalThis.setTimeout as typeof setTimeout & { clock?: unknown }).clock !==
+// Detected per timer: only the faked timer's global carries the `clock`
+// marker, so a long wait on the other timer is still judged against the
+// real one instead of being handed to a global that is this very wrapper.
+const fakeTimersActive = (timer: 'setTimeout' | 'setInterval'): boolean =>
+  (globalThis[timer] as typeof setTimeout & { clock?: unknown }).clock !==
   undefined
 
 const nativeSetTimeout = globalThis.setTimeout
 const guardedSetTimeout = ((...args: Parameters<typeof setTimeout>) => {
   const [handler, delay] = args
   if (isLongWait(handler, delay)) {
-    if (fakeTimersActive()) {
+    if (fakeTimersActive('setTimeout')) {
       return (globalThis.setTimeout as typeof setTimeout)(...args)
     }
     const stack = guards.captureStack()
@@ -105,7 +108,7 @@ const nativeSetInterval = globalThis.setInterval
 const guardedSetInterval = ((...args: Parameters<typeof setInterval>) => {
   const [handler, delay] = args
   if (isLongWait(handler, delay)) {
-    if (fakeTimersActive()) {
+    if (fakeTimersActive('setInterval')) {
       return (globalThis.setInterval as typeof setInterval)(...args)
     }
     throw longTimerViolation('setInterval', delay)

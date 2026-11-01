@@ -60,6 +60,14 @@ describe('small test guard', () => {
     expect(takeSmallGuardViolations().map((v) => v.kind)).toContain('fs-read')
   })
 
+  it('blocks fs reads through a percent-encoded file: URL inside the repository', () => {
+    const encoded = process.cwd().replaceAll('%', '%25').replaceAll('-', '%2D')
+    expect(() =>
+      fs.readFileSync(new URL(`file://${encoded}/package.json`), 'utf8')
+    ).toThrow(/blocked in small tests/)
+    expect(takeSmallGuardViolations().map((v) => v.kind)).toContain('fs-read')
+  })
+
   it('allows fs reads outside the repository (system files are not fixtures)', () => {
     expect(() => fs.readFileSync('/etc/hosts', 'utf8')).not.toThrow()
     expect(takeSmallGuardViolations()).toEqual([])
@@ -222,6 +230,18 @@ describe('small test guard', () => {
       expect(() => {
         timersSetTimeout(() => {}, 150)
       }).not.toThrow()
+      expect(() => {
+        timersSetInterval(() => {}, 150)
+      }).not.toThrow()
+    } finally {
+      vi.useRealTimers()
+    }
+    expect(takeSmallGuardViolations()).toEqual([])
+  })
+
+  it('hands a named-import interval to fake timers faking only setInterval', () => {
+    vi.useFakeTimers({ toFake: ['setInterval'] })
+    try {
       expect(() => {
         timersSetInterval(() => {}, 150)
       }).not.toThrow()

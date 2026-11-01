@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import fsPromises from 'node:fs/promises'
 import { syncBuiltinESMExports } from 'node:module'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { afterAll, beforeEach, onTestFinished } from 'vitest'
 
 // Shared machinery for the test-size guards (guardSmall.ts, guardMedium.ts)
@@ -138,7 +139,15 @@ const flagOf = (value: unknown): string | number | undefined => {
 // unrecognisable.
 const asPath = (value: unknown): string | undefined => {
   if (typeof value === 'string') return value
-  if (value instanceof URL) return value.pathname
+  if (value instanceof URL) {
+    // fileURLToPath decodes percent escapes (a checkout path with spaces or
+    // a hyphen spelled %2D must compare equal to its plain path).
+    try {
+      return fileURLToPath(value)
+    } catch {
+      return value.pathname
+    }
+  }
   if (typeof value === 'object' && value !== null && 'buffer' in value) {
     return String(value)
   }
