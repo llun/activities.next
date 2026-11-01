@@ -1,3 +1,5 @@
+/** @vitest-size medium */
+// One deep-nesting test takes ~2s, over the small-size limit
 import { htmlToPlainText } from './htmlToPlainText'
 
 describe('htmlToPlainText', () => {
