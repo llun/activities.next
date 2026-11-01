@@ -1,0 +1,19 @@
+lib/database/testing/createTestDatabase.ts
+  s_439f665aad4998::t_bcea3a8e363056 31-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "779bc638868cb187ca1c3d64fdfd66a9d67a1af1",
+  "prompts": {},
+  "sessions": {
+    "s_439f665aad4998": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e335c30-a21c-468e-bbf0-103d2dde596b",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
