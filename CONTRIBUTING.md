@@ -529,9 +529,10 @@ activities.next/
   `vi.fn().mockReturnValue(x)`, while `vi.fn(impl)` keeps `impl`). And a test
   that announces, blocks, deletes or likes hands those rows to whichever test
   runs next — build the database in `beforeEach` and destroy it in
-  `afterEach`, or, on the PostgreSQL harness where `prepare` recreates a
-  whole database, have each test seed the rows it asserts on under ids of its
-  own. CI runs tests in declaration order and cannot see either leak; check
+  `afterEach`, or, on the PostgreSQL harness where `prepare` truncates the
+  worker's database between tests, have each test seed the rows it asserts on
+  under ids of its own. CI runs tests in declaration order and cannot see
+  either leak; check
   with `yarn test --sequence.shuffle --sequence.seed=<n>` over a few seeds.
 - **`toHaveBeenCalledWith` asks whether a call ever happened, never whether
   it was the only one.** A once-per-run summary asserted that way is equally
@@ -671,9 +672,16 @@ Database integration test suites can also run against a local PostgreSQL 17
 instance to verify cross-backend portability: set `TEST_DATABASE_TYPE=pg`
 (with `TEST_DATABASE_HOST` / `TEST_DATABASE_USERNAME` /
 `TEST_DATABASE_PASSWORD`, and optional `TEST_DATABASE_PORT` defaulting to 5432) against a throwaway **local** PostgreSQL. In that mode each Vitest
-worker drops and recreates its **own** database named `test_<VITEST_POOL_ID>` — a single shared
+worker resets its **own** database named `test_<VITEST_POOL_ID>` (created on first
+use) — a single shared
 database would let one worker destroy the schema another worker is mid-test on.
-The schema loader runs `migrations/schema.sql` on a connection of its own
+`prepare` compares a fingerprint of the live `public` schema (stored in
+`COMMENT ON DATABASE` together with the sha256 of the dump) with what
+`migrations/schema.sql` builds: on a match it truncates the tables with rows
+and restarts the used sequences, on a
+mismatch — first run, changed dump, or a test that altered the schema — it
+resets the schema and replays the dump. The schema loader runs
+`migrations/schema.sql` on a connection of its own
 that it closes afterwards (`executeScript` in `lib/database/connection.ts`),
 never on a pooled one: pg_dump's leading
 `SELECT pg_catalog.set_config('search_path', '', false)` is session-scoped and

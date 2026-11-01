@@ -114,10 +114,11 @@ export default defineConfig({
     // itself first.
     sequence: { hooks: 'list' },
     // Match testTimeout. Vitest's 10s default is too tight for the
-    // `TEST_DATABASE_TYPE=pg` harness: every test file's `beforeAll` drops and
-    // recreates its worker's database and replays the whole of
-    // `migrations/schema.sql`, and one worker per core doing that at once
-    // against a cold PostgreSQL overran 10s. SQLite hooks finish in
+    // `TEST_DATABASE_TYPE=pg` harness: every test file's `beforeAll` empties
+    // its worker's database — replaying the whole of `migrations/schema.sql`
+    // only when the schema fingerprint says it must be rebuilt; a match just
+    // truncates the tables with rows — and one worker per core doing that at
+    // once against a cold PostgreSQL overran 10s. SQLite hooks finish in
     // milliseconds, so this only raises the ceiling before a hung hook is
     // declared failed — it does not slow a passing run down.
     hookTimeout: 30000,

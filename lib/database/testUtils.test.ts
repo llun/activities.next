@@ -211,7 +211,15 @@ describe('PostgreSQL test connection paths', () => {
     mockPgClientEnd.mockReset()
 
     mockPgClientConnect.mockResolvedValue(undefined)
-    mockPgClientQuery.mockResolvedValue(undefined)
+    // `prepare` reads rows straight out of its catalog queries: no database
+    // yet, no stored fingerprint.
+    mockPgClientQuery.mockImplementation((sql: string) =>
+      sql.includes('shobj_description')
+        ? { rows: [{ description: null }] }
+        : sql.startsWith('select md5(')
+          ? { rows: [{ fingerprint: '0'.repeat(32) }] }
+          : { rows: [] }
+    )
     mockPgClientEnd.mockResolvedValue(undefined)
 
     mockCreateDatabaseConnection.mockImplementation(createMockConnection)
@@ -261,8 +269,10 @@ describe('PostgreSQL test connection paths', () => {
       database: 'postgres'
     })
     expect(mockPgClientConnect).toHaveBeenCalled()
+    // The mock client returns no rows, so `prepare` takes the create path.
     expect(mockPgClientQuery).toHaveBeenCalledWith(
-      `DROP DATABASE IF EXISTS ${expectedPgDatabase} WITH (FORCE)`
+      'select 1 from pg_database where datname = $1',
+      [expectedPgDatabase]
     )
     expect(mockPgClientQuery).toHaveBeenCalledWith(
       `CREATE DATABASE ${expectedPgDatabase}`
@@ -336,10 +346,65 @@ describe('PostgreSQL test connection paths', () => {
       database: 'postgres'
     })
     expect(mockPgClientQuery).toHaveBeenCalledWith(
-      `DROP DATABASE IF EXISTS ${expectedPgDatabase}_isolated WITH (FORCE)`
+      'select 1 from pg_database where datname = $1',
+      [`${expectedPgDatabase}_isolated`]
     )
     expect(mockPgClientQuery).toHaveBeenCalledWith(
       `CREATE DATABASE ${expectedPgDatabase}_isolated`
+    )
+    expect(mockPgClientEnd).toHaveBeenCalled()
+  })
+
+  it('resets the schemas of an existing database instead of recreating it', async () => {
+    delete process.env.TEST_DATABASE_PORT
+    process.env.TEST_DATABASE_TYPE = 'pg'
+    process.env.TEST_DATABASE_HOST = '127.0.0.1'
+    process.env.TEST_DATABASE_USERNAME = 'pguser'
+    process.env.TEST_DATABASE_PASSWORD = 'pgpassword'
+
+    // The mock client reports the database as existing, with no stored
+    // fingerprint — `prepare` resets the schemas and replays the dump. A
+    // schema a test created shows up in the catalog lookup and is dropped
+    // along with `public`.
+    mockPgClientQuery.mockImplementation((sql: string) =>
+      sql.includes('shobj_description')
+        ? { rows: [{ description: null }] }
+        : sql.includes('pg_database')
+          ? { rows: [{ '?column?': 1 }] }
+          : sql.startsWith('select md5(')
+            ? { rows: [{ fingerprint: 'a'.repeat(32) }] }
+            : sql.startsWith('select nspname from pg_namespace')
+              ? { rows: [{ nspname: 'probe_schema' }] }
+              : { rows: [] }
+    )
+
+    const { prepare } = getTestDatabaseWithInstance(false, 'pg')
+    await prepare()
+
+    expect(mockPgClientConstructor).toHaveBeenCalledWith({
+      host: '127.0.0.1',
+      port: 5432,
+      user: 'pguser',
+      password: 'pgpassword',
+      database: 'postgres'
+    })
+    expect(mockPgClientQuery).toHaveBeenCalledWith(
+      `select pg_terminate_backend(pid) from pg_stat_activity
+       where datname = $1 and pid <> pg_backend_pid()`,
+      [expectedPgDatabase]
+    )
+    expect(mockPgClientConstructor).toHaveBeenCalledWith({
+      host: '127.0.0.1',
+      port: 5432,
+      user: 'pguser',
+      password: 'pgpassword',
+      database: expectedPgDatabase
+    })
+    expect(mockPgClientQuery).toHaveBeenCalledWith(
+      'DROP SCHEMA IF EXISTS public CASCADE; DROP SCHEMA IF EXISTS "probe_schema" CASCADE; CREATE SCHEMA public'
+    )
+    expect(mockPgClientQuery).not.toHaveBeenCalledWith(
+      `CREATE DATABASE ${expectedPgDatabase}`
     )
     expect(mockPgClientEnd).toHaveBeenCalled()
   })

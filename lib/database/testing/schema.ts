@@ -29,3 +29,7 @@ export const loadSchemaDump = async (connection: DatabaseHandle) => {
     connection.backend === 'pg' ? POSTGRES_SCHEMA_PATH : SQLITE_SCHEMA_PATH
   await connection.executeScript(readFileSync(path, 'utf8'))
 }
+
+/** The committed PostgreSQL schema dump, for `preparePgDatabase`'s fingerprint. */
+export const getPostgresSchemaSql = () =>
+  readFileSync(POSTGRES_SCHEMA_PATH, 'utf8')

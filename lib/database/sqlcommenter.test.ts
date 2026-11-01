@@ -84,7 +84,9 @@ describe('sqlcommenter on the connection', () => {
   }
 
   beforeAll(async () => {
-    await testDb.prepare()
+    // No `migrate()` here: this suite only sends `select 1`-shaped statements
+    // through its own connection, so it wants an empty database.
+    await testDb.prepareEmpty()
     connection = createDatabaseConnection(getTestDatabaseConfig(backend), {
       sqlcommenter: true
     })

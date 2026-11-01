@@ -10,7 +10,8 @@ import { seedActor2 } from '@/lib/stub/seed/actor2'
 import { EXTERNAL_ACTOR1, seedExternal1 } from '@/lib/stub/seed/external1'
 
 // Each test gets its own database. On PostgreSQL it is this worker's
-// `_isolated` database, recreated per test, so the suite runs on both backends.
+// `_isolated` database, emptied by `prepare` per test (tables truncated and
+// used sequences restarted, schema kept), so the suite runs on both backends.
 const getFreshDatabaseWithInstance = async () => {
   const { database, db, prepare } = getTestDatabaseWithInstance(true)
   await prepare()

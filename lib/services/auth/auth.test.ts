@@ -28,7 +28,7 @@ vi.mock('@/lib/database', () => ({
 describe('getAuth trustedOrigins', () => {
   beforeAll(async () => {
     const testDb = createTestDatabase()
-    await testDb.prepare()
+    await testDb.prepareEmpty()
     holder.testDb = testDb
   })
 
@@ -74,7 +74,7 @@ const pluginOptions = (
 describe('getAuth per-domain names', () => {
   beforeAll(async () => {
     const testDb = createTestDatabase()
-    await testDb.prepare()
+    await testDb.prepareEmpty()
     holder.testDb = testDb
   })
 
