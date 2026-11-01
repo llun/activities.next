@@ -86,6 +86,10 @@ describe('/auth/signin already-authenticated resume', () => {
     )
   })
 
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   it('forwards an authenticated user to the resumed OAuth consent page instead of home', async () => {
     vi.mocked(getServerAuthSession).mockResolvedValue(aSession)
 

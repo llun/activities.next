@@ -4,14 +4,15 @@ import { isSafeInternalPath } from '@/lib/utils/isSafeInternalPath'
 
 // better-auth's loginPage redirect wraps the OAuth query in a signed envelope:
 // `sig`/`exp` (the signature and its expiry) plus `ba_*` internals (ba_iat,
-// ba_param, ba_pl). Those — and our own `redirectBack` — must NOT be forwarded
-// when resuming the request; everything else (the relying party's full OIDC
-// request: response_type, client_id, redirect_uri, scope, state, PKCE, nonce,
-// prompt, and any other standard param like response_mode/login_hint/max_age)
-// is preserved.
+// ba_param, ba_pl).
 const isSignatureEnvelopeKey = (key: string): boolean =>
   key === 'sig' || key === 'exp' || key.startsWith('ba_')
 
+// The envelope and our own `redirectBack` must NOT be forwarded when resuming
+// the request; everything else (the relying party's OIDC request:
+// response_type, client_id, redirect_uri, scope, state, PKCE, nonce, prompt) is
+// forwarded to /oauth/authorize, whose SearchParams schema drops params it does
+// not list.
 // `force_login` is not part of the better-auth envelope, but it is consumed
 // here for the same reason prompt=login is stripped below: the interactive
 // login it demanded has just happened, so forwarding it would bounce the

@@ -951,7 +951,7 @@ describe('AuthorizeCard', () => {
     })
   })
 
-  it('navigates to the unsigned authorize path when approve encounters an invalid_signature error', async () => {
+  it('reloads consent unsigned with prompt=consent when approve encounters an invalid_signature error', async () => {
     mockSubmitOAuthConsent.mockRejectedValueOnce(
       new ApiRequestError('invalid_signature', 400)
     )
@@ -983,10 +983,11 @@ describe('AuthorizeCard', () => {
     expect(query.has('sig')).toBe(false)
     expect(query.has('exp')).toBe(false)
     expect(query.get('client_id')).toBe('phanpy-client')
+    expect(query.get('prompt')).toBe('consent')
     expect(query.get('redirect_uri')).toBe('https://phanpy.local/')
   })
 
-  it('navigates to the unsigned authorize path when deny encounters an invalid_signature error', async () => {
+  it('honours the refusal with access_denied when deny encounters an invalid_signature error', async () => {
     mockSubmitOAuthConsent.mockRejectedValueOnce(
       new ApiRequestError('invalid_signature', 400)
     )
@@ -1011,14 +1012,10 @@ describe('AuthorizeCard', () => {
       expect(mockNavigate).toHaveBeenCalled()
     })
 
-    const navigatedUrl = mockNavigate.mock.calls[0][0]
-    expect(navigatedUrl.startsWith('/oauth/authorize?')).toBe(true)
-    expect(navigatedUrl).not.toContain('error=server_error')
-    const query = new URLSearchParams(navigatedUrl.split('?')[1])
-    expect(query.has('sig')).toBe(false)
-    expect(query.has('exp')).toBe(false)
-    expect(query.get('client_id')).toBe('phanpy-client')
-    expect(query.get('redirect_uri')).toBe('https://phanpy.local/')
+    expect(mockNavigate).toHaveBeenCalledTimes(1)
+    const navigatedUrl = new URL(mockNavigate.mock.calls[0][0])
+    expect(navigatedUrl.origin).toBe('https://phanpy.local')
+    expect(navigatedUrl.searchParams.get('error')).toBe('access_denied')
   })
 
   it('falls back to router push when redirect_uri is malformed on server error', async () => {

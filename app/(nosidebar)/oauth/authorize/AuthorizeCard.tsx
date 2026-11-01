@@ -192,22 +192,8 @@ export const AuthorizeCard: FC<Props> = ({
     router.push(client.website ?? '/')
   }
 
-  const handleConsentError = (error: unknown) => {
-    if (
-      error instanceof ApiRequestError &&
-      error.message === 'invalid_signature'
-    ) {
-      navigate(
-        buildOAuthAuthorizePath({
-          ...searchParams,
-          sig: undefined,
-          exp: undefined
-        })
-      )
-      return
-    }
-    redirectWithError('server_error')
-  }
+  const isExpiredConsentError = (error: unknown) =>
+    error instanceof ApiRequestError && error.message === 'invalid_signature'
 
   const handleApprove = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -236,7 +222,20 @@ export const AuthorizeCard: FC<Props> = ({
 
       redirectWithError('server_error')
     } catch (error) {
-      handleConsentError(error)
+      if (isExpiredConsentError(error)) {
+        // prompt=consent: better-auth could otherwise issue a code without
+        // showing consent, replacing the scopes the visitor narrowed.
+        navigate(
+          buildOAuthAuthorizePath({
+            ...searchParams,
+            prompt: 'consent',
+            sig: undefined,
+            exp: undefined
+          })
+        )
+        return
+      }
+      redirectWithError('server_error')
     } finally {
       setSubmittingAction(null)
     }
@@ -259,7 +258,10 @@ export const AuthorizeCard: FC<Props> = ({
       redirectWithError('access_denied')
       return
     } catch (error) {
-      handleConsentError(error)
+      // Honour the refusal here: restarting could turn a Deny into a grant.
+      redirectWithError(
+        isExpiredConsentError(error) ? 'access_denied' : 'server_error'
+      )
     } finally {
       setSubmittingAction(null)
     }
