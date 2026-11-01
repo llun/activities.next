@@ -205,7 +205,7 @@ describe('GalleryAlbumDatabase', () => {
           existing: [],
           skipped: expect.arrayContaining([ids.foreign, '999999', 'not-an-id'])
         })
-        expect(result.added).toHaveLength(3)
+        expect(result.status === 'added' && result.added).toHaveLength(3)
         expect(await namesIn(album.id, OWNER_GALLERY_AUDIENCE)).toEqual([
           'hidden',
           'public'
