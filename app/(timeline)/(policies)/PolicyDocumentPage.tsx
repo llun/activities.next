@@ -98,30 +98,20 @@ export const PolicyDocumentPage: FC<PolicyDocumentPageProps> = async ({
         <div className={DOCUMENT_CLASS}>{parse(html)}</div>
         <footer className="text-muted-foreground mt-12 flex flex-col gap-1.5 border-t pt-5 text-sm md:flex-row md:flex-wrap md:justify-center md:gap-x-5">
           {otherPolicy ? (
-            <>
-              <Link href={POLICIES[other].href} className={footerLinkClass}>
-                {POLICIES[other].title}
-              </Link>
-              <span aria-hidden="true" className="max-md:hidden">
-                &middot;
-              </span>
-            </>
+            <Link href={POLICIES[other].href} className={footerLinkClass}>
+              {POLICIES[other].title}
+            </Link>
           ) : null}
           {identity.contactEmail ? (
-            <>
-              <span>
-                Contact{' '}
-                <a
-                  href={`mailto:${identity.contactEmail}`}
-                  className={footerLinkClass}
-                >
-                  {identity.contactEmail}
-                </a>
-              </span>
-              <span aria-hidden="true" className="max-md:hidden">
-                &middot;
-              </span>
-            </>
+            <span>
+              Contact{' '}
+              <a
+                href={`mailto:${identity.contactEmail}`}
+                className={footerLinkClass}
+              >
+                {identity.contactEmail}
+              </a>
+            </span>
           ) : null}
           <span>
             Powered by{' '}

@@ -117,6 +117,7 @@ describe('PolicyDocumentPage', () => {
     expect(
       within(footer).getByRole('link', { name: 'Activities.next' })
     ).toHaveAttribute('href', 'https://github.com/llun/activities.next')
+    expect(footer.textContent).not.toContain('·')
   })
 
   it('links the terms from the privacy page, and leaves out what is not set', async () => {
