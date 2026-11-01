@@ -205,7 +205,7 @@ describe('renderPolicyMarkdown', () => {
       '  **Note:**  ',
       '**A _formatted_ label**',
       '***Important***'
-    ])('marks a bold-only paragraph as a label: %s', (markdown) => {
+    ])('marks a single bold span as a label: %s', (markdown) => {
       expect(page(markdown).html).toMatch(/^<p class="policy-label">/)
     })
 
