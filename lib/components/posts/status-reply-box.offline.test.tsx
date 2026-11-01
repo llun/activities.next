@@ -27,6 +27,7 @@ import { DraftsProvider } from '@/lib/components/drafts/DraftsProvider'
 import { DRAFT_SAVE_DEBOUNCE_MS } from '@/lib/components/post-box/useComposerDraft'
 import { createDeferred } from '@/lib/testing/deferred'
 import { installFakeBroadcastChannel } from '@/lib/testing/fakeBroadcastChannel'
+import { findInRealTime } from '@/lib/testing/findInRealTime'
 import { findSendAlert } from '@/lib/testing/sendAlerts'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { StatusNote, StatusType } from '@/lib/types/domain/status'
@@ -159,11 +160,14 @@ const advanceDebounce = async () => {
 }
 
 // The provider reads its epoch after mounting; nothing can be saved before it
-// has, so wait for the autosave to land first.
+// has, so wait for the autosave to land first. The save's IndexedDB work is
+// real and findByText's budget is counted on the fake clock, so the note is
+// polled for in real time; a save refused while the epoch was still loading
+// is re-armed as a debounce, so each poll moves the fake clock too.
 const typeAndWaitForSave = async (value: string) => {
   type(value)
   await advanceDebounce()
-  await screen.findByText('Saved on this device', {}, { timeout: 4000 })
+  await findInRealTime('Saved on this device', { advancePerPoll: 50 })
 }
 
 const goOffline = async () => {
@@ -356,9 +360,10 @@ describe('StatusReplyBox offline hand-off', () => {
           expect(document.querySelectorAll('div.aspect-square')).toHaveLength(1)
         )
         // The record that holds the clip is the debounced save's work: run
-        // it to its end.
+        // it to its end. The save's IndexedDB work is real, so the note is
+        // polled for in real time.
         await advanceDebounce()
-        await screen.findByText('Saved on this device', {}, { timeout: 4000 })
+        await findInRealTime('Saved on this device', { advancePerPoll: 50 })
 
         submit()
 
@@ -414,9 +419,10 @@ describe('StatusReplyBox offline hand-off', () => {
         expect(document.querySelectorAll('div.aspect-square')).toHaveLength(1)
       )
       // The record that holds the photo is the debounced save's work: run
-      // it to its end.
+      // it to its end. The save's IndexedDB work is real, so the note is
+      // polled for in real time.
       await advanceDebounce()
-      await screen.findByText('Saved on this device', {}, { timeout: 4000 })
+      await findInRealTime('Saved on this device', { advancePerPoll: 50 })
 
       fireEvent.click(queueButton())
 
@@ -531,8 +537,8 @@ describe('StatusReplyBox offline hand-off', () => {
       await goOffline()
       await typeAndWaitForSave('Reply body')
       // More text than the autosave holds, so the keep has something to save.
-      // Its debounce stays armed: the hand-off's save clears it, and the
-      // re-armed autosave is the third save the count below waits for.
+      // Its debounce stays armed until the hand-off's save clears it; the
+      // keep that failure starts is the third save, held open below.
       type('Reply body, more')
       const failing = failNextSave()
 

@@ -43,6 +43,7 @@ import {
 } from '@/lib/components/drafts/DraftsProvider'
 import { createDeferred } from '@/lib/testing/deferred'
 import { installFakeBroadcastChannel } from '@/lib/testing/fakeBroadcastChannel'
+import { findInRealTime } from '@/lib/testing/findInRealTime'
 import { findSendAlert, sendAlerts } from '@/lib/testing/sendAlerts'
 import { Status, StatusType } from '@/lib/types/domain/status'
 
@@ -60,19 +61,6 @@ import { DRAFT_SAVE_DEBOUNCE_MS } from './useComposerDraft'
 
 // The file fakes setTimeout in beforeEach; this one stays real.
 const realSetTimeout = globalThis.setTimeout
-
-// Wait for text in real time while the fake clock stands still. findByText's
-// budget is counted on the fake clock, so it can run out in well under a real
-// second on a loaded machine.
-const findInRealTime = async (text: string, timeout = 10_000) => {
-  const deadline = performance.now() + timeout
-  for (;;) {
-    const el = screen.queryByText(text)
-    if (el) return el
-    if (performance.now() > deadline) return screen.getByText(text)
-    await act(() => new Promise<void>((r) => realSetTimeout(r, 20)))
-  }
-}
 
 // PostBox shows the drafts note through next/dynamic. Importing the real
 // module once up front means a cold, loaded machine cannot make the first

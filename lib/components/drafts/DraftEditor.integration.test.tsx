@@ -140,6 +140,15 @@ const advancePastAutosave = async (ms = DRAFT_SAVE_DEBOUNCE_MS + 300) => {
   })
 }
 
+// The suite fakes setTimeout in beforeEach; real-time settles keep this one.
+const realSetTimeout = globalThis.setTimeout
+
+// Waits out real time while the fake clock stands still. The discard a
+// guard-less unmount would run is real IndexedDB work, not a timer, so no
+// fake-clock advance can stand in for the settle that must follow it.
+const settleReal = (ms: number) =>
+  new Promise<void>((resolve) => realSetTimeout(resolve, ms))
+
 const open = async (
   draft: DraftRecord,
   { strict = false, bytes }: { strict?: boolean; bytes?: File } = {}
@@ -354,6 +363,11 @@ describe('DraftEditor with the real composers', () => {
       await expectStored({ text: '' })
       fireEvent.click(screen.getByRole('button', { name: 'Close' }))
       unmount()
+      // The discard a guard-less Close would arm is a 0 ms timer on the fake
+      // clock: run it, then let its IndexedDB work settle, so the check
+      // below cannot pass before that discard could have committed.
+      await advancePastAutosave()
+      await settleReal(150)
 
       await expectStored({
         text: '',
@@ -378,6 +392,12 @@ describe('DraftEditor with the real composers', () => {
       const { unmount } = await open(record({ attachments: [photo] }))
       await clearText()
       unmount()
+      // The discard a guard-less unmount would arm is a 0 ms timer on the
+      // fake clock: run it, and the autosave pause with it, then let its
+      // IndexedDB work settle, so the check below cannot pass before that
+      // discard could have committed.
+      await advancePastAutosave()
+      await settleReal(150)
 
       await expectStored({ text: '' })
     })
@@ -388,8 +408,10 @@ describe('DraftEditor with the real composers', () => {
       })
       await screen.findByPlaceholderText('What is on your mind?')
       // Past the 0 ms discard timer StrictMode arms on its first unmount:
-      // the fake clock proves the discard had its chance.
+      // the fake clock proves the discard had its chance, and the settle
+      // lets it commit before the record is checked.
       await advancePastAutosave(300)
+      await settleReal(150)
 
       expect(await getDraft('draft-1')).toBeDefined()
       expect(onClose).not.toHaveBeenCalled()
@@ -406,8 +428,12 @@ describe('DraftEditor with the real composers', () => {
     it('saves and discards nothing while the attachment bytes are still loading', async () => {
       // Longer than the 800 ms autosave debounce: what must not happen has
       // had its chance. The debounce is a fake timer, so the fake clock
-      // proves that interval passed.
-      const pastDebounce = () => advancePastAutosave(1700)
+      // proves that interval passed; a save or discard that wrongly ran is
+      // real IndexedDB work, so the settle lets it land before the check.
+      const pastDebounce = async () => {
+        await advancePastAutosave(1700)
+        await settleReal(150)
+      }
       const pending = {
         ...photo,
         localId: 'pending-1',

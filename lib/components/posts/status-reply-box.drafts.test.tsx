@@ -31,6 +31,7 @@ import {
 import { DRAFT_SAVE_DEBOUNCE_MS } from '@/lib/components/post-box/useComposerDraft'
 import { createDeferred } from '@/lib/testing/deferred'
 import { installFakeBroadcastChannel } from '@/lib/testing/fakeBroadcastChannel'
+import { findInRealTime } from '@/lib/testing/findInRealTime'
 import { findSendAlert, sendAlerts } from '@/lib/testing/sendAlerts'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { StatusNote, StatusType } from '@/lib/types/domain/status'
@@ -148,11 +149,13 @@ const type = (value: string) =>
   fireEvent.change(textarea(), { target: { value } })
 const stored = () => listDrafts({ actorId: profile.id })
 // The autosave pause is a fake timer: run it to its end instead of waiting out
-// 800 ms of real time. The save's IndexedDB work is real, so the note itself
-// is found in real time afterwards.
+// 800 ms of real time. The save's IndexedDB work is real and findByText's
+// budget is counted on the fake clock, so the note is polled for in real time;
+// a save refused while the provider's epoch was still loading is re-armed as
+// a debounce, so each poll moves the fake clock too.
 const waitForSaved = async () => {
   await advanceDebounce()
-  return screen.findByText('Saved on this device')
+  return findInRealTime('Saved on this device', { advancePerPoll: 50 })
 }
 const post = () => fireEvent.click(screen.getByRole('button', { name: 'Post' }))
 const cancel = () =>
