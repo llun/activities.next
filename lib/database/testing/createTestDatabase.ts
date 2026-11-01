@@ -128,11 +128,12 @@ export const getTestDatabaseConfig = (
   }
   // An isolated caller needs its OWN database, not the suite's: `prepare`
   // resets the worker's database, so sharing the per-worker name would wipe
-  // the database the surrounding suite is running against. ONE extra name per worker rather
-  // than one per caller — Vitest runs a file's tests sequentially and each
-  // isolated caller destroys its instance before the next begins, so reusing
-  // the name keeps the server's database count bounded by the worker count
-  // instead of growing with the number of such tests.
+  // the database the surrounding suite is running against. ONE extra name
+  // per worker rather than one per caller — Vitest runs a file's tests
+  // sequentially and each isolated caller destroys its instance before the
+  // next begins, so reusing the name keeps the server's database count
+  // bounded by the worker count instead of growing with the number of such
+  // tests.
   return {
     client: 'pg',
     connection: {

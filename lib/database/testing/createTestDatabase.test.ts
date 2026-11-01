@@ -1,8 +1,16 @@
 import { sql } from 'kysely'
+import type { Client as PostgresClient } from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import type { Db } from '@/lib/database/kysely'
-import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import {
+  createTestDatabase,
+  getTestPgDatabaseName
+} from '@/lib/database/testing/createTestDatabase'
+import {
+  computeSchemaFingerprint,
+  getTestPgConnection
+} from '@/lib/database/testing/postgres'
 
 const expectedBackend =
   process.env.TEST_DATABASE_TYPE === 'pg' ? 'pg' : 'sqlite'
@@ -66,7 +74,10 @@ describe('createTestDatabase', () => {
         .where('key', '=', 'createTestDatabase.migrate.probe')
         .execute()
     ).resolves.toEqual([])
-    await expect(database.getAllServerSettings()).resolves.toEqual([])
+    // Earlier tests may have left rows behind (--sequence.shuffle), so the
+    // assertion is only that the query runs against the migrated schema:
+    // with no schema loaded it would reject with a missing table.
+    await expect(database.getAllServerSettings()).resolves.toBeInstanceOf(Array)
   })
 
   it('reads a row written through db via database', async () => {
@@ -157,6 +168,49 @@ describe.skipIf(process.env.TEST_DATABASE_TYPE !== 'pg')(
         sql`select id from public.bookmarks`.execute(second.db)
       ).resolves.toMatchObject({ rows: [{ id: 1 }] })
       await second.destroy()
+    })
+
+    // Pins the fast path: on an unchanged schema a second prepare must
+    // truncate the tables in place — the table keeps its `pg_class.oid` —
+    // while a schema-altering change forces the rebuild, which hands out a
+    // new oid.
+    it('a second prepare on an unchanged schema truncates instead of rebuilding', async () => {
+      const oidOfBookmarks = (
+        instance: ReturnType<typeof createTestDatabase>
+      ) =>
+        sql<{ oid: string }>`select c.oid::text as oid
+                            from pg_class c
+                            join pg_namespace n on n.oid = c.relnamespace
+                            where n.nspname = 'public'
+                              and c.relname = 'bookmarks'`.execute(instance.db)
+
+      const first = createTestDatabase()
+      await first.prepare()
+      const oidBefore = (await oidOfBookmarks(first)).rows[0].oid
+      await sql`insert into public.bookmarks ("actorId", "statusId") values ('oid-a', 'oid-s')`.execute(
+        first.db
+      )
+      await first.destroy()
+
+      const second = createTestDatabase()
+      await second.prepare()
+      // Unchanged schema: the table survived the truncate — same oid — and
+      // its rows are gone.
+      expect((await oidOfBookmarks(second)).rows[0].oid).toBe(oidBefore)
+      await expect(
+        second.db.selectFrom('bookmarks').selectAll().execute()
+      ).resolves.toEqual([])
+
+      // A schema-altering change forces the rebuild path: a new table oid.
+      await second.db.schema
+        .alterTable('server_settings')
+        .addColumn('probe', 'integer')
+        .execute()
+      await second.destroy()
+      const third = createTestDatabase()
+      await third.prepare()
+      expect((await oidOfBookmarks(third)).rows[0].oid).not.toBe(oidBefore)
+      await third.destroy()
     })
 
     it('rebuilds the schema for the next prepare after a test alters it', async () => {
@@ -260,48 +314,106 @@ describe.skipIf(process.env.TEST_DATABASE_TYPE !== 'pg')(
       await second.destroy()
     })
 
+    // A changed function body or trigger state leaves the same object in the
+    // catalog — only the fingerprint query can see the difference, so each
+    // case fingerprints the prepared schema, changes the object in place and
+    // fingerprints again: the two values must differ.
+    const fingerprintDuring = async (
+      run: (client: PostgresClient) => Promise<void>
+    ) => {
+      const { Client } = await import('pg')
+      const client = new Client({
+        ...getTestPgConnection(),
+        database: getTestPgDatabaseName()
+      })
+      await client.connect()
+      try {
+        await run(client)
+      } finally {
+        await client.end()
+      }
+    }
+
+    it('fingerprints a changed function body in place', async () => {
+      const testDatabase = createTestDatabase()
+      await testDatabase.prepare()
+      try {
+        await fingerprintDuring(async (client) => {
+          await client.query(
+            'create function public.probe_fn() returns integer language sql as $body$ select 1 $body$'
+          )
+          const before = await computeSchemaFingerprint(client)
+          // Same name, signature and return type — only the body changes.
+          await client.query(
+            'create or replace function public.probe_fn() returns integer language sql as $body$ select 2 $body$'
+          )
+          await expect(computeSchemaFingerprint(client)).resolves.not.toBe(
+            before
+          )
+        })
+      } finally {
+        await testDatabase.destroy()
+      }
+
+      // The fingerprint mismatch makes the next prepare rebuild the schema,
+      // dropping the probe function.
+      const second = createTestDatabase()
+      await second.prepare()
+      await expect(
+        sql<{ total: number }>`select count(*)::int as total
+                              from pg_proc p
+                              join pg_namespace n on n.oid = p.pronamespace
+                              where n.nspname = 'public'
+                                and p.proname = 'probe_fn'`.execute(second.db)
+      ).resolves.toMatchObject({ rows: [{ total: 0 }] })
+      await second.destroy()
+    })
+
+    it('fingerprints a trigger disabled in place', async () => {
+      const testDatabase = createTestDatabase()
+      await testDatabase.prepare()
+      try {
+        await fingerprintDuring(async (client) => {
+          await client.query(
+            'create function public.probe_trg_fn() returns trigger language plpgsql as $body$ begin return null; end $body$'
+          )
+          await client.query(
+            'create trigger probe_trg before insert on public.server_settings for each row execute function public.probe_trg_fn()'
+          )
+          const before = await computeSchemaFingerprint(client)
+          // The trigger keeps its name and definition — pg_get_triggerdef
+          // renders a disabled trigger like an enabled one, so only the
+          // tgenabled column can tell the fingerprints apart.
+          await client.query(
+            'alter table public.server_settings disable trigger probe_trg'
+          )
+          await expect(computeSchemaFingerprint(client)).resolves.not.toBe(
+            before
+          )
+        })
+      } finally {
+        await testDatabase.destroy()
+      }
+
+      // The fingerprint mismatch makes the next prepare rebuild the schema,
+      // dropping the probe trigger.
+      const second = createTestDatabase()
+      await second.prepare()
+      await expect(
+        sql<{ total: number }>`select count(*)::int as total
+                              from pg_trigger tr
+                              join pg_class c on c.oid = tr.tgrelid
+                              join pg_namespace n on n.oid = c.relnamespace
+                              where n.nspname = 'public'
+                                and tr.tgname = 'probe_trg'`.execute(second.db)
+      ).resolves.toMatchObject({ rows: [{ total: 0 }] })
+      await second.destroy()
+    })
+
     // Each case alters the worker's database in a way only the matching
     // fingerprint section sees — every one must make the next prepare
     // notice the mismatch and rebuild from the dump.
     it.each([
-      {
-        name: 'a changed function body',
-        alter: async (db: Db) => {
-          await sql`create function public.probe_fn() returns integer language sql as $body$ select 1 $body$`.execute(
-            db
-          )
-          await sql`create or replace function public.probe_fn() returns integer language sql as $body$ select 2 $body$`.execute(
-            db
-          )
-        },
-        gone: (db: Db) =>
-          sql<{ total: number }>`select count(*)::int as total
-                                from pg_proc p
-                                join pg_namespace n on n.oid = p.pronamespace
-                                where n.nspname = 'public'
-                                  and p.proname = 'probe_fn'`.execute(db)
-      },
-      {
-        name: 'a disabled trigger',
-        alter: async (db: Db) => {
-          await sql`create function public.probe_trg_fn() returns trigger language plpgsql as $body$ begin return null; end $body$`.execute(
-            db
-          )
-          await sql`create trigger probe_trg before insert on public.server_settings for each row execute function public.probe_trg_fn()`.execute(
-            db
-          )
-          await sql`alter table public.server_settings disable trigger probe_trg`.execute(
-            db
-          )
-        },
-        gone: (db: Db) =>
-          sql<{ total: number }>`select count(*)::int as total
-                                from pg_trigger tr
-                                join pg_class c on c.oid = tr.tgrelid
-                                join pg_namespace n on n.oid = c.relnamespace
-                                where n.nspname = 'public'
-                                  and tr.tgname = 'probe_trg'`.execute(db)
-      },
       {
         name: 'an altered sequence',
         alter: async (db: Db) => {

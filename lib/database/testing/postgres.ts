@@ -173,7 +173,7 @@ const COMMENT_PATTERN = /^fingerprint=([0-9a-f]{32});schema=([0-9a-f]{64})$/
 
 const quoteIdentifier = (name: string) => `"${name.replace(/"/g, '""')}"`
 
-const computeSchemaFingerprint = async (target: PostgresClient) => {
+export const computeSchemaFingerprint = async (target: PostgresClient) => {
   const { rows } = await target.query<{ fingerprint: string }>(
     SCHEMA_FINGERPRINT_SQL
   )
