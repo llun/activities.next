@@ -1,5 +1,6 @@
 /**
  * @vitest-environment jsdom
+ * @vitest-size medium
  */
 import '@testing-library/jest-dom'
 import { render, screen, within } from '@testing-library/react'

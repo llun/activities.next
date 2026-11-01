@@ -1,5 +1,6 @@
 /**
  * @vitest-environment jsdom
+ * @vitest-size medium
  */
 import {
   ONLINE_CONNECTION_SNAPSHOT,

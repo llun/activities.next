@@ -1,3 +1,4 @@
+/** @vitest-size medium */
 import { IDBFactory } from 'fake-indexeddb'
 
 import {

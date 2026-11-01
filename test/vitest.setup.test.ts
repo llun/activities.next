@@ -1,4 +1,7 @@
-// @vitest-environment jsdom
+/**
+ * @vitest-environment jsdom
+ * @vitest-size medium
+ */
 import { render } from '@testing-library/react'
 import dynamic from 'next/dynamic'
 import { promisify } from 'node:util'

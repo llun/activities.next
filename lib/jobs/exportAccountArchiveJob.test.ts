@@ -1,3 +1,4 @@
+/** @vitest-size large */
 import crypto from 'crypto'
 import fs from 'fs/promises'
 import os from 'os'

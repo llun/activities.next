@@ -1,3 +1,4 @@
+/** @vitest-size medium */
 import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { Database } from '@/lib/database/types'
 import { createDeferred } from '@/lib/testing/deferred'

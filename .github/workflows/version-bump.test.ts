@@ -1,3 +1,5 @@
+// @vitest-size large
+// Spawns the bump script with child_process, which the medium guard blocks.
 import { spawnSync } from 'node:child_process'
 import {
   chmodSync,

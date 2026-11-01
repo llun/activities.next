@@ -1,3 +1,4 @@
+/** @vitest-size medium */
 import { getNote } from '@/lib/activities'
 import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/types/domain/actor'

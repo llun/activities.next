@@ -1,3 +1,4 @@
+/** @vitest-size medium */
 import { createDeferred } from '@/lib/testing/deferred'
 
 import {
