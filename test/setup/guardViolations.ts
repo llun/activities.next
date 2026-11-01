@@ -154,6 +154,16 @@ const asPath = (value: unknown): string | undefined => {
   return undefined
 }
 
+// Vitest's coverage provider writes <reportsDirectory>/.tmp/coverage-<uuid>.json from its own packages, which no allowed root covers; runner frames deeper in a test's own stack don't count, so a test cannot borrow them.
+export const isVitestInternalsWrite = (stack: string): boolean => {
+  for (const line of stack.split('\n')) {
+    if (!line.trimStart().startsWith('at ')) continue
+    if (line.includes('/test/setup/')) continue
+    return /\/node_modules\/(?:@vitest\/|vitest\/)/.test(line)
+  }
+  return false
+}
+
 // Patch fs and child_process on their CommonJS objects, then
 // syncBuiltinESMExports() so named ESM imports of the builtins see the
 // wrappers too. `writeAllowed`/`readAllowed` receive the resolved target path
@@ -197,6 +207,9 @@ export const guardBuiltins = (
         ) {
           return (original as (...args: unknown[]) => unknown).apply(this, args)
         }
+        if (kind === 'fs-write' && isVitestInternalsWrite(captureStack())) {
+          return (original as (...args: unknown[]) => unknown).apply(this, args)
+        }
         const target =
           raws[0] === undefined
             ? String(args[argIndexes[0]])
@@ -229,6 +242,9 @@ export const guardBuiltins = (
           raw !== undefined &&
           (allowed === undefined || allowed(path.resolve(raw)) === true)
         ) {
+          return (original as (...args: unknown[]) => unknown).apply(this, args)
+        }
+        if (writing && isVitestInternalsWrite(captureStack())) {
           return (original as (...args: unknown[]) => unknown).apply(this, args)
         }
         const target = raw ?? String(args[0])
