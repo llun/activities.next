@@ -100,6 +100,15 @@ describe('inferTestSize', () => {
     expect(inferTestSize(`const marker = '@vitest-size large'`)).toBe('small')
   })
 
+  it('does not treat a size marker in a comment after the code started as a declaration', () => {
+    expect(
+      inferTestSize(`
+        it('adds', () => expect(1).toBe(1))
+        // @vitest-size large
+      `)
+    ).toBe('small')
+  })
+
   it('does not treat a short setTimeout as a real wait', () => {
     expect(inferTestSize(`setTimeout(fn, 99)`)).toBe('small')
   })
@@ -143,9 +152,7 @@ describe('every test file on disk is in a vitest project', () => {
     const unlisted: string[] = []
     const overListed: string[] = []
     for (const file of walkTestFiles(process.cwd())) {
-      const projectCount = includes.filter((include) =>
-        include.includes(file)
-      ).length
+      const projectCount = includes.filter((include) => include === file).length
       const expected = file === IN_TWO_PROJECTS ? 2 : 1
       if (projectCount < expected) unlisted.push(file)
       if (projectCount > expected) overListed.push(file)

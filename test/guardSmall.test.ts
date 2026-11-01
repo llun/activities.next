@@ -1,9 +1,18 @@
 // @vitest-size small
 import { execSync } from 'node:child_process'
 import fs from 'node:fs'
-import { writeFile } from 'node:fs/promises'
+import { open, writeFile } from 'node:fs/promises'
 import net from 'node:net'
 import path from 'node:path'
+import {
+  setInterval as timersSetInterval,
+  setTimeout as timersSetTimeout
+} from 'node:timers'
+import {
+  setInterval as promisesSetInterval,
+  setTimeout as promisesSetTimeout
+} from 'node:timers/promises'
+import { promisify } from 'node:util'
 import { describe, expect, it, vi } from 'vitest'
 
 import { createDatabaseConnection } from '@/lib/database/connection'
@@ -57,6 +66,43 @@ describe('small test guard', () => {
     expect(takeSmallGuardViolations()).toEqual([])
   })
 
+  it('blocks fs.open with a write flag', () => {
+    expect(() => fs.openSync('/tmp/guard-small-probe.txt', 'w')).toThrow(
+      /blocked in small tests/
+    )
+    expect(takeSmallGuardViolations().map((v) => v.kind)).toContain('fs-write')
+  })
+
+  it('blocks fs.open reads outside node_modules and allows them inside', () => {
+    expect(() => fs.openSync('./package.json', 'r')).toThrow(
+      /blocked in small tests/
+    )
+    expect(takeSmallGuardViolations().map((v) => v.kind)).toContain('fs-read')
+    const handle = fs.openSync(
+      path.join(process.cwd(), 'node_modules/vitest/package.json'),
+      'r'
+    )
+    fs.closeSync(handle)
+    expect(takeSmallGuardViolations()).toEqual([])
+  })
+
+  it('blocks fs.promises.open with a write flag', async () => {
+    await expect(open('/tmp/guard-small-probe.txt', 'w')).rejects.toThrow(
+      /blocked in small tests/
+    )
+    expect(takeSmallGuardViolations().map((v) => v.kind)).toContain('fs-write')
+  })
+
+  it('blocks a copyFile whose destination is outside node_modules', () => {
+    expect(() =>
+      fs.copyFileSync(
+        path.join(process.cwd(), 'node_modules/vitest/package.json'),
+        '/tmp/guard-small-probe.txt'
+      )
+    ).toThrow(/blocked in small tests/)
+    expect(takeSmallGuardViolations().map((v) => v.kind)).toContain('fs-write')
+  })
+
   it('blocks named ESM imports from node:child_process', () => {
     expect(() => execSync('true')).toThrow(/blocked in small tests/)
     expect(
@@ -87,11 +133,62 @@ describe('small test guard', () => {
     )
   })
 
+  it('throws when a real setInterval of 100ms or more is armed', () => {
+    expect(() => {
+      setInterval(() => {}, 150)
+    }).toThrow(/blocked in small tests/)
+    expect(takeSmallGuardViolations().map((v) => v.kind)).toContain(
+      'long-timer'
+    )
+  })
+
+  it('throws for a long wait through node:timers named imports', () => {
+    expect(() => {
+      timersSetTimeout(() => {}, 150)
+    }).toThrow(/blocked in small tests/)
+    expect(() => {
+      timersSetInterval(() => {}, 150)
+    }).toThrow(/blocked in small tests/)
+    expect(takeSmallGuardViolations().map((v) => v.kind)).toContain(
+      'long-timer'
+    )
+  })
+
+  it('throws for a long wait through node:timers/promises named imports', () => {
+    expect(() => {
+      promisesSetTimeout(150)
+    }).toThrow(/blocked in small tests/)
+    expect(() => {
+      promisesSetInterval(150)
+    }).toThrow(/blocked in small tests/)
+    expect(takeSmallGuardViolations().map((v) => v.kind)).toContain(
+      'long-timer'
+    )
+  })
+
+  it('throws for a long wait through promisify(setTimeout)', () => {
+    expect(() => {
+      promisify(setTimeout)(150)
+    }).toThrow(/blocked in small tests/)
+    expect(takeSmallGuardViolations().map((v) => v.kind)).toContain(
+      'long-timer'
+    )
+  })
+
+  it('still allows short real waits through every wrapped route', async () => {
+    await expect(promisify(setTimeout)(1)).resolves.toBeUndefined()
+    await expect(promisesSetTimeout(1)).resolves.toBeUndefined()
+    expect(takeSmallGuardViolations()).toEqual([])
+  })
+
   it('leaves fake timers alone', () => {
     vi.useFakeTimers()
     try {
       expect(() => {
         setTimeout(() => {}, 150)
+      }).not.toThrow()
+      expect(() => {
+        setInterval(() => {}, 150)
       }).not.toThrow()
     } finally {
       vi.useRealTimers()

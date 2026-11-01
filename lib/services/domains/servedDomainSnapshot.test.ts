@@ -1,3 +1,6 @@
+// @vitest-size medium
+// The refresher arms a real 30s setInterval (SERVED_DOMAIN_REFRESH_MS), which
+// the small-test timer guard blocks.
 import { Database } from '@/lib/database/types'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { createDeferred } from '@/lib/testing/deferred'

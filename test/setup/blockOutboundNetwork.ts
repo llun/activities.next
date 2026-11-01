@@ -21,16 +21,15 @@ const violations = createViolationRecorder()
 
 // Guard-test seam: the tests in test/blockOutboundNetwork.test.ts trigger
 // violations on purpose and consume them here, so onTestFinished has nothing
-// left to fail them for.
+// left to fail them for. The host and port are recorded as structured data
+// by the socket patch, not re-parsed from the target string (which cannot
+// tell an IPv6 host from a host:port pair).
 export const takeOutboundViolations = (): OutboundViolation[] =>
-  violations.take().map((violation) => {
-    const [hostPart, portPart] = violation.target.split(':')
-    return {
-      host: hostPart === '' ? undefined : hostPart,
-      port: portPart === undefined ? undefined : Number(portPart),
-      stack: violation.stack
-    }
-  })
+  violations.take().map((violation) => ({
+    host: violation.detail?.host as string | undefined,
+    port: violation.detail?.port as number | undefined,
+    stack: violation.stack
+  }))
 
 export const waitForOutboundViolation = async (
   host: string,
@@ -128,7 +127,7 @@ net.Socket.prototype.connect = function (this: net.Socket, ...args: unknown[]) {
     ) as ReturnType<typeof net.Socket.prototype.connect>
   }
 
-  violations.record('outbound-network', target)
+  violations.record('outbound-network', target, { host, port })
   throw new Error(
     `Outbound network connection to ${target} is blocked in tests — stub the request instead (fetchMock.doMock()/mockResponse*, or vi.mock the module making it).`
   )

@@ -20,10 +20,12 @@ const tmpFile = (name: string) => path.join(fs.realpathSync(os.tmpdir()), name)
 
 describe('medium test guard', () => {
   const probe = tmpFile('guard-medium-probe.txt')
+  // Cleanup only: draining violations here would swallow them before the
+  // guard's onTestFinished hook runs (it fires after every afterEach), and
+  // the it.fails test below must be failed by that hook, not by an assertion
+  // here.
   afterEach(() => {
-    // Allowed: inside os.tmpdir().
     fs.rmSync(probe, { force: true })
-    expect(takeMediumGuardViolations()).toEqual([])
   })
 
   it('allows fs writes inside os.tmpdir()', async () => {
@@ -69,6 +71,35 @@ describe('medium test guard', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'guard-medium-'))
     expect(fs.existsSync(dir)).toBe(true)
     fs.rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('blocks fs.open with a write flag outside os.tmpdir()', () => {
+    expect(() =>
+      fs.openSync(path.join(process.cwd(), 'guard-medium-probe.txt'), 'w')
+    ).toThrow(/blocked in medium tests/)
+    expect(
+      takeMediumGuardViolations().map((violation) => violation.kind)
+    ).toContain('fs-write')
+  })
+
+  it('allows fs.open reads outside os.tmpdir() and writes inside it', () => {
+    const readHandle = fs.openSync(
+      path.join(process.cwd(), 'package.json'),
+      'r'
+    )
+    fs.closeSync(readHandle)
+    const writeHandle = fs.openSync(probe, 'w')
+    fs.closeSync(writeHandle)
+    expect(takeMediumGuardViolations()).toEqual([])
+  })
+
+  it('blocks a rename whose destination is outside os.tmpdir()', () => {
+    expect(() =>
+      fs.renameSync(probe, path.join(process.cwd(), 'guard-medium-probe.txt'))
+    ).toThrow(/blocked in medium tests/)
+    expect(
+      takeMediumGuardViolations().map((violation) => violation.kind)
+    ).toContain('fs-write')
   })
 
   it('blocks child_process functions', () => {

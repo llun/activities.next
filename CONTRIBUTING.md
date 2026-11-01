@@ -142,8 +142,12 @@ yarn run prettier --write .       # Format code
 yarn lint                        # Lint — must pass with no errors
 yarn typecheck                   # Type check — must pass
 yarn build                       # Build — must succeed
-yarn test                        # Tests — must pass (or a size slice: test:small/medium/large)
+yarn test                        # Tests — must pass
 ```
+
+`yarn test` must pass as a whole before submitting. The `yarn test:small`,
+`yarn test:medium` and `yarn test:large` commands run a single size's projects
+locally while iterating; they are not a substitute for the full run.
 
 Also:
 

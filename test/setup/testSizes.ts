@@ -18,10 +18,40 @@
 
 export type TestSize = 'small' | 'medium' | 'large'
 
-// Searched on the raw source: the marker only counts on a comment line, so a
-// string literal in code that happens to contain the text is not a declaration.
+// The marker counts only in the file's leading comments: the run of comments
+// and whitespace before the first line of code. A string literal further
+// down that contains the text is therefore never a declaration.
 const SIZE_DOCKBLOCK =
   /(?:\/\/|\/\*|\*)\s*@vitest-size\s+(small|medium|large)\b/
+
+const leadingComments = (source: string): string => {
+  let out = ''
+  let index = 0
+  while (index < source.length) {
+    const ch = source[index]
+    const next = source[index + 1]
+    if (ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r') {
+      index += 1
+      continue
+    }
+    if (ch === '/' && next === '/') {
+      const end = source.indexOf('\n', index)
+      const stop = end === -1 ? source.length : end
+      out += `${source.slice(index, stop)}\n`
+      index = stop
+      continue
+    }
+    if (ch === '/' && next === '*') {
+      const end = source.indexOf('*/', index + 2)
+      const stop = end === -1 ? source.length : end + 2
+      out += `${source.slice(index, stop)}\n`
+      index = stop
+      continue
+    }
+    break
+  }
+  return out
+}
 
 const stripComments = (source: string): string => {
   let out = ''
@@ -87,7 +117,7 @@ const LARGE =
   /['"](?:node:)?child_process['"]|\bdocker\b|\.listen\(|createServer/
 
 export const inferTestSize = (source: string): TestSize => {
-  const declared = SIZE_DOCKBLOCK.exec(source)?.[1]
+  const declared = SIZE_DOCKBLOCK.exec(leadingComments(source))?.[1]
   if (declared === 'small' || declared === 'medium' || declared === 'large') {
     return declared
   }

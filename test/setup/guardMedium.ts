@@ -32,3 +32,5 @@ const isInsideTmp = (resolved: string): boolean => {
 }
 
 guardBuiltins(violations, 'medium', isInsideTmp)
+
+violations.installFailHooks('medium-test')
