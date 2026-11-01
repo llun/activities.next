@@ -1,5 +1,6 @@
 /**
  * @vitest-environment jsdom
+ * @vitest-size medium
  */
 import { extractVideoPoster } from './extractVideoPoster'
 

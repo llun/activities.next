@@ -1,3 +1,4 @@
+/** @vitest-size medium */
 import { enableFetchMocks } from 'jest-fetch-mock'
 
 import { MockActivityPubPerson } from '@/lib/stub/person'

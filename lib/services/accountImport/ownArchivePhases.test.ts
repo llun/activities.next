@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
+import os from 'node:os'
 
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { importAccountArchiveJob } from '@/lib/jobs/importAccountArchiveJob'
@@ -76,7 +77,7 @@ describe('own archive import phases', () => {
   >
 
   beforeAll(async () => {
-    mocks.storageRoot = process.cwd() + '/plans/tmp/s5/phase-storage'
+    mocks.storageRoot = os.tmpdir() + '/phase-storage'
     await Promise.all(
       ['/media', '/fitness'].map((subdirectory) =>
         fs.mkdir(mocks.storageRoot + subdirectory, { recursive: true })

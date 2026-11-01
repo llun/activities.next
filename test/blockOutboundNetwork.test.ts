@@ -1,3 +1,4 @@
+/** @vitest-size medium */
 import dns from 'node:dns'
 import http2 from 'node:http2'
 import https from 'node:https'

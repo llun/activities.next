@@ -1,3 +1,4 @@
+/** @vitest-size medium */
 import { sql } from 'kysely'
 import { EventEmitter } from 'node:events'
 import pg from 'pg'

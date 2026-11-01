@@ -1,3 +1,4 @@
+/** @vitest-size medium */
 import { Database } from '@/lib/database/types'
 import { getServerSoftware } from '@/lib/services/federation/serverSoftware'
 import { clearAnimationMetadataCacheForTests } from '@/lib/services/medias/animationMetadata'

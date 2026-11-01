@@ -1,3 +1,4 @@
+/** @vitest-size medium */
 import { follow } from '@/lib/activities'
 import { Database } from '@/lib/database/types'
 import { fetchRemoteStatusJob } from '@/lib/jobs/fetchRemoteStatusJob'

@@ -1,3 +1,4 @@
+/** @vitest-size medium */
 import { follow, unfollow } from '@/lib/activities'
 import type { Db } from '@/lib/database/kysely'
 import { Database } from '@/lib/database/types'

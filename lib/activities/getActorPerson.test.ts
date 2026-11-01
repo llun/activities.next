@@ -1,3 +1,4 @@
+/** @vitest-size medium */
 import { enableFetchMocks } from 'jest-fetch-mock'
 
 import { ACTIVITY_JSON_HEADERS, mockRequests } from '@/lib/stub/activities'

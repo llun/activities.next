@@ -1,3 +1,4 @@
+/** @vitest-size large */
 import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'

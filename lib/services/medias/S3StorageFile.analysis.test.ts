@@ -1,3 +1,4 @@
+/** @vitest-size medium */
 import {
   DeleteObjectCommand,
   GetObjectCommand,

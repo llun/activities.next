@@ -1,3 +1,4 @@
+/** @vitest-size medium */
 import { NextRequest } from 'next/server'
 
 import { resetRefreshRemoteActorStateForTesting } from '@/lib/services/actors/refreshRemoteActor'

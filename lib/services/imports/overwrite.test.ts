@@ -1,3 +1,4 @@
+/** @vitest-size medium */
 import { unfollow } from '@/lib/activities'
 import { Database } from '@/lib/database/types'
 import { SEND_UNBLOCK_JOB_NAME } from '@/lib/jobs/names'

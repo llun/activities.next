@@ -1,3 +1,4 @@
+/** @vitest-size medium */
 import { Database } from '@/lib/database/types'
 import { RESOLVE_MEDIA_SUBJECT_JOB_NAME } from '@/lib/jobs/names'
 import { resolveMediaSubjectJob } from '@/lib/jobs/resolveMediaSubjectJob'

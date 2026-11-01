@@ -3,6 +3,8 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitest/config'
 
+import { inferTestSize } from './test/setup/testSizes'
+
 // Pin the suite's clock to UTC. CI runners default to UTC, so a date assertion
 // that only holds there passes review and then fails on the first developer
 // machine set to anything else — a component rendering a UTC-midnight
@@ -22,7 +24,9 @@ process.env.TZ = 'UTC'
 const resolvePath = (relativePath: string) =>
   fileURLToPath(new URL(relativePath, import.meta.url))
 
-const TEST_FILES = ['**/*.test.{ts,tsx}']
+// `**` never descends into a dot directory in `fs.globSync`, so `.github` —
+// whose workflow guard tests must run — gets its own pattern.
+const TEST_FILES = ['**/*.test.{ts,tsx}', '.github/**/*.test.{ts,tsx}']
 const EXCLUDED = [
   '**/node_modules/**',
   '**/.next/**',
@@ -31,8 +35,8 @@ const EXCLUDED = [
   '**/coverage/**'
 ]
 
-// Runs in both projects, so the UTC pin is checked on a worker thread and in a
-// forked process.
+// Runs in the small project on both pools, so the UTC pin is checked on a
+// worker thread and in a forked process.
 const TIME_ZONE_PIN_GUARD = 'test/vitest.config.test.ts'
 
 // Test files that need a process of their own:
@@ -44,24 +48,97 @@ const TIME_ZONE_PIN_GUARD = 'test/vitest.config.test.ts'
 //   `napi_register_module_v1`) when a worker thread unloads it on exit and a
 //   later worker thread in the same process loads it again.
 // Helpers are matched by their import specifiers, so generic, aliased or
-// namespace calls are found as well. They run in the forked-process project;
-// everything else runs on worker threads, which start much faster than a
-// process per file.
+// namespace calls are found as well. They run in the `-forks` variant of their
+// size's project; everything else runs on worker threads, which start much
+// faster than a process per file.
 const FORKED_PROCESS_MARKER =
   /process\.chdir\(|['"](?:@swc\/core|[^'"]*\/(?:withTimeZone|moduleImports))['"]/
 const ROOT = resolvePath('.')
-const FORKED_PROCESS_FILES = globSync(TEST_FILES, {
+
+// Google-style test sizes as projects. The size is inferred per file by
+// test/setup/testSizes.ts; a `@vitest-size small|medium|large` docblock in the
+// file always wins over the heuristics. Each size has its own guard setup file
+// (test/setup/guardSmall.ts, test/setup/guardMedium.ts; large runs the root
+// setup files only) and its own timeouts, doubled on CI where runners are
+// slower. `yarn test` still runs everything: every file lands in exactly one
+// of the six size × pool projects.
+const SIZE_TIMEOUTS = {
+  small: 2000,
+  medium: 15000,
+  large: 30000
+} as const
+const CI_MULTIPLIER = process.env.CI ? 2 : 1
+const GUARD_SETUP_FILES: Record<keyof typeof SIZE_TIMEOUTS, string[]> = {
+  small: ['./test/setup/guardSmall.ts'],
+  medium: ['./test/setup/guardMedium.ts'],
+  large: []
+}
+
+// The file scan was already reading every test file for the forked-process
+// split; the size inference reuses the same single read per file.
+const ALL_TEST_FILES = globSync(TEST_FILES, {
   cwd: ROOT,
-  exclude: (name) => name === 'node_modules' || name.startsWith('.')
-}).filter(
-  (file) =>
-    // The guard is listed in both projects already; a comment that happens to
-    // contain a marker must not drop it from `threads`.
-    file !== TIME_ZONE_PIN_GUARD &&
-    // globSync returns paths relative to ROOT; read them from there too, not
-    // from process.cwd(), so Vitest can be launched from any directory.
-    FORKED_PROCESS_MARKER.test(readFileSync(path.join(ROOT, file), 'utf8'))
+  // `.github` is scanned on purpose: the workflow guard tests live there.
+  // Every other dot directory (.next, .claude, .claire, …) plus node_modules
+  // and coverage stay out, matching EXCLUDED above. The callback receives
+  // both bare names and paths, so judge the last segment.
+  exclude: (name) => {
+    const base = name.slice(name.lastIndexOf('/') + 1)
+    return (
+      base === 'coverage' ||
+      base === 'node_modules' ||
+      (base.startsWith('.') && base !== '.github')
+    )
+  }
+})
+const sources = new Map(
+  ALL_TEST_FILES.map((file) => [
+    file,
+    readFileSync(path.join(ROOT, file), 'utf8')
+  ])
 )
+
+// The guard is listed in both projects already; a comment that happens to
+// contain a marker must not drop it from `threads`.
+const FORKED_PROCESS_FILES = new Set(
+  ALL_TEST_FILES.filter(
+    (file) =>
+      file !== TIME_ZONE_PIN_GUARD &&
+      FORKED_PROCESS_MARKER.test(sources.get(file) ?? '')
+  )
+)
+
+type TestSize = keyof typeof SIZE_TIMEOUTS
+const filesBySize: Record<TestSize, string[]> = {
+  small: [],
+  medium: [],
+  large: []
+}
+for (const file of ALL_TEST_FILES) {
+  filesBySize[inferTestSize(sources.get(file) ?? '')].push(file)
+}
+
+const sizeProject = (size: TestSize, forked: boolean) => {
+  const include = forked
+    ? [
+        // The UTC pin guard is small and must be checked in a forked process
+        // too, even though it never carries the forked-process markers.
+        ...(size === 'small' ? [TIME_ZONE_PIN_GUARD] : []),
+        ...filesBySize[size].filter((file) => FORKED_PROCESS_FILES.has(file))
+      ]
+    : filesBySize[size].filter((file) => !FORKED_PROCESS_FILES.has(file))
+  return {
+    extends: true,
+    test: {
+      name: forked ? `${size}-forks` : size,
+      pool: forked ? ('forks' as const) : ('threads' as const),
+      include,
+      setupFiles: GUARD_SETUP_FILES[size],
+      testTimeout: SIZE_TIMEOUTS[size] * CI_MULTIPLIER,
+      hookTimeout: SIZE_TIMEOUTS[size] * CI_MULTIPLIER
+    }
+  }
+}
 
 export default defineConfig({
   // Resolve setupFiles and the project file lists against this directory even
@@ -94,7 +171,8 @@ export default defineConfig({
     // shim that jest-fetch-mock (imported by test/setup/vitest.setup.ts) relies on.
     // blockOutboundNetwork.ts arms the outbound network trap before
     // vitest.setup.ts turns fetch mocking on, so no setup code can slip a
-    // real request through.
+    // real request through. Per-project guard setup files (guardSmall.ts,
+    // guardMedium.ts) are appended after these.
     setupFiles: [
       './test/setup/jest-global.ts',
       './test/setup/blockOutboundNetwork.ts',
@@ -102,8 +180,10 @@ export default defineConfig({
     ],
     // `include` is set per project below: with `extends: true` a project's
     // arrays are appended to the root's, so a root `include` would pull every
-    // test file into the forks project too.
+    // test file into every project. Each file belongs to exactly one project,
+    // so no per-project exclude is needed.
     exclude: EXCLUDED,
+    // Fallback ceiling; each size project sets its own tighter limits.
     testTimeout: 30000,
     // Setup-file and top-level after-hooks run in definition order, not
     // Vitest's default reverse ('stack'). @testing-library/react registers
@@ -129,23 +209,12 @@ export default defineConfig({
       }
     },
     projects: [
-      {
-        extends: true,
-        test: {
-          name: 'threads',
-          pool: 'threads',
-          include: TEST_FILES,
-          exclude: FORKED_PROCESS_FILES
-        }
-      },
-      {
-        extends: true,
-        test: {
-          name: 'forks',
-          pool: 'forks',
-          include: [...FORKED_PROCESS_FILES, TIME_ZONE_PIN_GUARD]
-        }
-      }
+      sizeProject('small', false),
+      sizeProject('small', true),
+      sizeProject('medium', false),
+      sizeProject('medium', true),
+      sizeProject('large', false),
+      sizeProject('large', true)
     ]
   }
 })

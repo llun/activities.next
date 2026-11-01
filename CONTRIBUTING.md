@@ -142,7 +142,7 @@ yarn run prettier --write .       # Format code
 yarn lint                        # Lint — must pass with no errors
 yarn typecheck                   # Type check — must pass
 yarn build                       # Build — must succeed
-yarn test                        # Tests — must pass
+yarn test                        # Tests — must pass (or a size slice: test:small/medium/large)
 ```
 
 Also:
@@ -665,6 +665,30 @@ ago`); if the component calls `Date.now()` internally instead, the
   than loopback, a unix socket or `TEST_DATABASE_HOST` throws and fails the
   test even if the error is caught — stub the call with `fetchMock` (fetch
   stays real by default) or `vi.mock`
+
+#### Test sizes
+
+Every test file belongs to one of three sizes, in the Google classification
+sense. The size decides which project (and guard) the file runs in and its
+timeout:
+
+| Size   | Allows                                                                                                                                                                   | Timeout |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------- |
+| small  | No real I/O at all: no database, no filesystem, no network, no child process, no real wait of 100ms or more                                                              | 2s      |
+| medium | Local resources: the test database, the filesystem inside `os.tmpdir()`, real short waits; loopback network. Never a child process or a write outside the temp directory | 15s     |
+| large  | Everything: child processes, servers, writes anywhere                                                                                                                    | 30s     |
+
+Timeouts are doubled on CI, where runners are slower. The size is inferred
+per file by `test/setup/testSizes.ts` from the file's source (database
+helpers, filesystem calls, `child_process`, long `setTimeout`s, …); a
+`/** @vitest-size small|medium|large */` docblock in the file always wins
+over the heuristics — merge it into an existing `@vitest-environment`
+docblock if the file has one. When a test fails a size guard (for example
+"db connection in small test"), the file is really the larger size: tag it
+rather than working around the guard.
+
+Run a single size with `yarn test:small`, `yarn test:medium` or
+`yarn test:large`; `yarn test` and CI still run everything.
 
 ### Running PostgreSQL database integration tests
 

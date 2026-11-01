@@ -1,3 +1,4 @@
+/** @vitest-size medium */
 import { S3Client } from '@aws-sdk/client-s3'
 import fs from 'fs/promises'
 import { Readable } from 'stream'
