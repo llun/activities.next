@@ -1878,6 +1878,69 @@ describe('MainPageTimeline', () => {
       ).not.toBeInTheDocument()
     })
 
+    it('shows a retry of a failed automatic refresh on screen', async () => {
+      const current = createStatus(
+        'https://activities.local/users/llun/s/current'
+      )
+      const newer = createStatus('https://activities.local/users/llun/s/newer')
+      vi.mocked(getTimeline)
+        .mockRejectedValueOnce(new Error('Network error'))
+        .mockResolvedValueOnce({
+          statuses: [newer, current],
+          nextMaxStatusId: null,
+          prevMinStatusId: newer.id
+        })
+
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[current]}
+          refreshOnMount
+        />
+      )
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Retry' }))
+
+      expect(await screen.findByTestId(`post-${newer.id}`)).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /new post/ })
+      ).not.toBeInTheDocument()
+    })
+
+    it('merges a page starting below the current top when it has no newer posts', async () => {
+      const current = createStatus(
+        'https://activities.local/users/llun/s/current'
+      )
+      const older = createStatus('https://activities.local/users/llun/s/older')
+      vi.mocked(getTimeline).mockResolvedValueOnce({
+        statuses: [older],
+        nextMaxStatusId: null,
+        prevMinStatusId: older.id
+      })
+
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[current, older]}
+          refreshOnMount
+        />
+      )
+
+      expect(
+        await screen.findByTestId(`post-${current.id}`)
+      ).toBeInTheDocument()
+      expect(screen.getByTestId(`post-${older.id}`)).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /new post/ })
+      ).not.toBeInTheDocument()
+    })
+
     it('lets header refresh apply and clear a held page', async () => {
       const current = createStatus(
         'https://activities.local/users/llun/s/current'

@@ -1141,6 +1141,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         !resetWasTriggered &&
         !willPreserveAnchor &&
         hasNewerPrepended &&
+        merged.addedNewerCount > 0 &&
         segmentsActorIdRef.current === profile.id &&
         currentStatusesRef.current.length > 0
       ) {
@@ -1319,7 +1320,10 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         } else {
           reportRequestFailure(error)
           setFetchError('Failed to load posts')
-          lastFailedFetchRef.current = () => refreshTimeline(options)
+          lastFailedFetchRef.current = () =>
+            refreshTimeline({
+              preserveScroll: options?.preserveScroll
+            })
         }
       } finally {
         setLoadingMoreStatuses(false)
