@@ -13,7 +13,7 @@ import { Actor } from '@/lib/types/domain/actor'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 // Each caller destroys its instance before the next is made, so the next
-// prepare() can drop and recreate the worker's PostgreSQL database.
+// prepare() can reset the worker's PostgreSQL database.
 const newTestDatabase = async () => {
   const { database, db, destroy, prepare } = createTestDatabase()
   await prepare()

@@ -9,8 +9,8 @@ const REMOTE = 'https://remote.example/users/relayed'
 const withFreshDatabase = async (
   test: (database: Database) => Promise<void>
 ) => {
-  // On the backend TEST_DATABASE_TYPE names; `prepare` drops and recreates
-  // the PostgreSQL database, so each test starts empty.
+  // On the backend TEST_DATABASE_TYPE names; `prepare` resets the
+  // PostgreSQL database, so each test starts empty.
   const testDb = createTestDatabase()
   const database = testDb.database
   await testDb.prepare()

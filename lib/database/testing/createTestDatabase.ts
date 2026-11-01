@@ -7,6 +7,7 @@ import type { Db } from '@/lib/database/kysely'
 import {
   TEST_PG_DATABASE,
   getTestPgConnection,
+  preparePgDatabase,
   recreatePgDatabase
 } from '@/lib/database/testing/postgres'
 import {
@@ -14,7 +15,10 @@ import {
   type OnQuery,
   createQueryCapture
 } from '@/lib/database/testing/queryCapture'
-import { loadSchemaDump } from '@/lib/database/testing/schema'
+import {
+  getPostgresSchemaSql,
+  loadSchemaDump
+} from '@/lib/database/testing/schema'
 import type { Database } from '@/lib/database/types'
 
 export type TestDatabaseBackend = 'sqlite' | 'pg'
@@ -32,12 +36,27 @@ export type CreateTestDatabaseOptions = {
 
 export type TestDatabase = {
   backend: TestDatabaseBackend
-  /** The `Database` facade; `migrate()` loads the committed schema dump. */
+  /**
+   * The `Database` facade; `migrate()` loads the committed schema dump unless
+   * this instance's `prepare()` already left it in place.
+   */
   database: Database
   /** The root Kysely instance behind `database`, for seeding and fixtures. */
   db: Db
-  /** Drops and recreates the PostgreSQL database; a no-op on SQLite. */
+  /**
+   * On PostgreSQL: empties the worker's database for the next test — a
+   * `TRUNCATE` of the tables with rows when the schema still matches
+   * `migrations/schema.sql` (first a fingerprint check, rebuilding from the
+   * dump when it does not), after which `migrate()` is a no-op. A no-op on
+   * SQLite.
+   */
   prepare: () => Promise<void> | void
+  /**
+   * Drops and recreates the PostgreSQL database, for a suite that runs
+   * migrations or loads a dump of its own instead of the committed schema
+   * `prepare()` leaves behind. A no-op on SQLite.
+   */
+  prepareEmpty: () => Promise<void> | void
   /** Closes the pool behind `database` and `db`. */
   destroy: () => Promise<void>
   /**
@@ -59,6 +78,8 @@ export type TestDatabase = {
  * The way new tests get a database: `await prepare(); await database.migrate()`
  * in `beforeAll`, `await destroy()` in `afterAll`. Honours `TEST_DATABASE_TYPE`
  * unless `backend` is given, so a suite built on it runs on both backends.
+ * On PostgreSQL `migrate()` after this instance's `prepare()` is a no-op: the
+ * schema is already there.
  *
  * Seed or inspect state through `db` with the helpers in `./fixtures`.
  */
@@ -70,7 +91,8 @@ export const createTestDatabase = ({
     return build({
       backend: 'sqlite',
       config: getTestDatabaseConfig('sqlite'),
-      prepare: noop
+      prepare: noop,
+      prepareEmpty: noop
     })
   }
   const connection = getTestPgConnection()
@@ -78,7 +100,11 @@ export const createTestDatabase = ({
   return build({
     backend: 'pg',
     config: getTestDatabaseConfig('pg', isolated),
-    prepare: () => recreatePgDatabase(connection, databaseName)
+    prepare: (executeScript) =>
+      preparePgDatabase(connection, databaseName, () =>
+        executeScript(getPostgresSchemaSql())
+      ),
+    prepareEmpty: () => recreatePgDatabase(connection, databaseName)
   })
 }
 
@@ -99,9 +125,9 @@ export const getTestDatabaseConfig = (
       connection: { filename: ':memory:' }
     }
   }
-  // An isolated caller needs its OWN database, not the suite's: `prepare` drops
-  // and recreates, so sharing the per-worker name would destroy the database
-  // the surrounding suite is running against. ONE extra name per worker rather
+  // An isolated caller needs its OWN database, not the suite's: `prepare`
+  // resets the worker's database, so sharing the per-worker name would wipe
+  // the database the surrounding suite is running against. ONE extra name per worker rather
   // than one per caller — Vitest runs a file's tests sequentially and each
   // isolated caller destroys its instance before the next begins, so reusing
   // the name keeps the server's database count bounded by the worker count
@@ -122,23 +148,44 @@ export const getTestPgDatabaseName = (isolated = false) =>
 const build = ({
   backend,
   config,
-  prepare
+  prepare,
+  prepareEmpty
 }: {
   backend: TestDatabaseBackend
   config: DatabaseConfig
-  prepare: () => Promise<void> | void
+  // Receives the connection's `executeScript`, so a PostgreSQL `prepare` can
+  // replay the dump through the dedicated client it uses.
+  prepare: (
+    executeScript: (script: string) => Promise<void>
+  ) => Promise<void> | void
+  prepareEmpty: () => Promise<void> | void
 }): TestDatabase => {
+  // Only a PostgreSQL `prepare` leaves the dump's schema behind; SQLite's
+  // no-op prepare must not stop `migrate()` from loading it.
+  let schemaReady = false
   // Nothing connects until the first query.
   const connection = createDatabaseConnection(config)
+  const wrappedPrepare = async () => {
+    await prepare((script) => connection.executeScript(script))
+    if (backend === 'pg') {
+      schemaReady = true
+    }
+  }
   const { onQuery, captureQueries } = createQueryCapture(connection.onQuery)
   return {
     backend,
     database: getSQLDatabase(connection.db, {
-      migrate: () => loadSchemaDump(connection),
+      migrate: async () => {
+        if (schemaReady) {
+          return
+        }
+        await loadSchemaDump(connection)
+      },
       destroy: connection.destroy
     }),
     db: connection.db,
-    prepare,
+    prepare: wrappedPrepare,
+    prepareEmpty,
     destroy: connection.destroy,
     captureQueries,
     onQuery,

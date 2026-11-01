@@ -70,7 +70,9 @@ export const createTestDatabase = async (
   options: Pick<CreateTestDatabaseOptions, 'isolated'> = {}
 ): Promise<{ testDb: TestDatabase; db: AuthKysely; adapter: TestAdapter }> => {
   const testDb = createBackendDatabase(options)
-  await testDb.prepare()
+  // The suite creates its own tables on the empty database, so `prepare`'s
+  // dump schema would collide with them.
+  await testDb.prepareEmpty()
   const db = testDb.db as unknown as AuthKysely
   const timestamp = timestampType(testDb.backend)
 

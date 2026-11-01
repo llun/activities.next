@@ -4,7 +4,7 @@ import { TEST_DOMAIN } from '@/lib/stub/const'
 
 // A database of its own for one test, on the backend TEST_DATABASE_TYPE names
 // (PostgreSQL in CI's test-pg job). A suite using it must not hold another
-// database open alongside: on PostgreSQL `prepare` drops and recreates this
+// database open alongside: on PostgreSQL `prepare` resets this
 // worker's database.
 export const withFreshDatabase = async (
   test: (database: Database) => Promise<void>
