@@ -200,9 +200,10 @@ export const AuthorizeCard: FC<Props> = ({
     if (submittingAction || isSwitching) return
     setSubmittingAction('approve')
 
+    const formData = new FormData(e.currentTarget)
+    const selectedScopes = formData.getAll('scope') as string[]
+
     try {
-      const formData = new FormData(e.currentTarget)
-      const selectedScopes = formData.getAll('scope') as string[]
       if (!(await persistSelectedActor())) {
         redirectWithError('server_error')
         return
@@ -223,12 +224,13 @@ export const AuthorizeCard: FC<Props> = ({
       redirectWithError('server_error')
     } catch (error) {
       if (isExpiredConsentError(error)) {
-        // prompt=consent: better-auth could otherwise issue a code without
-        // showing consent, replacing the scopes the visitor narrowed.
+        // prompt=consent prevents silently issuing a code; narrowed scopes
+        // carry over so the reloaded boxes match the visitor's choice.
         navigate(
           buildOAuthAuthorizePath({
             ...searchParams,
             prompt: 'consent',
+            scope: selectedScopes.join(' ') || searchParams.scope,
             sig: undefined,
             exp: undefined
           })

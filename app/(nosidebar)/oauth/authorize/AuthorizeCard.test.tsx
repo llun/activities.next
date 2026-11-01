@@ -987,6 +987,74 @@ describe('AuthorizeCard', () => {
     expect(query.get('redirect_uri')).toBe('https://phanpy.local/')
   })
 
+  it('preserves narrowed scopes when reloading consent after invalid_signature', async () => {
+    mockSubmitOAuthConsent.mockRejectedValueOnce(
+      new ApiRequestError('invalid_signature', 400)
+    )
+
+    render(
+      <AuthorizeCard
+        client={client}
+        searchParams={{
+          ...signedSearchParams,
+          redirect_uri: 'https://phanpy.local/'
+        }}
+        actors={actors}
+        currentActorId="https://activities.local/users/llun"
+        account={account}
+        navigate={mockNavigate}
+      />
+    )
+
+    fireEvent.click(screen.getByLabelText('write'))
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalled()
+    })
+
+    const query = new URLSearchParams(
+      mockNavigate.mock.calls[0][0].split('?')[1]
+    )
+    expect(query.get('scope')).toBe('read follow push')
+    expect(query.get('prompt')).toBe('consent')
+  })
+
+  it('falls back to the original scopes when all are unchecked before invalid_signature', async () => {
+    mockSubmitOAuthConsent.mockRejectedValueOnce(
+      new ApiRequestError('invalid_signature', 400)
+    )
+
+    render(
+      <AuthorizeCard
+        client={client}
+        searchParams={{
+          ...signedSearchParams,
+          redirect_uri: 'https://phanpy.local/'
+        }}
+        actors={actors}
+        currentActorId="https://activities.local/users/llun"
+        account={account}
+        navigate={mockNavigate}
+      />
+    )
+
+    for (const scope of ['read', 'write', 'follow', 'push']) {
+      fireEvent.click(screen.getByLabelText(scope))
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalled()
+    })
+
+    const query = new URLSearchParams(
+      mockNavigate.mock.calls[0][0].split('?')[1]
+    )
+    expect(query.get('scope')).toBe(signedSearchParams.scope)
+    expect(query.get('prompt')).toBe('consent')
+  })
+
   it('honours the refusal with access_denied when deny encounters an invalid_signature error', async () => {
     mockSubmitOAuthConsent.mockRejectedValueOnce(
       new ApiRequestError('invalid_signature', 400)
