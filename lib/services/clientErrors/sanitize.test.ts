@@ -23,7 +23,22 @@ describe('client error sanitization', () => {
     ['https://user:pass@host/a.js?token=abc', 'https://host/a.js'],
     ['app://user:pass@host/a.js', 'app://host/a.js'],
     ['"/api/x?token=abc', '"/api/x'],
-    ["'/api/x#secret", "'/api/x"]
+    ["'/api/x#secret", "'/api/x"],
+    ['href="/api/x?token=abc"', 'href="/api/x"'],
+    ["src='/api/x?token=abc'", "src='/api/x'"],
+    ['URL(/api/x?token=abc)', 'URL(/api/x)'],
+    ['fetch(/api/x?token=abc)', 'fetch(/api/x)'],
+    ['url=/api/x?token=abc', 'url=/api/x'],
+    ['path:/api/x?token=abc', 'path:/api/x'],
+    ['api/v1/files/x?token=secret', 'api/v1/files/x'],
+    ['page.html?token=abc', 'page.html'],
+    ['href="/u/heatmaps/private-token"', 'href="/u/heatmaps/[token]"'],
+    ['src="/embed/heatmap/secret"', 'src="/embed/heatmap/[token]"'],
+    ['https://a:b@h1/x,https://c:d@h2/y', 'https://h1/x,https://h2/y'],
+    ['//a:b@h/x', '//h/x'],
+    ['user@example.com', 'user@example.com'],
+    ['foo@bar', 'foo@bar'],
+    ['Is this ok?', 'Is this ok?']
   ])('sanitizes %s', (input, expected) => {
     expect(sanitiseClientErrorText(input)).toBe(expected)
   })
@@ -96,6 +111,10 @@ describe('client error stack frames', () => {
     [
       'global code@https://h/@alice/a.js:1:2',
       '    at global code (https://h/@alice/a.js:1:2)'
+    ],
+    [
+      'fn@https://h/@alice/a.js?x=1:2:3',
+      '    at fn (https://h/@alice/a.js:2:3)'
     ],
     [
       '    at https://host/@alice/a.js:1:2',

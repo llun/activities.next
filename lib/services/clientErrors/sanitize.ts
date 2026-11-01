@@ -35,35 +35,27 @@ const stripQueryAndHash = (value: string): string => {
 export const sanitiseClientErrorPathname = (value: string): string =>
   redactPathSegments(stripQueryAndHash(value))
 
+// A token is URL-like when it has a path, or a query that carries a value.
+// A bare prose question mark such as `ok?` stays untouched.
+const isUrlLikeToken = (token: string): boolean =>
+  token.includes('/') || /[?&][^=\s]*=/.test(token)
+
+const stripUserinfo = (value: string): string =>
+  value.replace(/((?:[a-z][a-z0-9+.-]*:)?\/\/)[^/\s]*@/g, '$1')
+
 const sanitiseToken = (token: string): string => {
-  let start = 0
-  while (token[start] === '(' || token[start] === '"' || token[start] === "'") {
-    start += 1
-  }
-  if (!token.includes('://') && token[start] !== '/') return token
+  if (!isUrlLikeToken(token)) return token
 
   // Only the end of a token can supply frame punctuation and coordinates.
-  // A ')' inside a query must never terminate query removal.
-  const closing = token.endsWith(')') ? ')' : ''
-  const withoutClosing = closing ? token.slice(0, -1) : token
+  // A ')' or quote inside a query must never terminate query removal.
+  const closing = token.match(/[)"']*$/)?.[0] ?? ''
+  const withoutClosing = token.slice(0, token.length - closing.length)
   const coordinates = withoutClosing.match(/:\d+:\d+$/)?.[0] ?? ''
-  let resource = stripQueryAndHash(
+  const resource = stripQueryAndHash(
     coordinates ? withoutClosing.slice(0, -coordinates.length) : withoutClosing
   )
 
-  const scheme = resource.indexOf('://')
-  if (scheme >= 0) {
-    const authorityStart = scheme + 3
-    const slash = resource.indexOf('/', authorityStart)
-    const authorityEnd = slash < 0 ? resource.length : slash
-    const userinfoEnd = resource.lastIndexOf('@', authorityEnd - 1)
-    if (userinfoEnd >= authorityStart) {
-      resource =
-        resource.slice(0, authorityStart) + resource.slice(userinfoEnd + 1)
-    }
-  }
-
-  return redactPathSegments(resource) + coordinates + closing
+  return redactPathSegments(stripUserinfo(resource)) + coordinates + closing
 }
 
 export const sanitiseClientErrorText = (value: string): string =>
