@@ -28,8 +28,8 @@ export type CreateTestDatabaseOptions = {
   backend?: TestDatabaseBackend
   /**
    * PostgreSQL only: use this worker's separate `_isolated` database, for a
-   * suite whose `prepare()` must not drop the database the surrounding suite
-   * is running against.
+   * suite whose `prepare()` resets (clears) the database, so sharing it would
+   * wipe the surrounding suite's rows.
    */
   isolated?: boolean
 }
