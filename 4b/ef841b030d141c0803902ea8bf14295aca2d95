@@ -1,0 +1,43 @@
+CONTRIBUTING.md
+  s_c970657078ac33::t_cd747b30bf95ba 532-535,670-671,673-679
+lib/database/domains/list/listTestHelpers.ts
+  s_c970657078ac33::t_f8358874a82a91 7
+lib/database/domains/timeline/timeline.federated.test.ts
+  s_c970657078ac33::t_bed87583ee38d2 12-13
+lib/database/sqlcommenter.test.ts
+  s_c970657078ac33::t_24d48d164edefa 87-89
+lib/database/testUtils.test.ts
+  s_c970657078ac33::t_cec39ea3870e9e 214-222,272,274-275,349-350,358-407
+lib/database/testing/createTestDatabase.test.ts
+  s_c970657078ac33::t_4c934e04c7a2bb 39-40,42-46,48-50,64-67,108-207
+lib/database/testing/createTestDatabase.ts
+  s_c970657078ac33::t_09f9dfd26bab8c 10,18-21,39-42,46-52,54-59,81-82,94-95,103-107,128-130,151-152,156-161,163-165,168-173,178-183,187-188
+lib/database/testing/postgres.ts
+  s_c970657078ac33::t_3c2f76e797bae9 1,4-14,48-59,68,73-271
+lib/database/testing/schema.ts
+  s_c970657078ac33::t_a6358a07a04871 32-35
+lib/services/auth/auth.test.ts
+  s_c970657078ac33::t_61cdf391690bfa 31,77
+lib/services/auth/kyselyAdapter.testUtils.ts
+  s_c970657078ac33::t_27b22ff84d8e1c 73-75
+lib/services/favourites/getFavouritedStatusesPage.test.ts
+  s_c970657078ac33::t_141f6c185f1a83 16
+vitest.config.ts
+  s_c970657078ac33::t_7f5ac64b73d39e 110-114
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4bef841b030d141c0803902ea8bf14295aca2d95",
+  "prompts": {},
+  "sessions": {
+    "s_c970657078ac33": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "958b8617-512a-4770-9488-f0d13e1c8bd6",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
