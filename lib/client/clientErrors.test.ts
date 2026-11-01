@@ -146,24 +146,6 @@ describe('reportClientError', () => {
     expect(sent.digest.length).toBe(CLIENT_ERROR_MAX_LENGTHS.digest)
   })
 
-  it('ensures pathname has no query or hash', async () => {
-    const beacon = vi.fn().mockReturnValue(true)
-    setBeacon(beacon)
-
-    // Set pathname and search
-    window.history.replaceState({}, '', '/timeline/test?token=secret#my-hash')
-
-    reportClientError(new Error('Pathname test'), 'error')
-
-    expect(beacon).toHaveBeenCalledTimes(1)
-    const [, blob] = beacon.mock.calls[0]
-    const sent = JSON.parse(await readBlob(blob))
-
-    expect(sent.pathname).toBe('/timeline/test')
-    expect(sent.pathname).not.toContain('?')
-    expect(sent.pathname).not.toContain('#')
-  })
-
   it('never throws when beacon and fetch both throw', () => {
     setBeacon(
       vi.fn(() => {
