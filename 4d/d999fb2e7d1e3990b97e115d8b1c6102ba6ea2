@@ -1,0 +1,21 @@
+test/guardSmall.test.ts
+  s_aef08f425bed0e::t_6857baeaa6ec06 22,57-81
+test/setup/guardViolations.ts
+  s_aef08f425bed0e::t_59628be724c375 157-166,210-212,247-249
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4dd999fb2e7d1e3990b97e115d8b1c6102ba6ea2",
+  "prompts": {},
+  "sessions": {
+    "s_aef08f425bed0e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9db49a54-17a6-41a2-94c0-14b19dbd98f7",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
