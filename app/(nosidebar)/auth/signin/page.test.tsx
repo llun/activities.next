@@ -1,3 +1,5 @@
+import type { ReactElement } from 'react'
+
 import { getBaseURL, getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
@@ -5,6 +7,7 @@ import { getVisitedDomainIdentity } from '@/lib/services/domains/domainIdentity'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import Page from './page'
+import { REFRESHED_SIGN_IN_LINK_MESSAGE } from './signInErrorMessage'
 
 // The page reads the sign-ups of the domain it is visited on, which needs a
 // request; these tests render the page directly, so answer for the primary.
@@ -68,6 +71,7 @@ const anActor = { id: 'actor-id' } as Awaited<
 
 describe('/auth/signin already-authenticated resume', () => {
   beforeEach(() => {
+    vi.spyOn(Date, 'now').mockReturnValue(1700000000000)
     redirectMock.mockClear()
     vi.mocked(getDatabase).mockReturnValue({} as ReturnType<typeof getDatabase>)
     vi.mocked(getConfig).mockReturnValue({
@@ -80,6 +84,10 @@ describe('/auth/signin already-authenticated resume', () => {
     vi.mocked(getVisitedDomainIdentity).mockResolvedValue(
       anIdentity('Activities.next')
     )
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   it('forwards an authenticated user to the resumed OAuth consent page instead of home', async () => {
@@ -185,6 +193,139 @@ describe('/auth/signin already-authenticated resume', () => {
 
     expect(redirectMock).not.toHaveBeenCalled()
     expect(element).toBeTruthy()
+  })
+
+  it('redirects a logged-out visitor with expired signature to the restart path', async () => {
+    vi.mocked(getServerAuthSession).mockResolvedValue(null)
+
+    await Page({
+      searchParams: Promise.resolve({
+        response_type: 'code',
+        client_id: 'phanpy',
+        redirect_uri: 'https://phanpy.local/cb',
+        sig: 'signature',
+        exp: '1699999999'
+      })
+    })
+
+    expect(redirectMock).toHaveBeenCalledTimes(1)
+    const target = redirectMock.mock.calls[0][0]
+    expect(target.startsWith('/oauth/authorize?')).toBe(true)
+    const query = new URLSearchParams(target.split('?')[1])
+    expect(query.get('client_id')).toBe('phanpy')
+    expect(query.get('redirect_uri')).toBe('https://phanpy.local/cb')
+    expect(query.has('sig')).toBe(false)
+  })
+
+  it('redirects when expiry is within the 60 second safety margin', async () => {
+    vi.mocked(getServerAuthSession).mockResolvedValue(null)
+
+    await Page({
+      searchParams: Promise.resolve({
+        response_type: 'code',
+        client_id: 'phanpy',
+        redirect_uri: 'https://phanpy.local/cb',
+        sig: 'signature',
+        exp: '1700000050'
+      })
+    })
+
+    expect(redirectMock).toHaveBeenCalledTimes(1)
+    expect(redirectMock.mock.calls[0][0].startsWith('/oauth/authorize?')).toBe(
+      true
+    )
+  })
+
+  it('renders the form without redirect when expiry is far in the future', async () => {
+    vi.mocked(getServerAuthSession).mockResolvedValue(null)
+
+    const element = await Page({
+      searchParams: Promise.resolve({
+        response_type: 'code',
+        client_id: 'phanpy',
+        redirect_uri: 'https://phanpy.local/cb',
+        sig: 'signature',
+        exp: '1700000100'
+      })
+    })
+
+    expect(redirectMock).not.toHaveBeenCalled()
+    expect(element).toBeTruthy()
+  })
+
+  it('renders the form when sig is present but client_id is missing', async () => {
+    vi.mocked(getServerAuthSession).mockResolvedValue(null)
+
+    const element = await Page({
+      searchParams: Promise.resolve({
+        response_type: 'code',
+        redirect_uri: 'https://phanpy.local/cb',
+        sig: 'signature',
+        exp: '1699999999'
+      })
+    })
+
+    expect(redirectMock).not.toHaveBeenCalled()
+    expect(element).toBeTruthy()
+  })
+
+  it('still resumes an authenticated user even if exp is expired', async () => {
+    vi.mocked(getServerAuthSession).mockResolvedValue(aSession)
+
+    await Page({
+      searchParams: Promise.resolve({
+        response_type: 'code',
+        client_id: 'phanpy',
+        redirect_uri: 'https://phanpy.local/cb',
+        sig: 'signature',
+        exp: '1699999999'
+      })
+    })
+
+    expect(redirectMock).toHaveBeenCalledTimes(1)
+    const target = redirectMock.mock.calls[0][0]
+    expect(target.startsWith('/oauth/authorize?')).toBe(true)
+  })
+
+  it('redirects to a restart path keeping force_login when session + force_login + expired', async () => {
+    vi.mocked(getServerAuthSession).mockResolvedValue(aSession)
+
+    await Page({
+      searchParams: Promise.resolve({
+        response_type: 'code',
+        client_id: 'phanpy',
+        redirect_uri: 'https://phanpy.local/cb',
+        sig: 'signature',
+        exp: '1699999999',
+        force_login: 'true'
+      })
+    })
+
+    expect(redirectMock).toHaveBeenCalledTimes(1)
+    const target = redirectMock.mock.calls[0][0]
+    expect(target.startsWith('/oauth/authorize?')).toBe(true)
+    const query = new URLSearchParams(target.split('?')[1])
+    expect(query.get('force_login')).toBe('true')
+    expect(query.has('sig')).toBe(false)
+  })
+
+  it('renders refreshed link notice when link_refreshed is true', async () => {
+    vi.mocked(getServerAuthSession).mockResolvedValue(null)
+
+    const element = (await Page({
+      searchParams: Promise.resolve({
+        link_refreshed: 'true'
+      })
+    })) as {
+      props: { children: { props: { notice: ReactElement } } }
+    }
+
+    expect(redirectMock).not.toHaveBeenCalled()
+    const notice = element.props.children.props.notice
+    expect(notice).toBeTruthy()
+    expect((notice.props as { title: string }).title).toBe(
+      REFRESHED_SIGN_IN_LINK_MESSAGE
+    )
   })
 })
 

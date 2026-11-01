@@ -11,6 +11,7 @@ import {
 } from '@testing-library/react'
 
 import * as clientModule from '@/lib/client'
+import { ApiRequestError } from '@/lib/client/http'
 import { createDeferred } from '@/lib/testing/deferred'
 import { Actor } from '@/lib/types/domain/actor'
 import { Client } from '@/lib/types/oauth2/client'
@@ -948,6 +949,141 @@ describe('AuthorizeCard', () => {
         `https://phanpy.local/?error=${error}&state=return-state`
       )
     })
+  })
+
+  it('reloads consent unsigned with prompt=consent when approve encounters an invalid_signature error', async () => {
+    mockSubmitOAuthConsent.mockRejectedValueOnce(
+      new ApiRequestError('invalid_signature', 400)
+    )
+
+    render(
+      <AuthorizeCard
+        client={client}
+        searchParams={{
+          ...signedSearchParams,
+          redirect_uri: 'https://phanpy.local/'
+        }}
+        actors={actors}
+        currentActorId="https://activities.local/users/llun"
+        account={account}
+        navigate={mockNavigate}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalled()
+    })
+
+    const navigatedUrl = mockNavigate.mock.calls[0][0]
+    expect(navigatedUrl.startsWith('/oauth/authorize?')).toBe(true)
+    expect(navigatedUrl).not.toContain('error=server_error')
+    const query = new URLSearchParams(navigatedUrl.split('?')[1])
+    expect(query.has('sig')).toBe(false)
+    expect(query.has('exp')).toBe(false)
+    expect(query.get('client_id')).toBe('phanpy-client')
+    expect(query.get('prompt')).toBe('consent')
+    expect(query.get('redirect_uri')).toBe('https://phanpy.local/')
+  })
+
+  it('preserves narrowed scopes when reloading consent after invalid_signature', async () => {
+    mockSubmitOAuthConsent.mockRejectedValueOnce(
+      new ApiRequestError('invalid_signature', 400)
+    )
+
+    render(
+      <AuthorizeCard
+        client={client}
+        searchParams={{
+          ...signedSearchParams,
+          redirect_uri: 'https://phanpy.local/'
+        }}
+        actors={actors}
+        currentActorId="https://activities.local/users/llun"
+        account={account}
+        navigate={mockNavigate}
+      />
+    )
+
+    fireEvent.click(screen.getByLabelText('write'))
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalled()
+    })
+
+    const query = new URLSearchParams(
+      mockNavigate.mock.calls[0][0].split('?')[1]
+    )
+    expect(query.get('scope')).toBe('read follow push')
+    expect(query.get('prompt')).toBe('consent')
+  })
+
+  it('falls back to the original scopes when all are unchecked before invalid_signature', async () => {
+    mockSubmitOAuthConsent.mockRejectedValueOnce(
+      new ApiRequestError('invalid_signature', 400)
+    )
+
+    render(
+      <AuthorizeCard
+        client={client}
+        searchParams={{
+          ...signedSearchParams,
+          redirect_uri: 'https://phanpy.local/'
+        }}
+        actors={actors}
+        currentActorId="https://activities.local/users/llun"
+        account={account}
+        navigate={mockNavigate}
+      />
+    )
+
+    for (const scope of ['read', 'write', 'follow', 'push']) {
+      fireEvent.click(screen.getByLabelText(scope))
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalled()
+    })
+
+    const query = new URLSearchParams(
+      mockNavigate.mock.calls[0][0].split('?')[1]
+    )
+    expect(query.get('scope')).toBe(signedSearchParams.scope)
+    expect(query.get('prompt')).toBe('consent')
+  })
+
+  it('honours the refusal with access_denied when deny encounters an invalid_signature error', async () => {
+    mockSubmitOAuthConsent.mockRejectedValueOnce(
+      new ApiRequestError('invalid_signature', 400)
+    )
+
+    render(
+      <AuthorizeCard
+        client={client}
+        searchParams={{
+          ...signedSearchParams,
+          redirect_uri: 'https://phanpy.local/'
+        }}
+        actors={actors}
+        currentActorId="https://activities.local/users/llun"
+        account={account}
+        navigate={mockNavigate}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Deny' }))
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalled()
+    })
+
+    expect(mockNavigate).toHaveBeenCalledTimes(1)
+    const navigatedUrl = new URL(mockNavigate.mock.calls[0][0])
+    expect(navigatedUrl.origin).toBe('https://phanpy.local')
+    expect(navigatedUrl.searchParams.get('error')).toBe('access_denied')
   })
 
   it('falls back to router push when redirect_uri is malformed on server error', async () => {

@@ -9,6 +9,8 @@ import {
   AuthCardFooter
 } from '@/app/(nosidebar)/AuthCard'
 import { getAuthLogoSrc } from '@/app/(nosidebar)/getAuthLogoSrc'
+import { hasExpiredBetterAuthSignature } from '@/app/(nosidebar)/oauth/authorize/authorizeQuery'
+import { Alert } from '@/lib/components/surface/Alert'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
@@ -20,12 +22,19 @@ import { Booleanish } from '@/lib/utils/zodBooleanish'
 
 import { CredentialForm } from './CredentialForm'
 import { PasskeySigninButton } from './PasskeySigninButton'
-import { resolveSignInRedirect } from './resolveSignInRedirect'
+import {
+  resolveSignInRedirect,
+  resolveSignInRestartPath
+} from './resolveSignInRedirect'
+import { REFRESHED_SIGN_IN_LINK_MESSAGE } from './signInErrorMessage'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
   title: 'Sign in'
 }
+
+// Refresh a link that would expire while the visitor types.
+const SIGN_IN_LINK_EXPIRY_MARGIN_SECONDS = 60
 
 interface Props {
   searchParams: Promise<Record<string, string | string[] | undefined>>
@@ -74,6 +83,23 @@ const Page: FC<Props> = async ({ searchParams }) => {
     return redirect(actor ? target : '/')
   }
 
+  if (
+    params.get('sig') &&
+    hasExpiredBetterAuthSignature(
+      params.get('exp') ?? '',
+      SIGN_IN_LINK_EXPIRY_MARGIN_SECONDS
+    )
+  ) {
+    const restartPath = resolveSignInRestartPath(params)
+    if (restartPath) return redirect(restartPath)
+  }
+
+  const linkRefreshedParam = Booleanish.safeParse(params.get('link_refreshed'))
+  const refreshed = linkRefreshedParam.success && linkRefreshedParam.data
+  const notice = refreshed ? (
+    <Alert tone="info" title={REFRESHED_SIGN_IN_LINK_MESSAGE} />
+  ) : null
+
   const { auth } = getConfig()
   // The name and sign-ups of the domain this page is visited on (see
   // resolveDomainIdentity and resolveSignUpDomain).
@@ -105,6 +131,7 @@ const Page: FC<Props> = async ({ searchParams }) => {
       {credentialEnabled ? (
         <CredentialForm
           providerName={serviceName}
+          notice={notice}
           actions={
             <>
               {passkeyButton}
@@ -114,6 +141,7 @@ const Page: FC<Props> = async ({ searchParams }) => {
         />
       ) : (
         <AuthCardActions afterHeader>
+          {notice}
           {passkeyButton}
           {signUpLine}
         </AuthCardActions>

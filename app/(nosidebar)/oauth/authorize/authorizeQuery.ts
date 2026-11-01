@@ -90,9 +90,14 @@ export const buildBetterAuthAuthorizeUrl = (
 // signature looks live forever, so an expired one reaches the consent POST and
 // comes back `invalid_signature`; read milliseconds as seconds and every live
 // signature looks long expired, re-delegating to Better Auth on every load.
-const hasExpiredBetterAuthSignature = (exp: string): boolean => {
+export const hasExpiredBetterAuthSignature = (
+  exp: string,
+  marginSeconds = 0
+): boolean => {
   const expiresAt = Number(exp)
-  return !Number.isFinite(expiresAt) || Date.now() / 1000 > expiresAt
+  return (
+    !Number.isFinite(expiresAt) || Date.now() / 1000 + marginSeconds > expiresAt
+  )
 }
 
 // Better Auth consent signatures require sig and exp as an inseparable pair. If

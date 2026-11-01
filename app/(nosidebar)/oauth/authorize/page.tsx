@@ -41,10 +41,15 @@ const Page: FC<Props> = async ({ searchParams }) => {
     return notFound()
   }
   // `lang` is accepted for Mastodon compatibility but intentionally unused
-  // (the consent UI is not localized); destructure it — and force_login,
-  // which is consumed right below — away so neither is ever forwarded to
-  // better-auth or into sign-in redirectBack URLs.
-  const { force_login: forceLogin, lang: _lang, ...params } = parsedResult.data
+  // (the consent UI is not localized); destructure it — and force_login /
+  // link_refreshed, which are consumed right below — away so none of them is
+  // ever forwarded to better-auth or into sign-in redirectBack URLs.
+  const {
+    force_login: forceLogin,
+    lang: _lang,
+    link_refreshed: linkRefreshed,
+    ...params
+  } = parsedResult.data
 
   // Validate the client request before involving the resource owner or handing
   // it to Better Auth. RFC 6749 §4.1.2.1: an unknown client_id or an
@@ -98,6 +103,7 @@ const Page: FC<Props> = async ({ searchParams }) => {
     const url = new URL('/auth/signin', requestBaseURL)
     url.searchParams.append('redirectBack', buildOAuthAuthorizePath(params))
     if (forceLogin) url.searchParams.append('force_login', 'true')
+    if (linkRefreshed) url.searchParams.append('link_refreshed', 'true')
     return redirect(url.toString())
   }
 

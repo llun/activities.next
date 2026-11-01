@@ -7,10 +7,14 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { authClient } from '@/lib/services/auth/auth-client'
 
 import { PasskeySigninButton } from './PasskeySigninButton'
+import { EXPIRED_SIGN_IN_LINK_MESSAGE } from './signInErrorMessage'
+
+const pushMock = vi.fn()
+let currentSearchParams = new URLSearchParams('')
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn() }),
-  useSearchParams: () => new URLSearchParams('')
+  useRouter: () => ({ push: pushMock }),
+  useSearchParams: () => currentSearchParams
 }))
 
 vi.mock('@/lib/services/auth/auth-client', () => ({
@@ -51,6 +55,7 @@ describe('PasskeySigninButton', () => {
   afterEach(() => {
     clearWebAuthn()
     vi.clearAllMocks()
+    currentSearchParams = new URLSearchParams('')
   })
 
   // With credential sign-in disabled the passkey button is the only way in. A
@@ -164,6 +169,48 @@ describe('PasskeySigninButton', () => {
 
     expect(screen.getByRole('alert')).toHaveTextContent(
       'Passkey sign in failed. Please try again.'
+    )
+  })
+
+  it('refreshes an expired sign-in link via OAuth authorize when passkey fails with invalid_signature', async () => {
+    setPlatformAuthenticator(() => Promise.resolve(true))
+    currentSearchParams = new URLSearchParams(
+      'response_type=code&client_id=docs&redirect_uri=https%3A%2F%2Fdocs.example%2Fcb&sig=S&exp=1700000000'
+    )
+    vi.mocked(authClient.signIn.passkey).mockResolvedValue({
+      data: null,
+      error: { status: 400, error: 'invalid_signature' }
+    } as never)
+    await renderButton()
+
+    await act(async () => {
+      fireEvent.click(passkeyButton() as HTMLElement)
+    })
+
+    expect(pushMock).toHaveBeenCalledTimes(1)
+    const pushedUrl = pushMock.mock.calls[0][0]
+    expect(pushedUrl.startsWith('/oauth/authorize?')).toBe(true)
+    expect(pushedUrl).toContain('link_refreshed=true')
+    expect(pushedUrl).not.toContain('sig=')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('shows expired sign-in link message on invalid_signature when restart path cannot be resolved', async () => {
+    setPlatformAuthenticator(() => Promise.resolve(true))
+    currentSearchParams = new URLSearchParams('sig=S&response_type=code')
+    vi.mocked(authClient.signIn.passkey).mockResolvedValue({
+      data: null,
+      error: { status: 400, error: 'invalid_signature' }
+    } as never)
+    await renderButton()
+
+    await act(async () => {
+      fireEvent.click(passkeyButton() as HTMLElement)
+    })
+
+    expect(pushMock).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      EXPIRED_SIGN_IN_LINK_MESSAGE
     )
   })
 })

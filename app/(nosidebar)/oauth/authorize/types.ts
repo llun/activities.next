@@ -24,6 +24,10 @@ export const SearchParams = z.object({
   // (needed to authorize a second account from the same browser). Coerced to a
   // boolean; the page strips it before forwarding the OAuth query.
   force_login: Booleanish.optional(),
+  // Signals that an expired sign-in link was restarted. Coerced to a boolean;
+  // forwarded to /auth/signin and stripped before delegating or storing in
+  // redirectBack.
+  link_refreshed: Booleanish.optional(),
   // Mastodon `lang`: locale hint for the authorization screen. Accepted for
   // compatibility and intentionally ignored — this consent UI is not
   // localized — and stripped by the page before any query is forwarded.

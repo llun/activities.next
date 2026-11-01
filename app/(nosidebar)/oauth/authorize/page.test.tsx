@@ -245,6 +245,27 @@ describe('/oauth/authorize Mastodon authorize params', () => {
     expect(redirectBack.get('client_id')).toBe('client-id')
   })
 
+  it('forwards link_refreshed to sign-in and omits it from redirectBack', async () => {
+    vi.mocked(getActorFromSession).mockResolvedValue(null)
+
+    await Page({
+      searchParams: Promise.resolve({
+        ...searchParams,
+        link_refreshed: 'true'
+      })
+    })
+
+    expect(redirectMock).toHaveBeenCalledTimes(1)
+    const target = new URL(redirectMock.mock.calls[0][0])
+    expect(target.pathname).toBe('/auth/signin')
+    expect(target.searchParams.get('link_refreshed')).toBe('true')
+    const redirectBack = new URLSearchParams(
+      (target.searchParams.get('redirectBack') as string).split('?')[1]
+    )
+    expect(redirectBack.has('link_refreshed')).toBe(false)
+    expect(redirectBack.get('client_id')).toBe('client-id')
+  })
+
   it('proceeds with the active session when force_login is false', async () => {
     // Regression pin: a falsy force_login must not force re-authentication
     // and must not leak into the delegated better-auth query.

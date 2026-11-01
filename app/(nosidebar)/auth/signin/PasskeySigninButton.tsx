@@ -12,7 +12,14 @@ import {
   isPlatformPasskeyAvailable,
   isWebAuthnAvailable
 } from './passkeySupport'
-import { resolveSignInRedirect } from './resolveSignInRedirect'
+import {
+  resolveSignInRedirect,
+  resolveSignInRestartPath
+} from './resolveSignInRedirect'
+import {
+  EXPIRED_SIGN_IN_LINK_MESSAGE,
+  isInvalidSignatureError
+} from './signInErrorMessage'
 
 interface PasskeySigninButtonProps {
   /**
@@ -64,6 +71,17 @@ export const PasskeySigninButton: FC<PasskeySigninButtonProps> = ({
     try {
       const result = await authClient.signIn.passkey({ autoFill: false })
       if (!result || result.error) {
+        if (isInvalidSignatureError(result?.error)) {
+          const restartPath = resolveSignInRestartPath(searchParams)
+          if (restartPath) {
+            setLoading(false)
+            router.push(`${restartPath}&link_refreshed=true`)
+            return
+          }
+          setError(EXPIRED_SIGN_IN_LINK_MESSAGE)
+          setLoading(false)
+          return
+        }
         const code = (result?.error as { code?: string } | undefined)?.code
         const message = passkeyErrorMessage(code)
         if (message) setError(message)

@@ -2,6 +2,7 @@ import {
   buildBetterAuthAuthorizeUrl,
   buildOAuthAuthorizePath,
   buildOAuthQuery,
+  hasExpiredBetterAuthSignature,
   shouldDelegateToBetterAuth
 } from './authorizeQuery'
 import { SearchParams } from './types'
@@ -213,5 +214,28 @@ describe('OAuth authorize query helpers', () => {
 
     expect(authorizeUrl.searchParams.has('sig')).toBe(false)
     expect(authorizeUrl.searchParams.has('exp')).toBe(false)
+  })
+
+  describe('hasExpiredBetterAuthSignature', () => {
+    it('returns true when expired in the past', () => {
+      expect(hasExpiredBetterAuthSignature('1699999999')).toBe(true)
+    })
+
+    it('returns false when still valid without margin', () => {
+      expect(hasExpiredBetterAuthSignature('1700000050')).toBe(false)
+    })
+
+    it('returns true when expiry falls within the safety margin', () => {
+      expect(hasExpiredBetterAuthSignature('1700000050', 60)).toBe(true)
+    })
+
+    it('returns false when expiry is further than the safety margin', () => {
+      expect(hasExpiredBetterAuthSignature('1700000100', 60)).toBe(false)
+    })
+
+    it('returns true for malformed or empty expiry values', () => {
+      expect(hasExpiredBetterAuthSignature('')).toBe(true)
+      expect(hasExpiredBetterAuthSignature('invalid')).toBe(true)
+    })
   })
 })

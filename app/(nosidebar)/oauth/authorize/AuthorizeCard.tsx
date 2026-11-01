@@ -15,6 +15,7 @@ import {
   submitOAuthConsent,
   switchActor
 } from '@/lib/client'
+import { ApiRequestError } from '@/lib/client/http'
 import { ActorDisplayName } from '@/lib/components/actors/ActorDisplayName'
 import { FormRow } from '@/lib/components/surface/FormRow'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
@@ -30,7 +31,7 @@ import { Label } from '@/lib/components/ui/label'
 import { UsableScopes } from '@/lib/types/database/operations'
 import { ActorEmojiTag } from '@/lib/types/domain/actor'
 
-import { buildOAuthQuery } from './authorizeQuery'
+import { buildOAuthAuthorizePath, buildOAuthQuery } from './authorizeQuery'
 import { SearchParams } from './types'
 
 interface AccountSummary {
@@ -191,14 +192,18 @@ export const AuthorizeCard: FC<Props> = ({
     router.push(client.website ?? '/')
   }
 
+  const isExpiredConsentError = (error: unknown) =>
+    error instanceof ApiRequestError && error.message === 'invalid_signature'
+
   const handleApprove = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (submittingAction || isSwitching) return
     setSubmittingAction('approve')
 
+    const formData = new FormData(e.currentTarget)
+    const selectedScopes = formData.getAll('scope') as string[]
+
     try {
-      const formData = new FormData(e.currentTarget)
-      const selectedScopes = formData.getAll('scope') as string[]
       if (!(await persistSelectedActor())) {
         redirectWithError('server_error')
         return
@@ -217,7 +222,21 @@ export const AuthorizeCard: FC<Props> = ({
       }
 
       redirectWithError('server_error')
-    } catch {
+    } catch (error) {
+      if (isExpiredConsentError(error)) {
+        // prompt=consent prevents silently issuing a code; narrowed scopes
+        // carry over so the reloaded boxes match the visitor's choice.
+        navigate(
+          buildOAuthAuthorizePath({
+            ...searchParams,
+            prompt: 'consent',
+            scope: selectedScopes.join(' ') || searchParams.scope,
+            sig: undefined,
+            exp: undefined
+          })
+        )
+        return
+      }
       redirectWithError('server_error')
     } finally {
       setSubmittingAction(null)
@@ -240,8 +259,11 @@ export const AuthorizeCard: FC<Props> = ({
       // Denial processed but no redirect — use access_denied
       redirectWithError('access_denied')
       return
-    } catch {
-      redirectWithError('server_error')
+    } catch (error) {
+      // Honour the refusal here: restarting could turn a Deny into a grant.
+      redirectWithError(
+        isExpiredConsentError(error) ? 'access_denied' : 'server_error'
+      )
     } finally {
       setSubmittingAction(null)
     }

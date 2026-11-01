@@ -12,7 +12,14 @@ import { Input } from '@/lib/components/ui/input'
 import { authClient } from '@/lib/services/auth/auth-client'
 import { normalizeEmail } from '@/lib/utils/normalizeEmail'
 
-import { resolveSignInRedirect } from './resolveSignInRedirect'
+import {
+  resolveSignInRedirect,
+  resolveSignInRestartPath
+} from './resolveSignInRedirect'
+import {
+  isInvalidSignatureError,
+  signInErrorMessage
+} from './signInErrorMessage'
 
 interface Props {
   providerName: string
@@ -21,6 +28,10 @@ interface Props {
    * button and the "Don't have an account? Sign up" line.
    */
   actions?: ReactNode
+  /**
+   * Rendered in the card's body above the submit button when there is no error.
+   */
+  notice?: ReactNode
 }
 
 const requiresTwoFactor = (
@@ -32,7 +43,11 @@ const requiresTwoFactor = (
   return Reflect.get(data, 'twoFactorRedirect') === true
 }
 
-export const CredentialForm: FC<Props> = ({ providerName, actions }) => {
+export const CredentialForm: FC<Props> = ({
+  providerName,
+  actions,
+  notice
+}) => {
   const [error, setError] = useState<string>()
   const [fieldError, setFieldError] = useState<{
     field: 'email' | 'password'
@@ -82,7 +97,15 @@ export const CredentialForm: FC<Props> = ({ providerName, actions }) => {
         password
       })
       if (result.error) {
-        setError(result.error.message || 'Sign in failed')
+        if (isInvalidSignatureError(result.error)) {
+          const restartPath = resolveSignInRestartPath(searchParams)
+          if (restartPath) {
+            setLoading(false)
+            router.push(`${restartPath}&link_refreshed=true`)
+            return
+          }
+        }
+        setError(signInErrorMessage(result.error))
         setLoading(false)
         return
       }
@@ -168,7 +191,7 @@ export const CredentialForm: FC<Props> = ({ providerName, actions }) => {
           </Link>
         </div>
 
-        {error && <Alert title={error} />}
+        {error ? <Alert title={error} /> : notice}
       </AuthCardBody>
 
       <AuthCardActions>
