@@ -103,6 +103,17 @@ const EpochReady = () =>
 const FAKE_CLOCK: Parameters<typeof vi.useFakeTimers>[0] = {
   toFake: ['Date', 'setTimeout', 'clearTimeout']
 }
+
+// The suite fakes setTimeout in beforeEach; real-time settles keep this one.
+const realSetTimeout = globalThis.setTimeout
+
+// Waits out real time while the fake clock stands still. The flows that still
+// need it (a discard that must not have happened, a keep that must settle)
+// are real IndexedDB work, not timers, so no fake-clock advance can stand in
+// for them.
+const settleReal = (ms: number) =>
+  new Promise<void>((resolve) => realSetTimeout(resolve, ms))
+
 const advanceDebounce = async (beforeAdvance: () => void = () => undefined) => {
   beforeAdvance()
   await act(async () => {
@@ -136,8 +147,13 @@ const textarea = () =>
 const type = (value: string) =>
   fireEvent.change(textarea(), { target: { value } })
 const stored = () => listDrafts({ actorId: profile.id })
-const waitForSaved = () =>
-  screen.findByText('Saved on this device', {}, { timeout: 4000 })
+// The autosave pause is a fake timer: run it to its end instead of waiting out
+// 800 ms of real time. The save's IndexedDB work is real, so the note itself
+// is found in real time afterwards.
+const waitForSaved = async () => {
+  await advanceDebounce()
+  return screen.findByText('Saved on this device')
+}
 const post = () => fireEvent.click(screen.getByRole('button', { name: 'Post' }))
 const cancel = () =>
   fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
@@ -147,6 +163,9 @@ configure({ asyncUtilTimeout: 4000 })
 
 describe('StatusReplyBox on-device drafts', () => {
   beforeEach(() => {
+    // Before every render, so the debounce timer the box arms on mount or on
+    // typing is a fake one the tests advance deliberately.
+    vi.useFakeTimers(FAKE_CLOCK)
     installFakeBroadcastChannel()
     setDraftsIndexedDBFactory(new IDBFactory())
     vi.stubGlobal(
@@ -180,8 +199,6 @@ describe('StatusReplyBox on-device drafts', () => {
   })
 
   it('saves nothing for the mention pre-fill alone', async () => {
-    // Before the render, so the pre-fill's debounce timer is a fake one.
-    vi.useFakeTimers(FAKE_CLOCK)
     renderBox(
       {
         replyStatus: {
@@ -238,7 +255,7 @@ describe('StatusReplyBox on-device drafts', () => {
 
     expect(onCancel).toHaveBeenCalled()
     // Long enough for a discard to have finished deleting.
-    await new Promise((resolve) => setTimeout(resolve, 150))
+    await settleReal(150)
     expect(await stored()).toHaveLength(1)
   })
 
@@ -294,6 +311,8 @@ describe('StatusReplyBox on-device drafts', () => {
     renderBox()
 
     type('A reply that cannot be stored')
+    // The failed save is the debounced one: run it to its end.
+    await advanceDebounce()
 
     expect(
       await screen.findByText(
@@ -374,6 +393,8 @@ describe('StatusReplyBox on-device drafts', () => {
       // An edit after the failed send needs a new key, so the checkpoint
       // must write (an unchanged one is already stored under the old key).
       type('Reply body, edited')
+      // The conflict is caught by the debounced save: run it to its end.
+      await advanceDebounce()
       await waitFor(() =>
         expect(screen.getByRole('button', { name: 'Post' })).toBeEnabled()
       )
@@ -402,6 +423,8 @@ describe('StatusReplyBox on-device drafts', () => {
         { expectedRevision: draft.revision, epoch: 0 }
       )
       type('Reply body, edited')
+      // The conflict is caught by the debounced save: run it to its end.
+      await advanceDebounce()
       await screen.findByText('Not saved, copy your text')
 
       // Emptied, then the same text again: the same content, but a new draft.
@@ -501,6 +524,8 @@ describe('StatusReplyBox on-device drafts', () => {
       renderBox({ draft })
       await waitFor(() => expect(textarea()).toHaveValue('Reply body'))
       type('Reply body, edited')
+      // The edit's save is the debounced one: run it to its end.
+      await advanceDebounce()
       await waitFor(async () => {
         const drafts = await stored()
         expect(drafts).toHaveLength(1)
@@ -529,6 +554,9 @@ describe('StatusReplyBox on-device drafts', () => {
           }
         }
       )
+      // The blob write is immediate, but the record that holds the
+      // attachment is the debounced save's work: run it to its end.
+      await advanceDebounce()
       await waitFor(async () =>
         expect((await stored())[0]?.attachments[0]?.hasBlob).toBe(true)
       )
@@ -557,7 +585,12 @@ describe('StatusReplyBox on-device drafts', () => {
 
     post()
 
-    // Released at once, not left for the next autosave (800 ms) to notice.
+    // The send itself is real IndexedDB and promise work, so it settles in
+    // real time while the fake clock stands still.
+    await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
+
+    // Released at once, not left for the next autosave (800 ms) to notice:
+    // the wait's budget is fake time, still short of the autosave pause.
     await waitFor(async () => expect(await stored()).toHaveLength(0), {
       timeout: 500
     })
@@ -613,6 +646,8 @@ describe('StatusReplyBox on-device drafts', () => {
     type('Warming up')
     await waitForSaved()
     type(prefill)
+    // The emptying save is the debounced one: run it to its end.
+    await advanceDebounce()
     await waitFor(async () => expect(await stored()).toHaveLength(0))
     type('Typed for the first')
     rerender(
@@ -626,6 +661,8 @@ describe('StatusReplyBox on-device drafts', () => {
         />
       </DraftsProvider>
     )
+    // The re-targeted reply's first save is debounced too: run it to its end.
+    await advanceDebounce()
 
     await waitFor(async () =>
       expect(await stored()).toEqual([
@@ -711,6 +748,9 @@ describe('StatusReplyBox on-device drafts', () => {
       document.querySelector<HTMLInputElement>('input[type="file"]')!,
       { target: { files: [new File(['b'], 'b.png', { type: 'image/png' })] } }
     )
+    // The record that holds the attachment is the debounced save's work:
+    // run it to its end.
+    await advanceDebounce()
     await waitFor(async () =>
       expect((await stored())[0]?.attachments).toHaveLength(1)
     )
@@ -757,7 +797,7 @@ describe('StatusReplyBox on-device drafts', () => {
     send.reject(new Error('offline'))
 
     expect(await findSendAlert()).toBeVisible()
-    await new Promise((resolve) => setTimeout(resolve, 300))
+    await settleReal(300)
     expect(screen.queryByText('Saved to Drafts')).toBeNull()
     expect(screen.queryByText('Couldn’t save to Drafts')).toBeNull()
     expect(textarea()).toHaveValue('Reply body')
@@ -818,7 +858,7 @@ describe('StatusReplyBox on-device drafts', () => {
     post()
 
     expect(await screen.findByText('Saved to Drafts')).toBeVisible()
-    await new Promise((resolve) => setTimeout(resolve, 300))
+    await settleReal(300)
     expect(createNoteMock).toHaveBeenCalledTimes(1)
   })
 
@@ -861,6 +901,8 @@ describe('StatusReplyBox on-device drafts', () => {
     post()
     expect(await findSendAlert()).toBeVisible()
     type('The third reply, still saving')
+    // The save that must land is the debounced one: run it to its end.
+    await advanceDebounce()
 
     await waitFor(async () =>
       expect((await stored()).map((draft) => draft.text)).toContain(
@@ -929,7 +971,7 @@ describe('StatusReplyBox on-device drafts', () => {
 
     await waitFor(async () => expect(await stored()).toHaveLength(0))
     // Sent: nothing is kept or offered on the way to the new target.
-    await new Promise((resolve) => setTimeout(resolve, 300))
+    await settleReal(300)
     expect(screen.queryByText('Saved to Drafts')).toBeNull()
     expect(screen.queryByText('Couldn’t save to Drafts')).toBeNull()
   })
