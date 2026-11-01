@@ -1072,7 +1072,7 @@ describe('MainPageTimeline', () => {
         expect(scrollBy).not.toHaveBeenCalled()
       })
 
-      it('does not anchor or scroll down on refreshOnMount when at the top of the timeline', async () => {
+      it('holds refreshOnMount posts at the top without anchoring or scrolling', async () => {
         const scrollBy = vi
           .spyOn(window, 'scrollBy')
           .mockImplementation(() => undefined)
@@ -1107,13 +1107,11 @@ describe('MainPageTimeline', () => {
           />
         )
 
-        await waitFor(() => {
-          expect(screen.getByTestId('post-' + post0.id)).toBeInTheDocument()
-        })
-        expect(scrollBy).not.toHaveBeenCalled()
         expect(
-          screen.queryByRole('button', { name: /new post|Back to top/ })
-        ).not.toBeInTheDocument()
+          await screen.findByRole('button', { name: '1 new post' })
+        ).toBeInTheDocument()
+        expect(screen.queryByTestId('post-' + post0.id)).not.toBeInTheDocument()
+        expect(scrollBy).not.toHaveBeenCalled()
       })
 
       it('saves scrollAnchor: null while first post is below header (even if scrolled into composer) and saves unclamped offsetTop once scrolled into feed', () => {
@@ -1410,7 +1408,6 @@ describe('MainPageTimeline', () => {
           await waitFor(() => {
             expect(screen.getByTestId('post-' + post0.id)).toBeInTheDocument()
           })
-
           expect(scrollBy).not.toHaveBeenCalled()
           expect(
             screen.queryByRole('button', { name: /new post|Back to top/ })

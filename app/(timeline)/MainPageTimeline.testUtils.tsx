@@ -11,6 +11,7 @@ import {
   StatusNote,
   StatusType
 } from '@/lib/types/domain/status'
+import { TimelineContext } from '@/lib/types/domain/timeline'
 
 export const MockAnnouncementIcon = () => (
   <div data-testid="announcement-icon" />
@@ -75,7 +76,9 @@ export const MockFeed = ({
   onLikeChanged,
   onBookmarkChanged,
   onReactionsChanged,
-  onReplyCreated
+  onReplyCreated,
+  gapAfterStatusIds = {},
+  timelineContext
 }: {
   statuses: any[]
   currentTime: number
@@ -85,9 +88,14 @@ export const MockFeed = ({
   onBookmarkChanged?: (status: any, isBookmarked: boolean) => void
   onReactionsChanged?: (status: any, reactions: any[]) => void
   onReplyCreated?: (status: any) => void
+  gapAfterStatusIds?: Record<string, number>
+  timelineContext?: TimelineContext
 }) => (
   <div>
     <div data-testid="posts-current-time">{currentTime}</div>
+    <div data-testid="timeline-context-ancestor-ids">
+      {Object.keys(timelineContext?.ancestorsById ?? {}).join(',')}
+    </div>
     <button
       type="button"
       data-testid="trigger-delete-unknown"
@@ -149,120 +157,124 @@ export const MockFeed = ({
         status.type === 'Announce' ? status.originalStatus : status
       ) as any
       return (
-        <div
-          key={status.id}
-          data-testid={`post-${status.id}`}
-          data-status-id={status.id}
-          data-row-status-ids={status.id}
-        >
-          <span data-testid={`post-id-${status.id}`}>{status.id}</span>
-          <span data-testid={`post-text-${status.id}`}>{target.text}</span>
-          <span data-testid={`post-liked-${status.id}`}>
-            {String(target.isActorLiked)}
-          </span>
-          <span data-testid={`post-bookmarked-${status.id}`}>
-            {String(target.isActorBookmarked)}
-          </span>
-          <span data-testid={`post-likes-${status.id}`}>
-            {target.totalLikes}
-          </span>
-          <span data-testid={`post-reactions-${status.id}`}>
-            {target.reactions?.length ?? 0}
-          </span>
-          <span data-testid={`post-playback-${status.id}`}>
-            {target.attachments?.[0]?.playbackType ?? 'none'}
-          </span>
-          <span data-testid={`post-replies-${status.id}`}>
-            {target.totalReplies ?? 0}
-          </span>
-          <button
-            type="button"
-            data-testid={`trigger-reply-${status.id}`}
-            onClick={() =>
-              onReplyCreated?.({
-                id: `https://activities.local/users/other/statuses/reply-to-${status.id}`,
-                actorId: 'https://activities.local/users/other',
-                type: 'note',
-                reply: target.id,
-                text: 'reply text',
-                createdAt: 1000,
-                totalReplies: 0,
-                totalLikes: 0,
-                totalShares: 0
-              })
-            }
+        <div key={status.id}>
+          <div
+            data-testid={`post-${status.id}`}
+            data-status-id={status.id}
+            data-row-status-ids={status.id}
           >
-            reply status
-          </button>
-          <button
-            type="button"
-            data-testid={`trigger-delete-${status.id}`}
-            onClick={() => onPostDeleted?.(status)}
-          >
-            delete status
-          </button>
-          <button
-            type="button"
-            data-testid={`trigger-delete-target-${status.id}`}
-            onClick={() => onPostDeleted?.(target)}
-          >
-            delete target
-          </button>
-          <button
-            type="button"
-            data-testid={`trigger-delete-clone-${status.id}`}
-            onClick={() => onPostDeleted?.({ ...target })}
-          >
-            delete clone
-          </button>
-          <button
-            type="button"
-            data-testid={`trigger-update-${status.id}`}
-            onClick={() =>
-              onPostUpdated?.({ ...target, text: 'updated text' } as any)
-            }
-          >
-            update status
-          </button>
-          <button
-            type="button"
-            data-testid={`trigger-like-${status.id}`}
-            onClick={() => onLikeChanged?.(target as any, true)}
-          >
-            like status
-          </button>
-          <button
-            type="button"
-            data-testid={`trigger-unlike-${status.id}`}
-            onClick={() => onLikeChanged?.(target as any, false)}
-          >
-            unlike status
-          </button>
-          <button
-            type="button"
-            data-testid={`trigger-bookmark-${status.id}`}
-            onClick={() => onBookmarkChanged?.(target as any, true)}
-          >
-            bookmark status
-          </button>
-          <button
-            type="button"
-            data-testid={`trigger-unbookmark-${status.id}`}
-            onClick={() => onBookmarkChanged?.(target as any, false)}
-          >
-            unbookmark status
-          </button>
-          <button
-            type="button"
-            data-testid={`trigger-react-${status.id}`}
-            onClick={() =>
-              onReactionsChanged?.(target as any, [
-                { name: '🎉', count: 1, me: true }
-              ])
-            }
-          >
-            react status
-          </button>
+            <span data-testid={`post-id-${status.id}`}>{status.id}</span>
+            <span data-testid={`post-text-${status.id}`}>{target.text}</span>
+            <span data-testid={`post-liked-${status.id}`}>
+              {String(target.isActorLiked)}
+            </span>
+            <span data-testid={`post-bookmarked-${status.id}`}>
+              {String(target.isActorBookmarked)}
+            </span>
+            <span data-testid={`post-likes-${status.id}`}>
+              {target.totalLikes}
+            </span>
+            <span data-testid={`post-reactions-${status.id}`}>
+              {target.reactions?.length ?? 0}
+            </span>
+            <span data-testid={`post-playback-${status.id}`}>
+              {target.attachments?.[0]?.playbackType ?? 'none'}
+            </span>
+            <span data-testid={`post-replies-${status.id}`}>
+              {target.totalReplies ?? 0}
+            </span>
+            <button
+              type="button"
+              data-testid={`trigger-reply-${status.id}`}
+              onClick={() =>
+                onReplyCreated?.({
+                  id: `https://activities.local/users/other/statuses/reply-to-${status.id}`,
+                  actorId: 'https://activities.local/users/other',
+                  type: 'note',
+                  reply: target.id,
+                  text: 'reply text',
+                  createdAt: 1000,
+                  totalReplies: 0,
+                  totalLikes: 0,
+                  totalShares: 0
+                })
+              }
+            >
+              reply status
+            </button>
+            <button
+              type="button"
+              data-testid={`trigger-delete-${status.id}`}
+              onClick={() => onPostDeleted?.(status)}
+            >
+              delete status
+            </button>
+            <button
+              type="button"
+              data-testid={`trigger-delete-target-${status.id}`}
+              onClick={() => onPostDeleted?.(target)}
+            >
+              delete target
+            </button>
+            <button
+              type="button"
+              data-testid={`trigger-delete-clone-${status.id}`}
+              onClick={() => onPostDeleted?.({ ...target })}
+            >
+              delete clone
+            </button>
+            <button
+              type="button"
+              data-testid={`trigger-update-${status.id}`}
+              onClick={() =>
+                onPostUpdated?.({ ...target, text: 'updated text' } as any)
+              }
+            >
+              update status
+            </button>
+            <button
+              type="button"
+              data-testid={`trigger-like-${status.id}`}
+              onClick={() => onLikeChanged?.(target as any, true)}
+            >
+              like status
+            </button>
+            <button
+              type="button"
+              data-testid={`trigger-unlike-${status.id}`}
+              onClick={() => onLikeChanged?.(target as any, false)}
+            >
+              unlike status
+            </button>
+            <button
+              type="button"
+              data-testid={`trigger-bookmark-${status.id}`}
+              onClick={() => onBookmarkChanged?.(target as any, true)}
+            >
+              bookmark status
+            </button>
+            <button
+              type="button"
+              data-testid={`trigger-unbookmark-${status.id}`}
+              onClick={() => onBookmarkChanged?.(target as any, false)}
+            >
+              unbookmark status
+            </button>
+            <button
+              type="button"
+              data-testid={`trigger-react-${status.id}`}
+              onClick={() =>
+                onReactionsChanged?.(target as any, [
+                  { name: '🎉', count: 1, me: true }
+                ])
+              }
+            >
+              react status
+            </button>
+          </div>
+          {status.id in gapAfterStatusIds ? (
+            <div data-testid={`gap-after-${status.id}`}>gap</div>
+          ) : null}
         </div>
       )
     })}

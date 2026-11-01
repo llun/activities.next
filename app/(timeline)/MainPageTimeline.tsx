@@ -12,7 +12,7 @@ import {
   useState
 } from 'react'
 
-import { getTimeline } from '@/lib/client'
+import { type GetTimelineResult, getTimeline } from '@/lib/client'
 import {
   getConnectionSnapshot,
   onConnectionRestored,
@@ -84,6 +84,8 @@ import {
 } from './NewPostsPill'
 
 export const POLL_PAGE_LIMIT = 20
+export const SCROLL_REST_MS = 120
+export const SCROLL_REST_MAX_MS = 2000
 
 export type CompatibleTimelineContext =
   | TimelineContext
@@ -256,7 +258,21 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     useState<boolean>(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [newerPostsCount, setNewerPostsCount] = useState<number>(0)
+  const newerPostsCountRef = useRef(newerPostsCount)
+  newerPostsCountRef.current = newerPostsCount
   const [hasMoreNewerPosts, setHasMoreNewerPosts] = useState<boolean>(false)
+  const stagedPageRef = useRef<GetTimelineResult | null>(null)
+  const stagedFetchedAtRef = useRef<number | null>(null)
+  const applyFreshPageRef = useRef<
+    | ((
+        result: GetTimelineResult,
+        options?: { preserveScroll?: true; automatic?: true; fromHeld?: true },
+        resetRevisionAtStart?: number
+      ) => Promise<void>)
+    | null
+  >(null)
+  const [stagedCount, setStagedCount] = useState(0)
+  const [stagedHasGap, setStagedHasGap] = useState(false)
   // Posts loaded above the reading spot that the reader has not scrolled to
   // yet. They count towards the "new posts" pill with the polled posts that
   // are not loaded at all.
@@ -306,11 +322,20 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   )
   const activeProfileIdRef = useRef<string>(profile.id)
   activeProfileIdRef.current = profile.id
+  const stagedActorIdRef = useRef<string>(profile.id)
   const segmentsActorIdRef = useRef<string>(profile.id)
   const hydratedOnceForActorRef = useRef<string | null>(
     initialSegments && initialSegments.length > 0 ? profile.id : null
   )
   const lastReconciledAtRef = useRef<number>(0)
+  const refreshTimelineRef = useRef<
+    | ((options?: {
+        preserveScroll?: true
+        automatic?: true
+        actorRetry?: true
+      }) => Promise<void>)
+    | null
+  >(null)
   const restoredAnchorRef = useRef<string | null>(null)
   const scrollAnchorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null
@@ -321,6 +346,29 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   const isScrollingToTopRef = useRef<boolean>(false)
   const lastJumpScrollYRef = useRef<number>(0)
   const scrollResetRevisionRef = useRef<number>(0)
+  const lastScrollAtRef = useRef<number>(0)
+
+  const waitForScrollRest = useCallback(async () => {
+    if (
+      lastScrollAtRef.current === 0 ||
+      Date.now() - lastScrollAtRef.current >= SCROLL_REST_MS
+    ) {
+      return
+    }
+    const startedAt = Date.now()
+    while (Date.now() - lastScrollAtRef.current < SCROLL_REST_MS) {
+      const elapsed = Date.now() - startedAt
+      if (elapsed >= SCROLL_REST_MAX_MS) return
+      const restRemaining =
+        SCROLL_REST_MS - (Date.now() - lastScrollAtRef.current)
+      await new Promise((resolve) =>
+        setTimeout(
+          resolve,
+          Math.min(restRemaining, SCROLL_REST_MS, SCROLL_REST_MAX_MS - elapsed)
+        )
+      )
+    }
+  }, [])
 
   const clearScrollingToTop = useCallback(() => {
     isScrollingToTopRef.current = false
@@ -515,6 +563,17 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     lastRefreshedAt
   ])
 
+  useEffect(() => {
+    if (stagedActorIdRef.current === profile.id) return
+    stagedActorIdRef.current = profile.id
+    stagedPageRef.current = null
+    stagedFetchedAtRef.current = null
+    setStagedCount(0)
+    setStagedHasGap(false)
+    setNewerPostsCount(0)
+    setHasMoreNewerPosts(false)
+  }, [profile.id])
+
   // Scroll anchor restoration
   useLayoutEffect(() => {
     if (!pendingScrollAnchor || !pendingScrollAnchor.statusId) return
@@ -595,6 +654,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     }
 
     const handleScroll = () => {
+      lastScrollAtRef.current = Date.now()
       if (isScrollingToTopRef.current) {
         if (
           window.scrollY <= VIEW_TOP_EDGE ||
@@ -662,6 +722,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     if (typeof window === 'undefined') return
     let frame: number | null = null
     const handleScroll = () => {
+      lastScrollAtRef.current = Date.now()
       if (frame !== null) return
       frame = window.requestAnimationFrame(() => {
         frame = null
@@ -702,6 +763,17 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   // A new post composed in the top box, or a quote created inline from a
   // feed row, is prepended so it appears immediately.
   const onStatusCreated = useCallback((status: Status) => {
+    const page = stagedPageRef.current
+    if (page) {
+      stagedPageRef.current = null
+      setStagedCount(0)
+      setStagedHasGap(false)
+      void applyFreshPageRef.current?.(
+        page,
+        { fromHeld: true },
+        scrollResetRevisionRef.current
+      )
+    }
     setSegments((prev) => {
       if (prev.length === 0) {
         return [
@@ -811,14 +883,31 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     )
   }, [])
 
-  const onPostDeleted = useCallback((status: Status) => {
-    setSegments((prev) =>
-      prev.map((seg) => ({
-        ...seg,
-        statuses: removeOriginalStatus(seg.statuses, status.id)
-      }))
-    )
-  }, [])
+  const onPostDeleted = useCallback(
+    (status: Status) => {
+      const stagedPage = stagedPageRef.current
+      if (stagedPage) {
+        const retained = removeOriginalStatus(stagedPage.statuses, status.id)
+        if (retained.length !== stagedPage.statuses.length) {
+          const removedCount =
+            stagedPage.statuses.slice(0, stagedCount).length -
+            removeOriginalStatus(
+              stagedPage.statuses.slice(0, stagedCount),
+              status.id
+            ).length
+          stagedPageRef.current = { ...stagedPage, statuses: retained }
+          setStagedCount((count) => Math.max(0, count - removedCount))
+        }
+      }
+      setSegments((prev) =>
+        prev.map((seg) => ({
+          ...seg,
+          statuses: removeOriginalStatus(seg.statuses, status.id)
+        }))
+      )
+    },
+    [stagedCount]
+  )
 
   const onLikeChanged = useCallback(
     (status: StatusNote | StatusPoll, isLiked: boolean) => {
@@ -939,17 +1028,17 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     onLoadMore: loadMoreStatuses
   })
 
-  const refreshTimeline = useCallback(
-    async (options?: { preserveScroll?: true }) => {
-      // isLoadingRef serializes refreshes, so only one runs at a time and there
-      // is no concurrent request to guard against.
-      if (isLoadingRef.current) return
-
-      isLoadingRef.current = true
-      setIsRefreshing(true)
-      setLoadingMoreStatuses(true)
-      setFetchError(null)
-
+  const applyFreshPage = useCallback(
+    async (
+      result: GetTimelineResult,
+      options?: {
+        preserveScroll?: true
+        automatic?: true
+        fromHeld?: true
+      },
+      resetRevisionAtStart?: number,
+      fetchedAt?: number
+    ) => {
       const isCurrentlyScrolledDown = () => {
         if (typeof window !== 'undefined' && window.scrollY > VIEW_TOP_EDGE) {
           return true
@@ -968,179 +1057,257 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         }
         return false
       }
+      const previousFirstId = currentStatusesRef.current[0]?.id
 
-      const resetRevisionAtStart = scrollResetRevisionRef.current
+      const resetWasTriggered =
+        scrollResetRevisionRef.current !== resetRevisionAtStart
+      const shouldPreserve = isScrollingToTopRef.current
+        ? false
+        : options?.preserveScroll || isCurrentlyScrolledDown()
+      const effectivePreserve = shouldPreserve && !resetWasTriggered
 
-      try {
-        const result = await getTimeline({
-          timeline: Timeline.MAIN
-        })
-
-        const previousFirstId = currentStatusesRef.current[0]?.id
-
-        const resetWasTriggered =
-          scrollResetRevisionRef.current !== resetRevisionAtStart
-        const shouldPreserve = isScrollingToTopRef.current
-          ? false
-          : options?.preserveScroll || isCurrentlyScrolledDown()
-        const effectivePreserve = shouldPreserve && !resetWasTriggered
-
-        let capturedAnchor: { statusId: string; offsetTop: number } | null =
-          null
-        if (effectivePreserve && typeof document !== 'undefined') {
-          const elements =
-            document.querySelectorAll<HTMLElement>('[data-status-id]')
-          for (let i = 0; i < elements.length; i++) {
-            const el = elements[i]
-            const rect = el.getBoundingClientRect()
-            if (rect.bottom > VIEW_TOP_EDGE) {
-              const statusId = el.getAttribute('data-status-id')
-              if (statusId) {
-                capturedAnchor = {
-                  statusId,
-                  offsetTop: Math.round(rect.top)
-                }
+      let capturedAnchor: { statusId: string; offsetTop: number } | null = null
+      if (effectivePreserve && typeof document !== 'undefined') {
+        const elements =
+          document.querySelectorAll<HTMLElement>('[data-status-id]')
+        for (let i = 0; i < elements.length; i++) {
+          const el = elements[i]
+          const rect = el.getBoundingClientRect()
+          if (rect.bottom > VIEW_TOP_EDGE) {
+            const statusId = el.getAttribute('data-status-id')
+            if (statusId) {
+              capturedAnchor = {
+                statusId,
+                offsetTop: Math.round(rect.top)
               }
-              break
             }
+            break
           }
         }
+      }
 
-        const merged = mergeFreshPageIntoSegments({
-          currentSegments: segmentsRef.current,
-          incomingStatuses: result.statuses,
-          incomingNextMaxStatusId: result.nextMaxStatusId,
-          incomingPrevMinStatusId: result.prevMinStatusId
-        })
-        const now = Date.now()
-        const firstMergedId = merged.segments[0]?.statuses[0]?.id
-        const hasNewerPrepended =
-          Boolean(firstMergedId) && firstMergedId !== previousFirstId
-        const isCapturedTopOfFeed =
-          capturedAnchor !== null &&
-          (isTopOfFeedAnchor(
+      const currentIds = new Map(
+        currentStatusesRef.current.map((status) => [status.id, status])
+      )
+      const incomingStatuses = options?.fromHeld
+        ? result.statuses.map((status) => currentIds.get(status.id) ?? status)
+        : result.statuses
+      const heldPageToMerge =
+        !options?.automatic && !options?.fromHeld ? stagedPageRef.current : null
+      const heldBase = heldPageToMerge
+        ? mergeFreshPageIntoSegments({
+            currentSegments: segmentsRef.current,
+            incomingStatuses: heldPageToMerge.statuses.map(
+              (status) => currentIds.get(status.id) ?? status
+            ),
+            incomingNextMaxStatusId: heldPageToMerge.nextMaxStatusId,
+            incomingPrevMinStatusId: heldPageToMerge.prevMinStatusId
+          }).segments
+        : segmentsRef.current
+      const baseSegments = options?.fromHeld ? segmentsRef.current : heldBase
+      const merged = mergeFreshPageIntoSegments({
+        currentSegments: baseSegments,
+        incomingStatuses,
+        incomingNextMaxStatusId: result.nextMaxStatusId,
+        incomingPrevMinStatusId: result.prevMinStatusId
+      })
+      const now = Date.now()
+      const firstMergedId = merged.segments[0]?.statuses[0]?.id
+      const hasNewerPrepended =
+        Boolean(firstMergedId) && firstMergedId !== previousFirstId
+      const isCapturedTopOfFeed =
+        capturedAnchor !== null &&
+        (isTopOfFeedAnchor(
+          {
+            statusId: capturedAnchor.statusId,
+            offsetTop: capturedAnchor.offsetTop,
+            updatedAt: now
+          },
+          previousFirstId
+        ) ||
+          isTopOfFeedAnchor(
             {
               statusId: capturedAnchor.statusId,
               offsetTop: capturedAnchor.offsetTop,
               updatedAt: now
             },
-            previousFirstId
-          ) ||
-            isTopOfFeedAnchor(
-              {
-                statusId: capturedAnchor.statusId,
-                offsetTop: capturedAnchor.offsetTop,
-                updatedAt: now
-              },
-              firstMergedId
-            ))
-        const willPreserveAnchor =
-          effectivePreserve && capturedAnchor !== null && !isCapturedTopOfFeed
+            firstMergedId
+          ))
+      const willPreserveAnchor =
+        effectivePreserve && capturedAnchor !== null && !isCapturedTopOfFeed
 
-        // A refresh that keeps the reading spot loads the newer posts above
-        // the reader. One that goes to the top (the pill, a fresh load)
-        // shows them on screen.
-        if (willPreserveAnchor) {
-          markNewAsUnseen(currentStatusesRef.current, merged.segments)
-        }
-        segmentsActorIdRef.current = profile.id
-        setSegments(merged.segments)
-
-        const lastSeg = merged.segments[merged.segments.length - 1]
-        if (lastSeg) {
-          setHasMoreStatuses(Boolean(lastSeg.nextMaxStatusId))
-          lastStatusIdRef.current =
-            lastSeg.nextMaxStatusId ||
-            (lastSeg.statuses.length > 0
-              ? lastSeg.statuses[lastSeg.statuses.length - 1].id
-              : null)
-        } else {
-          setHasMoreStatuses(Boolean(result.nextMaxStatusId))
-          lastStatusIdRef.current =
-            result.nextMaxStatusId ||
-            (result.statuses.length > 0
-              ? result.statuses[result.statuses.length - 1].id
-              : null)
-        }
-
-        if (result.context?.ancestorsById) {
-          setCurrentTimelineContext((prev) => ({
-            ancestorsById: {
-              ...(prev?.ancestorsById ?? {}),
-              ...result.context?.ancestorsById
-            }
-          }))
-        }
-
-        setLastRefreshedAt(now)
+      if (
+        options?.automatic &&
+        !resetWasTriggered &&
+        !willPreserveAnchor &&
+        hasNewerPrepended &&
+        merged.addedNewerCount > 0 &&
+        segmentsActorIdRef.current === profile.id &&
+        currentStatusesRef.current.length > 0
+      ) {
+        stagedPageRef.current = result
+        stagedFetchedAtRef.current = fetchedAt ?? now
+        setStagedCount(merged.addedNewerCount)
+        setStagedHasGap(merged.hasGap)
         setNewerPostsCount(0)
         setHasMoreNewerPosts(false)
         lastFailedFetchRef.current = null
+        return
+      }
 
-        if (willPreserveAnchor && capturedAnchor) {
-          restoredAnchorRef.current = null
-          const nextAnchor: ScrollAnchorState = {
-            statusId: capturedAnchor.statusId,
-            offsetTop: hasNewerPrepended
-              ? Math.min(capturedAnchor.offsetTop, VIEW_TOP_EDGE)
-              : capturedAnchor.offsetTop,
-            updatedAt: now
+      // A refresh that keeps the reading spot loads the newer posts above
+      // the reader. One that goes to the top (the pill, a fresh load)
+      // shows them on screen.
+      if (willPreserveAnchor) {
+        markNewAsUnseen(currentStatusesRef.current, merged.segments)
+      }
+      stagedPageRef.current = null
+      const refreshedAt = options?.fromHeld
+        ? (stagedFetchedAtRef.current ?? now)
+        : now
+      stagedFetchedAtRef.current = null
+      setStagedCount(0)
+      setStagedHasGap(false)
+      segmentsActorIdRef.current = profile.id
+      setSegments(merged.segments)
+
+      const lastSeg = merged.segments[merged.segments.length - 1]
+      if (lastSeg) {
+        setHasMoreStatuses(Boolean(lastSeg.nextMaxStatusId))
+        lastStatusIdRef.current =
+          lastSeg.nextMaxStatusId ||
+          (lastSeg.statuses.length > 0
+            ? lastSeg.statuses[lastSeg.statuses.length - 1].id
+            : null)
+      } else {
+        setHasMoreStatuses(Boolean(result.nextMaxStatusId))
+        lastStatusIdRef.current =
+          result.nextMaxStatusId ||
+          (result.statuses.length > 0
+            ? result.statuses[result.statuses.length - 1].id
+            : null)
+      }
+
+      const mergedAncestorsById = {
+        ...(heldPageToMerge?.context?.ancestorsById ?? {}),
+        ...(result.context?.ancestorsById ?? {})
+      }
+      if (Object.keys(mergedAncestorsById).length > 0) {
+        setCurrentTimelineContext((prev) => ({
+          ancestorsById: {
+            ...(prev?.ancestorsById ?? {}),
+            ...mergedAncestorsById
           }
-          currentScrollAnchorRef.current = nextAnchor
-          setPendingScrollAnchor(nextAnchor)
-        } else if (!effectivePreserve || isCapturedTopOfFeed) {
-          restoredAnchorRef.current = null
-          currentScrollAnchorRef.current = null
-          setPendingScrollAnchor(null)
-          if (
-            !effectivePreserve ||
-            typeof window === 'undefined' ||
-            window.scrollY <= VIEW_TOP_EDGE
-          ) {
-            setIsScrolledDown(false)
-          }
+        }))
+      }
+
+      setLastRefreshedAt(refreshedAt)
+      if (!options?.fromHeld) {
+        setNewerPostsCount(0)
+        setHasMoreNewerPosts(false)
+      }
+      lastFailedFetchRef.current = null
+
+      if (willPreserveAnchor && capturedAnchor) {
+        restoredAnchorRef.current = null
+        const nextAnchor: ScrollAnchorState = {
+          statusId: capturedAnchor.statusId,
+          offsetTop: hasNewerPrepended
+            ? Math.min(capturedAnchor.offsetTop, VIEW_TOP_EDGE)
+            : capturedAnchor.offsetTop,
+          updatedAt: now
         }
+        currentScrollAnchorRef.current = nextAnchor
+        setPendingScrollAnchor(nextAnchor)
+      } else if (!effectivePreserve || isCapturedTopOfFeed) {
+        restoredAnchorRef.current = null
+        currentScrollAnchorRef.current = null
+        setPendingScrollAnchor(null)
+        if (
+          !effectivePreserve ||
+          typeof window === 'undefined' ||
+          window.scrollY <= VIEW_TOP_EDGE
+        ) {
+          setIsScrolledDown(false)
+        }
+      }
 
-        // Trigger background batch revalidation of up to 80 cached status.ids outside
-        // the newly fetched top page (throttled to at most once every 5 minutes per mount)
-        if (now - lastReconciledAtRef.current > 5 * 60 * 1000) {
-          lastReconciledAtRef.current = now
-          const fetchedIds = new Set(result.statuses.map((s) => s.id))
-          const cachedIdsOutsideTop: string[] = []
-          for (const seg of merged.segments) {
-            for (const st of seg.statuses) {
-              if (!fetchedIds.has(st.id)) {
-                cachedIdsOutsideTop.push(st.id)
-              }
+      // Trigger background batch revalidation of up to 80 cached status.ids outside
+      // the newly fetched top page (throttled to at most once every 5 minutes per mount)
+      if (now - lastReconciledAtRef.current > 5 * 60 * 1000) {
+        lastReconciledAtRef.current = now
+        const fetchedIds = new Set(result.statuses.map((s) => s.id))
+        const cachedIdsOutsideTop: string[] = []
+        for (const seg of merged.segments) {
+          for (const st of seg.statuses) {
+            if (!fetchedIds.has(st.id)) {
+              cachedIdsOutsideTop.push(st.id)
             }
           }
-
-          if (cachedIdsOutsideTop.length > 0) {
-            const batchToReconcile = cachedIdsOutsideTop.slice(0, 80)
-            void (async () => {
-              try {
-                const reconcileResult = await reconcileCachedStatuses({
-                  statusIds: batchToReconcile
-                })
-                if (
-                  reconcileResult.removedStatusIds.length > 0 ||
-                  reconcileResult.statuses.length > 0
-                ) {
-                  setSegments((currSegments) => {
-                    const reconciled = reconcileSegmentsWithServerBatch({
-                      currentSegments: currSegments,
-                      updatedStatuses: reconcileResult.statuses,
-                      removedStatusIds: reconcileResult.removedStatusIds
-                    })
-                    return reconciled.segments
-                  })
-                }
-              } catch {
-                // background reconciliation is best-effort
-              }
-            })()
-          }
         }
+
+        if (cachedIdsOutsideTop.length > 0) {
+          const batchToReconcile = cachedIdsOutsideTop.slice(0, 80)
+          void (async () => {
+            try {
+              const reconcileResult = await reconcileCachedStatuses({
+                statusIds: batchToReconcile
+              })
+              if (
+                reconcileResult.removedStatusIds.length > 0 ||
+                reconcileResult.statuses.length > 0
+              ) {
+                setSegments((currSegments) => {
+                  const reconciled = reconcileSegmentsWithServerBatch({
+                    currentSegments: currSegments,
+                    updatedStatuses: reconcileResult.statuses,
+                    removedStatusIds: reconcileResult.removedStatusIds
+                  })
+                  return reconciled.segments
+                })
+              }
+            } catch {
+              // background reconciliation is best-effort
+            }
+          })()
+        }
+      }
+    },
+    [markNewAsUnseen, onUnauthorized, profile.id]
+  )
+  applyFreshPageRef.current = applyFreshPage
+
+  const refreshTimeline = useCallback(
+    async (options?: {
+      preserveScroll?: true
+      automatic?: true
+      actorRetry?: true
+    }) => {
+      // isLoadingRef serializes refreshes, so only one runs at a time and there
+      // is no concurrent request to guard against.
+      if (isLoadingRef.current) return
+
+      isLoadingRef.current = true
+      setIsRefreshing(true)
+      setLoadingMoreStatuses(true)
+      setFetchError(null)
+
+      const resetRevisionAtStart = scrollResetRevisionRef.current
+      const actorIdAtStart = activeProfileIdRef.current
+      let refreshActiveActorAfterDiscard = false
+
+      try {
+        const result = await getTimeline({
+          timeline: Timeline.MAIN
+        })
+        const fetchedAt = Date.now()
+
+        await waitForScrollRest()
+        if (activeProfileIdRef.current !== actorIdAtStart) {
+          refreshActiveActorAfterDiscard = true
+          return
+        }
+        await applyFreshPage(result, options, resetRevisionAtStart, fetchedAt)
       } catch (error) {
         if (isUnauthorizedError(error)) {
           try {
@@ -1153,16 +1320,26 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         } else {
           reportRequestFailure(error)
           setFetchError('Failed to load posts')
-          lastFailedFetchRef.current = () => refreshTimeline(options)
+          lastFailedFetchRef.current = () =>
+            refreshTimeline({
+              preserveScroll: options?.preserveScroll
+            })
         }
       } finally {
         setLoadingMoreStatuses(false)
         isLoadingRef.current = false
         setIsRefreshing(false)
+        if (refreshActiveActorAfterDiscard && !options?.actorRetry) {
+          void refreshTimelineRef.current?.({
+            automatic: true,
+            actorRetry: true
+          })
+        }
       }
     },
-    [onUnauthorized, markNewAsUnseen, profile.id]
+    [applyFreshPage, onUnauthorized, waitForScrollRest]
   )
+  refreshTimelineRef.current = refreshTimeline
 
   const handleLoadGap = useCallback(
     async (segmentIndex: number) => {
@@ -1250,31 +1427,48 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     }
   }, [clearScrollingToTop, profile.id, unseenAbove])
 
-  const handleCleanTopSnapshot = useCallback(async () => {
-    setNewerPostsCount(0)
-    setHasMoreNewerPosts(false)
-    clearScrollAnchorAndJumpToTop()
-    await refreshTimeline()
-  }, [clearScrollAnchorAndJumpToTop, refreshTimeline])
-
   // The pill counts both kinds of new posts, or offers "Back to top" when
   // scrolled down with none. Posts the poll found are not loaded yet, so they
   // need a refresh; posts already loaded above (or a plain jump) only need
   // the scroll to top.
-  const handleNewPostsPill = useCallback(() => {
-    if (newerPostsCount > 0) {
-      void handleCleanTopSnapshot()
+  const handleNewPostsPill = useCallback(async () => {
+    if (!stagedPageRef.current && newerPostsCountRef.current === 0) {
+      clearScrollAnchorAndJumpToTop()
       return
     }
+    const wasScrolledDown =
+      typeof window !== 'undefined' && window.scrollY > VIEW_TOP_EDGE
     clearScrollAnchorAndJumpToTop()
-  }, [newerPostsCount, handleCleanTopSnapshot, clearScrollAnchorAndJumpToTop])
+    if (wasScrolledDown) {
+      lastScrollAtRef.current = Date.now()
+      await waitForScrollRest()
+      await Promise.resolve()
+    }
+    const page = stagedPageRef.current
+    if (page) {
+      stagedPageRef.current = null
+      setStagedCount(0)
+      setStagedHasGap(false)
+      await applyFreshPage(
+        page,
+        { fromHeld: true },
+        scrollResetRevisionRef.current
+      )
+    }
+    if (newerPostsCountRef.current > 0) await refreshTimeline()
+  }, [
+    applyFreshPage,
+    clearScrollAnchorAndJumpToTop,
+    refreshTimeline,
+    waitForScrollRest
+  ])
 
   // Auto-reconnect refresh: the connection store fires this once per
   // transition back to online.
   useEffect(
     () =>
       onConnectionRestored(
-        () => void refreshTimeline({ preserveScroll: true })
+        () => void refreshTimeline({ preserveScroll: true, automatic: true })
       ),
     [refreshTimeline]
   )
@@ -1283,7 +1477,8 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     if (refreshOnMount) {
       void refreshTimeline({
         preserveScroll:
-          currentScrollAnchorRef.current !== null ? true : undefined
+          currentScrollAnchorRef.current !== null ? true : undefined,
+        automatic: true
       })
     }
   }, [refreshOnMount, refreshTimeline])
@@ -1304,7 +1499,11 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         return
       }
 
-      const topStatus = currentStatusesRef.current[0]
+      const stagedIds = new Set(
+        (stagedPageRef.current?.statuses ?? []).map((status) => status.id)
+      )
+      const topStatus =
+        stagedPageRef.current?.statuses[0] ?? currentStatusesRef.current[0]
       if (!topStatus) return
 
       isPollingRef.current = true
@@ -1317,10 +1516,13 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         })
         if (result.statuses && result.statuses.length > 0) {
           const currentIds = new Set(
-            currentStatusesRef.current.map((s) => s.id)
+            [
+              ...currentStatusesRef.current,
+              ...(stagedPageRef.current?.statuses ?? [])
+            ].map((s) => s.id)
           )
           const freshNewCount = result.statuses.filter(
-            (s) => !currentIds.has(s.id)
+            (s) => !currentIds.has(s.id) && !stagedIds.has(s.id)
           ).length
           if (freshNewCount > 0) {
             setNewerPostsCount(freshNewCount)
@@ -1366,7 +1568,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     <div className="space-y-6">
       <TimelineScrollToTopButton
         store={unseenAbove}
-        polledCount={newerPostsCount}
+        polledCount={newerPostsCount + stagedCount}
         isScrolledDown={isScrolledDown}
         isLoadMoreVisible={hasMoreStatuses && isLoadMoreVisible}
       />
@@ -1403,8 +1605,8 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
           <div className="flex justify-center">
             <NewPostsPill
               store={unseenAbove}
-              polledCount={newerPostsCount}
-              hasMorePolled={hasMoreNewerPosts}
+              polledCount={newerPostsCount + stagedCount}
+              hasMorePolled={hasMoreNewerPosts || stagedHasGap}
               isScrolledDown={isScrolledDown}
               isRefreshing={isRefreshing}
               onJump={handleNewPostsPill}
