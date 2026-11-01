@@ -3,6 +3,7 @@ import os from 'os'
 import path from 'path'
 
 import nextConfig from '@/next.config'
+import packageJson from '@/package.json'
 
 import { setNodeEnv } from './next.config.testUtils'
 
@@ -83,7 +84,9 @@ describe('next config runtime isolation', () => {
   it('does not read deployment config while loading next config', async () => {
     const { default: loadedNextConfig } = await loadNextConfig()
 
-    expect(loadedNextConfig.env).toBeUndefined()
+    expect(loadedNextConfig.env).toEqual({
+      NEXT_PUBLIC_BUILD_VERSION: packageJson.version
+    })
     expect(loadedNextConfig.allowedDevOrigins).toBeUndefined()
     expect(loadedNextConfig.images?.remotePatterns).toEqual([
       {
@@ -111,7 +114,9 @@ describe('next config runtime isolation', () => {
         (await loadedNextConfig.headers?.()) ?? []
       )
 
-      expect(loadedNextConfig.env).toBeUndefined()
+      expect(loadedNextConfig.env).toEqual({
+        NEXT_PUBLIC_BUILD_VERSION: packageJson.version
+      })
       expect(staticHeaders).not.toContain('Content-Security-Policy')
       expect(staticHeaders).not.toContain('wasm-unsafe-eval')
       expect(staticHeaders).not.toContain('hf.co')
@@ -140,7 +145,9 @@ describe('next config runtime isolation', () => {
         redirects: await loadedNextConfig.redirects?.()
       })
 
-      expect(loadedNextConfig.env).toBeUndefined()
+      expect(loadedNextConfig.env).toEqual({
+        NEXT_PUBLIC_BUILD_VERSION: packageJson.version
+      })
       expect(serialized).not.toContain('0.987654')
       expect(serialized).not.toContain('4321')
       expect(serialized).not.toMatch(/web-?vitals/i)
@@ -190,7 +197,9 @@ describe('next config runtime isolation', () => {
 
       const { default: loadedNextConfig } = await loadNextConfig()
 
-      expect(loadedNextConfig.env).toBeUndefined()
+      expect(loadedNextConfig.env).toEqual({
+        NEXT_PUBLIC_BUILD_VERSION: packageJson.version
+      })
       expect(loadedNextConfig.images?.remotePatterns).toEqual([
         {
           protocol: 'https',

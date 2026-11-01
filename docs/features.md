@@ -120,6 +120,7 @@ The features Activity.next ships today. Most lines link to the documentation tha
 - ✅ **Instance legal documents** — A terms of service and a privacy policy written in Markdown in the admin area, served by the Mastodon endpoints and required at sign-up when set ([Mastodon API](mastodon-api-compatibility.md#intentional-divergences))
 - ✅ **Health check** — Unauthenticated `GET /health` liveness probe returning `{"status":"UP"}` ([Architecture](architecture.md#directory-structure))
 - ✅ **Browser Web Vitals (opt-in)** — A sampled share of page loads reports LCP, CLS and INP to `POST /api/v1/web-vitals` ([Architecture](architecture.md#browser-web-vitals))
+- ✅ **Browser error reporting** — Client error reporting from Next error boundaries and chunk-load listener to `POST /api/v1/client-errors` ([Architecture](architecture.md#browser-error-reporting))
 - ✅ **oEmbed provider** — `GET /api/oembed` returns rich embed metadata for this instance's public/unlisted status pages ([Architecture](architecture.md#directory-structure))
 - ✅ **Notification policy** — Filtered-notification policy via `GET|PUT|PATCH /api/v2/notifications/policy`, plus the deprecated v1 alias
 - ✅ **CSV export and import** — Mastodon-format CSV exports, and resumable background CSV imports via `POST /api/v1/imports` ([Architecture](architecture.md#bulk-imports-csv))
