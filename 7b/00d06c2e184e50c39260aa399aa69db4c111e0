@@ -1,0 +1,21 @@
+app/(timeline)/[actor]/[status]/scrubStore.test.ts
+  s_aef08f425bed0e::t_6fdbe4287ac350 2
+lib/database/domains/actor/directory.test.ts
+  s_aef08f425bed0e::t_b3787246b4bcca 7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7b00d06c2e184e50c39260aa399aa69db4c111e0",
+  "prompts": {},
+  "sessions": {
+    "s_aef08f425bed0e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9db49a54-17a6-41a2-94c0-14b19dbd98f7",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
