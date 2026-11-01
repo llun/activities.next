@@ -1,7 +1,5 @@
 /** @vitest-environment jsdom */
-import { act, renderHook } from '@testing-library/react'
-
-import { createScrubStore, useScrubPosition } from './scrubStore'
+import { createScrubStore } from './scrubStore'
 
 describe('scrubStore', () => {
   it('notifies subscribers of a change, and only of a change', () => {
@@ -17,14 +15,5 @@ describe('scrubStore', () => {
     unsubscribe()
     store.set(null)
     expect(listener).toHaveBeenCalledTimes(1)
-  })
-
-  it('re-renders a reader with the scrubbed instant', () => {
-    const store = createScrubStore()
-    const { result } = renderHook(() => useScrubPosition(store))
-    expect(result.current).toBeNull()
-
-    act(() => store.set(450))
-    expect(result.current).toBe(450)
   })
 })

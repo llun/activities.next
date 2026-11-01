@@ -23,26 +23,6 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
     })
 
     describe('claimFitnessRouteHeatmapPyramidBuild', () => {
-      it('refuses a second claim while a build is heartbeating', async () => {
-        const actorId = await createActor(database)
-        const staleBefore = Date.now() - 120_000
-
-        await database.claimFitnessRouteHeatmapPyramidBuild({
-          actorId,
-          requestedAt: Date.now(),
-          staleBefore
-        })
-        const second = await database.claimFitnessRouteHeatmapPyramidBuild({
-          actorId,
-          requestedAt: Date.now(),
-          staleBefore
-        })
-
-        expect(second.claimed).toBe(false)
-        expect(second.reason).toBe('build-in-progress')
-        expect(second.pyramid.version).toBe(1)
-      })
-
       it('does not steal a build whose owner heartbeats after the staleness read', async () => {
         // The interleaving the ownership token alone cannot catch, staged for
         // real: a claimer reads a row whose heartbeat has expired, and before

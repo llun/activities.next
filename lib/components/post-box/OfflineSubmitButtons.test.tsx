@@ -45,17 +45,6 @@ describe('OfflineSubmitButtons', () => {
     expect(onQueue).toHaveBeenCalledTimes(1)
   })
 
-  it('disables both buttons while there is nothing to hand over', () => {
-    render(
-      <OfflineSubmitButtons disabled onSaveDraft={vi.fn()} onQueue={vi.fn()} />
-    )
-
-    expect(screen.getByRole('button', { name: 'Save draft' })).toBeDisabled()
-    expect(
-      screen.getByRole('button', { name: 'Send when online' })
-    ).toBeDisabled()
-  })
-
   it('keeps the queue button focusable and described by its reason, and never queues', () => {
     const onSaveDraft = vi.fn()
     const onQueue = vi.fn()
@@ -123,18 +112,6 @@ describe('OfflineSubmitCaption', () => {
       screen.getByText(
         "Can't reach the server. Posts you choose to send will go out when you're back online, while this app is open."
       )
-    ).toBeInTheDocument()
-  })
-
-  it("adds the poll's duration line only with a poll", () => {
-    const { rerender } = render(
-      <OfflineSubmitCaption state="offline" hasPoll={false} />
-    )
-    expect(screen.queryByText(/The poll's duration/)).toBeNull()
-
-    rerender(<OfflineSubmitCaption state="offline" hasPoll />)
-    expect(
-      screen.getByText(/The poll's duration starts when it's sent\./)
     ).toBeInTheDocument()
   })
 

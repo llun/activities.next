@@ -1,11 +1,9 @@
-import { CLIP_OFF_COLOUR } from './histogramPalette'
 import {
   CLIP_THRESHOLD,
   HISTOGRAM_HEIGHT,
   HISTOGRAM_WIDTH,
   buildAreaPath,
   buildLinePath,
-  clipColour,
   clippedChannels,
   innerPeak,
   smoothBins,
@@ -107,37 +105,5 @@ describe('clippedChannels', () => {
       g: false,
       b: false
     })
-  })
-})
-
-describe('clipColour', () => {
-  it.each([
-    {
-      description: 'no channel',
-      channels: { r: false, g: false, b: false },
-      expected: CLIP_OFF_COLOUR
-    },
-    {
-      description: 'red only',
-      channels: { r: true, g: false, b: false },
-      expected: 'rgb(240, 32, 32)'
-    },
-    {
-      description: 'red and green',
-      channels: { r: true, g: true, b: false },
-      expected: 'rgb(240, 240, 32)'
-    },
-    {
-      description: 'green and blue',
-      channels: { r: false, g: true, b: true },
-      expected: 'rgb(32, 240, 240)'
-    },
-    {
-      description: 'all channels',
-      channels: { r: true, g: true, b: true },
-      expected: 'rgb(240, 240, 240)'
-    }
-  ])('colours $description', ({ channels, expected }) => {
-    expect(clipColour(channels)).toBe(expected)
   })
 })

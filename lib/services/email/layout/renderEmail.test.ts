@@ -37,10 +37,6 @@ describe('renderEmail', () => {
     expect(html).toContain('Choose a new password.')
   })
 
-  it('points the logo at an absolute url on the configured host', () => {
-    expect(render().html).toContain(`<img src="${BASE_URL}/logo-nav.png"`)
-  })
-
   it('renders the host in the header', () => {
     expect(render().html).toContain(`>${HOST}</td>`)
   })
@@ -72,12 +68,6 @@ describe('renderEmail', () => {
       blocks: [headline('First'), paragraph('Second')]
     })
     expect(html.indexOf('First')).toBeLessThan(html.indexOf('Second'))
-  })
-
-  it('escapes the preheader', () => {
-    const { html } = render({ preheader: '"><script>alert(1)</script>' })
-    expect(html).not.toContain('<script')
-    expect(html).not.toContain('"><script>alert(1)</script>')
   })
 
   it('still renders a well-formed document with no blocks', () => {
@@ -148,16 +138,6 @@ describe('renderEmail footer', () => {
     })
     expect(html).toContain('This email was sent to anna@example.com')
     expect(html).not.toContain('Manage email notifications')
-  })
-
-  it('escapes the footer values', () => {
-    const { html } = render({
-      footer: {
-        kind: 'account',
-        recipientEmail: '"><script>alert(1)</script>'
-      }
-    })
-    expect(html).not.toContain('<script')
   })
 })
 

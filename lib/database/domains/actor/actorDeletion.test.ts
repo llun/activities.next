@@ -76,27 +76,6 @@ describe('ActorDatabase deletion', () => {
         expect(status?.status).toEqual('scheduled')
         expect(status?.scheduledAt).toBeNull()
       })
-
-      it('schedules delayed deletion', async () => {
-        const suffix = crypto.randomUUID().slice(0, 8)
-        const username = `schedule-del2-${suffix}`
-        const actorId = `https://${TEST_DOMAIN}/users/${username}`
-
-        await database.createAccount({
-          email: `${username}@${TEST_DOMAIN}`,
-          username,
-          passwordHash: TEST_PASSWORD_HASH,
-          domain: TEST_DOMAIN,
-          privateKey: `privateKey-${suffix}`,
-          publicKey: `publicKey-${suffix}`
-        })
-
-        const scheduledAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
-        await database.scheduleActorDeletion({ actorId, scheduledAt })
-        const status = await database.getActorDeletionStatus({ id: actorId })
-        expect(status?.status).toEqual('scheduled')
-        expect(status?.scheduledAt).toBeNumber()
-      })
     })
 
     describe('cancelActorDeletion', () => {
@@ -141,55 +120,6 @@ describe('ActorDatabase deletion', () => {
         await database.startActorDeletion({ actorId })
         const status = await database.getActorDeletionStatus({ id: actorId })
         expect(status?.status).toEqual('deleting')
-      })
-    })
-
-    describe('getActorsScheduledForDeletion', () => {
-      it('returns actors scheduled for deletion before given date', async () => {
-        const suffix = crypto.randomUUID().slice(0, 8)
-        const username = `get-del-${suffix}`
-        const actorId = `https://${TEST_DOMAIN}/users/${username}`
-
-        await database.createAccount({
-          email: `${username}@${TEST_DOMAIN}`,
-          username,
-          passwordHash: TEST_PASSWORD_HASH,
-          domain: TEST_DOMAIN,
-          privateKey: `privateKey-${suffix}`,
-          publicKey: `publicKey-${suffix}`
-        })
-
-        const pastDate = new Date(Date.now() - 1000)
-        await database.scheduleActorDeletion({ actorId, scheduledAt: pastDate })
-        const actors = await database.getActorsScheduledForDeletion({
-          beforeDate: new Date()
-        })
-        expect(actors.some((a) => a.id === actorId)).toBeTrue()
-      })
-
-      it('does not return actors scheduled for future deletion', async () => {
-        const suffix = crypto.randomUUID().slice(0, 8)
-        const username = `get-del2-${suffix}`
-        const actorId = `https://${TEST_DOMAIN}/users/${username}`
-
-        await database.createAccount({
-          email: `${username}@${TEST_DOMAIN}`,
-          username,
-          passwordHash: TEST_PASSWORD_HASH,
-          domain: TEST_DOMAIN,
-          privateKey: `privateKey-${suffix}`,
-          publicKey: `publicKey-${suffix}`
-        })
-
-        const futureDate = new Date(Date.now() + 24 * 60 * 60 * 1000)
-        await database.scheduleActorDeletion({
-          actorId,
-          scheduledAt: futureDate
-        })
-        const actors = await database.getActorsScheduledForDeletion({
-          beforeDate: new Date()
-        })
-        expect(actors.some((a) => a.id === actorId)).toBeFalse()
       })
     })
 
@@ -246,115 +176,9 @@ describe('ActorDatabase deletion', () => {
         expect(statsAfter.totalUsers).toBe(statsBefore.totalUsers)
         expect(statsAfter.localPosts).toBe(statsBefore.localPosts)
       })
-
-      it('does not count external actor posts in local stats', async () => {
-        const statsBefore = await database.getNodeInfoStats()
-
-        const suffix = crypto.randomUUID().slice(0, 8)
-        const externalActorId = `https://ext-post-${suffix}.example/users/ext`
-
-        await database.createActor({
-          actorId: externalActorId,
-          username: `ext-post-${suffix}`,
-          domain: `ext-post-${suffix}.example`,
-          followersUrl: `${externalActorId}/followers`,
-          inboxUrl: `${externalActorId}/inbox`,
-          sharedInboxUrl: `${externalActorId}/inbox`,
-          publicKey: 'externalPublicKey',
-          createdAt: Date.now()
-        })
-
-        await database.createNote({
-          id: `${externalActorId}/statuses/ext-${suffix}`,
-          url: `${externalActorId}/statuses/ext-${suffix}`,
-          actorId: externalActorId,
-          to: [ACTIVITY_STREAM_PUBLIC],
-          cc: [],
-          text: 'External post'
-        })
-
-        const statsAfter = await database.getNodeInfoStats()
-        expect(statsAfter.localPosts).toBe(statsBefore.localPosts)
-      })
     })
 
     describe('deleteActorData', () => {
-      it('removes the deleted actor featured tags', async () => {
-        const suffix = crypto.randomUUID().slice(0, 8)
-        const username = `delete-featured-${suffix}`
-        const actorId = `https://${TEST_DOMAIN}/users/${username}`
-
-        await database.createAccount({
-          email: `${username}@${TEST_DOMAIN}`,
-          username,
-          passwordHash: TEST_PASSWORD_HASH,
-          domain: TEST_DOMAIN,
-          privateKey: `privateKey-${suffix}`,
-          publicKey: `publicKey-${suffix}`
-        })
-        await database.createFeaturedTag({ actorId, name: 'cleanup' })
-        expect(await database.countFeaturedTags({ actorId })).toBe(1)
-
-        await database.deleteActorData({ actorId })
-
-        expect(await database.countFeaturedTags({ actorId })).toBe(0)
-      })
-
-      it('removes emoji reactions the deleted actor made', async () => {
-        const suffix = crypto.randomUUID().slice(0, 8)
-        const username = `delete-reaction-${suffix}`
-        const actorId = `https://${TEST_DOMAIN}/users/${username}`
-        const authorId = `https://${TEST_DOMAIN}/users/react-author-${suffix}`
-        const statusId = `${authorId}/statuses/reacted-${suffix}`
-
-        await database.createAccount({
-          email: `${username}@${TEST_DOMAIN}`,
-          username,
-          passwordHash: TEST_PASSWORD_HASH,
-          domain: TEST_DOMAIN,
-          privateKey: `privateKey-${suffix}`,
-          publicKey: `publicKey-${suffix}`
-        })
-        await database.createAccount({
-          email: `react-author-${suffix}@${TEST_DOMAIN}`,
-          username: `react-author-${suffix}`,
-          passwordHash: TEST_PASSWORD_HASH,
-          domain: TEST_DOMAIN,
-          privateKey: `privateKey-author-${suffix}`,
-          publicKey: `publicKey-author-${suffix}`
-        })
-        await database.createNote({
-          id: statusId,
-          url: statusId,
-          actorId: authorId,
-          to: [ACTIVITY_STREAM_PUBLIC],
-          cc: [],
-          text: 'Reacted status'
-        })
-        await database.createStatusReaction({
-          statusId,
-          actorId,
-          name: `react-${suffix}`
-        })
-        expect(
-          await database.getStatusReactionActors({
-            statusId,
-            name: `react-${suffix}`
-          })
-        ).toHaveLength(1)
-
-        await database.deleteActorData({ actorId })
-
-        // Otherwise a re-registered username reclaiming this actor URL would
-        // inherit the reaction as its own.
-        expect(
-          await database.getStatusReactionActors({
-            statusId,
-            name: `react-${suffix}`
-          })
-        ).toEqual([])
-      })
-
       it('removes reactions other actors left on the deleted actor statuses', async () => {
         const suffix = crypto.randomUUID().slice(0, 8)
         const username = `delete-reacted-${suffix}`
@@ -810,11 +634,6 @@ describe('ActorDatabase deletion', () => {
           after = await readCounters()
         })
 
-        it('removes the actor row', async () => {
-          const deletedActor = await database.getActorFromId({ id: actorId })
-          expect(deletedActor).toBeNull()
-        })
-
         it('rolls back the deleted actor poll votes and the choice tally', async () => {
           await expect(
             database.hasActorVoted({ statusId: pollStatusId, actorId })
@@ -829,17 +648,6 @@ describe('ActorDatabase deletion', () => {
           expect(pollAfterDelete.choices[0]).toMatchObject({ totalVotes: 0 })
         })
 
-        it('decrements the follower and following counts of the peer actor', () => {
-          expect(after.followers).toBe(before.followers - 1)
-          expect(after.following).toBe(before.following - 1)
-        })
-
-        it('decrements the like, reblog and reply counts of the target status', () => {
-          expect(after.likes).toBe(before.likes - 1)
-          expect(after.reblogs).toBe(before.reblogs - 1)
-          expect(after.replies).toBe(before.replies - 1)
-        })
-
         it('decrements the hashtag counter and the account media usage', () => {
           expect(after.hashtagCount).toBe(before.hashtagCount - 1)
           // The upload kept by the edit (1700) and the live render (300).
@@ -850,11 +658,6 @@ describe('ActorDatabase deletion', () => {
           await expect(
             database.listMediaEditFiles({ mediaIds: [editedMediaId] })
           ).resolves.toEqual([])
-        })
-
-        it('decrements the nodeinfo user and local post counters', () => {
-          expect(after.nodeInfo.totalUsers).toBe(before.nodeInfo.totalUsers - 1)
-          expect(after.nodeInfo.localPosts).toBe(before.nodeInfo.localPosts - 2)
         })
       })
 

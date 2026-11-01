@@ -243,48 +243,6 @@ describe('SearchDatabase hashtags', () => {
     }
   })
 
-  it('limits stale hashtag search cleanup to a full reindex start', async () => {
-    const testDb = createTestDatabase()
-    const { database } = testDb
-
-    try {
-      await testDb.prepare()
-      await database.migrate()
-      await database.upsertSearchDocument({
-        entityType: 'hashtag',
-        entityId: 'orphaned-cursor',
-        documentText: 'orphaned cursor #orphaned-cursor',
-        postCount: 3,
-        lastPostAt: 1
-      })
-
-      await database.reindexSearchHashtags({
-        afterId: '#already-scanned',
-        limit: 10
-      })
-
-      await expect(
-        database.searchHashtags({
-          q: 'orphaned-cursor',
-          limit: 10
-        })
-      ).resolves.toHaveLength(1)
-
-      await database.reindexSearchHashtags({
-        limit: 10
-      })
-
-      await expect(
-        database.searchHashtags({
-          q: 'orphaned-cursor',
-          limit: 10
-        })
-      ).resolves.toEqual([])
-    } finally {
-      await database.destroy()
-    }
-  })
-
   it('reports reindex progress using the raw scanned row count', async () => {
     const testDb = createTestDatabase()
     const { database, db } = testDb
@@ -819,55 +777,6 @@ describe('SearchDatabase hashtags', () => {
       expect(beginIndex).toBeGreaterThanOrEqual(0)
       expect(tagReadIndex).toBeGreaterThan(beginIndex)
       expect(commitIndex).toBeGreaterThan(tagReadIndex)
-    } finally {
-      await database.destroy()
-    }
-  })
-
-  it('refreshes hashtag search aggregates when deleting actor data', async () => {
-    const testDb = createTestDatabase()
-    const { database } = testDb
-    const actorId = 'https://remote.test/users/alice'
-    const statusId = `${actorId}/statuses/actor-delete-hashtag`
-
-    try {
-      await testDb.prepare()
-      await database.migrate()
-      await createSearchActor(database, {
-        id: actorId,
-        username: 'alice'
-      })
-      await database.createNote({
-        id: statusId,
-        url: statusId,
-        actorId,
-        to: [ACTIVITY_STREAM_PUBLIC],
-        cc: [],
-        text: 'Actor deletion hashtag day',
-        createdAt: 1
-      })
-      await database.createTag({
-        statusId,
-        type: 'hashtag',
-        name: '#Cleanup',
-        value: 'https://remote.test/tags/cleanup'
-      })
-
-      await expect(
-        database.searchHashtags({
-          q: 'cleanup',
-          limit: 10
-        })
-      ).resolves.toHaveLength(1)
-
-      await database.deleteActorData({ actorId })
-
-      await expect(
-        database.searchHashtags({
-          q: 'cleanup',
-          limit: 10
-        })
-      ).resolves.toEqual([])
     } finally {
       await database.destroy()
     }

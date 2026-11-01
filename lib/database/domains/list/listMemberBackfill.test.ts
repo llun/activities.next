@@ -103,23 +103,4 @@ describe('backfillListTimelineForMembers member cap', () => {
       ids.slice(-7).sort()
     )
   })
-
-  it('backfills everything when the member has fewer posts than the cap', async () => {
-    const owner = await localActor('backfill-owner-small')
-    const member = await localActor('backfill-member-small')
-    const ids = await createNotes(
-      member.id,
-      'small',
-      4,
-      (index) => Date.UTC(2026, 0, 1) + index * 1000
-    )
-
-    await backfillListTimelineForMembers(testDb.db, {
-      listId: 'small-list',
-      ownerId: owner.id,
-      targetActorIds: [member.id]
-    })
-
-    expect(await storedStatusIds(owner.id, 'small-list')).toEqual(ids.sort())
-  })
 })

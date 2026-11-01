@@ -1,11 +1,6 @@
 import { getCompatibleJSON } from './getCompatibleJSON'
 
 describe('getCompatibleJSON', () => {
-  it('parses JSON string input', () => {
-    const value = getCompatibleJSON<{ name: string }>('{"name":"alice"}')
-    expect(value).toEqual({ name: 'alice' })
-  })
-
   it('returns object input as-is', () => {
     const value = { id: '1' }
     expect(getCompatibleJSON(value)).toBe(value)

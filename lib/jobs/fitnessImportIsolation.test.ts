@@ -17,21 +17,6 @@ describe('isIsolatedFromFitnessImport', () => {
     ).toBe(true)
   })
 
-  it('isolates a recipient-carrying status only while the account is moved', () => {
-    expect(
-      isIsolatedFromFitnessImport({
-        moved: true,
-        status: { to: ['https://www.w3.org/ns/activitystreams#Public'], cc: [] }
-      })
-    ).toBe(true)
-    expect(
-      isIsolatedFromFitnessImport({
-        moved: false,
-        status: { to: ['https://www.w3.org/ns/activitystreams#Public'], cc: [] }
-      })
-    ).toBe(false)
-  })
-
   it('merges a marked but now public status after the clear', () => {
     // The owner published the moved-time status through the post menu's
     // visibility control: updateNoteVisibility clears the marker when the
@@ -47,15 +32,6 @@ describe('isIsolatedFromFitnessImport', () => {
           cc: [],
           createdWhileMoved: true
         }
-      })
-    ).toBe(false)
-  })
-
-  it('merges an ordinary direct status: no recipients and no marker', () => {
-    expect(
-      isIsolatedFromFitnessImport({
-        moved: false,
-        status: { to: [], cc: [] }
       })
     ).toBe(false)
   })

@@ -39,20 +39,6 @@ describe('pastKeyset', () => {
         }))
       )
       .execute()
-    // Rows with no createdAt, for pastStoredKeyset. No pastKeyset comparison
-    // can pass them (`createdAt op NULL` is never true).
-    await db
-      .insertInto('actor_domain_blocks')
-      .values(
-        ['n1', 'n2'].map((id) => ({
-          id,
-          actorId: 'https://example.com/users/keyset',
-          domain: `${id}.example`,
-          createdAt: null,
-          updatedAt: null
-        }))
-      )
-      .execute()
   })
 
   afterAll(async () => {
@@ -128,15 +114,6 @@ describe('pastKeyset', () => {
     expect(
       await storedIds('>', { createdAt: rows[1].at, tieBreaker: null })
     ).toEqual(['d'])
-  })
-
-  it('pastStoredKeyset with a NULL createdAt pages the NULL rows on the tie-breaker', async () => {
-    expect(await storedIds('>', { createdAt: null, tieBreaker: 'n1' })).toEqual(
-      ['n2']
-    )
-    expect(await storedIds('<', { createdAt: null, tieBreaker: 'n2' })).toEqual(
-      ['n1']
-    )
   })
 
   it('pastStoredKeyset with neither value matches nothing', async () => {

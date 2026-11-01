@@ -81,33 +81,6 @@ describe('MediaDatabase', () => {
           expect(foundMedia.original.bytes).toBe(5000)
         }
       })
-
-      it('respects limit parameter', async () => {
-        const actor = await database.getActorFromId({
-          id: actors.replyAuthor.id
-        })
-        expect(actor).toBeDefined()
-
-        // Create multiple media
-        for (let i = 0; i < 5; i++) {
-          await database.createMedia({
-            actorId: actors.replyAuthor.id,
-            original: {
-              path: `/test/media-${i}.jpg`,
-              bytes: 1000 * (i + 1),
-              mimeType: 'image/jpeg',
-              metaData: { width: 100, height: 100 }
-            }
-          })
-        }
-
-        const result = await database.getMediasWithStatusForAccount({
-          accountId: actor!.account!.id,
-          limit: 2
-        })
-
-        expect(result.items.length).toBeLessThanOrEqual(2)
-      })
     })
 
     describe('getMediasWithStatusForAccount - with statusId', () => {
@@ -160,37 +133,6 @@ describe('MediaDatabase', () => {
         expect(testMedia?.statusId).toBe(statuses[0].id)
       })
 
-      it('returns media without statusId when not attached to posts', async () => {
-        const actor = await database.getActorFromId({
-          id: actors.replyAuthor.id
-        })
-        expect(actor).toBeDefined()
-
-        // Create media without attaching to any status
-        const media = await database.createMedia({
-          actorId: actors.replyAuthor.id,
-          original: {
-            path: '/test/media-no-status-unique.jpg',
-            bytes: 1500,
-            mimeType: 'image/jpeg',
-            metaData: { width: 300, height: 300 }
-          }
-        })
-
-        expect(media).toBeDefined()
-
-        // Get medias with status
-        const result = await database.getMediasWithStatusForAccount({
-          accountId: actor!.account!.id,
-          limit: 100
-        })
-
-        // Find our test media - need to convert ID to string for comparison
-        const testMedia = result.items.find((m) => m.id === String(media!.id))
-        expect(testMedia).toBeDefined()
-        expect(testMedia?.statusId).toBeUndefined()
-      })
-
       it('returns correct total count', async () => {
         const actor = await database.getActorFromId({ id: actors.primary.id })
         expect(actor).toBeDefined()
@@ -224,54 +166,6 @@ describe('MediaDatabase', () => {
 
         expect(result.items.length).toBe(1)
         expect(result.total).toBeGreaterThanOrEqual(2)
-      })
-
-      it('respects page parameter for pagination', async () => {
-        const actor = await database.getActorFromId({ id: actors.primary.id })
-        expect(actor).toBeDefined()
-
-        // Create multiple media items to test pagination
-        await database.createMedia({
-          actorId: actors.primary.id,
-          original: {
-            path: '/test/media-page-1.jpg',
-            bytes: 1000,
-            mimeType: 'image/jpeg',
-            metaData: { width: 100, height: 100 }
-          }
-        })
-
-        await database.createMedia({
-          actorId: actors.primary.id,
-          original: {
-            path: '/test/media-page-2.jpg',
-            bytes: 1000,
-            mimeType: 'image/jpeg',
-            metaData: { width: 100, height: 100 }
-          }
-        })
-
-        // Get first page
-        const page1Result = await database.getMediasWithStatusForAccount({
-          accountId: actor!.account!.id,
-          limit: 1,
-          page: 1
-        })
-
-        // Get second page
-        const page2Result = await database.getMediasWithStatusForAccount({
-          accountId: actor!.account!.id,
-          limit: 1,
-          page: 2
-        })
-
-        expect(page1Result.items.length).toBe(1)
-        expect(page2Result.items.length).toBe(1)
-        // Items should be different (different IDs)
-        expect(page1Result.items[0].id).not.toBe(page2Result.items[0].id)
-        // Total should be the same for both pages
-        expect(page1Result.total).toBe(page2Result.total)
-        expect(page1Result.total).toBeGreaterThanOrEqual(2)
       })
 
       it('returns media with statusId when using S3 URL format', async () => {

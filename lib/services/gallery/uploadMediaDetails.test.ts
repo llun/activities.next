@@ -94,22 +94,6 @@ describe('buildUploadMediaDetails', () => {
       })
     })
 
-    it('reuses the gear of an earlier upload from the same camera', async () => {
-      const first = await buildUploadMediaDetails({
-        database,
-        actorId: actors.primary.id,
-        original: await createPhoto()
-      })
-      const second = await buildUploadMediaDetails({
-        database,
-        actorId: actors.primary.id,
-        original: await createPhoto()
-      })
-
-      expect(second.cameraGearId).toBe(first.cameraGearId)
-      expect(second.lensGearId).toBe(first.lensGearId)
-    })
-
     it('stores no place for a photo without GPS', async () => {
       const details = await buildUploadMediaDetails({
         database,

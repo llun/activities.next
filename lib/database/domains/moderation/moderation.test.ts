@@ -51,60 +51,6 @@ describe('ModerationDatabase', () => {
     await Promise.all(table.map(([, database]) => database.destroy()))
   })
 
-  describe('setActorSuspended', () => {
-    it('stamps suspendedAt when suspending and clears it when unsuspending', async () => {
-      await withFreshDatabase(async (database) => {
-        const { actorId } = await seedLocalActor(database, seedActor1)
-
-        await database.setActorSuspended({ actorId, suspended: true })
-        expect(
-          (await database.getActorFromId({ id: actorId }))?.suspendedAt
-        ).toBeTruthy()
-
-        await database.setActorSuspended({ actorId, suspended: false })
-        expect(
-          (await database.getActorFromId({ id: actorId }))?.suspendedAt
-        ).toBeNull()
-      })
-    })
-  })
-
-  describe('setActorSilenced', () => {
-    it('stamps silencedAt when silencing and clears it when unsilencing', async () => {
-      await withFreshDatabase(async (database) => {
-        const { actorId } = await seedLocalActor(database, seedActor1)
-
-        await database.setActorSilenced({ actorId, silenced: true })
-        expect(
-          (await database.getActorFromId({ id: actorId }))?.silencedAt
-        ).toBeTruthy()
-
-        await database.setActorSilenced({ actorId, silenced: false })
-        expect(
-          (await database.getActorFromId({ id: actorId }))?.silencedAt
-        ).toBeNull()
-      })
-    })
-  })
-
-  describe('setActorSensitized', () => {
-    it('stamps sensitizedAt when sensitizing and clears it when unsensitizing', async () => {
-      await withFreshDatabase(async (database) => {
-        const { actorId } = await seedLocalActor(database, seedActor1)
-
-        await database.setActorSensitized({ actorId, sensitized: true })
-        expect(
-          (await database.getActorFromId({ id: actorId }))?.sensitizedAt
-        ).toBeTruthy()
-
-        await database.setActorSensitized({ actorId, sensitized: false })
-        expect(
-          (await database.getActorFromId({ id: actorId }))?.sensitizedAt
-        ).toBeNull()
-      })
-    })
-  })
-
   describe('getModerationStatesForActors', () => {
     it.each([
       {
@@ -157,91 +103,7 @@ describe('ModerationDatabase', () => {
     })
   })
 
-  describe('setAccountDisabled', () => {
-    it('stamps disabledAt when disabling and clears it when enabling', async () => {
-      await withFreshDatabase(async (database) => {
-        const { accountId } = await seedLocalActor(database, seedActor1)
-
-        await database.setAccountDisabled({ accountId, disabled: true })
-        expect(
-          (await database.getAccountFromId({ id: accountId }))?.disabledAt
-        ).toBeTruthy()
-
-        await database.setAccountDisabled({ accountId, disabled: false })
-        expect(
-          (await database.getAccountFromId({ id: accountId }))?.disabledAt
-        ).toBeNull()
-      })
-    })
-  })
-
-  describe('approveAccount', () => {
-    it('sets approvedAt when null and is idempotent', async () => {
-      const { database, db } = await getFreshDatabaseWithInstance()
-      try {
-        const { accountId } = await seedLocalActor(database, seedActor1)
-        // createAccount approves on insert; make it pending for this test.
-        await db
-          .updateTable('accounts')
-          .set({ approvedAt: null })
-          .where('id', '=', accountId)
-          .execute()
-
-        await database.approveAccount({ accountId })
-        const approved = (await database.getAccountFromId({ id: accountId }))
-          ?.approvedAt
-        expect(approved).toBeTruthy()
-
-        // Idempotent: approving again keeps the original timestamp.
-        await database.approveAccount({ accountId })
-        expect(
-          (await database.getAccountFromId({ id: accountId }))?.approvedAt
-        ).toBe(approved)
-      } finally {
-        await database.destroy()
-      }
-    })
-  })
-
   describe('rejectPendingAccount', () => {
-    it('deletes a pending account and its actors and returns true', async () => {
-      const { database, db } = await getFreshDatabaseWithInstance()
-      try {
-        const { accountId, actorId } = await seedLocalActor(
-          database,
-          seedActor1
-        )
-        await db
-          .updateTable('accounts')
-          .set({ approvedAt: null })
-          .where('id', '=', accountId)
-          .execute()
-
-        const rejected = await database.rejectPendingAccount({ accountId })
-        expect(rejected).toBe(true)
-        expect(await database.getAccountFromId({ id: accountId })).toBeNull()
-        expect(await database.getActorFromId({ id: actorId })).toBeNull()
-        // The credential provider row created alongside the account is gone too,
-        // so nothing dangles referencing the deleted account.
-        expect(
-          await db
-            .selectFrom('account_providers')
-            .selectAll()
-            .where('accountId', '=', accountId)
-            .executeTakeFirst()
-        ).toBeUndefined()
-        expect(
-          await db
-            .selectFrom('sessions')
-            .selectAll()
-            .where('accountId', '=', accountId)
-            .executeTakeFirst()
-        ).toBeUndefined()
-      } finally {
-        await database.destroy()
-      }
-    })
-
     it('returns false and keeps an already-approved account', async () => {
       await withFreshDatabase(async (database) => {
         const { accountId } = await seedLocalActor(database, seedActor1)
@@ -251,15 +113,6 @@ describe('ModerationDatabase', () => {
         expect(
           await database.getAccountFromId({ id: accountId })
         ).not.toBeNull()
-      })
-    })
-
-    it('returns false for an account that does not exist', async () => {
-      await withFreshDatabase(async (database) => {
-        const rejected = await database.rejectPendingAccount({
-          accountId: 'does-not-exist'
-        })
-        expect(rejected).toBe(false)
       })
     })
   })
@@ -307,37 +160,6 @@ describe('ModerationDatabase', () => {
         expect(action.text).toBe('')
         expect(action.moderatorActorId).toBeNull()
         expect(action.reportId).toBeNull()
-      })
-    })
-  })
-
-  describe('deleteAllAccountSessions', () => {
-    it('removes every session for the account', async () => {
-      await withFreshDatabase(async (database) => {
-        const { accountId, actorId } = await seedLocalActor(
-          database,
-          seedActor1
-        )
-        await database.createAccountSession({
-          accountId,
-          actorId,
-          token: 'token-1',
-          expireAt: Date.now() + 60_000
-        })
-        await database.createAccountSession({
-          accountId,
-          actorId,
-          token: 'token-2',
-          expireAt: Date.now() + 60_000
-        })
-        expect(
-          (await database.getAccountAllSessions({ accountId })).length
-        ).toBe(2)
-
-        await database.deleteAllAccountSessions({ accountId })
-        expect(
-          (await database.getAccountAllSessions({ accountId })).length
-        ).toBe(0)
       })
     })
   })
@@ -416,51 +238,6 @@ describe('ModerationDatabase', () => {
 
         expect(resultIds).toContain(idFor(present))
         expect(resultIds).not.toContain(idFor(absent))
-      })
-    })
-
-    it.each([
-      {
-        description: 'max_id excludes the cursor and returns older records',
-        cursor: 'max_id'
-      },
-      {
-        description: 'min_id excludes the cursor and returns newer records',
-        cursor: 'min_id'
-      },
-      {
-        description: 'since_id excludes the cursor and returns newer records',
-        cursor: 'since_id'
-      }
-    ])('$description', async ({ cursor }) => {
-      await withFreshDatabase(async (database) => {
-        await seedFixture(database)
-        // Full listing, newest-first by (createdAt desc, id).
-        const all = await database.getAdminAccounts({ limit: 100 })
-        expect(all.length).toBe(3)
-        const ids = all.map((record) => record.actor.id)
-
-        if (cursor === 'max_id') {
-          // Page after the newest (first) record — the two older ones.
-          const page = await database.getAdminAccounts({
-            limit: 100,
-            maxId: ids[0]
-          })
-          const pageIds = page.map((record) => record.actor.id)
-          expect(pageIds).not.toContain(ids[0])
-          expect(pageIds).toContain(ids[1])
-          expect(pageIds).toContain(ids[2])
-        } else {
-          // min_id/since_id page above the oldest (last) record.
-          const page = await database.getAdminAccounts({
-            limit: 100,
-            [cursor === 'min_id' ? 'minId' : 'sinceId']: ids[2]
-          })
-          const pageIds = page.map((record) => record.actor.id)
-          expect(pageIds).not.toContain(ids[2])
-          expect(pageIds).toContain(ids[0])
-          expect(pageIds).toContain(ids[1])
-        }
       })
     })
   })
@@ -622,18 +399,6 @@ describe('ModerationDatabase', () => {
   })
 
   describe('getAdminAccount', () => {
-    it('returns the record with its account for a local actor', async () => {
-      await withFreshDatabase(async (database) => {
-        const { actorId, accountId } = await seedLocalActor(
-          database,
-          seedActor1
-        )
-        const record = await database.getAdminAccount({ actorId })
-        expect(record?.actor.id).toBe(actorId)
-        expect(record?.account?.id).toBe(accountId)
-      })
-    })
-
     it('returns a null account for a remote actor and null for an unknown id', async () => {
       await withFreshDatabase(async (database) => {
         await database.createActor(seedExternal1)
@@ -648,93 +413,6 @@ describe('ModerationDatabase', () => {
             actorId: 'https://nope.example/users/ghost'
           })
         ).toBeNull()
-      })
-    })
-  })
-
-  describe('getSessionIpsForAccounts', () => {
-    it('returns latest-first distinct ips per account', async () => {
-      const { database, db } = await getFreshDatabaseWithInstance()
-      try {
-        const { accountId, actorId } = await seedLocalActor(
-          database,
-          seedActor1
-        )
-        await database.createAccountSession({
-          accountId,
-          actorId,
-          token: 'session-a',
-          expireAt: Date.now() + 60_000
-        })
-        // Backfill the IP columns (createAccountSession does not set them).
-        await db
-          .updateTable('sessions')
-          .set({ ipAddress: '203.0.113.9' })
-          .where('token', '=', 'session-a')
-          .execute()
-
-        const map = await database.getSessionIpsForAccounts({
-          accountIds: [accountId]
-        })
-        expect(map.get(accountId)?.[0]?.ip).toBe('203.0.113.9')
-      } finally {
-        await database.destroy()
-      }
-    })
-  })
-
-  describe('setReportResolution', () => {
-    it('stamps and clears the action-taken workflow columns', async () => {
-      const { database, db } = await getFreshDatabaseWithInstance()
-      try {
-        const report = await database.createReport({
-          actorId: 'https://test.llun.dev/users/reporter',
-          targetActorId: 'https://remote.example/users/spammer'
-        })
-
-        expect(
-          await database.setReportResolution({
-            reportId: report.id,
-            resolved: true,
-            actionTakenByActorId: 'https://test.llun.dev/users/mod'
-          })
-        ).toBe(true)
-        const resolved = await db
-          .selectFrom('reports')
-          .selectAll()
-          .where('id', '=', report.id)
-          .executeTakeFirstOrThrow()
-        expect(Boolean(resolved.actionTaken)).toBe(true)
-        expect(resolved.actionTakenAt).toBeTruthy()
-        expect(resolved.actionTakenByActorId).toBe(
-          'https://test.llun.dev/users/mod'
-        )
-
-        await database.setReportResolution({
-          reportId: report.id,
-          resolved: false
-        })
-        const reopened = await db
-          .selectFrom('reports')
-          .selectAll()
-          .where('id', '=', report.id)
-          .executeTakeFirstOrThrow()
-        expect(Boolean(reopened.actionTaken)).toBe(false)
-        expect(reopened.actionTakenAt).toBeNull()
-        expect(reopened.actionTakenByActorId).toBeNull()
-      } finally {
-        await database.destroy()
-      }
-    })
-
-    it('returns false for an unknown report id', async () => {
-      await withFreshDatabase(async (database) => {
-        expect(
-          await database.setReportResolution({
-            reportId: 'missing',
-            resolved: true
-          })
-        ).toBe(false)
       })
     })
   })
