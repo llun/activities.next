@@ -11,6 +11,7 @@ import {
   StatusNote,
   StatusType
 } from '@/lib/types/domain/status'
+import { TimelineContext } from '@/lib/types/domain/timeline'
 
 export const MockAnnouncementIcon = () => (
   <div data-testid="announcement-icon" />
@@ -76,7 +77,8 @@ export const MockFeed = ({
   onBookmarkChanged,
   onReactionsChanged,
   onReplyCreated,
-  gapAfterStatusIds = {}
+  gapAfterStatusIds = {},
+  timelineContext
 }: {
   statuses: any[]
   currentTime: number
@@ -87,9 +89,13 @@ export const MockFeed = ({
   onReactionsChanged?: (status: any, reactions: any[]) => void
   onReplyCreated?: (status: any) => void
   gapAfterStatusIds?: Record<string, number>
+  timelineContext?: TimelineContext
 }) => (
   <div>
     <div data-testid="posts-current-time">{currentTime}</div>
+    <div data-testid="timeline-context-ancestor-ids">
+      {Object.keys(timelineContext?.ancestorsById ?? {}).join(',')}
+    </div>
     <button
       type="button"
       data-testid="trigger-delete-unknown"

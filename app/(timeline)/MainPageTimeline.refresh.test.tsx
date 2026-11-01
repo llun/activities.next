@@ -2330,6 +2330,64 @@ describe('MainPageTimeline', () => {
       ).not.toBeInTheDocument()
     })
 
+    it('keeps the held page context for a reply absent from the header refresh', async () => {
+      const current = createStatus(
+        'https://activities.local/users/llun/s/current'
+      )
+      const parentId = 'https://activities.local/users/other/s/parent'
+      const reply = createStatus(
+        'https://activities.local/users/llun/s/reply',
+        { reply: parentId }
+      )
+      const fresh = createStatus('https://activities.local/users/llun/s/fresh')
+      vi.mocked(getTimeline)
+        .mockResolvedValueOnce({
+          statuses: [reply, current],
+          nextMaxStatusId: null,
+          prevMinStatusId: reply.id,
+          context: {
+            ancestorsById: {
+              [parentId]: {
+                id: parentId,
+                actor: {
+                  id: 'https://activities.local/users/other',
+                  username: 'other',
+                  domain: 'activities.local'
+                },
+                contentHtml: '<p>Parent preview</p>',
+                createdAt: '2026-01-01T00:00:00.000Z',
+                visibility: 'public'
+              }
+            }
+          }
+        })
+        .mockResolvedValueOnce({
+          statuses: [fresh, current],
+          nextMaxStatusId: null,
+          prevMinStatusId: fresh.id
+        })
+
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[current]}
+          refreshOnMount
+        />
+      )
+
+      await screen.findByRole('button', { name: '1 new post' })
+      fireEvent.click(screen.getByRole('button', { name: 'Refresh timeline' }))
+
+      expect(await screen.findByTestId(`post-${reply.id}`)).toBeInTheDocument()
+      expect(screen.getByTestId(`post-${fresh.id}`)).toBeInTheDocument()
+      expect(
+        screen.getByTestId('timeline-context-ancestor-ids')
+      ).toHaveTextContent(parentId)
+    })
+
     it('shows an automatic response on screen when the pill is tapped during its fetch', async () => {
       vi.useFakeTimers()
       const current = createStatus(

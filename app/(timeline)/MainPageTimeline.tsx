@@ -1088,17 +1088,18 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
               )
             }
           : result
-      const heldBase =
-        !options?.automatic && !options?.fromHeld && stagedPageRef.current
-          ? mergeFreshPageIntoSegments({
-              currentSegments: segmentsRef.current,
-              incomingStatuses: stagedPageRef.current.statuses.map(
-                (status) => currentIds.get(status.id) ?? status
-              ),
-              incomingNextMaxStatusId: stagedPageRef.current.nextMaxStatusId,
-              incomingPrevMinStatusId: stagedPageRef.current.prevMinStatusId
-            }).segments
-          : segmentsRef.current
+      const heldPageToMerge =
+        !options?.automatic && !options?.fromHeld ? stagedPageRef.current : null
+      const heldBase = heldPageToMerge
+        ? mergeFreshPageIntoSegments({
+            currentSegments: segmentsRef.current,
+            incomingStatuses: heldPageToMerge.statuses.map(
+              (status) => currentIds.get(status.id) ?? status
+            ),
+            incomingNextMaxStatusId: heldPageToMerge.nextMaxStatusId,
+            incomingPrevMinStatusId: heldPageToMerge.prevMinStatusId
+          }).segments
+        : segmentsRef.current
       const baseSegments = options?.fromHeld ? segmentsRef.current : heldBase
       const merged = mergeFreshPageIntoSegments({
         currentSegments: baseSegments,
@@ -1176,11 +1177,15 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
             : null)
       }
 
-      if (result.context?.ancestorsById) {
+      const mergedAncestorsById = {
+        ...(heldPageToMerge?.context?.ancestorsById ?? {}),
+        ...(result.context?.ancestorsById ?? {})
+      }
+      if (Object.keys(mergedAncestorsById).length > 0) {
         setCurrentTimelineContext((prev) => ({
           ancestorsById: {
             ...(prev?.ancestorsById ?? {}),
-            ...result.context?.ancestorsById
+            ...mergedAncestorsById
           }
         }))
       }
