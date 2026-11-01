@@ -200,12 +200,14 @@ describe('renderPolicyMarkdown', () => {
       ])
     })
 
-    it.each(['**Note:**', '  **Note:**  ', '**A _formatted_ label**'])(
-      'marks a paragraph containing only one strong token: %s',
-      (markdown) => {
-        expect(page(markdown).html).toMatch(/^<p class="policy-label">/)
-      }
-    )
+    it.each([
+      '**Note:**',
+      '  **Note:**  ',
+      '**A _formatted_ label**',
+      '***Important***'
+    ])('marks a paragraph containing only one strong token: %s', (markdown) => {
+      expect(page(markdown).html).toMatch(/^<p class="policy-label">/)
+    })
 
     it.each(['**Note:** text', '**a** **b**', '*Note*', '`**Note**`'])(
       'does not mark other paragraphs as labels: %s',

@@ -29,7 +29,7 @@ const DOCUMENT_CLASS = [
   '[&_:is(h1,h2)]:mt-10 [&_:is(h1,h2)]:text-[21px] [&_:is(h1,h2)]:leading-7 [&_:is(h1,h2)]:font-semibold [&_:is(h1,h2)]:tracking-tight md:[&_:is(h1,h2)]:mt-12 md:[&_:is(h1,h2)]:text-2xl md:[&_:is(h1,h2)]:leading-8',
   '[&>p:first-child:not(.policy-label)]:mt-0! [&>:is(h1,h2,h3,h4,h5,h6):first-child]:mt-0! [&_h2]:scroll-mt-20 max-md:[html:has([data-mobile-compact-header])_&_h2]:scroll-mt-4',
   '[&_h3]:mt-7 [&_h3]:text-lg [&_h3]:leading-7 [&_h3]:font-semibold',
-  '[&_h4]:mt-6 [&_h4]:text-base [&_h4]:font-semibold [&_h5]:mt-6 [&_h5]:font-semibold [&_h6]:mt-6 [&_h6]:font-semibold',
+  '[&_h4]:mt-6 [&_h4]:font-semibold [&_h5]:mt-6 [&_h5]:font-semibold [&_h6]:mt-6 [&_h6]:font-semibold',
   '[&_:is(h1,h2,h3,h4,h5,h6)+*]:mt-3!',
   '[&_p]:mt-4 [&_ul]:mt-2 [&_ol]:mt-2 [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-[22px] [&_ol]:pl-[22px]',
   '[&_li]:mt-2.5 [&_li:first-child]:mt-0! [&_li]:marker:text-muted-foreground [&_li>p:first-child]:mt-0',
@@ -39,7 +39,7 @@ const DOCUMENT_CLASS = [
   '[&_code]:bg-muted [&_code]:rounded [&_code]:px-1 [&_code]:font-mono [&_code]:text-sm',
   '[&_pre]:bg-muted [&_pre]:mt-4 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:p-4 [&_pre_code]:bg-transparent [&_pre_code]:p-0',
   '[&_hr]:my-8 [&_hr]:border-t',
-  '[&_table]:mt-4 [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto [&_table]:text-sm [&_th]:border [&_th]:px-3 [&_th]:py-1.5 [&_th]:text-left [&_td]:border [&_td]:px-3 [&_td]:py-1.5'
+  '[&_table]:mt-4 [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto [&_table]:text-sm [&_table]:[overflow-wrap:normal] [&_th]:border [&_th]:px-3 [&_th]:py-1.5 [&_th]:text-left [&_td]:border [&_td]:px-3 [&_td]:py-1.5'
 ].join(' ')
 
 const footerLinkClass =

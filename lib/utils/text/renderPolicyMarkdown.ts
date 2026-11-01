@@ -98,7 +98,13 @@ const createPolicyMarked = (headings?: PolicyHeading[]) => {
               const content = tokens.filter(
                 (token) => token.type !== 'text' || token.text.trim() !== ''
               )
-              const label = content.length === 1 && content[0].type === 'strong'
+              const [token] = content
+              const label =
+                content.length === 1 &&
+                (token.type === 'strong' ||
+                  (token.type === 'em' &&
+                    token.tokens?.length === 1 &&
+                    token.tokens[0].type === 'strong'))
               return `<p${label ? ' class="policy-label"' : ''}>${this.parser.parseInline(tokens)}</p>\n`
             }
           }
