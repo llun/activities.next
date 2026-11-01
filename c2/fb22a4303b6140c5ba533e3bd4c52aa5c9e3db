@@ -1,0 +1,26 @@
+app/(timeline)/MainPageTimeline.tsx
+  s_66786278560dcb::t_03cdac2291dab8 1092-1102
+  s_66786278560dcb::t_3dd14688c66b97 1091,1180-1184,1188
+app/(timeline)/MainPageTimeline.testUtils.tsx
+  s_66786278560dcb::t_03cdac2291dab8 14
+  s_66786278560dcb::t_243438a70dbac8 80-81,92,96-98
+app/(timeline)/MainPageTimeline.refresh.test.tsx
+  s_66786278560dcb::t_03cdac2291dab8 2386-2388
+  s_66786278560dcb::t_e99dd6a6aa445c 2333-2385,2389-2390
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c2fb22a4303b6140c5ba533e3bd4c52aa5c9e3db",
+  "prompts": {},
+  "sessions": {
+    "s_66786278560dcb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19437-cee3-7841-b747-f9ae358c50df",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
