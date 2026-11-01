@@ -258,10 +258,17 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     useState<boolean>(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [newerPostsCount, setNewerPostsCount] = useState<number>(0)
+  const newerPostsCountRef = useRef(newerPostsCount)
+  newerPostsCountRef.current = newerPostsCount
   const [hasMoreNewerPosts, setHasMoreNewerPosts] = useState<boolean>(false)
   const stagedPageRef = useRef<GetTimelineResult | null>(null)
   const applyFreshPageRef = useRef<
-    ((result: GetTimelineResult) => Promise<void>) | null
+    | ((
+        result: GetTimelineResult,
+        options?: { preserveScroll?: true; automatic?: true; fromHeld?: true },
+        resetRevisionAtStart?: number
+      ) => Promise<void>)
+    | null
   >(null)
   const [stagedCount, setStagedCount] = useState(0)
   const [stagedHasGap, setStagedHasGap] = useState(false)
@@ -745,38 +752,38 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
 
   // A new post composed in the top box, or a quote created inline from a
   // feed row, is prepended so it appears immediately.
-  const onStatusCreated = useCallback(
-    async (status: Status) => {
-      const page = stagedPageRef.current
-      if (page) {
-        stagedPageRef.current = null
-        setStagedCount(0)
-        setStagedHasGap(false)
-        await waitForScrollRest()
-        await applyFreshPageRef.current?.(page)
-      }
-      setSegments((prev) => {
-        if (prev.length === 0) {
-          return [
-            {
-              statuses: [status],
-              nextMaxStatusId: null,
-              prevMinStatusId: status.id
-            }
-          ]
-        }
+  const onStatusCreated = useCallback((status: Status) => {
+    const page = stagedPageRef.current
+    if (page) {
+      stagedPageRef.current = null
+      setStagedCount(0)
+      setStagedHasGap(false)
+      void applyFreshPageRef.current?.(
+        page,
+        { fromHeld: true },
+        scrollResetRevisionRef.current
+      )
+    }
+    setSegments((prev) => {
+      if (prev.length === 0) {
         return [
           {
-            ...prev[0],
-            statuses: [status, ...prev[0].statuses],
+            statuses: [status],
+            nextMaxStatusId: null,
             prevMinStatusId: status.id
-          },
-          ...prev.slice(1)
+          }
         ]
-      })
-    },
-    [waitForScrollRest]
-  )
+      }
+      return [
+        {
+          ...prev[0],
+          statuses: [status, ...prev[0].statuses],
+          prevMinStatusId: status.id
+        },
+        ...prev.slice(1)
+      ]
+    })
+  }, [])
 
   // When a reply is created inline from a feed row, update the parent status's
   // reply count and insert the reply directly next to the replied message in the feed.
@@ -866,14 +873,31 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     )
   }, [])
 
-  const onPostDeleted = useCallback((status: Status) => {
-    setSegments((prev) =>
-      prev.map((seg) => ({
-        ...seg,
-        statuses: removeOriginalStatus(seg.statuses, status.id)
-      }))
-    )
-  }, [])
+  const onPostDeleted = useCallback(
+    (status: Status) => {
+      const stagedPage = stagedPageRef.current
+      if (stagedPage) {
+        const retained = removeOriginalStatus(stagedPage.statuses, status.id)
+        if (retained.length !== stagedPage.statuses.length) {
+          const removedCount =
+            stagedPage.statuses.slice(0, stagedCount).length -
+            removeOriginalStatus(
+              stagedPage.statuses.slice(0, stagedCount),
+              status.id
+            ).length
+          stagedPageRef.current = { ...stagedPage, statuses: retained }
+          setStagedCount((count) => Math.max(0, count - removedCount))
+        }
+      }
+      setSegments((prev) =>
+        prev.map((seg) => ({
+          ...seg,
+          statuses: removeOriginalStatus(seg.statuses, status.id)
+        }))
+      )
+    },
+    [stagedCount]
+  )
 
   const onLikeChanged = useCallback(
     (status: StatusNote | StatusPoll, isLiked: boolean) => {
@@ -997,7 +1021,11 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   const applyFreshPage = useCallback(
     async (
       result: GetTimelineResult,
-      options?: { preserveScroll?: true; automatic?: true },
+      options?: {
+        preserveScroll?: true
+        automatic?: true
+        fromHeld?: true
+      },
       resetRevisionAtStart?: number
     ) => {
       const isCurrentlyScrolledDown = () => {
@@ -1047,11 +1075,36 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         }
       }
 
+      const currentIds = new Map(
+        currentStatusesRef.current.map((status) => [status.id, status])
+      )
+      const mergedResult =
+        options?.fromHeld ||
+        (!options?.automatic && stagedPageRef.current !== null)
+          ? {
+              ...result,
+              statuses: result.statuses.map(
+                (status) => currentIds.get(status.id) ?? status
+              )
+            }
+          : result
+      const heldBase =
+        !options?.automatic && !options?.fromHeld && stagedPageRef.current
+          ? mergeFreshPageIntoSegments({
+              currentSegments: segmentsRef.current,
+              incomingStatuses: stagedPageRef.current.statuses.map(
+                (status) => currentIds.get(status.id) ?? status
+              ),
+              incomingNextMaxStatusId: stagedPageRef.current.nextMaxStatusId,
+              incomingPrevMinStatusId: stagedPageRef.current.prevMinStatusId
+            }).segments
+          : segmentsRef.current
+      const baseSegments = options?.fromHeld ? segmentsRef.current : heldBase
       const merged = mergeFreshPageIntoSegments({
-        currentSegments: segmentsRef.current,
-        incomingStatuses: result.statuses,
-        incomingNextMaxStatusId: result.nextMaxStatusId,
-        incomingPrevMinStatusId: result.prevMinStatusId
+        currentSegments: baseSegments,
+        incomingStatuses: mergedResult.statuses,
+        incomingNextMaxStatusId: mergedResult.nextMaxStatusId,
+        incomingPrevMinStatusId: mergedResult.prevMinStatusId
       })
       const now = Date.now()
       const firstMergedId = merged.segments[0]?.statuses[0]?.id
@@ -1080,15 +1133,13 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
 
       if (
         options?.automatic &&
+        !resetWasTriggered &&
         !willPreserveAnchor &&
         hasNewerPrepended &&
         currentStatusesRef.current.length > 0
       ) {
-        const currentIds = new Set(currentStatusesRef.current.map((s) => s.id))
         stagedPageRef.current = result
-        setStagedCount(
-          result.statuses.filter((status) => !currentIds.has(status.id)).length
-        )
+        setStagedCount(merged.addedNewerCount)
         setStagedHasGap(merged.hasGap)
         setNewerPostsCount(0)
         setHasMoreNewerPosts(false)
@@ -1135,8 +1186,10 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
       }
 
       setLastRefreshedAt(now)
-      setNewerPostsCount(0)
-      setHasMoreNewerPosts(false)
+      if (!options?.fromHeld) {
+        setNewerPostsCount(0)
+        setHasMoreNewerPosts(false)
+      }
       lastFailedFetchRef.current = null
 
       if (willPreserveAnchor && capturedAnchor) {
@@ -1342,31 +1395,33 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   // need a refresh; posts already loaded above (or a plain jump) only need
   // the scroll to top.
   const handleNewPostsPill = useCallback(async () => {
-    const page = stagedPageRef.current
-    if (!page && newerPostsCount === 0) {
+    if (!stagedPageRef.current && newerPostsCountRef.current === 0) {
       clearScrollAnchorAndJumpToTop()
       return
     }
     const wasScrolledDown =
       typeof window !== 'undefined' && window.scrollY > VIEW_TOP_EDGE
     clearScrollAnchorAndJumpToTop()
-    if (wasScrolledDown) lastScrollAtRef.current = Date.now()
+    if (wasScrolledDown) {
+      lastScrollAtRef.current = Date.now()
+      await waitForScrollRest()
+      await Promise.resolve()
+    }
+    const page = stagedPageRef.current
     if (page) {
       stagedPageRef.current = null
       setStagedCount(0)
       setStagedHasGap(false)
-      await waitForScrollRest()
       await applyFreshPage(
         page,
-        { preserveScroll: true },
+        { fromHeld: true },
         scrollResetRevisionRef.current
       )
     }
-    if (newerPostsCount > 0) await refreshTimeline()
+    if (newerPostsCountRef.current > 0) await refreshTimeline()
   }, [
     applyFreshPage,
     clearScrollAnchorAndJumpToTop,
-    newerPostsCount,
     refreshTimeline,
     waitForScrollRest
   ])

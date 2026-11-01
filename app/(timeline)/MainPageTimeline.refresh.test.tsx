@@ -1643,6 +1643,159 @@ describe('MainPageTimeline', () => {
       expect(getTimeline).toHaveBeenCalledTimes(1)
     })
 
+    it('keeps the pill visible while a scrolled tap waits for the posts to land', async () => {
+      vi.useFakeTimers()
+      const current = createStatus(
+        'https://activities.local/users/llun/s/current'
+      )
+      const held = createStatus('https://activities.local/users/llun/s/held')
+      const originalScrollY = window.scrollY
+      try {
+        vi.mocked(getTimeline).mockResolvedValueOnce({
+          statuses: [held, current],
+          nextMaxStatusId: null,
+          prevMinStatusId: held.id
+        })
+        rowTops[current.id] = 20
+        rowTops[held.id] = -100
+        render(
+          <MainPageTimeline
+            host="activities.local"
+            currentTime={FIXED_CURRENT_TIME}
+            profile={profile}
+            isMediaUploadEnabled={false}
+            statuses={[current]}
+            refreshOnMount
+          />
+        )
+        const pill = await screen.findByRole('button', { name: '1 new post' })
+        Object.defineProperty(window, 'scrollY', {
+          value: 400,
+          configurable: true,
+          writable: true
+        })
+        fireEvent.click(pill)
+        expect(
+          screen.getByRole('button', { name: '1 new post' })
+        ).toBeInTheDocument()
+        expect(screen.queryByTestId(`post-${held.id}`)).not.toBeInTheDocument()
+        Object.defineProperty(window, 'scrollY', {
+          value: 500,
+          configurable: true,
+          writable: true
+        })
+        fireEvent.scroll(window)
+        await act(async () => vi.advanceTimersByTimeAsync(SCROLL_REST_MS))
+        expect(await screen.findByTestId(`post-${held.id}`)).toBeInTheDocument()
+        expect(getTimeline).toHaveBeenCalledTimes(1)
+      } finally {
+        Object.defineProperty(window, 'scrollY', {
+          value: originalScrollY,
+          configurable: true,
+          writable: true
+        })
+        vi.useRealTimers()
+      }
+    })
+
+    it('applies a held page immediately at the top despite a recent scroll event', async () => {
+      vi.useFakeTimers()
+      const current = createStatus(
+        'https://activities.local/users/llun/s/current'
+      )
+      const held = createStatus('https://activities.local/users/llun/s/held')
+      try {
+        vi.mocked(getTimeline).mockResolvedValueOnce({
+          statuses: [held, current],
+          nextMaxStatusId: null,
+          prevMinStatusId: held.id
+        })
+        render(
+          <MainPageTimeline
+            host="activities.local"
+            currentTime={FIXED_CURRENT_TIME}
+            profile={profile}
+            isMediaUploadEnabled={false}
+            statuses={[current]}
+            refreshOnMount
+          />
+        )
+        await screen.findByRole('button', { name: '1 new post' })
+        fireEvent.scroll(window)
+        fireEvent.click(screen.getByRole('button', { name: '1 new post' }))
+        expect(screen.getByTestId(`post-${held.id}`)).toBeInTheDocument()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('applies the first row at 70px without a scroll correction', async () => {
+      const current = createStatus(
+        'https://activities.local/users/llun/s/current'
+      )
+      const held = createStatus('https://activities.local/users/llun/s/held')
+      rowTops[current.id] = 70
+      vi.mocked(getTimeline).mockResolvedValueOnce({
+        statuses: [held, current],
+        nextMaxStatusId: null,
+        prevMinStatusId: held.id
+      })
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[current]}
+          refreshOnMount
+        />
+      )
+      fireEvent.click(await screen.findByRole('button', { name: '1 new post' }))
+      expect(await screen.findByTestId(`post-${held.id}`)).toBeInTheDocument()
+      expect(scrollByMock).not.toHaveBeenCalled()
+    })
+
+    it('keeps a visible like and removes deleted statuses from the held page and its count', async () => {
+      const current = createStatus(
+        'https://activities.local/users/llun/s/current'
+      )
+      const held = createStatus('https://activities.local/users/llun/s/held')
+      const announce = createAnnounceStatus(
+        'https://activities.local/users/llun/s/announce-current',
+        current
+      )
+      vi.mocked(getTimeline).mockResolvedValueOnce({
+        statuses: [held, announce, current],
+        nextMaxStatusId: null,
+        prevMinStatusId: held.id
+      })
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[current]}
+          refreshOnMount
+        />
+      )
+      await screen.findByRole('button', { name: '2 new posts' })
+      fireEvent.click(screen.getByTestId(`trigger-like-${current.id}`))
+      expect(screen.getByTestId(`post-liked-${current.id}`)).toHaveTextContent(
+        'true'
+      )
+      fireEvent.click(screen.getByTestId(`trigger-delete-target-${current.id}`))
+      expect(
+        await screen.findByRole('button', { name: '1 new post' })
+      ).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: '1 new post' }))
+      expect(await screen.findByTestId(`post-${held.id}`)).toBeInTheDocument()
+      expect(
+        screen.queryByTestId(`post-${announce.id}`)
+      ).not.toBeInTheDocument()
+      expect(screen.queryByTestId(`post-${current.id}`)).not.toBeInTheDocument()
+    })
+
     it('renders automatic refresh posts directly when the feed is empty', async () => {
       const newPost = createStatus(
         'https://activities.local/users/llun/s/empty'
@@ -1955,12 +2108,388 @@ describe('MainPageTimeline', () => {
       )
       await screen.findByRole('button', { name: '1 new post' })
       fireEvent.click(screen.getByTestId('trigger-post-created'))
-      expect(
-        await screen.findByTestId(`post-${published.id}`)
-      ).toBeInTheDocument()
+      expect(screen.getByTestId(`post-${published.id}`)).toBeInTheDocument()
       const posts = screen.getAllByTestId(/^post-https:/)
       expect(posts[0]).toHaveAttribute('data-testid', `post-${published.id}`)
       expect(screen.getByTestId(`post-${held.id}`)).toBeInTheDocument()
+    })
+
+    it('keeps the poll count through held-page application and refreshes the poll result', async () => {
+      vi.useFakeTimers()
+      const current = createStatus(
+        'https://activities.local/users/llun/s/current'
+      )
+      const held = createStatus('https://activities.local/users/llun/s/held')
+      const polled = createStatus(
+        'https://activities.local/users/llun/s/polled'
+      )
+      const originalScrollY = window.scrollY
+      try {
+        vi.mocked(getTimeline)
+          .mockResolvedValueOnce({
+            statuses: [held, current],
+            nextMaxStatusId: null,
+            prevMinStatusId: held.id
+          })
+          .mockResolvedValueOnce({
+            statuses: [held, polled],
+            nextMaxStatusId: null,
+            prevMinStatusId: held.id
+          })
+          .mockResolvedValueOnce({
+            statuses: [polled, held, current],
+            nextMaxStatusId: null,
+            prevMinStatusId: polled.id
+          })
+        render(
+          <MainPageTimeline
+            host="activities.local"
+            currentTime={FIXED_CURRENT_TIME}
+            profile={profile}
+            isMediaUploadEnabled={false}
+            statuses={[current]}
+            refreshOnMount
+          />
+        )
+        const pill = await screen.findByRole('button', { name: '1 new post' })
+        Object.defineProperty(window, 'scrollY', {
+          value: 400,
+          configurable: true,
+          writable: true
+        })
+        fireEvent.click(pill)
+        document.dispatchEvent(new Event('visibilitychange'))
+        await act(async () => Promise.resolve())
+        expect(
+          screen.getByRole('button', { name: '2 new posts' })
+        ).toBeInTheDocument()
+        Object.defineProperty(window, 'scrollY', {
+          value: 500,
+          configurable: true,
+          writable: true
+        })
+        fireEvent.scroll(window)
+        await act(async () => vi.advanceTimersByTimeAsync(SCROLL_REST_MS))
+        expect(
+          await screen.findByTestId(`post-${polled.id}`)
+        ).toBeInTheDocument()
+        expect(getTimeline).toHaveBeenCalledTimes(3)
+      } finally {
+        Object.defineProperty(window, 'scrollY', {
+          value: originalScrollY,
+          configurable: true,
+          writable: true
+        })
+        vi.useRealTimers()
+      }
+    })
+
+    it('keeps the poll count when a post is published while a page is held', async () => {
+      vi.useFakeTimers()
+      const current = createStatus(
+        'https://activities.local/users/llun/s/current'
+      )
+      const held = createStatus('https://activities.local/users/llun/s/held')
+      const polled = createStatus(
+        'https://activities.local/users/llun/s/polled'
+      )
+      try {
+        vi.mocked(getTimeline)
+          .mockResolvedValueOnce({
+            statuses: [held, current],
+            nextMaxStatusId: null,
+            prevMinStatusId: held.id
+          })
+          .mockResolvedValueOnce({
+            statuses: [held, polled],
+            nextMaxStatusId: null,
+            prevMinStatusId: held.id
+          })
+        render(
+          <MainPageTimeline
+            host="activities.local"
+            currentTime={FIXED_CURRENT_TIME}
+            profile={profile}
+            isMediaUploadEnabled={false}
+            statuses={[current]}
+            refreshOnMount
+          />
+        )
+        await screen.findByRole('button', { name: '1 new post' })
+        document.dispatchEvent(new Event('visibilitychange'))
+        await act(async () => Promise.resolve())
+        fireEvent.click(screen.getByTestId('trigger-post-created'))
+        expect(
+          screen.getByRole('button', { name: '1 new post' })
+        ).toBeInTheDocument()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('does not lose a page staged during the tap wait', async () => {
+      vi.useFakeTimers()
+      const current = createStatus(
+        'https://activities.local/users/llun/s/current'
+      )
+      const firstHeld = createStatus(
+        'https://activities.local/users/llun/s/first-held'
+      )
+      const newerHeld = createStatus(
+        'https://activities.local/users/llun/s/newer-held'
+      )
+      const originalScrollY = window.scrollY
+      try {
+        vi.mocked(getTimeline).mockResolvedValueOnce({
+          statuses: [firstHeld, current],
+          nextMaxStatusId: null,
+          prevMinStatusId: firstHeld.id
+        })
+        render(
+          <MainPageTimeline
+            host="activities.local"
+            currentTime={FIXED_CURRENT_TIME}
+            profile={profile}
+            isMediaUploadEnabled={false}
+            statuses={[current]}
+            refreshOnMount
+          />
+        )
+        const pill = await screen.findByRole('button', { name: '1 new post' })
+        vi.mocked(getTimeline).mockResolvedValueOnce({
+          statuses: [newerHeld, firstHeld, current],
+          nextMaxStatusId: null,
+          prevMinStatusId: newerHeld.id
+        })
+        Object.defineProperty(window, 'scrollY', {
+          value: 400,
+          configurable: true,
+          writable: true
+        })
+        fireEvent.scroll(window)
+        fireEvent.click(pill)
+        await simulateOffline()
+        await simulateBackOnline()
+        Object.defineProperty(window, 'scrollY', {
+          value: 500,
+          configurable: true,
+          writable: true
+        })
+        fireEvent.scroll(window)
+        await act(async () => vi.advanceTimersByTimeAsync(SCROLL_REST_MS))
+        expect(
+          await screen.findByTestId(`post-${newerHeld.id}`)
+        ).toBeInTheDocument()
+        expect(screen.getByTestId(`post-${firstHeld.id}`)).toBeInTheDocument()
+      } finally {
+        Object.defineProperty(window, 'scrollY', {
+          value: originalScrollY,
+          configurable: true,
+          writable: true
+        })
+        vi.useRealTimers()
+      }
+    })
+
+    it('merges a held page before header refresh to avoid a false gap', async () => {
+      const current = createStatus(
+        'https://activities.local/users/llun/s/current'
+      )
+      const held = createStatus('https://activities.local/users/llun/s/held')
+      const fresh = createStatus('https://activities.local/users/llun/s/fresh')
+      vi.mocked(getTimeline)
+        .mockResolvedValueOnce({
+          statuses: [held, current],
+          nextMaxStatusId: null,
+          prevMinStatusId: held.id
+        })
+        .mockResolvedValueOnce({
+          statuses: [fresh, held, current],
+          nextMaxStatusId: null,
+          prevMinStatusId: fresh.id
+        })
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[current]}
+          refreshOnMount
+        />
+      )
+      await screen.findByRole('button', { name: '1 new post' })
+      fireEvent.click(screen.getByRole('button', { name: 'Refresh timeline' }))
+      expect(await screen.findByTestId(`post-${fresh.id}`)).toBeInTheDocument()
+      expect(screen.getByTestId(`post-${held.id}`)).toBeInTheDocument()
+      expect(
+        screen.queryByTestId(`gap-after-${fresh.id}`)
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByTestId(`gap-after-${held.id}`)
+      ).not.toBeInTheDocument()
+    })
+
+    it('shows an automatic response on screen when the pill is tapped during its fetch', async () => {
+      vi.useFakeTimers()
+      const current = createStatus(
+        'https://activities.local/users/llun/s/current'
+      )
+      const newer = createStatus('https://activities.local/users/llun/s/newer')
+      const originalScrollY = window.scrollY
+      try {
+        const deferred = createDeferred<GetTimelineResult>()
+        vi.mocked(getTimeline).mockReturnValueOnce(deferred.promise)
+        Object.defineProperty(window, 'scrollY', {
+          value: 400,
+          configurable: true,
+          writable: true
+        })
+        render(
+          <MainPageTimeline
+            host="activities.local"
+            currentTime={FIXED_CURRENT_TIME}
+            profile={profile}
+            isMediaUploadEnabled={false}
+            statuses={[current]}
+            initialSegments={[
+              {
+                statuses: [current],
+                nextMaxStatusId: null,
+                prevMinStatusId: current.id
+              }
+            ]}
+            initialScrollAnchor={{
+              statusId: current.id,
+              offsetTop: 20,
+              updatedAt: 1
+            }}
+          />
+        )
+        const pill = await screen.findByRole('button', { name: 'Back to top' })
+        await simulateOffline()
+        await simulateBackOnline()
+        fireEvent.click(pill)
+        deferred.resolve({
+          statuses: [newer, current],
+          nextMaxStatusId: null,
+          prevMinStatusId: newer.id
+        })
+        await act(async () => {
+          await Promise.resolve()
+          Object.defineProperty(window, 'scrollY', {
+            value: 500,
+            configurable: true,
+            writable: true
+          })
+          fireEvent.scroll(window)
+          await vi.advanceTimersByTimeAsync(SCROLL_REST_MS)
+        })
+        expect(screen.getByTestId(`post-${newer.id}`)).toBeInTheDocument()
+        expect(
+          screen.queryByRole('button', { name: /new post/ })
+        ).not.toBeInTheDocument()
+      } finally {
+        Object.defineProperty(window, 'scrollY', {
+          value: originalScrollY,
+          configurable: true,
+          writable: true
+        })
+        vi.useRealTimers()
+      }
+    })
+
+    it('does not apply a staged page when the actor changes during the tap wait', async () => {
+      vi.useFakeTimers()
+      const current = createStatus(
+        'https://activities.local/users/llun/s/current'
+      )
+      const held = createStatus('https://activities.local/users/llun/s/held')
+      const originalScrollY = window.scrollY
+      try {
+        vi.mocked(getTimeline).mockResolvedValueOnce({
+          statuses: [held, current],
+          nextMaxStatusId: null,
+          prevMinStatusId: held.id
+        })
+        const { rerender } = render(
+          <MainPageTimeline
+            host="activities.local"
+            currentTime={FIXED_CURRENT_TIME}
+            profile={profile}
+            isMediaUploadEnabled={false}
+            statuses={[current]}
+            refreshOnMount
+          />
+        )
+        const pill = await screen.findByRole('button', { name: '1 new post' })
+        Object.defineProperty(window, 'scrollY', {
+          value: 400,
+          configurable: true,
+          writable: true
+        })
+        fireEvent.click(pill)
+        rerender(
+          <MainPageTimeline
+            host="activities.local"
+            currentTime={FIXED_CURRENT_TIME}
+            profile={{ ...profile, id: 'https://activities.local/users/other' }}
+            isMediaUploadEnabled={false}
+            statuses={[current]}
+          />
+        )
+        Object.defineProperty(window, 'scrollY', {
+          value: 500,
+          configurable: true,
+          writable: true
+        })
+        fireEvent.scroll(window)
+        await act(async () => vi.advanceTimersByTimeAsync(SCROLL_REST_MS))
+        expect(screen.queryByTestId(`post-${held.id}`)).not.toBeInTheDocument()
+        expect(getTimeline).toHaveBeenCalledTimes(1)
+      } finally {
+        Object.defineProperty(window, 'scrollY', {
+          value: originalScrollY,
+          configurable: true,
+          writable: true
+        })
+        vi.useRealTimers()
+      }
+    })
+
+    it('does not count older backfill from a held page as new', async () => {
+      const current = createStatus(
+        'https://activities.local/users/llun/s/current'
+      )
+      const newer = createStatus('https://activities.local/users/llun/s/newer')
+      const backfill = createStatus(
+        'https://activities.local/users/llun/s/backfill'
+      )
+      vi.mocked(getTimeline).mockResolvedValueOnce({
+        statuses: [newer, current, backfill],
+        nextMaxStatusId: null,
+        prevMinStatusId: newer.id
+      })
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[current]}
+          refreshOnMount
+        />
+      )
+      expect(
+        await screen.findByRole('button', { name: '1 new post' })
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: '2 new posts' })
+      ).not.toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: '1 new post' }))
+      expect(
+        await screen.findByTestId(`post-${backfill.id}`)
+      ).toBeInTheDocument()
     })
 
     it('applies a scrolled refresh after scrolling continues until the two second cap', async () => {

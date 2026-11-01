@@ -1406,18 +1406,12 @@ describe('MainPageTimeline', () => {
           })
 
           await waitFor(() => {
-            expect(
-              screen.getByRole('button', { name: '1 new post' })
-            ).toBeInTheDocument()
+            expect(screen.getByTestId('post-' + post0.id)).toBeInTheDocument()
           })
-          expect(
-            screen.queryByTestId('post-' + post0.id)
-          ).not.toBeInTheDocument()
-
           expect(scrollBy).not.toHaveBeenCalled()
           expect(
-            screen.getByRole('button', { name: '1 new post' })
-          ).toBeInTheDocument()
+            screen.queryByRole('button', { name: /new post|Back to top/ })
+          ).not.toBeInTheDocument()
         } finally {
           HTMLElement.prototype.getBoundingClientRect = originalRect
           window.requestAnimationFrame = originalRaf
