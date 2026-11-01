@@ -1,0 +1,22 @@
+app/(nosidebar)/oauth/authorize/AuthorizeCard.test.tsx
+  s_fbd469b8cd8c6c::t_84fac8f05186c5 990-1047,1049-1051,1053-1055
+  s_fbd469b8cd8c6c::t_2050e68c6a3fe8 1048,1052,1056-1057
+app/(nosidebar)/oauth/authorize/AuthorizeCard.tsx
+  s_fbd469b8cd8c6c::t_84fac8f05186c5 203-205,227-228,233
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "57a1470cc2489585a813d036f8e37f0e87515bee",
+  "prompts": {},
+  "sessions": {
+    "s_fbd469b8cd8c6c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1988e-f7aa-71c1-9a8e-40f164b2d4b0",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
