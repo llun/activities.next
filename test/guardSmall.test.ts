@@ -19,6 +19,7 @@ import { createDatabaseConnection } from '@/lib/database/connection'
 
 import { takeOutboundViolations } from './setup/blockOutboundNetwork'
 import { takeSmallGuardViolations } from './setup/guardSmall'
+import { isVitestInternalsWrite } from './setup/guardViolations'
 
 // Exercises the small-project guards (test/setup/guardSmall.ts) the same way
 // test/blockOutboundNetwork.test.ts exercises the network trap: trigger the
@@ -51,6 +52,31 @@ describe('small test guard', () => {
       /blocked in small tests/
     )
     expect(takeSmallGuardViolations().map((v) => v.kind)).toContain('fs-write')
+  })
+
+  it('blocks a coverage-report path written by the test itself (the stack decides, not the path)', () => {
+    const report = path.join(
+      process.cwd(),
+      '.review/cov/.tmp/coverage-997946cc-e1da-4fcc-a015-c9ff3f418f5f.json'
+    )
+    expect(() => fs.writeFileSync(report, '{}')).toThrow(
+      /blocked in small tests/
+    )
+    expect(takeSmallGuardViolations().map((v) => v.kind)).toContain('fs-write')
+  })
+
+  it('allows a write whose stack originates in @vitest (the coverage provider)', () => {
+    const guardFrame = `at captureStack (${path.join(process.cwd(), 'test/setup/guardViolations.ts')}:30:12)`
+    expect(
+      isVitestInternalsWrite(
+        `Error\n    ${guardFrame}\n    at writeCoverageFile (file://${process.cwd()}/node_modules/@vitest/coverage-v8/dist/commands-C6w5FFZp.js:170:9)\n    at Object.takeCoverage (file://${process.cwd()}/node_modules/@vitest/coverage-v8/dist/index.js:72:16)`
+      )
+    ).toBe(true)
+    expect(
+      isVitestInternalsWrite(
+        `Error\n    ${guardFrame}\n    at ${path.join(process.cwd(), 'test/guardSmall.test.ts')}:10:8\n    at runTest (file://${process.cwd()}/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3892:4)`
+      )
+    ).toBe(false)
   })
 
   it('blocks fs reads inside the repository', () => {
