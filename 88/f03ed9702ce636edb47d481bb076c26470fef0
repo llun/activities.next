@@ -1,0 +1,175 @@
+lib/utils/clientErrors/types.ts
+  s_88d665d8d1ea5c::t_e17d154985a9a3 7-25
+  s_88d665d8d1ea5c::t_41ba1bb876183c 4-6
+  s_88d665d8d1ea5c::t_41eb4390ac6a51 26-28
+  s_88d665d8d1ea5c::t_75184d9f26c38c 1-3,29-33
+lib/services/clientErrors/schema.ts
+  s_88d665d8d1ea5c::t_e17d154985a9a3 9
+  s_88d665d8d1ea5c::t_ff3ec83b09a42b 6-8
+  s_88d665d8d1ea5c::t_7878eb538809af 10-12
+  s_88d665d8d1ea5c::t_e45cfa17c37480 1-5,13-19
+app/api/v1/client-errors/route.ts
+  s_88d665d8d1ea5c::t_510840f6603e07 3-101,113,115-117
+  s_88d665d8d1ea5c::t_bd71d6b82563bd 1-2
+  s_88d665d8d1ea5c::t_8441e34c26d557 102-104,110-112
+  s_88d665d8d1ea5c::t_0d587c0871212a 114
+  s_88d665d8d1ea5c::t_a33601be5398f8 118-120
+  s_93e059361ded4d::t_5ac03c051bfc91 105-109,121-126
+app/api/v1/client-errors/route.test.ts
+  s_88d665d8d1ea5c::t_33e3b08ab4cba3 126
+  s_88d665d8d1ea5c::t_c19d5fac5e8b75 65,79,83,95,113,122,128,130-148,156,160,169,189,198,208,220,222,237,239,247,249,265,282,289,301,317,338
+  s_88d665d8d1ea5c::t_2178c8563e7951 109,112,127,214,219,223-224,227-233,236,240-241,246,250-251,257,263,273,279,290,299,309,315
+  s_88d665d8d1ea5c::t_32b195d019336a 62-64
+  s_88d665d8d1ea5c::t_998830ec4a00b4 66-68,76-78
+  s_88d665d8d1ea5c::t_5eec611d0d406a 80-82
+  s_88d665d8d1ea5c::t_acbdf96bf88a00 84-86,92-94
+  s_88d665d8d1ea5c::t_bb5431ea7cef0c 96-98,106-108
+  s_88d665d8d1ea5c::t_6a84d63a2b436d 110-111
+  s_88d665d8d1ea5c::t_ddd0799177e0ad 114-116,119-121
+  s_88d665d8d1ea5c::t_c87f2593044964 123-125
+  s_88d665d8d1ea5c::t_7f0a5ed9e6a67c 129
+  s_88d665d8d1ea5c::t_eddb69a6e63742 149-151,153-155
+  s_88d665d8d1ea5c::t_c98f0e19c1219f 157-159
+  s_88d665d8d1ea5c::t_c1fea746ef4759 161-163,166-168
+  s_88d665d8d1ea5c::t_8d49245243f7c4 170-172,186-188
+  s_88d665d8d1ea5c::t_77f1263d48cab7 190-192,195-197
+  s_88d665d8d1ea5c::t_4287e63584d9ea 199-201,205-207
+  s_88d665d8d1ea5c::t_2d36aebc9eca70 209-213
+  s_88d665d8d1ea5c::t_96abbecc020187 215-218
+  s_88d665d8d1ea5c::t_a81c4d0e003141 221
+  s_88d665d8d1ea5c::t_087901f51701e5 225-226
+  s_88d665d8d1ea5c::t_c3fee2d11fb921 234-235
+  s_88d665d8d1ea5c::t_bb8d1b3f044df3 238
+  s_88d665d8d1ea5c::t_1ef44b0d7becbd 242-245
+  s_88d665d8d1ea5c::t_c85aeae4cabed3 248
+  s_88d665d8d1ea5c::t_578643ccf82ccb 252-256
+  s_88d665d8d1ea5c::t_b6b940f920fc65 258-262
+  s_88d665d8d1ea5c::t_7fd0db22aaa595 264
+  s_88d665d8d1ea5c::t_aad9d8bc13ffc8 266-268,270-272
+  s_88d665d8d1ea5c::t_3aebae5ec3132b 274-278
+  s_88d665d8d1ea5c::t_84fee58aa91083 280-281
+  s_88d665d8d1ea5c::t_b7901c4b2bd47e 283-288
+  s_88d665d8d1ea5c::t_9790e6e6f26a93 291-293,296-298
+  s_88d665d8d1ea5c::t_ef493edb755984 300
+  s_88d665d8d1ea5c::t_039262d99c9572 302-304,306-308
+  s_88d665d8d1ea5c::t_77a4f4c9085b6f 310-314
+  s_88d665d8d1ea5c::t_ba568611afb019 316
+  s_88d665d8d1ea5c::t_77dc3eb01cac0d 318-320,335-337
+  s_88d665d8d1ea5c::t_a87a885a8249ee 339
+  s_88d665d8d1ea5c::t_a165b3269a6d77 1-61,69-75,87-91,99-105,117-118,152,164-165,173-185,193-194,202-204,269,294-295,305,321-334
+docs/architecture.md
+  s_88d665d8d1ea5c::t_2678d3741322c7 1092-1096
+  s_88d665d8d1ea5c::t_6f0e13dae50db7 1089-1091
+  s_88d665d8d1ea5c::t_47dca6577adcc0 1097-1098
+  s_88d665d8d1ea5c::t_bb5ed6fcf5b601 97,1088
+lib/services/clientErrors/sanitize.ts
+  s_88d665d8d1ea5c::t_90a8e05d30386f 1-2,4-20
+  s_88d665d8d1ea5c::t_3819adcfd9602a 3
+lib/client/clientErrors.test.ts
+  s_88d665d8d1ea5c::t_139db37f027b56 15-16,19-20
+  s_88d665d8d1ea5c::t_437a70432af379 18
+  s_88d665d8d1ea5c::t_3819adcfd9602a 58
+  s_88d665d8d1ea5c::t_efd2b6ef9368b6 12-14
+  s_88d665d8d1ea5c::t_5eff1c58960782 17
+  s_88d665d8d1ea5c::t_f8acab5916069f 21-23,55-57
+  s_88d665d8d1ea5c::t_4226acfe77f793 59-61
+  s_88d665d8d1ea5c::t_9054d0a845fec9 1-11,24-54,62-198
+lib/services/clientErrors/sanitize.test.ts
+  s_88d665d8d1ea5c::t_ea1bb152b68d26 1-32
+lib/client/clientErrors.ts
+  s_88d665d8d1ea5c::t_432e26a9aed5ef 65-79
+  s_88d665d8d1ea5c::t_ee382c09db5ab6 12-36,54,58,92,106,116,119
+  s_88d665d8d1ea5c::t_60ccebc14845de 9-11
+  s_88d665d8d1ea5c::t_4f20dd7f699886 37-39,51-53
+  s_88d665d8d1ea5c::t_9ecf4a102eeb24 55-57
+  s_88d665d8d1ea5c::t_9e42d69256a979 59-64
+  s_88d665d8d1ea5c::t_4240a910db1e8a 80-82,89-91
+  s_88d665d8d1ea5c::t_f2893034e8503d 93-95,103-105
+  s_88d665d8d1ea5c::t_761056d47f336e 107-109,113-115
+  s_88d665d8d1ea5c::t_99b04359f83205 117-118
+  s_88d665d8d1ea5c::t_f05c98dca0f7fe 120
+  s_93e059361ded4d::t_5680a6523bf661 1-8,40-50,83-88,96-102,110-112
+lib/client/chunkLoadRecovery.ts
+  s_88d665d8d1ea5c::t_432e26a9aed5ef 54-58
+  s_88d665d8d1ea5c::t_a7f66f7e1fbc52 51-53
+  s_88d665d8d1ea5c::t_687412b9245558 59-61
+  s_93e059361ded4d::t_6533fd1db1571c 1-50,62-97
+app/layout.tsx
+  s_949b094fa82e50::t_add7ed5078b1d4 6,98
+lib/components/offline/ChunkLoadErrorListener.test.tsx
+  s_81f3103a5e3ea5::t_a2eaa8c8f5bf58 1-112
+app/error.test.tsx
+  s_fb370a113916a7::t_8120f021786809 1-64
+app/global-error.test.tsx
+  s_fb370a113916a7::t_a51e259703a5db 1-62
+lib/client/chunkLoadRecovery.test.ts
+  s_93e059361ded4d::t_179fc0c6e38543 1-242
+test/next.config.test.ts
+  s_73a28d35ea5114::t_0d8b60beed9add 6,87-89,117-119,148-150,200-202
+app/error.tsx
+  s_93e059361ded4d::t_bcd5d7fdbcbc53 3-5,21-24
+app/global-error.tsx
+  s_93e059361ded4d::t_eb49107990b9ea 3-5,24-27
+docs/features.md
+  s_93e059361ded4d::t_b9469a6ad7235e 123
+lib/components/offline/ChunkLoadErrorListener.tsx
+  s_93e059361ded4d::t_cebaeab21f076a 1-35
+next.config.ts
+  s_93e059361ded4d::t_e96585865588ed 3,10-12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "88f03ed9702ce636edb47d481bb076c26470fef0",
+  "prompts": {},
+  "sessions": {
+    "s_73a28d35ea5114": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1196a17f-371a-4366-87fb-5f6b553f8928",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_81f3103a5e3ea5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8b3a14b9-d56b-4105-98ff-225b10d13a4e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_88d665d8d1ea5c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1989d-8702-76b3-9cc1-eb452e285dea",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_93e059361ded4d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-afea71e4f58f9d051",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_949b094fa82e50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c2f3b17d-b017-4773-82ee-c9fb06a1ce60",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_fb370a113916a7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0caa6b92-967e-4f96-96d5-71049c499160",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
