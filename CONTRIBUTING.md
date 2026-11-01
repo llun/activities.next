@@ -145,9 +145,9 @@ yarn build                       # Build — must succeed
 yarn test                        # Tests — must pass
 ```
 
-`yarn test` must pass as a whole before submitting. The `yarn test:small`,
-`yarn test:medium` and `yarn test:large` commands run a single size's projects
-locally while iterating; they are not a substitute for the full run.
+`yarn test` must pass as a whole before submitting. While iterating,
+`yarn vitest run --project 'small*'` is an optional quick run of just the
+small projects; it is not a substitute for the full run.
 
 Also:
 
@@ -690,9 +690,6 @@ over the heuristics — merge it into an existing `@vitest-environment`
 docblock if the file has one. When a test fails a size guard (for example
 "db connection in small test"), the file is really the larger size: tag it
 rather than working around the guard.
-
-Run a single size with `yarn test:small`, `yarn test:medium` or
-`yarn test:large`; `yarn test` and CI still run everything.
 
 ### Running PostgreSQL database integration tests
 
