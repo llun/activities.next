@@ -1551,7 +1551,7 @@ unique `section-` ids to non-empty h2 headings (including demoted h1s) and
 returns their plain display text for the server-rendered “On this page” index,
 shown only at three or more headings. The index uses a muted `Frame`, two
 columns from `md` up and a native closed `details` below `md`. Paragraphs
-containing only one strong inline token receive `policy-label`; only direct
+made only of bold or bold-italic text receive `policy-label`; only direct
 document labels get the label spacing. `renderPolicyMarkdown` keeps the
 Mastodon API HTML free of these page-only ids and classes.
 

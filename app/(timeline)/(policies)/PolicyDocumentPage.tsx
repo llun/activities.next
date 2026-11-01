@@ -33,7 +33,7 @@ const DOCUMENT_CLASS = [
   '[&_:is(h1,h2,h3,h4,h5,h6)+*]:mt-3!',
   '[&_p]:mt-4 [&_ul]:mt-2 [&_ol]:mt-2 [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-[22px] [&_ol]:pl-[22px]',
   '[&_li]:mt-2.5 [&_li:first-child]:mt-0! [&_li]:marker:text-muted-foreground [&_li>p:first-child]:mt-0',
-  '[&>p.policy-label]:mt-7 [&>p.policy-label:first-child]:mt-0! [&>p.policy-label]:font-semibold [&>p.policy-label>strong]:font-semibold [&>h2+p.policy-label]:mt-4! [&>p.policy-label+ul]:mt-1.5! [&>p.policy-label+ol]:mt-1.5!',
+  '[&>p.policy-label]:mt-7 [&>p.policy-label:first-child]:mt-0! [&>p.policy-label]:font-semibold [&>p.policy-label_strong]:font-semibold [&>h2+p.policy-label]:mt-4! [&>p.policy-label+ul]:mt-1.5! [&>p.policy-label+ol]:mt-1.5!',
   '[&_a]:text-(color:--link-color) [&_a:hover]:text-(color:--link-color-hover) [&_a]:underline [&_a:hover]:no-underline',
   '[&_blockquote]:mt-4 [&_blockquote]:border-l-4 [&_blockquote]:pl-4 [&_blockquote]:text-muted-foreground',
   '[&_code]:bg-muted [&_code]:rounded [&_code]:px-1 [&_code]:font-mono [&_code]:text-sm',
