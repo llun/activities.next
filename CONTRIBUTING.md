@@ -676,11 +676,11 @@ Every test file belongs to one of three sizes, in the Google classification
 sense. The size decides which project (and guard) the file runs in and its
 timeout:
 
-| Size   | Allows                                                                                                                                                                   | Timeout |
-| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------- |
-| small  | No real I/O at all: no database, no filesystem, no network, no child process, no real wait of 100ms or more                                                              | 2s      |
-| medium | Local resources: the test database, the filesystem inside `os.tmpdir()`, real short waits; loopback network. Never a child process or a write outside the temp directory | 15s     |
-| large  | Everything: child processes, servers, writes anywhere                                                                                                                    | 30s     |
+| Size   | Allows                                                                                                                                                                                                                                                   | Timeout |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| small  | No real I/O at all: no database, no filesystem write, no read inside the repository (node_modules excepted — system files outside it, probed by native modules, are not the test's fixture), no network, no child process, no real wait of 100ms or more | 2s      |
+| medium | Local resources: the test database, the filesystem inside `os.tmpdir()`, real short waits; loopback network. Never a child process or a write outside the temp directory                                                                                 | 15s     |
+| large  | Everything: child processes, servers, writes anywhere                                                                                                                                                                                                    | 30s     |
 
 Timeouts are doubled on CI, where runners are slower. The size is inferred
 per file by `test/setup/testSizes.ts` from the file's source (database

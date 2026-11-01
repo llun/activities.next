@@ -1,6 +1,8 @@
 import { syncBuiltinESMExports } from 'node:module'
+import path from 'node:path'
 import timers from 'node:timers'
 import timersPromises from 'node:timers/promises'
+import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import { beforeEach, onTestFinished, vi } from 'vitest'
 
@@ -10,7 +12,10 @@ import * as guards from './guardViolations'
 // Small tests run with no real I/O at all: no database, no filesystem, no
 // child process, no socket (not even loopback — the outbound trap is tightened
 // to 'strict' below) and no long real timer. A violation means the test is
-// really medium or large and must be tagged (`@vitest-size`) or moved.
+// really medium or large and must be tagged (`@vitest-size`) or moved. These
+// guards catch honest accidents and are not a sandbox: timers/promises
+// scheduler.wait and a temp-dir symlink can still get past them, and the
+// per-size time limit is the backstop.
 
 const violations = guards.createViolationRecorder()
 
@@ -19,18 +24,37 @@ export const takeSmallGuardViolations = () => violations.take()
 
 setOutboundSocketPolicy('strict')
 
-// Every filesystem write is forbidden; reads are allowed only under
-// node_modules, so Vitest's own internals keep working while test code
-// cannot read fixtures, snapshots or config files.
+// Every filesystem write is forbidden. A read is blocked only inside the
+// repository, outside node_modules: fixtures, snapshots and config files are
+// the test's own inputs, while node_modules keeps Vitest's and other
+// packages' internals working. A read outside the repository is allowed:
+// system files (/proc/self/exe, /usr/bin/ldd, …) are probed lazily by
+// native-module helpers such as detect-libc (pulled in by sharp) — on Linux,
+// not on a dev machine — and are never the test's fixture.
+// The setup file's own URL anchors the repository root (test/setup/..)
+// regardless of the directory Vitest was launched from; `new URL(…,
+// import.meta.url)` is avoided because Vite rewrites that pattern for assets.
+const REPOSITORY_ROOT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../..'
+)
 const isNodeModules = (resolved: string): boolean =>
   resolved.includes('/node_modules/') || resolved.endsWith('/node_modules')
-guards.guardBuiltins(violations, 'small', () => false, isNodeModules)
+const isInsideRepository = (resolved: string): boolean =>
+  resolved === REPOSITORY_ROOT || resolved.startsWith(`${REPOSITORY_ROOT}/`)
+guards.guardBuiltins(
+  violations,
+  'small',
+  () => false,
+  (resolved) => isNodeModules(resolved) || !isInsideRepository(resolved)
+)
 
 // A real timer of 100ms or more is a real wait: throw when it is armed while a
 // test runs, whatever route arms it — the global setTimeout/setInterval, the
 // node:timers module, node:timers/promises, or promisify(setTimeout). Fake
-// timers are unaffected (vi.useFakeTimers replaces globalThis.setTimeout and
-// the node:timers exports, bypassing these wrappers); next/dynamic's loading
+// timers are unaffected: calls through the global reach the fakes directly,
+// and a long wait that still lands on these wrappers is handed to them
+// (fakeTimersActive below); next/dynamic's loading
 // delay is exempt, as in vitest.setup.ts's guard.
 const LONG_TIMER_MS = 100
 let guardingTimers = false
@@ -46,10 +70,28 @@ const isLongWait = (handler: unknown, delay: unknown): delay is number =>
   typeof delay === 'number' &&
   delay >= LONG_TIMER_MS
 
+// vi.useFakeTimers() swaps globalThis.setTimeout for the fake, while named
+// node:timers imports keep landing here, so a long wait must be handed to the
+// fake instead of judged. The fakes — and only they — carry a `clock`
+// property: the jsdom timer guard in vitest.setup.ts wraps the global too,
+// so a global that differs from this wrapper is not proof of fake timers,
+// and vi.isFakeTimers() cannot be used either: building vitest's timer state
+// probes the global and would re-enter this wrapper. Reading the property
+// calls nothing. Only judged (long) waits are handed off: a caller that
+// captured this wrapper before the fakes were installed and wants a real
+// wait (as DraftsProvider.queue.test.tsx's settle() does) still gets one,
+// because waits under LONG_TIMER_MS are never judged.
+const fakeTimersActive = (): boolean =>
+  (globalThis.setTimeout as typeof setTimeout & { clock?: unknown }).clock !==
+  undefined
+
 const nativeSetTimeout = globalThis.setTimeout
 const guardedSetTimeout = ((...args: Parameters<typeof setTimeout>) => {
   const [handler, delay] = args
   if (isLongWait(handler, delay)) {
+    if (fakeTimersActive()) {
+      return (globalThis.setTimeout as typeof setTimeout)(...args)
+    }
     const stack = guards.captureStack()
     if (!/loadable\.shared-runtime/.test(stack)) {
       throw longTimerViolation('setTimeout', delay)
@@ -63,6 +105,9 @@ const nativeSetInterval = globalThis.setInterval
 const guardedSetInterval = ((...args: Parameters<typeof setInterval>) => {
   const [handler, delay] = args
   if (isLongWait(handler, delay)) {
+    if (fakeTimersActive()) {
+      return (globalThis.setInterval as typeof setInterval)(...args)
+    }
     throw longTimerViolation('setInterval', delay)
   }
   return nativeSetInterval(...args)

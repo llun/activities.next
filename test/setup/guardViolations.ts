@@ -106,15 +106,29 @@ const SPAWNERS =
   'spawn spawnSync exec execSync execFile execFileSync fork'.split(' ')
 
 // fs.open/openSync/fs.promises.open are judged by their flag: a read-only
-// flag ('r', 'rs', 'sr') counts as a read, every other flag can write. An
+// flag counts as a read — the strings 'r', 'rs', 'sr', or a number whose
+// access mode is O_RDONLY with no O_CREAT, O_TRUNC or O_APPEND set — every
+// other flag can write. A missing flag defaults to read, because
+// fs.open(path, callback) and fs.openSync(path) open for reading. An
 // unrecognisable flag is treated as a write, so it stays blocked.
 const READ_FLAGS = /^(?:r|rs|sr)$/
-const flagOf = (value: unknown): string | undefined => {
-  if (value === undefined) return 'r'
-  if (typeof value === 'string') return value
+// Node exposes no O_ACCMODE constant, so the access mode is masked with the
+// union of the three modes it would select from.
+const ACCESS_MODE_FLAGS =
+  fs.constants.O_RDONLY | fs.constants.O_WRONLY | fs.constants.O_RDWR
+const WRITE_NUMBER_FLAGS =
+  fs.constants.O_CREAT | fs.constants.O_TRUNC | fs.constants.O_APPEND
+const isReadFlag = (flag: string | number): boolean =>
+  typeof flag === 'string'
+    ? READ_FLAGS.test(flag)
+    : (flag & ACCESS_MODE_FLAGS) === fs.constants.O_RDONLY &&
+      (flag & WRITE_NUMBER_FLAGS) === 0
+const flagOf = (value: unknown): string | number | undefined => {
+  if (value === undefined || typeof value === 'function') return 'r'
+  if (typeof value === 'string' || typeof value === 'number') return value
   if (typeof value === 'object' && value !== null && 'flag' in value) {
     const flag = (value as { flag?: unknown }).flag
-    return typeof flag === 'string' ? flag : undefined
+    if (typeof flag === 'string' || typeof flag === 'number') return flag
   }
   return undefined
 }
@@ -200,7 +214,7 @@ export const guardBuiltins = (
       owner[name] = function (this: unknown, ...args: unknown[]) {
         const raw = asPath(args[0])
         const flag = flagOf(args[1])
-        const writing = flag === undefined || !READ_FLAGS.test(flag)
+        const writing = flag === undefined || !isReadFlag(flag)
         const allowed = writing ? writeAllowed : readAllowed
         if (
           raw !== undefined &&

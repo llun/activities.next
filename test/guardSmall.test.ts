@@ -53,11 +53,16 @@ describe('small test guard', () => {
     expect(takeSmallGuardViolations().map((v) => v.kind)).toContain('fs-write')
   })
 
-  it('blocks fs reads outside node_modules', () => {
+  it('blocks fs reads inside the repository', () => {
     expect(() => fs.readFileSync('./package.json', 'utf8')).toThrow(
       /blocked in small tests/
     )
     expect(takeSmallGuardViolations().map((v) => v.kind)).toContain('fs-read')
+  })
+
+  it('allows fs reads outside the repository (system files are not fixtures)', () => {
+    expect(() => fs.readFileSync('/etc/hosts', 'utf8')).not.toThrow()
+    expect(takeSmallGuardViolations()).toEqual([])
   })
 
   it('allows fs reads from node_modules (Vitest internals keep working)', () => {
@@ -73,17 +78,32 @@ describe('small test guard', () => {
     expect(takeSmallGuardViolations().map((v) => v.kind)).toContain('fs-write')
   })
 
-  it('blocks fs.open reads outside node_modules and allows them inside', () => {
+  it('blocks fs.open reads inside the repository and allows them outside', () => {
     expect(() => fs.openSync('./package.json', 'r')).toThrow(
       /blocked in small tests/
     )
     expect(takeSmallGuardViolations().map((v) => v.kind)).toContain('fs-read')
-    const handle = fs.openSync(
+    const outside = fs.openSync('/etc/hosts', 'r')
+    fs.closeSync(outside)
+    const packaged = fs.openSync(
       path.join(process.cwd(), 'node_modules/vitest/package.json'),
       'r'
     )
-    fs.closeSync(handle)
+    fs.closeSync(packaged)
     expect(takeSmallGuardViolations()).toEqual([])
+  })
+
+  it('treats a numeric read flag and a callback-only fs.open as reads', () => {
+    expect(() => fs.openSync('./package.json', fs.constants.O_RDONLY)).toThrow(
+      /blocked in small tests/
+    )
+    expect(() => fs.open('./package.json', () => undefined)).toThrow(
+      /blocked in small tests/
+    )
+    expect(takeSmallGuardViolations().map((v) => v.kind)).toEqual([
+      'fs-read',
+      'fs-read'
+    ])
   })
 
   it('blocks fs.promises.open with a write flag', async () => {
@@ -93,7 +113,7 @@ describe('small test guard', () => {
     expect(takeSmallGuardViolations().map((v) => v.kind)).toContain('fs-write')
   })
 
-  it('blocks a copyFile whose destination is outside node_modules', () => {
+  it('blocks a copyFile whose destination is outside the repository', () => {
     expect(() =>
       fs.copyFileSync(
         path.join(process.cwd(), 'node_modules/vitest/package.json'),
@@ -189,6 +209,21 @@ describe('small test guard', () => {
       }).not.toThrow()
       expect(() => {
         setInterval(() => {}, 150)
+      }).not.toThrow()
+    } finally {
+      vi.useRealTimers()
+    }
+    expect(takeSmallGuardViolations()).toEqual([])
+  })
+
+  it('lets node:timers named imports follow fake timers', () => {
+    vi.useFakeTimers()
+    try {
+      expect(() => {
+        timersSetTimeout(() => {}, 150)
+      }).not.toThrow()
+      expect(() => {
+        timersSetInterval(() => {}, 150)
       }).not.toThrow()
     } finally {
       vi.useRealTimers()
