@@ -1,0 +1,29 @@
+CONTRIBUTING.md
+  s_3d34d6ef720db0::t_fb309c9deb029d 680-681
+lib/database/domains/moderation/moderation.test.ts
+  s_3d34d6ef720db0::t_c725c721a428b2 13-14
+lib/database/testUtils.test.ts
+  s_3d34d6ef720db0::t_f6a688fe3f97ea 366-368,376-378,404
+lib/database/testing/createTestDatabase.test.ts
+  s_3d34d6ef720db0::t_3e82a52f05fd19 4,39-59,69,225-348
+lib/database/testing/createTestDatabase.ts
+  s_3d34d6ef720db0::t_e665b14b16090f 57-58,175-182,197
+lib/database/testing/postgres.ts
+  s_3d34d6ef720db0::t_92696d488225d6 76-81,84-91,95,109,111-112,121-123,140-168,185,294-301,303-310
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f5d2c41622b204b0c2545fc31f219ecc63e17672",
+  "prompts": {},
+  "sessions": {
+    "s_3d34d6ef720db0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e5636f24-e4d6-46b5-8d5a-00f37be65779",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
