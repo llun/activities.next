@@ -55,6 +55,13 @@ describe('ServiceWorkerRegistration', () => {
     expect(() => render(<ServiceWorkerRegistration />)).not.toThrow()
   })
 
+  it('does not throw when navigator has no serviceWorker property', () => {
+    Reflect.deleteProperty(navigator, 'serviceWorker')
+    expect('serviceWorker' in navigator).toBe(false)
+
+    expect(() => render(<ServiceWorkerRegistration />)).not.toThrow()
+  })
+
   it('catches registration errors cleanly without throwing', async () => {
     const mockRegister = vi
       .fn()
