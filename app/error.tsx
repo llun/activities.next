@@ -1,5 +1,8 @@
 'use client'
 
+import { useEffect } from 'react'
+
+import { handleBoundaryError } from '@/lib/client/chunkLoadRecovery'
 import { ErrorPage, errorBoundaryMeta } from '@/lib/components/error-page'
 
 // Route-segment error boundary. Renders the design-system 500 page; when Next
@@ -15,6 +18,10 @@ export default function Error({
   error: Error & { digest?: string }
   reset: () => void
 }) {
+  useEffect(() => {
+    handleBoundaryError(error, 'error')
+  }, [error])
+
   // Wrap in <main> for the page landmark: this root boundary renders inside the
   // root layout (which has no <main>), so there is no nesting risk.
   return (

@@ -1,5 +1,8 @@
 'use client'
 
+import { useEffect } from 'react'
+
+import { handleBoundaryError } from '@/lib/client/chunkLoadRecovery'
 import { ErrorPage, errorBoundaryMeta } from '@/lib/components/error-page'
 
 import './globals.css'
@@ -18,6 +21,10 @@ export default function GlobalError({
   error: Error & { digest?: string }
   reset: () => void
 }) {
+  useEffect(() => {
+    handleBoundaryError(error, 'global-error')
+  }, [error])
+
   return (
     <html lang="en">
       <head>
