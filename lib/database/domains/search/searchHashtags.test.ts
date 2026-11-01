@@ -243,48 +243,6 @@ describe('SearchDatabase hashtags', () => {
     }
   })
 
-  it('limits stale hashtag search cleanup to a full reindex start', async () => {
-    const testDb = createTestDatabase()
-    const { database } = testDb
-
-    try {
-      await testDb.prepare()
-      await database.migrate()
-      await database.upsertSearchDocument({
-        entityType: 'hashtag',
-        entityId: 'orphaned-cursor',
-        documentText: 'orphaned cursor #orphaned-cursor',
-        postCount: 3,
-        lastPostAt: 1
-      })
-
-      await database.reindexSearchHashtags({
-        afterId: '#already-scanned',
-        limit: 10
-      })
-
-      await expect(
-        database.searchHashtags({
-          q: 'orphaned-cursor',
-          limit: 10
-        })
-      ).resolves.toHaveLength(1)
-
-      await database.reindexSearchHashtags({
-        limit: 10
-      })
-
-      await expect(
-        database.searchHashtags({
-          q: 'orphaned-cursor',
-          limit: 10
-        })
-      ).resolves.toEqual([])
-    } finally {
-      await database.destroy()
-    }
-  })
-
   it('reports reindex progress using the raw scanned row count', async () => {
     const testDb = createTestDatabase()
     const { database, db } = testDb

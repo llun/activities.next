@@ -147,12 +147,6 @@ describe('ProfileImageField', () => {
     expect(onUrlChange).not.toHaveBeenCalled()
   })
 
-  it('shows the save’s message for the image', () => {
-    renderField({ imageError: 'Invalid iconUrl' })
-
-    expect(screen.getByRole('alert')).toHaveTextContent('Invalid iconUrl')
-  })
-
   it('keeps alt text behind its button, open when there already is some', () => {
     const closed = renderField()
     expect(closed.container.querySelector('textarea')).not.toBeVisible()

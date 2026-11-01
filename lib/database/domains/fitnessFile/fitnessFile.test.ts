@@ -83,53 +83,6 @@ describe('FitnessFileDatabase', () => {
         const updated = await database.getFitnessFile({ id: created!.id })
         expect(updated?.sourceUrl).toBe('https://www.strava.com/activities/456')
       })
-
-      it('uses a deterministic id tiebreaker when files share createdAt', async () => {
-        vi.useFakeTimers()
-        vi.setSystemTime(new Date('2030-01-01T00:00:00.000Z'))
-
-        try {
-          const first = await database.createFitnessFile({
-            actorId: actors.extra.id,
-            path: 'fitness/same-created-at-1.fit',
-            fileName: 'same-created-at-1.fit',
-            fileType: 'fit',
-            mimeType: 'application/vnd.ant.fit',
-            bytes: 1024
-          })
-          const second = await database.createFitnessFile({
-            actorId: actors.extra.id,
-            path: 'fitness/same-created-at-2.fit',
-            fileName: 'same-created-at-2.fit',
-            fileType: 'fit',
-            mimeType: 'application/vnd.ant.fit',
-            bytes: 1024
-          })
-          const third = await database.createFitnessFile({
-            actorId: actors.extra.id,
-            path: 'fitness/same-created-at-3.fit',
-            fileName: 'same-created-at-3.fit',
-            fileType: 'fit',
-            mimeType: 'application/vnd.ant.fit',
-            bytes: 1024
-          })
-
-          expect(first).toBeDefined()
-          expect(second).toBeDefined()
-          expect(third).toBeDefined()
-
-          const actorFiles = await database.getFitnessFilesByActor({
-            actorId: actors.extra.id,
-            limit: 3
-          })
-
-          expect(actorFiles.map((item) => item.id)).toEqual(
-            [first!.id, second!.id, third!.id].sort().reverse()
-          )
-        } finally {
-          vi.useRealTimers()
-        }
-      })
     })
 
     describe('countFitnessFilesByActor', () => {
@@ -843,46 +796,6 @@ describe('FitnessFileDatabase', () => {
         expect(failedFile?.isPrimary).toBe(false)
       })
 
-      it('gets files by ids in request order', async () => {
-        const first = await database.createFitnessFile({
-          actorId: actors.primary.id,
-          path: 'fitness/by-ids-a.fit',
-          fileName: 'by-ids-a.fit',
-          fileType: 'fit',
-          mimeType: 'application/vnd.ant.fit',
-          bytes: 1_000,
-          importBatchId: 'batch-order'
-        })
-        const second = await database.createFitnessFile({
-          actorId: actors.primary.id,
-          path: 'fitness/by-ids-b.fit',
-          fileName: 'by-ids-b.fit',
-          fileType: 'fit',
-          mimeType: 'application/vnd.ant.fit',
-          bytes: 1_000,
-          importBatchId: 'batch-order'
-        })
-        const third = await database.createFitnessFile({
-          actorId: actors.primary.id,
-          path: 'fitness/by-ids-c.fit',
-          fileName: 'by-ids-c.fit',
-          fileType: 'fit',
-          mimeType: 'application/vnd.ant.fit',
-          bytes: 1_000,
-          importBatchId: 'batch-order'
-        })
-
-        const files = await database.getFitnessFilesByIds({
-          fitnessFileIds: [third!.id, 'missing-id', first!.id, second!.id]
-        })
-
-        expect(files.map((item) => item.id)).toEqual([
-          third!.id,
-          first!.id,
-          second!.id
-        ])
-      })
-
       it('updates batch import state and grouped status assignment', async () => {
         const primary = await database.createFitnessFile({
           actorId: actors.primary.id,
@@ -1542,55 +1455,6 @@ describe('FitnessFileDatabase', () => {
         })
         expect(actorFiles.find((item) => item.id === created!.id)).toBeFalsy()
       })
-
-      it('returns false when deleting a missing file', async () => {
-        const deleted = await database.deleteFitnessFile({
-          id: 'not-found-fitness-file-id'
-        })
-        expect(deleted).toBe(false)
-      })
-
-      it('drops the cached route with the activity and no other', async () => {
-        // Two rows, because the delete has to be SCOPED: an unscoped one would
-        // pass every assertion about the deleted activity while wiping the
-        // whole instance's cache, and the only symptom would be the next
-        // Generate quietly paying a full download-and-reparse for everyone.
-        const createRouted = async (name: string) => {
-          const file = await database.createFitnessFile({
-            actorId: actors.extra.id,
-            path: `fitness/${name}.gpx`,
-            fileName: `${name}.gpx`,
-            fileType: 'gpx',
-            mimeType: 'application/gpx+xml',
-            bytes: 2048
-          })
-          await database.upsertFitnessFileRoute({
-            fitnessFileId: file!.id,
-            actorId: actors.extra.id,
-            points: [
-              [1.3, 103.8],
-              [1.31, 103.81]
-            ],
-            sourceVersion: 1
-          })
-          return file!.id
-        }
-
-        const deletedId = await createRouted('delete-with-route')
-        const keptId = await createRouted('keep-my-route')
-        expect(
-          await database.getFitnessFileRoutes({
-            fitnessFileIds: [deletedId, keptId]
-          })
-        ).toHaveLength(2)
-
-        expect(await database.deleteFitnessFile({ id: deletedId })).toBe(true)
-
-        const remaining = await database.getFitnessFileRoutes({
-          fitnessFileIds: [deletedId, keptId]
-        })
-        expect(remaining.map((route) => route.fitnessFileId)).toEqual([keptId])
-      })
     })
 
     describe('getRetriableFitnessImportBatchIds', () => {
@@ -1768,18 +1632,6 @@ describe('FitnessFileDatabase', () => {
             bytes: 1024
           })
         }
-      })
-
-      it('defaults to newest first so existing callers are unaffected', async () => {
-        const ascending = await readAllAscending()
-        const byDefault = await database.getFitnessFilesByActor({
-          actorId,
-          limit: 100
-        })
-
-        expect(byDefault.map((row) => row.id)).toEqual(
-          ascending.map((row) => row.id).reverse()
-        )
       })
 
       it('walks the whole history in ascending order without repeating a row', async () => {

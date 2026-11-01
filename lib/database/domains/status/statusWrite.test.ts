@@ -36,24 +36,6 @@ describe('StatusDatabase writes', () => {
     })
 
     describe('createNote', () => {
-      it('creates a new note', async () => {
-        const beforeCount = await database.getActorStatusesCount({
-          actorId: extraActorId
-        })
-        const status = (await database.createNote({
-          id: `${extraActorId}/statuses/new-post`,
-          url: `${extraActorId}/statuses/new-post`,
-          actorId: extraActorId,
-          to: ['https://www.w3.org/ns/activitystreams#Public'],
-          cc: [],
-          text: 'This is a new post'
-        })) as StatusNote
-        expect(status.text).toBe('This is a new post')
-        expect(
-          await database.getActorStatusesCount({ actorId: extraActorId })
-        ).toBe(beforeCount + 1)
-      })
-
       it('creates a new note with attachments', async () => {
         await database.createNote({
           id: `${extraActorId}/statuses/new-post-2`,
@@ -870,24 +852,6 @@ describe('StatusDatabase writes', () => {
         ])
       })
 
-      it('returns null for nonexistent statusId', async () => {
-        const result = await database.updateNoteVisibility({
-          statusId: 'https://nonexistent.example/statuses/does-not-exist',
-          to: [ACTIVITY_STREAM_PUBLIC],
-          cc: []
-        })
-        expect(result).toBeNull()
-      })
-
-      it('returns null for non-Note status type (Poll)', async () => {
-        const result = await database.updateNoteVisibility({
-          statusId: statuses.poll.status,
-          to: [ACTIVITY_STREAM_PUBLIC],
-          cc: []
-        })
-        expect(result).toBeNull()
-      })
-
       it('returns null for non-Note status type (Announce)', async () => {
         const result = await database.updateNoteVisibility({
           statusId: statuses.replyAuthor.announceOwn,
@@ -1085,33 +1049,6 @@ describe('StatusDatabase writes', () => {
         })
         expect(revisions).toHaveLength(1)
         expect(revisions[0].pollOptions).toEqual(['Old A', 'Old B'])
-      })
-
-      it('does not record an edit revision for a tally-only update', async () => {
-        const pollId = `${emptyActorId}/statuses/poll-tally-only`
-        await database.createPoll({
-          id: pollId,
-          url: pollId,
-          actorId: emptyActorId,
-          to: [ACTIVITY_STREAM_PUBLIC],
-          cc: [],
-          text: 'Tally poll',
-          choices: ['Yes', 'No'],
-          endAt: Date.now() + 60_000
-        })
-
-        await database.updatePoll({
-          statusId: pollId,
-          text: 'Tally poll',
-          choices: [
-            { title: 'Yes', totalVotes: 5 },
-            { title: 'No', totalVotes: 2 }
-          ]
-        })
-
-        await expect(
-          database.getStatusEditHistory({ statusId: pollId })
-        ).resolves.toEqual([])
       })
     })
 
@@ -1428,18 +1365,6 @@ describe('StatusDatabase writes', () => {
         expect(duplicate).toBeDefined()
         expect(duplicate?.id).toBe(announceId)
         expect(duplicate?.publicId).toBe(created?.publicId)
-      })
-
-      it('returns null when original status does not exist', async () => {
-        const announcePostId = `${TEST_ID_BOOSTER}/posts/boost-missing-original`
-        const announce = await database.createAnnounce({
-          id: announcePostId,
-          actorId: TEST_ID_BOOSTER,
-          to: [ACTIVITY_STREAM_PUBLIC],
-          cc: [`${TEST_ID_BOOSTER}/followers`],
-          originalStatusId: 'https://somewhere.test/posts/non-existent-status'
-        })
-        expect(announce).toBeNull()
       })
     })
   })

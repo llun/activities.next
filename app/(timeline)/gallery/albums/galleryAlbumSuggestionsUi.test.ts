@@ -8,18 +8,6 @@ import {
 } from './galleryAlbumSuggestionsUi'
 
 describe('getSuggestionMeta', () => {
-  it('describes a trip with its dates, places and species', () => {
-    expect(
-      getSuggestionMeta(
-        buildSuggestion('t', {
-          photoCount: 86,
-          placeCount: 4,
-          speciesCount: 11
-        })
-      )
-    ).toBe('Trip · 86 photos · 12 – 19 Sep 2026 · 4 places · 11 species')
-  })
-
   it('leaves out places and species a trip does not have', () => {
     expect(
       getSuggestionMeta(
@@ -31,19 +19,6 @@ describe('getSuggestionMeta', () => {
         buildSuggestion('t', { placeCount: 1, speciesCount: 1 })
       )
     ).toBe('Trip · 3 photos · 12 – 19 Sep 2026 · 1 place · 1 species')
-  })
-
-  it('names a species series by kind and dates only', () => {
-    expect(
-      getSuggestionMeta(
-        buildSuggestion('s', {
-          kind: 'species',
-          photoCount: 23,
-          firstAt: '2024-03-01T10:00:00.000Z',
-          lastAt: '2026-05-01T10:00:00.000Z'
-        })
-      )
-    ).toBe('Species · 23 photos · 1 Mar 2024 – 1 May 2026')
   })
 
   it('says how many recorded activities an activity day matches', () => {

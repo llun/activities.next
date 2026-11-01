@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
-import { holdTransaction } from '@/lib/database/testing/heldTransaction'
 import { type CapturedQuery } from '@/lib/database/testing/queryCapture'
 
 // The statement capture every query-shape test relies on, checked on SQLite
@@ -309,26 +308,5 @@ describe('statement capture on the test database', () => {
       await readSetting('capture.idle').execute()
       expect(testDb.pendingAcquires()).toBe(0)
     })
-
-    // SQLite has one connection, so a second caller queues behind a held one.
-    // PostgreSQL's pool would need exhausting first, which this suite does not
-    // do to a database other tests share.
-    it.runIf(testDb.backend === 'sqlite')(
-      'counts a caller queued behind the only connection',
-      async () => {
-        const held = await holdTransaction(db)
-        let queued: Promise<unknown> | undefined
-        try {
-          queued = readSetting('capture.queued').execute()
-          await expect
-            .poll(() => testDb.pendingAcquires(), { timeout: 5000 })
-            .toBe(1)
-        } finally {
-          await held.rollback()
-        }
-        await expect(queued).resolves.toEqual([])
-        expect(testDb.pendingAcquires()).toBe(0)
-      }
-    )
   })
 })

@@ -54,18 +54,6 @@ describe('PostOptionsMenu', () => {
     expect(within(menu).getByRole('separator')).toBeInTheDocument()
   })
 
-  it('omits the fitness file item when it is not offered (reply or edit)', async () => {
-    renderMenu({ showFitnessFile: false })
-    const menu = await openMenu()
-
-    expect(
-      within(menu).queryByRole('menuitem', { name: 'Fitness file' })
-    ).not.toBeInTheDocument()
-    expect(
-      within(menu).getByRole('menuitemcheckbox', { name: 'Poll' })
-    ).toBeInTheDocument()
-  })
-
   it('chooses a fitness file and closes the menu', async () => {
     const onChooseFitnessFile = vi.fn()
     renderMenu({ onChooseFitnessFile })

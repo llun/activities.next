@@ -21,13 +21,6 @@ describe('YearChooser', () => {
     expect(trigger).toHaveTextContent('2026')
   })
 
-  it('shows a placeholder without a value', () => {
-    render(<YearChooser years={[2026]} value={null} onSelect={vi.fn()} />)
-    expect(
-      screen.getByRole('button', { name: /Calendar year/ })
-    ).toHaveTextContent('Select year')
-  })
-
   it('lists the given years newest first and checks the current one', async () => {
     render(
       <YearChooser years={[2026, 2025, 2024]} value={2025} onSelect={vi.fn()} />

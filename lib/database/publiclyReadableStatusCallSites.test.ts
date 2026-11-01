@@ -268,26 +268,4 @@ describe('publicly readable status filtering at each call site', () => {
       )
     }
   )
-
-  it('drops a public boost of a followers-only note from the public actor status page', async () => {
-    // The recipients-only fallback would return this row: the boost is
-    // addressed to the public collection. Only following the announce chain to
-    // a non-public original excludes it, so this is the case that distinguishes
-    // the readability predicate from that fallback — the sibling test above,
-    // with a plainly private note, passes under that fallback too.
-    //
-    // Both `getActorStatuses` cases in this file are already covered in
-    // `statusActorQueries.test.ts` — this one by 'excludes nested announces
-    // when the boosted original is not publicly readable', the sibling above by
-    // 'counts only publicly readable actor statuses when requested'. Unlike
-    // the three reply/reblog cases, they are not filling a gap. They stay so
-    // that all four `publicOnly` call sites state the same invariant in one
-    // place, rather than sending a reader to another file to confirm this one.
-    const statuses = await database.getActorStatuses({
-      actorId,
-      publicOnly: true
-    })
-
-    expect(statuses.map(({ id }) => id)).not.toContain(publicBoostOfPrivateId)
-  })
 })

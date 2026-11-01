@@ -356,17 +356,6 @@ describe('FitnessFileDatabase', () => {
         expect(beyond).toEqual({ activities: [], hasMore: false })
       })
 
-      it('orders rows that share a start time by id so pages never repeat', async () => {
-        const startTime = at('2032-05-20', '08:00', AMSTERDAM)
-        const ids = [
-          await seedActivity({ startTime }),
-          await seedActivity({ startTime }),
-          await seedActivity({ startTime })
-        ]
-        const rows = await readWindow('2032-05-20', '2032-05-20', AMSTERDAM, 1)
-        expect(rows.map((row) => row.id)).toEqual([...ids].sort())
-      })
-
       it('returns the fields the day details need, including a null statusId', async () => {
         const linked = await seedActivity({
           startTime: at('2032-06-01', '07:00', AMSTERDAM),

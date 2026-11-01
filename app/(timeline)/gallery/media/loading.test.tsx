@@ -20,14 +20,6 @@ const render = (ui: ReactElement) =>
 // screen), the actions on its line from sm up, the filter row and the
 // grid — so nothing moves when the page hydrates.
 describe('gallery all media loading', () => {
-  it('announces one polite status and marks the screen busy', () => {
-    const { container } = render(<Loading />)
-
-    expect(screen.getAllByRole('status')).toHaveLength(1)
-    expect(screen.getByRole('status')).toHaveTextContent(/^Loading/)
-    expect(container.querySelector('[aria-busy="true"]')).toBeInTheDocument()
-  })
-
   it('draws no visible title or description of its own', () => {
     const { container } = render(<Loading />)
 

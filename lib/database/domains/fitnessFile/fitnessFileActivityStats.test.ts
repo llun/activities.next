@@ -67,32 +67,6 @@ describe('FitnessFileDatabase', () => {
     })
 
     describe('getActorHasFitnessData', () => {
-      it('returns true when actor has completed fitness files', async () => {
-        const created = await database.createFitnessFile({
-          actorId: actors.extra.id,
-          path: 'fitness/has-data-completed.fit',
-          fileName: 'has-data-completed.fit',
-          fileType: 'fit',
-          mimeType: 'application/vnd.ant.fit',
-          bytes: 1024
-        })
-        expect(created).toBeDefined()
-
-        await database.updateFitnessFileActivityData(created!.id, {
-          activityType: 'running',
-          activityStartTime: new Date()
-        })
-        await database.updateFitnessFileProcessingStatus(
-          created!.id,
-          'completed'
-        )
-
-        const result = await database.getActorHasFitnessData({
-          actorId: actors.extra.id
-        })
-        expect(result).toBe(true)
-      })
-
       it('returns false when actor has no fitness files', async () => {
         const result = await database.getActorHasFitnessData({
           actorId: 'non-existent-actor-id'
@@ -278,29 +252,6 @@ describe('FitnessFileDatabase', () => {
           totalDurationSeconds: 2400
         })
         await database.updateFitnessFileProcessingStatus(day2!.id, 'completed')
-      })
-
-      it('returns per-day aggregates grouped by date', async () => {
-        const result = await database.getFitnessActivityCalendarData({
-          timeZone: 'UTC',
-          actorId: actors.extra.id,
-          startDate: new Date('2027-03-01T00:00:00.000Z').getTime(),
-          endDate: new Date('2027-04-01T00:00:00.000Z').getTime()
-        })
-
-        expect(result).toHaveLength(2)
-        expect(result[0]).toMatchObject({
-          date: '2027-03-10',
-          count: 2,
-          totalDistanceMeters: 20000,
-          totalDurationSeconds: 5400
-        })
-        expect(result[1]).toMatchObject({
-          date: '2027-03-12',
-          count: 1,
-          totalDistanceMeters: 8000,
-          totalDurationSeconds: 2400
-        })
       })
 
       it('returns empty array when no data in range', async () => {

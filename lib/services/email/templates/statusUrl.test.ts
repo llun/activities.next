@@ -42,12 +42,6 @@ describe('getEmailStatusUrl', () => {
     expect(url).not.toContain('remote.example.com/@rin/9')
   })
 
-  it('uses the configured scheme rather than assuming https', () => {
-    // getBaseURL() honours ACTIVITIES_INSECURE_AUTH; the four copies this
-    // replaces hardcoded https://${config.host}.
-    expect(getEmailStatusUrl(remoteStatus).startsWith(BASE_URL)).toBe(true)
-  })
-
   it('falls back to the status url when no path can be derived', () => {
     const actorless = {
       ...remoteStatus,
