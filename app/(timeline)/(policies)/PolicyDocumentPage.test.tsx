@@ -171,6 +171,92 @@ describe('PolicyDocumentPage', () => {
     )
     await expect(PolicyDocumentPage({ kind: 'privacy' })).resolves.toBeTruthy()
   })
+
+  it.each(['privacy', 'terms'] as const)(
+    'indexes three h2s in order on the %s page with matching native links',
+    async (kind) => {
+      const policy = doc(
+        'Introduction.\n\n## First\n\n### Detail\n\n## Second\n\n## Third'
+      )
+      mockIdentity.mockResolvedValue(
+        identity({ termsOfService: policy, privacyPolicy: policy })
+      )
+      const { container } = render(await PolicyDocumentPage({ kind }))
+
+      const navs = screen.getAllByRole('navigation', { name: 'On this page' })
+      expect(navs).toHaveLength(2)
+      expect(navs[0]).toHaveClass('max-md:hidden', 'mt-6')
+      expect(navs[1]).toHaveClass('md:hidden', 'mt-5')
+      for (const nav of navs) {
+        const links = within(nav).getAllByRole('link', { hidden: true })
+        expect(links.map((link) => link.textContent)).toEqual([
+          '1.First',
+          '2.Second',
+          '3.Third'
+        ])
+        expect(links.map((link) => link.getAttribute('href'))).toEqual([
+          '#section-first',
+          '#section-second',
+          '#section-third'
+        ])
+        for (const link of links) {
+          const id = link.getAttribute('href')!.slice(1)
+          const heading = container.querySelector(`#${id}`)
+          expect(heading?.tagName).toBe('H2')
+          expect(heading?.textContent).toBe(link.lastElementChild?.textContent)
+        }
+        expect(nav.querySelector('[data-slot="frame"]')).toHaveClass(
+          'rounded-lg',
+          'bg-muted/40'
+        )
+      }
+      expect(screen.getByText('3 sections')).toBeInTheDocument()
+      expect(container.querySelector('details')).not.toHaveAttribute('open')
+      const article = container.querySelector('article')!
+      expect(article).toHaveClass('w-full', 'max-w-[560px]')
+      expect(article.children[1].textContent).toContain('Last updated')
+      expect(article.children[2]).toBe(navs[0])
+      expect(article.children[4].textContent).toContain('Introduction.')
+    }
+  )
+
+  it.each(['Plain text.', '## One\n\n### Detail\n\n## Two\n\n#### More'])(
+    'omits the index with fewer than three h2s: %s',
+    async (markdown) => {
+      mockIdentity.mockResolvedValue(identity({ privacyPolicy: doc(markdown) }))
+      const { container } = render(
+        await PolicyDocumentPage({ kind: 'privacy' })
+      )
+
+      expect(
+        screen.queryByRole('navigation', { name: 'On this page' })
+      ).toBeNull()
+      expect(container.querySelector('details')).toBeNull()
+    }
+  )
+
+  it('places the index after the title when undated and escapes heading text', async () => {
+    mockIdentity.mockResolvedValue(
+      identity({
+        privacyPolicy: doc(
+          '## <b>Literal</b> &amp; **bold**\n\n## <img src=x onerror=alert(1)>\n\n## %{domain}',
+          null
+        )
+      })
+    )
+    const { container } = render(await PolicyDocumentPage({ kind: 'privacy' }))
+
+    const navs = screen.getAllByRole('navigation', { name: 'On this page' })
+    expect(container.querySelector('article')?.children[1]).toBe(navs[0])
+    for (const nav of navs) {
+      const links = within(nav).getAllByRole('link', { hidden: true })
+      expect(links[0]).toHaveTextContent('1.<b>Literal</b> & bold')
+      expect(links[1]).toHaveTextContent('2.<img src=x onerror=alert(1)>')
+      expect(links[2]).toHaveTextContent('3.run.example')
+      expect(nav.querySelector('b, strong, img, script')).toBeNull()
+    }
+    expect(container.querySelector('img, script')).toBeNull()
+  })
 })
 
 describe('policy routes', () => {

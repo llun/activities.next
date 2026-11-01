@@ -1,4 +1,4 @@
-import { renderPolicyMarkdown } from './renderPolicyMarkdown'
+import { renderPolicyMarkdown, renderPolicyPage } from './renderPolicyMarkdown'
 
 const render = (markdown: string) =>
   renderPolicyMarkdown(markdown, { domain: 'llun.test' })
@@ -96,12 +96,25 @@ describe('renderPolicyMarkdown', () => {
     )
   })
 
+  it('pins the API HTML without page ids, classes or title normalization', () => {
+    expect(
+      render('# Terms of service\n\n## A &amp; B\n\n**Note**\n\n# Changes')
+    ).toBe(
+      '<h1>Terms of service</h1>\n<h2>A &amp; B</h2>\n<p><strong>Note</strong></p>\n<h1>Changes</h1>'
+    )
+  })
+
   describe('for a page', () => {
-    const renderForPage = (markdown: string) =>
-      renderPolicyMarkdown(markdown, {
+    const page = (markdown: string) =>
+      renderPolicyPage(markdown, {
         domain: 'llun.test',
-        forPage: { title: 'Terms of service' }
+        title: 'Terms of service'
       })
+    const renderForPage = (markdown: string) =>
+      renderPolicyPage(markdown, {
+        domain: 'llun.test',
+        title: 'Terms of service'
+      }).html
 
     it('drops a leading heading that repeats the page title', () => {
       expect(renderForPage('\n# Terms of  Service\n\nBe excellent.')).toBe(
@@ -116,13 +129,13 @@ describe('renderPolicyMarkdown', () => {
         )
       ).toBe(
         [
-          '<h2>Our terms</h2>',
+          '<h2 id="section-our-terms">Our terms</h2>',
           '<p>Intro</p>',
-          '<h2>Changes</h2>',
+          '<h2 id="section-changes">Changes</h2>',
           '<blockquote>',
-          '<h2>Quoted</h2>',
+          '<h2 id="section-quoted">Quoted</h2>',
           '</blockquote>',
-          '<h2>Already two</h2>'
+          '<h2 id="section-already-two">Already two</h2>'
         ].join('\n')
       )
     })
@@ -135,6 +148,95 @@ describe('renderPolicyMarkdown', () => {
       ).toBe(
         '<p>See <a href="https://a.b" rel="nofollow noopener noreferrer">rules</a>.</p>'
       )
+    })
+
+    it('uses decoded display text for ids and index labels', () => {
+      const { html, headings } = page(
+        '## Café &amp; **bold** _x_ [label](https://a.b) `code` %{domain}\n\n## <b>x</b>\n\n## &#65; &amp;lt;b&amp;gt;'
+      )
+      expect(headings).toEqual([
+        {
+          id: 'section-cafe-bold-x-label-code-llun-test',
+          text: 'Café & bold x label code llun.test'
+        },
+        { id: 'section-b-x-b', text: '<b>x</b>' },
+        { id: 'section-a-lt-b-gt', text: 'A &lt;b&gt;' }
+      ])
+      for (const { id } of headings) expect(html).toContain(`id="${id}"`)
+      expect(html).toContain('&lt;b&gt;x&lt;/b&gt;')
+    })
+
+    it('de-duplicates slugs against every used id, including suffix collisions', () => {
+      expect(
+        page('## Foo\n\n## Foo\n\n## Foo 2\n\n## Foo\n\n## Foo 2').headings.map(
+          ({ id }) => id
+        )
+      ).toEqual([
+        'section-foo',
+        'section-foo-2',
+        'section-foo-2-2',
+        'section-foo-3',
+        'section-foo-2-3'
+      ])
+    })
+
+    it('counts empty h2s for fallback positions but does not index them', () => {
+      const { html, headings } = page('##\n\n## ไทย\n\n## 2\n\n## !!!')
+      expect(headings).toEqual([
+        { id: 'section-2', text: 'ไทย' },
+        { id: 'section-2-2', text: '2' },
+        { id: 'section-4', text: '!!!' }
+      ])
+      expect(html).toContain('<h2></h2>')
+    })
+
+    it('indexes demoted h1s, omits the dropped title and ignores h3s', () => {
+      const { headings } = page(
+        '# Terms of service\n\n# Changes\n\n### Detail\n\n## Data'
+      )
+      expect(headings).toEqual([
+        { id: 'section-changes', text: 'Changes' },
+        { id: 'section-data', text: 'Data' }
+      ])
+    })
+
+    it.each(['**Note:**', '  **Note:**  ', '**A _formatted_ label**'])(
+      'marks a paragraph containing only one strong token: %s',
+      (markdown) => {
+        expect(page(markdown).html).toMatch(/^<p class="policy-label">/)
+      }
+    )
+
+    it.each(['**Note:** text', '**a** **b**', '*Note*', '`**Note**`'])(
+      'does not mark other paragraphs as labels: %s',
+      (markdown) => {
+        expect(page(markdown).html).not.toContain('class=')
+      }
+    )
+
+    it('marks nested labels without allowing author-controlled attributes', () => {
+      const { html, headings } = page(
+        '<h2 id="x">Raw</h2>\n\n<p class="policy-label">Raw label</p>\n\n## Heading {#custom}\n\n## A "quote"\n\n## "><script>alert(1)</script>\n\n> **Quote**\n\n- **Loose**\n\n  More'
+      )
+      expect(html).toContain('&lt;h2 id="x"&gt;Raw&lt;/h2&gt;')
+      expect(html).toContain(
+        '&lt;p class="policy-label"&gt;Raw label&lt;/p&gt;'
+      )
+      expect(html).not.toContain('<h2 id="x">')
+      expect(html).not.toContain('<script>')
+      expect(html).toContain('<blockquote>\n<p class="policy-label">')
+      expect(html).toContain('<li><p class="policy-label">')
+      expect(headings).toEqual([
+        { id: 'section-heading-custom', text: 'Heading {#custom}' },
+        { id: 'section-a-quote', text: 'A "quote"' },
+        {
+          id: 'section-script-alert-1-script',
+          text: '"><script>alert(1)</script>'
+        }
+      ])
+      expect(
+        [...html.matchAll(/<h2 id="([^"]+)">/g)].map((match) => match[1])
+      ).toEqual(headings.map(({ id }) => id))
     })
   })
 })
