@@ -1,0 +1,27 @@
+lib/services/auth/auth.ts
+  s_427d56cfd03ebc::t_fc76280981470e 123-126,148-153
+lib/services/auth/getSession.test.ts
+  s_427d56cfd03ebc::t_fc76280981470e 24-26,28
+lib/services/auth/getSession.ts
+  s_427d56cfd03ebc::t_fc76280981470e 36-40
+docs/architecture.md
+  s_427d56cfd03ebc::t_fc76280981470e 3017
+lib/services/auth/sessionRefresh.test.ts
+  s_427d56cfd03ebc::t_fc76280981470e 128-155
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8e01c2f54b4d1d53e1aff03703c8cec704fb4760",
+  "prompts": {},
+  "sessions": {
+    "s_427d56cfd03ebc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a198b2-aac3-7682-abb8-4fbe252f1df4",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
