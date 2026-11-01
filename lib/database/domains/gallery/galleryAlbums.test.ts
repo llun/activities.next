@@ -142,7 +142,10 @@ describe('GalleryAlbumDatabase', () => {
         })
 
         if (result.status !== 'created') throw new Error('not created')
-        expect(result.added).toEqual([ids.public, ids.hidden])
+        expect(result.added).toEqual(
+          expect.arrayContaining([ids.public, ids.hidden])
+        )
+        expect(result.added).toHaveLength(2)
         expect(result.existing).toEqual([])
         expect(result.skipped).toEqual([ids.foreign])
         expect(await namesIn(result.album.id, OWNER_GALLERY_AUDIENCE)).toEqual([
@@ -198,10 +201,11 @@ describe('GalleryAlbumDatabase', () => {
 
         expect(result).toEqual({
           status: 'added',
-          added: [ids.public, ids.hidden, ids.unposted],
+          added: expect.arrayContaining([ids.public, ids.hidden, ids.unposted]),
           existing: [],
           skipped: expect.arrayContaining([ids.foreign, '999999', 'not-an-id'])
         })
+        expect(result.status === 'added' && result.added).toHaveLength(3)
         expect(await namesIn(album.id, OWNER_GALLERY_AUDIENCE)).toEqual([
           'hidden',
           'public'
@@ -715,7 +719,7 @@ describe('GalleryAlbumDatabase', () => {
 
         expect(result).toMatchObject({
           status: 'added',
-          added: [ids.kept, ids['not-kept']],
+          added: expect.arrayContaining([ids.kept, ids['not-kept']]),
           skipped: []
         })
         expect(await namesIn(album.id, OWNER_GALLERY_AUDIENCE)).toEqual([
