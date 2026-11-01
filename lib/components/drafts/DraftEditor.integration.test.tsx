@@ -3,6 +3,7 @@
  */
 import '@testing-library/jest-dom'
 import {
+  act,
   cleanup,
   configure,
   fireEvent,
@@ -37,6 +38,7 @@ import {
   profile,
   resetPostBoxMediaMocks
 } from '@/lib/components/post-box/post-box-media.testUtils'
+import { DRAFT_SAVE_DEBOUNCE_MS } from '@/lib/components/post-box/useComposerDraft'
 import { installFakeBroadcastChannel } from '@/lib/testing/fakeBroadcastChannel'
 import { type Status, StatusType } from '@/lib/types/domain/status'
 
@@ -126,6 +128,27 @@ const EpochReady = () =>
 
 const waitForEpoch = () => screen.findByTestId('drafts-ready')
 
+// The suite fakes setTimeout in beforeEach; the fake clock is advanced
+// deliberately past the autosave pause instead of waiting out real time.
+const FAKE_CLOCK: Parameters<typeof vi.useFakeTimers>[0] = {
+  toFake: ['Date', 'setTimeout', 'clearTimeout']
+}
+
+const advancePastAutosave = async (ms = DRAFT_SAVE_DEBOUNCE_MS + 300) => {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(ms)
+  })
+}
+
+// The suite fakes setTimeout in beforeEach; real-time settles keep this one.
+const realSetTimeout = globalThis.setTimeout
+
+// Waits out real time while the fake clock stands still. The discard a
+// guard-less unmount would run is real IndexedDB work, not a timer, so no
+// fake-clock advance can stand in for the settle that must follow it.
+const settleReal = (ms: number) =>
+  new Promise<void>((resolve) => realSetTimeout(resolve, ms))
+
 const open = async (
   draft: DraftRecord,
   { strict = false, bytes }: { strict?: boolean; bytes?: File } = {}
@@ -171,6 +194,9 @@ const postWhenReady = async () => {
 
 describe('DraftEditor with the real composers', () => {
   beforeEach(() => {
+    // Before every render, so the autosave debounce the composers arm is a
+    // fake one the tests advance deliberately.
+    vi.useFakeTimers(FAKE_CLOCK)
     resetPostBoxMediaMocks()
     installFakeBroadcastChannel()
     setDraftsIndexedDBFactory(new IDBFactory())
@@ -182,6 +208,7 @@ describe('DraftEditor with the real composers', () => {
 
   afterEach(() => {
     cleanup()
+    vi.useRealTimers()
     resetConnectionForTesting()
     resetDraftsChannelForTesting()
     setDraftsIndexedDBFactory(null)
@@ -305,6 +332,8 @@ describe('DraftEditor with the real composers', () => {
     it('keeps the draft and the editor open after the text is cleared', async () => {
       const { onClose } = await open(record({}))
       await clearText()
+      // The emptied draft's save is the debounced one: run it to its end.
+      await advancePastAutosave()
       await expectStored({ text: '' })
       expect(onClose).not.toHaveBeenCalled()
       expect(screen.getByPlaceholderText('What is on your mind?')).toBeVisible()
@@ -314,9 +343,12 @@ describe('DraftEditor with the real composers', () => {
       const { unmount } = await open(record({}))
       await clearText()
       // The emptied draft is saved before Close.
+      await advancePastAutosave()
       await expectStored({ text: '' })
       fireEvent.click(screen.getByRole('button', { name: 'Close' }))
       unmount()
+      // The discard Close arms is a 0 ms timer on the fake clock: run it.
+      await advancePastAutosave()
 
       await waitFor(async () =>
         expect(await getDraft('draft-1')).toBeUndefined()
@@ -327,9 +359,15 @@ describe('DraftEditor with the real composers', () => {
       const { unmount } = await open(record({ attachments: [photo] }))
       await clearText()
       // The emptied draft is saved before Close.
+      await advancePastAutosave()
       await expectStored({ text: '' })
       fireEvent.click(screen.getByRole('button', { name: 'Close' }))
       unmount()
+      // The discard a guard-less Close would arm is a 0 ms timer on the fake
+      // clock: run it, then let its IndexedDB work settle, so the check
+      // below cannot pass before that discard could have committed.
+      await advancePastAutosave()
+      await settleReal(150)
 
       await expectStored({
         text: '',
@@ -341,6 +379,9 @@ describe('DraftEditor with the real composers', () => {
       const { unmount } = await open(record({}))
       await clearText()
       unmount()
+      // The discard the unmount arms is a 0 ms timer on the fake clock: run
+      // it, and the autosave pause with it.
+      await advancePastAutosave()
 
       await waitFor(async () =>
         expect(await getDraft('draft-1')).toBeUndefined()
@@ -351,6 +392,12 @@ describe('DraftEditor with the real composers', () => {
       const { unmount } = await open(record({ attachments: [photo] }))
       await clearText()
       unmount()
+      // The discard a guard-less unmount would arm is a 0 ms timer on the
+      // fake clock: run it, and the autosave pause with it, then let its
+      // IndexedDB work settle, so the check below cannot pass before that
+      // discard could have committed.
+      await advancePastAutosave()
+      await settleReal(150)
 
       await expectStored({ text: '' })
     })
@@ -360,22 +407,33 @@ describe('DraftEditor with the real composers', () => {
         strict: true
       })
       await screen.findByPlaceholderText('What is on your mind?')
-      await new Promise((resolve) => setTimeout(resolve, 300))
+      // Past the 0 ms discard timer StrictMode arms on its first unmount:
+      // the fake clock proves the discard had its chance, and the settle
+      // lets it commit before the record is checked.
+      await advancePastAutosave(300)
+      await settleReal(150)
 
       expect(await getDraft('draft-1')).toBeDefined()
       expect(onClose).not.toHaveBeenCalled()
       // Leaving for real deletes it; settle that before the next test.
       unmount()
+      // The discard the unmount arms is a 0 ms timer on the fake clock: run
+      // it.
+      await advancePastAutosave()
       await waitFor(async () =>
         expect(await getDraft('draft-1')).toBeUndefined()
       )
     })
 
     it('saves and discards nothing while the attachment bytes are still loading', async () => {
-      // Longer than the 800 ms autosave debounce: what must not happen has had
-      // its chance.
-      const pastDebounce = () =>
-        new Promise((resolve) => setTimeout(resolve, 1700))
+      // Longer than the 800 ms autosave debounce: what must not happen has
+      // had its chance. The debounce is a fake timer, so the fake clock
+      // proves that interval passed; a save or discard that wrongly ran is
+      // real IndexedDB work, so the settle lets it land before the check.
+      const pastDebounce = async () => {
+        await advancePastAutosave(1700)
+        await settleReal(150)
+      }
       const pending = {
         ...photo,
         localId: 'pending-1',

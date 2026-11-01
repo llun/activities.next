@@ -24,8 +24,10 @@ import {
 } from '@/lib/client/drafts'
 import { checkServerHealth } from '@/lib/client/health'
 import { DraftsProvider } from '@/lib/components/drafts/DraftsProvider'
+import { DRAFT_SAVE_DEBOUNCE_MS } from '@/lib/components/post-box/useComposerDraft'
 import { createDeferred } from '@/lib/testing/deferred'
 import { installFakeBroadcastChannel } from '@/lib/testing/fakeBroadcastChannel'
+import { findInRealTime } from '@/lib/testing/findInRealTime'
 import { findSendAlert } from '@/lib/testing/sendAlerts'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { StatusNote, StatusType } from '@/lib/types/domain/status'
@@ -135,11 +137,37 @@ const type = (value: string) =>
   fireEvent.change(textarea(), { target: { value } })
 const stored = () => listDrafts({ actorId: profile.id })
 
+// The suite fakes setTimeout in beforeEach; real-time settles keep this one.
+const realSetTimeout = globalThis.setTimeout
+
+// Waits out real time while the fake clock stands still: the hand-off and
+// keep flows these waits guard are real IndexedDB work, not timers, so no
+// fake-clock advance can stand in for them.
+const settleReal = (ms: number) =>
+  new Promise<void>((resolve) => realSetTimeout(resolve, ms))
+
+const FAKE_CLOCK: Parameters<typeof vi.useFakeTimers>[0] = {
+  toFake: ['Date', 'setTimeout', 'clearTimeout']
+}
+
+// Moves the fake clock past the autosave pause instead of waiting out
+// 800 ms of real time. The save's IndexedDB work is real, so what the save
+// produces is still found in real time afterwards.
+const advanceDebounce = async () => {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(DRAFT_SAVE_DEBOUNCE_MS + 300)
+  })
+}
+
 // The provider reads its epoch after mounting; nothing can be saved before it
-// has, so wait for the autosave to land first.
+// has, so wait for the autosave to land first. The save's IndexedDB work is
+// real and findByText's budget is counted on the fake clock, so the note is
+// polled for in real time; a save refused while the epoch was still loading
+// is re-armed as a debounce, so each poll moves the fake clock too.
 const typeAndWaitForSave = async (value: string) => {
   type(value)
-  await screen.findByText('Saved on this device', {}, { timeout: 4000 })
+  await advanceDebounce()
+  await findInRealTime('Saved on this device', { advancePerPoll: 50 })
 }
 
 const goOffline = async () => {
@@ -191,6 +219,9 @@ configure({ asyncUtilTimeout: 4000 })
 
 describe('StatusReplyBox offline hand-off', () => {
   beforeEach(() => {
+    // Before every render, so the debounce timer the box arms on typing is a
+    // fake one the tests advance deliberately.
+    vi.useFakeTimers(FAKE_CLOCK)
     resetConnectionForTesting()
     installFakeBroadcastChannel()
     setDraftsIndexedDBFactory(new IDBFactory())
@@ -205,6 +236,7 @@ describe('StatusReplyBox offline hand-off', () => {
 
   afterEach(() => {
     cleanup()
+    vi.useRealTimers()
     vi.restoreAllMocks()
     resetConnectionForTesting()
     resetDraftsChannelForTesting()
@@ -263,7 +295,7 @@ describe('StatusReplyBox offline hand-off', () => {
         "Videos stay as drafts. Post this when you're back online."
       )
       fireEvent.click(queueButton())
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      await settleReal(100)
       expect(onCancel).not.toHaveBeenCalled()
 
       fireEvent.click(saveDraftButton())
@@ -327,7 +359,11 @@ describe('StatusReplyBox offline hand-off', () => {
         await waitFor(() =>
           expect(document.querySelectorAll('div.aspect-square')).toHaveLength(1)
         )
-        await screen.findByText('Saved on this device', {}, { timeout: 4000 })
+        // The record that holds the clip is the debounced save's work: run
+        // it to its end. The save's IndexedDB work is real, so the note is
+        // polled for in real time.
+        await advanceDebounce()
+        await findInRealTime('Saved on this device', { advancePerPoll: 50 })
 
         submit()
 
@@ -346,7 +382,7 @@ describe('StatusReplyBox offline hand-off', () => {
     await typeAndWaitForSave('x'.repeat(5000))
 
     expect(fireEvent.submit(textarea().closest('form')!)).toBe(false)
-    await new Promise((resolve) => setTimeout(resolve, 50))
+    await settleReal(50)
     expect(onCancel).not.toHaveBeenCalled()
   })
 
@@ -382,7 +418,11 @@ describe('StatusReplyBox offline hand-off', () => {
       await waitFor(() =>
         expect(document.querySelectorAll('div.aspect-square')).toHaveLength(1)
       )
-      await screen.findByText('Saved on this device', {}, { timeout: 4000 })
+      // The record that holds the photo is the debounced save's work: run
+      // it to its end. The save's IndexedDB work is real, so the note is
+      // polled for in real time.
+      await advanceDebounce()
+      await findInRealTime('Saved on this device', { advancePerPoll: 50 })
 
       fireEvent.click(queueButton())
 
@@ -421,7 +461,7 @@ describe('StatusReplyBox offline hand-off', () => {
 
       fireEvent.click(queueButton())
       fireEvent.click(saveDraftButton())
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      await settleReal(100)
 
       expect(await stored()).toHaveLength(0)
       expect(onCancel).not.toHaveBeenCalled()
@@ -486,7 +526,7 @@ describe('StatusReplyBox offline hand-off', () => {
         queue: { state: 'waiting' }
       })
       // Handed off: nothing is kept a second time on the way to the new target.
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      await settleReal(100)
       expect(screen.queryByText('Saved to Drafts')).toBeNull()
       // The autosave, and the one hand-off.
       expect(saveDraft).toHaveBeenCalledTimes(2)
@@ -497,6 +537,8 @@ describe('StatusReplyBox offline hand-off', () => {
       await goOffline()
       await typeAndWaitForSave('Reply body')
       // More text than the autosave holds, so the keep has something to save.
+      // Its debounce stays armed until the hand-off's save clears it; the
+      // keep that failure starts is the third save, held open below.
       type('Reply body, more')
       const failing = failNextSave()
 
@@ -511,7 +553,7 @@ describe('StatusReplyBox offline hand-off', () => {
       // Guard held while the keep runs: a click starts no further save.
       fireEvent.click(saveDraftButton())
       fireEvent.click(queueButton())
-      await new Promise((resolve) => setTimeout(resolve, 50))
+      await settleReal(50)
       expect(saveDraft).toHaveBeenCalledTimes(3)
       expect(textarea()).toHaveValue('Reply body, more')
 
