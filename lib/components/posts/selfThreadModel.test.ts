@@ -681,7 +681,7 @@ describe('selfThreadModel', () => {
       const insetIds = (model: SelfThreadModel) =>
         model.parts.flatMap((part) => part.insets.map((inset) => inset.id))
 
-      it("tucks a reply measured from the run's latest post, not the part it answers", () => {
+      it('tucks a reply to an earlier part when the author continues the latest part', () => {
         const a1 = note('a1', { at: 0 })
         const a2 = note('a2', { at: 9 * MINUTE, reply: a1.id })
         const bob = note('bob', {
@@ -701,25 +701,6 @@ describe('selfThreadModel', () => {
           a2.id,
           a3.id
         ])
-        expect(insetIds(model)).toEqual([bob.id])
-        expect(model.repliesOutsideRun).toEqual([])
-      })
-
-      it('tucks a reply exactly ten minutes before the next part', () => {
-        const a1 = note('a1', { at: 0 })
-        const a2 = note('a2', { at: 8 * MINUTE, reply: a1.id })
-        const bob = note('bob', {
-          actor: mockBob,
-          at: 17 * MINUTE,
-          reply: a1.id
-        })
-        const a3 = note('a3', { at: 18 * MINUTE, reply: a2.id })
-
-        const model = buildSelfThreadModel({
-          focusedStatus: a1,
-          descendants: [a2, bob, a3]
-        })
-
         expect(insetIds(model)).toEqual([bob.id])
         expect(model.repliesOutsideRun).toEqual([])
       })

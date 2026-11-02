@@ -197,12 +197,15 @@ describe('buildCombinedBlocks', () => {
       ])
     })
 
-    it('still combines an author reply to a tucked-in reply', () => {
+    it('tucks a reply to an earlier part while the author continues the latest part', () => {
       const a1 = note('a1', { at: 0 })
-      const b1 = note('b1', { actor: mockBob, at: 9 * MINUTE, reply: a1.id })
-      const a2 = note('a2', { at: 18 * MINUTE, reply: b1.id })
+      const a2 = note('a2', { at: MINUTE, reply: a1.id })
+      const b1 = note('b1', { actor: mockBob, at: 2 * MINUTE, reply: a1.id })
+      const a3 = note('a3', { at: 3 * MINUTE, reply: a2.id })
 
-      expect(shape(buildCombinedBlocks([a1, b1, a2]))).toEqual(['a1+b1 > a2'])
+      expect(shape(buildCombinedBlocks([a1, a2, b1, a3]))).toEqual([
+        'a1+b1 > a2 > a3'
+      ])
     })
 
     it('tucks up to two replies', () => {

@@ -75,13 +75,14 @@ const ACTION_ERROR_CLASS =
 interface ActionErrorProps {
   message: string
   testId: string
-  align?: 'start' | 'center'
+  align?: 'start' | 'center' | 'end'
 }
 
 /**
  * The transient error tooltip rendered beneath an action button. Trailing
  * buttons centre their message because left-0 can pass the row's right edge
- * once counts push them along, and right-0 can pass its left edge.
+ * once counts push them along, and right-0 can pass its left edge. `end` pins
+ * the message to the button's right edge for a button at the row's end.
  */
 export const ActionButtonError: FC<ActionErrorProps> = ({
   message,
@@ -91,7 +92,11 @@ export const ActionButtonError: FC<ActionErrorProps> = ({
   <span
     className={cn(
       'absolute top-full z-10 mt-1',
-      align === 'center' ? 'left-1/2 -translate-x-1/2' : 'left-0',
+      align === 'center'
+        ? 'left-1/2 -translate-x-1/2'
+        : align === 'end'
+          ? 'right-0'
+          : 'left-0',
       ACTION_ERROR_CLASS
     )}
     data-testid={testId}

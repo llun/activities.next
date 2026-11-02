@@ -2782,7 +2782,7 @@ describe('StatusThread', () => {
         actor: mockAlice,
         actorId: mockAlice.id,
         reply: a2.id,
-        text: 'Second block part 1 after gap',
+        text: 'Second block part 1 after visibility change',
         to: [],
         cc: ['https://www.w3.org/ns/activitystreams#Public'],
         createdAt: BASE_TIME + 20 * MINUTE
@@ -2792,7 +2792,7 @@ describe('StatusThread', () => {
         actor: mockAlice,
         actorId: mockAlice.id,
         reply: a3.id,
-        text: 'Second block part 2 after gap',
+        text: 'Second block part 2 after visibility change',
         to: [],
         cc: ['https://www.w3.org/ns/activitystreams#Public'],
         createdAt: BASE_TIME + 22 * MINUTE
@@ -2822,7 +2822,7 @@ describe('StatusThread', () => {
       // Second block (unlisted, so a separate run) has its own header time span (10m – 8m), its own 2 of 2 label, and no opened part
       expect(within(runs[1]).getByText('10m – 8m')).toBeInTheDocument()
       expect(
-        within(runs[1]).getByText('Second block part 1 after gap')
+        within(runs[1]).getByText('Second block part 1 after visibility change')
       ).toBeInTheDocument()
       expect(
         within(runs[1]).getByRole('button', { name: /Open part 2 of 2/i })

@@ -20,13 +20,19 @@ interface LikeButtonProps {
   /** Names the post when the row's buttons act on different ones. */
   targetLabel?: string
   onLikeChanged?: (status: StatusNote | StatusPoll, isLiked: boolean) => void
+  /** Which edge the failure message hangs from; `end` for a button at the right edge of its row. */
+  errorAlign?: 'start' | 'end'
+  /** `compact` keeps the button 24px tall even with a count, for rows built around 24px. */
+  size?: 'default' | 'compact'
 }
 
 export const LikeButton: FC<LikeButtonProps> = ({
   currentActor,
   status,
   targetLabel,
-  onLikeChanged
+  onLikeChanged,
+  errorAlign = 'start',
+  size = 'default'
 }) => {
   const [{ isActorLiked, totalLikes }, setLikeState] = useState({
     isActorLiked: status.isActorLiked,
@@ -66,6 +72,7 @@ export const LikeButton: FC<LikeButtonProps> = ({
           aria-disabled={offline || undefined}
           className={cn(
             ACTION_BUTTON_CLASS,
+            size === 'compact' && 'py-0.5',
             isActorLiked ? 'text-like-text' : 'hover:text-like-icon'
           )}
           onClick={async (e) => {
@@ -115,7 +122,13 @@ export const LikeButton: FC<LikeButtonProps> = ({
           {totalLikes > 0 && <span>{totalLikes}</span>}
         </button>
       </OfflineTooltip>
-      {error ? <ActionButtonError message={error} testId="like-error" /> : null}
+      {error ? (
+        <ActionButtonError
+          message={error}
+          testId="like-error"
+          align={errorAlign}
+        />
+      ) : null}
     </span>
   )
 }

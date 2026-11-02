@@ -1948,10 +1948,11 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   `InlineStatusComposer` internally — that is the shared layer doing the wiring,
   not a page opting into per-status callbacks.)
   **Exception — the timeline's combined post** (`CombinedPostListItem`, a run of
-  self-replies shown as one row): repost, like, bookmark and react for the
-  parts live on its one shared action bar and act on the first post, and reply
-  goes to the latest post (`Actions`' `splitTargets`). Every later part and every
-  tucked-in reply still keeps its own `⋯` menu (the same `PostMenu`, so quote,
+  self-replies shown as one row): repost, bookmark and react live on its one
+  shared action bar and act on the first post, its like acts on the first post
+  too, and reply goes to the latest post (`Actions`' `splitTargets`). Every later
+  part has its own Like beside its `⋯` menu, and a tucked-in reply has its own
+  Reply and Like. Every later part and every tucked-in reply keeps its own `⋯` menu (the same `PostMenu`, so quote,
   copy link, open original, mute, block, report, translate and edit/delete-own
   all work on that post), and "Show as separate posts" gives each post its full
   action bar. A new combined-style surface must not drop a post's `⋯` menu.

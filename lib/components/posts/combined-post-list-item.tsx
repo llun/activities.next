@@ -562,6 +562,8 @@ export const CombinedPostListItem = memo(function CombinedPostListItem({
                                 status={actualStatus}
                                 targetLabel={`part ${label}`}
                                 onLikeChanged={onLikeChanged}
+                                errorAlign="end"
+                                size="compact"
                               />
                             ) : null}
                             {showsActionRow ? (
