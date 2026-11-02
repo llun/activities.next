@@ -120,8 +120,10 @@ const buildAuth = (baseURL: string, serviceName: string) => {
       errorURL: AUTH_ERROR_PATH
     },
     database: kyselyAdapter(db, { passkeyRpID: rpID }),
-    disabledPaths: ['/token'], // Disable jwt plugin's /api/auth/token;
-    // OAuth tokens are issued via oauthProvider. JWKS stays enabled for OAuthGuard.
+    // jwt() only provides JWKS and token signing for oauthProvider(). Keep its
+    // standalone /api/auth/token disabled alongside disableSettingJwtHeader below,
+    // so session reads cannot mint unscoped JWTs through either path.
+    disabledPaths: ['/token'],
     plugins: [
       // Sign the JWKS key (and therefore the OIDC id_tokens the oauthProvider
       // signs via this plugin) with RS256 so the published JWKS matches the
@@ -143,7 +145,12 @@ const buildAuth = (baseURL: string, serviceName: string) => {
       // affect Mastodon OAuth2 clients: they use opaque access tokens verified
       // against the database (not the JWKS), and id_tokens are short-lived, so
       // no long-lived token depends on the retired EdDSA key.
-      jwt({ jwks: { keyPairConfig: { alg: 'RS256', modulusLength: 2048 } } }),
+      jwt({
+        // Suppress the /get-session after-hook's automatic JWT signing and
+        // set-auth-jwt response header; OAuth tokens come from oauthProvider().
+        disableSettingJwtHeader: true,
+        jwks: { keyPairConfig: { alg: 'RS256', modulusLength: 2048 } }
+      }),
       // rpID/origin are derived from this instance's resolved host so passkey
       // ceremonies run against the domain the request actually arrived on. See
       // `getAuth` and `resolveAuthBaseURL` for how the host is chosen per request.

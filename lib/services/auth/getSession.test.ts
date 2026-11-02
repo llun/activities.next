@@ -21,11 +21,11 @@ describe('getServerAuthSession', () => {
     headersMock.mockClear()
   })
 
-  it('fails closed (logs + returns null) when session resolution throws, e.g. a JWKS signing error', async () => {
-    // Mirrors the jwt plugin's /get-session after-hook failing to sign the
-    // set-auth-jwt header with an incompatible JWKS key.
+  it('fails closed (logs + returns null) when session resolution throws', async () => {
+    // Automatic set-auth-jwt signing is disabled, but adapter, database, or
+    // other plugin hook errors can still reject auth.api.getSession.
     getSessionMock.mockRejectedValue(
-      new Error('Invalid or unsupported JWK "alg" (Algorithm) Parameter value')
+      new Error('Session database lookup failed')
     )
 
     const { getServerAuthSession } = await import('./getSession')
