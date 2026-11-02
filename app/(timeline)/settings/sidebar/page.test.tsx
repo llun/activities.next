@@ -59,7 +59,7 @@ describe('settings/sidebar page', () => {
   it('renders NavigationSettings passing the actor profileUrl', async () => {
     vi.mocked(getServerAuthSession).mockResolvedValue({
       user: { email: 'alice@example.com' }
-    })
+    } as Awaited<ReturnType<typeof getServerAuthSession>>)
     vi.mocked(getActorFromSession).mockResolvedValue({
       username: 'alice',
       domain: 'example.com',
