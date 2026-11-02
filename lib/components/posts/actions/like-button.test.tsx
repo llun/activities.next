@@ -127,6 +127,7 @@ describe('LikeButton', () => {
     )
 
     const button = screen.getByRole('button', { name: 'Like, 3 likes' })
+    expect(button).toHaveClass('min-h-6')
     expect(button).toHaveClass('py-0.5')
     expect(button).not.toHaveClass('py-1')
 

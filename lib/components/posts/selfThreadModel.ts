@@ -255,10 +255,10 @@ const findBlockIndexContainingStatus = (
  * Builds the post-page self-thread model around `focusedStatus`.
  *
  * Unlike the feed row (which splits a run when a reply cannot tuck in), the
- * post page never splits the author's run for a reply that cannot tuck: replies to earlier parts of the run
- * tuck in when they satisfy `buildCombinedBlocks`'s inset rules, and otherwise
- * stay in `repliesOutsideRun` with a `"Replying to i of n"` label in
- * `replyingToByReplyId`.
+ * post page never splits the author's run for a reply that cannot tuck: replies
+ * to earlier parts of the run tuck in when they satisfy `buildCombinedBlocks`'s
+ * inset rules, and otherwise stay in `repliesOutsideRun` with a `"Replying to i
+ * of n"` label in `replyingToByReplyId`.
  *
  * The ancestors are structured the same way regardless of who wrote the opened
  * post: every same-author stretch among them that `buildCombinedBlocks` would

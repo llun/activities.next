@@ -1950,12 +1950,13 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   **Exception — the timeline's combined post** (`CombinedPostListItem`, a run of
   self-replies shown as one row): repost, bookmark and react live on its one
   shared action bar and act on the first post, its like acts on the first post
-  too, and reply goes to the latest post (`Actions`' `splitTargets`). Every later
-  part has its own Like beside its `⋯` menu, and a tucked-in reply has its own
-  Reply and Like. Every later part and every tucked-in reply keeps its own `⋯` menu (the same `PostMenu`, so quote,
-  copy link, open original, mute, block, report, translate and edit/delete-own
-  all work on that post), and "Show as separate posts" gives each post its full
-  action bar. A new combined-style surface must not drop a post's `⋯` menu.
+  too, and reply goes to the latest post (`Actions`' `splitTargets`). Every
+  later part has its own Like beside its `⋯` menu, and a tucked-in reply has its
+  own Reply and Like. Every later part and every tucked-in reply keeps its own
+  `⋯` menu (the same `PostMenu`, so quote, copy link, open original, mute,
+  block, report, translate and edit/delete-own all work on that post), and "Show
+  as separate posts" gives each post its full action bar. A new combined-style
+  surface must not drop a post's `⋯` menu.
 - **The chip row and the action row both span the whole status.** Each is pulled
   `-ml-13` — 13 spacing steps, which is the `size-10` avatar column plus its
   `gap-3`, so the pull tracks the root font size the way those two do — and each

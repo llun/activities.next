@@ -22,7 +22,7 @@ interface LikeButtonProps {
   onLikeChanged?: (status: StatusNote | StatusPoll, isLiked: boolean) => void
   /** Which edge the failure message hangs from; `end` for a button at the right edge of its row. */
   errorAlign?: 'start' | 'end'
-  /** `compact` keeps the button 24px tall even with a count, for rows built around 24px. */
+  /** `compact` keeps the button 24px tall with or without a count, for rows built around 24px. */
   size?: 'default' | 'compact'
 }
 
@@ -72,7 +72,7 @@ export const LikeButton: FC<LikeButtonProps> = ({
           aria-disabled={offline || undefined}
           className={cn(
             ACTION_BUTTON_CLASS,
-            size === 'compact' && 'py-0.5',
+            size === 'compact' && 'min-h-6 py-0.5',
             isActorLiked ? 'text-like-text' : 'hover:text-like-icon'
           )}
           onClick={async (e) => {
