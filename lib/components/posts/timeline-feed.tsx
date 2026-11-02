@@ -190,7 +190,7 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
     })
   }, [statuses, readingGroupBoosts])
 
-  // A thread or conversation row's quick self-replies, combined into runs. A
+  // A thread or conversation row's self-replies, combined into runs. A
   // row with no run is absent, so it renders post by post exactly as before.
   const combinedBlocksByRow = useMemo(() => {
     const byRow = new Map<string, CombinedBlock[]>()

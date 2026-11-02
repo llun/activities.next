@@ -475,23 +475,22 @@ describe('TimelineFeed', () => {
       )
     })
 
-    it('leaves posts more than ten minutes apart as separate posts', () => {
+    it('combines posts hours apart into one card', () => {
       const t1 = note('g1', 0, '')
-      const t2 = note('g2', 10 * MINUTE + 1, t1.id)
+      const t2 = note('g2', 12 * 60 * MINUTE, t1.id)
 
       render(
         <TimelineFeed
           host="activities.local"
-          currentTime={BASE_TIME + 30 * MINUTE}
+          currentTime={BASE_TIME + 13 * 60 * MINUTE}
           statuses={[t2, t1]}
           currentActor={mockBob}
           showActions
         />
       )
 
-      expect(screen.getByLabelText('Thread')).toBeInTheDocument()
-      expect(actionBars()).toHaveLength(2)
-      expect(screen.queryByText(/\d of \d/)).not.toBeInTheDocument()
+      expect(actionBars()).toHaveLength(1)
+      expect(screen.getByText(/2 of 2/)).toBeInTheDocument()
     })
 
     it('shows the row as separate posts again from the menu', async () => {
@@ -571,6 +570,46 @@ describe('TimelineFeed', () => {
       ]) {
         expect(screen.getByRole('button', { name })).toBeInTheDocument()
       }
+    })
+
+    it('gives each later part its own Like that acts on that part', async () => {
+      const onLikeChanged = vi.fn()
+      const { rerender } = render(
+        <TimelineFeed
+          host="activities.local"
+          currentTime={BASE_TIME + 200000}
+          statuses={selfThreadScenario.statuses}
+          currentActor={mockBob}
+          showActions
+          onLikeChanged={onLikeChanged}
+        />
+      )
+
+      expect(
+        screen.queryByRole('button', { name: /^Like part 1 of 3/ })
+      ).toBeNull()
+      expect(
+        screen.getByRole('button', { name: /^Like part 3 of 3/ })
+      ).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: /^Like part 2 of 3/ }))
+      await waitFor(() =>
+        expect(onLikeChanged).toHaveBeenCalledWith(
+          expect.objectContaining({ id: selfThreadScenario.reply1.id }),
+          true
+        )
+      )
+      expect(mockLikeStatus).toHaveBeenLastCalledWith({
+        statusId: selfThreadScenario.reply1.id
+      })
+
+      rerender(
+        <TimelineFeed
+          host="activities.local"
+          currentTime={BASE_TIME + 200000}
+          statuses={selfThreadScenario.statuses}
+        />
+      )
+      expect(screen.queryByRole('button', { name: /^Like part/ })).toBeNull()
     })
 
     it('offers every part its own menu, own or not', async () => {

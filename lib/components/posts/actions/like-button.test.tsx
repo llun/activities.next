@@ -114,6 +114,39 @@ describe('LikeButton', () => {
     expect(screen.queryByText('1')).not.toBeInTheDocument()
   })
 
+  it('pins the error to the end edge and keeps a compact button 24px with a count', async () => {
+    ;(likeStatus as jest.Mock).mockResolvedValue(false)
+
+    render(
+      <LikeButton
+        currentActor={currentActor}
+        status={{ ...status, totalLikes: 3 }}
+        errorAlign="end"
+        size="compact"
+      />
+    )
+
+    const button = screen.getByRole('button', { name: 'Like, 3 likes' })
+    expect(button).toHaveClass('min-h-6')
+    expect(button).toHaveClass('py-0.5')
+    expect(button).not.toHaveClass('py-1')
+
+    fireEvent.click(button)
+
+    const error = await screen.findByTestId('like-error')
+    expect(error).toHaveClass('right-0')
+    expect(error).not.toHaveClass('left-0')
+  })
+
+  it('defaults the error to the start edge', async () => {
+    ;(likeStatus as jest.Mock).mockResolvedValue(false)
+
+    render(<LikeButton currentActor={currentActor} status={status} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Like' }))
+
+    expect(await screen.findByTestId('like-error')).toHaveClass('left-0')
+  })
+
   it('shows an error and keeps state when unliking rejects', async () => {
     ;(undoLikeStatus as jest.Mock).mockRejectedValue(new Error('network down'))
 

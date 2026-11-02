@@ -964,6 +964,7 @@ describe('StatusThread', () => {
       return notes
     }
 
+    // The later run is unlisted: a visibility change is what splits two runs.
     const makeTwoRuns = () => {
       const [a1, a2] = makeAliceRun(2)
       const a3 = createMockNote({
@@ -972,6 +973,8 @@ describe('StatusThread', () => {
         actorId: mockAlice.id,
         reply: a2.id,
         text: 'Later run part 1',
+        to: [],
+        cc: ['https://www.w3.org/ns/activitystreams#Public'],
         createdAt: BASE_TIME + 25 * MINUTE
       })
       const a4 = createMockNote({
@@ -980,6 +983,8 @@ describe('StatusThread', () => {
         actorId: mockAlice.id,
         reply: a3.id,
         text: 'Later run part 2',
+        to: [],
+        cc: ['https://www.w3.org/ns/activitystreams#Public'],
         createdAt: BASE_TIME + 27 * MINUTE
       })
       return { a1, a2, a3, a4 }
@@ -2756,7 +2761,7 @@ describe('StatusThread', () => {
       }
     })
 
-    it('renders a second self-reply block > 10 minutes later as its own SelfThreadRun with its own header', () => {
+    it('renders a second self-reply block after a visibility change as its own SelfThreadRun with its own header', () => {
       const a1 = createMockNote({
         id: 'https://activities.local/users/alice/statuses/block1-1',
         actor: mockAlice,
@@ -2777,7 +2782,9 @@ describe('StatusThread', () => {
         actor: mockAlice,
         actorId: mockAlice.id,
         reply: a2.id,
-        text: 'Second block part 1 after gap',
+        text: 'Second block part 1 after visibility change',
+        to: [],
+        cc: ['https://www.w3.org/ns/activitystreams#Public'],
         createdAt: BASE_TIME + 20 * MINUTE
       })
       const a4 = createMockNote({
@@ -2785,7 +2792,9 @@ describe('StatusThread', () => {
         actor: mockAlice,
         actorId: mockAlice.id,
         reply: a3.id,
-        text: 'Second block part 2 after gap',
+        text: 'Second block part 2 after visibility change',
+        to: [],
+        cc: ['https://www.w3.org/ns/activitystreams#Public'],
         createdAt: BASE_TIME + 22 * MINUTE
       })
 
@@ -2810,10 +2819,10 @@ describe('StatusThread', () => {
         'location'
       )
 
-      // Second block (>10 min later) has its own header time span (10m – 8m), its own 2 of 2 label, and no opened part
+      // Second block (unlisted, so a separate run) has its own header time span (10m – 8m), its own 2 of 2 label, and no opened part
       expect(within(runs[1]).getByText('10m – 8m')).toBeInTheDocument()
       expect(
-        within(runs[1]).getByText('Second block part 1 after gap')
+        within(runs[1]).getByText('Second block part 1 after visibility change')
       ).toBeInTheDocument()
       expect(
         within(runs[1]).getByRole('button', { name: /Open part 2 of 2/i })
