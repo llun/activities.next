@@ -27,6 +27,7 @@ import {
   resolveActorStatusesAudience
 } from '@/lib/services/statusAccess'
 import { overlayStoredViewerState } from '@/lib/services/statuses/overlayViewerState'
+import { getProfileRepliesTabStatusIds } from '@/lib/services/statuses/repliesTab'
 import { Actor } from '@/lib/types/activitypub'
 import { Actor as DomainActor } from '@/lib/types/domain/actor'
 import { Attachment, isVisualAttachment } from '@/lib/types/domain/attachment'
@@ -51,6 +52,11 @@ type ProfileData = {
   // values are HTML, `verifiedAt` comes from the stored actor row.
   profileFields: ProfileFieldItem[]
   statuses: Status[]
+  // A local account's statuses that belong on the profile's Replies tab: its
+  // replies whose self-reply chain starts with a reply to someone else. Every
+  // other status is on Posts. Absent for a remote profile, whose live outbox
+  // keeps the plain "is it a reply" split in the browser.
+  repliesTabStatusIds?: string[]
   statusesCount: number | null
   statusPagination: {
     // A remote actor's feed pages through its outbox collection pages.
@@ -321,6 +327,16 @@ const getLocalProfileData = async (
     )
   ).filter((status): status is Status => status !== null)
 
+  // Which served statuses open the Replies tab rather than Posts, decided on
+  // the server by the first post of each self-reply chain. Scoped by the same
+  // audience, so the walk only passes through ancestors this viewer may read.
+  const repliesTabStatusIds = await getProfileRepliesTabStatusIds({
+    database,
+    actorId: persistedActor.id,
+    statuses,
+    audience: visibilityScope
+  })
+
   return {
     person: getPersonFromActor(persistedActor),
     // A local actor's stored value is the raw text; the page shows the HTML
@@ -331,6 +347,7 @@ const getLocalProfileData = async (
       verifiedAt: toVerifiedAt(field.verifiedAt)
     })),
     statuses,
+    repliesTabStatusIds,
     statusesCount,
     statusPagination: {
       nextPageUrl: null,

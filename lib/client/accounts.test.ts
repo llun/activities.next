@@ -882,7 +882,8 @@ describe('client accounts module', () => {
       fetchMock.mockResponse(
         JSON.stringify({
           statuses: [],
-          nextMaxStatusId: 'https://local.example/statuses/2'
+          nextMaxStatusId: 'https://local.example/statuses/2',
+          repliesTabStatusIds: ['https://local.example/statuses/3']
         }),
         { status: 200 }
       )
@@ -893,7 +894,8 @@ describe('client accounts module', () => {
       })
       expect(res).toEqual({
         statuses: [],
-        nextMaxStatusId: 'https://local.example/statuses/2'
+        nextMaxStatusId: 'https://local.example/statuses/2',
+        repliesTabStatusIds: ['https://local.example/statuses/3']
       })
       expect(fetchMock).toHaveBeenCalledWith(
         'https://local.example/api/v1/accounts/actor-123/statuses?format=activities_next&max_id=https%3A%2F%2Flocal.example%2Fstatuses%2F1',
@@ -902,6 +904,21 @@ describe('client accounts module', () => {
           headers: { Accept: 'application/json' }
         })
       )
+    })
+
+    it('reads a page without a Replies tab list as having none', async () => {
+      fetchMock.mockResponse(
+        JSON.stringify({ statuses: [], nextMaxStatusId: null }),
+        { status: 200 }
+      )
+
+      await expect(
+        getAccountStatusesPage({ actorId: 'actor-123', maxStatusId: 'cursor' })
+      ).resolves.toEqual({
+        statuses: [],
+        nextMaxStatusId: null,
+        repliesTabStatusIds: []
+      })
     })
 
     it('throws when status is not 200', async () => {

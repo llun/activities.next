@@ -26,6 +26,12 @@ vi.mock('@/lib/components/posts/posts', async () => ({
   Posts: (await import('./ActorTimelines.testUtils')).MockPosts
 }))
 
+// A local profile's Posts and Replies tabs render through the home feed; the
+// same stand-in shows which statuses each tab hands it.
+vi.mock('@/lib/components/posts/timeline-feed', async () => ({
+  TimelineFeed: (await import('./ActorTimelines.testUtils')).MockPosts
+}))
+
 vi.mock('./ProfileGalleryTab', async () => ({
   ProfileGalleryTab: (await import('./ActorTimelines.testUtils'))
     .MockProfileGalleryTab
@@ -334,6 +340,59 @@ describe('ActorTimelines', () => {
       screen.getByText('https://local.example/statuses/new-reply')
     ).toBeInTheDocument()
   })
+
+  it.each([
+    {
+      description: 'a reply to an unloaded parent',
+      loaded: [createStatus('https://remote.example/statuses/post')],
+      tab: 'Replies'
+    },
+    {
+      description: 'a reply to an own top-level post',
+      loaded: [createStatus('https://remote.example/statuses/parent')],
+      tab: 'Posts'
+    },
+    {
+      description: 'a reply under an own Replies thread',
+      loaded: [createReplyStatus('https://remote.example/statuses/parent')],
+      repliesTab: ['https://remote.example/statuses/parent'],
+      tab: 'Replies'
+    }
+  ])(
+    'puts $description written on a local profile on $tab',
+    ({ loaded, repliesTab = [], tab }) => {
+      render(
+        <ActorTimelines
+          host="[REDACTED]"
+          actorId="https://remote.example/users/actor"
+          statuses={loaded}
+          repliesTabStatusIds={repliesTab}
+          attachments={[]}
+          currentTime={FIXED_CURRENT_TIME}
+          currentActor={currentActorProfile}
+          isCurrentUser
+          statusPagination={{ nextPageUrl: null, prevPageUrl: null }}
+        />
+      )
+
+      // Written from whichever tab shows the loaded post.
+      if (repliesTab.length > 0) {
+        fireEvent.click(screen.getByRole('radio', { name: 'Replies' }))
+      }
+      fireEvent.click(screen.getAllByTestId('trigger-reply-created')[0])
+
+      // It lands on the tab the server would put it on, and only there.
+      const otherTab = tab === 'Posts' ? 'Replies' : 'Posts'
+      fireEvent.click(screen.getByRole('radio', { name: tab }))
+      expect(
+        screen.getByText('https://local.example/statuses/new-reply')
+      ).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('radio', { name: otherTab }))
+      expect(
+        screen.queryByText('https://local.example/statuses/new-reply')
+      ).not.toBeInTheDocument()
+    }
+  )
 
   it('does not inject a reply into another actor’s profile feed', () => {
     render(

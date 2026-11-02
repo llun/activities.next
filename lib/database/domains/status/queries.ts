@@ -65,6 +65,7 @@ import {
   getStatusRepliesCounts,
   getStatusesByIds
 } from '@/lib/database/domains/status/reads'
+import { getRepliesTabStatusIds } from '@/lib/database/domains/status/repliesTab'
 import type {
   AppendStatusHistoryParams,
   CreateAnnounceParams,
@@ -189,6 +190,7 @@ export const createStatusQueries = (
   getStatusEditHistory,
   getActorStatusesCount,
   getActorStatuses,
+  getRepliesTabStatusIds,
   getStatusesByIds,
   getStatusReblogsCount,
   getStatusReblogsCounts,

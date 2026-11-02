@@ -608,6 +608,11 @@ export interface GetAccountStatusesPageParams {
 export interface GetAccountStatusesPageResult {
   statuses: Status[]
   nextMaxStatusId: string | null
+  /**
+   * The page's statuses that belong on the profile's Replies tab (the server
+   * decides it from each self-reply chain's first post); the rest are Posts.
+   */
+  repliesTabStatusIds: string[]
 }
 
 // A local account's posts, one page older than `maxStatusId`, the way
@@ -635,7 +640,10 @@ export const getAccountStatusesPage = async ({
   const data = await response.json()
   return {
     statuses: data.statuses as Status[],
-    nextMaxStatusId: data.nextMaxStatusId ?? null
+    nextMaxStatusId: data.nextMaxStatusId ?? null,
+    repliesTabStatusIds: Array.isArray(data.repliesTabStatusIds)
+      ? (data.repliesTabStatusIds as string[])
+      : []
   }
 }
 

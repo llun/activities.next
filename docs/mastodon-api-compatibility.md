@@ -640,9 +640,14 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   this query flag to return the raw internal status JSON instead of the Mastodon
   status shape (the web `/explore` Posts tab uses it to render the interactive
   timeline post component). On the account statuses endpoint the body is
-  `{ statuses, nextMaxStatusId }` with no `Link` header: a local account's
-  profile page loads its older posts with it, passing `nextMaxStatusId` back as
-  `max_id` the way Mastodon's web profile pages this endpoint.
+  `{ statuses, nextMaxStatusId, repliesTabStatusIds }` with no `Link` header: a
+  local account's profile page loads its older posts with it, passing
+  `nextMaxStatusId` back as `max_id` the way Mastodon's web profile pages this
+  endpoint. `repliesTabStatusIds` lists the page's statuses that open the
+  profile's Replies tab (see [Profile tabs](architecture.md#profile-tabs-and-the-edit-profile-page));
+  the Mastodon response is unchanged. `GET /api/v1/timelines/list/:id` returns
+  `{ statuses, context, nextMaxStatusId, prevMinStatusId }`, the same `context`
+  of reply parent previews the home timeline's payload carries.
 
 ### Media & uploads
 
@@ -1948,7 +1953,9 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   `InlineStatusComposer` internally — that is the shared layer doing the wiring,
   not a page opting into per-status callbacks.)
   **Exception — the timeline's combined post** (`CombinedPostListItem`, a run of
-  self-replies shown as one row): repost, bookmark and react live on its one
+  self-replies shown as one row on the home and list timelines and a local
+  profile's Posts and Replies tabs, which all render through `TimelineFeed`
+  rather than `Posts`): repost, bookmark and react live on its one
   shared action bar and act on the first post, its like acts on the first post
   too, and reply goes to the latest post (`Actions`' `splitTargets`). Every
   later part has its own Like beside its `⋯` menu, and a tucked-in reply has its

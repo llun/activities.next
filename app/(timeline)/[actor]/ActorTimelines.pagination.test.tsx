@@ -51,11 +51,13 @@ describe('ActorTimelines', () => {
     getAccountStatusesPageMock
       .mockResolvedValueOnce({
         statuses: [createStatus('https://local.example/statuses/2')],
-        nextMaxStatusId: 'https://local.example/statuses/2'
+        nextMaxStatusId: 'https://local.example/statuses/2',
+        repliesTabStatusIds: []
       })
       .mockResolvedValueOnce({
         statuses: [createStatus('https://local.example/statuses/3')],
-        nextMaxStatusId: null
+        nextMaxStatusId: null,
+        repliesTabStatusIds: []
       })
 
     render(
@@ -98,7 +100,8 @@ describe('ActorTimelines', () => {
   it('steps the max_id cursor back when the post it points at is deleted', async () => {
     getAccountStatusesPageMock.mockResolvedValue({
       statuses: [],
-      nextMaxStatusId: null
+      nextMaxStatusId: null,
+      repliesTabStatusIds: []
     })
 
     render(
@@ -141,9 +144,14 @@ describe('ActorTimelines', () => {
           createStatus('https://local.example/statuses/2'),
           createStatus('https://local.example/statuses/3')
         ],
-        nextMaxStatusId: 'https://local.example/statuses/3'
+        nextMaxStatusId: 'https://local.example/statuses/3',
+        repliesTabStatusIds: []
       })
-      .mockResolvedValue({ statuses: [], nextMaxStatusId: null })
+      .mockResolvedValue({
+        statuses: [],
+        nextMaxStatusId: null,
+        repliesTabStatusIds: []
+      })
 
     render(
       <ActorTimelines

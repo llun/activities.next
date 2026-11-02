@@ -5,6 +5,7 @@ import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getMastodonList } from '@/lib/services/mastodon/getMastodonList'
+import { getTimelineContext } from '@/lib/services/timelines/getTimelineContext'
 import { getActorProfile } from '@/lib/types/domain/actor'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
@@ -57,10 +58,14 @@ const Page = async ({ params }: PageProps) => {
     actorId: actor.id,
     limit: 20
   })
-  const counts = await database.getListAccountCounts({
-    actorId: actor.id,
-    listIds: [id]
-  })
+  const [counts, timelineContext] = await Promise.all([
+    database.getListAccountCounts({
+      actorId: actor.id,
+      listIds: [id]
+    }),
+    // Reply-context parent previews, as the home timeline's first page has.
+    getTimelineContext({ database, currentActor: actor, statuses })
+  ])
 
   return (
     <ListTimeline
@@ -68,6 +73,7 @@ const Page = async ({ params }: PageProps) => {
       list={getMastodonList(list)}
       memberCount={counts[id] ?? 0}
       statuses={statuses.map((status) => cleanJson(status))}
+      timelineContext={cleanJson(timelineContext)}
       currentTime={Date.now()}
       currentActor={getActorProfile(actor)}
       isMediaUploadEnabled={Boolean(mediaStorage)}

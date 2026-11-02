@@ -12,6 +12,7 @@ import {
   canActorReadStatus,
   resolveActorStatusesAudience
 } from '@/lib/services/statusAccess'
+import { getProfileRepliesTabStatusIds } from '@/lib/services/statuses/repliesTab'
 import { TimelineFormat } from '@/lib/services/timelines/const'
 import {
   decodeCursor,
@@ -306,12 +307,28 @@ export const GET = traceApiRoute(
             : isExhausted
               ? null
               : (nextMaxId ?? null)
+        // The web profile's tab for each self-thread is decided here, not by
+        // the browser from whichever parents it has loaded, so a follow-up
+        // never moves tabs when another page arrives. Web payload only: the
+        // Mastodon response below is unchanged.
+        const repliesTabStatusIds = await getProfileRepliesTabStatusIds({
+          database,
+          actorId: id,
+          statuses: visibleStatuses,
+          audience: {
+            publicOnly: audience.publicOnly,
+            visibleToActorId: audience.visibleToActorId,
+            includeFollowersOnly: audience.includeFollowersOnly,
+            followersAudience: audience.followersAudience
+          }
+        })
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
           data: {
             statuses: visibleStatuses.map((status) => cleanJson(status)),
-            nextMaxStatusId
+            nextMaxStatusId,
+            repliesTabStatusIds
           }
         })
       }

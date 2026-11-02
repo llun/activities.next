@@ -11,6 +11,7 @@ import { headerHost } from '@/lib/services/guards/headerHost'
 import { getClientStatusCursors } from '@/lib/services/mastodon/clientCursor'
 import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
 import { TimelineFormat } from '@/lib/services/timelines/const'
+import { getTimelineContext } from '@/lib/services/timelines/getTimelineContext'
 import {
   parseTimelineQuery,
   resolveTimelineCursors,
@@ -115,15 +116,22 @@ export const GET = traceApiRoute(
         )
 
         // The Activities.next web UI consumes the internal domain Status shape
-        // (the same payload as the home timeline's activities_next format) so
-        // it can render with the shared <Posts> component. Default (no format)
-        // stays Mastodon-compatible: entities + Link headers, untouched below.
+        // and the reply-context parent previews (the same payload as the home
+        // timeline's activities_next format) so it renders through the home
+        // timeline's feed. Default (no format) stays Mastodon-compatible:
+        // entities + Link headers, untouched below.
         if (format === TimelineFormat.enum.activities_next) {
+          const context = await getTimelineContext({
+            database,
+            currentActor,
+            statuses: visibleStatuses
+          })
           return apiResponse({
             req,
             allowedMethods: CORS_HEADERS,
             data: {
               statuses: visibleStatuses.map((item) => cleanJson(item)),
+              context: cleanJson(context),
               nextMaxStatusId,
               prevMinStatusId
             }

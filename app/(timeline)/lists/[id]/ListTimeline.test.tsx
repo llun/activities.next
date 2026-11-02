@@ -13,6 +13,10 @@ import {
   StatusNote,
   StatusType
 } from '@/lib/types/domain/status'
+import {
+  TimelineContext,
+  TimelineParentPreview
+} from '@/lib/types/domain/timeline'
 import { ListEntity } from '@/lib/types/mastodon/list'
 
 import { ListTimeline } from './ListTimeline'
@@ -58,10 +62,13 @@ vi.mock('@/lib/components/page-header', () => ({
   )
 }))
 
-vi.mock('@/lib/components/posts/posts', () => ({
-  Posts: ({
+// The list renders through the home timeline's feed; this stand-in shows what
+// the feed is handed. Its grouping is covered by ListTimeline.selfThreads.
+vi.mock('@/lib/components/posts/timeline-feed', () => ({
+  TimelineFeed: ({
     statuses,
     currentTime,
+    timelineContext,
     onPostDeleted,
     onPostUpdated,
     onLikeChanged,
@@ -70,6 +77,7 @@ vi.mock('@/lib/components/posts/posts', () => ({
   }: {
     statuses: Status[]
     currentTime: number
+    timelineContext?: TimelineContext
     onPostDeleted?: (status: Status) => void
     onPostUpdated?: (status: Status) => void
     onLikeChanged?: (status: any, isLiked: boolean) => void
@@ -78,6 +86,9 @@ vi.mock('@/lib/components/posts/posts', () => ({
   }) => (
     <div>
       <div data-testid="posts-current-time">{currentTime}</div>
+      <div data-testid="feed-parent-previews">
+        {Object.keys(timelineContext?.ancestorsById ?? {}).join(' ')}
+      </div>
       {statuses.map((status) => {
         const target = (
           status.type === StatusType.enum.Announce
@@ -366,6 +377,42 @@ describe('ListTimeline', () => {
       listId: 'list-1',
       maxStatusId: 'https://activities.local/users/llun/s/1'
     })
+  })
+
+  it('keeps the parent previews of every loaded page', async () => {
+    const preview = (id: string) =>
+      ({
+        id,
+        actor: { id: profile.id, username: 'llun' }
+      }) as TimelineParentPreview
+    ;(getListTimeline as jest.Mock).mockResolvedValue({
+      statuses: [createStatus('https://activities.local/users/llun/s/2')],
+      context: { ancestorsById: { 'parent-2': preview('parent-2') } },
+      nextMaxStatusId: null,
+      prevMinStatusId: null
+    })
+
+    render(
+      <ListTimeline
+        host="activities.local"
+        list={list}
+        memberCount={1}
+        statuses={[createStatus('https://activities.local/users/llun/s/1')]}
+        timelineContext={{ ancestorsById: { 'parent-1': preview('parent-1') } }}
+        currentTime={FIXED_CURRENT_TIME}
+        currentActor={profile}
+      />
+    )
+
+    expect(screen.getByTestId('feed-parent-previews')).toHaveTextContent(
+      'parent-1'
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    await screen.findByText('https://activities.local/users/llun/s/2')
+
+    expect(screen.getByTestId('feed-parent-previews')).toHaveTextContent(
+      'parent-1 parent-2'
+    )
   })
 
   describe('status updates and engagement sync', () => {

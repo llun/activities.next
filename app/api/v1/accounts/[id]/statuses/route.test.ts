@@ -1117,8 +1117,76 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
       return (await response.json()) as {
         statuses: Status[]
         nextMaxStatusId: string | null
+        repliesTabStatusIds: string[]
       }
     }
+
+    it('says which statuses open the Replies tab, only in the app format', async () => {
+      const actorId = await createLocalActor('formattabs')
+      const now = Date.now()
+      const othersPostId = `${ACTOR2_ID}/statuses/format-tabs-others-post`
+      const topId = `${actorId}/statuses/format-tabs-top`
+      const selfReplyId = `${actorId}/statuses/format-tabs-self-reply`
+      const toOtherId = `${actorId}/statuses/format-tabs-to-other`
+      const underOtherId = `${actorId}/statuses/format-tabs-under-other`
+      await database.createNote({
+        id: othersPostId,
+        url: othersPostId,
+        actorId: ACTOR2_ID,
+        text: 'Someone else',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        createdAt: now - 10
+      })
+      for (const [statusId, reply, createdAt] of [
+        [topId, undefined, now - 4],
+        [selfReplyId, topId, now - 3],
+        [toOtherId, othersPostId, now - 2],
+        [underOtherId, toOtherId, now - 1]
+      ] as const) {
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId,
+          text: 'Format tabs',
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          reply,
+          createdAt
+        })
+      }
+
+      const page = await getPage(actorId, 'limit=10')
+      expect(page.statuses.map((status) => status.id)).toEqual([
+        underOtherId,
+        toOtherId,
+        selfReplyId,
+        topId
+      ])
+      // The self-reply under the top-level post stays on Posts; the reply to
+      // someone else and the self-reply under it open Replies.
+      expect(page.repliesTabStatusIds).toEqual([underOtherId, toOtherId])
+
+      const mastodonResponse = await GET(
+        new NextRequest(
+          `https://llun.test/api/v1/accounts/${urlToId(actorId)}/statuses?limit=10`
+        ),
+        { params: Promise.resolve({ id: urlToId(actorId) }) }
+      )
+      const mastodonStatuses = (await mastodonResponse.json()) as Record<
+        string,
+        unknown
+      >[]
+      expect(mastodonStatuses.map((status) => status.uri)).toEqual([
+        underOtherId,
+        toOtherId,
+        selfReplyId,
+        topId
+      ])
+      for (const status of mastodonStatuses) {
+        expect(status).not.toHaveProperty('repliesTabStatusIds')
+      }
+    })
 
     it('serves the app status shape with the next max_id cursor in the body', async () => {
       const actorId = await createLocalActor('format')

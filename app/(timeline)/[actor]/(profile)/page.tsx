@@ -168,6 +168,7 @@ const Page: FC<Props> = async ({ params }) => {
     person,
     profileFields,
     statuses,
+    repliesTabStatusIds,
     attachments,
     statusesCount,
     statusPagination,
@@ -508,6 +509,7 @@ const Page: FC<Props> = async ({ params }) => {
         hasHeaderImage={Boolean(headerImageUrl)}
         currentTime={Date.now()}
         statuses={statuses}
+        repliesTabStatusIds={repliesTabStatusIds}
         attachments={attachments}
         statusPagination={statusPagination}
         postLineLimit={actorSettings?.postLineLimit}

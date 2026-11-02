@@ -38,6 +38,7 @@ import {
 } from './combinedThreadModel'
 import { MOBILE_FEED_SURFACE_CLASS, POST_LIST_FRAME_CLASS } from './feedLayout'
 import { PostListItem } from './post-list-item'
+import { getPrioritizedRowIndex } from './posts'
 import { getStatusReplyTargetId, groupTimelinePage } from './timelineModel'
 import { useInlineComposer } from './useInlineComposer'
 
@@ -59,6 +60,15 @@ export interface TimelineFeedProps {
   showReadOnlyStats?: boolean
   currentTime: number
   statuses: Status[]
+  /**
+   * Reveal the list's first picture without the hydration fade, as `Posts`
+   * does (see its prop of the same name). Off by default.
+   */
+  prioritizeFirstMedia?: boolean
+  /**
+   * Parent previews for reply context. Without it a reply whose parent is not
+   * in its row shows the generic "In reply to a post" line.
+   */
   timelineContext?: TimelineContext
   isMediaUploadEnabled?: boolean
   postLineLimit?: PostLineLimit
@@ -99,6 +109,7 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
   showReadOnlyStats = false,
   currentTime,
   statuses,
+  prioritizeFirstMedia = false,
   timelineContext,
   isMediaUploadEnabled,
   postLineLimit,
@@ -184,6 +195,14 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
     return map
   }, [statuses])
 
+  // The same pick as `Posts`: the first of the list's first statuses that
+  // shows an ordinary picture outright.
+  const prioritizedStatusId = useMemo(() => {
+    if (!prioritizeFirstMedia) return null
+    const index = getPrioritizedRowIndex(statuses)
+    return index === -1 ? null : statuses[index].id
+  }, [prioritizeFirstMedia, statuses])
+
   const rows = useMemo(() => {
     return groupTimelinePage(statuses, {
       groupBoosts: readingGroupBoosts
@@ -253,6 +272,7 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
       postLineLimit={postLineLimit}
       showReplyContext={options?.showReplyContext}
       parentPreview={options?.parentPreview}
+      prioritizeMedia={status.id === prioritizedStatusId}
       canCompose={canCompose}
       activeComposer={
         currentActor && composer.active?.anchorId === status.id
