@@ -1,0 +1,33 @@
+app/api/v1/account/archives/route.test.ts
+  s_279e7012f36c5f::t_48b6f7ae945044 365-371
+lib/services/accountArchive/objectStore.ts
+  s_7a68e24f54dd42::t_b49d26043c75a7 786-797
+lib/services/accountImport/ownArchivePhases.test.ts
+  s_7a68e24f54dd42::t_8ed343a198d8ee 124-127,133-134,139-141,216,234,481-482,535
+  s_7a68e24f54dd42::t_cfc8a0cdd8bd18 132,135-138
+  s_7a68e24f54dd42::t_af63786645ecf2 128-131
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5dbf45a95312749a8fc25c97f29a26e4470d7ae8",
+  "prompts": {},
+  "sessions": {
+    "s_279e7012f36c5f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0410f49d-2e94-45e1-bd1f-237e6f7747bc",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_7a68e24f54dd42": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a17efa-a718-7790-b73a-0fb8dfe4c17a",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

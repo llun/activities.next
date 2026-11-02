@@ -1,0 +1,35 @@
+app/api/v1/polls/[id]/votes/route.test.ts
+  s_1d7eab3144bf41::t_b4cf9bf1709079 287-291
+app/api/v1/polls/[id]/votes/route.ts
+  s_1d7eab3144bf41::t_3293cdfb47e07c 99-101,106-107
+app/api/v1/statuses/route.test.ts
+  s_1d7eab3144bf41::t_94024d2da4f95f 20,306-308,337-346
+app/api/v1/statuses/route.ts
+  s_1d7eab3144bf41::t_19e0b77915cb10 62,435-439,441-443
+app/api/v2/search/route.resolve.test.ts
+  s_1d7eab3144bf41::t_de2f96987f5ef1 31-33,39-43,52-62,111-113,165-206
+docs/mastodon-api-compatibility.md
+  s_1d7eab3144bf41::t_cc586d983fa909 1911-1915
+lib/jobs/fetchRemoteStatusJob.ts
+  s_1d7eab3144bf41::t_0ef5d2373544c3 97,121
+lib/services/statuses/getReadableStatusForAction.test.ts
+  s_1d7eab3144bf41::t_5ba56e95baedcf 410,457-492,523,530-532,541-546
+lib/services/statuses/getReadableStatusForAction.ts
+  s_1d7eab3144bf41::t_87bfc8c0ee30b7 13,27-32,38-41,43-44,53-54,76-78,90-100,109-111
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8643d9afbb3e91c285bdfc16c276d4d696f07617",
+  "prompts": {},
+  "sessions": {
+    "s_1d7eab3144bf41": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18d6e-0cf0-7811-9538-fc26edb0dd2f",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

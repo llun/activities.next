@@ -1,0 +1,36 @@
+app/(timeline)/admin/accounts/[id]/ActorModerationPanel.tsx
+  h_580a04e334fef4 26,48
+app/(timeline)/collections/CollectionEditor.tsx
+  h_580a04e334fef4 498,517,526
+app/(timeline)/lists/ListEditor.tsx
+  h_580a04e334fef4 412,431,440
+app/(timeline)/settings/featured-hashtags/FeaturedTagsEditor.tsx
+  h_580a04e334fef4 147
+app/globals.contrast.test.ts
+  h_580a04e334fef4 182-211
+app/globals.css
+  h_580a04e334fef4 32,99-108,183-186,264-270
+docs/architecture.md
+  h_580a04e334fef4 1490-1498
+lib/components/admin-announcements/AnnouncementsPanel.tsx
+  h_580a04e334fef4 383
+lib/components/admin/CustomEmojiManager.tsx
+  h_580a04e334fef4 277
+lib/components/settings/DeleteActorDialog.tsx
+  h_580a04e334fef4 92
+lib/components/ui/badge.tsx
+  h_580a04e334fef4 14
+lib/components/ui/dropdown-menu.tsx
+  h_580a04e334fef4 77
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "1b669052366b01c337ff40343e34ad93047a1af7",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

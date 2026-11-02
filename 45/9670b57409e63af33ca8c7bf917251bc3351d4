@@ -1,0 +1,24 @@
+app/api/v1/accounts/lookup/route.test.ts
+  h_580a04e334fef4 172-182
+app/api/v1/accounts/lookup/route.ts
+  h_580a04e334fef4 40,42
+lib/services/wellknown/index.test.ts
+  h_580a04e334fef4 639,649-650,653
+lib/services/wellknown/webfinger.ts
+  h_580a04e334fef4 39,48,108
+lib/utils/accountHandle.test.ts
+  h_580a04e334fef4 145,154-158,194-204
+lib/utils/accountHandle.ts
+  h_580a04e334fef4 29,50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "459670b57409e63af33ca8c7bf917251bc3351d4",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

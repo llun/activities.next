@@ -1,0 +1,21 @@
+app/api/v1/tags/[tag]/follow/route.test.ts
+  s_f7b91ac6284bd0::t_2850b89a4b6b1a 102-105
+app/api/v1/tags/[tag]/unfollow/route.test.ts
+  s_f7b91ac6284bd0::t_0051f24599c664 97-100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e69041991edc9ad923a8fb65574c5c882a74d2ac",
+  "prompts": {},
+  "sessions": {
+    "s_f7b91ac6284bd0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7e5d29e0-cb70-4516-b716-6108a10b94a2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

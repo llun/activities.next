@@ -1,0 +1,28 @@
+app/(nosidebar)/auth/signin/PasskeySigninButton.tsx
+  s_38e24bcf2d5456::t_1a935efcfe4e49 21
+  s_38e24bcf2d5456::t_6def93fc40ec9b 10
+app/(nosidebar)/auth/signin/CredentialForm.tsx
+  s_38e24bcf2d5456::t_36c5b85242a933 54
+  s_38e24bcf2d5456::t_9c7ce18d3a9e9a 13-14
+app/(nosidebar)/auth/signin/resolveSignInRedirect.test.ts
+  s_38e24bcf2d5456::t_a2b316d7c2e1cd 1-45,54-93
+  s_38e24bcf2d5456::t_5f60197fbfe81f 46-53
+app/(nosidebar)/auth/signin/resolveSignInRedirect.ts
+  s_38e24bcf2d5456::t_c16f678a56c16c 1-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "800554c5d9abc344aa25dd176614e589e2eb167d",
+  "prompts": {},
+  "sessions": {
+    "s_38e24bcf2d5456": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10d07056-e5c7-4e51-ae35-e0742cfd7b0c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

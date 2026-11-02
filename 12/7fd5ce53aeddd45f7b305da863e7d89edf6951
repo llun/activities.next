@@ -1,0 +1,47 @@
+lib/actions/createNote.test.ts
+  s_4f4812f16bd65a::t_487cc1b61ee7f7 108-119
+  s_4f4812f16bd65a::t_cfec68625903fd 23
+lib/actions/createPoll.test.ts
+  s_4f4812f16bd65a::t_17791d32c02fe9 12
+  s_4f4812f16bd65a::t_dcade68938289b 73-88
+lib/jobs/importStravaActivityJob.ts
+  s_4f4812f16bd65a::t_596cb8930ecea2 334-339
+lib/jobs/importFitnessFilesJob.test.ts
+  s_4f4812f16bd65a::t_4bacc25d2a7e67 240-249
+  s_4f4812f16bd65a::t_afbca2924fff93 16
+lib/actions/createPoll.ts
+  s_4f4812f16bd65a::t_ff9e64f4085739 62-66
+  s_4f4812f16bd65a::t_5c16bc1fb40434 117
+  s_4f4812f16bd65a::t_4ac54d979499d0 14,16
+lib/actions/createNote.ts
+  s_4f4812f16bd65a::t_99e3fa5ed4e204 369-373
+  s_4f4812f16bd65a::t_034212bc2df299 28,35
+  s_4f4812f16bd65a::t_e9ebf56a6e71ae 431
+lib/actions/announce.test.ts
+  s_4f4812f16bd65a::t_51c33071b77e35 14
+  s_4f4812f16bd65a::t_063e84fe64852f 88-99
+lib/jobs/importFitnessFilesJob.ts
+  s_4f4812f16bd65a::t_ab7046327f1edd 22,26
+  s_4f4812f16bd65a::t_d193e66a0c47aa 212-215,220
+lib/actions/announce.ts
+  s_4f4812f16bd65a::t_8a0c84e3265ae3 12,16
+  s_4f4812f16bd65a::t_2c18bdbda55b0a 76-77,81
+lib/jobs/importStravaActivityJob.test.ts
+  s_4f4812f16bd65a::t_bfd0246b560684 668-681
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "127fd5ce53aeddd45f7b305da863e7d89edf6951",
+  "prompts": {},
+  "sessions": {
+    "s_4f4812f16bd65a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ef4966e6-a801-42ad-bea7-0a298c41d397",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

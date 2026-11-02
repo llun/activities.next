@@ -1,0 +1,25 @@
+app/api/v1/settings/fitness/general/route.ts
+  s_8f8c7653879d27::t_194c03fc3ae486 64-68,76
+app/api/v1/settings/fitness/general/route.test.ts
+  s_8f8c7653879d27::t_a7cafdb87e4bd0 454-473
+app/api/v1/accounts/password/reset/request/route.test.ts
+  s_8f8c7653879d27::t_653097dfecf5c8 55,57-65,85-96
+app/api/v1/accounts/password/reset/request/route.ts
+  s_8f8c7653879d27::t_601eaf5959ce75 64-78,98-111
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "f0fed5f4f1d957eaff9905de452f1262b83825f5",
+  "prompts": {},
+  "sessions": {
+    "s_8f8c7653879d27": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1dff-6d59-7960-9eee-87eebfec6a18",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

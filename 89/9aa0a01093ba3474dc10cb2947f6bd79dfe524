@@ -1,0 +1,19 @@
+lib/components/admin/settings/EnvBlockBuilder.tsx
+  s_7b5db226f5ac28::t_c91adb85a48a24 84-87
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "899aa0a01093ba3474dc10cb2947f6bd79dfe524",
+  "prompts": {},
+  "sessions": {
+    "s_7b5db226f5ac28": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c1ae4433-52de-480f-b4db-c0d46c98e7c2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

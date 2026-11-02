@@ -1,0 +1,22 @@
+lib/services/accounts/credentialsHandler.ts
+  s_ab97d21f52c341::t_f1c3d8a15aa2ab 13-16
+app/api/v1/tags/[tag]/feature/route.test.ts
+  s_ab97d21f52c341::t_97d60ce5853b6a 4,7
+  s_ab97d21f52c341::t_0e78e9f579903d 104-124
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3da6a6561837ad5dc2e598944d3069e2c314e609",
+  "prompts": {},
+  "sessions": {
+    "s_ab97d21f52c341": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "62bf221b-714f-4225-95d2-e37f0d6fd6a3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

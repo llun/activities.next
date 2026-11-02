@@ -1,0 +1,20 @@
+app/(timeline)/notifications/components/FollowRequestNotification.test.tsx
+  s_20f1b1f7038ee1::t_924418f4250cef 5
+  s_20f1b1f7038ee1::t_09d8bb8adeff7f 148-149,152,154-161,164-174
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "4b899d5e1605634d04d594253f0a3a3f6a3a97eb",
+  "prompts": {},
+  "sessions": {
+    "s_20f1b1f7038ee1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e951bd32-cce5-4afa-80c0-b714dbe1af06",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

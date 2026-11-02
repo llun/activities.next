@@ -1,0 +1,18 @@
+lib/services/fitness-files/parseFitnessFile.ts
+  h_580a04e334fef4 461
+lib/services/fitness-files/sportTypes.ts
+  h_580a04e334fef4 394
+scripts/fitness/normalizeFitnessActivityTypes.ts
+  h_580a04e334fef4 30-31,139,141,150,155
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "1bdcab9eddb150908587dffc7bba08335fcc95ce",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

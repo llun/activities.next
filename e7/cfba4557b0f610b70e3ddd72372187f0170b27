@@ -1,0 +1,25 @@
+app/api/v1/apps/createApplication.test.ts
+  s_f7b91ac6284bd0::t_93cd71265528ba 294-329
+app/api/v1/apps/types.ts
+  s_f7b91ac6284bd0::t_8ac4fa87915648 5-8
+app/api/v1/apps/route.test.ts
+  s_f7b91ac6284bd0::t_d89d282a64c82f 173-199
+app/api/v1/apps/createApplication.ts
+  s_f7b91ac6284bd0::t_1344107cd00a62 232-238
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e7cfba4557b0f610b70e3ddd72372187f0170b27",
+  "prompts": {},
+  "sessions": {
+    "s_f7b91ac6284bd0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7e5d29e0-cb70-4516-b716-6108a10b94a2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

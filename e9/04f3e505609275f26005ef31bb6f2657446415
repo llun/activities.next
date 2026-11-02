@@ -1,0 +1,25 @@
+app/api/v1/statuses/[id]/route.test.ts
+  s_68b8b1890fbd4e::t_33cfb5278d2542 3292-3334
+app/api/v1/statuses/[id]/reblogged_by/route.ts
+  s_68b8b1890fbd4e::t_24ea1da315c694 87-90
+lib/services/mastodon/accountCursorLinkHeader.ts
+  s_68b8b1890fbd4e::t_5ecb86d7d26249 8-10,12-15,21-22,28-29,50,53-56
+app/api/v1/statuses/[id]/favourited_by/route.ts
+  s_68b8b1890fbd4e::t_8989e32f8fabc5 87,89-94,99-107,112-113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "e904f3e505609275f26005ef31bb6f2657446415",
+  "prompts": {},
+  "sessions": {
+    "s_68b8b1890fbd4e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dccea080-a8de-41b3-ae43-bdc5e271c97e",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

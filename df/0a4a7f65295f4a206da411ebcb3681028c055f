@@ -1,0 +1,23 @@
+app/(timeline)/[actor]/[status]/ActivityStartTime.test.tsx
+  s_ef94c615601f1e::t_13375196332df7 6,51-55,58-62,64-66,68-69
+app/(timeline)/messages/MessageBubble.tsx
+  s_ef94c615601f1e::t_b44a29451b9dbb 27
+app/(timeline)/messages/MessagesPage.tsx
+  s_ef94c615601f1e::t_123b5f3845014f 112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "df0a4a7f65295f4a206da411ebcb3681028c055f",
+  "prompts": {},
+  "sessions": {
+    "s_ef94c615601f1e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c0945e62-5045-4d9f-8509-09789d421234",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

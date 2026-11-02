@@ -1,0 +1,25 @@
+lib/components/fitness/FitnessHeatmapList.tsx
+  8e51d3e31fcf665a 1-119,121-125,127-189,191-239
+lib/components/fitness/FitnessHeatmapList.test.tsx
+  8e51d3e31fcf665a 1-7,9-165
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "becf54c420273408435e2db355dd423a5ecbeb2e",
+  "prompts": {
+    "8e51d3e31fcf665a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "88bed09c-4d9a-45fc-8532-07d2e36c73b5",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 425,
+      "total_deletions": 16,
+      "accepted_lines": 400,
+      "overriden_lines": 3
+    }
+  }
+}

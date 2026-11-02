@@ -1,0 +1,22 @@
+lib/actions/createNote.test.ts
+  s_310719d8018dcf::t_b4cb872d669885 550-590
+lib/actions/createNote.ts
+  s_310719d8018dcf::t_cbfd1c9cfa8fa8 421,425-426,432,455,521
+  s_310719d8018dcf::t_c34bb71b6f7e12 422-424
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "1e6ac2cbe8798bc8fc941f4b70a7af22312142ea",
+  "prompts": {},
+  "sessions": {
+    "s_310719d8018dcf": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e3722-d1c9-7732-b66f-0221b95e639b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

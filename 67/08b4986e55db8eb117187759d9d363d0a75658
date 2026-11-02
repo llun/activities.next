@@ -1,0 +1,16 @@
+lib/services/federation/deliveryError.test.ts
+  h_580a04e334fef4 1-96
+lib/services/federation/deliveryError.ts
+  h_580a04e334fef4 1-87
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "6708b4986e55db8eb117187759d9d363d0a75658",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

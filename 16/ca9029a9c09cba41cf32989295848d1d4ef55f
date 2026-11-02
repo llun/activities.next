@@ -1,0 +1,24 @@
+lib/types/mastodon/announcement.ts
+  s_2de5d568423448::t_284e7c813077d9 1-29
+lib/types/mastodon/index.ts
+  s_2de5d568423448::t_605925aba06f59 8
+migrations/20260613094710_add_announcements.js
+  s_2de5d568423448::t_cbd8daf8343c81 1,15-17,44-48
+  s_2de5d568423448::t_87e58f5ae12c4b 2-14,18-43,49-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "16ca9029a9c09cba41cf32989295848d1d4ef55f",
+  "prompts": {},
+  "sessions": {
+    "s_2de5d568423448": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "380e0dd8-bb8c-402d-93c3-faf6bb59ed2f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

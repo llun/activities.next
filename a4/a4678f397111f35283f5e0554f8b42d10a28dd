@@ -1,0 +1,25 @@
+lib/jobs/fitnessImportOverlap.ts
+  s_ed05b2e981b84c::t_f2fa84fd219d42 1-2,9-78
+  s_ed05b2e981b84c::t_b6f4d70b29dc6e 79-80
+lib/jobs/fitnessImportOverlap.test.ts
+  s_ed05b2e981b84c::t_a2787275a23a5e 1-2,5
+  s_ed05b2e981b84c::t_fb595acaaa8e4a 78-134
+lib/jobs/importStravaActivityJob.ts
+  s_ed05b2e981b84c::t_90258d4d557eca 11-14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "a4a4678f397111f35283f5e0554f8b42d10a28dd",
+  "prompts": {},
+  "sessions": {
+    "s_ed05b2e981b84c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a61299ca-2ba8-497b-9eb6-b7afacc32f65",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

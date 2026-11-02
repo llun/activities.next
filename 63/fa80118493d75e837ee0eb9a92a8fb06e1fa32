@@ -1,0 +1,52 @@
+lib/database/sql/mute.test.ts
+  s_33e7bc9589e5b6::t_84568e0160fd64 1-173
+app/api/v1/accounts/[id]/mute/route.ts
+  s_33e7bc9589e5b6::t_cc000da89ef8f5 1,33-47
+lib/database/types.ts
+  s_33e7bc9589e5b6::t_61ab64dabd96a0 35
+  s_33e7bc9589e5b6::t_466df789f391e8 17
+migrations/20260527000000_add_mutes_table.js
+  s_33e7bc9589e5b6::t_9e24e8285b0d1a 1-28
+lib/services/accounts/relationship.test.ts
+  s_33e7bc9589e5b6::t_9055b09a8c48ad 12-13
+  s_33e7bc9589e5b6::t_e8f4237a78bfc0 175-231
+  s_33e7bc9589e5b6::t_d6cb63f7f921a9 29
+lib/actions/applyMute.ts
+  s_33e7bc9589e5b6::t_406d3764017f3f 1-23
+lib/database/sql/index.ts
+  s_33e7bc9589e5b6::t_7b62540a4405d9 7
+  s_33e7bc9589e5b6::t_d531e1bbb658ff 78
+  s_33e7bc9589e5b6::t_04bef16ee722fb 36
+lib/types/database/operations.ts
+  s_33e7bc9589e5b6::t_b9464247cd3f65 10
+  s_33e7bc9589e5b6::t_2ccf455712123e 989-1023
+lib/services/accounts/relationship.ts
+  s_33e7bc9589e5b6::t_09b4dafd90c489 20,41-44
+  s_33e7bc9589e5b6::t_4944b6ff3cf6ef 60-61
+app/api/v1/accounts/[id]/unmute/route.ts
+  s_33e7bc9589e5b6::t_555899578e54f0 1,33-35
+lib/types/domain/mute.ts
+  s_33e7bc9589e5b6::t_131850d73abb80 1-18
+lib/actions/applyUnmute.ts
+  s_33e7bc9589e5b6::t_4c9c0e02304160 1-17
+lib/database/sql/mute.ts
+  s_33e7bc9589e5b6::t_6f46725a1bc9c9 1-18,20-156,158-164
+  s_33e7bc9589e5b6::t_2194b6319ea2a5 19
+  s_33e7bc9589e5b6::t_2a0016b8f7c9ff 157
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "63fa80118493d75e837ee0eb9a92a8fb06e1fa32",
+  "prompts": {},
+  "sessions": {
+    "s_33e7bc9589e5b6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b460bfd3-8c24-4e32-a12e-bcdc53d02f73",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

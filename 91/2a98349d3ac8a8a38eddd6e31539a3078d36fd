@@ -1,0 +1,23 @@
+lib/services/notifications/getMastodonNotification.test.ts
+  s_4f4812f16bd65a::t_a601676247704a 4,6-9
+  s_4f4812f16bd65a::t_6abb920ea0bae0 297-360,362-371
+  s_4f4812f16bd65a::t_bd1da29a6611a9 361
+app/api/v1/notifications/clear/route.test.ts
+  s_4f4812f16bd65a::t_a7ebadca0440a7 57-62,67,84-89
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "912a98349d3ac8a8a38eddd6e31539a3078d36fd",
+  "prompts": {},
+  "sessions": {
+    "s_4f4812f16bd65a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ef4966e6-a801-42ad-bea7-0a298c41d397",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

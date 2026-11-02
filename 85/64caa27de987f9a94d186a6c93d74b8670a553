@@ -1,0 +1,24 @@
+lib/client.ts
+  s_cda8bfb3efe39b::t_fa338f77d4861e 1635-1712
+lib/components/settings/FitnessPrivacyLocationSettings.tsx
+  s_cda8bfb3efe39b::t_161bcf205e35b5 415
+  s_cda8bfb3efe39b::t_68c645e656a330 811,813
+  s_cda8bfb3efe39b::t_a8375c055dfda0 682,684
+  s_cda8bfb3efe39b::t_37e53165484848 6-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "8564caa27de987f9a94d186a6c93d74b8670a553",
+  "prompts": {},
+  "sessions": {
+    "s_cda8bfb3efe39b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e35bc8da-5e34-449b-9522-53ce2a001b17",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

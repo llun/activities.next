@@ -1,0 +1,30 @@
+lib/components/admin/settings/InstanceSettingsForm.tsx
+  s_e67afa7a51bb57::t_6ed1c0f913fdd1 153-157,259-269
+lib/components/admin/settings/InstanceSettingsForm.test.tsx
+  s_e67afa7a51bb57::t_3f4192820320db 306-312,318-346
+  s_512188f2b1db53::t_73939d8fa6d3a6 347
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0f9a0c7fe846f9770a723cc31415effa02e8d98d",
+  "prompts": {},
+  "sessions": {
+    "s_512188f2b1db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e467608a-8346-4544-b69a-fc45fca93669",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_e67afa7a51bb57": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d6019d38-d013-4f5b-a5fb-8e915ee59ae7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

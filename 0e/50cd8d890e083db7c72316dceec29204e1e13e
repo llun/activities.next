@@ -1,0 +1,23 @@
+lib/activities/note.ts
+  s_69f35b0cf1b1f5::t_65819e8b07f195 3,214-218
+lib/services/mastodon/constants.ts
+  s_69f35b0cf1b1f5::t_767631e7f53f57 8-9
+lib/activities/note.test.ts
+  s_69f35b0cf1b1f5::t_65819e8b07f195 1-2,133-156
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0e50cd8d890e083db7c72316dceec29204e1e13e",
+  "prompts": {},
+  "sessions": {
+    "s_69f35b0cf1b1f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3e34abf-a75d-4da8-b371-1258aa33721a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

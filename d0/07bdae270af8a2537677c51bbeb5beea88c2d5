@@ -1,0 +1,24 @@
+lib/database/sql/instanceActivity.ts
+  s_f7b91ac6284bd0::t_9b67c771f2f856 233-248,259-261
+lib/database/sql/instanceActivity.test.ts
+  s_f7b91ac6284bd0::t_11e37160427b43 287-380
+  s_f7b91ac6284bd0::t_70528ab59d7d1d 5
+lib/types/database/operations.ts
+  s_f7b91ac6284bd0::t_e2d923600e16f3 3265-3268
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d007bdae270af8a2537677c51bbeb5beea88c2d5",
+  "prompts": {},
+  "sessions": {
+    "s_f7b91ac6284bd0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7e5d29e0-cb70-4516-b716-6108a10b94a2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

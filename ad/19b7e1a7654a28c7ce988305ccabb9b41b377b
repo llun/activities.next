@@ -1,0 +1,54 @@
+lib/services/strava/activityBatch.ts
+  s_4faabc3cf1afaf::t_03fcd664f8bff2 1-19
+lib/components/settings/FitnessFileManagement.tsx
+  s_4faabc3cf1afaf::t_2db70936b5406e 246-264,268-279
+  s_4faabc3cf1afaf::t_0259430060b445 298-301
+  s_4faabc3cf1afaf::t_2f99abd05ad58b 72-74
+  s_4faabc3cf1afaf::t_9250fba0e660cf 43-45
+  s_4faabc3cf1afaf::t_58a77126125802 112-134
+  s_4faabc3cf1afaf::t_dfd08de499800a 201-207
+  s_4faabc3cf1afaf::t_4f5457a361314a 7
+scripts/repairFailedFitnessImports.test.ts
+  s_4faabc3cf1afaf::t_18cab22cb16083 1-164
+lib/services/timelines/index.ts
+  s_4faabc3cf1afaf::t_af54ec1e775ad4 5,14,22-38
+  s_4faabc3cf1afaf::t_04c4d3cc2a0023 87-90,93-96
+  s_4faabc3cf1afaf::t_b4a12d9389f2d8 15-21
+app/(timeline)/fitness/files/page.tsx
+  s_4faabc3cf1afaf::t_67ad0bc24056f1 87-90
+app/api/v1/fitness/import/[batchId]/route.ts
+  s_4faabc3cf1afaf::t_75b71be853110d 3-6,9
+  s_4faabc3cf1afaf::t_d3c49a1049c71c 484-499,501-516
+scripts/repairFailedFitnessImports.ts
+  s_4faabc3cf1afaf::t_a2050fc6a069e8 214
+  s_4faabc3cf1afaf::t_49941797f80fcf 1-213,215-318
+lib/services/timelines/index.test.ts
+  s_4faabc3cf1afaf::t_b930cae09f8b81 226-287
+lib/jobs/importStravaActivityJob.ts
+  s_4faabc3cf1afaf::t_a2050fc6a069e8 38
+  s_4faabc3cf1afaf::t_8735d6c1b2929f 491
+app/api/v1/fitness/import/[batchId]/route.test.ts
+  s_4faabc3cf1afaf::t_c59d508cdb64b3 569-619
+  s_4faabc3cf1afaf::t_ee99a6e7ab4a77 1-4
+lib/components/settings/FitnessFileManagement.test.tsx
+  s_4faabc3cf1afaf::t_6fd6d7b9901c08 11-12
+  s_4faabc3cf1afaf::t_18fde7bac1a53e 116-203
+lib/services/strava/activityBatch.test.ts
+  s_4faabc3cf1afaf::t_d5434ba3bfe336 1-40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "ad19b7e1a7654a28c7ce988305ccabb9b41b377b",
+  "prompts": {},
+  "sessions": {
+    "s_4faabc3cf1afaf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "45906478-16d1-4658-b820-06d02ad8ae27",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

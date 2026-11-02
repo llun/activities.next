@@ -1,0 +1,19 @@
+app/(timeline)/[actor]/fitness/heatmap/FitnessHeatmapView.tsx
+  s_cba68909fc500e::t_bd3e2d834af765 74,384-389,397-402,413-418,426-429
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "b33833f4cab910956bf4cced94dd3acf26d2d2c1",
+  "prompts": {},
+  "sessions": {
+    "s_cba68909fc500e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e15ca-9049-7b80-8fa2-76bc34836c56",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

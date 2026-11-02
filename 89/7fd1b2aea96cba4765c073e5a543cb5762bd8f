@@ -1,0 +1,48 @@
+instrumentation.test.ts
+  s_69f35b0cf1b1f5::t_b560d735fb69c2 26
+  s_69f35b0cf1b1f5::t_8de84c94359707 1-25,27-89
+app/api/v1/trends/tags/route.test.ts
+  s_69f35b0cf1b1f5::t_24192e12680670 219-223,228-236
+  s_69f35b0cf1b1f5::t_b560d735fb69c2 224-226
+  s_69f35b0cf1b1f5::t_a30138cf945685 227
+app/api/inbox/route.test.ts
+  s_69f35b0cf1b1f5::t_b560d735fb69c2 6
+  s_69f35b0cf1b1f5::t_c9fe23cb934633 194-195,197-203
+lib/jobs/updateNoteJob.test.ts
+  s_69f35b0cf1b1f5::t_dbad21c08d375f 13-16,34-45,939-1005
+  s_69f35b0cf1b1f5::t_15fa13efe900b9 1006
+lib/jobs/createNoteJob.test.ts
+  s_69f35b0cf1b1f5::t_dbad21c08d375f 12-15,37-48,1694-1739
+  s_69f35b0cf1b1f5::t_a8676bd59f6b57 1740-1741
+lib/jobs/importStravaArchiveJob.test.ts
+  s_69f35b0cf1b1f5::t_a5d54fad6ab36c 315-337
+lib/services/queue/databaseRunner.test.ts
+  s_69f35b0cf1b1f5::t_24192e12680670 551-560,562-571,574-577
+app/api/v1/accounts/[id]/fitness-route-heatmap/share/route.test.ts
+  s_69f35b0cf1b1f5::t_d4697461a0ac5e 323-367
+app/(timeline)/account/sessions/AccountSessions.test.tsx
+  s_69f35b0cf1b1f5::t_6b855130bb11bd 256-270
+lib/jobs/deleteObjectJob.test.ts
+  s_69f35b0cf1b1f5::t_dbad21c08d375f 10-13,24-35,626-680
+  s_69f35b0cf1b1f5::t_68e264b1a5cc94 681
+lib/database/sql/statusReaction.test.ts
+  s_69f35b0cf1b1f5::t_b560d735fb69c2 74-77
+  s_69f35b0cf1b1f5::t_dee5893f6f72fb 1-2,67-73,78-89
+  s_69f35b0cf1b1f5::t_394dc6b743e159 90-91
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "897fd1b2aea96cba4765c073e5a543cb5762bd8f",
+  "prompts": {},
+  "sessions": {
+    "s_69f35b0cf1b1f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3e34abf-a75d-4da8-b371-1258aa33721a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

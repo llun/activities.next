@@ -1,0 +1,16 @@
+app/api/inbox/getForwardedJobMessage.test.ts
+  h_580a04e334fef4 1-52
+app/api/inbox/getForwardedJobMessage.ts
+  h_580a04e334fef4 1-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "59dbd88127f83f8ecc9ff7465f49073db6649392",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

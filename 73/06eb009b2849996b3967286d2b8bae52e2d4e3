@@ -1,0 +1,34 @@
+app/api/v1/fitness/import/[batchId]/route.test.ts
+  h_580a04e334fef4 907-988
+app/api/v1/fitness/import/[batchId]/route.ts
+  h_580a04e334fef4 425,439-440,447-448
+app/api/v1/fitness/retry-failed/route.test.ts
+  h_580a04e334fef4 238-262
+app/api/v1/fitness/retry-failed/route.ts
+  h_580a04e334fef4 44,64
+app/api/v1/statuses/[id]/interaction_policy/route.ts
+  h_580a04e334fef4 30-31,73
+lib/actions/updateStatusInteractionPolicy.test.ts
+  h_580a04e334fef4 1-163
+lib/actions/updateStatusInteractionPolicy.ts
+  h_580a04e334fef4 20,37-38,65,67-69
+lib/services/fitness-files/retryImports.test.ts
+  h_580a04e334fef4 273-370
+lib/services/fitness-files/retryImports.ts
+  h_580a04e334fef4 62,88,137,146,156
+lib/services/link-previews/syncStatusLinkPreview.test.ts
+  h_580a04e334fef4 55-56,299-341
+lib/services/link-previews/syncStatusLinkPreview.ts
+  h_580a04e334fef4 75,77-81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "7306eb009b2849996b3967286d2b8bae52e2d4e3",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

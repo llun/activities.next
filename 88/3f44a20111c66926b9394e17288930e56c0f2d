@@ -1,0 +1,21 @@
+lib/client/drafts/draftsDb.queue.test.ts
+  s_512188f2b1db53::t_9cbf1d9b5607fc 370-385
+lib/client/drafts/sendQueue.test.ts
+  s_512188f2b1db53::t_0d70d0a6446b10 355-363,1007-1018
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "883f44a20111c66926b9394e17288930e56c0f2d",
+  "prompts": {},
+  "sessions": {
+    "s_512188f2b1db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e467608a-8346-4544-b69a-fc45fca93669",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

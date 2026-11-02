@@ -1,0 +1,132 @@
+lib/components/filters/FilterEditor.test.tsx
+  s_82468012d96a9d::t_a3d806d0ecd27b 68-96,98-99
+  s_82468012d96a9d::t_fbb88c972a6738 97
+app/(timeline)/account/security/PasskeyManager.test.tsx
+  s_82468012d96a9d::t_a68d283dc58d0b 130-147
+lib/components/ui/textarea.tsx
+  s_82468012d96a9d::t_f50699f33b6950 10
+app/globals.css
+  s_82468012d96a9d::t_b368316d8860ec 72-73,77
+  s_82468012d96a9d::t_3ac811a7598a76 74-76
+app/(timeline)/admin/reports/[id]/AdminReportDetail.tsx
+  s_82468012d96a9d::t_91110e5d486b77 15,17,149-152
+app/(timeline)/search/loading.test.tsx
+  s_82468012d96a9d::t_91deabd4ca1848 56-58
+lib/components/settings/ActorSelector.tsx
+  s_82468012d96a9d::t_91110e5d486b77 6-7,30-33
+lib/components/settings/NotificationSettings.test.tsx
+  s_82468012d96a9d::t_50bccdf8a58c75 80,98-116
+  s_82468012d96a9d::t_0a95625ad3dd21 81-97
+lib/components/settings/MediaManagement.test.tsx
+  s_82468012d96a9d::t_57b07db59d555f 227-269
+lib/components/ui/input.test.tsx
+  s_82468012d96a9d::t_eb25683c1fe9b6 32-54
+lib/components/ui/checkbox.test.tsx
+  s_82468012d96a9d::t_54de9e5594dfc3 28-40
+  s_82468012d96a9d::t_3d5f4a995fd6ee 1-19,21-22,26,41-60,65-74,81-115
+  s_82468012d96a9d::t_eb25683c1fe9b6 61-64,75-80
+  s_82468012d96a9d::t_188418f48cd3de 20,23-25,27
+lib/components/ui/tabs.test.tsx
+  s_82468012d96a9d::t_3d5f4a995fd6ee 1-24
+app/(nosidebar)/auth/error/page.test.tsx
+  s_82468012d96a9d::t_a68d283dc58d0b 151-161
+lib/components/filters/FilterEditor.tsx
+  s_82468012d96a9d::t_5d5435d6b5076c 313-321
+app/(timeline)/search/SearchPageClient.tsx
+  s_82468012d96a9d::t_286787623d3eeb 531
+  s_82468012d96a9d::t_10607bb8d1bd98 534
+app/(nosidebar)/auth/signin/CredentialForm.tsx
+  s_82468012d96a9d::t_e363cbf752481b 93-98,102-104
+lib/components/admin/settings/LanguagesPicker.tsx
+  s_82468012d96a9d::t_bb7ac00672ebf1 114-115
+  s_82468012d96a9d::t_facdbc4e564785 100,112
+lib/components/section-nav-dropdown.tsx
+  s_82468012d96a9d::t_ef60fe192e77af 88
+  s_82468012d96a9d::t_3fb9393eb63595 80-85
+lib/components/ui/select.tsx
+  s_82468012d96a9d::t_8b6e9bd0e5cd23 27-29
+  s_82468012d96a9d::t_01d7343808d925 5-20
+lib/components/ui/avatar.test.tsx
+  s_82468012d96a9d::t_3d5f4a995fd6ee 1-43
+lib/components/settings/MediaManagement.tsx
+  s_82468012d96a9d::t_4fe5e5240fefe0 123-128,131
+lib/components/settings/FitnessFileManagement.test.tsx
+  s_82468012d96a9d::t_57b07db59d555f 622-646
+lib/components/admin/settings/LanguagesPicker.test.tsx
+  s_82468012d96a9d::t_a68d283dc58d0b 1-37,39-40,43-44,46,48-60
+  s_82468012d96a9d::t_5f1ed27c897778 38,41-42,45,47
+lib/components/ui/select.test.tsx
+  s_82468012d96a9d::t_eb25683c1fe9b6 48-53
+  s_82468012d96a9d::t_3d5f4a995fd6ee 1-47,54-70
+lib/components/settings/PreferencesSettings.test.tsx
+  s_82468012d96a9d::t_a3d806d0ecd27b 148-191
+lib/components/ui/checkbox.tsx
+  s_82468012d96a9d::t_5d4b5c2a38def5 21-22
+  s_82468012d96a9d::t_7b17f73f258bc0 33
+  s_82468012d96a9d::t_95a1bdb47104a8 34
+  s_82468012d96a9d::t_0ddda3a62a578b 6,11-15
+  s_82468012d96a9d::t_4b7f02bafb43e3 5,7-10,16
+  s_82468012d96a9d::t_8d710da0ff7dff 23
+  s_82468012d96a9d::t_fab74a33030ff4 17-20
+lib/components/ui/textarea.test.tsx
+  s_82468012d96a9d::t_eb25683c1fe9b6 1-20
+lib/components/admin/settings/NumberField.tsx
+  s_82468012d96a9d::t_be84b54846a8e5 6,79-82,94,97-99
+app/(timeline)/account/security/PasskeyManager.tsx
+  s_82468012d96a9d::t_ba1303f67dcbb9 306-308
+lib/components/settings/PreferencesSettings.tsx
+  s_82468012d96a9d::t_8a099c3d53cc13 273-276,283,285-287,290,295
+lib/components/settings/FitnessFileManagement.tsx
+  s_82468012d96a9d::t_4fe5e5240fefe0 221-229,232
+app/(nosidebar)/auth/error/page.tsx
+  s_82468012d96a9d::t_286787623d3eeb 83
+app/(timeline)/settings/page.tsx
+  s_82468012d96a9d::t_0ace4e987df703 103
+  s_82468012d96a9d::t_91110e5d486b77 11,17,76-79
+lib/components/error-page.test.tsx
+  s_82468012d96a9d::t_a68d283dc58d0b 89-96
+app/(nosidebar)/auth/signin/CredentialForm.test.tsx
+  s_82468012d96a9d::t_0a95625ad3dd21 48-60
+lib/components/ui/input.tsx
+  s_82468012d96a9d::t_f50699f33b6950 11,13-16
+app/(nosidebar)/oauth/authorize/AuthorizeCard.tsx
+  s_82468012d96a9d::t_5cad80da2c5c52 23,363-366
+lib/components/admin/settings/NumberField.test.tsx
+  s_82468012d96a9d::t_57b07db59d555f 59-82
+app/(nosidebar)/oauth/authorize/AuthorizeCard.test.tsx
+  s_82468012d96a9d::t_84d285ee4aff0d 1016-1033,1035-1122
+  s_82468012d96a9d::t_b441ea3fe84f57 1034
+lib/components/error-page.tsx
+  s_82468012d96a9d::t_286787623d3eeb 195
+lib/components/settings/NotificationSettings.tsx
+  s_82468012d96a9d::t_e363cbf752481b 284-288,333-335
+  s_82468012d96a9d::t_286787623d3eeb 289,336,385
+app/(timeline)/admin/reports/[id]/AdminReportDetail.test.tsx
+  s_82468012d96a9d::t_50bccdf8a58c75 117-130
+app/(timeline)/search/SearchPageClient.test.tsx
+  s_82468012d96a9d::t_d74f031c6c0ae1 254-266
+app/(timeline)/search/loading.tsx
+  s_82468012d96a9d::t_4e96f6484027f3 15-16
+lib/components/section-nav-dropdown.test.tsx
+  s_82468012d96a9d::t_ac90d659db42d0 5-11,115-134
+lib/components/ui/avatar.tsx
+  s_82468012d96a9d::t_0999703968e90b 16-18,47-50
+lib/components/ui/tabs.tsx
+  s_82468012d96a9d::t_5956d8de1161d2 45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5208ebe393bc7d687ffbf0abaca4417932004ea3",
+  "prompts": {},
+  "sessions": {
+    "s_82468012d96a9d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c1772d3-df89-4813-8d33-4cbceee3810d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

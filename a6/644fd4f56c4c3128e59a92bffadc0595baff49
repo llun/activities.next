@@ -1,0 +1,19 @@
+lib/types/domain/status.ts
+  s_df449884d06bc5::t_ceb8a4cae86aa0 331
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.10",
+  "base_commit_sha": "a6644fd4f56c4c3128e59a92bffadc0595baff49",
+  "prompts": {},
+  "sessions": {
+    "s_df449884d06bc5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e44bd-1bab-79f0-b25f-ceba5e0f5df4",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

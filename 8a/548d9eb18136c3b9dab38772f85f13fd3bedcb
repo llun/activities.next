@@ -1,0 +1,27 @@
+lib/utils/mapkit.ts
+  s_c2b45d1e3d2b49::t_f091ed84d7ee45 128-129
+  s_c2b45d1e3d2b49::t_997b50d4ec4195 80-92
+  s_c2b45d1e3d2b49::t_b3e2a99cf7b534 167-168,171
+  s_c2b45d1e3d2b49::t_ace0eb96eaeb20 6-20
+  s_c2b45d1e3d2b49::t_2e817a30643c46 119,123-124
+  s_c2b45d1e3d2b49::t_a0e535d90e025d 163-166,175-177,183-187,197-200,208,217-220,225,236-241,245-247
+lib/utils/mapkit.test.ts
+  s_c2b45d1e3d2b49::t_339766470feaa0 43-77,101,103-107,109-111,119,140,143-156,159-171,196-197,201,209-211,230-231,233-234,248,258-259,262,266
+  s_c2b45d1e3d2b49::t_584cd25a62d934 108,112-116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8a548d9eb18136c3b9dab38772f85f13fd3bedcb",
+  "prompts": {},
+  "sessions": {
+    "s_c2b45d1e3d2b49": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b970d6ff-c482-4d45-848b-32f588a95c10",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

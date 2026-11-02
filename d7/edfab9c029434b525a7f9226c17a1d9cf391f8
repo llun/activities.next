@@ -1,0 +1,21 @@
+lib/components/offline/ServiceWorkerRegistration.test.tsx
+  s_8e1109724fcb63::t_83ccb977e710a8 58-64
+lib/components/offline/ServiceWorkerRegistration.tsx
+  s_8e1109724fcb63::t_a76a555bf143a3 7-8,10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d7edfab9c029434b525a7f9226c17a1d9cf391f8",
+  "prompts": {},
+  "sessions": {
+    "s_8e1109724fcb63": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c7cd8ef2-28f8-4d92-af61-8602879e893f",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

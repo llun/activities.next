@@ -1,0 +1,24 @@
+docs/architecture.md
+  h_580a04e334fef4 229,240-245,257
+docs/environment-variables.md
+  h_580a04e334fef4 365-367
+instrumentation.ts
+  h_580a04e334fef4 4-22
+lib/config/queue.test.ts
+  h_580a04e334fef4 27-54
+lib/config/queue.ts
+  h_580a04e334fef4 3,8,25,36-49
+lib/services/queue/index.ts
+  h_580a04e334fef4 6,13-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "f98e9944160f9ee9c42b33487531fea8e5195a59",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

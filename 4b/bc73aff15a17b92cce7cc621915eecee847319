@@ -1,0 +1,20 @@
+instrumentation.node.test.ts
+  h_580a04e334fef4 1,5,7,35-37,42-44,203,205-210,225-268,270-275
+instrumentation.node.ts
+  h_580a04e334fef4 1,16,87-90,98,100-104
+package.json
+  h_580a04e334fef4 39
+yarn.lock
+  h_580a04e334fef4 1083-1094,4295,5878-5884
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "4bbc73aff15a17b92cce7cc621915eecee847319",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

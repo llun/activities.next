@@ -1,0 +1,19 @@
+lib/components/posts/actions/edit-history-button.tsx
+  s_30b9662e70826b::t_c4700b168a1187 38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "4521abd6de8f7728ba5696ff50a4157c2e328f63",
+  "prompts": {},
+  "sessions": {
+    "s_30b9662e70826b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e31cb-e738-7883-98ff-e5d288fd8468",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

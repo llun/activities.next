@@ -1,0 +1,36 @@
+app/api/users/[username]/inbox/route.test.ts
+  h_580a04e334fef4 702-739,1080-1103
+app/api/users/[username]/inbox/route.ts
+  h_580a04e334fef4 49,386-387,439-440,578-606,610,624,642
+lib/actions/acceptFollowRequest.test.ts
+  h_580a04e334fef4 266-293
+lib/actions/acceptFollowRequest.ts
+  h_580a04e334fef4 57,61,68,79,104-105,122-125
+lib/actions/rejectFollowRequest.test.ts
+  h_580a04e334fef4 68-139
+lib/actions/rejectFollowRequest.ts
+  h_580a04e334fef4 30-33
+lib/actions/resolveFollowFromActivity.test.ts
+  h_580a04e334fef4 1-198
+lib/actions/resolveFollowFromActivity.ts
+  h_580a04e334fef4 4,15-19,22-32,37-41,47-51,57-61,66,94-97,99,119-121,123-125,132-137,146-147,154-159
+lib/actions/undoFollowRequest.ts
+  h_580a04e334fef4 5,23,40-46,53-58,62-65
+lib/activities/index.ts
+  h_580a04e334fef4 859,895
+lib/types/activitypub/activities.ts
+  h_580a04e334fef4 66-75,83,96
+lib/utils/activitypub.ts
+  h_580a04e334fef4 75-87
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "55bf31a2ac6a6ee1c9c9f86c2917832ad6007533",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

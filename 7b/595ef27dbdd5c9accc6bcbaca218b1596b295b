@@ -1,0 +1,74 @@
+.env.example
+  h_580a04e334fef4 258-263
+app/api/v1/web-vitals/route.test.ts
+  h_580a04e334fef4 1-295
+app/api/v1/web-vitals/route.ts
+  h_580a04e334fef4 1-103
+app/layout.test.tsx
+  h_580a04e334fef4 12-15,37-52
+app/layout.tsx
+  h_580a04e334fef4 3,9,80-86
+docs/architecture.md
+  h_580a04e334fef4 97,608-619
+docs/environment-variables.md
+  h_580a04e334fef4 461-471
+docs/features.md
+  h_580a04e334fef4 114
+docs/mastodon-api-compatibility.md
+  h_580a04e334fef4 444-447
+lib/client.ts
+  h_580a04e334fef4 61-63
+lib/client/webVitals.test.ts
+  h_580a04e334fef4 1-107
+lib/client/webVitals.ts
+  h_580a04e334fef4 1-40
+lib/components/web-vitals/WebVitals.test.tsx
+  h_580a04e334fef4 1-52
+lib/components/web-vitals/WebVitals.tsx
+  h_580a04e334fef4 1-20
+lib/components/web-vitals/WebVitalsReporter.test.tsx
+  h_580a04e334fef4 1-99
+lib/components/web-vitals/WebVitalsReporter.tsx
+  h_580a04e334fef4 1-32
+lib/components/web-vitals/webVitalsCollector.test.ts
+  h_580a04e334fef4 1-314
+lib/components/web-vitals/webVitalsCollector.ts
+  h_580a04e334fef4 1-154
+lib/config/__mocks__/index.ts
+  h_580a04e334fef4 5-7,27-28
+lib/config/index.test.ts
+  h_580a04e334fef4 151-186
+lib/config/index.ts
+  h_580a04e334fef4 32-35,238-259
+lib/config/webVitals.test.ts
+  h_580a04e334fef4 1-84
+lib/config/webVitals.ts
+  h_580a04e334fef4 1-50
+lib/services/guards/sameOriginProof.test.ts
+  h_580a04e334fef4 1-64
+lib/services/guards/sameOriginProof.ts
+  h_580a04e334fef4 21-32,44,54,59-67
+lib/services/webVitals/schema.ts
+  h_580a04e334fef4 1-29
+lib/utils/webVitals/classify.test.ts
+  h_580a04e334fef4 1-108
+lib/utils/webVitals/classify.ts
+  h_580a04e334fef4 1-107
+lib/utils/webVitals/types.ts
+  h_580a04e334fef4 1-83
+test/next.config.test.ts
+  h_580a04e334fef4 31-34,56-58,122-149
+test/setup/vitest.setup.ts
+  h_580a04e334fef4 179-181,185-186
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7b595ef27dbdd5c9accc6bcbaca218b1596b295b",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

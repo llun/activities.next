@@ -1,0 +1,26 @@
+lib/components/post-box/composerAttachments.test.ts
+  h_580a04e334fef4 1-393
+lib/components/post-box/composerAttachments.ts
+  h_580a04e334fef4 1-187
+lib/components/post-box/composerQuote.test.ts
+  h_580a04e334fef4 1-215
+lib/components/post-box/composerQuote.ts
+  h_580a04e334fef4 1-119
+lib/components/post-box/composerValidation.test.ts
+  h_580a04e334fef4 1-386
+lib/components/post-box/composerValidation.ts
+  h_580a04e334fef4 1-85
+lib/components/post-box/post-box.tsx
+  h_580a04e334fef4 40,46,57-69,99-100,242-250,556-557
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "3f594476de2f8fa0c679177a692ef5aacd62d9ff",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

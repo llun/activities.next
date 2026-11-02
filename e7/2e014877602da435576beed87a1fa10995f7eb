@@ -1,0 +1,21 @@
+app/(timeline)/[actor]/fitness/heatmap/FitnessHeatmapView.tsx
+  s_cba68909fc500e::t_e1f4de24a23f30 537,911-917,923,933,936,1177,1216,1227,1232,1239
+app/(timeline)/[actor]/fitness/heatmap/FitnessHeatmapView.test.tsx
+  s_cba68909fc500e::t_45d9c277061cbb 378-404
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "e72e014877602da435576beed87a1fa10995f7eb",
+  "prompts": {},
+  "sessions": {
+    "s_cba68909fc500e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e15ca-9049-7b80-8fa2-76bc34836c56",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

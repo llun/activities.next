@@ -1,0 +1,39 @@
+lib/services/clientErrors/schema.ts
+  s_4b3d5d82526b83::t_951b18b1fe6d27 12-16,19-22
+lib/services/clientErrors/schema.test.ts
+  s_4b3d5d82526b83::t_951b18b1fe6d27 5-11,14-28,31-52,54
+  s_4b3d5d82526b83::t_9175a1de464800 1-4,12-13,29-30,53,55
+lib/client/clientErrors.ts
+  s_4b3d5d82526b83::t_98a22fda5f6c79 28
+lib/services/clientErrors/sanitize.test.ts
+  s_4b3d5d82526b83::t_9175a1de464800 1-9,20-21,23-26,47-48,65-72,81-82,86-95,104-109
+  s_4b3d5d82526b83::t_951b18b1fe6d27 22,49-64,73-80,83-85,96-103
+lib/client/clientErrors.test.ts
+  s_4b3d5d82526b83::t_9175a1de464800 182-210,224
+app/api/v1/client-errors/route.test.ts
+  s_4b3d5d82526b83::t_34c27c51d4150c 149-184,186,189-196,200-202,206-213,217-219,223-230,237-246
+  s_4b3d5d82526b83::t_9175a1de464800 185,187-188,197-199,203-205,214-216,220-222,231-236,247
+app/api/v1/client-errors/route.ts
+  s_4b3d5d82526b83::t_98a22fda5f6c79 4,95,97
+docs/architecture.md
+  s_4b3d5d82526b83::t_98a22fda5f6c79 1092-1093,1095
+lib/services/clientErrors/sanitize.ts
+  s_4b3d5d82526b83::t_951b18b1fe6d27 51,61-62,81-85
+  s_4b3d5d82526b83::t_98a22fda5f6c79 1-50,54-60,63-68,70,76-80,86-88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2ee333a03c190a8bef2855f22c037af663835db5",
+  "prompts": {},
+  "sessions": {
+    "s_4b3d5d82526b83": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a198bd-df86-7363-b8f7-cd0f6cbd3941",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

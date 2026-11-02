@@ -1,0 +1,28 @@
+lib/services/fitness-files/heatmapTiles/segmentsFromTiles.ts
+  s_0e2fd6be727054::t_f4a34846365a6a 16,29-36,38-43,106-115,124,126-128,130,132,171
+  s_0e2fd6be727054::t_0868d9b60e8399 133
+  s_0e2fd6be727054::t_5abf6b60aecc47 129
+lib/services/fitness-files/heatmapTiles/segmentsFromTiles.test.ts
+  s_0e2fd6be727054::t_2906c8f02f7e4e 117-123,126,139-163,173
+  s_0e2fd6be727054::t_d52868049574a1 298
+app/embed/heatmap/[token]/image/route.ts
+  s_0e2fd6be727054::t_f4a34846365a6a 129-131,134
+app/embed/heatmap/[token]/image/route.test.ts
+  s_0e2fd6be727054::t_bd347cc6b157f3 178-207
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "9e86c03d10e4cef3ea93cab9fa77db1e4c4b7b14",
+  "prompts": {},
+  "sessions": {
+    "s_0e2fd6be727054": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8b4fe7c-fd3e-48ba-9e1d-ef3b99484c21",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

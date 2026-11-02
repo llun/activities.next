@@ -1,0 +1,37 @@
+app/api/v1/statuses/[id]/bookmark/route.ts
+  s_44807e29e64536::t_0fe0f4f867f5d1 2,6
+  s_44807e29e64536::t_bd297762cf58a3 38,40-43
+app/api/v1/statuses/[id]/favourite/route.ts
+  s_44807e29e64536::t_46c02fa48292d3 3,7
+  s_44807e29e64536::t_f4cdb924d1021e 48,50-53
+app/api/v1/statuses/[id]/reblog/route.ts
+  s_44807e29e64536::t_fa4e2858c248c8 89,91-94
+  s_44807e29e64536::t_fabc1ba71bd317 5
+app/api/v1/statuses/[id]/unbookmark/route.ts
+  s_44807e29e64536::t_893564def4dd07 2-5,9
+  s_44807e29e64536::t_a5b17547fb5bf3 60,62-65,71,73-76
+app/api/v1/statuses/[id]/unreblog/route.ts
+  s_44807e29e64536::t_6755d8f8b747e7 3
+  s_44807e29e64536::t_a650de77594436 76,78-81
+lib/services/mastodon/statusActionResponse.ts
+  s_44807e29e64536::t_6a08fd856269fd 1-75
+app/api/v1/statuses/[id]/unfavourite/route.ts
+  s_44807e29e64536::t_f07c21ff52818a 3,7
+  s_44807e29e64536::t_ec5203b82b5742 52,54-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "cccaf46e9aa33d24c13468eb5b7c802f10908ce1",
+  "prompts": {},
+  "sessions": {
+    "s_44807e29e64536": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d5791d6b-5c1d-4a48-a1aa-d091f3207ce6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

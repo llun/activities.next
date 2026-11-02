@@ -1,0 +1,19 @@
+app/(timeline)/[actor]/[status]/page.visibility.test.tsx
+  s_6a5187ef5876a1::t_d5655d786d1767 195-197
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "aec518729239e335668a009deb63c8bcd6464bd1",
+  "prompts": {},
+  "sessions": {
+    "s_6a5187ef5876a1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b8694158-063d-43e9-9987-b1bad0608d19",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

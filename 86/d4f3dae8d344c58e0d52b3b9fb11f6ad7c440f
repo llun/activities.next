@@ -1,0 +1,78 @@
+lib/jobs/publishScheduledStatusJob.test.ts
+  s_512188f2b1db53::t_2d6f55d35d87f2 225-226,228,232-233,242,249-251,254-263,267,269-273,276-281,283-291,295-309,311-313,316-321
+app/api/v1/statuses/route.test.ts
+  s_512188f2b1db53::t_9d206c0f701c2b 943
+  s_512188f2b1db53::t_d31ff56868784d 7,920-923,926-927,930,934,940-942,944-965,967-994,996-1016,1019-1248
+  s_512188f2b1db53::t_c64437044774a6 1249
+lib/actions/createNote.idempotency.test.ts
+  s_512188f2b1db53::t_3b950c51af9b8d 1-92
+lib/services/statuses/parseStatusRequestBody.test.ts
+  s_512188f2b1db53::t_f152d710e31645 45-70
+lib/components/post-box/post-box.test.tsx
+  s_512188f2b1db53::t_518c081bf3fcbf 482-522
+lib/components/posts/status-reply-box.test.tsx
+  s_512188f2b1db53::t_518c081bf3fcbf 18,134-166
+  s_512188f2b1db53::t_f58915503ec56a 167-168
+docs/mastodon-api-compatibility.md
+  s_512188f2b1db53::t_f68adb9c43bf5e 459,469-508
+docs/maintenance.md
+  s_512188f2b1db53::t_f68adb9c43bf5e 1417-1423
+lib/database/domains/status/deletion.ts
+  s_512188f2b1db53::t_dc4ff28e97cbbf 10,713-736
+  s_512188f2b1db53::t_460593b23dacab 737-739
+lib/actions/createNote.ts
+  s_512188f2b1db53::t_a5d0f0382e9c6b 87,91-92,103,126,131,145,147-149,154,158-159,167,169,173,175,661,673,675-679,681,683,688-694,697-700,717,720-721,726,728,736-743,757-758,765-770,774-778,780-786,788-795,849-861,863-877,881-883,885,887,892-928,931-1145
+  s_512188f2b1db53::t_1107a4dba13cca 83-86,88-90,93-102,104,125,127-129,132-144,146,150-153,155-157,160-166,168,170-172,174
+lib/actions/createPoll.ts
+  s_512188f2b1db53::t_0e84a7de143693 2,6,9,12,183,195,197-201,203,205,210-211,216-223,237-243,245,247-249,251,253
+app/api/v1/statuses/route.ts
+  s_512188f2b1db53::t_693a14f4a1b4ba 81,216-229
+  s_512188f2b1db53::t_58d6e08a07559a 79-80
+lib/services/actors/actorDeletion.test.ts
+  s_512188f2b1db53::t_ac85bf2286b89f 190,192-193,202-204,208,222,224-225,232-233
+lib/database/domains/status/writes.ts
+  s_512188f2b1db53::t_1cec025c1c4920 309-311,559-561
+lib/services/statuses/parseStatusRequestBody.ts
+  s_512188f2b1db53::t_f152d710e31645 15-16
+lib/types/database/operations.ts
+  s_512188f2b1db53::t_dc4ff28e97cbbf 100
+lib/database/domains/status/types.ts
+  s_512188f2b1db53::t_60b54cfed5f35c 8-9
+  s_512188f2b1db53::t_dc4ff28e97cbbf 352-357,576-577
+  s_512188f2b1db53::t_ff1765b69a254a 578-580
+lib/client/statuses.ts
+  s_512188f2b1db53::t_165601effdc2ae 95,115
+lib/jobs/publishScheduledStatusJob.ts
+  s_512188f2b1db53::t_918c5121bc0ee5 5-8,15,118-176,178-183,191
+  s_512188f2b1db53::t_cbd871f7f1776b 89-95
+lib/database/domains/actor/actorDeletionQueries.test.ts
+  s_512188f2b1db53::t_44015419b47f15 333,641,1282
+lib/database/domains/status/queries.ts
+  s_512188f2b1db53::t_60b54cfed5f35c 98-99
+  s_512188f2b1db53::t_dc4ff28e97cbbf 4-5,191-192
+lib/database/domains/idempotency/idempotency.test.ts
+  s_512188f2b1db53::t_ac85bf2286b89f 192-198,200-204,206-266
+  s_512188f2b1db53::t_ff3b3110bb36d6 144-191
+  s_512188f2b1db53::t_1a76ca42a9721c 199,205
+lib/database/domains/actor/deletion.ts
+  s_512188f2b1db53::t_44015419b47f15 545-550
+lib/services/actors/actorDeletion.ts
+  s_512188f2b1db53::t_6f0aba669859b7 154
+  s_512188f2b1db53::t_c0d43eb766b56f 155
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "86d4f3dae8d344c58e0d52b3b9fb11f6ad7c440f",
+  "prompts": {},
+  "sessions": {
+    "s_512188f2b1db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e467608a-8346-4544-b69a-fc45fca93669",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

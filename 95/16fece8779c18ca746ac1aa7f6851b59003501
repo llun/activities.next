@@ -1,0 +1,22 @@
+lib/services/strava/webhookSubscription.ts
+  s_69f35b0cf1b1f5::t_4967d5be1e9815 130-147,190-191,199
+lib/services/strava/webhookSubscription.test.ts
+  s_69f35b0cf1b1f5::t_4967d5be1e9815 1-2,8-9,227-267,289-295
+  s_69f35b0cf1b1f5::t_431209c8c4fb22 296-297
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9516fece8779c18ca746ac1aa7f6851b59003501",
+  "prompts": {},
+  "sessions": {
+    "s_69f35b0cf1b1f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3e34abf-a75d-4da8-b371-1258aa33721a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

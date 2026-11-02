@@ -1,0 +1,72 @@
+app/(timeline)/notifications/components/ActivityImportNotification.tsx
+  s_b362db93d911c1::t_182562f0f801a9 1-4,7-11,13-20,23-36,46-48,50-53
+  s_b362db93d911c1::t_a25e3b4f5c49a2 5-6
+  s_b362db93d911c1::t_b63bd7747092b7 12,22,39-40
+  s_b362db93d911c1::t_e4a25b1445bb0a 21,38,42
+  s_b362db93d911c1::t_bac000859038f3 37,41,43-45,49
+app/(timeline)/notifications/components/ReblogNotification.tsx
+  s_b362db93d911c1::t_69fd1a4eef61fe 1-4,7-11,13-15,17-18,20-33,35-61,63-65,67-70
+  s_b362db93d911c1::t_a25e3b4f5c49a2 5-6
+  s_b362db93d911c1::t_b63bd7747092b7 12,19
+  s_b362db93d911c1::t_53d57040c1bd9c 16,34
+  s_b362db93d911c1::t_f470ae30b23a49 62,66
+app/(timeline)/notifications/components/LikeNotification.tsx
+  s_b362db93d911c1::t_a25e3b4f5c49a2 5-6
+  s_b362db93d911c1::t_b63bd7747092b7 12,16,19,34
+app/(timeline)/notifications/NotificationItem.test.tsx
+  s_b362db93d911c1::t_accc4c6d1d488e 1-5,7-13,17-74,76-86,110-111,124-125,127,129,131,140-141,166,179,181-184,255,368
+  s_b362db93d911c1::t_307977a20020a3 6
+  s_b362db93d911c1::t_e757c5923d9834 14-16,99-101,103,106-109,112-123,143-156,167-178,219,223-232,236-237,239-250,256,289-365
+  s_b362db93d911c1::t_ece10b7e6382bd 75,133-139,190-191,251-254
+  s_c07bee36adf96e::t_5fb044d2863451 87
+  s_b362db93d911c1::t_5ee1d14c7e80b9 88-98,102,104-105,126,159,217,238,257-282,286
+  s_b362db93d911c1::t_8c08918e34a438 128,132,185-189
+  s_b362db93d911c1::t_e2cbe663d1cc27 130,180
+  s_b362db93d911c1::t_4831581c0103a6 142,157-158,160-165
+  s_b362db93d911c1::t_7a9a7df06b002f 192-216,218,220-222,233-235
+  s_b362db93d911c1::t_efa573285ac3a4 283-285
+app/(timeline)/notifications/components/ReplyNotification.tsx
+  s_b362db93d911c1::t_a25e3b4f5c49a2 5-6
+  s_b362db93d911c1::t_b63bd7747092b7 12,16,19,34
+app/(timeline)/notifications/NotificationItem.tsx
+  s_b362db93d911c1::t_6ab0f67ddb9699 5-8
+  s_b362db93d911c1::t_90246354224ef3 13,18,77-78,92,94,99,103,109,113-116,119-126,129-133,143-144,158
+  s_b362db93d911c1::t_11d1966cfc4d92 33-46,91,98,108,118,128
+  s_b362db93d911c1::t_681851339ebc30 63-68,70-74,137-139
+  s_b362db93d911c1::t_a25e3b4f5c49a2 69
+  s_b362db93d911c1::t_b63bd7747092b7 75-76
+  s_b362db93d911c1::t_0742da223f2aae 90,97,107,117,127
+app/(timeline)/notifications/components/MentionNotification.tsx
+  s_b362db93d911c1::t_a25e3b4f5c49a2 5-6
+  s_b362db93d911c1::t_b63bd7747092b7 12,16,19,34
+app/(timeline)/notifications/getNotificationStatusPath.ts
+  s_b362db93d911c1::t_6ab0f67ddb9699 1
+  s_b362db93d911c1::t_b63bd7747092b7 2-7
+app/(timeline)/notifications/types.ts
+  s_b362db93d911c1::t_a25e3b4f5c49a2 1-5,15,20
+  s_b362db93d911c1::t_b63bd7747092b7 6-14,16-19,21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "4c3fc1b3acf9341a2258251c95f234f58e8b704f",
+  "prompts": {},
+  "sessions": {
+    "s_b362db93d911c1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e12b3-9cbd-7450-9de2-d1f8dd4315a0",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_c07bee36adf96e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e12df-6b75-7492-afe5-bd43313cda8d",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

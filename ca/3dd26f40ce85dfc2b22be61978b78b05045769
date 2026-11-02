@@ -1,0 +1,41 @@
+lib/utils/host.test.ts
+  s_3aef31ca22620f::t_459c05292250d2 258-261
+  s_3aef31ca22620f::t_a1f5dfe45b71b5 252-257,262-266
+scripts/maintenance/backfillMediaBlurhash.ts
+  s_3aef31ca22620f::t_d451738cc8476c 28-30
+  s_3aef31ca22620f::t_ccb4af6edfa349 27
+scripts/maintenance/backfillMediaBlurhash.test.ts
+  s_3aef31ca22620f::t_a1f5dfe45b71b5 234-247
+CLAUDE.md
+  s_3aef31ca22620f::t_ffae76edaf1ccd 53
+lib/services/medias/mediaFileUrl.ts
+  s_3aef31ca22620f::t_6964f2d79c3524 41-47,49-50,58-70,72-73,75-78,80-83
+scripts/backup/actorArchive.test.ts
+  s_3aef31ca22620f::t_48fbbeb1935cd8 348,352-356,360
+scripts/backup/actorArchive.ts
+  s_3aef31ca22620f::t_48fbbeb1935cd8 653-657
+lib/utils/host.ts
+  s_3aef31ca22620f::t_d451738cc8476c 238-240,250-261
+lib/services/medias/mediaFileUrl.test.ts
+  s_3aef31ca22620f::t_bb76d183433771 179-183,201-239
+AGENTS.md
+  s_3aef31ca22620f::t_ffae76edaf1ccd 2243,2245-2247
+REVIEW.md
+  s_3aef31ca22620f::t_459c05292250d2 525-530,534-553
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "ca3dd26f40ce85dfc2b22be61978b78b05045769",
+  "prompts": {},
+  "sessions": {
+    "s_3aef31ca22620f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c9b299cc-ec52-402d-a7a5-dd7991ecd229",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

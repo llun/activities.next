@@ -1,0 +1,20 @@
+lib/components/posts/post.tsx
+  h_580a04e334fef4 181-183
+lib/components/posts/post.test.tsx
+  h_580a04e334fef4 2470-2509
+app/(timeline)/notifications/components/ActivityImportNotification.tsx
+  h_580a04e334fef4 35-38
+app/(timeline)/notifications/components/StatusNotification.tsx
+  h_580a04e334fef4 64-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "21c1779040fc6f06cfce6126be05e4bb8a691eaf",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

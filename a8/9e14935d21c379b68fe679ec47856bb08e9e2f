@@ -1,0 +1,42 @@
+app/(timeline)/[actor]/ActorMediaGallery.tsx
+  h_580a04e334fef4 129-138
+app/(timeline)/[actor]/ActorTimelines.test.tsx
+  h_580a04e334fef4 848-926
+app/(timeline)/[actor]/ActorTimelines.tsx
+  h_580a04e334fef4 147-148,353-361,385-389,394-395,420-421,473,498,584
+app/(timeline)/[actor]/getProfileData.test.ts
+  h_580a04e334fef4 141
+app/(timeline)/[actor]/page.tsx
+  h_580a04e334fef4 36-39
+lib/activities/getActorPosts.test.ts
+  h_580a04e334fef4 1174-1176
+lib/activities/getActorPosts.ts
+  h_580a04e334fef4 27-30,134-147,149-152,154-194,196-197,199-200,202-205,208,211-212,214,216-217,219-224,226
+lib/activities/note.test.ts
+  h_580a04e334fef4 288-320
+lib/activities/note.ts
+  h_580a04e334fef4 71-88,92,95-99,148-150,162-164,176-177
+lib/jobs/createNoteJob.ts
+  h_580a04e334fef4 15-16,126
+lib/services/federation/serverSoftware.ts
+  h_580a04e334fef4 66-67
+lib/types/activitypub/objects.test.ts
+  h_580a04e334fef4 1-6,120-169
+lib/types/activitypub/objects.ts
+  h_580a04e334fef4 237-238,273-281
+lib/types/domain/status.ts
+  h_580a04e334fef4 372-375,389-394,424-429
+lib/utils/activitypub.ts
+  h_580a04e334fef4 161-177
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "a89e14935d21c379b68fe679ec47856bb08e9e2f",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,41 @@
+lib/database/sql/actor.test.ts
+  s_44807e29e64536::t_a056f19668ed99 30,758
+lib/services/mastodon/getMastodonStatus.test.ts
+  s_44807e29e64536::t_a056f19668ed99 13,459
+lib/services/notifications/getNotificationGroup.ts
+  s_44807e29e64536::t_a056f19668ed99 6,70
+lib/services/mastodon/getMastodonStatusEdits.ts
+  s_44807e29e64536::t_a056f19668ed99 10,69
+lib/utils/getISOTimeUTC.test.ts
+  s_44807e29e64536::t_f11cbee0a38a5e 1,4-7,10-14
+app/api/v1/reports/route.ts
+  s_44807e29e64536::t_a056f19668ed99 5,89
+lib/database/sql/actor.ts
+  s_44807e29e64536::t_a056f19668ed99 69,316
+lib/services/accounts/getFallbackMutedAccount.ts
+  s_44807e29e64536::t_a056f19668ed99 3,64
+lib/services/accounts/getFallbackBlockedAccount.ts
+  s_44807e29e64536::t_a056f19668ed99 3,64
+lib/services/mastodon/getMastodonStatus.ts
+  s_44807e29e64536::t_a056f19668ed99 13,304,307,425
+lib/utils/getISOTimeUTC.ts
+  s_44807e29e64536::t_75759638339cee 4-10,15
+lib/services/mastodon/getMastodonFilter.ts
+  s_44807e29e64536::t_a056f19668ed99 9,32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "b261c76b2a49d892ac691af035f9f7767a7db71e",
+  "prompts": {},
+  "sessions": {
+    "s_44807e29e64536": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d5791d6b-5c1d-4a48-a1aa-d091f3207ce6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

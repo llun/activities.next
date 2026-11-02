@@ -1,0 +1,32 @@
+AGENTS.md
+  h_580a04e334fef4 863-865
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  h_580a04e334fef4 434-464
+docs/fitness-file-storage.md
+  h_580a04e334fef4 55,343
+docs/maintenance.md
+  h_580a04e334fef4 424-425
+lib/services/fitness-files/activityPresentation.test.ts
+  h_580a04e334fef4 145-233,259-260
+lib/services/fitness-files/activityPresentation.ts
+  h_580a04e334fef4 77,82-83,86-163,167-170
+lib/services/fitness-files/sportTypes.test.ts
+  h_580a04e334fef4 305-320,322,332-426,456-465,470-472,489-491
+lib/services/fitness-files/sportTypes.ts
+  h_580a04e334fef4 265,268-276,301-311,318-436,469-472,477-480,483-558
+scripts/fitness/normalizeFitnessActivityTypes.test.ts
+  h_580a04e334fef4 165,169-196,250-252,260,266,272
+scripts/fitness/normalizeFitnessActivityTypes.ts
+  h_580a04e334fef4 47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "eeb01fb182866231eb98c999b86e05757a8ea89e",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

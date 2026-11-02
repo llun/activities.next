@@ -1,0 +1,35 @@
+docs/setup.md
+  s_d28d0da607a246::t_039bcea62e04c6 8
+README.md
+  s_d28d0da607a246::t_c3c8f99888b786 53
+package.json
+  s_d28d0da607a246::t_c9863610e1893d 148
+.yarnrc.yml
+  s_d28d0da607a246::t_4b816f6357fcd8 1-2
+docs/architecture.md
+  s_d28d0da607a246::t_754cdf076acf85 204
+yarn.lock
+  ai_agent 5
+CONTRIBUTING.md
+  s_d28d0da607a246::t_9f24183b7caacc 24
+docs/postgresql-setup.md
+  s_d28d0da607a246::t_d6520d2206805a 7
+docs/sqlite-setup.md
+  s_d28d0da607a246::t_e5d5bd1c7a58a3 7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "d517af9d86b5ca6d4102b0ea3c234abcc93c51ed",
+  "prompts": {},
+  "sessions": {
+    "s_d28d0da607a246": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7fb0c19a-646a-42b5-8bf0-01b581c0db3b",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

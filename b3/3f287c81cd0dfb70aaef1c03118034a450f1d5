@@ -1,0 +1,422 @@
+test-audit/slices/054.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-40
+test-audit/raw/gh/run-40848058697.json
+  s_3045e9aea563c2::t_1ae74ddeb8b989 1
+test-audit/slices/026.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-26
+test-audit/slices/050.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-40
+test-audit/slices/010.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-40
+test-audit/slices/040.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-40
+test-audit/slices/020.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-25
+test-audit/raw/gh/run-40434069484.json
+  s_3045e9aea563c2::t_1ae74ddeb8b989 1
+test-audit/04-judgement/014.md
+  s_3045e9aea563c2::t_b5cf2561e4d649 44
+  s_3045e9aea563c2::t_0b41487d308142 1-43
+test-audit/slices/009.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-30
+test-audit/raw/gh/run-40846413579.json
+  s_3045e9aea563c2::t_1ae74ddeb8b989 1
+test-audit/slices/056.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-25
+test-audit/01-ci-inventory.md
+  s_69a3e1af8cfbf1::t_dea4b33f011445 27-40,69,71
+  s_69a3e1af8cfbf1::t_e0d11b105d348f 1-2,4-6,55-62,64,66-68,70,72-73,84
+  s_69a3e1af8cfbf1::t_ac878c78af0d49 3,7-26,41-54,63,65,74-83,85
+test-audit/raw/gh/run-40848771966.json
+  s_3045e9aea563c2::t_1ae74ddeb8b989 1
+test-audit/raw/test-pg-files.csv
+  s_69a3e1af8cfbf1::t_ac878c78af0d49 1-360
+test-audit/slices/008.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-25
+test-audit/slices/045.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-37
+test-audit/raw/gh/run-40846547012.json
+  s_3045e9aea563c2::t_062bd316ec1732 1
+test-audit/slices/015.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-40
+test-audit/slices/033.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-27
+test-audit/slices/041.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-40
+test-audit/slices/001.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-40
+test-audit/slices/024.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-40
+test-audit/slices/038.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-36
+test-audit/slices/006.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-37
+test-audit/raw/coverage-overlap.csv
+  s_6538a626f52074::t_f353dc9788e961 1-2854
+test-audit/slices/BRIEF-cov-addendum.md
+  s_3045e9aea563c2::t_f8d455e28b4458 1-3
+test-audit/slices/005.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-40
+test-audit/raw/gh/run-40765106249.json
+  s_3045e9aea563c2::t_062bd316ec1732 1
+test-audit/raw/gh/run-40848772091.json
+  s_3045e9aea563c2::t_1ae74ddeb8b989 1
+test-audit/slices/046.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-40
+test-audit/slices/BRIEF.md
+  s_3045e9aea563c2::t_17c5baedded070 1-16
+test-audit/raw/gh/list-tag-version.yml.json
+  s_3045e9aea563c2::t_062bd316ec1732 1
+test-audit/slices/021.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-25
+test-audit/slices/039.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-29
+test-audit/raw/gh/run-40850202002.json
+  s_3045e9aea563c2::t_1ae74ddeb8b989 1
+test-audit/slices/031.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-32
+test-audit/raw/gh/list-version-bump.yml.json
+  s_3045e9aea563c2::t_062bd316ec1732 1
+test-audit/raw/gh/run-40846546834.json
+  s_3045e9aea563c2::t_1ae74ddeb8b989 1
+test-audit/slices/053.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-27
+test-audit/slices/013.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-40
+test-audit/raw/gh/run-40844799817.json
+  s_3045e9aea563c2::t_1ae74ddeb8b989 1
+test-audit/slices/011.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-40
+test-audit/slices/014.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-40
+test-audit/raw/gh/list-codeql.yml.json
+  s_3045e9aea563c2::t_062bd316ec1732 1
+test-audit/raw/gh/run-40845462143.json
+  s_3045e9aea563c2::t_1ae74ddeb8b989 1
+test-audit/raw/ci-runs.json
+  s_69a3e1af8cfbf1::t_ac878c78af0d49 3-11,13-135,137-172,175-231,234-276,279-314,317-352,355-390,393-396
+  s_69a3e1af8cfbf1::t_dea4b33f011445 397-526
+  s_69a3e1af8cfbf1::t_e0d11b105d348f 1-2,12,136,173-174,232-233,277-278,315-316,353-354,391-392,527
+test-audit/raw/gh/run-40846413402.json
+  s_3045e9aea563c2::t_1ae74ddeb8b989 1
+test-audit/raw/gh/run-40844799816.json
+  s_3045e9aea563c2::t_062bd316ec1732 1
+test-audit/raw/gh/list-sync-main-to-prod-dispatch.yml.json
+  s_3045e9aea563c2::t_062bd316ec1732 1
+test-audit/slices/007.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-26
+test-audit/slices/023.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-40
+test-audit/slices/030.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-25
+test-audit/scripts/coverage-overlap.mjs
+  s_6538a626f52074::t_30f6e8519a5239 127-129
+  s_6538a626f52074::t_b43d22dc852b86 134-137,165
+  s_6538a626f52074::t_113c6b07c784a3 1-126,130-133,138-144,146-164,166-168
+  s_6538a626f52074::t_82b08766afcbde 145
+test-audit/raw/gh/list-ci.yml.json
+  s_3045e9aea563c2::t_062bd316ec1732 1
+test-audit/slices/042.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-29
+test-audit/slices/058.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-7
+test-audit/scripts/coverage-per-file.mjs
+  s_cd49ca534960bf::t_a555e33927b6d1 12
+  s_cd49ca534960bf::t_cd6c7e17249a63 1-7,9-11,13-43,45-113
+  s_cd49ca534960bf::t_2b8bd62f3561a8 8
+  s_cd49ca534960bf::t_bbf8d8a5e99a4b 44
+test-audit/03-coverage-overlap.md
+  s_6538a626f52074::t_e2b6048c807975 155-246
+  s_6538a626f52074::t_f353dc9788e961 5-153
+  s_6538a626f52074::t_a6e862017506c9 1-4,154
+test-audit/README.md
+  s_3045e9aea563c2::t_da79241b98a6a2 1-44
+test-audit/raw/gh/run-40151417819.json
+  s_3045e9aea563c2::t_1ae74ddeb8b989 1
+test-audit/slices/048.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-27
+test-audit/slices/036.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-40
+test-audit/raw/gh/list-dependabot-auto-merge.yml.json
+  s_3045e9aea563c2::t_062bd316ec1732 1
+test-audit/slices/034.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-27
+test-audit/slices/003.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-31
+test-audit/slices/043.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-31
+test-audit/slices/055.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-33
+test-audit/slices/051.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-28
+test-audit/raw/gh/list-ci-main.json
+  s_3045e9aea563c2::t_062bd316ec1732 1
+test-audit/raw/gh/run-40850202030.json
+  s_3045e9aea563c2::t_062bd316ec1732 1
+test-audit/slices/019.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-28
+test-audit/raw/gh/run-40255456380.json
+  s_3045e9aea563c2::t_1ae74ddeb8b989 1
+test-audit/raw/gh/run-40848058940.json
+  s_3045e9aea563c2::t_062bd316ec1732 1
+test-audit/slices/012.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-40
+test-audit/slices/018.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-39
+test-audit/slices/027.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-40
+test-audit/raw/gh/run-40838495911.json
+  s_3045e9aea563c2::t_1ae74ddeb8b989 1
+test-audit/raw/gh/run-40843241163.json
+  s_3045e9aea563c2::t_1ae74ddeb8b989 1
+test-audit/slices/000.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-26
+test-audit/slices/017.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-27
+test-audit/slices/025.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-26
+test-audit/raw/gh/run-40765106401.json
+  s_3045e9aea563c2::t_1ae74ddeb8b989 1
+test-audit/slices/016.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-30
+test-audit/slices/028.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-40
+test-audit/slices/032.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-25
+test-audit/slices/035.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-40
+test-audit/slices/029.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-40
+test-audit/slices/037.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-40
+test-audit/slices/047.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-40
+test-audit/slices/004.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-25
+test-audit/slices/052.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-25
+test-audit/slices/057.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-38
+test-audit/raw/gh/list-package.yml.json
+  s_3045e9aea563c2::t_062bd316ec1732 1
+test-audit/slices/022.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-40
+test-audit/slices/049.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-40
+test-audit/slices/002.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-40
+test-audit/slices/044.txt
+  s_3045e9aea563c2::t_147313e7d42fbc 1-40
+test-audit/02-metrics.md
+  s_cd49ca534960bf::t_8267ace9a5e4cf 1-154
+test-audit/04-judgement/000.md
+  s_cd49ca534960bf::t_36003f98c74eac 1-31
+test-audit/04-judgement/001.md
+  s_cd49ca534960bf::t_b64f4e8e24e51a 1-55
+test-audit/04-judgement/002.md
+  s_cd49ca534960bf::t_11d1d9f1601e03 1-62
+test-audit/04-judgement/003.md
+  s_cd49ca534960bf::t_3d2f1b0fbccef5 1-37
+test-audit/04-judgement/004.md
+  s_cd49ca534960bf::t_ec7e54650efd91 1-41
+test-audit/04-judgement/005.md
+  s_cd49ca534960bf::t_15997d513d8055 1-56
+test-audit/04-judgement/006.md
+  s_cd49ca534960bf::t_096054d38af835 1-36
+test-audit/04-judgement/007.md
+  s_cd49ca534960bf::t_5f06cb71d4424c 1-39
+test-audit/04-judgement/008.md
+  s_cd49ca534960bf::t_4d6a07910ff408 1-36
+test-audit/04-judgement/018.md
+  s_cd49ca534960bf::t_357ac90decaeb2 1-55
+test-audit/04-judgement/019.md
+  s_cd49ca534960bf::t_d68a259aacc050 1-49
+test-audit/raw/gh/run-40614778626.json
+  s_3045e9aea563c2::t_4070a91ae86814 1
+test-audit/raw/gh/run-40765106346.json
+  s_3045e9aea563c2::t_5be6758a6ae830 1
+test-audit/raw/gh/run-40765106355.json
+  s_3045e9aea563c2::t_72ba94ec6d8d1b 1
+test-audit/raw/gh/run-40800177078.json
+  s_3045e9aea563c2::t_6bdc4681ada070 1
+test-audit/raw/gh/run-40844799786.json
+  s_3045e9aea563c2::t_aef71d303ef6ab 1
+test-audit/raw/gh/run-40844799873.json
+  s_3045e9aea563c2::t_c45ed6285de518 1
+test-audit/raw/gh/run-40846413318.json
+  s_3045e9aea563c2::t_74e79609c0e2bf 1
+test-audit/raw/gh/run-40846546749.json
+  s_3045e9aea563c2::t_81ebf5710e08c3 1
+test-audit/raw/gh/run-40846546848.json
+  s_3045e9aea563c2::t_f84607405f7f17 1
+test-audit/raw/gh/run-40846546919.json
+  s_3045e9aea563c2::t_a88ed41bc0e227 1
+test-audit/raw/gh/run-40848058694.json
+  s_3045e9aea563c2::t_ec8aa9d9906286 1
+test-audit/raw/gh/run-40848058736.json
+  s_3045e9aea563c2::t_bf420999133fe1 1
+test-audit/raw/gh/run-40848058743.json
+  s_3045e9aea563c2::t_6a63b9ce7d48b4 1
+test-audit/raw/gh/run-40848772211.json
+  s_3045e9aea563c2::t_5ffa549e94a5e3 1
+test-audit/raw/gh/run-40850202054.json
+  s_3045e9aea563c2::t_ec487ddd06fddd 1
+test-audit/raw/gh/run-40850202107.json
+  s_3045e9aea563c2::t_02ff2a462cff95 1
+test-audit/raw/gh/run-40850202124.json
+  s_3045e9aea563c2::t_94c02d862167cc 1
+test-audit/raw/test-metrics.csv
+  s_cd49ca534960bf::t_815140917379ec 1-1975
+test-audit/raw/test-metrics.json
+  s_cd49ca534960bf::t_4d4a3121a238a6 1-33884
+test-audit/scripts/durations.mjs
+  s_256c7bcfaeebe0::t_b7a4a1fabd35fe 1-42
+test-audit/scripts/test-metrics.mjs
+  s_cd49ca534960bf::t_faf699bcb6ed37 1-173
+test-audit/04-judgement/051.md
+  s_3045e9aea563c2::t_cf464115c8ecaa 1-35
+test-audit/04-judgement/052.md
+  s_3045e9aea563c2::t_54cc015043edf3 1-39
+test-audit/04-judgement/053.md
+  s_3045e9aea563c2::t_aa0f30a915eaec 1-35
+test-audit/04-judgement/054.md
+  s_3045e9aea563c2::t_3f529b455cdad9 1-25
+test-audit/04-judgement/009.md
+  s_3045e9aea563c2::t_9199dfbaab8c26 1-38
+test-audit/04-judgement/010.md
+  s_3045e9aea563c2::t_16386837f9bcd1 1-34
+test-audit/04-judgement/011.md
+  s_3045e9aea563c2::t_ab9bd4f460aac3 1-45
+test-audit/04-judgement/012.md
+  s_3045e9aea563c2::t_891daf568a0968 1-24
+test-audit/04-judgement/013.md
+  s_3045e9aea563c2::t_a9ed6a3601f668 1-57
+test-audit/04-judgement/015.md
+  s_3045e9aea563c2::t_b52bb11f3a89c1 1-31
+test-audit/04-judgement/016.md
+  s_3045e9aea563c2::t_8a6ef54d396f66 1-58
+test-audit/04-judgement/017.md
+  s_3045e9aea563c2::t_c9d3ee3bdd1b15 1-46
+test-audit/04-judgement/020.md
+  s_3045e9aea563c2::t_788ccbce591608 1-35
+test-audit/04-judgement/021.md
+  s_3045e9aea563c2::t_b7e20891193a76 1-23
+test-audit/04-judgement/022.md
+  s_3045e9aea563c2::t_8da9b14927adaf 1-34
+test-audit/04-judgement/023.md
+  s_3045e9aea563c2::t_035243f9112708 1-68
+test-audit/04-judgement/024.md
+  s_3045e9aea563c2::t_fbf71b87736653 1-34
+test-audit/04-judgement/025.md
+  s_3045e9aea563c2::t_ca1a608306c40b 1-45
+test-audit/04-judgement/026.md
+  s_3045e9aea563c2::t_b1348514c58a23 1-28
+test-audit/04-judgement/027.md
+  s_3045e9aea563c2::t_e7db99815ae54e 1-42
+test-audit/04-judgement/028.md
+  s_3045e9aea563c2::t_4d3e04025890fd 1-42
+test-audit/04-judgement/029.md
+  s_3045e9aea563c2::t_3b9f69a89290b4 1-68
+test-audit/04-judgement/030.md
+  s_3045e9aea563c2::t_5e0d37305c09cf 1-33
+test-audit/04-judgement/031.md
+  s_3045e9aea563c2::t_2c6b9405de654c 1-40
+test-audit/04-judgement/032.md
+  s_3045e9aea563c2::t_30afd57b4fa6a7 1-41
+test-audit/04-judgement/033.md
+  s_3045e9aea563c2::t_6917c0d3125431 1-30
+test-audit/04-judgement/034.md
+  s_3045e9aea563c2::t_073cc5e6dff6b3 1-22
+test-audit/04-judgement/035.md
+  s_3045e9aea563c2::t_b98276f9bd072c 1-40
+test-audit/04-judgement/036.md
+  s_3045e9aea563c2::t_21505a39e5bc71 1-44
+test-audit/04-judgement/037.md
+  s_3045e9aea563c2::t_c9ee6e53263525 1-63
+test-audit/04-judgement/038.md
+  s_3045e9aea563c2::t_2b4110a67198b7 1-45
+test-audit/04-judgement/039.md
+  s_3045e9aea563c2::t_c2a83c4a526a54 1-25
+test-audit/04-judgement/040.md
+  s_3045e9aea563c2::t_635639d6336875 1-66
+test-audit/04-judgement/041.md
+  s_3045e9aea563c2::t_57c2f617bfc46f 1-24
+test-audit/04-judgement/042.md
+  s_3045e9aea563c2::t_81822d6b78f8a2 1-52
+test-audit/04-judgement/043.md
+  s_3045e9aea563c2::t_f9fc1379a9dd5c 1-42
+test-audit/04-judgement/044.md
+  s_3045e9aea563c2::t_13d428a5e9db12 1-45
+test-audit/04-judgement/045.md
+  s_3045e9aea563c2::t_9d4a54e8b215af 1-53
+test-audit/04-judgement/046.md
+  s_3045e9aea563c2::t_403dded63ae134 1-35
+test-audit/04-judgement/047.md
+  s_3045e9aea563c2::t_b025b2aff0d4ca 1-41
+test-audit/04-judgement/048.md
+  s_3045e9aea563c2::t_b5d7eb51abf597 1-36
+test-audit/04-judgement/049.md
+  s_3045e9aea563c2::t_31177ad1dda50d 1-24
+test-audit/04-judgement/050.md
+  s_3045e9aea563c2::t_6135513c458233 1-31
+test-audit/04-judgement/055.md
+  s_3045e9aea563c2::t_6a1270b02a94fb 1-30
+test-audit/04-judgement/056.md
+  s_3045e9aea563c2::t_33e5043dddb13e 1-31
+test-audit/04-judgement/057.md
+  s_3045e9aea563c2::t_e90a3e23180cf1 1-25
+test-audit/04-judgement/058.md
+  s_3045e9aea563c2::t_d6b41733370254 1-27
+test-audit/raw/durations.csv
+  s_3045e9aea563c2::t_f329b71c03da0e 1-1976
+test-audit/raw/vitest.json
+  s_3045e9aea563c2::t_6b2c596d6cb49d 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b33f287c81cd0dfb70aaef1c03118034a450f1d5",
+  "prompts": {},
+  "sessions": {
+    "s_256c7bcfaeebe0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f7866451-af6b-4e17-a428-98482aea26a3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_3045e9aea563c2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0e5c8494-05de-48e2-8fb2-cf20cedd4ce7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_6538a626f52074": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a187d2-a3c6-79b2-88d4-50b380c651a1",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_69a3e1af8cfbf1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18779-44b1-7083-8f21-cfed6ec122f0",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_cd49ca534960bf": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1877f-9f41-7b91-8616-5cbaefa79c26",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

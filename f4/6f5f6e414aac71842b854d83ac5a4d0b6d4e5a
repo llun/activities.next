@@ -1,0 +1,54 @@
+lib/services/guards/getSenderPublicKey.test.ts
+  s_5f19c1e3f0217b::t_0fbfce266fa978 9-13,17,88-101,203-206,258-345,396-400,697-701,782-784,794-795,881-887
+  s_5f19c1e3f0217b::t_e5d50ae88476e0 888
+lib/stub/serveFederationRoutes.ts
+  s_5f19c1e3f0217b::t_d7ba815d65863d 4,27-31,35,41-49
+lib/activities/getWebfingerDocument.ts
+  s_5f19c1e3f0217b::t_90bbfe2c1e2a7a 19-20,24,42-43
+lib/jobs/fetchRemoteStatusJob.test.ts
+  s_5f19c1e3f0217b::t_9b94e7047cc288 916-1066
+lib/activities/isActorHandleConfirmed.ts
+  s_5f19c1e3f0217b::t_90bbfe2c1e2a7a 22-24,28-29,37-38,40-44,52
+  s_5f19c1e3f0217b::t_56639f5baf7edb 45
+lib/activities/index.test.ts
+  s_5f19c1e3f0217b::t_c680457ab5b6d6 85-122
+lib/activities/activityPubResponse.ts
+  s_5f19c1e3f0217b::t_d7ba815d65863d 11-13
+lib/activities/activityPubResponse.test.ts
+  s_5f19c1e3f0217b::t_dd52908162f6ff 1-4,41-76
+  s_5f19c1e3f0217b::t_71fe0afe4185a7 77
+lib/activities/getActorCollections.test.ts
+  s_5f19c1e3f0217b::t_81f1656d493ded 292-381
+lib/activities/getActorCollections.ts
+  s_5f19c1e3f0217b::t_4f470e42341cb0 45-46
+lib/activities/isActorHandleConfirmed.test.ts
+  s_5f19c1e3f0217b::t_dd52908162f6ff 1-76
+lib/services/quotes/verifyRemoteQuote.test.ts
+  s_5f19c1e3f0217b::t_b62733e945ff3f 143-165,337-339,365-378
+  s_5f19c1e3f0217b::t_b27801d2f184c0 379
+lib/services/mastodon/remoteFollowCollection.ts
+  s_5f19c1e3f0217b::t_4f470e42341cb0 33-35
+docs/mastodon-api-compatibility.md
+  s_5f19c1e3f0217b::t_9b94e7047cc288 640
+lib/jobs/processForwardedActivityJob.test.ts
+  s_5f19c1e3f0217b::t_e1dd4809f22eb4 320
+  s_5f19c1e3f0217b::t_2a5a0fb8b5bc89 226-298
+lib/services/guards/getSenderPublicKey.ts
+  s_5f19c1e3f0217b::t_90bbfe2c1e2a7a 5,35,133,241,253-259,288-306,308-310
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f46f5f6e414aac71842b854d83ac5a4d0b6d4e5a",
+  "prompts": {},
+  "sessions": {
+    "s_5f19c1e3f0217b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "84540f53-e3dd-4ffb-9f9d-a30e79ccf14e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

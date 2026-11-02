@@ -1,0 +1,18 @@
+lib/client.ts
+  h_580a04e334fef4 49-51,57,65-66,70,74-76,183-185,191,199,203,207-209
+lib/client/accounts.test.ts
+  h_580a04e334fef4 5,13,17,21-23,546-701
+lib/client/accounts.ts
+  h_580a04e334fef4 1,386-502
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "d5eba0f17f8a564b7d5e1e436c436ef315a9d7f0",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

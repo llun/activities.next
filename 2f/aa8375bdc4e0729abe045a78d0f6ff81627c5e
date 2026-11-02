@@ -1,0 +1,18 @@
+lib/database/sql/status.ts
+  h_580a04e334fef4 5,63,2437-2464,2469-2470,2472-2474,2480,2667-2727,4078
+lib/database/sql/statusDeletionQueue.test.ts
+  h_580a04e334fef4 1-519
+lib/types/database/operations.ts
+  h_580a04e334fef4 666-671,974-976
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "2faa8375bdc4e0729abe045a78d0f6ff81627c5e",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

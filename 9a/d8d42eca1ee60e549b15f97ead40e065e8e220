@@ -1,0 +1,76 @@
+app/api/v2/suggestions/route.test.ts
+  s_4f4812f16bd65a::t_4c8feb196c5cb0 6,108,116,127,132,134,142-146,174,198,226
+app/api/v1/suggestions/route.test.ts
+  s_4f4812f16bd65a::t_e47001b1424329 5
+  s_4f4812f16bd65a::t_d685a67ceb803b 102-103
+app/api/v1/timelines/[timeline]/route.test.ts
+  s_4f4812f16bd65a::t_16f6be02414e5a 915
+app/api/v1/admin/accounts/adminAccounts.test.ts
+  s_4f4812f16bd65a::t_96823109fbf51e 233-238
+app/api/v1/statuses/route.test.ts
+  s_4f4812f16bd65a::t_e41a568f9f58b8 232,257-259,261,264-265,268-269,308,342
+  s_4f4812f16bd65a::t_c60aff9c35ccb7 17,1331-1332
+app/api/v1/timelines/public/route.test.ts
+  s_4f4812f16bd65a::t_fb63325f1b2ed1 5,90,121-122,134,149,192,372-374
+app/api/v1/accounts/[id]/followers/route.test.ts
+  s_4f4812f16bd65a::t_3d33a4d9b5e2c9 5,111
+app/api/v1/accounts/[id]/route.test.ts
+  s_4f4812f16bd65a::t_3d33a4d9b5e2c9 6,80,178
+app/api/v1/statuses/[id]/quotes/route.test.ts
+  s_4f4812f16bd65a::t_7cb4d6b7f9691e 109,203-204
+  s_4f4812f16bd65a::t_d573ef098a823b 5
+app/api/v2/notifications/route.test.ts
+  s_4f4812f16bd65a::t_570c6c92301cf2 23-28,30,69-70,73-77,146
+  s_4f4812f16bd65a::t_5fd67742533fa9 132-145,147-179
+lib/stub/publicIds.ts
+  s_4f4812f16bd65a::t_99053b5afdbf58 1-32
+app/api/v1/accounts/[id]/follow/route.test.ts
+  s_4f4812f16bd65a::t_3d33a4d9b5e2c9 7,402
+app/api/v1/favourites/route.test.ts
+  s_4f4812f16bd65a::t_e47001b1424329 5
+  s_4f4812f16bd65a::t_d685a67ceb803b 100
+app/api/v1/bookmarks/route.test.ts
+  s_4f4812f16bd65a::t_e47001b1424329 5
+  s_4f4812f16bd65a::t_d685a67ceb803b 100,169-170
+app/api/v1/statuses/[id]/route.test.ts
+  s_4f4812f16bd65a::t_a19321e2e7bb9b 18
+  s_4f4812f16bd65a::t_c364cf9baae008 4313,4316
+  s_4f4812f16bd65a::t_fda51bd5ddcfba 158
+  s_4f4812f16bd65a::t_f30f24d5d751c3 840,915,954,971,1063,1217,1300,1445,4211,4224
+  s_4f4812f16bd65a::t_ba7b9f8ad6223e 3467,3487,3612-3613,3644,3716,3764,3806,3871,3922,4056,4117
+  s_4f4812f16bd65a::t_ec401f77e96734 4818,4820,4825,4827,4866,4868
+  s_4f4812f16bd65a::t_1ceb96f2b532de 4359-4361,4462-4464,4500-4502,4663-4668,4671-4676
+  s_4f4812f16bd65a::t_6aae07ce34e724 3359-3362,3377
+  s_4f4812f16bd65a::t_d85be1681bf703 356,365
+app/api/v1/accounts/[id]/endorsements/route.test.ts
+  s_4f4812f16bd65a::t_3d33a4d9b5e2c9 5,77
+app/api/v1/endorsements/route.test.ts
+  s_4f4812f16bd65a::t_d685a67ceb803b 81-82
+  s_4f4812f16bd65a::t_e47001b1424329 5
+app/api/v1/trends/statuses/route.test.ts
+  s_4f4812f16bd65a::t_1ceb96f2b532de 4
+  s_4f4812f16bd65a::t_7cb4d6b7f9691e 164,239,241
+  s_4f4812f16bd65a::t_d573ef098a823b 175
+app/api/v1/accounts/[id]/statuses/route.test.ts
+  s_4f4812f16bd65a::t_7cb4d6b7f9691e 661
+  s_4f4812f16bd65a::t_d573ef098a823b 7
+app/api/v1/timelines/list/[list_id]/route.test.ts
+  s_4f4812f16bd65a::t_5d6c1d817d3102 5,99,237,304,357,359
+  s_4f4812f16bd65a::t_1ceb96f2b532de 305-307
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "9ad8d42eca1ee60e549b15f97ead40e065e8e220",
+  "prompts": {},
+  "sessions": {
+    "s_4f4812f16bd65a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ef4966e6-a801-42ad-bea7-0a298c41d397",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

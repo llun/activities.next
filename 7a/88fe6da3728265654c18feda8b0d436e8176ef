@@ -1,0 +1,77 @@
+app/(timeline)/settings/moving/AliasesSection.tsx
+  s_279e7012f36c5f::t_34fe1a54b0840e 1-9,11-149
+  s_279e7012f36c5f::t_16fae22994568c 10
+app/(timeline)/settings/sections.tsx
+  s_279e7012f36c5f::t_34fe1a54b0840e 2,111-116
+app/(timeline)/[actor]/page.tsx
+  s_279e7012f36c5f::t_34fe1a54b0840e 2,42
+  s_4cc5fb09056878::t_e8d36ebad6ad6d 197-209,354-366,398-403,437
+app/(timeline)/settings/moving/HandleRenameForm.tsx
+  s_279e7012f36c5f::t_34fe1a54b0840e 1-9,11-376
+  s_279e7012f36c5f::t_547f54661e297c 10
+app/(timeline)/settings/layout.test.tsx
+  s_279e7012f36c5f::t_34fe1a54b0840e 100-112,116-117,156-162
+  s_279e7012f36c5f::t_d8371ee4d973b5 163
+lib/client/accountMigration.test.ts
+  s_279e7012f36c5f::t_34fe1a54b0840e 1-244
+app/(timeline)/settings/moving/MovedNotice.tsx
+  s_279e7012f36c5f::t_34fe1a54b0840e 1-5,7-155
+  s_279e7012f36c5f::t_f0ac5e9450670c 6
+lib/client/accountMigration.ts
+  s_279e7012f36c5f::t_34fe1a54b0840e 1-262
+app/(timeline)/settings/moving/MovingDate.tsx
+  s_279e7012f36c5f::t_34fe1a54b0840e 1-25
+app/(timeline)/settings/moving/page.tsx
+  s_279e7012f36c5f::t_34fe1a54b0840e 1-134
+app/(timeline)/settings/moving/loading.tsx
+  s_279e7012f36c5f::t_34fe1a54b0840e 1-8
+app/(timeline)/settings/moving/MoveForm.tsx
+  s_279e7012f36c5f::t_34fe1a54b0840e 1-11,13-302
+  s_279e7012f36c5f::t_1de7c84315c754 12
+lib/client.ts
+  s_279e7012f36c5f::t_34fe1a54b0840e 7
+app/(timeline)/[actor]/ProfileMovedBanner.tsx
+  s_279e7012f36c5f::t_34fe1a54b0840e 1-72
+app/(timeline)/[actor]/ProfileMovedBanner.test.tsx
+  s_4cc5fb09056878::t_1c0dea6b44962c 1-91
+app/(timeline)/[actor]/ProfileRelationshipActions.test.tsx
+  s_4cc5fb09056878::t_a85c21200d222c 152-226
+app/(timeline)/[actor]/ProfileRelationshipActions.tsx
+  s_4cc5fb09056878::t_523be34c9a27c6 1,8,18-19,26-34,37-44,47,56-60,65-70,77-86
+app/(timeline)/[actor]/page.test.tsx
+  s_4cc5fb09056878::t_707d038c6b3998 19-21,82,84-87,787-924
+app/(timeline)/settings/moving/AliasesSection.test.tsx
+  s_4cc5fb09056878::t_75ccb345e3a3d8 1-165
+app/(timeline)/settings/moving/HandleRenameForm.test.tsx
+  s_4cc5fb09056878::t_a96bbe70158d12 1-339
+app/(timeline)/settings/moving/MoveForm.test.tsx
+  s_4cc5fb09056878::t_0d6b449f619eb7 1-337
+app/(timeline)/settings/moving/MovedNotice.test.tsx
+  s_4cc5fb09056878::t_11d4525a48e8b2 1-101
+app/(timeline)/settings/moving/page.test.tsx
+  s_4cc5fb09056878::t_aecfdfd0bf4f68 1-248
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7a88fe6da3728265654c18feda8b0d436e8176ef",
+  "prompts": {},
+  "sessions": {
+    "s_279e7012f36c5f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0410f49d-2e94-45e1-bd1f-237e6f7747bc",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_4cc5fb09056878": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a17fba-4126-7fd0-b71c-3f941b80d1ce",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

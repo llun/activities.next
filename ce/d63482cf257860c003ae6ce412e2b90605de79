@@ -1,0 +1,14 @@
+lib/database/domains/gallery/albums.ts
+  h_580a04e334fef4 2-8,44,381,392
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ced63482cf257860c003ae6ce412e2b90605de79",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

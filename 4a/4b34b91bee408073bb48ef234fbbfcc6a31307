@@ -1,0 +1,45 @@
+AGENTS.md
+  s_801e94c1cd7091::t_e36121bf815116 2022,2029
+REVIEW.md
+  s_ad6586ccdfbfe9::t_3fac2f1eb9af08 503-504,506
+lib/database/sql/dropAccountsVerifiedAtDefaultMigration.test.ts
+  s_5ea83744fa136d::t_72be93d66ab209 1-208
+migrations/20260828200538_drop_accounts_verifiedat_default.js
+  s_5ea83744fa136d::t_067a9dc9d5474b 1-26
+migrations/schema.sql
+  s_ad6586ccdfbfe9::t_6f946e519ad5a2 48
+migrations/schema.sqlite.sql
+  s_5ea83744fa136d::t_b53a59bd7f77db 279-283
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "4a4b34b91bee408073bb48ef234fbbfcc6a31307",
+  "prompts": {},
+  "sessions": {
+    "s_5ea83744fa136d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a4b6c2dde28babc62",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_801e94c1cd7091": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ec5dc893-542e-48be-a5e8-04c97a90d907",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_ad6586ccdfbfe9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a441be85be7f4d741",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

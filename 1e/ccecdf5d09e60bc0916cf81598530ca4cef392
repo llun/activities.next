@@ -1,0 +1,23 @@
+scripts/fixStuckFitnessProcessing.test.ts
+  s_4805f0ce82f539::t_83bbb5db824434 1-75
+scripts/fixStuckFitnessProcessing.ts
+  s_4805f0ce82f539::t_519a55d05bdcac 25,229
+  s_4805f0ce82f539::t_e7c7a997cc669f 26,80-96,113-129,144
+  s_4805f0ce82f539::t_b7ae33f1e4bc2a 9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "1eccecdf5d09e60bc0916cf81598530ca4cef392",
+  "prompts": {},
+  "sessions": {
+    "s_4805f0ce82f539": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4fb5-53f3-7a22-ace8-1eddac33d3f1",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

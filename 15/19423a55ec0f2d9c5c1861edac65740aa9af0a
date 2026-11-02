@@ -1,0 +1,39 @@
+app/api/inbox/fediverseInterop.test.ts
+  s_f6091a1907b015::t_3dd2349225da8c 488-500
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.routeMap.test.tsx
+  s_f6091a1907b015::t_3dd2349225da8c 191-196
+lib/components/post-box/post-box.drafts.test.tsx
+  s_34243aa48c26f4::t_3a77b7317ec643 64-83,207-209,399,439,669,752
+CONTRIBUTING.md
+  s_34243aa48c26f4::t_90bd5baa244ef2 700-703
+lib/database/migrate/index.test.ts
+  s_34243aa48c26f4::t_271f2143fa84a5 44-45,193-196,205,211-230,645-661,789,791-793,866-868
+lib/stub/actor.ts
+  s_34243aa48c26f4::t_21b112e9d4f206 4,6-20
+test/setup/vitest.setup.ts
+  s_34243aa48c26f4::t_cf31b1b608062b 7,14-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1519423a55ec0f2d9c5c1861edac65740aa9af0a",
+  "prompts": {},
+  "sessions": {
+    "s_34243aa48c26f4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e6e2ee9b-a2a0-4413-86ac-116af2007e3e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_f6091a1907b015": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4002b74e-ccf2-4b38-b4b6-ddb1cc097d99",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

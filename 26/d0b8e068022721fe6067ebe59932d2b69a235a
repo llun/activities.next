@@ -1,0 +1,16 @@
+lib/database/sql/fitnessFile.test.ts
+  h_580a04e334fef4 210-412
+lib/database/sql/fitnessFile.ts
+  h_580a04e334fef4 373-412,512-518,520,546-547
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "26d0b8e068022721fe6067ebe59932d2b69a235a",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

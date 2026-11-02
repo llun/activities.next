@@ -1,0 +1,19 @@
+lib/services/link-previews/fetchLinkPreview.ts
+  s_8fbc352edaf843::t_a4469e474ddfc1 93-96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "465632b5a955ff2722bbc6e5be1f9bb5c35126cb",
+  "prompts": {},
+  "sessions": {
+    "s_8fbc352edaf843": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f5805ef5-0c89-425f-91b8-cc86a0704bc4",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,16 @@
+AGENTS.md
+  h_580a04e334fef4 264-265,269-283
+REVIEW.md
+  h_580a04e334fef4 409-421
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "64dd1fa98286ec898a610787f18a819319de5f6f",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

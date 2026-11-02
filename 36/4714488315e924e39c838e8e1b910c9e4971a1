@@ -1,0 +1,19 @@
+app/(timeline)/fitness/page.tsx
+  s_f1e04a6319c868::t_2e0f08e51251c0 1-94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "364714488315e924e39c838e8e1b910c9e4971a1",
+  "prompts": {},
+  "sessions": {
+    "s_f1e04a6319c868": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3a353c2f-880a-4289-a04e-ed72d007ab01",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

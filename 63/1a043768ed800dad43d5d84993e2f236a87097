@@ -1,0 +1,25 @@
+lib/database/sql/admin.test.ts
+  aec9357be833f4ad 477,485
+lib/database/sql/admin.ts
+  aec9357be833f4ad 162
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "631a043768ed800dad43d5d84993e2f236a87097",
+  "prompts": {
+    "aec9357be833f4ad": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dcb00-9e97-7592-828b-dd28aea9a215",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 3,
+      "accepted_lines": 857,
+      "overriden_lines": 0
+    }
+  }
+}

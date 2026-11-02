@@ -1,0 +1,42 @@
+CLAUDE.md
+  s_b294d530b9cf18::t_1e703bd4ff481e 43
+lib/services/medias/S3StorageFile.test.ts
+  s_b294d530b9cf18::t_283da0bad47a7f 60-66
+  s_b294d530b9cf18::t_ec6cbe9bb6f64d 541,545,601-627
+  s_b294d530b9cf18::t_d11facfb3b9ce1 468-470,473-476,478-495,531-540,543
+  s_b294d530b9cf18::t_08e6e249ae573a 542
+  s_b294d530b9cf18::t_cfde22c1acbbf5 544
+  s_b294d530b9cf18::t_d7dd002ad79b4c 546
+REVIEW.md
+  s_b294d530b9cf18::t_884c0f8b02d0d9 60-77
+lib/services/medias/fileName.ts
+  s_b294d530b9cf18::t_eb798099369588 11-12,26-36,45-75,77,96-97,101-104,109-110,112,114,116-117,128,140-152,162-167,169
+.github/copilot-instructions.md
+  s_b294d530b9cf18::t_13a2073e77100a 25
+lib/services/medias/S3StorageFile.ts
+  s_b294d530b9cf18::t_a250ae7aa1b0c9 642-645
+lib/services/medias/fileName.test.ts
+  s_b294d530b9cf18::t_61e56377a338fe 3,5-6,8,10,17,19-20,26-53,83-112,143-144,153,164-169,173-179,193-198,217-222,241-258,266,282-306,309-310,320-322,334-335,338-340
+lib/services/medias/localFile.test.ts
+  s_b294d530b9cf18::t_017bc528d3c18e 391
+  s_b294d530b9cf18::t_498cd0d6d4e5d8 33-40
+  s_b294d530b9cf18::t_fe21cde5452fcb 408-411,422-425
+AGENTS.md
+  s_b294d530b9cf18::t_6d2f51b39de36c 682-686,688
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "2a5e62768f354f513cdb91eb21cad98a4a198c42",
+  "prompts": {},
+  "sessions": {
+    "s_b294d530b9cf18": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5d34f930-05d2-4e7f-abca-7087022e883d",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

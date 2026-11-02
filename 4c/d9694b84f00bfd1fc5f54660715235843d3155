@@ -1,0 +1,42 @@
+.env.example
+  h_580a04e334fef4 254-274
+AGENTS.md
+  h_580a04e334fef4 214-220
+docs/environment-variables.md
+  h_580a04e334fef4 238-244
+lib/config/translation.test.ts
+  h_580a04e334fef4 54-56,59-62,64-71,74-77,81-82
+lib/config/translation.ts
+  h_580a04e334fef4 7-10,25-29,31,35-36,45,53-56,65-71,75-79,87-90,104-107,116-117,125-127
+lib/services/altText/httpClient.test.ts
+  h_580a04e334fef4 1-2,5-7,10-11,14-21,24,26-28,31-42,45-47,52,56,58
+lib/services/altText/httpClient.ts
+  h_580a04e334fef4 1-2,8-9,19-20,24-25,27-31
+lib/services/translation/gemini.test.ts
+  h_580a04e334fef4 1-13,16-43,46,48,51-61,65-67,69-78,80-83,86-87,89-90,92-95,98-99,101-110,112-115,118-119,121-137,139-141
+lib/services/translation/gemini.ts
+  h_580a04e334fef4 1,3,13,15,17-24,28-30,32-33,36-38,41-42,45,50,52-55,57-76,83,87-91,93,97-100,102-104
+lib/services/translation/httpClient.test.ts
+  h_580a04e334fef4 1-2,5-7,10-11,14-21,24,26-28,31-42,45-46,50,53-54,56
+lib/services/translation/httpClient.ts
+  h_580a04e334fef4 5,10-11,21-22,26-27,29-33
+lib/services/translation/index.ts
+  h_580a04e334fef4 5,13-14,50-51
+lib/services/translation/llmPrompt.ts
+  h_580a04e334fef4 1-51
+lib/services/translation/openai.ts
+  h_580a04e334fef4 13,15
+lib/services/translation/types.ts
+  h_580a04e334fef4 48-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "4cd9694b84f00bfd1fc5f54660715235843d3155",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

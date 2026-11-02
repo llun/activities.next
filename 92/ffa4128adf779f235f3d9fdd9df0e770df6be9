@@ -1,0 +1,20 @@
+lib/activities/getActorPosts.test.ts
+  h_580a04e334fef4 814-836,882-952
+lib/activities/getActorPosts.ts
+  h_580a04e334fef4 4,206-213
+lib/services/federation/serverSoftware.test.ts
+  h_580a04e334fef4 1-118
+lib/services/federation/serverSoftware.ts
+  h_580a04e334fef4 1-99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "92ffa4128adf779f235f3d9fdd9df0e770df6be9",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

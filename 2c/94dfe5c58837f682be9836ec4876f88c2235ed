@@ -1,0 +1,44 @@
+app/api/v1/accounts/image/route.ts
+  s_3aa302c1cfeffe::t_a2062873873624 1-2,19,26-30,36
+  s_3aa302c1cfeffe::t_18160b290ef8e4 13
+  s_3aa302c1cfeffe::t_7f5cdb149ed395 12,17,20-23,31-32
+  s_3aa302c1cfeffe::t_6dea9222c95054 18,33
+lib/services/accounts/profileImageUrl.ts
+  s_3aa302c1cfeffe::t_20a47f48322e7a 1-84
+lib/services/accounts/profileImageUrl.test.ts
+  s_3aa302c1cfeffe::t_d66cadd831a75a 1-173
+lib/components/settings/ImageUploadField.tsx
+  s_3aa302c1cfeffe::t_396b91169803d9 3,45-51,135-138,144-145,154,162-173
+app/api/v1/accounts/image/route.test.ts
+  s_3aa302c1cfeffe::t_1914d7ca198444 97
+  s_3aa302c1cfeffe::t_719061282e0e5f 1-96,98-108
+lib/components/settings/ImageUploadField.test.tsx
+  s_3aa302c1cfeffe::t_32915aad1957ad 5,50,55
+  s_3aa302c1cfeffe::t_746e2602481dd5 1-4,6-49,51-54,56-78
+CLAUDE.md
+  s_3aa302c1cfeffe::t_c2f9f0e3931e74 56
+app/api/v1/accounts/profile/route.test.ts
+  s_3aa302c1cfeffe::t_18160b290ef8e4 182-186
+  s_3aa302c1cfeffe::t_a80e62697ad321 1-176,187-208
+  s_3aa302c1cfeffe::t_1914d7ca198444 177-181
+app/api/v1/accounts/profile/route.ts
+  s_3aa302c1cfeffe::t_aedd9fe904a5b9 3-4,14-18,25,48-49,53-63,85-88
+AGENTS.md
+  s_3aa302c1cfeffe::t_2b0015a6bed9dd 2310-2312
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "2c94dfe5c58837f682be9836ec4876f88c2235ed",
+  "prompts": {},
+  "sessions": {
+    "s_3aa302c1cfeffe": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "86bc70bf-e3f5-4493-ad45-dbd859b08a86",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

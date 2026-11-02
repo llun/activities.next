@@ -1,0 +1,16 @@
+lib/components/post-box/post-box.test.tsx
+  h_580a04e334fef4 21,321-442,1961-2071
+lib/components/post-box/post-box.tsx
+  h_580a04e334fef4 58,168,170-235,238,240,846-852,1092,1127
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "c27fe689e3168003f9b728f1b16bc76b4eb9cef2",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

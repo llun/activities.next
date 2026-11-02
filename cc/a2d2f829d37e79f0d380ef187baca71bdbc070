@@ -1,0 +1,65 @@
+lib/services/accountImport/ownArchivePhases.test.ts
+  s_0f178a8ce564d8::t_95add031500e4d 750-856
+lib/services/accountImport/phases.test.ts
+  s_c41a8cc69af7d2::t_99e509c983a2d3 3-6,11,15,691-899
+lib/services/accountImport/phases.ts
+  s_0f178a8ce564d8::t_ed7c8a342227a3 28,352-358,929-931,1043-1065,1119,1287-1312,1324-1336,1356-1359,1452,1455,1841,1975,2008-2015,2017-2027,2029-2055,2057-2062,2067-2068,2070,2072-2125,2317-2356
+lib/services/accountImport/runner.test.ts
+  s_0f178a8ce564d8::t_5127d444d75715 33-34,390-395,407-409,411-415,444-445
+lib/services/accountImport/start.test.ts
+  s_0f178a8ce564d8::t_928d4f8b0cb560 3-6,28,35,70,127-159,164-187
+lib/services/accountImport/zip/reader.ts
+  s_0f178a8ce564d8::t_751672275e6f12 58-84,207-211,242-246,305,349,418-422,475-480,518-521,529-537
+app/api/v1/account/imports/[id]/start/route.test.ts
+  s_c41a8cc69af7d2::t_ae52ec712a1817 8,27-30,172-174,222-306
+lib/services/accountImport/mappers/mapMastodonItem.test.ts
+  s_c41a8cc69af7d2::t_917e5a4bc270d1 262,283-284,295
+lib/services/accountImport/mappers/types.ts
+  s_c41a8cc69af7d2::t_07edc2e89108a0 74
+app/api/v1/account/imports/[id]/start/route.ts
+  s_1f1a1efd8db0bf::t_92819a966d4c1f 186-191
+lib/services/accountImport/createImportedStatus.test.ts
+  s_1f1a1efd8db0bf::t_667ebcad1d897b 353-426
+lib/services/accountImport/createImportedStatus.ts
+  s_1f1a1efd8db0bf::t_72a4b100d62e46 210-229,239-246,252-255,301-303,329
+lib/services/accountImport/mappers/shared.ts
+  s_1f1a1efd8db0bf::t_164d95651fe022 27-29,121,130-132,136
+lib/services/accountImport/progress.ts
+  s_1f1a1efd8db0bf::t_744c4879610282 32-39,128-132
+lib/services/accountImport/start.ts
+  s_1f1a1efd8db0bf::t_1124da94dd38cf 25,54-55,59,61-64
+lib/services/accountImport/zip/reader.test.ts
+  s_1f1a1efd8db0bf::t_ed8598817b0712 196-241
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cca2d2f829d37e79f0d380ef187baca71bdbc070",
+  "prompts": {},
+  "sessions": {
+    "s_0f178a8ce564d8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a17de0-9978-7ee2-beb2-b2a14f5fcce6",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_1f1a1efd8db0bf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6f1be9b0-86e0-4f32-9286-3562b40d391e",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_c41a8cc69af7d2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a17f28-a63d-75c0-a843-d792e7e72f88",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

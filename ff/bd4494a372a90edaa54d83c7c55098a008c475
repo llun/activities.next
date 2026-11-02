@@ -1,0 +1,21 @@
+app/(timeline)/admin/tags/AdminHashtagsContent.tsx
+  s_326ec3e82e0e75::t_77caf3fa79dae7 45-50,88,177,183
+app/(timeline)/admin/tags/page.test.tsx
+  s_326ec3e82e0e75::t_76dcc8eb031b83 186-202
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ffbd4494a372a90edaa54d83c7c55098a008c475",
+  "prompts": {},
+  "sessions": {
+    "s_326ec3e82e0e75": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9c28552d-e2fa-4115-9f9d-ff00ded45c5b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

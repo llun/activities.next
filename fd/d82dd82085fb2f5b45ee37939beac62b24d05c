@@ -1,0 +1,42 @@
+docs/mastodon-api-compatibility.md
+  s_cf465b533fc49b::t_147c276cda12a8 527
+  s_cf465b533fc49b::t_73a80860342bf0 528-530
+  s_cf465b533fc49b::t_1fc9b8b849b7ae 546
+  s_cf465b533fc49b::t_4c8bbcd4a71590 509-516,526,531-536
+  s_cf465b533fc49b::t_f38eb432b06429 537-545
+  s_cf465b533fc49b::t_77c289ba9597bb 517-525
+docs/features.md
+  s_cf465b533fc49b::t_785fe7820b5b53 69
+docs/maintenance.md
+  s_cf465b533fc49b::t_7496c894d8cdd7 271-278,282-284
+  s_cf465b533fc49b::t_5b5438822b71b1 281
+  s_cf465b533fc49b::t_7f97d47387eeb3 279-280
+docs/environment-variables.md
+  s_cf465b533fc49b::t_1fc9b8b849b7ae 406-407
+  s_cf465b533fc49b::t_d206a2dfa80d02 408
+docs/architecture.md
+  s_cf465b533fc49b::t_1a0420619824d2 591-594,677
+  s_cf465b533fc49b::t_39b9c5b19e515e 604-605
+  s_cf465b533fc49b::t_d477544cc178eb 628-630,676,678-691
+  s_cf465b533fc49b::t_f09222be5f77b3 571-590,595-603,606-627,631-675,692-696
+  s_cf465b533fc49b::t_af127991981459 2423-2426
+docs/setup.md
+  s_cf465b533fc49b::t_1fc9b8b849b7ae 120-122
+  s_cf465b533fc49b::t_fb58a0443ddb2b 94,111-114,133-140
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fdd82dd82085fb2f5b45ee37939beac62b24d05c",
+  "prompts": {},
+  "sessions": {
+    "s_cf465b533fc49b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a17eb4-d895-7242-a502-3c3b4a694856",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

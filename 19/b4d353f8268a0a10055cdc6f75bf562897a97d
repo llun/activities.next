@@ -1,0 +1,23 @@
+lib/services/medias/S3StorageFile.ts
+  s_a6b78342b6d5ed::t_3545e8d7a9d470 615-618,620-634,639-645
+lib/services/medias/S3StorageFile.test.ts
+  s_a6b78342b6d5ed::t_d7328df60bb24f 805-823
+  s_a6b78342b6d5ed::t_d874874adfa299 69-83
+  s_a6b78342b6d5ed::t_bfd63937518a55 713,735,1252,1265
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "19b4d353f8268a0a10055cdc6f75bf562897a97d",
+  "prompts": {},
+  "sessions": {
+    "s_a6b78342b6d5ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c7bfbe83-9690-4073-8fa2-f2bb0b73c330",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

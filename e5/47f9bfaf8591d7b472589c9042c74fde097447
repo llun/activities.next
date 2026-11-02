@@ -1,0 +1,129 @@
+lib/config/search.test.ts
+  s_4941627279dc6b::t_ef3aed00edde03 1-44,53
+  s_4941627279dc6b::t_94a0bd8e03f3e8 45-52
+lib/search/index.ts
+  s_4941627279dc6b::t_4ec1c78b59ec1c 1-7,9-23,26-46,49-151,162-177
+  s_4941627279dc6b::t_0a7aa86819f674 8,152,156-161
+  s_4941627279dc6b::t_f655148a8c2c46 24,153-154
+  s_4941627279dc6b::t_94a0bd8e03f3e8 25,47-48
+lib/config/host.ts
+  s_5b49cb3aedcb91::t_5a280061751d12 43,46
+  s_5b49cb3aedcb91::t_5b8edebb4c5ee4 44-45
+app/api/v2/search/route.test.ts
+  s_4941627279dc6b::t_ef3aed00edde03 1-70,74-93,97-132,153
+  s_4941627279dc6b::t_c022039fa83e6a 71-73,94-96,133-150
+app/api/v1/accounts/search/route.ts
+  s_4941627279dc6b::t_124ec0abe9bad2 3,51-53,55,57
+  s_4941627279dc6b::t_ac2d51bd09a49d 4,20-21,28-31,33,36-44,46-49,56,58-62,65-71
+  s_4941627279dc6b::t_94a0bd8e03f3e8 8-11,19,22-23,34
+lib/types/database/operations.ts
+  s_5b49cb3aedcb91::t_6ae0660764e91c 53,139-141,669-672
+  s_4941627279dc6b::t_d429fb799fa2f2 598-665,667,673-678
+  s_4941627279dc6b::t_c53154bf0fb56c 666,668
+  s_4941627279dc6b::t_fedded4e604c8d 1125,1139
+lib/search/index.test.ts
+  s_4941627279dc6b::t_9c2e8d80f30767 1-23,27-78
+  s_4941627279dc6b::t_071ab61e22ebd5 24-26
+lib/search/resolveAccount.ts
+  s_4941627279dc6b::t_1a5d37bb22e1d3 1,4-12,17-63
+  s_4941627279dc6b::t_ae8f1d52624bd8 2,13-16
+  s_5b49cb3aedcb91::t_105b5b3e363dc5 3
+lib/search/meilisearch.test.ts
+  s_4941627279dc6b::t_f8d35be4ae3a8c 1-6,10-21,25,40,66-90,93-99,101-132,134-187
+  s_4941627279dc6b::t_ef3aed00edde03 7-9,22-24,26-32,34-39,41-65,190
+  s_4941627279dc6b::t_c53154bf0fb56c 33
+  s_1b2b72e2081919::t_58e03d07d0b16d 91,100,188
+  s_4941627279dc6b::t_071ab61e22ebd5 133
+migrations/20260517120000_add_search_index.js
+  s_4941627279dc6b::t_c66192a4ae35a8 1-6,8-32,34-58
+  s_4941627279dc6b::t_fe0f522c751d2e 7,33
+lib/database/sql/search.test.ts
+  s_4941627279dc6b::t_f6b5e0332905e1 1-3,301,304-311,392-398
+  s_4941627279dc6b::t_ef3aed00edde03 4-10,12-55,57-119,400-401
+  s_4941627279dc6b::t_c53154bf0fb56c 11
+  s_4941627279dc6b::t_99b91fc196868c 56
+  s_5b49cb3aedcb91::t_10176dc91337bd 120-300,302-303,312-391
+lib/utils/searchParams.ts
+  s_1b2b72e2081919::t_214e9567e25b89 1-9
+  s_4941627279dc6b::t_94a0bd8e03f3e8 10
+scripts/rebuildSearchIndex.ts
+  s_4941627279dc6b::t_0da58680394428 1-8,10-11,16-76,78-81,85-149,156-157,159,166-173,176-177,179-189,195-198,202-210,214-223,227,232-233
+  s_4941627279dc6b::t_6ea4e69803c075 9,82-84,150-155,158,160-165,174-175,178,190-194,199-201,211-213,224-226,228-231,239-240
+  s_4941627279dc6b::t_6f6dea812d1ca1 12-15
+  s_4941627279dc6b::t_c53154bf0fb56c 77
+  s_4941627279dc6b::t_bbefca5815b30c 234-238,241-242
+lib/config/configuredHost.ts
+  s_5b49cb3aedcb91::t_cf434fefb6c483 1-5
+app/api/v2/search/route.ts
+  s_4941627279dc6b::t_cc6e96adcceb76 2,5-8,10,12-17,28,30-35,40-46,48-67,70-84,86-110,113-136
+  s_4941627279dc6b::t_c53154bf0fb56c 4,9
+  s_4941627279dc6b::t_94a0bd8e03f3e8 18-21,29,36-38,47,68-69,85,111-112
+lib/database/sql/actor.ts
+  s_5b49cb3aedcb91::t_a9b3a14396dc25 4,105
+  s_1b2b72e2081919::t_c4e1284ce676a7 39
+  s_5b49cb3aedcb91::t_f7a71740c6efc1 143-204
+  s_5b49cb3aedcb91::t_3eb5270ace8422 560-596,599-612,704,706-710
+  s_5b49cb3aedcb91::t_fdece0fec001ff 597-598
+lib/database/sql/index.ts
+  s_4941627279dc6b::t_a815de9c5db512 17,49-53,91-125,127,131-143,145-149,151,158-177,179-186,188-197,199-213,217,219-223,234-235,246-247,261-262
+  s_4941627279dc6b::t_1ac983d7c70f3f 54-66,79-90,152,178,218,224-233
+  s_5b49cb3aedcb91::t_7b42bae5a93f75 67-71,75-78,126,128-130,144,150,153-157,187,198
+  s_5b49cb3aedcb91::t_fdece0fec001ff 72-74
+  s_4941627279dc6b::t_c53154bf0fb56c 214-216
+lib/search/meilisearch.ts
+  s_4941627279dc6b::t_67e13740bca8be 1
+  s_4941627279dc6b::t_70bfa37d4a7284 2-29,33-37,43-47,51-53,55-58,60-111,131-134,136,138,140-142,144-169,174-217
+  s_4941627279dc6b::t_7e71d93e96b22a 30-32,38-42,112-130,135,137,139,143,170-171
+  s_4941627279dc6b::t_c53154bf0fb56c 48-50
+  s_4941627279dc6b::t_ad4725a786d11e 54,59
+app/api/v1/accounts/search/route.test.ts
+  s_4941627279dc6b::t_ef3aed00edde03 1-74,86
+  s_4941627279dc6b::t_c022039fa83e6a 75-85
+lib/database/sql/search.ts
+  s_5b49cb3aedcb91::t_f89dc362e34ffb 1,37,88-92,95-96,99-101,163-165,167-201
+  s_4941627279dc6b::t_42ef3e25f22719 2-3,5-36,38,43-87,93-94,97-98,102-111,116-160,204-249,252-254,257-258,271-298,302-336,338-341,346,348-352,354-378,380-389,391-392,396-401,403,405-411,413-425,427-496,501-511,514-542,545-578,583-612,615-620,623-625,630-685,687-731,737-783,795-796,802-803,815-816,824-825,846,854-871
+  s_5b49cb3aedcb91::t_b54fab3c315906 4
+  s_4941627279dc6b::t_a1986385f555e6 39-42
+  s_4941627279dc6b::t_9d84c634295199 112-115,390,686
+  s_5b49cb3aedcb91::t_0ce5ca8852f944 161-162,166
+  s_5b49cb3aedcb91::t_c8dbe3bb205b8a 250-251,255-256,259-270,337,347,353,379,402,404,412,426
+  s_4941627279dc6b::t_c53154bf0fb56c 299-301,393-395,497-500,579-582
+  s_4941627279dc6b::t_893266e6c3bfb4 342-345
+  s_5b49cb3aedcb91::t_e7f9be6c5fb52a 512-513,543-544,613-614
+  s_4941627279dc6b::t_2e1ef288b0313c 621-622,626-629
+  s_5b49cb3aedcb91::t_b3890911bb015c 732-736,784-785,787-794,797-801,804-805,807-814,817-823,826-836,842-845,847-853
+  s_5b49cb3aedcb91::t_3892edfbade70f 786,806
+  s_5b49cb3aedcb91::t_fdece0fec001ff 837-841
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "e547f9bfaf8591d7b472589c9042c74fde097447",
+  "prompts": {},
+  "sessions": {
+    "s_1b2b72e2081919": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e375e-a829-7750-92dd-678d7b46b0ef",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_4941627279dc6b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e3721-11a9-7400-8ad7-c7ee1b4c4741",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_5b49cb3aedcb91": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e375e-d360-73a3-b751-18cd9f81c87f",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

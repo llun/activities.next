@@ -1,0 +1,18 @@
+lib/services/queue/databaseRunner.test.ts
+  h_580a04e334fef4 31-35,333,340-454
+lib/services/queue/databaseRunner.ts
+  h_580a04e334fef4 18-19,52-55,214,231,241-242,247,253,255-256,260-269,272,278-287
+scripts/maintenance/runQueueWorker.ts
+  h_580a04e334fef4 30-54,57-62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "554b5146070a69bf5d107be97adca8f40bd72059",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

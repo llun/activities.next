@@ -1,0 +1,51 @@
+lib/components/posts/status-reply-box.tsx
+  38fbe22e9e13d45a 149
+app/(timeline)/admin/tags/[tag]/AdminHashtagPosts.tsx
+  38fbe22e9e13d45a 15
+lib/components/posts/poll.test.tsx
+  38fbe22e9e13d45a 15,25-26,43-44,50-51,54,61,82,92-116,122
+app/(timeline)/[actor]/[status]/StatusBox.tsx
+  38fbe22e9e13d45a 21
+lib/components/posts/poll.tsx
+  38fbe22e9e13d45a 11,27-30,34,36,39-40,50
+lib/components/post-box/post-box.tsx
+  38fbe22e9e13d45a 174,177,182
+app/(timeline)/[actor]/[status]/page.tsx
+  38fbe22e9e13d45a 50
+app/(timeline)/[actor]/ActorTimelines.tsx
+  38fbe22e9e13d45a 45
+lib/components/posts/status-reply-box.test.tsx
+  38fbe22e9e13d45a 97
+app/(timeline)/tags/[tag]/HashtagTimeline.tsx
+  38fbe22e9e13d45a 130
+lib/client.test.ts
+  38fbe22e9e13d45a 1-37
+lib/components/posts/post.tsx
+  38fbe22e9e13d45a 34
+app/(timeline)/MainPageTimeline.tsx
+  38fbe22e9e13d45a 275
+lib/client.ts
+  38fbe22e9e13d45a 76-79,89
+lib/components/posts/posts.tsx
+  38fbe22e9e13d45a 22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "fde1d8d57720bf5ce2bfffc3c4ec4cf4f7c8aa8f",
+  "prompts": {
+    "38fbe22e9e13d45a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dc61f-748a-7602-84ac-2c766405edaa",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 101,
+      "total_deletions": 34,
+      "accepted_lines": 101,
+      "overriden_lines": 0
+    }
+  }
+}

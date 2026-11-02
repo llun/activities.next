@@ -1,0 +1,39 @@
+app/(timeline)/admin/announcements/page.tsx
+  s_2de5d568423448::t_9a317ae34c5db1 1-28
+lib/services/announcements/adminAnnouncement.ts
+  s_2de5d568423448::t_ddd97b1a072482 1-70
+app/(timeline)/admin/layout.tsx
+  s_2de5d568423448::t_73d40621c9bd8e 8
+  s_2de5d568423448::t_47cf3b5de7114d 35
+lib/components/admin-announcements/AnnouncementsPanel.tsx
+  s_2de5d568423448::t_ae35cfe8663989 256-258
+  s_2de5d568423448::t_0a24853e80c202 1-255,259-338
+lib/client.ts
+  s_2de5d568423448::t_8820b535d3c99f 3020-3083
+  s_2de5d568423448::t_01780cc78ab811 2
+app/api/v2/admin/announcements/route.test.ts
+  s_2de5d568423448::t_ec8ae58b741816 1-4,6-171
+  s_2de5d568423448::t_41f1f586707435 5
+app/api/v2/admin/announcements/[id]/route.ts
+  s_2de5d568423448::t_83b507770c6f2e 1-103
+docs/features.md
+  s_2de5d568423448::t_ed8fd8fc8d751e 70
+app/api/v2/admin/announcements/route.ts
+  s_2de5d568423448::t_c72e77a0e78af6 1-75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "41621b6c96424efd70bebe3548019ae2baf6ff1c",
+  "prompts": {},
+  "sessions": {
+    "s_2de5d568423448": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "380e0dd8-bb8c-402d-93c3-faf6bb59ed2f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

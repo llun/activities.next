@@ -1,0 +1,25 @@
+app/(timeline)/[actor]/[status]/StatusBox.test.tsx
+  s_6a5187ef5876a1::t_60cb3b0c9b4d22 30,87-113
+app/(timeline)/layout.test.tsx
+  s_6a5187ef5876a1::t_60cb3b0c9b4d22 1-97
+app/(timeline)/[actor]/[status]/page.visibility.test.tsx
+  s_6a5187ef5876a1::t_4b9c87ce93794d 280-342
+app/(timeline)/[actor]/[status]/StatusStatStrip.test.tsx
+  s_6a5187ef5876a1::t_60cb3b0c9b4d22 1-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "0f23953f1aa7be1e4ab5efeb9464a59f864e2823",
+  "prompts": {},
+  "sessions": {
+    "s_6a5187ef5876a1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b8694158-063d-43e9-9987-b1bad0608d19",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

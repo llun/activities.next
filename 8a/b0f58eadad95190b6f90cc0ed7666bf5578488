@@ -1,0 +1,25 @@
+app/api/v1/fitness/apple-maps-token/route.ts
+  s_c2b45d1e3d2b49::t_9af87ef0ec8dbe 4
+  s_c2b45d1e3d2b49::t_4709d7e66c974f 27,32-37,44
+app/api/v1/fitness/apple-maps-token/route.test.ts
+  s_c2b45d1e3d2b49::t_90216cc4510f1d 58
+  s_c2b45d1e3d2b49::t_4d729f23a44e10 13-14,22-31
+  s_c2b45d1e3d2b49::t_f7d451dd26547d 125-145
+  s_c2b45d1e3d2b49::t_cacc3ad7ae9bb1 32-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8ab0f58eadad95190b6f90cc0ed7666bf5578488",
+  "prompts": {},
+  "sessions": {
+    "s_c2b45d1e3d2b49": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b970d6ff-c482-4d45-848b-32f588a95c10",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

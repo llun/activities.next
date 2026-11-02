@@ -1,0 +1,19 @@
+lib/utils/text/htmlToPlainText.test.ts
+  s_aef08f425bed0e::t_d84d51b1588ce2 1-2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2fadfbe5dd74c7a533f653d0c3043b1e043bac36",
+  "prompts": {},
+  "sessions": {
+    "s_aef08f425bed0e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9db49a54-17a6-41a2-94c0-14b19dbd98f7",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

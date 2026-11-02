@@ -1,0 +1,22 @@
+app/(timeline)/settings/account/PasskeyManager.tsx
+  s_fb4fdab06ac5dc::t_9ec89c9a3413bd 296
+  s_fb4fdab06ac5dc::t_1748a2c7b561e5 354-357
+  s_fb4fdab06ac5dc::t_7033c44677c69f 186-198
+  s_fb4fdab06ac5dc::t_9e6f1690705e7c 326
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "7f4de2be1406ccdb2f9eb27a812e0a7ab580cc76",
+  "prompts": {},
+  "sessions": {
+    "s_fb4fdab06ac5dc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8aa0c8d3-b0d9-4f54-9cab-1ebc3dc7b845",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

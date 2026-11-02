@@ -1,0 +1,19 @@
+lib/database/sqlcommenter.test.ts
+  s_475236379a8907::t_4216144f6c3e42 75-80,91-93,95-99,120,122,124-126,129,131,134-140,151,153-155
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "da51e50a42288f5df01fa4d703922f2f1ae09179",
+  "prompts": {},
+  "sessions": {
+    "s_475236379a8907": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c61f4bbc-120e-4be9-86b6-545f82fd80ff",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

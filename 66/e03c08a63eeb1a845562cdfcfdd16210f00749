@@ -1,0 +1,19 @@
+lib/components/layout/mobile-nav.tsx
+  s_1d1988ce5b1545::t_2d117d3d17ab3b 82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "66e03c08a63eeb1a845562cdfcfdd16210f00749",
+  "prompts": {},
+  "sessions": {
+    "s_1d1988ce5b1545": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e35b1-e6ed-7a73-be91-35dc77f223af",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

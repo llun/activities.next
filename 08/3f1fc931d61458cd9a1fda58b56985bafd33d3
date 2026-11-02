@@ -1,0 +1,19 @@
+lib/services/guards/OAuthGuard.test.ts
+  s_5a6c84710a421f::t_68613ad6ced67f 1438-1515
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "083f1fc931d61458cd9a1fda58b56985bafd33d3",
+  "prompts": {},
+  "sessions": {
+    "s_5a6c84710a421f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a3e79c84-8884-40fb-bf4b-aead299dde46",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

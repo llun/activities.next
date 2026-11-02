@@ -1,0 +1,42 @@
+lib/components/profile/FeaturedTagsBlock.tsx
+  s_23e4d5d953ce6d::t_f96662a34631c4 1-40
+app/(timeline)/settings/featured-hashtags/page.tsx
+  s_23e4d5d953ce6d::t_09eafcacb717ac 1-31
+app/(timeline)/settings/featured-hashtags/FeaturedTagsEditor.test.tsx
+  s_23e4d5d953ce6d::t_8c7333465265ee 1-151,155-188,192-193
+  s_23e4d5d953ce6d::t_bd4d84f3d94133 152-154,189-191
+app/(timeline)/settings/layout.test.tsx
+  s_23e4d5d953ce6d::t_c5075675dc4c91 82
+app/(timeline)/settings/layout.tsx
+  s_23e4d5d953ce6d::t_5a81b3bd6768cf 6
+  s_23e4d5d953ce6d::t_61b2032b8de5ea 31-35
+lib/components/profile/FeaturedTagsBlock.test.tsx
+  s_23e4d5d953ce6d::t_cc68b915f95133 1-57
+app/(timeline)/settings/featured-hashtags/FeaturedTagsEditor.tsx
+  s_23e4d5d953ce6d::t_16e59d46ce61c0 1-11,15-251,253-383
+  s_23e4d5d953ce6d::t_d6d633f45c0b66 12-14
+  s_23e4d5d953ce6d::t_9db27454bf8358 252
+lib/client.ts
+  s_23e4d5d953ce6d::t_85fd9f9ab087d5 16
+  s_23e4d5d953ce6d::t_96f3c4b3ab08ba 948-1010
+app/(timeline)/[actor]/page.tsx
+  s_23e4d5d953ce6d::t_e00453dd913949 98-112
+  s_23e4d5d953ce6d::t_a3aea9f1869fe2 7,14
+  s_23e4d5d953ce6d::t_13ad3484497cf2 197-198
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "340644e09d0003080b9fb9469b0b537cb2386283",
+  "prompts": {},
+  "sessions": {
+    "s_23e4d5d953ce6d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "08ed9844-56cf-4562-912d-1d4c4186eec2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

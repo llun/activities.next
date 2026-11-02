@@ -1,0 +1,74 @@
+.gitignore
+  h_580a04e334fef4 7-8
+app/(timeline)/[actor]/[status]/StatusBox.test.tsx
+  h_580a04e334fef4 40-41,42-47
+app/(timeline)/bookmarks/BookmarksTimeline.test.tsx
+  h_580a04e334fef4 16-17,24-29
+app/(timeline)/favorites/FavoritesTimeline.test.tsx
+  h_580a04e334fef4 16-17,24-29
+lib/actions/createNote.ts
+  h_580a04e334fef4 525-530
+lib/actions/createPoll.ts
+  h_580a04e334fef4 139-144
+lib/actions/updateNote.ts
+  h_580a04e334fef4 116-119,120,121
+lib/actions/updatePoll.ts
+  h_580a04e334fef4 113-116,117,118
+lib/client/statuses.test.ts
+  h_580a04e334fef4 19-20,39-40,351-405,605-632
+lib/client/statuses.ts
+  h_580a04e334fef4 335-342,351-356,363-368
+lib/components/posts/actions/post-menu.test.tsx
+  h_580a04e334fef4 17,19,22,44-52,545-605
+lib/components/posts/actions/post-menu.tsx
+  h_580a04e334fef4 9,33,200,572-581
+lib/components/posts/post.tsx
+  h_580a04e334fef4 271-272,276,441,445-457,463-497,499-505,507-508,515-520,524
+lib/components/posts/posts.test.tsx
+  h_580a04e334fef4 51-56
+lib/components/posts/translate-content.test.tsx
+  h_580a04e334fef4 63-65,67-76,160-175
+lib/components/posts/translate-content.tsx
+  h_580a04e334fef4 51,78,97,100-102,135-137,160,179,196
+lib/components/posts/translation-context.test.tsx
+  h_580a04e334fef4 123-167,168-185,186-194
+lib/components/posts/translation-context.tsx
+  h_580a04e334fef4 36,38-39,73-74,76,87,92,93-100,103,108,116-140,142-143,146,149,152-154,156-157,159-160,170-176,233-236,244,248,258,262,275,287,290
+lib/jobs/createNoteJob.ts
+  h_580a04e334fef4 167-168
+lib/jobs/createPollJob.ts
+  h_580a04e334fef4 123-124
+lib/jobs/updateNoteJob.ts
+  h_580a04e334fef4 174-175
+lib/services/language-detection/index.test.ts
+  h_580a04e334fef4 5,8,23-94,95-118,119-138,165-169,177-184,185-186,187-189,192-217,218-219,220-225,226,227,228,229-231,232,233-234,235,236-238,239,240-241,242,243-268,269-270,271-316,317-318,319-324,325,326-327,328,329-331,332,333-334,335,336-338,339,340-341,342,343-345,346,347-348,349,350-352,353,354-355,356,357-359,360,361-363,364,365-370,371,372-374,375,376-377,378,379-380,381,382-401,402-403,404,409,410,411,412,418-419,446,456,461,486,492-508
+lib/services/language-detection/index.ts
+  h_580a04e334fef4 6,12,16,19,26-98,99-117,122-128,129,130-154,156-157,164-167,168,169-170,171,176-178,180-199,200,201-249,251,254,255-256,257-258,273-274,280,283,284-285,296-299
+yarn.lock
+  h_580a04e334fef4 3910,4773,4774-4779
+.dockerignore
+  h_580a04e334fef4 2
+lib/activities/getActorPosts.ts
+  h_580a04e334fef4 59,65,193,252
+lib/activities/getActorPostsFromAtomFeed.ts
+  h_580a04e334fef4 44,48,177
+lib/activities/getPixelfedPosts.test.ts
+  h_580a04e334fef4 41,67
+lib/activities/getPixelfedPosts.ts
+  h_580a04e334fef4 101,105,156,216-217
+lib/activities/getRemoteStatus.ts
+  h_580a04e334fef4 81
+package.json
+  h_580a04e334fef4 60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "27f2497bbca209d347d33db4435ec5d421c0ef44",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

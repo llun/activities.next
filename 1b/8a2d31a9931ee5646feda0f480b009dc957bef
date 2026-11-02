@@ -1,0 +1,28 @@
+lib/config/nextImageRemotePatterns.ts
+  s_8ca4a458a9cece::t_47ca8eea69f30b 1-32
+next.config.ts
+  s_8ca4a458a9cece::t_2432053d213c9d 3
+CLAUDE.md
+  s_8ca4a458a9cece::t_dba5aa9bae1a19 11
+next.config.test.ts
+  s_8ca4a458a9cece::t_d49d749a69ee6c 5,8
+  s_8ca4a458a9cece::t_54da1c3da595dc 112-125
+AGENTS.md
+  s_8ca4a458a9cece::t_6d7789bbe0cf46 27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "1b8a2d31a9931ee5646feda0f480b009dc957bef",
+  "prompts": {},
+  "sessions": {
+    "s_8ca4a458a9cece": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e2ced-1d77-73d3-933e-3837925c2c8e",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

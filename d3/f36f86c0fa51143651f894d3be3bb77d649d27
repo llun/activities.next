@@ -1,0 +1,28 @@
+lib/database/sql/deadLetterJob.ts
+  h_580a04e334fef4 1-138
+lib/database/sql/deadLetterJobs.test.ts
+  h_580a04e334fef4 1-223
+lib/database/sql/index.ts
+  h_580a04e334fef4 14,77,173
+lib/database/types.ts
+  h_580a04e334fef4 22,87
+lib/types/database/operations.ts
+  h_580a04e334fef4 3,4219-4270
+migrations/20260903200355_create_dead_letter_jobs.js
+  h_580a04e334fef4 1-29
+migrations/schema.sql
+  h_580a04e334fef4 273-284,1419-1421,1783-1788
+migrations/schema.sqlite.sql
+  h_580a04e334fef4 284-287
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "d3f36f86c0fa51143651f894d3be3bb77d649d27",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

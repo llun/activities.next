@@ -1,0 +1,21 @@
+app/(timeline)/[actor]/[status]/useChartScrub.ts
+  s_5b26a7eb03aae6::t_9595d07291f067 1-146
+app/(timeline)/[actor]/[status]/useChartScrub.test.ts
+  s_5b26a7eb03aae6::t_6f33dd7f2b75f5 1-236
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "5c7bffd73316e34b1cc1d31d653130df7783e3ae",
+  "prompts": {},
+  "sessions": {
+    "s_5b26a7eb03aae6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07bce-f22c-7dd0-b732-df163c63a832",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

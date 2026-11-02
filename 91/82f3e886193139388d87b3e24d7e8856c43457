@@ -1,0 +1,28 @@
+app/(timeline)/settings/featured-hashtags/FeaturedTagsEditor.tsx
+  s_23e4d5d953ce6d::t_5696d625843df1 18
+  s_23e4d5d953ce6d::t_8b3115dd0a85a1 216
+lib/components/profile/FeaturedTagsBlock.tsx
+  s_23e4d5d953ce6d::t_9aff939875df5b 6,12-14,17-18,28-55,57-58
+lib/client.ts
+  s_23e4d5d953ce6d::t_312fb386aeb35f 952-955,963-965
+lib/utils/text/isRenderableHashtagName.ts
+  s_23e4d5d953ce6d::t_a072ac8dd3bea6 1-13
+lib/components/profile/FeaturedTagsBlock.test.tsx
+  s_23e4d5d953ce6d::t_cd22a70f3f34ed 56-69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "9182f3e886193139388d87b3e24d7e8856c43457",
+  "prompts": {},
+  "sessions": {
+    "s_23e4d5d953ce6d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "08ed9844-56cf-4562-912d-1d4c4186eec2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

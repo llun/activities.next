@@ -1,0 +1,32 @@
+lib/actions/handleQuoteRequest.test.ts
+  h_580a04e334fef4 193-228,232-234,238-245
+lib/actions/handleQuoteRequest.ts
+  h_580a04e334fef4 14,65
+lib/actions/handleQuoteResponse.test.ts
+  h_580a04e334fef4 30,42-46,50-60,238-278,280-301,304,307,309,316
+lib/actions/handleQuoteResponse.ts
+  h_580a04e334fef4 6-9,116-124
+lib/jobs/processForwardedActivityJob.test.ts
+  h_580a04e334fef4 108-169
+lib/jobs/processForwardedActivityJob.ts
+  h_580a04e334fef4 102
+lib/services/quotes/persistInboundQuoteEdge.test.ts
+  h_580a04e334fef4 3-6,16-20,145-233
+lib/services/quotes/persistInboundQuoteEdge.ts
+  h_580a04e334fef4 7,144
+lib/services/quotes/verifyRemoteQuote.test.ts
+  h_580a04e334fef4 267-304,306-313
+lib/services/quotes/verifyRemoteQuote.ts
+  h_580a04e334fef4 12,61,65,148-149
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "8c4cc44a0e4ecd8bb5f1ec798637854f851b60d3",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,24 @@
+app/api/v1/accounts/password/reset/request/route.ts
+  s_181a4d159922fc::t_44abb1f88169cc 9
+  s_181a4d159922fc::t_dc010c9a00405f 109-112,116-117
+lib/services/email/templates/resetPassword.ts
+  s_181a4d159922fc::t_1764f6bcf2142d 1-41
+lib/services/email/templates/resetPassword.test.ts
+  s_181a4d159922fc::t_fae14997d16778 1-44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "35e002032ba67da6264bf60734e50477e11b0efa",
+  "prompts": {},
+  "sessions": {
+    "s_181a4d159922fc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8b59141f-f9f0-4af4-8aea-39520836e6cc",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

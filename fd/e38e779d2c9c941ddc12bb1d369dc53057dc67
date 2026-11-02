@@ -1,0 +1,46 @@
+app/(timeline)/[actor]/layout.tsx
+  s_e573256719c422::t_5a578d8577b8a0 1-33
+app/(timeline)/landing/Landing.tsx
+  s_e573256719c422::t_c4bed2d4a84298 1-49
+app/(timeline)/layout.test.tsx
+  s_e573256719c422::t_715391faa65589 61-64,74
+app/(timeline)/landing/Landing.test.tsx
+  s_e573256719c422::t_b4da19bf0791c0 1-43,47-76
+  s_e573256719c422::t_5d9dbb13feea61 44-46
+app/(timeline)/tags/layout.tsx
+  s_e573256719c422::t_179256b41f95e9 1-32
+lib/services/auth/getSession.ts
+  s_e573256719c422::t_32f9e4b15f9a50 2,6-10,16
+app/(timeline)/PublicShell.tsx
+  s_e573256719c422::t_d7ca421148a0c7 1-37
+app/(timeline)/[actor]/layout.test.tsx
+  s_e573256719c422::t_8685cbcd455ec2 1-61
+app/(timeline)/landing/LandingPublicFeed.tsx
+  s_e573256719c422::t_3723e500dd2013 1-57
+app/(timeline)/layout.tsx
+  s_e573256719c422::t_7ff62fb3e1254c 25-30,32
+app/(timeline)/page.tsx
+  s_e573256719c422::t_06d7d88dc97c05 6,8-9,16-19,27,36-56
+  s_e573256719c422::t_51fdcccbc94669 7
+app/(timeline)/landing/LandingAuthPanel.tsx
+  s_e573256719c422::t_afceef706d91e9 17-19
+  s_e573256719c422::t_f17a4f766c2f02 1-16,20-55
+app/(timeline)/landing/LandingHero.tsx
+  s_e573256719c422::t_75b9662c2d8c6f 1-71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "fde38e779d2c9c941ddc12bb1d369dc53057dc67",
+  "prompts": {},
+  "sessions": {
+    "s_e573256719c422": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7ca77fac-8924-4b34-a994-ddf6745a6ae1",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,38 @@
+lib/components/posts/collapsible-content.test.tsx
+  h_580a04e334fef4 167,200-201,211
+lib/components/posts/collapsible-content.tsx
+  h_580a04e334fef4 3,39,42,66-67,76-84,93-94,96,98,115-129
+lib/components/posts/combined-post-list-item.tsx
+  h_580a04e334fef4 288,298,497-500,506-508
+lib/components/posts/post-body.tsx
+  h_580a04e334fef4 66
+lib/components/posts/post.actions.test.tsx
+  h_580a04e334fef4 15-16
+lib/components/posts/post.card-and-header.test.tsx
+  h_580a04e334fef4 14-15
+lib/components/posts/post.fitness.test.tsx
+  h_580a04e334fef4 15-16
+lib/components/posts/post.handles.test.tsx
+  h_580a04e334fef4 12-13
+lib/components/posts/post.test.tsx
+  h_580a04e334fef4 12,15-17,83,97-100,103-104,112,117-120
+lib/components/posts/post.translate-and-compact.test.tsx
+  h_580a04e334fef4 27-28
+lib/components/posts/post.tsx
+  h_580a04e334fef4 140
+lib/components/posts/self-thread-run.tsx
+  h_580a04e334fef4 195,210-212
+lib/components/posts/status-thread.test.tsx
+  h_580a04e334fef4 43,46-48,1537,1542,1574
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7c534aebb2b9ced1ca9fdda3d680c5791f78084f",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

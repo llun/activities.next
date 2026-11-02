@@ -1,0 +1,35 @@
+app/api/v1/accounts/[id]/statuses/route.ts
+  s_4f4812f16bd65a::t_a6b695cf9b13fa 288-291
+app/api/v1/accounts/[id]/following/route.ts
+  s_4f4812f16bd65a::t_2ca88baf226d47 101-104
+app/api/v1/accounts/[id]/followers/route.ts
+  s_4f4812f16bd65a::t_c4bb0f3eaaeb13 101-104
+app/api/v1/accounts/[id]/endorsements/route.ts
+  s_4f4812f16bd65a::t_ccbc010d699551 93-96
+app/api/v1/accounts/[id]/media/route.ts
+  s_4f4812f16bd65a::t_d70af2fe7098ed 88-91
+app/api/v1/accounts/[id]/in_collections/route.ts
+  s_4f4812f16bd65a::t_7468d67e161a7d 70-73
+app/api/v1/accounts/[id]/in_collections/route.test.ts
+  s_4f4812f16bd65a::t_071f472aab2554 142-143,145
+app/api/v1/accounts/[id]/collections/route.ts
+  s_4f4812f16bd65a::t_d3b3dd9a449ddb 52-55
+app/api/v1/accounts/[id]/statuses/route.test.ts
+  s_4f4812f16bd65a::t_75d3d081b9a5d8 1073-1111
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "b055f5bbe613f2aa263f7aafd69cb015184b5c4d",
+  "prompts": {},
+  "sessions": {
+    "s_4f4812f16bd65a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ef4966e6-a801-42ad-bea7-0a298c41d397",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

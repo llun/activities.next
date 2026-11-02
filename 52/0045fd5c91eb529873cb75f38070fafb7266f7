@@ -1,0 +1,22 @@
+lib/services/email/templates/reblog.test.ts
+  s_181a4d159922fc::t_ad335567cd6723 4,6-7,9-38,40,47-58,60-64,67-68,71-72
+lib/services/email/templates/reblog.ts
+  s_181a4d159922fc::t_11e16f400ae7ac 2-13,17-18,20-25,37-61
+  s_181a4d159922fc::t_f804858a5c5c5b 28-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "520045fd5c91eb529873cb75f38070fafb7266f7",
+  "prompts": {},
+  "sessions": {
+    "s_181a4d159922fc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8b59141f-f9f0-4af4-8aea-39520836e6cc",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

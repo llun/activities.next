@@ -1,0 +1,45 @@
+lib/components/posts/post.test.tsx
+  s_8f873201dcfe54::t_091d09e9b75c6e 1096,1156
+lib/components/posts/retry-fitness-button.tsx
+  s_8f873201dcfe54::t_091d09e9b75c6e 26,28
+CLAUDE.md
+  s_8f873201dcfe54::t_6c6854adcaa463 43
+lib/jobs/processFitnessFileJob.ts
+  s_8f873201dcfe54::t_e04c78ef6cc961 517-520,576,638,694-701
+  s_8f873201dcfe54::t_52a2cadfbd95c1 54-63,336-337
+  s_8f873201dcfe54::t_110736c7b0f08e 5
+  s_8f873201dcfe54::t_d128ec690e0069 323,444-461,705-706,734-750
+  s_8f873201dcfe54::t_a8fc3193c5d94e 702-704
+app/api/v1/statuses/[id]/retry-fitness/route.ts
+  s_8f873201dcfe54::t_47122cb40ab8d8 112-116
+lib/services/fitness-files/mapAttachments.ts
+  s_8f873201dcfe54::t_791c56becc6914 38-42,81,96
+lib/jobs/regenerateFitnessMapsJob.ts
+  s_8f873201dcfe54::t_791c56becc6914 122-140
+lib/services/email/templates/activityImport.test.ts
+  s_8f873201dcfe54::t_5cb30045b71147 118-146
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.test.tsx
+  s_8f873201dcfe54::t_091d09e9b75c6e 582,591,599
+docs/fitness-file-storage.md
+  s_8f873201dcfe54::t_791c56becc6914 113
+lib/components/settings/FitnessFileManagement.test.tsx
+  s_8f873201dcfe54::t_8c723730660d64 374-453
+lib/jobs/processFitnessFileJob.test.ts
+  s_8f873201dcfe54::t_e94c322596cdf9 620-650
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "9f31f059bed13f02743da85ecd283b16a19ae217",
+  "prompts": {},
+  "sessions": {
+    "s_8f873201dcfe54": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8c84869c-9e41-4272-84a7-3a2b05263e7b",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

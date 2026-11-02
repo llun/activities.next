@@ -1,0 +1,27 @@
+app/api/v1/accounts/[id]/remote-statuses/route.ts
+  s_4e21ad640c848d::t_9e3ad24446090d 58,90
+docs/mastodon-api-compatibility.md
+  s_4e21ad640c848d::t_fc85c4e7109c1f 1904
+lib/services/statuses/getReadableStatusForAction.allowlist.test.ts
+  s_4e21ad640c848d::t_fca5a01a61a2a4 1-137
+lib/services/statuses/getReadableStatusForAction.test.ts
+  s_4e21ad640c848d::t_5304fb63c165b5 13,20,37-40,85,144,153
+lib/services/statuses/getReadableStatusForAction.ts
+  s_4e21ad640c848d::t_deddbbef907466 6-7,46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4695f0b0c911b7fd9aa4883cb6b94159543a66c8",
+  "prompts": {},
+  "sessions": {
+    "s_4e21ad640c848d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "82ffd6ce-edd5-4328-a1ef-f48f9b6883d6",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

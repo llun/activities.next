@@ -1,0 +1,73 @@
+scripts/mock/renderEmailPreviews.ts
+  s_f147bf36f62485::t_c087f1844d9134 92-97,207-219
+  s_f147bf36f62485::t_781d113e473397 220-221
+app/(timeline)/settings/loading.tsx
+  s_f147bf36f62485::t_c087f1844d9134 7-12
+app/(timeline)/admin/layout.tsx
+  s_f147bf36f62485::t_c087f1844d9134 14
+lib/components/section-nav-shared.tsx
+  s_f147bf36f62485::t_c087f1844d9134 29-30
+lib/components/section-nav-dropdown.tsx
+  s_f147bf36f62485::t_c087f1844d9134 6,118,120-129,131-143,145,147-161,183-203,222-224,239-243,248-255,319-323,339-342
+lib/services/email/layout/blocks.ts
+  s_f147bf36f62485::t_c087f1844d9134 109,217,233-235,238-239,253-255,292,297,299,306-318,358,365-375,377,381-385,389,394-395,403,414-417
+lib/services/email/templates/like.test.ts
+  s_f147bf36f62485::t_c087f1844d9134 71-72,96-99
+lib/services/email/templates/activityImport.test.ts
+  s_f147bf36f62485::t_c087f1844d9134 196-206
+lib/services/email/layout/blocks.test.ts
+  s_f147bf36f62485::t_c087f1844d9134 24-29,173-216,313,316-318,408-445
+  s_f147bf36f62485::t_fa02698db49801 446
+package.json
+  s_f147bf36f62485::t_c087f1844d9134 3
+app/(timeline)/admin/layout.test.tsx
+  s_f147bf36f62485::t_c087f1844d9134 82,91,158-162,169-172
+app/(timeline)/settings/layout.test.tsx
+  s_f147bf36f62485::t_c087f1844d9134 70,91,172-173,178-200
+lib/services/email/layout/renderEmail.test.ts
+  s_f147bf36f62485::t_c087f1844d9134 48-69,173,177-190
+lib/components/section-nav.test.tsx
+  s_f147bf36f62485::t_c087f1844d9134 6,164-166,171-183,186-203,206-213,380,393
+lib/services/email/templates/follow.test.ts
+  s_f147bf36f62485::t_c087f1844d9134 46-47
+docs/architecture.md
+  s_f147bf36f62485::t_c087f1844d9134 1367,1370-1372,1374,1605-1606,1614-1617,1688-1714
+lib/services/email/templates/emailDesign.test.ts
+  s_f147bf36f62485::t_c087f1844d9134 466-469,473,478-495,507
+lib/services/email/layout/renderEmail.ts
+  s_f147bf36f62485::t_c087f1844d9134 1,43-47,62-70,72-80,88-89,186
+lib/components/section-nav-dropdown.test.tsx
+  s_f147bf36f62485::t_c087f1844d9134 48-50,96,99-104,294,306-317,521-666,755,763-770,772-798
+lib/services/email/templates/reply.test.ts
+  s_f147bf36f62485::t_c087f1844d9134 77
+app/(timeline)/settings/page.tsx
+  s_f147bf36f62485::t_c087f1844d9134 42,73
+lib/services/email/templates/mention.test.ts
+  s_f147bf36f62485::t_c087f1844d9134 73-74
+app/(timeline)/account/loading.tsx
+  s_f147bf36f62485::t_c087f1844d9134 7-12
+app/(timeline)/settings/sections.tsx
+  s_f147bf36f62485::t_c087f1844d9134 109,121
+lib/components/section-nav.tsx
+  s_f147bf36f62485::t_c087f1844d9134 36-38,58-59,65-70,101-102,107,131,204
+app/(timeline)/account/AccountIdentityCard.tsx
+  s_f147bf36f62485::t_c087f1844d9134 23
+app/(timeline)/admin/sections.tsx
+  s_f147bf36f62485::t_c087f1844d9134 4-6,9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "88083a70213720bdddd94a5503057edb30a575a2",
+  "prompts": {},
+  "sessions": {
+    "s_f147bf36f62485": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "25ee74e4-3619-4df9-8186-dcf3fd9b6ec2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

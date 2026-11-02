@@ -1,0 +1,18 @@
+app/api/v1/accounts/password/reset/request/route.test.ts
+  h_580a04e334fef4 5-8,88-89,122-123
+app/api/v1/accounts/password/reset/route.test.ts
+  h_580a04e334fef4 40-45
+app/api/v1/accounts/password/route.test.ts
+  h_580a04e334fef4 53-54,227
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "15ce53095124563fd9b8c531ad6c25b0e9e62c69",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

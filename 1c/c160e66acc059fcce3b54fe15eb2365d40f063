@@ -1,0 +1,23 @@
+app/api/v1/accounts/[id]/statuses/route.ts
+  760a65f49b0e54f1 108,116,123,150,152
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "1cc160e66acc059fcce3b54fe15eb2365d40f063",
+  "prompts": {
+    "760a65f49b0e54f1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dd091-aada-7022-81be-c067036c88c3",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 5,
+      "total_deletions": 6,
+      "accepted_lines": 186,
+      "overriden_lines": 1
+    }
+  }
+}

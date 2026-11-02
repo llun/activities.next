@@ -1,0 +1,27 @@
+lib/services/notifications/collectNotificationGroups.ts
+  s_0289375c3b8b18::t_44f28526f02dea 45-48
+  s_0289375c3b8b18::t_391d6227dc0d2f 72,92-93,95,113-114
+app/api/v2/notifications/route.ts
+  s_0289375c3b8b18::t_b86a165ac3aeb7 215-220
+  s_0289375c3b8b18::t_5fd7d972f93d40 133-137
+  s_0289375c3b8b18::t_ec1a7e7e35a293 138-151
+lib/services/notifications/collectNotificationGroups.test.ts
+  s_0289375c3b8b18::t_04dc5f26ca368c 153-161,167-186
+  s_0289375c3b8b18::t_ec1a7e7e35a293 162-166
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "96a74e94d34f87329004a4f20989b747218c07a8",
+  "prompts": {},
+  "sessions": {
+    "s_0289375c3b8b18": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f35aa937-fe21-4ae9-9b3f-fbe728f6847d",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

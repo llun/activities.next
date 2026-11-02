@@ -1,0 +1,21 @@
+lib/utils/host.ts
+  s_342e182b7b8429::t_50768107b4dae1 9-16,39-41,46,51-52
+lib/config/host.ts
+  s_342e182b7b8429::t_fe1e44789e9413 42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "ffece22d527546eb3bf48b555eb3fdc2a3d42337",
+  "prompts": {},
+  "sessions": {
+    "s_342e182b7b8429": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e2099-51c6-7cf3-ba6b-4cfb79d4d9a6",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,64 @@
+app/api/v1/mutes/route.ts
+  s_673c6973c1bd86::t_5920a88928d61b 18-20
+  s_673c6973c1bd86::t_8ba31209925708 21-29,31-37,39-50,52-58,60-67
+  s_673c6973c1bd86::t_c1945f8968542d 3
+lib/types/database/operations.ts
+  s_673c6973c1bd86::t_43dba7aa5a4f16 987-989
+app/api/v2/filters/keywords/[id]/route.test.ts
+  s_673c6973c1bd86::t_accd188bfec493 1-48
+app/api/v2/filters/keywords/[id]/route.ts
+  s_673c6973c1bd86::t_1dff5bc2dbc222 27
+  s_673c6973c1bd86::t_5f5f77566884fc 118-121
+lib/database/sql/follow.ts
+  s_673c6973c1bd86::t_f4e06727960cf1 48-69
+  s_673c6973c1bd86::t_034655f236ff54 458-460,462-465,470-491
+app/api/v1/follow_requests/route.test.ts
+  s_673c6973c1bd86::t_3a701d73e4c9bd 1-173,177-196,200-224,231-238,243,246,253-256,259-279
+  s_673c6973c1bd86::t_8d147b1657bdc6 174-176,197-199,225-230,240-242
+  s_673c6973c1bd86::t_8f0353ab85e596 239,244-245,247-252,257-258
+app/api/v1/mutes/route.test.ts
+  s_673c6973c1bd86::t_ffb091b84e6e8b 132-134
+  s_673c6973c1bd86::t_4323da75abec30 123-131,135-155
+  s_673c6973c1bd86::t_180b3049d00f23 1,11-23,31-36
+  s_673c6973c1bd86::t_713ae9f3f4b5c4 85,91-99
+app/api/v1/admin/domain_blocks/[id]/route.test.ts
+  s_673c6973c1bd86::t_8fa5f187738949 3
+  s_673c6973c1bd86::t_7bd8f053d97346 106-153
+app/api/v1/follow_requests/route.ts
+  s_673c6973c1bd86::t_8ba31209925708 55
+  s_673c6973c1bd86::t_094e251ff04185 1-3,6-7,11,17-28,30-36,38-45,47-54,58-65
+lib/database/sql/follow.test.ts
+  s_673c6973c1bd86::t_59e8e5f4ea530a 389,394-396,400
+  s_673c6973c1bd86::t_b1a59e527a7d09 370-388,390-393,397-399,401-439
+app/api/v1/admin/domain_blocks/[id]/route.ts
+  s_673c6973c1bd86::t_38fab356502a52 26
+  s_673c6973c1bd86::t_f49d7da56ca97d 109-112
+app/api/v1/blocks/route.test.ts
+  s_673c6973c1bd86::t_05edacdd896332 1-74,80-182
+  s_673c6973c1bd86::t_e386f123e62eb3 75-79
+app/api/v1/blocks/route.ts
+  s_673c6973c1bd86::t_2e680c5f67a850 18-20
+  s_673c6973c1bd86::t_596e5c1c426198 3
+  s_673c6973c1bd86::t_8ba31209925708 21-36,38-43,45-52,55-62
+app/api/v2/filters/[id]/route.ts
+  s_673c6973c1bd86::t_2b270ac6de6bdc 27
+  s_673c6973c1bd86::t_e98937e63eb716 108-111
+app/api/v2/filters/[id]/route.test.ts
+  s_673c6973c1bd86::t_1409611a635914 1-48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "4987829ca991587d61ae6d6ad73403e4fe562ea9",
+  "prompts": {},
+  "sessions": {
+    "s_673c6973c1bd86": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1d0026ed-fda6-4f1c-bf56-37782f351c35",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

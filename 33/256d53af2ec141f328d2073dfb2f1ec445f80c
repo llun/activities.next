@@ -1,0 +1,23 @@
+docs/maintenance.md
+  s_e67afa7a51bb57::t_0d938c1c326367 1598
+lib/services/domains/servedDomainSnapshot.test.ts
+  s_e67afa7a51bb57::t_e97a7dad83dc11 146-168
+lib/services/domains/servedDomainSnapshot.ts
+  s_e67afa7a51bb57::t_c63e14d794d9a8 128-132,144,151,155
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "33256d53af2ec141f328d2073dfb2f1ec445f80c",
+  "prompts": {},
+  "sessions": {
+    "s_e67afa7a51bb57": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d6019d38-d013-4f5b-a5fb-8e915ee59ae7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

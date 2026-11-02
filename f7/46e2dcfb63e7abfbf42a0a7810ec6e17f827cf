@@ -1,0 +1,33 @@
+lib/activities/getActorPerson.ts
+  8d51119f57f8d994 1,23-26
+lib/activities/index.ts
+  8d51119f57f8d994 4,57-60,110-115,173-178,235-240,293-298,356-361,416-421,470-475,521-526,572-577,618-623,664-669,739-744
+lib/activities/activityPubHeaders.test.ts
+  8d51119f57f8d994 1-80
+lib/jobs/fetchRemoteStatusJob.ts
+  8d51119f57f8d994 5,128-132
+lib/activities/getActorCollections.ts
+  8d51119f57f8d994 1,38-41,72-75
+lib/activities/activityPubHeaders.ts
+  8d51119f57f8d994 1-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "f746e2dcfb63e7abfbf42a0a7810ec6e17f827cf",
+  "prompts": {
+    "8d51119f57f8d994": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dd26f-2b57-7550-8d05-a54a8b9fdf2a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 1607,
+      "total_deletions": 99,
+      "accepted_lines": 1580,
+      "overriden_lines": 14
+    }
+  }
+}

@@ -1,0 +1,24 @@
+scripts/maintenance/backfillMediaBlurhash.ts
+  s_a3b90525842071::t_b1d3894afbdce4 49-53,473-482,530-535
+scripts/maintenance/backfillMediaBlurhash.test.ts
+  s_a3b90525842071::t_cf6d3823d51b43 601-672
+  s_a3b90525842071::t_ea596ac84203fa 913-919,927-929
+docs/maintenance.md
+  s_a3b90525842071::t_a48bfe9bbcd35c 630-633,636
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "becd4999b69ae4e30f3d3ecca1e6c4d91b1cccb2",
+  "prompts": {},
+  "sessions": {
+    "s_a3b90525842071": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "029eb1cf-00b7-4f56-b1d3-679cd6f1e78c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

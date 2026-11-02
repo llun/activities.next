@@ -1,0 +1,40 @@
+app/api/v1/media/[id]/albums/route.test.ts
+  h_580a04e334fef4 229,233-235,250,261-263
+docs/features.md
+  h_580a04e334fef4 69
+lib/components/gallery/MediaAlbumsControl.test.tsx
+  h_580a04e334fef4 634-665
+lib/components/gallery/MediaAlbumsControl.tsx
+  h_580a04e334fef4 61,109,127,133-144,326,363,365,372,440-443
+lib/components/gallery/useMediaAlbums.ts
+  h_580a04e334fef4 53,67-68,99,249
+lib/components/media-details/media-details-dialog.tsx
+  h_580a04e334fef4 1710
+lib/database/domains/gallery/albums.ts
+  h_580a04e334fef4 44-47,372-393,403
+lib/database/domains/media/queries.ts
+  h_580a04e334fef4 347-350
+lib/database/domains/media/types.ts
+  h_580a04e334fef4 255
+lib/database/domains/gallery/galleryAlbumQueries.test.ts
+  h_580a04e334fef4 1757
+lib/database/domains/gallery/galleryAlbums.test.ts
+  h_580a04e334fef4 199,720-721
+lib/services/gallery/galleryAlbumEntities.ts
+  h_580a04e334fef4 151,153-154
+lib/services/gallery/galleryAlbumQueries.test.ts
+  h_580a04e334fef4 879,888-889,907,918,920-921
+lib/services/gallery/galleryAlbumQueries.ts
+  h_580a04e334fef4 62,586,593-594,596-601,610-611
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "72feeb5600b57777561936c85eb8f93ac791524b",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

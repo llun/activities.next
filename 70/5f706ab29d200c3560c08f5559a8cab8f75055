@@ -1,0 +1,29 @@
+lib/components/posts/actions/like-button.test.tsx
+  s_fa2b7991ffcd5e::t_78c77fcf16fd96 1-126
+lib/components/posts/post.test.tsx
+  s_fa2b7991ffcd5e::t_78c77fcf16fd96 658,678-685
+lib/components/posts/actions/delete-button.tsx
+  s_fa2b7991ffcd5e::t_cfbe3fc29607e2 2,6,13-14,16-29,31-79
+lib/components/posts/actions/delete-button.test.tsx
+  s_fa2b7991ffcd5e::t_78c77fcf16fd96 1-108
+lib/client.ts
+  s_fa2b7991ffcd5e::t_cfbe3fc29607e2 288-294,296-297,388-394,396-397
+lib/components/posts/actions/like-button.tsx
+  s_fa2b7991ffcd5e::t_cfbe3fc29607e2 2,13-15,19-38,47-49,52-101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.10",
+  "base_commit_sha": "705f706ab29d200c3560c08f5559a8cab8f75055",
+  "prompts": {},
+  "sessions": {
+    "s_fa2b7991ffcd5e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e44bb-a0df-7852-ad65-b0c0ff3106af",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

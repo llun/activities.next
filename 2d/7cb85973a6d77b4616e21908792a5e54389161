@@ -1,0 +1,36 @@
+app/api/v1/notifications/requests/[id]/route.ts
+  s_f1cb87d470a98e::t_ca8c663e19673c 38
+app/api/v2/notifications/policy/route.ts
+  s_f1cb87d470a98e::t_5e1c46f6eede10 80,82-85,96-97
+app/api/v1/notifications/requests/accept/route.ts
+  s_f1cb87d470a98e::t_fdda31e46026ed 73-86
+  s_f1cb87d470a98e::t_8a82e8e1f38e9f 45,47-50,60-61
+app/api/v1/notifications/requests/[id]/dismiss/route.ts
+  s_f1cb87d470a98e::t_1a356007ab068d 37
+lib/actions/like.ts
+  s_f1cb87d470a98e::t_24c55d07bfc77f 38,46-74,76-77
+app/api/v1/notifications/requests/route.ts
+  s_f1cb87d470a98e::t_e39bb22bb106f1 87-105
+app/api/v1/notifications/requests/[id]/accept/route.ts
+  s_f1cb87d470a98e::t_25ef0321a9c4cd 38
+lib/actions/announce.ts
+  s_f1cb87d470a98e::t_e8cc9d2a343ed8 69,77-103,105
+app/api/v1/notifications/requests/dismiss/route.ts
+  s_f1cb87d470a98e::t_11999824468b41 44,46-49,59-60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "2d7cb85973a6d77b4616e21908792a5e54389161",
+  "prompts": {},
+  "sessions": {
+    "s_f1cb87d470a98e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d97bc6f1-1664-4784-b116-542bc6beeb42",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

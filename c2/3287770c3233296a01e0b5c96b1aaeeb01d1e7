@@ -1,0 +1,21 @@
+lib/components/layout/mobile-navigation-drawer.tsx
+  s_94426ef8ef042a::t_11e30bd39d7b7d 30-33
+lib/components/page-header.tsx
+  s_94426ef8ef042a::t_fc881283618d58 158-159
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c23287770c3233296a01e0b5c96b1aaeeb01d1e7",
+  "prompts": {},
+  "sessions": {
+    "s_94426ef8ef042a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "08204b68-8e02-41c3-aa35-385d0860dc9b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

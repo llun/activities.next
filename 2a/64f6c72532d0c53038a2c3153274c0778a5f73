@@ -1,0 +1,16 @@
+app/(timeline)/[actor]/ActorTimelines.test.tsx
+  h_580a04e334fef4 853-875
+app/(timeline)/[actor]/ActorTimelines.tsx
+  h_580a04e334fef4 151-165,213-215,445,509
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "2a64f6c72532d0c53038a2c3153274c0778a5f73",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

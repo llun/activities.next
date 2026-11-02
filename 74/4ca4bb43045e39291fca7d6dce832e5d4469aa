@@ -1,0 +1,26 @@
+lib/services/queue/type.ts
+  s_4cd210f62b45ca::t_efe903a53de5a3 13-18
+lib/jobs/createNoteJob.ts
+  s_4cd210f62b45ca::t_2b57992723be0b 150-165,167-186
+  s_4cd210f62b45ca::t_02f23c3ac5c694 35
+lib/jobs/createNoteJob.test.ts
+  s_4cd210f62b45ca::t_05c5a2dbd89387 1083-1092,1096-1164,1194-1314
+  s_4cd210f62b45ca::t_d597c5fe8a8faf 3,1093-1095
+  s_4cd210f62b45ca::t_f8f065bd91f266 1165-1193
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "744ca4bb43045e39291fca7d6dce832e5d4469aa",
+  "prompts": {},
+  "sessions": {
+    "s_4cd210f62b45ca": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "586eb371-85cb-4353-89df-de84fa52370b",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

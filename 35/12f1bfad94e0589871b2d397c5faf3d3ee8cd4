@@ -1,0 +1,26 @@
+AGENTS.md
+  h_580a04e334fef4 414
+CONTRIBUTING.md
+  h_580a04e334fef4 1033-1042,1054-1063,1072-1079,1297,1311-1322,1401-1406
+REVIEW.md
+  h_580a04e334fef4 13-21
+docs/architecture.md
+  h_580a04e334fef4 1019,3137-3138
+docs/maintenance.md
+  h_580a04e334fef4 1228,1388-1390
+docs/mastodon-api-compatibility.md
+  h_580a04e334fef4 1046,1613,1666-1669,1813
+docs/setup.md
+  h_580a04e334fef4 373
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3512f1bfad94e0589871b2d397c5faf3d3ee8cd4",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

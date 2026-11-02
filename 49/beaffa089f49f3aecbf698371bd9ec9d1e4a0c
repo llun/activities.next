@@ -1,0 +1,25 @@
+app/api/v1/routeScopeWiring.test.ts
+  s_85d91c6baf9d58::t_3c60a53177cccb 255-264
+lib/actions/emojiReaction.ts
+  s_85d91c6baf9d58::t_d875a029fc03c3 6,232,240-266
+lib/services/reactions/reactStatus.test.ts
+  s_85d91c6baf9d58::t_ae41d78f045b07 362-396
+lib/services/reactions/reactStatus.ts
+  s_85d91c6baf9d58::t_65ce6005bb2b88 203-209,212-215,217-218
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "49beaffa089f49f3aecbf698371bd9ec9d1e4a0c",
+  "prompts": {},
+  "sessions": {
+    "s_85d91c6baf9d58": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8685a26c-353a-478b-9125-3aeb9c98a29a",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

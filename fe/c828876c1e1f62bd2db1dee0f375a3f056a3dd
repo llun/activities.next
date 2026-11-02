@@ -1,0 +1,34 @@
+proxy.test.ts
+  s_8c61f194f0c7e7::t_a2490eded20503 1,3,105-112,114-134
+  s_8c61f194f0c7e7::t_3a4de1ebdc4b66 83,97,100-104,113
+lib/utils/host.ts
+  s_8c61f194f0c7e7::t_342f7fcfd8063c 17-26,34,42-45,59,64
+lib/utils/host.test.ts
+  s_8c61f194f0c7e7::t_b718288f8071a8 1,10,28-34
+lib/services/guards/headerHost.test.ts
+  s_8f8c7653879d27::t_881dba97ff90e2 41,46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "fec828876c1e1f62bd2db1dee0f375a3f056a3dd",
+  "prompts": {},
+  "sessions": {
+    "s_8c61f194f0c7e7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e20af-ba40-7173-84ea-600ded6da79d",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_8f8c7653879d27": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1dff-6d59-7960-9eee-87eebfec6a18",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

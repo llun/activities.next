@@ -1,0 +1,19 @@
+lib/components/layout/mobile-nav.test.tsx
+  s_f640980003dcde::t_88f4374182c267 112-143
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "bf115b234e460ede3c3999ccfbd5d96eb00a25bd",
+  "prompts": {},
+  "sessions": {
+    "s_f640980003dcde": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "06f0d2d4-c0b8-454e-98aa-5858c0cde9ed",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

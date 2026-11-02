@@ -1,0 +1,113 @@
+.github/workflows/version-bump.test.ts
+  s_0f9a522b386a17::t_805c6aa25501e1 645,658-688,701-720
+.github/workflows/version-bump.yml
+  s_0f9a522b386a17::t_82924bc5153b8b 308,318,324,329,335-339,352-355
+CONTRIBUTING.md
+  s_0f9a522b386a17::t_c9fa32361d6291 183,389-391
+app/(timeline)/NewPostsPill.test.tsx
+  s_0f9a522b386a17::t_f184c06cf83bb9 5,34
+app/(timeline)/[actor]/EditOwnedProfileButton.test.tsx
+  s_0f9a522b386a17::t_81645824000ae4 5-11,36
+app/(timeline)/[actor]/[status]/ActivityReplies.test.tsx
+  s_0f9a522b386a17::t_6ca21715505060 5,186
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.test.tsx
+  s_0f9a522b386a17::t_4a9376734f687d 5-12,1066
+app/(timeline)/[actor]/albums/[id]/PublicGalleryAlbumView.test.tsx
+  s_0f9a522b386a17::t_8b31401577bcc0 7,497
+app/(timeline)/bookmarks/BookmarksTimeline.test.tsx
+  s_0f9a522b386a17::t_4ad97ecaa6504c 5-12,162
+app/(timeline)/explore/ExplorePageClient.test.tsx
+  s_0f9a522b386a17::t_5dc63489a968ec 5-11,141
+app/(timeline)/favorites/FavoritesTimeline.test.tsx
+  s_0f9a522b386a17::t_ae2f4531f29d5e 5-12,162
+app/(timeline)/fitness/gear/[id]/GearActivitiesFeed.test.tsx
+  s_0f9a522b386a17::t_4337e5daa4014c 5-12,517
+app/(timeline)/gallery/albums/[id]/GalleryAlbumDetailView.test.tsx
+  s_0f9a522b386a17::t_0845624b473431 7,896
+app/(timeline)/search/SearchPageClient.test.tsx
+  s_0f9a522b386a17::t_0af92f333dd1af 5-12,198
+lib/components/actor-switcher/ActorSwitcher.test.tsx
+  s_0f9a522b386a17::t_b7b4dec74bac37 7,153
+lib/components/actor-switcher/AddActorDialog.test.tsx
+  s_0f9a522b386a17::t_a4514c9ad2ac1e 721
+lib/components/admin-announcements/AnnouncementsPanel.test.tsx
+  s_0f9a522b386a17::t_acd5c58876a38e 7,81
+lib/components/admin/settings/EnvBlockBuilder.test.tsx
+  s_0f9a522b386a17::t_6d2eb07316eab7 6,44
+lib/components/drafts/DraftsProvider.test.tsx
+  s_0f9a522b386a17::t_e073d5527d752b 192-195
+lib/components/fitness/RoutePrivacyHint.test.tsx
+  s_0f9a522b386a17::t_8c901483046a23 5,88
+lib/components/fitness/calendar/AnnualCalendar.test.tsx
+  s_0f9a522b386a17::t_ef7dea0fc281bc 695
+lib/components/fitness/calendar/RangePicker.test.tsx
+  s_0f9a522b386a17::t_4f5b8162e4fe67 7,88,416
+lib/components/fitness/calendar/useRovingDateFocus.test.tsx
+  s_0f9a522b386a17::t_db53e8efa8dc60 346
+lib/components/gallery/GalleryPagedGrid.test.tsx
+  s_0f9a522b386a17::t_b904aced179076 5-12,1117
+lib/components/layout/mobile-navigation-drawer.test.tsx
+  s_0f9a522b386a17::t_ed0d4b15acfb12 5-12,109
+lib/components/media-details/media-details-dialog.add-photo-edit.test.tsx
+  s_0f9a522b386a17::t_e2d025f8d50f58 5,93
+lib/components/media-details/media-details-dialog.add.test.tsx
+  s_0f9a522b386a17::t_ce3684b19c95e4 5-11,73
+lib/components/media-details/media-details-dialog.albums.test.tsx
+  s_0f9a522b386a17::t_848999edacbf2e 5-12,84
+lib/components/media-details/media-details-dialog.gallery.test.tsx
+  s_0f9a522b386a17::t_6fe7c29a8d5862 5,72
+lib/components/media-details/media-details-dialog.subjects.test.tsx
+  s_0f9a522b386a17::t_6c66578a82ddf0 5-11,69
+lib/components/media-details/media-details-dialog.test.tsx
+  s_0f9a522b386a17::t_3c12bd80dcfc07 5-11,71
+lib/components/offline/ServiceWorkerRegistration.test.tsx
+  s_0f9a522b386a17::t_4830309629f4c6 5,18
+lib/components/post-box/post-box-media.edit.test.tsx
+  s_0f9a522b386a17::t_f63ecb150a5074 5-11,70
+lib/components/post-box/post-box-media.suggestions.test.tsx
+  s_0f9a522b386a17::t_8a31e3e118cc67 5,55
+lib/components/post-box/post-box-media.test.tsx
+  s_0f9a522b386a17::t_70223e2072668c 6,88
+lib/components/post-box/post-box.options.test.tsx
+  s_0f9a522b386a17::t_d0870e07f96968 6,84
+lib/components/post-box/post-box.test.tsx
+  s_0f9a522b386a17::t_abb4f3a5f346ae 5-12,472
+lib/components/posts/collapsible-content.test.tsx
+  s_0f9a522b386a17::t_e5060030ff083e 5-11,63
+lib/components/settings/ActorsSection.test.tsx
+  s_0f9a522b386a17::t_c4ed4ec0fede8d 5-11,57
+lib/components/settings/FitnessPrivacyLocationSettings.test.tsx
+  s_0f9a522b386a17::t_31fdc77237165b 5-11,37
+lib/components/settings/gallerySettingsForm.test.tsx
+  s_0f9a522b386a17::t_b7f2b1a2375cbf 4,36
+lib/components/settings/profile/useUnsavedChangesGuard.test.tsx
+  s_0f9a522b386a17::t_3d68a79a67737d 93
+lib/components/theme/ThemeControl.test.tsx
+  s_0f9a522b386a17::t_4ad4c3e2c72f6c 5-11,23
+lib/components/theme/ThemeProvider.test.tsx
+  s_0f9a522b386a17::t_00a9fa0dc8051e 5,31
+lib/components/ui/dropdown-menu.test.tsx
+  s_0f9a522b386a17::t_874a4935693e4d 5,95
+lib/components/ui/popover.test.tsx
+  s_0f9a522b386a17::t_412c22c7c77104 5,26
+lib/hooks/useAutoResizeTextarea.test.ts
+  s_0f9a522b386a17::t_f1a802adc86d9e 2,15,58,323,399
+test/setup/vitest.setup.ts
+  s_0f9a522b386a17::t_3c4c94642eff87 234-240
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "21f6e2c8ed3349e2795036610a3ed8faad0bb904",
+  "prompts": {},
+  "sessions": {
+    "s_0f9a522b386a17": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8339dcdf-8288-4ca4-a992-7872ebb0ba95",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

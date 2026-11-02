@@ -1,0 +1,83 @@
+lib/services/medias/index.test.ts
+  s_f00bc373d2ba59::t_7e1712674465c3 7,10,37,41-42,45-46,66,227-277
+  s_f00bc373d2ba59::t_46a62d55ea3e84 278
+lib/services/medias/localFile.ts
+  s_f00bc373d2ba59::t_7e1712674465c3 18-24,27,34-38,149,151,153-155,171,176,214,216-252,255,257,265-268,272,279-282,285,288,290-295,297-298,311
+migrations/schema.sqlite.sql
+  s_f00bc373d2ba59::t_7e1712674465c3 59
+lib/services/medias/imageOutputFormat.ts
+  s_f00bc373d2ba59::t_3b0d6bd20564a0 1-59
+scripts/backup/productionArchive.test.ts
+  s_f00bc373d2ba59::t_7e1712674465c3 617,633-634,644-646,651
+docs/fitness-file-storage.md
+  s_f00bc373d2ba59::t_7e1712674465c3 55,107
+AGENTS.md
+  s_f00bc373d2ba59::t_7e1712674465c3 312-323
+lib/types/database/fitnessFile.ts
+  s_f00bc373d2ba59::t_7e1712674465c3 26-27,64
+lib/services/medias/getMediaAttachment.ts
+  s_f00bc373d2ba59::t_7e1712674465c3 1,31-35,40,42
+lib/services/medias/mediaFileUrl.test.ts
+  s_f00bc373d2ba59::t_876fd2d9dfef24 1-26
+lib/services/medias/S3StorageFile.test.ts
+  s_f00bc373d2ba59::t_60ec273be8c3ca 494-495
+  s_f00bc373d2ba59::t_7e1712674465c3 8,407-493
+lib/services/medias/imageOutputFormat.test.ts
+  s_f00bc373d2ba59::t_a5e48be44b9afa 1-63
+lib/services/medias/index.ts
+  s_f00bc373d2ba59::t_7e1712674465c3 8,66-95
+  s_f00bc373d2ba59::t_2c334cafd547e6 96-101
+lib/services/medias/S3StorageFile.ts
+  s_f00bc373d2ba59::t_d6626fde31f4e0 98
+  s_f00bc373d2ba59::t_7e1712674465c3 24-30,33,94-97,419-421,437,441,499,501,504,509-537,540,544,546,557,562,569-572,576,578-581,585,588-589,597
+  s_f00bc373d2ba59::t_b1a38a4193ef9e 538-539,541-543,545
+lib/jobs/processFitnessFileJob.ts
+  s_f00bc373d2ba59::t_3cd279648ba790 161,178
+  s_f00bc373d2ba59::t_7e1712674465c3 18,23,123-160,162-177,179-186,317,355-361,363,391-404
+lib/services/medias/localFile.test.ts
+  s_f00bc373d2ba59::t_003c4244866dec 211-212
+  s_f00bc373d2ba59::t_7e1712674465c3 4,8,10,78-210
+lib/jobs/processFitnessFileJob.test.ts
+  s_f00bc373d2ba59::t_7e1712674465c3 12,45-46,65-66,170-177,496-512,546-667
+  s_f00bc373d2ba59::t_7d9aea6c975388 668-669
+migrations/20260727000000_add_fitness_file_map_image_email_path.js
+  s_f00bc373d2ba59::t_1502647c04473b 1-26
+lib/services/medias/mediaFileUrl.ts
+  s_f00bc373d2ba59::t_e6c211c4197750 1-18
+lib/jobs/regenerateFitnessMapsJob.test.ts
+  s_f00bc373d2ba59::t_7e1712674465c3 169,172-173,179-180,253,272-277
+  s_f00bc373d2ba59::t_8e99c1a7edda86 278
+REVIEW.md
+  s_f00bc373d2ba59::t_7e1712674465c3 195-199
+lib/database/sql/fitnessFile.test.ts
+  s_f00bc373d2ba59::t_7e1712674465c3 377-413
+lib/jobs/regenerateFitnessMapsJob.ts
+  s_f00bc373d2ba59::t_7e1712674465c3 114-148,232-239,313-314,320-321,326-331
+  s_f00bc373d2ba59::t_b271e1ca976de9 332
+scripts/backup/productionArchive.ts
+  s_f00bc373d2ba59::t_7e1712674465c3 1147,1150,1157-1160
+  s_f00bc373d2ba59::t_44fb0724676d1f 1161
+migrations/schema.sql
+  s_f00bc373d2ba59::t_7e1712674465c3 414-415
+lib/database/sql/fitnessFile.ts
+  s_f00bc373d2ba59::t_7e1712674465c3 44,309,359-360,828-829
+  s_f00bc373d2ba59::t_53d7d605503e01 830
+lib/services/medias/types.ts
+  s_f00bc373d2ba59::t_7e1712674465c3 6,159-171,186-195
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "00eb16d325fa75b12648c6cc0d332c0edbdfd913",
+  "prompts": {},
+  "sessions": {
+    "s_f00bc373d2ba59": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9fe2341a-719d-453d-8ad9-22b4f91dd55c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

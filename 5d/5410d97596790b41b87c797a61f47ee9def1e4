@@ -1,0 +1,22 @@
+docs/architecture.md
+  s_94426ef8ef042a::t_c2dfa4b338f817 637-638,1583-1584
+  s_94426ef8ef042a::t_7fbc64977a588c 639,714
+app/(timeline)/tags/[tag]/HashtagTimeline.tsx
+  s_94426ef8ef042a::t_f87b215f64683a 9,148-149,155-179,181
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5d5410d97596790b41b87c797a61f47ee9def1e4",
+  "prompts": {},
+  "sessions": {
+    "s_94426ef8ef042a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "08204b68-8e02-41c3-aa35-385d0860dc9b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

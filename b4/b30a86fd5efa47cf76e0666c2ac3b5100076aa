@@ -1,0 +1,45 @@
+app/api/v2/search/route.test.ts
+  s_5a668eedc23058::t_d12c90c4949996 998
+  s_5a668eedc23058::t_b673e7c826f2c7 23,26-31
+  s_5a668eedc23058::t_98fca7b80f6d59 106-110
+  s_5a668eedc23058::t_ec7e1413a11057 811-812,815,820
+  s_5a668eedc23058::t_868b3d904a2c49 864
+  s_5a668eedc23058::t_de5c4d465d101c 520-542,546-575,579-581
+  s_5a668eedc23058::t_a9021c8767b2ab 502-503,506,511
+  s_5a668eedc23058::t_df6852e2caa665 543-545,576-578
+  s_5a668eedc23058::t_bfb7e23466e088 177
+  s_5a668eedc23058::t_f672dacf49c871 32
+app/api/v1/accounts/[id]/remote-statuses/route.test.ts
+  s_5a668eedc23058::t_8441a73ad5c45d 51-53
+  s_5a668eedc23058::t_15e7e64ced7eba 5,15-18,33-38
+  s_5a668eedc23058::t_9f5c73d0220d67 106-109,112,117,122-164
+  s_5a668eedc23058::t_539e506ebdf6c9 165
+app/api/v2/search/route.ts
+  s_5a668eedc23058::t_b455a640765c58 339-340,346,350-352,363,372
+  s_5a668eedc23058::t_8b905437ca2fdc 391-392,400,409-410
+  s_5a668eedc23058::t_2f27fbd8c4c983 580-600,609-610,629-630
+  s_5a668eedc23058::t_f9dfa34e291af0 11
+  s_5a668eedc23058::t_19983d8c415a73 257-258,265,275,285,315
+  s_5a668eedc23058::t_b85d76722a4b4e 464-465,473,482-483
+app/api/v1/accounts/[id]/remote-statuses/route.ts
+  s_5a668eedc23058::t_ea6e839a4c5897 6,11
+  s_5a668eedc23058::t_83b293eba771b5 93
+  s_5a668eedc23058::t_f76b976639756a 36
+  s_5a668eedc23058::t_c4749194365455 54-74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "b4b30a86fd5efa47cf76e0666c2ac3b5100076aa",
+  "prompts": {},
+  "sessions": {
+    "s_5a668eedc23058": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "67146994-c117-4a85-b38c-7122668234be",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

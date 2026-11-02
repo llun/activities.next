@@ -1,0 +1,38 @@
+lib/types/mastodon/account/source.ts
+  s_f7b91ac6284bd0::t_d9fb2f3f46477a 20-25
+app/api/v1/accounts/[id]/route.test.ts
+  s_f7b91ac6284bd0::t_9fdd3b060e45ff 74-86
+lib/types/mastodon/account.ts
+  s_f7b91ac6284bd0::t_3e28f179697ec7 5
+  s_f7b91ac6284bd0::t_ce9cbe3deab63e 75-90
+  s_f7b91ac6284bd0::t_5dbc741bf4e00b 24-26
+lib/database/sql/actor.test.ts
+  s_f7b91ac6284bd0::t_8a37eb46f394c1 349-382
+  s_f7b91ac6284bd0::t_10eb493bbd380b 767,783-785,793-794
+lib/database/sql/actor.ts
+  s_f7b91ac6284bd0::t_bbb776e7e4107f 322
+  s_f7b91ac6284bd0::t_0dde803e573609 304-309
+  s_f7b91ac6284bd0::t_9cb4d2c48bdafb 285-287
+lib/services/accounts/getFallbackBlockedAccount.ts
+  s_f7b91ac6284bd0::t_bccd93d723e74d 43
+  s_f7b91ac6284bd0::t_0dbfa37a028ca6 57,66-68
+lib/services/accounts/getFallbackMutedAccount.ts
+  s_f7b91ac6284bd0::t_9a3990b611df26 43
+  s_f7b91ac6284bd0::t_f77093259a4451 57,66-68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "93a0d8728697d3bac4a88abc1b5e20ffbf7ebffa",
+  "prompts": {},
+  "sessions": {
+    "s_f7b91ac6284bd0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7e5d29e0-cb70-4516-b716-6108a10b94a2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

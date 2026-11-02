@@ -1,0 +1,20 @@
+app/api/v1/media/[id]/route.ts
+  s_f7b91ac6284bd0::t_70b6e7d89a60f0 43-47,49-51
+  s_f7b91ac6284bd0::t_e255aa47c99725 12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9779499f0c40fd959c886d77464a5dbfa426a82c",
+  "prompts": {},
+  "sessions": {
+    "s_f7b91ac6284bd0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7e5d29e0-cb70-4516-b716-6108a10b94a2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

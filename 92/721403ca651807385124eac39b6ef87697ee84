@@ -1,0 +1,27 @@
+lib/activities/getActorPosts.ts
+  s_69f35b0cf1b1f5::t_cafbf3420917f7 10
+  s_69f35b0cf1b1f5::t_52f0ec9b2842bc 228-231,266-271
+  s_69f35b0cf1b1f5::t_813ef89a15ebc5 272
+docs/mastodon-api-compatibility.md
+  s_69f35b0cf1b1f5::t_7e5234628a1579 945
+lib/activities/getActorPosts.test.ts
+  s_69f35b0cf1b1f5::t_9c5706e559e404 805-926
+app/(timeline)/[actor]/getProfileData.ts
+  s_69f35b0cf1b1f5::t_16c426fb53bc2e 271-273
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "92721403ca651807385124eac39b6ef87697ee84",
+  "prompts": {},
+  "sessions": {
+    "s_69f35b0cf1b1f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3e34abf-a75d-4da8-b371-1258aa33721a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

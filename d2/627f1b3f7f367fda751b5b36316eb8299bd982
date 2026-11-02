@@ -1,0 +1,27 @@
+CONTRIBUTING.md
+  s_7a29c31259b0a0::t_fbb9aeb9cf9968 702-716
+.github/workflows/ci.yml
+  s_7a29c31259b0a0::t_fbb9aeb9cf9968 106-108
+vitest.config.ts
+  s_7a29c31259b0a0::t_65785ca79e6f74 88
+  s_7a29c31259b0a0::t_29481e28695c0d 62-64,87
+  s_7a29c31259b0a0::t_98078c45d4e65c 1,8-26,65,80-86,89-99
+lib/services/auth/oauthProviderFlow.test.ts
+  s_7a29c31259b0a0::t_442698fa42447c 246-251
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d2627f1b3f7f367fda751b5b36316eb8299bd982",
+  "prompts": {},
+  "sessions": {
+    "s_7a29c31259b0a0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e61da06e-432e-42f9-a063-cc85e354e701",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

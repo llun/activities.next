@@ -1,0 +1,20 @@
+app/api/v1/statuses/[id]/translate/route.test.ts
+  h_580a04e334fef4 153
+app/api/v1/statuses/[id]/translate/route.ts
+  h_580a04e334fef4 57
+lib/services/statuses/fetchEphemeralRemoteStatus.test.ts
+  h_580a04e334fef4 11,17,56,60,70,91
+lib/services/statuses/fetchEphemeralRemoteStatus.ts
+  h_580a04e334fef4 10,45,55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8aa7445d562d6d1bf323c3ef9b7a97a7b857cbfc",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,30 @@
+.dockerignore
+  s_085f5fc581a108::t_e6b05eeb38a11c 3-7,12-14,31,33-34
+  s_085f5fc581a108::t_f0a9002286a245 26-28
+scripts/productionArchive.test.ts
+  s_085f5fc581a108::t_5073b77838c8da 36,38,110-136
+  s_085f5fc581a108::t_64504e2a3f1490 137-157
+Dockerfile
+  s_085f5fc581a108::t_03a5db8e96dc8b 26-27
+scripts/productionArchive.ts
+  s_085f5fc581a108::t_2e364ac3d2060d 1871-1902,1908,1922-1923,1929
+  s_085f5fc581a108::t_852115295ee4d3 1845-1870,1921,1924-1925,1928,1930-1932,1935
+knexfile.js
+  s_085f5fc581a108::t_8029ee26f46c8d 8-17,61,70-71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "34c1d066e4638d5534e33eb8677228545deb9e76",
+  "prompts": {},
+  "sessions": {
+    "s_085f5fc581a108": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e11af-1cde-7500-88c2-d3e671ab9a78",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

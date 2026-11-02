@@ -1,0 +1,19 @@
+lib/components/layout/nav-items.ts
+  s_d6d5b73c74ab86::t_57c6c879505934 26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "c688a168250e74f9f0ee33aa391481028b52dbf1",
+  "prompts": {},
+  "sessions": {
+    "s_d6d5b73c74ab86": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e3594-0b73-71c3-a003-55378dd6b7ce",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,26 @@
+lib/database/sql/queueJob.test.ts
+  h_580a04e334fef4 415-416,605-641,643,645-686,688-721,724,727-765,767-776,778-785,788-798,800-803
+lib/database/sql/queueJob.ts
+  h_580a04e334fef4 15-16,18-19,79,81-86,88-89,356-399
+lib/services/queue/database.test.ts
+  h_580a04e334fef4 86,89,96,98,101-102,107,111-117,119-128
+lib/services/queue/database.ts
+  h_580a04e334fef4 67-74
+lib/services/queue/dlq/database.test.ts
+  h_580a04e334fef4 1-274
+lib/services/queue/dlq/database.ts
+  h_580a04e334fef4 2,4-5,7,20-27,29,36-39,82-95,103,108,124,130-140,149,173-184,186,197
+lib/types/database/operations.ts
+  h_580a04e334fef4 4332-4335,4357
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "ed253020ed6f8730dece3850d3080ad05ff70e7a",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

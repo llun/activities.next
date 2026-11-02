@@ -1,0 +1,44 @@
+app/(timeline)/notifications/NotificationItem.test.tsx
+  s_b362db93d911c1::t_8c08918e34a438 109,113,182-186
+  s_b362db93d911c1::t_accc4c6d1d488e 1-70,72-84,86-106,108,110,112,121-122,155-176,178-181,214-215
+  s_b362db93d911c1::t_e2cbe663d1cc27 111,177
+  s_b362db93d911c1::t_4831581c0103a6 123-154
+  s_b362db93d911c1::t_ece10b7e6382bd 71,85,114-120,187-213
+  s_b362db93d911c1::t_b32ba5d50df447 107
+app/(timeline)/notifications/components/ActivityImportNotification.tsx
+  s_b362db93d911c1::t_182562f0f801a9 1-29,32-48,58-60,62-65
+  s_b362db93d911c1::t_e4a25b1445bb0a 30-31,50-52,54
+  s_b362db93d911c1::t_bac000859038f3 49,53,55-57,61
+app/(timeline)/notifications/components/MentionNotification.tsx
+  s_b362db93d911c1::t_db4244ef3e7a4b 56-59,69-72
+  s_b362db93d911c1::t_9369de278a8a61 75,79
+app/(timeline)/notifications/NotificationItem.tsx
+  s_b362db93d911c1::t_90246354224ef3 9,14,77-82,96,98,103,107,113,117-120,123-130,133-137,147-151,165
+  s_b362db93d911c1::t_681851339ebc30 50-59,61,65-76,141-143
+  s_b362db93d911c1::t_0742da223f2aae 94-95,101-102,111-112,121-122,131-132
+app/(timeline)/notifications/components/ReplyNotification.tsx
+  s_b362db93d911c1::t_5797d4ff365c15 75,79
+app/(timeline)/notifications/components/ReblogNotification.tsx
+  s_b362db93d911c1::t_69fd1a4eef61fe 1-74,76-78,80-83
+  s_b362db93d911c1::t_f470ae30b23a49 75,79
+app/(timeline)/notifications/components/LikeNotification.tsx
+  s_b362db93d911c1::t_90585e129832c8 75,79
+app/(timeline)/notifications/page.tsx
+  s_b362db93d911c1::t_04638f4002ce73 99,106
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "97d16fdd6e9566b8738c99756d8108b30975427f",
+  "prompts": {},
+  "sessions": {
+    "s_b362db93d911c1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e12b3-9cbd-7450-9de2-d1f8dd4315a0",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+app/(timeline)/fitness/gear/[id]/GearComponentsCard.test.tsx
+  h_580a04e334fef4 570,575,585
+app/(timeline)/fitness/gear/[id]/GearComponentsCard.tsx
+  h_580a04e334fef4 88,511,518,532,555,569
+app/(timeline)/fitness/gear/useGearTableColumns.test.tsx
+  h_580a04e334fef4 259,264-265,269,272,275,282,295,301,310
+docs/fitness-file-storage.md
+  h_580a04e334fef4 835-836,897
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "31f85eb51ed4930268ea87a9c677ede53d5fb4f6",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

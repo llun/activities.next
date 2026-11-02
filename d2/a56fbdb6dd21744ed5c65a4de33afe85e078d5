@@ -1,0 +1,48 @@
+lib/actions/createNote.test.ts
+  s_a9c053813411a7::t_0c132fb6b24e2e 120-141
+lib/jobs/createPollJob.test.ts
+  s_a9c053813411a7::t_9ad563d4dcc9ae 350-386
+lib/database/sql/status.ts
+  s_a9c053813411a7::t_f74261c9c0f2df 769,798-799,1685,1687-1692,1694,1696,1915-1916,1937,1970,2023,2550-2551,2558,2572
+lib/jobs/createNoteJob.test.ts
+  s_a9c053813411a7::t_0cc02f96dfc3fe 528-535,537-567
+  s_a9c053813411a7::t_ef660c96b40316 536
+lib/types/database/operations.ts
+  s_a9c053813411a7::t_082737e30f4953 448,495
+lib/database/sql/actor.ts
+  s_a9c053813411a7::t_f394d1d4d16347 80,89,1315
+lib/database/sql/search/hashtag.ts
+  s_a9c053813411a7::t_2992518b05673f 290-291,430,456
+lib/jobs/createNoteJob.ts
+  s_a9c053813411a7::t_5067ea211dbe8b 113,137-138,154-158
+  s_a9c053813411a7::t_5be6233257c1fe 131
+lib/actions/createNote.ts
+  s_a9c053813411a7::t_3a902e77b5f7a0 394-395,400-404
+lib/jobs/createPollJob.ts
+  s_a9c053813411a7::t_5be6233257c1fe 120
+  s_a9c053813411a7::t_5a13d37967ddc4 101,126-127,143-147
+lib/database/sql/status.test.ts
+  s_a9c053813411a7::t_86617f3c64f45d 2180-2203
+  s_a9c053813411a7::t_2e3ad943c9098d 23-26
+  s_a9c053813411a7::t_16b04cbe02a21b 2652-2678
+lib/database/sql/search.test.ts
+  s_a9c053813411a7::t_7c731db3e976fb 2245-2247,2249-2254
+  s_a9c053813411a7::t_5184e111669761 1662-1773
+  s_a9c053813411a7::t_7a2135967c867e 2198-2244,2248,2255-2264
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "d2a56fbdb6dd21744ed5c65a4de33afe85e078d5",
+  "prompts": {},
+  "sessions": {
+    "s_a9c053813411a7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e5ad7-c4c3-78e2-9686-a128443adab4",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

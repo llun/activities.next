@@ -1,0 +1,23 @@
+lib/database/sql/conversation.test.ts
+  s_310719d8018dcf::t_b29ba2fae935b6 398-453,460-463
+  s_310719d8018dcf::t_2372ba09279ad3 454-459
+lib/database/sql/conversation.ts
+  s_310719d8018dcf::t_615dc71557fff1 363-392,394-403,405-406
+  s_310719d8018dcf::t_5230070949188b 45-46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "62389fb97a20931474aca45f0680605304d80542",
+  "prompts": {},
+  "sessions": {
+    "s_310719d8018dcf": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e3722-d1c9-7732-b66f-0221b95e639b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

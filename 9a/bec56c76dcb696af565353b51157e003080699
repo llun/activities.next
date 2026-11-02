@@ -1,0 +1,22 @@
+lib/components/fitness/useHeatmapTiles.ts
+  s_0e2fd6be727054::t_65121eacbac296 59
+  s_0e2fd6be727054::t_a84349ad8cda58 46-57,70,72
+lib/components/fitness/useHeatmapTiles.test.ts
+  s_0e2fd6be727054::t_bf5b208a90da5c 337-361
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "9abec56c76dcb696af565353b51157e003080699",
+  "prompts": {},
+  "sessions": {
+    "s_0e2fd6be727054": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8b4fe7c-fd3e-48ba-9e1d-ef3b99484c21",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,39 @@
+lib/actions/createNote.ts
+  s_2f8f98bd1d8b55::t_183486d8be5942 741-749,764-766,772
+  s_2f8f98bd1d8b55::t_00f4a2fa7386c3 9
+  s_2f8f98bd1d8b55::t_07286c90d59de3 692-702,717-719,725
+lib/services/email/replyToken.test.ts
+  s_2f8f98bd1d8b55::t_42541e5690b1b2 38
+  s_2f8f98bd1d8b55::t_4a19d3758efeba 8
+  s_2f8f98bd1d8b55::t_cb1418c1823c9a 239-325
+  s_2f8f98bd1d8b55::t_7ae66854b68982 6,9,14
+lib/services/email/replyToken.ts
+  s_2f8f98bd1d8b55::t_8a55ee170ca20b 129-172
+  s_2f8f98bd1d8b55::t_6f081e6fe46097 5,10
+  s_2f8f98bd1d8b55::t_9797602a624ddf 128
+lib/services/timelines/mentionNotification.ts
+  s_2f8f98bd1d8b55::t_ee00bfed9e354b 190-195,199-201
+  s_2f8f98bd1d8b55::t_67714b22857619 121-127,131-133
+  s_2f8f98bd1d8b55::t_cb969446389b1c 4
+lib/services/timelines/mentionNotification.test.ts
+  s_2f8f98bd1d8b55::t_7874963666e715 3,6-10,17
+  s_2f8f98bd1d8b55::t_c14ff2304bd965 714-726
+  s_2f8f98bd1d8b55::t_405d37f0c349f5 691-713,727-764
+  s_2f8f98bd1d8b55::t_84636131ca2243 36-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "62d3d985ab9d4f20b84c656e166691229b5b3abc",
+  "prompts": {},
+  "sessions": {
+    "s_2f8f98bd1d8b55": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fe73386a-874f-4632-8456-f9a69e911a24",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

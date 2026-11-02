@@ -1,0 +1,79 @@
+lib/jobs/moveRelationshipsJob.ts
+  s_279e7012f36c5f::t_8d20398cd2898c 206-208
+  s_279e7012f36c5f::t_b241c1838a983e 209-211
+  s_f92b4a9beb2361::t_c9e676db69bade 52-54,98-103,203,213-220,228-235,255,266-273
+app/api/v1/accounts/aliases/route.test.ts
+  s_f92b4a9beb2361::t_e25c5a36869410 7,38-68,124-131,133-148,233,235-236,263,265-266,290,292-293,334,358-362,389-393,462-465,492,494-495,512,514-515,552-556,572-664,675-678,684-686
+lib/database/domains/actor/actor.test.ts
+  s_1f1a1efd8db0bf::t_2d636da2491b7f 772-957
+lib/database/domains/actor/types.ts
+  s_279e7012f36c5f::t_4115fa2e0a9e98 201-215,271-273
+lib/jobs/moveActorJob.test.ts
+  s_f92b4a9beb2361::t_16ea13a2ff3873 522,623,826,888-913
+lib/jobs/moveActorJob.ts
+  s_f92b4a9beb2361::t_cccd8591f5891a 253-256
+lib/jobs/moveRelationshipsJob.test.ts
+  s_f92b4a9beb2361::t_47102370327138 141-170,392-423,451-470,619-713,717-759
+app/api/v1/accounts/aliases/route.ts
+  s_f92b4a9beb2361::t_a89ccbeedfbfbb 94,123-126,128-129,132,135-137,141,155,157-170,183-186,188-189,192-194,198
+docs/architecture.md
+  s_f92b4a9beb2361::t_0e267f3e0e3f93 1752
+docs/features.md
+  s_f92b4a9beb2361::t_1b59c3455ec752 11
+lib/actions/createFollower.ts
+  s_f92b4a9beb2361::t_07b8209424bd76 5,88,90-94,105,107-110,112
+lib/database/domains/actor/queries.ts
+  s_f92b4a9beb2361::t_793a1659715e02 43,67
+lib/database/domains/actor/writes.ts
+  s_f92b4a9beb2361::t_354b29816ec5e6 23-24,40,395-458
+lib/database/domains/notification/notification.test.ts
+  s_f92b4a9beb2361::t_0d83dc348952bc 849-876
+lib/database/domains/notification/queries.ts
+  s_f92b4a9beb2361::t_8ae6260511d2cf 5,546-558,572-573
+lib/database/domains/notification/types.ts
+  s_f92b4a9beb2361::t_b2ff445ef04536 149-152,159-161
+lib/jobs/moveFollowerJob.test.ts
+  s_f92b4a9beb2361::t_a2f27ebe283aa0 861-1001
+lib/jobs/moveFollowerJob.ts
+  s_f92b4a9beb2361::t_7da65419bdc6f3 11,159-167,241-244,256,258-275,285-286,289-294
+lib/services/actors/hasFederatedProfileChange.ts
+  s_f92b4a9beb2361::t_75dc6c8e19e8cc 24
+lib/services/notifications/notifyLocalFollow.test.ts
+  s_f92b4a9beb2361::t_0bb9768099313c 1-174
+lib/services/notifications/notifyLocalFollow.ts
+  s_f92b4a9beb2361::t_7f9b88440827e1 1-81
+lib/types/database/rows.ts
+  s_f92b4a9beb2361::t_c498a89a3aaed9 64-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bf6cbc58604c70705929132812b5030e73a45f9e",
+  "prompts": {},
+  "sessions": {
+    "s_1f1a1efd8db0bf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6f1be9b0-86e0-4f32-9286-3562b40d391e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_279e7012f36c5f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0410f49d-2e94-45e1-bd1f-237e6f7747bc",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_f92b4a9beb2361": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ee3acfd9-97dc-47c9-8a2a-2e741f8b14b8",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

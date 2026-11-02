@@ -1,0 +1,25 @@
+lib/actions/deleteStatus.test.ts
+  s_a9c053813411a7::t_ab2da16f42f231 29,56-85
+lib/actions/deleteStatus.ts
+  s_a9c053813411a7::t_d3217a54c1ddc7 5,28-37,57
+lib/database/sql/status.ts
+  s_a9c053813411a7::t_0513c8ad5874d7 1441
+lib/database/sql/search/hashtag.ts
+  s_a9c053813411a7::t_336b10bc0027c2 214,255,258
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "7eed908763c8050b17e0eb24600e70bd93791e10",
+  "prompts": {},
+  "sessions": {
+    "s_a9c053813411a7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e5ad7-c4c3-78e2-9686-a128443adab4",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,25 @@
+app/api/v1/markers/route.ts
+  s_b1f1f42a61e7ae::t_48a334eabd9903 3
+  s_b1f1f42a61e7ae::t_1fc984d7e661be 59,61,64
+  s_b1f1f42a61e7ae::t_5f4fb4c87cf82a 18
+  s_b1f1f42a61e7ae::t_67306f6229d4de 30-50,72-75,77-110,115,117-119
+  s_b1f1f42a61e7ae::t_5201d5c1949675 26-27
+app/api/v1/markers/route.test.ts
+  s_b1f1f42a61e7ae::t_c1e01e804ff015 79-97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "86365a3006e09963f9b8b8b24042071aed687213",
+  "prompts": {},
+  "sessions": {
+    "s_b1f1f42a61e7ae": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "88c6092d-a010-43cd-bc98-d9275159565f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

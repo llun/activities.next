@@ -1,0 +1,32 @@
+scripts/maintenance/backfillPublicIds.ts
+  s_8306660e9ab823::t_eb92c912ad3dcc 155-223
+  s_8306660e9ab823::t_b3bbf58e68ae3e 279-285
+  s_8306660e9ab823::t_280cc3999f80b9 374
+  s_8306660e9ab823::t_8df9636d93a0eb 249
+  s_8306660e9ab823::t_d495c185d37754 23-29
+  s_8306660e9ab823::t_76b33bff8af081 232-234
+scripts/maintenance/backfillPublicIds.test.ts
+  s_8306660e9ab823::t_e0e3fc6fcf90fd 6
+  s_8306660e9ab823::t_cc369bbcb76e0f 112-335
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "844a9a2971e02ae2b16e9d3c1e70b0e383a28393",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  },
+  "sessions": {
+    "s_8306660e9ab823": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "92c2fa4f-ab25-4c38-bb06-ec41d5df17f0",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

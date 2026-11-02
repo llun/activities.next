@@ -1,0 +1,75 @@
+lib/services/guards/OnlyLocalUserGuard.test.ts
+  s_c7eea5649da27e::t_fcfb7ff136e826 160-204
+lib/utils/getPersonFromActor.ts
+  s_c7eea5649da27e::t_d9dee47c94f969 95,131
+test/proxy.test.ts
+  s_c7eea5649da27e::t_de177df54ae5d0 735-743,750,752,756-781
+  s_c7eea5649da27e::t_8a55fc0e5b4694 744-749,751,753-755
+proxy.ts
+  s_c7eea5649da27e::t_8a55fc0e5b4694 3-6
+  s_c7eea5649da27e::t_2832407d629cf0 96-102,234-235,242,244,257-262,287-292
+app/api/well-known/webfinger/route.test.ts
+  s_c7eea5649da27e::t_bcba7b610327e5 7,17,23,60-104,182-184,191-226
+app/(timeline)/[actor]/getLocalHandleRedirect.ts
+  s_c7eea5649da27e::t_b5fa3902daa532 1-48,50-52
+  s_c7eea5649da27e::t_8a55fc0e5b4694 49
+app/(timeline)/[actor]/layout.tsx
+  s_c7eea5649da27e::t_8a55fc0e5b4694 13-14
+  s_c7eea5649da27e::t_b5fa3902daa532 1-2,8,11-12,15-16,19,29,35,43-53
+  s_c7eea5649da27e::t_40456d0d4f3ec2 36-42
+  s_c7eea5649da27e::t_0905801e7f21ad 54
+lib/services/wellknown/webfinger.ts
+  s_c7eea5649da27e::t_e834c4e077c313 3,90-91,94-97
+  s_c7eea5649da27e::t_7c9e7d1b617029 92-93,99-105,114,135-136,139-147,150-154
+  s_c7eea5649da27e::t_8a55fc0e5b4694 137-138
+app/(timeline)/[actor]/[status]/resolveStatusFromPath.ts
+  s_c7eea5649da27e::t_8a55fc0e5b4694 111
+app/api/v1/accounts/lookup/route.ts
+  s_c7eea5649da27e::t_8a55fc0e5b4694 113
+  s_c7eea5649da27e::t_b185d412178ba1 114-116,124
+  s_c7eea5649da27e::t_de317b30810b5e 109-112,180-181
+app/(timeline)/[actor]/getLocalHandleRedirect.test.ts
+  s_c7eea5649da27e::t_eb8813a76f071c 1,3-35,49-61,70-115
+  s_c7eea5649da27e::t_8a55fc0e5b4694 2,36-48,62-65
+  s_c7eea5649da27e::t_db8af79a8e8b45 66-69
+lib/services/accounts/localizeAccount.ts
+  s_c7eea5649da27e::t_7c9e7d1b617029 1-2,26-30
+app/api/v1/accounts/search/route.ts
+  s_c7eea5649da27e::t_022f9993427942 98-101,103,106-113
+lib/services/accounts/localizeAccount.test.ts
+  s_c7eea5649da27e::t_43f88515b4ebca 70,72,77,88-92
+  s_c7eea5649da27e::t_5dbba2bb2af766 32,108,124
+  s_c7eea5649da27e::t_37474efa6931fb 1-2,71,73-76,78-81,87,96
+  s_c7eea5649da27e::t_f0f9b1f38b1430 82-86,93-95,97
+  s_c7eea5649da27e::t_f76d8777972017 98-99
+app/api/v1/accounts/lookup/route.test.ts
+  s_c7eea5649da27e::t_bcf14479acc2e0 142-190
+  s_c7eea5649da27e::t_5dbba2bb2af766 92-94
+lib/utils/getPersonFromActor.test.ts
+  s_c7eea5649da27e::t_ec8e0d48e72251 2,15,32,51-92
+  s_c7eea5649da27e::t_7d5261112578a0 93-94
+app/(timeline)/[actor]/layout.test.tsx
+  s_c7eea5649da27e::t_eb8813a76f071c 12-18,20-30,50-54,61-65,86,124,129
+  s_c7eea5649da27e::t_17970a2d93f8e9 87-123,125-128,130-133
+app/api/v1/accounts/search/route.test.ts
+  s_c7eea5649da27e::t_5dbba2bb2af766 82-84,196-200
+  s_c7eea5649da27e::t_9b00910b662e4f 157-195,201-222
+app/(timeline)/[actor]/[status]/resolveStatusFromPath.test.ts
+  s_c7eea5649da27e::t_06d560307e4770 354-400
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "714ea5d9f9d326f1067e60088a0cc14a70aed8b9",
+  "prompts": {},
+  "sessions": {
+    "s_c7eea5649da27e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a17392-b888-78f3-b0fa-b1c549b6d056",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

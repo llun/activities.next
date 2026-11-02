@@ -1,0 +1,42 @@
+app/api/v1/accounts/vote/route.test.ts
+  h_580a04e334fef4 1-150
+app/api/v1/accounts/vote/route.ts
+  h_580a04e334fef4 3,106-111,115
+app/api/v1/polls/[id]/route.test.ts
+  h_580a04e334fef4 13,95-98,128,446-472
+app/api/v1/polls/[id]/route.ts
+  h_580a04e334fef4 4,63-67,70
+app/api/v1/polls/[id]/votes/route.ts
+  h_580a04e334fef4 7,182-186,189
+lib/components/posts/poll.test.tsx
+  h_580a04e334fef4 160-205
+lib/components/posts/poll.tsx
+  h_580a04e334fef4 34-36,43-51,69,77,90-93,96-106
+lib/database/sql/status.ts
+  h_580a04e334fef4 1085-1089,1091-1092,1096
+lib/jobs/createPollJob.test.ts
+  h_580a04e334fef4 521-577
+lib/jobs/createPollJob.ts
+  h_580a04e334fef4 62-69
+lib/jobs/updatePollJob.test.ts
+  h_580a04e334fef4 216-247
+lib/jobs/updatePollJob.ts
+  h_580a04e334fef4 41-46
+lib/services/polls/syncRemotePoll.test.ts
+  h_580a04e334fef4 1-286
+lib/services/polls/syncRemotePoll.ts
+  h_580a04e334fef4 1-135
+lib/types/database/operations.ts
+  h_580a04e334fef4 597
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "7091147339d7fe78ab8518287789e76a53387283",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,23 @@
+app/(nosidebar)/auth/two-factor/page.tsx
+  s_38e24bcf2d5456::t_26cdaf11277da7 24
+app/(nosidebar)/auth/signin/resolveSignInRedirect.ts
+  s_38e24bcf2d5456::t_c578893af55ba3 46
+lib/utils/isSafeInternalPath.ts
+  s_38e24bcf2d5456::t_f93b2be321f93e 19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "343d9a87a5071389c3f57f7bc024aa9713427e21",
+  "prompts": {},
+  "sessions": {
+    "s_38e24bcf2d5456": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10d07056-e5c7-4e51-ae35-e0742cfd7b0c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

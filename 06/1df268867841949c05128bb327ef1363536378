@@ -1,0 +1,47 @@
+lib/services/link-previews/resolveStatusPreviewUrl.ts
+  s_8fbc352edaf843::t_5ba7cc834e36fa 53-57
+lib/services/link-previews/extractUrl.test.ts
+  s_8fbc352edaf843::t_26f081474f34ae 114-201
+  s_8fbc352edaf843::t_739006b8401990 5
+lib/utils/text/convertEmojisToImages.ts
+  s_8fbc352edaf843::t_d1d1eacf5a8035 3,5-13
+  s_8fbc352edaf843::t_50f72d8c1da898 67-68,71
+lib/utils/text/convertEmojisToImages.test.ts
+  s_8fbc352edaf843::t_d055deea4e755f 126-128,132-136,144-187
+  s_8fbc352edaf843::t_ec658f6ca1cf22 188
+lib/services/link-previews/resolveStatusPreviewUrl.test.ts
+  s_8fbc352edaf843::t_4d9ade4dba5208 1-36,40-87
+  s_8fbc352edaf843::t_b7beb817961fa0 37-39
+REVIEW.md
+  s_8fbc352edaf843::t_eed14163634e90 473-479
+lib/components/posts/actions/edit-history-button.tsx
+  s_8fbc352edaf843::t_a27b5769c081a5 7,119-124
+  s_8fbc352edaf843::t_135b8afa8396cf 107-117
+lib/components/posts/actions/edit-history-button.test.tsx
+  s_8fbc352edaf843::t_702911834ad211 1-127
+lib/services/link-previews/extractUrl.ts
+  s_8fbc352edaf843::t_5f968e6f1fb4c2 3,5
+  s_8fbc352edaf843::t_2020cb227de1e7 233-237,252,263
+  s_8fbc352edaf843::t_f9bd33a083b48a 54,56-61,63-64,66-78,80-86,88-93,100,106
+AGENTS.md
+  s_8fbc352edaf843::t_56c5b455b2adca 1094-1107
+  s_8fbc352edaf843::t_e9daea06d27c46 1120-1140
+lib/utils/text/getEmojiTags.ts
+  s_8fbc352edaf843::t_66cfb4ad695680 11-35,37-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "061df268867841949c05128bb327ef1363536378",
+  "prompts": {},
+  "sessions": {
+    "s_8fbc352edaf843": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f5805ef5-0c89-425f-91b8-cc86a0704bc4",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

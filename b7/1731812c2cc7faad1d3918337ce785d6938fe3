@@ -1,0 +1,30 @@
+app/(timeline)/fitness/strava/StravaGearDefaultsSection.test.tsx
+  s_1f9055f22d7b57::t_40cde4f1f29bb0 6
+  s_1f9055f22d7b57::t_e797ca3bebe8a8 330-337,345-350,356-369
+  s_1f9055f22d7b57::t_9e9102d6f6ad9b 272,281-329,338-344,351-355,370-375
+app/(timeline)/fitness/strava/StravaGearDefaultsSection.tsx
+  s_1f9055f22d7b57::t_fe2d6c9616eb3c 299-307,314
+  s_1f9055f22d7b57::t_fc39e1b61d883b 107-108,110-113,118-123,138,149-159,164-168,170
+  s_1f9055f22d7b57::t_982ff2b523b2e0 5,411-412,424-432,434-437,444,455-464
+  s_1f9055f22d7b57::t_fcf444e1c7a77f 124-128,315-317,346-350
+  s_1f9055f22d7b57::t_9d5a7d71b4e939 186-195,217,227,239
+  s_1f9055f22d7b57::t_55dd541baa91c7 129
+docs/maintenance.md
+  s_1f9055f22d7b57::t_aaabaedf484084 375-376
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "b71731812c2cc7faad1d3918337ce785d6938fe3",
+  "prompts": {},
+  "sessions": {
+    "s_1f9055f22d7b57": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bd3148c4-4384-43e4-9360-8e6692c01251",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

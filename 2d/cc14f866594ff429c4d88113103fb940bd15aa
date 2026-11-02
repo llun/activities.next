@@ -1,0 +1,92 @@
+app/api/v1/accounts/search/route.test.ts
+  s_4941627279dc6b::t_c022039fa83e6a 75-85
+app/api/v2/search/route.ts
+  s_4941627279dc6b::t_94a0bd8e03f3e8 18-21,29,36-38,47,68-69,85,111-112
+lib/types/database/operations.ts
+  s_5b49cb3aedcb91::t_6ae0660764e91c 53,139-141,669-672
+scripts/rebuildSearchIndex.ts
+  s_4941627279dc6b::t_6ea4e69803c075 9,82-84,150-155,158,160-165,174-175,178,190-194,199-201,211-213,224-226,228-231,239-240
+app/api/v2/search/route.test.ts
+  s_4941627279dc6b::t_c022039fa83e6a 71-73,94-96,133-150
+lib/search/meilisearch.test.ts
+  s_1b2b72e2081919::t_58e03d07d0b16d 91,100,188
+  s_4941627279dc6b::t_f8d35be4ae3a8c 1-6,10-21,25,40,66-90,93-99,101-132,134-187
+  s_4941627279dc6b::t_071ab61e22ebd5 133
+app/api/v1/accounts/search/route.ts
+  s_4941627279dc6b::t_94a0bd8e03f3e8 8-11,19,22-23,34
+lib/database/sql/search.test.ts
+  s_4941627279dc6b::t_f6b5e0332905e1 1-3,301,304-311,392-398
+  s_5b49cb3aedcb91::t_10176dc91337bd 120-300,302-303,312-391
+lib/search/index.ts
+  s_4941627279dc6b::t_f655148a8c2c46 24,153-154
+  s_4941627279dc6b::t_94a0bd8e03f3e8 25,47-48
+lib/database/sql/index.ts
+  s_5b49cb3aedcb91::t_fdece0fec001ff 72-74
+  s_5b49cb3aedcb91::t_7b42bae5a93f75 67-71,75-78,126,128-130,144,150,153-157,187,198
+migrations/20260517120000_add_search_index.js
+  s_4941627279dc6b::t_fe0f522c751d2e 7,33
+lib/search/meilisearch.ts
+  s_4941627279dc6b::t_7e71d93e96b22a 30-32,38-42,112-130,135,137,139,143,170-171
+lib/config/host.ts
+  s_5b49cb3aedcb91::t_5a280061751d12 43,46
+  s_5b49cb3aedcb91::t_5b8edebb4c5ee4 44-45
+lib/database/sql/actor.ts
+  s_5b49cb3aedcb91::t_f7a71740c6efc1 143-204
+  s_5b49cb3aedcb91::t_3eb5270ace8422 560-596,599-612,704,706-710
+  s_5b49cb3aedcb91::t_fdece0fec001ff 597-598
+  s_1b2b72e2081919::t_c4e1284ce676a7 39
+  s_5b49cb3aedcb91::t_a9b3a14396dc25 4,105
+lib/config/configuredHost.ts
+  s_5b49cb3aedcb91::t_cf434fefb6c483 1-5
+lib/search/resolveAccount.ts
+  s_5b49cb3aedcb91::t_105b5b3e363dc5 3
+lib/config/search.test.ts
+  s_4941627279dc6b::t_94a0bd8e03f3e8 45-52
+lib/utils/searchParams.ts
+  s_1b2b72e2081919::t_214e9567e25b89 1-9
+  s_4941627279dc6b::t_94a0bd8e03f3e8 10
+lib/search/index.test.ts
+  s_4941627279dc6b::t_9c2e8d80f30767 1-23,27-78
+  s_4941627279dc6b::t_071ab61e22ebd5 24-26
+lib/database/sql/search.ts
+  s_5b49cb3aedcb91::t_e7f9be6c5fb52a 512-513,543-544,613-614
+  s_5b49cb3aedcb91::t_0ce5ca8852f944 161-162,166
+  s_5b49cb3aedcb91::t_c8dbe3bb205b8a 250-251,255-256,259-270,337,347,353,379,402,404,412,426
+  s_5b49cb3aedcb91::t_fdece0fec001ff 837-841
+  s_5b49cb3aedcb91::t_f89dc362e34ffb 1,37,88-92,95-96,99-101,163-165,167-201
+  s_5b49cb3aedcb91::t_3892edfbade70f 786,806
+  s_5b49cb3aedcb91::t_b54fab3c315906 4
+  s_5b49cb3aedcb91::t_b3890911bb015c 732-736,784-785,787-794,797-801,804-805,807-814,817-823,826-836,842-845,847-853
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "2dcc14f866594ff429c4d88113103fb940bd15aa",
+  "prompts": {},
+  "sessions": {
+    "s_1b2b72e2081919": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e375e-a829-7750-92dd-678d7b46b0ef",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_4941627279dc6b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e3721-11a9-7400-8ad7-c7ee1b4c4741",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_5b49cb3aedcb91": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e375e-d360-73a3-b751-18cd9f81c87f",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

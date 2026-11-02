@@ -1,0 +1,23 @@
+lib/services/email/layout/renderEmail.ts
+  s_181a4d159922fc::t_6ea51597a7dd08 162-164
+  s_181a4d159922fc::t_91aecb3a2fd1e1 145-157
+lib/services/email/layout/renderEmail.test.ts
+  s_181a4d159922fc::t_917cd07207a9cc 78-80
+  s_181a4d159922fc::t_e9b25b7d7f549b 44,46-51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "5c256976b1ab4362530f49a385e964a1960725ed",
+  "prompts": {},
+  "sessions": {
+    "s_181a4d159922fc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8b59141f-f9f0-4af4-8aea-39520836e6cc",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

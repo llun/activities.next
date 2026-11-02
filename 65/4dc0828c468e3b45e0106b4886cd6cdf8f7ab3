@@ -1,0 +1,29 @@
+app/api/v1/trends/tags/route.test.ts
+  s_69f35b0cf1b1f5::t_c1c2129d4dfae7 5
+  s_69f35b0cf1b1f5::t_9647b681785151 132,215-232
+  s_69f35b0cf1b1f5::t_ca491229dda79d 233
+app/api/v1/trends/tags/route.ts
+  s_69f35b0cf1b1f5::t_9647b681785151 35-38
+  s_69f35b0cf1b1f5::t_c1c2129d4dfae7 12
+lib/services/trends/trendingTagsCache.test.ts
+  s_69f35b0cf1b1f5::t_de2db881ff3d05 1-78
+lib/services/trends/trendingTagsCache.ts
+  s_69f35b0cf1b1f5::t_9647b681785151 26-29,32-33,36,57-59,62,65,78,80
+  s_69f35b0cf1b1f5::t_c3d37ac9257a15 1-25,30-31,34-35,37-56,60-61,63-64,66-77,79,81-83
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "654dc0828c468e3b45e0106b4886cd6cdf8f7ab3",
+  "prompts": {},
+  "sessions": {
+    "s_69f35b0cf1b1f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3e34abf-a75d-4da8-b371-1258aa33721a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

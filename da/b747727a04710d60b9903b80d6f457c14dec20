@@ -1,0 +1,20 @@
+lib/components/ui/input.test.tsx
+  h_580a04e334fef4 17-18
+lib/components/ui/input.tsx
+  h_580a04e334fef4 11
+lib/components/ui/textarea.test.tsx
+  h_580a04e334fef4 20-26
+lib/components/ui/textarea.tsx
+  h_580a04e334fef4 10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dab747727a04710d60b9903b80d6f457c14dec20",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

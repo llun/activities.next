@@ -1,0 +1,49 @@
+lib/database/sql/status.ts
+  s_a4559fdd4d5311::t_a89839ab3a1f15 2518-2528
+  s_a4559fdd4d5311::t_94c44d8269b191 31
+lib/services/fitness-files/processingState.test.ts
+  s_a4559fdd4d5311::t_12becc08497b86 1-74
+app/api/v1/statuses/[id]/retry-fitness/route.ts
+  s_a4559fdd4d5311::t_e3b8be9e3614e9 2
+  s_a4559fdd4d5311::t_b4e35625e55c17 49-54,56-58
+lib/components/posts/post.tsx
+  s_a4559fdd4d5311::t_bb943807e89136 203-206,210-212
+  s_a4559fdd4d5311::t_fe2975ce7afa56 113-115,117-122
+lib/database/sql/status.test.ts
+  s_a4559fdd4d5311::t_9604c3a32a3035 12
+  s_a4559fdd4d5311::t_12685954a28c8c 481-482,486-525
+lib/services/fitness-files/processingState.ts
+  s_a4559fdd4d5311::t_8272b989a5c304 1-26
+lib/components/posts/retry-fitness-button.tsx
+  s_a4559fdd4d5311::t_7fae4241253011 11-14,17-26
+  s_a4559fdd4d5311::t_0c7e958640b65d 42
+lib/types/domain/status.ts
+  s_a4559fdd4d5311::t_1eff0b4b70f380 37-40
+lib/components/posts/post.test.tsx
+  s_a4559fdd4d5311::t_dee5660279cc64 49-50
+  s_a4559fdd4d5311::t_c97ae4b15f2e46 941-985,987-990
+  s_a4559fdd4d5311::t_db439c3ae01d75 986
+app/api/v1/statuses/[id]/retry-fitness/route.test.ts
+  s_a4559fdd4d5311::t_db439c3ae01d75 8-12
+  s_a4559fdd4d5311::t_310a8cdb02288a 1-7,13-168
+lib/jobs/importStravaActivityJob.test.ts
+  s_a4559fdd4d5311::t_5b9f1c46723d66 301-319
+lib/jobs/importStravaActivityJob.ts
+  s_a4559fdd4d5311::t_3db0e653cd1234 589-605,610-612,614-615,618
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "4b9bb6916d53fab11b7877abedaa0d7fdc577587",
+  "prompts": {},
+  "sessions": {
+    "s_a4559fdd4d5311": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7ec64578-ed27-4aba-8632-c0a3c93ebb92",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

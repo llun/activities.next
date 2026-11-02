@@ -1,0 +1,30 @@
+app/api/inbox/getForwardedJobMessage.ts
+  h_580a04e334fef4 27
+app/api/inbox/getJobMessage.ts
+  h_580a04e334fef4 133-136
+app/api/inbox/route.test.ts
+  h_580a04e334fef4 270,276-346
+app/api/inbox/route.ts
+  h_580a04e334fef4 57-75,78,80,85-86,88,92-110,188
+app/api/users/[username]/inbox/route.test.ts
+  h_580a04e334fef4 510-534
+app/api/users/[username]/inbox/route.ts
+  h_580a04e334fef4 68
+lib/services/guards/ActivityPubVerifyGuard.test.ts
+  h_580a04e334fef4 957-975
+lib/services/guards/ActivityPubVerifyGuard.ts
+  h_580a04e334fef4 9,103-108,123-137,140-145,149-153,158-163,353-358,365
+lib/services/guards/inboxRejectionTrace.ts
+  h_580a04e334fef4 21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "95c9d730e28bd0384c1b375ddadb3d05835428c4",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

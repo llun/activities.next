@@ -1,0 +1,67 @@
+lib/search/meilisearch.test.ts
+  s_4941627279dc6b::t_3d929e45775e35 4,343-363
+lib/activities/getRemoteStatus.ts
+  s_4941627279dc6b::t_ca6da98f5b9268 63-64,80
+lib/search/index.test.ts
+  s_4941627279dc6b::t_aa0a61aff80c70 135-165
+lib/types/activitypub/objects.ts
+  s_4941627279dc6b::t_5721deff505e2c 145-150
+lib/search/meilisearch.ts
+  s_4941627279dc6b::t_4d3952f9d6d959 37-43,158-164,172,376-406
+lib/activities/note.ts
+  s_4941627279dc6b::t_a87c2f167442d8 6,12
+lib/database/sql/search.ts
+  s_4941627279dc6b::t_04a2cf4b3a53c8 867,871,896
+  s_4941627279dc6b::t_efe65834aa5174 390-425,477-493,497-503
+  s_4941627279dc6b::t_13937988afb4ad 494-496,1114-1115
+  s_4941627279dc6b::t_dd59f07f038f50 1532
+  s_4941627279dc6b::t_cfe7f25fa28a94 880-882,884-886,888,892,894-895,1116,1131,1134-1136,1140-1141,1237,1331,1345,1351,1510-1513
+  s_4941627279dc6b::t_090a1191adb67c 883
+  s_4941627279dc6b::t_7eca1a75a3ba77 205
+  s_4941627279dc6b::t_c37d9f1dbb077d 10,26
+  s_4941627279dc6b::t_11a0adb1a3058c 1233
+lib/jobs/updatePollJob.ts
+  s_4941627279dc6b::t_790d9417ee57e6 2,26-27,35
+lib/database/sql/searchMeilisearchSync.test.ts
+  s_4941627279dc6b::t_bc1a3b87c4e5aa 8,19,34-37,64
+  s_4941627279dc6b::t_84136132f9e1b3 129-165
+lib/database/sql/index.ts
+  s_4941627279dc6b::t_a0bca7e2138423 216-225,247-258,263-266,268-286,288-290,342-367
+  s_4941627279dc6b::t_13937988afb4ad 259-262
+lib/jobs/updatePollJob.test.ts
+  s_4941627279dc6b::t_800b79c9d13f26 19,173-211
+lib/database/sql/search.test.ts
+  s_4941627279dc6b::t_72b9e8a9b08950 282-327
+  s_4941627279dc6b::t_4787658986a3bd 18,23-24,31,42
+  s_4941627279dc6b::t_311a510f75b729 623-708
+  s_4941627279dc6b::t_56720d7a5639a6 78-115
+  s_4941627279dc6b::t_7022999837eb0d 183,190
+  s_4941627279dc6b::t_4da3efa80b4bd4 4,27,30,37-41
+  s_4941627279dc6b::t_43ba2660fa5cad 19-22
+lib/types/database/operations.ts
+  s_4941627279dc6b::t_177ebd325f1a10 761-766,786
+lib/database/sql/actor.ts
+  s_4941627279dc6b::t_2516c9b6186558 921-923,925,932-935,937,944-947,949
+migrations/20260517120000_add_search_index.js
+  s_4941627279dc6b::t_39a405a5e14197 11
+lib/activities/getRemoteStatus.test.ts
+  s_4941627279dc6b::t_93bab5ae38b944 194-242
+lib/search/index.ts
+  s_4941627279dc6b::t_e0c16f7b661b66 182
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.10",
+  "base_commit_sha": "907d5bb26c6147a88a101b716ff80b120091c639",
+  "prompts": {},
+  "sessions": {
+    "s_4941627279dc6b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e3721-11a9-7400-8ad7-c7ee1b4c4741",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

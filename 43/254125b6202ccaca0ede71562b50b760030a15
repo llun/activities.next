@@ -1,0 +1,20 @@
+app/(timeline)/[actor]/ProfileRelationshipActions.test.tsx
+  h_580a04e334fef4 62,73-88
+app/(timeline)/[actor]/ProfileRelationshipActions.tsx
+  h_580a04e334fef4 8,11,24,30-35,42-44
+app/(timeline)/[actor]/loading.tsx
+  h_580a04e334fef4 16-17,21
+app/(timeline)/[actor]/page.tsx
+  h_580a04e334fef4 211-216,221
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "43254125b6202ccaca0ede71562b50b760030a15",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,81 @@
+app/api/v2/notifications/[group_key]/dismiss/route.ts
+  s_fa22e9bcf5886a::t_d385fbd2eb8a44 1-30,35-43
+  s_0289375c3b8b18::t_c5ac4376efc762 31-34
+lib/services/notifications/groupNotifications.ts
+  s_0289375c3b8b18::t_e32ab2c7770b8b 1
+  s_0289375c3b8b18::t_f5f5162f1f472b 11-12,28-33
+  s_0289375c3b8b18::t_c1b3484f4b02e1 14,18
+  s_0289375c3b8b18::t_e9dd467739aa83 62
+  s_0289375c3b8b18::t_ec4f3d065deb4c 63-68,70
+app/api/v2/notifications/[group_key]/route.ts
+  s_fa22e9bcf5886a::t_6d6a8d95be2493 1-24,37,46,55,61,65
+  s_fa22e9bcf5886a::t_3affdfbc087855 25-36,42-45,47-54,56-60,62-64
+  s_0289375c3b8b18::t_bbaf29c1397de7 38-41
+app/api/v2/notifications/route.ts
+  s_fa22e9bcf5886a::t_e752fdc2742e7d 1-3,5-6,11-22,26-34,41-47,53-73,75-77,89-92,94-111,122-124,128-134,139
+  s_0289375c3b8b18::t_e32ab2c7770b8b 4,113-115
+  s_0289375c3b8b18::t_45fbccf5fc3232 7,9-10
+  s_0289375c3b8b18::t_c9ff88a14ba6f7 8
+  s_0289375c3b8b18::t_38a2754df8f4d4 23-25
+  s_fa22e9bcf5886a::t_3affdfbc087855 35-37,39-40
+  s_0289375c3b8b18::t_15e67150b34d26 38,48-52
+  s_0289375c3b8b18::t_90ecce3d18df90 74,78-88
+  s_0289375c3b8b18::t_9707a11c06aa6a 93,112,117,125
+  s_0289375c3b8b18::t_10e5902b873e6b 116,119,156,181
+  s_0289375c3b8b18::t_1b4da8e843d7b3 118,120-121,126-127
+  s_0289375c3b8b18::t_ca34eeddb86ae0 135-138
+  s_0289375c3b8b18::t_143ee9762a9c93 140-146
+  s_0289375c3b8b18::t_d9554e49ff6807 148-152
+  s_0289375c3b8b18::t_8a0d64839d189a 153-155
+  s_0289375c3b8b18::t_fdbc64b2dc997b 157-159,177,183
+  s_0289375c3b8b18::t_e77721105f1817 160,178
+  s_0289375c3b8b18::t_f9efec3696a781 161-169,182,184
+  s_0289375c3b8b18::t_8d779f41d509da 180
+  s_0289375c3b8b18::t_d1c7b2c617ec8c 185
+  s_0289375c3b8b18::t_756daf93d03dd5 187-191,193-194
+lib/services/notifications/getNotificationGroupsEnvelope.ts
+  s_fa22e9bcf5886a::t_a58c823ec7891d 1,3-6,11-12,18-37,40,75-84,87-89,91-97
+  s_0289375c3b8b18::t_e71c19263e1c71 2,13-17
+  s_fa22e9bcf5886a::t_3affdfbc087855 7-10
+  s_0289375c3b8b18::t_c847fb2d2037ac 38-39,42,48-49,73-74
+  s_0289375c3b8b18::t_b3f35d7cce0b15 41,43-47
+  s_0289375c3b8b18::t_e32ab2c7770b8b 50-54
+  s_0289375c3b8b18::t_25323b200d7075 55-72
+  s_0289375c3b8b18::t_fb6e6fdff60581 85
+  s_0289375c3b8b18::t_e62e74eb3412ba 86
+  s_0289375c3b8b18::t_f3f4f9815b5bc3 90,98-103,108-110,112-118
+  s_0289375c3b8b18::t_880f3efabf41fb 106-107,111
+  s_0289375c3b8b18::t_e502ec4e84333f 119-129
+  s_0289375c3b8b18::t_abc52ed85ccf1c 130-138,140
+app/api/v2/notifications/[group_key]/accounts/route.ts
+  s_fa22e9bcf5886a::t_09f92be4fcbaf2 1-4,11-17,30,41,55,59
+  s_0289375c3b8b18::t_2a77259f6a5f98 5-10
+  s_fa22e9bcf5886a::t_3affdfbc087855 18-29,32-35,42-45,54,56-58
+  s_0289375c3b8b18::t_d19c8c57db0b6e 31
+  s_0289375c3b8b18::t_3c0c8aebb876e5 36-40
+  s_0289375c3b8b18::t_7527ebc2886ed2 46-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "ab2ad568ab2e7a163f8fccffa20e6ea1a273bba0",
+  "prompts": {},
+  "sessions": {
+    "s_0289375c3b8b18": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f35aa937-fe21-4ae9-9b3f-fbe728f6847d",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_fa22e9bcf5886a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1fda05fc-0d7e-4ea0-9245-8a6c12dd5340",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

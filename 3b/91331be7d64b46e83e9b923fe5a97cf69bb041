@@ -1,0 +1,41 @@
+app/api/users/[username]/statuses/[statusId]/route.test.ts
+  s_4f4812f16bd65a::t_8ffca26fbe67be 5,11
+  s_4f4812f16bd65a::t_2154b59509650a 155-252
+app/api/users/[username]/statuses/[statusId]/route.ts
+  s_4f4812f16bd65a::t_5c5fe893488da8 35,39-52
+  s_4f4812f16bd65a::t_bb6e66d63375a7 20
+app/api/users/[username]/statuses/[statusId]/shares/route.ts
+  s_4f4812f16bd65a::t_2daa4ff3c7fd5d 11
+  s_4f4812f16bd65a::t_3b40902122dd99 25,29-42
+app/api/users/[username]/statuses/[statusId]/replies/route.test.ts
+  s_4f4812f16bd65a::t_5e3fa81fd7f160 6,12
+  s_4f4812f16bd65a::t_3c051dc723e28d 122-245
+app/api/users/[username]/statuses/[statusId]/replies/route.ts
+  s_4f4812f16bd65a::t_3d063e8b9d7a4b 16
+  s_4f4812f16bd65a::t_32c00e7d679bdf 32,36-49
+app/api/users/[username]/statuses/[statusId]/likes/route.test.ts
+  s_4f4812f16bd65a::t_96a86074cc2a93 79-194
+  s_4f4812f16bd65a::t_0f8c424a933b68 6,12
+app/api/users/[username]/statuses/[statusId]/likes/route.ts
+  s_4f4812f16bd65a::t_6d3ac7dc3f6027 25,29-42
+  s_4f4812f16bd65a::t_0de0d891576356 11
+app/api/users/[username]/statuses/[statusId]/shares/route.test.ts
+  s_4f4812f16bd65a::t_c7ad053d9091b8 6,12
+  s_4f4812f16bd65a::t_f2ff8561633005 81-196
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "3b91331be7d64b46e83e9b923fe5a97cf69bb041",
+  "prompts": {},
+  "sessions": {
+    "s_4f4812f16bd65a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ef4966e6-a801-42ad-bea7-0a298c41d397",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

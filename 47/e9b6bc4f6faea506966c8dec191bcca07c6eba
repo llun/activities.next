@@ -1,0 +1,40 @@
+lib/testing/withTimeZone.test.ts
+  s_a854f5961b0a33::t_c8d4aa6602c3d9 1
+  s_a854f5961b0a33::t_f6524cd2b7b388 2-56
+vitest.config.test.ts
+  s_a854f5961b0a33::t_f6524cd2b7b388 1-19
+lib/database/sql/instanceActivity.test.ts
+  s_a854f5961b0a33::t_f373a51359cf4e 9,124,145
+lib/services/auth/knexAdapter.test.ts
+  s_a854f5961b0a33::t_f373a51359cf4e 4,500,527
+.github/workflows/ci.yml
+  s_a854f5961b0a33::t_0635ad235a8a8e 107-108
+CONTRIBUTING.md
+  s_a854f5961b0a33::t_d1a2fa75a91594 705
+  s_a854f5961b0a33::t_0635ad235a8a8e 679-704,721-730
+vitest.config.ts
+  s_a854f5961b0a33::t_ff71009ba19dc6 20-21
+  s_a854f5961b0a33::t_f6524cd2b7b388 6-19,34-42,44,50,53-56,75,113,121
+lib/database/sql/instanceActivityMigration.test.ts
+  s_a854f5961b0a33::t_f373a51359cf4e 3,315,357
+lib/testing/withTimeZone.ts
+  s_a854f5961b0a33::t_f6524cd2b7b388 1-39
+lib/database/sql/utils/getCompatibleTime.test.ts
+  s_a854f5961b0a33::t_f373a51359cf4e 1-2,21-22,26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "47e9b6bc4f6faea506966c8dec191bcca07c6eba",
+  "prompts": {},
+  "sessions": {
+    "s_a854f5961b0a33": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "469ffc7f-d983-4bcc-aa36-6b3294357c0b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

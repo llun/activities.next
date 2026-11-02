@@ -1,0 +1,33 @@
+lib/types/domain/relay.ts
+  s_4940650f85d4fc::t_e77fb64b316ebe 1-29
+lib/database/sql/relay.ts
+  s_4940650f85d4fc::t_10c7ee49832c81 1-118
+lib/types/database/operations.ts
+  s_4940650f85d4fc::t_4b89830b695f23 23
+  s_4940650f85d4fc::t_5e1b07f9e7bf53 1537-1579
+lib/database/types.ts
+  s_4940650f85d4fc::t_94633b6f2cc962 74
+  s_4940650f85d4fc::t_6a33b4e2ba3170 32
+lib/database/sql/index.ts
+  s_4940650f85d4fc::t_df4494124cc0fa 75
+  s_4940650f85d4fc::t_2e1c1095b30d05 31
+  s_4940650f85d4fc::t_4a5a1fe8f4506f 144
+lib/database/sql/relay.test.ts
+  s_4940650f85d4fc::t_302aceea4b8e91 1-164
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "24120697e392f748e4f39fdff4a590b4a3b554a1",
+  "prompts": {},
+  "sessions": {
+    "s_4940650f85d4fc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "63651c7d-28cf-4c4f-879c-781d84ce90aa",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

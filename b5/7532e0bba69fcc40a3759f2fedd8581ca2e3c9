@@ -1,0 +1,21 @@
+lib/services/email/layout/actorDisplay.ts
+  s_181a4d159922fc::t_9eb5ff4a219bcc 1-69
+lib/services/email/layout/actorDisplay.test.ts
+  s_181a4d159922fc::t_cc25097a99d757 1-161
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "b57532e0bba69fcc40a3759f2fedd8581ca2e3c9",
+  "prompts": {},
+  "sessions": {
+    "s_181a4d159922fc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8b59141f-f9f0-4af4-8aea-39520836e6cc",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

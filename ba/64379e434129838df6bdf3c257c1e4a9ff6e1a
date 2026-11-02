@@ -1,0 +1,16 @@
+app/api/v1/accounts/lookup/route.test.ts
+  h_580a04e334fef4 45,112-153
+app/api/v1/accounts/lookup/route.ts
+  h_580a04e334fef4 22,100-101,180,219
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "ba64379e434129838df6bdf3c257c1e4a9ff6e1a",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

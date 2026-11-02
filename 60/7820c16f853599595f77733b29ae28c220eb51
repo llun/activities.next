@@ -1,0 +1,20 @@
+app/(timeline)/gallery/albums/GalleryAlbumPicker.test.tsx
+  h_580a04e334fef4 106,261
+app/(timeline)/gallery/albums/GalleryAlbumPickerTile.tsx
+  h_580a04e334fef4 46
+lib/components/gallery/GalleryGrid.test.tsx
+  h_580a04e334fef4 112-128
+lib/components/gallery/GalleryGrid.tsx
+  h_580a04e334fef4 168
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "607820c16f853599595f77733b29ae28c220eb51",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

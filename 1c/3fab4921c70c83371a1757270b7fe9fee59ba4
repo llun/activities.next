@@ -1,0 +1,20 @@
+lib/utils/request.test.ts
+  s_043c559dbf3a19::t_a515066696e51e 45-52,54-58,66-67,92
+  s_043c559dbf3a19::t_5c3fe252ca8caf 86-91
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.11",
+  "base_commit_sha": "1c3fab4921c70c83371a1757270b7fe9fee59ba4",
+  "prompts": {},
+  "sessions": {
+    "s_043c559dbf3a19": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d323a68d-5525-401a-98c2-3fd39dc54af3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

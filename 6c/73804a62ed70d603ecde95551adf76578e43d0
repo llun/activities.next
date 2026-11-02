@@ -1,0 +1,22 @@
+lib/jobs/generateFitnessRouteHeatmapJob.ts
+  s_7cdd5e2adb1e54::t_b04de74abecfda 271-294
+  s_7cdd5e2adb1e54::t_4c8499efd4025f 295
+lib/jobs/generateFitnessRouteHeatmapJob.test.ts
+  s_7cdd5e2adb1e54::t_dc50b1a53fe409 1053-1118
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.11",
+  "base_commit_sha": "6c73804a62ed70d603ecde95551adf76578e43d0",
+  "prompts": {},
+  "sessions": {
+    "s_7cdd5e2adb1e54": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ba078085-1dfb-4717-b4d7-be2ec72f4bd6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

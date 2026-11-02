@@ -1,0 +1,428 @@
+app/api/v1/accounts/password/reset/request/route.test.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 12-27,51,134-166
+  s_512188f2b1db53::t_5febb2c8e30c3c 167-168
+app/(nosidebar)/auth/signup/page.test.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 1-113
+app/(timeline)/layout.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 57-59
+lib/components/surface/SaveBar.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 57-61,65-71,104-105,108-109,120,151,201
+lib/database/kysely/db.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 328,330,337-338,341-342
+lib/services/domains/adminDomains.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 4-5,9-16,25-28,31,101-102,166-171,175,179-223,277,290,293,326-327,332-333,337-359,361-365,367,370-371,374,377,379-380,382-383,386-407,419-420,445
+lib/database/domains/servedDomain/servedDomain.test.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 154-247
+lib/services/email/sender.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 1-75
+lib/components/admin/settings/SettingsField.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 23-24,71,76
+lib/services/serverSettings/index.test.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 22-24,96-159,208-232
+  s_512188f2b1db53::t_19cf662eb1db4c 233
+lib/services/domains/domainIdentity.test.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 1-453
+docs/mastodon-api-compatibility.md
+  s_512188f2b1db53::t_7055c6a6bc41e7 281-300
+lib/services/email/templates/statusBody.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 1-5,22,25,36-39,50,53
+lib/config/index.test.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 234-237,242-243
+lib/database/domains/servedDomain/types.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 35,37-38,52-79,88,110,114-118,120
+app/(timeline)/(policies)/terms-of-service/page.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 1-14
+lib/client/adminServerSettings.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 8-10
+lib/components/admin/domains/DomainSettings.test.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 8-11,18-19,31-32,59,63-68,86-102,107-108,173-177,209,300-514,523-527
+lib/components/posts/self-thread-run.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 1-509
+lib/components/admin/settings/PostsMediaSettingsForm.test.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 37
+lib/services/email/templates/reblog.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 1,26-27,42-43,46-47,56,58
+lib/utils/text/renderPolicyMarkdown.test.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 1-140
+docs/setup.md
+  s_512188f2b1db53::t_7055c6a6bc41e7 73,75
+app/(timeline)/[actor]/albums/[id]/page.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 10-11,75-76,81
+lib/services/accounts/sendConfirmationEmail.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 2,5,9-10,31,39-42,46-47,51
+lib/actions/announce.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 3,169,186-189
+lib/services/wellknown/nodeinfo.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 3-6,68-73,103,121-130,141-142,151-152,154-155,158-159,190-191,200-201,203-204,207-208
+lib/services/serverSettings/index.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 10-13,42-46,62-81,92,96,99-100,102-113,121,127,136-137,139,149-151,153-155,160,164,167,185,190,206
+lib/services/email/brand.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 1-21
+app/api/auth/[...all]/route.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 3,5,19-20,23-24
+lib/components/posts/threadModel.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 33,81-82,89-96
+migrations/20261020232218_add_domains_identity.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 1-52
+lib/services/timelines/mentionNotification.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 4,114,178
+app/manifest.test.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 1,6-20,22-30,47-71
+lib/services/domains/domainIdentity.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 1-206
+app/(nosidebar)/auth/signin/page.test.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 4,21-35,78-81,189-238
+packages/resend/package.json
+  s_512188f2b1db53::t_7055c6a6bc41e7 8
+app/api/v2/instance/route.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 5,57-58,63-66,72,75,100-102,104-110,150
+lib/services/auth/authServiceName.test.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 1-58
+lib/client/adminServerSettings.test.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 24-26
+app/api/v1/admin/domains/[domain]/route.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 2,4-11,16,65-106,139-140,142-146,149,179,188-190
+lib/services/email/templates/followRequest.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 2-5,25-26,32-33,38-39,50
+  s_512188f2b1db53::t_de50960678d8ce 1
+lib/services/mastodon/instancePolicies.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 1-41
+lib/services/auth/auth.test.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 63-153
+lib/services/email/sender.test.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 1-204
+lib/jobs/processFitnessFileJob.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 7,293
+lib/services/email/address.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 3-58
+app/(timeline)/(policies)/layout.test.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 1-83
+app/api/nodeinfo/2.0/route.test.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 40-44,128-161
+app/api/v1/admin/domains/schema.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 3,12-25,35-45,47,55-56,59-63
+lib/database/domains/servedDomain/queries.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 11,51-75,88-89,104-130,137,144-169,172-174,181,189-190,208-210,217,223,247,258,300
+lib/services/email/templates/changeEmail.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 1-2,22-23,30-31,33-36,40
+lib/services/email/templates/like.test.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 87-98
+app/(timeline)/(policies)/PolicyDocumentPage.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 1-133
+app/api/v1/accounts/email/route.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 7,91-92,96-97,100
+lib/services/accounts/registerAccount.test.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 4-12,43-44,47-71,95-96,522-598,668-672,683-688,699-704
+app/layout.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 10-11,29-43,45-46,48-66
+lib/services/email/templates/verifyEmail.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 1-2,23-24,35-36,38-40,45,49
+lib/services/notifications/sendNotificationAlerts.test.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 11-27,30-31,228-300
+  s_512188f2b1db53::t_6df57033d821aa 301
+app/api/v1/accounts/route.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 27-39,128-131,205-206,211,222-223,244-254,373-374,410-417
+  s_512188f2b1db53::t_98a152539ed6a8 418-420
+app/api/v1/instance/terms_of_service/route.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 1-5,15-16,18-24
+app/(timeline)/[actor]/[status]/ActivityReplies.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 5,8-9,95-97,102-110,137-150,157-171,176-178,180-187,230-270,296-306,323-338,340-348,350-382,384-397
+app/(timeline)/account/security/page.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 13,20,53-59,88
+app/api/v1/accounts/email/route.test.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 9-24
+app/api/v1/instance/privacy_policy/route.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 1-5,15-16,19-20,22-29,31
+app/u/heatmaps/[token]/loadSharedHeatmap.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 5-6,23,123-124,130
+lib/config/serverSettings.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 54-59,119-122,164-169,246-248,321-343
+  s_512188f2b1db53::t_ecaa19159d3530 344
+app/api/v1/instance/extended_description/route.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 1-4,16-19,23-29,37
+lib/services/auth/totpIssuer.test.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 1-25
+app/layout.test.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 3,7-22,69-125,128,130
+app/(timeline)/admin/instance/page.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 19-26
+lib/services/email/templates/resetPassword.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 2-5,19-20,26-27,29-30,33
+  s_512188f2b1db53::t_12753af412f59c 1
+lib/components/posts/selfThreadModel.test.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 1-848
+app/(timeline)/[actor]/[status]/page.test.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 8-13,64,262,295,325,341
+app/(timeline)/(policies)/privacy-policy/page.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 1-14
+docs/fitness-file-storage.md
+  s_512188f2b1db53::t_7055c6a6bc41e7 406
+app/api/v1/admin/domains/[domain]/route.test.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 1-251
+lib/jobs/deleteActorJob.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 11,13,316-319,323-325,328
+app/api/v1/instance/privacy_policy/route.test.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 4-8,12-16,21-22,26-73,75-78,81-82,85-129,131,136-140,142-146
+docs/environment-variables.md
+  s_512188f2b1db53::t_7055c6a6bc41e7 90,130-142,216-220
+lib/components/admin/settings/NetworkSettingsForm.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 39-49
+lib/database/domains/serverSetting/serverSetting.test.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 61-89
+lib/services/email/templates/gearServiceDue.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 2-5,33-34,56-57,68-69,84
+  s_512188f2b1db53::t_4c61a71c73ad04 1
+lib/services/wellknown/nodeinfo.test.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 36-46,67-83,100,143
+lib/services/email/templates/reply.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 1,27-28,35-36,39-40,47,49
+app/(timeline)/account/security/TwoFactorManager.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 18-19,38,109
+lib/components/surface/SaveBar.test.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 74-109
+app/(timeline)/admin/domains/[domain]/page.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 9-10,28-33,41
+app/(timeline)/PublicShell.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 11-13,18-19,24,26-29,48
+app/api/v1/instance/terms_of_service/route.test.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 4-8,13-17,22-23,27-47,50-86,89,91,96-98,100,102-103,105-106,108,110-184,186,191-196,199,203-247
+lib/jobs/importStravaActivityJob.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 20,538-541
+app/api/v1/emails/confirmations/route.test.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 13-28,496-497
+app/api/v1/emails/confirmations/route.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 235
+lib/actions/acceptFollowRequest.test.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 21-36,155-160
+lib/jobs/deleteActorJob.test.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 20-42,71-72,177-205
+  s_512188f2b1db53::t_a26ceb798db690 206-207
+lib/services/auth/auth.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 8,23,29-34,152,156,282-287,293-296,299-314,317-318,327-328
+lib/services/domains/adminDomains.test.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 13,17,20,275,286,289-293,306,326,334,341-504,571
+app/(timeline)/(policies)/PolicyDocumentPage.test.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 1-216
+lib/services/domains/domainDisplayName.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 1-12
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.test.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 1065-1068
+lib/services/email/templates/follow.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 1,18-19,25-26,31-32,40-43
+lib/services/email/templates/like.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 1,26-27,34-35,38-39,48,50
+lib/services/email/templates/mention.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 1,21-22,29-30,33-34,40,42
+app/api/v1/instance/terms_of_service/[date]/route.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 1-5,19-20,25-31
+lib/services/email/templates/actorDeleted.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 1,13-14,24-25,27,31
+lib/services/notifications/sendNotificationAlerts.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 3,5,43-62,127,129-130,132
+docs/architecture.md
+  s_512188f2b1db53::t_7055c6a6bc41e7 179,192-193,965,984,1009-1026,1042,1095-1099,1104-1107,1123-1125,2140-2141,2707-2709,2714-2715
+lib/components/posts/selfThreadModel.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 1-397
+lib/components/posts/status-thread.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 5-13,17,21-26,115-164,167-182,189-303,308-309,312-313,317-318,321-322,466-469,473-522,533,538-542,550-551,572,577-579,594-673,701-785,787-809,811-812
+app/api/v1/admin/server_settings/route.test.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 80,94-96
+lib/components/admin/settings/PolicyDate.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 1-25
+lib/services/accounts/registerAccount.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 8,23-25,43-48,57-58,67-76,180
+app/(timeline)/account/security/TwoFactorManager.test.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 66,83,96,114,118,123,134,155,193,229,243,272
+lib/types/database/operations.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 426,428
+app/(timeline)/(home)/page.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 9-10,48,98-99,105
+app/(timeline)/(policies)/layout.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 1-44
+lib/client/adminDomains.test.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 13-14,88-107
+  s_512188f2b1db53::t_7b5287a862971d 108-109
+lib/utils/text/escapeHtml.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 2-3
+lib/utils/text/renderPolicyMarkdown.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 1-126
+migrations/index.ts
+  s_512188f2b1db53::t_75fea21075dacf 11,29
+lib/components/surface/SectionSkeleton.test.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 88-97
+lib/services/auth/authServiceName.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 1-17
+lib/components/posts/status-thread.test.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 5-12,24,34,40,43-57,73,75,97-98,110,115-117,161-163,572-574,617-618,948-2213
+  s_512188f2b1db53::t_d4ee959fa122eb 2214
+lib/services/domains/signUpDomain.test.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 68,79-80,87-110
+  s_512188f2b1db53::t_b9dbdb883d50e0 111-112
+lib/services/email/templates/verifyEmail.test.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 55-72
+app/api/v1/instance/extended_description/route.test.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 1-93
+app/api/v1/accounts/types.test.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 74-93
+app/(timeline)/PublicFooter.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 2,4,8-12,39-41,43-61
+lib/services/email/templates/emailDesign.test.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 410-497
+app/(timeline)/[actor]/albums/[id]/page.test.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 27-40,369
+lib/components/admin/settings/InstanceSettingsForm.test.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 39,60-75,80-84,197-349
+app/(timeline)/account/security/page.test.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 5,15,30-33,42-45,49,55-56,59-64,78-79,107-122
+  s_512188f2b1db53::t_0f9e060a6e108a 123
+app/(nosidebar)/auth/signin/page.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 15-16,77-84,102,107
+lib/actions/like.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 4,73,91-94
+lib/services/auth/credentialIdentity.test.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 40-41,43-53
+lib/services/domains/adminDomainTypes.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 34-106
+app/(timeline)/admin/domains/page.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 147-153,164-166
+app/(timeline)/PublicFooter.test.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 1-67
+app/manifest.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 3-4,7-11,13-14
+lib/services/auth/totpIssuer.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 1-24
+lib/components/posts/timelineModel.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 282-284,286,294
+lib/services/domains/signUpDomain.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 31-33,62-67,71-73
+migrations/schema.sqlite.sql
+  s_512188f2b1db53::t_17c68d30ce7708 320
+lib/services/email/templates/activityImport.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 1,32-33,133-134,140-141,167
+lib/client/adminDomains.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 3-6,15,20,46,75-77,86,103,109-127
+  s_512188f2b1db53::t_269c68366b256a 128
+app/(nosidebar)/auth/signup/AgreementLabel.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 1-45
+lib/components/surface/SectionSkeleton.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 18-23,48,51-52,60-65,77,140-144
+  s_512188f2b1db53::t_eb0cc5f41c3bce 17
+migrations/schema.sql
+  s_512188f2b1db53::t_7055c6a6bc41e7 358-364
+docs/features.md
+  s_512188f2b1db53::t_7055c6a6bc41e7 13-14,113,127
+app/api/v1/instance/route.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 5,52-53,58-61,65-68
+lib/components/admin/settings/useServerSettingsForm.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 13-15,39-44,65-69,95,105,108
+lib/config/serverSettings.test.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 15-17,77-88,132-144
+  s_512188f2b1db53::t_38c0183727f244 145-147
+app/api/v1/accounts/route.test.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 348-405,755-790
+  s_512188f2b1db53::t_0c37d54e8b2ab1 791
+app/api/v2/instance/route.test.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 7,191-195,201-229,359-400
+  s_512188f2b1db53::t_650f6a4561e247 401-402
+app/api/v1/instance/route.test.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 7,242-277
+lib/components/admin/settings/PostsMediaSettingsForm.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 88-99
+app/api/v1/accounts/password/reset/request/route.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 11,13,15,120-125,128-129,132
+lib/components/posts/thread-reply-node.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 39-40,64-66,73,80-81,94-98,128
+package.json
+  s_512188f2b1db53::t_7055c6a6bc41e7 3,97,99
+lib/services/fitness-gears/serviceReminders.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 2,104
+app/(timeline)/PublicShell.test.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 27-32,146-160
+  s_512188f2b1db53::t_9a3aed87724833 161
+lib/services/email/ses.test.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 52-67
+app/(timeline)/[actor]/[status]/page.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 21-22,156-157
+app/(nosidebar)/auth/signup/page.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 15,19,22,47-52,86-103
+app/u/heatmaps/[token]/page.test.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 39-48
+lib/components/admin/settings/InstanceSettingsForm.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 3,6,20,23,35-37,46,80-98,101-102,104,106-128,130,135-152,250-315
+  s_512188f2b1db53::t_d5f6cd57a05f37 316-318
+docs/maintenance.md
+  s_512188f2b1db53::t_7055c6a6bc41e7 1668
+lib/services/domains/domainIdentityCache.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 1-127
+app/(timeline)/[actor]/[status]/page.visibility.test.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 310-314
+app/api/auth/[...all]/route.test.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 2,12-18,29-33,46-47,52-53,56-57,65-67
+lib/actions/createFollower.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 5,120,167
+lib/actions/createNote.ts
+  s_512188f2b1db53::t_08b026a99f533e 1281-1284
+  s_512188f2b1db53::t_7055c6a6bc41e7 14,1309,1325-1328
+  s_512188f2b1db53::t_e56d222ae8a0a2 1265
+lib/components/admin/settings/FederationPolicyForm.test.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 29,125-144
+  s_512188f2b1db53::t_6ecf4068148882 145
+app/api/nodeinfo/2.1/route.test.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 40-44
+lib/actions/acceptFollowRequest.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 8,94-98
+app/(timeline)/admin/instance/loading.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 7-9
+lib/database/domains/serverSetting/queries.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 42-44,49
+app/api/v1/accounts/types.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 4,13-18
+lib/services/email/layout/renderEmail.test.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 141-173
+lib/services/email/layout/renderEmail.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 1-5,40-45,58,68,72,125-126,128-130,170
+lib/services/email/ses.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 33,35-37,40-44
+lib/services/email/templates/statusUrl.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 1,23-26,28,32-33
+lib/components/admin/settings/NetworkSettingsForm.test.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 37,138-154
+  s_512188f2b1db53::t_82d43d0ac2dc39 155
+migrations/names.ts
+  s_512188f2b1db53::t_75fea21075dacf 12
+lib/components/posts/combined-post-list-item.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 98,102-188,251,419,500-504,527-533
+lib/components/posts/combinedThreadModel.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 65
+app/api/v1/admin/server_settings/route.ts
+  s_512188f2b1db53::t_7055c6a6bc41e7 37-41,77-81
+lib/components/admin/domains/DomainSettings.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 15-16,20,33,35,37-42,52,54,76,174,320,414-799,802-803,809,844-858,872,892-916
+  s_512188f2b1db53::t_32415da9820a3e 917
+lib/components/admin/settings/FederationPolicyForm.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 32-38
+app/(timeline)/(home)/page.test.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 52-65,187
+app/(timeline)/[actor]/[status]/ActivityReplies.test.tsx
+  s_512188f2b1db53::t_7055c6a6bc41e7 3-11,13-26,28,33-34,36,43-100,102-104,107,135-182,226-698
+.env.example
+  s_512188f2b1db53::t_926c5ef10bb7f5 31-33,36-38
+yarn.lock
+  s_512188f2b1db53::t_91df6f33c5d676 46,3800,3803,5460-5467,5818-5820,5827,7039-7041,7050
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0d1f052248f84b5c9c1d350f1f1741131a4ce937",
+  "prompts": {},
+  "sessions": {
+    "s_512188f2b1db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e467608a-8346-4544-b69a-fc45fca93669",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

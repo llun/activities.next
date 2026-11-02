@@ -1,0 +1,35 @@
+lib/search/resolveAccount.ts
+  s_4941627279dc6b::t_f82b6d62d66779 4,40-41
+lib/search/resolveAccount.test.ts
+  s_4941627279dc6b::t_f82b6d62d66779 3,15-18,30-31,35,83-86,95-116
+lib/search/tokenize.test.ts
+  s_4941627279dc6b::t_f82b6d62d66779 10-15
+lib/types/mastodon/status/base.ts
+  s_4941627279dc6b::t_f82b6d62d66779 14,46
+lib/services/mastodon/getMastodonStatus.ts
+  s_4941627279dc6b::t_d7876f7f8faa34 102,116-117,186-195
+  s_4941627279dc6b::t_7244eda122e6ba 104-106
+  s_4941627279dc6b::t_f82b6d62d66779 38-44,46-50
+lib/services/mastodon/getMastodonStatus.test.ts
+  s_4941627279dc6b::t_92f8f37fc53ed0 708-741
+lib/search/tokenize.ts
+  s_4941627279dc6b::t_f82b6d62d66779 25-26
+lib/database/sql/search.ts
+  s_4941627279dc6b::t_f82b6d62d66779 51,287,290,292-309,818-820,833,840
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "57534dc35012defed213d2776dfeb7a274165807",
+  "prompts": {},
+  "sessions": {
+    "s_4941627279dc6b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e3721-11a9-7400-8ad7-c7ee1b4c4741",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

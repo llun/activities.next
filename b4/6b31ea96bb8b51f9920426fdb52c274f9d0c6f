@@ -1,0 +1,24 @@
+app/api/v1/notifications/route.ts
+  s_b976f920c7fbe8::t_21b33729dc625a 238-239
+lib/services/notifications/notificationTypeMapping.test.ts
+  s_b976f920c7fbe8::t_6b9103f08e02f4 5-46,50-51
+  s_b976f920c7fbe8::t_8462c447559b21 1-4,47-49
+app/api/v1/notifications/unread_count/route.test.ts
+  s_b976f920c7fbe8::t_e20cbaacc69598 96-110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "b46b31ea96bb8b51f9920426fdb52c274f9d0c6f",
+  "prompts": {},
+  "sessions": {
+    "s_b976f920c7fbe8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "13bb7ca9-89e5-446d-b4ec-55646b22d3be",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,18 @@
+app/api/v1/accounts/push-notifications/route.test.ts
+  h_580a04e334fef4 42-52,75-79,83
+app/api/v1/accounts/reading-preferences/route.test.ts
+  h_580a04e334fef4 42-52,85-89,93
+app/api/v1/accounts/sessions/route.test.ts
+  h_580a04e334fef4 41-45,48-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "ea9ceb7a8bf232233b25aa6554dd4c1d2551d4d3",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

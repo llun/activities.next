@@ -1,0 +1,86 @@
+lib/client/gallery.test.ts
+  s_512188f2b1db53::t_5e006d0fb6b629 60-69,73-74,76-78
+  s_512188f2b1db53::t_e4c31978e1d845 70-72,75
+lib/components/drafts/SavedToDraftsNote.tsx
+  s_512188f2b1db53::t_96b2dd5c0dbd76 25-26,40,75,77
+  s_512188f2b1db53::t_bf30ce612d285f 76
+lib/client/media.ts
+  s_512188f2b1db53::t_e7517f22225483 17,80-82
+lib/client/drafts/sendQueue.ts
+  s_512188f2b1db53::t_9d388c94d76e40 1-107
+lib/components/drafts/DraftsProvider.test.tsx
+  s_512188f2b1db53::t_81534e59eefeeb 546-549
+  s_512188f2b1db53::t_9776cc02199d8a 20,504-545,550-584
+  s_512188f2b1db53::t_9473724e763323 585
+lib/components/drafts/SavedToDraftsNote.test.tsx
+  s_512188f2b1db53::t_b10297c2683a3b 66,69-71,73-74,76-78
+  s_512188f2b1db53::t_1d23f5003534a8 31,38,67-68,72,75
+  s_512188f2b1db53::t_ffe0ddebd261a5 79-80
+lib/client/media.test.ts
+  s_512188f2b1db53::t_e4c31978e1d845 137
+  s_512188f2b1db53::t_5e006d0fb6b629 143-149
+lib/components/drafts/DraftsProvider.tsx
+  s_512188f2b1db53::t_96b2dd5c0dbd76 16,40-50,57-76,95-99,107-108,111-112,219,230,235-244,247-249,256
+lib/client/drafts/draftsChannel.test.ts
+  s_512188f2b1db53::t_1f357e77bc6596 9,102-169
+  s_512188f2b1db53::t_81534e59eefeeb 26
+lib/client/drafts/index.ts
+  s_512188f2b1db53::t_9d388c94d76e40 9-11
+lib/components/post-box/useComposerDraft.test.tsx
+  s_512188f2b1db53::t_59bbd24a645d3e 44
+lib/client/fitnessImports.test.ts
+  s_512188f2b1db53::t_5e006d0fb6b629 61-74
+lib/client/http.ts
+  s_512188f2b1db53::t_316ebf4d4d4605 14
+  s_512188f2b1db53::t_e4c31978e1d845 25-26
+  s_512188f2b1db53::t_68b9cf1d6a51eb 11-13,15-24,27,32-33,35,39
+lib/client/fitnessImports.ts
+  s_512188f2b1db53::t_e7517f22225483 98-100
+lib/services/statuses/expectedActor.ts
+  s_512188f2b1db53::t_e7517f22225483 1-3
+lib/client/drafts/submitRequest.ts
+  s_512188f2b1db53::t_cf68493696b6d3 1-199
+lib/client/drafts/senderLock.ts
+  s_512188f2b1db53::t_64652f9f6125d9 1-20
+lib/client/drafts/submitRequest.test.ts
+  s_512188f2b1db53::t_64652f9f6125d9 1-311
+lib/client/drafts/draftsChannel.ts
+  s_512188f2b1db53::t_7008a1f8cdea88 6-7,16-22,29-33,35-38,42-60
+  s_512188f2b1db53::t_ea46522b7382ac 61-62
+lib/client/drafts/senderLock.test.ts
+  s_512188f2b1db53::t_7008a1f8cdea88 1-73
+lib/client/statuses.ts
+  s_512188f2b1db53::t_e7517f22225483 1,363-365,379-381,399-400,402,564-566,579-581,600-601,603,1111-1131
+  s_512188f2b1db53::t_f533497f4a29e7 1132-1134
+lib/client/drafts/errors.ts
+  s_512188f2b1db53::t_7008a1f8cdea88 37-43
+lib/client/drafts/types.ts
+  s_512188f2b1db53::t_7008a1f8cdea88 54-94,122-126
+lib/client/statuses.test.ts
+  s_512188f2b1db53::t_c2156be64f9d9f 1340,1342
+  s_512188f2b1db53::t_5e006d0fb6b629 4,18,521-594,1335-1339,1341,1343-1366
+  s_512188f2b1db53::t_90ca9f93f69f0a 1367
+lib/client/gallery.ts
+  s_512188f2b1db53::t_e7517f22225483 11,57-59
+lib/client/drafts/draftsDb.ts
+  s_512188f2b1db53::t_1f357e77bc6596 10,20,25,167,444-485
+lib/client/http.test.ts
+  s_512188f2b1db53::t_055c48a4da2a86 1
+  s_512188f2b1db53::t_316ebf4d4d4605 154-194
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0c0ee34d2ac104fd6df3db96962f0fc2652833ac",
+  "prompts": {},
+  "sessions": {
+    "s_512188f2b1db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e467608a-8346-4544-b69a-fc45fca93669",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,30 @@
+scripts/productionArchive.ts
+  s_b3bc497346bdd5::t_11d846b7b98995 548,582
+scripts/cleanupMediaStorage.ts
+  s_b3bc497346bdd5::t_4b18ff9441c760 10-14,96-97,99-103,105,107-111,115-116,118-121,134,136
+  s_b3bc497346bdd5::t_04c30a7a00a51d 332-339,341-363,365-369,372-373
+docs/environment-variables.md
+  s_b3bc497346bdd5::t_3fe55a6ba50b2a 131,135,148
+  s_b3bc497346bdd5::t_c1e9b388c455e9 124-130,132-133,141-147,149-155
+lib/utils/securityHeaders.ts
+  s_b3bc497346bdd5::t_11d846b7b98995 75
+next.config.test.ts
+  s_b3bc497346bdd5::t_77559424310001 451-453
+  s_b3bc497346bdd5::t_11d846b7b98995 430-450,454-470
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "39168aac71a97e71946a348a93f12b3bc4ccfd59",
+  "prompts": {},
+  "sessions": {
+    "s_b3bc497346bdd5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e3096-b008-7e43-8e07-9cf29fecc463",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

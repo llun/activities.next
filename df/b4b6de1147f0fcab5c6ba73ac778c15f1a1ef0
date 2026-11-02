@@ -1,0 +1,33 @@
+lib/actions/updateNote.test.ts
+  38fbe22e9e13d45a 7,24-27,81-84,146-149
+lib/components/posts/status-reply-box.tsx
+  38fbe22e9e13d45a 147-149,214,307
+lib/components/posts/poll.test.tsx
+  38fbe22e9e13d45a 68,78,81-82,89
+lib/components/posts/status-reply-box.test.tsx
+  38fbe22e9e13d45a 1-102
+lib/actions/updateNote.ts
+  38fbe22e9e13d45a 4,48
+lib/components/posts/poll.tsx
+  38fbe22e9e13d45a 32,34-36,39,46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "dfb4b6de1147f0fcab5c6ba73ac778c15f1a1ef0",
+  "prompts": {
+    "38fbe22e9e13d45a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dc61f-748a-7602-84ac-2c766405edaa",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 135,
+      "total_deletions": 15,
+      "accepted_lines": 135,
+      "overriden_lines": 0
+    }
+  }
+}

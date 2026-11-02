@@ -1,0 +1,21 @@
+lib/services/notifications/pushNotification.ts
+  s_0286db854ecabc::t_b36a065f63e88e 150-156
+lib/services/notifications/pushNotification.test.ts
+  s_0286db854ecabc::t_4872fca6072b63 72-137
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "8b10b290b3612e6a2955608ba4c6bb584f9317f2",
+  "prompts": {},
+  "sessions": {
+    "s_0286db854ecabc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1a2fb078-8e8e-46e6-b1f1-5c8667e29f13",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

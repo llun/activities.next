@@ -1,0 +1,23 @@
+lib/utils/mapProvider.test.ts
+  s_c2b45d1e3d2b49::t_71385504af386b 1-7,9-97
+  s_c2b45d1e3d2b49::t_bb2d9c158007b0 8
+lib/utils/mapProvider.ts
+  s_c2b45d1e3d2b49::t_db4996b170bd0e 1-60,62-67,69-79
+  s_c2b45d1e3d2b49::t_1b4cb9b17dd682 61,68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "cd9bc3185df3a3851c3f8bfc030748e1e204cd25",
+  "prompts": {},
+  "sessions": {
+    "s_c2b45d1e3d2b49": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b970d6ff-c482-4d45-848b-32f588a95c10",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

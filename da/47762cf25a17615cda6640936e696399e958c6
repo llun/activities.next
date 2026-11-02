@@ -1,0 +1,24 @@
+scripts/fitness/convertStravaExportToGearImport.test.ts
+  s_2dfdc4b6b975e7::t_3592e33762d263 126-139
+scripts/fitness/convertStravaExportToGearImport.ts
+  s_2dfdc4b6b975e7::t_7ef3bc6200a520 195,199
+  s_2dfdc4b6b975e7::t_78130b0d0a054d 147-151,155-157,159,161
+scripts/fitness/importFitnessGear.ts
+  s_2dfdc4b6b975e7::t_30abf1a71a1e73 612
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "da47762cf25a17615cda6640936e696399e958c6",
+  "prompts": {},
+  "sessions": {
+    "s_2dfdc4b6b975e7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7e7f59c-102f-4387-a0d7-5b5bbfee3ba5",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,16 @@
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.test.tsx
+  h_580a04e334fef4 1576-1585
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  h_580a04e334fef4 1574,1584,1587,1592
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e3127ade58dab964c8b241bd72811e51f1ebafb5",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,23 @@
+.github/workflows/version-bump.yml
+  s_e1d56a9ceccb0e::t_fcbd8dcf67e01c 416,447-449
+  s_e1d56a9ceccb0e::t_9cce6a9a28716f 18,349-393,396,403,405,420-427,429-440,442-443,450-456,464,476-479,487-488,491-495,498
+  s_e1d56a9ceccb0e::t_c1b96c8f410ee4 16-17,473,475,497,500
+  s_e1d56a9ceccb0e::t_3d25d10cb2b4de 14-15,19,394-395,397-402,404,406-415,417-419,428,441,444-446,457-463,465-472,474,480-485,490,496,499
+  s_e1d56a9ceccb0e::t_146a0a1a5c0f5d 486,489
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "4c7b121366a275cf6b0fa9b6b5d651d1c8e395fe",
+  "prompts": {},
+  "sessions": {
+    "s_e1d56a9ceccb0e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e34fc-c3e4-7091-9f74-e4f0417e9144",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}

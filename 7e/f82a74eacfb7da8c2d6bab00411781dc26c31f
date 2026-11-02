@@ -1,0 +1,26 @@
+lib/client.test.ts
+  s_cd013b5a7f3487::t_4253d40d09b99d 941-946
+app/api/v1/trends/statuses/route.test.ts
+  s_cd013b5a7f3487::t_174dbedc2884fa 14-20
+  s_cd013b5a7f3487::t_a0a4b0ef6682e6 54-55,59
+  s_cd013b5a7f3487::t_2f8eac9f5c5230 127
+  s_cd013b5a7f3487::t_a73a83fd7cdbda 207-209
+  s_cd013b5a7f3487::t_51dbfcd2165c0b 206,210-246
+  s_cd013b5a7f3487::t_dc267dd7b9bdf9 95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "7ef82a74eacfb7da8c2d6bab00411781dc26c31f",
+  "prompts": {},
+  "sessions": {
+    "s_cd013b5a7f3487": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "17973dfb-c587-46bf-bc3e-03f06129ea11",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

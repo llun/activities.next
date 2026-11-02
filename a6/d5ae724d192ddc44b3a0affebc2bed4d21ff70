@@ -1,0 +1,20 @@
+lib/components/post-box/post-box.tsx
+  h_580a04e334fef4 329-330
+lib/components/posts/status-reply-box.tsx
+  h_580a04e334fef4 228-229,503-521
+lib/utils/extractVideoPoster.test.ts
+  h_580a04e334fef4 164,196-246
+lib/utils/extractVideoPoster.ts
+  h_580a04e334fef4 23,43-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a6d5ae724d192ddc44b3a0affebc2bed4d21ff70",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

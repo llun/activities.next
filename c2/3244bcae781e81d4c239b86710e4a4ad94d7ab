@@ -1,0 +1,21 @@
+app/health/route.test.ts
+  s_ab97d21f52c341::t_4674dc91dc89a2 1-10
+app/health/route.ts
+  s_ab97d21f52c341::t_b17d99ca88a92e 1-9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c23244bcae781e81d4c239b86710e4a4ad94d7ab",
+  "prompts": {},
+  "sessions": {
+    "s_ab97d21f52c341": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "62bf221b-714f-4225-95d2-e37f0d6fd6a3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

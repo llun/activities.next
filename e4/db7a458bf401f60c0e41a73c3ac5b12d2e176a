@@ -1,0 +1,60 @@
+app/(timeline)/settings/account/page.tsx
+  s_01c83a46c4a0f7::t_5f52ede6f94acf 5,49-52
+app/(timeline)/notifications/page.tsx
+  s_01c83a46c4a0f7::t_acd726c5c475ab 4,82-85
+lib/components/settings/NotificationSettings.tsx
+  s_01c83a46c4a0f7::t_a73e2b0aca0714 13,253-256,259-267
+  s_01c83a46c4a0f7::t_6f738b14f197f9 257-258
+app/(timeline)/admin/tags/page.tsx
+  s_01c83a46c4a0f7::t_fb0800b93763bc 5,62-65
+app/(timeline)/admin/accounts/page.tsx
+  s_01c83a46c4a0f7::t_4d3f16c952f72b 5,39-42
+app/(timeline)/admin/federation/page.tsx
+  s_01c83a46c4a0f7::t_b295fbae2e1467 19,190-197
+app/(timeline)/settings/fitness/strava/page.tsx
+  s_01c83a46c4a0f7::t_aff8e8ede63128 3,28-46
+app/(timeline)/settings/sessions/page.tsx
+  s_01c83a46c4a0f7::t_c3f1df4309d13a 5,49-59
+lib/components/settings/FitnessFileManagement.tsx
+  s_01c83a46c4a0f7::t_c051ad3b6a7ccf 8,137-140
+app/(timeline)/admin/accounts/[id]/page.tsx
+  s_01c83a46c4a0f7::t_39dcc9dc31aabe 5,33,41-52
+app/(timeline)/messages/MessagesPage.tsx
+  s_01c83a46c4a0f7::t_995ff35f18d5cd 32,653-662
+app/(timeline)/settings/fitness/privacy/page.tsx
+  s_01c83a46c4a0f7::t_337447c8c5a4cf 4,36-39
+app/(timeline)/settings/page.tsx
+  s_01c83a46c4a0f7::t_d44a8ab7b1464e 4,54-57
+lib/components/admin/StatsOverview.tsx
+  s_01c83a46c4a0f7::t_f46b09f46c1364 22,215-241
+lib/components/page-header.tsx
+  s_01c83a46c4a0f7::t_d44e842d8ee251 1-27
+app/(timeline)/admin/system/page.tsx
+  s_01c83a46c4a0f7::t_0a433012ad6b70 3,24
+app/(timeline)/MainPageTimeline.tsx
+  s_01c83a46c4a0f7::t_6e1f62191e68ea 7,226-242
+lib/components/settings/MediaManagement.tsx
+  s_01c83a46c4a0f7::t_5439af30c539e8 7,135-138
+app/(timeline)/admin/tags/[tag]/page.tsx
+  s_01c83a46c4a0f7::t_3f4089d60ce659 1,5,50,58-61
+app/(timeline)/bookmarks/BookmarksTimeline.tsx
+  s_01c83a46c4a0f7::t_99c8ff98f6dfc0 6,152-155
+app/(timeline)/settings/blocks/page.tsx
+  s_01c83a46c4a0f7::t_a32a060205f2c1 4,46-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "e4db7a458bf401f60c0e41a73c3ac5b12d2e176a",
+  "prompts": {},
+  "sessions": {
+    "s_01c83a46c4a0f7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4fb9-3ac3-7400-83a8-5e9f984bf765",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

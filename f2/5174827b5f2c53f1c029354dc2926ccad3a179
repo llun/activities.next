@@ -1,0 +1,20 @@
+lib/components/admin/settings/PostsMediaSettingsForm.tsx
+  s_a2285b0061b3e4::t_7025206b29f2a5 117-118
+  s_a2285b0061b3e4::t_760b6cd5db73a0 120
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "f25174827b5f2c53f1c029354dc2926ccad3a179",
+  "prompts": {},
+  "sessions": {
+    "s_a2285b0061b3e4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f9dd1d85-3e71-4dad-8397-be9d3503739f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

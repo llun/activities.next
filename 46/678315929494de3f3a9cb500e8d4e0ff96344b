@@ -1,0 +1,19 @@
+app/(timeline)/settings/featured-hashtags/FeaturedTagsEditor.test.tsx
+  s_19192de7787161::t_8aabb575fe6e49 75-76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "46678315929494de3f3a9cb500e8d4e0ff96344b",
+  "prompts": {},
+  "sessions": {
+    "s_19192de7787161": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7c9d6699-6371-493a-aa12-4b09b40f832c",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

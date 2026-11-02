@@ -1,0 +1,58 @@
+lib/database/sql/followedTag.ts
+  s_f7b91ac6284bd0::t_a86f09b903187b 91,98-106,132-133,136
+lib/database/sql/directory.test.ts
+  s_f7b91ac6284bd0::t_1417c591064f0c 7-8
+  s_f7b91ac6284bd0::t_a0f1f8704fb7d6 86-141
+app/api/v1/instance/domain_blocks/route.test.ts
+  s_f7b91ac6284bd0::t_107992695d587f 36-49,55,76,79,85,88-94,106,122
+  s_f7b91ac6284bd0::t_5d3d65b73f5f2a 3-4
+lib/database/sql/admin.ts
+  s_f7b91ac6284bd0::t_f3452445f2883a 544-572
+  s_f7b91ac6284bd0::t_751273c22d89b6 424,431-434
+  s_f7b91ac6284bd0::t_ea1bd6019efa1f 589
+  s_f7b91ac6284bd0::t_73cee0cf17f3ce 537-543
+app/api/v1/followed_tags/route.test.ts
+  s_f7b91ac6284bd0::t_05928acd4a040f 1-112
+app/api/v1/followed_tags/route.ts
+  s_f7b91ac6284bd0::t_5e0c20db7d47f1 6,35-37,40-50,56
+app/api/v1/directory/route.test.ts
+  s_f7b91ac6284bd0::t_14afeb7b2fc4ab 63-75,78-103
+  s_f7b91ac6284bd0::t_f3452445f2883a 76-77
+lib/types/database/operations.ts
+  s_f7b91ac6284bd0::t_a7ca3feaaec67b 3252
+  s_f7b91ac6284bd0::t_22fb093f2f6db8 78-81
+  s_f7b91ac6284bd0::t_59b9c5681514dc 3233
+  s_f7b91ac6284bd0::t_280a0489c90a3a 1564
+lib/database/sql/actor.ts
+  s_f7b91ac6284bd0::t_fa53955532f95f 756-758,766-801
+lib/database/sql/followedTag.test.ts
+  s_f7b91ac6284bd0::t_38cb726e937062 69-91
+lib/services/federation/domainRules.ts
+  s_f7b91ac6284bd0::t_9edfa22781a43d 79-95,97
+lib/services/federation/domainRules.test.ts
+  s_f7b91ac6284bd0::t_303a42a20113ec 1-2
+  s_f7b91ac6284bd0::t_74cda611790231 46-60,62-64,70-91
+app/api/v1/instance/domain_blocks/route.ts
+  s_f7b91ac6284bd0::t_d2272e4647a261 43-49,58
+lib/database/sql/admin.test.ts
+  s_f7b91ac6284bd0::t_f97102a4aff0bc 297,301,309-318
+app/api/v1/directory/route.ts
+  s_f7b91ac6284bd0::t_6ef7fbc46e160b 10,20-23,27-28
+  s_f7b91ac6284bd0::t_5694fe0705df5c 45,50-51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a0bb5d8bf649fdda2718a8e4204c1f631b1754a2",
+  "prompts": {},
+  "sessions": {
+    "s_f7b91ac6284bd0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7e5d29e0-cb70-4516-b716-6108a10b94a2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,48 @@
+lib/database/sql/oauth.test.ts
+  s_8686a688f38363::t_426613b5d9aae4 307-355
+lib/database/sql/oauth.ts
+  s_8686a688f38363::t_45fe079d21036e 128-131
+  s_8686a688f38363::t_06ed0a0c089a80 155-164
+  s_8686a688f38363::t_dc33da1789039c 168-189
+app/api/v1/accounts/connected-apps/[clientId]/route.test.ts
+  s_8686a688f38363::t_7d3b313c0c62cc 93-94
+  s_8686a688f38363::t_8f486eb12e705f 95-112
+app/(timeline)/account/sessions/AccountSessions.tsx
+  s_8686a688f38363::t_2f110b091e9dd2 354
+  s_8686a688f38363::t_4e2a88e6a224c7 403
+  s_8686a688f38363::t_5e0cd0045ed67d 255-260
+  s_8686a688f38363::t_828f3a0938975b 135-139,149,151,154-160,165,167,170-176,181,183,190-196
+  s_8686a688f38363::t_949ff93e1d5d71 371
+  s_8686a688f38363::t_7f08299667c95f 84-86,93-95
+  s_8686a688f38363::t_57d17a646d3db0 326-333
+app/api/v1/accounts/connected-apps/[clientId]/route.ts
+  s_8686a688f38363::t_87e323020dce58 39-40
+app/(timeline)/account/sessions/page.tsx
+  s_8686a688f38363::t_235a63dde006c6 17-26
+  s_8686a688f38363::t_da377be4219916 90
+  s_38e24bcf2d5456::t_3d41e4b0887b57 27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "ff9db5f504b87e5292ef4f97e9bd10e1d42edcaf",
+  "prompts": {},
+  "sessions": {
+    "s_38e24bcf2d5456": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10d07056-e5c7-4e51-ae35-e0742cfd7b0c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_8686a688f38363": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8364eb6d-b3d9-4624-a216-85365b9ac9bc",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

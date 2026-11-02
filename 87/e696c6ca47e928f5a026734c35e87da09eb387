@@ -1,0 +1,32 @@
+lib/activities/getActorPosts.ts
+  h_580a04e334fef4 59,65,193,252
+lib/activities/getActorPostsFromAtomFeed.ts
+  h_580a04e334fef4 44,48,177
+lib/activities/getPixelfedPosts.test.ts
+  h_580a04e334fef4 41,67
+lib/activities/getPixelfedPosts.ts
+  h_580a04e334fef4 101,105,156,216-217
+lib/activities/getRemoteStatus.ts
+  h_580a04e334fef4 81
+lib/services/language-detection/index.test.ts
+  h_580a04e334fef4 185-186,218-219,226,228,232,235,239,242,269-270,317-318,325,328,332,335,339,342,346,349,353,356,360,364,371,375,378,381,402-403,409,411,418-419
+lib/services/language-detection/index.ts
+  h_580a04e334fef4 99-117,168,171,200,254,257-258,284-285
+package.json
+  h_580a04e334fef4 60
+scripts/maintenance/redetectStatusLanguages.ts
+  h_580a04e334fef4 225
+yarn.lock
+  h_580a04e334fef4 3910,4773
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "87e696c6ca47e928f5a026734c35e87da09eb387",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

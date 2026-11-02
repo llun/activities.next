@@ -1,0 +1,29 @@
+lib/components/settings/MediaManagement.tsx
+  s_44807e29e64536::t_6540dd45486e7c 254-259
+  s_44807e29e64536::t_8bf0d485ed514e 171
+  s_44807e29e64536::t_490ddbc64c3e45 153-156
+  s_44807e29e64536::t_93aedc49dee0db 5,8-12
+lib/components/settings/fileManagementShared.tsx
+  s_44807e29e64536::t_c63ffdd94b68cd 1-108
+lib/components/settings/FitnessFileManagement.tsx
+  s_44807e29e64536::t_b95f23e682ddc6 5,8-12
+  s_44807e29e64536::t_42643db4b3841d 151-154
+  s_44807e29e64536::t_806480ba958f39 231-236
+  s_44807e29e64536::t_8d1a37e342f6bc 167-170
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "3433a5110dbc1d9182e30c4a4d9c7f5a9dc31580",
+  "prompts": {},
+  "sessions": {
+    "s_44807e29e64536": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d5791d6b-5c1d-4a48-a1aa-d091f3207ce6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

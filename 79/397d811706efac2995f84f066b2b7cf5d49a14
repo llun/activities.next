@@ -1,0 +1,27 @@
+app/(timeline)/[actor]/[status]/page.tsx
+  f23a96401558c064 23,34
+app/(timeline)/[actor]/[status]/resolveStatusFromPath.ts
+  f23a96401558c064 20,48-49
+app/(timeline)/[actor]/[status]/page.test.ts
+  f23a96401558c064 1-48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "79397d811706efac2995f84f066b2b7cf5d49a14",
+  "prompts": {
+    "f23a96401558c064": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dda5d-df1f-7683-875d-0597a2e808a0",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 56,
+      "total_deletions": 8,
+      "accepted_lines": 2001,
+      "overriden_lines": 0
+    }
+  }
+}

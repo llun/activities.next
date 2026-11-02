@@ -1,0 +1,19 @@
+lib/testing/withTimeZone.test.ts
+  s_a854f5961b0a33::t_f649d5b1abb55f 90-104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2c162550fb64c41bb52325b0c89cdc6c5aca9f66",
+  "prompts": {},
+  "sessions": {
+    "s_a854f5961b0a33": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "469ffc7f-d983-4bcc-aa36-6b3294357c0b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

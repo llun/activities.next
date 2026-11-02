@@ -1,0 +1,65 @@
+app/(timeline)/collections/[id]/CollectionDetail.test.tsx
+  s_0daffcc9f18cd8::t_0928353063e1b3 10,216-217,237
+app/(timeline)/account/sessions/AccountSessions.test.tsx
+  s_0daffcc9f18cd8::t_0928353063e1b3 19,306-307,330
+lib/components/layout/nav-preferences-context.test.tsx
+  s_0daffcc9f18cd8::t_7d33d84776f5d8 12,105-106,116,127-128,137,191-192,198,210,213,220,252,255,262,269,272,281
+lib/components/post-box/post-box.test.tsx
+  s_0daffcc9f18cd8::t_167a75b90c0500 953-954,999
+app/(timeline)/fitness/gear/GearListView.test.tsx
+  s_0daffcc9f18cd8::t_eb989eb2337a84 15,282,292,309
+lib/hooks/useCopyToClipboard.test.ts
+  s_0daffcc9f18cd8::t_4c323bbc505fe6 6-7,88-89,100
+lib/components/posts/actions/reaction-button.test.tsx
+  s_0daffcc9f18cd8::t_a63c775e3b8060 11,188-189,206
+lib/components/posts/reaction-row.test.tsx
+  s_0daffcc9f18cd8::t_0b30971089c97a 14,368-369,393
+lib/components/mute-action/mute-action.test.tsx
+  s_0daffcc9f18cd8::t_0928353063e1b3 15,175-176,204
+app/(timeline)/fitness/strava/StravaGearDefaultsSection.test.tsx
+  s_0daffcc9f18cd8::t_5acbb215136a17 16,367-368,386,464-465,483
+lib/components/remote-follow/remote-follow-dialog.test.tsx
+  s_0daffcc9f18cd8::t_4c323bbc505fe6 8,129-130,146,153-154,166,178-179,195,205,207-210,230,237,286-287,297
+lib/services/actors/refreshRemoteActor.test.ts
+  s_0daffcc9f18cd8::t_4c323bbc505fe6 3,169,182
+  s_0daffcc9f18cd8::t_e5f8e4b083b49f 171
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.test.tsx
+  s_0daffcc9f18cd8::t_0f6d4495095285 23,2247-2248,2270,2319-2320,2338
+app/(timeline)/fitness/gear/[id]/GearActivitiesFeed.test.tsx
+  s_0daffcc9f18cd8::t_3b962136dae8d8 11,548,556,564,571,589,602,626,629,710,727-729,749,757
+  s_0daffcc9f18cd8::t_7d33d84776f5d8 549,565,711,750
+lib/components/posts/actions/bookmark-button.test.tsx
+  s_0daffcc9f18cd8::t_a63c775e3b8060 9,138-139,147-148
+lib/components/settings/FitnessFileManagement.test.tsx
+  s_0daffcc9f18cd8::t_4c323bbc505fe6 7-8,214,216,271
+lib/components/posts/actions/like-button.test.tsx
+  s_0daffcc9f18cd8::t_a63c775e3b8060 8,73-74,86-87
+app/(timeline)/settings/blocks/BlocksList.test.tsx
+  s_0daffcc9f18cd8::t_eb989eb2337a84 15,73-74,97
+lib/components/posts/post.test.tsx
+  s_0daffcc9f18cd8::t_0b30971089c97a 22,820-821,862-863,1928-1929,1970
+app/(timeline)/fitness/gear/[id]/GearDetailView.test.tsx
+  s_0daffcc9f18cd8::t_5acbb215136a17 22,428-429,437,450,453,469
+lib/components/fitness/useHeatmapTiles.test.ts
+  s_0daffcc9f18cd8::t_0928353063e1b3 12,191,195,215
+app/(nosidebar)/oauth/authorize/AuthorizeCard.test.tsx
+  s_0daffcc9f18cd8::t_36aeaf88e485cc 7,298-299,325,338,343,369
+lib/components/posts/translation-context.test.tsx
+  s_0daffcc9f18cd8::t_4c323bbc505fe6 12,46,48-51,63,67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "b5c5f9858926d5ecb43cdf03059b4ce5a0cefbfa",
+  "prompts": {},
+  "sessions": {
+    "s_0daffcc9f18cd8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c53be958-3612-49d2-9740-1a39980f511c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,18 @@
+lib/components/fitness/RouteHeatmapMapKit.test.tsx
+  h_580a04e334fef4 7-10,206
+lib/components/fitness/useHeatmapTiles.test.ts
+  h_580a04e334fef4 15,506
+lib/components/mute-action/mute-action.test.tsx
+  h_580a04e334fef4 45,56-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "e8d56e30ec6963bdc21e76ee75d2de2caef4bf04",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,41 @@
+app/api/v1/fitness/strava/callback/route.ts
+  s_725909a67e1914::t_f4f0e6ed4a8e83 19-34,48,52,61,76,88,112,136-138,155,158
+app/calloutContrast.test.ts
+  s_b87e31a2061ef9::t_73d226f1172160 82
+app/(timeline)/fitness/connections/wahoo/page.tsx
+  s_48fec2c3209b96::t_776499f64485e9 9-10
+app/api/v1/fitness/strava/callback/route.test.ts
+  s_48fec2c3209b96::t_f7ff14c48c5dcc 1-106
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b9d720d8975a6910e72b1a15a24f0b288c34a750",
+  "prompts": {},
+  "sessions": {
+    "s_48fec2c3209b96": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a29871a06006f31b7",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_725909a67e1914": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d554-1283-7a03-aa63-f06a555f70ba",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_b87e31a2061ef9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e1c7f30-c9e8-4ed9-b019-a0042fc2e1e5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

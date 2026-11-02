@@ -1,0 +1,24 @@
+app/api/inbox/getJobMessage.test.ts
+  s_23e3cc6270fa65::t_344f1998ab8a5d 8-22
+  s_23e3cc6270fa65::t_89947c6c371298 93-117,183-192
+app/api/inbox/getJobMessage.ts
+  s_23e3cc6270fa65::t_2174f639a66044 61,82,87,110
+app/api/v1/statuses/[id]/unreblog/route.ts
+  s_23e3cc6270fa65::t_fff5bababfa08d 51-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "0d7526eef6ea5c7b5cb9701e8638504954e546ec",
+  "prompts": {},
+  "sessions": {
+    "s_23e3cc6270fa65": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e2303-f3de-7f62-9a82-67036dea01be",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

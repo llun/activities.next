@@ -1,0 +1,35 @@
+lib/components/post-box/useComposerDraft.ts
+  s_512188f2b1db53::t_35e7b1caf7df95 516-519,701-702,729-730,735,744
+lib/components/post-box/useComposerDraft.test.tsx
+  s_512188f2b1db53::t_b09feed42dcd51 36,45,104,624-673,728-729
+lib/components/drafts/SavedToDraftsNote.tsx
+  s_512188f2b1db53::t_35e7b1caf7df95 12,16-31,90,102,107-137
+lib/components/drafts/SavedToDraftsNote.test.tsx
+  s_512188f2b1db53::t_91ae141ed28223 200-202
+  s_512188f2b1db53::t_b09feed42dcd51 15-19,171-199,203-210
+  s_512188f2b1db53::t_a0f58aa52feabb 211
+lib/components/drafts/DraftsProvider.tsx
+  s_512188f2b1db53::t_35e7b1caf7df95 29-36,50-51,75-76,78-87,131,187-188,191-200,214-215
+  s_512188f2b1db53::t_68e3f5d2dd7a9d 216
+lib/components/posts/status-reply-box.drafts.test.tsx
+  s_512188f2b1db53::t_91ae141ed28223 10-11,232-235
+  s_512188f2b1db53::t_b09feed42dcd51 222-231,236-241
+docs/architecture.md
+  s_512188f2b1db53::t_323596917c34b4 3070
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1bc3d6d80109565dbd563a96ced6ffceff8b16fb",
+  "prompts": {},
+  "sessions": {
+    "s_512188f2b1db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e467608a-8346-4544-b69a-fc45fca93669",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,35 @@
+lib/services/accountImport/runner.ts
+  s_4b41e4fd165981::t_6b6089b5454f5e 31,33,58-64,73-77,174-178
+app/api/v1/account/imports/[id]/start/route.test.ts
+  s_4b41e4fd165981::t_13961a7ff2d793 28-39
+  s_4b41e4fd165981::t_4cb27e8fb7d6e3 1-17,22,24-27,40,42-43,45-48,52-55,58,60,63,67-69,79,87
+  s_4b41e4fd165981::t_94d31a9ea7b735 18-21,23,41,44,49-51,56-57,59,61-62,64-66,77
+  s_4b41e4fd165981::t_b3e759f1cebaa0 70-76,78,80-86
+lib/services/accountImport/reaper.ts
+  s_4b41e4fd165981::t_6b6089b5454f5e 9-12,47-85,133
+app/api/v1/account/imports/[id]/start/route.ts
+  s_4b41e4fd165981::t_4f67dbc3cd83df 16,71-75,82-88
+  s_4b41e4fd165981::t_181ca545b71c07 89-91
+lib/services/accountImport/runner.test.ts
+  s_4b41e4fd165981::t_70501647171c9b 8,18-32,59-63,68-74,165-166,170-192,196-197,233,237-259,263-294,298
+  s_4b41e4fd165981::t_ea5c0a4ffd44bf 220,232
+  s_4b41e4fd165981::t_d8ea3c1e5a6a9b 193-195,260-262,295-297
+  s_4b41e4fd165981::t_8273a54e46eb5e 198-219,221-231
+  s_4b41e4fd165981::t_13961a7ff2d793 167-169,234-236
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3ed2fc0c15ca806770d8e96380084020160ffa32",
+  "prompts": {},
+  "sessions": {
+    "s_4b41e4fd165981": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a17e72-ca15-7bd2-8c9f-d3f330fcdc8e",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

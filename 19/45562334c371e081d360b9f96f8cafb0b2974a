@@ -1,0 +1,29 @@
+lib/database/sql/search/account.ts
+  s_d0750d3596041b::t_3e1298658165e2 169,174,178-186,272,295-297
+  s_d0750d3596041b::t_55a4be99dd33f9 237
+lib/database/sql/account.ts
+  s_d0750d3596041b::t_b9926f117d7493 92-103,117,147
+lib/database/sql/search.test.ts
+  s_d0750d3596041b::t_2159385aac2cdd 10,834-835,844,849,853-863,866,872-877,884,932-981,983
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "1945562334c371e081d360b9f96f8cafb0b2974a",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  },
+  "sessions": {
+    "s_d0750d3596041b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e5670-4dc8-73f2-acd7-f7ed0d7152e2",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

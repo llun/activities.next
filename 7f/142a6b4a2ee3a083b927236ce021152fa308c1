@@ -1,0 +1,49 @@
+lib/utils/searchParams.ts
+  s_4941627279dc6b::t_e3aad6a03b496f 6
+lib/database/sql/search.test.ts
+  s_4941627279dc6b::t_758c5351c266e6 121-176,428-523
+lib/search/meilisearch.ts
+  s_4941627279dc6b::t_0805a8f41b4861 31,34-43,70-71,74,85-93,95-156,163-171,247-253,274-278,303-305,331
+  s_4941627279dc6b::t_5849da853b2d73 94,157-159
+lib/database/sql/search.ts
+  s_4941627279dc6b::t_c64ff754e451df 108-112,299,306,334,395,681,685-687,689,692-694,712,714-717,720,730,774-779,781,815
+  s_4941627279dc6b::t_d5ca50634bb958 769
+  s_4941627279dc6b::t_5849da853b2d73 695-700,810-813
+app/api/v2/search/route.test.ts
+  s_4941627279dc6b::t_e3aad6a03b496f 95-96,150-162
+lib/search/meilisearch.test.ts
+  s_4941627279dc6b::t_ca7d99d531bf58 3,23-32,81-84,110-114,120-124,131-132,142,149,163-171,200,207,212,217,222-291
+lib/search/index.ts
+  s_4941627279dc6b::t_70332af0cd0b62 31
+lib/types/mastodon/status/tag.ts
+  s_4941627279dc6b::t_70332af0cd0b62 1,4-10,12,14-22
+migrations/20260517120000_add_search_index.js
+  s_4941627279dc6b::t_49765c8ed7d966 47-50
+lib/types/mastodon/search.ts
+  s_4941627279dc6b::t_70332af0cd0b62 5,10
+app/api/v1/accounts/search/route.test.ts
+  s_4941627279dc6b::t_70f6d70939b121 8,34-38,45,111-114
+  s_4941627279dc6b::t_e3aad6a03b496f 63-64,83-108
+app/api/v1/accounts/search/route.ts
+  s_4941627279dc6b::t_e3aad6a03b496f 26-31,57-58
+package.json
+  s_4941627279dc6b::t_a31e5e2a842e66 14
+lib/types/database/operations.ts
+  s_4941627279dc6b::t_49765c8ed7d966 665,668,676
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "7f142a6b4a2ee3a083b927236ce021152fa308c1",
+  "prompts": {},
+  "sessions": {
+    "s_4941627279dc6b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e3721-11a9-7400-8ad7-c7ee1b4c4741",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,28 @@
+app/api/v2/admin/accounts/route.ts
+  s_4f4812f16bd65a::t_6bf467d1e86c67 6
+  s_4f4812f16bd65a::t_88732352d8fab4 75-85,101-103
+lib/services/admin/listAdminAccountsResponse.ts
+  s_4f4812f16bd65a::t_ee9dbc57e71667 15-17
+app/api/v1/admin/accounts/adminAccounts.test.ts
+  s_4f4812f16bd65a::t_8bec24dfd53f7d 230-234
+  s_4f4812f16bd65a::t_fcc502c157d92a 224-229,235-273
+app/api/v1/admin/accounts/route.ts
+  s_4f4812f16bd65a::t_6fef07db96f7c7 6
+  s_4f4812f16bd65a::t_d8664a430f0181 60-69,92-94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "5f1d6868e64f81bd7ef5a57ee2c563ef968341ff",
+  "prompts": {},
+  "sessions": {
+    "s_4f4812f16bd65a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ef4966e6-a801-42ad-bea7-0a298c41d397",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

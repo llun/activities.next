@@ -1,0 +1,32 @@
+AGENTS.md
+  h_580a04e334fef4 1928-1932
+lib/actions/updateNote.test.ts
+  h_580a04e334fef4 79,167
+lib/actions/updateNote.ts
+  h_580a04e334fef4 102
+lib/actions/updateNoteVisibility.test.ts
+  h_580a04e334fef4 114-116
+lib/actions/updateNoteVisibility.ts
+  h_580a04e334fef4 86-88
+lib/activities/index.ts
+  h_580a04e334fef4 68,84-85,111-113,228,234-235,237-242
+lib/jobs/sendUpdateNoteJob.test.ts
+  h_580a04e334fef4 14,109-158
+lib/jobs/sendUpdateNoteJob.ts
+  h_580a04e334fef4 51-52,64-65
+lib/services/federation/statusDelivery.test.ts
+  h_580a04e334fef4 219-293
+lib/services/federation/statusDelivery.ts
+  h_580a04e334fef4 120-176,180-181,186,217-235
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "d6aa6212ea8061729ea9dfce00b421a7858ce308",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

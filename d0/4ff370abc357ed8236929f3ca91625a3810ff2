@@ -1,0 +1,21 @@
+lib/database/sql/utils/publiclyReadableStatus.ts
+  s_7b9e8834650c28::t_d39e1de6a82a23 145-147
+lib/database/sql/publiclyReadableStatusCallSites.test.ts
+  s_7b9e8834650c28::t_d39e1de6a82a23 198-204
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "d04ff370abc357ed8236929f3ca91625a3810ff2",
+  "prompts": {},
+  "sessions": {
+    "s_7b9e8834650c28": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bb05ef22-b0e4-4e2f-a13a-afb476987668",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

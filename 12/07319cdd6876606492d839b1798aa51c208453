@@ -1,0 +1,20 @@
+docs/fitness-file-storage.md
+  h_580a04e334fef4 55
+lib/services/fitness-files/activityData.test.ts
+  h_580a04e334fef4 1-228
+lib/services/fitness-files/activityData.ts
+  h_580a04e334fef4 1-294
+lib/services/fitness-files/parseFitnessFile.ts
+  h_580a04e334fef4 6-11,14-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "1207319cdd6876606492d839b1798aa51c208453",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

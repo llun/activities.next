@@ -1,0 +1,30 @@
+app/(nosidebar)/authorize_interaction/AuthorizeInteractionCard.tsx
+  h_580a04e334fef4 75-77
+app/(timeline)/[actor]/followers/page.tsx
+  h_580a04e334fef4 119
+app/(timeline)/[actor]/following/page.tsx
+  h_580a04e334fef4 119
+app/(timeline)/[actor]/page.tsx
+  h_580a04e334fef4 227,235
+lib/components/actor-switcher/ActorSwitcher.test.tsx
+  h_580a04e334fef4 6,10-26,54,59,82,89
+lib/components/actor-switcher/ActorSwitcher.tsx
+  h_580a04e334fef4 123,142
+lib/components/layout/mobile-nav.tsx
+  h_580a04e334fef4 110,134
+lib/components/layout/sidebar.test.tsx
+  h_580a04e334fef4 12-16,21-37,121-144
+lib/components/layout/sidebar.tsx
+  h_580a04e334fef4 471,629-633
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "968651cb40ef1194e88997780559ab590b349829",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

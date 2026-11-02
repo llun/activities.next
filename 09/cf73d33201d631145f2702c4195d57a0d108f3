@@ -1,0 +1,23 @@
+lib/services/accounts/sendConfirmationEmail.ts
+  s_181a4d159922fc::t_13d4240764a29a 1,3,21-24,29-30
+lib/services/email/templates/verifyEmail.test.ts
+  s_181a4d159922fc::t_0c5acebdd1c2b3 1-45
+lib/services/email/templates/verifyEmail.ts
+  s_181a4d159922fc::t_315923cee7eeed 1-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "09cf73d33201d631145f2702c4195d57a0d108f3",
+  "prompts": {},
+  "sessions": {
+    "s_181a4d159922fc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8b59141f-f9f0-4af4-8aea-39520836e6cc",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

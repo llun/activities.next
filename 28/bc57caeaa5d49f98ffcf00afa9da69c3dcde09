@@ -1,0 +1,43 @@
+app/api/v1/account/imports/[id]/start/route.test.ts
+  s_8cda811079ca8e::t_9402c32e3d54c6 4-8,22-25,97-213
+app/api/v1/account/imports/[id]/start/route.ts
+  s_8cda811079ca8e::t_693eb086428be8 132-133,136,141
+docs/maintenance.md
+  s_8cda811079ca8e::t_b99cc14856b027 279-283
+lib/database/domains/accountImport/accountImport.test.ts
+  s_8cda811079ca8e::t_439f9f3eb569bd 283,287-298,300,303,314,317-372,376,379,381,387,406,413-414,419,431,437,444,450,468,474-520
+lib/database/domains/accountImport/queries.ts
+  s_8cda811079ca8e::t_2a43e53638aa77 24,141-159,175-176,179,184,192,197,523
+lib/database/domains/accountImport/types.ts
+  s_8cda811079ca8e::t_d256f9e50e54b3 78-83,149-151,153,157
+lib/jobs/deleteActorJob.test.ts
+  s_8cda811079ca8e::t_1716ade52ac4b8 257-348
+lib/jobs/deleteActorJob.ts
+  s_8cda811079ca8e::t_5e6fbd5c530f5f 12,279-283
+lib/services/accountImport/constants.ts
+  s_8cda811079ca8e::t_cd90d27eeb44de 9-10
+lib/services/accountImport/noSideEffects.test.ts
+  s_8cda811079ca8e::t_8a43b2da7b5cfd 16,58-68,76-78,136-156
+lib/services/accountImport/purge.ts
+  s_8cda811079ca8e::t_ada0f6c8118f99 1-43
+lib/services/accountImport/reaper.ts
+  s_8cda811079ca8e::t_0367efb165bf22 6,166-200,231-252
+lib/services/accountImport/runner.test.ts
+  s_8cda811079ca8e::t_435ffd7f4709e9 12,192-252
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "28bc57caeaa5d49f98ffcf00afa9da69c3dcde09",
+  "prompts": {},
+  "sessions": {
+    "s_8cda811079ca8e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2f420032-8f70-4e52-9594-987494592e5d",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+docs/postgresql-setup.md
+  s_f147bf36f62485::t_18c17d49a3daa7 65
+docs/sqlite-setup.md
+  s_f147bf36f62485::t_0c7a660854a37f 36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9c2813820e69a6a8a334a05955da7a8f53f9b406",
+  "prompts": {},
+  "sessions": {
+    "s_f147bf36f62485": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "25ee74e4-3619-4df9-8186-dcf3fd9b6ec2",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

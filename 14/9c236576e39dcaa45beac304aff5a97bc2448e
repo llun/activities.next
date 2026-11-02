@@ -1,0 +1,28 @@
+lib/components/surface/AddBar.tsx
+  s_e67afa7a51bb57::t_d2b41462ac31d0 36
+lib/components/admin-rules/RulesPanel.test.tsx
+  s_e67afa7a51bb57::t_d2b41462ac31d0 207-212
+docs/architecture.md
+  s_e67afa7a51bb57::t_79bb57085e7f05 1015,1042
+lib/components/admin-rules/RulesPanel.tsx
+  s_e67afa7a51bb57::t_746b754392f886 463,478
+lib/components/surface/alertOutsideFrame.test.ts
+  s_e67afa7a51bb57::t_c2ef412b8468ba 10,14,63,70-71
+  s_e67afa7a51bb57::t_39eb9eb0c6c73c 72
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "149c236576e39dcaa45beac304aff5a97bc2448e",
+  "prompts": {},
+  "sessions": {
+    "s_e67afa7a51bb57": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d6019d38-d013-4f5b-a5fb-8e915ee59ae7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

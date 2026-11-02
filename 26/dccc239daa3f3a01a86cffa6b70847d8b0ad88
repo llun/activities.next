@@ -1,0 +1,26 @@
+app/(timeline)/[actor]/[status]/StatusLikes.test.tsx
+  h_580a04e334fef4 1-110
+app/(timeline)/[actor]/[status]/StatusLikes.tsx
+  h_580a04e334fef4 46,73-75
+lib/actions/emojiReaction.ts
+  h_580a04e334fef4 3,17,226-238
+lib/actions/like.test.ts
+  h_580a04e334fef4 113-133
+lib/actions/like.ts
+  h_580a04e334fef4 1,10-11,31-43
+scripts/maintenance/backfillMissingLikeActors.test.ts
+  h_580a04e334fef4 1-311
+scripts/maintenance/backfillMissingLikeActors.ts
+  h_580a04e334fef4 1-221
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "26dccc239daa3f3a01a86cffa6b70847d8b0ad88",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

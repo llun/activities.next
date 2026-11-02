@@ -1,0 +1,29 @@
+lib/components/actor-switcher/ActorSwitcher.test.tsx
+  s_c587d6e0f997cb::t_b600ca0f824cc6 259-264,276-354
+lib/components/actor-switcher/ActorSwitcher.tsx
+  s_c587d6e0f997cb::t_3a8dcc0cb95c36 6,41,45-49,82-87,89,96-97,180-182,189-195,234-237
+lib/components/actor-switcher/AddActorDialog.test.tsx
+  s_c587d6e0f997cb::t_17967ca43f8d4c 421-451,499-656
+lib/components/actor-switcher/AddActorDialog.tsx
+  s_c587d6e0f997cb::t_e3dd982a267e47 3,40-41,96,104-107,109-120,125-127,134-136,142,145,149-154,156-158,160,163,170-187
+lib/components/settings/ActorsSection.test.tsx
+  s_c587d6e0f997cb::t_0a1cc8e1c530cf 149-154,173-293
+lib/components/settings/ActorsSection.tsx
+  s_c587d6e0f997cb::t_5524629e115107 5,41,48-52,113-118,120,127-128,156,196-197,202-205,210,253,257,280,283-287,294,300-301,309,312
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "a140db43cdf62fd550306c95f5f397bd4e5581bb",
+  "prompts": {},
+  "sessions": {
+    "s_c587d6e0f997cb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a077c9-2bf2-7110-89c4-bfded1f36b16",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

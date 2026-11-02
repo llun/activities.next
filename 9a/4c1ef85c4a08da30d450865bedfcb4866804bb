@@ -1,0 +1,53 @@
+app/(timeline)/[actor]/page.tsx
+  s_867498a5a8dd3b::t_4fb4f10e2e5df1 23
+  s_867498a5a8dd3b::t_d5e912947a85d9 51-59
+  s_867498a5a8dd3b::t_c3ee7d21414b05 106-114
+app/(timeline)/[actor]/resolveActorRedirect.ts
+  s_867498a5a8dd3b::t_bce58348635a41 1-40
+app/(timeline)/[actor]/followers/page.test.tsx
+  s_867498a5a8dd3b::t_6f559845d66f94 258,260-261
+app/(timeline)/[actor]/following/page.test.tsx
+  s_867498a5a8dd3b::t_d8f5cfa19049e9 258,260-261
+app/(timeline)/[actor]/FollowListLoadingSkeleton.tsx
+  s_867498a5a8dd3b::t_a7ac32aeeed767 1-44
+app/(timeline)/[actor]/followers/loading.tsx
+  s_867498a5a8dd3b::t_e0fefbe8f88689 3,5-7
+app/(timeline)/[actor]/following/loading.tsx
+  s_867498a5a8dd3b::t_b3cb04f2815810 3,5-7
+app/(timeline)/[actor]/FollowListLoadingSkeleton.test.tsx
+  s_867498a5a8dd3b::t_84514ae8f5ae4c 1-34
+lib/services/medias/handleSyncMediaUpload.ts
+  s_867498a5a8dd3b::t_bf98f8e9bc257a 88-91
+app/(timeline)/[actor]/following/page.tsx
+  s_867498a5a8dd3b::t_8a8499a36e55b9 11-12
+  s_867498a5a8dd3b::t_789a9aa5abdca0 123-138
+  s_867498a5a8dd3b::t_7f345ba1cb368a 73-79
+  s_867498a5a8dd3b::t_c05944e611978c 34-40
+app/(timeline)/[actor]/page.redirect.test.tsx
+  s_867498a5a8dd3b::t_31f52441973c03 180-197
+  s_867498a5a8dd3b::t_c8b929e4cbd43c 135
+  s_867498a5a8dd3b::t_879c45b5a9d4b5 123-134,136-141
+app/(timeline)/[actor]/followers/page.tsx
+  s_867498a5a8dd3b::t_028f775abe85ce 11-12
+  s_867498a5a8dd3b::t_55acfed66e6098 34-40
+  s_867498a5a8dd3b::t_5e66cec1fecc4c 73-79
+  s_867498a5a8dd3b::t_6dab1a4d582ae8 123-138
+lib/services/medias/S3StorageFile.ts
+  s_867498a5a8dd3b::t_3263c3884dd3a2 424-432
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "9a4c1ef85c4a08da30d450865bedfcb4866804bb",
+  "prompts": {},
+  "sessions": {
+    "s_867498a5a8dd3b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "07b215df-f83e-435d-96c9-42900a5bfb30",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,23 @@
+lib/components/posts/actions/edit-history-button.tsx
+  s_cc15c4196d4a99::t_4ab04e5cd19c81 74-75
+lib/components/posts/actions/reaction-button.test.tsx
+  s_cc15c4196d4a99::t_6a597c76ff0598 263
+lib/components/posts/reaction-picker.tsx
+  s_cc15c4196d4a99::t_29e4b1b937440e 87-93
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.19",
+  "base_commit_sha": "a22a3c4f5b7afbf47d12c608deff37e9bd32958a",
+  "prompts": {},
+  "sessions": {
+    "s_cc15c4196d4a99": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "80f2cc38-9112-4bfe-a499-fd7c3c4abd40",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

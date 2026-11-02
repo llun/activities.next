@@ -1,0 +1,29 @@
+lib/actions/acceptFollowRequest.ts
+  s_867498a5a8dd3b::t_a1a21ad60f991c 3-6,14,90-114
+lib/actions/acceptFollowRequest.test.ts
+  s_0ea9ba39b435e7::t_c20ab1bf84f659 6,9,17,25-30,48,140-215
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "1fc9786a901d666a8a57537029126831b3816f4e",
+  "prompts": {},
+  "sessions": {
+    "s_0ea9ba39b435e7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a131e1b545fbc8ccf",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_867498a5a8dd3b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "07b215df-f83e-435d-96c9-42900a5bfb30",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

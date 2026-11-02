@@ -1,0 +1,51 @@
+lib/client.ts
+  s_0e2fd6be727054::t_ed54273d502bf3 3261-3268,3285-3296
+app/api/v1/accounts/[id]/fitness-route-heatmap/tiles/route.ts
+  s_0e2fd6be727054::t_599c7099c13a43 12,38-40,45,105-106,122-126,131-132,134
+lib/services/fitness-files/heatmapTiles/tileSource.ts
+  s_0e2fd6be727054::t_aa5ccbb3776112 34-42,50
+AGENTS.md
+  s_0e2fd6be727054::t_c9dfe37c6a0e95 543-557,572-583,597-609
+CLAUDE.md
+  s_0e2fd6be727054::t_c9dfe37c6a0e95 68-73
+lib/services/fitness-files/heatmapTiles/tileSource.test.ts
+  s_0e2fd6be727054::t_3684f1500bfbdf 35-39,46-51,82-84,86
+  s_0e2fd6be727054::t_9c563f65d2d350 85
+lib/services/fitness-files/heatmapTiles/serveTiles.ts
+  s_0e2fd6be727054::t_aa5ccbb3776112 89,92-143
+  s_0e2fd6be727054::t_42a3d76eb131c7 144
+REVIEW.md
+  s_0e2fd6be727054::t_c9dfe37c6a0e95 487-491,494-497,502-503
+lib/services/fitness-files/heatmapTiles/tileRegion.test.ts
+  s_0e2fd6be727054::t_eed164249f755b 122-161,258-317
+  s_0e2fd6be727054::t_bbbdaa1106042f 318
+lib/services/fitness-files/heatmapTiles/serveTiles.test.ts
+  s_0e2fd6be727054::t_4c1f07dc982f95 6,52-111,142-150,278-285,289,298,303-306,313-316
+app/embed/heatmap/[token]/tiles/route.test.ts
+  s_0e2fd6be727054::t_b4a9cc38df9d3f 331-344
+  s_0e2fd6be727054::t_02f20ee9c09c92 17,24,50,115,156,171,181-221,224,250,260
+lib/database/sql/fitnessRouteHeatmap.ts
+  s_0e2fd6be727054::t_11452f1344dc4f 460-467,474
+  s_0e2fd6be727054::t_7953c46509937e 91-102,453-459,468-473,475-476
+  s_0e2fd6be727054::t_90908d50bdde22 90,477-478
+docs/fitness-file-storage.md
+  s_0e2fd6be727054::t_c2a45532ed0b72 92-95,100
+app/embed/heatmap/[token]/tiles/route.ts
+  s_0e2fd6be727054::t_3d8fcea1c2d732 5,9,29-38,48-52,61-62,68-89,94,101-102,107
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "333742b5332cb357cb1fd1c42fb200a299f65aa8",
+  "prompts": {},
+  "sessions": {
+    "s_0e2fd6be727054": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8b4fe7c-fd3e-48ba-9e1d-ef3b99484c21",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

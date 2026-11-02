@@ -1,0 +1,29 @@
+lib/components/navigation-history/InAppHistoryTracker.tsx
+  s_94426ef8ef042a::t_c418e82b22657a 4,6,10-12,21-28
+  s_94426ef8ef042a::t_59a7d74e53c4bb 29
+lib/components/navigation-history/inAppHistory.test.ts
+  s_94426ef8ef042a::t_6b7b843c438308 5,29,33,38-64,66-71,74-75,79,83-100,105,107,111-119,124
+lib/components/navigation-history/inAppHistory.ts
+  s_94426ef8ef042a::t_c418e82b22657a 9-16,18-25,40,44-59,69-73,76-78
+lib/components/navigation-history/useInAppBack.test.tsx
+  s_94426ef8ef042a::t_3ca540cca51b5e 87-88,103,106
+  s_94426ef8ef042a::t_339152bd9982ce 82-86,89-102,104-105,107-131
+docs/architecture.md
+  s_94426ef8ef042a::t_1174831a89e64c 715
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bac77263bb8755e28cb0143569db7e4ace1933bd",
+  "prompts": {},
+  "sessions": {
+    "s_94426ef8ef042a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "08204b68-8e02-41c3-aa35-385d0860dc9b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

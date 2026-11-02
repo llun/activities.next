@@ -1,0 +1,19 @@
+lib/activities/jsonld/index.test.ts
+  s_7dce8c6002af9d::t_6b35e19061c96b 62-68,74-82,84-91
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "039d0d286fd7b9799c020dbea89625e0c4bfbcf6",
+  "prompts": {},
+  "sessions": {
+    "s_7dce8c6002af9d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "570e46a1-8d5e-4adf-8524-dcbe9dc45dcb",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,23 @@
+app/(timeline)/[actor]/[status]/resolveStatusFromPath.test.ts
+  s_85d91c6baf9d58::t_992f95f48842af 62-83
+lib/components/posts/reaction-row.test.tsx
+  s_85d91c6baf9d58::t_87ba2235f77818 181-183
+lib/components/posts/reaction-row.tsx
+  s_85d91c6baf9d58::t_337f1aaf5ab407 169-173
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "07a0efcd282adecfd522fe570de17e782126b413",
+  "prompts": {},
+  "sessions": {
+    "s_85d91c6baf9d58": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8685a26c-353a-478b-9125-3aeb9c98a29a",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,31 @@
+.github/actions/install/action.yml
+  s_08eb5657cf5464::t_5f7fab5e90c918 12,27-28
+.github/dependabot.yml
+  s_08eb5657cf5464::t_d4e5e61346bb7d 6
+.github/scripts/classify-ci-rerun.mjs
+  s_08eb5657cf5464::t_9cd3f78594bdd9 18-31,35,43-48,70-93,100-103,105
+.github/workflows/ci-rerun.test.ts
+  s_08eb5657cf5464::t_d3c240e7d151e8 3-7,47-60,173-241,257-348
+.github/workflows/ci-rerun.yml
+  s_08eb5657cf5464::t_2aaa2edc088f0a 8-13,35-36,48-49
+.github/workflows/install-action.test.ts
+  s_08eb5657cf5464::t_27aa1358470913 1-143
+CONTRIBUTING.md
+  s_08eb5657cf5464::t_5cf24273c22903 183,185,698
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d65b6359404849f6cbd13ba7e153cafe558cee9d",
+  "prompts": {},
+  "sessions": {
+    "s_08eb5657cf5464": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "68445cbd-a5be-42a8-804b-863d5aa363ee",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

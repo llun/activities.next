@@ -1,0 +1,62 @@
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.test.tsx
+  s_8f873201dcfe54::t_4946136d277108 574
+lib/components/posts/post.test.tsx
+  s_8f873201dcfe54::t_4946136d277108 1080,1118-1141
+  s_8f873201dcfe54::t_75b9fb9602a829 1150-1153
+lib/database/sql/status.test.ts
+  s_8f873201dcfe54::t_b29fd2fe60819e 662,668-701,724
+lib/services/fitness-files/mapErrors.ts
+  s_8f873201dcfe54::t_dc345baae2f979 1-16
+lib/components/posts/retry-fitness-button.tsx
+  s_8f873201dcfe54::t_37cfea4e0c3ee7 12-18,20,27-28,30-32
+  s_8f873201dcfe54::t_75b9fb9602a829 57
+app/(timeline)/fitness/files/page.tsx
+  s_8f873201dcfe54::t_4045b173081065 101
+app/api/v1/statuses/[id]/retry-fitness/route.ts
+  s_8f873201dcfe54::t_3f7009dcf526a0 112
+lib/jobs/regenerateFitnessMapsJob.ts
+  s_8f873201dcfe54::t_75b9fb9602a829 18
+  s_8f873201dcfe54::t_37a7014bf8bc89 312-328,357-372
+lib/database/sql/status.ts
+  s_8f873201dcfe54::t_e17356135583b4 32,3093-3103
+lib/jobs/processFitnessFileJob.ts
+  s_8f873201dcfe54::t_ace7083f6fb424 332-338
+  s_8f873201dcfe54::t_3f7009dcf526a0 5
+  s_8f873201dcfe54::t_75b9fb9602a829 18
+  s_8f873201dcfe54::t_ecbc64b6b8e05b 13,412-421,439,442,459
+  s_8f873201dcfe54::t_58a3e5a195a4ac 56,329,698-705,726-743
+  s_8f873201dcfe54::t_a07fdd4788501a 744
+lib/types/domain/status.ts
+  s_8f873201dcfe54::t_e17356135583b4 48-55
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  s_8f873201dcfe54::t_37cfea4e0c3ee7 2034,2039
+lib/components/posts/post.tsx
+  s_8f873201dcfe54::t_2d55037fc8178c 133-136
+  s_8f873201dcfe54::t_37cfea4e0c3ee7 137-147,266
+lib/components/settings/FitnessFileManagement.tsx
+  s_8f873201dcfe54::t_4045b173081065 34,346-358
+  s_8f873201dcfe54::t_2d55037fc8178c 57-60,343-345,359-361,363
+docs/fitness-file-storage.md
+  s_8f873201dcfe54::t_3f7009dcf526a0 113
+lib/services/fitness-files/mapAttachments.ts
+  s_8f873201dcfe54::t_f12a45c8d0dfa4 104-139
+lib/jobs/processFitnessFileJob.test.ts
+  s_8f873201dcfe54::t_057886299a9953 656-706
+  s_8f873201dcfe54::t_787e6d1a4ad0e6 314-346,626-628,712-714,734-750
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "ace875627130dd00039cee2ced01ffe96ea5a215",
+  "prompts": {},
+  "sessions": {
+    "s_8f873201dcfe54": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8c84869c-9e41-4272-84a7-3a2b05263e7b",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

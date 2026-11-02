@@ -1,0 +1,78 @@
+lib/client/drafts/pendingPurge.test.ts
+  s_512188f2b1db53::t_7bb389394aa957 4,47,93-122
+  s_512188f2b1db53::t_8ac906fe8795ca 123
+app/(timeline)/account/LogoutButton.test.tsx
+  s_512188f2b1db53::t_cda1162a12c23a 251-283,285-289,291-298
+  s_512188f2b1db53::t_7a100830812fbd 284,290
+lib/components/drafts/DraftsProvider.test.tsx
+  s_512188f2b1db53::t_d1e29b01923225 276-277,279,289-293
+lib/components/drafts/DraftEditor.integration.test.tsx
+  s_512188f2b1db53::t_25eb8b15f4cbfc 314-315,327-328,373-376
+lib/components/post-box/useComposerDraft.test.tsx
+  s_512188f2b1db53::t_a1100ce6e278b3 207-209,245-249,253-294,603-619
+  s_512188f2b1db53::t_7a100830812fbd 250-252
+  s_512188f2b1db53::t_97058c24d45c28 620
+lib/components/drafts/DraftsList.tsx
+  s_512188f2b1db53::t_67a9e1745684a3 45-49,112-116,137-139
+lib/components/layout/sidebar.test.tsx
+  s_512188f2b1db53::t_25eb8b15f4cbfc 819-820
+scripts/maintenance/bundleReport.ts
+  s_512188f2b1db53::t_89e7aac274b94f 78-80
+lib/components/post-box/post-box.drafts.test.tsx
+  s_512188f2b1db53::t_25eb8b15f4cbfc 407
+  s_512188f2b1db53::t_ad5f8bfce01118 15,39,397-406,408-418
+  s_512188f2b1db53::t_262c4ab71766f3 419-420
+lib/components/drafts/DraftRow.tsx
+  s_512188f2b1db53::t_67a9e1745684a3 10,12,123-127,134-135,153,156,161,166-168
+lib/components/connection/ConnectionStatus.test.tsx
+  s_512188f2b1db53::t_163316f68c622b 224-258
+lib/client/drafts/draftsChannel.ts
+  s_512188f2b1db53::t_b968551df6b27d 59-65
+lib/components/post-box/useComposerDraft.ts
+  s_512188f2b1db53::t_0f697d992b692e 11,22,223-299,454-464,474,493-495,499,680-681,683-685,702,706-707,815
+lib/components/drafts/DraftsList.test.tsx
+  s_512188f2b1db53::t_bb948c3e7a5886 267-301,328-332
+lib/components/drafts/SavedToDraftsNote.tsx
+  s_512188f2b1db53::t_5020c571aca102 8,10
+  s_512188f2b1db53::t_67a9e1745684a3 65
+lib/components/drafts/DraftRow.test.tsx
+  s_512188f2b1db53::t_7a100830812fbd 9,11
+  s_512188f2b1db53::t_8f6f00ff197988 26-27,39,238,252-253,261,274-276,278,280-286,306-308
+  s_512188f2b1db53::t_8d3953a9d8fbd3 21,227,254-258,279,310
+app/globals.css
+  s_512188f2b1db53::t_6be35784f58775 454-456
+docs/architecture.md
+  s_512188f2b1db53::t_90f9733c075c46 966
+  s_512188f2b1db53::t_35b5cb56876fe9 3069,3073-3074
+lib/components/connection/ConnectionStatus.tsx
+  s_512188f2b1db53::t_6be35784f58775 20,120-138,140-142,150,154-155
+lib/components/posts/status-reply-box.tsx
+  s_512188f2b1db53::t_d35457659c5217 34,36,163-168,235-238
+lib/client/drafts/pendingPurgeMarker.ts
+  s_512188f2b1db53::t_dd85517bc05bbd 1-43
+lib/client/drafts/pendingPurge.ts
+  s_512188f2b1db53::t_dd85517bc05bbd 2-6,14,17,34,37
+lib/components/drafts/SavedToDraftsNote.test.tsx
+  s_512188f2b1db53::t_7a100830812fbd 10,12
+  s_512188f2b1db53::t_8d3953a9d8fbd3 21,47,86-90,134
+lib/components/post-box/post-box.tsx
+  s_512188f2b1db53::t_d35457659c5217 127,129,334-338,340-341,1640-1642,1644,1653
+app/(timeline)/account/LogoutButton.tsx
+  s_512188f2b1db53::t_dd85517bc05bbd 6,52-55,57-66
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d76da83b31c3e9ac968f972eb4a6527561e9b14b",
+  "prompts": {},
+  "sessions": {
+    "s_512188f2b1db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e467608a-8346-4544-b69a-fc45fca93669",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

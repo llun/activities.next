@@ -1,0 +1,40 @@
+app/api/v1/mutes/route.ts
+  s_f7b91ac6284bd0::t_cd3f1db1e0f6b6 49-55
+  s_f7b91ac6284bd0::t_fec82a2a20e493 3,7
+app/api/v1/mutes/route.test.ts
+  s_f7b91ac6284bd0::t_e1f25c1f6f72e9 217-267
+  s_f7b91ac6284bd0::t_fbd90e7506e988 73-76,82
+lib/types/mastodon/index.ts
+  s_f7b91ac6284bd0::t_fd91e0c2e6ab87 7
+lib/services/accounts/getFallbackMutedAccount.ts
+  s_f7b91ac6284bd0::t_6dc93c4abd99d8 2,6
+  s_f7b91ac6284bd0::t_2e7a1c29dab003 33
+  s_f7b91ac6284bd0::t_de3f4ee21057a2 70-71
+  s_bd016ef1df7174::t_fc4c4fd2e7baba 7
+lib/types/mastodon/account/mutedAccount.ts
+  s_f7b91ac6284bd0::t_6313f41a62a035 1-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0355f66bbf539a9116222e48198c5bff19bc5af3",
+  "prompts": {},
+  "sessions": {
+    "s_bd016ef1df7174": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b275856-0d78-4dc0-ab5d-2e97309bd5de",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_f7b91ac6284bd0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7e5d29e0-cb70-4516-b716-6108a10b94a2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

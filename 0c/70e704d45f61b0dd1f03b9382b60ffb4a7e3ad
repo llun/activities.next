@@ -1,0 +1,45 @@
+lib/services/fitness-files/localFile.test.ts
+  s_24163c3e5dc970::t_535a75c90c43a8 111,113-114
+  s_24163c3e5dc970::t_cf21f7bc984e86 122
+  s_24163c3e5dc970::t_ab048a82a086f5 98-101,103-106
+  s_24163c3e5dc970::t_2ebd54fd6c7a58 8-12
+AGENTS.md
+  s_24163c3e5dc970::t_0cfa67599af5f5 682
+lib/services/medias/fileName.ts
+  s_24163c3e5dc970::t_464fbc7e80cb3b 17-19
+.github/copilot-instructions.md
+  s_24163c3e5dc970::t_4276e04c6bef56 25
+lib/services/fitness-files/S3StorageFile.test.ts
+  s_24163c3e5dc970::t_0e9fd20a126d60 187-189,192-195,197-200,205-209,211-216,218-221
+  s_24163c3e5dc970::t_75aadf88deedbc 227
+  s_24163c3e5dc970::t_540244f6958253 10-14
+  s_24163c3e5dc970::t_dafcde6372fca3 247-253
+REVIEW.md
+  s_85d91c6baf9d58::t_110a72e8668e21 68
+lib/services/fitness-files/testUtils.ts
+  s_85d91c6baf9d58::t_ded3f55817b27d 1-47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "0c70e704d45f61b0dd1f03b9382b60ffb4a7e3ad",
+  "prompts": {},
+  "sessions": {
+    "s_24163c3e5dc970": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2e7e9c00-7215-40b7-9bc0-b8ce224ae630",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_85d91c6baf9d58": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8685a26c-353a-478b-9125-3aeb9c98a29a",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

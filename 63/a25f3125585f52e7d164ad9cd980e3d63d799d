@@ -1,0 +1,20 @@
+lib/client.test.ts
+  h_580a04e334fef4 51-52,56,99,115-124
+lib/client.ts
+  h_580a04e334fef4 151-163,284-297
+lib/client/timelines.test.ts
+  h_580a04e334fef4 1-262
+lib/client/timelines.ts
+  h_580a04e334fef4 1-258
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "63a25f3125585f52e7d164ad9cd980e3d63d799d",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

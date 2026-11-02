@@ -1,0 +1,89 @@
+app/(timeline)/account/sessions/connectedAppMeta.test.ts
+  s_82468012d96a9d::t_ab6e760601e1a8 2-61
+  s_82468012d96a9d::t_36b647d6d702d7 1
+lib/services/email/layout/blocks.test.ts
+  s_82468012d96a9d::t_fcfc1489a69cd1 347-370,397
+  s_82468012d96a9d::t_d6448d1d9b140a 115
+  s_82468012d96a9d::t_08a1e4ef85a69b 311,315-346
+lib/components/layout/sidebar.test.tsx
+  s_82468012d96a9d::t_1157f034271f13 146-182
+lib/services/email/layout/theme.ts
+  s_82468012d96a9d::t_fcfc1489a69cd1 44-47,49
+  s_82468012d96a9d::t_d6448d1d9b140a 9-11,40,43,48
+  s_82468012d96a9d::t_2db7110205cc4a 50
+app/(timeline)/admin/accounts/[id]/page.tsx
+  s_82468012d96a9d::t_65fcf4dbb23c40 75,80
+  s_82468012d96a9d::t_36b647d6d702d7 13
+lib/services/fitness-files/appleMapsSnapshot.test.ts
+  s_82468012d96a9d::t_fcfc1489a69cd1 159
+lib/services/fitness-files/generateMapImage.test.ts
+  s_82468012d96a9d::t_84e35d49da6917 163
+  s_82468012d96a9d::t_1a79d85b17887d 131-162,164-186
+lib/services/fitness-files/appleMapsSnapshot.ts
+  s_82468012d96a9d::t_fcfc1489a69cd1 35,42-48
+lib/services/email/templates/actorDeleted.test.ts
+  s_82468012d96a9d::t_d6448d1d9b140a 54
+lib/components/admin/MiniChart.test.tsx
+  s_82468012d96a9d::t_766bf56c879ff4 1-50
+lib/components/actor-switcher/ActorSwitcher.tsx
+  s_82468012d96a9d::t_dfdb6a6937230e 122,210
+app/(timeline)/account/sessions/AccountSessions.tsx
+  s_82468012d96a9d::t_ab6e760601e1a8 9,45-47,413-418
+app/(timeline)/account/sessions/page.tsx
+  s_82468012d96a9d::t_ab6e760601e1a8 79
+app/(timeline)/account/sessions/connectedAppMeta.ts
+  s_82468012d96a9d::t_ab6e760601e1a8 1-27
+lib/components/announcements/formatEventTime.test.ts
+  s_82468012d96a9d::t_507a13c5036ff9 1-142
+lib/components/announcements/AnnouncementBanner.test.tsx
+  s_82468012d96a9d::t_6ae502a7514631 97-136
+lib/components/admin/StatsOverview.tsx
+  s_82468012d96a9d::t_b481f247cf40e1 29,249
+  s_82468012d96a9d::t_df74250cc69fca 22,256-259
+app/(timeline)/account/sessions/AccountSessions.test.tsx
+  s_82468012d96a9d::t_ab6e760601e1a8 86,96,186-189,366
+lib/services/email/layout/blocks.ts
+  s_82468012d96a9d::t_4042f9824b7588 245-248
+  s_82468012d96a9d::t_d6448d1d9b140a 13,212-244,249-250,285
+lib/services/fitness-files/generateMapImage.ts
+  s_82468012d96a9d::t_d6448d1d9b140a 33-36,123,206
+lib/components/announcements/formatEventTime.ts
+  s_82468012d96a9d::t_507a13c5036ff9 1-25,28-30,40-53,57-102
+  s_82468012d96a9d::t_6ae502a7514631 26-27,31-39,54-56
+lib/services/email/templates/emailDesign.test.ts
+  s_82468012d96a9d::t_d6448d1d9b140a 252,356
+lib/components/announcements/AnnouncementBanner.tsx
+  s_82468012d96a9d::t_507a13c5036ff9 25-26,409-415,454,457
+lib/components/layout/sidebar.tsx
+  s_82468012d96a9d::t_dfdb6a6937230e 290-293,558,577-578,718,728
+  s_82468012d96a9d::t_ad02f6a37b16d4 715-717
+app/(timeline)/admin/accounts/[id]/accountDetails.test.ts
+  s_82468012d96a9d::t_36b647d6d702d7 13-15
+  s_82468012d96a9d::t_5347d2aba9fa15 1-12,16-39
+app/(timeline)/admin/accounts/[id]/accountDetails.ts
+  s_82468012d96a9d::t_0e53f2cda56dfe 1-24
+lib/client/adminServerSettings.test.ts
+  s_82468012d96a9d::t_6d06cad559f476 79
+lib/client/adminServerSettings.ts
+  s_82468012d96a9d::t_8c9459557d6ea8 32
+lib/components/admin/CustomEmojiManager.tsx
+  s_82468012d96a9d::t_daa90f1d4aff92 137
+lib/components/admin/MiniChart.tsx
+  s_82468012d96a9d::t_a17270e9fd0139 3,46-48,71-89,97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b2a19f433c457798e81f8a768b63ddb5b6d46ca4",
+  "prompts": {},
+  "sessions": {
+    "s_82468012d96a9d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c1772d3-df89-4813-8d33-4cbceee3810d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

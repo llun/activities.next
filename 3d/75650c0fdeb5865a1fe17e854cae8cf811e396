@@ -1,0 +1,26 @@
+app/api/v1/fitness/import/[batchId]/route.test.ts
+  h_580a04e334fef4 604-606
+app/api/v1/fitness/retry-failed/route.ts
+  h_580a04e334fef4 4,16-17
+lib/components/settings/FitnessFileManagement.tsx
+  h_580a04e334fef4 158-163
+lib/jobs/importStravaActivityJob.test.ts
+  h_580a04e334fef4 1415
+lib/jobs/importStravaActivityJob.ts
+  h_580a04e334fef4 942-948
+lib/services/fitness-files/retryImports.test.ts
+  h_580a04e334fef4 173
+scripts/fitness/repairFailedFitnessImports.ts
+  h_580a04e334fef4 11-12,34-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "3d75650c0fdeb5865a1fe17e854cae8cf811e396",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

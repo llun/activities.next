@@ -1,0 +1,23 @@
+docs/architecture.md
+  s_47d5b4610d61e7::t_c58bc5b7136c3f 1093,1095
+lib/services/clientErrors/sanitize.test.ts
+  s_47d5b4610d61e7::t_75819d81d414c9 26-41,115-118
+lib/services/clientErrors/sanitize.ts
+  s_47d5b4610d61e7::t_b59ab8960cb6f0 38-45,47,50-52,54,58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1c15d9a49a2fe107b188c18fc05d07663cefae7d",
+  "prompts": {},
+  "sessions": {
+    "s_47d5b4610d61e7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f39cdb2e-ec69-419a-a950-e94d7538ff3f",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

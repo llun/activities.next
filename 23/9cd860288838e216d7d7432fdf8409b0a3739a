@@ -1,0 +1,42 @@
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.test.tsx
+  s_bf8cda5492fa21::t_80656beed1f724 1065-1066
+  s_bf8cda5492fa21::t_124637c13e77a0 1067-1068
+lib/components/posts/timelineModel.ts
+  s_bf8cda5492fa21::t_490e2b47f3e309 282-284,286,294
+lib/components/posts/selfThreadModel.ts
+  s_bf8cda5492fa21::t_f985fec0c51330 260-266,269-276,278-282,284-289
+  s_bf8cda5492fa21::t_65ad0046d46260 255-256,259,293-295
+  s_bf8cda5492fa21::t_f8b43b9a7eb02a 8,14-15,64-98,322-325,349-357,360
+  s_bf8cda5492fa21::t_4057d79417b1cf 257-258
+  s_bf8cda5492fa21::t_3ba8ea83bc1589 99
+lib/components/posts/status-thread.test.tsx
+  s_bf8cda5492fa21::t_8224ab381e0620 1007-1030
+lib/components/posts/combinedThreadModel.ts
+  s_bf8cda5492fa21::t_490e2b47f3e309 58
+docs/architecture.md
+  s_bf8cda5492fa21::t_3019d9c953d9c6 2134
+lib/components/posts/self-thread-run.tsx
+  s_bf8cda5492fa21::t_2eab230f66e75e 199-200,422-427,440-443
+lib/components/posts/selfThreadModel.test.ts
+  s_bf8cda5492fa21::t_66fc50c69857aa 656,658-659
+  s_bf8cda5492fa21::t_8fecf73804e86a 13-16,19,24,26,427-466,472-490,496-509,515-530,536-585,588-602,604-622,625-640,644-655,657,660-661
+  s_bf8cda5492fa21::t_2fbf0e87daac90 467-471,491-495,510-514,531-535,603,641-643
+  s_bf8cda5492fa21::t_c32561705a816d 586-587,623-624
+  s_bf8cda5492fa21::t_093cc62ea5cb1d 12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "239cd860288838e216d7d7432fdf8409b0a3739a",
+  "prompts": {},
+  "sessions": {
+    "s_bf8cda5492fa21": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b7c13d40-1f9d-40ea-8a36-9c576906a465",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,18 @@
+app/api/v1/accounts/sessions/[token]/route.test.ts
+  h_580a04e334fef4 163-177
+app/api/v1/accounts/sessions/[token]/route.ts
+  h_580a04e334fef4 44-49
+app/api/v1/actors/cancel-deletion/route.test.ts
+  h_580a04e334fef4 250-260
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "fade00dfba00daca5e9a3724c28c97ca86c91f8c",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

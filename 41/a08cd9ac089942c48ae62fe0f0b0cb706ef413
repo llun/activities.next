@@ -1,0 +1,93 @@
+app/api/v1/accounts/[id]/unfollow/route.ts
+  s_44807e29e64536::t_8f7986fd00d353 9
+  s_44807e29e64536::t_56bb1910b910a7 26
+app/api/v1/statuses/[id]/unbookmark/route.ts
+  s_44807e29e64536::t_56bb1910b910a7 8,30,48,60
+lib/utils/response.ts
+  s_44807e29e64536::t_0d597f2591c22a 133-149
+app/api/v1/accounts/[id]/follow/route.ts
+  s_44807e29e64536::t_56bb1910b910a7 16,56,122
+app/api/v1/statuses/[id]/mute/route.ts
+  s_44807e29e64536::t_56bb1910b910a7 9,31,40
+app/api/v1/accounts/[id]/endorsements/route.ts
+  s_44807e29e64536::t_56bb1910b910a7 12,44,48
+app/api/v1/statuses/[id]/favourite/route.ts
+  s_44807e29e64536::t_56bb1910b910a7 9,29,38
+app/api/v1/statuses/[id]/favourited_by/route.ts
+  s_44807e29e64536::t_56bb1910b910a7 11,40,66
+app/api/v1/statuses/[id]/pin/route.ts
+  s_44807e29e64536::t_56bb1910b910a7 13,35,44
+app/api/v1/statuses/[id]/reblog/route.ts
+  s_44807e29e64536::t_56bb1910b910a7 13,40,72
+app/api/v1/statuses/[id]/reblogged_by/route.ts
+  s_44807e29e64536::t_56bb1910b910a7 10,38,59
+app/api/v1/statuses/[id]/retry-fitness/route.ts
+  s_44807e29e64536::t_56bb1910b910a7 12,32,36
+app/api/v1/accounts/[id]/unpin/route.ts
+  s_44807e29e64536::t_8f7986fd00d353 8
+  s_44807e29e64536::t_56bb1910b910a7 31,35
+app/api/v1/statuses/[id]/unfavourite/route.ts
+  s_44807e29e64536::t_56bb1910b910a7 9,29,43,50
+app/api/v1/statuses/[id]/source/route.ts
+  s_44807e29e64536::t_56bb1910b910a7 5-10,29,38
+app/api/v1/accounts/[id]/remove_from_followers/route.ts
+  s_44807e29e64536::t_56bb1910b910a7 37
+  s_44807e29e64536::t_8f7986fd00d353 12
+app/api/v1/accounts/[id]/remote-statuses/route.ts
+  s_44807e29e64536::t_56bb1910b910a7 12,36,56
+app/api/v1/accounts/[id]/pin/route.ts
+  s_44807e29e64536::t_56bb1910b910a7 32,36
+  s_44807e29e64536::t_8f7986fd00d353 8
+app/api/v1/statuses/[id]/context/route.ts
+  s_44807e29e64536::t_56bb1910b910a7 12-17,138
+app/api/v1/accounts/[id]/note/route.ts
+  s_44807e29e64536::t_56bb1910b910a7 10,37,68
+app/api/v1/accounts/[id]/mute/route.ts
+  s_44807e29e64536::t_56bb1910b910a7 52,58
+  s_44807e29e64536::t_8f7986fd00d353 9
+app/api/v1/accounts/[id]/following/route.ts
+  s_44807e29e64536::t_56bb1910b910a7 13,48,52
+app/api/v1/accounts/[id]/block/route.ts
+  s_44807e29e64536::t_56bb1910b910a7 18,38,60
+app/api/v1/accounts/[id]/unmute/route.ts
+  s_44807e29e64536::t_8f7986fd00d353 6
+  s_44807e29e64536::t_56bb1910b910a7 23,38
+app/api/v1/accounts/[id]/followers/route.ts
+  s_44807e29e64536::t_56bb1910b910a7 13,48,52
+app/api/v1/statuses/[id]/route.ts
+  s_44807e29e64536::t_56bb1910b910a7 24,52,59,66,73,112,318,322
+app/api/v1/statuses/[id]/unmute/route.ts
+  s_44807e29e64536::t_56bb1910b910a7 9,31,40
+app/api/v1/accounts/[id]/route.ts
+  s_44807e29e64536::t_8f7986fd00d353 7
+  s_44807e29e64536::t_56bb1910b910a7 32,35
+app/api/v1/accounts/[id]/unblock/route.ts
+  s_44807e29e64536::t_56bb1910b910a7 27,39
+  s_44807e29e64536::t_8f7986fd00d353 10
+app/api/v1/statuses/[id]/unreblog/route.ts
+  s_44807e29e64536::t_56bb1910b910a7 12,32
+app/api/v1/statuses/[id]/history/route.ts
+  s_44807e29e64536::t_56bb1910b910a7 7-12,31,40
+app/api/v1/statuses/[id]/unpin/route.ts
+  s_44807e29e64536::t_56bb1910b910a7 9,31,40
+app/api/v1/accounts/[id]/statuses/route.ts
+  s_44807e29e64536::t_56bb1910b910a7 16,63,67
+app/api/v1/statuses/[id]/bookmark/route.ts
+  s_44807e29e64536::t_56bb1910b910a7 8,30,39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "41a08cd9ac089942c48ae62fe0f0b0cb706ef413",
+  "prompts": {},
+  "sessions": {
+    "s_44807e29e64536": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d5791d6b-5c1d-4a48-a1aa-d091f3207ce6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

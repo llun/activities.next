@@ -1,0 +1,62 @@
+app/(timeline)/[actor]/ActorMediaGallery.tsx
+  h_580a04e334fef4 39,48,58,112,127-136,219
+app/(timeline)/[actor]/ActorTimelines.test.tsx
+  h_580a04e334fef4 424-463,883,903,920-960
+app/(timeline)/[actor]/ActorTimelines.tsx
+  h_580a04e334fef4 18,55,136,138,140,149-150,159-163,176-181,197,204-205,222,226,352-365,367,384-386,389-393,398-401,421-428,452,455,477,502,588
+app/(timeline)/[actor]/getProfileData.test.ts
+  h_580a04e334fef4 212-213,746,805-806
+app/(timeline)/[actor]/getProfileData.ts
+  h_580a04e334fef4 43-44,168-169,300-304,330-331,354-355
+app/(timeline)/[actor]/page.tsx
+  h_580a04e334fef4 35-40,153,188-194,196-231,233,239,308-310,320-322,332-334,372-374
+lib/activities/getActorPosts.test.ts
+  h_580a04e334fef4 1338-1428
+lib/activities/getActorPosts.ts
+  h_580a04e334fef4 29-32,64,131-132,135-137,139-142,144-148,150-153,155-158,160-166,169-179,181-184,186-199,202-205,207-211,213-224,226-236,238-247,249-250,255-261
+lib/activities/note.test.ts
+  h_580a04e334fef4 246,249-250,255,260,268,278-381
+lib/activities/note.ts
+  h_580a04e334fef4 30-35,38,42-45,48-51,76-93,111-130,132-142,144-146,148-178,182-186,188-193,197,200,202,204-205,207-209
+lib/jobs/createNoteJob.ts
+  h_580a04e334fef4 15-16,126
+lib/jobs/fetchRemoteStatusJob.ts
+  h_580a04e334fef4 7,94,223,262
+lib/services/federation/serverSoftware.test.ts
+  h_580a04e334fef4 14-15,477-586
+lib/services/federation/serverSoftware.ts
+  h_580a04e334fef4 66-67,236-251
+lib/types/activitypub/collections.test.ts
+  h_580a04e334fef4 1-4,16-29
+lib/types/activitypub/collections.ts
+  h_580a04e334fef4 12-13
+lib/types/activitypub/objects.test.ts
+  h_580a04e334fef4 1-6,83-169
+lib/types/activitypub/objects.ts
+  h_580a04e334fef4 22,27,95-102,133-135,237-238,274-281
+lib/types/domain/attachment.test.ts
+  h_580a04e334fef4 322-334,336-342
+lib/types/domain/attachment.ts
+  h_580a04e334fef4 101-106,108-110
+lib/types/domain/status.test.ts
+  h_580a04e334fef4 172-215
+lib/types/domain/status.ts
+  h_580a04e334fef4 372-374,376,389-394,424-429
+lib/utils/activitypub.ts
+  h_580a04e334fef4 158-180,183,186-188
+lib/utils/formatServerSoftware.test.ts
+  h_580a04e334fef4 25-39
+lib/utils/formatServerSoftware.ts
+  h_580a04e334fef4 23-31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "96d8738db72cf8a6898521c2830026eecc1e448d",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

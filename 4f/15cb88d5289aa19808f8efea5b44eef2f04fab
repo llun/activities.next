@@ -1,0 +1,21 @@
+lib/services/accounts/updateCredentialsHandler.ts
+  s_b98341b16c5f05::t_6bee4db60738b0 240
+app/api/v1/profile/route.test.ts
+  s_b98341b16c5f05::t_0537030142056b 154-161
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "4f15cb88d5289aa19808f8efea5b44eef2f04fab",
+  "prompts": {},
+  "sessions": {
+    "s_b98341b16c5f05": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f8cd547-0762-479a-9f76-e0222ec30eb8",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

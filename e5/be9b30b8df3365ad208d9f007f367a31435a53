@@ -1,0 +1,30 @@
+lib/database/sql/utils/blockMuteFilter.ts
+  s_91960e42568bc0::t_64831cb98471f3 1-65
+lib/database/sql/list.ts
+  s_91960e42568bc0::t_80e8b5d2ac734a 5
+  s_91960e42568bc0::t_f03bfe2f551f33 310-317
+lib/database/sql/list.test.ts
+  s_91960e42568bc0::t_c5de4d8d70978b 635-636
+  s_91960e42568bc0::t_0cad8b70b4f6fa 713-720,730,733
+  s_91960e42568bc0::t_a2cab1967da474 623-631,634,637-650,652-669,671-683,686-712,721-729,731-732,734-735
+  s_91960e42568bc0::t_bc1fe1281528be 651
+  s_91960e42568bc0::t_cbf89c566322d2 670
+  s_91960e42568bc0::t_0e1e10ac86f683 632-633
+  s_91960e42568bc0::t_2259e95904920d 684-685
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "e5be9b30b8df3365ad208d9f007f367a31435a53",
+  "prompts": {},
+  "sessions": {
+    "s_91960e42568bc0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4a0ccbab-c2a8-43e9-9090-8c4fc05c94d8",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": null
+    }
+  }
+}

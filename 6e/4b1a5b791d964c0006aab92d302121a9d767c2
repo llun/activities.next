@@ -1,0 +1,20 @@
+app/(timeline)/gallery/albums/GalleryAlbumFormDialog.test.tsx
+  h_580a04e334fef4 456-460
+app/(timeline)/gallery/albums/GalleryAlbumFormDialog.tsx
+  h_580a04e334fef4 364,366
+app/(timeline)/gallery/media/GalleryAddToAlbumDialog.test.tsx
+  h_580a04e334fef4 244-248
+app/(timeline)/gallery/media/GalleryAddToAlbumDialog.tsx
+  h_580a04e334fef4 156
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6e4b1a5b791d964c0006aab92d302121a9d767c2",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

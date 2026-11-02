@@ -1,0 +1,19 @@
+lib/utils/crypto.test.ts
+  s_d75f194f53dd26::t_e4dfebf67fd6fe 171-186
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "462c0bf719d126482200bca6ef8311ae13fbd553",
+  "prompts": {},
+  "sessions": {
+    "s_d75f194f53dd26": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "52fc3213-ffbf-43ec-a4a1-ebb7d306c04c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

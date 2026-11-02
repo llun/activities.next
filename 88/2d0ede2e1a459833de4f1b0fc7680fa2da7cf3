@@ -1,0 +1,62 @@
+lib/utils/signature.ts
+  s_3ead7ea2550a91::t_c3d10b45ba06e2 7,53-54
+lib/services/guards/headerHost.ts
+  s_3ead7ea2550a91::t_74eaa986e82803 8-19,22-24,28,31-36,38-66,71-72,76-80,82-87,90-91,95,105-108,112-115,118-119,123
+  s_3ead7ea2550a91::t_62cb94b824c621 20-21,25-27,29-30
+  s_3ead7ea2550a91::t_fd021e189ebd73 37,92,120
+lib/services/guards/ActivityPubVerifyGuard.ts
+  s_3ead7ea2550a91::t_9eb5e3e75d2609 42-56,119-123,174-182
+lib/utils/signature.test.ts
+  s_3ead7ea2550a91::t_12cf5158c087ad 9
+  s_3ead7ea2550a91::t_a73e23580503bd 7-8,68,87-103
+  s_3ead7ea2550a91::t_7a0522b314c20a 292-314
+lib/services/guards/OnlyLocalUserGuard.test.ts
+  s_3ead7ea2550a91::t_1727b7f222d9b1 17-18,20-22,26-29
+  s_3ead7ea2550a91::t_75c01e0be39083 23-24
+  s_3ead7ea2550a91::t_c22152142612a2 19,25
+.env.example
+  s_3ead7ea2550a91::t_a8b18c46e9b250 27-30
+lib/services/guards/headerHost.test.ts
+  s_3ead7ea2550a91::t_e870a1cd782d75 57-64,113-120
+  s_3ead7ea2550a91::t_d9cf39413840c0 28-32,86-88
+  s_3ead7ea2550a91::t_e413557f96543c 3-4,7-8,10-16,33,41,49-54,93,101,109-112,121-122
+lib/services/guards/getRedirectUrl.test.ts
+  s_3ead7ea2550a91::t_47a16c3884221e 3-4,7-8,10-16,25,36-44
+proxy.ts
+  s_3ead7ea2550a91::t_7323d63287c7a3 3,50
+lib/config/index.ts
+  s_3ead7ea2550a91::t_d4360460be1fcb 38,86
+lib/services/guards/ActivityPubVerifyGuard.test.ts
+  s_3ead7ea2550a91::t_8d105e369e4d14 186-190
+  s_3ead7ea2550a91::t_339f1b5e6ca399 314
+  s_3ead7ea2550a91::t_e11bab0fd9e236 41-43,47-48,57-58,171-185,191-225
+  s_3ead7ea2550a91::t_1372686056bbc4 139-170
+lib/utils/getCORSHeaders.test.ts
+  s_3ead7ea2550a91::t_d05cb1f9d83778 3-8
+lib/services/guards/AuthenticatedGuard.test.ts
+  s_3ead7ea2550a91::t_c75fd2b334eb55 42
+lib/activities/activityPubHeaders.test.ts
+  s_3ead7ea2550a91::t_185f5c1a1cd339 8-16
+  s_3ead7ea2550a91::t_db6b8b81a9bc8a 7,17-18
+proxy.test.ts
+  s_3ead7ea2550a91::t_f97186d9faf6d2 1-32
+docs/environment-variables.md
+  s_3ead7ea2550a91::t_6bced31270e8cc 14,166-171
+  s_3ead7ea2550a91::t_d60dabc150e1bd 209
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "882d0ede2e1a459833de4f1b0fc7680fa2da7cf3",
+  "prompts": {},
+  "sessions": {
+    "s_3ead7ea2550a91": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1e03-66c9-7b11-b350-ba9de6f09079",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

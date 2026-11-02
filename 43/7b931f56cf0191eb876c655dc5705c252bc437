@@ -1,0 +1,19 @@
+lib/database/sql/utils/usernameMatch.test.ts
+  s_15ec1c109f0b9b::t_5a7f12a3d413fb 165-261
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "437b931f56cf0191eb876c655dc5705c252bc437",
+  "prompts": {},
+  "sessions": {
+    "s_15ec1c109f0b9b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "339c3877-a1e0-4856-8294-cc092dc23fb2",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

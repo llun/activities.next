@@ -1,0 +1,21 @@
+lib/services/fitness-files/importLock.ts
+  s_02e5024cb68412::t_0afec7fc35e54d 69
+lib/services/fitness-files/retryImports.ts
+  s_02e5024cb68412::t_498f72872c37db 169
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "7f5d166f75f594e195547d64d0b9105bba45a1c6",
+  "prompts": {},
+  "sessions": {
+    "s_02e5024cb68412": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0672fc92-a95f-4d42-9422-bee485cd0af0",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

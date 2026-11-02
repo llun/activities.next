@@ -1,0 +1,16 @@
+lib/components/scroll-to-top-button/scroll-to-top-button.test.tsx
+  h_580a04e334fef4 56,111-113,120-122,167-168,175,215,237-240,242
+lib/components/scroll-to-top-button/scroll-to-top-button.tsx
+  h_580a04e334fef4 5-6,65-67,69,73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "59141e66b4eaa980d107e76805edcc922d033a58",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

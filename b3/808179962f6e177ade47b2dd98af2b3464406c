@@ -1,0 +1,29 @@
+app/(timeline)/settings/moving/AliasesSection.test.tsx
+  s_279e7012f36c5f::t_8f7cf90b6c8a81 225-276
+app/(timeline)/settings/moving/AliasesSection.tsx
+  s_279e7012f36c5f::t_665b8b71c34dfb 72-78,82-85
+app/(timeline)/settings/moving/HandleRenameForm.test.tsx
+  s_279e7012f36c5f::t_01cf543a7bfd28 530-704
+app/(timeline)/settings/moving/HandleRenameForm.tsx
+  s_279e7012f36c5f::t_cb5e7f824b67fd 29,63,73,93-97,110-115,122-136,190-201,429-457,471-479
+app/(timeline)/settings/moving/MoveForm.test.tsx
+  s_279e7012f36c5f::t_f32cdb75d11b5e 729-825
+app/(timeline)/settings/moving/MoveForm.tsx
+  s_279e7012f36c5f::t_f1a625aa373fe4 95-98,161-168
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b3808179962f6e177ade47b2dd98af2b3464406c",
+  "prompts": {},
+  "sessions": {
+    "s_279e7012f36c5f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0410f49d-2e94-45e1-bd1f-237e6f7747bc",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+next.config.ts
+  s_c1136c299bc8af::t_926672de6ab17c 50-51,54-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5a6de058f9f05de3ea3bc8841a875dfddb6cfb24",
+  "prompts": {},
+  "sessions": {
+    "s_c1136c299bc8af": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a80837308741550a6",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

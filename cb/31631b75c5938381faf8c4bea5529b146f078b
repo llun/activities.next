@@ -1,0 +1,40 @@
+app/api/v1/apps/route.test.ts
+  s_af627ba4bfee3d::t_32f209901788d3 29,43-46,51,92-114
+app/api/v1/apps/route.ts
+  s_8f8c7653879d27::t_8dcb2d0246a7eb 28-31,60-61,78-79
+  s_af627ba4bfee3d::t_f028b89a648f7a 1,9,11,24-27,32,62-69
+lib/database/sql/oauthClientRegistrationMetadataMigration.test.ts
+  s_af627ba4bfee3d::t_7e93c76d993ee8 6,8-13,19,37-47
+lib/utils/response.ts
+  s_af627ba4bfee3d::t_ca93fa3ec87420 17,33,48
+app/api/v1/apps/createApplication.ts
+  s_af627ba4bfee3d::t_b737d915a989b3 161,238
+app/api/v1/apps/createApplication.test.ts
+  s_af627ba4bfee3d::t_ec0421e4af44cd 175,177-178,180,188,193,211-213,216,219,222
+migrations/20260513000000_add_oauth_client_registration_metadata.js
+  s_af627ba4bfee3d::t_003abdc30d76fe 1-30,45-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "cb31631b75c5938381faf8c4bea5529b146f078b",
+  "prompts": {},
+  "sessions": {
+    "s_8f8c7653879d27": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1dff-6d59-7960-9eee-87eebfec6a18",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_af627ba4bfee3d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e2099-9fcd-7882-91a9-a8b66f8e63c7",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

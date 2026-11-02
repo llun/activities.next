@@ -1,0 +1,28 @@
+lib/config/emailInbound.ts
+  s_2f8f98bd1d8b55::t_2d4131957deb5d 1-79
+  s_2f8f98bd1d8b55::t_b09bfe38b60b83 80
+lib/config/emailInbound.test.ts
+  s_2f8f98bd1d8b55::t_de183c0b45841a 1-94
+lib/config/index.ts
+  s_2f8f98bd1d8b55::t_2194863e94ed93 18
+  s_2f8f98bd1d8b55::t_ec029fd0d625c7 64-66
+  s_2f8f98bd1d8b55::t_6598536b863b2c 148
+docs/environment-variables.md
+  s_2f8f98bd1d8b55::t_7aa3211332023f 160-182
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "584fdcd72546aeaac275cd4647348117e0fe2db5",
+  "prompts": {},
+  "sessions": {
+    "s_2f8f98bd1d8b55": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fe73386a-874f-4632-8456-f9a69e911a24",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

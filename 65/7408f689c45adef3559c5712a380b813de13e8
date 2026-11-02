@@ -1,0 +1,75 @@
+app/(timeline)/favorites/loading.tsx
+  h_580a04e334fef4 1-18
+app/(timeline)/lists/loading.tsx
+  h_580a04e334fef4 1-52
+lib/components/ui/skeleton.test.tsx
+  h_580a04e334fef4 1-72
+app/(timeline)/search/loading.tsx
+  h_580a04e334fef4 1-44
+app/(timeline)/[actor]/[status]/loading.tsx
+  h_580a04e334fef4 3-4,12,14-15,18,21,23-24,28-31,34-39,42-43,45-47
+  h_580a04e334fef4 13,19,44
+app/(timeline)/notifications/loading.tsx
+  h_580a04e334fef4 1-35
+app/(timeline)/[actor]/loading.tsx
+  h_580a04e334fef4 3-8,12,15,20-22,25,27-29
+  h_580a04e334fef4 16-19,26
+app/(timeline)/[actor]/followers/loading.tsx
+  h_580a04e334fef4 3-4,8-12,20-24
+  h_580a04e334fef4 16-19
+app/(timeline)/explore/loading.test.tsx
+  h_580a04e334fef4 1-16
+app/(timeline)/[actor]/followers/loading.test.tsx
+  h_580a04e334fef4 6,12,18-19
+  h_580a04e334fef4 11,17
+app/(timeline)/[actor]/following/loading.tsx
+  h_580a04e334fef4 3-4,8-12,20-24
+  h_580a04e334fef4 16-19
+app/(timeline)/fitness/heatmap/loading.tsx
+  h_580a04e334fef4 1-28
+app/(timeline)/[actor]/loading.test.tsx
+  h_580a04e334fef4 6,12,18-19
+  h_580a04e334fef4 11,17
+app/(timeline)/search/page.tsx
+  h_580a04e334fef4 5-9,23-49,66
+app/(timeline)/bookmarks/loading.tsx
+  h_580a04e334fef4 1-18
+app/(timeline)/fitness/loading.tsx
+  h_580a04e334fef4 1-64
+app/(timeline)/notifications/loading.test.tsx
+  h_580a04e334fef4 1-16
+app/(timeline)/explore/loading.tsx
+  h_580a04e334fef4 1-42
+app/(timeline)/search/SearchPageClient.tsx
+  h_580a04e334fef4 24,559-564
+app/(timeline)/admin/loading.tsx
+  h_580a04e334fef4 1-45
+lib/components/ui/skeleton.tsx
+  h_580a04e334fef4 1-232
+app/(timeline)/messages/loading.tsx
+  h_580a04e334fef4 1-67
+app/(timeline)/tags/[tag]/loading.tsx
+  h_580a04e334fef4 1-28
+app/(timeline)/loading.tsx
+  h_580a04e334fef4 1-19
+app/globals.css
+  h_580a04e334fef4 256-268
+app/(timeline)/[actor]/following/loading.test.tsx
+  h_580a04e334fef4 6,12,18-19
+  h_580a04e334fef4 11,17
+app/(timeline)/explore/ExplorePageClient.tsx
+  h_580a04e334fef4 17,51-52,54
+app/(timeline)/fitness/loading.test.tsx
+  h_580a04e334fef4 1-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "657408f689c45adef3559c5712a380b813de13e8",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

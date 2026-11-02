@@ -1,0 +1,19 @@
+lib/services/guards/inboxRejectionTrace.ts
+  s_5a6c84710a421f::t_1eaaff7fb97e33 3-5,13-70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "4990b589048aa35dd2535f559af3b5572e1f86c3",
+  "prompts": {},
+  "sessions": {
+    "s_5a6c84710a421f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a3e79c84-8884-40fb-bf4b-aead299dde46",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

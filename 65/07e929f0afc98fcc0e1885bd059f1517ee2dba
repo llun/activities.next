@@ -1,0 +1,59 @@
+lib/utils/urlToId.ts
+  s_4f4812f16bd65a::t_5a8ac4eac7da15 3-7
+  s_4f4812f16bd65a::t_458f02d87e2301 140-141
+  s_4f4812f16bd65a::t_9603d52aa1c507 165
+  s_4f4812f16bd65a::t_401c7159e9f013 119-139,142
+  s_4f4812f16bd65a::t_3841aec349b665 118
+app/(timeline)/notifications/components/CollectionConsentNotification.tsx
+  s_4f4812f16bd65a::t_1d9380694fab11 18-20
+REVIEW.md
+  s_4f4812f16bd65a::t_7bf69686c90243 341
+lib/client.test.ts
+  s_4f4812f16bd65a::t_d4efda343b6543 1306-1335,1338-1343,1345-1361
+  s_4f4812f16bd65a::t_41661784f0d4e6 474-603
+  s_4f4812f16bd65a::t_fe59686dc9274e 331,367
+  s_4f4812f16bd65a::t_ce30891cc83da1 17,20-21,28,32,39
+app/(timeline)/notifications/components/FollowNotification.test.tsx
+  s_4f4812f16bd65a::t_8ffefc3529d0b7 1-80
+lib/utils/urlToId.test.ts
+  s_4f4812f16bd65a::t_017574b56fecb5 212-228,233-241,250-258
+  s_4f4812f16bd65a::t_93cfc36d2664f4 1-7
+  s_4f4812f16bd65a::t_b45a2759487b07 229-232,242-249
+app/(timeline)/lists/ListEditor.tsx
+  s_4f4812f16bd65a::t_8dcdadabb7aa44 24-26
+AGENTS.md
+  s_4f4812f16bd65a::t_3bdc646c882b44 122
+lib/client.ts
+  s_4f4812f16bd65a::t_0ed56ed86cbeae 3960
+  s_4f4812f16bd65a::t_a9aa71005aa531 3851-3853
+  s_4f4812f16bd65a::t_b1e0fe9e71470c 1273,1276,1348,3253-3254,3716-3717,3902-3903,3936-3937
+  s_4f4812f16bd65a::t_c8c3cb9d4eb2f6 157-174,209-218,284-290,292,344-350,352,1020-1026
+  s_4f4812f16bd65a::t_4bc4b58e5e9d4e 37-43
+  s_4f4812f16bd65a::t_517761539df30d 364,394,480,546,566,579,614,666,679,764,780,881,895,992,1039,1054,1093,1108,1406,1851,2465,2499,2843,2890,2925,2967,3006,3047,3077,3099,3128,3160,3183
+  s_4f4812f16bd65a::t_fbcc9e6caa343c 325-328,330-331
+  s_4f4812f16bd65a::t_c14b1ffb1f79af 724
+  s_4f4812f16bd65a::t_2de1983d6d408b 3469-3471,3475
+  s_4f4812f16bd65a::t_dae9cbbb6bd4e4 864
+app/(timeline)/lists/[id]/edit/page.tsx
+  s_4f4812f16bd65a::t_5925d65afaaea5 31-32
+docs/architecture.md
+  s_4f4812f16bd65a::t_3c1d797132c394 156-163
+app/(timeline)/notifications/components/FollowRequestNotification.tsx
+  s_4f4812f16bd65a::t_bca8ce1df506aa 57-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "6507e929f0afc98fcc0e1885bd059f1517ee2dba",
+  "prompts": {},
+  "sessions": {
+    "s_4f4812f16bd65a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ef4966e6-a801-42ad-bea7-0a298c41d397",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

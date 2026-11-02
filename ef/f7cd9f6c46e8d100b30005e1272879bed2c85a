@@ -1,0 +1,24 @@
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.test.tsx
+  h_580a04e334fef4 49-51,53-59,91-109,469-470,712-733
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  h_580a04e334fef4 73,428-433,1930
+lib/components/posts/collapsible-content.test.tsx
+  h_580a04e334fef4 5,169-219
+lib/components/posts/collapsible-content.tsx
+  h_580a04e334fef4 3,21,30-31,34,49,68,71-76,79-86,94-123
+lib/components/posts/post.test.tsx
+  h_580a04e334fef4 33-51,205-242
+lib/components/posts/post.tsx
+  h_580a04e334fef4 137-144,290
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "eff7cd9f6c46e8d100b30005e1272879bed2c85a",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

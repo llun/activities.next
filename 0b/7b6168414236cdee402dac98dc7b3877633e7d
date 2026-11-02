@@ -1,0 +1,97 @@
+app/api/v1/statuses/[id]/bookmark/route.ts
+  s_3c3c605b8f06bf::t_c106f1b51af41b 3,37-42
+app/api/v1/statuses/[id]/mute/route.ts
+  s_3c3c605b8f06bf::t_d5d6be76bc45df 3,37-42
+lib/services/guards/ActivityPubVerifyGuard.test.ts
+  s_3c3c605b8f06bf::t_253639250a0e59 326
+lib/services/queue/type.ts
+  s_3c3c605b8f06bf::t_be6c9a6b7f8336 7
+app/api/v1/statuses/[id]/favourited_by/route.ts
+  s_3c3c605b8f06bf::t_d69330572adb4f 4,32,55-68
+app/api/v1/statuses/[id]/unbookmark/route.ts
+  s_3c3c605b8f06bf::t_5586d8ce6612eb 3,37-42
+lib/jobs/createNoteJob.ts
+  s_3c3c605b8f06bf::t_1ea0877d31ed6f 28,43-46
+app/api/inbox/route.test.ts
+  s_3c3c605b8f06bf::t_de726a49545e16 11,27,47-48,92,196-219,221-246
+app/api/inbox/route.ts
+  s_3c3c605b8f06bf::t_09823d26999c5f 26-27
+  s_3c3c605b8f06bf::t_1ffd856241d4e8 58
+lib/services/guards/ActivityPubVerifyGuard.ts
+  s_3c3c605b8f06bf::t_eb2cc4f593f7b5 218-222,226,234-235
+app/api/v1/statuses/[id]/source/route.ts
+  s_3c3c605b8f06bf::t_8c9185a9f74188 2,20,31-36
+app/api/v1/statuses/[id]/reblogged_by/route.ts
+  s_3c3c605b8f06bf::t_c469b137b6742d 2,20,31-36
+app/api/v1/statuses/[id]/route.test.ts
+  s_3c3c605b8f06bf::t_660a84fda41798 16,18,20-21,23,402,404-430
+  s_3c3c605b8f06bf::t_16a6e586387edf 17,19
+  s_3c3c605b8f06bf::t_34afb4d3ff2885 60-74,403
+  s_3c3c605b8f06bf::t_f4d9b72477f838 208-232
+  s_3c3c605b8f06bf::t_e0a5635a4ee5d6 352-401,431-432
+app/api/v1/statuses/[id]/history/route.ts
+  s_3c3c605b8f06bf::t_74ae3ace3fef45 2,21,32-37
+app/api/users/[username]/outbox/route.ts
+  s_3c3c605b8f06bf::t_59c68f6e54f0ba 2
+app/api/v1/statuses/[id]/unmute/route.ts
+  s_3c3c605b8f06bf::t_025b57bc960103 3,37-42
+lib/jobs/createNoteJob.test.ts
+  s_3c3c605b8f06bf::t_ed2c06a1d0457e 184-200
+app/api/v1/statuses/[id]/context/route.ts
+  s_3c3c605b8f06bf::t_0fc2d51c4a27a5 3-6,38-42,54-60,64-66
+lib/jobs/createPollJob.test.ts
+  s_3c3c605b8f06bf::t_3cdd421d30226f 163-180
+app/api/users/[username]/outbox/route.test.ts
+  s_a64fcbca75c90b::t_d9883a4c1095d9 73
+  s_3c3c605b8f06bf::t_3c752ee1f06f0d 129-131,155-185
+  s_4c8a4513cc17f6::t_e4f026f8770e98 186
+lib/jobs/createPollVoteJob.test.ts
+  s_3c3c605b8f06bf::t_f634bb6c44f1a5 96-115
+lib/jobs/createPollVoteJob.ts
+  s_3c3c605b8f06bf::t_83a18cbf1afdce 12,36
+lib/jobs/verifiedSender.ts
+  s_3c3c605b8f06bf::t_ac849b95daeb8f 1-19
+lib/services/guards/types.ts
+  s_3c3c605b8f06bf::t_a4ed13028b339d 34
+lib/services/statusRouteAccess.ts
+  s_3c3c605b8f06bf::t_71c889ab6106c1 1-4,6-42,45,47-52
+app/api/inbox/getJobMessage.ts
+  s_3c3c605b8f06bf::t_eef86407a0858e 22,24,39-43,50-52,54,56-62,69-73,75
+  s_3c3c605b8f06bf::t_939fb2860a1e41 84-87,95,98-100,103,106-108,116-120,123-125
+lib/jobs/createPollJob.ts
+  s_3c3c605b8f06bf::t_ca6756d839f9ec 17,29-31
+app/api/users/[username]/inbox/route.test.ts
+  s_3c3c605b8f06bf::t_4606a329312ed2 44,71-72
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "0b7b6168414236cdee402dac98dc7b3877633e7d",
+  "prompts": {},
+  "sessions": {
+    "s_3c3c605b8f06bf": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1e03-1eaf-76b1-9d25-8d5124e6974d",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_4c8a4513cc17f6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1ff9-6421-7f91-b33a-3ec0b5429434",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_a64fcbca75c90b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e201c-31ba-76c1-90ec-08acecf005ec",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

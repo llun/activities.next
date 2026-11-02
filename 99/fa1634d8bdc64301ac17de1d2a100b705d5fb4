@@ -1,0 +1,41 @@
+docs/mastodon-api-compatibility.md
+  s_85d91c6baf9d58::t_0f215aff971258 280-292
+lib/services/reactions/reactStatus.ts
+  s_85d91c6baf9d58::t_b30af405c1bce6 8
+  s_85d91c6baf9d58::t_50e0ff7bc8b6a5 9,12,16,35-38,136-156,158,168,193-194,197,201-216,222
+lib/services/reactions/getStatusReactionList.test.ts
+  s_85d91c6baf9d58::t_4b1fbb233b7d77 1-123
+lib/services/reactions/getStatusReactionList.ts
+  s_85d91c6baf9d58::t_37ff98120da43a 2,6,38-42,48-51,54-55
+  s_85d91c6baf9d58::t_d7bbd0ec0bf6ef 60-61,63,65-80,92
+app/api/v1/pleroma/statuses/[id]/reactions/route.ts
+  s_85d91c6baf9d58::t_37ff98120da43a 1-4,47-51
+lib/services/reactions/reactStatus.test.ts
+  s_85d91c6baf9d58::t_cfd6c9c0c681c0 13,327-330,332-392
+  s_85d91c6baf9d58::t_0bd66965212535 10
+  s_85d91c6baf9d58::t_fb11a0cbdeba1f 331
+  s_85d91c6baf9d58::t_71ad78074d83fb 6,168-224,393
+  s_85d91c6baf9d58::t_43d33cfa56b4e5 225,394
+lib/services/reactions/reactionName.ts
+  s_85d91c6baf9d58::t_37ff98120da43a 50-61
+lib/services/reactions/reactionRouteHandlers.ts
+  s_85d91c6baf9d58::t_b30af405c1bce6 60
+app/api/v1/pleroma/statuses/[id]/reactions/[emoji]/route.ts
+  s_85d91c6baf9d58::t_37ff98120da43a 59-61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "99fa1634d8bdc64301ac17de1d2a100b705d5fb4",
+  "prompts": {},
+  "sessions": {
+    "s_85d91c6baf9d58": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8685a26c-353a-478b-9125-3aeb9c98a29a",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

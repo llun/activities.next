@@ -1,0 +1,24 @@
+app/api/v1/collections/[id]/items/route.test.ts
+  s_4f4812f16bd65a::t_bae265c0f09732 7-8
+  s_4f4812f16bd65a::t_971925adb4a46b 112-148
+lib/services/collections/addMembers.ts
+  s_4f4812f16bd65a::t_08183b2b150f67 35-36
+  s_4f4812f16bd65a::t_9e93cb76cd758e 63-64
+  s_4f4812f16bd65a::t_65c1894e0518b5 14-27,48-62,65-69,73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "9ab8b3beed857f618d1971dda6b980deeb83ddc2",
+  "prompts": {},
+  "sessions": {
+    "s_4f4812f16bd65a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ef4966e6-a801-42ad-bea7-0a298c41d397",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

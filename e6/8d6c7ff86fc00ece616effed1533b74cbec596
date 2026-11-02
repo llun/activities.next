@@ -1,0 +1,58 @@
+lib/components/trends/trend-tag-row.tsx
+  s_99c73e70ea5fa2::t_db5dc6dd3c223d 28
+app/(timeline)/notifications/NotificationItem.tsx
+  s_99c73e70ea5fa2::t_05c0cbdb635b6c 234,241
+  s_99c73e70ea5fa2::t_a147f73720382b 133
+app/(timeline)/[actor]/[status]/StatusLikes.tsx
+  s_99c73e70ea5fa2::t_341677dd80b242 112
+  s_99c73e70ea5fa2::t_1e6b7ced85c107 176
+app/(timeline)/[actor]/FollowList.tsx
+  s_99c73e70ea5fa2::t_4acbe8890cface 37
+  s_99c73e70ea5fa2::t_238ec3464cca79 47
+lib/components/posts/actor.tsx
+  s_99c73e70ea5fa2::t_692fa59905ea34 206-207,209-210
+  s_99c73e70ea5fa2::t_f8bfce820a35e8 160-166
+  s_99c73e70ea5fa2::t_41da40909a3e69 189,208,228
+app/(timeline)/collections/[id]/CollectionDetail.tsx
+  s_99c73e70ea5fa2::t_67cc62e0448cba 414-418
+CLAUDE.md
+  s_99c73e70ea5fa2::t_c54408c3c727f4 43
+REVIEW.md
+  s_99c73e70ea5fa2::t_e2e66d47dae2f1 139-143
+AGENTS.md
+  s_99c73e70ea5fa2::t_97f1cd87f30372 193-200
+  s_c45340cdaf7a4e::t_5862a07d7e025e 1014-1023
+lib/components/posts/actor.test.tsx
+  s_99c73e70ea5fa2::t_e6fc5605156f7c 1-80
+app/(timeline)/notifications/components/StatusNotification.tsx
+  s_99c73e70ea5fa2::t_deeca5fba3df01 51
+app/(timeline)/search/SearchPageClient.tsx
+  s_99c73e70ea5fa2::t_6d92b111d655a9 233
+  s_99c73e70ea5fa2::t_cd40af5db43752 205
+app/(timeline)/notifications/components/ActivityImportNotification.tsx
+  s_99c73e70ea5fa2::t_cda88a49479f14 39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "e68d6c7ff86fc00ece616effed1533b74cbec596",
+  "prompts": {},
+  "sessions": {
+    "s_99c73e70ea5fa2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b838934-965e-4f9e-8c60-a50ed21e6a5d",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_c45340cdaf7a4e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "110f4c45-eb23-4a04-a98a-2482941d6b0c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

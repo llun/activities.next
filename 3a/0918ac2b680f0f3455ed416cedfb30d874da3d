@@ -1,0 +1,60 @@
+app/api/v1/instance/route.test.ts
+  s_82c8607b09bd36::t_08d2acba2152fd 136-146
+  s_82c8607b09bd36::t_116453bd5f1296 5
+lib/services/mastodon/getMastodonStatus.test.ts
+  s_82c8607b09bd36::t_f7bf83406500ce 787-817
+lib/types/domain/status.test.ts
+  s_82c8607b09bd36::t_c1d1f51545a181 363-399
+  s_82c8607b09bd36::t_dbb89709a0559f 4
+app/api/v2/instance/route.ts
+  s_82c8607b09bd36::t_8fc6c378fbe375 9
+  s_82c8607b09bd36::t_3d83997c095813 106
+app/api/v1/statuses/route.ts
+  s_82c8607b09bd36::t_9632207a662a48 97-102,109
+  s_82c8607b09bd36::t_baaab92e665d2d 16
+app/api/v1/statuses/[id]/route.ts
+  s_82c8607b09bd36::t_3f0178286f9feb 19
+  s_82c8607b09bd36::t_f1b2c1f795fd2c 202
+app/api/v1/statuses/[id]/route.test.ts
+  s_82c8607b09bd36::t_1135e7f6537d4b 1683-1692,1707-1709,1716-1717,1720-1732,1734,1739-1756,1758-1761,1763-1764,1766-1768,1770-1778
+  s_82c8607b09bd36::t_5d2ab0559a1c28 1614-1681,1779-1813
+  s_82c8607b09bd36::t_ec7e022b21e815 1682,1693-1706,1710-1715,1718-1719,1733,1735-1738,1757,1762,1765,1769
+  s_82c8607b09bd36::t_cf1d2c2ce70808 7-11
+app/api/v1/statuses/route.test.ts
+  s_82c8607b09bd36::t_8899ac590757bc 8-12
+  s_82c8607b09bd36::t_f9ab8b58b884c4 328-354,356,360,364,375,386-388
+lib/types/domain/status.ts
+  s_82c8607b09bd36::t_ef672b9b095e9d 396-398,401
+  s_82c8607b09bd36::t_ce3003137cab80 11
+lib/utils/getNoteFromStatus.ts
+  s_82c8607b09bd36::t_a24370d54a286a 41-43,46
+  s_82c8607b09bd36::t_c672b3439fcff8 2
+lib/services/mastodon/constants.ts
+  s_82c8607b09bd36::t_aef14cd69a90dd 1-12
+app/api/v1/instance/route.ts
+  s_82c8607b09bd36::t_c0407fddd4d62a 8
+  s_82c8607b09bd36::t_6f95399e7bfee0 84
+app/api/v2/instance/route.test.ts
+  s_82c8607b09bd36::t_f6796b2bdb2138 166-176
+  s_82c8607b09bd36::t_40e8fa611348a9 5
+lib/actions/createNote.test.ts
+  s_82c8607b09bd36::t_a6d3c5b453269a 6
+  s_82c8607b09bd36::t_aef25cd71af34d 645-665,667-669,673,675-677
+  s_82c8607b09bd36::t_325e751f711a05 666,670-672,674
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "3a0918ac2b680f0f3455ed416cedfb30d874da3d",
+  "prompts": {},
+  "sessions": {
+    "s_82c8607b09bd36": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1d552038-1bf1-4ecb-b710-9bf618b1a8c4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+lib/database/domains/status/statusWriteQueries.test.ts
+  s_1f1a1efd8db0bf::t_f7d0e001f7a0cb 526-527,530-533,537-545,2004,2546
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6224bd28f0656f0ac31253d01760b87a1712b5fa",
+  "prompts": {},
+  "sessions": {
+    "s_1f1a1efd8db0bf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6f1be9b0-86e0-4f32-9286-3562b40d391e",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,31 @@
+app/api/v1/accounts/email/route.test.ts
+  s_ed8c1fa4aefdea::t_f109b489d61f67 124,133
+app/api/v1/accounts/password/route.ts
+  s_ed8c1fa4aefdea::t_f109b489d61f67 5,88-93
+app/api/v1/accounts/email/verify/route.ts
+  s_ed8c1fa4aefdea::t_f109b489d61f67 4,68-73
+app/api/v1/accounts/password/reset/route.ts
+  s_ed8c1fa4aefdea::t_f109b489d61f67 8,101-102
+app/api/v1/settings/fitness/general/route.ts
+  s_ed8c1fa4aefdea::t_f109b489d61f67 10,275-280
+app/api/v1/accounts/email/route.ts
+  s_ed8c1fa4aefdea::t_f109b489d61f67 7,42,89-95,129-135
+app/api/v1/settings/fitness/strava/route.ts
+  s_ed8c1fa4aefdea::t_f109b489d61f67 167-172,246-250
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "a963b07c0949b261bcae2620baf4a0feba9d713b",
+  "prompts": {},
+  "sessions": {
+    "s_ed8c1fa4aefdea": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e229c-1e04-7242-b550-2066bb2947be",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

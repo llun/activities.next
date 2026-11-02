@@ -1,0 +1,33 @@
+migrations/20260518000000_remove_github_auth_provider_links.js
+  s_85d9e9bb2c6db0::t_f95b20a152a023 1-15
+docs/environment-variables.md
+  s_85d9e9bb2c6db0::t_4936163f8234b3 72-74
+docs/setup.md
+  s_85d9e9bb2c6db0::t_f95b20a152a023 22,57,59
+app/(timeline)/settings/account/page.tsx
+  s_85d9e9bb2c6db0::t_f95b20a152a023 44
+lib/config/auth.test.ts
+  s_85d9e9bb2c6db0::t_379dbc87890148 15,23,26,29-37,47,49,56-57,60,66
+docs/architecture.md
+  s_85d9e9bb2c6db0::t_f95b20a152a023 129-130
+lib/database/sql/account.test.ts
+  s_85d9e9bb2c6db0::t_281f4b1bae8779 346-347
+lib/config/auth.ts
+  s_85d9e9bb2c6db0::t_f95b20a152a023 10,13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "ee49165bfe42651371f27e4e2a259b0d5919fad8",
+  "prompts": {},
+  "sessions": {
+    "s_85d9e9bb2c6db0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e3c20-cc5b-7880-ac51-dbc90c1831db",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}

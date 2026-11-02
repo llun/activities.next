@@ -1,0 +1,19 @@
+app/(timeline)/messages/MessagesPage.test.tsx
+  s_5c3cae34a73847::t_c40d7556fea32a 1081-1110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "1c08b90bb329e9114ad8b9f4bd81897f446e66e7",
+  "prompts": {},
+  "sessions": {
+    "s_5c3cae34a73847": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "196aec4b-dc31-4fee-bf84-a5a8d136ef32",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
