@@ -1,0 +1,29 @@
+scripts/maintenance/backfillMediaBlurhash.ts
+  s_a3b90525842071::t_d4f04e12a5a3b1 96-97,116-121,123-127,196-199
+scripts/maintenance/backfillMediaBlurhash.test.ts
+  s_a3b90525842071::t_846a617c679dc3 151-178
+lib/utils/safeImageDownload.test.ts
+  s_a3b90525842071::t_17590b293955ed 13,68-70
+  s_a3b90525842071::t_4c2e79af499f0d 62-67,71-77,105-137,140
+  s_a3b90525842071::t_5a48ff647e7d91 138-139,141
+lib/utils/safeImageDownload.ts
+  s_a3b90525842071::t_794a57b427d793 45-57
+lib/jobs/importStravaActivityJob.ts
+  s_a3b90525842071::t_d4f04e12a5a3b1 188
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "a687cdf0531e9d4d24e285300348d09a3f3766a0",
+  "prompts": {},
+  "sessions": {
+    "s_a3b90525842071": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "029eb1cf-00b7-4f56-b1d3-679cd6f1e78c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

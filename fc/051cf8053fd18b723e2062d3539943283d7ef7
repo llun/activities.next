@@ -1,0 +1,19 @@
+lib/database/sql/timeline.ts
+  s_22590071b7246b::t_5cf6a892dc01b1 216
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "fc051cf8053fd18b723e2062d3539943283d7ef7",
+  "prompts": {},
+  "sessions": {
+    "s_22590071b7246b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "baa913e5-238f-49be-99c2-804bcf42ec99",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

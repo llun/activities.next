@@ -1,0 +1,19 @@
+lib/services/filters/applyFilters.ts
+  s_eecb12320dcec6::t_4088b49f02970f 83-84
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "9272391124f9dc860de9d26b4909afcf208329e3",
+  "prompts": {},
+  "sessions": {
+    "s_eecb12320dcec6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bb3849f9-8ffa-48ff-bc17-78ff2b406a6c",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

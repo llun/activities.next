@@ -1,0 +1,19 @@
+lib/components/posts/actor.tsx
+  s_fb6cfcf3f8fb3b::t_5db556d2f7915a 237-238
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "94bf7a2195e13f0e3e2bdc67fcae6f5874934065",
+  "prompts": {},
+  "sessions": {
+    "s_fb6cfcf3f8fb3b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4841e314-3632-48c9-b473-886e56c6db82",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

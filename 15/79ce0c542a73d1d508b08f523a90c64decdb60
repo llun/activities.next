@@ -1,0 +1,22 @@
+app/(timeline)/[actor]/albums/[id]/PublicGalleryAlbumView.test.tsx
+  h_580a04e334fef4 6,434-490
+app/(timeline)/[actor]/albums/[id]/PublicGalleryAlbumView.tsx
+  h_580a04e334fef4 5,83,112,127-130,135-136,138,155-158
+app/(timeline)/gallery/albums/[id]/GalleryAlbumDetailView.test.tsx
+  h_580a04e334fef4 857-914
+app/(timeline)/gallery/albums/[id]/GalleryAlbumDetailView.tsx
+  h_580a04e334fef4 101,153,172-175,182-183,185,202-205
+lib/components/gallery/GalleryPagedGrid.tsx
+  h_580a04e334fef4 124,128-129,168-171
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1579ce0c542a73d1d508b08f523a90c64decdb60",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,32 @@
+lib/database/sql/status.ts
+  s_3da1f273d8917f::t_783d5241dfbddd 1236-1237,1239-1248,1250-1251
+  s_3da1f273d8917f::t_1192caf943b462 1474-1476,1478-1487,1489-1490
+lib/types/activitypub/objects.ts
+  s_3da1f273d8917f::t_746d3e1e8dc30b 135-138
+lib/types/activitypub/objects.test.ts
+  s_3da1f273d8917f::t_55921802c43dbf 1-31
+lib/activities/note.test.ts
+  s_3da1f273d8917f::t_be3531fba3c891 118-127
+lib/services/mastodon/getMastodonStatus.test.ts
+  s_3da1f273d8917f::t_0406b32c916442 1563-1584
+lib/services/mastodon/getMastodonStatus.ts
+  s_3da1f273d8917f::t_72d9ce68795ec3 254,258-261,269
+  s_3da1f273d8917f::t_ac3fa668b6566d 565
+  s_3da1f273d8917f::t_96de068996358a 262-263
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "5a314deeafbeab78932b343f9850cd45a7ba7225",
+  "prompts": {},
+  "sessions": {
+    "s_3da1f273d8917f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f49630eb-9e7a-4457-a813-665e76f1781c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,66 @@
+lib/database/sql/status.test.ts
+  s_b4f867a916c2ae::t_9b97250af327a0 343
+  s_b4f867a916c2ae::t_809ac96989a287 773
+  s_b4f867a916c2ae::t_a2341669e13d2a 736-772
+  s_b4f867a916c2ae::t_8ba28d2fa46d47 774-775
+lib/database/types.ts
+  s_b4f867a916c2ae::t_05be0ef6610615 84
+  s_b4f867a916c2ae::t_0995d74b33edb0 40
+lib/types/domain/status.test.ts
+  s_b4f867a916c2ae::t_c8fbf75c872be3 162-166,168
+  s_b4f867a916c2ae::t_3a742c6fc8d5a5 157-161,167
+  s_b4f867a916c2ae::t_dc1b4ea621b856 56,118
+  s_b4f867a916c2ae::t_eca92f63245db1 169-170
+lib/database/sql/statusDetectedLanguage.test.ts
+  s_b4f867a916c2ae::t_954d7bd4db86c8 1-86
+lib/database/sql/status.ts
+  s_b4f867a916c2ae::t_ce0885833c116b 248-249
+  s_b4f867a916c2ae::t_0d78f2326d437e 2449-2450
+  s_b4f867a916c2ae::t_37fcd918348852 2496-2501
+  s_b4f867a916c2ae::t_82bded152f9e8a 906-910
+  s_b4f867a916c2ae::t_4e8f3566f41586 73
+  s_b4f867a916c2ae::t_5534dddcdcc17b 1424-1433
+  s_b4f867a916c2ae::t_4b745ad4703a7e 2534
+  s_b4f867a916c2ae::t_cb329397a7438d 511-515
+  s_b4f867a916c2ae::t_257f178f9890af 137-140
+lib/database/sql/statusDetectedLanguage.ts
+  s_b4f867a916c2ae::t_0bd9623f84aabd 1-42,44-45
+  s_b4f867a916c2ae::t_809ac96989a287 43
+lib/types/database/operations.ts
+  s_b4f867a916c2ae::t_809ac96989a287 780
+  s_b4f867a916c2ae::t_d7c3877f0f143e 766-779,781-785
+lib/types/domain/status.ts
+  s_b4f867a916c2ae::t_c922e67580eafe 243-250
+  s_b4f867a916c2ae::t_57d1395e58d04c 94-99
+lib/database/sql/index.ts
+  s_b4f867a916c2ae::t_c2f01ab6027fa5 39
+  s_b4f867a916c2ae::t_e095852920e9ff 152
+  s_b4f867a916c2ae::t_2e5955b1e3087b 95-96
+  s_b4f867a916c2ae::t_c577700818f357 69-70
+lib/database/sql/index.test.ts
+  s_b4f867a916c2ae::t_dfa72ebea1ec53 201-202,216,222-223
+  s_b4f867a916c2ae::t_11fab1b04ac01a 263-265
+  s_b4f867a916c2ae::t_714cb6a075631b 67-70
+  s_b4f867a916c2ae::t_897d1aa471d2f8 243
+  s_b4f867a916c2ae::t_56aa87069a5a0e 16
+  s_b4f867a916c2ae::t_dd1cb8a8839f3c 146-147
+  s_b4f867a916c2ae::t_5fa2bd36211232 90-91
+  s_b4f867a916c2ae::t_03f4aea92def99 167-169,189
+  s_b4f867a916c2ae::t_239eed119a368f 148
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.5",
+  "base_commit_sha": "e31a8283d8462ef4070f3cee95f85862caa30dc5",
+  "prompts": {},
+  "sessions": {
+    "s_b4f867a916c2ae": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8a3d91b7-e2e6-4362-972c-c99fcd446161",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

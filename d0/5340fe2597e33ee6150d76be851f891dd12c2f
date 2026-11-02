@@ -1,0 +1,22 @@
+lib/services/statuses/actorPublicStatusesCount.ts
+  s_895dd3c6090136::t_05acfa6d72a4d1 46-52
+lib/services/statuses/actorPublicStatusesCount.test.ts
+  s_895dd3c6090136::t_e475b490c5e9ff 272-274,279-284
+  s_895dd3c6090136::t_9bd3c745fe722c 251-271,275-278,285-286
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "d05340fe2597e33ee6150d76be851f891dd12c2f",
+  "prompts": {},
+  "sessions": {
+    "s_895dd3c6090136": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "976185f5-5df9-4b1a-927a-9d20f4178ce3",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

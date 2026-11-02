@@ -1,0 +1,24 @@
+lib/services/fitness-files/retryImports.test.ts
+  s_49f1e724b425e6::t_a5de303ef30b6c 84-112
+lib/services/fitness-files/retryImports.ts
+  s_49f1e724b425e6::t_8b0b5f28442a12 21-27,30-31,37,45-52
+  s_49f1e724b425e6::t_79444269e8b0b3 32-36
+  s_49f1e724b425e6::t_a7b5eb2139ef43 6-9
+  s_49f1e724b425e6::t_81570e40115d14 53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "a1377c1cd0591f534c23bc98d05e8beecb225241",
+  "prompts": {},
+  "sessions": {
+    "s_49f1e724b425e6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e78f183e-5cba-4c45-98e0-037bb04abcd0",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

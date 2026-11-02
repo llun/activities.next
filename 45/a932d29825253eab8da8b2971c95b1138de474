@@ -1,0 +1,39 @@
+lib/components/admin-announcements/AnnouncementsPanel.tsx
+  s_774e674f3d62f4::t_2d59855deef86d 14,19,22-23,51-59,103-105,207,211,214-218,224,229,237,243,247-254,257-258,260-268,271-272,274-280,289,297,303,308-316,318-325,327-370,372-373
+lib/components/admin-announcements/announcementStatus.ts
+  s_774e674f3d62f4::t_3fe14499505cd4 3
+  s_774e674f3d62f4::t_8417ecad0ac995 1-2,4-44
+lib/components/announcements/AnnouncementBanner.tsx
+  s_774e674f3d62f4::t_059b8c746310ba 4-10,13-22,25-62,65-77,79-94,96,98-107,113-159,161-186,192-195,199,201-208,210-211,217,228-297,301-312,338-361,363-372,375-384,387-475
+  s_774e674f3d62f4::t_3fe14499505cd4 298-300
+  s_774e674f3d62f4::t_9ae1758713297e 108-112
+  s_774e674f3d62f4::t_a5997a24080e5e 314-337,362
+lib/client.ts
+  s_774e674f3d62f4::t_2b42f6ab3aef3a 3123-3165
+lib/components/admin-announcements/announcementStatus.test.ts
+  s_774e674f3d62f4::t_2476abb8fed1ff 1-72
+app/(timeline)/admin/announcements/page.tsx
+  s_774e674f3d62f4::t_8e5989bc3dc69e 25-27
+lib/components/announcements/AnnouncementBanner.test.tsx
+  s_774e674f3d62f4::t_f4c1ad722f80d2 213-214,226-228
+  s_774e674f3d62f4::t_641af588ffc15f 260,264-266
+  s_774e674f3d62f4::t_887bfc1e6d76a3 5,13-14,18-22,44-46,49,52-53,55-77,83-85,92-134,138-154,164-167,170-176,178-183,185-189,192-196,198-203,205,207-209,212,216,219-221,229-231,233-245,248-254,256-258,271-279
+  s_774e674f3d62f4::t_29c3e92019683c 268-270,280-282
+  s_774e674f3d62f4::t_15efd140095b20 135-136,155-163
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "45a932d29825253eab8da8b2971c95b1138de474",
+  "prompts": {},
+  "sessions": {
+    "s_774e674f3d62f4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9bced70a-1dd7-4235-a117-e2f9c9007f2f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

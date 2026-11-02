@@ -1,0 +1,20 @@
+lib/components/settings/FitnessFileManagement.tsx
+  s_02e5024cb68412::t_47e728a2c9db5e 58-60
+  s_02e5024cb68412::t_c6585dff6ffffb 70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "5f9ed84e517784a578a4a1fbd58afc8f33f36cf5",
+  "prompts": {},
+  "sessions": {
+    "s_02e5024cb68412": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0672fc92-a95f-4d42-9422-bee485cd0af0",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

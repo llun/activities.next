@@ -1,0 +1,36 @@
+docs/environment-variables.md
+  s_5de0d2ab87ffcf::t_7790df7aee86c3 78-93
+  s_5de0d2ab87ffcf::t_b3031c90cc9b54 224-232
+  s_5de0d2ab87ffcf::t_94db4c9840cc32 252-253
+lib/config/environmentTemplates.test.ts
+  s_5de0d2ab87ffcf::t_cfe3bc6eded4c9 1-81
+lib/components/admin/settings/EnvBlockBuilder.tsx
+  s_5de0d2ab87ffcf::t_d0e0e33c3bde98 158-163
+  s_5de0d2ab87ffcf::t_cfe3bc6eded4c9 151-157,168
+  s_5de0d2ab87ffcf::t_75de04a978d004 149-150
+lib/config/environmentTemplates.ts
+  s_5de0d2ab87ffcf::t_cfe3bc6eded4c9 18-20,22-27,29-30,72-76
+lib/components/admin/settings/EnvBlockBuilder.test.tsx
+  s_5de0d2ab87ffcf::t_cfe3bc6eded4c9 13-14,85-86,215-340
+proxy.test.ts
+  s_5de0d2ab87ffcf::t_cfe3bc6eded4c9 14-17,25,359-364,377,393-413
+  s_5de0d2ab87ffcf::t_dd8207bd022ee8 18-24
+.env.example
+  s_5de0d2ab87ffcf::t_dc1b7d55eba98e 136-140,162-166
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "0bab21ad17b4767ef43db46f0d1b84c57672439f",
+  "prompts": {},
+  "sessions": {
+    "s_5de0d2ab87ffcf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5ea0b3c1-a9b1-4405-8f70-0ef171540ace",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

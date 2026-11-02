@@ -1,0 +1,35 @@
+.oxlintrc.json
+  s_c587d6e0f997cb::t_bb976cee3ce9f9 244
+lib/client.test.ts
+  s_c587d6e0f997cb::t_35e2668d22a4e8 12,15,24,42,1507-1768
+lib/client.ts
+  s_c587d6e0f997cb::t_134a9d67b96829 828,844-943
+lib/components/actor-switcher/ActorSwitcher.test.tsx
+  s_c587d6e0f997cb::t_acba8c4cac6a5e 5,8-9,29,32,36-41,43-46,61-74,79-99,153-395
+lib/components/actor-switcher/ActorSwitcher.tsx
+  s_c587d6e0f997cb::t_eb785805282648 8,42,59,66-67,69-70,81,83-88,236-241
+lib/components/actor-switcher/AddActorDialog.test.tsx
+  s_c587d6e0f997cb::t_502b7a6ba2e1dd 1-469
+lib/components/actor-switcher/AddActorDialog.tsx
+  s_c587d6e0f997cb::t_29b17595f7b3cb 5,45-47,50-60,64-68,73-77,96-98,106-111,117-123
+lib/components/settings/ActorsSection.test.tsx
+  s_c587d6e0f997cb::t_e2f7d5d9b7aa94 5-7,11,14,22-26,28-31,47-62,93-223
+lib/components/settings/ActorsSection.tsx
+  s_c587d6e0f997cb::t_6f922ab2ffad66 7,111,113-119,194-195
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "162148c91647820720331b0549c5bd399865e232",
+  "prompts": {},
+  "sessions": {
+    "s_c587d6e0f997cb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a077c9-2bf2-7110-89c4-bfded1f36b16",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,260 @@
+app/api/v1/statuses/[id]/mute/route.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 1-2,26-44,46-52,54-62,65-76,81,83-84
+lib/services/statuses/parseStatusRequestBody.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 10-11,15,28-31,45-58
+app/api/v1/accounts/familiar_followers/route.test.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 1-135
+lib/services/mastodon/getMastodonStatusEdits.ts
+  s_40b1fc8c7e5992::t_0e10b16b8a5900 10,69
+  s_40b1fc8c7e5992::t_42696a699f2158 1-9,11-68,70-109
+lib/types/database/fitnessFile.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 41,76
+lib/components/posts/post.tsx
+  s_40b1fc8c7e5992::t_42696a699f2158 19-21,122,227-238
+lib/services/accounts/relationship.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 25-26,55-58,78-79,83
+app/api/v1/accounts/verify_credentials/route.test.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 1-92
+app/api/v1/accounts/[id]/endorsements/route.test.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 1-89
+app/api/v1/accounts/[id]/following/route.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 1,3-8,27-39,42-54,56-93,96-125,130-131,133-135
+lib/actions/createPoll.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 29-30,41-43,113-115
+app/global-error.tsx
+  s_40b1fc8c7e5992::t_42696a699f2158 1-41
+app/not-found.tsx
+  s_40b1fc8c7e5992::t_42696a699f2158 1-17
+app/api/v1/statuses/[id]/unmute/route.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 1-2,26-44,46-52,54-60,63-74,79,81-82
+lib/utils/trace.test.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 1
+lib/components/error-page.tsx
+  s_40b1fc8c7e5992::t_42696a699f2158 1-212
+lib/services/wellknown/nodeinfo.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 1-4,15-43,49,54-96
+lib/types/database/operations.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 10,83-90,400-403,416-418,453-462,552-561,663-665,691,966-967,969,976,1148-1185,1339-1375
+lib/services/mastodon/constants.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 3-11
+app/api/v1/endorsements/route.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 1-7,10,17-24,26,31-96
+lib/jobs/importStravaActivityJob.test.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 106,114,124,131-134,277-278,884-891
+lib/services/notifications/createConversationMuteSuppression.test.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 1-113
+lib/services/strava/activity.test.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 3,6,327-361
+app/api/v1/accounts/familiar_followers/route.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 1-102
+lib/jobs/importStravaArchiveJob.test.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 265-270,295-329
+lib/database/sql/follow.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 381-387,393-395,397-398,400-401,403-404,411-412,419-421,423-424,426-427,429-430
+lib/utils/zodBooleanish.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 1-20
+app/api/v1/accounts/[id]/followers/route.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 1,3-8,27-39,42-54,56-93,96-125,130-131,133-135
+app/api/v1/accounts/[id]/unpin/route.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 2-5,8-13,19-20,27-28,31-64,68,70-72
+app/api/v1/accounts/update_credentials/route.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 3,8-9,12,20-23,25-43,56-120,129-132,136,149,155-158,160,164,174-200,202-204,212-228,231-236,244-248
+app/api/v1/accounts/[id]/route.test.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 1-81
+lib/database/types.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 14,18,31,46,62-63
+lib/actions/updateNote.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 17-18,30-31,52-54
+app/(nosidebar)/oauth/authorize/AuthorizeCard.tsx
+  s_40b1fc8c7e5992::t_42696a699f2158 88-91,152-153,186,191-192,218,328-330,333,337,340
+lib/database/sql/fitnessFile.test.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 62-84
+lib/database/sql/idempotency.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 1-37
+lib/utils/text/getHashtags.test.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 5-7,10-89
+app/api/v1/statuses/[id]/context/route.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 1-3,9-10,20-25,30-125,128,158-183,190-191,194-196
+lib/types/mastodon/account/relationship.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 39-42
+lib/services/accounts/credentialAccount.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 1-38
+lib/services/strava/activity.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 246-249,254-264
+app/api/v1/accounts/[id]/pin/route.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 2-5,8-13,19-20,27-29,32-43,45-54,56-67,69-72,74-86
+app/error.tsx
+  s_40b1fc8c7e5992::t_42696a699f2158 1-25
+lib/jobs/importStravaActivityJob.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 9,33,525-530,533,535-536,581-582,613-656
+package.json
+  s_40b1fc8c7e5992::t_42696a699f2158 3,75-76,112
+migrations/20260605120000_add_fitness_file_source_url.js
+  s_40b1fc8c7e5992::t_42696a699f2158 1-15
+migrations/20260606000000_add_endorsements_table.js
+  s_40b1fc8c7e5992::t_42696a699f2158 1-35
+lib/services/mastodon/getMastodonStatus.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 3,56-61,294-300,324,378-382,387,483-484,512-514,542-546
+lib/services/fitness-files/localFile.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 119,160-161
+migrations/20260601000000_add_status_mutes_table.js
+  s_40b1fc8c7e5992::t_42696a699f2158 1-30
+lib/services/wellknown/index.test.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 5,134-175
+app/api/v1/accounts/[id]/remove_from_followers/route.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 1-2,4-7,9,11,18-19,26-29,32-45,47-51,53-61,63-88,90-102
+lib/utils/fitness.test.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 5-7,11-50
+app/api/v1/endorsements/route.test.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 1-100
+lib/database/sql/fitnessFile.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 32,45,244,288,669-670
+lib/database/sql/utils/favouritedByCursor.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 1-42
+migrations/20260601001000_add_idempotency_keys_table.js
+  s_40b1fc8c7e5992::t_42696a699f2158 1-28
+lib/database/sql/endorsement.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 1-97
+lib/services/accounts/relationship.test.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 14-15,33,117,124-142
+app/api/v1/accounts/verify_credentials/route.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 1-5,8,15-17,20-43
+app/api/nodeinfo/route.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 3,5,18
+lib/database/sql/media.test.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 646
+lib/services/mastodon/conversationMute.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 1-98
+lib/database/sql/status.test.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 5,340-341,466-467,477-478,1780-1783,1785,1788-1791,1793-1795,1798,1808-1813,1817,1821-1823,1829-1862
+app/api/v1/accounts/relationships/route.test.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 1-108
+app/api/v1/accounts/[id]/identity_proofs/route.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 1-19
+next.config.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 56-66,84-85
+lib/utils/getAttachmentMediaPath.test.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 4-27
+app/api/v1/accounts/relationships/route.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 2-5,17-22,25-28,30-35,37-39,41-57,60-61,63-66,68-70
+app/api/v1/statuses/[id]/unbookmark/route.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 46-49,64-92,96
+app/api/v1/accounts/[id]/pin/route.test.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 1-116
+app/api/v1/accounts/[id]/remove_from_followers/route.test.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 1-107
+lib/services/notifications/createNotificationWithPolicy.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 2,22-45
+next.config.test.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 156-194
+app/api/v1/statuses/[id]/reblogged_by/route.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 4,6,33-63,65-81,83,85-91,94-110,114-115,117-121
+app/api/v1/accounts/[id]/unpin/route.test.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 1-102
+lib/actions/createNote.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 289-290,301-302,392-394
+app/api/v1/accounts/[id]/following/route.test.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 1-97
+app/api/v1/statuses/[id]/route.test.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 5,1227,1259-1265,3015-3461
+lib/database/sql/endorsement.test.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 1-164
+lib/database/sql/status.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 14,44,54,70,75,411-412,421-423,496-497,519-521,536-539,782-783,793-794,880-881,920-921,1019-1038,1917-1932,1960-1974,1976-1991,1994-2005,2008-2013,2431-2432,2474-2476,2884
+lib/services/fitness-files/types.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 53-54
+lib/types/mastodon/account/role.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 1-21
+lib/components/posts/post.test.tsx
+  s_40b1fc8c7e5992::t_42696a699f2158 883-939
+lib/services/mastodon/accountCursorLinkHeader.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 1-57
+app/api/v1/statuses/route.test.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 339-567
+lib/types/database/rows.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 15-26
+lib/services/auth/trustedOrigins.ts
+  s_40b1fc8c7e5992::t_8cb84e840ae0d3 17-27
+app/api/v1/accounts/[id]/identity_proofs/route.test.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 1-17
+app/api/v1/accounts/[id]/followers/route.test.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 1-123
+lib/types/mastodon/index.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 4-6
+app/(nosidebar)/oauth/authorize/AuthorizeCard.test.tsx
+  s_40b1fc8c7e5992::t_42696a699f2158 279-368
+app/api/v1/accounts/[id]/endorsements/route.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 1-132
+app/api/nodeinfo/2.0/route.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 1-33
+lib/types/domain/endorsement.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 1-18
+lib/types/mastodon/account/familiarFollowers.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 1-13
+lib/utils/version.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 5-14
+app/api/v1/statuses/[id]/favourited_by/route.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 3-5,27-30,35-70,72-78,80-108,110-118,121-137,141-142,144-148
+lib/jobs/importStravaArchiveJob.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 24,777-779
+lib/services/wellknown/nodeinfo.test.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 1-110
+lib/actions/like.test.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 21
+app/api/v1/apps/createApplication.test.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 49
+lib/services/fitness-files/S3StorageFile.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 154,200-201
+lib/services/wellknown/index.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 11-19
+lib/utils/text/htmlToPlainText.test.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 4-36
+lib/types/mastodon/account/credentialAccount.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 1-16
+lib/components/error-page.test.tsx
+  s_40b1fc8c7e5992::t_42696a699f2158 1-89
+lib/utils/fitness.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 114-153
+lib/types/domain/status.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 43-44,77-84
+app/api/v1/statuses/[id]/source/route.test.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 1-129
+app/api/v1/statuses/[id]/route.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 30,113-115,180-182,277-278
+lib/database/sql/index.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 10,17,30,48-50,103-105
+lib/database/sql/statusMute.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 1-48
+lib/database/sql/notification.test.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 248
+app/api/v1/follow_requests/[id]/reject/route.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 89
+app/api/v1/statuses/[id]/history/route.ts
+  s_40b1fc8c7e5992::t_276b1868cbc1b4 1-2,5,21,49-51,60-64,67-70
+app/api/v1/accounts/update_credentials/route.test.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 4,10-11,121-124,293-432
+app/api/v1/fitness-files/by-status/route.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 121-122
+app/api/v1/statuses/route.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 4,6-13,27,35-48,55-58,60-65,85-87,95-173,197-203
+app/api/v1/accounts/[id]/route.ts
+  s_40b1fc8c7e5992::t_42696a699f2158 1-4,24-29,32-58
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  s_40b1fc8c7e5992::t_42696a699f2158 5,18-20,119,1008-1009,1027-1028,1140,1479-1490
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "b80524b05d3915d03481548e6b2ad713e938c438",
+  "prompts": {},
+  "sessions": {
+    "s_40b1fc8c7e5992": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4fa5e634-dd59-460d-828a-394cfdbd5c7b",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

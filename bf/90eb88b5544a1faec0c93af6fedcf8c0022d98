@@ -1,0 +1,19 @@
+app/api/v1/statuses/[id]/route.test.ts
+  s_a3199bbcfec1ef::t_e933f6ec985dfd 1704-1835
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "bf90eb88b5544a1faec0c93af6fedcf8c0022d98",
+  "prompts": {},
+  "sessions": {
+    "s_a3199bbcfec1ef": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e3757-8f0f-7da0-851c-3b5f8f0e48f7",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

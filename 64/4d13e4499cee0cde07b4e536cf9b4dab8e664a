@@ -1,0 +1,27 @@
+lib/jobs/processFitnessFileJob.test.ts
+  s_c587d6e0f997cb::t_dd038edd89879e 308,310,312,1182,1184,1186,1191
+  s_c587d6e0f997cb::t_37f03196ea49c0 22,309,1183
+lib/database/sql/status.test.ts
+  s_c587d6e0f997cb::t_dd038edd89879e 5484-5498,5537
+lib/services/auth/knexAdapter.test.ts
+  s_c587d6e0f997cb::t_37f03196ea49c0 708,715,722
+  s_c587d6e0f997cb::t_dd038edd89879e 8-41,595,600-601,618,625-626,648,664,675,846,849,852-853,861,864,875,878,881-882,893,896,899-900,926,932-933,1596
+  s_c587d6e0f997cb::t_3459607493b1f7 709-714,716-721,723-728
+  s_c587d6e0f997cb::t_318cd312c8dc10 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "644d13e4499cee0cde07b4e536cf9b4dab8e664a",
+  "prompts": {},
+  "sessions": {
+    "s_c587d6e0f997cb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a077c9-2bf2-7110-89c4-bfded1f36b16",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

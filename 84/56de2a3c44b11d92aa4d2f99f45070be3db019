@@ -1,0 +1,27 @@
+lib/utils/text/htmlToPlainText.ts
+  s_cb57b1783ebd1d::t_29c259eff83bdc 35-37,45-49,59,64-67,71,75-89,95-109
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.test.tsx
+  s_cb57b1783ebd1d::t_ae9d61ad708923 344-360
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  s_cb57b1783ebd1d::t_8ae406bece5043 2240-2243,2245-2247
+  s_cb57b1783ebd1d::t_370cc40cdf8379 2819
+lib/utils/text/htmlToPlainText.test.ts
+  s_cb57b1783ebd1d::t_1d3175d3ae9392 67
+  s_cb57b1783ebd1d::t_8ff5f48cd2f920 38-66,68-69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "8456de2a3c44b11d92aa4d2f99f45070be3db019",
+  "prompts": {},
+  "sessions": {
+    "s_cb57b1783ebd1d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8cbe0f1e-946b-4c0d-9f3b-5bcdad4282a1",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

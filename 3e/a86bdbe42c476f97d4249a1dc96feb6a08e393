@@ -1,0 +1,36 @@
+lib/database/sql/fitnessFile.ts
+  s_02e5024cb68412::t_9c870fcb5be7a5 147-148,150-152,154,157
+  s_02e5024cb68412::t_d71e725243bb6c 447,454,468,470-472
+app/(timeline)/fitness/files/page.tsx
+  s_02e5024cb68412::t_ab9d81ab624b8b 66
+  s_02e5024cb68412::t_e146f1e3e700fb 51-52,70-71
+  s_02e5024cb68412::t_e5350a3cf125fc 101
+app/api/v1/fitness/retry-failed/route.test.ts
+  s_02e5024cb68412::t_d8800bcac73ffe 59
+  s_02e5024cb68412::t_e146f1e3e700fb 165-167
+  s_02e5024cb68412::t_53ccab99740790 191
+  s_02e5024cb68412::t_7fe8954f5bc303 95
+  s_02e5024cb68412::t_9ed7ba0c4df487 203-206
+  s_02e5024cb68412::t_97fe399cdc6581 116-119
+app/api/v1/fitness/retry-failed/route.ts
+  s_02e5024cb68412::t_ad08d9e467abbf 30-36,42
+  s_02e5024cb68412::t_4420f5c2767b04 1-2
+lib/database/sql/fitnessFile.test.ts
+  s_02e5024cb68412::t_0de0800b1b488a 976-977,984,988,1001,1005,1023,1027,1044,1048,1051,1055,1072-1078
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "3ea86bdbe42c476f97d4249a1dc96feb6a08e393",
+  "prompts": {},
+  "sessions": {
+    "s_02e5024cb68412": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0672fc92-a95f-4d42-9422-bee485cd0af0",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

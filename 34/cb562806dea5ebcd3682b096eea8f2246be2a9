@@ -1,0 +1,19 @@
+lib/jobs/importAccountArchiveJob.test.ts
+  s_3d1c6455711ea5::t_ed7258e285d661 503-505,508,540
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "34cb562806dea5ebcd3682b096eea8f2246be2a9",
+  "prompts": {},
+  "sessions": {
+    "s_3d1c6455711ea5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a17e87-72d1-72b3-b8f4-024754a3fec4",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

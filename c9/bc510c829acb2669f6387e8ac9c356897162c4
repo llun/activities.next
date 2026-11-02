@@ -1,0 +1,114 @@
+app/api/v1/accounts/sessions/[id]/route.ts
+  s_69f35b0cf1b1f5::t_4ec4c94eed7338 1-66
+app/(timeline)/account/sessions/page.test.tsx
+  s_69f35b0cf1b1f5::t_4ec4c94eed7338 1-82
+lib/client/accounts.ts
+  s_69f35b0cf1b1f5::t_4ec4c94eed7338 604-605,609,611
+lib/database/sql/account.test.ts
+  s_69f35b0cf1b1f5::t_4ec4c94eed7338 390-434,849-896
+  s_69f35b0cf1b1f5::t_68cef149d1bf8b 897
+app/(nosidebar)/auth/signin/PasskeySigninButton.test.tsx
+  s_69f35b0cf1b1f5::t_4ec4c94eed7338 78-81,84-91,101
+lib/jobs/deleteActorJob.test.ts
+  s_69f35b0cf1b1f5::t_4ec4c94eed7338 9,37-46,69-76,126-132,165-171
+lib/utils/traceApiRoute.test.ts
+  s_69f35b0cf1b1f5::t_4ec4c94eed7338 13-18,264-310
+  s_69f35b0cf1b1f5::t_ccd84f4d4552fb 311
+app/(nosidebar)/auth/signin/passkeySupport.ts
+  s_69f35b0cf1b1f5::t_4ec4c94eed7338 9-11,31-39
+app/(nosidebar)/oauth/authorize/AuthorizeCard.test.tsx
+  s_69f35b0cf1b1f5::t_4ec4c94eed7338 84-86,383,387,399-401,408-425,753,765-767,769
+app/(timeline)/settings/notifications/page.tsx
+  s_69f35b0cf1b1f5::t_4ec4c94eed7338 108-117
+app/(timeline)/account/sessions/page.tsx
+  s_69f35b0cf1b1f5::t_4ec4c94eed7338 64-66,68
+app/api/v1/fitness/strava/callback/route.ts
+  s_69f35b0cf1b1f5::t_4ec4c94eed7338 91-108,163
+docs/architecture.md
+  s_69f35b0cf1b1f5::t_4ec4c94eed7338 1397-1398,1949,1957-1958
+lib/services/auth/auth.ts
+  s_69f35b0cf1b1f5::t_4ec4c94eed7338 174-179
+lib/services/guards/AdminApiGuard.test.ts
+  s_69f35b0cf1b1f5::t_4ec4c94eed7338 13,59-62,100,104,114-120,125,581-582,584,606,627,645,647,655-696
+  s_69f35b0cf1b1f5::t_4715f743a7b7d7 697-698
+lib/services/auth/oauthProviderFlow.test.ts
+  s_69f35b0cf1b1f5::t_4ec4c94eed7338 450-566
+app/(nosidebar)/oauth/authorize/page.test.tsx
+  s_69f35b0cf1b1f5::t_4ec4c94eed7338 461-554
+app/api/v1/actors/cancel-deletion/route.ts
+  s_69f35b0cf1b1f5::t_4ec4c94eed7338 78-92
+lib/config/email.test.ts
+  s_69f35b0cf1b1f5::t_4ec4c94eed7338 53-63
+app/(timeline)/account/sessions/AccountSessions.test.tsx
+  s_69f35b0cf1b1f5::t_4ec4c94eed7338 58,65,72,163,170,241,248,353,402
+app/(nosidebar)/auth/signin/PasskeySigninButton.tsx
+  s_69f35b0cf1b1f5::t_4ec4c94eed7338 11-14,20-25,48-53,58
+app/(nosidebar)/oauth/token/route.ts
+  s_69f35b0cf1b1f5::t_4ec4c94eed7338 44-51,538-539
+lib/database/sql/account.ts
+  s_69f35b0cf1b1f5::t_4ec4c94eed7338 24,66-67,326,340,389-401,697-698,711-734,736
+lib/services/auth/passwordResetCode.ts
+  s_69f35b0cf1b1f5::t_4ec4c94eed7338 6-13,20-21
+  s_69f35b0cf1b1f5::t_cf4c5fa9b236c3 5
+lib/services/strava/webhookSubscription.ts
+  s_69f35b0cf1b1f5::t_4ec4c94eed7338 130-147,190-191,199
+app/(nosidebar)/oauth/authorize/page.tsx
+  s_69f35b0cf1b1f5::t_4ec4c94eed7338 13,104-119,125
+lib/services/strava/webhookSubscription.test.ts
+  s_69f35b0cf1b1f5::t_4ec4c94eed7338 1-2,8-9,227-267,289-295
+  s_69f35b0cf1b1f5::t_1431917392b078 296-297
+app/api/v1/accounts/sessions/[id]/route.test.ts
+  s_69f35b0cf1b1f5::t_4ec4c94eed7338 1-173
+lib/types/database/operations.ts
+  s_69f35b0cf1b1f5::t_4ec4c94eed7338 361-365,410-414,492-496,3875-3877
+lib/types/domain/session.ts
+  s_69f35b0cf1b1f5::t_4ec4c94eed7338 4-6
+app/(nosidebar)/oauth/authorize/AuthorizeCard.tsx
+  s_69f35b0cf1b1f5::t_4ec4c94eed7338 32,43-68,70,72,124,126-133,152-153,312
+app/api/v1/actors/cancel-deletion/route.test.ts
+  s_69f35b0cf1b1f5::t_4ec4c94eed7338 129-145
+  s_69f35b0cf1b1f5::t_6f580fa47ed1ce 127-128
+lib/config/email.ts
+  s_69f35b0cf1b1f5::t_4ec4c94eed7338 135-146
+app/(nosidebar)/oauth/token/route.test.ts
+  s_69f35b0cf1b1f5::t_4ec4c94eed7338 89-118
+lib/jobs/deleteActorJob.ts
+  s_69f35b0cf1b1f5::t_4ec4c94eed7338 227-228,231
+lib/utils/traceApiRoute.ts
+  s_69f35b0cf1b1f5::t_4ec4c94eed7338 126-205,221-225
+lib/services/guards/AdminApiGuard.ts
+  s_69f35b0cf1b1f5::t_4ec4c94eed7338 39-46,75-76,88-89
+docs/environment-variables.md
+  s_69f35b0cf1b1f5::t_4ec4c94eed7338 204-206,435
+  s_69f35b0cf1b1f5::t_28cb1ed143b309 436
+app/api/v1/fitness/strava/callback/route.test.ts
+  s_69f35b0cf1b1f5::t_4ec4c94eed7338 12-13,107-178
+  s_69f35b0cf1b1f5::t_c221d4edcf4824 179
+app/api/v1/accounts/password/reset/request/route.test.ts
+  s_69f35b0cf1b1f5::t_4ec4c94eed7338 4,18,22-23,117-140
+  s_69f35b0cf1b1f5::t_91fccd65c317fd 141-142
+app/(timeline)/settings/notifications/page.test.tsx
+  s_69f35b0cf1b1f5::t_4ec4c94eed7338 1-95
+app/api/v1/accounts/password/reset/request/route.ts
+  s_69f35b0cf1b1f5::t_4ec4c94eed7338 7-10,100-102,105-106,109-111
+lib/client/accounts.test.ts
+  s_69f35b0cf1b1f5::t_4ec4c94eed7338 756,759,770
+app/(timeline)/account/sessions/AccountSessions.tsx
+  s_69f35b0cf1b1f5::t_4ec4c94eed7338 31-33,186,190-191,324,378
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c9bc510c829acb2669f6387e8ac9c356897162c4",
+  "prompts": {},
+  "sessions": {
+    "s_69f35b0cf1b1f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3e34abf-a75d-4da8-b371-1258aa33721a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

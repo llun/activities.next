@@ -1,0 +1,19 @@
+lib/services/timelines/mention.test.ts
+  s_c7b95c4c5de3ed::t_e93d9f29d6dd2b 639-692
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "3f063934d550775c8bb531fc4a30448698f8de51",
+  "prompts": {},
+  "sessions": {
+    "s_c7b95c4c5de3ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "be603871-1265-497e-bab3-8b3a0841136d",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

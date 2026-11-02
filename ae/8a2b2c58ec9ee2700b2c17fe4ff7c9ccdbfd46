@@ -1,0 +1,113 @@
+lib/components/fitness/mapGeometry.test.ts
+  s_82468012d96a9d::t_fbb88c972a6738 5,579-640
+  s_82468012d96a9d::t_1612a07899b3fa 641
+app/(timeline)/fitness/gear/GearListView.tsx
+  s_82468012d96a9d::t_35c220289a8af3 118-126,129-132
+  s_82468012d96a9d::t_9b7b41dd1c9038 127
+  s_82468012d96a9d::t_b0ccba26227acd 146-148,220
+lib/components/settings/FitnessPrivacyLocationSettings.test.tsx
+  s_82468012d96a9d::t_b8c35350cf6be8 66-69
+  s_82468012d96a9d::t_2ede55f95c4813 971-1097
+  s_82468012d96a9d::t_98fe7fa6c76992 1098
+app/(timeline)/fitness/connections/strava/page.tsx
+  s_82468012d96a9d::t_488c695dd7968f 31
+lib/components/fitness/RegionMap.tsx
+  s_82468012d96a9d::t_5068288c020b1b 46-50,174-182,185-190
+  s_82468012d96a9d::t_aeebc5485485ac 325-334
+app/(timeline)/fitness/gear/[id]/DeviceDetailView.test.tsx
+  s_82468012d96a9d::t_eca7e8195ce2da 121-131
+app/(timeline)/fitness/ActorFitnessDashboard.tsx
+  s_82468012d96a9d::t_b096d55bcd83b2 373,408
+app/(timeline)/fitness/gear/[id]/GearDetailView.test.tsx
+  s_82468012d96a9d::t_eca7e8195ce2da 189,191-192,200,203-206,208,212,215-216,218-251,311-325
+  s_82468012d96a9d::t_7ac8c34cbd1575 188,190,193-199,201-202,207,209-211,213-214,217,326
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.test.tsx
+  s_82468012d96a9d::t_e7a188f232798d 960,973,1007,1111,1131
+  s_82468012d96a9d::t_f1b0e557a8a0ff 1081
+  s_82468012d96a9d::t_42a7a04cbb162b 1644-1654
+  s_82468012d96a9d::t_facdbc4e564785 894-935
+  s_82468012d96a9d::t_fe95a3ebc9929f 713-726,936-937,1186,1234,1314
+app/(timeline)/fitness/RecentFitnessActivities.test.tsx
+  s_82468012d96a9d::t_b8c35350cf6be8 174,177
+app/(timeline)/[actor]/[status]/ActivityMapPanel.test.tsx
+  s_82468012d96a9d::t_646b98fd03df29 365
+  s_82468012d96a9d::t_9a1f3a3f018acf 18,300-341
+  s_82468012d96a9d::t_77d88e6bc3d02d 342-343
+app/(timeline)/[actor]/[status]/ActivityMapPanel.tsx
+  s_82468012d96a9d::t_fe46c00c49c7da 22-31,131,412-424,431-432,442-444
+app/(timeline)/fitness/gear/GearListView.test.tsx
+  s_82468012d96a9d::t_b67c6d83ecc296 170-204
+lib/components/fitness/mapGeometry.ts
+  s_82468012d96a9d::t_fbb88c972a6738 336-370,373-385
+  s_82468012d96a9d::t_4e110525bce7b5 371-372
+app/(timeline)/fitness/ActorFitnessDashboard.test.tsx
+  s_82468012d96a9d::t_b8c35350cf6be8 290-305
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  s_82468012d96a9d::t_23b96eb9c6aec1 1320-1326,1579-1581,1584,1608,2089-2109
+  s_82468012d96a9d::t_b91931e64700b8 236,245,247-251,2110
+app/(timeline)/fitness/RecentFitnessActivities.tsx
+  s_82468012d96a9d::t_b096d55bcd83b2 76
+lib/utils/fitness.ts
+  s_82468012d96a9d::t_8d540db805d293 61-90,132-135
+lib/components/fitness/ActivityRouteMapKit.tsx
+  s_82468012d96a9d::t_fe46c00c49c7da 34-52,54-56,59-61,357,360-379
+app/(timeline)/[actor]/[status]/FitnessAnalysisCharts.test.tsx
+  s_82468012d96a9d::t_f1b0e557a8a0ff 80,272,307
+lib/components/settings/FitnessPrivacyLocationSettings.tsx
+  s_82468012d96a9d::t_e3d1f0329708d9 23,31,62-75,77,109-114,170-220,460-471,644-651,653-655,657-668,673,677-680,759-767,1131-1150
+  s_82468012d96a9d::t_59ad7248f36be6 12
+app/(timeline)/fitness/gear/[id]/GearDetailView.tsx
+  s_82468012d96a9d::t_7b03224ecc2985 87-88,90,96-98,101-105,305-307,315-318,329-333,335,358-365,367-368,370-414
+  s_82468012d96a9d::t_e0242c18ebf8e7 320-326
+  s_82468012d96a9d::t_115c7a05b39fc8 328,334
+  s_82468012d96a9d::t_fe380e59d7790b 319,327
+app/(timeline)/fitness/connections/strava/StravaSettingsForm.tsx
+  s_82468012d96a9d::t_488c695dd7968f 12,197-201,204-209,218-219,222-242,244-245,250,252-258,261,265-281,283-295,298-362,364
+lib/components/fitness/FitnessCalendarHeatmap.test.tsx
+  s_82468012d96a9d::t_412dd70e78246f 49-69
+lib/components/fitness/ActivityRouteMapKit.test.tsx
+  s_82468012d96a9d::t_646b98fd03df29 112,128-129,131,136-138,160,180,235,251,253,255-256
+app/(timeline)/[actor]/[status]/FitnessAnalysisCharts.tsx
+  s_82468012d96a9d::t_e7a188f232798d 812,824,846
+app/(timeline)/fitness/page.tsx
+  s_82468012d96a9d::t_b096d55bcd83b2 63
+lib/components/fitness/HeatmapShareEmbed.tsx
+  s_82468012d96a9d::t_5093d6e862f3fa 14-21
+  s_82468012d96a9d::t_c19e7db97308a3 26-27,75-118,122-126,130-131,136-137,143,146,152,158
+app/(timeline)/fitness/connections/strava/StravaArchiveImportSection.tsx
+  s_82468012d96a9d::t_488c695dd7968f 303
+app/(timeline)/fitness/connections/strava/StravaSettingsForm.test.tsx
+  s_82468012d96a9d::t_edc7b9e571934d 78-107
+lib/components/fitness/routeLineStyle.ts
+  s_82468012d96a9d::t_fe46c00c49c7da 1-25
+app/(timeline)/fitness/connections/wahoo/WahooSettingsForm.test.tsx
+  s_82468012d96a9d::t_884b4d66aa1eda 46-57
+app/(timeline)/fitness/connections/wahoo/WahooSettingsForm.tsx
+  s_82468012d96a9d::t_d934ae54c88500 24,26,226-229
+app/(timeline)/fitness/gear/[id]/DeviceDetailView.tsx
+  s_82468012d96a9d::t_fa43fdc755f9c1 28-29,31
+lib/components/fitness/FitnessCalendarHeatmap.tsx
+  s_82468012d96a9d::t_ba60a1387f3658 387
+lib/components/fitness/HeatmapShareEmbed.test.tsx
+  s_82468012d96a9d::t_ec97d7c4f72d04 192-262
+lib/components/fitness/RegionMap.test.tsx
+  s_82468012d96a9d::t_7f664da4d06ee0 92-141
+lib/utils/fitness.test.ts
+  s_82468012d96a9d::t_afe3ad51407c67 5,91-123,125-146,154,197
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ae8a2b2c58ec9ee2700b2c17fe4ff7c9ccdbfd46",
+  "prompts": {},
+  "sessions": {
+    "s_82468012d96a9d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c1772d3-df89-4813-8d33-4cbceee3810d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

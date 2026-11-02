@@ -1,0 +1,32 @@
+lib/jobs/generateFitnessRouteHeatmapJob.ts
+  s_0e2fd6be727054::t_6964ba3154d7b1 773-776,1216-1220,1320-1328,1334,1364,1398-1407
+lib/database/sql/fitnessRouteHeatmapTile.test.ts
+  s_0e2fd6be727054::t_7f96b345b39112 991-995
+  s_0e2fd6be727054::t_804c4170eacdb4 854-866,878-879,883,890-915
+  s_0e2fd6be727054::t_1b6455f07f3104 916-919,1250-1297
+  s_0e2fd6be727054::t_f0c3d464e1e8dc 1298-1299
+lib/jobs/generateFitnessRouteHeatmapJob.test.ts
+  s_0e2fd6be727054::t_5b67f1d0e28bf1 3281-3283
+  s_0e2fd6be727054::t_69ecfab1d78a50 3208-3280,3284-3325
+  s_0e2fd6be727054::t_45b6dbf569ef10 2602-2605,2610-2614,2633-2636,2660-2663,2681-2685,2703-2707,3060,3089-3091
+AGENTS.md
+  s_0e2fd6be727054::t_480ede641b6ee9 485-500
+docs/fitness-file-storage.md
+  s_0e2fd6be727054::t_480ede641b6ee9 94-95,102,108,110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "c0efcdc5a808268ac5a7028f63d319bacb8a559b",
+  "prompts": {},
+  "sessions": {
+    "s_0e2fd6be727054": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8b4fe7c-fd3e-48ba-9e1d-ef3b99484c21",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

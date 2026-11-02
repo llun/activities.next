@@ -1,0 +1,26 @@
+AGENTS.md
+  h_580a04e334fef4 863-864
+docs/fitness-file-storage.md
+  h_580a04e334fef4 55,343
+docs/maintenance.md
+  h_580a04e334fef4 424-425
+lib/services/fitness-files/sportTypes.test.ts
+  h_580a04e334fef4 369-371,373
+lib/services/fitness-files/sportTypes.ts
+  h_580a04e334fef4 385-386,397-400,403,406
+scripts/fitness/normalizeFitnessActivityTypes.test.ts
+  h_580a04e334fef4 219,223-224,227-245,247,404,408
+scripts/fitness/normalizeFitnessActivityTypes.ts
+  h_580a04e334fef4 188,192-197
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "d46ed63981eedd16f4269e1a849c2b667172bc34",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

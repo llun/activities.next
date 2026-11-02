@@ -1,0 +1,21 @@
+lib/database/sql/instanceActivity.test.ts
+  s_58892cc8b3e18b::t_3c6681ae315b77 149-169
+lib/database/sql/instanceActivity.ts
+  s_58892cc8b3e18b::t_9b6d6341503264 31-32,57-108,131-137
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "16d68e346d66ad8921e264f541e4497a3a9714d8",
+  "prompts": {},
+  "sessions": {
+    "s_58892cc8b3e18b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e6400-99fc-71c1-8ad5-9b1cf7d98715",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,37 @@
+app/(timeline)/fitness/FitnessOverviewHeader.tsx
+  s_a7418d31ae2421::t_8ed68073d84310 10-11,19,46-49,211-214,229,231,233,236,240
+  s_a7418d31ae2421::t_ad4f12a1854ff5 3-5,8-9,12-14,50-195,197-198,204,210,217,235,239
+lib/components/fitness/calendar/RangePicker.test.tsx
+  s_a7418d31ae2421::t_11470906115beb 205
+app/(timeline)/fitness/ActorFitnessDashboard.test.tsx
+  s_a7418d31ae2421::t_e1e19c1bca8e82 149-169,294,317-318,375,418-425,442,485,498,516,519,543,589-591,706,713
+  s_a7418d31ae2421::t_0cb46c35a821a4 609
+  s_a7418d31ae2421::t_781f25028d5ba5 26,33,638-705,707-712,714-762
+app/(timeline)/fitness/FitnessOverviewHeader.test.tsx
+  s_a7418d31ae2421::t_646fcd34f970b5 5,10-18,30,33,36,86-104,106,112-114,117,121,123,125,146-226
+app/(timeline)/fitness/ActorFitnessDashboard.tsx
+  s_a7418d31ae2421::t_20fd4b41806c6e 43-51,63-65,73-80,157-180,245-251,253-270,357-372,379,382,389,409-443,450-470,516-517,526-528,532-535,537-544,553,579-583,601,656
+  s_a7418d31ae2421::t_e5ccea9d562b16 3-9,12,41-42,518-525,529-531,536
+  s_a7418d31ae2421::t_046017ab79f631 584-588,602
+  s_a7418d31ae2421::t_28ad7edbad8c8e 589-600,603-607,614-615,617,625,641
+app/(timeline)/fitness/page.tsx
+  s_a7418d31ae2421::t_666d991d16549e 18,33-34,144-152
+app/(timeline)/fitness/page.test.tsx
+  s_a7418d31ae2421::t_884c36df5534c7 9,308-337
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7c08f1f04da593f0dcb087ec9f328b45d2cd3f95",
+  "prompts": {},
+  "sessions": {
+    "s_a7418d31ae2421": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0f1fd2ae-8211-4deb-ba27-c7a8fdc4df54",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

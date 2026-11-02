@@ -1,0 +1,199 @@
+lib/components/posts/TimelineGapRow.tsx
+  s_512188f2b1db53::t_d9cf9a5c040bf5 4,6,20-21
+lib/components/drafts/DraftsProvider.test.tsx
+  s_512188f2b1db53::t_7d708cb90df084 196,208
+  s_512188f2b1db53::t_d9cf9a5c040bf5 5,11,214-229,231-273,275-286,289-387
+  s_512188f2b1db53::t_f98c0729996a18 185-195,197-207,209-213
+lib/components/settings/NavigationSettings.test.tsx
+  s_512188f2b1db53::t_d9cf9a5c040bf5 63,197,268
+lib/components/layout/mobile-compact-header.test.tsx
+  s_512188f2b1db53::t_7b7cbc5a3d6051 42-56
+lib/components/post-box/useComposerDraft.ts
+  s_512188f2b1db53::t_b4a484552b0248 1-7,9-66,71,73,77,79-97,100-114,116-235,238-253,256-289,292-298,301-339,341,343,345-363,377-395,400-414,420,423-439,441-468,476-481,483-503,506-507,510-520,552-639,641-660,667-668,676,683,685-687,689-714,716-724,735-738
+  s_512188f2b1db53::t_3ee3cdda44daca 98-99,115,396-399,415-419,421-422,469-475,482,504-505,508-509,640,725-728,734
+  s_512188f2b1db53::t_8c974a354096bd 8,364-367,373-374,376,440
+  s_512188f2b1db53::t_baa19f6cc402dd 290-291,299-300,368-372,375,521-551,729-733
+  s_512188f2b1db53::t_f0606c8e4f96e8 67-70,72,74-76,78,236-237,254-255,340,342,344,661-666,669-675,677-682,684,688,715
+app/(timeline)/account/LogoutButton.test.tsx
+  s_512188f2b1db53::t_7d708cb90df084 346-348
+  s_512188f2b1db53::t_24a1c08ec0d6f3 272-295
+  s_512188f2b1db53::t_95d424d49f5e3f 162,270-271,296-345
+  s_512188f2b1db53::t_d9cf9a5c040bf5 6-7,9-18,20,22,95-161,163-269,349-360
+  s_512188f2b1db53::t_ca88f974d78e19 361
+lib/components/drafts/DraftEditor.tsx
+  s_512188f2b1db53::t_b4a484552b0248 1-69
+lib/components/drafts/DraftRow.test.tsx
+  s_512188f2b1db53::t_b4a484552b0248 1-314
+app/(timeline)/drafts/loading.test.tsx
+  s_512188f2b1db53::t_b4a484552b0248 1-22
+app/(timeline)/MainPageTimeline.refresh.test.tsx
+  s_512188f2b1db53::t_d9cf9a5c040bf5 19-24,38-39,86-89,762-763,874-875,927-928,962-963,993-994,1004-1071
+  s_512188f2b1db53::t_5b608a69ab6580 1072-1073
+app/(timeline)/drafts/DraftsPage.test.tsx
+  s_512188f2b1db53::t_b4a484552b0248 1-27
+lib/components/post-box/useComposerDraft.test.tsx
+  s_512188f2b1db53::t_b4a484552b0248 1-41,43-291,353-465,469,481,512-670
+  s_512188f2b1db53::t_1c350450b7df8c 42
+  s_512188f2b1db53::t_24a1c08ec0d6f3 292-352,466-468,470-480,482-511
+lib/components/connection/ConnectionStatus.test.tsx
+  s_512188f2b1db53::t_d9cf9a5c040bf5 5,22-24,83-113,123-224
+app/(timeline)/drafts/page.tsx
+  s_512188f2b1db53::t_b4a484552b0248 1-42
+lib/components/drafts/draftFixtures.testUtils.ts
+  s_512188f2b1db53::t_b4a484552b0248 1-40
+lib/components/drafts/DraftsLink.tsx
+  s_512188f2b1db53::t_b4a484552b0248 1-63
+lib/components/post-box/post-box-media.test.tsx
+  s_512188f2b1db53::t_b4a484552b0248 324,331-332,1121-1125,1152-1154,1253,1281,1301
+lib/components/drafts/SavedToDraftsNote.tsx
+  s_512188f2b1db53::t_d9cf9a5c040bf5 1-3,5-6,8-32,37-38,48-54,65-66,69-78,84,94-104
+  s_512188f2b1db53::t_7c395d9a772953 4,7,33-36,39-47,55-64,67-68,79-83,85-93
+lib/components/layout/sidebar.test.tsx
+  s_512188f2b1db53::t_8d48f3460e92a9 812
+  s_512188f2b1db53::t_837756736ceee8 813-819
+  s_512188f2b1db53::t_d9cf9a5c040bf5 13,20-27,30,717-811,820-833
+  s_512188f2b1db53::t_9f01fdce77a0c8 834
+lib/client/drafts/pendingPurge.ts
+  s_512188f2b1db53::t_dfde57982bc999 1-54,57-59,63,66-74,80
+  s_512188f2b1db53::t_dcf1358599c69c 55-56,60-62,64-65,75-79
+app/(timeline)/drafts/loading.tsx
+  s_512188f2b1db53::t_b4a484552b0248 1-17
+lib/components/post-box/DraftSaveStatus.test.tsx
+  s_512188f2b1db53::t_b4a484552b0248 1-46
+lib/components/layout/mobile-compact-header.tsx
+  s_512188f2b1db53::t_a2a60ac0a0825a 74-77
+docs/architecture.md
+  s_512188f2b1db53::t_88919422bafedd 2319
+  s_512188f2b1db53::t_7d708cb90df084 1023
+  s_512188f2b1db53::t_bc40e5a0ef81ea 965-966,989,1035,3066-3070,3072,3074-3076
+  s_512188f2b1db53::t_9e431069317037 3071
+  s_512188f2b1db53::t_0d307466d96d04 3073
+lib/components/surface/Alert.test.tsx
+  s_512188f2b1db53::t_d9cf9a5c040bf5 6,36-45
+  s_512188f2b1db53::t_ba872904b17830 46
+lib/components/drafts/DraftsProvider.tsx
+  s_512188f2b1db53::t_9d344e90ab50cc 17,62,92,100-109
+  s_512188f2b1db53::t_d9cf9a5c040bf5 20,31-32,57-58,60-61,76-77,80-82,84-91,93-98,112,115,121,126,132-135,139,150,154,158-168
+  s_512188f2b1db53::t_0c111091b128be 99
+lib/client/drafts/pendingPurge.test.ts
+  s_512188f2b1db53::t_dcf1358599c69c 92-101
+  s_512188f2b1db53::t_2160379682b457 1-50,52-63,65-70,72,74-91,102-130
+  s_512188f2b1db53::t_8c9cd04657f99b 51,64,71,73
+lib/components/layout/nav-items.ts
+  s_512188f2b1db53::t_d9cf9a5c040bf5 6,83-87
+  s_512188f2b1db53::t_3027ff023979c1 88
+lib/components/layout/nav-items.test.ts
+  s_512188f2b1db53::t_d9cf9a5c040bf5 13,29,46,65,98
+lib/components/posts/TimelineGapRow.test.tsx
+  s_512188f2b1db53::t_d9cf9a5c040bf5 8-14,17-20,22-31,62-65,69-70,74-77,81-108
+lib/components/drafts/SavedToDraftsNote.test.tsx
+  s_512188f2b1db53::t_d9cf9a5c040bf5 1-7,9-17,19-23,29-118,155-167
+  s_512188f2b1db53::t_7c395d9a772953 8,18,24-28,119-154
+app/(timeline)/MainPageTimeline.tsx
+  s_512188f2b1db53::t_717c39c77d0573 1425-1446
+  s_512188f2b1db53::t_d9cf9a5c040bf5 18-21,60,295,924,1160,1210-1211,1277-1285,1307,1419-1423
+  s_512188f2b1db53::t_621cb54d4172f8 17,1424
+lib/components/surface/Alert.tsx
+  s_512188f2b1db53::t_d9cf9a5c040bf5 1-7,54-55,91,98-106,125
+lib/components/drafts/DraftEditor.test.tsx
+  s_512188f2b1db53::t_b4a484552b0248 1-113
+lib/components/layout/sidebar.tsx
+  s_512188f2b1db53::t_8d48f3460e92a9 732
+  s_512188f2b1db53::t_837756736ceee8 733-737
+  s_512188f2b1db53::t_d9cf9a5c040bf5 20,27,184-206,224,512-517,715-719,729-731,738-739
+app/robots.ts
+  s_512188f2b1db53::t_d9cf9a5c040bf5 15
+app/(timeline)/drafts/DraftsPage.tsx
+  s_512188f2b1db53::t_b4a484552b0248 1-41
+lib/components/drafts/DraftsList.test.tsx
+  s_512188f2b1db53::t_b4a484552b0248 1-304
+lib/components/post-box/post-box.tsx
+  s_512188f2b1db53::t_1f31c9d959d032 2311-2314,2325
+  s_512188f2b1db53::t_b4a484552b0248 28,35-36,43,76,103,105,125-129,167-168,190-194,206-210,309-410,427-428,449-455,546-552,558-560,562-564,811-814,983-984,1031-1047,1065,1101,1115-1117,1221-1230,1272,1289-1292,1305,1326-1345,1358-1360,1365,1375-1382,1384,1390,1551-1554,1639-1765,1767-1769,1790-1796,1800,1802-1811,1872,1919-1921,1971-1985,2109-2115,2307-2310,2315-2324,2326-2331
+  s_512188f2b1db53::t_9a0eb83924403d 2332
+app/globals.css
+  s_512188f2b1db53::t_a2a60ac0a0825a 682
+  s_512188f2b1db53::t_d9cf9a5c040bf5 454-459,461-463,471,473-475,677-681,683
+  s_512188f2b1db53::t_0b0f5e3b314f5b 684-686
+lib/components/posts/status-reply-box.tsx
+  s_512188f2b1db53::t_b4a484552b0248 15,19,23,32-36,44,65-66,74,136-203,208-212,222,224,226,238-305,313-315,321,327-331,333-334,336,342-347,350-351,360,365-366,369-370,425-428,469-474,490-501,516-519,529,540-549,557,568-571,781-787,853-859
+  s_512188f2b1db53::t_bcfc0117bc2f94 75-76
+app/robots.test.ts
+  s_512188f2b1db53::t_d9cf9a5c040bf5 18
+lib/components/post-box/reducers.ts
+  s_512188f2b1db53::t_b4a484552b0248 13,36-42,160,199-201,234-235
+  s_512188f2b1db53::t_b4756805918461 236
+lib/components/drafts/DraftsList.tsx
+  s_512188f2b1db53::t_b4a484552b0248 1-134
+lib/client/drafts/index.ts
+  s_512188f2b1db53::t_7d731e6ce74934 7
+lib/components/drafts/DraftEditor.integration.test.tsx
+  s_512188f2b1db53::t_483079a46d0243 21,28,30,167-181,183-196,198-210,219,222
+  s_512188f2b1db53::t_79c1bb11d8ba3e 1-19,23-27,29,31-36,38-116,119-132,134-143,146-166,182,197,211-218,220-221,223-381
+  s_512188f2b1db53::t_632c89ae604fa3 37
+  s_512188f2b1db53::t_cc203782dc128e 20,22,117-118,133,144-145
+lib/client/drafts/types.ts
+  s_512188f2b1db53::t_9e431069317037 28-32
+app/(timeline)/MainPageTimeline.testUtils.tsx
+  s_512188f2b1db53::t_d9cf9a5c040bf5 5-6,372-422
+lib/components/post-box/post-box.edit.test.tsx
+  s_512188f2b1db53::t_b4a484552b0248 298-309,311-314,316-318,324-335,337-342,344-351,353-355,357,359-362
+lib/services/navigation/navPreferences.test.ts
+  s_512188f2b1db53::t_d9cf9a5c040bf5 15-34
+lib/components/post-box/reducers.test.ts
+  s_512188f2b1db53::t_b4a484552b0248 6,8,573-606
+  s_512188f2b1db53::t_24d1076501cbef 607
+lib/components/posts/status-reply-box.drafts.test.tsx
+  s_512188f2b1db53::t_b4a484552b0248 1-413
+app/globals.scrollPadding.test.ts
+  s_512188f2b1db53::t_d9cf9a5c040bf5 42-44,49,80-90
+  s_512188f2b1db53::t_7b7cbc5a3d6051 68-76
+lib/services/navigation/navPreferences.ts
+  s_512188f2b1db53::t_d9cf9a5c040bf5 16
+lib/components/post-box/post-box-media.edit.test.tsx
+  s_512188f2b1db53::t_b4a484552b0248 342-344
+app/(timeline)/account/LogoutButton.tsx
+  s_512188f2b1db53::t_d9cf9a5c040bf5 3-6,9,11-12,30-38,65-75,84,88-100
+  s_512188f2b1db53::t_dfde57982bc999 7-8
+  s_512188f2b1db53::t_8c974a354096bd 44-46,48-64
+lib/components/post-box/post-box.test.tsx
+  s_512188f2b1db53::t_b4a484552b0248 1032-1034,1052-1055,1151-1152,1201
+app/(timeline)/drafts/page.test.tsx
+  s_512188f2b1db53::t_b4a484552b0248 1-96
+app/(timeline)/MainPageTimeline.test.tsx
+  s_512188f2b1db53::t_d9cf9a5c040bf5 18,36-40,72-73,160-163,1378-1379,1460,1474-1479,1481,1483-1485,1487-1497,1499,1501-1547
+lib/components/post-box/post-box.drafts.test.tsx
+  s_512188f2b1db53::t_5563154531b98c 240-241,282-283
+  s_512188f2b1db53::t_24a1c08ec0d6f3 274-281,284-291
+  s_512188f2b1db53::t_f304723170174f 329,332-341
+  s_512188f2b1db53::t_1f31c9d959d032 330-331,342-343
+  s_512188f2b1db53::t_b4a484552b0248 1-239,242-273,292-328,344-451,458,460-502,504-523,525-539,541-561,563-706
+  s_512188f2b1db53::t_732145b97ae455 452-457,459,503,524,540,562
+lib/components/drafts/DraftRow.tsx
+  s_512188f2b1db53::t_b4a484552b0248 1-257
+lib/components/drafts/DraftsLink.test.tsx
+  s_512188f2b1db53::t_b4a484552b0248 1-136
+lib/components/connection/ConnectionStatus.tsx
+  s_512188f2b1db53::t_d9cf9a5c040bf5 3-14,16,43-102,104-117,120-124,126-149
+lib/components/layout/mobile-nav.test.tsx
+  s_512188f2b1db53::t_d9cf9a5c040bf5 13,16-22,27,164-205
+  s_512188f2b1db53::t_81007cbf32e8ff 206-207
+lib/components/post-box/DraftSaveStatus.tsx
+  s_512188f2b1db53::t_b4a484552b0248 1-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "285fc5e9bed6d02bf34364da830700aa2eae1486",
+  "prompts": {},
+  "sessions": {
+    "s_512188f2b1db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e467608a-8346-4544-b69a-fc45fca93669",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

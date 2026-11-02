@@ -1,0 +1,47 @@
+lib/database/sql/status.test.ts
+  s_85d91c6baf9d58::t_50e0458c968d08 3561-3588
+lib/services/mastodon/getMastodonStatus.test.ts
+  s_85d91c6baf9d58::t_eaadf4dfcb3d15 711-717,725-736
+lib/actions/emojiReaction.ts
+  s_85d91c6baf9d58::t_d78bd2a0e4e937 7-10,42-53,94,117-130
+  s_85d91c6baf9d58::t_3f979581b844af 200,206-209
+  s_85d91c6baf9d58::t_df2c7a6d57bca8 131
+lib/database/sql/status.ts
+  s_85d91c6baf9d58::t_fd01f93c7c143c 2172-2180
+lib/database/sql/statusReaction.test.ts
+  s_85d91c6baf9d58::t_93e4872b2aebbe 122-171,411-413,418-431
+lib/database/sql/actor.ts
+  s_85d91c6baf9d58::t_e53d5d845d2a76 1532-1537,1684-1686
+  s_85d91c6baf9d58::t_2fa3461da13ff4 1687
+lib/actions/emojiReaction.test.ts
+  s_85d91c6baf9d58::t_edb0a527659acd 201-234,312-326
+  s_85d91c6baf9d58::t_6148dcfe555c29 327
+lib/database/sql/actor.test.ts
+  s_85d91c6baf9d58::t_9d3fd99d6d9321 1612-1615,1618-1625,1642-1666
+  s_85d91c6baf9d58::t_507cc5ee5593e6 1616-1617,1626-1641
+lib/database/sql/statusReaction.ts
+  s_85d91c6baf9d58::t_eaadf4dfcb3d15 145
+  s_85d91c6baf9d58::t_30e9d54524b73e 32-36,88,91
+  s_85d91c6baf9d58::t_3f979581b844af 48,50,52-54,56-62,65,76-79
+lib/types/database/operations.ts
+  s_85d91c6baf9d58::t_30e9d54524b73e 2868-2870
+  s_85d91c6baf9d58::t_3f979581b844af 2862-2867
+lib/services/statuses/reactionLimits.ts
+  s_85d91c6baf9d58::t_d78bd2a0e4e937 14-15,17-22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "377dd5932f0274a5b43f880442162fabe5fa854f",
+  "prompts": {},
+  "sessions": {
+    "s_85d91c6baf9d58": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8685a26c-353a-478b-9125-3aeb9c98a29a",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

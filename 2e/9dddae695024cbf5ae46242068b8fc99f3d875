@@ -1,0 +1,20 @@
+lib/components/admin-rules/RulesPanel.tsx
+  s_9c50388aa3aae7::t_5f13403bcd6100 119-122
+  s_9c50388aa3aae7::t_f4a7126902dcd6 65-68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "2e9dddae695024cbf5ae46242068b8fc99f3d875",
+  "prompts": {},
+  "sessions": {
+    "s_9c50388aa3aae7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4f8d4378-a408-4ea0-ad21-9f87e6267281",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

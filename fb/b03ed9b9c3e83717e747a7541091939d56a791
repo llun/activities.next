@@ -1,0 +1,36 @@
+lib/activities/index.ts
+  h_580a04e334fef4 15,124
+lib/jobs/createAnnounceJob.test.ts
+  h_580a04e334fef4 13-19,203-268
+lib/jobs/createAnnounceJob.ts
+  h_580a04e334fef4 8,11-12,17,26-32,58-70
+lib/jobs/createNoteJob.test.ts
+  h_580a04e334fef4 1571-1598
+lib/jobs/createNoteJob.ts
+  h_580a04e334fef4 34,51-56,72,74-78,165-174,180
+lib/jobs/createRelayAnnounceJob.test.ts
+  h_580a04e334fef4 9,170-212
+lib/jobs/createRelayAnnounceJob.ts
+  h_580a04e334fef4 7-12,15,107-119
+lib/jobs/processForwardedActivityJob.test.ts
+  h_580a04e334fef4 8,299-389
+lib/jobs/processForwardedActivityJob.ts
+  h_580a04e334fef4 9,16,19,21-22,25,192-209,211-217
+lib/jobs/updateNoteJob.ts
+  h_580a04e334fef4 57,59-63
+lib/jobs/updatePollJob.ts
+  h_580a04e334fef4 12-18,40
+lib/types/activitypub/objects.ts
+  h_580a04e334fef4 167-172
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "fbb03ed9b9c3e83717e747a7541091939d56a791",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

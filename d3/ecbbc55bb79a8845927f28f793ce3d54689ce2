@@ -1,0 +1,21 @@
+proxy.ts
+  s_8f8c7653879d27::t_8970b7d64212dc 3,10-92,133
+proxy.test.ts
+  s_8f8c7653879d27::t_ebf330f374b858 6-9,11-33,51-68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "d3ecbbc55bb79a8845927f28f793ce3d54689ce2",
+  "prompts": {},
+  "sessions": {
+    "s_8f8c7653879d27": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1dff-6d59-7960-9eee-87eebfec6a18",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,16 @@
+lib/components/posts/media.test.tsx
+  h_580a04e334fef4 5,66,80,84-90
+lib/components/posts/media.tsx
+  h_580a04e334fef4 3-10,34-42,68-71,74-79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "94186fac0fa4c182e8bbbc7892105b2b71770ea6",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

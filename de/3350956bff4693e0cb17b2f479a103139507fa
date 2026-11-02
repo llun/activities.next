@@ -1,0 +1,22 @@
+lib/components/actor-switcher/ActorSwitcher.tsx
+  s_1e130078415342::t_4c02f0a7b66490 94-134,138-149,151-155
+lib/components/actor-switcher/ActorSwitcher.test.tsx
+  s_1e130078415342::t_238685dfba1ce7 1-72,74-91
+  s_1e130078415342::t_e535e8dd293f53 73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "de3350956bff4693e0cb17b2f479a103139507fa",
+  "prompts": {},
+  "sessions": {
+    "s_1e130078415342": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fab5bb26-09e3-4341-b98e-c182ffc2ae42",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

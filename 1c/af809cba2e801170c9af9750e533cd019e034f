@@ -1,0 +1,42 @@
+lib/components/sign-out/unsentPostsMessage.test.ts
+  s_f92b4a9beb2361::t_d3ed9eb7a9d4b3 73-83
+lib/client/drafts/draftsDb.ts
+  s_f92b4a9beb2361::t_3e0bb8e8be87d9 299-300,311-312,317,326
+lib/components/sign-out/SignOutDialog.test.tsx
+  s_f92b4a9beb2361::t_d3ed9eb7a9d4b3 132-136,146,154-167
+  s_f92b4a9beb2361::t_4937afecd346de 168-170
+lib/components/sign-out/unsentPostsMessage.ts
+  s_f92b4a9beb2361::t_064d3f59221689 1,4-5,9-13,16-19,21-22
+lib/components/sign-out/SignOutDialog.tsx
+  s_f92b4a9beb2361::t_064d3f59221689 20-24,40-41,44-51,59,71,87-88,104-105,108-112
+  s_f92b4a9beb2361::t_03b22547af6c9d 113
+lib/components/actor-switcher/ActorSwitcher.test.tsx
+  s_f92b4a9beb2361::t_e30afac3c7eb0d 699-718,722-727
+  s_f92b4a9beb2361::t_d3ed9eb7a9d4b3 719-721
+  s_f92b4a9beb2361::t_65f66ff452603c 698
+lib/components/sign-out/useSignOut.test.tsx
+  s_f92b4a9beb2361::t_d3ed9eb7a9d4b3 1-66
+lib/components/actor-switcher/ActorSwitcher.tsx
+  s_f92b4a9beb2361::t_d3ed9eb7a9d4b3 500
+  s_f92b4a9beb2361::t_9f4585964d24a4 21-22,45-64,237-239,252-253,263-264,289-296,503-511,515-523
+  s_f92b4a9beb2361::t_04bb06481c47ce 235-236
+lib/client/drafts/draftsDb.test.ts
+  s_f92b4a9beb2361::t_4feacd795f1c03 137-138,142-143,185-186,190-191,195-196,200-201,207-208,212-213,219
+  s_f92b4a9beb2361::t_4ff590c94b1894 220
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1caf809cba2e801170c9af9750e533cd019e034f",
+  "prompts": {},
+  "sessions": {
+    "s_f92b4a9beb2361": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ee3acfd9-97dc-47c9-8a2a-2e741f8b14b8",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,45 @@
+app/api/v1/accounts/[id]/fitness-route-heatmap/route.ts
+  af5d762e2d5af66c 155,162
+app/(timeline)/[actor]/fitness/heatmap/FitnessHeatmapView.test.tsx
+  af5d762e2d5af66c 98-103
+lib/database/sql/fitnessRouteHeatmapMigration.test.ts
+  af5d762e2d5af66c 68-139
+lib/jobs/generateFitnessRouteHeatmapJob.ts
+  af5d762e2d5af66c 18,23,104-110,173-174,176,188-191,199-201,203-207,209-211,213-221,223-247,250-272,308-322,324-325
+app/(timeline)/[actor]/fitness/heatmap/FitnessHeatmapView.tsx
+  af5d762e2d5af66c 66,215-218,244,386,388-392,418-456,489-496,499-504,513-515,534,537-547,549-550,559-592,601,606-607,677-678,690-694,827-842
+app/api/v1/accounts/[id]/fitness-route-heatmap/route.test.ts
+  af5d762e2d5af66c 95-137
+lib/services/fitness-files/routeHeatmap.test.ts
+  af5d762e2d5af66c 1-34
+lib/client.ts
+  af5d762e2d5af66c 1259-1263,1311
+lib/jobs/enqueueFitnessRouteHeatmapJobs.ts
+  af5d762e2d5af66c 95-97
+lib/jobs/generateFitnessRouteHeatmapJob.test.ts
+  af5d762e2d5af66c 2,9,375-476
+lib/services/fitness-files/routeHeatmap.ts
+  af5d762e2d5af66c 33,83-84,86-87,100
+migrations/20260502190000_replace_fitness_heatmaps_with_route_cache.js
+  af5d762e2d5af66c 6-10,12-20,22-24,27-39,41-42,48-50,52-53,55-75,77-87,96-98,100-117,119-128
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "2114fdbdbae59640901a998c84e36ddb7526e8b5",
+  "prompts": {
+    "af5d762e2d5af66c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019de978-d97d-7c02-975e-38369bd28f83",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 842,
+      "total_deletions": 271,
+      "accepted_lines": 4207,
+      "overriden_lines": 22
+    }
+  }
+}

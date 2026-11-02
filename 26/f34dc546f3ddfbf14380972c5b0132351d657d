@@ -1,0 +1,254 @@
+app/api/v1/accounts/[id]/gallery/albums/route.test.ts
+  s_1f1a1efd8db0bf::t_19c07c42333582 155-157,171,186,226
+app/(timeline)/gallery/media/galleryAddToAlbumUi.ts
+  s_1f1a1efd8db0bf::t_79a784dfb021ab 16-21,43
+lib/components/gallery/GalleryPagedGrid.tsx
+  s_1f1a1efd8db0bf::t_b68fe1a1e458e7 195-197
+  s_1f1a1efd8db0bf::t_b9c0970779591f 77-78,114-115,277
+app/(timeline)/gallery/media/GallerySelectionBar.test.tsx
+  s_1f1a1efd8db0bf::t_79a784dfb021ab 21-27,117-160
+  s_1f1a1efd8db0bf::t_f3c10f18c25951 161
+lib/database/domains/gallery/galleryAlbumQueries.test.ts
+  s_1f1a1efd8db0bf::t_19c07c42333582 448,453,508-509,702,705,806,811,857,863,880,888,1087,1098,1103,1113,1758,1761,1764,1771,1773
+app/(timeline)/[actor]/ActorTimelines.tsx
+  s_1f1a1efd8db0bf::t_0b675bed5e6388 222-226,228
+  s_1f1a1efd8db0bf::t_48edd965d1d4d1 117-118
+app/(timeline)/[actor]/getProfileData.ts
+  s_1f1a1efd8db0bf::t_9733b27d21d66b 67-68
+  s_1f1a1efd8db0bf::t_f136a2822920a1 225-229,231-268,272-274,276-278,285-289
+lib/components/gallery/mediaAlbumsUi.test.ts
+  s_1f1a1efd8db0bf::t_cd7cd8a8edbf3f 2,73-77
+  s_1f1a1efd8db0bf::t_2794e2c52ef69a 78
+lib/services/gallery/galleryAlbumQueries.test.ts
+  s_1f1a1efd8db0bf::t_19c07c42333582 892,904
+lib/components/gallery/GalleryShowSelect.tsx
+  s_1f1a1efd8db0bf::t_79a784dfb021ab 43-47
+app/(timeline)/gallery/albums/GalleryAlbumPicker.test.tsx
+  s_1f1a1efd8db0bf::t_4aa770a48f8545 503-508,511-515,517-520,524-526,529,543-544,548,554,561-569,598-639,648,651-656,659-663,665-668,672-674,677,680,682,686,689,692,697,717
+  s_1f1a1efd8db0bf::t_aa1408f83bae25 5,12,56-57,64,77,85-87,89-102,117-130,139,144-146,169,188-190,199-201,213-215,229,231-238,242-244,246-254,256-258,262,267-283,289-297,302-309,311-363,366-369,375,383-385,397,404-406,418,432-434,455-457,468-470,474-499,537,691,709-711
+  s_1f1a1efd8db0bf::t_0b675bed5e6388 545-547,549-553,555-560
+  s_1f1a1efd8db0bf::t_f2536f37ecf32c 541,570-597
+  s_1f1a1efd8db0bf::t_2ad00ab94a48da 640-647,712
+  s_1f1a1efd8db0bf::t_909ada57528d11 284-288,298-301,310,500-502,509-510,516,521-523,527-528,530-536,538-540,542,649-650,657-658,664,669-671,675-676,678-679,681,683-685,687-688,690,693-696,698-708,713-716
+app/api/v1/gallery/albums/route.ts
+  s_1f1a1efd8db0bf::t_eb03bd640f0774 22,24,61-64,85-92,115-117,120-132,134-137
+  s_1f1a1efd8db0bf::t_7d9bd7412869d3 118-119
+  s_1f1a1efd8db0bf::t_1873144e5c4480 133
+  s_1f1a1efd8db0bf::t_96e623b0f106ec 138
+lib/database/domains/gallery/galleryMedia.test.ts
+  s_1f1a1efd8db0bf::t_19c07c42333582 421-433,568-601,875-927,931,1055-1062,1136-1158
+  s_1f1a1efd8db0bf::t_492d37c8f609ef 1159
+app/(timeline)/gallery/albums/GalleryAlbumPicker.tsx
+  s_1f1a1efd8db0bf::t_968a9f48035977 183,185-191,220-226,233-236,486-488,497-498
+  s_1f1a1efd8db0bf::t_a54bf7a8eb1887 201
+  s_1f1a1efd8db0bf::t_0b675bed5e6388 491,496
+  s_1f1a1efd8db0bf::t_f2536f37ecf32c 227-232,237-238,492-495
+  s_1f1a1efd8db0bf::t_aa1408f83bae25 9,16,42,69-70,91-95,99,106-107,129-132,142-150,152,154-155,157-158,290,292,304-305,318,337,359,374,389-392,421-424,426-432,444-447,459,464-474,484-485,499-505
+  s_1f1a1efd8db0bf::t_687f4cf6dd7b4b 198-199
+  s_1f1a1efd8db0bf::t_17be96891f5d78 151,153,156,192-193,211-219
+lib/components/medias-modal/medias-modal-albums.test.tsx
+  s_1f1a1efd8db0bf::t_cd7cd8a8edbf3f 79,90,93-94,96,105,118-192,196,206,219-220,223-224,226-227,229-230,233,235-237,239-246,249-257,259,261-264,267-273,276-280,282-283,285-287,289-298,301,312,321,336,338,358,373,384,398,412,424,455,469-470,485,508,518
+lib/database/domains/gallery/galleryAlbumsVisibility.test.ts
+  s_1f1a1efd8db0bf::t_19c07c42333582 45,47,188,198,405-406,410-482,497-535,538,553-629,631,640-642,644-645,647-692,850-878,884,891
+  s_1f1a1efd8db0bf::t_cb44e4b6e1665a 407-409
+  s_1f1a1efd8db0bf::t_d8caaf3ccc705d 483-485,494-496
+  s_1f1a1efd8db0bf::t_13d3c6b0f7e779 536-537
+  s_1f1a1efd8db0bf::t_877cd820d7fbc9 539-541,550-552
+  s_1f1a1efd8db0bf::t_4ec5624a26cd5d 630
+  s_1f1a1efd8db0bf::t_d9dbd57a7988b0 632-634,637-639
+  s_1f1a1efd8db0bf::t_6e4236bc9d74e1 643
+  s_1f1a1efd8db0bf::t_07351831587b66 646
+  s_1f1a1efd8db0bf::t_a49aaf81dcb493 486-493,542-549,635-636
+lib/components/gallery/mediaAlbumsUi.ts
+  s_1f1a1efd8db0bf::t_cd7cd8a8edbf3f 4,42
+lib/services/gallery/galleryQueries.test.ts
+  s_1f1a1efd8db0bf::t_eb03bd640f0774 541-614,1264
+docs/mastodon-api-compatibility.md
+  s_1f1a1efd8db0bf::t_cd7cd8a8edbf3f 593-594,659,699-706
+app/(timeline)/[actor]/ActorTimelines.test.tsx
+  s_1f1a1efd8db0bf::t_0b675bed5e6388 284-299
+  s_1f1a1efd8db0bf::t_48edd965d1d4d1 303
+  s_1f1a1efd8db0bf::t_6c4fa5fd66971c 282-283,300-301
+lib/database/domains/gallery/albumSuggestions.ts
+  s_1f1a1efd8db0bf::t_134f47a536d430 5,19,22-24
+app/api/v1/accounts/[id]/gallery/media/route.ts
+  s_1f1a1efd8db0bf::t_eb03bd640f0774 41-43
+app/(timeline)/gallery/media/GallerySelectionBar.tsx
+  s_1f1a1efd8db0bf::t_79a784dfb021ab 29-30,45-46,55,61,89,94,143,146,148
+lib/components/gallery/MediaAlbumsControl.test.tsx
+  s_1f1a1efd8db0bf::t_cd7cd8a8edbf3f 629,633-635,644,646-647,649,653,655,658,766,769-774,777,781-801,803,805
+lib/components/medias-modal/medias-modal.tsx
+  s_1f1a1efd8db0bf::t_cd7cd8a8edbf3f 57,61,97,113,115,143,170-176,467-487
+app/(timeline)/gallery/media/GalleryAddToAlbumDialog.tsx
+  s_1f1a1efd8db0bf::t_48edd965d1d4d1 298
+  s_1f1a1efd8db0bf::t_79a784dfb021ab 9,31-35,71,77-78,85,102-112,122,226-227,229-231,243-244,252-255,272-278,290-293,295,299-314,316-318,322-323
+  s_1f1a1efd8db0bf::t_931246daa766c3 319-321
+  s_1f1a1efd8db0bf::t_b3b67f9f257393 100-101,116,228,296-297,315
+app/(timeline)/[actor]/getProfileData.test.ts
+  s_1f1a1efd8db0bf::t_f2536f37ecf32c 1871,1876
+  s_1f1a1efd8db0bf::t_eb84c2a9b9b5a1 21,831-836,845-863,1898-2405
+app/(timeline)/gallery/media/GalleryAddToAlbumDialog.test.tsx
+  s_1f1a1efd8db0bf::t_d2469e376c1b2b 341,345-350
+  s_1f1a1efd8db0bf::t_79a784dfb021ab 7-11,26-27,32,75,77,147,257-258,271-321,335,339,351,354,356,359,361-362,364-365,376,392,397
+  s_1f1a1efd8db0bf::t_48edd965d1d4d1 259-270
+  s_1f1a1efd8db0bf::t_eb284292c1b362 322-334,336-338,340,342-344,352-353,355,357-358,360,363,366-375,377-391,393-396,398
+app/api/v1/gallery/albums/membership/route.ts
+  s_1f1a1efd8db0bf::t_eb03bd640f0774 1-59
+lib/components/gallery/MediaAlbumsControl.tsx
+  s_1f1a1efd8db0bf::t_cd7cd8a8edbf3f 128-129,132,136,167,170,176-192,194,196,235,243-244,247-249,423,430-435
+lib/database/domains/gallery/galleryAlbums.test.ts
+  s_1f1a1efd8db0bf::t_19c07c42333582 145,147,149,201,203,206
+lib/services/gallery/galleryProjection.ts
+  s_1f1a1efd8db0bf::t_19c07c42333582 175-182
+app/(timeline)/gallery/albums/galleryAlbumPickerUi.test.ts
+  s_1f1a1efd8db0bf::t_aa1408f83bae25 3-4,83-114,172-229
+lib/components/medias-modal/medias-modal-details.test.tsx
+  s_1f1a1efd8db0bf::t_cd7cd8a8edbf3f 356-357
+lib/components/gallery/GalleryShowSelect.test.tsx
+  s_1f1a1efd8db0bf::t_79a784dfb021ab 1-36
+lib/client/galleryAlbums.test.ts
+  s_1f1a1efd8db0bf::t_eb03bd640f0774 13,78,89,94,360-419
+  s_1f1a1efd8db0bf::t_62cb5b4912aaac 420
+lib/services/gallery/galleryAlbumRequests.ts
+  s_1f1a1efd8db0bf::t_eb03bd640f0774 31-46,72-75
+  s_1f1a1efd8db0bf::t_7396a8180ed81a 76
+  s_1f1a1efd8db0bf::t_defb3df8c7ff42 12-17
+lib/database/kysely/visibility/galleryMediaEquivalence.test.ts
+  s_1f1a1efd8db0bf::t_19c07c42333582 9-15,117-118,127,132,311-327,417-428
+app/api/v1/accounts/[id]/gallery/media/route.test.ts
+  s_1f1a1efd8db0bf::t_eb03bd640f0774 312-318,333,341,344-348,372-389
+  s_1f1a1efd8db0bf::t_b4b9b0d7011eba 334-336,338-340
+  s_1f1a1efd8db0bf::t_063514a4171e9e 342-343
+  s_1f1a1efd8db0bf::t_717d36327f0d8a 349-351,369-371
+  s_1f1a1efd8db0bf::t_b8197c530bc19e 390
+  s_1f1a1efd8db0bf::t_4445a9ee6d605b 337,352-368
+lib/services/gallery/galleryAlbumQueries.ts
+  s_1f1a1efd8db0bf::t_19c07c42333582 45-47,171,574-576,594
+app/(timeline)/gallery/albums/GalleryAlbumPickerTile.test.tsx
+  s_1f1a1efd8db0bf::t_aa1408f83bae25 1-87,101-141
+  s_1f1a1efd8db0bf::t_f2536f37ecf32c 88-100
+lib/database/kysely/visibility/galleryMedia.ts
+  s_1f1a1efd8db0bf::t_19c07c42333582 31-33,124-125,129-132,169-170,192-209
+lib/services/gallery/galleryQueries.ts
+  s_1f1a1efd8db0bf::t_eb03bd640f0774 66,231-244,248-252
+app/api/v1/media/[id]/albums/route.test.ts
+  s_1f1a1efd8db0bf::t_19c07c42333582 238,247
+app/(timeline)/gallery/media/GalleryAllMediaView.test.tsx
+  s_1f1a1efd8db0bf::t_79a784dfb021ab 15-19,40,111-112,119,137-147,154,159-160,282-286,288,316,331-332,352-356,417-424,866-876,880-882,884,892-927,1132-1133,1192,1197,1202,1205,1211,1215,1225,1229,1231,1234,1237-1238,1241-1242,1246-1249,1251-1263,1265-1266,1268-1280,1283-1294,1299-1305,1308-1311,1313-1315,1386,1404
+  s_1f1a1efd8db0bf::t_08208114592580 1281-1282
+  s_1f1a1efd8db0bf::t_634f81261f7657 1295-1298
+  s_1f1a1efd8db0bf::t_6ba5a9165dbfbe 1306-1307
+  s_1f1a1efd8db0bf::t_aedadf054645d6 1312
+  s_1f1a1efd8db0bf::t_a699554d1e752f 1316-1318
+  s_1f1a1efd8db0bf::t_c3fd5f9fe960a5 1385
+  s_1f1a1efd8db0bf::t_6bc0984d8a6c72 1387-1389,1401-1403
+  s_1f1a1efd8db0bf::t_fa2c9960a8ea26 1405
+  s_1f1a1efd8db0bf::t_b498e43a09b627 1390-1400
+docs/maintenance.md
+  s_1f1a1efd8db0bf::t_cd7cd8a8edbf3f 974-975,978,994,997,1224
+lib/database/domains/gallery/media.ts
+  s_1f1a1efd8db0bf::t_19c07c42333582 57-59,161-163,165,173,217,237-243,256,258-260
+lib/components/gallery/GalleryPagedGrid.test.tsx
+  s_1f1a1efd8db0bf::t_7d29b949b23e97 362-363,368,379-382,384-387
+  s_1f1a1efd8db0bf::t_c17e88894b17c5 364-367,369-378,383,388-389,472-474,476,478-481,485
+  s_1f1a1efd8db0bf::t_892a82956f89ae 29-30,39,67-69,469-471,475,477,482-484
+lib/services/gallery/galleryProjection.test.ts
+  s_1f1a1efd8db0bf::t_19c07c42333582 215-252
+app/(timeline)/gallery/albums/galleryAlbumPickerUi.ts
+  s_1f1a1efd8db0bf::t_aa1408f83bae25 3,51-53,64,72-89
+  s_1f1a1efd8db0bf::t_7ce23fd5335849 90
+app/(timeline)/gallery/albums/GalleryAlbumPickerTile.tsx
+  s_1f1a1efd8db0bf::t_aa1408f83bae25 3,10,23,35,37-58,60-62,65-90,92-115
+  s_1f1a1efd8db0bf::t_f2536f37ecf32c 91
+app/api/v1/gallery/albums/route.test.ts
+  s_1f1a1efd8db0bf::t_eb03bd640f0774 11,192-349,369-373
+  s_1f1a1efd8db0bf::t_0f22b429b60765 4
+app/api/v1/gallery/albums/membership/route.test.ts
+  s_1f1a1efd8db0bf::t_eb03bd640f0774 1-230
+lib/database/domains/gallery/albums.ts
+  s_1f1a1efd8db0bf::t_19c07c42333582 74-78,86,218-221,234,388,780,859,886
+lib/services/gallery/galleryAlbumVisitor.test.ts
+  s_1f1a1efd8db0bf::t_19c07c42333582 63-64,69-70,75-76,81-82,87-88,193-194,196,221,271,280,286-287,424,430-434,436,440,444-445
+app/(timeline)/gallery/media/galleryAddToAlbumUi.test.ts
+  s_1f1a1efd8db0bf::t_79a784dfb021ab 3-7,16-32,47,62
+docs/architecture.md
+  s_1f1a1efd8db0bf::t_cd7cd8a8edbf3f 274,276-277,279,286-287
+  s_1f1a1efd8db0bf::t_c993d2a615a963 278
+app/(timeline)/gallery/media/GalleryAllMediaView.tsx
+  s_1f1a1efd8db0bf::t_79a784dfb021ab 77-78,114-116,143-144,163-168,172-184,338,493-494,496,498-505,511-513,535-541,552,577,581,629,635-641,648-649,652-656,659,661
+docs/features.md
+  s_1f1a1efd8db0bf::t_cd7cd8a8edbf3f 66,72
+  s_1f1a1efd8db0bf::t_1ec2a0be98485f 69-70
+app/api/v1/accounts/[id]/gallery/albums/[albumId]/route.test.ts
+  s_1f1a1efd8db0bf::t_19c07c42333582 127-134,138,162,164-165,170,189,214,369,383-387
+app/api/v1/routeScopeWiring.test.ts
+  s_1f1a1efd8db0bf::t_eb03bd640f0774 598-601
+lib/database/domains/gallery/galleryAlbumSuggestions.test.ts
+  s_1f1a1efd8db0bf::t_134f47a536d430 169-183
+app/(timeline)/[actor]/albums/[id]/page.test.tsx
+  s_1f1a1efd8db0bf::t_19c07c42333582 134-137,165,359,364-365,394
+lib/services/gallery/galleryAlbumMatrixFixtures.ts
+  s_1f1a1efd8db0bf::t_19c07c42333582 339
+app/(timeline)/gallery/albums/GalleryAlbumFormDialog.test.tsx
+  s_1f1a1efd8db0bf::t_60a44dd22806fc 106,132-133,136,140-163,443-447,449,491-504
+app/(timeline)/gallery/albums/GalleryAlbumSuggestionList.test.tsx
+  s_1f1a1efd8db0bf::t_c58c51857895bc 174-262
+app/(timeline)/gallery/albums/GalleryAlbumSuggestionList.tsx
+  s_1f1a1efd8db0bf::t_8144336a40fcb0 4,12-16,19,26,34-47,67,88,90-94,118,131,134
+app/(timeline)/gallery/albums/[id]/GalleryAlbumDetailView.tsx
+  s_1f1a1efd8db0bf::t_73dfff7c118361 17-25,39,92-98,648-661,664,674
+app/(timeline)/gallery/albums/galleryAlbumSuggestionsUi.test.ts
+  s_1f1a1efd8db0bf::t_098394795b1535 4-5,77-131
+app/(timeline)/gallery/albums/galleryAlbumSuggestionsUi.ts
+  s_1f1a1efd8db0bf::t_e9effcd71bcb67 18-37,43-44,48-50
+lib/client/galleryAlbums.ts
+  s_1f1a1efd8db0bf::t_274a011b0a9c85 7,35-36,122,258-288
+lib/database/domains/gallery/types.ts
+  s_1f1a1efd8db0bf::t_f65a0f4f9c9e26 175-177,274-276
+lib/services/gallery/galleryAlbumEntities.ts
+  s_1f1a1efd8db0bf::t_72f4dad454605a 135-140,156-158
+lib/services/gallery/galleryEntities.ts
+  s_1f1a1efd8db0bf::t_92def18e37deb8 137-143
+lib/types/database/gallery.ts
+  s_1f1a1efd8db0bf::t_56d9df802a82ee 35-39,45-46
+app/(timeline)/[actor]/ProfileGalleryTab.tsx
+  s_f92b4a9beb2361::t_4dfd5dc664ec1c 332-335
+app/(timeline)/gallery/albums/GalleryAlbumFormDialog.tsx
+  s_f92b4a9beb2361::t_2eb9cd1a3b2794 12-14,87-90,181-182,204,216-217,239-266,269,309-310,358,375,570-576,578-580,582-587,594-596,607-609
+app/(timeline)/gallery/albums/[id]/GalleryAlbumDetailView.test.tsx
+  s_f92b4a9beb2361::t_df6125b5ebce0c 18,31,38,44,50-71,78,83,88,98,114-123,126,342-343,346-351,353-355,789-815
+app/(timeline)/[actor]/ProfileGalleryTab.test.tsx
+  s_1f1a1efd8db0bf::t_02c72acae0dd4d 409-436
+app/(timeline)/[actor]/profileFollowLookup.test.ts
+  s_1f1a1efd8db0bf::t_8f8b63ca91fab6 87,147
+app/(timeline)/gallery/albums/GalleryAlbumFormDialog.suggestions.test.tsx
+  s_1f1a1efd8db0bf::t_dddc8c63868b5d 33-51,174,191,204-216,276,279,298,311-313,416-624
+app/(timeline)/gallery/albums/GalleryAlbumSuggestionReview.test.tsx
+  s_1f1a1efd8db0bf::t_700d7c623c62fd 29-30,36,49,214-234,269-285,421-438
+app/(timeline)/gallery/albums/GalleryAlbumSuggestionReview.tsx
+  s_1f1a1efd8db0bf::t_d06d0db7c3621a 25,34,37-38,55-56,117,137-138,140,143-146,148,177,204,223,245,260,316
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "26f34dc546f3ddfbf14380972c5b0132351d657d",
+  "prompts": {},
+  "sessions": {
+    "s_1f1a1efd8db0bf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6f1be9b0-86e0-4f32-9286-3562b40d391e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_f92b4a9beb2361": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ee3acfd9-97dc-47c9-8a2a-2e741f8b14b8",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

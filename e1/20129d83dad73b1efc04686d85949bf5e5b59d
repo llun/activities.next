@@ -1,0 +1,34 @@
+app/(timeline)/admin/instance/page.tsx
+  s_a0fa6b24d2c1de::t_13127bfcf3604d 1-23
+lib/components/admin/settings/LinesTextarea.tsx
+  s_a0fa6b24d2c1de::t_7e52824a82a2fb 1-68
+lib/components/admin/settings/useServerSettingsForm.ts
+  s_a0fa6b24d2c1de::t_785a8f2ea4a59e 1-99
+lib/components/admin/settings/InstanceSettingsForm.tsx
+  s_a0fa6b24d2c1de::t_effa8d07760f88 1-192
+  s_a0fa6b24d2c1de::t_c038180ebebdd9 193-194
+app/(timeline)/admin/layout.tsx
+  s_a0fa6b24d2c1de::t_4e7ca2fd805e03 43-45
+  s_a0fa6b24d2c1de::t_89a36c2f557fc4 12
+lib/components/admin/settings/InstanceSettingsForm.test.tsx
+  s_a0fa6b24d2c1de::t_91f336293dd444 1-90
+  s_a0fa6b24d2c1de::t_50501f70994f98 91-93
+lib/components/admin/settings/index.ts
+  s_a0fa6b24d2c1de::t_4b046052eba8cc 3,7-8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "e120129d83dad73b1efc04686d85949bf5e5b59d",
+  "prompts": {},
+  "sessions": {
+    "s_a0fa6b24d2c1de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4b172494-5d03-43f2-b126-6356763fd651",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

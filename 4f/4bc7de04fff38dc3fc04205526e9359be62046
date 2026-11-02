@@ -1,0 +1,80 @@
+lib/database/sql/status.test.ts
+  a49f82315b1c1f8c 51
+app/api/well-known/webfinger/route.test.ts
+  a49f82315b1c1f8c 52-80
+lib/types/domain/actor.ts
+  a49f82315b1c1f8c 6-16,19
+app/api/v1/accounts/types.test.ts
+  a49f82315b1c1f8c 1-16
+lib/activities/index.ts
+  a49f82315b1c1f8c 375-376,397,428-432,457
+lib/database/sql/actor.ts
+  a49f82315b1c1f8c 16-22,48,106-133,137,165,181,209,314-343,345-368,370-398,516,567-570,588-591,731-736
+app/api/v1/actors/route.test.ts
+  a49f82315b1c1f8c 4,121-134
+lib/services/guards/OnlyLocalUserGuard.ts
+  a49f82315b1c1f8c 5
+lib/services/federation/getFederationSigningActor.ts
+  a49f82315b1c1f8c 2,7,9
+lib/types/database/operations.ts
+  a49f82315b1c1f8c 8,32
+app/api/v1/accounts/types.ts
+  a49f82315b1c1f8c 3-4,6-12
+app/api/v1/accounts/follow/route.ts
+  a49f82315b1c1f8c 1-2,11,35-50,77-89,99,102,118,132-144,157-159,161
+lib/database/sql/actor.test.ts
+  a49f82315b1c1f8c 10-14,157,161-163,168,171,191-196,200,204-243,246-249,253,262,264,363-435,655-660
+lib/types/database/rows.ts
+  a49f82315b1c1f8c 1-2,40,45
+app/api/v1/accounts/follow/route.test.ts
+  a49f82315b1c1f8c 5,7,14-20,23-24,28,70,80-110,134-142
+lib/utils/getPersonFromActor.ts
+  a49f82315b1c1f8c 8-12,34-38,42,50
+migrations/20260428120000_add_actor_type.js
+  a49f82315b1c1f8c 1-19
+app/api/users/[username]/route.test.ts
+  a49f82315b1c1f8c 8,39-58,116-164
+lib/database/sql/account.ts
+  a49f82315b1c1f8c 100,381,434
+lib/actions/utils.ts
+  a49f82315b1c1f8c 67
+app/api/v1/accounts/[id]/unfollow/route.ts
+  a49f82315b1c1f8c 4,43-45,47-49
+lib/services/federation/instanceActor.ts
+  a49f82315b1c1f8c 1-27
+app/api/users/[username]/route.ts
+  a49f82315b1c1f8c 25-30
+  6148c2491ed0e16a 12-22,34-35
+lib/services/wellknown/webfinger.ts
+  a49f82315b1c1f8c 62-75,79,81
+migrations/schema.sql
+  a49f82315b1c1f8c 55
+lib/services/federation/getFederationSigningActor.test.ts
+  a49f82315b1c1f8c 1-48
+app/api/v1/accounts/[id]/follow/route.ts
+  a49f82315b1c1f8c 5,52,55,79
+app/api/v1/actors/route.ts
+  a49f82315b1c1f8c 6,19-25
+lib/services/guards/OnlyLocalUserGuard.test.ts
+  a49f82315b1c1f8c 4-5,58-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "4f4bc7de04fff38dc3fc04205526e9359be62046",
+  "prompts": {
+    "a49f82315b1c1f8c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dd26f-8398-7d43-97e7-51e48287bd7d",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 2308,
+      "total_deletions": 111,
+      "accepted_lines": 2254,
+      "overriden_lines": 0
+    }
+  }
+}

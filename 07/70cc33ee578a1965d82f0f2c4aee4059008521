@@ -1,0 +1,29 @@
+docs/architecture.md
+  s_714f83e23bc12a::t_60e7f391b39486 2384-2391
+lib/database/domains/actor/lookups.ts
+  s_714f83e23bc12a::t_a2302baefad9e2 26,129-139,143
+lib/database/domains/actorHandle/queries.test.ts
+  s_714f83e23bc12a::t_86d8368152cf5b 275-309
+lib/database/domains/actorHandle/queries.ts
+  s_714f83e23bc12a::t_dc37f683ee6180 105-112,254-270
+proxy.ts
+  s_714f83e23bc12a::t_d6cccb63d8b3c8 97-101,109-121,242,262-266,268,273,279,281,286,316,336,342
+test/proxy.test.ts
+  s_714f83e23bc12a::t_52d673b9c4b16b 757-788,846-858,884-891,893,895-899
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0770cc33ee578a1965d82f0f2c4aee4059008521",
+  "prompts": {},
+  "sessions": {
+    "s_714f83e23bc12a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a173d5-26f8-7071-ac3c-832064f45586",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

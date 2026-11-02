@@ -1,0 +1,23 @@
+app/(timeline)/settings/mutes/MutesList.tsx
+  s_44807e29e64536::t_7fcdc86488462d 3-4,7,15-27,29-32
+lib/components/settings/ManageAccountList.tsx
+  s_44807e29e64536::t_8e230dba6b5bdd 1-246
+app/(timeline)/settings/blocks/BlocksList.tsx
+  s_44807e29e64536::t_408234342a7c58 3-4,7,15-27,29-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "32d5a45360926673af2477bd3167061d3306f3ea",
+  "prompts": {},
+  "sessions": {
+    "s_44807e29e64536": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d5791d6b-5c1d-4a48-a1aa-d091f3207ce6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,73 @@
+.env.example
+  s_ab97d21f52c341::t_4110ac9eedb821 31-38
+app/(timeline)/[actor]/[status]/page.test.ts
+  s_ab97d21f52c341::t_bacb48b5fdeee4 4-5,37-51,53-56,58-64
+app/(timeline)/[actor]/[status]/page.tsx
+  s_ab97d21f52c341::t_d80cc36391ee6c 6,42-47,49-57
+app/api/oembed/route.test.ts
+  s_ab97d21f52c341::t_71d415d33f576c 1-166
+app/api/oembed/route.ts
+  s_ab97d21f52c341::t_5e0920cd5c5b71 1-141
+app/api/v1/instance/extended_description/route.ts
+  s_ab97d21f52c341::t_2846a179031437 5
+app/api/v1/instance/privacy_policy/route.test.ts
+  s_ab97d21f52c341::t_4adc821206a808 1-56
+app/api/v1/instance/privacy_policy/route.ts
+  s_ab97d21f52c341::t_4a25f1a34d4615 1-32
+app/api/v1/instance/terms_of_service/[date]/route.ts
+  s_ab97d21f52c341::t_f6e8e579bf5876 1-30
+app/api/v1/instance/terms_of_service/route.test.ts
+  s_ab97d21f52c341::t_726b2d7bf1f16e 1-100
+app/api/v1/instance/terms_of_service/route.ts
+  s_ab97d21f52c341::t_62840f9f7185c7 1-21
+app/api/v1/instance/terms_of_service/termsOfService.ts
+  s_ab97d21f52c341::t_3a012f3b058075 1-25
+app/api/v1/notifications/policy/route.test.ts
+  s_ab97d21f52c341::t_13ae543a84e8dc 1-197
+app/api/v1/notifications/policy/route.ts
+  s_ab97d21f52c341::t_608cd084449524 1-137
+app/api/v1/routeScopeWiring.test.ts
+  s_ab97d21f52c341::t_91936d4df63ee5 169-172,258-265
+app/api/v2/notifications/policy/route.ts
+  s_ab97d21f52c341::t_29763730d048c8 5-8,50-53,73,89-92
+app/health/route.test.ts
+  s_ab97d21f52c341::t_c478bb2f177ea7 1-10
+app/health/route.ts
+  s_ab97d21f52c341::t_be91e248ce7f31 1-9
+docs/architecture.md
+  s_ab97d21f52c341::t_48356f05a31701 94,96
+docs/environment-variables.md
+  s_ab97d21f52c341::t_868de2f14f117e 19-20
+docs/features.md
+  s_ab97d21f52c341::t_32655aa161a154 87-90
+docs/mastodon-api-compatibility.md
+  s_ab97d21f52c341::t_2c2c05873b3562 69-86
+lib/config/index.test.ts
+  s_ab97d21f52c341::t_8c62689b41d2de 150-179
+lib/config/index.ts
+  s_ab97d21f52c341::t_40b2f9892d1e53 36-39,126-127
+lib/services/notifications/notificationPolicy.test.ts
+  s_ab97d21f52c341::t_b017309f613b6d 1-113
+lib/services/notifications/notificationPolicy.ts
+  s_ab97d21f52c341::t_1df50885c36740 1-80
+lib/utils/text/escapeHtml.test.ts
+  s_ab97d21f52c341::t_3735a7c1742883 1-24
+lib/utils/text/escapeHtml.ts
+  s_ab97d21f52c341::t_ea52245799bf4c 1-10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.11",
+  "base_commit_sha": "ae3fadf31b62c6523d4c075813e8a91fac917a09",
+  "prompts": {},
+  "sessions": {
+    "s_ab97d21f52c341": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "62bf221b-714f-4225-95d2-e37f0d6fd6a3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

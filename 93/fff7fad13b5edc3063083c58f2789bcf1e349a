@@ -1,0 +1,29 @@
+app/api/v1/accounts/outbox/route.test.ts
+  s_310719d8018dcf::t_9fb61d95f41823 7,9-13,34-35,52-73,78
+lib/actions/createPoll.ts
+  s_310719d8018dcf::t_f80d919d14209e 129-131
+lib/client.test.ts
+  s_310719d8018dcf::t_b913c4319e6369 11,229-246
+lib/client.ts
+  s_310719d8018dcf::t_0ce56aa95ed549 204,220-222
+app/api/v1/accounts/outbox/route.ts
+  s_310719d8018dcf::t_615a32ae68dec1 17,97,108-115
+lib/actions/createPoll.test.ts
+  s_310719d8018dcf::t_6f8b8473e6d047 50,67,72-82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "93fff7fad13b5edc3063083c58f2789bcf1e349a",
+  "prompts": {},
+  "sessions": {
+    "s_310719d8018dcf": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e3722-d1c9-7732-b66f-0221b95e639b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

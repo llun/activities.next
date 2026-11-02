@@ -1,0 +1,19 @@
+app/(nosidebar)/oauth/authorize/page.tsx
+  s_7ece30df947777::t_21ab6652db47d8 44-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "5d3b5029fa7822b6c8064177f159c9c6d4d5b783",
+  "prompts": {},
+  "sessions": {
+    "s_7ece30df947777": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a8192eda-a8e6-4ce5-9c6e-33df0dd16b40",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

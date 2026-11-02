@@ -1,0 +1,29 @@
+lib/services/mastodon/getMastodonStatus.test.ts
+  s_ac45ba2a95e17f::t_4bc39c6ec6a715 1798-1800,1804-1814,1818-1824,1826,1830,1846-1877
+  s_ac45ba2a95e17f::t_218f2bdd65479b 1878
+lib/services/mastodon/getMastodonStatus.ts
+  s_ac45ba2a95e17f::t_b8de096ad05a88 805-842,845
+  s_ac45ba2a95e17f::t_92a8313f4d9fca 9
+  s_ac45ba2a95e17f::t_c14b6a1b6d7946 604-609
+  s_ac45ba2a95e17f::t_4ccd5b5be97bc4 78-83
+  s_ac45ba2a95e17f::t_4d1e36d4eda91d 259-277
+  s_ac45ba2a95e17f::t_5f55a2936839ef 321-348,350-351,360-368
+docs/mastodon-api-compatibility.md
+  s_ac45ba2a95e17f::t_53436ac2f2b77d 153-157
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "5d77c08f54ce817f9f9efa270d79a3c4d29a61f2",
+  "prompts": {},
+  "sessions": {
+    "s_ac45ba2a95e17f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "01793c88-f5d8-4470-8567-56fbbd1b5753",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

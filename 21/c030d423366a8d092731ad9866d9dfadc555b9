@@ -1,0 +1,53 @@
+app/(timeline)/[actor]/[status]/ActivityMapPanel.test.tsx
+  s_82468012d96a9d::t_04dcae03aa21e5 242-289
+app/(timeline)/[actor]/[status]/ActivityMapPanel.tsx
+  s_82468012d96a9d::t_65c5e6f7a0461f 6,679-699,708
+app/(timeline)/[actor]/[status]/FitnessAnalysisCharts.test.tsx
+  s_82468012d96a9d::t_c863349c39d547 42-89,160-164,311-332,392-403
+app/(timeline)/[actor]/[status]/FitnessAnalysisCharts.tsx
+  s_82468012d96a9d::t_c97305a3007868 98-152,303-307,311-318,400,596,789
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.test.tsx
+  s_82468012d96a9d::t_4ccc7fd68667d5 713-736,962-1046
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  s_82468012d96a9d::t_dfc6a69d904c60 110,1175-1184,1600,1959-1992,2147-2164,2166-2169
+app/(timeline)/[actor]/[status]/fitnessChartData.test.ts
+  s_82468012d96a9d::t_f6735bad9b03d9 30,429-447
+app/(timeline)/[actor]/[status]/fitnessChartData.ts
+  s_82468012d96a9d::t_ddda03c2d390ea 486-510
+docs/fitness-file-storage.md
+  s_82468012d96a9d::t_7e3b709a8960ee 492-506,773-780
+lib/components/fitness/ActivityRouteMapKit.test.tsx
+  s_82468012d96a9d::t_2936b101a2044e 112-135
+lib/components/fitness/ActivityRouteMapKit.tsx
+  s_82468012d96a9d::t_c48f2657bcb066 7,298-302,478
+lib/components/fitness/AppleMapsChip.tsx
+  s_82468012d96a9d::t_c3f41da2b1ae8a 1-21
+lib/components/fitness/RouteHeatmapMap.test.tsx
+  s_82468012d96a9d::t_2b260139a3a1e4 14,406-430
+lib/components/fitness/RouteHeatmapMap.tsx
+  s_82468012d96a9d::t_5206c887efecba 23,115-118,147
+lib/components/fitness/RouteHeatmapMapKit.test.tsx
+  s_82468012d96a9d::t_ec72821feaa1b3 12-17,464-502
+lib/components/fitness/RouteHeatmapMapKit.tsx
+  s_82468012d96a9d::t_f0a01a12aacce1 28,33-35,362-366,370-372,374-376,390-391
+lib/services/fitness-files/heatmapTiles/constants.test.ts
+  s_82468012d96a9d::t_a00514c416406f 4,14,262-287
+lib/services/fitness-files/heatmapTiles/constants.ts
+  s_82468012d96a9d::t_07b1ecdf8ed56e 152-163,208-235
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "21c030d423366a8d092731ad9866d9dfadc555b9",
+  "prompts": {},
+  "sessions": {
+    "s_82468012d96a9d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c1772d3-df89-4813-8d33-4cbceee3810d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

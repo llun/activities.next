@@ -1,0 +1,128 @@
+lib/activities/getWebfingerDocument.ts
+  s_5f19c1e3f0217b::t_3a7805c21b464b 13-15,18-19,22,39-40
+lib/activities/getActorCollections.test.ts
+  s_5f19c1e3f0217b::t_c03eec1b28b39a 8,78,106,120,149,159,182,192,227,238,259,270
+app/(timeline)/[actor]/getProfileData.actorBinding.test.ts
+  s_5f19c1e3f0217b::t_09713a6d6a5e61 1
+  s_5f19c1e3f0217b::t_002e2878761680 82,100-103,124-130,157,180-186,189-200,214-243
+  s_5f19c1e3f0217b::t_dd18552fc4f206 9,59
+lib/activities/index.ts
+  s_5f19c1e3f0217b::t_11579acaea4040 6,132,147,150
+lib/actions/utils.ts
+  s_5f19c1e3f0217b::t_9183499ed7f22d 3,136-137,272-279
+  s_5f19c1e3f0217b::t_388e91feefea50 280-281
+lib/activities/getActorPerson.test.ts
+  s_5f19c1e3f0217b::t_32cea7bb822079 3,84
+lib/activities/isActorHandleConfirmed.ts
+  s_5f19c1e3f0217b::t_454842ae1248fb 1-26,29-55
+  s_5f19c1e3f0217b::t_598b2e471409cd 27-28
+lib/activities/activityPubResponse.test.ts
+  s_5f19c1e3f0217b::t_d9f50d30bde024 1-4,6-37
+  s_5f19c1e3f0217b::t_d5f1ad9414b3ea 5
+lib/services/quotes/verifyRemoteQuote.test.ts
+  s_5f19c1e3f0217b::t_c3f4f570911ce1 7,130,173,207,257,278,323-328
+lib/activities/getActorPerson.ts
+  s_5f19c1e3f0217b::t_11579acaea4040 2,45
+lib/actions/utils.actorBinding.test.ts
+  s_5f19c1e3f0217b::t_b041ea55cf8f83 132,134-135,139-142,160-161,164,166,193-194,199,201,262,265,288-289,292,294,307,310,371-378,380-384,391-407,412-503,512-515,518-523,527-542,546-555
+  s_5f19c1e3f0217b::t_1738ee0cc2f1dc 8
+  s_5f19c1e3f0217b::t_19f88f5375c547 71
+  s_5f19c1e3f0217b::t_dd18552fc4f206 47
+  s_5f19c1e3f0217b::t_aecaa61eadc1cd 408-411,524-526,543-545
+  s_5f19c1e3f0217b::t_7b65bf179197f0 379,385-390,504-511
+  s_5f19c1e3f0217b::t_d5f1ad9414b3ea 516-517
+  s_5f19c1e3f0217b::t_8478d046c375e4 127-129,133,136-138,162-163,165,195-198,200,224,263-264,290-291,293,308-309
+lib/services/guards/getSenderPublicKey.ts
+  s_5f19c1e3f0217b::t_2529ed22ca5882 4,183-185
+lib/jobs/processForwardedActivityJob.test.ts
+  s_5f19c1e3f0217b::t_5520690259749f 6,60-62,80-81,154-155,214,236-239,303-304,322-324,396-398,434-436,453-455,476-477,497-498,517-518,548-549,582,610,638,667,694-698
+lib/jobs/createRelayAnnounceJob.test.ts
+  s_5f19c1e3f0217b::t_2c9b1ab2fd3bee 7,220-221,252-253,293-294,350-351,383-384,414-415,444-445
+lib/activities/getActorCollections.ts
+  s_5f19c1e3f0217b::t_11579acaea4040 2,58,162
+lib/jobs/fetchRemoteStatusJob.test.ts
+  s_5f19c1e3f0217b::t_77df5395ee0a74 13,26-35,37-61,100-101,103,113,133-134,136,146,163-164,166,177,186,211-212,214,225,235,246,273-274,276,287,294,307,314,325,354-355,357,368,375,388,395,406,452-453,455,458,486-487,489,492,517-518,520,523,566,580,594,605,615,626,671-672,674,678,688-689,691,695,710-711,713,727,729,777,779,782,786,802,804,807,835,850-851,855,869,902
+  s_5f19c1e3f0217b::t_6d3cc0f2d3c692 1-4,36
+lib/jobs/fetchRemoteStatusJob.ts
+  s_5f19c1e3f0217b::t_11579acaea4040 6,193,204-205
+lib/activities/getActorCollectionCounts.test.ts
+  s_5f19c1e3f0217b::t_fcd87c3debbca4 37,44,73,79,105,146,181,222
+  s_5f19c1e3f0217b::t_32cea7bb822079 3
+lib/services/guards/getSenderPublicKey.test.ts
+  s_5f19c1e3f0217b::t_d9f50d30bde024 187-235,683
+  s_5f19c1e3f0217b::t_49c0a1c7b4b551 9,175,247,267,277,297,317,327,347,357,377,387,407,418,438,448,473,500,521,542,564,574,597,607,633-636,699
+  s_5f19c1e3f0217b::t_54e241f60d9e53 661-662,682,684-685,698,775,834
+lib/activities/getActorFollowing.test.ts
+  s_5f19c1e3f0217b::t_fcd87c3debbca4 42,50
+  s_5f19c1e3f0217b::t_32cea7bb822079 3
+lib/actions/utils.test.ts
+  s_5f19c1e3f0217b::t_d51e7523741da0 1,6,61-64
+lib/stub/serveFederationRoutes.ts
+  s_5f19c1e3f0217b::t_dd18552fc4f206 1
+  s_5f19c1e3f0217b::t_1738ee0cc2f1dc 2-60
+lib/jobs/createAnnounceJob.test.ts
+  s_5f19c1e3f0217b::t_2c9b1ab2fd3bee 7,232-233,288-289,347-348,395-396,460-461,505-506,550-551,594-595,768-769
+lib/jobs/processForwardedActivityJob.ts
+  s_5f19c1e3f0217b::t_2529ed22ca5882 5,132,134,141,148-153
+lib/services/quotes/verifyRemoteQuote.ts
+  s_5f19c1e3f0217b::t_11579acaea4040 2,84,95-96
+lib/activities/activityPubResponse.ts
+  s_5f19c1e3f0217b::t_1ec8a167b758be 1-33,35-42
+  s_5f19c1e3f0217b::t_2c9b1ab2fd3bee 34
+docs/mastodon-api-compatibility.md
+  s_5f19c1e3f0217b::t_d5f1ad9414b3ea 639
+  s_5f19c1e3f0217b::t_3e7a0ab4a0e9da 637,1158-1161
+  s_5f19c1e3f0217b::t_0a92b346275c92 638,640
+app/(timeline)/[actor]/getProfileData.ts
+  s_5f19c1e3f0217b::t_571dfb144b149c 260-273
+  s_5f19c1e3f0217b::t_b0d663c86c7f7d 9
+lib/stub/activities.ts
+  s_5f19c1e3f0217b::t_22abb462d741a6 26,28-48,50,57
+  s_5f19c1e3f0217b::t_405c26a096c19c 49,60-65,67,71-82,84,86-91,93-95,97,104-114,120-129,131,133-145,147,149-163,165-168,174,181-190,192-198,203-204,210-218,220-226,231-232,238-244,246,248-249,251-252,255-260,265-266,268-280
+  s_72375bcda0316c::t_ac7bb4b5f05dc6 22-25,27,51,55-56,59
+lib/activities/getRemoteStatus.test.ts
+  s_5f19c1e3f0217b::t_053c798bd808a5 3-4,21-40,44-60,85-99,117-133,163-164,180-181,197-198,208-218,222-238
+lib/activities/getActorFollowers.test.ts
+  s_5f19c1e3f0217b::t_32cea7bb822079 3
+  s_5f19c1e3f0217b::t_fcd87c3debbca4 42,50
+lib/actions/createFollower.test.ts
+  s_5f19c1e3f0217b::t_bb86acbd1f4dad 1-2,6,35-38
+  s_5f19c1e3f0217b::t_4d20fbd28b938f 39-40
+app/(timeline)/[actor]/getProfileData.test.ts
+  s_5f19c1e3f0217b::t_4208706fe6c509 1-2,15,117-121
+lib/activities/getActorPosts.test.ts
+  s_5f19c1e3f0217b::t_5520690259749f 5,96,109,177,190,265,278,362,375,479,492,549,562,644,657,680,704,791,804,863,933,996,1067,1161,1200,1234,1247,1294,1307,1399,1412,1468,1481,1548,1561,1600,1614,1635,1697,1755,1767,1826,1888,1969,2043,2109,2130
+  s_5f19c1e3f0217b::t_cb42497e092d2f 213,301,1088
+app/api/v1/accounts/[id]/follow/route.test.ts
+  s_5f19c1e3f0217b::t_99d070d3bb2d14 1,8,13,107-109,419-430
+lib/activities/index.test.ts
+  s_5f19c1e3f0217b::t_79ba10118b18df 22,100-104
+lib/jobs/createNoteJob.test.ts
+  s_5f19c1e3f0217b::t_e280f334fa4373 23,1022-1026,1032,1045,1100,1113,1164-1168,1174,1187,1276,1292,1311,1326,1339,1395,1410,1423
+lib/jobs/updateNoteJob.test.ts
+  s_5f19c1e3f0217b::t_631d5c45fb1d99 23,473,658-662,665-669,737,749-753
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "be9f058c207b3d9bfbed2909c7a9b6cb4406c52a",
+  "prompts": {},
+  "sessions": {
+    "s_5f19c1e3f0217b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "84540f53-e3dd-4ffb-9f9d-a30e79ccf14e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_72375bcda0316c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9f685370-5e5e-4e92-8d93-c98fe8d04dac",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

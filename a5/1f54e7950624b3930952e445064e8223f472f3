@@ -1,0 +1,24 @@
+lib/utils/text/mastodonHashtag.test.ts
+  s_f7b91ac6284bd0::t_ff2ed2ed0f5c23 1-48
+lib/utils/text/mastodonHashtag.ts
+  s_f7b91ac6284bd0::t_33467f593a0e33 1-27
+app/api/v1/featured_tags/route.ts
+  s_f7b91ac6284bd0::t_03a3e30e7d4c7c 13
+  s_f7b91ac6284bd0::t_7235749d7beb5e 37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a51f54e7950624b3930952e445064e8223f472f3",
+  "prompts": {},
+  "sessions": {
+    "s_f7b91ac6284bd0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7e5d29e0-cb70-4516-b716-6108a10b94a2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

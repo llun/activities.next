@@ -1,0 +1,72 @@
+lib/activities/index.ts
+  s_44807e29e64536::t_bf335958f9b6f6 437-445
+  s_44807e29e64536::t_820781c1a8dc94 569-577
+  s_44807e29e64536::t_2af800125e427c 347-355
+  s_44807e29e64536::t_5a215882cbdebb 1
+  s_44807e29e64536::t_4c2656bbbbe05f 607-615
+  s_44807e29e64536::t_e93841e23b294a 207-215
+  s_44807e29e64536::t_9fcbbf6bca21c8 392-400
+  s_44807e29e64536::t_70c08340167e38 640-647
+  s_44807e29e64536::t_b41634ab240cc5 531-539
+  s_44807e29e64536::t_dbb92f26aefa0e 737-743
+  s_44807e29e64536::t_e7cb604c75f728 674-681
+  s_44807e29e64536::t_e97fe49114c2ba 160-168
+  s_44807e29e64536::t_2aab5b8f240cb2 300-308
+  s_44807e29e64536::t_785bc31047df5c 486-494
+  s_44807e29e64536::t_d418b2f7318199 46-96
+  s_44807e29e64536::t_de069c2284eb46 253-261
+lib/utils/getActorFromSession.ts
+  s_44807e29e64536::t_c31f4c95cea093 20-25,30-31,39-45,47
+lib/utils/getHeaderValue.ts
+  s_44807e29e64536::t_8b11195ce0bc48 1-42
+lib/jobs/createNoteJob.ts
+  s_44807e29e64536::t_7b48e421aabdf3 26-27
+  s_44807e29e64536::t_a5c668e9ae56fe 93-94
+lib/utils/getAdminFromSession.ts
+  s_44807e29e64536::t_bc89a718e54400 2-5,11
+lib/jobs/createPollJob.ts
+  s_44807e29e64536::t_072e66710b5eaf 13-16
+  s_44807e29e64536::t_af944946442b54 80-81
+lib/jobs/createAnnounceJob.ts
+  s_44807e29e64536::t_f4d9fcbca8f7f2 68-69
+  s_44807e29e64536::t_8339963c7e6546 16-19
+lib/jobs/sendUndoAnnounceJob.ts
+  s_44807e29e64536::t_cad8bcfa3efc2a 22-25
+  s_44807e29e64536::t_b583ae9e8845ab 5
+lib/jobs/sendUpdateNoteJob.ts
+  s_44807e29e64536::t_5019a4b0fd9c4a 5
+  s_44807e29e64536::t_79a3f6608f69be 34-37
+lib/jobs/sendAnnounceJob.ts
+  s_44807e29e64536::t_ced1df35d8d4fe 5
+  s_44807e29e64536::t_825f3844741935 21-24
+lib/utils/request.ts
+  s_44807e29e64536::t_ee46bdde8318ef 2
+lib/utils/activitypub.ts
+  s_44807e29e64536::t_35c064af38cff9 47-60
+lib/jobs/loadStatusAndActor.ts
+  s_44807e29e64536::t_46061282428c75 5-7,18
+  s_44807e29e64536::t_e6c75ae9439d01 1-4,8-17,19-28
+lib/utils/host.ts
+  s_44807e29e64536::t_7b6ae124613e4f 2
+lib/utils/safeRemoteFetch.ts
+  s_44807e29e64536::t_eef653dbd64b54 6-7
+lib/jobs/sendNoteJob.ts
+  s_44807e29e64536::t_8a97d1fca91b27 26-29
+  s_44807e29e64536::t_b1f7264fc8473d 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "392f69f1b986987cdd4c23c26fa51512769a47bc",
+  "prompts": {},
+  "sessions": {
+    "s_44807e29e64536": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d5791d6b-5c1d-4a48-a1aa-d091f3207ce6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

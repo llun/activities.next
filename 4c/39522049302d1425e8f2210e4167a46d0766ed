@@ -1,0 +1,42 @@
+lib/components/offline/OfflineAppShell.tsx
+  s_512188f2b1db53::t_bfa3abc31b2ffb 65-66
+lib/client/drafts/draftsDb.ts
+  s_512188f2b1db53::t_ec6e68ea5c3084 16,648
+lib/client/offline/sw.test.ts
+  s_512188f2b1db53::t_f036d7c143c7ac 365-368,373-375,379-382,674-698
+public/sw.js
+  s_512188f2b1db53::t_6b7fb37e19d5a5 308,318-328,371-373
+lib/components/offline/OfflineAppShell.test.tsx
+  s_512188f2b1db53::t_7c37f9f6b8924c 475-491
+lib/client/drafts/sendQueue.test.ts
+  s_512188f2b1db53::t_bfa3abc31b2ffb 16
+  s_512188f2b1db53::t_21ca2361a9a28f 872-903,1205-1218
+  s_512188f2b1db53::t_91e529e668f19e 1219-1220
+lib/client/drafts/draftsDb.queue.test.ts
+  s_512188f2b1db53::t_21ca2361a9a28f 357-371
+lib/client/drafts/queueConstants.ts
+  s_512188f2b1db53::t_ec6e68ea5c3084 23-35
+  s_512188f2b1db53::t_372d04512ab77d 22
+lib/client/drafts/sendQueue.ts
+  s_512188f2b1db53::t_e7efaddb30f1bb 44-46,742-749,751-756
+  s_512188f2b1db53::t_4a4f6cd814d92c 374-376,381,399-404,433-434
+  s_512188f2b1db53::t_42c54fe67ae3cb 377-380,382-386
+docs/architecture.md
+  s_512188f2b1db53::t_e55bb8be293d85 3076,3096,3099
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4c39522049302d1425e8f2210e4167a46d0766ed",
+  "prompts": {},
+  "sessions": {
+    "s_512188f2b1db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e467608a-8346-4544-b69a-fc45fca93669",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

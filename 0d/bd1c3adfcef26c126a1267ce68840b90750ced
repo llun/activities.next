@@ -1,0 +1,21 @@
+lib/utils/getNoteFromStatus.ts
+  s_df449884d06bc5::t_1cbe25f8a9d816 27
+lib/actions/createNote.test.ts
+  s_df449884d06bc5::t_1cbe25f8a9d816 158-177
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.10",
+  "base_commit_sha": "0dbd1c3adfcef26c126a1267ce68840b90750ced",
+  "prompts": {},
+  "sessions": {
+    "s_df449884d06bc5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e44bd-1bab-79f0-b25f-ceba5e0f5df4",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

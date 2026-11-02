@@ -1,0 +1,23 @@
+lib/utils/urlToId.ts
+  s_05a950078bc7d6::t_8e703649d58037 13-17,19,34-36,38
+lib/utils/urlToId.test.ts
+  s_05a950078bc7d6::t_0cf9e4b54ff238 62-63,67,69-70,74
+  s_05a950078bc7d6::t_7063e540459e55 54-61,64-66,68,71-73,75-92
+  s_05a950078bc7d6::t_954d418b0e1e7e 93
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "4a8dea280cca9db267d6e45d2f785165c7f15938",
+  "prompts": {},
+  "sessions": {
+    "s_05a950078bc7d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5989f819-a3c3-4eaf-8169-82fc7a637731",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

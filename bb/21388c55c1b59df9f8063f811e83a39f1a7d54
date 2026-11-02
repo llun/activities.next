@@ -1,0 +1,76 @@
+docs/setup.md
+  s_b3bc497346bdd5::t_2a528d9a7aac4e 95-98
+docs/fitness-file-storage.md
+  s_b3bc497346bdd5::t_cce8a43d517c01 19-20
+lib/services/fitness-files/S3StorageFile.ts
+  s_b3bc497346bdd5::t_3634b91fdd8c64 6,20,80
+lib/services/medias/S3StorageFile.ts
+  s_b3bc497346bdd5::t_18fb9de898a422 6,37,110
+lib/config/securityHeaders.ts
+  s_b3bc497346bdd5::t_9e4459411b75ba 8,26,40-41,48
+lib/utils/securityHeaders.ts
+  s_b3bc497346bdd5::t_c744a224efaace 41,60,65,67,104-109,121-122
+  s_b3bc497346bdd5::t_ad699d1a2b480a 66,68-69
+scripts/cleanupMediaStorage.ts
+  s_b3bc497346bdd5::t_4753892c58d1cc 10
+  s_b3bc497346bdd5::t_12b79acdb6a498 17,84-89,125-131,265-266
+  s_b3bc497346bdd5::t_9c723f63f14ff8 342-343
+scripts/productionArchive.ts
+  s_b3bc497346bdd5::t_fd58c2ea657708 83,538,560,581-582,1141-1143,1151,1153
+lib/config/fitnessStorage.ts
+  s_b3bc497346bdd5::t_acd8aaf09dd3f9 33,136-137
+  s_b3bc497346bdd5::t_4753892c58d1cc 102-103
+lib/jobs/importStravaArchiveJob.ts
+  s_b3bc497346bdd5::t_41b315f617d67a 1,23,215
+lib/services/fitness-files/index.ts
+  s_b3bc497346bdd5::t_5b12afdc0b3600 33
+lib/config/securityHeaders.test.ts
+  s_b3bc497346bdd5::t_86202e6d0ef7ee 13,18,68-69,74-75,81-82,89
+lib/services/medias/S3StorageFile.test.ts
+  s_b3bc497346bdd5::t_7c847e5791a470 121-140
+lib/config/mediaStorage.ts
+  s_b3bc497346bdd5::t_cf5bfa494d84d2 31-32,78
+  s_b3bc497346bdd5::t_4753892c58d1cc 77
+lib/services/storage/s3Client.ts
+  s_b3bc497346bdd5::t_b6d0b162fcd849 1-36
+docs/environment-variables.md
+  s_b3bc497346bdd5::t_d0733294d05daf 130-131,145
+  s_b3bc497346bdd5::t_4753892c58d1cc 146
+lib/config/fitnessStorage.test.ts
+  s_b3bc497346bdd5::t_048c262930e6aa 46-48,57-62,68-84
+lib/services/fitness-files/S3StorageFile.test.ts
+  s_b3bc497346bdd5::t_d5f4b007c9f9a8 48-68
+scripts/productionArchive.test.ts
+  s_b3bc497346bdd5::t_8fca69f9a81122 398,407,414,421-422,425-426,430,439,446,466,472,484,492,498,895,905-906
+scripts/repairStravaActivityFiles.ts
+  s_b3bc497346bdd5::t_f6575442625604 27,37,131
+lib/config/mediaStorage.test.ts
+  s_b3bc497346bdd5::t_9baf06416389c3 61-62,66-67,124,128-130,136-139
+proxy.test.ts
+  s_b3bc497346bdd5::t_cbd61f3874e882 69-70,86,119-123
+.env.example
+  s_b3bc497346bdd5::t_872a4ef99cc03e 138-139,154-155
+next.config.test.ts
+  s_b3bc497346bdd5::t_acc32d63c9bfae 340-361
+  s_b3bc497346bdd5::t_d183ea50549eb8 404-429
+  s_b3bc497346bdd5::t_8b45b8eedb1d99 518-519,528-529,598-600
+lib/jobs/importStravaArchiveJob.test.ts
+  s_b3bc497346bdd5::t_4753892c58d1cc 1
+  s_b3bc497346bdd5::t_36fd0bc4c49f8e 332-366
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "bb21388c55c1b59df9f8063f811e83a39f1a7d54",
+  "prompts": {},
+  "sessions": {
+    "s_b3bc497346bdd5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e3096-b008-7e43-8e07-9cf29fecc463",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

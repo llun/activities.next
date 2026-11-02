@@ -1,0 +1,50 @@
+app/(timeline)/[actor]/ActorTimelines.chunkFailure.test.tsx
+  h_580a04e334fef4 1-58
+app/(timeline)/[actor]/ActorTimelines.idlePreload.test.tsx
+  h_580a04e334fef4 1-67
+app/(timeline)/[actor]/ActorTimelines.preload.test.tsx
+  h_580a04e334fef4 5
+app/(timeline)/[actor]/ActorTimelines.tsx
+  h_580a04e334fef4 28,608-616,661-668,672-680
+app/(timeline)/[actor]/[status]/StatusBox.chunkFailure.test.tsx
+  h_580a04e334fef4 1-58
+app/(timeline)/[actor]/[status]/StatusBox.tsx
+  h_580a04e334fef4 10,95-113
+app/(timeline)/gallery/albums/GalleryAlbumHero.tsx
+  h_580a04e334fef4 15
+docs/architecture.md
+  h_580a04e334fef4 1933-1934,1950-1956,1967-1969
+docs/mastodon-api-compatibility.md
+  h_580a04e334fef4 1259
+lib/components/gallery/GalleryGrid.tsx
+  h_580a04e334fef4 54-56
+lib/components/lazy/createPreloadable.test.tsx
+  h_580a04e334fef4 6,54-111
+lib/components/lazy/createPreloadable.tsx
+  h_580a04e334fef4 3,13-21,33,35-38,42-47,49-52
+lib/components/posts/actions/reaction-button.tsx
+  h_580a04e334fef4 7-10
+lib/components/posts/attachments.tsx
+  h_580a04e334fef4 323-324
+lib/components/posts/post-body.tsx
+  h_580a04e334fef4 73
+lib/components/posts/post.tsx
+  h_580a04e334fef4 84-85
+lib/components/posts/posts.preload.test.tsx
+  h_580a04e334fef4 67-81
+lib/components/posts/posts.tsx
+  h_580a04e334fef4 43-44,118
+lib/components/posts/timeline-feed.tsx
+  h_580a04e334fef4 130
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b67427811e62ee066fafb912e2f9a7e134ddf1bb",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

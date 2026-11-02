@@ -1,0 +1,19 @@
+docs/architecture.md
+  s_f7644afc18c8c2::t_dbf693ef95e627 1093
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6c5d35e295796c7cd7eed4c29463050ea92aa180",
+  "prompts": {},
+  "sessions": {
+    "s_f7644afc18c8c2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a3433648-feeb-4468-8e21-0e3a81d1fef1",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

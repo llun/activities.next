@@ -1,0 +1,30 @@
+lib/services/accounts/profile.test.ts
+  h_580a04e334fef4 17,24-25,33,41-44
+lib/services/auth/knexAdapter.test.ts
+  h_580a04e334fef4 560,581,609,625,636,795,814,834,856,884,1552
+lib/services/federation/statusDelivery.test.ts
+  h_580a04e334fef4 137,208,246,320
+lib/services/fitness-files/S3StorageFile.test.ts
+  h_580a04e334fef4 20-23
+lib/services/fitness-files/retryImports.test.ts
+  h_580a04e334fef4 51-55
+lib/services/guards/getRedirectUrl.test.ts
+  h_580a04e334fef4 7
+lib/services/guards/headerHost.test.ts
+  h_580a04e334fef4 7
+lib/services/mastodon/getMastodonConversation.test.ts
+  h_580a04e334fef4 32-33
+lib/services/mastodon/getMastodonStatus.test.ts
+  h_580a04e334fef4 8,231,424-425,454-455,1690,1746,1777,1922,1933
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "5276c5ad8b64a21487b170325c0062eb8218014c",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

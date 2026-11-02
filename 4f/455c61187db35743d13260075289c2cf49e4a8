@@ -1,0 +1,23 @@
+app/(timeline)/[actor]/[status]/page.tsx
+  s_f9b386b3b2c47a::t_a7b9672d329b03 75-97,100
+  s_f9b386b3b2c47a::t_8b0299cdec8c5a 10
+app/(timeline)/[actor]/[status]/page.remote-signing.test.tsx
+  s_f9b386b3b2c47a::t_2400bf1df04792 1-8,10-237
+  s_f9b386b3b2c47a::t_acccb5ee72a585 9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "4f455c61187db35743d13260075289c2cf49e4a8",
+  "prompts": {},
+  "sessions": {
+    "s_f9b386b3b2c47a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8f5ced51-2d06-459c-bc63-362b75dabdd5",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

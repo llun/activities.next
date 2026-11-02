@@ -1,0 +1,21 @@
+app/(timeline)/admin/layout.test.tsx
+  s_b5585fa97b3cb2::t_e14206f33195f0 237-248
+app/(timeline)/admin/reports/[id]/AdminReportDetail.test.tsx
+  s_b5585fa97b3cb2::t_e14206f33195f0 243-268
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5a9480ca67ad248bbb16f9faf1a4b799acb682d8",
+  "prompts": {},
+  "sessions": {
+    "s_b5585fa97b3cb2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1734e-97cb-7ae0-946d-3723c0f5dd00",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,27 @@
+CONTRIBUTING.md
+  s_56103ec8de8399::t_59eb2b61507fcd 679-683
+test/guardSmall.test.ts
+  s_56103ec8de8399::t_bfde86acdf431e 56,63-67,81,86-88,92,96-108,116,219-233
+test/setup/guardSmall.ts
+  s_56103ec8de8399::t_ba090ff0a3c5cf 2,5,15-18,27-40,43-50,55-57,73-87,92-94,108-110
+test/setup/guardViolations.ts
+  s_56103ec8de8399::t_30b5e36a2aada9 109-112,115-128,131,217
+test/vitest.config.test.ts
+  s_56103ec8de8399::t_ba493f00ad0e9e 4-6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "866a1621d836762575357cb65d2c2de4d2a27505",
+  "prompts": {},
+  "sessions": {
+    "s_56103ec8de8399": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e54e0125-f5a1-4ab9-99b0-7ecabb6c419b",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

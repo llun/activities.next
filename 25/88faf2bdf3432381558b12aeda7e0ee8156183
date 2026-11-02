@@ -1,0 +1,37 @@
+app/(timeline)/MainPageTimeline.tsx
+  s_221cf886fa2472::t_6845c2e379afea 40,50
+  s_221cf886fa2472::t_a0a8641ac254c6 287
+app/(timeline)/[actor]/page.tsx
+  s_221cf886fa2472::t_088d567aea3cd5 188
+app/(timeline)/[actor]/ActorTimelines.tsx
+  s_221cf886fa2472::t_b3260a0be36f7e 66
+  s_221cf886fa2472::t_c7a35bc7d743fe 23
+app/(timeline)/[actor]/ActorTimelines.test.tsx
+  s_221cf886fa2472::t_8e2f2f554e2f76 285-310,316-319
+  s_221cf886fa2472::t_8931c3e6ac1ff4 311-315
+  s_221cf886fa2472::t_b9b27b1ac8848d 112,160,201,232,268
+  s_221cf886fa2472::t_abc2337580aae2 89-90
+  s_221cf886fa2472::t_1cb9a39b7f4d3a 18-24,26
+app/(timeline)/page.tsx
+  s_221cf886fa2472::t_a089c81a65cb5e 42
+app/(timeline)/MainPageTimeline.test.tsx
+  s_221cf886fa2472::t_5e69c1a20d819c 1-98,105,111-141
+  s_221cf886fa2472::t_c640e28bc36270 107-108
+  s_221cf886fa2472::t_daecaf2dbabf94 99-104,106,109-110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "2588faf2bdf3432381558b12aeda7e0ee8156183",
+  "prompts": {},
+  "sessions": {
+    "s_221cf886fa2472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "351a1a56-9fc5-4f61-bd51-37b588315b07",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

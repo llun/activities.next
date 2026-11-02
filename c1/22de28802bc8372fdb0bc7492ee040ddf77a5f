@@ -1,0 +1,29 @@
+CLAUDE.md
+  s_8500a52257703f::t_ca3d65338225ed 46
+scripts/backup/actorArchive.ts
+  s_8500a52257703f::t_236e16f8908bec 406-409
+AGENTS.md
+  s_8500a52257703f::t_ff3bb8bc22d732 1980-1987
+lib/database/statusVisibilityCallSites.test.ts
+  s_8500a52257703f::t_a3d7a9421e0d8d 38-45
+  s_8500a52257703f::t_53fd6ad83f9453 129-131,133-141
+  s_8500a52257703f::t_aa9e2298d004e7 125-128
+  s_8500a52257703f::t_1cd93da146b6b3 30,176-179
+  s_8500a52257703f::t_b9d2ddf26dab2b 1-29,31-37,46-124,132,142-175,180-190
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "c122de28802bc8372fdb0bc7492ee040ddf77a5f",
+  "prompts": {},
+  "sessions": {
+    "s_8500a52257703f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "90abf0ee-902c-49a4-9c02-2af2482a33d5",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

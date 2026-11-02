@@ -1,0 +1,21 @@
+app/api/v1/fitness-files/route.test.ts
+  s_69f35b0cf1b1f5::t_5ef6338378e9f6 1-99
+app/api/v1/fitness-files/route.ts
+  s_69f35b0cf1b1f5::t_9186db10550135 7,58-78,82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "86525d20e718d8818802894bfe39e876ea3d6cbb",
+  "prompts": {},
+  "sessions": {
+    "s_69f35b0cf1b1f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3e34abf-a75d-4da8-b371-1258aa33721a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

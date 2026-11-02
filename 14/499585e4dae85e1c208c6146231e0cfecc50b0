@@ -1,0 +1,16 @@
+app/(timeline)/favorites/loading.test.tsx
+  h_580a04e334fef4 1-56
+app/(timeline)/favorites/loading.tsx
+  h_580a04e334fef4 1-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "14499585e4dae85e1c208c6146231e0cfecc50b0",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

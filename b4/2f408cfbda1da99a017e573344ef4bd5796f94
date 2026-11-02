@@ -1,0 +1,39 @@
+lib/components/fitness/mapkitTestDouble.ts
+  s_0e2fd6be727054::t_bda9b1e52f49d5 105-109
+lib/components/fitness/useHeatmapTiles.test.ts
+  s_0e2fd6be727054::t_990ae480534e54 366-422
+  s_0e2fd6be727054::t_736a9a24f9128d 291-323,335-336
+AGENTS.md
+  s_0e2fd6be727054::t_3d0282579f4f0c 635-640
+lib/components/fitness/RouteHeatmapMapKit.test.tsx
+  s_0e2fd6be727054::t_1e43491631b550 349-355,404-454
+  s_0e2fd6be727054::t_5d77e80b9f228a 10-13,231-236,243-247,249-250,275-290,305,310
+  s_0e2fd6be727054::t_5cd6647aec95b4 251,258-260,262-274
+  s_0e2fd6be727054::t_2fa0e445126b91 252-257,261
+  s_0e2fd6be727054::t_f57619bcf141c7 291-304,306-309,311
+  s_0e2fd6be727054::t_cda5fd5ca8d3e5 455
+docs/fitness-file-storage.md
+  s_0e2fd6be727054::t_3d0282579f4f0c 92-94
+lib/components/fitness/RouteHeatmapMap.test.tsx
+  s_0e2fd6be727054::t_6ce17415c856f1 281-310
+lib/components/fitness/useHeatmapTiles.ts
+  s_0e2fd6be727054::t_29921172308382 131-210
+  s_0e2fd6be727054::t_19670eb5c75550 294-308,313-316,320,322-323,325,328-329,334-335,354,386-393,404
+  s_0e2fd6be727054::t_7307ab9c066705 309-312
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "b42f408cfbda1da99a017e573344ef4bd5796f94",
+  "prompts": {},
+  "sessions": {
+    "s_0e2fd6be727054": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8b4fe7c-fd3e-48ba-9e1d-ef3b99484c21",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

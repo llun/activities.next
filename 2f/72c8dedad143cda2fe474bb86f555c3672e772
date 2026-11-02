@@ -1,0 +1,20 @@
+app/(timeline)/[actor]/getProfileData.ts
+  h_580a04e334fef4 276
+lib/activities/getActorCollectionCounts.ts
+  h_580a04e334fef4 1-4,38
+lib/activities/getActorCollections.test.ts
+  h_580a04e334fef4 1-60
+lib/activities/getActorCollections.ts
+  h_580a04e334fef4 69-75,121-123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "2f72c8dedad143cda2fe474bb86f555c3672e772",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

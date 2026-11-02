@@ -1,0 +1,47 @@
+lib/config/securityHeaders.ts
+  s_97ecf87d425589::t_b6ac993771b24b 1,53-57
+lib/config/trustProxyIpHeaders.test.ts
+  s_97ecf87d425589::t_330bdca0856ad0 54,60,69,73,76
+lib/config/securityHeaders.test.ts
+  s_97ecf87d425589::t_73980e3634ff28 49,87,108-110,114
+lib/config/index.test.ts
+  s_97ecf87d425589::t_f003056fd1347f 36,45-46,51,58-62,68-77
+lib/config/host.test.ts
+  s_97ecf87d425589::t_7d04ff91a54580 111,122-123
+docs/environment-variables.md
+  s_97ecf87d425589::t_558851b4c353e5 5
+docs/setup.md
+  s_97ecf87d425589::t_0f196ebe2bcd9c 22,71
+docs/sqlite-setup.md
+  s_97ecf87d425589::t_5c0177096851bb 51-56,72
+lib/config/host.ts
+  s_97ecf87d425589::t_0b53c9de5934cd 1
+  s_97ecf87d425589::t_b967e365876335 26,28,41
+lib/config/trustProxyIpHeaders.ts
+  s_97ecf87d425589::t_b2b5ef669554a4 14
+next.config.test.ts
+  s_97ecf87d425589::t_0b53c9de5934cd 512-513
+  s_97ecf87d425589::t_942984a189fbf6 457,509-510,515-518
+docs/postgresql-setup.md
+  s_97ecf87d425589::t_e25baeb3a5d2fb 62-70
+AGENTS.md
+  s_97ecf87d425589::t_9b718424efddbf 10,24,209
+proxy.test.ts
+  s_97ecf87d425589::t_9d0fbe3b2a7b75 274,295
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "6a3f43ce216dc76ef155978f695924c783087dd3",
+  "prompts": {},
+  "sessions": {
+    "s_97ecf87d425589": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e2f75-b272-75c0-8922-1a6a96eb8ddd",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

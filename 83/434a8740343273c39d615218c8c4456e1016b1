@@ -1,0 +1,16 @@
+app/(timeline)/[actor]/[status]/resolveStatusFromPath.test.ts
+  h_580a04e334fef4 1-6,19-33,37,50,52,55,57-69
+app/(timeline)/fitness/gear/[id]/GearActivitiesFeed.test.tsx
+  h_580a04e334fef4 13,46,53-60,93,111,113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "83434a8740343273c39d615218c8c4456e1016b1",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

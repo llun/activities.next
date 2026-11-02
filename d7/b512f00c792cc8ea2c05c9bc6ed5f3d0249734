@@ -1,0 +1,103 @@
+lib/database/types.ts
+  s_a9e57dede8ad31::t_0f7db44dc6fcc0 32
+  s_a9e57dede8ad31::t_83b89e716f1509 55
+lib/database/sql/serverFilter.ts
+  s_a9e57dede8ad31::t_3c39901a5ba0aa 1-159,162-163,165-284
+  s_a9e57dede8ad31::t_98f5f3651f3750 160-161,164
+app/api/v1/notifications/route.test.ts
+  s_a9e57dede8ad31::t_f99562a64be50f 8-9
+app/api/v2/admin/filters/[id]/route.ts
+  s_a9e57dede8ad31::t_bb687a703aba59 1-118
+lib/types/domain/filter.ts
+  s_a9e57dede8ad31::t_b4cb21074cde63 44-58
+lib/components/filters/filterConstants.ts
+  s_a9e57dede8ad31::t_79563177344b8c 88
+  s_a9e57dede8ad31::t_de40b25ad32935 1-87,89-97
+app/(timeline)/admin/filters/page.tsx
+  s_a9e57dede8ad31::t_2267304bfc0c87 1-28
+app/(timeline)/settings/filters/page.tsx
+  s_a9e57dede8ad31::t_02283b65756c72 1-30
+lib/database/sql/filter.ts
+  s_a9e57dede8ad31::t_2303eccea91485 314-315,317-319,322-323,325
+  s_a9e57dede8ad31::t_416daaf2e7ebb7 320-321,324
+  s_a9e57dede8ad31::t_bba849b8b73af0 12,24
+  s_a9e57dede8ad31::t_0df72e381eb968 104-144
+app/api/v2/admin/filters/route.test.ts
+  s_a9e57dede8ad31::t_15f1ffacb5e589 1-87,91-119
+  s_a9e57dede8ad31::t_1fca9dc77db767 88-90
+lib/services/mastodon/getMastodonFilter.ts
+  s_a9e57dede8ad31::t_9d1102e3e398a6 86-125
+  s_a9e57dede8ad31::t_677e7608f59462 3-5,9-10
+app/(timeline)/settings/layout.tsx
+  s_a9e57dede8ad31::t_bce1ccc2af7919 6
+  s_a9e57dede8ad31::t_a642b9665f9eba 41
+app/api/v2/notifications/route.test.ts
+  s_a9e57dede8ad31::t_1ff316426ebdd3 10-11
+lib/database/sql/index.ts
+  s_a9e57dede8ad31::t_904dcb2ce5d8ee 59
+  s_a9e57dede8ad31::t_68c47a94d343ae 31
+  s_a9e57dede8ad31::t_f91f1be371aee9 123
+lib/client.ts
+  s_a9e57dede8ad31::t_79563177344b8c 12
+  s_a9e57dede8ad31::t_cd6f67e2031106 18
+  s_a9e57dede8ad31::t_47385811997cc0 2831-2952
+app/api/v2/filters/route.ts
+  s_a9e57dede8ad31::t_a0519dd016d1c2 13-14
+  s_a9e57dede8ad31::t_c8239c97469b2f 39-50
+lib/database/sql/serverFilter.test.ts
+  s_a9e57dede8ad31::t_7691fd3ad9f6b6 1-101,108-129,131-132
+  s_a9e57dede8ad31::t_1fca9dc77db767 102-107,130
+migrations/schema.sqlite.sql
+  s_a9e57dede8ad31::t_70eb51df471372 199-203
+lib/services/filters/applyFilters.ts
+  s_a9e57dede8ad31::t_13ec4c829e2c22 4-7
+  s_a9e57dede8ad31::t_1924fa93d9383a 148-158,164-175
+app/api/v2/notifications/unread_count/route.test.ts
+  s_a9e57dede8ad31::t_6251336537a976 11
+lib/types/database/operations.ts
+  s_a9e57dede8ad31::t_9cfad6a9650e7c 1538-1541
+  s_a9e57dede8ad31::t_79563177344b8c 1677
+  s_a9e57dede8ad31::t_7fb4fce8ce725f 17-18
+  s_a9e57dede8ad31::t_736748c26e5938 1607-1612
+  s_a9e57dede8ad31::t_0f7eec9113fe42 1639-1676,1678-1697
+lib/components/filters/FilterEditor.tsx
+  s_a9e57dede8ad31::t_79563177344b8c 6-10,132-133,143-149,358-360
+  s_a9e57dede8ad31::t_8de4ee974293b0 1-5,11-131,134-142,150-357,361-368
+app/api/v2/notifications/[group_key]/accounts/route.test.ts
+  s_a9e57dede8ad31::t_cc71e639878d22 9
+app/api/v1/conversations/[id]/statuses/route.test.ts
+  s_a9e57dede8ad31::t_caefaf338eb4ef 11-12
+migrations/20260610120000_add_server_filters_tables.js
+  s_a9e57dede8ad31::t_44568117644f8d 1-45
+lib/components/filters/filterUi.tsx
+  s_a9e57dede8ad31::t_84208be3663203 1-52
+app/(timeline)/admin/layout.tsx
+  s_a9e57dede8ad31::t_dc6ab6eaf4e3f2 3-11
+  s_a9e57dede8ad31::t_61a35b4ae0ab1d 31
+app/api/v2/admin/filters/route.ts
+  s_a9e57dede8ad31::t_4e08f5d4ccc76c 1-72
+migrations/schema.sql
+  s_a9e57dede8ad31::t_4df39dbd72d5a3 718-736,1137-1145,1331-1333
+lib/components/filters/FiltersPanel.tsx
+  s_a9e57dede8ad31::t_1b011b0d917908 1-48,51-110,113-220
+  s_a9e57dede8ad31::t_ec2a4433685b0f 111-112
+  s_a9e57dede8ad31::t_79563177344b8c 49-50
+lib/components/filters/FilterRow.tsx
+  s_a9e57dede8ad31::t_871359a78fc637 1-119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "d7b512f00c792cc8ea2c05c9bc6ed5f3d0249734",
+  "prompts": {},
+  "sessions": {
+    "s_a9e57dede8ad31": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c26c4fb4-16ed-45cc-b64f-47ecc850a9d1",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

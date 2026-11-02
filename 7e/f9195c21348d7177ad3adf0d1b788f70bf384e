@@ -1,0 +1,16 @@
+app/(timeline)/fitness/ActorFitnessDashboard.test.tsx
+  h_580a04e334fef4 66-72,89,97,102,111,120,123,130,138,142,147,152,180-212
+app/(timeline)/fitness/ActorFitnessDashboard.tsx
+  h_580a04e334fef4 32,34-35,44,71-103,138-142,149-151,218-221
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "7ef9195c21348d7177ad3adf0d1b788f70bf384e",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

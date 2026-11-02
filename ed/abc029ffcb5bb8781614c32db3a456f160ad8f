@@ -1,0 +1,18 @@
+.github/dependabot.yml
+  h_580a04e334fef4 21-30
+package.json
+  h_580a04e334fef4 78,107
+yarn.lock
+  h_580a04e334fef4 3592,3601-3609,3902,3946,7239-7242
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "edabc029ffcb5bb8781614c32db3a456f160ad8f",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

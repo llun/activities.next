@@ -1,0 +1,22 @@
+lib/services/mastodon/getMastodonMarkers.test.ts
+  s_b1f1f42a61e7ae::t_134a53bd0572b5 9-15
+  s_b1f1f42a61e7ae::t_431e2506ef4a84 1-8,16-29
+lib/services/mastodon/getMastodonMarkers.ts
+  s_b1f1f42a61e7ae::t_33afebf1307e7c 1-14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "669d1cf5a0cb1e94b062a7a6e5da2bdf76d99c39",
+  "prompts": {},
+  "sessions": {
+    "s_b1f1f42a61e7ae": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "88c6092d-a010-43cd-bc98-d9275159565f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

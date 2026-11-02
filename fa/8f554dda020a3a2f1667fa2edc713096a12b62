@@ -1,0 +1,50 @@
+lib/jobs/resolveMediaSubjectJob.failClosed.test.ts
+  s_95ae8955d185b6::t_001fa535146831 66,71-76
+  s_95ae8955d185b6::t_1ea5832940a7d7 67-70
+lib/components/post-box/post-box.offline.test.tsx
+  s_27f6fb26a566df::t_b20f22a2a27515 176-181,187,197,272,314,349,510,529,578,604,655
+lib/components/post-box/post-box.drafts.test.tsx
+  s_27f6fb26a566df::t_6b78b180eae1ce 148-153,159,171,216,785,954,1088,1634
+  s_27f6fb26a566df::t_c840ce55a4e5b8 57
+  s_27f6fb26a566df::t_1f53cd80226c5e 279,306,308,408,450,477,647,666,698,1401
+  s_27f6fb26a566df::t_469e86757396b4 1613-1617
+lib/jobs/exportAccountArchiveJob.test.ts
+  s_95ae8955d185b6::t_bd900700c65e40 160,162,194
+  s_95ae8955d185b6::t_07716464f987f0 157-159,161
+lib/components/posts/status-reply-box.drafts.test.tsx
+  s_c0c82305aae7c3::t_61a0d433aa9183 27
+  s_c0c82305aae7c3::t_6f59ea0eb54be3 145
+  s_c0c82305aae7c3::t_4bd5078726a02a 156,170-173
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fa8f554dda020a3a2f1667fa2edc713096a12b62",
+  "prompts": {},
+  "sessions": {
+    "s_27f6fb26a566df": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18bb5-fe96-7133-8443-e1a53639fe25",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_95ae8955d185b6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18bc4-2846-7683-b3a5-24151c8bb3ff",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_c0c82305aae7c3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18bbd-dd37-7140-8b01-40fc9ea529b2",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

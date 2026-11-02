@@ -1,0 +1,22 @@
+app/api/v1/timelines/tag/[hashtag]/route.test.ts
+  s_f7b91ac6284bd0::t_4d48304165c0f9 263-272
+  s_f7b91ac6284bd0::t_4cf3e3c23482dc 289-301
+app/api/v1/timelines/tag/[hashtag]/route.ts
+  s_f7b91ac6284bd0::t_587e130e4cec0a 58-62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "676ba43d97d3a50f58827a03c4a09b6759e73068",
+  "prompts": {},
+  "sessions": {
+    "s_f7b91ac6284bd0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7e5d29e0-cb70-4516-b716-6108a10b94a2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,23 @@
+lib/components/posts/read-only-stats.tsx
+  s_e573256719c422::t_b00c1967ffe327 1
+  s_e573256719c422::t_268e34c1bbe9d6 2-20,33
+  s_e573256719c422::t_18ff3e0f972faf 21-25,27,35,43
+  s_e573256719c422::t_cb49c37bef20cf 26,28-30,32,36-38,40-41
+  s_e573256719c422::t_a02f176e07f007 31,34,39,42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "53dd9531f61adb2ce5c1ca17b52ea3d4baaf019a",
+  "prompts": {},
+  "sessions": {
+    "s_e573256719c422": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7ca77fac-8924-4b34-a994-ddf6745a6ae1",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": null
+    }
+  }
+}

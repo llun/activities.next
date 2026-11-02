@@ -1,0 +1,18 @@
+docs/maintenance.md
+  h_580a04e334fef4 885-908
+scripts/maintenance/importRemoteStatus.test.ts
+  h_580a04e334fef4 1-172
+scripts/maintenance/importRemoteStatus.ts
+  h_580a04e334fef4 1-182
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "0e01ee8a54f353fef26bcfc3c078fd5c514b308d",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

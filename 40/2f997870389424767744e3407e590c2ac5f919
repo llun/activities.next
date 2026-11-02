@@ -1,0 +1,19 @@
+CLAUDE.md
+  s_573a4f61d609a9::t_18daaa5bc2ce21 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "402f997870389424767744e3407e590c2ac5f919",
+  "prompts": {},
+  "sessions": {
+    "s_573a4f61d609a9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d903a10c-deef-49cb-ae5b-2198fabb750e",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

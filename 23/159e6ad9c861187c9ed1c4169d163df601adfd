@@ -1,0 +1,28 @@
+lib/components/posts/threadModel.test.ts
+  h_580a04e334fef4 233-301
+lib/components/posts/threadModel.ts
+  h_580a04e334fef4 83,94,147-150,163,169-171
+lib/services/statuses/getStatusContext.test.ts
+  h_580a04e334fef4 1,4,12,281-454
+lib/services/statuses/getStatusContext.ts
+  h_580a04e334fef4 8-9,39-44,172,177-188,220,225-236,239
+lib/services/timelines/blockFilter.ts
+  h_580a04e334fef4 16
+lib/services/timelines/getTimelineContext.test.ts
+  h_580a04e334fef4 4,280-370
+lib/services/timelines/getTimelineContext.ts
+  h_580a04e334fef4 2-3,70-71,172,178-190,281,294-299
+lib/services/timelines/muteFilter.ts
+  h_580a04e334fef4 11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "23159e6ad9c861187c9ed1c4169d163df601adfd",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

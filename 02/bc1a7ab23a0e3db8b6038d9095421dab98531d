@@ -1,0 +1,22 @@
+AGENTS.md
+  h_580a04e334fef4 2024,2027
+REVIEW.md
+  h_580a04e334fef4 522,532,539-540
+app/api/v1/emails/confirmations/route.ts
+  h_580a04e334fef4 40
+lib/services/guards/OAuthGuard.test.ts
+  h_580a04e334fef4 1147-1166,1176,1187-1201,1213
+lib/services/guards/OAuthGuard.ts
+  h_580a04e334fef4 317,324-336,343,397,401,404-408,444-445,448-450,474,560,624
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "02bc1a7ab23a0e3db8b6038d9095421dab98531d",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

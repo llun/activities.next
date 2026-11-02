@@ -1,0 +1,69 @@
+lib/components/fitness/RouteHeatmapMap.tsx
+  s_dabfd6fcc025d2::t_9591f84f4cde33 47-58
+  s_dabfd6fcc025d2::t_9d189665b2a315 365-374
+  s_dabfd6fcc025d2::t_56ca8490bca7f3 11
+lib/services/fitness-files/routeHeatmap.ts
+  s_dabfd6fcc025d2::t_c52585a8a76abc 16
+  s_dabfd6fcc025d2::t_01fa91db2bad05 26-33
+  s_dabfd6fcc025d2::t_d95ea5c51df8fd 109-110,116-117,120-122,130-132,134
+  s_dabfd6fcc025d2::t_593979d0bfadf1 124-127
+  s_dabfd6fcc025d2::t_ba155f7cf95a7d 118-119,123,128-129
+lib/config/fitnessRouteHeatmap.test.ts
+  s_dabfd6fcc025d2::t_9b0323549a2540 5,29-30,34,39-40,45-46,54,59-60
+  s_dabfd6fcc025d2::t_486b65c2eeadd1 17-18
+lib/jobs/generateFitnessRouteHeatmapJob.ts
+  s_dabfd6fcc025d2::t_d96735eb97fb75 29
+  s_dabfd6fcc025d2::t_fe2f58c7e19ed1 572-574,576-577
+  s_dabfd6fcc025d2::t_15adf84f8892f7 477,479
+  s_dabfd6fcc025d2::t_1c2f5a796eb3f2 470-476,478,480
+lib/services/fitness-files/simplifyRoute.ts
+  s_dabfd6fcc025d2::t_13dc8fe5829129 1-23,46,47-53,56-88,95-98,105,117,124-127,135-141,143-144,159-162,164-167,171-175,179-188,190-191,200-202,204
+  s_dabfd6fcc025d2::t_59fa87df3d363c 36-45,54-55,89-94,99-106,108,120-123,128-134,145-146,148-149,151,163
+  s_dabfd6fcc025d2::t_329d06ca8a6e26 176-178,189,192-199,203
+  s_dabfd6fcc025d2::t_055733bd42f479 110-112,142,153-158
+  s_dabfd6fcc025d2::t_826eb531badf82 24-35
+  s_dabfd6fcc025d2::t_09a28b8fc5ad45 113-116,118-119
+  s_dabfd6fcc025d2::t_4b6d90a4dc04dc 147,150
+  s_dabfd6fcc025d2::t_48a5b6fb9a12af 168-170
+lib/config/fitnessRouteHeatmap.ts
+  s_dabfd6fcc025d2::t_b3715410af33a6 15-24,34-38,47-53,69-72
+lib/services/fitness-files/simplifyRoute.test.ts
+  s_dabfd6fcc025d2::t_297746fdf6f6aa 1-22,47-68,70-96,111-164,168-170,192
+  s_dabfd6fcc025d2::t_486b65c2eeadd1 69,165-167
+  s_dabfd6fcc025d2::t_9f727321f10d99 171-191
+  s_dabfd6fcc025d2::t_be6a9175a2b0bc 23-46
+  s_dabfd6fcc025d2::t_f226385a818af5 97-110
+app/(timeline)/fitness/heatmap/FitnessHeatmapView.test.tsx
+  s_dabfd6fcc025d2::t_3926c3fafbf969 1294-1332,1336-1337
+  s_dabfd6fcc025d2::t_b0c31327a18b9f 1333-1335
+lib/services/fitness-files/routeHeatmap.test.ts
+  s_dabfd6fcc025d2::t_c6ce8f3ab08887 75,79
+  s_dabfd6fcc025d2::t_35775044d963ab 34-48,51,53-74,80
+  s_dabfd6fcc025d2::t_e27368f2e7729f 49-50,52,76-78,81-99
+docs/environment-variables.md
+  s_dabfd6fcc025d2::t_25cf30680e29d8 150-165
+lib/jobs/generateFitnessRouteHeatmapJob.test.ts
+  s_dabfd6fcc025d2::t_667ccf3a069640 707
+  s_dabfd6fcc025d2::t_ac4f8a97cf0604 500-503,554
+  s_dabfd6fcc025d2::t_d349db9443d8cd 506
+  s_dabfd6fcc025d2::t_97fd48dee57262 565-615,617-621
+  s_dabfd6fcc025d2::t_1b94e6d6015fce 698-706,708-717,729,733
+  s_dabfd6fcc025d2::t_da05af706c3db3 552-553,555
+  s_dabfd6fcc025d2::t_0ada6fa366c2b3 616
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "3987d8d9bd29ee40cb8fc6982ef2afe27bfe28d4",
+  "prompts": {},
+  "sessions": {
+    "s_dabfd6fcc025d2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8f5d8a71-454a-4294-9816-1d2edbd74c5e",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,36 @@
+lib/services/medias/S3StorageFile.test.ts
+  h_580a04e334fef4 33-36
+lib/services/medias/quota.ts
+  h_580a04e334fef4 19
+lib/services/medias/storageBackendSummary.test.ts
+  h_580a04e334fef4 33
+lib/services/medias/thumbnailInput.test.ts
+  h_580a04e334fef4 12
+lib/services/notifications/createConversationMuteSuppression.test.ts
+  h_580a04e334fef4 38,96
+lib/services/notifications/getMastodonNotification.test.ts
+  h_580a04e334fef4 26,28,35,37
+lib/services/notifications/groupNotifications.test.ts
+  h_580a04e334fef4 10-12
+lib/services/oauth/userinfo.test.ts
+  h_580a04e334fef4 12,17-20,25,36,158
+lib/services/strava/archiveReader.open.test.ts
+  h_580a04e334fef4 20-26
+lib/services/timelines/getFilteredTimelinePage.test.ts
+  h_580a04e334fef4 506-511
+lib/services/translation/translateStatus.test.ts
+  h_580a04e334fef4 4-7,40,53
+package.json
+  h_580a04e334fef4 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "eb990ed2bf97fb1661f22651878ef26d5cb721c7",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

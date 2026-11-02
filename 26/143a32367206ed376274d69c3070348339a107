@@ -1,0 +1,65 @@
+app/api/v1/follow_requests/[id]/reject/route.ts
+  s_0a6bffb392e5bb::t_3ae3aa5397e97c 89
+migrations/20260606000000_add_endorsements_table.js
+  s_0a6bffb392e5bb::t_40bc741a5d383c 1-35
+lib/types/mastodon/index.ts
+  s_0a6bffb392e5bb::t_286b22fa78b5b3 4-5
+  s_0a6bffb392e5bb::t_66288baac4ce0c 6
+lib/types/database/rows.ts
+  s_0a6bffb392e5bb::t_2dd6d541bd8ad5 15-25
+lib/database/sql/actor.ts
+  s_0a6bffb392e5bb::t_45810820da514a 258-266,273,280,284,286,289-293,295-299
+  s_0a6bffb392e5bb::t_5affb6fbe1c41a 797-802
+  s_0a6bffb392e5bb::t_e54a4a84eca763 830-835
+lib/types/database/operations.ts
+  s_0a6bffb392e5bb::t_c366166c94f12c 1336-1369
+  s_0a6bffb392e5bb::t_3720f51d9c3f0a 83-90
+  s_0a6bffb392e5bb::t_70251da24ca553 10
+lib/types/domain/endorsement.ts
+  s_0a6bffb392e5bb::t_ec7262c770ab1b 1-18
+lib/services/accounts/relationship.test.ts
+  s_0a6bffb392e5bb::t_5e97d051de405d 14-15
+  s_0a6bffb392e5bb::t_2ae0d42764fc7a 33
+  s_0a6bffb392e5bb::t_ebecb16b92f4c4 117,124-142
+lib/services/accounts/credentialAccount.ts
+  s_0a6bffb392e5bb::t_b0ab537b2df383 1-38
+lib/database/sql/endorsement.ts
+  s_0a6bffb392e5bb::t_3cf0e0fb19b057 1-90
+lib/types/mastodon/account/role.ts
+  ai_agent 18
+  s_0a6bffb392e5bb::t_afc3dce972dd63 1-17,19-21
+lib/types/mastodon/account/familiarFollowers.ts
+  s_0a6bffb392e5bb::t_0c3566b11778b1 1-13
+lib/types/mastodon/account/credentialAccount.ts
+  s_0a6bffb392e5bb::t_b8788206f400a5 1-12,14-15
+  ai_agent 13
+lib/services/accounts/relationship.ts
+  s_0a6bffb392e5bb::t_a06af25dee40c6 55-58
+  s_0a6bffb392e5bb::t_40c71839ef445d 78-79,83
+  s_0a6bffb392e5bb::t_72f8edb37a219f 25-26
+lib/types/mastodon/account/relationship.ts
+  s_0a6bffb392e5bb::t_10a28bde6f64f6 39-42
+lib/database/types.ts
+  s_0a6bffb392e5bb::t_cb92f5d676d36c 14
+  s_0a6bffb392e5bb::t_00b167b9c88976 46
+lib/database/sql/index.ts
+  s_0a6bffb392e5bb::t_ccd9d40ff6667e 10
+  s_0a6bffb392e5bb::t_73d5b2310f0311 48
+  s_0a6bffb392e5bb::t_50cd40e4d1a896 103
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "26143a32367206ed376274d69c3070348339a107",
+  "prompts": {},
+  "sessions": {
+    "s_0a6bffb392e5bb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f33db19d-86be-4aa2-83f5-fbcf68e3d44c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

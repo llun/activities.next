@@ -1,0 +1,39 @@
+lib/database/sql/pushSubscription.test.ts
+  b0ef2344c9bd125f 90
+lib/components/settings/PushNotificationSettings.tsx
+  b0ef2344c9bd125f 80,118,127-131
+lib/types/database/operations.ts
+  b0ef2344c9bd125f 848
+lib/actions/createNote.ts
+  b0ef2344c9bd125f 301-303,305,311,315-319,322-331,334,336-337,340-342
+app/api/v1/push/subscribe/route.ts
+  b0ef2344c9bd125f 45,52-55
+public/sw.js
+  b0ef2344c9bd125f 6-12,16-17,26-29,36
+lib/services/notifications/pushNotification.ts
+  b0ef2344c9bd125f 11-26,107,129-130
+app/api/v1/push/subscribe/route.test.ts
+  b0ef2344c9bd125f 52-57,108-113,144-145
+lib/database/sql/pushSubscription.ts
+  b0ef2344c9bd125f 63-64,66
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "e79b16be1e06f1b2a79b7aa5d9be26720e33b59d",
+  "prompts": {
+    "b0ef2344c9bd125f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "02641ee0-4844-4eb9-a165-87c2f74e4e36",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 97,
+      "total_deletions": 53,
+      "accepted_lines": 91,
+      "overriden_lines": 0
+    }
+  }
+}

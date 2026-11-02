@@ -1,0 +1,23 @@
+docs/environment-variables.md
+  s_5de0d2ab87ffcf::t_87c6094693f2b6 78-83
+lib/config/environmentTemplates.ts
+  s_5de0d2ab87ffcf::t_c368abe3617004 23-26
+.env.example
+  s_5de0d2ab87ffcf::t_653d4acbde9a49 162-164
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "2ee9c798009858b96f77635678cecd646e45e878",
+  "prompts": {},
+  "sessions": {
+    "s_5de0d2ab87ffcf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5ea0b3c1-a9b1-4405-8f70-0ef171540ace",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

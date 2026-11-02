@@ -1,0 +1,46 @@
+lib/services/collections/serializers.ts
+  s_69f35b0cf1b1f5::t_86e50b244c35ac 123-127
+app/api/v1/collections/route.ts
+  s_69f35b0cf1b1f5::t_2501004ae6e3bd 7,102-113,115-133
+lib/types/database/operations.ts
+  s_69f35b0cf1b1f5::t_86e50b244c35ac 1826-1829
+lib/services/collections/serializers.test.ts
+  s_69f35b0cf1b1f5::t_d87f6e2953072e 196,199-200
+lib/database/sql/collection.ts
+  s_69f35b0cf1b1f5::t_c7bdff05f67ee8 730-732,779-781
+  s_69f35b0cf1b1f5::t_86e50b244c35ac 17-20,357-370,504-506,522-532,722-723,748,752-769,772-778
+  s_69f35b0cf1b1f5::t_8a4d413874cf92 16
+lib/database/sql/collection.test.ts
+  s_69f35b0cf1b1f5::t_d87f6e2953072e 3-7,78-90,95-175,177-182,185-188
+  s_69f35b0cf1b1f5::t_c7bdff05f67ee8 91-94
+  s_69f35b0cf1b1f5::t_1dcc92e0ba81b7 176,183-184
+app/api/v1/collections/[id]/items/route.ts
+  s_69f35b0cf1b1f5::t_2501004ae6e3bd 8,173-190
+app/api/v1/collections/route.test.ts
+  s_69f35b0cf1b1f5::t_c7bdff05f67ee8 163
+  s_69f35b0cf1b1f5::t_dabf9a2ba7a204 159-162,164-169
+  s_69f35b0cf1b1f5::t_31ba7d1a3430e9 4
+docs/mastodon-api-compatibility.md
+  s_69f35b0cf1b1f5::t_c7bdff05f67ee8 375-382
+lib/services/collections/limits.ts
+  s_69f35b0cf1b1f5::t_bc9dda4fe3620d 1-30
+app/api/v1/collections/[id]/items/route.test.ts
+  s_69f35b0cf1b1f5::t_31ba7d1a3430e9 4,116-127
+  s_69f35b0cf1b1f5::t_0a02fef3c21e93 128-129
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "644993877ce95891a9507f6b4575af3fa0e32abf",
+  "prompts": {},
+  "sessions": {
+    "s_69f35b0cf1b1f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3e34abf-a75d-4da8-b371-1258aa33721a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

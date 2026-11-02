@@ -1,0 +1,34 @@
+lib/components/admin/settings/EnvBlockBuilder.tsx
+  s_2f8f98bd1d8b55::t_03670114d4192e 150-151,163
+lib/components/admin/settings/EnvBlockBuilder.test.tsx
+  s_2f8f98bd1d8b55::t_0ad82f017a6ecc 13-14,254-259,262-315,321-327,329-331,333-342
+  s_2f8f98bd1d8b55::t_d062fbeb5d6135 317-320,328
+lib/config/mediaStorage.ts
+  s_2f8f98bd1d8b55::t_442a02a3a3b543 90,93-101,105-106
+  s_2f8f98bd1d8b55::t_905b911f51157a 42-56,64-69,73
+lib/config/environmentTemplates.ts
+  s_2f8f98bd1d8b55::t_439008a8822004 18-20,22-25,27
+  s_2f8f98bd1d8b55::t_5e9dddf65f4c0c 95-98,198-201
+lib/config/environmentTemplates.test.ts
+  s_2f8f98bd1d8b55::t_00607a9fd61fe5 34-50
+lib/config/mediaStorage.test.ts
+  s_2f8f98bd1d8b55::t_9efbd24cb5eaa7 72-127
+docs/environment-variables.md
+  s_2f8f98bd1d8b55::t_2f0864ff9d0cf4 79-81,84-90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "e2ccb0af7d1ec4e2f11961edc9e1b5348a6285e5",
+  "prompts": {},
+  "sessions": {
+    "s_2f8f98bd1d8b55": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fe73386a-874f-4632-8456-f9a69e911a24",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

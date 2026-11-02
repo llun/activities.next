@@ -1,0 +1,55 @@
+app/api/v1/accounts/route.test.ts
+  s_801e94c1cd7091::t_163c737647f3c2 359,361-362,373-375,425-450,453-454,459-472,626-666
+  s_801e94c1cd7091::t_5a4632feb99aca 451-452
+lib/services/guards/types.ts
+  s_801e94c1cd7091::t_820dd73e54d863 43-47
+lib/types/database/rows.ts
+  s_801e94c1cd7091::t_cb87e3ce679d2d 167-171
+AGENTS.md
+  s_801e94c1cd7091::t_33350e29a08a2e 2016-2027
+lib/database/sql/account.ts
+  s_801e94c1cd7091::t_a03eec74cc81ed 149-157,159
+app/api/v1/accounts/route.ts
+  s_801e94c1cd7091::t_b604288f47dce3 129-136,139-140
+app/api/v1/emails/confirmations/route.ts
+  s_801e94c1cd7091::t_b1905967c65341 28-39
+REVIEW.md
+  s_801e94c1cd7091::t_7a3d6a2fe438c7 495-528
+lib/services/guards/OAuthGuard.test.ts
+  s_801e94c1cd7091::t_c8d17dd516df1e 1068-1216
+lib/database/sql/account.test.ts
+  s_801e94c1cd7091::t_9d6f8f2a53fc76 173-187
+lib/types/domain/account.ts
+  s_801e94c1cd7091::t_90c8673a0ab081 26-31
+lib/services/auth/canCreateSessionForAccount.ts
+  s_801e94c1cd7091::t_cb4f62411ff8a9 2-6,8,14-32,36
+lib/services/guards/OAuthGuard.ts
+  s_801e94c1cd7091::t_8de3a06c63ae54 100-117
+  s_801e94c1cd7091::t_ddf2fb13e7c036 385
+  s_801e94c1cd7091::t_b75e1fde1ce650 441,448-449
+  s_801e94c1cd7091::t_e12b321a8b173c 7
+  s_801e94c1cd7091::t_92d16917a447fa 424-426
+  s_801e94c1cd7091::t_d3eea78d255d08 386-390
+  s_801e94c1cd7091::t_71efb41c0affa4 489
+  s_801e94c1cd7091::t_38d653c25cfa36 534-539
+  s_801e94c1cd7091::t_cc8b6a685f0135 562-568
+  s_801e94c1cd7091::t_afaceff0038e3d 316-325,330-331,337
+lib/services/auth/canCreateSessionForAccount.test.ts
+  s_801e94c1cd7091::t_fda7a859a9bcc8 1-34,43-52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "e9e43514f9a134214f8ba8661d6203823f41e671",
+  "prompts": {},
+  "sessions": {
+    "s_801e94c1cd7091": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ec5dc893-542e-48be-a5e8-04c97a90d907",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

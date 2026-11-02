@@ -1,0 +1,36 @@
+lib/utils/text/sanitizeText.ts
+  s_48c5cf84bf0972::t_f3ea4235eaa438 68
+docs/environment-variables.md
+  s_9ef8050537d3ff::t_86240a40a19d6a 167
+next.config.ts
+  s_9ef8050537d3ff::t_021d2294350572 9-10,12-21,26-27,64,85-86,93-97,106,116-131,135-136
+next.config.test.ts
+  s_9ef8050537d3ff::t_d13179c4e6495e 22,26,28-29,31-32,38-50,59-63,69-89
+  s_9ef8050537d3ff::t_6a43a451256888 64-68,90-94
+lib/utils/text/sanitizeText.test.ts
+  s_48c5cf84bf0972::t_8f7793187376a1 1-5,177-192
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "eaffbd6f85e41797723adf7db8791525562d7274",
+  "prompts": {},
+  "sessions": {
+    "s_48c5cf84bf0972": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e208c-be20-7551-b0e7-ef1a8f89676d",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_9ef8050537d3ff": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e208c-ff7a-71d0-9cf5-0652918611ab",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

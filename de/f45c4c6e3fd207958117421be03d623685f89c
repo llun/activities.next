@@ -1,0 +1,29 @@
+lib/config/queue.test.ts
+  s_c587d6e0f997cb::t_f1757fb142374e 1-38,51-244
+lib/config/queue.ts
+  s_c587d6e0f997cb::t_84c570f1d5c3f0 5-20
+lib/services/queue/database.test.ts
+  s_c587d6e0f997cb::t_824191c12a83cc 3,6-9,32-41
+lib/services/queue/database.ts
+  s_c587d6e0f997cb::t_8dd3ba82e15839 1,9
+lib/services/queue/qstash.test.ts
+  s_c587d6e0f997cb::t_e168233d7ce57f 11-13,52-63
+lib/services/queue/qstash.ts
+  s_c587d6e0f997cb::t_cf95afa50403fe 4,11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "def45c4c6e3fd207958117421be03d623685f89c",
+  "prompts": {},
+  "sessions": {
+    "s_c587d6e0f997cb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a077c9-2bf2-7110-89c4-bfded1f36b16",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,59 @@
+lib/services/notifications/sendNotificationAlerts.test.ts
+  s_7a29c31259b0a0::t_152a71387446ae 81-82
+app/api/v1/fitness/retry-failed/route.test.ts
+  s_5104f8a27ea78b::t_54fed3fffa1f4d 112
+lib/components/fitness/RegionMapKit.test.tsx
+  s_19af0761e4c8aa::t_cc8c4615b25836 104,145,169,188
+lib/utils/mapkit.test.ts
+  s_ad3d51a9ca1561::t_9a73a4e44087c1 6-7,39,120,315
+scripts/maintenance/verifyDockerImages.test.ts
+  s_118d34b51d028b::t_20dc7f879f24e5 27-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0717c93714226202fe0083cb6068bd1a2debf662",
+  "prompts": {},
+  "sessions": {
+    "s_118d34b51d028b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a6a2e8268b283c048",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_19af0761e4c8aa": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-af5e4d6834ba902a4",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_5104f8a27ea78b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-aa92c25dd8086fdef",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_7a29c31259b0a0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e61da06e-432e-42f9-a063-cc85e354e701",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_ad3d51a9ca1561": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dfc4-8b9c-72c2-8e2f-01992cdf11d1",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,100 @@
+app/api/v1/apps/createApplication.ts
+  h_580a04e334fef4 16,106-107,109
+lib/actions/announce.ts
+  h_580a04e334fef4 17,62
+lib/actions/createNote.ts
+  h_580a04e334fef4 41,350-354,356-363,365-367,369-391,395-403,405-425,427-430,432,434-435,437-438,440-447,449-470,472-496,498-512,517-543,545-548,550,552,554-568,570-572,574-588,590-593,595-602,604,606-607,610,615-635,638-660,662-668,670-672,675-677,679,681,688,694-697,701,715-752,754,756-775,777-785
+lib/actions/createPoll.ts
+  h_580a04e334fef4 19,53-61,63-69,71-90,92-112,114-134,136-139,141-151,153,155-158,160-161
+lib/actions/deleteStatus.ts
+  h_580a04e334fef4 7,18-35,37-40,42-56
+lib/actions/revokeStatusQuote.ts
+  h_580a04e334fef4 7,35-50,52-56,58-64,66-72,74-89,92-94
+lib/actions/undoAnnounce.ts
+  h_580a04e334fef4 7,20
+lib/actions/updateNote.ts
+  h_580a04e334fef4 13,39-49,51-61,63-69,71-74,76-77,79,81-89,91-99,101-112,114-115
+lib/actions/updateNoteVisibility.ts
+  h_580a04e334fef4 15,33-47,49-52,54-59,61-80,82,84-90,92-94
+lib/actions/updatePoll.ts
+  h_580a04e334fef4 7,36-46,48-64,66-89,91-98,100,102-104,106-107
+lib/actions/updateStatusInteractionPolicy.ts
+  h_580a04e334fef4 11,37-52,54-60,62-68,70-72
+lib/activities/getActorCollections.ts
+  h_580a04e334fef4 11,75-77,79-80
+lib/activities/getActorPerson.ts
+  h_580a04e334fef4 7,20
+lib/activities/getActorPosts.ts
+  h_580a04e334fef4 28,68-70,72,74-89,91-97,99-101,104-105,107-120,122-152,154,156-157,159-162,165-167,169-175,177-186,188-189,191-192,194-203
+lib/activities/getWebfingerDocument.ts
+  h_580a04e334fef4 5,22-26,28-30,32-39,41-50,52
+lib/activities/getWebfingerSelf.ts
+  h_580a04e334fef4 4,11-18,20-22,24-27,29-32,34-36,39-44,46
+lib/activities/index.ts
+  h_580a04e334fef4 57,120-124,126,128-136,139-142,144,152-154,156-157,191-193,195-196,242-245,281-284,317-320,352-355,389-391,393-394,436-438,440-441,477-479,481-482,518-520,522-524,559-561,563-564,607-610,637-640,681-683,685-687,732-734,736-738,772-774,776-777,815-817,819-820,851-853,855-856,890-893,945-947,949-950,967-969,971-972,1003-1006,1043-1045,1047-1049
+lib/jobs/createJobHandle.ts
+  h_580a04e334fef4 2,9-10
+lib/jobs/deleteActorJob.ts
+  h_580a04e334fef4 9,21-23,25,28-46,48-51,55-78,80-87,89-101,103-106,108,111-190,194-198
+lib/jobs/deleteObjectJob.ts
+  h_580a04e334fef4 7,34
+lib/jobs/sendAnnounceJob.ts
+  h_580a04e334fef4 9,19
+lib/jobs/sendBlockJob.ts
+  h_580a04e334fef4 9,20
+lib/jobs/sendFlagJob.ts
+  h_580a04e334fef4 9,21
+lib/jobs/sendNoteJob.ts
+  h_580a04e334fef4 14,24
+lib/jobs/sendQuoteAcceptJob.ts
+  h_580a04e334fef4 10,29
+lib/jobs/sendQuoteRejectJob.ts
+  h_580a04e334fef4 10,27
+lib/jobs/sendQuoteRequestJob.ts
+  h_580a04e334fef4 12,25
+lib/jobs/sendQuoteRevokeJob.ts
+  h_580a04e334fef4 12,38
+lib/jobs/sendUnblockJob.ts
+  h_580a04e334fef4 10,20
+lib/jobs/sendUndoAnnounceJob.ts
+  h_580a04e334fef4 10,20
+lib/jobs/sendUndoFollowJob.ts
+  h_580a04e334fef4 9,19
+lib/jobs/sendUpdateNoteJob.ts
+  h_580a04e334fef4 13,32
+lib/services/guards/getSenderPublicKey.test.ts
+  h_580a04e334fef4 20-22,24-31,44-49,124,566-569
+lib/services/guards/getSenderPublicKey.ts
+  h_580a04e334fef4 14,302-313,315
+lib/services/queue/base.ts
+  h_580a04e334fef4 6,12-29,31-43,45-47
+lib/services/queue/qstash.test.ts
+  h_580a04e334fef4 1-7,9,15-25,27,34,37-38,89-137
+lib/services/queue/qstash.ts
+  h_580a04e334fef4 1,5,37-53
+lib/services/timelines/index.ts
+  h_580a04e334fef4 6,43-47
+lib/services/timelines/main.ts
+  h_580a04e334fef4 3,31-33,35-36,38
+lib/services/timelines/mentionNotification.ts
+  h_580a04e334fef4 15,38-40,42-43
+lib/utils/signature.ts
+  h_580a04e334fef4 9,36-41,43-63
+lib/utils/text/getMentions.ts
+  h_580a04e334fef4 13,24-42,44-51,53,55-60,62-63,67-75,77-79
+lib/utils/trace.test.ts
+  h_580a04e334fef4 1-17,19,21-22,24-26,28-35,37-179,182-194,196,198-204,206-210,213-221,223-227,229-235
+lib/utils/trace.ts
+  h_580a04e334fef4 1,15-37,41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "e1a932e12142b6354911e84a9f0a6839d03859b8",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

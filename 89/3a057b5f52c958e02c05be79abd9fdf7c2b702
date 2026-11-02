@@ -1,0 +1,27 @@
+docs/environment-variables.md
+  s_ff6d9d0e6ec74f::t_0e06e0971f43dc 63-65
+  s_ff6d9d0e6ec74f::t_f0f984c410fa0a 57-59
+  s_ff6d9d0e6ec74f::t_dd193432852d69 56,71-74
+lib/components/instance-limits.tsx
+  s_ff6d9d0e6ec74f::t_0e06e0971f43dc 34-38
+AGENTS.md
+  s_ff6d9d0e6ec74f::t_0e06e0971f43dc 178
+CLAUDE.md
+  s_ff6d9d0e6ec74f::t_0e06e0971f43dc 45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "893a057b5f52c958e02c05be79abd9fdf7c2b702",
+  "prompts": {},
+  "sessions": {
+    "s_ff6d9d0e6ec74f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d03aa175-cf68-46f8-be56-6fea74039f46",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

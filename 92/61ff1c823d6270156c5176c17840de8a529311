@@ -1,0 +1,38 @@
+lib/services/notifications/activityImportGroupKey.ts
+  s_181a4d159922fc::t_a6817782919be8 1-17
+lib/jobs/importFitnessFilesJob.ts
+  s_181a4d159922fc::t_e3e1723dc138ef 443-447
+lib/jobs/importStravaActivityJob.ts
+  s_181a4d159922fc::t_e3e1723dc138ef 723-727
+  s_181a4d159922fc::t_b0d0146cba8138 28,500-504,511-541
+  s_181a4d159922fc::t_a2407d86da0d64 22,48
+lib/jobs/processFitnessFileJob.test.ts
+  s_181a4d159922fc::t_e63716e1139637 493-498
+  s_181a4d159922fc::t_f4e64339c9d60d 48-53,483-492,499-532
+  s_181a4d159922fc::t_0b9260dba306f7 533
+lib/jobs/importFitnessFilesJob.test.ts
+  s_181a4d159922fc::t_5f544968d760b9 185-187,282-285
+lib/jobs/processFitnessFileJob.ts
+  s_181a4d159922fc::t_a2ebf45e1034c5 3,5,23,122-196,200-206
+  s_181a4d159922fc::t_aa1f965f5a62d0 276-279,323-324,355-367
+  s_181a4d159922fc::t_32bdfb340a99a2 19-21,35-43
+  s_181a4d159922fc::t_7f5920c0f7a219 368
+lib/jobs/importStravaActivityJob.test.ts
+  s_181a4d159922fc::t_e71062a5ff651e 989,999-1005
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "9261ff1c823d6270156c5176c17840de8a529311",
+  "prompts": {},
+  "sessions": {
+    "s_181a4d159922fc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8b59141f-f9f0-4af4-8aea-39520836e6cc",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

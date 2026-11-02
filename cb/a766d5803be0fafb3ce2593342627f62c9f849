@@ -1,0 +1,16 @@
+lib/utils/logger.test.ts
+  h_580a04e334fef4 1-102
+lib/utils/logger.ts
+  h_580a04e334fef4 1,5,14-19,21-27,30-59,61-75,78-80
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "cba766d5803be0fafb3ce2593342627f62c9f849",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,101 @@
+lib/services/notifications/getMastodonNotificationRequest.ts
+  s_4f4812f16bd65a::t_6bfb7a40d5ed8c 42-45
+lib/services/notifications/getMastodonNotification.test.ts
+  s_4f4812f16bd65a::t_0fdfba2fd1a4dc 234-237,240
+lib/services/admin/serializeAdminAccounts.ts
+  s_4f4812f16bd65a::t_34c4d824215c8f 11-12,34-35,47-49
+lib/services/mastodon/getMastodonStatus.test.ts
+  s_4f4812f16bd65a::t_973aae74c75299 760,1002
+lib/services/notifications/getNotificationGroup.ts
+  s_4f4812f16bd65a::t_33cb754b699b9b 58-62
+lib/services/admin/serializeAdminReports.ts
+  s_4f4812f16bd65a::t_2fe25e31fe9960 7,41,58-60,98
+  s_4f4812f16bd65a::t_e79cc787013e3c 61-62
+app/api/v2/notifications/unread_count/route.test.ts
+  s_4f4812f16bd65a::t_fa110ec9cedbfe 65-66
+  s_4f4812f16bd65a::t_3bbed06a27814f 14-16,63-64
+app/api/v1/admin/reports/adminReports.test.ts
+  s_4f4812f16bd65a::t_9d6cbd9486f168 140-141,222,235
+  s_4f4812f16bd65a::t_910918d1646bfc 40-46
+lib/services/reports/serializeReportEntity.ts
+  s_4f4812f16bd65a::t_36c974a76fe670 11-12,16-18,29-33
+lib/services/mastodon/getMastodonStatus.ts
+  s_4f4812f16bd65a::t_6719bcae498c8a 931-938,940-941
+app/api/v1/collections/[id]/feed/route.test.ts
+  s_4f4812f16bd65a::t_453012ed69aa0f 128-130,132
+lib/database/sql/actor.test.ts
+  s_4f4812f16bd65a::t_424d81f64a0131 98-106,994-1016,1018
+  s_4f4812f16bd65a::t_3e21f73ee25abd 760-762,1027-1029,1060-1062,1293,1396-1398
+  s_4f4812f16bd65a::t_07ce289471ab3e 52-63
+  s_4f4812f16bd65a::t_7f5c349f3f23d3 1017,1019
+app/api/v1/reports/route.ts
+  s_4f4812f16bd65a::t_56e38265bf60ff 186-188,192
+lib/services/notifications/getNotificationGroupsEnvelope.ts
+  s_4f4812f16bd65a::t_81ff900ca3d2c0 6
+  s_4f4812f16bd65a::t_2e584705129b22 111-150
+  s_4f4812f16bd65a::t_89d26151073ab4 163
+  s_4f4812f16bd65a::t_8e6dd8cf3057c7 19
+  s_4f4812f16bd65a::t_ea54862305792b 110
+app/api/v1/collections/[id]/items/route.test.ts
+  s_4f4812f16bd65a::t_0b1dd4cf5977ea 46-52,99
+app/api/v1/collections/[id]/items/route.ts
+  s_4f4812f16bd65a::t_9ee01f4ce877e0 197-199,203-205
+lib/services/accounts/getFallbackBlockedAccount.ts
+  s_4f4812f16bd65a::t_6c5e447c7936fb 39-41
+app/api/v2/notifications/route.test.ts
+  s_4f4812f16bd65a::t_fa110ec9cedbfe 68-69
+  s_4f4812f16bd65a::t_3bbed06a27814f 12-14,66-67
+app/api/v1/admin/accounts/adminAccounts.test.ts
+  s_4f4812f16bd65a::t_580cc331f88707 63-69,140-141,143-144,152,221-222
+lib/services/accounts/getFallbackMutedAccount.ts
+  s_4f4812f16bd65a::t_6c5e447c7936fb 41-43
+lib/services/admin/serializeAdminAccounts.test.ts
+  s_4f4812f16bd65a::t_beebe46461d125 56-59,62,71-95,104-106,109
+lib/services/accounts/relationship.ts
+  s_4f4812f16bd65a::t_c5aa1a5e6529b4 42-43,88-92,103
+app/api/v1/collections/[id]/route.ts
+  s_4f4812f16bd65a::t_49067f16d65210 66-67,69-72
+  s_4f4812f16bd65a::t_fa110ec9cedbfe 12
+lib/services/reactions/getStatusReactionList.ts
+  s_4f4812f16bd65a::t_6719bcae498c8a 71-74,77-79,81-82
+lib/services/accounts/relationship.test.ts
+  s_4f4812f16bd65a::t_e5f14130598f74 16-17,20-22,40-72
+lib/database/sql/account.test.ts
+  s_4f4812f16bd65a::t_67d9f6051f3f46 78,83-85,95,140-142,144
+app/api/v1/collections/[id]/route.test.ts
+  s_4f4812f16bd65a::t_0b1dd4cf5977ea 44-50,162,167-168,186
+app/api/v1/reports/route.test.ts
+  s_4f4812f16bd65a::t_6892348b4639ec 12-13,70,231-247
+  s_4f4812f16bd65a::t_e852fb5b64ca1b 5,248
+  s_4f4812f16bd65a::t_62476e208418bc 249-250
+app/api/v1/collections/route.test.ts
+  s_4f4812f16bd65a::t_25df1fac744f68 5,45-51,98,179
+lib/services/admin/listAdminAccountsResponse.ts
+  s_4f4812f16bd65a::t_f9409c443c380a 9,14-17,37,39-40
+lib/services/collections/serializers.test.ts
+  s_4f4812f16bd65a::t_d98403c10e4233 39-42,51-54,57,63-67,76-80,84,176-178,181-182,184-189,209-226
+  s_4f4812f16bd65a::t_a59b6a445f4027 227
+lib/services/collections/serializers.ts
+  s_4f4812f16bd65a::t_ddbbd4052d8b3f 32-34,36-37,40-41,56-57,63,68-70,90,131-142,150-151
+lib/database/sql/actor.ts
+  s_4f4812f16bd65a::t_9ac948f99d5a08 80-84
+  s_4f4812f16bd65a::t_ab38e77a97345e 289-292
+lib/services/notifications/getNotificationGroupsEnvelope.test.ts
+  s_4f4812f16bd65a::t_66d3cc8a90a56b 50-54,109-155,159-161
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "2ee10c76a47b394f68bbf62ae86732b970f48fc5",
+  "prompts": {},
+  "sessions": {
+    "s_4f4812f16bd65a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ef4966e6-a801-42ad-bea7-0a298c41d397",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

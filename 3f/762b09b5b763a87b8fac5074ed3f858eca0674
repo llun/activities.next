@@ -1,0 +1,77 @@
+app/api/v1/instance/translation_languages/route.ts
+  s_bccef2ddac8769::t_b84ae0b50bcd54 1,11-13,17-36
+lib/types/mastodon/translation.ts
+  s_bccef2ddac8769::t_a49f557715d386 1-29,33-40
+  s_bccef2ddac8769::t_1b0aa1d6572595 30-32
+lib/services/translation/translateStatus.ts
+  s_bccef2ddac8769::t_1498a2912cd69d 1-11,13-64,71-84,86-110,112-118,120-138,146,148-164
+  s_bccef2ddac8769::t_5b428ec2e59e0c 12
+  s_bccef2ddac8769::t_798057d5e3184c 65-70,85,111
+  s_bccef2ddac8769::t_7e22e1ea9ba284 119
+  s_bccef2ddac8769::t_67e69ca20831e7 139-145,147
+lib/database/sql/translationCache.ts
+  s_bccef2ddac8769::t_fae9499c917b14 1-13,15-18,20-29,31-40,42-47,54-56
+  s_bccef2ddac8769::t_0f6e0430ccd52e 14,19,30,41
+  s_bccef2ddac8769::t_3b0d3cef05c7e0 48-53
+lib/components/posts/translate-content.test.tsx
+  s_bccef2ddac8769::t_9dd15b2e1cb053 1-4,6,8-12,15-19,21-26,36-37,42-45,49-53,56,76-81,83-85,87-89,93-103,106-108,123,127-129
+  s_bccef2ddac8769::t_db8a76a7fbee16 5,7,13-14,20,27-35,46-48,54-55,57-75,82,86,104-105,109-110,114-122
+  s_bccef2ddac8769::t_7c0708cf348cb2 38-41,90-92
+  s_bccef2ddac8769::t_3b0d3cef05c7e0 111-113,124-126
+app/api/v1/statuses/[id]/translate/route.ts
+  s_bccef2ddac8769::t_b0cf59d42afec2 1,3,5-7,9,18,22-24,27-30,32-34,37,39-47,52-54,61-72,74-112,114
+  s_bccef2ddac8769::t_e5c8a44a1a1f2b 4
+  s_bccef2ddac8769::t_d2a4d631d128f6 11-16
+  s_bccef2ddac8769::t_22b4f1fab740ac 48-51,55-60
+lib/types/database/operations.ts
+  s_bccef2ddac8769::t_d2c617fa212bb9 1195-1199,1201-1220
+  s_bccef2ddac8769::t_cfd3cf13b31d7b 1200
+lib/services/translation/httpClient.ts
+  s_bccef2ddac8769::t_a01efad6db2f39 1-9,50-51,54-77,79-80,82
+  s_bccef2ddac8769::t_810e19de84c24d 10-18,23-29,31-49,52-53,78,81
+  s_bccef2ddac8769::t_64aa6e37cbec7a 19-22,30
+migrations/20260607010000_add_translation_cache_table.js
+  s_bccef2ddac8769::t_831b7a2c996bb5 1-2,10-16,18-23,30-38
+  s_bccef2ddac8769::t_28dcabef7cf7eb 3-9,17
+  s_bccef2ddac8769::t_3b0d3cef05c7e0 24-29
+app/api/v1/instance/translation_languages/route.test.ts
+  s_bccef2ddac8769::t_dc670e2e33ba78 1-53
+lib/services/translation/httpClient.test.ts
+  s_bccef2ddac8769::t_0aa41b0d608bf7 1-74
+lib/services/translation/translateStatus.test.ts
+  s_bccef2ddac8769::t_92f3a0ae3323dd 1-22,29-30,41-43,45-50,52-116,119,121-137,139-157,159-194,239-270
+  s_bccef2ddac8769::t_3b0d3cef05c7e0 23-28
+  s_bccef2ddac8769::t_7e85bd1ccb234d 31-40,44,51
+  s_bccef2ddac8769::t_2cf54a040685c9 117-118,120
+  s_bccef2ddac8769::t_783b5f5c6796fe 138,158
+  s_bccef2ddac8769::t_e7057912c35f4c 195-238
+lib/services/translation/translationCache.integration.test.ts
+  s_bccef2ddac8769::t_0a8c88b60e3d16 1-2
+  s_bccef2ddac8769::t_4b17fdb89b16c7 3-72,74,76-82
+  s_bccef2ddac8769::t_43a9b3f8a23c30 73
+  s_bccef2ddac8769::t_99b1d153f68661 75
+lib/client.ts
+  s_bccef2ddac8769::t_f103ba264b1e61 19
+  s_bccef2ddac8769::t_53a6e5303dff3b 323-352
+  s_bccef2ddac8769::t_b2af82fb07cee6 353-381
+lib/components/posts/translate-content.tsx
+  s_bccef2ddac8769::t_916107da609b99 1-2,4,6-21,26-29,34-43,45,67-73,84-87,90-146
+  s_bccef2ddac8769::t_df28b6029bc39d 3,5,22,25,30-33,44,46-66,74-83,88
+  s_bccef2ddac8769::t_3b0d3cef05c7e0 23-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "3f762b09b5b763a87b8fac5074ed3f858eca0674",
+  "prompts": {},
+  "sessions": {
+    "s_bccef2ddac8769": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9075253d-6c2a-4513-a48e-8142382dc03a",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

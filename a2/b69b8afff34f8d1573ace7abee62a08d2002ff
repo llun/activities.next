@@ -1,0 +1,38 @@
+lib/config/storageValue.test.ts
+  s_bacf13bfd97c8f::t_38e4350086f981 34-38,41-43,59-64
+  s_bacf13bfd97c8f::t_eaaa342a5ff279 55-58
+docs/environment-variables.md
+  s_bacf13bfd97c8f::t_90620e81b89b9f 233
+  s_bacf13bfd97c8f::t_d617bd8aec3cd1 208-210
+lib/config/fitnessStorage.test.ts
+  s_bacf13bfd97c8f::t_be5c5673d8aa87 255-284,288-292
+  s_bacf13bfd97c8f::t_5bcc6234d0e6ae 142,150,158,167,176,185,194,202,210,219,228,237
+lib/config/mediaStorage.ts
+  s_bacf13bfd97c8f::t_613bbf2369cec1 6
+  s_bacf13bfd97c8f::t_8ddc2816e3ce58 116-127
+lib/config/mediaStorage.test.ts
+  s_bacf13bfd97c8f::t_5bcc6234d0e6ae 196,204,212,221,230,239,248
+  s_bacf13bfd97c8f::t_027dbfb5fb7b70 160-162,168-187
+docs/fitness-file-storage.md
+  s_bacf13bfd97c8f::t_42cfd66688e6a6 34
+scripts/maintenance/cleanupMediaStorage.ts
+  s_bacf13bfd97c8f::t_ac7ebe16f67a72 21-24
+  s_bacf13bfd97c8f::t_a3f2178467368a 157-164
+  s_bacf13bfd97c8f::t_9b635dcc6807fe 382-394
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "a2b69b8afff34f8d1573ace7abee62a08d2002ff",
+  "prompts": {},
+  "sessions": {
+    "s_bacf13bfd97c8f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "43d31ca8-b754-400d-86bd-2acdf8bc8319",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

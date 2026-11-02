@@ -1,0 +1,21 @@
+app/api/v1/statuses/[id]/reblogged_by/route.ts
+  s_68b8b1890fbd4e::t_476fbb1b7f9f00 37-63,65-71,73-83,85-92,98-99
+  s_68b8b1890fbd4e::t_bdc2d085f7f8a5 101-105
+  s_68b8b1890fbd4e::t_4b7b637f6286e9 33-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "ea9cb6dbcb6496d7a73d579d37a8d9b956b23790",
+  "prompts": {},
+  "sessions": {
+    "s_68b8b1890fbd4e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dccea080-a8de-41b3-ae43-bdc5e271c97e",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

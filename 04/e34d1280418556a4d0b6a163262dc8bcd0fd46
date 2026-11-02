@@ -1,0 +1,29 @@
+lib/services/mastodon/getMastodonStatusEdits.test.ts
+  s_a57e5bd464be04::t_0a775a065d3577 136-173
+lib/components/posts/actions/edit-history-button.tsx
+  s_a57e5bd464be04::t_0a775a065d3577 169-173
+docs/architecture.md
+  s_a57e5bd464be04::t_0a775a065d3577 1315-1316
+lib/types/domain/status.ts
+  s_a57e5bd464be04::t_0a775a065d3577 111-114
+lib/database/sql/status.ts
+  s_a57e5bd464be04::t_0a775a065d3577 3611
+lib/components/posts/actions/edit-history-button.test.tsx
+  s_a57e5bd464be04::t_0a775a065d3577 128-151
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "04e34d1280418556a4d0b6a163262dc8bcd0fd46",
+  "prompts": {},
+  "sessions": {
+    "s_a57e5bd464be04": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0cfc4-e85b-7622-91f3-d4b0dbcebfd7",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

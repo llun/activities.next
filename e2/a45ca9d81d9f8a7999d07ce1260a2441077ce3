@@ -1,0 +1,19 @@
+lib/components/actor-switcher/ActorSwitcher.tsx
+  s_c587d6e0f997cb::t_3ea00bc9b1b7c7 239
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "e2a45ca9d81d9f8a7999d07ce1260a2441077ce3",
+  "prompts": {},
+  "sessions": {
+    "s_c587d6e0f997cb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a077c9-2bf2-7110-89c4-bfded1f36b16",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

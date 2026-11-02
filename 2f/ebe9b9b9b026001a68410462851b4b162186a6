@@ -1,0 +1,26 @@
+lib/components/admin/settings/NetworkSettingsForm.tsx
+  s_a0fa6b24d2c1de::t_7e1421098fbdea 1-121
+app/(timeline)/admin/network/page.tsx
+  s_a0fa6b24d2c1de::t_cd75fc2557c614 1-23
+lib/components/admin/settings/NetworkSettingsForm.test.tsx
+  s_a0fa6b24d2c1de::t_807906a488eac0 1-87
+app/(timeline)/admin/layout.tsx
+  s_a0fa6b24d2c1de::t_323da02bb1fe6f 11
+  s_a0fa6b24d2c1de::t_a5bea9d5fcf1b8 54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "2febe9b9b9b026001a68410462851b4b162186a6",
+  "prompts": {},
+  "sessions": {
+    "s_a0fa6b24d2c1de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4b172494-5d03-43f2-b126-6356763fd651",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

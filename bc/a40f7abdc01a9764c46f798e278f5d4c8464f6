@@ -1,0 +1,20 @@
+.github/workflows/sync-main-to-oltp-dispatch.yml
+  s_0961c5c1082cb7::t_8f2d95b15b0360 34
+  s_0961c5c1082cb7::t_af057f54c5cd8d 6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "bca40f7abdc01a9764c46f798e278f5d4c8464f6",
+  "prompts": {},
+  "sessions": {
+    "s_0961c5c1082cb7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "25d802a1-677d-453d-a1bc-3e070a56022d",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

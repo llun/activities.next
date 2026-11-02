@@ -1,0 +1,25 @@
+app/api/users/[username]/inbox/route.test.ts
+  s_69f35b0cf1b1f5::t_3617ff7a0170a2 1254-1308
+app/api/users/[username]/inbox/route.ts
+  s_69f35b0cf1b1f5::t_1d60d8b3762dd7 191,236,257
+  s_69f35b0cf1b1f5::t_4893bc7dfb65e6 49
+  s_69f35b0cf1b1f5::t_a6da94e37e1d98 142-157
+docs/mastodon-api-compatibility.md
+  s_69f35b0cf1b1f5::t_feea0f6d972360 567
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1c22b6b1d28d58196a0eccfbb3ca2c6fec173d73",
+  "prompts": {},
+  "sessions": {
+    "s_69f35b0cf1b1f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3e34abf-a75d-4da8-b371-1258aa33721a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,25 @@
+app/api/v1/accounts/[id]/fitness-heatmap/route.test.ts
+  8e51d3e31fcf665a 126-127,138-139,161-164,296-325
+app/api/v1/accounts/[id]/fitness-heatmap/route.ts
+  8e51d3e31fcf665a 152-155
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "9fcbe5e195ff5453b33f52c2ff28813ff28a53b2",
+  "prompts": {
+    "8e51d3e31fcf665a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "88bed09c-4d9a-45fc-8532-07d2e36c73b5",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 42,
+      "total_deletions": 4,
+      "accepted_lines": 42,
+      "overriden_lines": 0
+    }
+  }
+}

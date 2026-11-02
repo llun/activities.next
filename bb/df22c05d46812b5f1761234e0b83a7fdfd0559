@@ -1,0 +1,20 @@
+app/(timeline)/collections/CollectionEditor.test.tsx
+  h_580a04e334fef4 123,133-135,147-150,164-167,176-241
+app/(timeline)/collections/CollectionEditor.tsx
+  h_580a04e334fef4 13,115,122-132,141,149,160-161,171,174,177,403,410-417,419-468,506,508-510
+app/(timeline)/lists/ListEditor.test.tsx
+  h_580a04e334fef4 115,125-127,136,140-143,157-159,173-235
+app/(timeline)/lists/ListEditor.tsx
+  h_580a04e334fef4 5,73,80-90,99,107,118-119,129,132,135,317,324-331,333-382,420,422-424
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "bbdf22c05d46812b5f1761234e0b83a7fdfd0559",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

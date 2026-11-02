@@ -1,0 +1,24 @@
+lib/client/drafts/sendQueue.test.ts
+  s_512188f2b1db53::t_72141f4e9e9377 969-987,1326-1352
+lib/client/drafts/sendQueue.ts
+  s_512188f2b1db53::t_b550971e83416a 125-145,202,428-430
+  s_512188f2b1db53::t_541a73c2dc9603 427,459,511-513
+docs/architecture.md
+  s_512188f2b1db53::t_b40c69096e3914 3090
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5490e1c13c76e0df3c14254cf771e26f33bc1f1f",
+  "prompts": {},
+  "sessions": {
+    "s_512188f2b1db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e467608a-8346-4544-b69a-fc45fca93669",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

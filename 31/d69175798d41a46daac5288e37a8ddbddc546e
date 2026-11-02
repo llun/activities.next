@@ -1,0 +1,23 @@
+scripts/fixAttachmentUrls.ts
+  d315b863d4208ffb 1-152
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "31d69175798d41a46daac5288e37a8ddbddc546e",
+  "prompts": {
+    "d315b863d4208ffb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10fbe860-f8a6-40aa-a9e4-a5b7ce0bf1c3",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 158,
+      "total_deletions": 6,
+      "accepted_lines": 152,
+      "overriden_lines": 0
+    }
+  }
+}

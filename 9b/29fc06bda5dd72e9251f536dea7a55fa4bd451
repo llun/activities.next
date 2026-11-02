@@ -1,0 +1,32 @@
+app/api/v2/admin/rules/route.test.ts
+  s_d75f194f53dd26::t_cf98a776e05c0b 121-124
+lib/services/rules/adminRule.ts
+  s_d75f194f53dd26::t_93de4c2af5644b 5-9,16
+  s_d75f194f53dd26::t_04d8673dcf8e22 27
+app/api/v1/instance/rules/route.ts
+  s_d75f194f53dd26::t_938aba72a62e11 4
+  s_d75f194f53dd26::t_aacc68079a678a 26-43
+app/api/v2/admin/rules/[id]/route.test.ts
+  s_d75f194f53dd26::t_d91cc3a5a6d5a4 132-135
+lib/components/admin-rules/RulesPanel.tsx
+  s_d75f194f53dd26::t_996ce0a9bb18af 18
+  s_d75f194f53dd26::t_1cc79b9ec3c134 250-252
+app/api/v1/instance/rules/route.test.ts
+  s_d75f194f53dd26::t_cc679f1d506643 75-92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "9b29fc06bda5dd72e9251f536dea7a55fa4bd451",
+  "prompts": {},
+  "sessions": {
+    "s_d75f194f53dd26": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "52fc3213-ffbf-43ec-a4a1-ebb7d306c04c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

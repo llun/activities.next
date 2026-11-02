@@ -1,0 +1,87 @@
+app/(timeline)/notifications/components/CollectionConsentNotification.test.tsx
+  s_043c559dbf3a19::t_4b43d2ebe014a8 1-86
+app/(timeline)/collections/[id]/CollectionDetail.test.tsx
+  s_043c559dbf3a19::t_f91afcca7c3367 1-49,54-176
+  s_043c559dbf3a19::t_6b27b25946988f 50-53
+lib/client.ts
+  s_043c559dbf3a19::t_f9b0cbe1dc4128 3101-3114,3116-3311
+  s_043c559dbf3a19::t_6352b926e46ac7 19
+app/(timeline)/collections/layout.tsx
+  s_043c559dbf3a19::t_0449c7a4d543c8 1-33
+app/(timeline)/collections/[id]/CollectionDetail.tsx
+  s_043c559dbf3a19::t_e90fe99bc71199 1-373,378-381,383-410
+  s_043c559dbf3a19::t_6352b926e46ac7 374-377,382
+lib/client.test.ts
+  s_043c559dbf3a19::t_6b3796ecd284b2 8-9,12,15,19-20
+  s_043c559dbf3a19::t_6352b926e46ac7 26-27,922-927,963-967
+  s_043c559dbf3a19::t_de1c7ebf25204d 32
+  s_043c559dbf3a19::t_a9a256332034f4 907-921,928-962,968-1057
+app/(timeline)/notifications/components/CollectionConsentNotification.tsx
+  s_043c559dbf3a19::t_59584b3a31933a 1-109
+app/(timeline)/lists/ListsIndex.test.tsx
+  s_043c559dbf3a19::t_0efa77cc8567fc 38-52,54-55,57,61-63,69,91-119
+  s_043c559dbf3a19::t_6352b926e46ac7 8
+app/(timeline)/notifications/page.tsx
+  s_043c559dbf3a19::t_41c3da4188814a 31-43
+  s_043c559dbf3a19::t_81b9925debe91a 13
+  s_043c559dbf3a19::t_4404170de7f5e5 187
+  s_043c559dbf3a19::t_752425d08271f2 87-106,121-128,132-133
+lib/types/database/operations.ts
+  s_043c559dbf3a19::t_1727d58883e17a 1352-1357
+  s_043c559dbf3a19::t_3d968ce2d3aa97 1446
+  s_043c559dbf3a19::t_6352b926e46ac7 1447
+app/api/v1/collections/[id]/feed/route.ts
+  s_043c559dbf3a19::t_b3283d29d36ed0 7,13
+  s_043c559dbf3a19::t_1127c78f435843 47
+  s_043c559dbf3a19::t_efd06e46faa3e4 77-93
+lib/database/sql/collection.test.ts
+  s_043c559dbf3a19::t_076d5bab995417 159-179
+lib/database/sql/collection.ts
+  s_043c559dbf3a19::t_6352b926e46ac7 365-367
+  s_043c559dbf3a19::t_89fe8b2c48f3f6 361-364,368-370
+  s_043c559dbf3a19::t_e136bbc2d1c8e4 29
+app/(timeline)/collections/new/page.tsx
+  s_043c559dbf3a19::t_754c0af1840324 1-29
+app/api/v1/collections/[id]/feed/route.test.ts
+  s_043c559dbf3a19::t_84d015951f37b4 133-151
+app/(timeline)/collections/[id]/page.tsx
+  s_043c559dbf3a19::t_6352b926e46ac7 5
+  s_043c559dbf3a19::t_a5f0a253499f2b 1-4,6-168
+app/(timeline)/notifications/NotificationItem.tsx
+  s_043c559dbf3a19::t_c0d18beebaa668 33-35,40-42,51
+  s_043c559dbf3a19::t_d8866862e2713c 128-145
+  s_043c559dbf3a19::t_466d2bc1404d8c 18
+app/(timeline)/notifications/NotificationsList.tsx
+  s_043c559dbf3a19::t_030eaccde0f59a 16,23-24,30-31
+  s_043c559dbf3a19::t_d84f81b55d9ab6 164
+app/(timeline)/lists/page.tsx
+  s_043c559dbf3a19::t_7e15938446bbaf 6,10
+  s_043c559dbf3a19::t_2bb62082f50760 39-62
+  s_043c559dbf3a19::t_59761f47b854a8 85
+app/(timeline)/collections/[id]/edit/page.tsx
+  s_043c559dbf3a19::t_0f35a589ea9157 1-106
+app/(timeline)/lists/ListsIndex.tsx
+  s_043c559dbf3a19::t_6352b926e46ac7 83-88,133-134
+  s_043c559dbf3a19::t_3c32a6477c0923 3-9,11,16,30-35,45,51-59,67-82,89-102,105,108-132,135-211
+app/(timeline)/collections/CollectionEditor.test.tsx
+  s_043c559dbf3a19::t_dad6c97710d2f0 1-197
+app/(timeline)/collections/CollectionEditor.tsx
+  s_043c559dbf3a19::t_6352b926e46ac7 3-11,85,365-366
+  s_043c559dbf3a19::t_74ed7ce02ba77c 1-2,12-84,86-364,367-518
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.11",
+  "base_commit_sha": "af5c185793585540aaf1069d6ba0221ce5779fb2",
+  "prompts": {},
+  "sessions": {
+    "s_043c559dbf3a19": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d323a68d-5525-401a-98c2-3fd39dc54af3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,42 @@
+lib/services/timelines/localPublicCount.test.ts
+  s_0c2bdfaede3caf::t_3c21fa44725d74 1-95,99-116
+  s_0c2bdfaede3caf::t_ff1c46d2beda7f 96-98
+lib/database/sql/timeline.test.ts
+  s_0c2bdfaede3caf::t_e74eed62442b92 845-875
+lib/database/sql/timeline.ts
+  s_0c2bdfaede3caf::t_40bbcf03756ec0 308-310,313-314,316-318,320,324-325,327
+  s_0c2bdfaede3caf::t_bf3f5f26015696 79
+  s_0c2bdfaede3caf::t_0dfaed92f2be84 14-45
+migrations/schema.sql
+  s_0c2bdfaede3caf::t_fc75151b1c9ee5 1615-1616,1767-1768,1831-1832
+migrations/schema.sqlite.sql
+  s_0c2bdfaede3caf::t_357e2bb273ed3d 270-272
+lib/services/timelines/localPublicCount.ts
+  s_0c2bdfaede3caf::t_d14529ed4c3f3c 1-67
+app/api/v1/statuses/[id]/route.test.ts
+  s_0c2bdfaede3caf::t_6243f38b6b694c 660-668
+migrations/20260820000000_add_local_public_timeline_indexes.js
+  s_0c2bdfaede3caf::t_b585b2d129e33c 57-60,62-71
+  s_0c2bdfaede3caf::t_5553dfe192d880 81
+  s_0c2bdfaede3caf::t_7c5b370088e8a1 13-17
+  s_0c2bdfaede3caf::t_154e077bba4cc8 1-12,18-56,61,72-80,82-92
+app/(timeline)/page.tsx
+  s_0c2bdfaede3caf::t_b91c4476f50710 58-61
+  s_0c2bdfaede3caf::t_11e774f67ed99f 11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "15ff6e3f60d727e781ad546eeae3287ce9593b86",
+  "prompts": {},
+  "sessions": {
+    "s_0c2bdfaede3caf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7f5f3c68-147b-4c0c-a369-88f58468b1cf",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

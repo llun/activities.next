@@ -1,0 +1,16 @@
+lib/components/fitness/calendar/MetricSelector.tsx
+  h_580a04e334fef4 30-36,97-104
+lib/components/surface/SegmentedControl.tsx
+  h_580a04e334fef4 57-62,64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "63c5cca36dd5a5278452604170303d10f2b10ca6",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

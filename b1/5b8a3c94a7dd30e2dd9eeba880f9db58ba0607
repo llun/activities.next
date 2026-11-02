@@ -1,0 +1,36 @@
+app/(timeline)/[actor]/[status]/resolveStatusFromPath.test.ts
+  s_d724b644d2734d::t_4e663c7cec0635 284-300,304-337,341-395
+  s_d724b644d2734d::t_e3a3c4475cd035 301-303,338-340
+  s_d724b644d2734d::t_2fda85f6e794bf 1,7-10,12-17
+lib/services/actors/aliasServedLocalActor.ts
+  s_d724b644d2734d::t_d2640694193c2d 10-12
+app/(timeline)/[actor]/getProfileData.ts
+  s_d724b644d2734d::t_00f9997adbc4ea 42,47-56
+  s_d724b644d2734d::t_b06d51d9bfbb5f 7
+app/(timeline)/[actor]/[status]/resolveStatusFromPath.ts
+  s_d724b644d2734d::t_55b4c662727af9 58,62-72,76-82,88
+  s_d724b644d2734d::t_aeea9e0fb9cafd 2
+app/(timeline)/[actor]/getProfileData.test.ts
+  s_d724b644d2734d::t_6cebf8fbb8b2d8 7,21-23
+  s_d724b644d2734d::t_7a579a647f7aed 81-82
+  s_d724b644d2734d::t_888886174c18f9 294-392
+docs/environment-variables.md
+  s_d724b644d2734d::t_17399db40cceb4 18
+  s_d724b644d2734d::t_8e0701f5843b84 9-17,19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "b15b8a3c94a7dd30e2dd9eeba880f9db58ba0607",
+  "prompts": {},
+  "sessions": {
+    "s_d724b644d2734d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "165ffad3-ea64-4c05-aad8-5f319599f0e4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

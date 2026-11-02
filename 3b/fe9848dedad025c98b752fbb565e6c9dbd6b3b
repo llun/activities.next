@@ -1,0 +1,33 @@
+lib/database/sql/search/hashtag.ts
+  s_2de5d568423448::t_2a418fbb02762e 89-93
+lib/database/sql/trends.ts
+  s_2de5d568423448::t_312f0dd79e6731 1-57,62-174
+  s_2de5d568423448::t_1a4ce210629575 58-61
+lib/database/types.ts
+  s_2de5d568423448::t_319c540eae6065 39-40
+  s_2de5d568423448::t_141c8285d64a4a 77
+lib/database/sql/index.ts
+  s_2de5d568423448::t_d8bc80f9989711 40
+  s_2de5d568423448::t_74825cc498b647 79
+  s_2de5d568423448::t_7317e847851dce 145
+lib/types/database/operations.ts
+  s_2de5d568423448::t_cc32d588f05217 1564-1608
+lib/database/sql/trends.test.ts
+  s_2de5d568423448::t_9ef143b80ac2e0 1-255
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "3bfe9848dedad025c98b752fbb565e6c9dbd6b3b",
+  "prompts": {},
+  "sessions": {
+    "s_2de5d568423448": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "380e0dd8-bb8c-402d-93c3-faf6bb59ed2f",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

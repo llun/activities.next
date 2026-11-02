@@ -1,0 +1,50 @@
+lib/components/admin/settings/PostsMediaSettingsForm.test.tsx
+  s_a0fa6b24d2c1de::t_94dafda2a3a839 36
+lib/config/serverSettings.ts
+  s_a0fa6b24d2c1de::t_f35ce6f363bda7 29-32
+  s_a0fa6b24d2c1de::t_689ffc8c314324 4
+app/api/v1/statuses/[id]/route.ts
+  s_a0fa6b24d2c1de::t_fb5cb01bff5289 136,138-139
+  s_a0fa6b24d2c1de::t_99ba4219b72a79 190-202
+  s_a0fa6b24d2c1de::t_eecd20f316d605 24,26
+  s_a0fa6b24d2c1de::t_ae342573688cdc 17-19
+lib/components/admin/settings/PostsMediaSettingsForm.tsx
+  s_a0fa6b24d2c1de::t_f57637459c977f 42-43
+lib/components/admin/settings/NetworkSettingsForm.test.tsx
+  s_a0fa6b24d2c1de::t_94dafda2a3a839 36
+lib/components/admin/settings/FederationPolicyForm.test.tsx
+  s_a0fa6b24d2c1de::t_94dafda2a3a839 34
+lib/services/statuses/contentLimits.ts
+  s_a0fa6b24d2c1de::t_6f7e2afefe075f 1-4,8-36,40-46
+  s_a0fa6b24d2c1de::t_af7c0d5a116444 5-7
+  s_a0fa6b24d2c1de::t_e368b65b835390 37-39
+lib/components/admin/settings/InstanceSettingsForm.test.tsx
+  s_a0fa6b24d2c1de::t_94dafda2a3a839 38
+lib/services/statuses/contentLimits.test.ts
+  s_a0fa6b24d2c1de::t_eac95716ad18b3 1-90
+app/api/v1/statuses/route.ts
+  s_a0fa6b24d2c1de::t_aa8bafa7ec37d4 25
+  s_a0fa6b24d2c1de::t_505831825936bc 184-195
+  s_a0fa6b24d2c1de::t_141bc704dd7cfe 23
+  s_a0fa6b24d2c1de::t_190fc201148b8f 16-17
+  s_a0fa6b24d2c1de::t_f7c3483dddb5f3 66,71,73-74
+  s_a0fa6b24d2c1de::t_970292e2e30ffe 67-68
+lib/services/mastodon/constants.ts
+  s_a0fa6b24d2c1de::t_68c7cd28c92fa9 24-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "9a43dbf4877776d14790b312138530d14bbf6fb4",
+  "prompts": {},
+  "sessions": {
+    "s_a0fa6b24d2c1de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4b172494-5d03-43f2-b126-6356763fd651",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

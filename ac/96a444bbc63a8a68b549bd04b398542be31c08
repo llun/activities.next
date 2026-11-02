@@ -1,0 +1,18 @@
+app/api/v1/fitness/import/[batchId]/route.test.ts
+  h_580a04e334fef4 51,53-55,87,833,881,935,937,946,979,981,993,1023,1025,1034
+app/api/v1/fitness/strava/archive/presigned/route.test.ts
+  h_580a04e334fef4 1-2,57,83,110,135,163,187
+app/api/v1/fitness/strava/archive/route.test.ts
+  h_580a04e334fef4 1-2,61,63-65,101,412-426,449,462-476,504-518,534-548,567-581,600-614,622
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "ac96a444bbc63a8a68b549bd04b398542be31c08",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

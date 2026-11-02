@@ -1,0 +1,30 @@
+app/api/v1/statuses/route.test.ts
+  h_580a04e334fef4 459,468
+lib/client.test.ts
+  h_580a04e334fef4 1044,1128-1152
+lib/client.ts
+  h_580a04e334fef4 1825,1841
+lib/components/post-box/post-box.tsx
+  h_580a04e334fef4 555-560,1331
+lib/components/post-box/upload-media-button.test.tsx
+  h_580a04e334fef4 224,295,357,399
+lib/components/post-box/upload-media-button.tsx
+  h_580a04e334fef4 60-62,96
+lib/components/posts/status-reply-box.tsx
+  h_580a04e334fef4 208-210
+lib/services/statuses/mediaIds.test.ts
+  h_580a04e334fef4 1-6,66-117
+lib/services/statuses/mediaIds.ts
+  h_580a04e334fef4 45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "2eac41cb05312463f24daf13904d1edbadb55cf4",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,34 @@
+app/u/heatmaps/[token]/sharedHeatmapView.ts
+  s_e3afce02c0a6ad::t_33137e4623fe48 35-39,44-45
+  s_e3afce02c0a6ad::t_131494dce38707 26-28
+app/u/heatmaps/[token]/SharedHeatmapPage.tsx
+  s_e3afce02c0a6ad::t_8560a92411dacc 117-120
+app/u/heatmaps/[token]/sharedHeatmapView.test.ts
+  s_e3afce02c0a6ad::t_4fc5589f46a7d9 70-75,82-88
+lib/components/fitness/HeatmapShareEmbed.test.tsx
+  s_e3afce02c0a6ad::t_2d8c4a855148a2 154-169
+  s_e3afce02c0a6ad::t_c33f0cacea30f9 116,119
+lib/hooks/useCopyToClipboard.ts
+  s_e3afce02c0a6ad::t_7688ba49567b23 29-32,40,43-47
+lib/components/fitness/HeatmapShareEmbed.tsx
+  s_e3afce02c0a6ad::t_ed8111e7b8c8b7 204-208
+  s_e3afce02c0a6ad::t_e840c0946f2fda 78,87
+lib/hooks/useCopyToClipboard.test.ts
+  s_e3afce02c0a6ad::t_26fd8c37c65140 110-123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.11",
+  "base_commit_sha": "34017258530f99566e2120c5f8fb1486b96f9e3b",
+  "prompts": {},
+  "sessions": {
+    "s_e3afce02c0a6ad": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9dbc15c-45f3-47b1-b2ed-bd36140d2887",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

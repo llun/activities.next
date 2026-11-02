@@ -1,0 +1,21 @@
+lib/actions/applyRemoteUnblock.ts
+  s_1e378ed0a5a2c9::t_2631309d5d8c7f 3,8-17,31-34,39-40,45,50-53,55,59-62,66,72-73
+lib/actions/applyRemoteUnblock.test.ts
+  s_1e378ed0a5a2c9::t_59a51a9dbf9a1c 1-88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "19ca959e368ddbb70d10532e62f24b3b4c736ff2",
+  "prompts": {},
+  "sessions": {
+    "s_1e378ed0a5a2c9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1d94-78e4-7061-b5a6-2463b0b1d743",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

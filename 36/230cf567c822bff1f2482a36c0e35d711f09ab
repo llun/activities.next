@@ -1,0 +1,29 @@
+lib/utils/isRealAvatar.test.ts
+  s_8686a688f38363::t_8098ea9d06e1f7 1-22
+app/(nosidebar)/auth/select-actor/page.tsx
+  s_8686a688f38363::t_a73f1be799d0e3 14
+app/(timeline)/layout.tsx
+  s_8686a688f38363::t_216987682c6f20 11
+app/(timeline)/account/sessions/AccountSessions.tsx
+  s_8686a688f38363::t_be066e41365ac5 137-141,151-160,162-163,165-167,170,175,177-185,188-198,200-209
+  s_8686a688f38363::t_bcb4701513d57b 5
+app/(timeline)/account/sessions/AccountSessions.test.tsx
+  s_8686a688f38363::t_c1e4efcfae6cb9 304-306,346-348
+  s_8686a688f38363::t_44a884fd6c3b55 220-303,307-345,349-362
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "36230cf567c822bff1f2482a36c0e35d711f09ab",
+  "prompts": {},
+  "sessions": {
+    "s_8686a688f38363": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8364eb6d-b3d9-4624-a216-85365b9ac9bc",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,37 @@
+lib/database/sql/utils/publicIdLookup.ts
+  s_4f4812f16bd65a::t_5c0cfdc0dc19c0 44-60
+lib/database/sql/marker.ts
+  s_4f4812f16bd65a::t_d7cba4f838750f 42-46
+lib/services/admin/serializeAdminAccounts.ts
+  s_4f4812f16bd65a::t_aa974e945d4f4a 118-121
+lib/client.ts
+  s_4f4812f16bd65a::t_d5c6d2ee0ab90c 3853-3854
+app/api/v1/follow_requests/[id]/reject/route.ts
+  s_4f4812f16bd65a::t_6418d59c1a6416 25-27
+  s_4f4812f16bd65a::t_57aa9f8bd019eb 79-80
+app/api/v1/follow_requests/[id]/authorize/route.ts
+  s_4f4812f16bd65a::t_6418d59c1a6416 25-27
+app/api/v1/accounts/[id]/statuses/route.ts
+  s_4f4812f16bd65a::t_0951493926b9c4 101-103
+  s_4f4812f16bd65a::t_fba95c08d4ee04 98-99
+  s_4f4812f16bd65a::t_ac9964fcb21e9d 95-97
+  s_4f4812f16bd65a::t_30f16c57a061b2 100
+lib/types/mastodon/admin/account.ts
+  s_4f4812f16bd65a::t_537b26c425bed4 15-17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "7a174277ec1e1ebed54f1a490ed7b7ee9eb5a439",
+  "prompts": {},
+  "sessions": {
+    "s_4f4812f16bd65a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ef4966e6-a801-42ad-bea7-0a298c41d397",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,102 @@
+app/api/v1/medias/presigned/route.test.ts
+  s_4301987c270c49::t_5106e900e058c2 1-75,96
+  s_0ffdd7b5464187::t_0edd8778eae50b 76-95
+app/api/v1/fitness-files/[id]/route-data/route.test.ts
+  s_73f7ec2e056d5b::t_eac86de906d93c 14-16,118-119,200,263-292,296-297,299-320,234,239-240,245,250,254
+  s_0ffdd7b5464187::t_f93b87315c1c0a 48-49,23-29,31,50-54,81,84-85,262,293-295,298,321,333
+  s_73f7ec2e056d5b::t_6d280e88be8d69 114
+  s_7fb2d4963320e6::t_848cf3541831d1 226-228,229,231,235-236,238,246-247,253,257-259
+  s_0ffdd7b5464187::t_13fc3ea5eac725 682,329-331,230,232-233,237,241-244,248-249,251-252,255-256,260-261,334-335,55,77-80,82-83,86,683-735
+  s_882d23e66dbf6c::t_866318ab45ae3b 322-328
+  s_137b1f60d30121::t_5e7bf31d40acb9 332
+app/api/v1/medias/presigned/route.ts
+  s_73f7ec2e056d5b::t_1c307ae7a9f600 4-7,19-27,40-48,53,79-114
+  s_4301987c270c49::t_a3da446b1b881e 13
+  s_4301987c270c49::t_cbc0486f03634d 129-130
+  s_0ffdd7b5464187::t_f6d813d1cfe4e7 29-30
+  s_0ffdd7b5464187::t_5b12511d9ed5a8 31,116-125
+lib/client.ts
+  s_73f7ec2e056d5b::t_e0a1060a86e78f 791
+  s_73f7ec2e056d5b::t_c91b7d713f7260 796-797,802,813-817,831-835,838,842-847,944-945,947-948,878
+  s_137b1f60d30121::t_3a9368a085edc4 859-861,872,879-883,885-890,903-904,906,914-915,917-924,953-954,820-821,825,827-829,841,864,871,894,902,874,908,867
+  s_7fb2d4963320e6::t_8f2d9c0cbae12f 907,818-819,822-824,826,830,839-840,848-858,862-863,868-870,884,891-893,895,905,916,946,949-952,957,913
+  s_4301987c270c49::t_d8222de8fc20cf 836-837,873,875-877,909-912
+  s_0ffdd7b5464187::t_a8ba18fc1b6de9 865-866,896-901
+app/api/v1/fitness-files/[id]/route-data/route.ts
+  s_73f7ec2e056d5b::t_ff9687340cef8f 4,34,59-69,171-173,177-179
+  s_73f7ec2e056d5b::t_28aabf84d39723 301-305,352-359,365
+  s_73f7ec2e056d5b::t_ca3c70754ae30b 306
+  s_7fb2d4963320e6::t_73b5bcc350279e 369-373
+  s_0ffdd7b5464187::t_04643506550e10 3,174-176
+lib/client.test.ts
+  s_137b1f60d30121::t_2ab8408ffbb794 9-10,15-18,171-172,175-203,216-250,253-261
+  s_0ffdd7b5464187::t_5f55e5c43c306a 262-275,277-279,281-287,294,296,298-299,174,212-213,289,300-320
+  s_7fb2d4963320e6::t_3d5feee75658c4 276,280,288,290-293,295,297
+  s_4301987c270c49::t_7678ba060565c7 173,204-211,214-215,251-252
+lib/utils/streamLimit.ts
+  s_73f7ec2e056d5b::t_0e95e3bb79d7e4 1-47,85-114,151-155,161,168,170-172,174-189,191-199,201-213,215-224,56-57,61-62,69-70,77-78,83-84,165-166
+  s_73f7ec2e056d5b::t_23838ec96d28e7 115-135,139-150,50,72,75
+  s_73f7ec2e056d5b::t_626c960a2e5dc0 136-138,162,214,225-226
+  s_882d23e66dbf6c::t_16218dccd3f48a 48-49,51-55,58-60,63-68,71,73-74,76,79-82,156-160,163-164,167,169,173,200
+  s_0ffdd7b5464187::t_36d6949407a6b3 190
+lib/utils/streamLimit.test.ts
+  s_882d23e66dbf6c::t_d4745c03eedda3 1-24,34,55
+  s_882d23e66dbf6c::t_16218dccd3f48a 25-33
+  s_0ffdd7b5464187::t_f638e13780ac5b 35-54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "d1b4d53fbc6a29f61b4d89606b0d0144b4544967",
+  "prompts": {},
+  "sessions": {
+    "s_0ffdd7b5464187": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e20c0-ca9d-7252-ab8d-d53f9c7a8ea4",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_137b1f60d30121": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e201c-b2c2-7c42-b6ff-9d399e71684e",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_4301987c270c49": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e209a-bc18-7f62-9a09-4e693b9f82d8",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_73f7ec2e056d5b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1e04-5241-7880-b82c-c701d3ac8616",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_7fb2d4963320e6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e204d-8d0a-7702-bb34-bea296bd9320",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_882d23e66dbf6c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1ff9-6467-7201-9341-426ca0739c0c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

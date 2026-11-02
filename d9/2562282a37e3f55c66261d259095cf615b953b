@@ -1,0 +1,137 @@
+app/api/v2/notifications/route.test.ts
+  s_f7b91ac6284bd0::t_004f11afc18056 216-301
+app/api/v1/admin/domain_blocks/route.ts
+  s_f7b91ac6284bd0::t_bde5dcd2d70528 55-62,64,68-87,92
+  s_f7b91ac6284bd0::t_4abdbb57e8a95c 14
+  s_f7b91ac6284bd0::t_8cc845522a6b97 11
+  s_f7b91ac6284bd0::t_7c32cb73ddf12f 5-9
+  s_f7b91ac6284bd0::t_03be73c2a342a5 31-34
+  s_f7b91ac6284bd0::t_820b935fb16c26 126-144
+  s_f7b91ac6284bd0::t_8ae4a0af7d139b 145-148
+lib/database/sql/admin.ts
+  s_f7b91ac6284bd0::t_6b724145bbf683 424-431,442-450,452-475,479-486,490-520
+lib/services/notifications/getNotificationGroupsEnvelope.ts
+  s_f7b91ac6284bd0::t_b77b7ec0067609 24-26,30-52
+  s_e1e33e67e0a88b::t_76f41a5182e008 53
+lib/database/sql/report.ts
+  s_f7b91ac6284bd0::t_fab0f71d17f440 51-52,64
+  s_f7b91ac6284bd0::t_c737931787e509 22
+  s_f7b91ac6284bd0::t_ea76b2ae7e8ea0 37
+app/api/v1/admin/domain_allows/route.ts
+  s_f7b91ac6284bd0::t_9b8a033f775b83 27-30
+  s_f7b91ac6284bd0::t_565419897e5720 51-58,60,64-83,88
+  s_f7b91ac6284bd0::t_6d5cbd76b72bd1 7
+  s_f7b91ac6284bd0::t_4abdbb57e8a95c 10
+lib/services/federation/domainRules.ts
+  s_f7b91ac6284bd0::t_a508e94969c3ef 16-29
+lib/services/notifications/getMastodonNotification.ts
+  s_f7b91ac6284bd0::t_fef28e0c5802d2 32-35
+  s_f7b91ac6284bd0::t_47f8242217688b 143
+lib/activities/flagAction.ts
+  s_f7b91ac6284bd0::t_b652eed64fdcd7 1-12
+app/api/v1/admin/domain_blocks/route.test.ts
+  s_f7b91ac6284bd0::t_88f827311d17e9 39-40
+  s_f7b91ac6284bd0::t_504900665286bb 195-364,369-375
+  s_f7b91ac6284bd0::t_a1795f95d11cf1 8-9
+  s_f7b91ac6284bd0::t_4abdbb57e8a95c 365-368
+lib/database/sql/notification.ts
+  s_f7b91ac6284bd0::t_fb9b78bca95d9e 80,98-99
+  s_f7b91ac6284bd0::t_2b1c7b36579c23 100-101
+app/api/v1/reports/route.ts
+  s_f7b91ac6284bd0::t_b776bb9f5cc60d 127,136-137,140-165,181
+  s_f7b91ac6284bd0::t_dd1d8219051ae6 3,7,10
+  s_f7b91ac6284bd0::t_df9c3477e62c0a 5
+  s_f7b91ac6284bd0::t_e42f0cb73de23c 33-36
+  s_f7b91ac6284bd0::t_3babab6740db87 62,69-71
+lib/jobs/sendFlagJob.ts
+  s_f7b91ac6284bd0::t_146d3a3252884d 1-69
+app/api/v1/notifications/route.test.ts
+  s_f7b91ac6284bd0::t_883b9a56e15e32 199-215
+app/api/v2/notifications/policy/route.test.ts
+  s_f7b91ac6284bd0::t_d030c8715a848e 113-124
+  s_f7b91ac6284bd0::t_ca3729117f07a8 5
+  s_f7b91ac6284bd0::t_3fbb4a40f93b13 125-127
+  s_55b11bb7cab1c6::t_cf07928a7a1c35 128-130
+app/api/v1/reports/route.test.ts
+  s_f7b91ac6284bd0::t_33d414d7e953c6 203-269
+  s_f7b91ac6284bd0::t_145af96ac1b55d 3,17-20
+  s_f7b91ac6284bd0::t_92409896649d7b 72-73
+  s_f7b91ac6284bd0::t_ae1fd758d2795e 21
+lib/types/database/operations.ts
+  s_f7b91ac6284bd0::t_5bae36ec6ae72a 2661-2663
+  s_f7b91ac6284bd0::t_90684e217a063a 3278-3284,3289-3291
+  s_f7b91ac6284bd0::t_9ace5eff55ae2d 2057,2070
+lib/jobs/names.ts
+  s_f7b91ac6284bd0::t_aee8baf0b88a4f 14
+lib/database/sql/admin.test.ts
+  s_f7b91ac6284bd0::t_e384f5ae905f9c 5-6
+  s_f7b91ac6284bd0::t_3c9eee6b7d2140 537-596
+  s_f7b91ac6284bd0::t_1378dba354c66e 597
+app/api/v1/admin/domain_blocks/schema.ts
+  s_f7b91ac6284bd0::t_5dcde9eed8c5c0 23-24
+app/api/v1/admin/domain_allows/route.test.ts
+  s_f7b91ac6284bd0::t_23901df1006475 95-137
+lib/jobs/index.ts
+  s_f7b91ac6284bd0::t_cc8273988ab9ec 86
+  s_f7b91ac6284bd0::t_9849ab0b7f42c1 50
+  s_f7b91ac6284bd0::t_1b53a46a5d64cf 36
+lib/services/notifications/getMastodonNotification.test.ts
+  s_f7b91ac6284bd0::t_0b5252b46f7f2a 104-134
+lib/activities/index.ts
+  s_f7b91ac6284bd0::t_cc36bac6343f1c 576-624
+  s_f7b91ac6284bd0::t_ec08eb83e4dfd3 10
+  s_e1e33e67e0a88b::t_7d2859e665c710 573-575,625-626
+app/api/v2/notifications/policy/route.ts
+  s_f7b91ac6284bd0::t_82c5d5730e9bbc 123-126
+  s_f7b91ac6284bd0::t_6a6cb190bc7f15 19
+lib/database/sql/notification.test.ts
+  s_f7b91ac6284bd0::t_c49907084b45dd 71-97
+app/api/v2/notifications/route.ts
+  s_f7b91ac6284bd0::t_cdb585731a905f 119
+  s_f7b91ac6284bd0::t_e9b57e677e3e99 9,11-12
+  s_f7b91ac6284bd0::t_af1a82fe502165 53
+  s_f7b91ac6284bd0::t_3a53bd9ab42041 188-217
+lib/services/federation/domainRules.test.ts
+  s_f7b91ac6284bd0::t_6b749ac98b4afd 7,13-25
+lib/jobs/sendFlagJob.test.ts
+  s_f7b91ac6284bd0::t_d86d143381513a 1-109
+lib/database/sql/report.test.ts
+  s_f7b91ac6284bd0::t_4499f30d0a1ffc 64-83
+app/api/v1/notifications/route.ts
+  s_f7b91ac6284bd0::t_f88479fdef0e0f 152
+  s_f7b91ac6284bd0::t_1b978429c8a659 122-124,131,137-141
+  s_f7b91ac6284bd0::t_03f718f423a5e8 193-197
+  s_f7b91ac6284bd0::t_669e22edfb8c33 20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d92562282a37e3f55c66261d259095cf615b953b",
+  "prompts": {},
+  "sessions": {
+    "s_55b11bb7cab1c6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-aebca551db3d17f06",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_e1e33e67e0a88b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ed72f97c-9eb9-47b3-8694-04cebc7222ec",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_f7b91ac6284bd0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7e5d29e0-cb70-4516-b716-6108a10b94a2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

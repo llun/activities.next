@@ -1,0 +1,21 @@
+lib/services/medias/extractVideoImage.ts
+  s_8da3869dc33d74::t_03758a6c15b6e6 30-34
+docs/maintenance.md
+  s_8da3869dc33d74::t_a66303bbd13201 1041
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d30b75fb0ce539533de9ab7a7ad0dfb95acf84aa",
+  "prompts": {},
+  "sessions": {
+    "s_8da3869dc33d74": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f45f8ed3affempZHBhbUzhu9zT",
+        "model": "deepseek-v4.1-flash"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

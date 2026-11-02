@@ -1,0 +1,53 @@
+app/api/v1/accounts/[id]/follow/route.test.ts
+  s_279e7012f36c5f::t_229e613fb049c2 10,250-315
+app/api/v1/accounts/[id]/follow/route.ts
+  s_279e7012f36c5f::t_7e487f4fbebe4a 100-107
+docs/architecture.md
+  s_279e7012f36c5f::t_7cd1d8fe0b44be 2092-2096,2103-2105,2116-2119,2147-2154,2166-2170,2180-2189
+docs/features.md
+  s_279e7012f36c5f::t_2cbfc7d9e1bf00 12
+docs/mastodon-api-compatibility.md
+  s_279e7012f36c5f::t_909faf78aa49cf 1102-1103,1108-1115
+lib/actions/createFollower.test.ts
+  s_279e7012f36c5f::t_114dc8c783b321 4,239-264
+lib/actions/createFollower.ts
+  s_279e7012f36c5f::t_cdd41e3d7e33e3 45,47-48,51
+lib/actions/followActor.ts
+  s_279e7012f36c5f::t_05e54fee87fec1 12,50,70,73-76
+lib/jobs/isOutgoingMoveAuthorized.ts
+  s_279e7012f36c5f::t_562ab320db141b 1-26
+lib/jobs/moveFollowerJob.test.ts
+  s_279e7012f36c5f::t_0840ce7d627af0 754-761,896-921
+lib/jobs/moveFollowerJob.ts
+  s_279e7012f36c5f::t_460b49b14a37cf 6,135-142
+lib/jobs/moveRelationshipsJob.test.ts
+  s_279e7012f36c5f::t_380fd9207031c1 1084,1086-1097,1113-1150
+lib/jobs/moveRelationshipsJob.ts
+  s_279e7012f36c5f::t_0c41680c4a3432 7,122-129
+lib/jobs/sendMoveJob.test.ts
+  s_279e7012f36c5f::t_7f9659248721c6 53-62,89,166-170,295-303,307-320,324
+lib/jobs/sendMoveJob.ts
+  s_279e7012f36c5f::t_7173180b617373 6,67-68,70-75
+lib/services/accounts/migration/outgoingMove.test.ts
+  s_279e7012f36c5f::t_ac0fd9eeb43502 286-308
+lib/services/accounts/migration/outgoingMove.ts
+  s_279e7012f36c5f::t_833c901a46da17 161-173
+lib/services/imports/importRow.ts
+  s_279e7012f36c5f::t_1002dbfac3dfab 135-137,204-206
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "75b9f19f947318a70c0081f9eceaa4635e817425",
+  "prompts": {},
+  "sessions": {
+    "s_279e7012f36c5f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0410f49d-2e94-45e1-bd1f-237e6f7747bc",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

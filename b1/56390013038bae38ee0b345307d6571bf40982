@@ -1,0 +1,19 @@
+app/api/v1/accounts/fitness-files/[fitnessFileId]/route.test.ts
+  s_cba68909fc500e::t_8f232fe262df00 102,106-108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "b156390013038bae38ee0b345307d6571bf40982",
+  "prompts": {},
+  "sessions": {
+    "s_cba68909fc500e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e15ca-9049-7b80-8fa2-76bc34836c56",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

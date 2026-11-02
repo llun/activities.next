@@ -1,0 +1,22 @@
+lib/services/medias/handleSyncMediaUpload.ts
+  s_b2ba64b393874e::t_c3ff23d97f4116 9
+  s_b2ba64b393874e::t_5a9638b66e99d5 51-54,60-61
+app/api/v2/media/route.test.ts
+  s_b2ba64b393874e::t_48a105d31494ce 183-197
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "1964fa84ed45a0e3b6365a69d1b860a03a69612d",
+  "prompts": {},
+  "sessions": {
+    "s_b2ba64b393874e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0d80f81f-e6d6-4139-b9cb-5588f9be4b60",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

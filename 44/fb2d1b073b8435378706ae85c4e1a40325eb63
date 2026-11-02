@@ -1,0 +1,29 @@
+app/u/heatmaps/[token]/CopyLinkButton.tsx
+  s_e3afce02c0a6ad::t_bde1138b5795d3 4,7,17
+  s_e3afce02c0a6ad::t_4f28610ac4b056 20
+lib/hooks/useCopyToClipboard.test.ts
+  s_e3afce02c0a6ad::t_1b4c4648140020 1-74
+lib/components/fitness/HeatmapShareEmbed.tsx
+  s_e3afce02c0a6ad::t_c9439c202fc29c 19
+  s_e3afce02c0a6ad::t_9cbbb09ee610b4 69
+  s_e3afce02c0a6ad::t_fdcc043a4cd052 94
+lib/hooks/useCopyToClipboard.ts
+  s_e3afce02c0a6ad::t_4f28610ac4b056 20-22
+  s_e3afce02c0a6ad::t_59aa8b060ccef7 1-19,23-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.11",
+  "base_commit_sha": "44fb2d1b073b8435378706ae85c4e1a40325eb63",
+  "prompts": {},
+  "sessions": {
+    "s_e3afce02c0a6ad": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9dbc15c-45f3-47b1-b2ed-bd36140d2887",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+lib/database/sql/search.test.ts
+  s_555d5c39b84f2a::t_cb73cf77f18fe1 13
+lib/database/sql/search/hashtag.ts
+  s_555d5c39b84f2a::t_6ecd0215055ebe 230,268
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "1ab292d6f33f6adc7b9c80bf7527dfd96a7f9d12",
+  "prompts": {},
+  "sessions": {
+    "s_555d5c39b84f2a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e53aa-9189-7e11-90ee-4e9fbaac8bf1",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}

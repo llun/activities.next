@@ -1,0 +1,72 @@
+lib/components/gallery/useDaySelection.ts
+  s_d237589e182cae::t_e9bceeb4b6c3ed 30-36,60-61,73-74,76,81-84,103-108,116,128-135,140,160-162,165,179-182,190-193,197-199,223-242,248-254
+  s_d237589e182cae::t_6a24547ff060f7 207
+app/(timeline)/gallery/media/GalleryAllMediaView.tsx
+  s_d237589e182cae::t_5bb4da83805ba3 10-14
+  s_d237589e182cae::t_607fcfdc44274b 219-259,282-284
+app/(timeline)/gallery/albums/GalleryAlbumFormDialog.test.tsx
+  s_d237589e182cae::t_5a635de20bb421 342
+  s_d237589e182cae::t_6f3953cbc0a811 132-137,323-328,333,337-338,340,347
+  s_d237589e182cae::t_8e2e64365b3f44 22,25,33-38,158-159,163-169,267-322
+  s_d237589e182cae::t_6a24547ff060f7 160-162,334-336
+  s_d237589e182cae::t_9ff3ce55ebba7d 329-332,339
+  s_d237589e182cae::t_b98dd9de59f198 205-206,245-246,649,740,753,893
+  s_d237589e182cae::t_d6905b0fd6eb73 341,343-346
+  s_d237589e182cae::t_1ac2a509844ba5 222-226,1026-1030,1035-1039
+  s_d237589e182cae::t_5ce0b76252e5c7 894
+  s_d237589e182cae::t_80901835a9e1a0 348
+app/(timeline)/gallery/media/GalleryAllMediaView.test.tsx
+  s_d237589e182cae::t_6a24547ff060f7 1900-1902,1912-1914,1921-1923
+  s_d237589e182cae::t_00764070996217 1844-1899,1903-1911,1915-1920,1924-1925
+lib/components/gallery/galleryDayGroups.ts
+  s_d237589e182cae::t_b8c946f98a1ac7 33-37
+lib/components/gallery/useRovingGridFocus.test.tsx
+  s_d237589e182cae::t_6b6fc846be634e 40-77,119-134
+  s_d237589e182cae::t_08dcef8efa4d5a 135
+lib/components/gallery/gallerySelectionKeys.ts
+  s_d237589e182cae::t_6a24547ff060f7 96,120-123
+  s_d237589e182cae::t_0679449750ea89 82-84,90-91,95,97-119,124-126,136-147,154,156
+  s_d237589e182cae::t_7e8d9a24b9516c 127-135
+lib/components/gallery/galleryDayGroups.test.ts
+  s_d237589e182cae::t_3d18adc2da18a1 72-80
+lib/components/gallery/useRovingGridFocus.ts
+  s_d237589e182cae::t_f1f9b7d13779a5 16-17,21-22,50-56,67
+lib/components/gallery/useDaySelection.test.tsx
+  s_d237589e182cae::t_37a15fd0e394e0 9-12,44-48
+  s_d237589e182cae::t_c16c9eaec4278c 186-213
+  s_d237589e182cae::t_e040ca17118346 231-268,375-423,425
+  s_d237589e182cae::t_0052c15e6e840a 214-230
+  s_d237589e182cae::t_0866beec9f196a 35-37,81-82
+  s_d237589e182cae::t_738f52a68c8c83 424
+  s_d237589e182cae::t_0f8ddadfbdc17e 426
+app/(timeline)/gallery/albums/GalleryAlbumPicker.test.tsx
+  s_d237589e182cae::t_2c8584f0a3de10 1230-1281
+app/(timeline)/gallery/albums/GalleryAlbumPicker.tsx
+  s_d237589e182cae::t_05e975dd8e5f26 307-310,327-328
+  s_d237589e182cae::t_bbcc2a874eb34d 161-203,218-219
+lib/components/gallery/gallerySelectionKeys.test.ts
+  s_d237589e182cae::t_aea37b2a10f33a 170-195
+app/(timeline)/gallery/albums/GalleryAlbumFormDialog.tsx
+  s_d237589e182cae::t_6a24547ff060f7 431-433
+  s_d237589e182cae::t_fee42828179753 20-23,428-430,434-453,458,465-467
+lib/components/gallery/GalleryGrid.tsx
+  s_d237589e182cae::t_9e4d92dcaae7e5 184-187,191-192
+app/(timeline)/gallery/albums/GalleryAlbumFormDialog.suggestions.test.tsx
+  s_d237589e182cae::t_66e669b6a6e371 107-108,262
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0a5b99934cf25529d5d9e289e65ca45c54e7fead",
+  "prompts": {},
+  "sessions": {
+    "s_d237589e182cae": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a17354-5cd1-7e21-91c7-868947d677af",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

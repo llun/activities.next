@@ -1,0 +1,25 @@
+vitest.setup.ts
+  s_f5e8a09f0f5f29::t_c7406d53311062 42-54,65-73,80
+  s_f5e8a09f0f5f29::t_db2ba55b6843b7 55-58,60-64,74,76-77,79
+  s_f5e8a09f0f5f29::t_a5b2bd166f9270 59,75,78
+.github/workflows/ci.yml
+  s_f5e8a09f0f5f29::t_884962edfb5f75 81-84
+AGENTS.md
+  s_f5e8a09f0f5f29::t_3b1fab1eee5b05 318-324
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "8732920bbdba5f3b6538607d430f4b47ea862abf",
+  "prompts": {},
+  "sessions": {
+    "s_f5e8a09f0f5f29": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c94d1f59-70a1-43cc-859e-125bd9363b45",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

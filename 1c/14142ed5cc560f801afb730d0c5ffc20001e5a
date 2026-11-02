@@ -1,0 +1,20 @@
+lib/database/sql/localPublicQueryShape.test.ts
+  s_0c2bdfaede3caf::t_f52fe483bee1c0 53-57,59
+  s_0c2bdfaede3caf::t_fa5c07b77a629d 1,14-23,25-32,36-38,41,50-52,58,60,66,87
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "1c14142ed5cc560f801afb730d0c5ffc20001e5a",
+  "prompts": {},
+  "sessions": {
+    "s_0c2bdfaede3caf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7f5f3c68-147b-4c0c-a369-88f58468b1cf",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,42 @@
+app/api/v2/filters/[id]/statuses/route.ts
+  s_eecb12320dcec6::t_7cc218e1d1421e 15
+  s_eecb12320dcec6::t_00781148b66d77 92-98
+  s_eecb12320dcec6::t_de6cd980ebf3a0 45-51
+app/api/v2/filters/[id]/route.ts
+  s_eecb12320dcec6::t_0abaf10d4e91cb 94-100
+  s_eecb12320dcec6::t_f456b836f19f4b 117-123
+  s_eecb12320dcec6::t_b12d5ba677296d 46-52
+  s_eecb12320dcec6::t_39fa6cd83ff41b 15
+app/api/v2/filters/keywords/[id]/route.ts
+  s_eecb12320dcec6::t_e451b36ca9713f 48-52,96-100,122-126
+  s_eecb12320dcec6::t_6ee65b67aaedbe 46-47,94-95,120-121
+  s_eecb12320dcec6::t_ba7d05cad685fb 15
+lib/database/sql/filter.ts
+  s_eecb12320dcec6::t_baf9177a0a8dcf 313-327
+app/api/v2/filters/[id]/keywords/route.ts
+  s_eecb12320dcec6::t_18b0049ea91c4c 15
+  s_eecb12320dcec6::t_a14dfdf4123c6c 45-51
+  s_eecb12320dcec6::t_918fd419c631fc 93-99
+migrations/20260528000000_add_filters_tables.js
+  s_eecb12320dcec6::t_8e229a6fc69158 27-29
+app/api/v2/filters/statuses/[id]/route.ts
+  s_eecb12320dcec6::t_c351cb30322c0e 9
+  s_eecb12320dcec6::t_6ee65b67aaedbe 38-39,64-65
+  s_eecb12320dcec6::t_b5c2f8bdb64c68 40-44,66-70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "0f9a69544f0494da028df53bbfb520b032055fc2",
+  "prompts": {},
+  "sessions": {
+    "s_eecb12320dcec6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bb3849f9-8ffa-48ff-bc17-78ff2b406a6c",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

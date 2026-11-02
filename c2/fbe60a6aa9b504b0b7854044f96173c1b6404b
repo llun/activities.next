@@ -1,0 +1,23 @@
+docs/architecture.md
+  s_326ec3e82e0e75::t_1d929eac3d7880 2707-2708
+docs/maintenance.md
+  s_326ec3e82e0e75::t_85bbf9a2a41402 513,529
+scripts/mock/createWebVitalsFixtures.ts
+  s_326ec3e82e0e75::t_efd69f25fbcc66 17-18,32,56,526,1026,1667
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c2fbe60a6aa9b504b0b7854044f96173c1b6404b",
+  "prompts": {},
+  "sessions": {
+    "s_326ec3e82e0e75": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9c28552d-e2fa-4115-9f9d-ff00ded45c5b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

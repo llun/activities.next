@@ -1,0 +1,28 @@
+lib/services/link-previews/extractUrl.test.ts
+  s_8fbc352edaf843::t_991d8fd5d68778 351-375,377
+  s_b0737fcab7cc4e::t_a31901b8529f3c 376,378
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "88990cd26ff41db6544faa3b1a869ba194b14a2b",
+  "prompts": {},
+  "sessions": {
+    "s_8fbc352edaf843": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f5805ef5-0c89-425f-91b8-cc86a0704bc4",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_b0737fcab7cc4e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd4b8af9-72a1-4c58-b734-c8c65c9f1076",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,79 @@
+app/(timeline)/account/import-export/CsvDownloadsSection.test.tsx
+  s_4cc5fb09056878::t_38be2242e8efd9 27-29,33-40
+  s_4cc5fb09056878::t_10b9b64f0aed90 1-26,32,41-42
+  s_4cc5fb09056878::t_f16b47500b1234 30-31
+lib/client/bulkImports.test.ts
+  s_4cc5fb09056878::t_10b9b64f0aed90 1-14
+app/(timeline)/account/sections.tsx
+  s_4cc5fb09056878::t_a78010a8705ada 2,49-54
+lib/components/settings/ActorChangedAlert.tsx
+  s_4cc5fb09056878::t_a78010a8705ada 1-16,23-30
+  s_4cc5fb09056878::t_38be2242e8efd9 17-20,22
+  s_4cc5fb09056878::t_08abb4df3fb74a 21
+app/(timeline)/account/layout.test.tsx
+  s_4cc5fb09056878::t_10b9b64f0aed90 78,84,89-90
+lib/client.ts
+  s_4cc5fb09056878::t_a78010a8705ada 8
+app/(timeline)/account/import-export/CsvDownloadsSection.tsx
+  s_4cc5fb09056878::t_38be2242e8efd9 3,6,37-40
+  s_4cc5fb09056878::t_69ed0c507bffd2 1-2,4-5,7-36,41-49
+lib/client/http.ts
+  s_4cc5fb09056878::t_a78010a8705ada 7,12-13,33-34,36-41,46-49
+  s_4cc5fb09056878::t_38be2242e8efd9 8
+app/(timeline)/account/import-export/loading.tsx
+  s_4cc5fb09056878::t_69ed0c507bffd2 1-5
+lib/components/settings/ActorChangedAlert.test.tsx
+  s_4cc5fb09056878::t_d65ff83b77b50f 1-26
+lib/client/accountArchives.test.ts
+  s_4cc5fb09056878::t_10b9b64f0aed90 1-51
+docs/features.md
+  s_4cc5fb09056878::t_f16b47500b1234 68
+app/(timeline)/account/import-export/page.tsx
+  s_4cc5fb09056878::t_69ed0c507bffd2 1-9,11,13-15,18-57,61-65,68-88,92-99
+  s_4cc5fb09056878::t_38be2242e8efd9 10,12,16-17,58-60,66-67,89-91
+lib/client/http.test.ts
+  s_4cc5fb09056878::t_38be2242e8efd9 227-229
+  s_4cc5fb09056878::t_10b9b64f0aed90 21,216-226,230-234
+  s_4cc5fb09056878::t_b76257ab66168f 235
+lib/utils/formatBytes.test.ts
+  s_4cc5fb09056878::t_10b9b64f0aed90 1-16
+lib/client/bulkImports.ts
+  s_4cc5fb09056878::t_38be2242e8efd9 2
+  s_4cc5fb09056878::t_a78010a8705ada 1,3-14
+app/(timeline)/account/import-export/ImportSection.tsx
+  s_4cc5fb09056878::t_69ed0c507bffd2 1,3-28
+  s_4cc5fb09056878::t_38be2242e8efd9 2
+app/(timeline)/account/import-export/ArchiveExportSection.tsx
+  s_4cc5fb09056878::t_69ed0c507bffd2 1-4,6-15,23-67,72-123,125-145,147-149,154-170,175-183,186-206,210-222,226-261,263-267,275-343,347-406,410-418,422-424,428-479,484-519,522-554
+  s_4cc5fb09056878::t_f4114404fc18a8 124,146,268-274
+  s_4cc5fb09056878::t_8c454a74e56b50 262
+  s_4cc5fb09056878::t_38be2242e8efd9 5,16-22,68-71,150-153,171-174,184-185,207-209,223-225,344-346,407-409,419-421,425-427,480-483,520-521
+lib/utils/formatBytes.ts
+  s_4cc5fb09056878::t_a78010a8705ada 1-16
+app/(timeline)/account/import-export/ArchiveExportSection.test.tsx
+  s_4cc5fb09056878::t_08abb4df3fb74a 121,269-292
+  s_4cc5fb09056878::t_4dd24149ec4eb5 6-14,30-38,76-79,101-104
+  s_4cc5fb09056878::t_0586815075292b 195-197
+  s_4cc5fb09056878::t_10b9b64f0aed90 1-5,15-16,18-29,39-75,80,90-100,109-120,122,126-137,141-156,163-176,183-194,198-213,222-227,234-268,293-351
+  s_4cc5fb09056878::t_38be2242e8efd9 17,81-89,123-125,138-140,157-162,177-182,214-221,228-233
+  s_4cc5fb09056878::t_d65ff83b77b50f 105-108
+lib/client/accountArchives.ts
+  s_4cc5fb09056878::t_08abb4df3fb74a 1
+  s_4cc5fb09056878::t_a78010a8705ada 2-68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "efec4ff0acb3cc63f2124c0cf1ce90c1dafeb6da",
+  "prompts": {},
+  "sessions": {
+    "s_4cc5fb09056878": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a17fba-4126-7fd0-b71c-3f941b80d1ce",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

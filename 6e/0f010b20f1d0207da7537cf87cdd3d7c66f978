@@ -1,0 +1,22 @@
+lib/components/fitness/RouteHeatmapMap.test.tsx
+  s_0e2fd6be727054::t_485580d9a2546d 30-35,38-43,48-55,60,67
+  s_0e2fd6be727054::t_a5df425d4bebab 330-332,337
+  s_0e2fd6be727054::t_fde8929f0242a2 5,8-9,202-329,333-336,338-339
+  s_0e2fd6be727054::t_fbcc7b143df67b 340
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "6e0f010b20f1d0207da7537cf87cdd3d7c66f978",
+  "prompts": {},
+  "sessions": {
+    "s_0e2fd6be727054": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8b4fe7c-fd3e-48ba-9e1d-ef3b99484c21",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

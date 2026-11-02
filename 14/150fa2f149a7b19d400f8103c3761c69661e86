@@ -1,0 +1,24 @@
+lib/testFileTypeCoverage.test.ts
+  s_51fd2688de1d02::t_6d403fe3c2dae4 21-28,52-59
+  s_51fd2688de1d02::t_ab8079d26e50ed 1-20,29-51,60-73
+.oxlintrc.json
+  s_51fd2688de1d02::t_1589f7c1fc55e3 81-83
+AGENTS.md
+  s_51fd2688de1d02::t_1589f7c1fc55e3 35,37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "14150fa2f149a7b19d400f8103c3761c69661e86",
+  "prompts": {},
+  "sessions": {
+    "s_51fd2688de1d02": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "395909a7-92c9-431a-acba-c74922c99553",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

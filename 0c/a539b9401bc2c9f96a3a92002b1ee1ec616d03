@@ -1,0 +1,25 @@
+lib/database/sql/list.test.ts
+  s_91960e42568bc0::t_a2cab1967da474 623-633,636-722
+  s_91960e42568bc0::t_c5de4d8d70978b 634-635
+lib/database/sql/utils/blockMuteFilter.ts
+  s_91960e42568bc0::t_64831cb98471f3 1-65
+lib/database/sql/list.ts
+  s_91960e42568bc0::t_80e8b5d2ac734a 5
+  s_91960e42568bc0::t_f03bfe2f551f33 310-317
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "0ca539b9401bc2c9f96a3a92002b1ee1ec616d03",
+  "prompts": {},
+  "sessions": {
+    "s_91960e42568bc0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4a0ccbab-c2a8-43e9-9090-8c4fc05c94d8",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

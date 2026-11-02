@@ -1,0 +1,27 @@
+app/api/v2/admin/rules/[id]/route.test.ts
+  s_2de5d568423448::t_0f50f11ebe3103 120-153
+app/api/v1/instance/rules/route.ts
+  s_2de5d568423448::t_58dc58db43feaa 29-30
+app/api/v2/instance/route.ts
+  s_2de5d568423448::t_77f12d1c083174 78-79
+app/api/v2/admin/rules/route.test.ts
+  s_2de5d568423448::t_ae91d4e89929f8 98-118
+lib/database/sql/instanceRule.test.ts
+  s_2de5d568423448::t_d84eb25020cac9 132-140
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "a2698faab942ecd80e747d74c8b3b087835036fa",
+  "prompts": {},
+  "sessions": {
+    "s_2de5d568423448": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "380e0dd8-bb8c-402d-93c3-faf6bb59ed2f",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

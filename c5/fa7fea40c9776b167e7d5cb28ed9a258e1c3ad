@@ -1,0 +1,55 @@
+app/api/v1/accounts/[id]/following/route.ts
+  s_0a6bffb392e5bb::t_933b2c6c5ea9e8 131
+  s_0a6bffb392e5bb::t_e08dcde1ea9284 97-109
+lib/types/database/operations.ts
+  s_0a6bffb392e5bb::t_c422c854fb8432 1355-1357,1359
+app/api/v1/accounts/familiar_followers/route.ts
+  s_0a6bffb392e5bb::t_dce73716364346 18-20
+  s_0a6bffb392e5bb::t_bdd3e1efa12b0c 35-44
+app/api/v1/accounts/[id]/followers/route.ts
+  s_0a6bffb392e5bb::t_fd0acd1f96d5cf 97-109
+  s_0a6bffb392e5bb::t_c0879bebee8195 131
+app/api/v1/accounts/[id]/unpin/route.test.ts
+  s_0a6bffb392e5bb::t_18888d6bf60ec1 94-101
+lib/database/sql/endorsement.ts
+  s_0a6bffb392e5bb::t_08bf3fecfe8c2a 71-72,78-82,85,87-95
+lib/types/database/rows.ts
+  s_0a6bffb392e5bb::t_7ed2ed8c3190ed 18-20
+app/api/v1/accounts/[id]/following/route.test.ts
+  s_0a6bffb392e5bb::t_01701dc05db37e 1-97
+lib/database/sql/endorsement.test.ts
+  s_0a6bffb392e5bb::t_7535be414813f2 81-82,96,102,104-120
+  s_0a6bffb392e5bb::t_282a82f5e8b96e 6
+  s_0a6bffb392e5bb::t_4588a40556dbdd 83-95,97-101,103,121-122
+app/api/v1/accounts/update_credentials/route.test.ts
+  s_0a6bffb392e5bb::t_d47e0d80483838 121-124
+  s_0a6bffb392e5bb::t_3358cc0967f9fa 4,10
+  s_0a6bffb392e5bb::t_2faa0f1b99ccd5 293-343
+app/api/v1/accounts/familiar_followers/route.test.ts
+  s_0a6bffb392e5bb::t_ff9ff9abecda89 4-6,9,54-62,76-78,81-82,84-90,95,106-117
+  s_0a6bffb392e5bb::t_6dff6eca96e5f6 7
+  s_0a6bffb392e5bb::t_21d8614ce9c727 79-80,91-92,96-98,105
+  s_0a6bffb392e5bb::t_50329c69b89a87 74-75
+app/api/v1/endorsements/route.ts
+  s_0a6bffb392e5bb::t_e0d4afb6ba2a61 53-55,59-60
+lib/types/mastodon/account/credentialAccount.ts
+  s_0a6bffb392e5bb::t_48ed0effe44ca7 9-10
+lib/types/mastodon/account/familiarFollowers.ts
+  s_0a6bffb392e5bb::t_687113414566cd 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "c5fa7fea40c9776b167e7d5cb28ed9a258e1c3ad",
+  "prompts": {},
+  "sessions": {
+    "s_0a6bffb392e5bb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f33db19d-86be-4aa2-83f5-fbcf68e3d44c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

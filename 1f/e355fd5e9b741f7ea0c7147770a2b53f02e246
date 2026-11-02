@@ -1,0 +1,197 @@
+.github/copilot-instructions.md
+  s_24163c3e5dc970::t_0bc35cd9a6b34a 22-26
+AGENTS.md
+  s_24163c3e5dc970::t_5a1eb062602fd9 269-271,309-338,687-696
+CLAUDE.md
+  s_24163c3e5dc970::t_d6bc4e3bfd30fb 43
+REVIEW.md
+  s_24163c3e5dc970::t_639b6fe42c7b1d 60-77,190-192,213-222,248-259
+app/(timeline)/fitness/heatmap/FitnessHeatmapView.test.tsx
+  s_24163c3e5dc970::t_8622708434dcdf 1210-1212,1214,1251,1253,1338-1345,1352-1355,1360,1370-1391
+app/(timeline)/settings/notifications/page.tsx
+  s_24163c3e5dc970::t_7b464ec04c065c 53-57,61-62
+app/api/v1/accounts/email-notifications/route.test.ts
+  s_24163c3e5dc970::t_df86978f3bc3bf 213-239
+app/api/v1/accounts/email-notifications/route.ts
+  s_24163c3e5dc970::t_44be74aecd9a59 14
+app/api/v1/accounts/push-notifications/route.ts
+  s_24163c3e5dc970::t_2386c69395afbd 14
+app/api/v1/pleroma/statuses/[id]/reactions/[emoji]/route.ts
+  s_24163c3e5dc970::t_f33df6b84ffd96 1-84
+app/api/v1/pleroma/statuses/[id]/reactions/route.ts
+  s_24163c3e5dc970::t_abb1772e441615 1-59
+app/api/v1/push/subscription/types.ts
+  s_24163c3e5dc970::t_8e27a0b2be3a8b 34
+app/api/v1/routeScopeWiring.test.ts
+  s_24163c3e5dc970::t_62e317a0afacd0 37-53,255-264
+app/api/v1/statuses/[id]/react/[name]/route.ts
+  s_24163c3e5dc970::t_6ed711ce06aabe 1-33
+app/api/v1/statuses/[id]/route.test.ts
+  s_24163c3e5dc970::t_81ff01300edea3 3111-3122,3159-3297
+app/api/v1/statuses/[id]/route.ts
+  s_24163c3e5dc970::t_700e50cf975836 11,586-600,649-676
+app/api/v1/statuses/[id]/unreact/[name]/route.ts
+  s_24163c3e5dc970::t_269effdcc2add0 1-33
+app/api/v1/webhooks/strava/[webhookToken]/route.test.ts
+  s_24163c3e5dc970::t_c516c73b0f1239 105-109,150-151,201-202
+app/api/v1/webhooks/strava/[webhookToken]/route.ts
+  s_24163c3e5dc970::t_cb54d26a577210 187-192
+docs/architecture.md
+  s_24163c3e5dc970::t_49e044d28a43bd 164-201
+docs/environment-variables.md
+  s_24163c3e5dc970::t_d1df44c97dc1cd 271,296
+docs/features.md
+  s_24163c3e5dc970::t_a655b0f342326d 45,50,61
+docs/fitness-file-storage.md
+  s_24163c3e5dc970::t_cefc47b262cd59 55,107
+docs/maintenance.md
+  s_24163c3e5dc970::t_0a7ba6a2aeee20 13,18-19,132-133
+docs/mastodon-api-compatibility.md
+  s_24163c3e5dc970::t_428cfa99735e07 245-264,270-294
+lib/actions/emojiReaction.test.ts
+  s_24163c3e5dc970::t_7bc52c2470f21c 11
+lib/actions/emojiReaction.ts
+  s_24163c3e5dc970::t_6d515575c3347d 6,8,232,240-266
+lib/activities/index.ts
+  s_24163c3e5dc970::t_bc32d86cab3183 16-23,40,947-1034
+lib/activities/reactionActivity.test.ts
+  s_24163c3e5dc970::t_4342a0b0c3e684 1-98
+lib/activities/reactionActivity.ts
+  s_24163c3e5dc970::t_afa8a0748706e3 1-102
+lib/database/sql/fitnessFile.test.ts
+  s_24163c3e5dc970::t_56f399c1fd2bf2 377-413
+lib/database/sql/fitnessFile.ts
+  s_24163c3e5dc970::t_2d69f7c1d968c3 44,309,359-360,828-830
+lib/database/sql/pushSubscription.test.ts
+  s_24163c3e5dc970::t_00d70e72a535a8 587-607
+lib/database/sql/pushSubscription.ts
+  s_24163c3e5dc970::t_e388d9a0b2f5d9 45-51,71
+lib/jobs/importFitnessFilesJob.test.ts
+  s_24163c3e5dc970::t_2629dd09139be9 10,36-39,46-48,73,116-168,247-250,345-346,790-871
+lib/jobs/importFitnessFilesJob.ts
+  s_24163c3e5dc970::t_8e923dbf414e37 12,37-51,239-240,341-349,359,469-473
+lib/jobs/importStravaActivityJob.test.ts
+  s_24163c3e5dc970::t_bc6f8eb80cc416 69-74,995-999,1001-1018,1022-1023,1027-1028,1030,1035-1054,1076-1077,1092-1124
+lib/jobs/importStravaActivityJob.ts
+  s_24163c3e5dc970::t_09a4f278569266 22,27,29,49,73-84,379-385,505-522,527-530,532-562,699-702,747-751
+lib/jobs/processFitnessFileJob.test.ts
+  s_24163c3e5dc970::t_414e339e948357 1,13-17,50-58,71-75,179-188,505-812
+lib/jobs/processFitnessFileJob.ts
+  s_24163c3e5dc970::t_c81add2b1292c8 3-4,6,8,20-24,26-27,39-47,126-309,313-319,356-367,377,402-405,415-421,423,450-470,501-521
+lib/jobs/regenerateFitnessMapsJob.test.ts
+  s_24163c3e5dc970::t_2879ce2b5af2ff 169,172-173,179-180,202,239,242-243,248-249,257,276-282,310,328-333,358-410,443-450
+lib/jobs/regenerateFitnessMapsJob.ts
+  s_24163c3e5dc970::t_66d158d6e8cbb8 9,198-204,278-279,285-286,291-299
+lib/services/email/layout/blocks.test.ts
+  s_24163c3e5dc970::t_d4d5d1a300e87c 8-9,241-312
+lib/services/email/layout/blocks.ts
+  s_24163c3e5dc970::t_138352d7e85ef3 11,233-313
+lib/services/email/layout/theme.ts
+  s_24163c3e5dc970::t_23fcf3d125b40a 20,22-23
+lib/services/email/templates/activityImport.test.ts
+  s_24163c3e5dc970::t_f32647ef04d355 1-3,5-79,81-86,89-109,111-115,118-177,179-181
+lib/services/email/templates/activityImport.ts
+  s_24163c3e5dc970::t_d693a554a230f1 2-19,21,23-32,34-166
+lib/services/email/templates/emailDesign.test.ts
+  s_24163c3e5dc970::t_334699d4f6e4bf 5,170-194
+lib/services/fitness-files/emailMapImage.ts
+  s_24163c3e5dc970::t_622080637cd2e9 1-40
+lib/services/fitness-files/index.test.ts
+  s_24163c3e5dc970::t_aeb6ef3fca1f51 1-167
+lib/services/fitness-files/index.ts
+  s_24163c3e5dc970::t_96c87fa9fe84f9 13,162-176,190-204
+lib/services/medias/S3StorageFile.test.ts
+  s_24163c3e5dc970::t_dad8575a7c836f 8-11,17-23,52-66,223-260,419-629,680-883
+lib/services/medias/S3StorageFile.ts
+  s_24163c3e5dc970::t_c83f836e03150c 14,19-23,27-31,33-39,42,103-107,223-225,231,430-432,444,448,452,480,510,512-550,553,557,559,570,575,582-585,589,591-596,600,603-604,612,641-647,651,670
+lib/services/medias/constants.ts
+  s_24163c3e5dc970::t_7266b3a013415b 12-26
+lib/services/medias/fileName.test.ts
+  s_24163c3e5dc970::t_989b4cdfa18e96 1-380
+lib/services/medias/fileName.ts
+  s_24163c3e5dc970::t_d729ee28169867 1-185
+lib/services/medias/getMediaAttachment.ts
+  s_24163c3e5dc970::t_2f4fa19a9e3e14 1,31-35,40,42
+lib/services/medias/imageOutputFormat.test.ts
+  s_24163c3e5dc970::t_6e7200a1c3f2bc 1-118
+lib/services/medias/imageOutputFormat.ts
+  s_24163c3e5dc970::t_5d43e60ba3e05a 1-61
+lib/services/medias/index.test.ts
+  s_24163c3e5dc970::t_d33e0ae43a375c 7,10,37,41-42,45-46,66,227-278
+lib/services/medias/index.ts
+  s_24163c3e5dc970::t_fd48d9f887b620 8,66-101
+lib/services/medias/localFile.test.ts
+  s_24163c3e5dc970::t_045a24a1f4b4e2 4,8-10,12-13,25-40,97-461
+lib/services/medias/localFile.ts
+  s_24163c3e5dc970::t_9dd8fba83b250a 13,17,19-25,28,35-39,150,152,154,166,170,175,213,215-217,221,229-269,272,276-278,281-284,287,290,292-297,299-300,313,337
+lib/services/medias/mediaFileUrl.test.ts
+  s_24163c3e5dc970::t_b0bccb888110e5 1-39
+lib/services/medias/mediaFileUrl.ts
+  s_24163c3e5dc970::t_d15ed31dbb9e4e 1-18
+lib/services/medias/types.ts
+  s_24163c3e5dc970::t_e630988f98ed80 6,159-171,186-198
+lib/services/notifications/activityImportGroupKey.test.ts
+  s_24163c3e5dc970::t_f910575c38999a 1-35
+lib/services/notifications/activityImportGroupKey.ts
+  s_24163c3e5dc970::t_d35294803ea36f 1-17
+lib/services/notifications/pushNotification.ts
+  s_24163c3e5dc970::t_3736052fe52bb5 32,120-124
+lib/services/reactions/getStatusReactionList.test.ts
+  s_24163c3e5dc970::t_3f87e6948b498d 1-123
+lib/services/reactions/getStatusReactionList.ts
+  s_24163c3e5dc970::t_1d9c2507d9f3be 1-95
+lib/services/reactions/reactStatus.test.ts
+  s_24163c3e5dc970::t_c3f5c4ea8bf6ba 1-476
+lib/services/reactions/reactStatus.ts
+  s_24163c3e5dc970::t_7cdf261e3d6f51 1-256
+lib/services/reactions/reactionGroupKey.test.ts
+  s_24163c3e5dc970::t_a30e138f38a86d 1-40
+lib/services/reactions/reactionGroupKey.ts
+  s_24163c3e5dc970::t_83a1426d5b0451 1-16
+lib/services/reactions/reactionName.test.ts
+  s_24163c3e5dc970::t_eeac58681326a2 1-61
+lib/services/reactions/reactionName.ts
+  s_24163c3e5dc970::t_a5d17e33d5312f 1-61
+lib/services/reactions/reactionRouteHandlers.test.ts
+  s_24163c3e5dc970::t_613b7b1325770c 1-137
+lib/services/reactions/reactionRouteHandlers.ts
+  s_24163c3e5dc970::t_6352c25fdb4dba 1-85
+lib/types/database/fitnessFile.ts
+  s_24163c3e5dc970::t_fc3c2f1a25fb05 26-27,64
+lib/types/database/operations.ts
+  s_24163c3e5dc970::t_c561c20738e3cd 3361-3362
+migrations/20260727000000_add_fitness_file_map_image_email_path.js
+  s_24163c3e5dc970::t_ff9e346840a069 1-26
+migrations/schema.sql
+  s_24163c3e5dc970::t_e46c478d5f5592 426-427
+migrations/schema.sqlite.sql
+  s_24163c3e5dc970::t_2c5214facd10e0 59
+package.json
+  s_24163c3e5dc970::t_224a9d36f60e4b 3
+scripts/backup/productionArchive.test.ts
+  s_24163c3e5dc970::t_66866cb74470bf 617,633-634,644-646,651
+scripts/backup/productionArchive.ts
+  s_24163c3e5dc970::t_375a1cab3b4e1c 1147,1150,1157-1161
+scripts/fitness/repairStravaActivityFiles.ts
+  s_24163c3e5dc970::t_4bcbd695d2e642 41,112-114,171-172,358-369
+scripts/maintenance/cleanupMediaStorage.ts
+  s_24163c3e5dc970::t_d270d8af047471 15,21-26,36-51,55-70,79-187,371-384,428-448
+scripts/mock/renderEmailPreviews.ts
+  s_24163c3e5dc970::t_05f0502b992b88 8,33,46,209-238
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "1fe355fd5e9b741f7ea0c7147770a2b53f02e246",
+  "prompts": {},
+  "sessions": {
+    "s_24163c3e5dc970": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2e7e9c00-7215-40b7-9bc0-b8ce224ae630",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

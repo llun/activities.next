@@ -1,0 +1,54 @@
+lib/services/accountImport/json/topLevelStringFields.ts
+  s_64ad8ba362c0e1::t_1cdb16e8a7b22c 3-9,11-31,33-57,59-73,75-76,81-90,93,95-96,99-100,103,106,110-117,120-126,128,134,136,139,142-148,150-151,153,155,157-161,163-170,173-177,180-182,185,187-188,193,195-202
+  s_64ad8ba362c0e1::t_d7549b7631b697 58
+lib/services/accountImport/phases.ts
+  s_64ad8ba362c0e1::t_26113dc5b5e49b 49
+  s_64ad8ba362c0e1::t_cd4a2064a0f21e 782-787
+lib/services/accountImport/runner.test.ts
+  s_64ad8ba362c0e1::t_caaa42ddf58d92 1-5,8-19,21,23-42,47-71,75-137
+  s_64ad8ba362c0e1::t_26113dc5b5e49b 6-7,43-45,72-74
+  s_64ad8ba362c0e1::t_30d2016046a448 20,22,46
+lib/database/domains/accountImport/accountImport.test.ts
+  s_64ad8ba362c0e1::t_d449c2d900f957 240-241,252-253,267-274,464,476-477,492-498,515,518-570,620
+  s_64ad8ba362c0e1::t_78d5a88e761c63 501-506
+lib/services/accountImport/phases.test.ts
+  s_64ad8ba362c0e1::t_4e5ea7d27cc430 190,198-199,206-209,211,221,225,227-228,237-241,247
+  s_64ad8ba362c0e1::t_26113dc5b5e49b 9-10
+  s_64ad8ba362c0e1::t_7b4155c602110c 27-32,35,145,191-196
+  s_64ad8ba362c0e1::t_747cb96b892e99 13,20,34,36,38,143-144,146-176,181-188,197,200-205,210,212-220,222-224,226,229-234,236,242-246,248-249
+  s_64ad8ba362c0e1::t_7cb5442b06667e 189
+  s_64ad8ba362c0e1::t_8823469ba705d2 235
+  s_64ad8ba362c0e1::t_bd52fea1157ddb 177-180
+  s_1f1a1efd8db0bf::t_6d5d1873bfa1e8 250
+lib/services/accountImport/json/topLevelStringFields.test.ts
+  s_64ad8ba362c0e1::t_fadab1f04be652 1,4-28,32-33
+  s_64ad8ba362c0e1::t_26113dc5b5e49b 2-3,29-31
+lib/database/domains/accountImport/queries.ts
+  s_64ad8ba362c0e1::t_8b99ddd34a1287 199-220,222-223,371-375,398
+lib/database/domains/accountImport/types.ts
+  s_64ad8ba362c0e1::t_6092509c16e067 87-88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "944dfe0104fbe6db9451432bbac5d20c36d1d6a7",
+  "prompts": {},
+  "sessions": {
+    "s_1f1a1efd8db0bf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6f1be9b0-86e0-4f32-9286-3562b40d391e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_64ad8ba362c0e1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a17e66-37dd-7721-91ff-2b941b205614",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

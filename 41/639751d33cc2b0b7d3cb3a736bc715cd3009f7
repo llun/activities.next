@@ -1,0 +1,27 @@
+app/api/v1/statuses/[id]/route.ts
+  s_f7b91ac6284bd0::t_9cf8155d329c27 355-382,393-429
+  s_f7b91ac6284bd0::t_5f1b75fdd3a002 16
+  s_f7b91ac6284bd0::t_766adbcf088ea2 24
+  s_f7b91ac6284bd0::t_3fe98673aefc54 430
+app/api/v1/statuses/[id]/route.test.ts
+  s_f7b91ac6284bd0::t_0aaf22e518b444 31
+  s_f7b91ac6284bd0::t_b70773b9866f99 9
+  s_f7b91ac6284bd0::t_1af4130e115c21 2263-2366
+  s_f7b91ac6284bd0::t_e8b5056c7fca0f 67-73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "41639751d33cc2b0b7d3cb3a736bc715cd3009f7",
+  "prompts": {},
+  "sessions": {
+    "s_f7b91ac6284bd0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7e5d29e0-cb70-4516-b716-6108a10b94a2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

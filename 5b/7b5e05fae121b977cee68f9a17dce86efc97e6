@@ -1,0 +1,21 @@
+lib/components/posts/poll.test.tsx
+  s_7a29c31259b0a0::t_2bb7646ed23802 10,246-302
+lib/components/posts/poll.tsx
+  s_7a29c31259b0a0::t_95d7035f6d4c0d 20-21,62-74,77-79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5b7b5e05fae121b977cee68f9a17dce86efc97e6",
+  "prompts": {},
+  "sessions": {
+    "s_7a29c31259b0a0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e61da06e-432e-42f9-a063-cc85e354e701",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,65 @@
+app/(timeline)/fitness/useFitnessOverviewData.ts
+  s_a7418d31ae2421::t_c6588abf388c8f 1-127,133
+  s_a7418d31ae2421::t_1c6761c693bdd3 128-132
+app/(timeline)/fitness/useFitnessDayActivities.test.ts
+  s_a7418d31ae2421::t_986815cacad9b2 1-177
+  s_a7418d31ae2421::t_30735562ef529c 178-179
+app/(timeline)/fitness/FitnessOverviewHeader.tsx
+  s_a7418d31ae2421::t_8ed68073d84310 1-145
+app/(timeline)/fitness/useViewerTimeZone.test.tsx
+  s_a7418d31ae2421::t_44476459b71207 1-96
+  s_a7418d31ae2421::t_7fbd91e9a9a92b 97-107
+app/(timeline)/fitness/useViewerTimeZone.ts
+  s_a7418d31ae2421::t_951e6bb119edc2 1-55
+app/(timeline)/fitness/FitnessSummaryStrip.tsx
+  s_a7418d31ae2421::t_aaa659fe67af9f 1-134
+  s_a7418d31ae2421::t_13a6d5c98994e6 135-136
+app/(timeline)/fitness/FitnessOverviewHeader.test.tsx
+  s_a7418d31ae2421::t_1da1848c12c805 1-110
+  s_a7418d31ae2421::t_3cdefcff87c5f8 111-135
+app/(timeline)/fitness/FitnessSummaryStrip.test.tsx
+  s_a7418d31ae2421::t_e27102b76bdcfa 1-93
+app/(timeline)/fitness/useFitnessOverviewData.test.ts
+  s_a7418d31ae2421::t_c4ab40ddf70e19 1-218
+  s_a7418d31ae2421::t_b75e736d018d7a 219
+app/(timeline)/fitness/ActorFitnessDashboard.test.tsx
+  s_a7418d31ae2421::t_e1e19c1bca8e82 6,16,18,21-26,28-44,47,72-74,77-79,90-94,98,100,102-105,107,110-111,115-155,158-161,164-236,242-249,254-256,259-280,282-283,285-299,301-304,307-322,326,330-336,338,341-342,346,349-352,354-358,361-363,365-369,372,374-377,379-388,390-395,397-398,400,402-410,412-417,419-421,423-427,429-441,444-445,447-456,458-460,463-467,469-474,477-478,480-487,489-492,494-504,507-511,513,515-523,525-527,530-576,578
+  s_a7418d31ae2421::t_0cb46c35a821a4 579,581-586,588-592,595-605,608-617
+app/(timeline)/fitness/ActivityTypeBreakdown.test.tsx
+  s_a7418d31ae2421::t_0d839d7dfb93cc 1-187
+app/(timeline)/fitness/ActorFitnessDashboard.tsx
+  s_a7418d31ae2421::t_20fd4b41806c6e 3,5-15,18-35,37-40,42-51,54-66,70,79-80,83-96,99-128,130,132,134-138,140,143-154,156-224,226-237,239,242-244,246-249,252-264,266-273,275-281,283,285,287-306,309-320,324-356,358-368,370-392,395-439,442-500,503-536,539-540
+  s_a7418d31ae2421::t_046017ab79f631 541-545
+app/(timeline)/fitness/ActivityTypeBreakdown.tsx
+  s_a7418d31ae2421::t_225bd9dbbda3e5 1-204
+app/(timeline)/fitness/useFitnessDayActivities.ts
+  s_a7418d31ae2421::t_3d4f2f49b89b69 1-197
+app/(timeline)/fitness/page.test.tsx
+  s_a7418d31ae2421::t_d4d93b48fee5ca 3,42,157-160,273-324
+app/(timeline)/fitness/page.tsx
+  s_a7418d31ae2421::t_63d95d29502e79 32-35,61,132-137,143,149
+lib/components/fitness/FitnessStatGrid.test.tsx
+  s_a7418d31ae2421::t_a78580d1680564 29,72-83
+lib/components/fitness/FitnessStatGrid.tsx
+  s_a7418d31ae2421::t_4ac80bb3463320 28-33,37-38
+lib/fitness/calendar/ranges.test.ts
+  s_a7418d31ae2421::t_49a48d150e9cf9 594-599
+lib/fitness/calendar/ranges.ts
+  s_a7418d31ae2421::t_392f96dc282269 299
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0819be9ad835b7da475ec94063a17190f7aa82ef",
+  "prompts": {},
+  "sessions": {
+    "s_a7418d31ae2421": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0f1fd2ae-8211-4deb-ba27-c7a8fdc4df54",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

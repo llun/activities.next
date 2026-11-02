@@ -1,0 +1,29 @@
+docs/architecture.md
+  s_65daba9093864a::t_f5df76f2ff78ed 1184
+lib/services/auth/instrumentation.test.ts
+  s_d8d7c93f020f3c::t_9ccf5589e9bbc2 29,32-42,44-48,50-55,57-62,66-67,69-70,72
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "abbae22b77e7c5da8dfd597390bc48cba85365aa",
+  "prompts": {},
+  "sessions": {
+    "s_65daba9093864a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f6f27e2dbffekrHt8Tj5UaR78m",
+        "model": "muse-spark-1.3-contributor-free"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_d8d7c93f020f3c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f6f27e2cdffehRETkS5tc913Mj",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

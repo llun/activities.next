@@ -1,0 +1,96 @@
+app/(timeline)/messages/MessagesPage.tsx
+  s_9fe867c202f44e::t_01a58d46e221b1 109-110,200-205,207,215,228-234,236,238-240
+  s_9fe867c202f44e::t_c32fba21612f35 216-227,235,237
+  s_9fe867c202f44e::t_76f45ac67dc7ee 546-550
+app/api/v1/conversations/route.ts
+  s_243fd11decc2c0::t_597922b3d9548f 61-64
+  s_243fd11decc2c0::t_133a911704bda0 3-7,50-53,55-60,65,75-79,83-88
+lib/services/federation/statusDelivery.test.ts
+  s_33cf7ac4980a45::t_34733226ae818f 97,102
+  s_310719d8018dcf::t_f3bbe9636002f0 61,82-89,105,114,123-125,139
+  s_33cf7ac4980a45::t_5c9946336edfc2 1-60,62-81,90-96,98-101,103-104,106-113,115-122,126,164
+  s_33cf7ac4980a45::t_8932ea2e974c30 127-138,140-163
+lib/services/mastodon/getMastodonStatus.test.ts
+  s_dda913a164bc9d::t_c1e0e5f5ca6553 40-45
+  s_310719d8018dcf::t_a973d6fc7a2492 46,48,61-64
+  s_dda913a164bc9d::t_1469ec09ba41af 14,38-39,47,49-60,65
+lib/services/mastodon/getMastodonConversation.ts
+  s_310719d8018dcf::t_6e6f67b677ae2f 29
+  s_33cf7ac4980a45::t_af682d1655c1d3 50-54
+  s_310719d8018dcf::t_15398a58d8c94a 23
+  s_243fd11decc2c0::t_071cf021333e73 7-22,24,28,30-41,45-46,48-49,64-68
+  s_310719d8018dcf::t_7f839474e66bf6 25-27
+app/api/v1/conversations/[id]/statuses/route.ts
+  s_dda913a164bc9d::t_ae7027c9ec5c58 4,74-78
+app/(timeline)/messages/MessagesPage.test.tsx
+  s_9fe867c202f44e::t_3ab443ff7b3976 5-12,318-320,330-332
+  s_9fe867c202f44e::t_1c1efcfd88fa61 51,56-57,59,61,303-317,321-326,333
+  s_9fe867c202f44e::t_181f84af5bf359 327-329
+lib/services/federation/statusDelivery.ts
+  s_33cf7ac4980a45::t_200c73ea4577e8 17-18,40-52,117-118
+  s_310719d8018dcf::t_6e6f67b677ae2f 84
+  s_310719d8018dcf::t_3aed4eaca55df3 55,68-83,85-95,120-124
+lib/services/mastodon/getMastodonConversation.test.ts
+  s_310719d8018dcf::t_5e1a73ee59d252 19-23,27-31,75-84,108-110
+  s_243fd11decc2c0::t_7f7be50f3d38c8 2-7,15-18,24-26,32-34,42-64,68-74,85-105
+  s_310719d8018dcf::t_953bc19b3a6dc9 35-40,65-67
+  s_243fd11decc2c0::t_d4f10ad5bb4410 41
+lib/types/database/operations.ts
+  s_310719d8018dcf::t_842e1846ae2ee5 53,125,140-142
+lib/database/sql/actor.ts
+  s_310719d8018dcf::t_a84d9fddf09b0d 37,143-152,156-248
+  s_310719d8018dcf::t_6e6f67b677ae2f 153-155,608,664-669
+  s_310719d8018dcf::t_b389b538f747f8 600-607,609-651,656-663,670-689,765-766
+lib/services/mastodon/getMastodonStatus.ts
+  s_310719d8018dcf::t_d628de565ac860 112-118,296-311
+  s_310719d8018dcf::t_2a04194f2d4361 294-295
+  s_dda913a164bc9d::t_5b82bccd355189 32-56,122-123,125,196-197,288-293,312-318
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "b8d7a2a14730468b0ec3d4078b6180c7d570fdcb",
+  "prompts": {},
+  "sessions": {
+    "s_243fd11decc2c0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e37aa-f827-7172-ba61-2e0783bbd9e0",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_310719d8018dcf": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e3722-d1c9-7732-b66f-0221b95e639b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_33cf7ac4980a45": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e37aa-f90d-79b2-ada2-7f5f634b7168",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_9fe867c202f44e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e37aa-f7c0-7712-9924-347fb9b25ca3",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_dda913a164bc9d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e37aa-f896-76c1-8c71-5965836e66a3",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

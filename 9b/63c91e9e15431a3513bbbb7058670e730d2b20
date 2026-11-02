@@ -1,0 +1,123 @@
+migrations/schema.sqlite.sql
+  h_580a04e334fef4 318
+  s_9761a720750dd7::t_4222f8e624a8d5 319
+app/(timeline)/[actor]/[status]/page.test.ts
+  h_580a04e334fef4 60
+  s_9761a720750dd7::t_f86b4027d350df 36-46,48,57-59,61,67-89,99,102
+lib/database/migrate/index.test.ts
+  h_580a04e334fef4 737-740
+  s_9761a720750dd7::t_5f0b499c9b4b35 261,265,296,301-303,310,317,380-382,388-390,426,644,698,701,803
+app/(timeline)/[actor]/[status]/ActivityAnalysisChart.test.tsx
+  s_9761a720750dd7::t_98320b7ee5a52c 1-130
+app/(timeline)/[actor]/[status]/ActivityAnalysisChart.tsx
+  s_9761a720750dd7::t_2c5860ca2e8d94 148,421-463,603
+app/(timeline)/[actor]/[status]/ActivityMapPanel.test.tsx
+  s_9761a720750dd7::t_85226cf4cc7e1c 35-49,258-261,263-267,269-275
+app/(timeline)/[actor]/[status]/ActivityMapPanel.tsx
+  s_9761a720750dd7::t_68891dbf53df89 783,788-789
+app/(timeline)/[actor]/[status]/ActivityOverviewSection.test.tsx
+  s_9761a720750dd7::t_1e6a29055f7082 1-120
+app/(timeline)/[actor]/[status]/ActivityOverviewSection.tsx
+  s_9761a720750dd7::t_a4b2304a382cfc 37-46,80,92-93,109-113
+app/(timeline)/[actor]/[status]/FitnessAnalysisCharts.tsx
+  s_9761a720750dd7::t_74ec66396316a1 57
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.test.tsx
+  s_9761a720750dd7::t_45809d2208a7c9 200-213
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  s_9761a720750dd7::t_f1c4d2f8b601fc 669,674-706,708
+app/(timeline)/[actor]/[status]/page.layout.test.tsx
+  s_9761a720750dd7::t_333a0f5ad58ace 26,423-442,517-537
+app/(timeline)/[actor]/[status]/page.remote-signing.test.tsx
+  s_9761a720750dd7::t_7ce8251b52e4e3 35
+app/(timeline)/[actor]/[status]/page.tsx
+  s_9761a720750dd7::t_8238004dec3528 62-88,91,93,299-364,466-471,581-586
+app/(timeline)/[actor]/[status]/page.visibility.test.tsx
+  s_9761a720750dd7::t_a767e7b6a9bfdd 34
+app/api/v1/fitness-files/[id]/route-data/route.test.ts
+  s_9761a720750dd7::t_13c939ccf0c9d4 210-216,274-279,283,314-315,353,424-426,811-813,1243-1505
+app/api/v1/fitness-files/[id]/route-data/route.ts
+  s_9761a720750dd7::t_9900b660795f40 5,11-16,20,24,26,36,227-248,250-272,274-287,291-293,301-303,311-312
+docs/architecture.md
+  s_9761a720750dd7::t_6f2f52c8dd30fc 638
+docs/fitness-file-storage.md
+  s_9761a720750dd7::t_502049c31bfef5 9,86-97,305,362,428
+docs/maintenance.md
+  s_9761a720750dd7::t_780824e026ed27 576,591-592,660-674
+lib/components/posts/media.test.tsx
+  s_9761a720750dd7::t_1a8320c68ada9d 115-140
+lib/components/posts/media.tsx
+  s_9761a720750dd7::t_cd80b21dd09b95 25,39,46,48,66,68,271,323,357,370,372-373,377,398
+lib/database/domains/fitnessFileRouteData/fitnessFileRouteData.test.ts
+  s_9761a720750dd7::t_fee8b6c46c6375 1-207
+lib/database/domains/fitnessFileRouteData/index.ts
+  s_9761a720750dd7::t_3b391e08acad6e 1-3
+lib/database/domains/fitnessFileRouteData/queries.ts
+  s_9761a720750dd7::t_18db4fdea688f1 1-97
+lib/database/domains/fitnessFileRouteData/rows.ts
+  s_9761a720750dd7::t_61a69b006fe1ba 1-17
+lib/database/domains/fitnessFileRouteData/types.ts
+  s_9761a720750dd7::t_2edb9d0b6adf3b 1-33
+lib/database/getSQLDatabase.ts
+  s_9761a720750dd7::t_8f921153c64935 21,120
+lib/database/kysely/db.ts
+  s_9761a720750dd7::t_72f40199c111ff 374-382,1387
+lib/database/migrate/startupCheck.test.ts
+  s_9761a720750dd7::t_0140b7044f19e5 8,11,38,62,105
+lib/database/types.ts
+  s_9761a720750dd7::t_df75aab131bd76 3,80
+lib/jobs/processFitnessFileJob.routeCache.test.ts
+  s_9761a720750dd7::t_d37a6e7f882739 114-125
+lib/jobs/processFitnessFileJob.ts
+  s_9761a720750dd7::t_fd8666f62003c5 12,550-565
+lib/services/fitness-files/backfillRouteData.test.ts
+  s_9761a720750dd7::t_32f8f3e597d04d 1-114
+lib/services/fitness-files/backfillRouteData.ts
+  s_9761a720750dd7::t_13cad659598e14 1-73
+lib/services/fitness-files/fileRouteDataCache.test.ts
+  s_9761a720750dd7::t_162b3affcb269a 1-361
+lib/services/fitness-files/fileRouteDataCache.ts
+  s_9761a720750dd7::t_53f4d822b7ff77 1-449
+lib/types/database/fitnessFileRouteData.ts
+  s_9761a720750dd7::t_3e8d1e4c119080 1-8
+lib/utils/mapkit.test.ts
+  s_9761a720750dd7::t_d78c0e606ea843 116,270-272,426-432,440-477
+lib/utils/mapkit.ts
+  s_9761a720750dd7::t_9086ab89474d63 186-187,189,192-194,236-239,355
+migrations/20261015000000_add_fitness_file_route_data.ts
+  s_9761a720750dd7::t_7967b8bd0d7575 1-38
+migrations/index.ts
+  s_9761a720750dd7::t_4841bcedfdc6c3 7,18-19
+migrations/names.ts
+  s_9761a720750dd7::t_cb6161f477176a 6-9
+migrations/schema.sql
+  s_9761a720750dd7::t_dd09269d7edd5b 405-413,1628-1630,2006-2007,2228-2233
+scripts/backup/productionArchive.database.test.ts
+  s_9761a720750dd7::t_dabb0b95efbc3f 16,31,59-61,63,84-90,93,979,1485-1526,1532-1554,1556,1558-1567,1569-1594,1596,1605-1608,1610-1622,1625-1628,1630-1638,1641-1642,1644-1663,1665-1666
+scripts/database/migrate.test.ts
+  s_9761a720750dd7::t_3a81ad4a6df316 21,391,401,403-405,408-414,438-440
+scripts/fitness/backfillFitnessRouteData.test.ts
+  s_9761a720750dd7::t_5d055fbb8aeac2 1-45
+scripts/fitness/backfillFitnessRouteData.ts
+  s_9761a720750dd7::t_84df96dc9c3d54 1-191
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9b63c91e9e15431a3513bbbb7058670e730d2b20",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  },
+  "sessions": {
+    "s_9761a720750dd7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c75fa09-a86e-464b-8cb7-9fcb4be866a2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

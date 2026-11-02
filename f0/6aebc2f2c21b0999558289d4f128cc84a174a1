@@ -1,0 +1,32 @@
+migrations/20260822000000_reorder_status_announce_index.js
+  s_f523622d666277::t_5d18a0f5a5b1a9 1-75
+REVIEW.md
+  s_f523622d666277::t_f97703211f9dbe 131-135,137-146
+  s_f523622d666277::t_1857c974b616ea 136
+migrations/schema.sql
+  s_f523622d666277::t_3d0b5d1620e645 1931
+AGENTS.md
+  s_f523622d666277::t_251fcba12e6253 1864-1871
+migrations/schema.sqlite.sql
+  s_f523622d666277::t_1bb79bc18425f7 279
+lib/database/sql/statusAnnounceIndexOrderMigration.test.ts
+  s_f523622d666277::t_5b8bd879ff3dee 1-91
+CLAUDE.md
+  s_f523622d666277::t_58a97ee9f1bea0 33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "f06aebc2f2c21b0999558289d4f128cc84a174a1",
+  "prompts": {},
+  "sessions": {
+    "s_f523622d666277": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "65281888-d2f3-4143-8671-c69e74a142d4",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

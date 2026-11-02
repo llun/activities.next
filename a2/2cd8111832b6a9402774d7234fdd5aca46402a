@@ -1,0 +1,28 @@
+REVIEW.md
+  s_181a4d159922fc::t_7461241a754176 172-180,183-184,195-200
+AGENTS.md
+  s_181a4d159922fc::t_115b525202e5cd 261-273
+  s_181a4d159922fc::t_031d9308c182d9 287-291
+  s_181a4d159922fc::t_fc9c758c8e415d 309-320
+scripts/mock/renderEmailPreviews.ts
+  s_181a4d159922fc::t_7461241a754176 3,7-9
+  s_181a4d159922fc::t_2fee788fc69553 10
+docs/maintenance.md
+  s_181a4d159922fc::t_7461241a754176 130-133,141
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "a22cd8111832b6a9402774d7234fdd5aca46402a",
+  "prompts": {},
+  "sessions": {
+    "s_181a4d159922fc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8b59141f-f9f0-4af4-8aea-39520836e6cc",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

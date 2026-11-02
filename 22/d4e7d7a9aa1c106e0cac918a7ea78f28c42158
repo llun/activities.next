@@ -1,0 +1,16 @@
+lib/database/sql/account.test.ts
+  h_580a04e334fef4 242,247,249-253,254-269,293-295
+lib/database/sql/account.ts
+  h_580a04e334fef4 304,855-858
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "22d4e7d7a9aa1c106e0cac918a7ea78f28c42158",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,41 @@
+lib/database/sql/localActorPredicate.test.ts
+  s_7a29c31259b0a0::t_98e0d58e22611c 222-231,233-243,245-247,249-259
+lib/database/sql/actor.test.ts
+  s_ad3d51a9ca1561::t_fc6e68dbf90bce 1423,1435-1438,1463-1466,1468,1477,1482-1485,1508-1511,1513,1519,1547-1550,1552,1561,1566-1567,1571,1573,1639-1642,1665-1668,1691-1694,1709-1712,1725-1728,1739-1742,1755-1758,1769-1772,1795-1798,1813-1815
+lib/database/sql/oauth.test.ts
+  s_725909a67e1914::t_2e37742554bc1e 185-202
+lib/database/sql/pushSubscription.test.ts
+  s_725909a67e1914::t_02caf7e98f7e22 528-534
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d157d358513fc949c828e9c2a88d4e3361a984e1",
+  "prompts": {},
+  "sessions": {
+    "s_725909a67e1914": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d554-1283-7a03-aa63-f06a555f70ba",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_7a29c31259b0a0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e61da06e-432e-42f9-a063-cc85e354e701",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_ad3d51a9ca1561": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dfc4-8b9c-72c2-8e2f-01992cdf11d1",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

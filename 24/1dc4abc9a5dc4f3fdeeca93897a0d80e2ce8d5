@@ -1,0 +1,26 @@
+package.json
+  s_0439554e0bc573::t_8e682d79aed18f 27
+yarn.lock
+  s_0439554e0bc573::t_c558cda6f9d7bd 446-448,450-451,453,456,4487
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "241dc4abc9a5dc4f3fdeeca93897a0d80e2ce8d5",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  },
+  "sessions": {
+    "s_0439554e0bc573": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01813dd18ffebOIfkw2Wub5uFY",
+        "model": "kimi-k3"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

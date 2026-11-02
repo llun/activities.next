@@ -1,0 +1,25 @@
+lib/services/email/layout/renderEmail.ts
+  s_181a4d159922fc::t_b83ae117f05f45 145-152
+  s_181a4d159922fc::t_75009bc0ce6ce6 128-132,134-137
+  s_181a4d159922fc::t_29cea2b5e7ed3c 59-62
+  s_181a4d159922fc::t_452933735ccfbe 39-45
+lib/services/email/layout/renderEmail.test.ts
+  s_181a4d159922fc::t_589d2782c98ba6 54-56
+  s_181a4d159922fc::t_d7769f5ffdb9f9 61-89
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "4eaadf04557bf12feaa82312e43ff40b699cc475",
+  "prompts": {},
+  "sessions": {
+    "s_181a4d159922fc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8b59141f-f9f0-4af4-8aea-39520836e6cc",
+        "model": "claude-opus-5"
+      },
+      "human_author": null
+    }
+  }
+}

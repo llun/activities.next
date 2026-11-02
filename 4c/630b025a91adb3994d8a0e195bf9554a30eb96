@@ -1,0 +1,23 @@
+lib/client/drafts/queueConstants.ts
+  s_512188f2b1db53::t_976cf345860788 22-26
+lib/components/drafts/DraftsProvider.tsx
+  s_512188f2b1db53::t_20a7517f10191d 329-332
+lib/client/drafts/sendQueue.test.ts
+  s_512188f2b1db53::t_976cf345860788 854-870
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4c630b025a91adb3994d8a0e195bf9554a30eb96",
+  "prompts": {},
+  "sessions": {
+    "s_512188f2b1db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e467608a-8346-4544-b69a-fc45fca93669",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

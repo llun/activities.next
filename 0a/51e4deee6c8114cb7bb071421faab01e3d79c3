@@ -1,0 +1,19 @@
+lib/components/posts/poll.tsx
+  s_e3d8b3234f8f84::t_83f55de239c39f 156
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "0a51e4deee6c8114cb7bb071421faab01e3d79c3",
+  "prompts": {},
+  "sessions": {
+    "s_e3d8b3234f8f84": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "03fbfc00-0cb0-4208-81b8-415250ad6058",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

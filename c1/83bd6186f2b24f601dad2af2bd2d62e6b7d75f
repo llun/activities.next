@@ -1,0 +1,23 @@
+AGENTS.md
+  s_c587d6e0f997cb::t_c31a95373c21a9 2140-2141
+lib/database/testUtils.test.ts
+  s_c587d6e0f997cb::t_25396fae66f811 1-387
+lib/database/testUtils.ts
+  s_c587d6e0f997cb::t_e2a8095f89fb03 80-100,102,105,137,141,157,224,231,245
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "c183bd6186f2b24f601dad2af2bd2d62e6b7d75f",
+  "prompts": {},
+  "sessions": {
+    "s_c587d6e0f997cb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a077c9-2bf2-7110-89c4-bfded1f36b16",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

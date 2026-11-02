@@ -1,0 +1,47 @@
+lib/components/admin/domains/DomainSettings.tsx
+  s_e67afa7a51bb57::t_2581f6177d3e4f 144
+lib/utils/normalizeUsername.ts
+  s_e67afa7a51bb57::t_a7f887614e3cd3 22,28-30,32,35-36
+  s_e67afa7a51bb57::t_ec3cd24cd1bf20 37
+app/(nosidebar)/auth/signup/UsernameField.tsx
+  s_e67afa7a51bb57::t_a7f887614e3cd3 7,19
+app/api/v1/actors/domains/route.test.ts
+  s_e67afa7a51bb57::t_e9fbaf1153d89f 311-323,325
+  s_e67afa7a51bb57::t_5abd91c414ff0d 281-309
+app/api/v1/actors/route.test.ts
+  s_e67afa7a51bb57::t_9fd746996dd326 463,473-541
+  s_e67afa7a51bb57::t_1a653161f3f6e1 423,426-434,439-441,542
+docs/architecture.md
+  s_e67afa7a51bb57::t_47556b6a7d58f3 85-99
+lib/components/admin/domains/DomainSettings.test.tsx
+  s_e67afa7a51bb57::t_08a60ffe5a4122 214-232
+  s_e67afa7a51bb57::t_2581f6177d3e4f 128
+  s_e67afa7a51bb57::t_033db45c19dc52 127,129-130
+  s_e67afa7a51bb57::t_fc7f050eef6ae7 126,233
+lib/services/domains/adminDomains.ts
+  s_e67afa7a51bb57::t_a982a9e0fd3a7e 25,37
+lib/components/admin/domains/AddDomainForm.test.tsx
+  s_e67afa7a51bb57::t_08a60ffe5a4122 154-169
+lib/services/domains/adminDomains.test.ts
+  s_e67afa7a51bb57::t_a982a9e0fd3a7e 111-121
+docs/features.md
+  s_e67afa7a51bb57::t_ede6ecda5a18f1 126
+docs/setup.md
+  s_e67afa7a51bb57::t_d43d67d4f5a6ce 74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0c188aba5029cbac2a627e2174e1fbfca847a944",
+  "prompts": {},
+  "sessions": {
+    "s_e67afa7a51bb57": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d6019d38-d013-4f5b-a5fb-8e915ee59ae7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

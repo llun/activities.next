@@ -1,0 +1,60 @@
+proxy.test.ts
+  s_69f35b0cf1b1f5::t_77694172b1b222 361-390
+lib/services/medias/localFile.ts
+  s_69f35b0cf1b1f5::t_8fe87b7ae4db90 6
+  s_69f35b0cf1b1f5::t_01fbd5dd9ae9a6 83-98
+lib/services/medias/S3StorageFile.test.ts
+  s_69f35b0cf1b1f5::t_b59ccc7ee65fe7 285-288,299-303
+  s_69f35b0cf1b1f5::t_e9cd51010b334b 313,2282-2284,2287-2292,2294-2298,2301-2310,2313-2321,2323-2333
+  s_69f35b0cf1b1f5::t_29ac0aa3f59df7 251,258-284,289-298,304-312
+  s_69f35b0cf1b1f5::t_06878499e1f701 314
+lib/config/serverSettings.ts
+  s_69f35b0cf1b1f5::t_a922feee8caefd 400-402
+lib/utils/http-headers/csp.ts
+  s_69f35b0cf1b1f5::t_b06d8718b887fa 301-317
+app/api/v1/files/[...pathname]/route.test.ts
+  s_69f35b0cf1b1f5::t_d8406c3bfb06d3 254-265
+  s_69f35b0cf1b1f5::t_1aa7b5b9e6f5b8 17-23,54,189,199-253,266-273
+  s_69f35b0cf1b1f5::t_3761bd86456a19 274
+lib/services/medias/reservedPaths.ts
+  s_69f35b0cf1b1f5::t_22cd81c900e15a 31-36,69-95,101-119
+app/api/v1/files/[...pathname]/route.ts
+  s_69f35b0cf1b1f5::t_fe5e13ea073ff0 8-9,69-71,74-76,86-98
+docs/maintenance.md
+  s_69f35b0cf1b1f5::t_a922feee8caefd 964,978,1250-1253
+  s_69f35b0cf1b1f5::t_1821d46adbf321 939-947
+lib/services/medias/S3StorageFile.ts
+  s_69f35b0cf1b1f5::t_915f02530a75a7 72-84
+  s_69f35b0cf1b1f5::t_0959ea888f9c2e 120-121,271-276,326-327
+  s_69f35b0cf1b1f5::t_9169fa9be089b5 13,40-43,64,258,706,763
+  s_69f35b0cf1b1f5::t_37bc11fdfffbab 156-159,176-180,182,185,187-193
+lib/services/medias/localFile.test.ts
+  s_69f35b0cf1b1f5::t_a4b5419baa282e 71,73-75,77-78,80-83
+  s_69f35b0cf1b1f5::t_b59ccc7ee65fe7 79
+proxy.ts
+  s_69f35b0cf1b1f5::t_b06d8718b887fa 10-11,20-21,46-51,53-56
+  s_69f35b0cf1b1f5::t_f2c79b27955149 22-36,52
+lib/services/medias/constants.ts
+  s_69f35b0cf1b1f5::t_a922feee8caefd 4-6
+lib/services/medias/servedMediaHeaders.ts
+  s_69f35b0cf1b1f5::t_de929f9f6b9eff 1-16,18-43
+  s_69f35b0cf1b1f5::t_50e95024be2e9f 17
+lib/services/medias/types.ts
+  s_69f35b0cf1b1f5::t_f125f6f5e9f26f 104-107,109-112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d0761bef447515f906d592e34e5219c5e48a1ce9",
+  "prompts": {},
+  "sessions": {
+    "s_69f35b0cf1b1f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3e34abf-a75d-4da8-b371-1258aa33721a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

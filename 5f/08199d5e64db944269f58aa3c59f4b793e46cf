@@ -1,0 +1,33 @@
+app/(timeline)/account/import-export/ImportSection.test.tsx
+  s_279e7012f36c5f::t_e0ab7bef26ee0a 65-72,85-96,131,685-844
+app/(timeline)/account/import-export/ArchiveExportSection.test.tsx
+  s_279e7012f36c5f::t_151c9a19664291 409-436
+app/(timeline)/account/import-export/ArchiveExportSection.tsx
+  s_279e7012f36c5f::t_c9ddd1ce8a22fa 142-145,155-166
+app/(timeline)/account/import-export/ArchiveImportForm.test.tsx
+  s_279e7012f36c5f::t_8c31295df875fe 78-81,84-86,97,99-100,418-493,590-594
+app/(timeline)/account/import-export/ArchiveImportForm.tsx
+  s_279e7012f36c5f::t_b25f2a387bda6d 52-53,97-106,146-152,170-173,185-190,238-242,257-259,362,364,367-380,472-483,565
+app/(timeline)/account/import-export/ImportProgress.test.tsx
+  s_279e7012f36c5f::t_0d3223bd5407cd 129-153
+app/(timeline)/account/import-export/ImportProgress.tsx
+  s_279e7012f36c5f::t_111697c227ec0b 4,20-27,41,46,58-61,71
+app/(timeline)/account/import-export/ImportSection.tsx
+  s_279e7012f36c5f::t_44220aed17da3d 69-71,121,123,204-206,208-212,234
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5f08199d5e64db944269f58aa3c59f4b793e46cf",
+  "prompts": {},
+  "sessions": {
+    "s_279e7012f36c5f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0410f49d-2e94-45e1-bd1f-237e6f7747bc",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

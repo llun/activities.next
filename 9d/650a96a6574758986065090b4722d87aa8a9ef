@@ -1,0 +1,16 @@
+app/(timeline)/[actor]/ActorRedirectCard.tsx
+  h_580a04e334fef4 60
+app/(timeline)/[actor]/page.redirect.test.tsx
+  h_580a04e334fef4 21-22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "9d650a96a6574758986065090b4722d87aa8a9ef",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

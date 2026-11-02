@@ -1,0 +1,22 @@
+app/(timeline)/MainPageTimeline.tsx
+  s_5d96074396dd9e::t_17a601a815c544 49,56-68
+app/(timeline)/MainPageTimeline.test.tsx
+  s_5d96074396dd9e::t_10f7305c0ab9aa 112
+  s_5d96074396dd9e::t_5235babdf4c6d2 86-89
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "81658c86b73f478812972298be50acd1c349e6a7",
+  "prompts": {},
+  "sessions": {
+    "s_5d96074396dd9e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "57e7084c-a5ec-4c27-b9ed-3db92dcbd2b5",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

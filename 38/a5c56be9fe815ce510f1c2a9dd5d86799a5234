@@ -1,0 +1,27 @@
+lib/database/sql/marker.ts
+  s_b1f1f42a61e7ae::t_3837a43cce7ff6 31-38
+  s_b1f1f42a61e7ae::t_8617eec1a685a8 70-71,99-100
+app/api/v1/accounts/update_credentials/route.ts
+  s_b1f1f42a61e7ae::t_75bb7d1e2698f2 16
+  s_b1f1f42a61e7ae::t_8617eec1a685a8 45-47
+app/api/v1/markers/route.ts
+  s_b1f1f42a61e7ae::t_02f50223eed693 56
+lib/database/sql/marker.test.ts
+  s_b1f1f42a61e7ae::t_fe8da093ae16ed 56-102
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "38a5c56be9fe815ce510f1c2a9dd5d86799a5234",
+  "prompts": {},
+  "sessions": {
+    "s_b1f1f42a61e7ae": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "88c6092d-a010-43cd-bc98-d9275159565f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

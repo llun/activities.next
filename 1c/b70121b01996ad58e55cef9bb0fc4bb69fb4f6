@@ -1,0 +1,27 @@
+lib/services/quotes/persistInboundQuoteEdge.ts
+  s_69f35b0cf1b1f5::t_cc82220b05c685 11-14,105-108,111
+lib/services/quotes/persistInboundQuoteEdge.test.ts
+  s_69f35b0cf1b1f5::t_c4760240e2c5e2 105-179
+scripts/maintenance/importRemoteStatus.ts
+  s_69f35b0cf1b1f5::t_cc82220b05c685 25-28,120-124,126,137,150
+scripts/maintenance/importRemoteStatus.test.ts
+  s_69f35b0cf1b1f5::t_c4760240e2c5e2 189-201,230-233,239-284
+  s_69f35b0cf1b1f5::t_3ea16e3087e7c0 234-238,285
+  s_69f35b0cf1b1f5::t_34809fdd412940 286-287
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1cb70121b01996ad58e55cef9bb0fc4bb69fb4f6",
+  "prompts": {},
+  "sessions": {
+    "s_69f35b0cf1b1f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3e34abf-a75d-4da8-b371-1258aa33721a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,34 @@
+docs/fitness-file-storage.md
+  s_326ec3e82e0e75::t_eaff1a60704444 408,410
+app/(timeline)/[actor]/[status]/ActivityOverviewSection.tsx
+  s_326ec3e82e0e75::t_4f04409228fd7a 43-44
+  s_326ec3e82e0e75::t_ad2d52529a49fa 29-33,35-36,41-42,45,54,114
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.test.tsx
+  s_326ec3e82e0e75::t_4f04409228fd7a 389-394,396-398,426-539
+  s_326ec3e82e0e75::t_e8395518e48693 540
+app/(timeline)/[actor]/[status]/ActivityAnalysisChart.tsx
+  s_326ec3e82e0e75::t_ffe5d3e97d42c3 48-51,152-153,499-500
+app/(timeline)/[actor]/[status]/ActivityOverviewSection.test.tsx
+  s_326ec3e82e0e75::t_67945ce13a60b7 52,54-70
+  s_326ec3e82e0e75::t_f2f98ffaa9d7ec 53
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  s_326ec3e82e0e75::t_eaff1a60704444 25,849,894-911,921-923
+  s_326ec3e82e0e75::t_ffe5d3e97d42c3 30-31,131-135,396-399,583,588,853
+  s_326ec3e82e0e75::t_4f04409228fd7a 136-142,144-146,148-153,155-156,158-187,190-203,912-917,919-920
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "af4a5749ea8ece6601867b421ea31a47d9c62d56",
+  "prompts": {},
+  "sessions": {
+    "s_326ec3e82e0e75": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9c28552d-e2fa-4115-9f9d-ff00ded45c5b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

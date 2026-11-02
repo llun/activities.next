@@ -1,0 +1,44 @@
+app/(timeline)/[actor]/followers/page.test.tsx
+  h_580a04e334fef4 343-372
+app/(timeline)/[actor]/followers/page.tsx
+  h_580a04e334fef4 138-142,156-160
+app/(timeline)/[actor]/following/page.test.tsx
+  h_580a04e334fef4 346-375
+app/(timeline)/[actor]/following/page.tsx
+  h_580a04e334fef4 138-142,156-160
+app/(timeline)/[actor]/getProfileData.test.ts
+  h_580a04e334fef4 504-530
+app/(timeline)/[actor]/getProfileData.ts
+  h_580a04e334fef4 32-33,309-310
+app/(timeline)/[actor]/page.follow-counts.test.tsx
+  h_580a04e334fef4 1-196
+app/(timeline)/[actor]/page.tsx
+  h_580a04e334fef4 241-260
+lib/activities/getActorCollectionCounts.test.ts
+  h_580a04e334fef4 92-239
+lib/activities/getActorCollectionCounts.ts
+  h_580a04e334fef4 2-3,63,68-82
+lib/activities/getMisskeyCollectionCounts.test.ts
+  h_580a04e334fef4 1-195
+lib/activities/getMisskeyCollectionCounts.ts
+  h_580a04e334fef4 1-93
+lib/components/profile/profile.test.tsx
+  h_580a04e334fef4 1-85
+lib/components/profile/profile.tsx
+  h_580a04e334fef4 14-15,36-38,40-54
+lib/services/federation/serverSoftware.test.ts
+  h_580a04e334fef4 13-14,279-381
+lib/services/federation/serverSoftware.ts
+  h_580a04e334fef4 165-186
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "6230f6199e7023b49a5b5a4e2fbf8cb1e1416b27",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

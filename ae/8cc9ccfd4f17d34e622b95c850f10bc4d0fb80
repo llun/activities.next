@@ -1,0 +1,23 @@
+lib/components/post-box/reducers.test.ts
+  38fbe22e9e13d45a 3,87,122-193
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "ae8cc9ccfd4f17d34e622b95c850f10bc4d0fb80",
+  "prompts": {
+    "38fbe22e9e13d45a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dc61f-748a-7602-84ac-2c766405edaa",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 80,
+      "total_deletions": 1,
+      "accepted_lines": 80,
+      "overriden_lines": 0
+    }
+  }
+}

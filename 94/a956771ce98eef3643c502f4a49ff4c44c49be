@@ -1,0 +1,23 @@
+lib/database/sql/status.ts
+  s_770acaab97c08d::t_b372ed9a0662a8 2591-2594
+lib/database/sql/utils/coercePollEndAt.test.ts
+  s_770acaab97c08d::t_3892a9e891981e 31,38-55
+lib/database/sql/utils/coercePollEndAt.ts
+  s_770acaab97c08d::t_393c3e29d02d28 10-16,18-22,28,31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.11",
+  "base_commit_sha": "94a956771ce98eef3643c502f4a49ff4c44c49be",
+  "prompts": {},
+  "sessions": {
+    "s_770acaab97c08d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e01bae28-0b20-42c3-9607-b9b7fad86975",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

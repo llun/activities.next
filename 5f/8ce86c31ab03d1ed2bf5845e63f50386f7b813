@@ -1,0 +1,25 @@
+app/(timeline)/[actor]/ActorTimelines.preloadBoth.test.tsx
+  s_326ec3e82e0e75::t_749abdb237c2f8 1-58
+docs/architecture.md
+  s_326ec3e82e0e75::t_94edbc6ec02b36 2033-2035,2042-2043
+lib/components/posts/actions/actions.pickerChunkFailure.test.tsx
+  s_326ec3e82e0e75::t_84daf3590bdcd5 171-174
+lib/components/posts/actions/actions.tsx
+  s_326ec3e82e0e75::t_9332bdc8b9178f 136-144
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5f8ce86c31ab03d1ed2bf5845e63f50386f7b813",
+  "prompts": {},
+  "sessions": {
+    "s_326ec3e82e0e75": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9c28552d-e2fa-4115-9f9d-ff00ded45c5b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

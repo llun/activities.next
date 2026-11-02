@@ -1,0 +1,25 @@
+lib/services/accountImport/phases.ts
+  s_3d1c6455711ea5::t_57ca2c0b5a26ef 5,44-46,48,51,53,57-58,64-65,949-1316
+lib/services/accountImport/profileSettingsPhase.test.ts
+  s_3d1c6455711ea5::t_84c142b03951fc 1-459
+lib/services/accountImport/runner.test.ts
+  s_3d1c6455711ea5::t_885194ba1a35c6 28-29
+lib/services/accountImport/runner.ts
+  s_3d1c6455711ea5::t_f59d929cecdd9b 22-23,256-267
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d01cfe28a79ab38a6d376c4e7b54bd4c22fa8e3c",
+  "prompts": {},
+  "sessions": {
+    "s_3d1c6455711ea5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a17e87-72d1-72b3-b8f4-024754a3fec4",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+lib/components/posts/poll.test.tsx
+  h_580a04e334fef4 38
+lib/components/posts/post.test.tsx
+  h_580a04e334fef4 117,178
+lib/components/posts/post.tsx
+  h_580a04e334fef4 76
+lib/components/posts/status-reply-box.test.tsx
+  h_580a04e334fef4 60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "638ee12d51636607c17b27635e1785d7c3683128",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

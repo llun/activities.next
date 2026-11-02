@@ -1,0 +1,45 @@
+app/(timeline)/MainPageTimeline.refresh.test.tsx
+  s_512188f2b1db53::t_9fe46c36b881b4 19-24,38-39,86-89,762-763,874-875,927-928,962-963,993-994,1004-1073
+app/(timeline)/MainPageTimeline.test.tsx
+  s_512188f2b1db53::t_2ddf0bcfb12ed8 18,36-40,72-73,160-163,1378-1379,1460,1474-1479,1481,1483-1485,1487-1497,1499,1501-1547
+app/(timeline)/MainPageTimeline.testUtils.tsx
+  s_512188f2b1db53::t_752304bfa63b39 5-6,372-422
+app/(timeline)/MainPageTimeline.tsx
+  s_512188f2b1db53::t_447da4bb31c971 17-21,60,295,924,1160,1210-1211,1277-1285,1307,1419-1423
+app/globals.css
+  s_512188f2b1db53::t_3abd81e253cf72 454-459,461-463,471,473-475,677-686
+app/globals.scrollPadding.test.ts
+  s_512188f2b1db53::t_d8b3df45d5cfe8 42-44,49,71-81
+lib/components/connection/ConnectionStatus.test.tsx
+  s_512188f2b1db53::t_5ba2230eb8c7fa 5,22-24,83-113,123-224
+lib/components/connection/ConnectionStatus.tsx
+  s_512188f2b1db53::t_321150e71a6573 3-14,16,43-102,104-117,120-124,126-149
+lib/components/drafts/DraftsProvider.test.tsx
+  s_512188f2b1db53::t_47c936347376a3 184-261
+lib/components/drafts/DraftsProvider.tsx
+  s_512188f2b1db53::t_d3a9795adfa563 57-58,72-73,76-78,80-95,98,101,107,112,118-121,125
+lib/components/posts/TimelineGapRow.test.tsx
+  s_512188f2b1db53::t_eca2e8e573e687 8-14,17-20,22-31,62-65,69-70,74-77,81-108
+lib/components/posts/TimelineGapRow.tsx
+  s_512188f2b1db53::t_ded4f858d5fb24 4,6,20-21
+lib/components/surface/Alert.test.tsx
+  s_512188f2b1db53::t_e8d1baa8cc70a2 6,36-46
+lib/components/surface/Alert.tsx
+  s_512188f2b1db53::t_e412ef619bc64d 1-7,54-55,91,98-106,125
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "43632c730dd6911c7bf48798cac33e3e7cf715fc",
+  "prompts": {},
+  "sessions": {
+    "s_512188f2b1db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e467608a-8346-4544-b69a-fc45fca93669",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

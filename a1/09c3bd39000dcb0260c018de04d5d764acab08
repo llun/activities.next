@@ -1,0 +1,39 @@
+lib/components/admin-announcements/AnnouncementsPanel.tsx
+  s_774e674f3d62f4::t_917e93562ac8e5 217
+lib/components/admin-announcements/announcementStatus.test.ts
+  s_774e674f3d62f4::t_b52ff0dfbe1647 9-10,19-20
+lib/components/announcements/AnnouncementBanner.tsx
+  s_774e674f3d62f4::t_5219ffe9d549f4 10
+  s_774e674f3d62f4::t_b12c19e35590f1 283,286,297
+  s_774e674f3d62f4::t_0657b3ee7784cf 333-334,336,339-340,351-352,359,361,364-365,376-377,379
+  s_774e674f3d62f4::t_7ffa4f8f34014e 222-225
+  s_774e674f3d62f4::t_64926c957521e1 300-309,311-312
+  s_774e674f3d62f4::t_907e067f32764c 401-406
+  s_774e674f3d62f4::t_8e4dfb1b3a3bd0 132-166
+lib/components/announcements/AnnouncementBanner.test.tsx
+  s_774e674f3d62f4::t_dc95cf40211eb5 61-66
+  s_774e674f3d62f4::t_c489a92f319a84 289-360
+app/(timeline)/MainPageTimeline.tsx
+  s_774e674f3d62f4::t_6055a28a794172 229
+lib/components/admin-announcements/announcementStatus.ts
+  s_774e674f3d62f4::t_c36e7b8d0f9830 3,19-27,29
+lib/components/admin-announcements/AnnouncementsPanel.test.tsx
+  s_774e674f3d62f4::t_0fcb2790922e06 1-50,64-141
+  s_774e674f3d62f4::t_417031ca6e1e47 51-63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "a109c3bd39000dcb0260c018de04d5d764acab08",
+  "prompts": {},
+  "sessions": {
+    "s_774e674f3d62f4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9bced70a-1dd7-4235-a117-e2f9c9007f2f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

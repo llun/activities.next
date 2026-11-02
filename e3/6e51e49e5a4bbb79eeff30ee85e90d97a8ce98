@@ -1,0 +1,46 @@
+lib/database/sql/search.test.ts
+  s_ea6e50fd68bdeb::t_5107a6a38aef5b 512
+  s_ea6e50fd68bdeb::t_efec7cc9748175 12-31,40-88,247-253,298-303,401-403,443-487,499-511,513,592,604-605,613,627-629,632,634-636,647-666
+migrations/20260523000000_add_search_documents.js
+  s_ea6e50fd68bdeb::t_a7e789a1f1c86d 4-6,8,10,12-14,22-26
+  s_79c9083b91f62d::t_e9a0c23761f44e 11
+lib/database/sql/search/hashtag.ts
+  s_ea6e50fd68bdeb::t_5107a6a38aef5b 23
+  s_ea6e50fd68bdeb::t_bea4020f5e3f5e 10,18,38-39
+lib/database/sql/search/notImplemented.ts
+  s_ea6e50fd68bdeb::t_f630dcdec164b3 1-3
+lib/database/sql/search/status.ts
+  s_ea6e50fd68bdeb::t_5107a6a38aef5b 19
+  s_ea6e50fd68bdeb::t_8443101b7a11db 9,14,34-35
+lib/database/sql/search/account.ts
+  s_ea6e50fd68bdeb::t_51eb7b489438d8 9,14,31-32
+  s_ea6e50fd68bdeb::t_5107a6a38aef5b 19
+lib/database/sql/search/documents.ts
+  s_ea6e50fd68bdeb::t_5107a6a38aef5b 393-402
+  s_ea6e50fd68bdeb::t_86e4c401fc3e89 12,48-50,52-55,57-58,60,111-112,114-115,165,197,201,206-207,220-223,225,227,256,262,264,441
+  s_ea6e50fd68bdeb::t_522f927568d027 113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "e36e51e49e5a4bbb79eeff30ee85e90d97a8ce98",
+  "prompts": {},
+  "sessions": {
+    "s_79c9083b91f62d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e5398-00ed-7580-90c7-c6fc0037b6d8",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_ea6e50fd68bdeb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e5621-33bf-7dd1-81b2-cf91467f97b1",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

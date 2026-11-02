@@ -1,0 +1,23 @@
+lib/services/accounts/profileImageUrl.ts
+  s_3aa302c1cfeffe::t_203f89a161889b 79-85,88
+AGENTS.md
+  s_3aa302c1cfeffe::t_a4a87687b7e501 2312
+lib/services/accounts/profileImageUrl.test.ts
+  s_3aa302c1cfeffe::t_4bb4db0785e40d 137,143-146,152-157,159
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "bb3f525ce9c34d9c354b2317487ff39a650d7563",
+  "prompts": {},
+  "sessions": {
+    "s_3aa302c1cfeffe": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "86bc70bf-e3f5-4493-ad45-dbd859b08a86",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,25 @@
+lib/testing/withTimeZone.test.ts
+  s_a854f5961b0a33::t_eb9f9c2c594826 1,58,89-91,93-126
+  s_a854f5961b0a33::t_5d01b187a0d595 92,127
+  s_a854f5961b0a33::t_2c32ddcb1a6908 128
+vitest.config.ts
+  s_a854f5961b0a33::t_5d01b187a0d595 19
+lib/testing/withTimeZone.ts
+  s_a854f5961b0a33::t_d586dc21642460 1-2,16-20,26-30,40-46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e3d519cba93cda2ef9e161eb01112971aafafb66",
+  "prompts": {},
+  "sessions": {
+    "s_a854f5961b0a33": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "469ffc7f-d983-4bcc-aa36-6b3294357c0b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

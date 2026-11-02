@@ -1,0 +1,33 @@
+app/(nosidebar)/oauth/authorize/AuthorizeCard.tsx
+  s_81f3103a5e3ea5::t_c781c77ad78c2f 195-196,225-238,261-264
+app/(nosidebar)/auth/signin/page.test.tsx
+  s_3050f300bf8cb0::t_6cfe76bc0abc10 89-92
+app/(nosidebar)/oauth/authorize/AuthorizeCard.test.tsx
+  s_81f3103a5e3ea5::t_b49698e9eff666 954,986,990,1015-1018
+app/(nosidebar)/auth/signin/resolveSignInRedirect.ts
+  s_3050f300bf8cb0::t_6cfe76bc0abc10 7,11-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "964cf5e94e1ed575d51157d9aff59b39874c8669",
+  "prompts": {},
+  "sessions": {
+    "s_3050f300bf8cb0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19889-939a-7790-91ee-ebfb09dd5e67",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_81f3103a5e3ea5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8b3a14b9-d56b-4105-98ff-225b10d13a4e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

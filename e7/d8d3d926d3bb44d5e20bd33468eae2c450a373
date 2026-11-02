@@ -1,0 +1,41 @@
+CONTRIBUTING.md
+  s_9e6e00e373403d::t_ae7d72a0a6bbb0 1161,1172,1190,1225
+REVIEW.md
+  s_9e6e00e373403d::t_6981985b27297f 5-7
+app/(timeline)/account/sessions/AccountSessions.tsx
+  s_9e6e00e373403d::t_3634e41299e9ee 55-56
+app/(timeline)/admin/accounts/[id]/accountDetails.ts
+  s_9e6e00e373403d::t_d0afd5802211b2 3-4
+docs/fitness-file-storage.md
+  s_9e6e00e373403d::t_077f89663b4b85 1318-1319
+docs/mastodon-api-compatibility.md
+  s_9e6e00e373403d::t_722a920454997c 1120,1165
+docs/setup.md
+  s_9e6e00e373403d::t_88f7d5a77644a8 380,406
+lib/components/back-link.tsx
+  s_9e6e00e373403d::t_608f9ad732d64b 29
+lib/services/quotes/fetchQuoteTargetForCreate.ts
+  s_9e6e00e373403d::t_2fccd998fa41dd 51-52
+lib/services/statuses/fetchEphemeralRemoteStatus.ts
+  s_9e6e00e373403d::t_d9b52afa927b5f 39-40
+lib/types/activitypub/activities.ts
+  s_9e6e00e373403d::t_4ae63bf6c18a2a 131-132
+lint/agentsRules.test.ts
+  s_9e6e00e373403d::t_0e944eb330c23f 241
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e7d8d3d926d3bb44d5e20bd33468eae2c450a373",
+  "prompts": {},
+  "sessions": {
+    "s_9e6e00e373403d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "abf1a361-b595-4e2d-a993-ec1b8148a2ff",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

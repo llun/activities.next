@@ -1,0 +1,25 @@
+REVIEW.md
+  s_68a6e9bd90bbb1::t_5696b6a75c8737 83-85
+CLAUDE.md
+  s_68a6e9bd90bbb1::t_f69ee1ae6fb099 43
+AGENTS.md
+  s_68a6e9bd90bbb1::t_c65b0dad20f93b 698
+lib/services/medias/videoPreview.test.ts
+  s_68a6e9bd90bbb1::t_4c5109ea7ab35c 86,89-97,104-106,111-112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "ebe4cace460030fe34c13883cabbdefa1278a268",
+  "prompts": {},
+  "sessions": {
+    "s_68a6e9bd90bbb1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c43e5270-0f8a-4e6b-94b1-79898b52914d",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

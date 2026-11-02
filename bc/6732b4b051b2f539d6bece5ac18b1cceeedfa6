@@ -1,0 +1,125 @@
+app/(timeline)/[actor]/[status]/loading.tsx
+  s_567c37e0dee951::t_a2f64bf435543b 3-4,10
+app/(timeline)/fitness/RecentFitnessActivities.tsx
+  s_e4fe0043c434e0::t_4efb2498b276b7 5
+  s_e4fe0043c434e0::t_4863f8d4ecd3d1 91-93
+app/(timeline)/tags/[tag]/HashtagTimeline.tsx
+  s_e4fe0043c434e0::t_3bc659c3f7829d 177-179
+  s_e4fe0043c434e0::t_df79aed78907d9 7
+app/(timeline)/fitness/gear/[id]/GearActivitiesFeed.tsx
+  s_e4fe0043c434e0::t_68109be0df8a68 9
+  s_e4fe0043c434e0::t_fea3fe2632ad2d 267-271,273-275
+app/(timeline)/(home)/loading.tsx
+  s_e4fe0043c434e0::t_136eddf21c8670 4
+  s_e4fe0043c434e0::t_e96e7e12605a75 17
+  s_e4fe0043c434e0::t_5e501a8dc1f1b8 43
+app/(timeline)/MainPageTimeline.tsx
+  s_e4fe0043c434e0::t_c048cc1b3a09ea 246-248,252-254
+  s_e4fe0043c434e0::t_76581ac92fba4f 10
+  s_e4fe0043c434e0::t_14cac944e4f2f9 210-212
+app/(timeline)/search/SearchPageClient.tsx
+  s_567c37e0dee951::t_c2d683d6278929 20
+  s_567c37e0dee951::t_af6adf8ab1be12 32
+  s_567c37e0dee951::t_476144dc4a304b 553-558
+lib/components/posts/feedLayout.ts
+  s_10531fef57a43f::t_62c296e5e77a13 1-10,16-17,19-27
+  s_10531fef57a43f::t_dfa6bbc484780d 11-15,18
+app/(timeline)/search/loading.tsx
+  s_567c37e0dee951::t_6d68c89067f52c 31
+  s_567c37e0dee951::t_33106d2de326f7 4
+app/(timeline)/lists/[id]/ListTimeline.tsx
+  s_e4fe0043c434e0::t_8be413d4e56bd7 9
+  s_e4fe0043c434e0::t_f1a7936e0b5f00 195-197
+app/(timeline)/[actor]/[status]/page.tsx
+  s_567c37e0dee951::t_d4f7e78aca0650 362
+  s_567c37e0dee951::t_55639379a140fe 6
+  s_567c37e0dee951::t_16dfa35f606e73 300-301
+  s_567c37e0dee951::t_7ebd8695b6f224 400-401
+lib/components/posts/content-warning.tsx
+  s_0ef9cd4edddf76::t_928b7d183619a7 33
+app/(timeline)/collections/[id]/CollectionDetail.tsx
+  s_e4fe0043c434e0::t_af2661556c5d22 355-357
+  s_e4fe0043c434e0::t_652f074d5f60a5 21
+lib/components/posts/content-warning.test.tsx
+  s_0ef9cd4edddf76::t_e3cd89aab42dcd 65-79
+app/(timeline)/favorites/loading.tsx
+  s_e4fe0043c434e0::t_0ad02196b10199 16
+  s_e4fe0043c434e0::t_44258185b8eb84 4
+docs/architecture.md
+  s_10531fef57a43f::t_eefd04d5597553 1642-1670
+  s_10531fef57a43f::t_ecbd3725f1e359 1706-1713
+lib/components/posts/attachments.test.tsx
+  s_10531fef57a43f::t_2137db8e0b8fe0 1113,1123-1130,1132
+  s_0ef9cd4edddf76::t_23efdfaa776267 1297-1368
+app/(timeline)/[actor]/loading.tsx
+  s_e4fe0043c434e0::t_d374aa9d6e7e4d 3-4
+  s_e4fe0043c434e0::t_86c02e8e6d7b85 46-48
+app/(timeline)/bookmarks/BookmarksTimeline.tsx
+  s_e4fe0043c434e0::t_79f6bd834e590c 7
+  s_e4fe0043c434e0::t_12c2784c8be6e1 189-191
+app/(timeline)/admin/tags/[tag]/page.tsx
+  s_e4fe0043c434e0::t_365566590c5d87 67-69
+  s_e4fe0043c434e0::t_5512215449224e 6
+lib/components/posts/posts.tsx
+  s_0ef9cd4edddf76::t_a073844212e32d 17
+  s_0ef9cd4edddf76::t_726a5d4d531f50 113-117
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  s_567c37e0dee951::t_833d8d748efa4d 1912-1914
+  s_567c37e0dee951::t_62ef88b79d0c8c 47
+  s_567c37e0dee951::t_07d7db16246bfd 1929-1931
+app/(timeline)/favorites/FavoritesTimeline.tsx
+  s_e4fe0043c434e0::t_bd86286bbae33e 7
+  s_e4fe0043c434e0::t_4d7612553a9deb 189-191
+app/(timeline)/explore/ExplorePageClient.tsx
+  s_567c37e0dee951::t_768c181d9183ed 278-285
+  s_567c37e0dee951::t_3c1c83c53590e9 13
+  s_567c37e0dee951::t_6c783fe1d1f6a6 24
+lib/components/posts/attachments.tsx
+  s_0ef9cd4edddf76::t_e374c6dc483ddf 124
+  s_10531fef57a43f::t_87195a635c4dd0 232,285
+  s_0ef9cd4edddf76::t_d3b20f5eb430d0 308
+  s_0ef9cd4edddf76::t_726a5d4d531f50 225-227
+  s_0ef9cd4edddf76::t_8ccb337f75d404 74-82
+  s_0ef9cd4edddf76::t_500028d65f50f5 262
+  s_10531fef57a43f::t_f66909b26ffc06 66-72
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "bc6732b4b051b2f539d6bece5ac18b1cceeedfa6",
+  "prompts": {},
+  "sessions": {
+    "s_0ef9cd4edddf76": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f73e88d10ffesrzOflnDfBb206",
+        "model": "deepseek-flash"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_10531fef57a43f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f73f2ed09ffe3DWHyfuBTWeDTJ",
+        "model": "deepseek-flash"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_567c37e0dee951": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f73e67293ffewv4Le6K29flp2G",
+        "model": "deepseek-flash"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_e4fe0043c434e0": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f73e87c6cffeH8F4FRKL1cupl0",
+        "model": "deepseek-flash"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

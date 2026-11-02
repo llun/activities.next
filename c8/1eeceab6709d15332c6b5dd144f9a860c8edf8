@@ -1,0 +1,30 @@
+lib/config/mediaStorage.test.ts
+  s_2f8f98bd1d8b55::t_5cd63ed681bbd4 1,112-114,116-122
+  s_2f8f98bd1d8b55::t_b2547cf57a2e7f 2
+lib/config/environmentTemplates.test.ts
+  s_2f8f98bd1d8b55::t_7f027572f17622 34-56,59-60
+lib/config/fitnessStorage.test.ts
+  s_2f8f98bd1d8b55::t_5c3e525d46b86d 21-65
+lib/config/mediaStorage.ts
+  s_2f8f98bd1d8b55::t_8636ed0b3da853 5,48-56,61,73,75-76,102,104-105,107,109-110
+docs/environment-variables.md
+  s_2f8f98bd1d8b55::t_41db89d1e2f61a 86-92
+lib/config/fitnessStorage.ts
+  s_2f8f98bd1d8b55::t_53ea43a69c0fd2 4,81-91,95,101,104-114,118-119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "c81eeceab6709d15332c6b5dd144f9a860c8edf8",
+  "prompts": {},
+  "sessions": {
+    "s_2f8f98bd1d8b55": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fe73386a-874f-4632-8456-f9a69e911a24",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,42 @@
+lib/services/auth/auth.ts
+  s_8b26235d86ec5b::t_a0d4ea4f662e79 12
+  s_8b26235d86ec5b::t_409a78c64af8f9 41
+app/api/v1/apps/types.ts
+  s_8b26235d86ec5b::t_31726775123af4 6-11
+app/api/v1/apps/createApplication.ts
+  s_8b26235d86ec5b::t_31726775123af4 244,252-256,258-261,270-275
+  s_8b26235d86ec5b::t_ecfcfa81f7065d 1
+  s_8b26235d86ec5b::t_3e93411e36e7ac 245-251,257
+lib/services/wellknown/index.test.ts
+  s_8b26235d86ec5b::t_8c1a4d9f02baa8 2
+  s_8b26235d86ec5b::t_2d8bc0c9dee332 99-108,110-111,118-119,124-125
+  s_8b26235d86ec5b::t_8042d224d4e9ed 121-123
+  s_8b26235d86ec5b::t_76c1148348772b 109,112-117,120
+  s_8b26235d86ec5b::t_e67bf6fa877c09 78-79
+lib/services/auth/constants.ts
+  s_8b26235d86ec5b::t_4b53b2ecaf9a92 1-10
+lib/services/wellknown/openidConfiguration.ts
+  s_8b26235d86ec5b::t_fdc20592d8e48e 2
+  s_8b26235d86ec5b::t_18e39f9ab1b18b 12
+  s_8b26235d86ec5b::t_c0a2b9effc7cec 27-32,35-36,39,42,46,49
+  s_8b26235d86ec5b::t_329b59085eb00b 41,43-45,47-48
+app/api/v1/apps/createApplication.test.ts
+  s_8b26235d86ec5b::t_1d5a3a7821b0d2 294-375,422,425,435-436
+  s_8b26235d86ec5b::t_535d78d176f265 376-421,423-424,426-434
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "e3416f91afc1c90ea9ef8f168e22a3498a14ee17",
+  "prompts": {},
+  "sessions": {
+    "s_8b26235d86ec5b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e0c54908-1871-4c9e-940c-48f4b8e7ccc4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

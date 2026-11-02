@@ -1,0 +1,19 @@
+app/(timeline)/account/import-export/ArchiveImportForm.test.tsx
+  s_279e7012f36c5f::t_842d2a9c78b76b 85,115
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "95ec445423a78ddeb2d6e0714fb931a5b051424e",
+  "prompts": {},
+  "sessions": {
+    "s_279e7012f36c5f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0410f49d-2e94-45e1-bd1f-237e6f7747bc",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,14 @@
+CONTRIBUTING.md
+  h_580a04e334fef4 873-876
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6284f37c426e132cb8ee6750fda609ec709cd1e9",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

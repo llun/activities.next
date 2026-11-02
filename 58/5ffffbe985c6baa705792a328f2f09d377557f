@@ -1,0 +1,34 @@
+lib/components/post-box/useComposerDraft.test.tsx
+  s_512188f2b1db53::t_4e7ea4aad9b338 1147-1162
+lib/components/posts/status-reply-box.drafts.test.tsx
+  s_512188f2b1db53::t_4e7ea4aad9b338 629-658,688-713
+  s_512188f2b1db53::t_adf57ed17043bc 659-687
+lib/components/post-box/post-box.tsx
+  s_512188f2b1db53::t_c6b72a5a1a890b 1128,1303,1335-1349,1351-1356
+  s_512188f2b1db53::t_d5e2e62e17f5dc 1071-1072,1137,1218,1313,1362-1366,1770-1771,1773-1778
+  s_512188f2b1db53::t_2d766f6810368a 1799-1800,1808
+lib/components/post-box/useComposerDraft.ts
+  s_512188f2b1db53::t_7eae534a69092e 672-673,675-677,826-827
+lib/components/posts/status-reply-box.tsx
+  s_512188f2b1db53::t_d5e2e62e17f5dc 374-375,509,516,552-556
+  s_512188f2b1db53::t_c053ff1def6c21 299-300
+lib/components/post-box/post-box.drafts.test.tsx
+  s_512188f2b1db53::t_43c78d597e6fd3 407-409
+  s_512188f2b1db53::t_4e7ea4aad9b338 354-406,410-412
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "585ffffbe985c6baa705792a328f2f09d377557f",
+  "prompts": {},
+  "sessions": {
+    "s_512188f2b1db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e467608a-8346-4544-b69a-fc45fca93669",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

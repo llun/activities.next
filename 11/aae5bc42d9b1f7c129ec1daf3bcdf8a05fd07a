@@ -1,0 +1,29 @@
+app/api/v1/accounts/fitness-files/[fitnessFileId]/route.test.ts
+  s_512188f2b1db53::t_7bba48c97a701a 228
+app/api/v1/accounts/fitness-files/[fitnessFileId]/route.ts
+  s_512188f2b1db53::t_03001fe70be445 104
+docs/architecture.md
+  s_512188f2b1db53::t_d711aed0a5e0d0 3071
+docs/fitness-file-storage.md
+  s_512188f2b1db53::t_6201405cbe4223 309
+docs/maintenance.md
+  s_512188f2b1db53::t_a1a921a8e7489d 1017
+lib/client/drafts/draftMedia.ts
+  s_512188f2b1db53::t_eb1accc054360a 67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "11aae5bc42d9b1f7c129ec1daf3bcdf8a05fd07a",
+  "prompts": {},
+  "sessions": {
+    "s_512188f2b1db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e467608a-8346-4544-b69a-fc45fca93669",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

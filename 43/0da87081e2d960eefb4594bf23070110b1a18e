@@ -1,0 +1,89 @@
+lib/types/database/operations.ts
+  s_3da1f273d8917f::t_bdc3aeb96de7a6 507-510
+  s_3da1f273d8917f::t_416187e934c11a 134
+  s_3da1f273d8917f::t_79a95032254f93 781-785
+app/api/v1/statuses/[id]/quotes/route.test.ts
+  s_3da1f273d8917f::t_cab5d3b9ed9d57 1-157
+app/api/v1/accounts/update_credentials/route.test.ts
+  s_3da1f273d8917f::t_89a0016dbfc415 115-135
+lib/services/accounts/updateCredentialsHandler.ts
+  s_3da1f273d8917f::t_736b4e0c5aee96 306-308
+  s_3da1f273d8917f::t_7b511d7d5c0e37 14
+  s_3da1f273d8917f::t_61e04faca67052 56-57
+lib/types/mastodon/account/source.ts
+  s_3da1f273d8917f::t_e9fcadc3bc6283 26
+  s_3da1f273d8917f::t_5adf72b8fda73c 8-11
+  s_3da1f273d8917f::t_b8f1bd6f95aa6a 25,27-28
+  s_3da1f273d8917f::t_ade140fcc20c1a 12
+lib/database/sql/status.ts
+  s_3da1f273d8917f::t_ccecd6aa6a6d4b 3394-3415,3419
+  s_3da1f273d8917f::t_076d2647054cdb 77-78
+lib/actions/revokeStatusQuote.ts
+  s_3da1f273d8917f::t_88d2abc2d5aa23 1-96
+app/api/v1/statuses/[id]/interaction_policy/route.test.ts
+  s_3da1f273d8917f::t_aaeb3433850cb1 1-54,59-78,82-148
+  s_3da1f273d8917f::t_26e233a783d7d0 55-58,79-81
+app/api/v1/statuses/[id]/quotes/[quoting_status_id]/revoke/route.ts
+  s_3da1f273d8917f::t_77a14246e266c3 1-89
+app/api/v1/preferences/route.test.ts
+  s_3da1f273d8917f::t_0967b74469fb22 114
+  s_3da1f273d8917f::t_38d0ed0cf13579 127,141
+app/api/v1/statuses/route.test.ts
+  s_3da1f273d8917f::t_08fd43ba17ed95 244-273
+lib/activities/index.ts
+  s_3da1f273d8917f::t_9f3354808f37d8 343-380
+lib/database/sql/actor.ts
+  s_3da1f273d8917f::t_fdc02eea9b0b30 852
+  s_3da1f273d8917f::t_c593f3e66dd01a 327
+  s_3da1f273d8917f::t_891089cf228072 900
+docs/features.md
+  s_3da1f273d8917f::t_226eb3df3e82d9 16
+  s_3da1f273d8917f::t_7ea05419ca2941 69
+app/api/v1/statuses/[id]/quotes/[quoting_status_id]/revoke/route.test.ts
+  s_3da1f273d8917f::t_26e233a783d7d0 84-86,253-256
+  s_3da1f273d8917f::t_b1764dd16703f7 1-83,87-252,257-267
+docs/mastodon-api-compatibility.md
+  s_3da1f273d8917f::t_4f3de9449e11bd 190-192
+  s_3da1f273d8917f::t_75e8022389ac2c 129-148
+lib/types/database/rows.ts
+  s_3da1f273d8917f::t_4613086c12c28f 36-38
+app/api/v1/statuses/[id]/quotes/route.ts
+  s_3da1f273d8917f::t_b3a04d4f3aec73 1-2,4-109
+  s_3da1f273d8917f::t_26e233a783d7d0 3
+lib/actions/updateStatusInteractionPolicy.ts
+  s_3da1f273d8917f::t_4caa84d3269438 1-72
+app/api/v1/statuses/route.ts
+  s_3da1f273d8917f::t_448a56bfc066be 409-414,417,424
+  s_3da1f273d8917f::t_26e233a783d7d0 415-416
+app/api/v1/preferences/route.ts
+  s_3da1f273d8917f::t_26e233a783d7d0 32-33
+  s_3da1f273d8917f::t_7f5ce3b02ad21a 31
+lib/jobs/sendQuoteRevokeJob.ts
+  s_3da1f273d8917f::t_935bdc1fc52d62 1-54
+lib/database/sql/actor.test.ts
+  s_3da1f273d8917f::t_5a77f248853d37 939
+lib/jobs/index.ts
+  s_3da1f273d8917f::t_bfccc21df499ae 43
+  s_3da1f273d8917f::t_1c25222eb8b45a 95
+  s_3da1f273d8917f::t_26e233a783d7d0 61
+app/api/v1/statuses/[id]/interaction_policy/route.ts
+  s_3da1f273d8917f::t_9c91fe4c29f4df 1-111
+lib/jobs/names.ts
+  s_3da1f273d8917f::t_976fcacfaff3b5 29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "430da87081e2d960eefb4594bf23070110b1a18e",
+  "prompts": {},
+  "sessions": {
+    "s_3da1f273d8917f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f49630eb-9e7a-4457-a813-665e76f1781c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

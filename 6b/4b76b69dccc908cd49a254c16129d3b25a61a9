@@ -1,0 +1,45 @@
+.github/workflows/ci.yml
+  s_1f1a1efd8db0bf::t_46bfc4c9d8948f 419-420
+app/api/v1/accounts/[id]/gallery/media/route.test.ts
+  s_1f1a1efd8db0bf::t_238f2139b4f569 820-1029
+app/api/v1/accounts/[id]/gallery/media/route.ts
+  s_1f1a1efd8db0bf::t_3a610d34f1b52b 6-10,21,78-92,97,106-108,116-122,158-171,174-178,202-205,209,219-277,374-375
+docs/features.md
+  s_1f1a1efd8db0bf::t_1317fc2d30e79f 72-73
+docs/maintenance.md
+  s_1f1a1efd8db0bf::t_1eceaf196afdf7 1001
+docs/mastodon-api-compatibility.md
+  s_1f1a1efd8db0bf::t_1c479022e6a3c2 642-659
+lib/database/domains/gallery/dayStats.ts
+  s_1f1a1efd8db0bf::t_5cb6465f549799 1-15,21-90,93-104,106-207,211-222,224-273
+lib/database/domains/gallery/galleryDayStats.test.ts
+  s_1f1a1efd8db0bf::t_935c9332875e26 1-703
+lib/database/domains/gallery/galleryMediaQueryPlan.test.ts
+  s_1f1a1efd8db0bf::t_47a19a73f811e3 161-201
+lib/database/domains/gallery/mediaFilters.ts
+  s_1f1a1efd8db0bf::t_6b04fdb8c86ce8 22,230-247,287
+lib/database/kysely/dialect.test.ts
+  s_1f1a1efd8db0bf::t_836923649ea23c 12,316-450
+lib/database/kysely/dialect.ts
+  s_1f1a1efd8db0bf::t_055f9d994b49c0 102-116
+lib/services/gallery/galleryQueries.test.ts
+  s_1f1a1efd8db0bf::t_bfae6271cf00fa 21,1239-1506,1549-1551
+lib/services/gallery/galleryQueries.ts
+  s_1f1a1efd8db0bf::t_09e3bd4fc21451 2,19-20,25,30,32-33,81-82,112-113,139-318,336-337,353-361,483-516,529-595
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6b4b76b69dccc908cd49a254c16129d3b25a61a9",
+  "prompts": {},
+  "sessions": {
+    "s_1f1a1efd8db0bf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6f1be9b0-86e0-4f32-9286-3562b40d391e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

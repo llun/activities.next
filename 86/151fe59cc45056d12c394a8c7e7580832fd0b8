@@ -1,0 +1,19 @@
+lib/components/posts/actions/actions.tsx
+  s_30b9662e70826b::t_d056a2a8722acf 23-29,85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "86151fe59cc45056d12c394a8c7e7580832fd0b8",
+  "prompts": {},
+  "sessions": {
+    "s_30b9662e70826b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e31cb-e738-7883-98ff-e5d288fd8468",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

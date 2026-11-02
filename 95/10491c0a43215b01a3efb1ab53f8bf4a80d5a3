@@ -1,0 +1,16 @@
+app/(timeline)/[actor]/FollowList.test.tsx
+  h_580a04e334fef4 108-126
+app/(timeline)/[actor]/FollowList.tsx
+  h_580a04e334fef4 9,46,68,70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "9510491c0a43215b01a3efb1ab53f8bf4a80d5a3",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

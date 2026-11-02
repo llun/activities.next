@@ -1,0 +1,28 @@
+lib/jobs/createRelayAnnounceJob.ts
+  s_4940650f85d4fc::t_4fb065d525a2ff 1-74
+lib/jobs/index.ts
+  s_4940650f85d4fc::t_aa93d408500eea 62
+  s_4940650f85d4fc::t_e3c8a89558e855 7
+  s_4940650f85d4fc::t_5a79df351d4c0f 31
+lib/jobs/createRelayAnnounceJob.test.ts
+  s_4940650f85d4fc::t_bb137d4edcd90c 1-20,22-105
+  s_4940650f85d4fc::t_2ddb14207f9484 21
+lib/jobs/names.ts
+  s_4940650f85d4fc::t_3f4147a9050ac5 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "acfcbcb67410208390ee2ecaf3c76708ebbeb943",
+  "prompts": {},
+  "sessions": {
+    "s_4940650f85d4fc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "63651c7d-28cf-4c4f-879c-781d84ce90aa",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

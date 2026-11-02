@@ -1,0 +1,21 @@
+docs/architecture.md
+  s_33fa8d3439a2c2::t_585a38e104f698 1554-1557
+lib/utils/text/renderPolicyMarkdown.test.ts
+  s_33fa8d3439a2c2::t_14ef7765abb6ff 208
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c2b0491238d5eac4986a32cd2cd3e02ebfe443a8",
+  "prompts": {},
+  "sessions": {
+    "s_33fa8d3439a2c2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "77e0ec99-f1ca-473a-9616-b89f14be7d73",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

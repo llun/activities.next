@@ -1,0 +1,25 @@
+lib/services/auth/trustedOrigins.test.ts
+  s_40b1fc8c7e5992::t_cfaf2952c7984a 31-33
+  s_40b1fc8c7e5992::t_0faa25bbf60602 1-30,34-35
+lib/services/auth/trustedOrigins.ts
+  s_40b1fc8c7e5992::t_5885ac4b2ec5ba 1-24
+lib/services/auth/auth.ts
+  s_40b1fc8c7e5992::t_03750d09fd41b5 14
+  s_40b1fc8c7e5992::t_77bd801961f01e 32-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "6568c25d9ba24620605ed08d4ba6e712cc17a290",
+  "prompts": {},
+  "sessions": {
+    "s_40b1fc8c7e5992": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4fa5e634-dd59-460d-828a-394cfdbd5c7b",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

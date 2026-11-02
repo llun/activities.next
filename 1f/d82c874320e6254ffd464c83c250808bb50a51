@@ -1,0 +1,28 @@
+.github/workflows/ci.yml
+  h_580a04e334fef4 4,334-367,385-386,392
+Dockerfile
+  h_580a04e334fef4 34
+docs/maintenance.md
+  h_580a04e334fef4 909-938
+docs/postgresql-setup.md
+  h_580a04e334fef4 154-155
+docs/setup.md
+  h_580a04e334fef4 240-248
+next.config.ts
+  h_580a04e334fef4 45-76
+scripts/maintenance/verifyDockerImages.test.ts
+  h_580a04e334fef4 1-66
+scripts/maintenance/verifyDockerImages.ts
+  h_580a04e334fef4 1-470
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "1fd82c874320e6254ffd464c83c250808bb50a51",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,41 @@
+AGENTS.md
+  s_867498a5a8dd3b::t_ba6f993955e450 173-182
+lib/jobs/createAnnounceJob.test.ts
+  s_867498a5a8dd3b::t_ca0ca20be36207 260-270,274-304,318-319,374-375,377,379-380,382-394,396-405,409-410
+  s_867498a5a8dd3b::t_8cbe23e38b0a1a 271-273,314-317
+  s_867498a5a8dd3b::t_c3a21e06c6f342 320-367
+  s_867498a5a8dd3b::t_6cfe6ea3a8fea5 368-373,376,378,381,395,406-408
+  s_867498a5a8dd3b::t_2c8766b7c6b455 305-313
+REVIEW.md
+  s_867498a5a8dd3b::t_9479a8fdb15853 906-941
+lib/services/polls/syncRemotePoll.test.ts
+  s_867498a5a8dd3b::t_a7a45abbac53df 269-356
+lib/jobs/updatePollJob.test.ts
+  s_867498a5a8dd3b::t_340d219f6d843e 38,48-49,70,219-285
+  s_867498a5a8dd3b::t_b0c86e7f46d66b 286
+lib/jobs/updatePollJob.ts
+  s_867498a5a8dd3b::t_38906845b3dbfc 4-8,31-49
+  s_867498a5a8dd3b::t_9d3fe0d4cd6559 50-52
+lib/jobs/createAnnounceJob.ts
+  s_867498a5a8dd3b::t_187c515d8346c8 103-110
+  s_867498a5a8dd3b::t_4feb248e88fb65 20,23,60-71,76-84
+  s_867498a5a8dd3b::t_9fff3c5c9f2053 72-75
+lib/services/polls/syncRemotePoll.ts
+  s_867498a5a8dd3b::t_187c515d8346c8 8-11,69-92,111-114
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "88953a8ed348785a14fe65174fc6741d55445ffd",
+  "prompts": {},
+  "sessions": {
+    "s_867498a5a8dd3b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "07b215df-f83e-435d-96c9-42900a5bfb30",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

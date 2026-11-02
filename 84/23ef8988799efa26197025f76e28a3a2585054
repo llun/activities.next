@@ -1,0 +1,34 @@
+lib/types/domain/status.test.ts
+  s_69f35b0cf1b1f5::t_558ae89397ceb7 43-54
+lib/utils/isHttpUrl.test.ts
+  s_69f35b0cf1b1f5::t_3ca463b968db24 1-28
+lib/activities/quoteNoteFields.test.ts
+  s_69f35b0cf1b1f5::t_b760e55b1a87fb 173-193
+lib/utils/isHttpUrl.ts
+  s_69f35b0cf1b1f5::t_ca9df92b6e7aa2 1-17
+lib/activities/note.test.ts
+  s_69f35b0cf1b1f5::t_b760e55b1a87fb 106-120
+  s_69f35b0cf1b1f5::t_558ae89397ceb7 46-54,155-183
+lib/activities/note.ts
+  s_69f35b0cf1b1f5::t_bb167af2c8e010 16,38,55-63,79-88,228-231
+lib/activities/quoteNoteFields.ts
+  s_69f35b0cf1b1f5::t_2c0e6870d44dad 7,71-77
+lib/types/domain/status.ts
+  s_69f35b0cf1b1f5::t_57bd4da7ca1cc2 35,332-333,335,339,350
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8423ef8988799efa26197025f76e28a3a2585054",
+  "prompts": {},
+  "sessions": {
+    "s_69f35b0cf1b1f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3e34abf-a75d-4da8-b371-1258aa33721a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

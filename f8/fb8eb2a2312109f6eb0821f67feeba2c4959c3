@@ -1,0 +1,24 @@
+lib/database/sql/fitnessRouteHeatmapTile.test.ts
+  s_38e035b94b20f6::t_165d13359590bf 582,584,586-587,591-592,635
+  s_38e035b94b20f6::t_c30b3fa24a561c 596-598,623-624,639-640
+  s_38e035b94b20f6::t_afbf397294dd4b 575-579,581,583,593-595,603-617,619,621-622
+  s_38e035b94b20f6::t_915ba132ad2b7e 560-561,570-571,634
+  s_38e035b94b20f6::t_3a338efe5031d4 599-602
+  s_38e035b94b20f6::t_ac3d4fc67005fe 572
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "f8fb8eb2a2312109f6eb0821f67feeba2c4959c3",
+  "prompts": {},
+  "sessions": {
+    "s_38e035b94b20f6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a081ac-57c9-75f2-9f13-77ef0756fa54",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

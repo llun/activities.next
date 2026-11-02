@@ -1,0 +1,61 @@
+lib/services/notifications/getNotificationGroup.test.ts
+  s_40b1fc8c7e5992::t_cc2a1503875ed3 35
+lib/services/auth/auth.ts
+  s_40b1fc8c7e5992::t_cc2a1503875ed3 14,32-35
+lib/services/mastodon/getMastodonFilter.ts
+  s_40b1fc8c7e5992::t_cc2a1503875ed3 9,32
+app/api/v1/instance/route.test.ts
+  s_40b1fc8c7e5992::t_cc2a1503875ed3 1-48
+lib/services/mastodon/getMastodonStatusEdits.ts
+  s_40b1fc8c7e5992::t_cc2a1503875ed3 10,69
+app/api/v2/instance/route.test.ts
+  s_40b1fc8c7e5992::t_cc2a1503875ed3 1-60
+lib/services/accounts/getFallbackBlockedAccount.ts
+  s_40b1fc8c7e5992::t_cc2a1503875ed3 3,64
+lib/services/auth/trustedOrigins.test.ts
+  s_40b1fc8c7e5992::t_cc2a1503875ed3 1-44
+lib/services/mastodon/getMastodonStatus.test.ts
+  s_40b1fc8c7e5992::t_cc2a1503875ed3 13,459
+lib/database/sql/account.test.ts
+  s_40b1fc8c7e5992::t_cc2a1503875ed3 92
+lib/services/auth/trustedOrigins.ts
+  s_40b1fc8c7e5992::t_cc2a1503875ed3 1-37
+lib/services/notifications/getNotificationGroup.ts
+  s_40b1fc8c7e5992::t_cc2a1503875ed3 6,70
+app/api/v1/reports/route.ts
+  s_40b1fc8c7e5992::t_cc2a1503875ed3 5,89
+lib/database/sql/actor.test.ts
+  s_40b1fc8c7e5992::t_cc2a1503875ed3 30,326,469,500,582,589,597-698,758,826
+lib/services/accounts/getFallbackMutedAccount.ts
+  s_40b1fc8c7e5992::t_cc2a1503875ed3 3,64
+app/api/v1/instance/route.ts
+  s_40b1fc8c7e5992::t_cc2a1503875ed3 4,25
+lib/utils/getISOTimeUTC.ts
+  s_40b1fc8c7e5992::t_cc2a1503875ed3 10-19
+lib/database/sql/actor.ts
+  s_40b1fc8c7e5992::t_cc2a1503875ed3 69,258-270,283,316
+lib/services/mastodon/getMastodonFilter.test.ts
+  s_40b1fc8c7e5992::t_cc2a1503875ed3 53-55
+lib/utils/getISOTimeUTC.test.ts
+  s_40b1fc8c7e5992::t_cc2a1503875ed3 1,16-27
+app/api/v2/instance/route.ts
+  s_40b1fc8c7e5992::t_cc2a1503875ed3 3,30
+lib/services/mastodon/getMastodonStatus.ts
+  s_40b1fc8c7e5992::t_cc2a1503875ed3 13,304,307,425
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "e4ad3469d2572c576dd2fb6dbf9f69d2e6ef4101",
+  "prompts": {},
+  "sessions": {
+    "s_40b1fc8c7e5992": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4fa5e634-dd59-460d-828a-394cfdbd5c7b",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

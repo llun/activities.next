@@ -1,0 +1,19 @@
+lib/services/auth/getSession.test.ts
+  s_fa7033e52f84b1::t_598d774c3bfc89 10,12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "f8cc45c7754f6046595202ff6196657ee0875d18",
+  "prompts": {},
+  "sessions": {
+    "s_fa7033e52f84b1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "53796083-39cd-4ea1-b5f2-cb502febf0e7",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

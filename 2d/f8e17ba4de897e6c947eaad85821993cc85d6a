@@ -1,0 +1,23 @@
+lib/actions/utils.ts
+  b25d2f3fab6a325a 46-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "2df8e17ba4de897e6c947eaad85821993cc85d6a",
+  "prompts": {
+    "b25d2f3fab6a325a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dcfd1-ab95-7542-a5bc-19960d49a8f6",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 4,
+      "total_deletions": 2,
+      "accepted_lines": 1717,
+      "overriden_lines": 0
+    }
+  }
+}

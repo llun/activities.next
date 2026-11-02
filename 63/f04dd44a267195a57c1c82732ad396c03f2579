@@ -1,0 +1,18 @@
+app/api/v1/fitness/gear/[id]/route.test.ts
+  h_580a04e334fef4 72-94,100-102
+app/api/v1/fitness/gear/route.test.ts
+  h_580a04e334fef4 70-92,98-100
+app/api/v1/fitness/general/route.test.ts
+  h_580a04e334fef4 66-88,108-110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "63f04dd44a267195a57c1c82732ad396c03f2579",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

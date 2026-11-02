@@ -1,0 +1,23 @@
+lib/database/sql/pushSubscription.ts
+  s_0286db854ecabc::t_e7ee7a7c820ad6 78-85,89
+lib/database/sql/pushSubscription.test.ts
+  s_0286db854ecabc::t_f03f3ff6f42470 6-27
+migrations/20260530120000_add_push_subscription_alerts.js
+  s_0286db854ecabc::t_55e08a74fae704 32-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "128a36646d0aeea7e011ba8edd2d94147c11996c",
+  "prompts": {},
+  "sessions": {
+    "s_0286db854ecabc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1a2fb078-8e8e-46e6-b1f1-5c8667e29f13",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

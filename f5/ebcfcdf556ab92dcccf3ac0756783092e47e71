@@ -1,0 +1,19 @@
+app/(timeline)/admin/system/page.tsx
+  s_905a36efc42cc8::t_12a16942d45585 27-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "f5ebcfcdf556ab92dcccf3ac0756783092e47e71",
+  "prompts": {},
+  "sessions": {
+    "s_905a36efc42cc8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1a89-8cc8-7622-8891-8d80780383ce",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

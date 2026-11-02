@@ -1,0 +1,16 @@
+app/(nosidebar)/auth/confirmation/page.test.tsx
+  h_580a04e334fef4 1-143
+app/(nosidebar)/auth/confirmation/page.tsx
+  h_580a04e334fef4 34-38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "3d1154607e140290e6e6d6ed23b4745a042afec1",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

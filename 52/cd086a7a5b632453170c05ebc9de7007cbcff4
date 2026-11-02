@@ -1,0 +1,18 @@
+lib/utils/text/cleanClassName.dom.test.tsx
+  h_580a04e334fef4 110-127
+lib/utils/text/cleanClassName.test.ts
+  h_580a04e334fef4 58,150,154-186
+lib/utils/text/cleanClassName.ts
+  h_580a04e334fef4 7,10-13,41-46,55-59,89-92,95-100,114-131
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "52cd086a7a5b632453170c05ebc9de7007cbcff4",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

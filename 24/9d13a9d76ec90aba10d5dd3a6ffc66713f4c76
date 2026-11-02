@@ -1,0 +1,20 @@
+app/(timeline)/bookmarks/BookmarksTimeline.test.tsx
+  h_580a04e334fef4 8-12,83-103,236-316
+app/(timeline)/bookmarks/BookmarksTimeline.tsx
+  h_580a04e334fef4 8-11,17-18,50,52,54,56,58-62,64,66-109,181-182,184-185
+app/(timeline)/favorites/FavoritesTimeline.test.tsx
+  h_580a04e334fef4 8-12,83-103,236-314
+app/(timeline)/favorites/FavoritesTimeline.tsx
+  h_580a04e334fef4 8-11,17,50,52,54,56-57,60-64,66,68-97,102-112,181-182,184
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "249d13a9d76ec90aba10d5dd3a6ffc66713f4c76",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

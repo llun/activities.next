@@ -1,0 +1,16 @@
+lib/components/media-details/media-details-dialog.test.tsx
+  h_580a04e334fef4 232-261
+lib/components/media-details/media-details-dialog.tsx
+  h_580a04e334fef4 1681-1690
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e46902e5387c03f3ff62ec9cfa1dd84c811db20d",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

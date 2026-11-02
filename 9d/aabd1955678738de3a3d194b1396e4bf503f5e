@@ -1,0 +1,38 @@
+docs/architecture.md
+  s_80d63357656a60::t_ead37cfea3d95e 163-167,169-178
+  s_80d63357656a60::t_6b464f5f19838a 168
+lib/services/medias/localFile.test.ts
+  s_80d63357656a60::t_571015f0d24c25 135-137,139-143,146
+  s_80d63357656a60::t_46ec197fb6dc13 183
+  s_80d63357656a60::t_05e4b5a5e21318 148-166,169-182,189-192,195-197
+  s_80d63357656a60::t_65a5030ed3c590 147
+lib/services/medias/constants.ts
+  s_80d63357656a60::t_3347b4eb08cef7 22
+lib/services/medias/localFile.ts
+  s_80d63357656a60::t_780fb46a04c29f 13
+  s_80d63357656a60::t_3347b4eb08cef7 232
+lib/services/medias/S3StorageFile.ts
+  s_80d63357656a60::t_3347b4eb08cef7 527
+  s_80d63357656a60::t_b39d74c287e66a 21-22
+REVIEW.md
+  s_80d63357656a60::t_23e4cee0088d1b 214-225
+lib/services/medias/S3StorageFile.test.ts
+  s_80d63357656a60::t_0cece2dacf2a50 482-483,486-503,506,509-517,519,521-522
+  s_80d63357656a60::t_79031ed8d7a5bd 422,425,429,441
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "9daabd1955678738de3a3d194b1396e4bf503f5e",
+  "prompts": {},
+  "sessions": {
+    "s_80d63357656a60": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "aa909b6f-5587-4b6f-990c-c8bbd13fc2ee",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

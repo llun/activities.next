@@ -1,0 +1,27 @@
+lib/jobs/deleteActorJob.test.ts
+  s_181a4d159922fc::t_0089b3849ad6f2 15-19,26-27
+  s_181a4d159922fc::t_240765b928dae6 81-93
+lib/jobs/deleteActorJob.ts
+  s_181a4d159922fc::t_22352356e85779 6-7
+  s_181a4d159922fc::t_86afc45ab435db 160-168,172-173
+lib/services/email/templates/actorDeleted.test.ts
+  s_181a4d159922fc::t_3a16f9e1b071e3 1-74
+lib/services/email/templates/actorDeleted.ts
+  s_181a4d159922fc::t_99736afe63271d 2-5,7-13,15-25,27-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "4237ecc6eeddb95051d2d72689d8748ecdfa622e",
+  "prompts": {},
+  "sessions": {
+    "s_181a4d159922fc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8b59141f-f9f0-4af4-8aea-39520836e6cc",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

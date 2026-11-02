@@ -1,0 +1,26 @@
+scripts/mock/renderEmailPreviews.ts
+  s_181a4d159922fc::t_4ec09302f0c37e 37-42,47
+  s_181a4d159922fc::t_bbc04d8054442f 8-10,77-109,149-194
+REVIEW.md
+  s_181a4d159922fc::t_f01b934bf03859 172-176,194-196
+AGENTS.md
+  s_181a4d159922fc::t_def9a0ae14f0d2 265-270
+docs/maintenance.md
+  s_181a4d159922fc::t_f01b934bf03859 132-133
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "c208b18845b566507e867079b041c147eeab84b4",
+  "prompts": {},
+  "sessions": {
+    "s_181a4d159922fc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8b59141f-f9f0-4af4-8aea-39520836e6cc",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

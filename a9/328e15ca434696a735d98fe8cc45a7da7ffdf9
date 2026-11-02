@@ -1,0 +1,30 @@
+docs/environment-variables.md
+  s_67d6a3d62c18c1::t_a63d00100d1faf 120-123,125-126
+  s_67d6a3d62c18c1::t_2fd14860419380 116-119,124,127
+docs/features.md
+  s_67d6a3d62c18c1::t_1655bd200d2ffa 73
+  s_67d6a3d62c18c1::t_fcc6acce60e557 20-22
+  s_67d6a3d62c18c1::t_2715c9844cb595 38-39
+  s_67d6a3d62c18c1::t_1859543182759b 23
+  s_67d6a3d62c18c1::t_26802f88125d2e 90,96
+  s_67d6a3d62c18c1::t_ea7e3d99d910de 62-64,66-72
+docs/architecture.md
+  s_67d6a3d62c18c1::t_511a448d35cf1a 22
+  s_67d6a3d62c18c1::t_aec3a19418408b 184-188
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "a9328e15ca434696a735d98fe8cc45a7da7ffdf9",
+  "prompts": {},
+  "sessions": {
+    "s_67d6a3d62c18c1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bee42b74-0684-4ba9-818e-f036feff091e",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

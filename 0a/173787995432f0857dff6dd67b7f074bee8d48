@@ -1,0 +1,23 @@
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  s_d64282cd90258d::t_f24cbadbfbec06 524-530,535,543,556-563,566-571
+lib/components/section-nav-dropdown.tsx
+  s_d64282cd90258d::t_9ac94055579219 91-116,121,123-133
+lib/components/section-nav-dropdown.test.tsx
+  s_d64282cd90258d::t_1b804cac73ad4f 78-101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "0a173787995432f0857dff6dd67b7f074bee8d48",
+  "prompts": {},
+  "sessions": {
+    "s_d64282cd90258d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1faea951-ef32-48eb-adf5-9d2f315d8d61",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

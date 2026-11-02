@@ -1,0 +1,19 @@
+test/blockOutboundNetwork.test.ts
+  s_105503f3c29141::t_3ada7f2c1d2750 89-93
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d9e0ba2ceef6dc796870222f938ed0f4b1ae9926",
+  "prompts": {},
+  "sessions": {
+    "s_105503f3c29141": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "752c80de-5127-43bc-95ab-b598a5a1ff8c",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

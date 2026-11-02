@@ -1,0 +1,19 @@
+lib/jobs/fetchRemoteStatusJob.test.ts
+  s_72375bcda0316c::t_a6b638cb875f31 283-285,290-300
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9ddd78d4c1bdc331ec8084867408222f4abf03d7",
+  "prompts": {},
+  "sessions": {
+    "s_72375bcda0316c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9f685370-5e5e-4e92-8d93-c98fe8d04dac",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

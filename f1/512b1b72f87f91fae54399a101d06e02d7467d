@@ -1,0 +1,28 @@
+lib/database/sql/scheduledStatus.ts
+  s_aad18c3f613de8::t_9bf75b451f05ab 144-148
+  s_aad18c3f613de8::t_f31cd373a477b2 76-95,97-110,113,115
+lib/database/sql/scheduledStatus.test.ts
+  s_aad18c3f613de8::t_6983e34c097e12 119,121-122,133,135-136,141-145,147,151,153,155,159,161,163,167,169
+  s_aad18c3f613de8::t_e96ae423901009 198-219
+lib/jobs/publishScheduledStatusJob.test.ts
+  s_aad18c3f613de8::t_68545e2ac70b2c 163-193
+lib/jobs/publishScheduledStatusJob.ts
+  s_aad18c3f613de8::t_f679a03055a51f 68-73,75-85,87
+  s_aad18c3f613de8::t_4db30a912cfd66 138
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "f1512b1b72f87f91fae54399a101d06e02d7467d",
+  "prompts": {},
+  "sessions": {
+    "s_aad18c3f613de8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b99b1bb-fc82-4e50-b1dc-acabeb2082ce",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

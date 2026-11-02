@@ -1,0 +1,19 @@
+package.json
+  s_9917b6f1b8a821::t_bb509657de1fe5 76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "b181589fd1f99a9e3465bcaa19cb0e022ad04d1e",
+  "prompts": {},
+  "sessions": {
+    "s_9917b6f1b8a821": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3d8cba6f-9eb3-4d9c-b4f6-29711aad67f2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

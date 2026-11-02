@@ -1,0 +1,24 @@
+app/(timeline)/notifications/NotificationItem.test.tsx
+  s_b362db93d911c1::t_c745ddaa44a573 146
+  s_b362db93d911c1::t_4b876dbcf594f4 147-150
+app/(timeline)/notifications/NotificationItem.tsx
+  s_b362db93d911c1::t_4b876dbcf594f4 52-53,119
+app/(timeline)/notifications/components/ActivityImportNotification.tsx
+  s_b362db93d911c1::t_4b876dbcf594f4 1,25-44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "cff9c25cfe5213298147863682cde9b63641ec2f",
+  "prompts": {},
+  "sessions": {
+    "s_b362db93d911c1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e12b3-9cbd-7450-9de2-d1f8dd4315a0",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

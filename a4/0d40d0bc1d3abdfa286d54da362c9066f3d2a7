@@ -1,0 +1,24 @@
+app/api/users/[username]/inbox/route.test.ts
+  h_580a04e334fef4 5,46-59,219-220,222,259-262,969-1059
+app/api/users/[username]/inbox/route.ts
+  h_580a04e334fef4 1,32,55,57-77,222-226,607-619
+lib/services/guards/ActivityPubVerifyGuard.test.ts
+  h_580a04e334fef4 1,5,45-46,52,59,81-82,84,95-98,508-857
+lib/services/guards/ActivityPubVerifyGuard.ts
+  h_580a04e334fef4 20,40-50,179,183-188,198-207,211-222,227,235-240,244-252,262-273,278-287,294-303
+lib/services/guards/inboxRejectionTrace.ts
+  h_580a04e334fef4 1-39
+lib/testing/recordingTracer.ts
+  h_580a04e334fef4 1-178
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "a40d40d0bc1d3abdfa286d54da362c9066f3d2a7",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

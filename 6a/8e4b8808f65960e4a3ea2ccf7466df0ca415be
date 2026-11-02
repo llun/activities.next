@@ -1,0 +1,24 @@
+lib/database/sql/account.test.ts
+  s_a4109b2d9b71dd::t_c92f87fb717f8f 457-481
+lib/database/sql/account.ts
+  s_a4109b2d9b71dd::t_d9ce14e58239a3 13
+  s_a4109b2d9b71dd::t_333601424afe14 567-583,590-596
+migrations/20260611090000_lowercase_account_emails.js
+  s_a4109b2d9b71dd::t_96e52db69e1338 51-58,63-73,77-78,92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "6a8e4b8808f65960e4a3ea2ccf7466df0ca415be",
+  "prompts": {},
+  "sessions": {
+    "s_a4109b2d9b71dd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "027e6fe0-5adf-4bd1-96f8-b6e384141935",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

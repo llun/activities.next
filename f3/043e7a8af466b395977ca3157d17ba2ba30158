@@ -1,0 +1,19 @@
+docs/fitness-file-storage.md
+  s_a9667879921056::t_505bf200b323d2 309
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f3043e7a8af466b395977ca3157d17ba2ba30158",
+  "prompts": {},
+  "sessions": {
+    "s_a9667879921056": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "67df7cff-fdae-471d-b2b4-858ab596a529",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

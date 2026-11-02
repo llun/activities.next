@@ -1,0 +1,36 @@
+CONTRIBUTING.md
+  s_34d03b3dcd3e5c::t_351ebf01d49c7b 304
+  s_34d03b3dcd3e5c::t_b66d5673ff02aa 328
+  s_34d03b3dcd3e5c::t_58e49c6bc2e0d4 113-114
+REVIEW.md
+  s_34d03b3dcd3e5c::t_a46a9836bc7568 166-171
+package.json
+  s_34d03b3dcd3e5c::t_f9980a4099c755 20-22
+  s_34d03b3dcd3e5c::t_e07df89fb38a09 141
+CLAUDE.md
+  s_34d03b3dcd3e5c::t_42330aa6134529 30
+.husky/pre-commit
+  s_34d03b3dcd3e5c::t_814564d2aa274c 2
+  s_34d03b3dcd3e5c::t_4a23f8f1833695 1
+AGENTS.md
+  s_34d03b3dcd3e5c::t_1404d3417b2a7c 431
+  s_34d03b3dcd3e5c::t_2e3eaf60aa4a5b 358-371
+yarn.lock
+  s_34d03b3dcd3e5c::t_ffa6d17490999c 4785,4842-4850,4858-4864,4881-4887,5624-5642,6165-6171,6252-6258,6853-6859,7183-7189,7874-7882,8587-8617,8650-8662,9405-9411,9919-9927,11049-11058,11073-11079,11635-11641,11660-11679,11805-11811,11823-11843,11952-11960,12169,13090-13100,13112-13122,13186-13194
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a16d182d2bba8ca7b3c2fa02eaff7ad6663df585",
+  "prompts": {},
+  "sessions": {
+    "s_34d03b3dcd3e5c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c7f3fce2-16e8-48c5-8f9a-5ccc0aa7f3cb",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

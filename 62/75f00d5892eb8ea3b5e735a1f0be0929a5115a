@@ -1,0 +1,60 @@
+app/(timeline)/fitness/layout.tsx
+  s_6a0c31765ecb38::t_67eee915cc5c5e 21
+app/(timeline)/fitness/page.tsx
+  s_6a0c31765ecb38::t_dc7fc4705e7303 110
+app/(timeline)/fitness/layout.test.tsx
+  s_6a0c31765ecb38::t_3fe31075fc1e52 69-75
+  s_6a0c31765ecb38::t_3ba6f5151f0c8f 22-33,37
+lib/components/fitness/HeatmapRegionPicker.test.tsx
+  s_6a0c31765ecb38::t_e731ad0d4e4f0e 71-73,86-106
+  s_6a0c31765ecb38::t_7cd6fe339dae78 7-9,17-34,37-39
+lib/utils/http-headers/csp.ts
+  s_6a0c31765ecb38::t_7e8eb6c8e155d9 194-195,200-201
+  s_6a0c31765ecb38::t_019547c8e890aa 175
+  s_6a0c31765ecb38::t_db75d0a7c45341 12-19
+  s_6a0c31765ecb38::t_d67632f41c7afc 140-142
+  s_6a0c31765ecb38::t_d61810873fa2db 159
+next.config.test.ts
+  s_6a0c31765ecb38::t_49e93d4dd08dcd 361
+  s_6a0c31765ecb38::t_cdc444d7379288 215-238
+  s_6a0c31765ecb38::t_b4ac851c11ebe4 413-418
+  s_6a0c31765ecb38::t_ad6d562b58b256 282-283
+lib/utils/http-headers/csp.test.ts
+  s_6a0c31765ecb38::t_af3788bd0f7156 10,14,18
+  s_6a0c31765ecb38::t_e207af28f05acc 55-97,101-112
+  s_6a0c31765ecb38::t_3fe31075fc1e52 98-100
+lib/components/fitness/RegionMap.tsx
+  s_6a0c31765ecb38::t_557076fd64c483 1-344
+app/(timeline)/fitness/heatmap/FitnessHeatmapView.tsx
+  s_6a0c31765ecb38::t_06cf7366c4a31d 1022-1026
+lib/utils/maplibre.ts
+  s_6a0c31765ecb38::t_3fe48298bc81d5 1-16,19-147
+  s_6a0c31765ecb38::t_3fe31075fc1e52 17-18
+lib/components/fitness/HeatmapRegionPicker.tsx
+  s_6a0c31765ecb38::t_dcbdb5e21514d3 194-208
+  s_6a0c31765ecb38::t_ed839a70826303 411
+  s_6a0c31765ecb38::t_22d9c6296b3341 4
+  s_6a0c31765ecb38::t_8828a02aa3ce89 337-338,347-348
+  s_6a0c31765ecb38::t_caf92d8469f62a 404
+  s_6a0c31765ecb38::t_6439948fc1e5af 131-132,137-142,147,155-174
+  s_6a0c31765ecb38::t_e193fe9aabb25c 6,17-18
+lib/components/fitness/RegionMap.test.tsx
+  s_6a0c31765ecb38::t_3fe31075fc1e52 96-99,108-115
+  s_6a0c31765ecb38::t_04be7d9fb1b0cb 1-95,100-107,116-161
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "6275f00d5892eb8ea3b5e735a1f0be0929a5115a",
+  "prompts": {},
+  "sessions": {
+    "s_6a0c31765ecb38": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a6c16cc3-2ab6-4451-a690-238a35bd1533",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

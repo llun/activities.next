@@ -1,0 +1,34 @@
+lib/services/wellknown/index.test.ts
+  s_7d56b78fa695bc::t_f2bbec34ab4096 134-175
+  s_7d56b78fa695bc::t_6129ca73357770 5
+next.config.ts
+  s_7d56b78fa695bc::t_fb42b0bf1b6573 73-74
+lib/services/wellknown/index.ts
+  s_7d56b78fa695bc::t_5245c96a972651 11-18
+lib/services/wellknown/nodeinfo.ts
+  s_7d56b78fa695bc::t_3a8ab0a2763b65 2-3,14-34,41,46-79
+lib/utils/version.ts
+  s_7d56b78fa695bc::t_e6811da9043606 5-13
+app/api/nodeinfo/2.0/route.ts
+  s_7d56b78fa695bc::t_da62221bfa3b35 1-29
+app/api/well-known/nodeinfo/2.0/route.ts
+  s_7d56b78fa695bc::t_bc741236d499ab 3,15-16,27
+app/api/nodeinfo/route.ts
+  s_7d56b78fa695bc::t_d845084dfb4e1e 3,5,18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "f312edd51a4e0e8577add5fe5d295a0d6e6df9b5",
+  "prompts": {},
+  "sessions": {
+    "s_7d56b78fa695bc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "852fa913-bcca-4fda-9906-f7ed14eda59b",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+lib/services/medias/getMediaAttachment.test.ts
+  s_f7b91ac6284bd0::t_f1b6db9ae12c15 91-106
+lib/services/medias/getMediaAttachment.ts
+  s_f7b91ac6284bd0::t_fdfa20f65fd76c 67-70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0a1e01a519cdb395c40bcc9d7393a5d9dc568610",
+  "prompts": {},
+  "sessions": {
+    "s_f7b91ac6284bd0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7e5d29e0-cb70-4516-b716-6108a10b94a2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

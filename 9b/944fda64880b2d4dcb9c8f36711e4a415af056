@@ -1,0 +1,139 @@
+app/(timeline)/[actor]/[status]/page.visibility.test.tsx
+  s_c2b45d1e3d2b49::t_f567bd99aecc0e 58-60
+app/u/heatmaps/[token]/SharedHeatmapPage.tsx
+  s_c2b45d1e3d2b49::t_e50d0fdd29bcc4 15-16,32,120
+  s_c2b45d1e3d2b49::t_afd172fd709994 8
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  s_c2b45d1e3d2b49::t_77b6d935cba58d 184-185,187
+  s_c2b45d1e3d2b49::t_f22b6e174d8d96 860,869
+  s_c2b45d1e3d2b49::t_c54257567005d0 1225
+  s_c2b45d1e3d2b49::t_14e67e34e064d0 1364-1366
+  s_c2b45d1e3d2b49::t_5efebb26e48a41 1980,2034
+  s_c2b45d1e3d2b49::t_07965bcde2e4f9 69-72,75-82
+  s_c2b45d1e3d2b49::t_75c258870d0965 939,946-948
+  s_c2b45d1e3d2b49::t_9c9dadd56ceefa 100-101
+  s_c2b45d1e3d2b49::t_e1f69c4438a0eb 1077
+  s_c2b45d1e3d2b49::t_a7dd46e18d4e2f 890-901,903
+  s_c2b45d1e3d2b49::t_f1d064cc8d6d06 1184
+  s_c2b45d1e3d2b49::t_50f205fe5d39a9 83
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.test.tsx
+  s_c2b45d1e3d2b49::t_d5c47bbe6e9a52 183
+  s_c2b45d1e3d2b49::t_a9379207954228 33-40
+app/embed/heatmap/[token]/image/route.test.ts
+  s_c2b45d1e3d2b49::t_97930de44921e2 108,121-168
+  s_c2b45d1e3d2b49::t_7ad5291103c75f 60
+  s_c2b45d1e3d2b49::t_505ef25a42a095 87-89,171-173,199-201,224-226,252-254
+  s_c2b45d1e3d2b49::t_9ca5f2ca1a9044 16-19
+  s_858cbde11d6469::t_17a1c789495891 169
+app/(timeline)/[actor]/[status]/StatusBox.tsx
+  s_c2b45d1e3d2b49::t_086f40210970f3 39
+  s_c2b45d1e3d2b49::t_975aefc4b9e86e 18
+  s_c2b45d1e3d2b49::t_a955d727675229 25-26
+  s_c2b45d1e3d2b49::t_5497d15a27aa6e 67
+lib/components/fitness/RegionHeatmapDetail.tsx
+  s_c2b45d1e3d2b49::t_9d1a98b27b38d7 493
+  s_c2b45d1e3d2b49::t_211b0a5ef6efe7 27
+  s_c2b45d1e3d2b49::t_e50d0fdd29bcc4 309-310,344,516
+lib/components/settings/FitnessPrivacyLocationSettings.test.tsx
+  s_c2b45d1e3d2b49::t_3279d0914c8afd 35,45-46,49
+  s_c2b45d1e3d2b49::t_4d7a8f0734ac8d 43,113,195,252,307,388,458,515
+  s_c2b45d1e3d2b49::t_bb54238ea885fc 9-19
+app/embed/heatmap/[token]/PublicHeatmapEmbed.tsx
+  s_c2b45d1e3d2b49::t_7673a6db989bed 7
+  s_c2b45d1e3d2b49::t_e50d0fdd29bcc4 11-12,22,31
+lib/components/fitness/RouteHeatmapMap.tsx
+  s_c2b45d1e3d2b49::t_e8fe8a7236cc50 16-18
+  s_c2b45d1e3d2b49::t_c228963cb66e4c 168-174,176-181
+  s_c2b45d1e3d2b49::t_872dfc82592161 175
+  s_c2b45d1e3d2b49::t_9eb20e29390216 121-122
+  s_c2b45d1e3d2b49::t_6750c10dea669f 137-145,148
+lib/components/fitness/RouteHeatmapMap.test.tsx
+  s_c2b45d1e3d2b49::t_3d057dee439ca2 20
+  s_c2b45d1e3d2b49::t_2eec77735d2d8f 120-125,168-173
+  s_c2b45d1e3d2b49::t_fbf70e91b0cf30 148-151
+app/(timeline)/fitness/heatmap/page.tsx
+  s_c2b45d1e3d2b49::t_e9c841bd83a146 38
+  s_c2b45d1e3d2b49::t_db7fcde56625fe 6-7
+  s_c2b45d1e3d2b49::t_264adddb8d3748 59
+app/embed/heatmap/[token]/page.tsx
+  s_c2b45d1e3d2b49::t_1fffd4ab29fd89 5
+  s_c2b45d1e3d2b49::t_62dea7fdd4472a 83
+  s_c2b45d1e3d2b49::t_eeef655247ba2f 39
+lib/components/fitness/HeatmapRegionPicker.test.tsx
+  s_c2b45d1e3d2b49::t_96c55c6cf350b6 25-26
+  s_c2b45d1e3d2b49::t_9d1a98b27b38d7 53-59,64-70,80-86,96-102,168-174,186-192,212-218,237-243,255-261,271-277,288,303,335,355,372-378,393,409,425
+  s_c2b45d1e3d2b49::t_195ecc690ba524 120-143,155
+app/(timeline)/[actor]/[status]/page.remote-signing.test.tsx
+  s_c2b45d1e3d2b49::t_8e9378ced1b13b 65-67
+app/embed/heatmap/[token]/image/route.ts
+  s_c2b45d1e3d2b49::t_7a6de889e5cdd4 80-83,87-89,95
+  s_c2b45d1e3d2b49::t_32551dce261e15 3
+app/u/heatmaps/[token]/page.tsx
+  s_c2b45d1e3d2b49::t_d51f1def712d7a 6
+  s_c2b45d1e3d2b49::t_78a159f0f21080 83,88
+lib/components/settings/FitnessPrivacyLocationSettings.tsx
+  s_c2b45d1e3d2b49::t_da91bc2c660bdc 341-350
+  s_c2b45d1e3d2b49::t_6daf69bfc4e937 468,491,502,513-515
+  s_c2b45d1e3d2b49::t_71b3631f8d0fb8 317
+  s_c2b45d1e3d2b49::t_c28e3699319426 93-94,96
+  s_c2b45d1e3d2b49::t_56ab8ea0c228ba 857-867,869-872
+  s_c2b45d1e3d2b49::t_26f07922b1894c 591
+  s_c2b45d1e3d2b49::t_30ef31809b8127 28-40,43-44
+app/(timeline)/fitness/heatmap/FitnessHeatmapView.test.tsx
+  s_c2b45d1e3d2b49::t_fa63f4a08a842d 1148
+  s_c2b45d1e3d2b49::t_4e063c4e5f9730 1170,1177,1187
+  s_c2b45d1e3d2b49::t_9d1a98b27b38d7 270-274,305-309,332-336,346-350,385-389,404-408,421-425,453-457,493-497,520-524,534-538,571-575,617-621,645-649,681-685,716-720,741-745,780-784,796-800,835-839,874-878,910-914,962-966,1000-1004,1038-1042,1071-1073,1095-1097,1128-1130,1219-1221,1239-1241,1273-1278,1310-1315,1360-1365,1393-1395,1443-1445,1462-1464,1483-1488
+  s_c2b45d1e3d2b49::t_aca65681492641 1348
+  s_c2b45d1e3d2b49::t_ef6218125e3f5b 1196-1212
+  s_c2b45d1e3d2b49::t_d1fc4af7df69d7 1159
+lib/components/fitness/HeatmapShareEmbed.tsx
+  s_c2b45d1e3d2b49::t_211b0a5ef6efe7 21
+  s_c2b45d1e3d2b49::t_e50d0fdd29bcc4 152-153,180,338
+app/(timeline)/fitness/privacy/page.tsx
+  s_c2b45d1e3d2b49::t_9a4b0b78dcf4eb 6
+  s_c2b45d1e3d2b49::t_b7a67e820e2e6c 29
+  s_c2b45d1e3d2b49::t_2b43f6ebb616be 37
+lib/components/fitness/HeatmapRegionPicker.tsx
+  s_c2b45d1e3d2b49::t_a3bb7cbbd177f5 207-212,217-222
+  s_c2b45d1e3d2b49::t_1a4a307758f29d 29-32
+  s_c2b45d1e3d2b49::t_9d1a98b27b38d7 213-216
+  s_c2b45d1e3d2b49::t_47f38e5494a83c 482-483
+  s_c2b45d1e3d2b49::t_7be16d5a5a4fd6 253-255
+  s_c2b45d1e3d2b49::t_a8d0d08f5aa15b 53-61
+  s_c2b45d1e3d2b49::t_1efaed8761a620 505
+  s_c2b45d1e3d2b49::t_c0908d24544e50 583
+  s_c2b45d1e3d2b49::t_9e8902f85656ca 181-182,189
+app/(timeline)/fitness/heatmap/FitnessHeatmapView.tsx
+  s_c2b45d1e3d2b49::t_eb3898736b7b1a 32
+  s_c2b45d1e3d2b49::t_9665b82c1d2fdc 42-43
+  s_c2b45d1e3d2b49::t_ee84c6b34d6387 164
+  s_c2b45d1e3d2b49::t_9cfe46bbda29a4 634,684
+app/(timeline)/[actor]/[status]/page.tsx
+  s_c2b45d1e3d2b49::t_5bdd2f352cf7aa 49-50
+  s_c2b45d1e3d2b49::t_65364a3771ee1e 7
+  s_c2b45d1e3d2b49::t_ef4cd4f1facd13 276,327,338,371
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9b944fda64880b2d4dcb9c8f36711e4a415af056",
+  "prompts": {},
+  "sessions": {
+    "s_858cbde11d6469": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "167f6240-69aa-47f6-a5d7-06fbf018b18f",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_c2b45d1e3d2b49": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b970d6ff-c482-4d45-848b-32f588a95c10",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

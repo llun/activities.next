@@ -1,0 +1,21 @@
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.test.tsx
+  s_326ec3e82e0e75::t_09c8a8c2a0ea55 519-526
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  s_326ec3e82e0e75::t_09c8a8c2a0ea55 153-154
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "35d9c50a95e515f17febe186e7a3bc12315fda0e",
+  "prompts": {},
+  "sessions": {
+    "s_326ec3e82e0e75": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9c28552d-e2fa-4115-9f9d-ff00ded45c5b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

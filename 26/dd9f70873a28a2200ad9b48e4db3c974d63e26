@@ -1,0 +1,16 @@
+lib/jobs/processForwardedActivityJob.test.ts
+  h_580a04e334fef4 567-595
+lib/jobs/processForwardedActivityJob.ts
+  h_580a04e334fef4 65-69,72,76,80-83,85,151-154,156,166,169,171-176
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "26dd9f70873a28a2200ad9b48e4db3c974d63e26",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

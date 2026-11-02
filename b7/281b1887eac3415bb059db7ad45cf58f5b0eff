@@ -1,0 +1,26 @@
+lib/actions/emojiReaction.ts
+  s_85d91c6baf9d58::t_73d0fbb949a832 140-148,160-161
+lib/types/activitypub/activities.ts
+  s_85d91c6baf9d58::t_73d0fbb949a832 106-113
+lib/activities/jsonld/index.test.ts
+  s_85d91c6baf9d58::t_62170855edbf00 10,573-594
+  s_85d91c6baf9d58::t_3ada88734a758d 595-597
+lib/actions/emojiReaction.test.ts
+  s_85d91c6baf9d58::t_62170855edbf00 275-309
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "b7281b1887eac3415bb059db7ad45cf58f5b0eff",
+  "prompts": {},
+  "sessions": {
+    "s_85d91c6baf9d58": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8685a26c-353a-478b-9125-3aeb9c98a29a",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,22 @@
+app/api/v1/accounts/password/reset/request/route.ts
+  s_5a06cb3e7793df::t_fcd903cc6451c5 11-16,35-50,56-68,134,141,150
+app/api/v1/accounts/password/reset/request/route.test.ts
+  s_5a06cb3e7793df::t_e001f77f04233e 12-20,164,180,197-200
+  s_5a06cb3e7793df::t_78f5e8ff97832d 49-62,153,159-163,165-179,184-196,201-203
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "294a54bea0d0c737f1478497879834d5dc171ad7",
+  "prompts": {},
+  "sessions": {
+    "s_5a06cb3e7793df": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e20d7-2277-7700-90b9-730d82431316",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

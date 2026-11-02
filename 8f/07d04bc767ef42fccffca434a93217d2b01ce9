@@ -1,0 +1,63 @@
+lib/services/accountImport/createImportedStatus.test.ts
+  s_50783debe9bf9d::t_d7db9a11cc3a40 2-3,103-107,112-116,214-217
+  s_50783debe9bf9d::t_17857e1ff98c5a 90
+  s_50783debe9bf9d::t_8058c261664c16 139-143,184
+  s_50783debe9bf9d::t_d9765d00988f30 1,4-76,80-89,91-102,108-111,117-138,144-150,155,158-183,185-213,218-222
+  s_50783debe9bf9d::t_fd28374d631170 151-154,156-157
+  s_50783debe9bf9d::t_b3d01552543907 77-79
+lib/services/accountImport/mappers/mapMastodonItem.ts
+  s_50783debe9bf9d::t_798b0c3321cbdb 41-42
+  s_50783debe9bf9d::t_a472148c27f8ae 1-10,13-17,23-40,44-59,65-78,85-103,106-129,131-138
+  s_50783debe9bf9d::t_ed5bebcf925432 11,60-64
+  s_50783debe9bf9d::t_d7db9a11cc3a40 12,18-22,43,79-84,104-105,130
+lib/services/accountImport/mappers/mapMastodonItem.test.ts
+  s_50783debe9bf9d::t_a0fc866bec4de1 1-14,18-140,161-198,202-204,206-220
+  s_50783debe9bf9d::t_d7db9a11cc3a40 15-17,141-160,199-201,205
+lib/services/accountImport/createImportedStatus.ts
+  s_50783debe9bf9d::t_e295e9637e588b 1-6,13-106,110-125,127-138,142-147,151-271,275-277,279-282,285-332
+  s_50783debe9bf9d::t_d7db9a11cc3a40 7-12,107-109,139-141,148-150,272-274
+  s_50783debe9bf9d::t_d7d7b06ad00417 126,278,283-284
+lib/services/accountImport/mappers/types.ts
+  s_50783debe9bf9d::t_75815e69eba943 1-70,72-75
+  s_50783debe9bf9d::t_d7db9a11cc3a40 71
+lib/services/accountImport/schemas/index.ts
+  s_50783debe9bf9d::t_d7db9a11cc3a40 145,161,210-214,248-250,260-262,266-268,703-705
+  s_50783debe9bf9d::t_8058c261664c16 7-8
+  s_50783debe9bf9d::t_163603b84cc41e 434-461,464-499,571,717
+  s_50783debe9bf9d::t_aa7ce68188799b 462-463
+  s_50783debe9bf9d::t_97cf0bc22ef3bf 1-6,9-144,146-160,162-164,166-209,215-247,251-259,263-265,269-362,364-368,370-388,390-433,500-570,572-702,706-716,718-791
+  s_50783debe9bf9d::t_7b946a6bca9d5f 369,389
+  s_50783debe9bf9d::t_6d535e7d424d55 165,363
+lib/services/accountImport/mappers/mapOwnStatus.ts
+  s_50783debe9bf9d::t_d7db9a11cc3a40 10-14,42-46
+  s_50783debe9bf9d::t_ffa25f4a758014 1-9,15-28,30-41,47-86
+  s_50783debe9bf9d::t_798b0c3321cbdb 29
+lib/services/accountImport/mappers/mapOwnStatus.test.ts
+  s_50783debe9bf9d::t_d7db9a11cc3a40 13-15,54-57,93-95,155-160,179-181
+  s_50783debe9bf9d::t_b5fe8c85ef7001 1-12,16-53,58-92,96-154,161-178,182-184
+lib/services/accountImport/mappers/shared.ts
+  s_50783debe9bf9d::t_8058c261664c16 126
+  s_50783debe9bf9d::t_04c288d6616581 1-7,9-10,12,19-21,25-79,81-83,87-93,99-125,127,135-136,144-145,153-215
+  s_50783debe9bf9d::t_d7db9a11cc3a40 8,11,13-18,22-24,94-98,128-134,137-143,146-152
+  s_50783debe9bf9d::t_70379a0b287cd5 80,84-86
+lib/services/accountImport/noSideEffects.test.ts
+  s_50783debe9bf9d::t_b62e724c7b44e2 2-11,16-31,36-88
+  s_50783debe9bf9d::t_d7db9a11cc3a40 1,12-15
+  s_50783debe9bf9d::t_9964855d8d6115 32-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8f07d04bc767ef42fccffca434a93217d2b01ce9",
+  "prompts": {},
+  "sessions": {
+    "s_50783debe9bf9d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a17d98-532a-7743-a0cb-5438dbdf5c71",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

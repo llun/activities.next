@@ -1,0 +1,25 @@
+docs/architecture.md
+  s_d237589e182cae::t_0c089ab87314e5 2261-2263
+docs/fitness-file-storage.md
+  s_d237589e182cae::t_0a5aa7fdfab179 11
+lib/jobs/importFitnessFilesJob.test.ts
+  s_d237589e182cae::t_95ecff7f05413d 269-337,545-621
+lib/jobs/importFitnessFilesJob.ts
+  s_d237589e182cae::t_a6582937625b22 536-540,543-550,557
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "05e30c066ce7308e2b260a0713fa295260f4c57a",
+  "prompts": {},
+  "sessions": {
+    "s_d237589e182cae": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a17354-5cd1-7e21-91c7-868947d677af",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

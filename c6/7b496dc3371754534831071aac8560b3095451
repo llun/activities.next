@@ -1,0 +1,62 @@
+lib/utils/clampedLimit.ts
+  s_e4efa862839776::t_f43205f83a8365 32,54
+  s_e4efa862839776::t_65543014b9f3e8 20-21,26-29,36,44-45,49-51,58
+app/api/v1/notifications/route.ts
+  s_e4efa862839776::t_cdc6cff210727b 105
+app/api/v2/search/route.ts
+  s_e4efa862839776::t_9b5dd62b33c3b3 82-84
+  s_e4efa862839776::t_3e16b14629fb4a 540
+app/api/v1/endorsements/route.test.ts
+  s_e4efa862839776::t_7f4b7a898a7179 100-117
+app/api/v2/notifications/route.test.ts
+  s_e4efa862839776::t_d63bc155347111 112-118,120-124,126-127,129,131-133
+  s_e4efa862839776::t_61be21e9eeb1b7 128,130
+app/api/v1/accounts/[id]/media/route.ts
+  s_e4efa862839776::t_5626eb62f0fa2a 79
+app/api/v1/notifications/unread_count/route.ts
+  s_e4efa862839776::t_26e2ef8fb0aecc 80
+app/(nosidebar)/auth/signin/PasskeySigninButton.tsx
+  s_e4efa862839776::t_3693c5f3bdc55d 15-19,22
+app/api/v1/accounts/[id]/statuses/route.test.ts
+  s_e4efa862839776::t_2c9dd232631e6e 353-360,366-368,370
+app/api/v1/accounts/[id]/followers/route.test.ts
+  s_e4efa862839776::t_738ac2be6e0b2a 116-136
+app/api/v1/directory/route.test.ts
+  s_e4efa862839776::t_38bb2c191d7a66 1-63
+app/api/v1/accounts/[id]/endorsements/route.test.ts
+  s_e4efa862839776::t_3f6a9f3addecdd 89-105
+lib/utils/http-headers/csp.ts
+  s_e4efa862839776::t_44bd6bcbf533d3 157
+  s_e4efa862839776::t_3937d0b2fb84d9 1
+  s_e4efa862839776::t_7cd5b7e8c3962a 134-138
+app/api/v2/notifications/route.ts
+  s_e4efa862839776::t_f23b9c83c991f0 106
+app/api/v2/notifications/unread_count/route.ts
+  s_e4efa862839776::t_fba828dd51af35 87
+app/api/v1/accounts/[id]/following/route.test.ts
+  s_e4efa862839776::t_5c7ab12b86846f 97-104,108-114
+  s_e4efa862839776::t_f43205f83a8365 105-107
+lib/utils/clampedLimit.test.ts
+  s_e4efa862839776::t_05aa03843d3be2 11,19-23
+  s_e4efa862839776::t_865b7a2ec2c8cc 52-53,58-60
+app/api/v1/accounts/[id]/statuses/route.ts
+  s_e4efa862839776::t_53fa4a6a269dcd 84
+app/api/v1/accounts/search/route.ts
+  s_e4efa862839776::t_6966541df9cfee 59-60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "c67b496dc3371754534831071aac8560b3095451",
+  "prompts": {},
+  "sessions": {
+    "s_e4efa862839776": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0f18127f-264a-416b-b190-6b6fab05d514",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

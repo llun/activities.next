@@ -1,0 +1,79 @@
+lib/types/database/operations.ts
+  a49f82315b1c1f8c 8,32
+lib/types/database/rows.ts
+  a49f82315b1c1f8c 1-2,40,45
+app/api/well-known/webfinger/route.test.ts
+  a49f82315b1c1f8c 52-80
+app/api/users/[username]/route.ts
+  a49f82315b1c1f8c 24-30
+lib/actions/utils.ts
+  a49f82315b1c1f8c 67
+lib/database/sql/account.ts
+  a49f82315b1c1f8c 100,381,434
+lib/utils/getPersonFromActor.ts
+  a49f82315b1c1f8c 8-12,34-38,42,50
+lib/activities/index.ts
+  a49f82315b1c1f8c 375-376,397,428-432,457
+lib/services/guards/OnlyLocalUserGuard.test.ts
+  a49f82315b1c1f8c 4-5,58-67
+lib/types/domain/actor.ts
+  a49f82315b1c1f8c 6-16,19
+app/api/v1/accounts/[id]/follow/route.ts
+  a49f82315b1c1f8c 5,52,55,79
+app/api/v1/accounts/[id]/unfollow/route.ts
+  a49f82315b1c1f8c 4,43-45,47-49
+app/api/v1/accounts/types.test.ts
+  a49f82315b1c1f8c 1-16
+lib/database/sql/status.test.ts
+  a49f82315b1c1f8c 51
+migrations/20260428120000_add_actor_type.js
+  a49f82315b1c1f8c 1-19
+lib/services/federation/instanceActor.ts
+  a49f82315b1c1f8c 1-27
+lib/services/wellknown/webfinger.ts
+  a49f82315b1c1f8c 62-75,79,81
+lib/services/federation/getFederationSigningActor.test.ts
+  a49f82315b1c1f8c 1-48
+lib/services/federation/getFederationSigningActor.ts
+  a49f82315b1c1f8c 2,7,9
+lib/services/guards/OnlyLocalUserGuard.ts
+  a49f82315b1c1f8c 5,36
+app/api/v1/accounts/follow/route.ts
+  a49f82315b1c1f8c 1-2,11,35-50,77-89,99,102,118,132-144,157-159,161
+lib/database/sql/actor.ts
+  a49f82315b1c1f8c 16-22,48,106-130,134,162,178,206,311-343,345-393,395-398,516,584,586-587,727-732
+migrations/schema.sql
+  a49f82315b1c1f8c 55
+lib/database/sql/actor.test.ts
+  a49f82315b1c1f8c 10-14,157,161-163,168,171,191-196,200,204-214,217-227,231-253,262,264,582-587
+app/api/v1/actors/route.ts
+  a49f82315b1c1f8c 6,19-25
+app/api/users/[username]/route.test.ts
+  a49f82315b1c1f8c 8,39-58,116-164
+app/api/v1/accounts/types.ts
+  a49f82315b1c1f8c 3-4,6-12
+app/api/v1/accounts/follow/route.test.ts
+  a49f82315b1c1f8c 5,7,14-20,23-24,28,70,80-110,134-142
+app/api/v1/actors/route.test.ts
+  a49f82315b1c1f8c 4,121-134
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "c5ba0fc44680697f7ed25b0d186979773cfc513e",
+  "prompts": {
+    "a49f82315b1c1f8c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dd26f-8398-7d43-97e7-51e48287bd7d",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 2168,
+      "total_deletions": 96,
+      "accepted_lines": 2128,
+      "overriden_lines": 0
+    }
+  }
+}

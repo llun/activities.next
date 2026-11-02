@@ -1,0 +1,16 @@
+lib/actions/resolveFollowFromActivity.ts
+  h_580a04e334fef4 15-16,19-28,30-33,35-40,59-60,62-77,92-108
+lib/actions/undoFollowRequest.ts
+  h_580a04e334fef4 1,16-17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "9e77b72d78e79c72e10564dd9d0014e5f4f27e06",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

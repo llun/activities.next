@@ -1,0 +1,125 @@
+docs/mastodon-api-compatibility.md
+  s_98d06e57ae2bf0::t_f529650c084da9 646-647,654-657
+app/(timeline)/gallery/media/GallerySelectionBar.tsx
+  s_98d06e57ae2bf0::t_69a04925e83c1b 31-34,60-62,69,74-77,80,97-101,143,145-147,161,163,175,177,198,200
+lib/client/galleryMedia.test.ts
+  s_98d06e57ae2bf0::t_762e588ee09d00 123-140
+lib/components/gallery/GalleryDayHeader.tsx
+  s_98d06e57ae2bf0::t_7620e386201a55 35-36,62,94,109,113,126
+  s_98d06e57ae2bf0::t_a62103b6c22160 106,108
+lib/database/domains/gallery/types.ts
+  s_98d06e57ae2bf0::t_00a62c5ce83bfe 289-290
+app/(timeline)/gallery/albums/GalleryAlbumPicker.tsx
+  s_98d06e57ae2bf0::t_a62103b6c22160 5-14,58
+  s_98d06e57ae2bf0::t_208348a89efff2 174-175,184,190-191,516-520
+  s_98d06e57ae2bf0::t_6628e7785f46c8 567
+lib/database/domains/gallery/media.ts
+  s_98d06e57ae2bf0::t_6f9783c3f9e0e9 3,225,234-239,271
+lib/components/gallery/GalleryDayHeader.test.tsx
+  s_98d06e57ae2bf0::t_e69dcbad4777a8 91-107,112-118,195,215-216,218-223
+  s_98d06e57ae2bf0::t_5b5c6b51304c7d 205,217
+  s_98d06e57ae2bf0::t_0a7e15c5950dd5 108-111
+  s_98d06e57ae2bf0::t_951ab3f3aaec4f 224-226
+app/(timeline)/gallery/media/GallerySelectionBar.test.tsx
+  s_98d06e57ae2bf0::t_0a7e15c5950dd5 140-151,153-184
+  s_98d06e57ae2bf0::t_5b5c6b51304c7d 152
+app/(timeline)/gallery/media/GalleryAllMediaView.test.tsx
+  s_98d06e57ae2bf0::t_e5becbc726c200 1591,1600-1606,1608-1609,2050
+  s_98d06e57ae2bf0::t_dfe831aced6241 2159
+  s_98d06e57ae2bf0::t_5eb45ec1e6b0b7 2053
+  s_98d06e57ae2bf0::t_0a7e15c5950dd5 2173-2174,2186-2193
+  s_98d06e57ae2bf0::t_036989da7c676b 2175-2185
+  s_98d06e57ae2bf0::t_51eab2108dff79 1907-1909,1967-1968,2034-2035,2066,2073,2075-2076,2095,2103,2108-2109,2113-2158,2160-2172
+  s_98d06e57ae2bf0::t_4e1fc92430ca62 2194-2195
+lib/services/gallery/galleryQueries.ts
+  s_98d06e57ae2bf0::t_fbbf6fea4311bf 106-107,355,415
+app/(timeline)/gallery/media/GalleryAllMediaView.tsx
+  s_98d06e57ae2bf0::t_208348a89efff2 150-152,230-231,235,240-265,267-272,274-280,585-594,792-801,874,876
+  s_98d06e57ae2bf0::t_69a04925e83c1b 871-873
+  s_98d06e57ae2bf0::t_036989da7c676b 217-220,875,981,1000
+  s_98d06e57ae2bf0::t_1c596f7b3c47ab 623
+  s_98d06e57ae2bf0::t_5b5c6b51304c7d 870
+app/(timeline)/gallery/albums/GalleryAlbumPicksStrip.tsx
+  s_98d06e57ae2bf0::t_f11518c6d5d076 40-50,77-80,113-119,121,123,125,155-157
+app/(timeline)/gallery/albums/GalleryAlbumPicksStrip.test.tsx
+  s_98d06e57ae2bf0::t_0a7e15c5950dd5 139,154-156
+  s_98d06e57ae2bf0::t_15d2f12870481a 160,164-166,169-171,174-176,185-187,194-196,204-206,209-211,218-222,230-232,235,254-269,271-276
+  s_98d06e57ae2bf0::t_5b5c6b51304c7d 270
+  s_98d06e57ae2bf0::t_c201b0ee073252 25-27,31-32,36-45
+  s_98d06e57ae2bf0::t_127b4939ad1ba6 277
+app/(timeline)/gallery/albums/GalleryAlbumPicksSheet.test.tsx
+  s_98d06e57ae2bf0::t_e2f75d7384d464 91-93
+  s_98d06e57ae2bf0::t_52b250cd4e38e9 98-105,107-109,112-114,121-123,129-133,140-142,162-164
+app/api/v1/accounts/[id]/gallery/media/route.test.ts
+  s_98d06e57ae2bf0::t_5b5c6b51304c7d 928,931,1013,1032
+  s_98d06e57ae2bf0::t_8ab0fdd765a742 826,849-867,923-927,929-930,932-935,1007-1012,1014-1031,1033-1058,1115-1129
+  s_98d06e57ae2bf0::t_c3cc47a95b0e43 901-903,1003-1006
+  s_98d06e57ae2bf0::t_290ae985a6686f 936
+app/(timeline)/gallery/albums/GalleryAlbumFormDialog.test.tsx
+  s_98d06e57ae2bf0::t_258651ecd4a38c 387-391
+  s_98d06e57ae2bf0::t_7fefbb6342f299 157-168
+  s_98d06e57ae2bf0::t_5b5c6b51304c7d 808,829,918,947,974,994,1000,1049,1074-1075,1077,1079-1081,1088-1089,1091,1093-1095,1165,1186
+  s_98d06e57ae2bf0::t_302c7bcacda578 1204
+  s_98d06e57ae2bf0::t_a4b6c46ea2b9ed 320,352
+  s_98d06e57ae2bf0::t_c1c538ac3cab2b 1111-1113
+lib/database/domains/gallery/dayStats.ts
+  s_98d06e57ae2bf0::t_f49610a7e481a2 71
+app/(timeline)/gallery/albums/GalleryAlbumPicker.test.tsx
+  s_98d06e57ae2bf0::t_a47e6e418618af 1224-1227
+  s_98d06e57ae2bf0::t_8868b67e620554 1270,1277-1281,1331-1332,1365,1368,1381,1401,1404,1417,1435,1437-1438
+app/(timeline)/gallery/albums/GalleryAlbumPickerTile.tsx
+  s_98d06e57ae2bf0::t_f11518c6d5d076 95,100-102
+  s_98d06e57ae2bf0::t_37de42242d3169 103-104
+app/(timeline)/gallery/albums/GalleryAlbumPickerTile.test.tsx
+  s_98d06e57ae2bf0::t_48279b4fb84c00 5,300-324
+  s_98d06e57ae2bf0::t_13476ecd09962b 325
+app/(timeline)/gallery/albums/GalleryAlbumPicksSheet.tsx
+  s_98d06e57ae2bf0::t_5b5c6b51304c7d 134-136
+  s_98d06e57ae2bf0::t_f11518c6d5d076 35-45,103,105
+lib/components/gallery/useDaySelection.test.tsx
+  s_98d06e57ae2bf0::t_2c3905ac7fe863 270,476
+  s_98d06e57ae2bf0::t_01bd888b2f19eb 444,465-466,484,672,682,684-685,692
+  s_98d06e57ae2bf0::t_06520923af2505 446-450,452-453
+  s_98d06e57ae2bf0::t_8b2d1d76aaa40f 451
+  s_98d06e57ae2bf0::t_8532f78c12592f 242
+  s_98d06e57ae2bf0::t_8868b67e620554 235-241,243-269,271-277,308
+  s_98d06e57ae2bf0::t_c575776f2cf03d 113
+  s_98d06e57ae2bf0::t_a3ebb59cf43cfb 5,27,37,46,55,65,69-81,87-88,99-100,107-108
+  s_98d06e57ae2bf0::t_d960db1f199753 56,214-234,278-307
+  s_98d06e57ae2bf0::t_4a765540cccb72 674
+  s_98d06e57ae2bf0::t_02ff105d83260b 309
+app/api/v1/accounts/[id]/gallery/media/route.ts
+  s_98d06e57ae2bf0::t_20e2252886e671 85,122-124
+  s_98d06e57ae2bf0::t_588dd20fd0807b 260-262,266,270-272,276,280-284,288
+  s_98d06e57ae2bf0::t_208348a89efff2 385
+lib/client/galleryMedia.ts
+  s_98d06e57ae2bf0::t_208348a89efff2 22-25,67-68,72-73,104-105,124,140-141
+lib/components/gallery/useDaySelection.ts
+  s_98d06e57ae2bf0::t_c1c491ec27e69f 3-10,30,47-48,63-67,98,116,153,172,176-179,204,290-291,293,309-310,326-327,329-331,334-339,353-354,388-390,396-399
+  s_98d06e57ae2bf0::t_5b5c6b51304c7d 292
+docs/maintenance.md
+  s_98d06e57ae2bf0::t_fd781bab4e8e10 1001
+lib/components/gallery/GalleryGrid.test.tsx
+  s_98d06e57ae2bf0::t_41852f4d9109d5 5-11,778-782,785-809
+  s_98d06e57ae2bf0::t_cdde66f8677f93 810
+lib/components/gallery/GalleryGrid.tsx
+  s_98d06e57ae2bf0::t_5b5c6b51304c7d 234
+  s_98d06e57ae2bf0::t_f11518c6d5d076 232-233,236-245
+  s_98d06e57ae2bf0::t_d4a544564ace4c 235
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ca9a7daacdc22a54b796dcf9f6bcd60a6ef0822c",
+  "prompts": {},
+  "sessions": {
+    "s_98d06e57ae2bf0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1739e-9e29-7cb2-9c6e-34ebbe7924be",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

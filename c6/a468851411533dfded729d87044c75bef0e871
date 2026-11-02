@@ -1,0 +1,110 @@
+scripts/fitness/fixStuckFitnessProcessing.ts
+  s_49f1e724b425e6::t_e23693d07a1096 173-174
+  s_49f1e724b425e6::t_13cb752a976b90 29-30
+  s_49f1e724b425e6::t_ff63618462240d 79-89,91
+docs/fitness-file-storage.md
+  s_49f1e724b425e6::t_dd7942d65ed09c 126-128,131,136-138
+  s_dd62fdd4f50c18::t_a5c3bd0d3a8de2 139
+scripts/fitness/runImportStravaActivity.ts
+  s_49f1e724b425e6::t_fcf1e825c2cc57 81-82
+  s_49f1e724b425e6::t_7bdaa6d6526e87 19-20
+scripts/fitness/importStoredFitnessFile.ts
+  s_49f1e724b425e6::t_a2e37b2233ac0a 32-35,42
+  s_49f1e724b425e6::t_3f6cc5dddd80c8 102
+  s_49f1e724b425e6::t_1ce315a3771e83 172-195,197,199-211
+  s_49f1e724b425e6::t_b6506b01d0b0b7 43
+scripts/fitness/repairFailedFitnessImports.ts
+  s_49f1e724b425e6::t_a34f9a94f56675 48
+  s_49f1e724b425e6::t_4516d5a0890b4b 53-54
+  s_49f1e724b425e6::t_eb2b4dbd64dc26 227-230
+  s_49f1e724b425e6::t_375c3048ca69d9 125-133,135-137
+  s_49f1e724b425e6::t_029b5787c4f8ab 155,185
+  s_49f1e724b425e6::t_2dc7e94f1d663e 296-297
+scripts/fitness/resumeStravaProcessing.ts
+  s_49f1e724b425e6::t_58e240f6f39994 108-120
+  s_49f1e724b425e6::t_71b74e6f68ed57 77-78
+  s_49f1e724b425e6::t_ed68f9f5410e38 19-20
+scripts/fitness/retrigerStravaActivities.ts
+  s_49f1e724b425e6::t_2898d194fe0b29 92-93
+  s_49f1e724b425e6::t_3478d00165311c 110-112,129-149,152-153,158,160
+  s_49f1e724b425e6::t_3e9ba7c983a8e0 26,29
+  s_49f1e724b425e6::t_fe2e641d6bed12 30
+scripts/fitness/repairStravaActivityFiles.ts
+  s_49f1e724b425e6::t_1f1648d8a12bea 10-12,17,21-24
+  s_49f1e724b425e6::t_d670d6b8a4ed8a 101
+  s_49f1e724b425e6::t_07e1f1830a9054 372
+  s_49f1e724b425e6::t_72230543e299dc 331-339
+  s_49f1e724b425e6::t_ec97d89519f071 129-130
+  s_49f1e724b425e6::t_6db8c2714e9e84 194,199-207
+  s_49f1e724b425e6::t_6a8d4fa9a6db65 49-51
+  s_49f1e724b425e6::t_7865b9a9367d77 58,64-68,72,85-86
+scripts/fitness/diagnoseFitnessImport.ts
+  s_49f1e724b425e6::t_c18bbef864ff4d 22,31
+  s_49f1e724b425e6::t_1a432c40e3b2cb 184,186
+  s_49f1e724b425e6::t_d044562095705e 79-82,84
+  s_49f1e724b425e6::t_4f1c0306833218 102-116,118-126
+  s_49f1e724b425e6::t_bbdcc671d08c49 220,222,224,227-228
+  s_49f1e724b425e6::t_9cc8faea70ee31 332-333,335,337,339,341-342,345-353,356
+  s_49f1e724b425e6::t_3d148aeccc9e3d 334,336
+  s_49f1e724b425e6::t_e94996bec4a549 199,201,203
+  s_82c8607b09bd36::t_601f6a481df5ea 32
+docs/maintenance.md
+  s_49f1e724b425e6::t_34b0df6f6444b9 151-152
+lib/services/fitness-files/processingState.test.ts
+  s_49f1e724b425e6::t_27ee0f2f63c617 100-102
+  s_49f1e724b425e6::t_587ee13503bb5a 3
+  s_49f1e724b425e6::t_127366f8694c3d 76-99,103-137
+scripts/fitness/describeConnection.ts
+  s_49f1e724b425e6::t_4d09cd2df2194a 1-44,48-85
+  s_49f1e724b425e6::t_27ee0f2f63c617 45-47
+lib/config/index.ts
+  s_49f1e724b425e6::t_ffb13ba74424ec 29
+scripts/fitness/importStravaArchive.ts
+  s_49f1e724b425e6::t_246164ad2600e9 31-32
+  s_49f1e724b425e6::t_af8cc201286156 119-120
+lib/services/fitness-files/processingState.ts
+  s_49f1e724b425e6::t_4aa7ddefe3c5cd 1-4
+  s_49f1e724b425e6::t_ecb9c372e2fc2a 30-57
+scripts/fitness/cleanupLegacyFitnessHeatmaps.ts
+  s_49f1e724b425e6::t_1fe04e96b4d106 48-54,61-65
+  s_49f1e724b425e6::t_2f977429bf0dd8 13-14
+  s_49f1e724b425e6::t_289f4fbadbbfba 19-20
+lib/database/sql/fitnessFile.test.ts
+  s_49f1e724b425e6::t_381130c9a31a67 1079-1105
+scripts/fitness/repairFailedFitnessImports.test.ts
+  s_49f1e724b425e6::t_1aeea8cde4137c 291-319
+lib/database/sql/fitnessFile.ts
+  s_49f1e724b425e6::t_bf9af511065bf7 467-475
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "c6a468851411533dfded729d87044c75bef0e871",
+  "prompts": {},
+  "sessions": {
+    "s_49f1e724b425e6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e78f183e-5cba-4c45-98e0-037bb04abcd0",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_82c8607b09bd36": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1d552038-1bf1-4ecb-b710-9bf618b1a8c4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_dd62fdd4f50c18": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a4fac3ed-83b4-4c90-b934-cffe9b36aaad",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,23 @@
+app/(timeline)/MainPageTimeline.tsx
+  s_b2035c8ac25b6f::t_de03635782bfef 1317-1323
+app/(timeline)/MainPageTimeline.refresh.test.tsx
+  s_b2035c8ac25b6f::t_ce118fb2c8bd68 792-848
+docs/architecture.md
+  s_b2035c8ac25b6f::t_3d79c35e56f04a 1345
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "48dc21232811b7c8b83396f101bbd7000c410555",
+  "prompts": {},
+  "sessions": {
+    "s_b2035c8ac25b6f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e31b9266-4e51-49c7-ab7d-d306cb291335",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

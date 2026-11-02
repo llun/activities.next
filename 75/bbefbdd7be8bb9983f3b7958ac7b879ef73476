@@ -1,0 +1,26 @@
+app/(timeline)/fitness/ActorFitnessDashboard.tsx
+  s_a7418d31ae2421::t_b7934f5a6155ca 18,280-285,287-300,451-452,455-457
+  s_a7418d31ae2421::t_d65b7010c3dbe9 453-454
+app/(timeline)/fitness/ActorFitnessDashboard.test.tsx
+  s_a7418d31ae2421::t_070eb33a9cafe3 1098-1099
+  s_a7418d31ae2421::t_d65b7010c3dbe9 1104-1109
+  s_a7418d31ae2421::t_99f8e386b2dde6 13,21,49-74,1080-1087,1089-1097,1100-1103,1110-1115
+  s_a7418d31ae2421::t_47d1265872589b 1088
+  s_a7418d31ae2421::t_5c30eeee768229 1116-1117
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "75bbefbdd7be8bb9983f3b7958ac7b879ef73476",
+  "prompts": {},
+  "sessions": {
+    "s_a7418d31ae2421": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0f1fd2ae-8211-4deb-ba27-c7a8fdc4df54",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

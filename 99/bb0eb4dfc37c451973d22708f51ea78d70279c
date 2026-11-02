@@ -1,0 +1,47 @@
+app/api/inbox/getForwardedJobMessage.ts
+  s_69f35b0cf1b1f5::t_3a5ed0611a549c 1,29
+app/api/inbox/getForwardedJobMessage.test.ts
+  s_69f35b0cf1b1f5::t_0d347803ffe4e6 2
+  s_69f35b0cf1b1f5::t_0c052a64252801 23
+lib/database/sql/queueJob.ts
+  s_69f35b0cf1b1f5::t_dd50b3e9dff41a 88-97
+lib/database/sql/queueJob.test.ts
+  s_69f35b0cf1b1f5::t_8ff05736ed3bcc 753-774
+  s_69f35b0cf1b1f5::t_571d5a8e6bfd07 674,677,704,721,743
+app/api/inbox/getInboxJobId.ts
+  s_69f35b0cf1b1f5::t_8650fa190d5248 1-12
+app/api/inbox/route.ts
+  s_69f35b0cf1b1f5::t_27f32ffe7d7f7c 190
+  s_69f35b0cf1b1f5::t_3a5ed0611a549c 3
+app/api/inbox/route.test.ts
+  s_69f35b0cf1b1f5::t_9628d4422952e3 3,573,602
+app/api/users/[username]/inbox/route.test.ts
+  s_69f35b0cf1b1f5::t_9628d4422952e3 3,1576
+app/api/inbox/getJobMessage.test.ts
+  s_69f35b0cf1b1f5::t_6a1cfe63d98f93 98-121
+  s_69f35b0cf1b1f5::t_e3aa9752ae3a11 6
+app/api/inbox/getJobMessage.ts
+  s_69f35b0cf1b1f5::t_27f32ffe7d7f7c 137
+  s_69f35b0cf1b1f5::t_3a5ed0611a549c 3
+docs/architecture.md
+  s_69f35b0cf1b1f5::t_d5def2cb8cea7b 1238-1245
+app/api/users/[username]/inbox/route.ts
+  s_69f35b0cf1b1f5::t_3a5ed0611a549c 5
+  s_69f35b0cf1b1f5::t_27f32ffe7d7f7c 771
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "99bb0eb4dfc37c451973d22708f51ea78d70279c",
+  "prompts": {},
+  "sessions": {
+    "s_69f35b0cf1b1f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3e34abf-a75d-4da8-b371-1258aa33721a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

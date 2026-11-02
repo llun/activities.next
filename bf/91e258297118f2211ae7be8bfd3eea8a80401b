@@ -1,0 +1,38 @@
+lib/client.ts
+  s_26c98ce5d7faa0::t_d94b56045c2e37 1181-1190,1199-1210
+lib/services/medias/types.test.ts
+  s_26c98ce5d7faa0::t_871e2c5b22f553 1-16
+lib/client.test.ts
+  s_26c98ce5d7faa0::t_e31f67101efe24 8,323-348
+app/api/v1/settings/fitness/strava/archive/route.test.ts
+  s_26c98ce5d7faa0::t_e31f67101efe24 441-479
+lib/services/medias/types.ts
+  s_26c98ce5d7faa0::t_08479adfe3c48b 78-81
+app/api/v1/settings/fitness/strava/archive/route.ts
+  s_26c98ce5d7faa0::t_d94b56045c2e37 266
+lib/jobs/importStravaArchiveJob.test.ts
+  s_26c98ce5d7faa0::t_e31f67101efe24 1-4,23-30,33,67,105-110,448-476,481-490
+  s_26c98ce5d7faa0::t_8e017611e79bf8 477-480
+lib/services/strava/archiveReader.ts
+  s_26c98ce5d7faa0::t_d94b56045c2e37 222-254,280-285,291-296
+lib/jobs/importStravaArchiveJob.ts
+  s_26c98ce5d7faa0::t_d94b56045c2e37 223-232
+lib/services/strava/archiveReader.open.test.ts
+  s_26c98ce5d7faa0::t_e31f67101efe24 2,158-215
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "bf91e258297118f2211ae7be8bfd3eea8a80401b",
+  "prompts": {},
+  "sessions": {
+    "s_26c98ce5d7faa0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e2711-6d55-76a0-ab48-ab38b9174afb",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

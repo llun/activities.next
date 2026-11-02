@@ -1,0 +1,23 @@
+package.json
+  s_387448deee3bd0::t_6d1fa3d8d933a2 31
+.github/dependabot.yml
+  s_387448deee3bd0::t_0b992f3df4901e 7-14
+yarn.lock
+  s_387448deee3bd0::t_92f84b0027b22a 5085
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "dcd272472b2c2f9e4c281ae095c7c7d55cd08292",
+  "prompts": {},
+  "sessions": {
+    "s_387448deee3bd0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4a408259-c9fb-418d-8bf3-e7d041371398",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,54 @@
+app/api/v1/statuses/[id]/unfavourite/route.ts
+  s_4c8a4513cc17f6::t_d07f9fcad69f07 4,38-39,41-42
+app/api/v1/statuses/[id]/route.test.ts
+  s_4c8a4513cc17f6::t_e4f026f8770e98 18,22-23,27-31,78,80-86
+lib/database/sql/status.ts
+  s_4c8a4513cc17f6::t_ef9dbe36b4d27f 860
+  s_4c8a4513cc17f6::t_2726a50533af65 854,865-869
+app/api/v1/statuses/[id]/reblog/route.ts
+  s_4c8a4513cc17f6::t_d07f9fcad69f07 4,39-51
+app/api/users/[username]/outbox/route.test.ts
+  s_4c8a4513cc17f6::t_f3494cebbcae8c 30-54,73,77-82,110-113,145-148,183-186
+  s_4c8a4513cc17f6::t_e4f026f8770e98 181-182,187-218
+app/api/v1/statuses/[id]/unreblog/route.ts
+  s_4c8a4513cc17f6::t_d07f9fcad69f07 4,39-51
+lib/jobs/deleteObjectJob.test.ts
+  s_4c8a4513cc17f6::t_8ea9475ce1cded 9,95-120
+lib/jobs/deleteObjectJob.ts
+  s_4c8a4513cc17f6::t_2726a50533af65 2-5,10-13,21-26,40-41,52-57,60-61
+app/api/inbox/route.test.ts
+  s_4c8a4513cc17f6::t_b80023c68fa2cb 81-82,148-149,222
+app/api/inbox/getJobMessage.ts
+  s_4c8a4513cc17f6::t_1ef3c5e6fc334e 44-77,196-199,212-215
+  s_4c8a4513cc17f6::t_d07f9fcad69f07 95-96,165-169,172-174,182-186,189-191,200,203-205,216,219-221
+app/api/v1/statuses/[id]/favourite/route.ts
+  s_4c8a4513cc17f6::t_d07f9fcad69f07 4,38-39,41-42
+app/api/v1/statuses/[id]/unpin/route.ts
+  s_4c8a4513cc17f6::t_d07f9fcad69f07 3,38-43
+app/api/inbox/getJobMessage.test.ts
+  s_4c8a4513cc17f6::t_b4b4ed7443e928 75-88
+  s_4c8a4513cc17f6::t_e4f026f8770e98 1-74,89
+app/api/users/[username]/outbox/route.ts
+  s_4c8a4513cc17f6::t_2726a50533af65 16,58-59
+  s_4c8a4513cc17f6::t_d07f9fcad69f07 15,17-27,36-40,47,54-57
+lib/types/database/operations.ts
+  s_4c8a4513cc17f6::t_2726a50533af65 399-401
+app/api/v1/statuses/[id]/pin/route.ts
+  s_4c8a4513cc17f6::t_d07f9fcad69f07 3,38-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "e2715096c6aa9c99e8d97e911d67dbdef5c7cf98",
+  "prompts": {},
+  "sessions": {
+    "s_4c8a4513cc17f6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1ff9-6421-7f91-b33a-3ec0b5429434",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

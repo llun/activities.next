@@ -1,0 +1,23 @@
+lib/services/filters/parseFilterInput.test.ts
+  s_ab97d21f52c341::t_3142349478ee19 1-133
+lib/services/filters/parseFilterInput.ts
+  s_ab97d21f52c341::t_20f608f2bcb380 130-142
+  s_ab97d21f52c341::t_6b9eb15af70c3f 366-465
+  s_ab97d21f52c341::t_be5ae96d724a7a 69-71,76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5eb834831d1f948c88744be174ddbb16d5ffb14c",
+  "prompts": {},
+  "sessions": {
+    "s_ab97d21f52c341": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "62bf221b-714f-4225-95d2-e37f0d6fd6a3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,32 @@
+app/api/v1/accounts/lookup/route.ts
+  h_580a04e334fef4 17-20
+app/api/v1/actors/cancel-deletion/route.ts
+  h_580a04e334fef4 6
+app/api/v1/emails/confirmations/route.ts
+  h_580a04e334fef4 18
+lib/services/admin/serializeAdminAccounts.ts
+  h_580a04e334fef4 5
+lib/services/auth/canCreateSessionForAccount.ts
+  h_580a04e334fef4 1-2,17
+lib/services/guards/AdminApiGuard.ts
+  h_580a04e334fef4 13,16
+lib/services/guards/AuthenticatedGuard.ts
+  h_580a04e334fef4 11
+lib/services/guards/OAuthGuard.ts
+  h_580a04e334fef4 24-27,100-104
+lib/services/guards/accountState.test.ts
+  h_580a04e334fef4 1-218
+lib/services/guards/accountState.ts
+  h_580a04e334fef4 1-71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "f609d33251e58feb180d980a712baffdf79ad885",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

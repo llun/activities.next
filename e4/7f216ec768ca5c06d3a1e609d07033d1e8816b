@@ -1,0 +1,36 @@
+lib/search/resolveStatus.test.ts
+  s_4941627279dc6b::t_30306d37b51261 115-116
+  s_4941627279dc6b::t_68984f18e788f8 73-76,86-102,104-114,118,125,127-148
+lib/activities/getRemoteStatus.test.ts
+  s_4941627279dc6b::t_68984f18e788f8 3-4,112-190
+  s_4941627279dc6b::t_96bcf273c1bb89 194
+lib/__mocks__/config.ts
+  s_4941627279dc6b::t_649ff3fc715eab 9-12
+lib/search/resolveStatus.ts
+  s_4941627279dc6b::t_68984f18e788f8 43-83,118-120
+lib/activities/getRemoteStatus.ts
+  s_4941627279dc6b::t_1e9478ddf484a8 109-115,126,133-136
+  s_4941627279dc6b::t_68984f18e788f8 3-4,6-12,26-27,43-90,104-108,127,131
+  s_4941627279dc6b::t_96bcf273c1bb89 5
+  s_4941627279dc6b::t_9161e524bb503b 116-122
+lib/database/sql/index.ts
+  s_4941627279dc6b::t_68984f18e788f8 376
+lib/database/sql/search.ts
+  s_4941627279dc6b::t_68984f18e788f8 202-203
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "e47f216ec768ca5c06d3a1e609d07033d1e8816b",
+  "prompts": {},
+  "sessions": {
+    "s_4941627279dc6b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e3721-11a9-7400-8ad7-c7ee1b4c4741",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

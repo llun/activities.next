@@ -1,0 +1,42 @@
+app/(timeline)/MainPageTimeline.tsx
+  h_580a04e334fef4 266
+app/(timeline)/[actor]/ActorMediaGallery.tsx
+  h_580a04e334fef4 222
+app/(timeline)/[actor]/ActorTimelines.tsx
+  h_580a04e334fef4 448,473,559
+app/(timeline)/bookmarks/BookmarksTimeline.tsx
+  h_580a04e334fef4 200
+app/(timeline)/collections/[id]/CollectionDetail.tsx
+  h_580a04e334fef4 383
+app/(timeline)/favorites/FavoritesTimeline.tsx
+  h_580a04e334fef4 200
+app/(timeline)/fitness/gear/[id]/GearActivitiesFeed.tsx
+  h_580a04e334fef4 295
+app/(timeline)/lists/[id]/ListTimeline.tsx
+  h_580a04e334fef4 209
+app/(timeline)/search/SearchPageClient.tsx
+  h_580a04e334fef4 595
+app/(timeline)/tags/[tag]/HashtagTimeline.tsx
+  h_580a04e334fef4 188
+lib/components/posts/collapsible-content.test.tsx
+  h_580a04e334fef4 186,208
+lib/components/posts/collapsible-content.tsx
+  h_580a04e334fef4 93,108
+lib/components/settings/ManageAccountList.tsx
+  h_580a04e334fef4 195
+lib/components/ui/button.test.tsx
+  h_580a04e334fef4 1-68
+lib/components/ui/button.tsx
+  h_580a04e334fef4 21-22,26-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ab45ac0d7a42397c0c44953b2c76acda463ee2b1",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

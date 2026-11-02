@@ -1,0 +1,20 @@
+.github/workflows/version-bump.yml
+  s_2e68f008a23be0::t_3dcb50cdf2e53b 14-25,28
+  s_2e68f008a23be0::t_69078e27c89794 358-360,380-381,402-419,422-432,435-436,438-440,442-443,446-449,451-452,454-457,459-466,468-470,472-473,475-476,478-485,487-506,513,518-519,526,534-535,538,550-554,556,558-561,572-582
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "81cc39161362053c66e245629ef9df2a2de24a39",
+  "prompts": {},
+  "sessions": {
+    "s_2e68f008a23be0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ca3a9444-5e3c-4838-a7cf-b2a1e9544163",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

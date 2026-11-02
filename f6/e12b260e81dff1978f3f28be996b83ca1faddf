@@ -1,0 +1,16 @@
+lib/services/link-previews/fetchLinkPreview.test.ts
+  h_580a04e334fef4 91,99
+lib/services/link-previews/fetchLinkPreview.ts
+  h_580a04e334fef4 66-69,74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "f6e12b260e81dff1978f3f28be996b83ca1faddf",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

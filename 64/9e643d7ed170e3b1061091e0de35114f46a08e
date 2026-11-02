@@ -1,0 +1,16 @@
+proxy.test.ts
+  h_580a04e334fef4 426-430,439-441,458-476,486-497
+proxy.ts
+  h_580a04e334fef4 84-88,90,97-98
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "649e643d7ed170e3b1061091e0de35114f46a08e",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

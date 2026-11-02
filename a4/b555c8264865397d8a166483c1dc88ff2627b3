@@ -1,0 +1,16 @@
+lib/services/medias/S3StorageFile.test.ts
+  h_580a04e334fef4 63-72,117-118,571-1038
+lib/services/medias/S3StorageFile.ts
+  h_580a04e334fef4 14,17,420-439,444-445
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "a4b555c8264865397d8a166483c1dc88ff2627b3",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

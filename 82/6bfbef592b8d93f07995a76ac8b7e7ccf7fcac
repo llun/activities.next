@@ -1,0 +1,21 @@
+lib/services/email/types.ts
+  s_181a4d159922fc::t_37d575f05258ec 23-35
+lib/services/email/layout/theme.ts
+  s_181a4d159922fc::t_601feb3bee6771 1-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "826bfbef592b8d93f07995a76ac8b7e7ccf7fcac",
+  "prompts": {},
+  "sessions": {
+    "s_181a4d159922fc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8b59141f-f9f0-4af4-8aea-39520836e6cc",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

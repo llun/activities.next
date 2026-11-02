@@ -1,0 +1,27 @@
+lib/database/sql/status.ts
+  s_a9c053813411a7::t_51574e3e43f713 1429-1431,1460,1561-1564,1571-1574,1661,1723-1728,1733-1738,1745-1750
+  s_a9c053813411a7::t_5f482ae90a8d17 13-17
+  s_a9c053813411a7::t_d8f5961ed8b4fc 96-99,1409-1420,1422-1428,1432-1459,1461-1478,1480-1504,1506-1507,1509-1553,1556-1560,1565-1566,1568-1570,1575,1577,1579-1582,1584-1628,1636,1638,1641-1643,1646-1652,1654,1656-1657,1660,1662-1665,1668-1672,1702,1704-1722,1729-1732,1739-1744,1751-1754
+lib/database/sql/status.test.ts
+  s_a9c053813411a7::t_283f596a1df2c6 2440-2532
+lib/database/sql/utils/knex.ts
+  s_a9c053813411a7::t_ba4de4b7b47f84 54-64
+lib/database/sql/actor.ts
+  s_a9c053813411a7::t_62ab9c78d9fb7a 22-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "5d9b7aa63c970854711473004995d2654aee3135",
+  "prompts": {},
+  "sessions": {
+    "s_a9c053813411a7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e5ad7-c4c3-78e2-9686-a128443adab4",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

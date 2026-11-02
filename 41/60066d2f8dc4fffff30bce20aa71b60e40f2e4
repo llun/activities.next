@@ -1,0 +1,37 @@
+app/api/v1/fitness/strava/route.test.ts
+  s_f1e04a6319c868::t_6b41b71b2f22cb 101,106,133,163,177,182,220,244,263,282,302,321,335,366
+app/api/v1/fitness/strava/authorize/route.ts
+  s_f1e04a6319c868::t_d4b9d1325ec69e 31
+app/api/v1/fitness/strava/archive/route.test.ts
+  s_f1e04a6319c868::t_6b41b71b2f22cb 409,456,495,522,552,582
+app/api/v1/fitness/import/[batchId]/route.test.ts
+  s_f1e04a6319c868::t_6b41b71b2f22cb 1-810
+app/api/v1/fitness/import/route.test.ts
+  s_f1e04a6319c868::t_6b41b71b2f22cb 61
+app/api/v1/fitness/strava/callback/route.ts
+  s_f1e04a6319c868::t_b69d959ee43951 32,38,49,60,74,100,126,145,150
+app/api/v1/fitness/strava/route.ts
+  s_f1e04a6319c868::t_9503d22e737084 33
+app/api/v1/fitness/general/regenerate-maps/route.test.ts
+  s_f1e04a6319c868::t_6b41b71b2f22cb 52,160,206
+app/api/v1/fitness/strava/archive/presigned/route.test.ts
+  s_f1e04a6319c868::t_6b41b71b2f22cb 56,79,103,125,150,171
+app/api/v1/fitness/general/route.test.ts
+  s_f1e04a6319c868::t_6b41b71b2f22cb 98,101,137,160,174,233,311,362,424,456,476,496,516,538,560
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "4160066d2f8dc4fffff30bce20aa71b60e40f2e4",
+  "prompts": {},
+  "sessions": {
+    "s_f1e04a6319c868": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3a353c2f-880a-4289-a04e-ed72d007ab01",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

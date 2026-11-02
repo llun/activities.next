@@ -1,0 +1,19 @@
+lib/components/post-box/visibility-selector.test.tsx
+  s_177aad017ed03b::t_a8c973dbedad03 110-114,124-125,135-136
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "cdeb9a1824544e9e79ae09b888e81d4d4dea36d2",
+  "prompts": {},
+  "sessions": {
+    "s_177aad017ed03b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a86a86b1-ee7c-411d-8d58-09f402cfb2f2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

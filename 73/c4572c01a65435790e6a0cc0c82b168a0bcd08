@@ -1,0 +1,44 @@
+lib/utils/paginationLinkHeader.ts
+  s_ab97d21f52c341::t_2a1547c6fcd7ef 40-78
+app/api/v1/collections/[id]/items/[item_id]/approve/route.test.ts
+  s_ab97d21f52c341::t_6478f82ec66f14 98-102,107-118
+app/api/v1/collections/[id]/items/[item_id]/approve/route.ts
+  s_ab97d21f52c341::t_71c801cb29b157 5
+  s_ab97d21f52c341::t_37e1f855a59f7b 23-27,35
+lib/services/collections/accountCollectionsPaging.ts
+  s_ab97d21f52c341::t_6a90700c7a31f3 1-33
+app/api/v1/collections/[id]/items/[item_id]/revoke/route.test.ts
+  s_ab97d21f52c341::t_f737a75fed152b 99-103,108
+app/api/v1/accounts/[id]/in_collections/route.ts
+  s_ab97d21f52c341::t_06c2885395459e 1,7
+  s_ab97d21f52c341::t_267b379c4c1969 34
+  s_ab97d21f52c341::t_da2f5504595f71 67-73
+app/api/v1/accounts/[id]/in_collections/route.test.ts
+  s_ab97d21f52c341::t_420c242da239aa 127-146
+app/api/v1/collections/[id]/items/[item_id]/revoke/route.ts
+  s_ab97d21f52c341::t_8bc1b0b1b71b66 22-27,35
+  s_ab97d21f52c341::t_ccc73f8bd63bb6 5
+app/api/v1/collections/[id]/route.test.ts
+  s_ab97d21f52c341::t_5a50aa15feaa26 102-115
+  s_ab97d21f52c341::t_798231c242574c 163-198
+  s_ab97d21f52c341::t_e6287fc8e0d3bf 45,59-67
+app/api/v1/accounts/[id]/collections/route.ts
+  s_ab97d21f52c341::t_9416b2692ed4bc 31,50-56
+  s_ab97d21f52c341::t_142bab77a0eb1e 1,7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "73c4572c01a65435790e6a0cc0c82b168a0bcd08",
+  "prompts": {},
+  "sessions": {
+    "s_ab97d21f52c341": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "62bf221b-714f-4225-95d2-e37f0d6fd6a3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

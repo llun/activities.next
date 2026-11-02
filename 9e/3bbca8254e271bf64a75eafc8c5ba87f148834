@@ -1,0 +1,39 @@
+lib/services/statusRouteAccess.test.ts
+  s_5d40a12a070d4a::t_58b204454a4479 20-21,28-30,50-53,58-59,77
+lib/database/sql/follow.test.ts
+  s_5d40a12a070d4a::t_804af6b56856b2 150-166
+lib/database/sql/status.test.ts
+  s_5d40a12a070d4a::t_ecf97d882e5e7e 462-503
+lib/database/sql/follow.ts
+  s_5d40a12a070d4a::t_088a6f5beca1f3 14,217-231
+lib/services/bookmarks/getBookmarkedStatusesPage.ts
+  s_5d40a12a070d4a::t_330aed8d40211b 60
+lib/types/database/operations.ts
+  s_5d40a12a070d4a::t_d1fcf10df94708 462,615-618,661-663
+lib/services/statusRouteAccess.ts
+  s_5d40a12a070d4a::t_6e9f9b79768694 3,35-49,51-67,71-73,94-101,105-110
+  s_5d40a12a070d4a::t_01424a1c01aa1e 50
+  s_5d40a12a070d4a::t_7c5778a18df29b 68-70
+lib/database/sql/status.ts
+  s_5d40a12a070d4a::t_5118e2c78c532d 1138,1147-1153
+  s_5d40a12a070d4a::t_7c5778a18df29b 1146
+lib/services/bookmarks/getBookmarkedStatusesPage.test.ts
+  s_5d40a12a070d4a::t_15332e9120a0d6 67,72-73,76-77
+  s_5d40a12a070d4a::t_de14e52da38f24 87,105-110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "9e3bbca8254e271bf64a75eafc8c5ba87f148834",
+  "prompts": {},
+  "sessions": {
+    "s_5d40a12a070d4a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e34f2-5f7a-78f2-bcb3-e89e9dbef690",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,34 @@
+app/(timeline)/[actor]/getProfileData.test.ts
+  h_580a04e334fef4 401,406,521,527,562
+app/(timeline)/[actor]/getProfileData.ts
+  h_580a04e334fef4 26,275,276,277,281,288,301
+app/(timeline)/[actor]/page.follow-counts.test.tsx
+  h_580a04e334fef4 196-277
+app/(timeline)/[actor]/page.tsx
+  h_580a04e334fef4 259-288,290
+lib/activities/getActorCollections.ts
+  h_580a04e334fef4 69-75,121-123,133-134,141,166,169-170,172-173,182
+lib/activities/getActorPosts.test.ts
+  h_580a04e334fef4 984-1041
+lib/activities/getActorPosts.ts
+  h_580a04e334fef4 43,119,239
+lib/activities/orderedCollection.ts
+  h_580a04e334fef4 11
+lib/services/mastodon/remoteFollowCollection.ts
+  h_580a04e334fef4 380
+lib/activities/getActorCollectionCounts.ts
+  h_580a04e334fef4 1-4,38
+lib/activities/getActorCollections.test.ts
+  h_580a04e334fef4 1-60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "41529fe0c77eb729cd4db6d619100d4f4efc54eb",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

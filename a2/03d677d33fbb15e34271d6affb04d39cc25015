@@ -1,0 +1,34 @@
+docs/architecture.md
+  s_279e7012f36c5f::t_45409fcc6f0f04 2091-2093
+  s_279e7012f36c5f::t_73e20131929b45 2164-2174,2180-2181
+app/api/v1/accounts/migration/route.test.ts
+  s_279e7012f36c5f::t_2233f0479491a8 21,41-45,211,245,250,532,535-536
+docs/mastodon-api-compatibility.md
+  s_279e7012f36c5f::t_9bf91663236b6e 1092-1093
+lib/database/domains/block/block.test.ts
+  s_279e7012f36c5f::t_28a44ba4ff206c 620-663
+lib/database/domains/block/queries.ts
+  s_279e7012f36c5f::t_550a9bc076c37b 13,329-346,358-359
+lib/database/domains/block/types.ts
+  s_279e7012f36c5f::t_af899db2c55944 48-53,67-68
+lib/jobs/sendMoveJob.test.ts
+  s_279e7012f36c5f::t_738a7562fe6975 231,297-421
+lib/jobs/sendMoveJob.ts
+  s_279e7012f36c5f::t_16600095db42f9 28-30,39-43,91,93,95,122-128,130-229,232,234
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a203d677d33fbb15e34271d6affb04d39cc25015",
+  "prompts": {},
+  "sessions": {
+    "s_279e7012f36c5f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0410f49d-2e94-45e1-bd1f-237e6f7747bc",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,43 @@
+lib/jobs/importFitnessFilesJob.test.ts
+  s_279e7012f36c5f::t_3394f50493e721 340,343-345,348-356,359-362,364,370-371,373,375-376,378-389,391-402,683-686,688-901
+  s_279e7012f36c5f::t_e1dfb030c72d41 338-339
+  s_279e7012f36c5f::t_9ed5a913b6b0c4 341-342
+  s_279e7012f36c5f::t_718ea66818d79a 346-347
+  s_279e7012f36c5f::t_2e0a60a08327a0 357-358
+  s_279e7012f36c5f::t_98639ae3cb42db 363
+  s_279e7012f36c5f::t_26b9ddb54136fa 365-369
+  s_279e7012f36c5f::t_5350eb2a624355 372
+  s_279e7012f36c5f::t_cc673714794cb1 374
+  s_279e7012f36c5f::t_6253ff08562d5b 377
+  s_279e7012f36c5f::t_b3e5384e831ca0 390
+  s_279e7012f36c5f::t_df01cfeaa8c26a 403
+  s_279e7012f36c5f::t_cc274160ff5416 687
+lib/jobs/importFitnessFilesJob.ts
+  s_d237589e182cae::t_6810acea6c463c 604-609,611-618,620-621
+scripts/fitness/storedImportPlan.ts
+  s_279e7012f36c5f::t_e5bee5154877b0 58-63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "afa6b764d136403f497e1410905bf48c6bac293b",
+  "prompts": {},
+  "sessions": {
+    "s_279e7012f36c5f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0410f49d-2e94-45e1-bd1f-237e6f7747bc",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_d237589e182cae": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a17354-5cd1-7e21-91c7-868947d677af",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

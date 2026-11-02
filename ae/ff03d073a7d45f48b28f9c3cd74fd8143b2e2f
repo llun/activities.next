@@ -1,0 +1,21 @@
+lib/services/timelines/request.ts
+  s_1212410fcb74ef::t_d4bcb512a66691 49-50,52-55
+lib/services/timelines/request.test.ts
+  s_1212410fcb74ef::t_1f5016f6442553 48-62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "aeff03d073a7d45f48b28f9c3cd74fd8143b2e2f",
+  "prompts": {},
+  "sessions": {
+    "s_1212410fcb74ef": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ca12683c-8a1b-429b-ba34-2c6f37309932",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

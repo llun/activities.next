@@ -1,0 +1,42 @@
+lib/database/sql/timeline.test.ts
+  s_bb92ee938bf6dc::t_967a18a5627287 881-882,884-896
+  s_bb92ee938bf6dc::t_0eee5c90a04d90 883
+app/api/users/[username]/inbox/route.test.ts
+  s_bb92ee938bf6dc::t_ef29361481dea3 235-259
+lib/actions/announce.test.ts
+  s_bb92ee938bf6dc::t_a4c0b33eb5a159 32,34
+  s_bb92ee938bf6dc::t_af697e53b0af5e 3
+  s_bb92ee938bf6dc::t_b64489b328466b 33,35,39-41,53
+app/api/v1/fitness/general/regenerate-maps/route.test.ts
+  s_bb92ee938bf6dc::t_7b5761b3c8c3f4 69-71
+  s_bb92ee938bf6dc::t_eed0780ab8f643 72-74
+app/api/users/[username]/collections/tags/route.test.ts
+  s_bb92ee938bf6dc::t_6facd911ce27cd 52-54,56-57,62
+CONTRIBUTING.md
+  s_bb92ee938bf6dc::t_6b7775a5f84d74 855
+  s_bb92ee938bf6dc::t_bd876508f3a071 1236-1241
+  s_bb92ee938bf6dc::t_88df5061df504b 843-854,856-857
+scripts/backup/actorArchive.test.ts
+  s_bb92ee938bf6dc::t_1fa6719d929740 1200-1203,1207-1208,1228
+lib/actions/applyBlock.test.ts
+  s_bb92ee938bf6dc::t_925f3ffc2dcdfe 4,23,25-27,32,92-98
+  s_bb92ee938bf6dc::t_f91ecfe3742548 20-22
+lib/services/favourites/getFavouritedStatusesPage.test.ts
+  s_bb92ee938bf6dc::t_56f5f0c849c6c2 64-66,75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "1657a8491c84fea0a3475a1df520c3b86643433a",
+  "prompts": {},
+  "sessions": {
+    "s_bb92ee938bf6dc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e42ed834-8d66-48e4-81fb-7bba86cad7f1",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

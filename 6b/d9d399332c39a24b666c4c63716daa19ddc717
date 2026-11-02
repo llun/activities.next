@@ -1,0 +1,19 @@
+lib/components/fitness/FitnessCalendarHeatmap.test.tsx
+  s_48a3ab1e903863::t_213ac605df221a 102-106
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "6bd9d399332c39a24b666c4c63716daa19ddc717",
+  "prompts": {},
+  "sessions": {
+    "s_48a3ab1e903863": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "43d339fb-eae4-4508-b29c-f3bd9620d2e6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

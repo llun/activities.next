@@ -1,0 +1,25 @@
+scripts/maintenance/importRemoteStatus.ts
+  s_69f35b0cf1b1f5::t_46a22f21534455 22,25,45-53,90-92,116-132
+  s_69f35b0cf1b1f5::t_5061e967424576 133
+scripts/maintenance/importRemoteStatus.test.ts
+  s_69f35b0cf1b1f5::t_0088002bea7c5c 23-27,165-214
+  s_69f35b0cf1b1f5::t_c8c63c7ac3ff4e 215-216
+docs/maintenance.md
+  s_69f35b0cf1b1f5::t_6f21cd52524234 817
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "aabddff031345fda3b974a9ebf374a5f6ac2ad4d",
+  "prompts": {},
+  "sessions": {
+    "s_69f35b0cf1b1f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3e34abf-a75d-4da8-b371-1258aa33721a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

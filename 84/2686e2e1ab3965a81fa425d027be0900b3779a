@@ -1,0 +1,36 @@
+.gitignore
+  8e51d3e31fcf665a 92-94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "842686e2e1ab3965a81fa425d027be0900b3779a",
+  "prompts": {
+    "20bbc550d2a0550e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "507a9168-3ab8-4469-ae23-49f26724506e",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 0,
+      "overriden_lines": 2
+    },
+    "8e51d3e31fcf665a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "88bed09c-4d9a-45fc-8532-07d2e36c73b5",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 0,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    }
+  }
+}

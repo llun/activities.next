@@ -1,0 +1,35 @@
+app/api/v1/admin/custom_emojis/[id]/route.test.ts
+  s_f1f719bc7af0b8::t_6eec7faefae79d 102-114
+app/api/v1/admin/custom_emojis/route.ts
+  s_f1f719bc7af0b8::t_56fc72093de15a 4,7,13
+  s_f1f719bc7af0b8::t_1c0ee61f157cf9 127-152,161-176
+lib/utils/text/getEmojiTags.test.ts
+  s_f1f719bc7af0b8::t_7e6fb5e9fcd196 37-38
+  s_f1f719bc7af0b8::t_249e276187a52b 35-36,39-45
+app/api/v2/instance/route.test.ts
+  s_f1f719bc7af0b8::t_71fd21ebe18f60 19-32
+lib/actions/createNoteEmoji.test.ts
+  s_f1f719bc7af0b8::t_bb8d0fbc76fe6b 168-194
+lib/utils/text/getEmojiTags.ts
+  s_f1f719bc7af0b8::t_6b255a0397d078 4-8
+  s_f1f719bc7af0b8::t_7e6fb5e9fcd196 9-10
+app/api/v1/admin/custom_emojis/route.test.ts
+  s_f1f719bc7af0b8::t_5f93b1117e2b84 3-4
+  s_f1f719bc7af0b8::t_c027f1f25a7e68 189-202
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "3b0931fd56a58416f862751467cc00ec824e4b1c",
+  "prompts": {},
+  "sessions": {
+    "s_f1f719bc7af0b8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8c5dd695-69d9-404a-93b2-62c2cc8d6ef2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

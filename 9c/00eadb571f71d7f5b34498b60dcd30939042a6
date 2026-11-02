@@ -1,0 +1,28 @@
+lib/services/guards/headerHost.test.ts
+  s_d790d833e75195::t_7bd5a4cce5e79e 41,46-52
+lib/utils/host.test.ts
+  s_d790d833e75195::t_99dccc504341f3 13,19,37,44-46,77-87
+next.config.test.ts
+  s_d790d833e75195::t_7b8a43b6e1f691 1-106
+lib/utils/host.ts
+  s_d790d833e75195::t_ca0b7be6b45ef3 19,103-105,142-143,149-150
+next.config.ts
+  s_d790d833e75195::t_d1d6885283f5e3 2,31
+  s_d790d833e75195::t_38e45415260910 4,6-15,17-22,24-30,32-36,39-41,44-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "9c00eadb571f71d7f5b34498b60dcd30939042a6",
+  "prompts": {},
+  "sessions": {
+    "s_d790d833e75195": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e20ce-7a7f-76e1-8ed5-061bbc9431b4",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

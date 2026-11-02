@@ -1,0 +1,55 @@
+lib/jobs/verifyProfileLinksJob.test.ts
+  s_a8d0a499ad2e8e::t_ce54b16c29bd2b 178-209
+lib/services/domains/adminDomains.test.ts
+  s_a8d0a499ad2e8e::t_93aebcf3cad4b8 6,266-352,686-693
+app/api/v1/admin/domains/[domain]/route.test.ts
+  s_c7eea5649da27e::t_f81f2f0bfbd7a0 17,65-73,387-449
+app/api/v1/admin/domains/[domain]/route.ts
+  s_f0b6bac242c461::t_d3242abf42e578 8,110-118,182-189,253-254
+lib/database/domains/moderation/moderationQueries.test.ts
+  s_c7eea5649da27e::t_eba361cdf280f2 314-376
+lib/database/domains/moderation/queries.ts
+  s_f0b6bac242c461::t_aa73c637f604e2 108-112,114-121
+lib/database/domains/servedDomain/queries.ts
+  s_c7eea5649da27e::t_72e8acf6977b2d 1-2,5,11,13,323-331,333-337,339-340,343-345,347-356,358-369,383-384
+lib/database/domains/servedDomain/servedDomain.test.ts
+  s_c7eea5649da27e::t_0ffe4785aa5fb4 1,7,13,398-556
+lib/database/domains/servedDomain/types.ts
+  s_f0b6bac242c461::t_822634612aefc6 106-116,146-148,152-158
+lib/jobs/verifyProfileLinksJob.ts
+  s_c7eea5649da27e::t_8f67bd3b3a0050 45-57
+lib/services/domains/adminDomains.ts
+  s_f0b6bac242c461::t_6c41e7e00c56e7 4,297,302-304,329-330,441,452-455
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "96161291a34fd60235a4610dc314cc5c020cb328",
+  "prompts": {},
+  "sessions": {
+    "s_a8d0a499ad2e8e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1db83d1c-bfaf-45df-9b76-b7e0f6f5ab1f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_c7eea5649da27e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a17392-b888-78f3-b0fa-b1c549b6d056",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_f0b6bac242c461": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a17392-7ff0-7c12-91b6-cabc7fff4f61",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

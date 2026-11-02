@@ -1,0 +1,53 @@
+lib/components/post-box/post-box.tsx
+  s_512188f2b1db53::t_a7945687d8bcfe 30-31,1110-1114,1116,1118,1134-1148,1804-1817
+  s_512188f2b1db53::t_fc1e759ed39a43 1131-1133
+  s_512188f2b1db53::t_f8d5fad7d9310a 181,183-184,186-189
+app/api/v1/statuses/route.test.ts
+  s_512188f2b1db53::t_08555d18726fea 928-930
+  s_512188f2b1db53::t_7bc5c57af98333 887-927,931-932
+lib/components/post-box/post-box.test.tsx
+  s_512188f2b1db53::t_08555d18726fea 1193-1196
+  s_512188f2b1db53::t_5f8c4922a7aa85 960-961,964,978,1005,1090-1093,1095,1099-1100,1106-1107,1182-1188,1192,1198-1202,1205-1239
+  s_512188f2b1db53::t_a734482ff7c645 1178,1181
+  s_512188f2b1db53::t_fc1e759ed39a43 7,809-812,1163,1165-1177,1179-1180,1189,1191,1197,1203-1204
+  s_512188f2b1db53::t_37cb9f55b98425 1164,1190
+  s_512188f2b1db53::t_602be0c0a52ab5 1240
+lib/components/posts/status-reply-box.tsx
+  s_512188f2b1db53::t_08555d18726fea 15
+  s_512188f2b1db53::t_8b38c4f16e5ef7 330-331,333-337,341,351-363,650
+  s_512188f2b1db53::t_f8d5fad7d9310a 73,75-81,364,602,604-605,607-608,610
+  s_512188f2b1db53::t_91eba421c593fe 365
+lib/components/posts/status-reply-box.test.tsx
+  s_512188f2b1db53::t_08555d18726fea 368,383,385-431,457-458,463-464,467,481,485-488,490-491,500
+  s_512188f2b1db53::t_da2a3bcb64c3ce 384
+docs/architecture.md
+  s_512188f2b1db53::t_3cd157bdfcd824 802
+lib/client/http.ts
+  s_512188f2b1db53::t_0464937db44795 41-67
+  s_512188f2b1db53::t_79730c82f4204b 68
+docs/mastodon-api-compatibility.md
+  s_512188f2b1db53::t_3cd157bdfcd824 496-501
+app/api/v1/statuses/scheduled.route.test.ts
+  s_512188f2b1db53::t_7bc5c57af98333 73-107
+lib/client/http.test.ts
+  s_512188f2b1db53::t_45e9e1ec45ed8e 5-6,24-30,34-42,44-47,51-85
+app/api/v1/statuses/route.ts
+  s_512188f2b1db53::t_9081d01db81e85 259
+  s_512188f2b1db53::t_dea6079bd30e62 245-258,260-280
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e29a835f85d454016a6086feb296d34a8e3ec593",
+  "prompts": {},
+  "sessions": {
+    "s_512188f2b1db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e467608a-8346-4544-b69a-fc45fca93669",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

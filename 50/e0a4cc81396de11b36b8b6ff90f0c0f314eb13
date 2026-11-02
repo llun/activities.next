@@ -1,0 +1,55 @@
+lib/client/drafts/draftsDb.queue.test.ts
+  s_512188f2b1db53::t_652473dc3e0226 119-127,224,242,299,315,320,327
+lib/client/drafts/draftsDb.ts
+  s_512188f2b1db53::t_67f02e4a4a4b28 16,447,459,584
+lib/client/drafts/queueConstants.ts
+  s_512188f2b1db53::t_6fef6f233fb3ef 1-3,16-25
+lib/client/drafts/sendQueue.test.ts
+  s_512188f2b1db53::t_1eb2c90d90b6ec 21,756-805,1057-1077,1183-1200
+lib/client/drafts/sendQueue.ts
+  s_512188f2b1db53::t_3eb32d91bc10cb 137-140,207-210,247-250,302-305,348,350-352,385-386,415-419,466,517-520,536-538,608-622,624-625,686-687
+lib/client/drafts/senderLock.test.ts
+  s_512188f2b1db53::t_0bbc2a045789ca 17,33,54-55
+lib/client/drafts/senderLock.ts
+  s_512188f2b1db53::t_2518932d02c1b1 11-14,17,19-30
+lib/client/fitnessImports.test.ts
+  s_512188f2b1db53::t_91fc47a3dbf6e6 75-94
+lib/client/fitnessImports.ts
+  s_512188f2b1db53::t_4fbb57d006f0cd 2-7,84-85,95-96,99
+lib/client/media.test.ts
+  s_512188f2b1db53::t_93241eb965e3ce 507-601
+lib/client/media.ts
+  s_512188f2b1db53::t_1a3b5675935e3e 5-8,23-45,54-55,64-65,67,72,77-78,105-106,110,158-159,162,166-167,172,210-211,214,221-224,236-239,261,268-269,278-279,290-291,293-296,298-302,319-320,333-334
+lib/components/connection/ConnectionStatus.test.tsx
+  s_512188f2b1db53::t_c1d04a92bc132c 306-308,346,355-371
+lib/components/connection/ConnectionStatus.tsx
+  s_512188f2b1db53::t_806992a471121f 156-158
+lib/components/connection/slotMessage.test.ts
+  s_512188f2b1db53::t_1d688e91c12fb6 94-106
+lib/components/connection/slotMessage.ts
+  s_512188f2b1db53::t_927f5fcca1f698 39,44-46
+lib/components/drafts/DraftsList.test.tsx
+  s_512188f2b1db53::t_8469c0ff55dd54 35,54-60,506,573-574,608,627-651
+lib/components/drafts/DraftsList.tsx
+  s_512188f2b1db53::t_490f3760ba3ada 23,60,119,207-214
+lib/components/drafts/DraftsProvider.queue.test.tsx
+  s_512188f2b1db53::t_6689beed13b44b 12,29,64,104-106,114,119,186-187,191-194,345-346,349,351,366,369,371,394-395,410,413-481,529-559,756-793
+lib/components/drafts/DraftsProvider.tsx
+  s_512188f2b1db53::t_0a48a7ae06c6f3 26-29,54-59,109,148-157,224-225,275,313-349,362,372-384,405-408,410-412,438,512-523,584-591,593-596,598-605
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "50e0a4cc81396de11b36b8b6ff90f0c0f314eb13",
+  "prompts": {},
+  "sessions": {
+    "s_512188f2b1db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e467608a-8346-4544-b69a-fc45fca93669",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

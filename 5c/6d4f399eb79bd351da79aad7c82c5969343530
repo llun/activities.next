@@ -1,0 +1,43 @@
+app/(timeline)/(policies)/PolicyDocumentPage.test.tsx
+  s_0caa234e761ef6::t_aaeacbfdbe0173 7,189-209
+lib/services/fitness-files/heatmapTiles/constants.test.ts
+  s_17b7477480da96::t_9f0b7cdaf1e9fa 210-220
+lib/services/fitness-files/privacy.test.ts
+  s_17b7477480da96::t_059eb0671f7ff7 2,5,586-601
+lib/utils/activitypubActor.test.ts
+  s_17b7477480da96::t_1a55e5b7732e96 107-111
+lib/utils/safeImageDownload.test.ts
+  s_0caa234e761ef6::t_5c47d97d293d31 61-64
+lib/services/altText/openai.test.ts
+  s_0caa234e761ef6::t_af3898b62503d9 371-381
+lib/services/strava/activity.test.ts
+  s_0caa234e761ef6::t_0f42ff7d76591f 14-15,588-598
+lib/components/post-box/previews.test.tsx
+  s_0caa234e761ef6::t_4de36b8c5d5688 172-179
+lib/services/wellknown/index.test.ts
+  s_0caa234e761ef6::t_15cf01432d1ebf 3,44,97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5c6d4f399eb79bd351da79aad7c82c5969343530",
+  "prompts": {},
+  "sessions": {
+    "s_0caa234e761ef6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b79d5feb-bfae-447f-afad-19355f5d00c6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_17b7477480da96": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2228ce77-e5f6-425a-b31c-1cf14bbecf3e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

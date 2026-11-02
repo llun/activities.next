@@ -1,0 +1,25 @@
+.github/workflows/version-bump.yml
+  s_e1d56a9ceccb0e::t_146a0a1a5c0f5d 507,510
+  s_e1d56a9ceccb0e::t_680e203c031b83 365-383,385-386,388-389,391-392,394-396,467-468,473-486,514-516,518-521
+  s_e1d56a9ceccb0e::t_9cce6a9a28716f 18,349-364,384,387,390,393,400-401,404,411,413,428-435,437-448,450-451,458-464,497-500,508-509,512-513,517,522,525
+  s_e1d56a9ceccb0e::t_85b5690e0f01b2 397-399,410,469-472
+  s_e1d56a9ceccb0e::t_c1b96c8f410ee4 16-17,494,496,524,527
+  s_e1d56a9ceccb0e::t_3d25d10cb2b4de 14-15,19,402-403,405-409,412,414-423,425-427,436,449,452-454,465-466,487-493,495,501-506,511,523,526
+  s_e1d56a9ceccb0e::t_fcbd8dcf67e01c 424,455-457
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "b851c12fecaa82980ab91eccc22cff1916af1978",
+  "prompts": {},
+  "sessions": {
+    "s_e1d56a9ceccb0e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e34fc-c3e4-7091-9f74-e4f0417e9144",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}

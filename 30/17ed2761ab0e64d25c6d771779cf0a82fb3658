@@ -1,0 +1,28 @@
+docs/environment-variables.md
+  h_580a04e334fef4 363-377
+lib/config/queue.test.ts
+  h_580a04e334fef4 46-50,62-67,76-90
+lib/config/queue.ts
+  h_580a04e334fef4 11-14,53-59
+lib/services/queue/cloudtasks.test.ts
+  h_580a04e334fef4 1-295
+lib/services/queue/cloudtasks.ts
+  h_580a04e334fef4 1-3,5,14,16,18-25,29-85
+next.config.ts
+  h_580a04e334fef4 50
+package.json
+  h_580a04e334fef4 36
+yarn.lock
+  h_580a04e334fef4 1002-1034,1363-1369,1502,1819-1883,3370,3741,3964,4128-4134,4313-4323,4422-4428,4655-4667,4692,4893-4899,4959-4968,4988-4996,5032-5054,5103-5142,5332,5571-5579,5963-5969,5977-5983,6358-6364,6379-6389,6453-6459,6959-6986,7175-7185,7297-7306,7386,7656-7671,7679,7690-7698,7733-7739,7845-7856,8238-8244,8412-8418,8513-8523,8573-8579,8613-8619,8639-8653
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "3017ed2761ab0e64d25c6d771779cf0a82fb3658",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

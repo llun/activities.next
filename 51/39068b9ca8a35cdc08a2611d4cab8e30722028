@@ -1,0 +1,25 @@
+lib/services/email/templates/reply.test.ts
+  s_181a4d159922fc::t_ad335567cd6723 4,6-7,9-38,40,47-65,67-70,73-74,77-78
+lib/services/email/templates/reply.ts
+  s_181a4d159922fc::t_260817de253379 2-13,17-18,20-26,29-52
+lib/services/email/templates/mention.ts
+  s_181a4d159922fc::t_260817de253379 2-8,12-13,15-20,23-45
+lib/services/email/templates/mention.test.ts
+  s_181a4d159922fc::t_ad335567cd6723 4,6-7,9-38,40,47-49,51-64,67-68,71-75,77-79,81-82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "5139068b9ca8a35cdc08a2611d4cab8e30722028",
+  "prompts": {},
+  "sessions": {
+    "s_181a4d159922fc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8b59141f-f9f0-4af4-8aea-39520836e6cc",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

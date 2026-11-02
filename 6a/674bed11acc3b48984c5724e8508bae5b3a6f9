@@ -1,0 +1,26 @@
+lib/components/fitness/FitnessCalendarHeatmap.tsx
+  s_48a3ab1e903863::t_d82b1be2853701 339
+  s_48a3ab1e903863::t_8bcf13664ddb23 34-42,85-91,94-95,111-112,120,134-147,158,190-230,277-284,286-293,295,297-298,301,303-338,340-352
+lib/components/fitness/FitnessCalendarHeatmap.test.tsx
+  s_48a3ab1e903863::t_380f2b675417e5 1-84
+app/(timeline)/fitness/ActorFitnessDashboard.tsx
+  s_48a3ab1e903863::t_cdb73058f24059 231-232,238-239,241,250,259
+  s_48a3ab1e903863::t_7532d8ee27876f 237,246,255,264,283
+  s_48a3ab1e903863::t_9a4d0be79204b9 164-169
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "6a674bed11acc3b48984c5724e8508bae5b3a6f9",
+  "prompts": {},
+  "sessions": {
+    "s_48a3ab1e903863": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "43d339fb-eae4-4508-b29c-f3bd9620d2e6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

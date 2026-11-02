@@ -1,0 +1,93 @@
+lib/actions/createNote.ts
+  s_e091af6245d4c8::t_e38a52d43c42d8 83-87,119,130
+app/api/v1/conversations/route.ts
+  s_e091af6245d4c8::t_089b4bbf51d528 4,43-45
+  s_310719d8018dcf::t_f7dc8ec447e12d 28-32
+lib/database/sql/conversation.test.ts
+  s_82086fafdfcab6::t_d3dac4e15a3839 1,99-100,501,508,514,536
+  s_82086fafdfcab6::t_8220265880d0aa 2,4-5,17-97,286-500,502-507,509-513,515-535
+app/api/v1/conversations/[id]/statuses/route.ts
+  s_310719d8018dcf::t_f7dc8ec447e12d 26-30
+lib/services/mastodon/getMastodonConversation.ts
+  s_e091af6245d4c8::t_ba66237ac1dc95 25,31
+migrations/20260517002000_add_direct_conversations.js
+  s_82086fafdfcab6::t_b11c5caca2494f 86-88,104-111,115-122,124-131,133-136,144-147,149-169,172-180,194-197,203-213,217-218,220-222,227-231,233-234,236-251,254-299,302-309,318-322
+  s_82086fafdfcab6::t_21a2ba2a7bb7d0 112-114,123,148
+  s_82086fafdfcab6::t_1761dae1bdd946 137-141,198-202
+lib/utils/directStatus.ts
+  s_310719d8018dcf::t_85972b6cfa85cf 1-32
+lib/services/guards/OAuthGuard.test.ts
+  s_e091af6245d4c8::t_1f045669272b65 669-681,683-691,715-760
+  s_e091af6245d4c8::t_c5d62e79323fc5 682
+  s_310719d8018dcf::t_1dff41c43a6772 692-714
+app/(timeline)/messages/page.tsx
+  s_e091af6245d4c8::t_7cb9a8f3795677 67-71
+lib/services/auth/auth.ts
+  s_310719d8018dcf::t_020da767c03b51 53-55,57-59
+lib/services/mastodon/getMastodonConversation.test.ts
+  s_e091af6245d4c8::t_e09d81fd0b228b 1,3-33
+  s_e091af6245d4c8::t_c5d62e79323fc5 2
+app/api/v1/accounts/lookup/route.test.ts
+  s_e091af6245d4c8::t_d0e89580ad9e22 1-84
+lib/actions/deleteStatus.test.ts
+  s_e091af6245d4c8::t_459d5a506631fa 1-56
+app/(timeline)/messages/MessagesPage.tsx
+  s_e091af6245d4c8::t_3c4eab1ee21f0d 31,74,86-88,97,123,129-151,155,170,174,209,255,373-397
+app/api/v1/timelines/[timeline]/route.ts
+  s_e091af6245d4c8::t_f3a6359f8ffe0a 75-77
+lib/types/database/operations.ts
+  s_e091af6245d4c8::t_3d47aff5205682 1114,1131
+lib/services/timelines/index.ts
+  s_310719d8018dcf::t_9e552be36c3f6e 4
+app/api/v1/accounts/lookup/route.ts
+  s_e091af6245d4c8::t_86d4d620e3375d 7,22-33,56-57,59,67,69-80
+lib/client.ts
+  s_e091af6245d4c8::t_506e6c8034acce 1991-1993
+lib/actions/deleteStatus.ts
+  s_e091af6245d4c8::t_f97bfb6b3b7b9e 42
+lib/actions/visibility.integration.test.ts
+  s_e091af6245d4c8::t_5548751e88a6df 116-143,242-277
+lib/database/sql/conversation.ts
+  s_82086fafdfcab6::t_04474f7b782d46 455-460
+  s_82086fafdfcab6::t_81b5fb137b1f9b 500-501,522-523,543-544
+  s_82086fafdfcab6::t_c9f30c7672d9f2 216-217,219-276
+  s_310719d8018dcf::t_bcfb67166013e2 18
+  s_82086fafdfcab6::t_2540ff1ddf0638 396-409,411
+  s_82086fafdfcab6::t_529c62e454fb83 49-50
+  s_82086fafdfcab6::t_d1ccee4f3cac23 583-589
+  s_82086fafdfcab6::t_df8a2440610484 130-142,154-156,170-179
+  s_82086fafdfcab6::t_5361ea2b63801c 330-331
+  s_310719d8018dcf::t_8be06b9d655a76 20-22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "63ac1a3b0a6807a3a7fd62c7dba1c26c59d17c50",
+  "prompts": {},
+  "sessions": {
+    "s_310719d8018dcf": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e3722-d1c9-7732-b66f-0221b95e639b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_82086fafdfcab6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e376d-cbc2-76e0-a43d-59ff572d406f",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_e091af6245d4c8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e376e-0f7f-7e82-90bb-798d332323df",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

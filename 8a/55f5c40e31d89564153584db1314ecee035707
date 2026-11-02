@@ -1,0 +1,19 @@
+lib/client.ts
+  s_a9e57dede8ad31::t_a7c44b3acb8bd0 2886-2891
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "8a55f5c40e31d89564153584db1314ecee035707",
+  "prompts": {},
+  "sessions": {
+    "s_a9e57dede8ad31": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c26c4fb4-16ed-45cc-b64f-47ecc850a9d1",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

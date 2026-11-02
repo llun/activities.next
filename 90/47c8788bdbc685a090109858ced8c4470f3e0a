@@ -1,0 +1,47 @@
+lib/components/admin-announcements/AnnouncementsPanel.test.tsx
+  s_ef94c615601f1e::t_3a8b316dae810a 15,88-89,92,107
+app/(timeline)/[actor]/[status]/ActivityStartTime.test.tsx
+  s_ef94c615601f1e::t_efe011f305b400 5
+  s_ef94c615601f1e::t_3a8b316dae810a 7,53-54,57,63
+docs/architecture.md
+  s_ef94c615601f1e::t_4f66153848ff96 1421-1432
+CONTRIBUTING.md
+  s_ef94c615601f1e::t_4f66153848ff96 1224-1228
+lib/hooks/useHasHydrated.test.tsx
+  s_ef94c615601f1e::t_3a8b316dae810a 5,8-9,26-28,34
+app/(timeline)/messages/MessageBubble.test.tsx
+  s_ef94c615601f1e::t_3a8b316dae810a 6,52-53,56,68
+app/(timeline)/messages/MessagesPage.test.tsx
+  s_ef94c615601f1e::t_3a8b316dae810a 24,208-209,212,227
+app/(timeline)/messages/MessagesPage.tsx
+  s_ef94c615601f1e::t_2da7276babf106 47,112,129-132,787
+lib/components/announcements/AnnouncementBanner.test.tsx
+  s_ef94c615601f1e::t_3a8b316dae810a 14,146-147,150,165
+app/(timeline)/messages/useMessageTimeFormat.ts
+  s_ef94c615601f1e::t_2da7276babf106 1-33
+app/(timeline)/account/sessions/AccountSessions.test.tsx
+  s_ef94c615601f1e::t_3a8b316dae810a 20,414-415,418,422
+app/(timeline)/messages/MessageBubble.tsx
+  s_ef94c615601f1e::t_2da7276babf106 25,27,86,106
+lib/testing/hydrateServerHtml.ts
+  s_ef94c615601f1e::t_51d610c91fc6a0 1-45,55-58
+  s_ef94c615601f1e::t_3a8b316dae810a 46-54
+app/(timeline)/messages/useMessageTimeFormat.test.tsx
+  s_ef94c615601f1e::t_1944eca3f18870 1-68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9047c8788bdbc685a090109858ced8c4470f3e0a",
+  "prompts": {},
+  "sessions": {
+    "s_ef94c615601f1e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c0945e62-5045-4d9f-8509-09789d421234",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

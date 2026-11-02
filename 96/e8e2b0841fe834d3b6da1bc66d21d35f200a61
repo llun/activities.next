@@ -1,0 +1,16 @@
+app/(timeline)/[actor]/[status]/page.visibility.test.tsx
+  h_580a04e334fef4 5,355-358,360-361
+lib/components/posts/read-only-stats.test.tsx
+  h_580a04e334fef4 24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "96e8e2b0841fe834d3b6da1bc66d21d35f200a61",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
