@@ -10,7 +10,6 @@ import {
   mockCarol
 } from '@/lib/components/posts/__fixtures__/timeline-context'
 import {
-  COMBINE_MAX_GAP_MS,
   CombinedBlock,
   buildCombinedBlocks,
   hasCombinedRun
@@ -19,6 +18,8 @@ import { ActorProfile } from '@/lib/types/domain/actor'
 import { StatusNote } from '@/lib/types/domain/status'
 
 const MINUTE = 60 * 1000
+const HOUR = 60 * MINUTE
+const DAY = 24 * HOUR
 
 const note = (
   name: string,
@@ -56,7 +57,7 @@ const shape = (blocks: CombinedBlock[]) =>
   )
 
 describe('buildCombinedBlocks', () => {
-  it('combines quick self-replies into one run', () => {
+  it('combines self-replies into one run', () => {
     const a1 = note('a1', { at: 0 })
     const a2 = note('a2', { at: 2 * MINUTE, reply: a1.id })
     const a3 = note('a3', { at: 4 * MINUTE, reply: a2.id })
@@ -84,42 +85,47 @@ describe('buildCombinedBlocks', () => {
     expect(shape(buildCombinedBlocks([a1, b1, c1]))).toEqual(['a1', 'b1', 'c1'])
   })
 
-  describe('gap between neighbouring posts', () => {
-    it.each([
-      {
-        description: 'exactly ten minutes combines',
-        gap: COMBINE_MAX_GAP_MS,
-        expected: ['a1 > a2']
-      },
-      {
-        description: 'ten minutes and one millisecond splits',
-        gap: COMBINE_MAX_GAP_MS + 1,
-        expected: ['a1', 'a2']
-      }
-    ])('$description', ({ gap, expected }) => {
+  describe('time between posts', () => {
+    it('combines self-replies hours and days apart', () => {
       const a1 = note('a1', { at: 0 })
-      const a2 = note('a2', { at: gap, reply: a1.id })
-
-      expect(shape(buildCombinedBlocks([a1, a2]))).toEqual(expected)
-    })
-
-    it('measures each gap from the post before it, not from the first', () => {
-      const a1 = note('a1', { at: 0 })
-      const a2 = note('a2', { at: 9 * MINUTE, reply: a1.id })
-      const a3 = note('a3', { at: 18 * MINUTE, reply: a2.id })
+      const a2 = note('a2', { at: 12 * HOUR, reply: a1.id })
+      const a3 = note('a3', { at: 12 * HOUR + 3 * DAY, reply: a2.id })
 
       expect(shape(buildCombinedBlocks([a1, a2, a3]))).toEqual(['a1 > a2 > a3'])
     })
 
-    it('splits a run where one gap is too long and recombines the rest', () => {
+    it('tucks a late text-only reply when the author continues afterwards', () => {
+      const a1 = note('a1', { at: 0 })
+      const b1 = note('b1', { actor: mockBob, at: 2 * DAY, reply: a1.id })
+      const a2 = note('a2', { at: 3 * DAY, reply: a1.id })
+
+      expect(shape(buildCombinedBlocks([a1, b1, a2]))).toEqual(['a1+b1 > a2'])
+    })
+
+    it('still drops a late reply the author never followed up on', () => {
       const a1 = note('a1', { at: 0 })
       const a2 = note('a2', { at: MINUTE, reply: a1.id })
-      const a3 = note('a3', { at: 30 * MINUTE, reply: a2.id })
-      const a4 = note('a4', { at: 31 * MINUTE, reply: a3.id })
+      const b1 = note('b1', { actor: mockBob, at: 2 * DAY, reply: a1.id })
 
-      expect(shape(buildCombinedBlocks([a1, a2, a3, a4]))).toEqual([
+      expect(shape(buildCombinedBlocks([a1, a2, b1]))).toEqual([
         'a1 > a2',
-        'a3 > a4'
+        'b1'
+      ])
+    })
+
+    it('still splits a late reply with media', () => {
+      const a1 = note('a1', { at: 0 })
+      const b1 = note('b1', { actor: mockBob, at: 2 * DAY, reply: a1.id })
+      const withPhoto = {
+        ...b1,
+        attachments: [createMockPhoto(b1, 'photo')]
+      } as StatusNote
+      const a2 = note('a2', { at: 3 * DAY, reply: a1.id })
+
+      expect(shape(buildCombinedBlocks([a1, withPhoto, a2]))).toEqual([
+        'a1',
+        'b1',
+        'a2'
       ])
     })
   })
@@ -191,21 +197,7 @@ describe('buildCombinedBlocks', () => {
       ])
     })
 
-    it("measures the author's next post from the post it answers, not from a waiting reply", () => {
-      const a1 = note('a1', { at: 0 })
-      const a2 = note('a2', { at: 5 * MINUTE, reply: a1.id })
-      const b1 = note('b1', { actor: mockBob, at: 14 * MINUTE, reply: a1.id })
-      const a3 = note('a3', { at: 23 * MINUTE, reply: a2.id })
-
-      // a3 is 9 minutes after b1 but 18 after a2, the post it answers.
-      expect(shape(buildCombinedBlocks([a1, a2, b1, a3]))).toEqual([
-        'a1 > a2',
-        'b1',
-        'a3'
-      ])
-    })
-
-    it('still combines an author reply to a tucked-in reply within the gap', () => {
+    it('still combines an author reply to a tucked-in reply', () => {
       const a1 = note('a1', { at: 0 })
       const b1 = note('b1', { actor: mockBob, at: 9 * MINUTE, reply: a1.id })
       const a2 = note('a2', { at: 18 * MINUTE, reply: b1.id })
@@ -329,22 +321,6 @@ describe('buildCombinedBlocks', () => {
       expect(shape(buildCombinedBlocks([a1, b1, b2, b3]))).toEqual([
         'a1',
         'b1 > b2 > b3'
-      ])
-    })
-
-    it('does not tuck a reply that comes long after the post it answers', () => {
-      const a1 = note('a1', { at: 0 })
-      const b1 = note('b1', {
-        actor: mockBob,
-        at: COMBINE_MAX_GAP_MS + 1,
-        reply: a1.id
-      })
-      const a2 = note('a2', { at: COMBINE_MAX_GAP_MS + 2, reply: a1.id })
-
-      expect(shape(buildCombinedBlocks([a1, b1, a2]))).toEqual([
-        'a1',
-        'b1',
-        'a2'
       ])
     })
   })

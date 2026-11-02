@@ -10,7 +10,6 @@ import {
   mockCarol
 } from '@/lib/components/posts/__fixtures__/timeline-context'
 import {
-  COMBINE_MAX_GAP_MS,
   CombinedBlock,
   buildCombinedBlocks
 } from '@/lib/components/posts/combinedThreadModel'
@@ -27,6 +26,11 @@ import { Status, StatusNote } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 const MINUTE = 60 * 1000
+const HOUR = 60 * MINUTE
+const UNLISTED = {
+  to: [],
+  cc: [ACTIVITY_STREAM_PUBLIC]
+}
 
 const note = (
   name: string,
@@ -281,12 +285,9 @@ describe('selfThreadModel', () => {
       expect(model.replyingToByReplyId.get(b2.id)).toBe('Replying to 1 of 2')
     })
 
-    it('returns run: null when the focused status is a standalone post or exceeds the time gap', () => {
+    it('returns run: null when the focused status is a standalone post or its reply changes visibility', () => {
       const a1 = note('a1', { at: 0 })
-      const a2 = note('a2', {
-        at: COMBINE_MAX_GAP_MS + 1000,
-        reply: a1.id
-      })
+      const a2 = note('a2', { at: MINUTE, reply: a1.id, ...UNLISTED })
 
       const model = buildSelfThreadModel({
         focusedStatus: a1,
@@ -342,26 +343,24 @@ describe('selfThreadModel', () => {
       expect(model.repliesOutsideRun).toEqual([])
     })
 
-    it('leaves a reply more than 10 minutes after the post it answers under Replies without splitting the run', () => {
+    it('combines self-replies hours apart and tucks a late text-only reply', () => {
       const a1 = note('a1', { at: 0 })
-      const a2 = note('a2', { at: 2 * MINUTE, reply: a1.id })
-      const a3 = note('a3', { at: 4 * MINUTE, reply: a2.id })
       const bLate = note('b-late', {
         actor: mockBob,
-        at: COMBINE_MAX_GAP_MS + MINUTE,
+        at: 5 * HOUR,
         reply: a1.id
       })
+      const a2 = note('a2', { at: 12 * HOUR, reply: a1.id })
 
       const model = buildSelfThreadModel({
         focusedStatus: a1,
         ancestors: [],
-        descendants: [a2, a3, bLate]
+        descendants: [a2, bLate]
       })
 
-      expect(model.parts.map((p) => p.status.id)).toEqual([a1.id, a2.id, a3.id])
-      expect(model.parts[0].insets).toEqual([])
-      expect(model.repliesOutsideRun.map((s) => s.id)).toEqual([bLate.id])
-      expect(model.replyingToByReplyId.get(bLate.id)).toBe('Replying to 1 of 3')
+      expect(model.parts.map((p) => p.status.id)).toEqual([a1.id, a2.id])
+      expect(model.parts[0].insets.map((s) => s.id)).toEqual([bLate.id])
+      expect(model.repliesOutsideRun).toEqual([])
     })
 
     it('keeps a tuckable reply that has its own replies under Replies so its sub-thread renders', () => {
@@ -388,11 +387,19 @@ describe('selfThreadModel', () => {
       ])
     })
 
-    it('keeps two self-reply blocks separated by > 10 minutes as distinct runs around focusedStatus', () => {
+    it('keeps two self-reply blocks separated by a visibility change as distinct runs around focusedStatus', () => {
       const a1 = note('a1', { at: 0 })
       const a2 = note('a2', { at: 2 * MINUTE, reply: a1.id })
-      const a3 = note('a3', { at: 20 * MINUTE, reply: a2.id })
-      const a4 = note('a4', { at: 22 * MINUTE, reply: a3.id })
+      const a3 = note('a3', {
+        at: 20 * MINUTE,
+        reply: a2.id,
+        ...UNLISTED
+      })
+      const a4 = note('a4', {
+        at: 22 * MINUTE,
+        reply: a3.id,
+        ...UNLISTED
+      })
 
       const focusedInFirstBlock = buildSelfThreadModel({
         focusedStatus: a1,
@@ -429,8 +436,16 @@ describe('selfThreadModel', () => {
     it('labels a reply to the last part of a separate ancestor run', () => {
       const a1 = note('a1', { at: 0 })
       const a2 = note('a2', { at: 2 * MINUTE, reply: a1.id })
-      const a3 = note('a3', { at: 20 * MINUTE, reply: a2.id })
-      const a4 = note('a4', { at: 22 * MINUTE, reply: a3.id })
+      const a3 = note('a3', {
+        at: 20 * MINUTE,
+        reply: a2.id,
+        ...UNLISTED
+      })
+      const a4 = note('a4', {
+        at: 22 * MINUTE,
+        reply: a3.id,
+        ...UNLISTED
+      })
       const replyToA2 = note('reply-a2', {
         actor: mockBob,
         at: 23 * MINUTE,
@@ -575,20 +590,6 @@ describe('selfThreadModel', () => {
         expect([...openedLast.ancestorRunAnchorIndexById]).toEqual([
           [`combined:${m1.id}`, 1]
         ])
-      })
-
-      it('splits the ancestor stretch when the gap exceeds ten minutes', () => {
-        const m1 = note('m1', { at: 0 })
-        const m2 = note('m2', { at: 20 * MINUTE, reply: m1.id })
-        const v1 = note('v1', { actor: mockBob, at: 21 * MINUTE, reply: m2.id })
-
-        const model = buildSelfThreadModel({
-          focusedStatus: v1,
-          ancestors: [m1, m2]
-        })
-
-        expect(model.ancestorRuns).toEqual([])
-        expect(model.focusedReplyingTo).toBeNull()
       })
 
       it('splits the ancestor stretch when the visibility changes', () => {

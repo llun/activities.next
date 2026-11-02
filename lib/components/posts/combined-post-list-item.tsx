@@ -357,11 +357,12 @@ export const InsetReply: FC<InsetReplyProps> = ({
 }
 
 /**
- * A run of quick self-replies shown as one feed row: the first post's header
+ * A run of self-replies shown as one feed row: the first post's header
  * (with the span of time the run covers), every post's content stacked down a
  * thread rail, the replies others tucked in as small cards, and one action bar
  * at the bottom. The bar is split: Reply acts on the latest post, everything
- * else on the first.
+ * else on the first. Every later part also has its own Like next to its ⋯
+ * menu, so each post can be liked without opening it.
  *
  * Like `PostListItem` it is memoized, and its overlays follow the same
  * `feed-row` rule (see the comment there): the menus and the reaction picker
@@ -552,6 +553,15 @@ export const CombinedPostListItem = memo(function CombinedPostListItem({
                                 host={host}
                                 currentTime={currentTime}
                                 targetLabel={`part ${label}`}
+                              />
+                            ) : null}
+                            {showsActionRow && currentActor ? (
+                              <LikeButton
+                                key={`${actualStatus.id}-like`}
+                                currentActor={currentActor}
+                                status={actualStatus}
+                                targetLabel={`part ${label}`}
+                                onLikeChanged={onLikeChanged}
                               />
                             ) : null}
                             {showsActionRow ? (

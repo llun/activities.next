@@ -5,17 +5,8 @@ import { getActualStatus } from '@/lib/utils/text/processStatusText'
 import {
   getStatusAliases,
   getStatusAuthorId,
-  getStatusCreatedAtMs,
   getStatusReplyTargetId
 } from './timelineModel'
-
-/**
- * The longest gap that still lets a post join a combined run: the author's next
- * post is measured from the post it replies to, a tucked-in reply from someone
- * else from the last waiting reply (or, with none, the run's latest post).
- * Exactly ten minutes still combines; one millisecond more starts a new block.
- */
-export const COMBINE_MAX_GAP_MS = 10 * 60 * 1000
 
 /** Other people's replies a run may carry inside it before it is split. */
 export const COMBINE_MAX_INSETS = 2
@@ -33,7 +24,6 @@ export type CombinedBlock =
 interface StatusInfo {
   status: Status
   authorId: string
-  createdAt: number
   parentId: string | null
   visibility: string
   /** A reply a run may carry as an inset: a bare note, nothing to show but text. */
@@ -55,9 +45,6 @@ interface RunDraft {
   pending: PendingInset[]
 }
 
-const isWithinGap = (a: number, b: number) =>
-  Math.abs(a - b) <= COMBINE_MAX_GAP_MS
-
 /**
  * A post can sit inside a run as an inset when the inset can show all of it:
  * text and a link card, but no media, poll, quote or fitness activity.
@@ -74,13 +61,12 @@ export const canTuck = (status: Status): boolean => {
 
 /**
  * Splits the chain-ordered statuses of a thread or conversation row into
- * blocks: a `run` is a stretch of quick self-replies that the timeline shows as
+ * blocks: a `run` is a stretch of self-replies that the timeline shows as
  * one combined post, and every other status stays a plain `post`.
  *
  * A run is two or more posts by one author where each post after the first
- * replies to the previous one (or to a reply tucked into the run), each post is
- * at most `COMBINE_MAX_GAP_MS` after the post it replies to and all share one
- * visibility.
+ * replies to the previous one (or to a reply tucked into the run) and all share
+ * one visibility. Time never matters: a reply hours or days later still joins.
  * Someone else's reply to a run post stays inside the run as an inset when the
  * run carries at most `COMBINE_MAX_INSETS` of them, the reply has nothing but
  * text and the author's next post follows it; otherwise the run splits there and
@@ -107,7 +93,6 @@ export const buildCombinedBlocks = (
     return {
       status,
       authorId: getStatusAuthorId(actual),
-      createdAt: getStatusCreatedAtMs(actual),
       parentId: parentId === status.id ? null : parentId,
       visibility: getVisibility(actual.to, actual.cc),
       canTuck: !neverTuckIds?.has(status.id) && canTuck(status)
@@ -149,7 +134,6 @@ export const buildCombinedBlocks = (
   }
 
   const infos = statuses.map(infoOf)
-  const createdAtById = new Map(infos.map((i) => [i.status.id, i.createdAt]))
   let index = 0
   for (;;) {
     if (index >= infos.length) {
@@ -167,9 +151,6 @@ export const buildCombinedBlocks = (
     }
 
     const last = run.parts[run.parts.length - 1].info
-    const previous = run.pending.length
-      ? run.pending[run.pending.length - 1].info
-      : last
 
     if (info.authorId === run.authorId) {
       const repliesToRun =
@@ -179,16 +160,7 @@ export const buildCombinedBlocks = (
           run.parts.some((part) =>
             part.insets.some((inset) => inset.status.id === info.parentId)
           ))
-      if (
-        repliesToRun &&
-        info.visibility === run.visibility &&
-        // The author's post sits under the post it answers, so the gap is
-        // measured from that post, not from the last reply waiting in line.
-        isWithinGap(
-          info.createdAt,
-          createdAtById.get(info.parentId as string) ?? previous.createdAt
-        )
-      ) {
+      if (repliesToRun && info.visibility === run.visibility) {
         for (const { info: pending, partIndex } of run.pending) {
           run.parts[partIndex].insets.push(pending)
         }
@@ -204,12 +176,7 @@ export const buildCombinedBlocks = (
       const insetCount =
         run.pending.length +
         run.parts.reduce((total, part) => total + part.insets.length, 0)
-      if (
-        partIndex >= 0 &&
-        insetCount < COMBINE_MAX_INSETS &&
-        // Measured from the last waiting reply, else the run's latest post.
-        isWithinGap(info.createdAt, previous.createdAt)
-      ) {
+      if (partIndex >= 0 && insetCount < COMBINE_MAX_INSETS) {
         run.pending.push({ info, partIndex, index })
         index += 1
         continue

@@ -1948,7 +1948,7 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   `InlineStatusComposer` internally — that is the shared layer doing the wiring,
   not a page opting into per-status callbacks.)
   **Exception — the timeline's combined post** (`CombinedPostListItem`, a run of
-  quick self-replies shown as one row): repost, like, bookmark and react for the
+  self-replies shown as one row): repost, like, bookmark and react for the
   parts live on its one shared action bar and act on the first post, and reply
   goes to the latest post (`Actions`' `splitTargets`). Every later part and every
   tucked-in reply still keeps its own `⋯` menu (the same `PostMenu`, so quote,

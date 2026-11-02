@@ -306,7 +306,7 @@ export const buildSelfThreadModel = ({
 
   // A lone post cannot make a run: skip the tuck search, the common case.
   const canRun = chain.length > 1
-  // Only structural checks here: whether a reply tucks (gap, cap, the author
+  // Only structural checks here: whether a reply tucks (cap, the author
   // continuing after it) is left to `buildCombinedBlocks` below.
   const candidates = (canRun ? descendants : []).filter((candidate) => {
     if (chainIds.has(candidate.id)) return false
