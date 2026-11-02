@@ -969,7 +969,7 @@ export const StatusThread: FC<StatusThreadProps> = ({
         )}
       </div>
 
-      {/* Later self-thread blocks separated by > 10 min */}
+      {/* Later self-thread blocks, each started by a visibility change */}
       {activeDescendantRuns.map((descendantRun, index) => {
         const descendantRunIds = new Set(
           getRunMergedStatuses(descendantRun).map((s) => s.id)
