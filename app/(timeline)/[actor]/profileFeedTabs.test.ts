@@ -80,10 +80,31 @@ describe('getCreatedStatusTab', () => {
     expect(getCreatedStatusTab(status, loaded, repliesTab)).toBe(tab)
   })
 
-  it('finds an own parent shown inside a boost', () => {
+  it('finds an own top-level parent shown inside a boost', () => {
     const ownBoost = createAnnounceStatus(id('own-boost'), top)
     expect(getCreatedStatusTab(written(id('top')), [ownBoost], new Set())).toBe(
       'posts'
     )
+  })
+
+  it('treats an own reply known only inside a boost as an unloaded parent', () => {
+    // The boost's post is the owner's reply to someone else, which is not a
+    // row, so it has no tab of its own here: the reply goes to Replies, as
+    // the server's chain walk puts it.
+    const ownBoost = createAnnounceStatus(id('own-boost'), toOther)
+    expect(
+      getCreatedStatusTab(written(id('to-other')), [ownBoost], new Set())
+    ).toBe('replies')
+  })
+
+  it('prefers the parent row to the same post inside a boost', () => {
+    const ownBoost = createAnnounceStatus(id('own-boost'), selfReply)
+    expect(
+      getCreatedStatusTab(
+        written(id('self')),
+        [ownBoost, selfReply, top],
+        new Set()
+      )
+    ).toBe('posts')
   })
 })

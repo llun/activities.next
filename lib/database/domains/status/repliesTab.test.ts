@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto'
 
 import {
   SELF_CHAIN_DEPTH_CAP,
-  getRepliesTabStatusIds
+  getRepliesTabStatusIds,
+  selectSelfChainRows
 } from '@/lib/database/domains/status/repliesTab'
 import type { ActorVisibleStatusAudience } from '@/lib/database/kysely/visibility/actorVisible'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
@@ -268,7 +269,7 @@ describe('getRepliesTabStatusIds', () => {
     expect(statements).toEqual([])
   })
 
-  it('falls back to Posts once the walk reaches the depth cap', async () => {
+  it('classifies a chain of exactly the cap and falls back to Posts past it', async () => {
     const { author, other, status } = await seedActors()
     const othersPost = await seedStatus({
       id: `${other}/statuses/post`,
@@ -280,7 +281,7 @@ describe('getRepliesTabStatusIds', () => {
       actorId: author,
       reply: othersPost
     })
-    for (let index = 1; index <= SELF_CHAIN_DEPTH_CAP; index++) {
+    for (let index = 1; index <= SELF_CHAIN_DEPTH_CAP + 1; index++) {
       await seedStatus({
         id: status(`part-${index}`),
         actorId: author,
@@ -291,16 +292,113 @@ describe('getRepliesTabStatusIds', () => {
     const repliesTab = await getRepliesTabStatusIds(db, {
       actorId: author,
       statusIds: [
-        status(`part-${SELF_CHAIN_DEPTH_CAP - 1}`),
-        status(`part-${SELF_CHAIN_DEPTH_CAP}`)
+        status(`part-${SELF_CHAIN_DEPTH_CAP}`),
+        status(`part-${SELF_CHAIN_DEPTH_CAP + 1}`)
       ],
       audience: OWNER
     })
 
-    // The walk from the last part stops one step short of part-0's own
-    // parent, so it counts as Mastodon counts a self-reply: on Posts.
-    expect(repliesTab).toEqual([status(`part-${SELF_CHAIN_DEPTH_CAP - 1}`)])
+    // part-CAP is CAP steps from part-0, so the walk still reaches part-0 and
+    // sees it answer someone else: Replies. part-(CAP + 1) is one step longer
+    // than the cap, so it counts as Mastodon counts a self-reply: on Posts.
+    expect(repliesTab).toEqual([status(`part-${SELF_CHAIN_DEPTH_CAP}`)])
   })
+
+  it('lets Posts win when a reply names two parents at one depth', async () => {
+    const { author, other, status } = await seedActors()
+    const othersPost = await seedStatus({
+      id: `${other}/statuses/post`,
+      actorId: other
+    })
+    // The child's `reply` is one status's id and another status's url: a
+    // top-level post (Posts) and a reply to someone else (Replies).
+    const shared = status('shared')
+    await seedStatus({ id: shared, actorId: author })
+    await seedStatus({
+      id: status('by-url'),
+      url: shared,
+      actorId: author,
+      reply: othersPost
+    })
+    await seedStatus({ id: status('child'), actorId: author, reply: shared })
+
+    const rows = await selectSelfChainRows(db, {
+      actorId: author,
+      statusIds: [status('child')],
+      audience: OWNER
+    })
+    // Both parents are walked, at depth 1.
+    expect(rows.filter((row) => Number(row.depth) === 1)).toHaveLength(2)
+
+    await expect(
+      getRepliesTabStatusIds(db, {
+        actorId: author,
+        statusIds: [status('child')],
+        audience: OWNER
+      })
+    ).resolves.toEqual([])
+  })
+
+  // Each level of the ladder holds two of the actor's statuses that one
+  // `reply` names at once (one by id, the other by url), and both reply to
+  // the next level's key. `UNION ALL` doubled the rows per level (about two
+  // million for one seed at a cap of 20); `UNION` keeps one per status and
+  // depth.
+  it.each([
+    {
+      description: 'a ladder longer than the cap on Posts',
+      levels: SELF_CHAIN_DEPTH_CAP + 2,
+      tab: 'posts'
+    },
+    {
+      description: 'a short ladder under a reply to someone else on Replies',
+      levels: 3,
+      tab: 'replies'
+    }
+  ])(
+    'walks an id/url ladder in bounded rows and puts $description',
+    async ({ levels, tab }) => {
+      const { author, other, status } = await seedActors()
+      const othersPost = await seedStatus({
+        id: `${other}/statuses/post`,
+        actorId: other
+      })
+      const key = (level: number) => status(`key-${level}`)
+      for (let level = 1; level <= levels; level++) {
+        const reply = level === levels ? othersPost : key(level + 1)
+        // By id: this status's id is the key.
+        await seedStatus({
+          id: key(level),
+          url: `${key(level)}/by-id`,
+          actorId: author,
+          reply
+        })
+        // By url: another status whose url is the same key.
+        await seedStatus({
+          id: status(`url-${level}`),
+          url: key(level),
+          actorId: author,
+          reply
+        })
+      }
+      await seedStatus({ id: status('seed'), actorId: author, reply: key(1) })
+
+      const params = {
+        actorId: author,
+        statusIds: [status('seed')],
+        audience: OWNER
+      }
+      const rows = await selectSelfChainRows(db, params)
+      // The seed, then two statuses per level the walk reaches (it takes one
+      // step past the cap).
+      const walkedLevels = Math.min(levels, SELF_CHAIN_DEPTH_CAP + 1)
+      expect(rows).toHaveLength(1 + 2 * walkedLevels)
+
+      await expect(getRepliesTabStatusIds(db, params)).resolves.toEqual(
+        tab === 'replies' ? [status('seed')] : []
+      )
+    }
+  )
 
   it('ends a chain that loops back on itself at the cap', async () => {
     const { author, status } = await seedActors()

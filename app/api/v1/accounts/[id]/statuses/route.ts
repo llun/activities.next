@@ -310,18 +310,23 @@ export const GET = traceApiRoute(
         // The web profile's tab for each self-thread is decided here, not by
         // the browser from whichever parents it has loaded, so a follow-up
         // never moves tabs when another page arrives. Web payload only: the
-        // Mastodon response below is unchanged.
-        const repliesTabStatusIds = await getProfileRepliesTabStatusIds({
-          database,
-          actorId: id,
-          statuses: visibleStatuses,
-          audience: {
-            publicOnly: audience.publicOnly,
-            visibleToActorId: audience.visibleToActorId,
-            includeFollowersOnly: audience.includeFollowersOnly,
-            followersAudience: audience.followersAudience
-          }
-        })
+        // Mastodon response below is unchanged. Only a local actor's profile
+        // has a Replies tab (a remote profile keeps the plain split in the
+        // browser), so a remote actor's stored statuses, whose ids, urls and
+        // reply targets another server chose, are never walked.
+        const repliesTabStatusIds = actor.privateKey
+          ? await getProfileRepliesTabStatusIds({
+              database,
+              actorId: id,
+              statuses: visibleStatuses,
+              audience: {
+                publicOnly: audience.publicOnly,
+                visibleToActorId: audience.visibleToActorId,
+                includeFollowersOnly: audience.includeFollowersOnly,
+                followersAudience: audience.followersAudience
+              }
+            })
+          : []
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,

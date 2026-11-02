@@ -2602,3 +2602,157 @@ describe('getProfileData album presence', () => {
     })
   })
 })
+
+// The profile's Replies tab is decided by walking each reply's self-reply
+// chain; the walk must only pass through ancestors this viewer may read, so
+// the SSR page must hand the classification the viewer's own audience.
+describe('getProfileData replies tab audience', () => {
+  const { actors } = DatabaseSeed
+  const table = getTestDatabaseTable()
+
+  beforeAll(async () => {
+    await databaseBeforeAll(table)
+  })
+
+  describe.each(table)('%s', (_, database) => {
+    const followerId = actors.extra.id
+    const strangerId = actors.replyAuthor.id
+    const addressedId = actors.pollAuthor.id
+
+    beforeAll(async () => {
+      await seedDatabase(database)
+    })
+
+    afterAll(async () => {
+      await database.destroy()
+    })
+
+    // A local account followed by `followerId`, with a public reply to
+    // someone else, a self-reply under it addressed to `middleTo`, and a
+    // public self-reply leaf under that.
+    const createOwnerWithChain = async (
+      tag: string,
+      middleTo: (actorId: string) => string[]
+    ) => {
+      const username = `replies-tab-${tag}-${crypto.randomUUID().slice(0, 8)}`
+      const domain = 'llun.test'
+      const actorId = `https://${domain}/users/${username}`
+      await database.createAccount({
+        email: `${username}@${domain}`,
+        username,
+        passwordHash: TEST_PASSWORD_HASH,
+        domain,
+        privateKey: `privateKey-${username}`,
+        publicKey: `publicKey-${username}`
+      })
+      await database.createFollow({
+        actorId: followerId,
+        targetActorId: actorId,
+        inbox: `${actorId}/inbox`,
+        sharedInbox: `https://${domain}/inbox`,
+        status: FollowStatus.enum.Accepted
+      })
+      const toOtherId = `${actorId}/statuses/to-other`
+      const middleId = `${actorId}/statuses/middle`
+      const leafId = `${actorId}/statuses/leaf`
+      const now = Date.now()
+      await database.createNote({
+        id: toOtherId,
+        url: toOtherId,
+        actorId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'reply to someone else',
+        reply: `${strangerId}/statuses/replies-tab-parent`,
+        createdAt: now - 3
+      })
+      await database.createNote({
+        id: middleId,
+        url: middleId,
+        actorId,
+        to: middleTo(actorId),
+        cc: [],
+        text: 'restricted self-reply',
+        reply: toOtherId,
+        createdAt: now - 2
+      })
+      await database.createNote({
+        id: leafId,
+        url: leafId,
+        actorId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'public self-reply',
+        reply: middleId,
+        createdAt: now - 1
+      })
+      return { actorId, handle: `@${username}@${domain}`, leafId }
+    }
+
+    const leafOnRepliesFor = async (
+      owner: { handle: string; leafId: string },
+      viewerId: string | null
+    ) => {
+      const currentActor = viewerId
+        ? await database.getActorFromId({ id: viewerId })
+        : null
+      const result = await getProfileData(
+        database,
+        owner.handle,
+        Boolean(currentActor),
+        { currentActor }
+      )
+      expect(result?.statuses.map((status) => status.id)).toContain(
+        owner.leafId
+      )
+      return result?.repliesTabStatusIds?.includes(owner.leafId)
+    }
+
+    it.each([
+      { description: 'the owner', viewer: 'owner', onReplies: true },
+      { description: 'a follower', viewer: 'follower', onReplies: true },
+      {
+        description: 'a signed-in non-follower',
+        viewer: 'stranger',
+        onReplies: false
+      },
+      { description: 'a signed-out visitor', viewer: null, onReplies: false }
+    ])(
+      'walks a followers-only ancestor only for $description',
+      async ({ viewer, onReplies }) => {
+        const owner = await createOwnerWithChain('followers', (actorId) => [
+          `${actorId}/followers`
+        ])
+        const viewerIds: Record<string, string> = {
+          owner: owner.actorId,
+          follower: followerId,
+          stranger: strangerId
+        }
+
+        expect(
+          await leafOnRepliesFor(owner, viewer ? viewerIds[viewer] : null)
+        ).toBe(onReplies)
+      }
+    )
+
+    it.each([
+      {
+        description: 'the viewer it is addressed to',
+        viewerId: addressedId,
+        onReplies: true
+      },
+      {
+        description: 'a follower it is not addressed to',
+        viewerId: followerId,
+        onReplies: false
+      }
+    ])(
+      'walks a direct ancestor only for $description',
+      async ({ viewerId, onReplies }) => {
+        const owner = await createOwnerWithChain('direct', () => [addressedId])
+
+        expect(await leafOnRepliesFor(owner, viewerId)).toBe(onReplies)
+      }
+    )
+  })
+})

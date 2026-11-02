@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import { getAccountStatusesPage } from '@/lib/client'
 import {
@@ -123,6 +123,42 @@ describe('ActorTimelines self-threads', () => {
       await screen.findByRole('button', { name: /Open part 2 of 2/ })
     ).toBeInTheDocument()
     expect(texts()).toEqual(['top', 'self', 'middle'])
+  })
+
+  it('puts a later page’s reply to someone else and its follow-up on Replies, combined', async () => {
+    // Older than page 1: a reply to someone else and a self-reply under it,
+    // both on Replies by the server's list for page 2.
+    const oldToOther = note('old-to-other', -3, othersPost.id)
+    const oldUnder = note('old-under', -2, oldToOther.id)
+    vi.mocked(getAccountStatusesPage).mockResolvedValue({
+      statuses: [oldUnder, oldToOther],
+      nextMaxStatusId: null,
+      repliesTabStatusIds: [oldUnder.id, oldToOther.id]
+    })
+    renderProfile({
+      statuses: [toOther, selfReply, top],
+      repliesTabStatusIds: [toOther.id],
+      statusPagination: {
+        nextPageUrl: null,
+        prevPageUrl: null,
+        nextMaxStatusId: top.id
+      }
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    // The last page is in once the control goes away.
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull()
+    )
+
+    // Page 1 keeps its tabs; page 2's pair is not on Posts.
+    expect(texts()).toEqual(['top', 'self'])
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Replies' }))
+    expect(texts()).toEqual(['to-other', 'old-to-other', 'old-under'])
+    expect(
+      screen.getByRole('button', { name: /Open part 2 of 2/ })
+    ).toBeInTheDocument()
   })
 
   it('keeps one card per post on a remote profile', () => {

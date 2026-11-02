@@ -644,7 +644,7 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   local account's profile page loads its older posts with it, passing
   `nextMaxStatusId` back as `max_id` the way Mastodon's web profile pages this
   endpoint. `repliesTabStatusIds` lists the page's statuses that open the
-  profile's Replies tab (see [Profile tabs](architecture.md#profile-tabs-and-the-edit-profile-page));
+  local profile's Replies tab, always empty for a remote account (see [Profile tabs](architecture.md#profile-tabs-and-the-edit-profile-page));
   the Mastodon response is unchanged. `GET /api/v1/timelines/list/:id` returns
   `{ statuses, context, nextMaxStatusId, prevMinStatusId }`, the same `context`
   of reply parent previews the home timeline's payload carries.

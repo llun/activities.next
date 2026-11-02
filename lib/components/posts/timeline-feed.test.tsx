@@ -957,6 +957,92 @@ describe('TimelineFeed', () => {
     })
   })
 
+  describe('first visible media', () => {
+    const MINUTE = 60 * 1000
+    const note = (
+      name: string,
+      at: number,
+      { reply = '', photo = false }: { reply?: string; photo?: boolean } = {}
+    ) => {
+      const status = createMockNote({
+        id: `https://activities.local/users/alice/statuses/${name}`,
+        createdAt: BASE_TIME + at * MINUTE,
+        text: `Text of ${name}`,
+        reply
+      })
+      return photo
+        ? {
+            ...status,
+            attachments: [
+              {
+                ...createMockPhoto(status, name),
+                blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj'
+              }
+            ]
+          }
+        : status
+    }
+    // A prioritized image is revealed at once (no hydration fade).
+    const prioritizedImages = (container: HTMLElement) =>
+      [...container.querySelectorAll('img.opacity-100')].map((img) =>
+        img.getAttribute('src')
+      )
+    const renderFeed = (statuses: Status[], prioritizeFirstMedia = true) =>
+      render(
+        <TimelineFeed
+          host="activities.local"
+          currentTime={BASE_TIME + 10 * MINUTE}
+          statuses={statuses}
+          prioritizeFirstMedia={prioritizeFirstMedia}
+        />
+      )
+
+    it('keeps every image lazy unless the feed opts in', () => {
+      const { container } = renderFeed([note('p1', 1, { photo: true })], false)
+      expect(container.querySelector('img')).not.toBeNull()
+      expect(prioritizedImages(container)).toEqual([])
+    })
+
+    it('picks the picture at the top of the rendered feed, inside a combined card', () => {
+      const top = note('top', 1, { photo: true })
+      const middle = note('middle', 2, { photo: true })
+      const self = note('self', 3, { reply: top.id })
+
+      // Newest first, `self` leads the list, but its card renders `top` first.
+      const { container } = renderFeed([self, middle, top])
+
+      expect(
+        screen.getByRole('button', { name: /Open part 2 of 2/ })
+      ).toBeInTheDocument()
+      expect(prioritizedImages(container)).toEqual([
+        expect.stringContaining('top.jpg')
+      ])
+    })
+
+    it("gives a combined card's first part with a picture the priority", () => {
+      const top = note('top', 1)
+      const middle = note('middle', 2, { photo: true })
+      const self = note('self', 3, { reply: top.id, photo: true })
+
+      const { container } = renderFeed([self, middle, top])
+
+      // Part 2 of the leading card is above the next row's picture.
+      expect(prioritizedImages(container)).toEqual([
+        expect.stringContaining('self.jpg')
+      ])
+    })
+
+    it('looks only at the first three rendered rows', () => {
+      const { container } = renderFeed([
+        note('t1', 4),
+        note('t2', 3),
+        note('t3', 2),
+        note('late', 1, { photo: true })
+      ])
+      expect(prioritizedImages(container)).toEqual([])
+    })
+  })
+
   it('renders a multi-author conversation with Conversation label', () => {
     render(
       <TimelineFeed

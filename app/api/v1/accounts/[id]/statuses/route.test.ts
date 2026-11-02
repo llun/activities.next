@@ -8,7 +8,7 @@ import { seedDatabase } from '@/lib/stub/database'
 import { statusPublicId } from '@/lib/stub/publicIds'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
-import { seedActor3 } from '@/lib/stub/seed/actor3'
+import { ACTOR3_ID, seedActor3 } from '@/lib/stub/seed/actor3'
 import { ACTOR4_ID } from '@/lib/stub/seed/actor4'
 import { ACTOR5_ID } from '@/lib/stub/seed/actor5'
 import { EXTERNAL_ACTOR1 } from '@/lib/stub/seed/external1'
@@ -80,6 +80,8 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
       inboxUrl: `${actorId}/inbox`,
       sharedInboxUrl: `https://${TEST_DOMAIN}/inbox`,
       publicKey: 'publicKey',
+      // What makes the actor local (`isLocalActor`).
+      privateKey: 'privateKey',
       createdAt: Date.now()
     })
     return actorId
@@ -1186,6 +1188,165 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
       for (const status of mastodonStatuses) {
         expect(status).not.toHaveProperty('repliesTabStatusIds')
       }
+    })
+
+    it('classifies no statuses for a remote actor', async () => {
+      const remoteActorId = 'https://remote-tabs.test/users/remote'
+      await database.createActor({
+        actorId: remoteActorId,
+        username: 'remote',
+        domain: 'remote-tabs.test',
+        followersUrl: `${remoteActorId}/followers`,
+        inboxUrl: `${remoteActorId}/inbox`,
+        sharedInboxUrl: 'https://remote-tabs.test/inbox',
+        publicKey: 'publicKey',
+        createdAt: Date.now()
+      })
+      const replyId = `${remoteActorId}/statuses/reply-to-other`
+      await database.createNote({
+        id: replyId,
+        url: replyId,
+        actorId: remoteActorId,
+        text: 'A stored remote reply',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        reply: `${ACTOR2_ID}/statuses/remote-tabs-parent`
+      })
+      const classify = vi.spyOn(database, 'getRepliesTabStatusIds')
+
+      try {
+        const page = await getPage(remoteActorId, 'limit=10')
+
+        expect(page.statuses.map((status) => status.id)).toEqual([replyId])
+        // A remote profile has no Replies tab; its data is never walked.
+        expect(page.repliesTabStatusIds).toEqual([])
+        expect(classify).not.toHaveBeenCalled()
+      } finally {
+        classify.mockRestore()
+      }
+    })
+
+    describe("the viewer's audience decides the tab", () => {
+      let ownerCount = 0
+      // A local account (so the owner can sign in), followed by actor 2.
+      // Actor 3 does not follow it.
+      const createOwner = async () => {
+        ownerCount += 1
+        const username = `tabsowner${ownerCount}`
+        const email = `${username}@${TEST_DOMAIN}`
+        await database.createAccount({
+          email,
+          username,
+          passwordHash: 'password-hash',
+          domain: TEST_DOMAIN,
+          privateKey: `privateKey-${username}`,
+          publicKey: `publicKey-${username}`
+        })
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        await database.createFollow({
+          actorId: ACTOR2_ID,
+          targetActorId: actorId,
+          inbox: `${ACTOR2_ID}/inbox`,
+          sharedInbox: `https://${TEST_DOMAIN}/inbox`,
+          status: FollowStatus.enum.Accepted
+        })
+        return { actorId, email }
+      }
+
+      // A public reply to someone else, a self-reply under it addressed to
+      // `middleTo`, and a public self-reply leaf under that.
+      const seedChain = async (actorId: string, middleTo: string[]) => {
+        const now = Date.now()
+        const toOtherId = `${actorId}/statuses/to-other`
+        const middleId = `${actorId}/statuses/middle`
+        const leafId = `${actorId}/statuses/leaf`
+        for (const [statusId, reply, to, createdAt] of [
+          [
+            toOtherId,
+            `${ACTOR2_ID}/statuses/tabs-audience-parent`,
+            [ACTIVITY_STREAM_PUBLIC],
+            now - 3
+          ],
+          [middleId, toOtherId, middleTo, now - 2],
+          [leafId, middleId, [ACTIVITY_STREAM_PUBLIC], now - 1]
+        ] as const) {
+          await database.createNote({
+            id: statusId,
+            url: statusId,
+            actorId,
+            text: 'Audience chain',
+            to: [...to],
+            cc: [],
+            reply,
+            createdAt
+          })
+        }
+        return leafId
+      }
+
+      const leafOnRepliesFor = async (
+        actorId: string,
+        leafId: string,
+        email: string | null
+      ) => {
+        mockGetServerSession.mockResolvedValue(
+          email ? { user: { email } } : null
+        )
+        const page = await getPage(actorId, 'limit=10')
+        expect(page.statuses.map((status) => status.id)).toContain(leafId)
+        return page.repliesTabStatusIds.includes(leafId)
+      }
+
+      it.each([
+        { description: 'the owner', viewer: 'owner', onReplies: true },
+        { description: 'a follower', viewer: 'follower', onReplies: true },
+        {
+          description: 'a signed-in non-follower',
+          viewer: 'stranger',
+          onReplies: false
+        },
+        { description: 'a signed-out visitor', viewer: null, onReplies: false }
+      ])(
+        'walks a followers-only ancestor only for $description',
+        async ({ viewer, onReplies }) => {
+          const { actorId, email } = await createOwner()
+          const leafId = await seedChain(actorId, [`${actorId}/followers`])
+          const emails: Record<string, string> = {
+            owner: email,
+            follower: seedActor2.email,
+            stranger: seedActor3.email
+          }
+
+          expect(
+            await leafOnRepliesFor(
+              actorId,
+              leafId,
+              viewer ? emails[viewer] : null
+            )
+          ).toBe(onReplies)
+        }
+      )
+
+      it.each([
+        {
+          description: 'the viewer it is addressed to',
+          email: seedActor3.email,
+          onReplies: true
+        },
+        {
+          description: 'a follower it is not addressed to',
+          email: seedActor2.email,
+          onReplies: false
+        }
+      ])(
+        'walks a direct ancestor only for $description',
+        async ({ email, onReplies }) => {
+          const { actorId } = await createOwner()
+          const leafId = await seedChain(actorId, [ACTOR3_ID])
+
+          expect(await leafOnRepliesFor(actorId, leafId, email)).toBe(onReplies)
+        }
+      )
     })
 
     it('serves the app status shape with the next max_id cursor in the body', async () => {

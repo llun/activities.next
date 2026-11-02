@@ -19,7 +19,8 @@ const isReply = (status: Status) =>
  * (`repliesTabStatusIds`, from the first post of each self-reply chain), so a
  * self-reply sits on the tab of the post its chain starts from and never moves
  * when another page loads. A remote profile has no such list (`null`) and
- * keeps the plain split: every reply on Replies.
+ * keeps the old rule: replies are not on Posts (a remote profile has no
+ * Replies tab, so they are not shown at all).
  */
 export const splitProfileFeeds = (
   statuses: Status[],
@@ -44,6 +45,13 @@ export const splitProfileFeeds = (
  * loaded status (a top-level post, or a reply already on Posts, keeps it on
  * Posts; one on Replies takes it there); a reply to anyone else, or to a parent
  * that is not loaded, is on Replies.
+ *
+ * Only the profile's own rows carry a tab (`repliesTabStatusIds` holds row
+ * ids), so a parent that is loaded only as the post a boost shows is known
+ * only in part: a top-level own post is still certain (Posts), but an own
+ * reply's chain is not, so it gets the unloaded parent's default (Replies).
+ * Known limit: such a reply whose chain starts at a top-level post moves to
+ * Posts on reload, where the server walks the whole chain.
  */
 export const getCreatedStatusTab = (
   status: Status,
@@ -51,10 +59,25 @@ export const getCreatedStatusTab = (
   repliesTabStatusIds: ReadonlySet<string>
 ): ProfileFeedTab => {
   if (status.type === StatusType.enum.Announce || !status.reply) return 'posts'
-  // The parent may be loaded as its own row or as the post a boost shows.
-  const parent = loadedStatuses
+  const isParent = (loaded: Status) => loaded.id === status.reply
+  const parentRow = loadedStatuses.find(
+    (loaded) => loaded.type !== StatusType.enum.Announce && isParent(loaded)
+  )
+  if (parentRow) {
+    if (parentRow.actorId !== status.actorId) return 'replies'
+    return repliesTabStatusIds.has(parentRow.id) ? 'replies' : 'posts'
+  }
+  // Not a row: maybe the post a boost shows.
+  const boostedParent = loadedStatuses
+    .filter((loaded) => loaded.type === StatusType.enum.Announce)
     .map((loaded) => getOriginalStatus(loaded))
-    .find((loaded) => loaded.id === status.reply)
-  if (!parent || parent.actorId !== status.actorId) return 'replies'
-  return repliesTabStatusIds.has(parent.id) ? 'replies' : 'posts'
+    .find(isParent)
+  if (
+    boostedParent &&
+    boostedParent.actorId === status.actorId &&
+    !boostedParent.reply
+  ) {
+    return 'posts'
+  }
+  return 'replies'
 }

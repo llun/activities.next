@@ -38,8 +38,12 @@ import {
 } from './combinedThreadModel'
 import { MOBILE_FEED_SURFACE_CLASS, POST_LIST_FRAME_CLASS } from './feedLayout'
 import { PostListItem } from './post-list-item'
-import { getPrioritizedRowIndex } from './posts'
-import { getStatusReplyTargetId, groupTimelinePage } from './timelineModel'
+import { PRIORITY_ROW_WINDOW, showsPrioritizableMedia } from './posts'
+import {
+  TimelineRow,
+  getStatusReplyTargetId,
+  groupTimelinePage
+} from './timelineModel'
 import { useInlineComposer } from './useInlineComposer'
 
 export interface TimelineFeedProps {
@@ -62,7 +66,9 @@ export interface TimelineFeedProps {
   statuses: Status[]
   /**
    * Reveal the list's first picture without the hydration fade, as `Posts`
-   * does (see its prop of the same name). Off by default.
+   * does (see its prop of the same name), picked from the rows as they render:
+   * the first post with an ordinary image among the first rows' leading posts
+   * (every part of a combined card that leads its row). Off by default.
    */
   prioritizeFirstMedia?: boolean
   /**
@@ -195,14 +201,6 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
     return map
   }, [statuses])
 
-  // The same pick as `Posts`: the first of the list's first statuses that
-  // shows an ordinary picture outright.
-  const prioritizedStatusId = useMemo(() => {
-    if (!prioritizeFirstMedia) return null
-    const index = getPrioritizedRowIndex(statuses)
-    return index === -1 ? null : statuses[index].id
-  }, [prioritizeFirstMedia, statuses])
-
   const rows = useMemo(() => {
     return groupTimelinePage(statuses, {
       groupBoosts: readingGroupBoosts
@@ -251,6 +249,61 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
   )
 
   if (statuses.length === 0) return null
+
+  const getRowStatuses = (entryIds: string[]) =>
+    entryIds
+      .map((id) => statusMap.get(id))
+      .filter((s): s is Status => Boolean(s))
+
+  // The combined blocks a thread or conversation row renders right now, or
+  // undefined when it renders post by post: a collapsed long thread, a row
+  // the viewer split, or a row with no run.
+  const getShownCombinedBlocks = (
+    row: Extract<TimelineRow, { kind: 'thread' | 'conversation' }>,
+    rowStatusCount: number
+  ) => {
+    if (isRowSeparate(row.entryIds)) return undefined
+    if (
+      row.kind === 'thread' &&
+      rowStatusCount > 3 &&
+      !expandedThreads.has(row.key)
+    ) {
+      return undefined
+    }
+    return combinedBlocksByRow.get(row.key)
+  }
+
+  // The posts at the top of a row, in the order they render: its first post,
+  // or every part of the combined card that leads it. A boost carousel offers
+  // none.
+  const getRowLeadStatuses = (row: TimelineRow): Status[] => {
+    if (row.kind === 'status') {
+      const status = statusMap.get(row.entryId)
+      return status ? [status] : []
+    }
+    if (row.kind === 'boosts') return []
+    const rowStatuses = getRowStatuses(row.entryIds)
+    const firstBlock = getShownCombinedBlocks(row, rowStatuses.length)?.[0]
+    if (firstBlock?.kind === 'run') {
+      return firstBlock.parts.map((part) => part.status)
+    }
+    if (firstBlock) return [firstBlock.status]
+    return rowStatuses.slice(0, 1)
+  }
+
+  // `Posts`' pick, over the rows as rendered rather than the flat list: a row
+  // sits at its newest part's place but shows its oldest part first.
+  const prioritizedStatusId = prioritizeFirstMedia
+    ? (rows
+        .filter((row) =>
+          row.kind === 'status'
+            ? statusMap.has(row.entryId)
+            : row.entryIds.some((id) => statusMap.has(id))
+        )
+        .slice(0, PRIORITY_ROW_WINDOW)
+        .flatMap(getRowLeadStatuses)
+        .find(showsPrioritizableMedia)?.id ?? null)
+    : null
 
   const canCompose = Boolean(currentActor) && showActions
 
@@ -335,6 +388,9 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
           key={block.key}
           parts={block.parts}
           rowIds={entryIds}
+          prioritizeMedia={block.parts.some(
+            (part) => part.status.id === prioritizedStatusId
+          )}
           host={host}
           currentTime={currentTime}
           currentActor={currentActor}
@@ -408,19 +464,17 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
               </div>
             )
           } else if (row.kind === 'thread') {
-            const threadStatuses = row.entryIds
-              .map((id) => statusMap.get(id))
-              .filter((s): s is Status => Boolean(s))
+            const threadStatuses = getRowStatuses(row.entryIds)
 
             if (threadStatuses.length === 0) return null
             rowStatusIds = threadStatuses.map((s) => s.id)
 
             const isExpanded = expandedThreads.has(row.key)
             const shouldCollapse = threadStatuses.length > 3 && !isExpanded
-            const combinedBlocks =
-              shouldCollapse || isRowSeparate(row.entryIds)
-                ? undefined
-                : combinedBlocksByRow.get(row.key)
+            const combinedBlocks = getShownCombinedBlocks(
+              row,
+              threadStatuses.length
+            )
 
             rowContent = (
               <div
@@ -502,15 +556,14 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
               </div>
             )
           } else if (row.kind === 'conversation') {
-            const convStatuses = row.entryIds
-              .map((id) => statusMap.get(id))
-              .filter((s): s is Status => Boolean(s))
+            const convStatuses = getRowStatuses(row.entryIds)
 
             if (convStatuses.length === 0) return null
             rowStatusIds = convStatuses.map((s) => s.id)
-            const combinedBlocks = isRowSeparate(row.entryIds)
-              ? undefined
-              : combinedBlocksByRow.get(row.key)
+            const combinedBlocks = getShownCombinedBlocks(
+              row,
+              convStatuses.length
+            )
 
             rowContent = (
               <div

@@ -96,7 +96,8 @@ interface Props {
    * it from the first post of each self-reply chain); the rest are on Posts.
    * Given, the Posts and Replies tabs render through the home timeline's feed,
    * so a post and its self-replies combine into one card. Absent (a remote
-   * profile), every reply is on Replies and each status is its own card.
+   * profile), the old rule holds: replies are not on Posts (a remote profile
+   * has no Replies tab), and each status is its own card through `Posts`.
    */
   repliesTabStatusIds?: string[]
   attachments: Attachment[]
