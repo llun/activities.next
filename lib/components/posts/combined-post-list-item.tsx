@@ -413,7 +413,8 @@ export const CombinedPostListItem = memo(function CombinedPostListItem({
   const firstStatus = parts[0].status
   const lastStatus = parts[parts.length - 1].status
   const firstActual = getActualStatus(firstStatus)
-  const anchorId = firstStatus.id
+  // Each composer is anchored to the post it acts on (a part or an inset), so
+  // after "Show as separate posts" it stays under that post.
   // Held here, for the first post: the chips and the bar's react button are two
   // halves of one control (see `Post`).
   const reactionState = useReactionState({
@@ -425,14 +426,18 @@ export const CombinedPostListItem = memo(function CombinedPostListItem({
   const { isTranslatable, translationLanguage, inlineTranslation } =
     getPostTranslation(firstActual, Boolean(currentActor), currentActor?.id)
   const handleReply = canCompose
-    ? (target: Status) => openReply(target, anchorId)
+    ? (target: Status) => openReply(target, target.id)
     : undefined
   const handleEdit = canCompose
-    ? (target: Parameters<typeof openEdit>[0]) => openEdit(target, anchorId)
+    ? (target: Parameters<typeof openEdit>[0]) => openEdit(target, target.id)
     : undefined
   const handleQuote = canCompose
-    ? (target: Status) => openQuote(target, anchorId)
+    ? (target: Status) => openQuote(target, target.id)
     : undefined
+  const authorName = firstActual.actor
+    ? getActorDisplayName(firstActual.actor) || firstActual.actor.username
+    : 'someone'
+  const articleLabel = `Thread by ${authorName}, ${parts.length} posts`
   const separateItem = createShowSeparateMenuItem(() => onShowSeparate(rowIds))
   const prioritizedPartIndex = prioritizeMedia
     ? parts.findIndex((part) => showsPrioritizableMedia(part.status))
@@ -442,6 +447,7 @@ export const CombinedPostListItem = memo(function CombinedPostListItem({
     <article
       // See `PostListItem` for what `feed-row` contains.
       className="feed-row min-h-0 min-w-0 px-4 py-3"
+      aria-label={articleLabel}
       data-combined-post
     >
       <TranslationProvider

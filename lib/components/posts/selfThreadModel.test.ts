@@ -23,13 +23,14 @@ import {
 import { groupTimelinePage } from '@/lib/components/posts/timelineModel'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Status, StatusNote } from '@/lib/types/domain/status'
-import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 const MINUTE = 60 * 1000
 const HOUR = 60 * MINUTE
-const UNLISTED = {
-  to: [],
-  cc: [ACTIVITY_STREAM_PUBLIC]
+// Followers-only: the one audience that does not join a public run (unlisted
+// posts do, being readable by anyone).
+const FOLLOWERS_ONLY = {
+  to: ['https://activities.local/users/alice/followers'],
+  cc: []
 }
 
 const note = (
@@ -287,7 +288,7 @@ describe('selfThreadModel', () => {
 
     it('returns run: null when the focused status is a standalone post or its reply changes visibility', () => {
       const a1 = note('a1', { at: 0 })
-      const a2 = note('a2', { at: MINUTE, reply: a1.id, ...UNLISTED })
+      const a2 = note('a2', { at: MINUTE, reply: a1.id, ...FOLLOWERS_ONLY })
 
       const model = buildSelfThreadModel({
         focusedStatus: a1,
@@ -393,12 +394,12 @@ describe('selfThreadModel', () => {
       const a3 = note('a3', {
         at: 20 * MINUTE,
         reply: a2.id,
-        ...UNLISTED
+        ...FOLLOWERS_ONLY
       })
       const a4 = note('a4', {
         at: 22 * MINUTE,
         reply: a3.id,
-        ...UNLISTED
+        ...FOLLOWERS_ONLY
       })
 
       const focusedInFirstBlock = buildSelfThreadModel({
@@ -439,12 +440,12 @@ describe('selfThreadModel', () => {
       const a3 = note('a3', {
         at: 20 * MINUTE,
         reply: a2.id,
-        ...UNLISTED
+        ...FOLLOWERS_ONLY
       })
       const a4 = note('a4', {
         at: 22 * MINUTE,
         reply: a3.id,
-        ...UNLISTED
+        ...FOLLOWERS_ONLY
       })
       const replyToA2 = note('reply-a2', {
         actor: mockBob,
@@ -597,8 +598,7 @@ describe('selfThreadModel', () => {
         const m2Unlisted = note('m2', {
           at: MINUTE,
           reply: m1.id,
-          to: [],
-          cc: [ACTIVITY_STREAM_PUBLIC]
+          ...FOLLOWERS_ONLY
         })
         const v1 = note('v1', {
           actor: mockBob,

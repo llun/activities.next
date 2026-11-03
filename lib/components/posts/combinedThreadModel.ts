@@ -46,6 +46,16 @@ interface RunDraft {
 }
 
 /**
+ * The visibility a run is compared by: public and unlisted are both readable by
+ * anyone, so they share one class and join a run together; followers-only and
+ * direct posts each keep their own and never join a public run.
+ */
+const runVisibilityOf = (actual: Status): string => {
+  const visibility = getVisibility(actual.to, actual.cc)
+  return visibility === 'unlisted' ? 'public' : visibility
+}
+
+/**
  * A post can sit inside a run as an inset when the inset can show all of it:
  * text and a link card, but no media, poll, quote or fitness activity.
  */
@@ -65,8 +75,8 @@ export const canTuck = (status: Status): boolean => {
  * one combined post, and every other status stays a plain `post`.
  *
  * A run is two or more posts by one author where each post after the first
- * replies to the previous one (or to a reply tucked into the run) and all share
- * one visibility. Time never matters: a reply hours or days later still joins.
+ * replies to the previous one and all are readable by the same audience
+ * (public and unlisted count as the same audience). Time never matters: a reply hours or days later still joins.
  * Someone else's reply to a run post stays inside the run as an inset when the
  * run carries at most `COMBINE_MAX_INSETS` of them, the reply has nothing but
  * text and the author's next post follows it; otherwise the run splits there and
@@ -94,7 +104,7 @@ export const buildCombinedBlocks = (
       status,
       authorId: getStatusAuthorId(actual),
       parentId: parentId === status.id ? null : parentId,
-      visibility: getVisibility(actual.to, actual.cc),
+      visibility: runVisibilityOf(actual),
       canTuck: !neverTuckIds?.has(status.id) && canTuck(status)
     }
   }
@@ -153,13 +163,11 @@ export const buildCombinedBlocks = (
     const last = run.parts[run.parts.length - 1].info
 
     if (info.authorId === run.authorId) {
+      // A later part replies to the author's own previous part. A reply to
+      // someone else's post (a tucked-in reply included) is not a part: it
+      // ends the run and renders as its own row, with its reply context.
       const repliesToRun =
-        info.parentId !== null &&
-        (info.parentId === last.status.id ||
-          run.pending.some(({ info: p }) => p.status.id === info.parentId) ||
-          run.parts.some((part) =>
-            part.insets.some((inset) => inset.status.id === info.parentId)
-          ))
+        info.parentId !== null && info.parentId === last.status.id
       if (repliesToRun && info.visibility === run.visibility) {
         for (const { info: pending, partIndex } of run.pending) {
           run.parts[partIndex].insets.push(pending)

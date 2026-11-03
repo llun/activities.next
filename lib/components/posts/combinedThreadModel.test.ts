@@ -130,7 +130,7 @@ describe('buildCombinedBlocks', () => {
     })
   })
 
-  it('splits where the visibility changes', () => {
+  it('joins public and unlisted posts into one run', () => {
     const unlisted = {
       to: [],
       cc: ['https://www.w3.org/ns/activitystreams#Public']
@@ -139,7 +139,19 @@ describe('buildCombinedBlocks', () => {
     const a2 = note('a2', { at: MINUTE, reply: a1.id, ...unlisted })
     const a3 = note('a3', { at: 2 * MINUTE, reply: a2.id, ...unlisted })
 
-    expect(shape(buildCombinedBlocks([a1, a2, a3]))).toEqual(['a1', 'a2 > a3'])
+    expect(shape(buildCombinedBlocks([a1, a2, a3]))).toEqual(['a1 > a2 > a3'])
+  })
+
+  it('splits where a followers-only post follows a public one', () => {
+    const followers = {
+      to: ['https://example.com/users/alice/followers'],
+      cc: []
+    }
+    const a1 = note('a1', { at: 0 })
+    const a2 = note('a2', { at: MINUTE, reply: a1.id })
+    const a3 = note('a3', { at: 2 * MINUTE, reply: a2.id, ...followers })
+
+    expect(shape(buildCombinedBlocks([a1, a2, a3]))).toEqual(['a1 > a2', 'a3'])
   })
 
   it('splits where a post does not reply to the one before it', () => {
@@ -178,22 +190,25 @@ describe('buildCombinedBlocks', () => {
       ).toEqual(['a1', 'b1', 'a2'])
     })
 
-    it('lets the author reply to the tucked-in reply', () => {
+    it("ends the run at the author's reply to a tucked-in reply", () => {
       const a1 = note('a1', { at: 0 })
       const b1 = note('b1', { actor: mockBob, at: MINUTE, reply: a1.id })
       const a2 = note('a2', { at: 2 * MINUTE, reply: b1.id })
 
-      expect(shape(buildCombinedBlocks([a1, b1, a2]))).toEqual(['a1+b1 > a2'])
+      const blocks = buildCombinedBlocks([a1, b1, a2])
+      expect(shape(blocks)).toEqual(['a1', 'b1', 'a2'])
+      expect(blocks.every((block) => block.kind === 'post')).toBe(true)
     })
 
-    it('lets the author reply to a reply already committed to the run', () => {
+    it("does not continue the run with the author's reply to a committed inset", () => {
       const a1 = note('a1', { at: 0 })
       const b = note('b', { actor: mockBob, at: MINUTE, reply: a1.id })
       const a2 = note('a2', { at: 2 * MINUTE, reply: a1.id })
       const a3 = note('a3', { at: 3 * MINUTE, reply: b.id })
 
       expect(shape(buildCombinedBlocks([a1, b, a2, a3]))).toEqual([
-        'a1+b > a2 > a3'
+        'a1+b > a2',
+        'a3'
       ])
     })
 

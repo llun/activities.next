@@ -16,13 +16,19 @@ import {
   initialTimelineContext,
   mergeTimelineContext
 } from '@/lib/components/posts/timelineContext'
+import { getStatusReplyTargetId } from '@/lib/components/posts/timelineModel'
 import { useLoadMoreOnVisible } from '@/lib/components/posts/useLoadMoreOnVisible'
 import { ScrollToTopButton } from '@/lib/components/scroll-to-top-button'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
 import { Button } from '@/lib/components/ui/button'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
-import { Status, StatusNote, StatusPoll } from '@/lib/types/domain/status'
+import {
+  Status,
+  StatusNote,
+  StatusPoll,
+  getOriginalStatus
+} from '@/lib/types/domain/status'
 import { TimelineContext } from '@/lib/types/domain/timeline'
 import { ListEntity } from '@/lib/types/mastodon/list'
 import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
@@ -73,6 +79,45 @@ export const ListTimeline: FC<ListTimelineProps> = ({
     setCurrentStatuses((previousStatuses) =>
       removeOriginalStatus(previousStatuses, status.id)
     )
+  }, [])
+
+  // A reply written inline from a row: count it on its parent and insert it
+  // right after the parent, as the home timeline does, so it shows (and joins a
+  // combined card) without a reload. A reply whose parent is not in the list
+  // is the viewer's own post to someone outside it and does not belong here.
+  const onReplyCreated = useCallback((reply: Status) => {
+    const original = getOriginalStatus(reply)
+    const parentId = getStatusReplyTargetId(original)
+    if (!parentId) return
+    setCurrentStatuses((previousStatuses) => {
+      const matchesParent = (status: Status) => {
+        const actual = getOriginalStatus(status)
+        return (
+          status.id === parentId ||
+          actual.id === parentId ||
+          actual.url === parentId ||
+          actual.publicId === parentId
+        )
+      }
+      const parentIndex = previousStatuses.findIndex(matchesParent)
+      if (parentIndex === -1) return previousStatuses
+      if (previousStatuses.some((status) => status.id === reply.id)) {
+        return previousStatuses
+      }
+      const next = [
+        ...updateMatchingStatus(
+          previousStatuses,
+          getOriginalStatus(previousStatuses[parentIndex]).id,
+          (target) => ({
+            ...target,
+            totalReplies: (target.totalReplies ?? 0) + 1,
+            replies: target.replies ? [...target.replies, reply] : [reply]
+          })
+        )
+      ]
+      next.splice(parentIndex + 1, 0, reply)
+      return next
+    })
   }, [])
 
   const onPostUpdated = useCallback((status: Status) => {
@@ -195,6 +240,7 @@ export const ListTimeline: FC<ListTimelineProps> = ({
           isMediaUploadEnabled={isMediaUploadEnabled}
           postLineLimit={postLineLimit}
           onPostDeleted={onPostDeleted}
+          onReplyCreated={onReplyCreated}
           onPostUpdated={onPostUpdated}
           onLikeChanged={onLikeChanged}
           onBookmarkChanged={onBookmarkChanged}
