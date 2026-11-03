@@ -21,3 +21,20 @@ export const getPollChoicesFromQuestion = (question: Question): PollChoice[] =>
     totalVotes: answer.replies?.totalItems ?? 0
   })) ??
   []
+
+const UNBOUNDED_POLL_MS = 100 * 365 * 24 * 60 * 60 * 1000
+
+// The poll columns of a stored remote `Question`: its choices, whether it is
+// single- or multiple-choice, and when it ends. A Question with no `endTime`
+// is kept open for a century from `publishedAt`. Shared by createPollJob and
+// fetchRemoteStatusJob so a poll stored either way has the same shape.
+export const getPollFieldsFromQuestion = (
+  question: Question,
+  publishedAt: number
+): { choices: PollChoice[]; pollType: 'oneOf' | 'anyOf'; endAt: number } => ({
+  choices: getPollChoicesFromQuestion(question),
+  pollType: question.oneOf ? 'oneOf' : question.anyOf ? 'anyOf' : 'oneOf',
+  endAt: question.endTime
+    ? new Date(question.endTime).getTime()
+    : publishedAt + UNBOUNDED_POLL_MS
+})

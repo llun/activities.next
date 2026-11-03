@@ -850,4 +850,56 @@ describe('publishScheduledStatusJob', () => {
       ).toBeNull()
     }
   )
+
+  it.each([
+    { label: 'note', poll: null },
+    {
+      label: 'poll',
+      poll: {
+        options: ['a', 'b'],
+        expires_in: 3600,
+        multiple: false,
+        hide_totals: false
+      }
+    }
+  ])(
+    'drops a scheduled $label reply whose parent was deleted, sending nothing',
+    async ({ label, poll }) => {
+      const parent = await database.createNote({
+        id: `${actor1.id}/statuses/deleted-parent-${label}-${generatePublicId()}`,
+        url: `${actor1.id}/statuses/deleted-parent-${label}-${generatePublicId()}`,
+        actorId: actor1.id,
+        text: 'parent that will be deleted',
+        to: [`${actor1.id}/followers`],
+        cc: []
+      })
+      const text = `Orphaned scheduled ${label} reply ${Date.now()}`
+      const scheduled = await database.createScheduledStatus({
+        actorId: actor1.id,
+        scheduledAt: Date.now() - 1_000,
+        params: baseParams({
+          text,
+          poll,
+          visibility: 'private',
+          in_reply_to_id: parent.id
+        })
+      })
+      await database.deleteStatus({ statusId: parent.id })
+      const publish = getQueue().publish as ReturnType<typeof vi.fn>
+      publish.mockClear()
+
+      await publishScheduledStatusJob(database, {
+        id: `job-orphaned-reply-${label}`,
+        name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+        data: { scheduledStatusId: scheduled.id }
+      })
+
+      const statuses = await database.getActorStatuses({ actorId: actor1.id })
+      expect(statuses.some((status) => hasText(status, text))).toBe(false)
+      expect(publish).not.toHaveBeenCalled()
+      expect(
+        await database.getScheduledStatusById({ id: scheduled.id })
+      ).toBeNull()
+    }
+  )
 })

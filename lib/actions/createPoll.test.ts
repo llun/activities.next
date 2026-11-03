@@ -382,7 +382,7 @@ describe('Create poll action', () => {
         expect(poll).toBeNull()
       })
 
-      it('preserves direct reply parent to and cc recipients for polls', async () => {
+      it('addresses a direct poll reply to the parent author and the accounts its text mentions', async () => {
         const parentStatus = await database.createNote({
           id: `${actor1.id}/statuses/direct-parent-poll-recipients`,
           url: `${actor1.id}/statuses/direct-parent-poll-recipients`,
@@ -393,7 +393,7 @@ describe('Create poll action', () => {
         })
 
         await createPollFromUserInput({
-          text: 'Poll reply without mention prefixes',
+          text: '@test2@llun.test Poll reply with one mention',
           currentActor: actor1,
           replyStatusId: parentStatus.id,
           choices: ['Yes', 'No'],
@@ -404,17 +404,32 @@ describe('Create poll action', () => {
         const statuses = await database.getActorStatuses({
           actorId: actor1.id
         })
-        const poll = findPoll(statuses, 'Poll reply without mention prefixes')
+        const poll = findPoll(statuses, 'Poll reply with one mention')
 
         expect(poll).toBeDefined()
-        expect(poll?.to).toEqual(
-          expect.arrayContaining([
-            actor1.id,
-            'https://remote.test/actors/poll-primary',
-            'https://remote.test/actors/poll-sender'
-          ])
+        expect(poll?.to.sort()).toEqual(
+          [ACTOR2_ID, 'https://remote.test/actors/poll-sender'].sort()
         )
-        expect(poll?.cc).toEqual(['https://remote.test/actors/poll-copied'])
+        expect(poll?.cc).toEqual([])
+      })
+
+      it('refuses a poll reply whose parent no longer exists', async () => {
+        const poll = await createPollFromUserInput({
+          text: 'Poll reply to a deleted post',
+          currentActor: actor1,
+          replyStatusId: `${ACTOR2_ID}/statuses/deleted-poll-parent`,
+          choices: ['Yes', 'No'],
+          endAt: Date.now() + 24 * 60 * 60 * 1000,
+          database
+        })
+
+        expect(poll).toBeNull()
+        const statuses = await database.getActorStatuses({
+          actorId: actor1.id
+        })
+        expect(
+          findPoll(statuses, 'Poll reply to a deleted post')
+        ).toBeUndefined()
       })
 
       it('inherits visibility from private reply status', async () => {
@@ -448,7 +463,7 @@ describe('Create poll action', () => {
         expect(poll?.cc).not.toContain(ACTIVITY_STREAM_PUBLIC)
       })
 
-      it('stores inherited direct reply recipients as mention tags', async () => {
+      it('stores only the parent author as a mention tag when the poll reply names nobody', async () => {
         const parentStatus = await database.createNote({
           id: `${actor1.id}/statuses/direct-parent-poll-mention-tags`,
           url: `${actor1.id}/statuses/direct-parent-poll-mention-tags`,
@@ -459,7 +474,7 @@ describe('Create poll action', () => {
         })
 
         await createPollFromUserInput({
-          text: 'Poll reply without manually rementioning everyone',
+          text: 'Poll reply without rementioning everyone',
           replyStatusId: parentStatus.id,
           currentActor: actor1,
           choices: ['Yes', 'No'],
@@ -472,33 +487,17 @@ describe('Create poll action', () => {
         })
         const poll = findPoll(
           statuses,
-          'Poll reply without manually rementioning everyone'
+          'Poll reply without rementioning everyone'
         )
-        const mentionTags = await database.getTags({ statusId: poll?.id || '' })
+        const mentionValues = (
+          await database.getTags({ statusId: poll?.id || '' })
+        )
+          .filter((tag) => tag.type === 'mention')
+          .map((tag) => tag.value)
 
         expect(poll).toBeDefined()
-        expect(mentionTags).toEqual(
-          expect.arrayContaining([
-            expect.objectContaining({
-              type: 'mention',
-              value: ACTOR2_ID
-            }),
-            expect.objectContaining({
-              type: 'mention',
-              value: ACTOR3_ID
-            }),
-            expect.objectContaining({
-              type: 'mention',
-              value: parentStatus.actorId
-            })
-          ])
-        )
-        expect(mentionTags).not.toContainEqual(
-          expect.objectContaining({
-            type: 'mention',
-            value: actor1.id
-          })
-        )
+        expect(poll?.to).toEqual([parentStatus.actorId])
+        expect(mentionValues).toEqual([parentStatus.actorId])
       })
     })
   })

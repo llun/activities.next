@@ -91,6 +91,9 @@ export const createPollFromUserInput = async ({
           withReplies: false
         })
       : null
+    // A reply whose parent is gone is refused, never posted as a top-level
+    // poll (same rule as createNoteFromUserInput).
+    if (replyStatusId && !replyStatus) return null
     // Same guard as createNoteFromUserInput: a reply inherits its parent's
     // audience, so the author must be able to read the parent.
     if (

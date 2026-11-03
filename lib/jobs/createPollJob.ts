@@ -11,7 +11,7 @@ import {
 } from '@/lib/activities/note'
 import { isPubliclyAddressed } from '@/lib/database/domains/status/status'
 import { persistDetectedLanguage } from '@/lib/services/language-detection'
-import { getPollChoicesFromQuestion } from '@/lib/services/polls/pollChoices'
+import { getPollFieldsFromQuestion } from '@/lib/services/polls/pollChoices'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { ENTITY_TYPE_QUESTION, Question } from '@/lib/types/activitypub'
 import {
@@ -62,12 +62,10 @@ export const createPollJob = createJobHandle(
     // content/summary locale maps so polls carry it like notes do, which lets
     // the Translate control appear on polls too.
     const language = getLanguage(question)
-    const pollType = question.oneOf
-      ? 'oneOf'
-      : question.anyOf
-        ? 'anyOf'
-        : 'oneOf'
-    const choices = getPollChoicesFromQuestion(question)
+    const { choices, pollType, endAt } = getPollFieldsFromQuestion(
+      question,
+      new Date(question.published).getTime()
+    )
 
     await assertActorCanFederate({
       actorId: question.attributedTo,
@@ -97,10 +95,7 @@ export const createPollJob = createJobHandle(
         choices,
         pollType,
         language,
-        endAt: question.endTime
-          ? new Date(question.endTime).getTime()
-          : new Date(question.published).getTime() +
-            100 * 365 * 24 * 60 * 60 * 1000,
+        endAt,
         createdAt: new Date(question.published).getTime()
       })
     ])
