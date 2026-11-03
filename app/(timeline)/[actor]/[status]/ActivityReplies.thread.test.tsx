@@ -127,7 +127,9 @@ const renderReplies = (
       onShowAttachment={vi.fn()}
       {...props}
     >
-      <div data-testid="activity-body">The activity</div>
+      <div data-testid="activity-body" data-activity-post>
+        The activity
+      </div>
     </ActivityReplies>
   )
 
@@ -268,5 +270,104 @@ describe('ActivityReplies in a conversation', () => {
     expect(screen.queryByText('No replies yet')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Load more replies' }))
     expect(onLoadMoreDescendants).toHaveBeenCalledTimes(1)
+  })
+
+  it('hides the empty state while replies are left to load', () => {
+    renderReplies({
+      status: note('lm-unloaded', mockAlice, '', 0),
+      hasMoreDescendants: true
+    })
+    expect(screen.queryByText('No replies yet')).not.toBeInTheDocument()
+  })
+
+  it('shows the next page only once a load brings it, not on each Retry', () => {
+    const activity = note('rt-ride', mockAlice, '', 0)
+    const replies = Array.from({ length: REPLIES_PAGE_SIZE * 4 }, (_, index) =>
+      note(`rt-reply-${index}`, mockBob, activity.id, index + 1)
+    )
+    const onLoadMoreDescendants = vi.fn()
+    const props = {
+      status: activity,
+      hasMoreDescendants: true,
+      onLoadMoreDescendants
+    }
+    const { rerender } = renderReplies({
+      ...props,
+      replies: replies.slice(0, REPLIES_PAGE_SIZE)
+    })
+    const rerenderWith = (
+      extra: Partial<Parameters<typeof ActivityReplies>[0]>
+    ) =>
+      rerender(
+        <ActivityReplies
+          host="activities.local"
+          currentActor={null}
+          currentTime={BASE_TIME + 60 * MINUTE}
+          replies={replies.slice(0, REPLIES_PAGE_SIZE)}
+          composer={composer}
+          onShowAttachment={vi.fn()}
+          {...props}
+          {...extra}
+        >
+          <div data-testid="activity-body" data-activity-post>
+            The activity
+          </div>
+        </ActivityReplies>
+      )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load more replies' }))
+    for (let attempt = 0; attempt < 3; attempt++) {
+      rerenderWith({ loadingMore: 'descendants' })
+      rerenderWith({ loadMoreError: 'descendants' })
+      fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    }
+    expect(onLoadMoreDescendants).toHaveBeenCalledTimes(4)
+
+    rerenderWith({ loadingMore: 'descendants' })
+    rerenderWith({ replies, hasMoreDescendants: false })
+    expect(
+      within(screen.getByTestId('activity-replies-list')).getAllByTestId(
+        'thread-node'
+      )
+    ).toHaveLength(REPLIES_PAGE_SIZE * 2)
+  })
+
+  describe('landing on the activity', () => {
+    const scrollIntoView = vi.fn()
+    beforeEach(() => {
+      scrollIntoView.mockReset()
+      Element.prototype.scrollIntoView = scrollIntoView
+    })
+    afterEach(() => {
+      window.history.replaceState(null, '', '/')
+    })
+
+    it('scrolls the activity to the top when posts are drawn above it', () => {
+      const parent = note('sc-parent', mockBob, '', 0)
+      renderReplies({
+        status: note('sc-ride', mockAlice, parent.id, 5),
+        ancestors: [parent]
+      })
+      expect(scrollIntoView).toHaveBeenCalledTimes(1)
+      expect(scrollIntoView).toHaveBeenCalledWith({
+        block: 'start',
+        behavior: 'auto'
+      })
+      expect(scrollIntoView.mock.contexts[0]).toBe(
+        screen.getByTestId('activity-body')
+      )
+    })
+
+    it('leaves the page where it is for an activity on its own or a #anchor', () => {
+      renderReplies({ status: note('sc-alone', mockAlice, '', 0) })
+      cleanup()
+      window.history.replaceState(null, '', '/#replies')
+      const parent = note('sc-parent-2', mockBob, '', 0)
+      renderReplies({
+        status: note('sc-ride-2', mockAlice, parent.id, 5),
+        ancestors: [parent]
+      })
+      expect(scrollIntoView).not.toHaveBeenCalled()
+    })
   })
 })

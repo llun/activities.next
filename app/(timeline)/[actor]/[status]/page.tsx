@@ -380,8 +380,10 @@ const Page: FC<Props> = async ({ params }) => {
     })
     ancestors = threadContext.ancestors
     replies = threadContext.descendants
-    hasMoreAncestors = threadContext.hasMoreAncestors
-    hasMoreDescendants = threadContext.hasMoreDescendants
+    // The thread route only answers for a stored status, so a status read
+    // from its origin (not stored yet) offers no "Load more" it cannot keep.
+    hasMoreAncestors = isStoredStatus && threadContext.hasMoreAncestors
+    hasMoreDescendants = isStoredStatus && threadContext.hasMoreDescendants
   }
 
   const statusForLayout =

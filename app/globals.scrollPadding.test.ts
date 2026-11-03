@@ -104,4 +104,14 @@ describe('mobile scroll-padding for fixed chrome', () => {
     expect(outside).not.toContain('data-mobile-compact-header')
     expect(outside).not.toContain('data-floating-nav-trigger')
   })
+
+  it('clears the logged-out public top bar at every width', () => {
+    // The 64px bar (+ its 1px border) is sticky over the content outside any
+    // breakpoint, so its padding sits outside the below-md block.
+    const outside = css.replace(mobileQuery, '')
+    const body = bodyOf(outside, /html:has\(\[data-public-top-bar\]\)\s*\{/)
+    const match = body.match(/scroll-padding-top\s*:\s*(\d+)px\s*;/)
+    expect(match).not.toBeNull()
+    expect(Number(match?.[1])).toBeGreaterThanOrEqual(65)
+  })
 })

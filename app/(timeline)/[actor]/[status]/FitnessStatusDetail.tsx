@@ -320,7 +320,8 @@ export const FitnessStatusDetail: FC<Props> = ({
   const thread = useThreadContextPager({
     statusId: status.id,
     initial: initialThread,
-    getScrollAnchor: getThreadScrollAnchor
+    getScrollAnchor: getThreadScrollAnchor,
+    signedIn: Boolean(currentActor)
   })
   const isOwner =
     Boolean(status.isLocalActor) && currentActor?.id === status.actorId

@@ -567,7 +567,9 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   (`OptionalOAuthGuard`, so a session or a token; signed out it is public
   statuses only) with the two limits, clamped into `[1, 400]` ancestors and
   `[1, 500]` descendants (`clampedLimit`; missing or malformed values take the
-  page's first step, 40 and 60, from `threadPageLimits.ts`), and answers
+  page's first step, 40 and 60, from `threadPageLimits.ts`), and signed out
+  into `[1, 120]` and `[1, 200]`, the middle step, where the page's pager
+  stops for a signed-out reader too. It answers
   `{ ancestors, descendants, hasMoreAncestors, hasMoreDescendants }` with the
   same domain statuses the page renders, serialized the same way (`cleanJson`,
   dates as epoch milliseconds), not Mastodon `Status` entities. An unknown
@@ -575,7 +577,10 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   limited to 30 a minute per signed-in actor and per trusted client address
   (`getTrustedClientIp`), and signed-out requests to 300 a minute in all
   (`429` `{ error }`); together with the capped limits and the loader's visit
-  budget this keeps an anonymous reader's work bounded. No CORS preflight: it
+  budget this keeps an anonymous reader's work bounded. Without trusted proxy
+  client-address headers (`ACTIVITIES_TRUST_PROXY_IP_HEADERS`) there is no
+  per-address window, so every signed-out reader shares the one 300-a-minute
+  pool; that is why signed-out requests stop at the middle step. No CORS preflight: it
   is not a Mastodon endpoint, and `GET /api/v1/statuses/:id/context` is
   unchanged.
 
@@ -1645,7 +1650,9 @@ quotedStatusId)`), and also binds attribution by requiring that `attributedTo` s
   - `fetchRemoteStatusJob` (the status page's on-demand fetch) applies the same pair to every note
     it stores — the requested note, each parent and each reply — against the URL that actually
     served it: the page a reply was inlined in, or the reply's own URL when it was fetched
-    separately. The requested note is gated before `normalizeActivityPubContent` runs, so, like
+    separately. When the requested status is already stored, the document re-fetched to walk its
+    replies must pass the same pair and name the stored status's own id, or its replies are not
+    walked. The requested note is gated before `normalizeActivityPubContent` runs, so, like
     `dispatchCreateNoteOrPollJob` below, it checks the `extractActivityPubId` author rather than the
     raw `attributedTo`, which may still be an embedded actor object or a PeerTube-style array.
   - The inbound-quote resolver `resolveInboundQuotedStatus`
@@ -1990,7 +1997,15 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   page and the thread walk (`fetchRemoteStatusJob`) deliberately do NOT take
   this path, so they never touch home timelines or send notifications, but
   they do store a new note's attachments, tags and emoji, and move hashtag
-  counts for public notes. The web profile list, on the server-rendered first
+  counts for public notes. A fetched `Question` (the requested note, a parent
+  or a walked reply) is stored as a Poll with its choices, through the same
+  `getPollFieldsFromQuestion` shape `createPollJob` uses, so it can be voted
+  on; a `Question` that fails the poll schema is stored as a Note so it stays
+  viewable. The thread walk stores a reply only when it is publicly addressed
+  (public or unlisted, as the requested note must be) and its `inReplyTo`
+  names a note of the thread — the requested note or a reply the walk already
+  accepted, by id or by a url on the note's own origin (a url pointing at another host never counts), ignoring a trailing slash — so flat conversation
+  collections work; anything else is skipped and not walked further. The web profile list, on the server-rendered first
   page and later pages alike, overlays the viewer's own like, repost and
   bookmark state, plus the stored reactions, for stored statuses the viewer
   can read, when the stored author matches the live one. A live like count of

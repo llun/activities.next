@@ -9,6 +9,7 @@ import {
   useEffect,
   useId,
   useMemo,
+  useRef,
   useState
 } from 'react'
 
@@ -27,6 +28,7 @@ import {
 } from '@/lib/components/posts/threadModel'
 import type { InlineComposerControls } from '@/lib/components/posts/useInlineComposer'
 import { useOpenStatusPath } from '@/lib/components/posts/useOpenStatusPath'
+import { useScrollOpenedPostIntoView } from '@/lib/components/posts/useScrollOpenedPostIntoView'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
@@ -319,6 +321,20 @@ export const ActivityReplies: FC<ActivityRepliesProps> = ({
   const total = tree.totalDescendants
   const visibleNodes = tree.descendants.slice(0, visibleCount)
   const hiddenCount = tree.descendants.length - visibleNodes.length
+  const loadedCount = tree.descendants.length
+
+  // "Load more replies" past the loaded ones asks the server; the next page
+  // shows once its answer adds replies, never on the click itself, so a
+  // failed load (and each Retry) does not grow the count.
+  const revealAfterLoadRef = useRef<number | null>(null)
+  useEffect(() => {
+    const askedAt = revealAfterLoadRef.current
+    if (askedAt === null || loadingMore === 'descendants') return
+    revealAfterLoadRef.current = null
+    if (loadedCount > askedAt) {
+      setVisibleCount((count) => Math.max(count, askedAt + REPLIES_PAGE_SIZE))
+    }
+  }, [loadedCount, loadingMore])
 
   const canCompose = Boolean(currentActor)
   const closeComposerAndRefresh = () => {
@@ -385,83 +401,88 @@ export const ActivityReplies: FC<ActivityRepliesProps> = ({
   )
 
   const showAncestorsLoadMore = hasMoreAncestors && Boolean(onLoadMoreAncestors)
-  const ancestorsBlock =
-    showAncestorsLoadMore || ancestorRows.length > 0 || hasEarlierParts ? (
-      <div data-testid="activity-ancestors">
-        {showAncestorsLoadMore && onLoadMoreAncestors ? (
-          <ThreadLoadMore
-            label="Load earlier posts"
-            onLoad={onLoadMoreAncestors}
-            isLoading={loadingMore === 'ancestors'}
-            hasError={loadMoreError === 'ancestors'}
-            className="border-b py-2"
-          />
-        ) : null}
-        {ancestorRows.map((ancestor) => {
-          const ancestorRun = ancestorRunByFirstStatusId.get(ancestor.id)
-          if (ancestorRun) {
-            const merged = getRunMergedStatuses(ancestorRun)
-            return (
-              <div
-                key={ancestor.id}
-                data-testid="ancestor-status"
-                className="border-b p-4"
-              >
-                {renderRun(
-                  ancestorRun.parts,
-                  new Set(merged.map((item) => item.id)),
-                  {
-                    anchorPartIndex: selfThread.ancestorRunAnchorIndexById.get(
-                      ancestorRun.key
-                    ),
-                    hidePartNumbers: hidesPartNumbers(merged)
-                  }
-                )}
-              </div>
-            )
-          }
+  const hasPostsAbove =
+    showAncestorsLoadMore || ancestorRows.length > 0 || hasEarlierParts
+  useScrollOpenedPostIntoView(
+    () => document.querySelector<HTMLElement>('[data-activity-post]'),
+    hasPostsAbove
+  )
+  const ancestorsBlock = hasPostsAbove ? (
+    <div data-testid="activity-ancestors">
+      {showAncestorsLoadMore && onLoadMoreAncestors ? (
+        <ThreadLoadMore
+          label="Load earlier posts"
+          onLoad={onLoadMoreAncestors}
+          isLoading={loadingMore === 'ancestors'}
+          hasError={loadMoreError === 'ancestors'}
+          className="border-b py-2"
+        />
+      ) : null}
+      {ancestorRows.map((ancestor) => {
+        const ancestorRun = ancestorRunByFirstStatusId.get(ancestor.id)
+        if (ancestorRun) {
+          const merged = getRunMergedStatuses(ancestorRun)
           return (
             <div
               key={ancestor.id}
-              id={ancestor.id}
               data-testid="ancestor-status"
-              className="border-b px-4"
+              className="border-b p-4"
             >
-              <ThreadReplyNode
-                node={{
-                  status: ancestor,
-                  depth: 0,
-                  replies: [],
-                  totalDescendantCount: 0,
-                  initiallyCollapsed: false
-                }}
-                host={host}
-                currentActor={currentActor}
-                currentTime={currentTime}
-                isMediaUploadEnabled={isMediaUploadEnabled}
-                composer={composer}
-                isExpanded={() => true}
-                onToggle={() => {}}
-                onOpenStatus={openStatus}
-                onShowAttachment={(allMedias, index) =>
-                  onShowAttachment(allMedias, index)
+              {renderRun(
+                ancestorRun.parts,
+                new Set(merged.map((item) => item.id)),
+                {
+                  anchorPartIndex: selfThread.ancestorRunAnchorIndexById.get(
+                    ancestorRun.key
+                  ),
+                  hidePartNumbers: hidesPartNumbers(merged)
                 }
-                onComposerDone={() => router.refresh()}
-                onPostDeleted={handlePostDeleted}
-              />
+              )}
             </div>
           )
-        })}
-        {hasEarlierParts ? (
-          <div data-testid="activity-earlier-parts" className="border-b p-4">
-            {renderRun(selfThread.parts, runPartIds, {
-              endBefore: openedPartIndex,
-              hidePartNumbers: hidesPartNumbers(selfThread.mergedStatuses)
-            })}
+        }
+        return (
+          <div
+            key={ancestor.id}
+            id={ancestor.id}
+            data-testid="ancestor-status"
+            className="border-b px-4"
+          >
+            <ThreadReplyNode
+              node={{
+                status: ancestor,
+                depth: 0,
+                replies: [],
+                totalDescendantCount: 0,
+                initiallyCollapsed: false
+              }}
+              host={host}
+              currentActor={currentActor}
+              currentTime={currentTime}
+              isMediaUploadEnabled={isMediaUploadEnabled}
+              composer={composer}
+              isExpanded={() => true}
+              onToggle={() => {}}
+              onOpenStatus={openStatus}
+              onShowAttachment={(allMedias, index) =>
+                onShowAttachment(allMedias, index)
+              }
+              onComposerDone={() => router.refresh()}
+              onPostDeleted={handlePostDeleted}
+            />
           </div>
-        ) : null}
-      </div>
-    ) : null
+        )
+      })}
+      {hasEarlierParts ? (
+        <div data-testid="activity-earlier-parts" className="border-b p-4">
+          {renderRun(selfThread.parts, runPartIds, {
+            endBefore: openedPartIndex,
+            hidePartNumbers: hidesPartNumbers(selfThread.mergedStatuses)
+          })}
+        </div>
+      ) : null}
+    </div>
+  ) : null
 
   const followUpRail = hasFollowUps ? (
     <div data-testid="activity-follow-ups" className="border-t px-4 py-3">
@@ -499,11 +520,20 @@ export const ActivityReplies: FC<ActivityRepliesProps> = ({
 
   // Replies the page has not loaded: "Load more replies" first shows the
   // loaded ones a page at a time, then asks for more.
+  // Also after a failed load or refresh, so its Retry stays reachable.
   const canLoadMoreFromServer =
-    hasMoreDescendants && Boolean(onLoadMoreDescendants)
+    (hasMoreDescendants || loadMoreError === 'descendants') &&
+    Boolean(onLoadMoreDescendants)
   const loadMoreReplies = () => {
-    if (hiddenCount === 0 && onLoadMoreDescendants) onLoadMoreDescendants()
-    setVisibleCount((count) => count + REPLIES_PAGE_SIZE)
+    if (hiddenCount > 0) {
+      setVisibleCount((count) => count + REPLIES_PAGE_SIZE)
+      return
+    }
+    if (!onLoadMoreDescendants) return
+    // The next page shows once the load brings it (see the effect above), so
+    // a failed load and its Retry leave the count alone.
+    revealAfterLoadRef.current = loadedCount
+    onLoadMoreDescendants()
   }
   const loadMoreRow =
     hiddenCount > 0 || canLoadMoreFromServer ? (
@@ -527,7 +557,13 @@ export const ActivityReplies: FC<ActivityRepliesProps> = ({
     ('reply' in actualStatus && Boolean(actualStatus.reply))
 
   if (total === 0) {
-    if (hasFollowUps || isInConversation || canLoadMoreFromServer) {
+    // Replies not loaded yet are not "no replies" either.
+    if (
+      hasFollowUps ||
+      isInConversation ||
+      hasMoreDescendants ||
+      canLoadMoreFromServer
+    ) {
       const hasContent = Boolean(followUpRail || replyComposer || loadMoreRow)
       return (
         <>

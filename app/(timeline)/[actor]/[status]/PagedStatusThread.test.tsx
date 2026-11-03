@@ -11,7 +11,7 @@ import {
 } from '@testing-library/react'
 import { ReactNode } from 'react'
 
-import { getStatusThread } from '@/lib/client'
+import { StatusThreadPage, getStatusThread } from '@/lib/client'
 import {
   BASE_TIME,
   createMockNote,
@@ -91,6 +91,16 @@ const reply = (name: string, minutes: number): Status =>
   })
 const firstReply = reply('first', 10)
 const laterReply = reply('later', 20)
+
+const deferred = () => {
+  let resolve: (page: StatusThreadPage) => void = () => {}
+  let reject: (error: Error) => void = () => {}
+  const promise = new Promise<StatusThreadPage>((onResolve, onReject) => {
+    resolve = onResolve
+    reject = onReject
+  })
+  return { promise, resolve, reject }
+}
 
 const renderThread = (
   props: Partial<Parameters<typeof PagedStatusThread>[0]> = {}
@@ -301,5 +311,153 @@ describe('PagedStatusThread', () => {
     })
     // The loaded reply stays on screen meanwhile.
     expect(screen.getByText('Reply later')).toBeInTheDocument()
+  })
+
+  it('stops at the middle step for a signed-out reader', async () => {
+    mockGetStatusThread.mockResolvedValue({
+      ancestors: [parent],
+      descendants: [firstReply],
+      hasMoreAncestors: false,
+      hasMoreDescendants: true
+    })
+    renderThread({ hasMoreAncestors: false, currentActor: null })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load more replies' }))
+    expect(mockGetStatusThread).toHaveBeenLastCalledWith(
+      expect.objectContaining({ descendantsLimit: 200 })
+    )
+    // The route caps a signed-out request there, so there is no next step.
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('button', { name: 'Load more replies' })
+      ).not.toBeInTheDocument()
+    )
+  })
+
+  const refreshPage = (
+    rerender: ReturnType<typeof render>['rerender'],
+    descendants: Status[]
+  ) =>
+    rerender(
+      <PagedStatusThread
+        host={host}
+        status={opened}
+        ancestors={[parent]}
+        descendants={descendants}
+        hasMoreAncestors
+        hasMoreDescendants
+        currentActor={mockAlice}
+        currentTime={BASE_TIME + 30 * MINUTE}
+      />
+    )
+
+  it('still delivers a load when the page refreshes while it is on its way', async () => {
+    const load = deferred()
+    const reask = deferred()
+    mockGetStatusThread
+      .mockReturnValueOnce(load.promise)
+      .mockReturnValueOnce(reask.promise)
+    const { rerender } = renderThread()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load more replies' }))
+    refreshPage(rerender, [firstReply])
+
+    // The refresh re-asks at the load's limits, spinner still on.
+    await waitFor(() => expect(mockGetStatusThread).toHaveBeenCalledTimes(2))
+    expect(mockGetStatusThread).toHaveBeenLastCalledWith({
+      statusId: opened.id,
+      ancestorsLimit: 40,
+      descendantsLimit: 200
+    })
+    expect(
+      screen.getByRole('button', { name: 'Load more replies' })
+    ).toHaveAttribute('aria-busy', 'true')
+
+    // The overtaken answer is dropped...
+    load.resolve({
+      ancestors: [parent],
+      descendants: [firstReply, reply('stale', 15)],
+      hasMoreAncestors: true,
+      hasMoreDescendants: true
+    })
+    await Promise.resolve()
+    expect(screen.queryByText('Reply stale')).not.toBeInTheDocument()
+
+    // ...and the newer one brings what the reader asked for.
+    reask.resolve({
+      ancestors: [parent],
+      descendants: [firstReply, laterReply],
+      hasMoreAncestors: true,
+      hasMoreDescendants: false
+    })
+    expect(await screen.findByText('Reply later')).toBeInTheDocument()
+    expect(screen.queryByText('Reply stale')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Load more replies' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('keeps the loaded thread and offers Retry when a refresh re-ask fails', async () => {
+    mockGetStatusThread.mockResolvedValueOnce({
+      ancestors: [parent],
+      descendants: [firstReply, laterReply],
+      hasMoreAncestors: true,
+      hasMoreDescendants: false
+    })
+    const { rerender } = renderThread()
+    fireEvent.click(screen.getByRole('button', { name: 'Load more replies' }))
+    expect(await screen.findByText('Reply later')).toBeInTheDocument()
+
+    mockGetStatusThread.mockRejectedValueOnce(new Error('offline'))
+    refreshPage(rerender, [firstReply, reply('mine', 25)])
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      "Couldn't load the conversation"
+    )
+    expect(screen.getByText('Reply later')).toBeInTheDocument()
+
+    mockGetStatusThread.mockResolvedValueOnce({
+      ancestors: [parent],
+      descendants: [firstReply, laterReply, reply('mine', 25)],
+      hasMoreAncestors: true,
+      hasMoreDescendants: false
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(await screen.findByText('Reply mine')).toBeInTheDocument()
+    expect(mockGetStatusThread).toHaveBeenLastCalledWith(
+      expect.objectContaining({ descendantsLimit: 500 })
+    )
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  describe('landing on the opened post', () => {
+    const scrollIntoView = vi.fn()
+    beforeEach(() => {
+      scrollIntoView.mockReset()
+      Element.prototype.scrollIntoView = scrollIntoView
+    })
+    afterEach(() => {
+      window.history.replaceState(null, '', '/')
+    })
+
+    it('scrolls the opened post to the top when posts are drawn above it', () => {
+      renderThread()
+      expect(scrollIntoView).toHaveBeenCalledTimes(1)
+      expect(scrollIntoView).toHaveBeenCalledWith({
+        block: 'start',
+        behavior: 'auto'
+      })
+      expect(scrollIntoView.mock.contexts[0]).toBe(
+        screen.getByTestId('focused-status')
+      )
+    })
+
+    it('leaves the page where it is without ancestors or with an anchor', () => {
+      renderThread({ ancestors: [], hasMoreAncestors: false })
+      cleanup()
+      window.history.replaceState(null, '', '/#reply')
+      renderThread()
+      expect(scrollIntoView).not.toHaveBeenCalled()
+    })
   })
 })

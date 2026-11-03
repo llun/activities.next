@@ -7,7 +7,9 @@ import {
   THREAD_INITIAL_ANCESTORS_LIMIT,
   THREAD_INITIAL_DESCENDANTS_LIMIT,
   THREAD_MAX_ANCESTORS_LIMIT,
-  THREAD_MAX_DESCENDANTS_LIMIT
+  THREAD_MAX_DESCENDANTS_LIMIT,
+  THREAD_SIGNED_OUT_MAX_ANCESTORS_LIMIT,
+  THREAD_SIGNED_OUT_MAX_DESCENDANTS_LIMIT
 } from '@/lib/services/statuses/threadPageLimits'
 import { Scope } from '@/lib/types/database/operations'
 import { clampedLimit } from '@/lib/utils/clampedLimit'
@@ -42,7 +44,9 @@ const WINDOW_MS = 60_000
 // Each request is bounded by the capped limits and the loader's visit budget;
 // these bound how many a client can make. Signed out, a request is keyed by
 // the trusted client address when there is one, and every signed-out request
-// also counts against one shared window.
+// also counts against one shared window. Without trusted proxy client-address
+// headers that shared window is the only one, so every signed-out reader
+// shares one pool; their limits are capped lower (the middle step) for that.
 const PER_VIEWER_LIMIT = 30
 const ANONYMOUS_GLOBAL_LIMIT = 300
 const viewerCounter = createWindowCounter({
@@ -107,8 +111,18 @@ export const GET = traceApiRoute(
         database,
         statusId: encodedStatusId,
         currentActor,
-        ancestorsLimit: parsed.data.ancestors_limit,
-        descendantsLimit: parsed.data.descendants_limit
+        ancestorsLimit: currentActor
+          ? parsed.data.ancestors_limit
+          : Math.min(
+              parsed.data.ancestors_limit,
+              THREAD_SIGNED_OUT_MAX_ANCESTORS_LIMIT
+            ),
+        descendantsLimit: currentActor
+          ? parsed.data.descendants_limit
+          : Math.min(
+              parsed.data.descendants_limit,
+              THREAD_SIGNED_OUT_MAX_DESCENDANTS_LIMIT
+            )
       })
       if (!status) return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
 

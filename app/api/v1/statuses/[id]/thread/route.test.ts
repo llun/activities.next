@@ -5,7 +5,9 @@ import type { Database } from '@/lib/database/types'
 import { getStatusContext } from '@/lib/services/statuses/getStatusContext'
 import {
   THREAD_MAX_ANCESTORS_LIMIT,
-  THREAD_MAX_DESCENDANTS_LIMIT
+  THREAD_MAX_DESCENDANTS_LIMIT,
+  THREAD_SIGNED_OUT_MAX_ANCESTORS_LIMIT,
+  THREAD_SIGNED_OUT_MAX_DESCENDANTS_LIMIT
 } from '@/lib/services/statuses/threadPageLimits'
 import { seedDatabase } from '@/lib/stub/database'
 import {
@@ -182,7 +184,10 @@ describe('GET /api/v1/statuses/[id]/thread', () => {
     expect(body.hasMoreAncestors).toBe(true)
   })
 
-  it('caps the limits so a request stays bounded', async () => {
+  it('caps a signed-in request at the last step', async () => {
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor1.email }
+    })
     await requestThread(
       OPENED_ID,
       '?ancestors_limit=100000&descendants_limit=99999999'
@@ -192,6 +197,29 @@ describe('GET /api/v1/statuses/[id]/thread', () => {
         ancestorsLimit: THREAD_MAX_ANCESTORS_LIMIT,
         descendantsLimit: THREAD_MAX_DESCENDANTS_LIMIT
       })
+    )
+  })
+
+  it('caps a signed-out request at the middle step', async () => {
+    expect(THREAD_SIGNED_OUT_MAX_ANCESTORS_LIMIT).toBe(120)
+    expect(THREAD_SIGNED_OUT_MAX_DESCENDANTS_LIMIT).toBe(200)
+    await requestThread(
+      OPENED_ID,
+      `?ancestors_limit=${THREAD_MAX_ANCESTORS_LIMIT}&descendants_limit=99999999`
+    )
+    expect(mockGetStatusContext).toHaveBeenCalledWith(
+      expect.objectContaining({
+        currentActor: null,
+        ancestorsLimit: THREAD_SIGNED_OUT_MAX_ANCESTORS_LIMIT,
+        descendantsLimit: THREAD_SIGNED_OUT_MAX_DESCENDANTS_LIMIT
+      })
+    )
+  })
+
+  it('keeps a signed-out request under the cap as asked', async () => {
+    await requestThread(OPENED_ID, '?ancestors_limit=40&descendants_limit=200')
+    expect(mockGetStatusContext).toHaveBeenCalledWith(
+      expect.objectContaining({ ancestorsLimit: 40, descendantsLimit: 200 })
     )
   })
 

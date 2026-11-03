@@ -45,7 +45,8 @@ export const PagedStatusThread: FC<Props> = ({
   const thread = useThreadContextPager({
     statusId: status.id,
     initial,
-    getScrollAnchor
+    getScrollAnchor,
+    signedIn: Boolean(props.currentActor)
   })
 
   return (

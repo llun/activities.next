@@ -4,17 +4,17 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState
 } from 'react'
 
 import { StatusThreadPage, getStatusThread } from '@/lib/client'
 import {
-  THREAD_ANCESTORS_LIMIT_STEPS,
-  THREAD_DESCENDANTS_LIMIT_STEPS,
   THREAD_INITIAL_ANCESTORS_LIMIT,
   THREAD_INITIAL_DESCENDANTS_LIMIT,
-  getNextThreadLimit
+  getNextThreadLimit,
+  getThreadLimitSteps
 } from '@/lib/services/statuses/threadPageLimits'
 
 export type ThreadLoadDirection = 'ancestors' | 'descendants'
@@ -29,10 +29,20 @@ export interface UseThreadContextPagerParams {
    * opened post), so loading them does not push what the reader sees down.
    */
   getScrollAnchor?: () => HTMLElement | null
+  /**
+   * Whether the reader is signed in. Signed out, the route stops at the
+   * middle limit step, so the pager does too.
+   */
+  signedIn: boolean
 }
 
+type ThreadLimits = { ancestors: number; descendants: number }
+
 export interface ThreadContextPager extends StatusThreadPage {
-  /** Set while there are more and a larger limit step is left. */
+  /**
+   * Set while there are more and a larger limit step is left, and, for
+   * replies, after a failed load or refresh so its Retry can re-ask.
+   */
   loadMoreAncestors?: () => void
   loadMoreDescendants?: () => void
   loading: ThreadLoadDirection | null
@@ -50,27 +60,36 @@ const isSamePage = (a: StatusThreadPage, b: StatusThreadPage) =>
  * earlier posts" and "Load more replies". Each load asks the thread route for
  * the whole thread again at the next limit step in that direction (keeping the
  * other direction's limit) and replaces the thread with the answer, so the
- * statuses keep the shape and order the page rendered them in. Loads never
- * overlap, and one superseded by a newer page is dropped.
+ * statuses keep the shape and order the page rendered them in. Only the
+ * newest request's answer is kept; an overtaken one is dropped.
  *
  * When the page's own data changes (a `router.refresh()` after a reply), the
- * thread follows it while nothing more was loaded; after a load it re-asks
- * the route at the limits reached instead, so the reader keeps what they
- * loaded.
+ * thread follows it while nothing more was loaded or is loading; otherwise it
+ * re-asks the route at the larger of the limits reached and the ones a load
+ * on its way asked for (that load's spinner stays on), so the reader keeps
+ * what they loaded and still gets what they asked for. A failed re-ask keeps
+ * the thread as it was and shows the replies' error, whose Retry asks again.
  */
 export const useThreadContextPager = ({
   statusId,
   initial,
-  getScrollAnchor
+  getScrollAnchor,
+  signedIn
 }: UseThreadContextPagerParams): ThreadContextPager => {
+  const steps = useMemo(() => getThreadLimitSteps(signedIn), [signedIn])
   const [page, setPage] = useState<StatusThreadPage>(initial)
-  const [limits, setLimits] = useState({
+  const [limits, setLimits] = useState<ThreadLimits>({
     ancestors: THREAD_INITIAL_ANCESTORS_LIMIT as number,
     descendants: THREAD_INITIAL_DESCENDANTS_LIMIT as number
   })
   const [loading, setLoading] = useState<ThreadLoadDirection | null>(null)
   const [error, setError] = useState<ThreadLoadDirection | null>(null)
   const requestRef = useRef(0)
+  // The request on its way, if any, so a refresh landing meanwhile keeps it.
+  const pendingRef = useRef<{
+    limits: ThreadLimits
+    direction: ThreadLoadDirection | null
+  } | null>(null)
   const limitsRef = useRef(limits)
   limitsRef.current = limits
   const anchorRef = useRef<{ top: number } | null>(null)
@@ -78,12 +97,10 @@ export const useThreadContextPager = ({
   getScrollAnchorRef.current = getScrollAnchor
 
   const request = useCallback(
-    async (
-      next: { ancestors: number; descendants: number },
-      direction: ThreadLoadDirection | null
-    ) => {
+    async (next: ThreadLimits, direction: ThreadLoadDirection | null) => {
       // A newer request supersedes one still on its way, spinner included.
       const requestId = ++requestRef.current
+      pendingRef.current = { limits: next, direction }
       setLoading(direction)
       setError(null)
       try {
@@ -99,13 +116,19 @@ export const useThreadContextPager = ({
             ? { top: anchor.getBoundingClientRect().top }
             : null
         }
+        limitsRef.current = next
         setLimits(next)
         setPage(result)
       } catch {
         if (requestId !== requestRef.current) return
-        if (direction) setError(direction)
+        // A failed refresh (no direction) keeps the thread as it was and
+        // says so under the replies, where Retry asks again.
+        setError(direction ?? 'descendants')
       } finally {
-        if (requestId === requestRef.current) setLoading(null)
+        if (requestId === requestRef.current) {
+          pendingRef.current = null
+          setLoading(null)
+        }
       }
     },
     [statusId]
@@ -128,25 +151,36 @@ export const useThreadContextPager = ({
     if (isSamePage(lastInitialRef.current, initial)) return
     lastInitialRef.current = initial
     const current = limitsRef.current
+    const pending = pendingRef.current
     if (
+      !pending &&
       current.ancestors === THREAD_INITIAL_ANCESTORS_LIMIT &&
       current.descendants === THREAD_INITIAL_DESCENDANTS_LIMIT
     ) {
-      // A newer page drops any load still on its way.
-      requestRef.current++
-      setLoading(null)
+      setError(null)
       setPage(initial)
       return
     }
-    void request(current, null)
+    void request(
+      pending
+        ? {
+            ancestors: Math.max(current.ancestors, pending.limits.ancestors),
+            descendants: Math.max(
+              current.descendants,
+              pending.limits.descendants
+            )
+          }
+        : current,
+      pending?.direction ?? null
+    )
   }, [initial, request])
 
   const nextAncestorsLimit = getNextThreadLimit(
-    THREAD_ANCESTORS_LIMIT_STEPS,
+    steps.ancestors,
     limits.ancestors
   )
   const nextDescendantsLimit = getNextThreadLimit(
-    THREAD_DESCENDANTS_LIMIT_STEPS,
+    steps.descendants,
     limits.descendants
   )
 
@@ -161,16 +195,18 @@ export const useThreadContextPager = ({
     )
   }, [loading, nextAncestorsLimit, request])
 
+  const canRetryDescendants = error === 'descendants'
   const loadMoreDescendants = useCallback(() => {
-    if (loading || nextDescendantsLimit === null) return
+    if (loading) return
+    if (nextDescendantsLimit === null && !canRetryDescendants) return
     void request(
       {
         ancestors: limitsRef.current.ancestors,
-        descendants: nextDescendantsLimit
+        descendants: nextDescendantsLimit ?? limitsRef.current.descendants
       },
       'descendants'
     )
-  }, [loading, nextDescendantsLimit, request])
+  }, [canRetryDescendants, loading, nextDescendantsLimit, request])
 
   return {
     ...page,
@@ -179,7 +215,8 @@ export const useThreadContextPager = ({
         ? loadMoreAncestors
         : undefined,
     loadMoreDescendants:
-      page.hasMoreDescendants && nextDescendantsLimit !== null
+      (page.hasMoreDescendants && nextDescendantsLimit !== null) ||
+      canRetryDescendants
         ? loadMoreDescendants
         : undefined,
     loading,

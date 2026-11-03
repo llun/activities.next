@@ -39,6 +39,7 @@ import {
 } from '@/lib/components/posts/threadModel'
 import { useInlineComposer } from '@/lib/components/posts/useInlineComposer'
 import { useOpenStatusPath } from '@/lib/components/posts/useOpenStatusPath'
+import { useScrollOpenedPostIntoView } from '@/lib/components/posts/useScrollOpenedPostIntoView'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
@@ -723,8 +724,10 @@ export const StatusThread: FC<StatusThreadProps> = ({
       (isCombinedRun &&
         selfThread.mergedIds.has(composer.active?.anchorId ?? '')) ||
       descendantRunMergedIds.has(composer.active?.anchorId ?? ''))
+  // Also after a failed load or refresh, so its Retry stays reachable.
   const showDescendantsLoadMore =
-    hasMoreDescendants && Boolean(onLoadMoreDescendants)
+    (hasMoreDescendants || loadMoreError === 'descendants') &&
+    Boolean(onLoadMoreDescendants)
   const showEmptyReplies =
     !hasReplies &&
     !hasMoreDescendants &&
@@ -740,6 +743,12 @@ export const StatusThread: FC<StatusThreadProps> = ({
     !showEmptyReplies &&
     !showDescendantsLoadMore &&
     activeDescendantRuns.length === 0
+
+  const focusedRef = useRef<HTMLDivElement | null>(null)
+  useScrollOpenedPostIntoView(
+    () => focusedRef.current,
+    tree.ancestors.length > 0
+  )
 
   return (
     <div className={cn('space-y-0', className)}>
@@ -884,6 +893,7 @@ export const StatusThread: FC<StatusThreadProps> = ({
 
       {/* Focused status */}
       <div
+        ref={focusedRef}
         data-testid="focused-status"
         className={cn(
           'border-b bg-background p-4',

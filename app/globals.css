@@ -460,6 +460,13 @@ html:has([data-gallery-wide]) {
     @apply h-full;
   }
 
+  /* Logged out, the 64px public top bar (+ its 1px border) is sticky over the
+     content at every width: pad the scroll snapport for it too, so landing on
+     the opened post or an in-page jump never ends under it. */
+  html:has([data-public-top-bar]) {
+    scroll-padding-top: 65px;
+  }
+
   /* Below md the page chrome is fixed or sticky over the content: the 56px
      compact bar (+ its 1px border) on most pages, the floating 44px menu
      button at a 16px inset on the profile. Pad the scroll snapport so a
