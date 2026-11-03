@@ -904,7 +904,7 @@ describe('Page thread backfill', () => {
     )
   })
 
-  it('queues the backfill above the loaded ancestors for a signed-in viewer', async () => {
+  it('queues the parent the ancestor walk stopped at for a signed-in viewer', async () => {
     mockGetServerAuthSession.mockResolvedValue({} as never)
     mockGetActorFromSession.mockResolvedValue(buildViewer())
 
@@ -913,8 +913,7 @@ describe('Page thread backfill', () => {
     expect(screen.getByTestId('status-gap-reply')).toBeInTheDocument()
     expect(vi.mocked(queueThreadGapBackfill)).toHaveBeenCalledWith(
       expect.objectContaining({
-        status: focused,
-        ancestors: [parent]
+        missingParentId: 'https://remote.example/users/x/statuses/missing'
       })
     )
   })

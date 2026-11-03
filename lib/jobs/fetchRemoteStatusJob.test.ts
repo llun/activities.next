@@ -2250,6 +2250,99 @@ describe('fetchRemoteStatusJob', () => {
       expect(requested).not.toContain(parent)
     })
 
+    it('does not fetch a missing parent on this instance', async () => {
+      const child = `${REMOTE_STATUS_ID}/local-parent-child`
+      const parent = `https://${TEST_DOMAIN}/users/test1/statuses/deleted`
+      const requested = serveChain({ [child]: parent, [parent]: null })
+
+      await fetchRemoteStatusJob(database, {
+        id: 'job-id',
+        name: FETCH_REMOTE_STATUS_JOB_NAME,
+        data: { statusId: child }
+      })
+
+      expect(await database.getStatus({ statusId: child })).not.toBeNull()
+      expect(requested).not.toContain(parent)
+    })
+
+    const VICTIM_ACTOR_ID = 'https://victim.example/users/v'
+
+    it.each([
+      {
+        description: 'an id on another host',
+        key: 'id',
+        forged: (url: string) => ({
+          id: `${VICTIM_ACTOR_ID}/statuses/forged`,
+          attributedTo: VICTIM_ACTOR_ID,
+          url
+        })
+      },
+      {
+        description: 'an author on another host',
+        key: 'author',
+        forged: (url: string) => ({
+          id: url,
+          attributedTo: VICTIM_ACTOR_ID
+        })
+      }
+    ])(
+      'stores nothing for a walked parent claiming $description',
+      async ({ key, forged }) => {
+        const base = `${REMOTE_STATUS_ID}/forged-${key}`
+        const child = `${base}/child`
+        const parent = `${base}/parent`
+        const grandparent = 'https://attacker.example/x'
+        const aboveForged = 'https://attacker.example/above'
+        await storeNote(parent, grandparent)
+        const requested: string[] = []
+        mockRemoteServers(async (req) => {
+          if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
+          // The victim's actor resolves, as a real one would, so only the
+          // authority check stands between the forged note and storage.
+          if (req.url === VICTIM_ACTOR_ID) {
+            return activityJson({
+              ...MOCK_ACTOR,
+              id: VICTIM_ACTOR_ID,
+              preferredUsername: 'v',
+              inbox: `${VICTIM_ACTOR_ID}/inbox`,
+              outbox: `${VICTIM_ACTOR_ID}/outbox`,
+              publicKey: {
+                ...MOCK_ACTOR.publicKey,
+                id: `${VICTIM_ACTOR_ID}#main-key`,
+                owner: VICTIM_ACTOR_ID
+              }
+            })
+          }
+          requested.push(req.url)
+          if (req.url === child) return activityJson(chainNote(child, parent))
+          if (req.url === grandparent) {
+            return activityJson({
+              ...chainNote(grandparent, aboveForged),
+              ...forged(grandparent)
+            })
+          }
+          return { status: 404, body: '' }
+        })
+
+        await expect(
+          fetchRemoteStatusJob(database, {
+            id: 'job-id',
+            name: FETCH_REMOTE_STATUS_JOB_NAME,
+            data: { statusId: child }
+          })
+        ).resolves.toBeUndefined()
+
+        expect(await database.getStatus({ statusId: child })).not.toBeNull()
+        expect(await database.getStatus({ statusId: grandparent })).toBeNull()
+        expect(
+          await database.getStatus({ statusId: forged(grandparent).id })
+        ).toBeNull()
+        // The walk ends at the refused document instead of following it.
+        expect(requested).toContain(grandparent)
+        expect(requested).not.toContain(aboveForged)
+      }
+    )
+
     it('does not walk the replies of an ancestors-only fetch', async () => {
       const STATUS_ID = `${REMOTE_STATUS_ID}/ancestors-only`
       const REPLIES_ID = `${STATUS_ID}/replies`

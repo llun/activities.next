@@ -256,15 +256,6 @@ export const createNoteJob = createJobHandle(
     // post should not wait on someone else's server to become visible here.
     await syncStatusLinkPreview({ database, status })
 
-    // A reply whose parent is not stored here queues the parent's fetch
-    // (Mastodon's ThreadResolveWorker), which walks on up the chain. The
-    // helper skips a stored, local or blocked parent and queues a parent once
-    // per cooldown, so a burst of replies to one missing post fetches it once.
-    await queueMissingParentFetch({
-      database,
-      inReplyTo: getReply(note.inReplyTo)
-    })
-
     // Outbound Inbox Forwarding (W3C ActivityPub §7.1.2):
     // Fan out verified public replies and mentions of local users to their followers.
     if (
@@ -316,5 +307,17 @@ export const createNoteJob = createJobHandle(
         }
       }
     }
+
+    // A reply whose parent is not stored here queues the parent's fetch
+    // (Mastodon's ThreadResolveWorker), which walks on up the chain. The
+    // helper skips a stored, local or blocked parent and queues a parent once
+    // per cooldown, so a burst of replies to one missing post fetches it once.
+    // Last, and not awaited under the in-process queue, so the fetch never
+    // holds up forwarding or the sender's delivery.
+    await queueMissingParentFetch({
+      database,
+      inReplyTo: getReply(note.inReplyTo),
+      detachInline: true
+    })
   }
 )

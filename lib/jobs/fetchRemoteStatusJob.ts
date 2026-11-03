@@ -9,6 +9,7 @@ import { BaseNote, BaseNoteSchema, getUrl } from '@/lib/activities/note'
 import { toCollectionItems } from '@/lib/activities/orderedCollection'
 import { isPubliclyAddressed } from '@/lib/database/domains/status/status'
 import { Database } from '@/lib/database/types'
+import { isLocalDomain } from '@/lib/services/domains/localDomains'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { getPollFieldsFromQuestion } from '@/lib/services/polls/pollChoices'
@@ -313,6 +314,10 @@ const fetchRemoteStatus = async (
 
     let parent: Status | null = await getStoredStatus(database, reference)
     if (!parent) {
+      // A missing parent on a domain this server serves was deleted here (or
+      // never existed); asking our own host for it would only send a signed
+      // request to ourselves.
+      if (await isLocalDomain(database, reference)) break
       if (fetches >= maxFetches) break
       if (deadline !== null && Date.now() >= deadline) break
       fetches++

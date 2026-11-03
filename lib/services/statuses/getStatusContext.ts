@@ -51,6 +51,11 @@ export interface StatusContextResult {
   descendants: Status[]
   hasMoreAncestors: boolean
   hasMoreDescendants: boolean
+  // The reference the ancestor walk stopped at because nothing is stored for
+  // it, or '' when the chain reached its root, a cycle or the limit. Read
+  // before visibility filtering, so a gap above a hidden ancestor is still
+  // found. Server-side only (the thread backfill); never serialized.
+  missingParentId: string
 }
 
 const getReplyTarget = (status: Status): string =>
@@ -142,7 +147,8 @@ export async function getStatusContext({
       ancestors: [],
       descendants: [],
       hasMoreAncestors: false,
-      hasMoreDescendants: false
+      hasMoreDescendants: false,
+      missingParentId: ''
     }
   }
 
@@ -198,6 +204,7 @@ export async function getStatusContext({
   }
 
   let parentId = getReplyTarget(status)
+  let missingParentId = ''
 
   while (parentId && chain.length < effectiveAncestorsLimit) {
     if (seenAncestorIds.has(parentId)) {
@@ -206,6 +213,7 @@ export async function getStatusContext({
     }
 
     const parent = await loadParent(parentId)
+    if (!parent) missingParentId = parentId
     if (!parent || seenAncestorIds.has(parent.id)) {
       parentId = ''
       break
@@ -454,6 +462,7 @@ export async function getStatusContext({
     ancestors,
     descendants: collected,
     hasMoreAncestors,
-    hasMoreDescendants
+    hasMoreDescendants,
+    missingParentId
   }
 }

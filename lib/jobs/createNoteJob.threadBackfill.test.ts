@@ -2,8 +2,10 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { createNoteJob } from '@/lib/jobs/createNoteJob'
+import { createPollJob } from '@/lib/jobs/createPollJob'
 import {
   CREATE_NOTE_JOB_NAME,
+  CREATE_POLL_JOB_NAME,
   FETCH_REMOTE_STATUS_JOB_NAME
 } from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
@@ -12,6 +14,8 @@ import { resetParentBackfillStateForTesting } from '@/lib/services/statuses/pare
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { MockMastodonActivityPubNote } from '@/lib/stub/note'
+import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
+import { createDeferred } from '@/lib/testing/deferred'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 enableFetchMocks()
@@ -28,10 +32,10 @@ vi.mock('@/lib/services/queue', () => ({
 
 const REMOTE = 'https://remote.example/users/alice'
 
-// An inbound reply whose parent is not stored queues the parent's fetch
+// An inbound reply (note or poll) whose parent is not stored queues the parent's fetch
 // (Mastodon's ThreadResolveWorker); the dedupe and the policy checks live in
 // queueMissingParentFetch, whose own tests cover them in full.
-describe('createNoteJob thread backfill', () => {
+describe('createNoteJob and createPollJob thread backfill', () => {
   const { database, prepare } = createTestDatabase()
 
   beforeAll(async () => {
@@ -60,6 +64,7 @@ describe('createNoteJob thread backfill', () => {
     fetchMock.resetMocks()
     mockRequests(fetchMock)
     resetParentBackfillStateForTesting()
+    mockQueue.runsInline = false
     mockQueue.publish.mockReset()
     mockQueue.publish.mockResolvedValue(undefined)
     vi.mocked(getQueue).mockReset()
@@ -110,6 +115,56 @@ describe('createNoteJob thread backfill', () => {
     await receiveReply(parent)
 
     expect(parentFetches()).toEqual([])
+  })
+
+  it('does not wait for the parent fetch under the in-process queue', async () => {
+    mockQueue.runsInline = true
+    const run = createDeferred<void>()
+    mockQueue.publish.mockImplementation(async (message) => {
+      if (message.name === FETCH_REMOTE_STATUS_JOB_NAME) await run.promise
+    })
+
+    // Resolves while the inline fetch is still running.
+    await receiveReply(`${REMOTE}/statuses/inline-parent`)
+
+    expect(parentFetches()).toEqual([
+      expect.objectContaining({
+        data: expect.objectContaining({ firstPageOnly: true })
+      })
+    ])
+    run.resolve()
+  })
+
+  it('queues one parent fetch for an inbound poll replying to a missing parent', async () => {
+    const parent = `${REMOTE}/statuses/missing-poll-parent`
+    const id = `${ACTOR1_ID}/questions/thread-backfill`
+    await createPollJob(database, {
+      id,
+      name: CREATE_POLL_JOB_NAME,
+      data: {
+        id,
+        type: 'Question',
+        attributedTo: ACTOR1_ID,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        content: '<p>Which?</p>',
+        inReplyTo: parent,
+        published: new Date().toISOString(),
+        endTime: new Date(Date.now() + 86_400_000).toISOString(),
+        oneOf: ['Red', 'Blue'].map((name) => ({
+          type: 'Note',
+          name,
+          replies: { type: 'Collection', totalItems: 0 }
+        }))
+      }
+    })
+
+    expect(await database.getStatus({ statusId: id })).not.toBeNull()
+    expect(parentFetches()).toEqual([
+      expect.objectContaining({
+        data: { statusId: parent, ancestorsOnly: true, firstPageOnly: false }
+      })
+    ])
   })
 
   it('queues nothing for a note that is not a reply', async () => {

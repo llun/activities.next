@@ -38,7 +38,8 @@ export const GET = traceApiRoute(
       const {
         status,
         ancestors: ancestorStatuses,
-        descendants: descendantStatuses
+        descendants: descendantStatuses,
+        missingParentId
       } = await getStatusContext({
         database,
         statusId: encodedStatusId,
@@ -59,11 +60,7 @@ export const GET = traceApiRoute(
       // a signed-in context read. Anonymous reads queue nothing, and a parent
       // is queued once per cooldown (queueMissingParentFetch).
       if (currentActor) {
-        await queueThreadGapBackfill({
-          database,
-          status,
-          ancestors: ancestorStatuses
-        })
+        await queueThreadGapBackfill({ database, missingParentId })
       }
 
       const [ancestors, descendants] = await Promise.all([

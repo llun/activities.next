@@ -380,7 +380,10 @@ const Page: FC<Props> = async ({ params }) => {
     // A signed-in view of a stored thread that stops at a missing parent
     // queues that parent's fetch (see the context route).
     if (currentActor && isStoredStatus) {
-      await queueThreadGapBackfill({ database, status, ancestors })
+      await queueThreadGapBackfill({
+        database,
+        missingParentId: threadContext.missingParentId
+      })
     }
   }
 

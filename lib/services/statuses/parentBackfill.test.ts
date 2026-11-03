@@ -4,7 +4,6 @@ import { getQueue } from '@/lib/services/queue'
 import type { Queue } from '@/lib/services/queue/type'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { createDeferred } from '@/lib/testing/deferred'
-import { Status } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 import {
@@ -162,20 +161,17 @@ describe('queueMissingParentFetch', () => {
     run.resolve()
   })
 
-  it('queues the parent of the topmost loaded ancestor', async () => {
-    const status = {
-      id: `${REMOTE}/statuses/leaf`,
-      type: 'Note',
-      reply: `${REMOTE}/statuses/stored`
-    } as Status
-    const root = {
-      id: `${REMOTE}/statuses/stored`,
-      type: 'Note',
-      reply: `${REMOTE}/statuses/above-root`
-    } as Status
+  it('queues the parent a context walk stopped at, without waiting', async () => {
+    mockQueue.runsInline = true
+    const run = createDeferred<void>()
+    mockQueue.publish.mockReturnValue(run.promise)
 
-    await queueThreadGapBackfill({ database, status, ancestors: [root] })
-
+    expect(
+      await queueThreadGapBackfill({
+        database,
+        missingParentId: `${REMOTE}/statuses/above-root`
+      })
+    ).toBe(true)
     expect(mockQueue.publish).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -183,5 +179,13 @@ describe('queueMissingParentFetch', () => {
         })
       })
     )
+    run.resolve()
+  })
+
+  it('queues nothing when the context walk reached the root', async () => {
+    expect(
+      await queueThreadGapBackfill({ database, missingParentId: '' })
+    ).toBe(false)
+    expect(mockQueue.publish).not.toHaveBeenCalled()
   })
 })

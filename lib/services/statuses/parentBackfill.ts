@@ -1,11 +1,8 @@
 import { Database } from '@/lib/database/types'
 import { FETCH_REMOTE_STATUS_JOB_NAME } from '@/lib/jobs/names'
-import {
-  canFederateWithDomain,
-  isLocalFederationDomain
-} from '@/lib/services/federation/domainPolicy'
+import { isLocalDomain } from '@/lib/services/domains/localDomains'
+import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getQueue } from '@/lib/services/queue'
-import { Status, StatusType } from '@/lib/types/domain/status'
 import { normalizeActivityPubUri } from '@/lib/utils/activitypub'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
@@ -64,7 +61,7 @@ const isStored = async (database: Database, reference: string) =>
 /**
  * Queues the fetch of the parent a reply names in `inReplyTo` when it is not
  * stored. Nothing is queued for an empty or non-HTTPS reference, a parent on
- * this instance's own domains (a missing local parent was deleted), one on a
+ * a domain this server serves (a missing local parent was deleted), one on a
  * blocked or suspended domain or outside the allow-list, one already stored,
  * or one queued within the cooldown. Returns whether a job was published.
  *
@@ -96,7 +93,7 @@ export const queueMissingParentFetch = async ({
   if (isInCooldown(key, Date.now())) return false
 
   try {
-    if (await isLocalFederationDomain(database, inReplyTo)) return false
+    if (await isLocalDomain(database, inReplyTo)) return false
     if (!(await canFederateWithDomain(database, inReplyTo))) return false
     if (await isStored(database, inReplyTo)) return false
   } catch (err) {
@@ -145,25 +142,21 @@ export const queueMissingParentFetch = async ({
 }
 
 /**
- * The thread backfill for a context read: queues the parent of the topmost
- * status the read reached (the root of the loaded `ancestors`, ordered root
- * first, or `status` itself) when that parent is not stored. The fetch job
- * walks on above it.
+ * The thread backfill for a context read: queues the parent the read's
+ * ancestor walk stopped at because nothing is stored for it
+ * (`getStatusContext`'s `missingParentId`, taken before visibility filtering,
+ * so a gap above an ancestor the viewer cannot see is found too). The fetch
+ * job walks on above it. Never waits for an in-process run.
  */
 export const queueThreadGapBackfill = ({
   database,
-  status,
-  ancestors
+  missingParentId
 }: {
   database: Database
-  status: Status
-  ancestors: Status[]
-}): Promise<boolean> => {
-  const top = ancestors[0] ?? status
-  if (top.type === StatusType.enum.Announce) return Promise.resolve(false)
-  return queueMissingParentFetch({
+  missingParentId: string
+}): Promise<boolean> =>
+  queueMissingParentFetch({
     database,
-    inReplyTo: top.reply,
+    inReplyTo: missingParentId,
     detachInline: true
   })
-}
