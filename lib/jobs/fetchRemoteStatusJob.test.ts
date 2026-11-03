@@ -1688,6 +1688,100 @@ describe('fetchRemoteStatusJob', () => {
       expect(await database.getStatus({ statusId: REPLY_ID })).not.toBeNull()
     })
 
+    it('does not let a reply claim a url on another host as part of the thread', async () => {
+      const STATUS_ID = `${REMOTE_STATUS_ID}/gate-foreign-url`
+      const ATTACKER_REPLY_ID = `${STATUS_ID}/reply`
+      const VICTIM_ACTOR_ID = 'https://victim.test/users/bob'
+      const UNRELATED_PARENT_ID = `${VICTIM_ACTOR_ID}/statuses/5`
+      const UNRELATED_REPLY_ID = `${VICTIM_ACTOR_ID}/statuses/6`
+      const CONTROL_REPLY_ID = `${VICTIM_ACTOR_ID}/statuses/7`
+      const victimNote = (id: string, inReplyTo: string) => ({
+        id,
+        type: 'Note',
+        attributedTo: VICTIM_ACTOR_ID,
+        content: 'Bob',
+        inReplyTo,
+        to: [PUBLIC_STREAM],
+        cc: [],
+        published: new Date().toISOString()
+      })
+      mockRemoteServers(async (req) => {
+        if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
+        if (req.url === VICTIM_ACTOR_ID) {
+          return activityJson({
+            ...MOCK_ACTOR,
+            id: VICTIM_ACTOR_ID,
+            preferredUsername: 'bob',
+            inbox: `${VICTIM_ACTOR_ID}/inbox`,
+            outbox: `${VICTIM_ACTOR_ID}/outbox`,
+            publicKey: {
+              id: `${VICTIM_ACTOR_ID}#main-key`,
+              owner: VICTIM_ACTOR_ID,
+              publicKeyPem: '-----BEGIN PUBLIC KEY-----\n...'
+            }
+          })
+        }
+        if (req.url === STATUS_ID) {
+          return activityJson({
+            id: STATUS_ID,
+            type: 'Note',
+            attributedTo: REMOTE_ACTOR_ID,
+            content: 'Root',
+            to: [PUBLIC_STREAM],
+            replies: `${STATUS_ID}/replies`
+          })
+        }
+        if (req.url === `${STATUS_ID}/replies`) {
+          return activityJson({
+            id: `${STATUS_ID}/replies`,
+            type: 'OrderedCollection',
+            orderedItems: [
+              reply(ATTACKER_REPLY_ID, {
+                inReplyTo: STATUS_ID,
+                // Claims to be the victim's unrelated status.
+                url: UNRELATED_PARENT_ID,
+                replies: {
+                  id: `${ATTACKER_REPLY_ID}/replies`,
+                  type: 'Collection',
+                  first: {
+                    type: 'CollectionPage',
+                    items: [UNRELATED_REPLY_ID, CONTROL_REPLY_ID]
+                  }
+                }
+              })
+            ]
+          })
+        }
+        if (req.url === UNRELATED_REPLY_ID) {
+          return activityJson(
+            victimNote(UNRELATED_REPLY_ID, UNRELATED_PARENT_ID)
+          )
+        }
+        if (req.url === CONTROL_REPLY_ID) {
+          return activityJson(victimNote(CONTROL_REPLY_ID, ATTACKER_REPLY_ID))
+        }
+        return activityJson({})
+      })
+
+      await fetchRemoteStatusJob(database, {
+        id: 'job-id',
+        name: FETCH_REMOTE_STATUS_JOB_NAME,
+        data: { statusId: STATUS_ID }
+      })
+
+      expect(
+        await database.getStatus({ statusId: ATTACKER_REPLY_ID })
+      ).not.toBeNull()
+      // The same host's genuine reply to the accepted note is stored...
+      expect(
+        await database.getStatus({ statusId: CONTROL_REPLY_ID })
+      ).not.toBeNull()
+      // ...but not its reply to the status the foreign url pointed at.
+      expect(
+        await database.getStatus({ statusId: UNRELATED_REPLY_ID })
+      ).toBeNull()
+    })
+
     it('stores a reply that names the walked note with a trailing slash', async () => {
       const STATUS_ID = `${REMOTE_STATUS_ID}/gate-slash`
       const REPLY_ID = `${STATUS_ID}/reply`

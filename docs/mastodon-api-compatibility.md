@@ -1935,7 +1935,7 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   viewable. The thread walk stores a reply only when it is publicly addressed
   (public or unlisted, as the requested note must be) and its `inReplyTo`
   names a note of the thread — the requested note or a reply the walk already
-  accepted, by id or url, ignoring a trailing slash — so flat conversation
+  accepted, by id or by a url on the note's own origin (a url pointing at another host never counts), ignoring a trailing slash — so flat conversation
   collections work; anything else is skipped and not walked further. The web profile list, on the server-rendered first
   page and later pages alike, overlays the viewer's own like, repost and
   bookmark state, plus the stored reactions, for stored statuses the viewer

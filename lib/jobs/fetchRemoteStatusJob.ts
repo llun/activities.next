@@ -331,18 +331,22 @@ export const fetchRemoteStatusJob = createJobHandle(
     // conversation collections some servers serve, while a collection still
     // cannot plant an unrelated note or graft one into this thread.
     const threadKeys = new Set<string>()
-    const addToThread = (...refs: (string | null | undefined)[]) => {
-      for (const ref of refs) {
-        const key = threadKey(ref)
-        if (key) threadKeys.add(key)
-      }
+    // A note's `url` is the author's own claim, so it names the note only when
+    // it is on the note id's origin (Mastodon's `/@alice/123` beside
+    // `/users/alice/statuses/123`). A url on another host would let a reply
+    // pull that host's unrelated thread into this conversation.
+    const addToThread = (id: string, url?: string | null) => {
+      const idKey = threadKey(id)
+      if (idKey) threadKeys.add(idKey)
+      if (!url || !isSameActivityPubOrigin(url, id)) return
+      const urlKey = threadKey(url)
+      if (urlKey) threadKeys.add(urlKey)
     }
     addToThread(
       result.status.id,
-      'url' in result.status ? result.status.url : null,
-      note.id,
-      getUrl(note.url)
+      'url' in result.status ? result.status.url : null
     )
+    addToThread(note.id, getUrl(note.url))
 
     const storeReplyNote = async (
       item: unknown,
@@ -423,7 +427,8 @@ export const fetchRemoteStatusJob = createJobHandle(
         // (bounded by the `work` cap).
         const exists = await database.getStatus({ statusId: sanitizedReply.id })
         if (exists) {
-          addToThread(exists.id, sanitizedReply.id, getUrl(sanitizedReply.url))
+          addToThread(exists.id)
+          addToThread(sanitizedReply.id, getUrl(sanitizedReply.url))
           return {
             replies: childReplies,
             repliesServedFrom: servedFrom,
