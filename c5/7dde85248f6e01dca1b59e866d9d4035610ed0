@@ -1,0 +1,19 @@
+lib/services/timelines/getTimelineContext.test.ts
+  s_d3ef9b4551116f::t_d7af81774f9351 81-85,102,117,152,201,247,326,371,402,505
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c57dde85248f6e01dca1b59e866d9d4035610ed0",
+  "prompts": {},
+  "sessions": {
+    "s_d3ef9b4551116f": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a19dea-6430-7764-9d76-cfe2adf803c4",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
