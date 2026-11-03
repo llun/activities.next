@@ -280,6 +280,27 @@ describe('Status', () => {
   })
 
   describe('toActivityPubObject', () => {
+    // `to` and `cc` are unordered sets and the recipients table has no
+    // defined row order, so two reads of one status may list them in a
+    // different order. Compare them sorted.
+    const withSortedAudience = <T extends { to?: unknown; cc?: unknown }>(
+      object: T
+    ): T => {
+      const sorted = { ...object } as Record<string, unknown>
+      for (const key of ['to', 'cc']) {
+        if (Array.isArray(sorted[key])) sorted[key] = [...sorted[key]].sort()
+      }
+      const replies = sorted.replies as
+        { items?: Array<{ to?: unknown; cc?: unknown }> } | undefined
+      if (replies?.items) {
+        sorted.replies = {
+          ...replies,
+          items: replies.items.map((item) => withSortedAudience(item))
+        }
+      }
+      return sorted as T
+    }
+
     let actor1: Actor | null | undefined
     let actor2: Actor | null | undefined
 
@@ -301,7 +322,7 @@ describe('Status', () => {
           statusId,
           withReplies: true
         })) as StatusNote
-        const note = toActivityPubObject(status)
+        const note = withSortedAudience(toActivityPubObject(status))
         expect(note).toEqual({
           id: statusId,
           type: StatusType.enum.Note,
@@ -310,8 +331,8 @@ describe('Status', () => {
           published: getISOTimeUTC(status?.createdAt ?? 0),
           url: status.url,
           attributedTo: status.actorId,
-          to: status.to,
-          cc: status.cc,
+          to: [...status.to].sort(),
+          cc: [...status.cc].sort(),
           content: status.text,
           attachment: [],
           tag: [],
@@ -321,15 +342,19 @@ describe('Status', () => {
             type: 'Collection',
             totalItems: 2,
             items: [
-              toActivityPubObject(
-                (await database.getStatus({
-                  statusId: `${ACTOR2_ID}/statuses/reply-1`
-                })) as Status
+              withSortedAudience(
+                toActivityPubObject(
+                  (await database.getStatus({
+                    statusId: `${ACTOR2_ID}/statuses/reply-1`
+                  })) as Status
+                )
               ),
-              toActivityPubObject(
-                (await database.getStatus({
-                  statusId: `${ACTOR2_ID}/statuses/post-2`
-                })) as Status
+              withSortedAudience(
+                toActivityPubObject(
+                  (await database.getStatus({
+                    statusId: `${ACTOR2_ID}/statuses/post-2`
+                  })) as Status
+                )
               )
             ]
           },
@@ -656,7 +681,7 @@ describe('Status', () => {
           statusId: status3Id
         })) as Status
         const note3 = toActivityPubObject(status3)
-        expect(note3).toEqual(note2)
+        expect(withSortedAudience(note3)).toEqual(withSortedAudience(note2))
       })
     })
 

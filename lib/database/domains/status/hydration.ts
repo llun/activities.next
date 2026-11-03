@@ -491,6 +491,9 @@ export const hydrateStatusRow = async (
   withReplies?: boolean,
   hydrationContext: StatusHydrationContext = {}
 ): Promise<Status | null> => {
+  // No ORDER BY: rows of one status share a timestamp and have random ids, so
+  // the order is not guaranteed (it differs between backends and reads).
+  // `to` and `cc` are unordered sets; consumers must not rely on it.
   const recipients = (type: 'to' | 'cc') =>
     db
       .selectFrom('recipients')
