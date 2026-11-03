@@ -67,10 +67,10 @@ const isStored = async (database: Database, reference: string) =>
  *
  * `detachInline`: under the in-process NoQueue, `publish` runs the job before
  * it returns. Every current caller (createNoteJob, createPollJob, the context
- * route and the post page) passes true, so the job finishes after the caller
- * returns. The default, false, is kept for a caller that has to wait for the
- * inline run. The inline run fetches at most INLINE_MAX_ANCESTOR_FETCHES
- * parents either way.
+ * route, the web thread route and the post page) passes true, so the job
+ * finishes after the caller returns. The default, false, is kept for a caller
+ * that has to wait for the inline run. The inline run fetches at most
+ * INLINE_MAX_ANCESTOR_FETCHES parents either way.
  */
 export const queueMissingParentFetch = async ({
   database,

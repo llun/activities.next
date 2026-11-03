@@ -104,6 +104,8 @@ describe('StatusThread', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockClampCollapsible = false
+    // The landing scroll marks the history entry; start each test unmarked.
+    window.history.replaceState(null, '', '/')
   })
 
   it('renders ancestors, focused status, and descendants in order', () => {
@@ -2220,8 +2222,16 @@ describe('StatusThread', () => {
           expect(runs[1].querySelector('[aria-current="location"]')).not.toBe(
             null
           )
-          // Part 1 of the focused run is opened: nothing to scroll to.
-          expect(scrollIntoView).not.toHaveBeenCalled()
+          // Part 1 of the focused run is opened, so the run itself does not
+          // scroll; the page lands on that part (posts are drawn above it),
+          // never on the earlier run.
+          expect(scrollIntoView).toHaveBeenCalledTimes(1)
+          expect(scrollIntoView.mock.contexts[0]).toBe(
+            runs[1].querySelector('[aria-current="location"]')
+          )
+          expect(
+            runs[0].contains(scrollIntoView.mock.contexts[0] as Node)
+          ).toBe(false)
 
           fireEvent.click(
             within(screen.getByTestId(`status-${a2.id}`)).getByRole('button', {

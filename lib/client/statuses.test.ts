@@ -17,6 +17,7 @@ import {
   getStatusFavouritedBy,
   getStatusIfReadable,
   getStatusQuotes,
+  getStatusThread,
   getTranslationCapability,
   getTranslationLanguages,
   likeStatus,
@@ -1362,6 +1363,40 @@ describe('client statuses module', () => {
     it('lets a network failure propagate as TypeError', async () => {
       fetchMock.mockReject(new TypeError('Load failed'))
       await expect(getStatusIfReadable('s1')).rejects.toBeInstanceOf(TypeError)
+    })
+  })
+
+  describe('getStatusThread', () => {
+    it('asks the thread route with both limits and returns its page', async () => {
+      const page = {
+        ancestors: [{ id: 'a1' }],
+        descendants: [{ id: 'd1' }],
+        hasMoreAncestors: false,
+        hasMoreDescendants: true
+      }
+      fetchMock.mockResponse(JSON.stringify(page), { status: 200 })
+      const statusId = 'https://llun.test/users/test1/statuses/opened'
+      expect(
+        await getStatusThread({
+          statusId,
+          ancestorsLimit: 120,
+          descendantsLimit: 60
+        })
+      ).toEqual(page)
+      expect(fetchMock.mock.calls[0][0]).toBe(
+        `/api/v1/statuses/${urlToId(statusId)}/thread?ancestors_limit=120&descendants_limit=60`
+      )
+    })
+
+    it.each([404, 429, 500])('throws ApiRequestError on %i', async (status) => {
+      fetchMock.mockResponse(JSON.stringify({ error: 'nope' }), { status })
+      await expect(
+        getStatusThread({
+          statusId: 's1',
+          ancestorsLimit: 40,
+          descendantsLimit: 200
+        })
+      ).rejects.toMatchObject({ name: 'ApiRequestError', status })
     })
   })
 

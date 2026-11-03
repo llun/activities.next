@@ -29,6 +29,7 @@ import {
   buildSelfThreadModel,
   getRunMergedStatuses
 } from '@/lib/components/posts/selfThreadModel'
+import { ThreadLoadMore } from '@/lib/components/posts/thread-load-more'
 import { ThreadReplyNode } from '@/lib/components/posts/thread-reply-node'
 import {
   ThreadNode,
@@ -38,6 +39,7 @@ import {
 } from '@/lib/components/posts/threadModel'
 import { useInlineComposer } from '@/lib/components/posts/useInlineComposer'
 import { useOpenStatusPath } from '@/lib/components/posts/useOpenStatusPath'
+import { useScrollOpenedPostIntoView } from '@/lib/components/posts/useScrollOpenedPostIntoView'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
@@ -63,6 +65,10 @@ export interface StatusThreadProps {
   hasMoreDescendants?: boolean
   onLoadMoreAncestors?: () => void
   onLoadMoreDescendants?: () => void
+  /** Which load is on its way, if any. */
+  loadingMore?: 'ancestors' | 'descendants' | null
+  /** Which load last failed, if any: its row shows an error with a Retry. */
+  loadMoreError?: 'ancestors' | 'descendants' | null
   focusedFooter?: ReactNode
   renderFocusedFooter?: (status: Status) => ReactNode
   className?: string
@@ -138,6 +144,8 @@ export const StatusThread: FC<StatusThreadProps> = ({
   hasMoreDescendants = false,
   onLoadMoreAncestors,
   onLoadMoreDescendants,
+  loadingMore = null,
+  loadMoreError = null,
   focusedFooter,
   renderFocusedFooter,
   className,
@@ -283,6 +291,16 @@ export const StatusThread: FC<StatusThreadProps> = ({
       ),
     [selfThread.descendantRuns, isRunSeparate]
   )
+
+  // With earlier ancestors not loaded, a run holding the topmost loaded one
+  // may start above the window, so its "i of n" labels could be wrong: they
+  // are left out until "Load earlier posts" loads the rest.
+  const topLoadedAncestorId = hasMoreAncestors
+    ? (visibleAncestors[0]?.id ?? null)
+    : null
+  const hidesPartNumbers = (statuses: readonly Status[]) =>
+    topLoadedAncestorId !== null &&
+    statuses.some((item) => item.id === topLoadedAncestorId)
 
   const ancestorRunByFirstStatusId = useMemo(() => {
     const map = new Map<string, SelfThreadRunBlock>()
@@ -563,7 +581,8 @@ export const StatusThread: FC<StatusThreadProps> = ({
     runStatusIds: ReadonlySet<string>,
     opened?: { openedPartIndex: number; focusedFooter: ReactNode },
     anchorPartIndex?: number,
-    replyingTo?: ReactNode
+    replyingTo?: ReactNode,
+    hidePartNumbers?: boolean
   ): ReactNode => {
     const closeComposerAndRefresh = () => {
       composer.close()
@@ -574,6 +593,7 @@ export const StatusThread: FC<StatusThreadProps> = ({
         parts={parts}
         openedPartIndex={opened?.openedPartIndex}
         anchorPartIndex={anchorPartIndex}
+        hidePartNumbers={hidePartNumbers}
         host={host}
         currentTime={currentTime}
         currentActor={currentActor ?? undefined}
@@ -704,29 +724,43 @@ export const StatusThread: FC<StatusThreadProps> = ({
       (isCombinedRun &&
         selfThread.mergedIds.has(composer.active?.anchorId ?? '')) ||
       descendantRunMergedIds.has(composer.active?.anchorId ?? ''))
+  // Also after a failed load or refresh, so its Retry stays reachable.
+  const showDescendantsLoadMore =
+    (hasMoreDescendants || loadMoreError === 'descendants') &&
+    Boolean(onLoadMoreDescendants)
   const showEmptyReplies =
-    !hasReplies && !isInConversation && !isComposingOnFocused
+    !hasReplies &&
+    !hasMoreDescendants &&
+    !isInConversation &&
+    !isComposingOnFocused
   // With neither replies nor the empty block below it, the focused post is the
   // thread's last row: it drops its bottom border and meets the frame's bottom
   // corners itself, since it paints a background. Logged out, the sign-in
   // block follows it inside the desktop frame, so only the mobile inset card
   // ends here.
   const focusedIsLast =
-    !hasReplies && !showEmptyReplies && activeDescendantRuns.length === 0
+    !hasReplies &&
+    !showEmptyReplies &&
+    !showDescendantsLoadMore &&
+    activeDescendantRuns.length === 0
+
+  const focusedRef = useRef<HTMLDivElement | null>(null)
+  useScrollOpenedPostIntoView(
+    () => focusedRef.current,
+    tree.ancestors.length > 0
+  )
 
   return (
     <div className={cn('space-y-0', className)}>
       {/* Load earlier ancestors control */}
       {hasMoreAncestors && onLoadMoreAncestors ? (
-        <div className="border-b px-4 py-2 text-center">
-          <button
-            type="button"
-            onClick={onLoadMoreAncestors}
-            className="text-xs font-medium text-primary-text hover:underline"
-          >
-            Load earlier replies
-          </button>
-        </div>
+        <ThreadLoadMore
+          label="Load earlier posts"
+          onLoad={onLoadMoreAncestors}
+          isLoading={loadingMore === 'ancestors'}
+          hasError={loadMoreError === 'ancestors'}
+          className="border-b py-2"
+        />
       ) : null}
 
       {/* Ancestors in chronological order */}
@@ -760,7 +794,9 @@ export const StatusThread: FC<StatusThreadProps> = ({
                     ancestorRun.parts,
                     ancestorRunIds,
                     undefined,
-                    selfThread.ancestorRunAnchorIndexById.get(ancestorRun.key)
+                    selfThread.ancestorRunAnchorIndexById.get(ancestorRun.key),
+                    undefined,
+                    hidesPartNumbers(getRunMergedStatuses(ancestorRun))
                   )
                 ) : (
                   <>
@@ -857,6 +893,7 @@ export const StatusThread: FC<StatusThreadProps> = ({
 
       {/* Focused status */}
       <div
+        ref={focusedRef}
         data-testid="focused-status"
         className={cn(
           'border-b bg-background p-4',
@@ -879,7 +916,8 @@ export const StatusThread: FC<StatusThreadProps> = ({
                 (renderFocusedFooter ? renderFocusedFooter(status) : null)
             },
             undefined,
-            replyingToLine
+            replyingToLine,
+            hidesPartNumbers(selfThread.mergedStatuses)
           )
         ) : (
           <>
@@ -977,6 +1015,7 @@ export const StatusThread: FC<StatusThreadProps> = ({
         const isLastBlock =
           !hasReplies &&
           !showEmptyReplies &&
+          !showDescendantsLoadMore &&
           index === activeDescendantRuns.length - 1
         return (
           <div
@@ -1009,18 +1048,26 @@ export const StatusThread: FC<StatusThreadProps> = ({
             {tree.descendants.map((node) => renderThreadNode(node))}
           </div>
 
-          {hasMoreDescendants && onLoadMoreDescendants ? (
-            <div className="border-t px-4 py-3 text-center">
-              <button
-                type="button"
-                onClick={onLoadMoreDescendants}
-                className="text-xs font-medium text-primary-text hover:underline"
-              >
-                Load more replies
-              </button>
-            </div>
+          {showDescendantsLoadMore && onLoadMoreDescendants ? (
+            <ThreadLoadMore
+              label="Load more replies"
+              onLoad={onLoadMoreDescendants}
+              isLoading={loadingMore === 'descendants'}
+              hasError={loadMoreError === 'descendants'}
+              className="border-t"
+            />
           ) : null}
         </div>
+      ) : showDescendantsLoadMore && onLoadMoreDescendants ? (
+        // More replies exist but none loaded so far renders under Replies
+        // (the loaded ones all belong to the author's run): the row stands
+        // on its own under the thread.
+        <ThreadLoadMore
+          label="Load more replies"
+          onLoad={onLoadMoreDescendants}
+          isLoading={loadingMore === 'descendants'}
+          hasError={loadMoreError === 'descendants'}
+        />
       ) : showEmptyReplies ? (
         <div className="p-4">
           <EmptyState icon={MessageCircle} title="No replies yet">

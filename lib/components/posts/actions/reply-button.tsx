@@ -3,6 +3,8 @@ import { FC } from 'react'
 
 import { Status, StatusNote, StatusPoll } from '@/lib/types/domain/status'
 
+import { getReplyCount } from './replyCount'
+
 interface Props {
   className?: string
   status: StatusNote | StatusPoll
@@ -15,10 +17,7 @@ interface Props {
 }
 
 export const ReplyButton: FC<Props> = ({ status, targetLabel, onReply }) => {
-  const replyCount =
-    typeof status.totalReplies === 'number'
-      ? status.totalReplies
-      : status.replies.length
+  const replyCount = getReplyCount(status)
   const target = targetLabel ?? 'post'
   const replyLabel =
     replyCount > 0

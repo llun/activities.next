@@ -57,6 +57,17 @@ export interface SelfThreadRunProps {
    */
   anchorPartIndex?: number
   startAt?: number
+  /**
+   * Render only the parts before this index (the fitness page renders the
+   * athlete's earlier parts above the activity, and the activity itself on
+   * its own). The labels still count every part.
+   */
+  endBefore?: number
+  /**
+   * Leave the "i of n" labels out: earlier ancestors were not loaded, so the
+   * run may start above what the page has and its numbers could be wrong.
+   */
+  hidePartNumbers?: boolean
   host: string
   currentTime: number
   currentActor?: ActorProfile
@@ -92,6 +103,7 @@ interface SelfThreadPartProps {
   part: CombinedPart
   partIndex: number
   totalParts: number
+  hidePartNumbers?: boolean
   isFirstHeader: boolean
   isLastRendered: boolean
   isOpened: boolean
@@ -128,6 +140,7 @@ const SelfThreadPart: FC<SelfThreadPartProps> = ({
   part,
   partIndex,
   totalParts,
+  hidePartNumbers = false,
   isFirstHeader,
   isLastRendered,
   isOpened,
@@ -162,7 +175,9 @@ const SelfThreadPart: FC<SelfThreadPartProps> = ({
   })
   const { isTranslatable, translationLanguage, inlineTranslation } =
     getPostTranslation(actualStatus, Boolean(currentActor), currentActor?.id)
-  const label = `${partIndex + 1} of ${totalParts}`
+  const label = hidePartNumbers
+    ? undefined
+    : `${partIndex + 1} of ${totalParts}`
   const compactTime = formatCompactRelativeTime(
     actualStatus.createdAt,
     currentTime
@@ -240,9 +255,7 @@ const SelfThreadPart: FC<SelfThreadPartProps> = ({
             <div className="relative flex min-h-6 items-center justify-between gap-2 text-xs text-muted-foreground">
               {isOpened ? (
                 <span>
-                  {authorName
-                    ? `${authorName} · ${label} · ${compactTime}`
-                    : `${label} · ${compactTime}`}
+                  {[authorName, label, compactTime].filter(Boolean).join(' · ')}
                 </span>
               ) : (
                 <CombinedPartLabelButton
@@ -356,6 +369,8 @@ export const SelfThreadRun: FC<SelfThreadRunProps> = ({
   openedPartIndex = -1,
   anchorPartIndex,
   startAt = 0,
+  endBefore,
+  hidePartNumbers = false,
   host,
   currentTime,
   currentActor,
@@ -396,17 +411,20 @@ export const SelfThreadRun: FC<SelfThreadRunProps> = ({
   const showCollapsedView = longRun.isCollapsed && !isExpanded
 
   const renderedIndices = useMemo(() => {
+    const end = Math.min(endBefore ?? parts.length, parts.length)
+    const inRange = (index: number) => index >= startAt && index < end
     if (!showCollapsedView) {
-      return parts.map((_, index) => index).filter((index) => index >= startAt)
+      return parts.map((_, index) => index).filter(inRange)
     }
-    const indexSet = new Set<number>(
-      longRun.visiblePartIndices.filter((index) => index >= startAt)
-    )
-    if (startAt < parts.length) {
+    const indexSet = new Set<number>(longRun.visiblePartIndices.filter(inRange))
+    if (startAt < end) {
       indexSet.add(startAt)
+      // The last rendered part stays: it is the one whatever follows the run
+      // (the activity) answers.
+      indexSet.add(end - 1)
     }
     return [...indexSet].sort((a, b) => a - b)
-  }, [showCollapsedView, longRun.visiblePartIndices, parts, startAt])
+  }, [showCollapsedView, longRun.visiblePartIndices, parts, startAt, endBefore])
 
   // The button that revealed the parts unmounts with its row; hand focus to
   // the first part it revealed so keyboard users keep their place.
@@ -473,6 +491,7 @@ export const SelfThreadRun: FC<SelfThreadRunProps> = ({
               part={part}
               partIndex={partIndex}
               totalParts={parts.length}
+              hidePartNumbers={hidePartNumbers}
               isFirstHeader={isFirstHeader}
               isLastRendered={isLastRendered}
               isOpened={isOpened}

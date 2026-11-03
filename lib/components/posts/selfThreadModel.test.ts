@@ -1002,6 +1002,43 @@ describe('selfThreadModel', () => {
       )
     })
 
+    it('keeps a short reply to the activity under Replies when the activity is a later part (tuckIntoOpenedPart: false)', () => {
+      const part1 = note('part-1', { at: 0 })
+      const activity = note('activity', { at: MINUTE, reply: part1.id })
+      const bobShort = note('bob-short', {
+        actor: mockBob,
+        at: 2 * MINUTE,
+        reply: activity.id
+      })
+      const followUp = note('follow-up', {
+        at: 3 * MINUTE,
+        reply: activity.id
+      })
+
+      const fitness = buildSelfThreadModel({
+        focusedStatus: activity,
+        ancestors: [part1],
+        descendants: [bobShort, followUp],
+        tuckIntoOpenedPart: false
+      })
+      expect(fitness.parts.map((p) => p.status.id)).toEqual([
+        part1.id,
+        activity.id,
+        followUp.id
+      ])
+      expect(fitness.openedPartIndex).toBe(1)
+      expect(fitness.parts[1].insets).toEqual([])
+      expect(fitness.repliesOutsideRun.map((s) => s.id)).toEqual([bobShort.id])
+
+      // The post page tucks it into the opened part.
+      const postPage = buildSelfThreadModel({
+        focusedStatus: activity,
+        ancestors: [part1],
+        descendants: [bobShort, followUp]
+      })
+      expect(postPage.parts[1].insets.map((s) => s.id)).toEqual([bobShort.id])
+    })
+
     it('keeps a short reply from someone else to the activity under Replies instead of tucking it into the hidden first part', () => {
       const activity = note('activity', { at: 0 })
       const bobShort = note('bob-short', {

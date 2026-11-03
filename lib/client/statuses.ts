@@ -1335,3 +1335,54 @@ export async function reconcileCachedStatuses({
     removedStatusIds: data.removedStatusIds ?? []
   }
 }
+
+export interface StatusThreadPage {
+  ancestors: Status[]
+  descendants: Status[]
+  hasMoreAncestors: boolean
+  hasMoreDescendants: boolean
+}
+
+export interface GetStatusThreadParams {
+  statusId: string
+  ancestorsLimit: number
+  descendantsLimit: number
+  signal?: AbortSignal
+}
+
+/**
+ * The post page's thread with larger limits (`GET /api/v1/statuses/:id/thread`,
+ * the web client's own route): the same domain statuses the page rendered, so
+ * the result replaces the page's thread as it is. A 404 means the status is
+ * gone or hidden from the viewer; it and every other failure throw
+ * (`ApiRequestError`).
+ */
+export const getStatusThread = async ({
+  statusId,
+  ancestorsLimit,
+  descendantsLimit,
+  signal
+}: GetStatusThreadParams): Promise<StatusThreadPage> => {
+  const query = new URLSearchParams({
+    ancestors_limit: `${ancestorsLimit}`,
+    descendants_limit: `${descendantsLimit}`
+  })
+  const response = await fetch(
+    `/api/v1/statuses/${toIdPathSegment(statusId)}/thread?${query.toString()}`,
+    {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      ...(signal ? { signal } : {})
+    }
+  )
+  if (response.status !== 200) {
+    await throwApiError(response, 'Failed to load the conversation')
+  }
+  const data = (await response.json()) as Partial<StatusThreadPage>
+  return {
+    ancestors: Array.isArray(data.ancestors) ? data.ancestors : [],
+    descendants: Array.isArray(data.descendants) ? data.descendants : [],
+    hasMoreAncestors: data.hasMoreAncestors === true,
+    hasMoreDescendants: data.hasMoreDescendants === true
+  }
+}

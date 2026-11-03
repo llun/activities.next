@@ -22,12 +22,13 @@ const POLICIES = {
 // elements rather than injected. The classes style the elements it can hold.
 // Important adjacency rules beat block margins regardless of Tailwind order;
 // the direct-child label exceptions have greater selector specificity.
-// The compact bar's html scroll-padding already clears it, so h2s add only 16px there.
+// The html scroll-padding already clears the compact bar (phones, signed in) and
+// the public top bar (signed out), so h2s add only 16px under either.
 const DOCUMENT_CLASS = [
   'mt-7 max-md:mt-5 min-w-0 text-base leading-[26px] md:text-[17px] md:leading-7 [overflow-wrap:anywhere]',
   '[&>p:first-child:not(.policy-label)]:text-[17px] [&>p:first-child:not(.policy-label)]:leading-7 md:[&>p:first-child:not(.policy-label)]:text-[19px] md:[&>p:first-child:not(.policy-label)]:leading-[30px]',
   '[&_:is(h1,h2)]:mt-10 [&_:is(h1,h2)]:text-[21px] [&_:is(h1,h2)]:leading-7 [&_:is(h1,h2)]:font-semibold [&_:is(h1,h2)]:tracking-tight md:[&_:is(h1,h2)]:mt-12 md:[&_:is(h1,h2)]:text-2xl md:[&_:is(h1,h2)]:leading-8',
-  '[&>p:first-child:not(.policy-label)]:mt-0! [&>:is(h1,h2,h3,h4,h5,h6):first-child]:mt-0! [&_h2]:scroll-mt-20 max-md:[html:has([data-mobile-compact-header])_&_h2]:scroll-mt-4',
+  '[&>p:first-child:not(.policy-label)]:mt-0! [&>:is(h1,h2,h3,h4,h5,h6):first-child]:mt-0! [&_h2]:scroll-mt-20 max-md:[html:has([data-mobile-compact-header])_&_h2]:scroll-mt-4 [html:has([data-public-top-bar])_&_h2]:scroll-mt-4',
   '[&_h3]:mt-7 [&_h3]:text-lg [&_h3]:leading-7 [&_h3]:font-semibold',
   '[&_h4]:mt-6 [&_h4]:font-semibold [&_h5]:mt-6 [&_h5]:font-semibold [&_h6]:mt-6 [&_h6]:font-semibold',
   '[&_:is(h1,h2,h3,h4,h5,h6)+*]:mt-3!',

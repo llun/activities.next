@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { CSSProperties, FC, useMemo } from 'react'
 
 import { Actions } from '@/lib/components/posts/actions/actions'
+import { getReplyCount } from '@/lib/components/posts/actions/replyCount'
 import { ActorAvatar } from '@/lib/components/posts/actor'
 import { Attachments } from '@/lib/components/posts/attachments'
 import { InlineStatusComposer } from '@/lib/components/posts/lazy-inline-status-composer'
@@ -117,6 +118,14 @@ export interface ActivityPostFrameProps {
   currentActor?: ActorProfile | null
   status: StatusNote
   replies: Status[]
+  /** The conversation above the activity, root first. */
+  ancestors?: Status[]
+  hasMoreAncestors?: boolean
+  hasMoreDescendants?: boolean
+  onLoadMoreAncestors?: () => void
+  onLoadMoreDescendants?: () => void
+  loadingMore?: 'ancestors' | 'descendants' | null
+  loadMoreError?: 'ancestors' | 'descendants' | null
   isMediaUploadEnabled?: boolean
   isOwner: boolean
   files: StatusFitnessFiles
@@ -146,6 +155,13 @@ export const ActivityPostFrame: FC<ActivityPostFrameProps> = ({
   currentActor,
   status,
   replies,
+  ancestors,
+  hasMoreAncestors,
+  hasMoreDescendants,
+  onLoadMoreAncestors,
+  onLoadMoreDescendants,
+  loadingMore,
+  loadMoreError,
   isMediaUploadEnabled,
   isOwner,
   files,
@@ -235,223 +251,235 @@ export const ActivityPostFrame: FC<ActivityPostFrameProps> = ({
         !currentActor && 'rounded-t-lg'
       )}
     >
-      <div
-        className={cn(
-          POST_BODY_PADDING_CLASS,
-          // The figure band ends the body and the action row's `border-t` is
-          // the one line under it, so the body must not pad below it. With
-          // reaction chips after the band, the band draws its own `border-b`
-          // and the chips sit in the padded space under it instead.
-          tiles.length > 0 && !hasReactions && 'pb-0'
-        )}
-        style={
-          {
-            // The media strip runs to the post's edges: it bleeds out by the
-            // body's own padding on each side.
-            '--post-media-bleed-left': POST_MEDIA_BLEED,
-            '--post-media-bleed-right': POST_MEDIA_BLEED
-          } as CSSProperties
-        }
-      >
-        <div className="flex items-center gap-3">
-          <div className="shrink-0">
-            <ActorAvatar
-              actor={status.actor}
-              actorId={status.actorId}
-              statusUrl={status.url}
-            />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-semibold">{actorName}</div>
-            {actorHandle ? (
-              <div className="truncate text-xs text-muted-foreground">
-                {actorHandle}
-              </div>
-            ) : null}
-          </div>
-          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary-text">
-            <Activity className="size-3.5 text-primary" /> {activityLabel}
-          </span>
-        </div>
-
-        <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-          <span className="inline-flex items-center gap-1.5">
-            <Calendar className="size-3.5" />{' '}
-            <ActivityStartTime timestamp={activityStartTime} />
-          </span>
-          <span aria-hidden="true">·</span>
-          <span
-            className="inline-flex items-center gap-1.5"
-            title={visibilityMeta.label}
-          >
-            <VisibilityIcon className="size-3.5" /> {visibilityMeta.label}
-          </span>
-          <ActivityGearMeta
-            isOwner={isOwner}
-            gearId={gear.selectedGearId}
-            gearName={fitness?.gearName ?? null}
-            distanceMeters={gear.assignedGear?.distanceMeters ?? null}
-            kind={
-              gear.assignedGear?.kind ??
-              getGearKindForActivityType(fitness?.activityType)
-            }
-          />
-        </div>
-
-        {gear.gearErrorMessage ? (
-          <p
-            id="activity-gear-error"
-            className="mt-1 text-xs text-destructive"
-            role="alert"
-          >
-            {gear.gearErrorMessage}
-          </p>
-        ) : null}
-
-        <RecordingLine
-          files={fitnessFiles}
-          selected={fitness}
-          isOwner={isOwner}
-          downloadHref={sourceHref}
-          triggerRef={primary.recordingTriggerRef}
-          onSelect={setSelectedFitnessFileId}
-          onMakePrimary={(fileId) => void primary.handleMakePrimary(fileId)}
-          makingPrimaryId={primary.makingPrimaryId}
-        />
-
-        {/* The failure is an Alert with a Retry for the same file. Pending and
-            done share one live region that is always mounted (empty when
-            idle): a region added together with its text is not reliably
-            announced, one that already exists and then changes is. */}
-        {primary.primaryError ? (
-          <Alert
-            className="mt-2"
-            title={primary.primaryError.message}
-            onRetry={primary.retryMakePrimary}
-          />
-        ) : null}
-        <p
-          role="status"
-          className={cn(
-            'text-xs text-muted-foreground',
-            (primary.makingPrimaryId || primary.primaryNotice) && 'mt-1'
-          )}
-        >
-          {primary.makingPrimaryId
-            ? 'Making this the primary recording…'
-            : (primary.primaryNotice ?? '')}
-        </p>
-
-        {fitnessSourceUrl ? (
-          <div className="mt-1 text-sm">
-            <a
-              href={fitnessSourceUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-            >
-              <ExternalLink className="size-3.5 shrink-0" />
-              {getFitnessSourceLabel(fitnessSourceUrl)}
-            </a>
-          </div>
-        ) : null}
-
-        <div className="mt-3 text-sm leading-relaxed break-words markdown-content">
-          {caption}
-        </div>
-
-        <Attachments
-          status={mediaStatus}
-          onMediaSelected={(medias, index) => onShowAttachment(medias, index)}
-        />
-
-        {tiles.length > 0 ? (
-          <StatStrip
-            variant="band"
-            data-testid="activity-figure-band"
-            columns={Math.min(tiles.length, 5) as StatStripColumns}
-            className={cn(
-              POST_BAND_BLEED_CLASS,
-              'mt-4 border-t',
-              hasReactions && 'border-b'
-            )}
-          >
-            {tiles.map((tile) => (
-              <ActivityTileCell key={tile.key} tile={tile} />
-            ))}
-          </StatStrip>
-        ) : null}
-
-        {hasReactions ? (
-          // Gated on the wrapper: the row renders nothing on an unreacted post,
-          // and an ungated wrapper would leave dead space under the figures.
-          <div data-testid="reaction-chips">
-            <ReactionRow state={reactionState} />
-          </div>
-        ) : null}
-      </div>
-
-      <div className="border-t px-4 py-2.5">
-        {/* The shared action row: the same actions and spacing as every other
-            surface. `fullBleed` off because this footer's padding already
-            puts the row at the post's left edge. `Actions` renders nothing
-            without a viewer, so a signed-out visitor gets the read-only
-            counts in its place rather than an empty footer. */}
-        {currentActor ? (
-          <Actions
-            host={host}
-            currentActor={currentActor}
-            currentTime={currentTime}
-            status={status}
-            showActions
-            fullBleed={false}
-            reactionState={reactionState}
-            editable={isOwner}
-            extraMenuItems={gear.gearMenuItems}
-            // Always a reply to this post: the page is the post itself.
-            onReply={() => composer.openReply(status, status.id)}
-            onEdit={(target) => composer.openEdit(target, status.id)}
-            onQuote={(target) => composer.openQuote(target, status.id)}
-            onShowAttachment={onShowAttachment}
-          />
-        ) : (
-          <StatusStatStrip
-            boosts={status.totalShares ?? 0}
-            likes={status.totalLikes ?? 0}
-            replies={replies.length}
-          />
-        )}
-      </div>
-
-      {/* Edit and quote open under the post they change, as in the timeline.
-          The `key` remounts it when the mode changes rather than carrying a
-          quote's draft into an edit. */}
-      {isEditingOrQuoting && currentActor && composer.active ? (
-        <div className="px-4 pb-4">
-          <InlineStatusComposer
-            key={`${composer.active.mode}-${composer.active.anchorId}`}
-            host={host}
-            profile={currentActor}
-            mode={composer.active.mode}
-            status={composer.active.status}
-            isMediaUploadEnabled={isMediaUploadEnabled}
-            onCancel={composer.close}
-            onCreated={() => router.refresh()}
-            onUpdated={() => router.refresh()}
-          />
-        </div>
-      ) : null}
-
       <ActivityReplies
         host={host}
         currentActor={currentActor}
         currentTime={currentTime}
         status={status}
         replies={replies}
+        ancestors={ancestors}
+        hasMoreAncestors={hasMoreAncestors}
+        hasMoreDescendants={hasMoreDescendants}
+        onLoadMoreAncestors={onLoadMoreAncestors}
+        onLoadMoreDescendants={onLoadMoreDescendants}
+        loadingMore={loadingMore}
+        loadMoreError={loadMoreError}
         isMediaUploadEnabled={isMediaUploadEnabled}
         composer={composer}
         onShowAttachment={onShowAttachment}
-      />
+      >
+        <div
+          // What "Load earlier posts" keeps still while posts land above it.
+          data-activity-post
+          className={cn(
+            POST_BODY_PADDING_CLASS,
+            // The figure band ends the body and the action row's `border-t` is
+            // the one line under it, so the body must not pad below it. With
+            // reaction chips after the band, the band draws its own `border-b`
+            // and the chips sit in the padded space under it instead.
+            tiles.length > 0 && !hasReactions && 'pb-0'
+          )}
+          style={
+            {
+              // The media strip runs to the post's edges: it bleeds out by the
+              // body's own padding on each side.
+              '--post-media-bleed-left': POST_MEDIA_BLEED,
+              '--post-media-bleed-right': POST_MEDIA_BLEED
+            } as CSSProperties
+          }
+        >
+          <div className="flex items-center gap-3">
+            <div className="shrink-0">
+              <ActorAvatar
+                actor={status.actor}
+                actorId={status.actorId}
+                statusUrl={status.url}
+              />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-semibold">{actorName}</div>
+              {actorHandle ? (
+                <div className="truncate text-xs text-muted-foreground">
+                  {actorHandle}
+                </div>
+              ) : null}
+            </div>
+            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary-text">
+              <Activity className="size-3.5 text-primary" /> {activityLabel}
+            </span>
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5">
+              <Calendar className="size-3.5" />{' '}
+              <ActivityStartTime timestamp={activityStartTime} />
+            </span>
+            <span aria-hidden="true">·</span>
+            <span
+              className="inline-flex items-center gap-1.5"
+              title={visibilityMeta.label}
+            >
+              <VisibilityIcon className="size-3.5" /> {visibilityMeta.label}
+            </span>
+            <ActivityGearMeta
+              isOwner={isOwner}
+              gearId={gear.selectedGearId}
+              gearName={fitness?.gearName ?? null}
+              distanceMeters={gear.assignedGear?.distanceMeters ?? null}
+              kind={
+                gear.assignedGear?.kind ??
+                getGearKindForActivityType(fitness?.activityType)
+              }
+            />
+          </div>
+
+          {gear.gearErrorMessage ? (
+            <p
+              id="activity-gear-error"
+              className="mt-1 text-xs text-destructive"
+              role="alert"
+            >
+              {gear.gearErrorMessage}
+            </p>
+          ) : null}
+
+          <RecordingLine
+            files={fitnessFiles}
+            selected={fitness}
+            isOwner={isOwner}
+            downloadHref={sourceHref}
+            triggerRef={primary.recordingTriggerRef}
+            onSelect={setSelectedFitnessFileId}
+            onMakePrimary={(fileId) => void primary.handleMakePrimary(fileId)}
+            makingPrimaryId={primary.makingPrimaryId}
+          />
+
+          {/* The failure is an Alert with a Retry for the same file. Pending and
+            done share one live region that is always mounted (empty when
+            idle): a region added together with its text is not reliably
+            announced, one that already exists and then changes is. */}
+          {primary.primaryError ? (
+            <Alert
+              className="mt-2"
+              title={primary.primaryError.message}
+              onRetry={primary.retryMakePrimary}
+            />
+          ) : null}
+          <p
+            role="status"
+            className={cn(
+              'text-xs text-muted-foreground',
+              (primary.makingPrimaryId || primary.primaryNotice) && 'mt-1'
+            )}
+          >
+            {primary.makingPrimaryId
+              ? 'Making this the primary recording…'
+              : (primary.primaryNotice ?? '')}
+          </p>
+
+          {fitnessSourceUrl ? (
+            <div className="mt-1 text-sm">
+              <a
+                href={fitnessSourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              >
+                <ExternalLink className="size-3.5 shrink-0" />
+                {getFitnessSourceLabel(fitnessSourceUrl)}
+              </a>
+            </div>
+          ) : null}
+
+          <div className="mt-3 text-sm leading-relaxed break-words markdown-content">
+            {caption}
+          </div>
+
+          <Attachments
+            status={mediaStatus}
+            onMediaSelected={(medias, index) => onShowAttachment(medias, index)}
+          />
+
+          {tiles.length > 0 ? (
+            <StatStrip
+              variant="band"
+              data-testid="activity-figure-band"
+              columns={Math.min(tiles.length, 5) as StatStripColumns}
+              className={cn(
+                POST_BAND_BLEED_CLASS,
+                'mt-4 border-t',
+                hasReactions && 'border-b'
+              )}
+            >
+              {tiles.map((tile) => (
+                <ActivityTileCell key={tile.key} tile={tile} />
+              ))}
+            </StatStrip>
+          ) : null}
+
+          {hasReactions ? (
+            // Gated on the wrapper: the row renders nothing on an unreacted post,
+            // and an ungated wrapper would leave dead space under the figures.
+            <div data-testid="reaction-chips">
+              <ReactionRow state={reactionState} />
+            </div>
+          ) : null}
+        </div>
+
+        <div className="border-t px-4 py-2.5">
+          {/* The shared action row: the same actions and spacing as every other
+            surface. `fullBleed` off because this footer's padding already
+            puts the row at the post's left edge. `Actions` renders nothing
+            without a viewer, so a signed-out visitor gets the read-only
+            counts in its place rather than an empty footer. */}
+          {currentActor ? (
+            <Actions
+              host={host}
+              currentActor={currentActor}
+              currentTime={currentTime}
+              status={status}
+              showActions
+              fullBleed={false}
+              reactionState={reactionState}
+              editable={isOwner}
+              extraMenuItems={gear.gearMenuItems}
+              // Always a reply to this post: the page is the post itself.
+              onReply={() => composer.openReply(status, status.id)}
+              onEdit={(target) => composer.openEdit(target, status.id)}
+              onQuote={(target) => composer.openQuote(target, status.id)}
+              onShowAttachment={onShowAttachment}
+            />
+          ) : (
+            <StatusStatStrip
+              boosts={status.totalShares ?? 0}
+              likes={status.totalLikes ?? 0}
+              // The post's own count, as the signed-in reply button shows it:
+              // not the loaded replies, which leave some out and count the
+              // athlete's follow-ups.
+              replies={getReplyCount(status)}
+            />
+          )}
+        </div>
+
+        {/* Edit and quote open under the post they change, as in the timeline.
+          The `key` remounts it when the mode changes rather than carrying a
+          quote's draft into an edit. */}
+        {isEditingOrQuoting && currentActor && composer.active ? (
+          <div className="px-4 pb-4">
+            <InlineStatusComposer
+              key={`${composer.active.mode}-${composer.active.anchorId}`}
+              host={host}
+              profile={currentActor}
+              mode={composer.active.mode}
+              status={composer.active.status}
+              isMediaUploadEnabled={isMediaUploadEnabled}
+              onCancel={composer.close}
+              onCreated={() => router.refresh()}
+              onUpdated={() => router.refresh()}
+            />
+          </div>
+        ) : null}
+      </ActivityReplies>
     </article>
   )
 }

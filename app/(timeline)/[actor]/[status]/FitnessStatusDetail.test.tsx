@@ -11,6 +11,7 @@ import {
   within
 } from '@testing-library/react'
 
+import { getStatusThread } from '@/lib/client'
 import { preloadInlineStatusComposer } from '@/lib/components/posts/lazy-inline-status-composer'
 import type { Status, StatusNote } from '@/lib/types/domain/status'
 import { loadMaplibreModule } from '@/lib/utils/maplibre'
@@ -36,6 +37,7 @@ vi.mock('@/lib/client', () => ({
   getFitnessFilesByStatus: vi.fn(),
   getFitnessGearList: vi.fn(),
   getFitnessRouteData: vi.fn(),
+  getStatusThread: vi.fn(),
   makeFitnessFilePrimary: vi.fn(),
   updateFitnessFileGear: vi.fn()
 }))
@@ -1195,17 +1197,67 @@ describe('FitnessStatusDetail', () => {
     })
 
     it('shows a logged-out viewer the reply, boost and like counts in place of the action row', () => {
-      renderDetail({ currentActor: null, replies: [buildReply('reply-1')] })
+      // The post's own count, as the signed-in reply button shows it, not the
+      // one reply the page happened to load.
+      renderDetail({
+        currentActor: null,
+        status: buildStatus({ totalReplies: 7 }),
+        replies: [buildReply('reply-1')]
+      })
 
       const engagement = screen.getByRole('group', { name: 'Engagement' })
       expect(
         within(engagement)
           .getAllByText(/^\d+$/)
           .map((node) => node.textContent)
-      ).toEqual(['1', '2', '4'])
+      ).toEqual(['7', '2', '4'])
       expect(
         engagement.closest('[data-slot="fitness-card"]')
       ).toBeInTheDocument()
+    })
+
+    it('renders the conversation above the activity and loads earlier posts and more replies', async () => {
+      const parent = {
+        ...buildReply('parent'),
+        reply: 'https://activities.local/users/friend/statuses/root'
+      } as Status
+      const activity = buildStatus({ reply: parent.id })
+      const later = buildReply('reply-later')
+      vi.mocked(getStatusThread).mockResolvedValue({
+        ancestors: [parent],
+        descendants: [buildReply('reply-1'), later],
+        hasMoreAncestors: false,
+        hasMoreDescendants: false
+      })
+      renderDetail({
+        currentActor: null,
+        status: activity,
+        ancestors: [parent],
+        hasMoreAncestors: true,
+        hasMoreDescendants: true,
+        replies: [buildReply('reply-1')]
+      })
+
+      const card = screen
+        .getByTestId('ancestor-status')
+        .closest('[data-slot="fitness-card"]')
+      expect(card).toBeInTheDocument()
+      expect(screen.queryByText('No replies yet')).not.toBeInTheDocument()
+
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Load earlier posts' })
+      )
+      expect(getStatusThread).toHaveBeenCalledWith({
+        statusId: activity.id,
+        ancestorsLimit: 120,
+        descendantsLimit: 60
+      })
+      await waitFor(() =>
+        expect(
+          screen.queryByRole('button', { name: 'Load earlier posts' })
+        ).not.toBeInTheDocument()
+      )
+      expect(screen.getByText(later.id)).toBeInTheDocument()
     })
 
     it('gives a signed-in viewer the action row and no read-only counts', () => {

@@ -10,12 +10,14 @@ import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { enrichStatusAttachments } from '@/lib/services/medias/animationMetadata'
 import { getQueue } from '@/lib/services/queue'
+import { getStatusContext } from '@/lib/services/statuses/getStatusContext'
 import { Actor } from '@/lib/types/domain/actor'
 import { StatusNote } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { logger } from '@/lib/utils/logger'
 
+import { PagedStatusThread } from './PagedStatusThread'
 import Page from './page'
 import { resolveStatusFromPath } from './resolveStatusFromPath'
 
@@ -140,6 +142,16 @@ vi.mock('./RemoteStatusLoading', async () => ({
 vi.mock('./SignInCallout', async () => ({ SignInCallout: () => null }))
 vi.mock('./StatusBox', async () => ({ StatusBox: () => null }))
 vi.mock('./StatusLikes', async () => ({ StatusLikes: () => null }))
+vi.mock('./PagedStatusThread', async () => ({
+  PagedStatusThread: vi.fn(() => null)
+}))
+vi.mock('@/lib/services/statuses/getStatusContext', async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import('@/lib/services/statuses/getStatusContext')
+    >()
+  return { ...actual, getStatusContext: vi.fn(actual.getStatusContext) }
+})
 
 const mockResolveStatusFromPath = vi.mocked(resolveStatusFromPath)
 // The handle the mocked resolver reports for the `actor` segment.
@@ -319,5 +331,52 @@ describe('Page remote-status fetch signing', () => {
 
     expect(mockGetRemoteStatus).not.toHaveBeenCalled()
     expect(vi.mocked(enrichStatusAttachments).mock.calls[0][1]).toBeDefined()
+  })
+
+  it('offers no "Load more" for a status that is not stored yet', async () => {
+    // The thread route only answers for a stored status, so a "Load more" on
+    // a live-fetched one could only fail.
+    mockGetFederationSigningActor.mockResolvedValue(instanceActor)
+    vi.mocked(getStatusContext).mockResolvedValueOnce({
+      status: buildRemoteNote(),
+      ancestors: [],
+      descendants: [],
+      hasMoreAncestors: true,
+      hasMoreDescendants: true,
+      missingParentId: ''
+    })
+
+    await renderRemoteStatusPage()
+
+    expect(getStatusContext).toHaveBeenCalled()
+    expect(vi.mocked(PagedStatusThread).mock.calls[0][0]).toMatchObject({
+      hasMoreAncestors: false,
+      hasMoreDescendants: false
+    })
+  })
+
+  it('keeps "Load more" for a stored status with more to load', async () => {
+    mockResolveStatusFromPath.mockResolvedValue({
+      pathActor: PATH_ACTOR,
+      status: buildRemoteNote(),
+      statusId: REMOTE_STATUS_URL,
+      fullStatusId: REMOTE_STATUS_URL,
+      isStatusHash: false
+    })
+    vi.mocked(getStatusContext).mockResolvedValueOnce({
+      status: buildRemoteNote(),
+      ancestors: [],
+      descendants: [],
+      hasMoreAncestors: true,
+      hasMoreDescendants: true,
+      missingParentId: ''
+    })
+
+    await renderRemoteStatusPage()
+
+    expect(vi.mocked(PagedStatusThread).mock.calls[0][0]).toMatchObject({
+      hasMoreAncestors: true,
+      hasMoreDescendants: true
+    })
   })
 })
