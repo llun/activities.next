@@ -14,6 +14,7 @@ import {
 } from '@/lib/services/statusAccess'
 import { getProfileRepliesTabStatusIds } from '@/lib/services/statuses/repliesTab'
 import { TimelineFormat } from '@/lib/services/timelines/const'
+import { getTimelineContext } from '@/lib/services/timelines/getTimelineContext'
 import {
   decodeCursor,
   resolveStatusCursor
@@ -314,26 +315,40 @@ export const GET = traceApiRoute(
         // has a Replies tab (a remote profile keeps the plain split in the
         // browser), so a remote actor's stored statuses, whose ids, urls and
         // reply targets another server chose, are never walked.
-        const repliesTabStatusIds = actor.privateKey
-          ? await getProfileRepliesTabStatusIds({
-              database,
-              actorId: id,
-              statuses: visibleStatuses,
-              audience: {
-                publicOnly: audience.publicOnly,
-                visibleToActorId: audience.visibleToActorId,
-                includeFollowersOnly: audience.includeFollowersOnly,
-                followersAudience: audience.followersAudience
-              }
-            })
-          : []
+        //
+        // The same local profile shows each reply's parent preview, as Home
+        // and lists do. `getTimelineContext` keeps only the parents THIS
+        // viewer may read (signed out: publicly readable ones), so a profile
+        // seen by a stranger never previews a followers-only or direct parent.
+        // A remote profile gets no `context`.
+        const [repliesTabStatusIds, context] = actor.privateKey
+          ? await Promise.all([
+              getProfileRepliesTabStatusIds({
+                database,
+                actorId: id,
+                statuses: visibleStatuses,
+                audience: {
+                  publicOnly: audience.publicOnly,
+                  visibleToActorId: audience.visibleToActorId,
+                  includeFollowersOnly: audience.includeFollowersOnly,
+                  followersAudience: audience.followersAudience
+                }
+              }),
+              getTimelineContext({
+                database,
+                currentActor,
+                statuses: visibleStatuses
+              })
+            ])
+          : [[], null]
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
           data: {
             statuses: visibleStatuses.map((status) => cleanJson(status)),
             nextMaxStatusId,
-            repliesTabStatusIds
+            repliesTabStatusIds,
+            ...(context ? { context: cleanJson(context) } : {})
           }
         })
       }

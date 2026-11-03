@@ -1,4 +1,5 @@
 import type { Status } from '@/lib/types/domain/status'
+import type { TimelineContext } from '@/lib/types/domain/timeline'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 import type { Relationship as MastodonRelationship } from '@/lib/types/mastodon/account/relationship'
 import { toIdPathSegment } from '@/lib/utils/urlToId'
@@ -613,6 +614,11 @@ export interface GetAccountStatusesPageResult {
    * decides it from each self-reply chain's first post); the rest are Posts.
    */
   repliesTabStatusIds: string[]
+  /**
+   * Parent previews for the page's replies, scoped to the viewer, as the home
+   * and list timelines' payloads carry. Absent for a remote account.
+   */
+  context?: TimelineContext
 }
 
 // A local account's posts, one page older than `maxStatusId`, the way
@@ -643,7 +649,10 @@ export const getAccountStatusesPage = async ({
     nextMaxStatusId: data.nextMaxStatusId ?? null,
     repliesTabStatusIds: Array.isArray(data.repliesTabStatusIds)
       ? (data.repliesTabStatusIds as string[])
-      : []
+      : [],
+    ...(data.context?.ancestorsById
+      ? { context: data.context as TimelineContext }
+      : {})
   }
 }
 

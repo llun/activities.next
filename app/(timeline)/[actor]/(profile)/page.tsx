@@ -169,6 +169,7 @@ const Page: FC<Props> = async ({ params }) => {
     profileFields,
     statuses,
     repliesTabStatusIds,
+    timelineContext,
     attachments,
     statusesCount,
     statusPagination,
@@ -510,6 +511,7 @@ const Page: FC<Props> = async ({ params }) => {
         currentTime={Date.now()}
         statuses={statuses}
         repliesTabStatusIds={repliesTabStatusIds}
+        timelineContext={timelineContext}
         attachments={attachments}
         statusPagination={statusPagination}
         postLineLimit={actorSettings?.postLineLimit}

@@ -11,6 +11,8 @@ import {
   mockAlice,
   mockBob
 } from '@/lib/components/posts/__fixtures__/timeline-context'
+import { StatusNote } from '@/lib/types/domain/status'
+import { TimelineContext } from '@/lib/types/domain/timeline'
 
 import { ActorTimelines } from './ActorTimelines'
 
@@ -63,6 +65,30 @@ const renderProfile = (
       {...props}
     />
   )
+
+// The server's preview of a parent the page does not hold, as
+// `getTimelineContext` builds it.
+const contextFor = (...parents: StatusNote[]): TimelineContext => ({
+  ancestorsById: Object.fromEntries(
+    parents.map((parent) => [
+      parent.id,
+      {
+        id: parent.id,
+        url: parent.url,
+        actor: {
+          id: parent.actor!.id,
+          username: parent.actor!.username,
+          domain: parent.actor!.domain,
+          name: parent.actor!.name
+        },
+        contentHtml: parent.text,
+        text: parent.text,
+        createdAt: new Date(parent.createdAt).toISOString(),
+        visibility: 'public' as const
+      }
+    ])
+  )
+})
 
 const texts = () =>
   screen
@@ -159,6 +185,60 @@ describe('ActorTimelines self-threads', () => {
     expect(
       screen.getByRole('button', { name: /Open part 2 of 2/ })
     ).toBeInTheDocument()
+  })
+
+  it('shows a Replies card the parent preview the server sent', () => {
+    // Without it, the card names no parent: the generic line.
+    const { unmount } = renderProfile()
+    fireEvent.click(screen.getByRole('radio', { name: 'Replies' }))
+    expect(screen.getByLabelText('In reply to a post')).toBeInTheDocument()
+    unmount()
+
+    renderProfile({ timelineContext: contextFor(othersPost) })
+    fireEvent.click(screen.getByRole('radio', { name: 'Replies' }))
+
+    expect(screen.getByLabelText('Reply to @bob')).toHaveTextContent(
+      'Text of others'
+    )
+    expect(screen.queryByLabelText('In reply to a post')).toBeNull()
+  })
+
+  it('keeps the first page’s previews and adds a later page’s on load more', async () => {
+    const othersOlderPost = note('others-older', -5, '', mockBob)
+    const oldToOther = note('old-to-other', -3, othersOlderPost.id)
+    vi.mocked(getAccountStatusesPage).mockResolvedValue({
+      statuses: [oldToOther],
+      nextMaxStatusId: null,
+      repliesTabStatusIds: [oldToOther.id],
+      context: contextFor(othersOlderPost)
+    })
+    renderProfile({
+      statuses: [toOther, top],
+      repliesTabStatusIds: [toOther.id],
+      timelineContext: contextFor(othersPost),
+      statusPagination: {
+        nextPageUrl: null,
+        prevPageUrl: null,
+        nextMaxStatusId: top.id
+      }
+    })
+    fireEvent.click(screen.getByRole('radio', { name: 'Replies' }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull()
+    )
+
+    expect(texts()).toEqual(['to-other', 'old-to-other'])
+    expect(
+      screen
+        .getAllByLabelText('Reply to @bob')
+        .map((element) => element.textContent)
+    ).toEqual([
+      expect.stringMatching(/Text of others$/),
+      expect.stringMatching(/Text of others-older$/)
+    ])
+    expect(screen.queryByLabelText('In reply to a post')).toBeNull()
   })
 
   it('keeps one card per post on a remote profile', () => {

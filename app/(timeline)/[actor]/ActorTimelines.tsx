@@ -32,6 +32,10 @@ import {
   updateMatchingStatus
 } from '@/lib/components/posts/statusArray'
 import { TimelineFeed } from '@/lib/components/posts/timeline-feed'
+import {
+  initialTimelineContext,
+  mergeTimelineContext
+} from '@/lib/components/posts/timelineContext'
 import { Alert } from '@/lib/components/surface/Alert'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
 import { SectionSkeleton } from '@/lib/components/surface/SectionSkeleton'
@@ -51,6 +55,7 @@ import {
   StatusPoll,
   StatusType
 } from '@/lib/types/domain/status'
+import { TimelineContext } from '@/lib/types/domain/timeline'
 import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
 import type { PublicMapProvider } from '@/lib/utils/mapProvider'
 
@@ -100,6 +105,12 @@ interface Props {
    * has no Replies tab), and each status is its own card through `Posts`.
    */
   repliesTabStatusIds?: string[]
+  /**
+   * A local account's reply-parent previews for the first page, as the home
+   * and list timelines have, holding only parents the viewer may read. Each
+   * later page's `context` is merged in. Absent for a remote profile.
+   */
+  timelineContext?: TimelineContext
   attachments: Attachment[]
   /**
    * A remote actor's feed pages through outbox collection pages
@@ -181,6 +192,7 @@ export const ActorTimelines: FC<Props> = ({
   currentTime,
   statuses,
   repliesTabStatusIds,
+  timelineContext,
   attachments,
   statusPagination,
   postLineLimit,
@@ -211,6 +223,8 @@ export const ActorTimelines: FC<Props> = ({
       repliesTabStatusIds ? new Set(repliesTabStatusIds) : null
     )
   const combinesSelfThreads = currentRepliesTabIds !== null
+  const [currentTimelineContext, setCurrentTimelineContext] =
+    useState<TimelineContext>(() => initialTimelineContext(timelineContext))
   const [currentStatusPagination, setCurrentStatusPagination] = useState({
     nextPageUrl: statusPagination?.nextPageUrl ?? null,
     prevPageUrl: statusPagination?.prevPageUrl ?? null,
@@ -460,6 +474,9 @@ export const ActorTimelines: FC<Props> = ({
             appendUniqueStatuses(previousStatuses, result.statuses)
           )
         }
+        setCurrentTimelineContext((previous) =>
+          mergeTimelineContext(previous, result.context)
+        )
         if (result.repliesTabStatusIds.length > 0) {
           setCurrentRepliesTabIds((previous) =>
             previous
@@ -594,11 +611,13 @@ export const ActorTimelines: FC<Props> = ({
     ) : combineSelfThreads ? (
       // The home timeline's feed and grouping, so a post and its self-replies
       // are one card exactly as on Home (long threads collapse the same way).
-      // Boosts stay individual cards: no carousel on a profile.
+      // Boosts stay individual cards: no carousel on a profile. Replies show
+      // their parent's preview from the server's viewer-scoped context.
       <TimelineFeed
         host={host}
         currentTime={currentTime}
         statuses={feedStatuses}
+        timelineContext={currentTimelineContext}
         prioritizeFirstMedia={prioritizeFirstMedia}
         currentActor={currentActor}
         showActions={showActions}

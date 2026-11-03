@@ -12,6 +12,10 @@ import {
   updateMatchingStatus
 } from '@/lib/components/posts/statusArray'
 import { TimelineFeed } from '@/lib/components/posts/timeline-feed'
+import {
+  initialTimelineContext,
+  mergeTimelineContext
+} from '@/lib/components/posts/timelineContext'
 import { useLoadMoreOnVisible } from '@/lib/components/posts/useLoadMoreOnVisible'
 import { ScrollToTopButton } from '@/lib/components/scroll-to-top-button'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
@@ -54,9 +58,7 @@ export const ListTimeline: FC<ListTimelineProps> = ({
 }) => {
   const [currentStatuses, setCurrentStatuses] = useState<Status[]>(statuses)
   const [currentTimelineContext, setCurrentTimelineContext] =
-    useState<TimelineContext>(() => ({
-      ancestorsById: timelineContext?.ancestorsById ?? {}
-    }))
+    useState<TimelineContext>(() => initialTimelineContext(timelineContext))
   const [hasMoreStatuses, setHasMoreStatuses] = useState<boolean>(
     statuses.length > 0
   )
@@ -139,14 +141,9 @@ export const ListTimeline: FC<ListTimelineProps> = ({
       }
       lastStatusIdRef.current = result.statuses[result.statuses.length - 1].id
       setHasMoreStatuses(Boolean(result.nextMaxStatusId))
-      if (result.context?.ancestorsById) {
-        setCurrentTimelineContext((previous) => ({
-          ancestorsById: {
-            ...previous.ancestorsById,
-            ...result.context?.ancestorsById
-          }
-        }))
-      }
+      setCurrentTimelineContext((previous) =>
+        mergeTimelineContext(previous, result.context)
+      )
       setCurrentStatuses((previousStatuses) => [
         ...previousStatuses,
         ...result.statuses

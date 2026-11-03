@@ -935,6 +935,8 @@ describe('getProfileData', () => {
 
       expect(result).not.toBeNull()
       expect(result?.isInternalAccount).toBe(false)
+      // A remote profile keeps its plain feed: no reply-parent previews.
+      expect(result).not.toHaveProperty('timelineContext')
       expect(mockDatabase.getActorFromUsername).toHaveBeenCalledWith({
         username: 'remoteuser',
         domain: 'remote.com'
@@ -2752,6 +2754,148 @@ describe('getProfileData replies tab audience', () => {
         const owner = await createOwnerWithChain('direct', () => [addressedId])
 
         expect(await leafOnRepliesFor(owner, viewerId)).toBe(onReplies)
+      }
+    )
+  })
+})
+
+// The SSR profile previews each reply's parent, as Home and lists do, and the
+// preview must be scoped to the viewer who asked: the page is served to
+// signed-out visitors and strangers as well.
+describe('getProfileData reply-parent previews', () => {
+  const { actors } = DatabaseSeed
+  const table = getTestDatabaseTable()
+
+  beforeAll(async () => {
+    await databaseBeforeAll(table)
+  })
+
+  describe.each(table)('%s', (_, database) => {
+    const followerId = actors.extra.id
+    const strangerId = actors.replyAuthor.id
+
+    beforeAll(async () => {
+      await seedDatabase(database)
+    })
+
+    afterAll(async () => {
+      await database.destroy()
+    })
+
+    const createLocalAccount = async (tag: string) => {
+      const username = `${tag}-${crypto.randomUUID().slice(0, 8)}`
+      const domain = 'llun.test'
+      await database.createAccount({
+        email: `${username}@${domain}`,
+        username,
+        passwordHash: TEST_PASSWORD_HASH,
+        domain,
+        privateKey: `privateKey-${username}`,
+        publicKey: `publicKey-${username}`
+      })
+      return {
+        actorId: `https://${domain}/users/${username}`,
+        handle: `@${username}@${domain}`
+      }
+    }
+
+    // A profile owner's public replies to a public and to a followers-only
+    // post by another local account, which `followerId` follows.
+    const seedProfile = async () => {
+      const owner = await createLocalAccount('preview-owner')
+      const parentAuthor = await createLocalAccount('preview-parent')
+      await database.createFollow({
+        actorId: followerId,
+        targetActorId: parentAuthor.actorId,
+        inbox: `${parentAuthor.actorId}/inbox`,
+        sharedInbox: `https://llun.test/inbox`,
+        status: FollowStatus.enum.Accepted
+      })
+      const publicParentId = `${parentAuthor.actorId}/statuses/public`
+      const privateParentId = `${parentAuthor.actorId}/statuses/followers`
+      const now = Date.now()
+      await database.createNote({
+        id: publicParentId,
+        url: publicParentId,
+        actorId: parentAuthor.actorId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'Public parent',
+        createdAt: now - 10
+      })
+      await database.createNote({
+        id: privateParentId,
+        url: privateParentId,
+        actorId: parentAuthor.actorId,
+        to: [`${parentAuthor.actorId}/followers`],
+        cc: [],
+        text: 'Followers-only parent',
+        createdAt: now - 9
+      })
+      for (const [index, parentId] of [
+        publicParentId,
+        privateParentId
+      ].entries()) {
+        const replyId = `${owner.actorId}/statuses/reply-${index}`
+        await database.createNote({
+          id: replyId,
+          url: replyId,
+          actorId: owner.actorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'A reply',
+          reply: parentId,
+          createdAt: now - index
+        })
+      }
+      return { owner, publicParentId, privateParentId }
+    }
+
+    const previewedFor = async (handle: string, viewerId: string | null) => {
+      const currentActor = viewerId
+        ? await database.getActorFromId({ id: viewerId })
+        : null
+      const result = await getProfileData(
+        database,
+        handle,
+        Boolean(currentActor),
+        { currentActor }
+      )
+      expect(result?.statuses).toHaveLength(2)
+      return [
+        ...new Set(
+          Object.values(result?.timelineContext?.ancestorsById ?? {}).map(
+            (preview) => preview.id
+          )
+        )
+      ].sort()
+    }
+
+    it.each([
+      { description: 'a signed-out visitor', viewer: null, private: false },
+      {
+        description: 'a signed-in non-follower',
+        viewer: 'stranger',
+        private: false
+      },
+      { description: 'a follower', viewer: 'follower', private: true }
+    ])(
+      'previews the followers-only parent only for $description',
+      async ({ viewer, private: seesPrivate }) => {
+        const { owner, publicParentId, privateParentId } = await seedProfile()
+        const viewerIds: Record<string, string> = {
+          follower: followerId,
+          stranger: strangerId
+        }
+
+        expect(
+          await previewedFor(owner.handle, viewer ? viewerIds[viewer] : null)
+        ).toEqual(
+          (seesPrivate
+            ? [publicParentId, privateParentId]
+            : [publicParentId]
+          ).sort()
+        )
       }
     )
   })

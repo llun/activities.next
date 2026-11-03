@@ -921,6 +921,38 @@ describe('client accounts module', () => {
       })
     })
 
+    it('hands back the page’s parent previews when the body has them', async () => {
+      const context = {
+        ancestorsById: {
+          'https://other.example/statuses/parent': {
+            id: 'https://other.example/statuses/parent',
+            actor: { id: 'a', username: 'a', domain: 'other.example' },
+            contentHtml: 'Parent',
+            createdAt: '2026-01-01T00:00:00.000Z',
+            visibility: 'public'
+          }
+        }
+      }
+      fetchMock.mockResponse(
+        JSON.stringify({
+          statuses: [],
+          nextMaxStatusId: null,
+          repliesTabStatusIds: [],
+          context
+        }),
+        { status: 200 }
+      )
+
+      await expect(
+        getAccountStatusesPage({ actorId: 'actor-123', maxStatusId: 'cursor' })
+      ).resolves.toEqual({
+        statuses: [],
+        nextMaxStatusId: null,
+        repliesTabStatusIds: [],
+        context
+      })
+    })
+
     it('throws when status is not 200', async () => {
       fetchMock.mockResponse('', { status: 500 })
 
