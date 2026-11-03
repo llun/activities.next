@@ -12,7 +12,6 @@ import {
   MOBILE_INSET_STACK_CLASS,
   POST_LIST_FRAME_CLASS
 } from '@/lib/components/posts/feedLayout'
-import { StatusThread } from '@/lib/components/posts/status-thread'
 import { getBaseURL, getConfig } from '@/lib/config'
 import { getPublicMapProvider } from '@/lib/config/mapProvider'
 import { getDatabase } from '@/lib/database'
@@ -31,6 +30,10 @@ import {
   isStatusPubliclyReadable
 } from '@/lib/services/statusAccess'
 import { getStatusContext } from '@/lib/services/statuses/getStatusContext'
+import {
+  THREAD_INITIAL_ANCESTORS_LIMIT,
+  THREAD_INITIAL_DESCENDANTS_LIMIT
+} from '@/lib/services/statuses/threadPageLimits'
 import { getActorProfile } from '@/lib/types/domain/actor'
 import {
   Status,
@@ -48,6 +51,7 @@ import { logger } from '@/lib/utils/logger'
 import { htmlToPlainText } from '@/lib/utils/text/htmlToPlainText'
 
 import { Header } from './Header'
+import { PagedStatusThread } from './PagedStatusThread'
 import { RemoteStatusLoading } from './RemoteStatusLoading'
 import { SignInCallout } from './SignInCallout'
 import { StatusBox } from './StatusBox'
@@ -369,8 +373,10 @@ const Page: FC<Props> = async ({ params }) => {
       statusId,
       status,
       currentActor,
-      ancestorsLimit: 40,
-      descendantsLimit: 60
+      // The first step; "Load earlier posts" / "Load more replies" ask the
+      // thread route for the next ones.
+      ancestorsLimit: THREAD_INITIAL_ANCESTORS_LIMIT,
+      descendantsLimit: THREAD_INITIAL_DESCENDANTS_LIMIT
     })
     ancestors = threadContext.ancestors
     replies = threadContext.descendants
@@ -568,6 +574,9 @@ const Page: FC<Props> = async ({ params }) => {
               variant="detail"
               isMediaUploadEnabled={Boolean(mediaStorage)}
               replies={replies.map((reply) => cleanJson(reply))}
+              ancestors={ancestors.map((item) => cleanJson(item))}
+              hasMoreAncestors={hasMoreAncestors}
+              hasMoreDescendants={hasMoreDescendants}
               fitnessFiles={fitnessFiles}
             />
           </div>
@@ -668,7 +677,8 @@ const Page: FC<Props> = async ({ params }) => {
           <h1 className="sr-only">Post</h1>
         )}
 
-        <StatusThread
+        <PagedStatusThread
+          key={status.id}
           host={host}
           status={cleanJson(status)}
           ancestors={ancestors.map((item) => cleanJson(item))}

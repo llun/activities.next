@@ -11,10 +11,11 @@ import {
   Trophy,
   Zap
 } from 'lucide-react'
-import { FC, useEffect, useMemo, useRef, useState } from 'react'
+import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import type { StatusFitnessFileItem } from '@/lib/client'
 import { RetryFitnessButton } from '@/lib/components/posts/retry-fitness-button'
+import { useThreadContextPager } from '@/lib/components/posts/useThreadContextPager'
 import { Alert } from '@/lib/components/surface/Alert'
 import { Frame } from '@/lib/components/surface/Frame'
 import { Section } from '@/lib/components/surface/Section'
@@ -79,6 +80,9 @@ interface Props {
   currentActor?: ActorProfile | null
   status: StatusNote
   replies?: Status[]
+  ancestors?: Status[]
+  hasMoreAncestors?: boolean
+  hasMoreDescendants?: boolean
   isMediaUploadEnabled?: boolean
   initialFitnessFiles?: StatusFitnessFileItem[]
   onShowAttachment: (allMedias: Attachment[], selectedIndex: number) => void
@@ -291,10 +295,33 @@ export const FitnessStatusDetail: FC<Props> = ({
   currentActor,
   status,
   replies = EMPTY_REPLIES,
+  ancestors = EMPTY_REPLIES,
+  hasMoreAncestors = false,
+  hasMoreDescendants = false,
   isMediaUploadEnabled,
   initialFitnessFiles,
   onShowAttachment
 }) => {
+  // The activity's conversation, with "Load earlier posts" above it and "Load
+  // more replies" past the replies the page loaded.
+  const initialThread = useMemo(
+    () => ({
+      ancestors,
+      descendants: replies,
+      hasMoreAncestors,
+      hasMoreDescendants
+    }),
+    [ancestors, replies, hasMoreAncestors, hasMoreDescendants]
+  )
+  const getThreadScrollAnchor = useCallback(
+    () => document.querySelector<HTMLElement>('[data-activity-post]'),
+    []
+  )
+  const thread = useThreadContextPager({
+    statusId: status.id,
+    initial: initialThread,
+    getScrollAnchor: getThreadScrollAnchor
+  })
   const isOwner =
     Boolean(status.isLocalActor) && currentActor?.id === status.actorId
   const files = useStatusFitnessFiles(status, initialFitnessFiles)
@@ -870,7 +897,14 @@ export const FitnessStatusDetail: FC<Props> = ({
         currentTime={currentTime}
         currentActor={currentActor}
         status={status}
-        replies={replies}
+        replies={thread.descendants}
+        ancestors={thread.ancestors}
+        hasMoreAncestors={thread.hasMoreAncestors}
+        hasMoreDescendants={thread.hasMoreDescendants}
+        onLoadMoreAncestors={thread.loadMoreAncestors}
+        onLoadMoreDescendants={thread.loadMoreDescendants}
+        loadingMore={thread.loading}
+        loadMoreError={thread.error}
         isMediaUploadEnabled={isMediaUploadEnabled}
         isOwner={isOwner}
         files={files}

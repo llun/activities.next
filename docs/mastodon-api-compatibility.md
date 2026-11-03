@@ -271,7 +271,7 @@ product or security decision, not a gap to be closed.
     SQL scope, then `filterReadableStatuses` on top, so a hidden reply is never
     hydrated.
   - Bounds: the descendants limit (60 signed out, 4096 signed in, 60 on the post
-    page), a visit budget of `DESCENDANTS_VISIT_FACTOR` (3) replies visited per
+    page and up to 500 through the web thread route below), a visit budget of `DESCENDANTS_VISIT_FACTOR` (3) replies visited per
     descendant the limit allows, and, for a signed-out viewer, Mastodon's depth
     limit `ANONYMOUS_DESCENDANTS_DEPTH_LIMIT` (20 levels below the opened status).
     A reply counts against the budget when the walk reaches it, not when it is
@@ -559,6 +559,25 @@ Activity.next adds endpoints and parameters beyond the Mastodon surface. These
 are not part of the Mastodon API and are safe for Mastodon clients to ignore.
 
 ### Statuses & posting
+
+- **Web thread context** — `GET /api/v1/statuses/:id/thread?ancestors_limit=&descendants_limit=`
+  is the web client's own route (`getStatusThread` in `lib/client/statuses.ts`),
+  behind "Load earlier posts" and "Load more replies" on the post page and the
+  fitness activity page. It runs `getStatusContext` for the viewer
+  (`OptionalOAuthGuard`, so a session or a token; signed out it is public
+  statuses only) with the two limits, clamped into `[1, 400]` ancestors and
+  `[1, 500]` descendants (`clampedLimit`; missing or malformed values take the
+  page's first step, 40 and 60, from `threadPageLimits.ts`), and answers
+  `{ ancestors, descendants, hasMoreAncestors, hasMoreDescendants }` with the
+  same domain statuses the page renders, serialized the same way (`cleanJson`,
+  dates as epoch milliseconds), not Mastodon `Status` entities. An unknown
+  status, or one the viewer may not read, is `404` `{ error }`. Requests are
+  limited to 30 a minute per signed-in actor and per trusted client address
+  (`getTrustedClientIp`), and signed-out requests to 300 a minute in all
+  (`429` `{ error }`); together with the capped limits and the loader's visit
+  budget this keeps an anonymous reader's work bounded. No CORS preflight: it
+  is not a Mastodon endpoint, and `GET /api/v1/statuses/:id/context` is
+  unchanged.
 
 - **Declared language of a new status** — `POST /api/v1/statuses` (notes and
   polls, immediate and scheduled at publish time) stores `language` by the same

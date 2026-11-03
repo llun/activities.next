@@ -2,11 +2,24 @@
 
 import { ChevronDown, MessageCircle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { FC, useCallback, useEffect, useId, useMemo, useState } from 'react'
+import {
+  FC,
+  ReactNode,
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useState
+} from 'react'
 
 import { InlineStatusComposer } from '@/lib/components/posts/lazy-inline-status-composer'
 import { SelfThreadRun } from '@/lib/components/posts/self-thread-run'
-import { buildSelfThreadModel } from '@/lib/components/posts/selfThreadModel'
+import {
+  SelfThreadRunBlock,
+  buildSelfThreadModel,
+  getRunMergedStatuses
+} from '@/lib/components/posts/selfThreadModel'
+import { ThreadLoadMore } from '@/lib/components/posts/thread-load-more'
 import { ThreadReplyNode } from '@/lib/components/posts/thread-reply-node'
 import {
   type ThreadNode,
@@ -17,7 +30,7 @@ import { useOpenStatusPath } from '@/lib/components/posts/useOpenStatusPath'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
-import { Status } from '@/lib/types/domain/status'
+import { Status, getOriginalStatus } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
 
@@ -59,6 +72,18 @@ export interface ActivityRepliesProps {
   currentTime: number
   status: Status
   replies: Status[]
+  /**
+   * The conversation above the activity, root first. It renders above
+   * `children` (the activity's own post) the way the post page renders a
+   * post's ancestors, the athlete's own earlier parts as a run.
+   */
+  ancestors?: Status[]
+  hasMoreAncestors?: boolean
+  hasMoreDescendants?: boolean
+  onLoadMoreAncestors?: () => void
+  onLoadMoreDescendants?: () => void
+  loadingMore?: 'ancestors' | 'descendants' | null
+  loadMoreError?: 'ancestors' | 'descendants' | null
   isMediaUploadEnabled?: boolean
   /**
    * The activity's one inline composer. Reply on the post opens it anchored to
@@ -66,14 +91,21 @@ export interface ActivityRepliesProps {
    */
   composer: InlineComposerControls
   onShowAttachment: (allMedias: Attachment[], selectedIndex: number) => void
+  /** The activity's own post, rendered between the ancestors and the replies. */
+  children?: ReactNode
 }
 
+const EMPTY_STATUSES: Status[] = []
+
 /**
- * The activity's replies, inside the post frame under its action row, the way
- * the post page lists them: a "Replies (N)" header that hides and shows the
- * list (remembered per site), the first few replies with "Load more replies"
- * for the rest, and "No replies yet" when there are none. Each reply is the
- * post page's own `ThreadReplyNode`, so nested replies, their toggles and
+ * The activity's conversation, inside the post frame: the posts above it (the
+ * post page's ancestor rows, with "Load earlier posts"), the activity itself
+ * (`children`), then its replies under the action row the way the post page
+ * lists them: a "Replies (N)" header that hides and shows the list
+ * (remembered per site), the first few replies with "Load more replies" for
+ * the rest (and then for replies the page has not loaded), and "No replies
+ * yet" when there are none and the activity stands on its own. Each reply is
+ * the post page's own `ThreadReplyNode`, so nested replies, their toggles and
  * their inline composer behave the same here.
  */
 export const ActivityReplies: FC<ActivityRepliesProps> = ({
@@ -82,9 +114,17 @@ export const ActivityReplies: FC<ActivityRepliesProps> = ({
   currentTime,
   status,
   replies,
+  ancestors = EMPTY_STATUSES,
+  hasMoreAncestors = false,
+  hasMoreDescendants = false,
+  onLoadMoreAncestors,
+  onLoadMoreDescendants,
+  loadingMore = null,
+  loadMoreError = null,
   isMediaUploadEnabled,
   composer,
-  onShowAttachment
+  onShowAttachment,
+  children
 }) => {
   const router = useRouter()
   const openStatusPath = useOpenStatusPath()
@@ -135,6 +175,14 @@ export const ActivityReplies: FC<ActivityRepliesProps> = ({
     setIsExpanded(next)
   }
 
+  const visibleAncestors = useMemo(
+    () =>
+      deletedStatusIds.size === 0
+        ? ancestors
+        : ancestors.filter((ancestor) => !deletedStatusIds.has(ancestor.id)),
+    [ancestors, deletedStatusIds]
+  )
+
   const allReplies = useMemo(() => {
     const base =
       locallyCreatedReplies.length === 0
@@ -160,28 +208,71 @@ export const ActivityReplies: FC<ActivityRepliesProps> = ({
     () =>
       buildSelfThreadModel({
         focusedStatus: status,
+        ancestors: visibleAncestors,
         descendants: allReplies,
-        tuckIntoFirstPart: false
+        // The activity stays unchanged, so other people's replies to it stay
+        // under Replies whatever part of the athlete's run it is.
+        tuckIntoOpenedPart: false,
+        hasMoreAncestors
       }),
-    [status, allReplies]
+    [status, visibleAncestors, allReplies, hasMoreAncestors]
   )
-  const hasFollowUps = selfThread.parts.length > 1
+  const hasRun = Boolean(selfThread.run)
+  const openedPartIndex = hasRun ? Math.max(0, selfThread.openedPartIndex) : 0
+  // The athlete's earlier parts render as a run above the activity, the
+  // follow-ups as a rail under its action row; both count every part.
+  const hasEarlierParts = hasRun && openedPartIndex > 0
+  const hasFollowUps = hasRun && selfThread.parts.length > openedPartIndex + 1
   const focusedGroupStatuses = useMemo(
-    () => (hasFollowUps ? selfThread.mergedStatuses : undefined),
-    [hasFollowUps, selfThread.mergedStatuses]
+    () => (hasRun ? selfThread.mergedStatuses : undefined),
+    [hasRun, selfThread.mergedStatuses]
   )
+
+  // As on the post page: with earlier ancestors not loaded, a run holding the
+  // topmost loaded one may start above it, so its numbers are left out.
+  const topLoadedAncestorId = hasMoreAncestors
+    ? (visibleAncestors[0]?.id ?? null)
+    : null
+  const hidesPartNumbers = (statuses: readonly Status[]) =>
+    topLoadedAncestorId !== null &&
+    statuses.some((item) => item.id === topLoadedAncestorId)
+
+  const ancestorRunByFirstStatusId = useMemo(() => {
+    const map = new Map<string, SelfThreadRunBlock>()
+    for (const run of selfThread.ancestorRuns) {
+      map.set(run.parts[0].status.id, run)
+    }
+    return map
+  }, [selfThread.ancestorRuns])
+  const ancestorRows = useMemo(() => {
+    const folded = new Set(
+      selfThread.ancestorRuns.flatMap((run) =>
+        getRunMergedStatuses(run)
+          .filter((item) => item.id !== run.parts[0].status.id)
+          .map((item) => item.id)
+      )
+    )
+    return (hasRun ? selfThread.ancestorsOutsideRun : visibleAncestors).filter(
+      (ancestor) => !folded.has(ancestor.id)
+    )
+  }, [
+    hasRun,
+    selfThread.ancestorRuns,
+    selfThread.ancestorsOutsideRun,
+    visibleAncestors
+  ])
 
   const tree = useMemo(
     () =>
       buildThreadTree({
         focusedStatus: status,
-        descendants: hasFollowUps ? selfThread.repliesOutsideRun : allReplies,
+        descendants: hasRun ? selfThread.repliesOutsideRun : allReplies,
         priorityStatusIds,
         focusedGroupStatuses
       }),
     [
       status,
-      hasFollowUps,
+      hasRun,
       selfThread.repliesOutsideRun,
       allReplies,
       priorityStatusIds,
@@ -230,43 +321,155 @@ export const ActivityReplies: FC<ActivityRepliesProps> = ({
   const hiddenCount = tree.descendants.length - visibleNodes.length
 
   const canCompose = Boolean(currentActor)
-  const isComposingInFollowUps = Boolean(
-    canCompose &&
-    composer.active &&
-    composer.active.anchorId !== status.id &&
-    selfThread.mergedIds.has(composer.active.anchorId)
+  const closeComposerAndRefresh = () => {
+    composer.close()
+    router.refresh()
+  }
+  const activeComposerIn = (statusIds: ReadonlySet<string>) =>
+    canCompose && composer.active && statusIds.has(composer.active.anchorId)
+      ? composer.active
+      : null
+
+  // A run of posts other than the activity's replies: an ancestor run, or the
+  // athlete's earlier parts. A reply posted from one is not a reply to the
+  // activity, so it is not added to the list here; the refresh brings the
+  // page up to date.
+  const renderRun = (
+    parts: SelfThreadRunBlock['parts'],
+    runIds: ReadonlySet<string>,
+    options: {
+      startAt?: number
+      endBefore?: number
+      anchorPartIndex?: number
+      hidePartNumbers?: boolean
+      onReplyCreated?: (reply: Status) => void
+    }
+  ) => (
+    <SelfThreadRun
+      parts={parts}
+      startAt={options.startAt}
+      endBefore={options.endBefore}
+      anchorPartIndex={options.anchorPartIndex}
+      hidePartNumbers={options.hidePartNumbers}
+      host={host}
+      currentTime={currentTime}
+      currentActor={currentActor ?? undefined}
+      showActions={canCompose}
+      showReadOnlyStats={!canCompose}
+      canCompose={canCompose}
+      activeComposer={activeComposerIn(runIds)}
+      isMediaUploadEnabled={isMediaUploadEnabled}
+      openReply={composer.openReply}
+      openQuote={composer.openQuote}
+      openEdit={composer.openEdit}
+      close={composer.close}
+      onOpenStatus={openStatus}
+      onShowMedia={(allMedias, index) => onShowAttachment(allMedias, index)}
+      onReplyCreated={options.onReplyCreated}
+      onStatusCreated={closeComposerAndRefresh}
+      onPostUpdated={closeComposerAndRefresh}
+      onPostDeleted={handlePostDeleted}
+    />
   )
+
+  // The activity's own run, minus the activity: the ids its composer may be
+  // anchored to.
+  const runPartIds = useMemo(
+    () =>
+      new Set(
+        selfThread.mergedStatuses
+          .map((item) => item.id)
+          .filter((id) => id !== status.id)
+      ),
+    [selfThread.mergedStatuses, status.id]
+  )
+
+  const showAncestorsLoadMore = hasMoreAncestors && Boolean(onLoadMoreAncestors)
+  const ancestorsBlock =
+    showAncestorsLoadMore || ancestorRows.length > 0 || hasEarlierParts ? (
+      <div data-testid="activity-ancestors">
+        {showAncestorsLoadMore && onLoadMoreAncestors ? (
+          <ThreadLoadMore
+            label="Load earlier posts"
+            onLoad={onLoadMoreAncestors}
+            isLoading={loadingMore === 'ancestors'}
+            hasError={loadMoreError === 'ancestors'}
+            className="border-b py-2"
+          />
+        ) : null}
+        {ancestorRows.map((ancestor) => {
+          const ancestorRun = ancestorRunByFirstStatusId.get(ancestor.id)
+          if (ancestorRun) {
+            const merged = getRunMergedStatuses(ancestorRun)
+            return (
+              <div
+                key={ancestor.id}
+                data-testid="ancestor-status"
+                className="border-b p-4"
+              >
+                {renderRun(
+                  ancestorRun.parts,
+                  new Set(merged.map((item) => item.id)),
+                  {
+                    anchorPartIndex: selfThread.ancestorRunAnchorIndexById.get(
+                      ancestorRun.key
+                    ),
+                    hidePartNumbers: hidesPartNumbers(merged)
+                  }
+                )}
+              </div>
+            )
+          }
+          return (
+            <div
+              key={ancestor.id}
+              id={ancestor.id}
+              data-testid="ancestor-status"
+              className="border-b px-4"
+            >
+              <ThreadReplyNode
+                node={{
+                  status: ancestor,
+                  depth: 0,
+                  replies: [],
+                  totalDescendantCount: 0,
+                  initiallyCollapsed: false
+                }}
+                host={host}
+                currentActor={currentActor}
+                currentTime={currentTime}
+                isMediaUploadEnabled={isMediaUploadEnabled}
+                composer={composer}
+                isExpanded={() => true}
+                onToggle={() => {}}
+                onOpenStatus={openStatus}
+                onShowAttachment={(allMedias, index) =>
+                  onShowAttachment(allMedias, index)
+                }
+                onComposerDone={() => router.refresh()}
+                onPostDeleted={handlePostDeleted}
+              />
+            </div>
+          )
+        })}
+        {hasEarlierParts ? (
+          <div data-testid="activity-earlier-parts" className="border-b p-4">
+            {renderRun(selfThread.parts, runPartIds, {
+              endBefore: openedPartIndex,
+              hidePartNumbers: hidesPartNumbers(selfThread.mergedStatuses)
+            })}
+          </div>
+        ) : null}
+      </div>
+    ) : null
 
   const followUpRail = hasFollowUps ? (
     <div data-testid="activity-follow-ups" className="border-t px-4 py-3">
-      <SelfThreadRun
-        parts={selfThread.parts}
-        startAt={1}
-        host={host}
-        currentTime={currentTime}
-        currentActor={currentActor ?? undefined}
-        showActions={canCompose}
-        showReadOnlyStats={!canCompose}
-        canCompose={canCompose}
-        activeComposer={isComposingInFollowUps ? composer.active : null}
-        isMediaUploadEnabled={isMediaUploadEnabled}
-        openReply={composer.openReply}
-        openQuote={composer.openQuote}
-        openEdit={composer.openEdit}
-        close={composer.close}
-        onOpenStatus={openStatus}
-        onShowMedia={(allMedias, index) => onShowAttachment(allMedias, index)}
-        onReplyCreated={handleReplyCreated}
-        onStatusCreated={() => {
-          composer.close()
-          router.refresh()
-        }}
-        onPostUpdated={() => {
-          composer.close()
-          router.refresh()
-        }}
-        onPostDeleted={handlePostDeleted}
-      />
+      {renderRun(selfThread.parts, runPartIds, {
+        startAt: openedPartIndex + 1,
+        hidePartNumbers: hidesPartNumbers(selfThread.mergedStatuses),
+        onReplyCreated: handleReplyCreated
+      })}
     </div>
   ) : null
 
@@ -294,110 +497,143 @@ export const ActivityReplies: FC<ActivityRepliesProps> = ({
       </div>
     ) : null
 
+  // Replies the page has not loaded: "Load more replies" first shows the
+  // loaded ones a page at a time, then asks for more.
+  const canLoadMoreFromServer =
+    hasMoreDescendants && Boolean(onLoadMoreDescendants)
+  const loadMoreReplies = () => {
+    if (hiddenCount === 0 && onLoadMoreDescendants) onLoadMoreDescendants()
+    setVisibleCount((count) => count + REPLIES_PAGE_SIZE)
+  }
+  const loadMoreRow =
+    hiddenCount > 0 || canLoadMoreFromServer ? (
+      <ThreadLoadMore
+        label="Load more replies"
+        onLoad={loadMoreReplies}
+        isLoading={hiddenCount === 0 && loadingMore === 'descendants'}
+        hasError={hiddenCount === 0 && loadMoreError === 'descendants'}
+        className="border-t"
+      />
+    ) : null
+
+  // "No replies yet" only speaks for an activity on its own, as on the post
+  // page: under a post of a conversation it reads as if the whole thread were
+  // empty.
+  const actualStatus = getOriginalStatus(status)
+  const isInConversation =
+    hasRun ||
+    visibleAncestors.length > 0 ||
+    hasMoreAncestors ||
+    ('reply' in actualStatus && Boolean(actualStatus.reply))
+
   if (total === 0) {
-    if (hasFollowUps) {
+    if (hasFollowUps || isInConversation || canLoadMoreFromServer) {
+      const hasContent = Boolean(followUpRail || replyComposer || loadMoreRow)
       return (
-        <div data-testid="activity-replies">
-          {followUpRail}
-          {replyComposer ? (
-            <div className="border-t">{replyComposer}</div>
+        <>
+          {ancestorsBlock}
+          {children}
+          {hasContent ? (
+            <div data-testid="activity-replies">
+              {followUpRail}
+              {replyComposer ? (
+                <div className="border-t">{replyComposer}</div>
+              ) : null}
+              {loadMoreRow}
+            </div>
           ) : null}
-        </div>
+        </>
       )
     }
 
     return (
-      <div data-testid="activity-replies" className="border-t">
-        {replyComposer ?? (
-          <div className="p-4">
-            <EmptyState icon={MessageCircle} title="No replies yet">
-              {currentActor
-                ? 'Be the first to reply.'
-                : 'Replies show up here.'}
-            </EmptyState>
-          </div>
-        )}
-      </div>
+      <>
+        {ancestorsBlock}
+        {children}
+        <div data-testid="activity-replies" className="border-t">
+          {replyComposer ?? (
+            <div className="p-4">
+              <EmptyState icon={MessageCircle} title="No replies yet">
+                {currentActor
+                  ? 'Be the first to reply.'
+                  : 'Replies show up here.'}
+              </EmptyState>
+            </div>
+          )}
+        </div>
+      </>
     )
   }
 
   return (
-    <div
-      data-testid="activity-replies"
-      className={cn(!hasFollowUps && 'border-t')}
-    >
-      {followUpRail}
-      <div className={cn(hasFollowUps && 'border-t')}>
-        <h2 className="sr-only">Replies</h2>
-        <button
-          type="button"
-          aria-expanded={isExpanded}
-          aria-controls={listId}
-          onClick={toggleExpanded}
-          className={cn(
-            'flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm font-semibold transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50',
-            isExpanded && 'border-b'
-          )}
-        >
-          <span>Replies ({total})</span>
-          <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground">
-            {isExpanded ? 'Hide' : 'Show'}
-            <ChevronDown
-              aria-hidden="true"
-              className={cn(
-                'size-3.5 transition-transform',
-                isExpanded && 'rotate-180'
-              )}
-            />
-          </span>
-        </button>
-        <div id={listId} hidden={!isExpanded}>
-          {replyComposer ? (
-            <div className="border-b">{replyComposer}</div>
-          ) : null}
-          <div
-            data-testid="activity-replies-list"
-            className="divide-y divide-border/40 px-4"
+    <>
+      {ancestorsBlock}
+      {children}
+      <div
+        data-testid="activity-replies"
+        className={cn(!hasFollowUps && 'border-t')}
+      >
+        {followUpRail}
+        <div className={cn(hasFollowUps && 'border-t')}>
+          <h2 className="sr-only">Replies</h2>
+          <button
+            type="button"
+            aria-expanded={isExpanded}
+            aria-controls={listId}
+            onClick={toggleExpanded}
+            className={cn(
+              'flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm font-semibold transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50',
+              isExpanded && 'border-b'
+            )}
           >
-            {visibleNodes.map((node) => (
-              <ThreadReplyNode
-                key={node.status.id}
-                node={node}
-                host={host}
-                currentActor={currentActor}
-                currentTime={currentTime}
-                isMediaUploadEnabled={isMediaUploadEnabled}
-                composer={composer}
-                isExpanded={isBranchExpanded}
-                onToggle={toggleBranch}
-                onOpenStatus={openStatus}
-                onShowAttachment={(allMedias, index) =>
-                  onShowAttachment(allMedias, index)
-                }
-                onReplyCreated={handleReplyCreated}
-                onComposerDone={() => router.refresh()}
-                replyingToLabels={
-                  hasFollowUps ? selfThread.replyingToByReplyId : undefined
-                }
-                onPostDeleted={handlePostDeleted}
+            <span>Replies ({total})</span>
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground">
+              {isExpanded ? 'Hide' : 'Show'}
+              <ChevronDown
+                aria-hidden="true"
+                className={cn(
+                  'size-3.5 transition-transform',
+                  isExpanded && 'rotate-180'
+                )}
               />
-            ))}
-          </div>
-          {hiddenCount > 0 ? (
-            <div className="border-t px-4 py-3 text-center">
-              <button
-                type="button"
-                onClick={() =>
-                  setVisibleCount((count) => count + REPLIES_PAGE_SIZE)
-                }
-                className="rounded-sm text-xs font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-              >
-                Load more replies
-              </button>
+            </span>
+          </button>
+          <div id={listId} hidden={!isExpanded}>
+            {replyComposer ? (
+              <div className="border-b">{replyComposer}</div>
+            ) : null}
+            <div
+              data-testid="activity-replies-list"
+              className="divide-y divide-border/40 px-4"
+            >
+              {visibleNodes.map((node) => (
+                <ThreadReplyNode
+                  key={node.status.id}
+                  node={node}
+                  host={host}
+                  currentActor={currentActor}
+                  currentTime={currentTime}
+                  isMediaUploadEnabled={isMediaUploadEnabled}
+                  composer={composer}
+                  isExpanded={isBranchExpanded}
+                  onToggle={toggleBranch}
+                  onOpenStatus={openStatus}
+                  onShowAttachment={(allMedias, index) =>
+                    onShowAttachment(allMedias, index)
+                  }
+                  onReplyCreated={handleReplyCreated}
+                  onComposerDone={() => router.refresh()}
+                  replyingToLabels={
+                    hasRun ? selfThread.replyingToByReplyId : undefined
+                  }
+                  onPostDeleted={handlePostDeleted}
+                />
+              ))}
             </div>
-          ) : null}
+            {loadMoreRow}
+          </div>
         </div>
       </div>
-    </div>
+    </>
   )
 }

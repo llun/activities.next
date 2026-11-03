@@ -33,6 +33,13 @@ export interface BuildSelfThreadParams {
    */
   tuckIntoFirstPart?: boolean
   /**
+   * Whether other people's short replies to the opened post may tuck into the
+   * run. The fitness page turns this off: the opened post is the activity,
+   * which stays unchanged whatever part of the run it is, so replies to it
+   * stay under "Replies".
+   */
+  tuckIntoOpenedPart?: boolean
+  /**
    * Whether ancestors before the loaded window may be missing (the server
    * only sends a bounded page of them). When true, the replying-to data for
    * the opened post keeps the part it answers but drops the "i of n" numbers,
@@ -274,6 +281,7 @@ export const buildSelfThreadModel = ({
   ancestors = [],
   descendants = [],
   tuckIntoFirstPart = true,
+  tuckIntoOpenedPart = true,
   hasMoreAncestors = false
 }: BuildSelfThreadParams): SelfThreadModel => {
   const focusedAuthorId = getAuthorId(focusedStatus)
@@ -282,6 +290,7 @@ export const buildSelfThreadModel = ({
   )
   const selfReplyChain = extractSelfReplyChain(focusedStatus, descendants)
   const chain = [...authorAncestors, focusedStatus, ...selfReplyChain]
+  const openedChainIndex = authorAncestors.length
   const chainIds = new Set(chain.map((s) => s.id))
 
   const chainIndexByAlias = new Map<string, number>()
@@ -314,6 +323,7 @@ export const buildSelfThreadModel = ({
     const chainIndex = target ? chainIndexByAlias.get(target) : undefined
     if (chainIndex === undefined) return false
     if (chainIndex === 0 && !tuckIntoFirstPart) return false
+    if (chainIndex === openedChainIndex && !tuckIntoOpenedPart) return false
     if (getAuthorId(candidate) === getAuthorId(chain[chainIndex])) return false
     return !hasChildInDescendants(candidate) && canTuck(candidate)
   })

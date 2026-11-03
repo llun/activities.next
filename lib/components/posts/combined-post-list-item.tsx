@@ -177,7 +177,8 @@ export const CombinedPartRailColumn: FC<CombinedPartRailColumnProps> = ({
 
 export interface CombinedPartLabelButtonProps {
   status: Status
-  label: string
+  /** "i of n"; left out (the time alone) when the numbering is unknown. */
+  label?: string
   compactTime: string
   spokenTime: string
   onOpenStatus: (status: Status) => void
@@ -193,10 +194,14 @@ export const CombinedPartLabelButton: FC<CombinedPartLabelButtonProps> = ({
   <button
     type="button"
     className="-mx-1 rounded-sm px-1 py-0.5 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-    aria-label={`Open part ${label}, posted ${spokenTime} ago`}
+    aria-label={
+      label
+        ? `Open part ${label}, posted ${spokenTime} ago`
+        : `Open post, posted ${spokenTime} ago`
+    }
     onClick={() => onOpenStatus(status)}
   >
-    {label} · {compactTime}
+    {label ? `${label} · ${compactTime}` : compactTime}
   </button>
 )
 

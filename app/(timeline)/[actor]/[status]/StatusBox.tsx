@@ -58,6 +58,11 @@ interface Props {
   // Replies passed through to the fitness activity detail, which renders them
   // in its Comments section instead of the standalone reply list below.
   replies?: Status[]
+  // The conversation above the activity, rendered over it the way the post
+  // page renders a post's ancestors.
+  ancestors?: Status[]
+  hasMoreAncestors?: boolean
+  hasMoreDescendants?: boolean
   fitnessFiles?: StatusFitnessFileItem[]
 }
 
@@ -70,6 +75,9 @@ export const StatusBox: FC<Props> = ({
   variant = 'comment',
   isMediaUploadEnabled,
   replies,
+  ancestors,
+  hasMoreAncestors,
+  hasMoreDescendants,
   fitnessFiles
 }) => {
   const router = useRouter()
@@ -102,6 +110,9 @@ export const StatusBox: FC<Props> = ({
             currentActor={currentActor}
             status={actualStatus as StatusNote}
             replies={replies}
+            ancestors={ancestors}
+            hasMoreAncestors={hasMoreAncestors}
+            hasMoreDescendants={hasMoreDescendants}
             isMediaUploadEnabled={isMediaUploadEnabled}
             initialFitnessFiles={fitnessFiles}
             onShowAttachment={(allMedias, index) => {
