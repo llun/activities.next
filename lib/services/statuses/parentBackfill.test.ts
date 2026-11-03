@@ -2,6 +2,7 @@ import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { FETCH_REMOTE_STATUS_JOB_NAME } from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
 import type { Queue } from '@/lib/services/queue/type'
+import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { createDeferred } from '@/lib/testing/deferred'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
@@ -103,6 +104,29 @@ describe('queueMissingParentFetch', () => {
       false
     )
     expect(mockQueue.publish).not.toHaveBeenCalled()
+  })
+
+  // `federation.allowActorDomains` can list remote servers, so it must not
+  // count as "this server" here: a parent there is still fetched.
+  it('queues a parent on a remote domain the actor allow-list names', async () => {
+    await database.setServerSettings([
+      { key: 'federation.allowActorDomains', value: ['listed.example'] }
+    ])
+    invalidateServerSettingsCache(database)
+    try {
+      expect(
+        await queueMissingParentFetch({
+          database,
+          inReplyTo: 'https://listed.example/users/bob/statuses/1'
+        })
+      ).toBe(true)
+      expect(mockQueue.publish).toHaveBeenCalledTimes(1)
+    } finally {
+      await database.setServerSettings([
+        { key: 'federation.allowActorDomains', value: [] }
+      ])
+      invalidateServerSettingsCache(database)
+    }
   })
 
   it('queues the parent again, under a new job id, once the cooldown passes', async () => {

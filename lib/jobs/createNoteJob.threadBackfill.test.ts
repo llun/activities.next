@@ -8,6 +8,11 @@ import {
   CREATE_POLL_JOB_NAME,
   FETCH_REMOTE_STATUS_JOB_NAME
 } from '@/lib/jobs/names'
+import {
+  getForwardingTargetLocalActorIds,
+  resolveForwardingInboxes,
+  shouldForwardActivity
+} from '@/lib/services/federation/forwardingDelivery'
 import { getQueue } from '@/lib/services/queue'
 import type { Queue } from '@/lib/services/queue/type'
 import { resetParentBackfillStateForTesting } from '@/lib/services/statuses/parentBackfill'
@@ -29,6 +34,19 @@ const mockQueue = {
 vi.mock('@/lib/services/queue', () => ({
   getQueue: vi.fn()
 }))
+
+// Forwarding is off unless a test turns it on; the message builder is real.
+vi.mock(
+  '@/lib/services/federation/forwardingDelivery',
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import('@/lib/services/federation/forwardingDelivery')
+    >()),
+    shouldForwardActivity: vi.fn(),
+    getForwardingTargetLocalActorIds: vi.fn(),
+    resolveForwardingInboxes: vi.fn()
+  })
+)
 
 const REMOTE = 'https://remote.example/users/alice'
 
@@ -67,6 +85,10 @@ describe('createNoteJob and createPollJob thread backfill', () => {
     mockQueue.runsInline = false
     mockQueue.publish.mockReset()
     mockQueue.publish.mockResolvedValue(undefined)
+    vi.mocked(shouldForwardActivity).mockReset()
+    vi.mocked(shouldForwardActivity).mockReturnValue(false)
+    vi.mocked(getForwardingTargetLocalActorIds).mockReset()
+    vi.mocked(resolveForwardingInboxes).mockReset()
     vi.mocked(getQueue).mockReset()
     vi.mocked(getQueue).mockReturnValue(
       mockQueue as unknown as ReturnType<typeof getQueue>
@@ -115,6 +137,28 @@ describe('createNoteJob and createPollJob thread backfill', () => {
     await receiveReply(parent)
 
     expect(parentFetches()).toEqual([])
+  })
+
+  it('still queues the parent fetch when a forward fails to publish', async () => {
+    vi.mocked(shouldForwardActivity).mockReturnValue(true)
+    vi.mocked(getForwardingTargetLocalActorIds).mockResolvedValue([ACTOR1_ID])
+    vi.mocked(resolveForwardingInboxes).mockResolvedValue([
+      'https://follower.example/inbox'
+    ])
+    mockQueue.publish.mockImplementation(async (message) => {
+      if (message.name !== FETCH_REMOTE_STATUS_JOB_NAME) {
+        throw new Error('forward publish failed')
+      }
+    })
+    const parent = `${REMOTE}/statuses/forward-failed-parent`
+
+    await expect(receiveReply(parent)).rejects.toThrow('forward publish failed')
+
+    expect(parentFetches()).toEqual([
+      expect.objectContaining({
+        data: expect.objectContaining({ statusId: parent })
+      })
+    ])
   })
 
   it('does not wait for the parent fetch under the in-process queue', async () => {

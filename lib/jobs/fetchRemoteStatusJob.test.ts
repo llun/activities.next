@@ -12,6 +12,7 @@ import {
   fetchRemoteStatusJob
 } from '@/lib/jobs/fetchRemoteStatusJob'
 import { FETCH_REMOTE_STATUS_JOB_NAME } from '@/lib/jobs/names'
+import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 import { ACTIVITY_JSON_HEADERS, JRD_JSON_HEADERS } from '@/lib/stub/activities'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
@@ -2263,6 +2264,32 @@ describe('fetchRemoteStatusJob', () => {
 
       expect(await database.getStatus({ statusId: child })).not.toBeNull()
       expect(requested).not.toContain(parent)
+    })
+
+    // The actor allow-list can name remote servers; a missing parent on one
+    // is fetched, since only the domains this server serves are "local".
+    it('fetches a missing parent on a remote domain the actor allow-list names', async () => {
+      const child = `${REMOTE_STATUS_ID}/listed-parent-child`
+      const parent = 'https://listed.example/users/bob/statuses/1'
+      const requested = serveChain({ [child]: parent, [parent]: null })
+      await database.setServerSettings([
+        { key: 'federation.allowActorDomains', value: ['listed.example'] }
+      ])
+      invalidateServerSettingsCache(database)
+      try {
+        await fetchRemoteStatusJob(database, {
+          id: 'job-id',
+          name: FETCH_REMOTE_STATUS_JOB_NAME,
+          data: { statusId: child }
+        })
+      } finally {
+        await database.setServerSettings([
+          { key: 'federation.allowActorDomains', value: [] }
+        ])
+        invalidateServerSettingsCache(database)
+      }
+
+      expect(requested).toContain(parent)
     })
 
     const VICTIM_ACTOR_ID = 'https://victim.example/users/v'

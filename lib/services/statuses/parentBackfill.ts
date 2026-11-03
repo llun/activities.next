@@ -66,10 +66,11 @@ const isStored = async (database: Database, reference: string) =>
  * or one queued within the cooldown. Returns whether a job was published.
  *
  * `detachInline`: under the in-process NoQueue, `publish` runs the job before
- * it returns. A caller that should not wait for it (a page or API read) passes
- * true to let the job finish after it answers; a job that queues the fetch
- * (createNoteJob) leaves it false, as its other inline work does. The inline
- * run fetches at most INLINE_MAX_ANCESTOR_FETCHES parents either way.
+ * it returns. Every current caller (createNoteJob, createPollJob, the context
+ * route and the post page) passes true, so the job finishes after the caller
+ * returns. The default, false, is kept for a caller that has to wait for the
+ * inline run. The inline run fetches at most INLINE_MAX_ANCESTOR_FETCHES
+ * parents either way.
  */
 export const queueMissingParentFetch = async ({
   database,
