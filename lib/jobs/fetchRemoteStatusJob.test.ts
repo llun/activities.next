@@ -6,7 +6,9 @@ import fetchMock, {
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import {
   INLINE_DEADLINE_MS,
+  INLINE_MAX_ANCESTOR_FETCHES,
   INLINE_MAX_REPLY_ITEMS,
+  MAX_ANCESTOR_DEPTH,
   fetchRemoteStatusJob
 } from '@/lib/jobs/fetchRemoteStatusJob'
 import { FETCH_REMOTE_STATUS_JOB_NAME } from '@/lib/jobs/names'
@@ -2097,6 +2099,178 @@ describe('fetchRemoteStatusJob', () => {
       expect(await database.getStatus({ statusId: REPLY_ID })).toMatchObject({
         reply: STATUS_ID
       })
+    })
+  })
+
+  describe('parent chain', () => {
+    const chainNote = (id: string, inReplyTo?: string) => ({
+      id,
+      type: 'Note',
+      attributedTo: REMOTE_ACTOR_ID,
+      content: `Note ${id}`,
+      ...(inReplyTo ? { inReplyTo } : {}),
+      to: [PUBLIC_STREAM],
+      published: new Date().toISOString()
+    })
+
+    // Serves `notes` (id -> inReplyTo, or null for a root) and records every
+    // note url this instance asked for.
+    const serveChain = (notes: Record<string, string | null>) => {
+      const requested: string[] = []
+      mockRemoteServers(async (req) => {
+        if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
+        if (req.url in notes) {
+          requested.push(req.url)
+          return activityJson(chainNote(req.url, notes[req.url] ?? undefined))
+        }
+        requested.push(req.url)
+        return { status: 404, body: '' }
+      })
+      return requested
+    }
+
+    const storeNote = (id: string, reply: string) =>
+      database.createNote({
+        id,
+        url: id,
+        actorId: REMOTE_ACTOR_ID,
+        text: `Stored ${id}`,
+        reply,
+        to: [PUBLIC_STREAM],
+        cc: []
+      })
+
+    it('walks past a stored parent to fetch a missing grandparent', async () => {
+      const base = `${REMOTE_STATUS_ID}/gap`
+      const child = `${base}/child`
+      const parent = `${base}/parent`
+      const grandparent = `${base}/grandparent`
+      await storeNote(parent, grandparent)
+      const requested = serveChain({
+        [child]: parent,
+        [parent]: grandparent,
+        [grandparent]: null
+      })
+
+      await fetchRemoteStatusJob(database, {
+        id: 'job-id',
+        name: FETCH_REMOTE_STATUS_JOB_NAME,
+        data: { statusId: child }
+      })
+
+      expect(await database.getStatus({ statusId: child })).not.toBeNull()
+      expect(await database.getStatus({ statusId: grandparent })).toMatchObject(
+        { id: grandparent }
+      )
+      // The stored parent is read from the database, not fetched again.
+      expect(requested).not.toContain(parent)
+    })
+
+    it('fills the gap above an already stored status', async () => {
+      const base = `${REMOTE_STATUS_ID}/stored-gap`
+      const stored = `${base}/stored`
+      const missing = `${base}/missing`
+      await storeNote(stored, missing)
+      const requested = serveChain({ [missing]: null })
+
+      await fetchRemoteStatusJob(database, {
+        id: 'job-id',
+        name: FETCH_REMOTE_STATUS_JOB_NAME,
+        data: { statusId: stored, ancestorsOnly: true }
+      })
+
+      expect(await database.getStatus({ statusId: missing })).not.toBeNull()
+      expect(requested).toEqual([missing])
+    })
+
+    it(`follows at most ${MAX_ANCESTOR_DEPTH} parents`, async () => {
+      const base = `${REMOTE_STATUS_ID}/deep`
+      const id = (index: number) => `${base}/${index}`
+      const notes: Record<string, string> = {}
+      for (let index = 0; index <= MAX_ANCESTOR_DEPTH + 5; index++) {
+        notes[id(index)] = id(index + 1)
+      }
+      const requested = serveChain(notes)
+
+      await fetchRemoteStatusJob(database, {
+        id: 'job-id',
+        name: FETCH_REMOTE_STATUS_JOB_NAME,
+        data: { statusId: id(0), ancestorsOnly: true }
+      })
+
+      expect(
+        await database.getStatus({ statusId: id(MAX_ANCESTOR_DEPTH) })
+      ).not.toBeNull()
+      expect(
+        await database.getStatus({ statusId: id(MAX_ANCESTOR_DEPTH + 1) })
+      ).toBeNull()
+      expect(requested).not.toContain(id(MAX_ANCESTOR_DEPTH + 1))
+    })
+
+    it(`fetches at most ${INLINE_MAX_ANCESTOR_FETCHES} parents inline`, async () => {
+      const base = `${REMOTE_STATUS_ID}/inline-chain`
+      const id = (index: number) => `${base}/${index}`
+      const notes: Record<string, string> = {}
+      for (let index = 0; index <= 10; index++) notes[id(index)] = id(index + 1)
+      serveChain(notes)
+
+      await fetchRemoteStatusJob(database, {
+        id: 'job-id',
+        name: FETCH_REMOTE_STATUS_JOB_NAME,
+        data: { statusId: id(0), firstPageOnly: true }
+      })
+
+      expect(
+        await database.getStatus({ statusId: id(INLINE_MAX_ANCESTOR_FETCHES) })
+      ).not.toBeNull()
+      expect(
+        await database.getStatus({
+          statusId: id(INLINE_MAX_ANCESTOR_FETCHES + 1)
+        })
+      ).toBeNull()
+    })
+
+    it('does not fetch a parent on a blocked domain', async () => {
+      const blockedHost = 'blocked-ancestor.test'
+      await database.createDomainBlock({
+        domain: blockedHost,
+        severity: 'suspend'
+      })
+      const child = `${REMOTE_STATUS_ID}/blocked-parent-child`
+      const parent = `https://${blockedHost}/users/x/statuses/1`
+      const requested = serveChain({ [child]: parent, [parent]: null })
+
+      await fetchRemoteStatusJob(database, {
+        id: 'job-id',
+        name: FETCH_REMOTE_STATUS_JOB_NAME,
+        data: { statusId: child }
+      })
+
+      expect(await database.getStatus({ statusId: child })).not.toBeNull()
+      expect(requested).not.toContain(parent)
+    })
+
+    it('does not walk the replies of an ancestors-only fetch', async () => {
+      const STATUS_ID = `${REMOTE_STATUS_ID}/ancestors-only`
+      const REPLIES_ID = `${STATUS_ID}/replies`
+      const requested: string[] = []
+      mockRemoteServers(async (req) => {
+        if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
+        requested.push(req.url)
+        if (req.url === STATUS_ID) {
+          return activityJson({ ...chainNote(STATUS_ID), replies: REPLIES_ID })
+        }
+        return { status: 404, body: '' }
+      })
+
+      await fetchRemoteStatusJob(database, {
+        id: 'job-id',
+        name: FETCH_REMOTE_STATUS_JOB_NAME,
+        data: { statusId: STATUS_ID, ancestorsOnly: true }
+      })
+
+      expect(await database.getStatus({ statusId: STATUS_ID })).not.toBeNull()
+      expect(requested).not.toContain(REPLIES_ID)
     })
   })
 })

@@ -5,6 +5,7 @@ import {
 import { OptionalOAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
 import { getStatusContext } from '@/lib/services/statuses/getStatusContext'
+import { queueThreadGapBackfill } from '@/lib/services/statuses/parentBackfill'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
@@ -50,6 +51,18 @@ export const GET = traceApiRoute(
           allowedMethods: CORS_HEADERS,
           data: ERROR_404,
           responseStatusCode: 404
+        })
+      }
+
+      // A signed-in read whose thread stops at a parent this instance does
+      // not have queues that parent's fetch, as Mastodon fetches a thread for
+      // a signed-in context read. Anonymous reads queue nothing, and a parent
+      // is queued once per cooldown (queueMissingParentFetch).
+      if (currentActor) {
+        await queueThreadGapBackfill({
+          database,
+          status,
+          ancestors: ancestorStatuses
         })
       }
 
