@@ -157,6 +157,34 @@ describe('GET /api/v1/timelines/list/[list_id]', () => {
     expect(response.headers.get('Link')).toBeNull()
   })
 
+  it('carries the reply parent previews in the activities_next format', async () => {
+    const reply = await database.createNote({
+      id: `${ACTOR1_ID}/statuses/list-reply`,
+      url: `${ACTOR1_ID}/statuses/list-reply`,
+      actorId: ACTOR1_ID,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      text: 'list timeline reply',
+      reply: listStatus.id
+    })
+    vi.spyOn(database, 'getListTimeline').mockResolvedValue([reply])
+
+    const response = await GET(request({ format: 'activities_next' }), {
+      params: Promise.resolve({ list_id: listId })
+    })
+
+    const data = await response.json()
+    // The same reply context the home timeline's web payload carries.
+    expect(data.context.ancestorsById[listStatus.id]).toMatchObject({
+      id: listStatus.id
+    })
+
+    const mastodon = await GET(request(), {
+      params: Promise.resolve({ list_id: listId })
+    })
+    expect(Array.isArray(await mastodon.json())).toBe(true)
+  })
+
   it('returns 404 for a non-existent list', async () => {
     const response = await GET(request(), {
       params: Promise.resolve({ list_id: 'does-not-exist' })

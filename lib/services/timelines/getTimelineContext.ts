@@ -47,13 +47,24 @@ const getParentRef = (status: Status): ParentRef | null => {
   }
 }
 
+// Parent previews for the replies on a page of statuses. Every parent is
+// fetched unscoped and then kept only if THIS viewer may read it
+// (`filterReadableStatuses`: signed out, only publicly readable parents;
+// signed in, also their own, those addressed to them and followers-only posts
+// of authors they follow), then minus blocked and muted authors. An unreadable
+// parent gets no entry, and its own parent is never looked up, so the feed
+// shows the generic "In reply to a post" line and nothing of it.
+//
+// `currentActor` is required, as `getProfileData`'s viewer is: the profile
+// calls this for signed-out visitors as well, and a caller with no viewer must
+// say `null` rather than omit it.
 export async function getTimelineContext({
   database,
   currentActor,
   statuses
 }: {
   database: Database
-  currentActor?: Actor
+  currentActor: Actor | null
   statuses: Status[]
 }): Promise<TimelineContext> {
   const allResolvedStatuses = new Map<string, Status>()
@@ -170,7 +181,7 @@ export async function getTimelineContext({
 
     let readableStatuses = await filterReadableStatuses({
       database,
-      currentActor: currentActor ?? null,
+      currentActor,
       statuses: newFoundStatuses
     })
 

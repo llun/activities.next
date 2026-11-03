@@ -70,23 +70,31 @@ interface Props {
 
 // Rows past this are below the fold on any viewport, so they never get the
 // first-visible-media priority.
-const PRIORITY_ROW_WINDOW = 3
+export const PRIORITY_ROW_WINDOW = 3
+
+/**
+ * Whether a post shows an ordinary image outright, so its first picture may be
+ * prioritized. Content warning posts keep their media collapsed, so they are
+ * not.
+ */
+export const showsPrioritizableMedia = (status: Status) => {
+  const actual = getActualStatus(status)
+  return (
+    actual.type === StatusType.enum.Note &&
+    !actual.summary?.trim() &&
+    getPrioritizedAttachment(actual.attachments) !== undefined
+  )
+}
 
 /**
  * The row whose first picture is prioritized: revealed without the hydration
  * fade, and eager only where it would otherwise be lazy. It is the first of
- * the list's first rows whose post shows an ordinary image outright. Content
- * warning posts keep their media collapsed, so they are skipped.
+ * the list's first rows whose post shows an ordinary image outright
+ * (`showsPrioritizableMedia`). `TimelineFeed` makes the same pick over its
+ * rendered rows.
  */
 export const getPrioritizedRowIndex = (statuses: Status[]) =>
-  statuses.slice(0, PRIORITY_ROW_WINDOW).findIndex((status) => {
-    const actual = getActualStatus(status)
-    return (
-      actual.type === StatusType.enum.Note &&
-      !actual.summary?.trim() &&
-      getPrioritizedAttachment(actual.attachments) !== undefined
-    )
-  })
+  statuses.slice(0, PRIORITY_ROW_WINDOW).findIndex(showsPrioritizableMedia)
 
 export const Posts: FC<Props> = ({
   host,

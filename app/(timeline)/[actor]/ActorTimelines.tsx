@@ -31,6 +31,11 @@ import {
   removeOriginalStatus,
   updateMatchingStatus
 } from '@/lib/components/posts/statusArray'
+import { TimelineFeed } from '@/lib/components/posts/timeline-feed'
+import {
+  initialTimelineContext,
+  mergeTimelineContext
+} from '@/lib/components/posts/timelineContext'
 import { Alert } from '@/lib/components/surface/Alert'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
 import { SectionSkeleton } from '@/lib/components/surface/SectionSkeleton'
@@ -50,8 +55,11 @@ import {
   StatusPoll,
   StatusType
 } from '@/lib/types/domain/status'
+import { TimelineContext } from '@/lib/types/domain/timeline'
 import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
 import type { PublicMapProvider } from '@/lib/utils/mapProvider'
+
+import { getCreatedStatusTab, splitProfileFeeds } from './profileFeedTabs'
 
 const loadActorMediaGallery = () =>
   import('./ActorMediaGallery').then((module) => module.ActorMediaGallery)
@@ -88,6 +96,21 @@ interface Props {
   hasHeaderImage?: boolean
   currentTime: number
   statuses: Status[]
+  /**
+   * A local account's statuses that open the Replies tab (the server decides
+   * it from the first post of each self-reply chain); the rest are on Posts.
+   * Given, the Posts and Replies tabs render through the home timeline's feed,
+   * so a post and its self-replies combine into one card. Absent (a remote
+   * profile), the old rule holds: replies are not on Posts (a remote profile
+   * has no Replies tab), and each status is its own card through `Posts`.
+   */
+  repliesTabStatusIds?: string[]
+  /**
+   * A local account's reply-parent previews for the first page, as the home
+   * and list timelines have, holding only parents the viewer may read. Each
+   * later page's `context` is merged in. Absent for a remote profile.
+   */
+  timelineContext?: TimelineContext
   attachments: Attachment[]
   /**
    * A remote actor's feed pages through outbox collection pages
@@ -137,18 +160,6 @@ const LOAD_MORE_PAGE_LIMIT = 5
 
 type ProfileTab = 'posts' | 'replies' | 'media' | 'gallery' | 'fitness'
 
-const isReply = (status: Status) => {
-  switch (status.type) {
-    case StatusType.enum.Note:
-    case StatusType.enum.Poll:
-      return !!status.reply
-    case StatusType.enum.Announce:
-      return false
-    default:
-      return false
-  }
-}
-
 const hasFitnessFile = (status: Status) =>
   status.type === StatusType.enum.Note && Boolean(status.fitness)
 
@@ -180,6 +191,8 @@ export const ActorTimelines: FC<Props> = ({
   actorId,
   currentTime,
   statuses,
+  repliesTabStatusIds,
+  timelineContext,
   attachments,
   statusPagination,
   postLineLimit,
@@ -204,6 +217,14 @@ export const ActorTimelines: FC<Props> = ({
     Boolean(isPixelfed || isMediaService || isMediaOnlyProp) &&
     tabVisibility.media
   const [currentStatuses, setCurrentStatuses] = useState<Status[]>(statuses)
+  // Null for a remote profile, whose tabs split on "is it a reply" alone.
+  const [currentRepliesTabIds, setCurrentRepliesTabIds] =
+    useState<ReadonlySet<string> | null>(() =>
+      repliesTabStatusIds ? new Set(repliesTabStatusIds) : null
+    )
+  const combinesSelfThreads = currentRepliesTabIds !== null
+  const [currentTimelineContext, setCurrentTimelineContext] =
+    useState<TimelineContext>(() => initialTimelineContext(timelineContext))
   const [currentStatusPagination, setCurrentStatusPagination] = useState({
     nextPageUrl: statusPagination?.nextPageUrl ?? null,
     prevPageUrl: statusPagination?.prevPageUrl ?? null,
@@ -293,13 +314,9 @@ export const ActorTimelines: FC<Props> = ({
     return 'posts'
   }, [availableTabs, activeTab])
 
-  const postStatuses = useMemo(
-    () => currentStatuses.filter((status) => !isReply(status)),
-    [currentStatuses]
-  )
-  const replyStatuses = useMemo(
-    () => currentStatuses.filter((status) => isReply(status)),
-    [currentStatuses]
+  const { posts: postStatuses, replies: replyStatuses } = useMemo(
+    () => splitProfileFeeds(currentStatuses, currentRepliesTabIds),
+    [currentStatuses, currentRepliesTabIds]
   )
   const fitnessStatuses = useMemo(
     () => currentStatuses.filter((status) => hasFitnessFile(status)),
@@ -321,15 +338,36 @@ export const ActorTimelines: FC<Props> = ({
         (showRepliesTab && effectiveActiveTab === 'replies') ||
         (showFitnessTab && effectiveActiveTab === 'fitness'))
 
+  // Read through refs so `handleStatusCreated` keeps one identity (memoized
+  // post rows would otherwise all re-render on every status change).
+  const currentStatusesRef = useRef(currentStatuses)
+  const currentRepliesTabIdsRef = useRef(currentRepliesTabIds)
+  useLayoutEffect(() => {
+    currentStatusesRef.current = currentStatuses
+    currentRepliesTabIdsRef.current = currentRepliesTabIds
+  }, [currentStatuses, currentRepliesTabIds])
+
   const handleStatusCreated = useCallback(
     (status: Status) => {
       // A reply or quote of another actor's post is the viewer's own status and
       // does not belong in that actor's feed. On the viewer's own profile,
       // though, the new status is theirs — surface it right away instead of
-      // waiting for a reload.
-      if (isCurrentUser) {
-        setCurrentStatuses((previousStatuses) => [status, ...previousStatuses])
+      // waiting for a reload, on the tab the server would put it on.
+      if (!isCurrentUser) return
+      const repliesTabIds = currentRepliesTabIdsRef.current
+      if (
+        repliesTabIds &&
+        getCreatedStatusTab(
+          status,
+          currentStatusesRef.current,
+          repliesTabIds
+        ) === 'replies'
+      ) {
+        setCurrentRepliesTabIds((previous) =>
+          previous ? new Set([...previous, status.id]) : previous
+        )
       }
+      setCurrentStatuses((previousStatuses) => [status, ...previousStatuses])
     },
     [isCurrentUser]
   )
@@ -345,13 +383,6 @@ export const ActorTimelines: FC<Props> = ({
       )
     )
   }, [])
-
-  // Read through a ref so `handlePostDeleted` keeps one identity (memoized post
-  // rows would otherwise all re-render on every status change).
-  const currentStatusesRef = useRef(currentStatuses)
-  useLayoutEffect(() => {
-    currentStatusesRef.current = currentStatuses
-  }, [currentStatuses])
 
   const handlePostDeleted = useCallback((status: Status) => {
     const remainingStatuses = removeOriginalStatus(
@@ -441,6 +472,16 @@ export const ActorTimelines: FC<Props> = ({
         if (result.statuses.length > 0) {
           setCurrentStatuses((previousStatuses) =>
             appendUniqueStatuses(previousStatuses, result.statuses)
+          )
+        }
+        setCurrentTimelineContext((previous) =>
+          mergeTimelineContext(previous, result.context)
+        )
+        if (result.repliesTabStatusIds.length > 0) {
+          setCurrentRepliesTabIds((previous) =>
+            previous
+              ? new Set([...previous, ...result.repliesTabStatusIds])
+              : previous
           )
         }
         return
@@ -558,9 +599,39 @@ export const ActorTimelines: FC<Props> = ({
   const renderFeed = (
     feedStatuses: Status[],
     empty: { icon: LucideIcon; title: string; hint: string },
-    prioritizeFirstMedia = false
+    {
+      prioritizeFirstMedia = false,
+      combineSelfThreads = false
+    }: { prioritizeFirstMedia?: boolean; combineSelfThreads?: boolean } = {}
   ) =>
-    feedStatuses.length > 0 ? (
+    feedStatuses.length === 0 ? (
+      <EmptyState icon={empty.icon} title={empty.title}>
+        {empty.hint}
+      </EmptyState>
+    ) : combineSelfThreads ? (
+      // The home timeline's feed and grouping, so a post and its self-replies
+      // are one card exactly as on Home (long threads collapse the same way).
+      // Boosts stay individual cards: no carousel on a profile. Replies show
+      // their parent's preview from the server's viewer-scoped context.
+      <TimelineFeed
+        host={host}
+        currentTime={currentTime}
+        statuses={feedStatuses}
+        timelineContext={currentTimelineContext}
+        prioritizeFirstMedia={prioritizeFirstMedia}
+        currentActor={currentActor}
+        showActions={showActions}
+        showReadOnlyStats={!showActions}
+        isMediaUploadEnabled={isMediaUploadEnabled}
+        postLineLimit={postLineLimit}
+        onStatusCreated={handleStatusCreated}
+        onPostUpdated={handlePostUpdated}
+        onPostDeleted={handlePostDeleted}
+        onLikeChanged={handleLikeChanged}
+        onBookmarkChanged={handleBookmarkChanged}
+        onReactionsChanged={handleReactionsChanged}
+      />
+    ) : (
       <Posts
         host={host}
         currentTime={currentTime}
@@ -578,10 +649,6 @@ export const ActorTimelines: FC<Props> = ({
         onBookmarkChanged={handleBookmarkChanged}
         onReactionsChanged={handleReactionsChanged}
       />
-    ) : (
-      <EmptyState icon={empty.icon} title={empty.title}>
-        {empty.hint}
-      </EmptyState>
     )
 
   const noPosts = {
@@ -646,7 +713,10 @@ export const ActorTimelines: FC<Props> = ({
   if (availableTabs.length <= 1) {
     return (
       <div className="space-y-4">
-        {renderFeed(postStatuses, noPosts, !hasHeaderImage)}
+        {renderFeed(postStatuses, noPosts, {
+          prioritizeFirstMedia: !hasHeaderImage,
+          combineSelfThreads: combinesSelfThreads
+        })}
 
         {loadMoreControl}
       </div>
@@ -672,11 +742,16 @@ export const ActorTimelines: FC<Props> = ({
       </div>
 
       {effectiveActiveTab === 'posts' &&
-        renderFeed(postStatuses, noPosts, !hasHeaderImage)}
+        renderFeed(postStatuses, noPosts, {
+          prioritizeFirstMedia: !hasHeaderImage,
+          combineSelfThreads: combinesSelfThreads
+        })}
 
       {effectiveActiveTab === 'replies' &&
         showRepliesTab &&
-        renderFeed(replyStatuses, noReplies)}
+        renderFeed(replyStatuses, noReplies, {
+          combineSelfThreads: combinesSelfThreads
+        })}
 
       {effectiveActiveTab === 'media' && hasMedia && (
         <LazyChunkBoundary>

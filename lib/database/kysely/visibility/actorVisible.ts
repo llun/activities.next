@@ -93,6 +93,43 @@ const publiclyReadableStatusIdsOf = (db: Db, actorId: string) =>
     .where('publicly_readable_statuses.type', '<>', StatusType.enum.Announce)
 
 /**
+ * The recipients (`recipients.actorId`) that make one of `actorId`'s NOTES or
+ * POLLS visible to the audience, or `null` for no filter (all audience flags
+ * absent: the owner's own view). An Announce is not decided by its own
+ * recipients alone (see `publiclyReadableStatusIdsOf`), so a caller that may
+ * meet one uses `actorVisibleStatusIds` instead.
+ *
+ * - `publicOnly`: the public collection.
+ * - otherwise: the public collection, the viewer (`visibleToActorId`), and with
+ *   `includeFollowersOnly` the actor's followers collection
+ *   (`followersAudience` and `<actorId>/followers`).
+ */
+export const actorVisibleRecipientIds = (
+  actorId: string,
+  {
+    publicOnly = false,
+    visibleToActorId,
+    includeFollowersOnly = false,
+    followersAudience
+  }: ActorVisibleStatusAudience
+): string[] | null => {
+  if (!publicOnly && !visibleToActorId && !includeFollowersOnly) return null
+
+  const recipientActorIds: string[] = [...PUBLIC_ACTIVITY_RECIPIENTS]
+  if (publicOnly) return recipientActorIds
+
+  if (includeFollowersOnly) {
+    recipientActorIds.push(
+      ...[followersAudience, `${actorId}/followers`].filter(
+        (audience): audience is string => Boolean(audience)
+      )
+    )
+  }
+  if (visibleToActorId) recipientActorIds.push(visibleToActorId)
+  return [...new Set(recipientActorIds)]
+}
+
+/**
  * The ids of `actorId`'s statuses the audience may be shown, as a subquery to
  * filter a status id column against, or `null` for no filter (all audience
  * flags absent: the owner's own view).
@@ -110,29 +147,15 @@ const publiclyReadableStatusIdsOf = (db: Db, actorId: string) =>
 export const actorVisibleStatusIds = (
   db: Db,
   actorId: string,
-  {
-    publicOnly = false,
-    visibleToActorId,
-    includeFollowersOnly = false,
-    followersAudience
-  }: ActorVisibleStatusAudience
+  audience: ActorVisibleStatusAudience
 ): StatusIdsSubquery | null => {
-  if (!publicOnly && !visibleToActorId && !includeFollowersOnly) return null
+  const recipientActorIds = actorVisibleRecipientIds(actorId, audience)
+  if (!recipientActorIds) return null
 
-  if (publicOnly) return publiclyReadableStatusIdsOf(db, actorId)
-
-  const recipientActorIds: string[] = [...PUBLIC_ACTIVITY_RECIPIENTS]
-  if (includeFollowersOnly) {
-    recipientActorIds.push(
-      ...[followersAudience, `${actorId}/followers`].filter(
-        (audience): audience is string => Boolean(audience)
-      )
-    )
-  }
-  if (visibleToActorId) recipientActorIds.push(visibleToActorId)
+  if (audience.publicOnly) return publiclyReadableStatusIdsOf(db, actorId)
 
   return db
     .selectFrom('recipients')
     .select('recipients.statusId')
-    .where('recipients.actorId', 'in', [...new Set(recipientActorIds)])
+    .where('recipients.actorId', 'in', recipientActorIds)
 }

@@ -640,9 +640,17 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   this query flag to return the raw internal status JSON instead of the Mastodon
   status shape (the web `/explore` Posts tab uses it to render the interactive
   timeline post component). On the account statuses endpoint the body is
-  `{ statuses, nextMaxStatusId }` with no `Link` header: a local account's
-  profile page loads its older posts with it, passing `nextMaxStatusId` back as
-  `max_id` the way Mastodon's web profile pages this endpoint.
+  `{ statuses, nextMaxStatusId, repliesTabStatusIds, context }` with no `Link`
+  header: a local account's profile page loads its older posts with it,
+  passing `nextMaxStatusId` back as `max_id` the way Mastodon's web profile
+  pages this endpoint. `repliesTabStatusIds` lists the page's statuses that
+  open the local profile's Replies tab, always empty for a remote account (see [Profile tabs](architecture.md#profile-tabs-and-the-edit-profile-page)).
+  `context` is the same reply parent previews the home timeline's payload
+  carries, holding only parents the requesting viewer may read (signed out:
+  publicly readable ones); a remote account's body has no `context`. The
+  Mastodon response is unchanged. `GET /api/v1/timelines/list/:id` returns
+  `{ statuses, context, nextMaxStatusId, prevMinStatusId }`, the same `context`
+  of reply parent previews the home timeline's payload carries.
 
 ### Media & uploads
 
@@ -1948,7 +1956,9 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   `InlineStatusComposer` internally — that is the shared layer doing the wiring,
   not a page opting into per-status callbacks.)
   **Exception — the timeline's combined post** (`CombinedPostListItem`, a run of
-  self-replies shown as one row): repost, bookmark and react live on its one
+  self-replies shown as one row on the home and list timelines and a local
+  profile's Posts and Replies tabs, which all render through `TimelineFeed`
+  rather than `Posts`): repost, bookmark and react live on its one
   shared action bar and act on the first post, its like acts on the first post
   too, and reply goes to the latest post (`Actions`' `splitTargets`). Every
   later part has its own Like beside its `⋯` menu, and a tucked-in reply has its
@@ -2273,6 +2283,7 @@ Post media layout rules (strip, grid, crops, captions, composer tiles) live in [
 - **A REMOTE actor's live outbox is filtered to public and unlisted notes by `getActorPosts` itself.** The remote profile page and `GET /api/v1/accounts/:id/remote-statuses` fetch it signed by the shared instance actor, which follows some remote actors, and a server that filters its outbox by signer (Mastodon does) can hand that follower its followers-only and direct notes. Any local viewer would then read what the remote only authorised the instance actor to see, so `getActorPosts` drops every Create note — fetched, embedded, or resolved from a stored row — that `isPublicOrUnlisted` rejects, and every Announce whose ORIGINAL it rejects, whether that original was stored or fetched (a remote may boost its own followers-only post).
 - **Live-outbox statuses are never persisted, so a status action that only reads must not assume a row.** `POST /api/v1/statuses/:id/translate` reads the stored row first and, when there is one, decides on it alone (`canActorReadStatus`, 404 if unreadable, no network call). Only an id with no row falls back to `fetchEphemeralRemoteStatus` (`lib/services/statuses/fetchEphemeralRemoteStatus.ts`), which fetches the note live with the instance signer and returns it **without storing it**: it refuses non-URL ids, local domains and domains the federation policy rejects (request URL and author), requires the fetched `id` to be same-origin with the requested URL and the author same-origin with that `id` (see [A Fetched Document's Own `id` Is Not Evidence](#agents-a-fetched-document-s-own-id-is-not-evidence)), and serves only public or unlisted notes. It uses `getNote` rather than `getRemoteStatus` so the author's server is not contacted before the attribution check passes, and records the author's actor row (`recordRemoteActorBestEffort`, as search-with-resolve does) because the Mastodon serializer reads the account from the database.
 - **The SQL scope is necessary but not sufficient — pair it with `canActorReadStatus`.** The recipients predicate matches a status's own audience and cannot see through a boost: an Announce is public while the status it boosts may not be. Every status-serving path does both (`GET /api/v1/accounts/:id/statuses`, the outbox route's `isStatusPubliclyReadable` pass, and now `getProfileData`).
+- **A local profile also serves OTHER actors' statuses: the parents its replies preview.** `getProfileData` and `GET /api/v1/accounts/:id/statuses?format=activities_next` hand the page to `getTimelineContext` with the profile's viewer (`null` when signed out, never omitted: the parameter is required), which keeps a parent only if `filterReadableStatuses` lets that viewer read it, so a signed-out visitor or a stranger never gets a followers-only or direct parent's author, text, id or url (see Reply context in [architecture.md](architecture.md#client-component-patterns)).
 - **One subquery decides both tables.** `actorVisibleStatusIds` (`lib/database/kysely/visibility/actorVisible.ts`) returns the actor's visible status ids, or `null` for the unfiltered mode; `getActorStatuses` filters `statuses.id` by it and `getAttachmentsForActor` filters `attachments.statusId` by it, so an attachment is withheld from exactly the viewers its post is. `actorVisible.test.ts` pins what it selects for every audience. Never scope one without the other — a gallery that outlives its timeline's filter leaks the same posts as image URLs.
 - **Where a required argument fits, use it; `lib/database/statusVisibilityCallSites.test.ts` covers the case where it does not.** `getProfileData`'s viewer IS required (`currentActor: DomainActor | null`, and the options object with it, as for `getProfileIdentity`), so the compiler rejects an omission — which is what the original bug was — at every call site, including ones no directory scan would reach. The two database methods are the case a type cannot serve: their unfiltered mode is legitimate, so a required discriminant would make both honest callers restate an intent it still could not verify, and rewrite hundreds of existing calls. Those are enforced by the test instead: every call must state a visibility argument, spread or name a local object that carries one, or carry the `visibility-unfiltered` marker in a comment explaining why. It reads the AST rather than matching names — a name-based rule was defeated four times, by a `...maxIdScope` pagination cursor, by a decoy named for an audience carrying no viewer, by an aliased import that made a call site vanish entirely, and by `database?.getActorStatuses(…)`, whose optional chaining hid it from the walk. Its one documented blind spot is a default re-export, which needs cross-module resolution.
 - **The gallery methods (`getGalleryMediaPage`, `getGallerySubjects`, `getGalleryLifeList`, `getGalleryMapPoints` in `lib/services/gallery/galleryQueries.ts`, and `getGalleryMediaByIds`) take a required `GalleryAudience` and have no fail-open mode.** `owner` is the only unfiltered audience; a viewer audience whose flags are all falsy is coerced to `publicOnly` in the gallery scope (`lib/database/kysely/visibility/galleryMedia.ts`), not by `toGalleryAudience` (which copies the flags through unchanged), so a caller that forgets them gets the public view, not everything. Do not loosen that database-layer coercion. Their attachment filter reuses `actorVisibleStatusIds`, so a photo is withheld from exactly the viewers its post is, and `getGalleryMediaByIds` re-applies the scope instead of trusting the ids it is given.

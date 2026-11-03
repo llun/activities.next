@@ -30,6 +30,7 @@ import { formatCompactRelativeTime } from './compactRelativeTime'
 import { InlineStatusComposer } from './lazy-inline-status-composer'
 import { PostBody, getPostTranslation } from './post-body'
 import { PostHeader } from './post-header'
+import { showsPrioritizableMedia } from './posts'
 import { ReactionRow } from './reaction-row'
 import { ReadOnlyStats } from './read-only-stats'
 import { StatusContextIndicator } from './status-context'
@@ -56,6 +57,12 @@ export interface CombinedPostListItemProps {
   postLineLimit?: PostLineLimit
   showReplyContext?: boolean
   parentPreview?: TimelineParentPreview | null
+  /**
+   * The feed's first picture is in this card: reveal the first picture of its
+   * first part that shows one without the hydration fade (see `Posts`'
+   * `prioritizeFirstMedia`).
+   */
+  prioritizeMedia?: boolean
   /** Reply/quote/edit are offered (signed-in actor and an interactive feed). */
   canCompose: boolean
   /**
@@ -379,6 +386,7 @@ export const CombinedPostListItem = memo(function CombinedPostListItem({
   postLineLimit,
   showReplyContext,
   parentPreview,
+  prioritizeMedia = false,
   canCompose,
   activeComposer,
   isMediaUploadEnabled,
@@ -421,6 +429,9 @@ export const CombinedPostListItem = memo(function CombinedPostListItem({
     ? (target: Status) => openQuote(target, anchorId)
     : undefined
   const separateItem = createShowSeparateMenuItem(() => onShowSeparate(rowIds))
+  const prioritizedPartIndex = prioritizeMedia
+    ? parts.findIndex((part) => showsPrioritizableMedia(part.status))
+    : -1
 
   return (
     <article
@@ -479,6 +490,7 @@ export const CombinedPostListItem = memo(function CombinedPostListItem({
                     currentActor={currentActor}
                     collapsible
                     postLineLimit={postLineLimit}
+                    prioritizeMedia={index === prioritizedPartIndex}
                     onShowAttachment={(medias, mediaIndex) =>
                       onShowMedia(medias, mediaIndex, actualStatus)
                     }

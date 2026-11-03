@@ -27,11 +27,14 @@ import {
   resolveActorStatusesAudience
 } from '@/lib/services/statusAccess'
 import { overlayStoredViewerState } from '@/lib/services/statuses/overlayViewerState'
+import { getProfileRepliesTabStatusIds } from '@/lib/services/statuses/repliesTab'
+import { getTimelineContext } from '@/lib/services/timelines/getTimelineContext'
 import { Actor } from '@/lib/types/activitypub'
 import { Actor as DomainActor } from '@/lib/types/domain/actor'
 import { Attachment, isVisualAttachment } from '@/lib/types/domain/attachment'
 import { ProfileTabVisibility } from '@/lib/types/domain/profileTabs'
 import { Status, StatusType } from '@/lib/types/domain/status'
+import { TimelineContext } from '@/lib/types/domain/timeline'
 import { getActorProfileFields } from '@/lib/utils/activitypubActor'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { getPersonFromActor } from '@/lib/utils/getPersonFromActor'
@@ -51,6 +54,15 @@ type ProfileData = {
   // values are HTML, `verifiedAt` comes from the stored actor row.
   profileFields: ProfileFieldItem[]
   statuses: Status[]
+  // A local account's statuses that belong on the profile's Replies tab: its
+  // replies whose self-reply chain starts with a reply to someone else. Every
+  // other status is on Posts. Absent for a remote profile, whose live outbox
+  // keeps the plain "is it a reply" split in the browser.
+  repliesTabStatusIds?: string[]
+  // A local account's reply-parent previews for `statuses`, the same `context`
+  // the home and list timelines carry, holding only parents this viewer may
+  // read. Absent for a remote profile.
+  timelineContext?: TimelineContext
   statusesCount: number | null
   statusPagination: {
     // A remote actor's feed pages through its outbox collection pages.
@@ -321,6 +333,22 @@ const getLocalProfileData = async (
     )
   ).filter((status): status is Status => status !== null)
 
+  // Which served statuses open the Replies tab rather than Posts, decided on
+  // the server by the first post of each self-reply chain. Scoped by the same
+  // audience, so the walk only passes through ancestors this viewer may read.
+  // Beside it, each reply's parent preview, as Home and lists show: only the
+  // parents this viewer may read (a signed-out visitor, the publicly readable
+  // ones), so an unreadable parent leaves the generic "In reply to a post".
+  const [repliesTabStatusIds, timelineContext] = await Promise.all([
+    getProfileRepliesTabStatusIds({
+      database,
+      actorId: persistedActor.id,
+      statuses,
+      audience: visibilityScope
+    }),
+    getTimelineContext({ database, currentActor, statuses })
+  ])
+
   return {
     person: getPersonFromActor(persistedActor),
     // A local actor's stored value is the raw text; the page shows the HTML
@@ -331,6 +359,8 @@ const getLocalProfileData = async (
       verifiedAt: toVerifiedAt(field.verifiedAt)
     })),
     statuses,
+    repliesTabStatusIds,
+    timelineContext,
     statusesCount,
     statusPagination: {
       nextPageUrl: null,

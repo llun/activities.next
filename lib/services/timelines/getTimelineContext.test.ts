@@ -78,7 +78,11 @@ describe('getTimelineContext', () => {
       const getStatusesByIds = vi.fn(async () => [parent])
       const database = { getStatusesByIds } as unknown as Database
 
-      const result = await getTimelineContext({ database, statuses: [status] })
+      const result = await getTimelineContext({
+        database,
+        currentActor: null,
+        statuses: [status]
+      })
 
       expect(getStatusesByIds).toHaveBeenCalledWith({ statusIds: [parent.id] })
       expect(result.ancestorsById[parent.id]).toMatchObject({
@@ -95,6 +99,7 @@ describe('getTimelineContext', () => {
     expect(
       await getTimelineContext({
         database,
+        currentActor: null,
         statuses: [boost(createMockStatus({ id: 'standalone' }))]
       })
     ).toEqual({ ancestorsById: {} })
@@ -109,6 +114,7 @@ describe('getTimelineContext', () => {
     expect(
       await getTimelineContext({
         database,
+        currentActor: null,
         statuses: [boost(createMockStatus({ id: 'reply-1', reply: 'missing' }))]
       })
     ).toEqual({ ancestorsById: {} })
@@ -143,6 +149,7 @@ describe('getTimelineContext', () => {
 
     const result = await getTimelineContext({
       database,
+      currentActor: null,
       statuses: [postE]
     })
 
@@ -191,6 +198,7 @@ describe('getTimelineContext', () => {
 
     const result = await getTimelineContext({
       database,
+      currentActor: null,
       statuses: initialStatuses
     })
 
@@ -236,6 +244,7 @@ describe('getTimelineContext', () => {
 
       const result = await getTimelineContext({
         database,
+        currentActor: null,
         statuses: boosted
           ? [child1, child2].map((status) =>
               boost(status, `boost-${status.id}`)
@@ -314,6 +323,7 @@ describe('getTimelineContext', () => {
 
       const result = await getTimelineContext({
         database,
+        currentActor: null,
         statuses: boosted
           ? [child1, child2, child3].map((status) =>
               boost(status, `boost-${status.id}`)
@@ -358,6 +368,7 @@ describe('getTimelineContext', () => {
 
     const result = await getTimelineContext({
       database,
+      currentActor: null,
       statuses: [orphanChild]
     })
 
@@ -388,6 +399,7 @@ describe('getTimelineContext', () => {
 
     const result = await getTimelineContext({
       database,
+      currentActor: null,
       statuses: [child]
     })
 
@@ -490,6 +502,7 @@ describe('getTimelineContext', () => {
 
     const result = await getTimelineContext({
       database,
+      currentActor: null,
       statuses: [child]
     })
 

@@ -243,6 +243,9 @@ export const getListTimeline = async ({
   const data = await response.json()
   return {
     statuses: data.statuses as Status[],
+    ...(data.context !== undefined
+      ? { context: data.context as TimelineContext }
+      : {}),
     nextMaxStatusId: data.nextMaxStatusId ?? null,
     prevMinStatusId: data.prevMinStatusId ?? null
   }

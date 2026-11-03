@@ -7,11 +7,15 @@ import { FC, useCallback, useRef, useState } from 'react'
 import { getListTimeline } from '@/lib/client'
 import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
 import { PageHeader } from '@/lib/components/page-header'
-import { Posts } from '@/lib/components/posts/posts'
 import {
   removeOriginalStatus,
   updateMatchingStatus
 } from '@/lib/components/posts/statusArray'
+import { TimelineFeed } from '@/lib/components/posts/timeline-feed'
+import {
+  initialTimelineContext,
+  mergeTimelineContext
+} from '@/lib/components/posts/timelineContext'
 import { useLoadMoreOnVisible } from '@/lib/components/posts/useLoadMoreOnVisible'
 import { ScrollToTopButton } from '@/lib/components/scroll-to-top-button'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
@@ -19,6 +23,7 @@ import { Button } from '@/lib/components/ui/button'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Status, StatusNote, StatusPoll } from '@/lib/types/domain/status'
+import { TimelineContext } from '@/lib/types/domain/timeline'
 import { ListEntity } from '@/lib/types/mastodon/list'
 import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
 
@@ -27,6 +32,8 @@ interface ListTimelineProps {
   list: ListEntity
   memberCount: number
   statuses: Status[]
+  /** Parent previews for the first page's replies, as the home timeline has. */
+  timelineContext?: TimelineContext
   currentTime: number
   currentActor: ActorProfile
   isMediaUploadEnabled?: boolean
@@ -43,12 +50,15 @@ export const ListTimeline: FC<ListTimelineProps> = ({
   list,
   memberCount,
   statuses,
+  timelineContext,
   currentTime,
   currentActor,
   isMediaUploadEnabled,
   postLineLimit
 }) => {
   const [currentStatuses, setCurrentStatuses] = useState<Status[]>(statuses)
+  const [currentTimelineContext, setCurrentTimelineContext] =
+    useState<TimelineContext>(() => initialTimelineContext(timelineContext))
   const [hasMoreStatuses, setHasMoreStatuses] = useState<boolean>(
     statuses.length > 0
   )
@@ -131,6 +141,9 @@ export const ListTimeline: FC<ListTimelineProps> = ({
       }
       lastStatusIdRef.current = result.statuses[result.statuses.length - 1].id
       setHasMoreStatuses(Boolean(result.nextMaxStatusId))
+      setCurrentTimelineContext((previous) =>
+        mergeTimelineContext(previous, result.context)
+      )
       setCurrentStatuses((previousStatuses) => [
         ...previousStatuses,
         ...result.statuses
@@ -169,10 +182,14 @@ export const ListTimeline: FC<ListTimelineProps> = ({
       />
 
       {currentStatuses.length > 0 ? (
-        <Posts
+        // The home timeline's feed and grouping, so a member's self-replies
+        // combine into one card as on Home. Boosts stay individual cards (the
+        // carousel is the home timeline's reading preference).
+        <TimelineFeed
           host={host}
           currentTime={currentTime}
           statuses={currentStatuses}
+          timelineContext={currentTimelineContext}
           currentActor={currentActor}
           showActions
           isMediaUploadEnabled={isMediaUploadEnabled}

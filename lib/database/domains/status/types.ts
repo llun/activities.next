@@ -13,6 +13,7 @@ import type { Selectable } from 'kysely'
 
 import type { CreateQueueJobParams } from '@/lib/database/domains/queueJob/types'
 import type { Statuses } from '@/lib/database/kysely/db'
+import type { ActorVisibleStatusAudience } from '@/lib/database/kysely/visibility/actorVisible'
 import type {
   Attachment,
   AttachmentMediaMetadata,
@@ -442,6 +443,17 @@ export type GetActorStatusesParams = {
   tagged?: string | null
   pinned?: boolean
 }
+export type GetRepliesTabStatusIdsParams = {
+  actorId: string
+  // A page of the actor's statuses the viewer was served (a page, not a whole
+  // history: they seed one recursive query). Only the actor's own replies
+  // among them are classified; every other id is on the Posts tab.
+  statusIds: string[]
+  // Who is looking, as for `getActorStatuses`. Required, so a caller cannot
+  // forget it: the walk up the self-reply chain passes only through ancestors
+  // this audience may read. `{}` is the owner's unfiltered view.
+  audience: ActorVisibleStatusAudience
+}
 export type GetStatusesByIdsParams = {
   statusIds: string[]
   currentActorId?: string
@@ -556,6 +568,9 @@ export interface StatusReadDatabase {
   ): Promise<StatusEditRevision[]>
   getActorStatusesCount(params: GetActorStatusesCountParams): Promise<number>
   getActorStatuses(params: GetActorStatusesParams): Promise<Status[]>
+  getRepliesTabStatusIds(
+    params: GetRepliesTabStatusIdsParams
+  ): Promise<string[]>
   getStatusesByIds(params: GetStatusesByIdsParams): Promise<Status[]>
   getStatusReblogsCount(params: GetStatusReblogsCountParams): Promise<number>
   getStatusReblogsCounts(

@@ -6,6 +6,7 @@ import {
   buildStatusHydrationContext,
   hydrateStatusRow
 } from '@/lib/database/domains/status/hydration'
+import { sameActorReplyParentMatches } from '@/lib/database/domains/status/replyParent'
 import type {
   GetActorStatusesCountParams,
   GetActorStatusesParams,
@@ -253,26 +254,25 @@ export const getActorStatuses = async (
   }
 
   if (excludeReplies) {
+    // A reply to the actor's own status is not a reply (Mastodon's rule), so
+    // it stays: one EXISTS per match form of the shared rule.
     query = query.where((eb) =>
       eb.or([
         eb.or([
           eb('statuses.reply', 'is', null),
           eb('statuses.reply', '=', '')
         ]),
-        eb.exists(
-          eb
-            .selectFrom('statuses as reply_parent_by_id')
-            .select(sql.lit(1).as('one'))
-            .where('reply_parent_by_id.actorId', '=', actorId)
-            .whereRef('reply_parent_by_id.id', '=', 'statuses.reply')
-        ),
-        eb.exists(
-          eb
-            .selectFrom('statuses as reply_parent_by_url')
-            .select(sql.lit(1).as('one'))
-            .where('reply_parent_by_url.actorId', '=', actorId)
-            .whereRef('reply_parent_by_url.urlHash', '=', 'statuses.replyHash')
-            .whereRef('reply_parent_by_url.url', '=', 'statuses.reply')
+        ...sameActorReplyParentMatches({
+          parent: 'reply_parent',
+          child: 'statuses',
+          actorId
+        }).map((match) =>
+          eb.exists(
+            eb
+              .selectFrom('statuses as reply_parent')
+              .select(sql.lit(1).as('one'))
+              .where(match)
+          )
         )
       ])
     )
