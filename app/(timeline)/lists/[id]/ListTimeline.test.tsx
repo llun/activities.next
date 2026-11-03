@@ -71,6 +71,7 @@ vi.mock('@/lib/components/posts/timeline-feed', () => ({
     timelineContext,
     onPostDeleted,
     onPostUpdated,
+    onReplyCreated,
     onLikeChanged,
     onBookmarkChanged,
     onReactionsChanged
@@ -80,6 +81,7 @@ vi.mock('@/lib/components/posts/timeline-feed', () => ({
     timelineContext?: TimelineContext
     onPostDeleted?: (status: Status) => void
     onPostUpdated?: (status: Status) => void
+    onReplyCreated?: (status: Status) => void
     onLikeChanged?: (status: any, isLiked: boolean) => void
     onBookmarkChanged?: (status: any, isBookmarked: boolean) => void
     onReactionsChanged?: (status: any, reactions: any[]) => void
@@ -117,6 +119,17 @@ vi.mock('@/lib/components/posts/timeline-feed', () => ({
               onClick={() => onPostDeleted?.(status)}
             >
               delete
+            </button>
+            <button
+              type="button"
+              data-testid={`trigger-reply-${status.id}`}
+              onClick={() =>
+                onReplyCreated?.(
+                  createStatus(`${status.id}/reply`, { reply: status.id })
+                )
+              }
+            >
+              reply
             </button>
             <button
               type="button"
@@ -413,6 +426,51 @@ describe('ListTimeline', () => {
     expect(screen.getByTestId('feed-parent-previews')).toHaveTextContent(
       'parent-1 parent-2'
     )
+  })
+
+  describe('reply created inline', () => {
+    it('inserts the reply after its parent and counts it', () => {
+      const first = createStatus('https://activities.local/users/llun/s/1')
+      const second = createStatus('https://activities.local/users/llun/s/2')
+      render(
+        <ListTimeline
+          host="activities.local"
+          list={list}
+          memberCount={1}
+          statuses={[first, second]}
+          currentTime={FIXED_CURRENT_TIME}
+          currentActor={profile}
+        />
+      )
+
+      fireEvent.click(screen.getByTestId(`trigger-reply-${first.id}`))
+
+      const ids = screen.getAllByTestId(/^post-id-/).map((el) => el.textContent)
+      expect(ids).toEqual([
+        `id:${first.id}`,
+        `id:${first.id}/reply`,
+        `id:${second.id}`
+      ])
+    })
+
+    it('does not insert the same reply twice', () => {
+      const first = createStatus('https://activities.local/users/llun/s/1')
+      render(
+        <ListTimeline
+          host="activities.local"
+          list={list}
+          memberCount={1}
+          statuses={[first]}
+          currentTime={FIXED_CURRENT_TIME}
+          currentActor={profile}
+        />
+      )
+
+      fireEvent.click(screen.getByTestId(`trigger-reply-${first.id}`))
+      fireEvent.click(screen.getByTestId(`trigger-reply-${first.id}`))
+
+      expect(screen.getAllByTestId(/^post-id-/)).toHaveLength(2)
+    })
   })
 
   describe('status updates and engagement sync', () => {

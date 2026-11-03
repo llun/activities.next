@@ -408,7 +408,10 @@ export const CombinedPostListItem = memo(function CombinedPostListItem({
   const firstStatus = parts[0].status
   const lastStatus = parts[parts.length - 1].status
   const firstActual = getActualStatus(firstStatus)
-  const anchorId = firstStatus.id
+  // The composer is anchored to the latest part, so after "Show as separate
+  // posts" splits the row it sits under the post that was replied to rather
+  // than jumping under the first part.
+  const anchorId = lastStatus.id
   // Held here, for the first post: the chips and the bar's react button are two
   // halves of one control (see `Post`).
   const reactionState = useReactionState({
@@ -428,6 +431,10 @@ export const CombinedPostListItem = memo(function CombinedPostListItem({
   const handleQuote = canCompose
     ? (target: Status) => openQuote(target, anchorId)
     : undefined
+  const authorName = firstActual.actor
+    ? getActorDisplayName(firstActual.actor) || firstActual.actor.username
+    : 'someone'
+  const articleLabel = `Thread by ${authorName}, ${parts.length} posts`
   const separateItem = createShowSeparateMenuItem(() => onShowSeparate(rowIds))
   const prioritizedPartIndex = prioritizeMedia
     ? parts.findIndex((part) => showsPrioritizableMedia(part.status))
@@ -437,6 +444,7 @@ export const CombinedPostListItem = memo(function CombinedPostListItem({
     <article
       // See `PostListItem` for what `feed-row` contains.
       className="feed-row min-h-0 min-w-0 px-4 py-3"
+      aria-label={articleLabel}
       data-combined-post
     >
       <TranslationProvider
