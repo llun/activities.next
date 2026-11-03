@@ -258,6 +258,32 @@ product or security decision, not a gap to be closed.
   underlying `getStatusContext` service is shared with native server components,
   resolves both database UUIDs and URL aliases, enforces viewer visibility/block
   predicates, and bounds iterative ancestor and descendant traversal.
+  - **Each status is filtered on its own, as in Mastodon.** A reply the viewer
+    may not see — unreadable to them, by an actor they block or mute, or from a
+    domain they blocked (`getActorDomainBlocks` + `filterDomainBlockedStatuses`,
+    read once per call and applied to ancestors and descendants alike) — is left
+    out, but the walk still steps through it, and each reply below it is returned
+    if it passes its own check. The client shows such a reply with "Prior reply
+    is unavailable" (`parentUnavailable` in `threadModel.ts`).
+  - The walk steps through hidden replies with `getStatusReplyRefs` (ids, urls
+    and `createdAt` only, **no visibility predicate**; never serve its rows) and
+    reads the replies it may return through `getStatusReplies` with the viewer's
+    SQL scope, then `filterReadableStatuses` on top, so a hidden reply is never
+    hydrated.
+  - Bounds: the descendants limit (60 signed out, 4096 signed in, 60 on the post
+    page), a visit budget of `DESCENDANTS_VISIT_FACTOR` (3) reply rows per
+    descendant the limit allows, and, for a signed-out viewer, Mastodon's depth
+    limit `ANONYMOUS_DESCENDANTS_DEPTH_LIMIT` (20 levels below the opened status).
+  - Before the depth-first fill, the opened status's author's own self-thread
+    (each part the earliest visible reply by that author to the previous part,
+    read with `getStatusReplies({ actorId })`) is reserved, so earlier side
+    branches cannot push the author's part 2 out of the limit. Descendants are
+    still returned in depth-first pre-order, oldest first with an id tie-break.
+  - `hasMoreDescendants` is true when a visible reply was left out by the limit,
+    when replies were left unread by the visit budget, or when a visible reply
+    sits just below the anonymous depth limit; `hasMoreAncestors` is true only
+    when the next parent exists and the viewer may see it. The Mastodon route
+    does not expose either.
 
 ### Media
 

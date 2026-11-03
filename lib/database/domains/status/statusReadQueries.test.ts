@@ -21,6 +21,7 @@ import {
   getStatusReplies,
   getStatusRepliesCount,
   getStatusRepliesCounts,
+  getStatusReplyRefs,
   getStatusesByIds
 } from '@/lib/database/domains/status/reads'
 import type { StatusRow } from '@/lib/database/domains/status/types'
@@ -1990,6 +1991,71 @@ describe('getStatusReplies', () => {
     await expect(
       getStatusReplies(db, { statusId: undefined as unknown as string })
     ).resolves.toEqual([])
+  })
+  it('narrows to one author’s replies', async () => {
+    const prefix = nextPrefix()
+    const seed = await seedReplies(prefix)
+    const own = await seedStatus({
+      id: `${seed.author}/statuses/own-reply`,
+      actorId: seed.author,
+      reply: seed.parent,
+      createdAt: BASE + 6 * MINUTE
+    })
+
+    await expect(
+      getStatusReplies(db, {
+        statusId: seed.parent,
+        url: seed.url,
+        actorId: seed.author,
+        order: 'asc'
+      }).then(ids)
+    ).resolves.toEqual([own])
+  })
+})
+
+describe('getStatusReplyRefs', () => {
+  it('reads every reply’s id, url and createdAt oldest first, whatever its audience, up to the limit', async () => {
+    const prefix = nextPrefix()
+    const author = await seedActor(actorIn(prefix, 'author'))
+    const replier = await seedActor(actorIn(prefix, 'replier'))
+    const parent = await seedStatus({
+      id: `${author}/statuses/parent`,
+      actorId: author,
+      url: `${author}/@parent`
+    })
+    const reply = (name: string, values: Partial<SeedStatus>) =>
+      seedStatus({
+        id: `${replier}/statuses/${name}`,
+        actorId: replier,
+        ...values
+      })
+    const byUrl = await reply('b-by-url', {
+      reply: `${author}/@parent`,
+      createdAt: BASE + 2 * MINUTE
+    })
+    const followersOnly = await reply('c-followers', {
+      reply: parent,
+      createdAt: BASE + 3 * MINUTE,
+      to: [`${replier}/followers`]
+    })
+    const oldest = await reply('z-oldest', {
+      reply: parent,
+      createdAt: BASE + MINUTE
+    })
+
+    const refs = await getStatusReplyRefs(db, {
+      statusId: parent,
+      url: `${author}/@parent`,
+      limit: 10
+    })
+    expect(refs.map((ref) => ref.id)).toEqual([oldest, byUrl, followersOnly])
+    expect(Object.keys(refs[0]).sort()).toEqual(['createdAt', 'id', 'url'])
+
+    await expect(
+      getStatusReplyRefs(db, { statusId: parent, limit: 1 }).then((rows) =>
+        rows.map((row) => row.id)
+      )
+    ).resolves.toEqual([oldest])
   })
 })
 

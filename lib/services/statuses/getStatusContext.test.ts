@@ -11,12 +11,18 @@ import {
 
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
-import { getStatusContext } from '@/lib/services/statuses/getStatusContext'
+import {
+  ANONYMOUS_DESCENDANTS_DEPTH_LIMIT,
+  DESCENDANTS_VISIT_FACTOR,
+  getStatusContext
+} from '@/lib/services/statuses/getStatusContext'
 import { seedDatabase } from '@/lib/stub/database'
 import { statusPublicId } from '@/lib/stub/publicIds'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
-import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
+import { ACTOR2_FOLLOWER_URL, ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
+import { ACTOR4_ID } from '@/lib/stub/seed/actor4'
+import { EXTERNAL_ACTOR1 } from '@/lib/stub/seed/external1'
 import { Actor } from '@/lib/types/domain/actor'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
@@ -402,6 +408,14 @@ describe('getStatusContext', () => {
 
     const wrappedDb = {
       ...database,
+      getStatusReplyRefs: vi.fn(async ({ statusId }: { statusId: string }) =>
+        statusId === sortRootId
+          ? [
+              { id: replyValidDateId, url: null, createdAt: 50000 },
+              { id: replyInvalidDateId, url: null, createdAt: 'invalid-date' }
+            ]
+          : []
+      ),
       getStatusReplies: vi.fn(async ({ statusId }: { statusId: string }) => {
         if (statusId === sortRootId) {
           return [
@@ -441,5 +455,302 @@ describe('getStatusContext', () => {
       replyInvalidDateId,
       replyValidDateId
     ])
+  })
+
+  describe('per-status descendant filtering, limits and the author self-thread', () => {
+    const note = (
+      id: string,
+      actorId: string,
+      values: {
+        reply?: string
+        createdAt?: number
+        to?: string[]
+      } = {}
+    ) =>
+      database.createNote({
+        id,
+        url: id,
+        actorId,
+        text: id,
+        reply: values.reply,
+        createdAt: values.createdAt,
+        to: values.to ?? [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+    const ids = (statuses: Status[]) => statuses.map((item) => item.id)
+
+    afterEach(async () => {
+      await database.deleteActorDomainBlock({
+        actorId: ACTOR1_ID,
+        domain: 'llun.dev'
+      })
+    })
+
+    it('returns the reply under a muted author’s reply', async () => {
+      const rootId = `${ACTOR1_ID}/statuses/ctx-muted-sub-root`
+      const mutedId = `${ACTOR3_ID}/statuses/ctx-muted-sub-reply`
+      const childId = `${ACTOR4_ID}/statuses/ctx-muted-sub-child`
+      await note(rootId, ACTOR1_ID)
+      await note(mutedId, ACTOR3_ID, { reply: rootId, createdAt: 1000 })
+      await note(childId, ACTOR4_ID, { reply: mutedId, createdAt: 2000 })
+      await database.createMute({
+        actorId: ACTOR1_ID,
+        targetActorId: ACTOR3_ID,
+        notifications: false,
+        endsAt: null
+      })
+
+      const result = await getStatusContext({
+        database,
+        statusId: rootId,
+        currentActor: actor1
+      })
+
+      expect(ids(result.descendants)).toEqual([childId])
+      expect(result.hasMoreDescendants).toBe(false)
+    })
+
+    it('returns a public reply under a followers-only one to a signed-out viewer, never the followers-only ones', async () => {
+      const rootId = `${ACTOR1_ID}/statuses/ctx-fo-root`
+      const followersOnlyId = `${ACTOR2_ID}/statuses/ctx-fo-reply`
+      const publicChildId = `${ACTOR3_ID}/statuses/ctx-fo-public-child`
+      const followersOnlyGrandchildId = `${ACTOR2_ID}/statuses/ctx-fo-grandchild`
+      await note(rootId, ACTOR1_ID)
+      await note(followersOnlyId, ACTOR2_ID, {
+        reply: rootId,
+        createdAt: 1000,
+        to: [ACTOR2_FOLLOWER_URL]
+      })
+      await note(publicChildId, ACTOR3_ID, {
+        reply: followersOnlyId,
+        createdAt: 2000
+      })
+      await note(followersOnlyGrandchildId, ACTOR2_ID, {
+        reply: publicChildId,
+        createdAt: 3000,
+        to: [ACTOR2_FOLLOWER_URL]
+      })
+
+      const anonymous = await getStatusContext({
+        database,
+        statusId: rootId
+      })
+      expect(ids(anonymous.descendants)).toEqual([publicChildId])
+      expect(anonymous.hasMoreDescendants).toBe(false)
+
+      // actor1 does not follow ACTOR2 either.
+      const signedIn = await getStatusContext({
+        database,
+        statusId: rootId,
+        currentActor: actor1
+      })
+      expect(ids(signedIn.descendants)).toEqual([publicChildId])
+    })
+
+    it('hides a reply from a domain the viewer blocked as an ancestor and as a descendant', async () => {
+      const rootId = `${ACTOR1_ID}/statuses/ctx-domain-root`
+      const blockedId = `${EXTERNAL_ACTOR1}/statuses/ctx-domain-reply`
+      const childId = `${ACTOR4_ID}/statuses/ctx-domain-child`
+      await note(rootId, ACTOR1_ID)
+      await note(blockedId, EXTERNAL_ACTOR1, { reply: rootId, createdAt: 1000 })
+      await note(childId, ACTOR4_ID, { reply: blockedId, createdAt: 2000 })
+
+      const before = await getStatusContext({
+        database,
+        statusId: rootId,
+        currentActor: actor1
+      })
+      expect(ids(before.descendants)).toEqual([blockedId, childId])
+
+      await database.createActorDomainBlock({
+        actorId: ACTOR1_ID,
+        domain: 'llun.dev'
+      })
+
+      const fromRoot = await getStatusContext({
+        database,
+        statusId: rootId,
+        currentActor: actor1
+      })
+      expect(ids(fromRoot.descendants)).toEqual([childId])
+
+      const fromChild = await getStatusContext({
+        database,
+        statusId: childId,
+        currentActor: actor1
+      })
+      expect(ids(fromChild.ancestors)).toEqual([rootId])
+    })
+
+    it('reports no more descendants at exactly the limit, and more at one past it', async () => {
+      const exactRootId = `${ACTOR1_ID}/statuses/ctx-exact-root`
+      const overRootId = `${ACTOR1_ID}/statuses/ctx-over-root`
+      await note(exactRootId, ACTOR1_ID)
+      await note(overRootId, ACTOR1_ID)
+      for (let index = 0; index < 4; index++) {
+        if (index < 3) {
+          await note(`${ACTOR2_ID}/statuses/ctx-exact-${index}`, ACTOR2_ID, {
+            reply: exactRootId,
+            createdAt: 1000 + index
+          })
+        }
+        await note(`${ACTOR2_ID}/statuses/ctx-over-${index}`, ACTOR2_ID, {
+          reply: overRootId,
+          createdAt: 1000 + index
+        })
+      }
+
+      const exact = await getStatusContext({
+        database,
+        statusId: exactRootId,
+        currentActor: actor1,
+        descendantsLimit: 3
+      })
+      expect(exact.descendants).toHaveLength(3)
+      expect(exact.hasMoreDescendants).toBe(false)
+
+      const over = await getStatusContext({
+        database,
+        statusId: overRootId,
+        currentActor: actor1,
+        descendantsLimit: 3
+      })
+      expect(ids(over.descendants)).toEqual([
+        `${ACTOR2_ID}/statuses/ctx-over-0`,
+        `${ACTOR2_ID}/statuses/ctx-over-1`,
+        `${ACTOR2_ID}/statuses/ctx-over-2`
+      ])
+      expect(over.hasMoreDescendants).toBe(true)
+    })
+
+    it('reports more ancestors only when the next one exists', async () => {
+      const missingParentId = `${ACTOR2_ID}/statuses/ctx-anc-missing`
+      const parentId = `${ACTOR1_ID}/statuses/ctx-anc-exact-parent`
+      const leafId = `${ACTOR1_ID}/statuses/ctx-anc-exact-leaf`
+      await note(parentId, ACTOR1_ID, { reply: missingParentId })
+      await note(leafId, ACTOR1_ID, { reply: parentId })
+
+      const result = await getStatusContext({
+        database,
+        statusId: leafId,
+        currentActor: actor1,
+        ancestorsLimit: 1
+      })
+      expect(ids(result.ancestors)).toEqual([parentId])
+      expect(result.hasMoreAncestors).toBe(false)
+    })
+
+    it(`stops ${ANONYMOUS_DESCENDANTS_DEPTH_LIMIT} levels down for a signed-out viewer`, async () => {
+      const rootId = `${ACTOR1_ID}/statuses/ctx-depth-root`
+      await note(rootId, ACTOR1_ID)
+      const chainIds: string[] = []
+      let parent = rootId
+      for (
+        let level = 1;
+        level <= ANONYMOUS_DESCENDANTS_DEPTH_LIMIT + 2;
+        level++
+      ) {
+        const id = `${ACTOR2_ID}/statuses/ctx-depth-${level}`
+        await note(id, ACTOR2_ID, { reply: parent, createdAt: 1000 + level })
+        chainIds.push(id)
+        parent = id
+      }
+
+      const anonymous = await getStatusContext({
+        database,
+        statusId: rootId
+      })
+      expect(ids(anonymous.descendants)).toEqual(
+        chainIds.slice(0, ANONYMOUS_DESCENDANTS_DEPTH_LIMIT)
+      )
+      expect(anonymous.hasMoreDescendants).toBe(true)
+
+      const signedIn = await getStatusContext({
+        database,
+        statusId: rootId,
+        currentActor: actor1
+      })
+      expect(ids(signedIn.descendants)).toEqual(chainIds)
+      expect(signedIn.hasMoreDescendants).toBe(false)
+    })
+
+    it('keeps the author’s later parts when earlier side replies fill the limit', async () => {
+      const rootId = `${ACTOR1_ID}/statuses/ctx-parts-root`
+      const part2Id = `${ACTOR1_ID}/statuses/ctx-parts-2`
+      const part3Id = `${ACTOR1_ID}/statuses/ctx-parts-3`
+      await note(rootId, ACTOR1_ID)
+      const sideIds: string[] = []
+      for (let index = 0; index < 61; index++) {
+        const id = `${ACTOR2_ID}/statuses/ctx-parts-side-${String(index).padStart(2, '0')}`
+        await note(id, ACTOR2_ID, { reply: rootId, createdAt: 1000 + index })
+        sideIds.push(id)
+      }
+      await note(part2Id, ACTOR1_ID, { reply: rootId, createdAt: 5000 })
+      await note(part3Id, ACTOR1_ID, { reply: part2Id, createdAt: 6000 })
+
+      for (const currentActor of [undefined, actor1]) {
+        const result = await getStatusContext({
+          database,
+          statusId: rootId,
+          currentActor,
+          descendantsLimit: 60
+        })
+        // Still depth-first pre-order: the earlier side replies, then the parts.
+        expect(ids(result.descendants)).toEqual([
+          ...sideIds.slice(0, 58),
+          part2Id,
+          part3Id
+        ])
+        expect(result.hasMoreDescendants).toBe(true)
+      }
+    })
+
+    it('bounds the reply reads by the visit budget when every reply is hidden', async () => {
+      const rootId = `${ACTOR1_ID}/statuses/ctx-visit-root`
+      await note(rootId, ACTOR1_ID)
+      for (let index = 0; index < 30; index++) {
+        await note(`${ACTOR2_ID}/statuses/ctx-visit-${index}`, ACTOR2_ID, {
+          reply: rootId,
+          createdAt: 1000 + index,
+          to: [ACTOR2_FOLLOWER_URL]
+        })
+      }
+      const getStatusReplyRefs = vi.fn(database.getStatusReplyRefs)
+      const getStatusReplies = vi.fn(database.getStatusReplies)
+      const spiedDb = {
+        ...database,
+        getStatusReplyRefs,
+        getStatusReplies
+      } as Database
+
+      const descendantsLimit = 2
+      const result = await getStatusContext({
+        database: spiedDb,
+        statusId: rootId,
+        descendantsLimit
+      })
+
+      const visitCap = descendantsLimit * DESCENDANTS_VISIT_FACTOR
+      expect(result.descendants).toEqual([])
+      // The walk stopped with replies left unread.
+      expect(result.hasMoreDescendants).toBe(true)
+      expect(getStatusReplyRefs.mock.calls.length).toBeLessThanOrEqual(
+        visitCap + 1
+      )
+      const refsRead = (
+        await Promise.all(
+          getStatusReplyRefs.mock.results.map((call) => call.value)
+        )
+      ).reduce((sum, rows) => sum + rows.length, 0)
+      expect(refsRead).toBeLessThanOrEqual(visitCap + 1)
+      expect(getStatusReplies.mock.calls.length).toBeLessThanOrEqual(
+        visitCap + 2
+      )
+      for (const [params] of getStatusReplies.mock.calls) {
+        expect(params.publicOnly).toBe(true)
+        expect(params.limit).toBeGreaterThan(0)
+        expect(params.limit).toBeLessThanOrEqual(visitCap)
+      }
+    })
   })
 })

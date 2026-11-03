@@ -101,6 +101,46 @@ describe('threadModel', () => {
     expect(tree.descendants[0].parentUnavailable).toBe(true)
   })
 
+  it('shows a reply whose parent the context left out (hidden mid-thread) as a reply to an unavailable post, with its own replies nested', () => {
+    const a1 = createMockNote({
+      id: 'https://activities.local/users/alice/statuses/a1',
+      actor: mockAlice,
+      actorId: mockAlice.id,
+      createdAt: BASE_TIME
+    })
+    // Bob's reply to A1 is hidden from this viewer (muted, followers-only, …),
+    // so the context returns Carol's reply to it and Dave's reply to Carol
+    // without it.
+    const hiddenBobReplyId = 'https://activities.local/users/bob/statuses/b1'
+    const c1 = createMockNote({
+      id: 'https://activities.local/users/carol/statuses/c1',
+      actor: mockCarol,
+      actorId: mockCarol.id,
+      reply: hiddenBobReplyId,
+      createdAt: BASE_TIME + 120000
+    })
+    const d1 = createMockNote({
+      id: 'https://activities.local/users/dave/statuses/d1',
+      actor: mockDave,
+      actorId: mockDave.id,
+      reply: c1.id,
+      createdAt: BASE_TIME + 180000
+    })
+
+    const tree = buildThreadTree({
+      focusedStatus: a1,
+      descendants: [c1, d1]
+    })
+
+    expect(tree.totalDescendants).toBe(2)
+    expect(tree.descendants).toHaveLength(1)
+    const c1Node = tree.descendants[0]
+    expect(c1Node.status.id).toBe(c1.id)
+    expect(c1Node.parentUnavailable).toBe(true)
+    expect(c1Node.replies.map((node) => node.status.id)).toEqual([d1.id])
+    expect(c1Node.replies[0].parentUnavailable).toBeUndefined()
+  })
+
   it('expands all branches when total descendants < 10', () => {
     const a1 = createMockNote({
       id: 'https://activities.local/users/alice/statuses/a1',

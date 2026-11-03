@@ -372,7 +372,18 @@ export type GetStatusRepliesParams = {
   // Hydration-only viewer; see GetActorStatusesParams.
   currentActorId?: string
   order?: 'asc' | 'desc'
+  // Only the replies this actor wrote (a self-thread's next part).
+  actorId?: string
 }
+// The reply tree's shape only — no content, no visibility predicate — for a
+// caller that walks through replies it may not show and hydrates the ones it
+// may through getStatusReplies (see getStatusContext).
+export type GetStatusReplyRefsParams = {
+  statusId: string
+  url?: string
+  limit: number
+}
+export type StatusReplyRef = Pick<StatusRow, 'id' | 'url' | 'createdAt'>
 export type GetStatusEditHistoryParams = {
   statusId: string
 }
@@ -563,6 +574,9 @@ export interface StatusLookupDatabase {
 export interface StatusReadDatabase {
   getStatus(params: GetStatusParams): Promise<Status | null>
   getStatusReplies(params: GetStatusRepliesParams): Promise<Status[]>
+  getStatusReplyRefs(
+    params: GetStatusReplyRefsParams
+  ): Promise<StatusReplyRef[]>
   getStatusEditHistory(
     params: GetStatusEditHistoryParams
   ): Promise<StatusEditRevision[]>
