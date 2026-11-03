@@ -475,14 +475,14 @@ describe('selfThreadModel', () => {
     })
 
     describe('ancestor runs for any author', () => {
-      const maytheeRun = () => {
+      const jasmineRun = () => {
         const m1 = note('m1', { at: 0 })
         const m2 = note('m2', { at: MINUTE, reply: m1.id })
         return [m1, m2] as const
       }
 
       it('collects an ancestor run by another author when the opened post is by someone else', () => {
-        const [m1, m2] = maytheeRun()
+        const [m1, m2] = jasmineRun()
         const v1 = note('v1', { actor: mockBob, at: 2 * MINUTE, reply: m2.id })
 
         const model = buildSelfThreadModel({
@@ -509,7 +509,7 @@ describe('selfThreadModel', () => {
       })
 
       it('exposes the ancestor part the opened post replies to with its index and count', () => {
-        const [m1, m2] = maytheeRun()
+        const [m1, m2] = jasmineRun()
         const v1 = note('v1', { actor: mockBob, at: 2 * MINUTE, reply: m2.id })
 
         const model = buildSelfThreadModel({
@@ -526,7 +526,7 @@ describe('selfThreadModel', () => {
       })
 
       it('collects two ancestor runs for a deep chain of two authors', () => {
-        const [m1, m2] = maytheeRun()
+        const [m1, m2] = jasmineRun()
         const v1 = note('v1', { actor: mockBob, at: 2 * MINUTE, reply: m2.id })
         const v2 = note('v2', { actor: mockBob, at: 3 * MINUTE, reply: v1.id })
         const c1 = note('c1', {
@@ -554,7 +554,7 @@ describe('selfThreadModel', () => {
       })
 
       it('reports the ancestor part the focused run answers, from the run’s first part', () => {
-        const [m1, m2] = maytheeRun()
+        const [m1, m2] = jasmineRun()
         const v1 = note('v1', { actor: mockBob, at: 2 * MINUTE, reply: m2.id })
         const v2 = note('v2', { actor: mockBob, at: 3 * MINUTE, reply: v1.id })
 
@@ -637,7 +637,7 @@ describe('selfThreadModel', () => {
       })
 
       it('drops the i of n numbers when earlier ancestors were not loaded', () => {
-        const [m1, m2] = maytheeRun()
+        const [m1, m2] = jasmineRun()
         const v1 = note('v1', { actor: mockBob, at: 2 * MINUTE, reply: m2.id })
 
         const model = buildSelfThreadModel({
@@ -656,7 +656,7 @@ describe('selfThreadModel', () => {
       })
 
       it("labels a reply to another author's ancestor run part under Replies", () => {
-        const [m1, m2] = maytheeRun()
+        const [m1, m2] = jasmineRun()
         const v1 = note('v1', { actor: mockBob, at: 2 * MINUTE, reply: m2.id })
         const replyToM2 = note('reply-m2', {
           actor: mockCarol,

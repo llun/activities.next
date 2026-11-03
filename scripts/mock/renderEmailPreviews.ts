@@ -78,7 +78,7 @@ const fixtureActor = (
 })
 
 const anna = fixtureActor('anna', 'llun.social', 'Anna')
-const maythee = fixtureActor('maythee', 'mastodon.social', 'Maythee')
+const jasmine = fixtureActor('jasmine', 'mastodon.social', 'Jasmine')
 // Ben is the one fixture with an avatar, so the preview shows both the image
 // path and (for the other actors) the monogram fallback. A generic identicon
 // rather than a real person's avatar.
@@ -171,7 +171,7 @@ const buildPreviews = (): Preview[] => [
   {
     slug: 'follow',
     group: 'Notifications',
-    email: buildFollowEmail({ recipient: anna, actor: maythee })
+    email: buildFollowEmail({ recipient: anna, actor: jasmine })
   },
   {
     slug: 'follow-request',
@@ -183,9 +183,9 @@ const buildPreviews = (): Preview[] => [
     group: 'Notifications',
     email: buildMentionEmail({
       recipient: anna,
-      actor: maythee,
+      actor: jasmine,
       status: fixtureStatus(
-        maythee,
+        jasmine,
         '@anna have you tried the new Garmin Connect sync yet? Curious how it handles multi-sport days.',
         'note-88213'
       )
@@ -222,7 +222,7 @@ const buildPreviews = (): Preview[] => [
   {
     slug: 'like',
     group: 'Notifications',
-    email: buildLikeEmail({ recipient: anna, actor: maythee, status: annaPost })
+    email: buildLikeEmail({ recipient: anna, actor: jasmine, status: annaPost })
   },
   {
     slug: 'boost',

@@ -103,26 +103,26 @@ const ownStatus: StatusNote = {
 
 const remoteActor: ActorProfile = {
   ...ownerActor,
-  id: 'https://remote.example/users/maythee',
-  username: 'maythee',
+  id: 'https://remote.example/users/jasmine',
+  username: 'jasmine',
   domain: 'remote.example',
-  name: 'Maythee'
+  name: 'Jasmine'
 }
 
 const otherStatus: StatusNote = {
   ...ownStatus,
-  id: 'https://remote.example/users/maythee/statuses/post-9',
-  actorId: 'https://remote.example/users/maythee',
+  id: 'https://remote.example/users/jasmine/statuses/post-9',
+  actorId: 'https://remote.example/users/jasmine',
   actor: remoteActor,
   isLocalActor: false,
-  url: 'https://remote.example/@maythee/post-9',
+  url: 'https://remote.example/@jasmine/post-9',
   text: 'Someone else post'
 }
 
 const relationship = (
   overrides: Partial<MastodonRelationship> = {}
 ): MastodonRelationship => ({
-  id: 'https://remote.example/users/maythee',
+  id: 'https://remote.example/users/jasmine',
   following: false,
   showing_reblogs: false,
   notifying: false,
@@ -243,13 +243,13 @@ describe('PostMenu', () => {
 
     const menu = await openMenu()
     expect(
-      within(menu).getByRole('menuitem', { name: /Mention @maythee/ })
+      within(menu).getByRole('menuitem', { name: /Mention @jasmine/ })
     ).toBeInTheDocument()
     expect(
-      within(menu).getByRole('menuitem', { name: 'Mute Maythee' })
+      within(menu).getByRole('menuitem', { name: 'Mute Jasmine' })
     ).toBeInTheDocument()
     expect(
-      within(menu).getByRole('menuitem', { name: 'Block Maythee' })
+      within(menu).getByRole('menuitem', { name: 'Block Jasmine' })
     ).toBeInTheDocument()
     expect(
       within(menu).getByRole('menuitem', { name: 'Open original' })
@@ -272,7 +272,7 @@ describe('PostMenu', () => {
     await openMenu()
     await waitFor(() =>
       expect(
-        screen.getByRole('menuitem', { name: 'Unmute Maythee' })
+        screen.getByRole('menuitem', { name: 'Unmute Jasmine' })
       ).toBeInTheDocument()
     )
     expect(getRelationship).toHaveBeenCalledWith({
@@ -338,7 +338,7 @@ describe('PostMenu', () => {
 
     const menu = await openMenu()
     fireEvent.click(
-      within(menu).getByRole('menuitem', { name: 'Mute Maythee' })
+      within(menu).getByRole('menuitem', { name: 'Mute Jasmine' })
     )
 
     const dialog = await screen.findByRole('dialog')
@@ -374,7 +374,7 @@ describe('PostMenu', () => {
     await waitFor(() => expect(getRelationship).toHaveBeenCalledTimes(2))
     await waitFor(() =>
       expect(
-        screen.getByRole('menuitem', { name: 'Unmute Maythee' })
+        screen.getByRole('menuitem', { name: 'Unmute Jasmine' })
       ).toBeInTheDocument()
     )
   })
@@ -711,7 +711,7 @@ describe('PostMenu', () => {
 
       const menu = await openMenu()
       fireEvent.click(
-        within(menu).getByRole('menuitem', { name: /Mention @maythee/ })
+        within(menu).getByRole('menuitem', { name: /Mention @jasmine/ })
       )
 
       expect(onReply).toHaveBeenCalledWith(otherStatus)
@@ -945,7 +945,7 @@ describe('PostMenu', () => {
 
         await openMenu()
         const item = await screen.findByRole('menuitem', {
-          name: 'Unmute Maythee'
+          name: 'Unmute Jasmine'
         })
         await act(async () => {
           fireEvent.click(item)
@@ -968,7 +968,7 @@ describe('PostMenu', () => {
 
         await openMenu()
         const item = await screen.findByRole('menuitem', {
-          name: 'Unblock Maythee'
+          name: 'Unblock Jasmine'
         })
         await act(async () => {
           fireEvent.click(item)
@@ -996,7 +996,7 @@ describe('PostMenu', () => {
 
           await openMenu()
           const item = await screen.findByRole('menuitem', {
-            name: 'Unblock Maythee'
+            name: 'Unblock Jasmine'
           })
           await act(async () => {
             fireEvent.click(item)
@@ -1025,7 +1025,7 @@ describe('PostMenu', () => {
 
           await openMenu()
           const item = await screen.findByRole('menuitem', {
-            name: 'Unmute Maythee'
+            name: 'Unmute Jasmine'
           })
           await act(async () => {
             fireEvent.click(item)
@@ -1048,7 +1048,7 @@ describe('PostMenu', () => {
 
         const menu = await openMenu()
         fireEvent.click(
-          within(menu).getByRole('menuitem', { name: 'Block Maythee' })
+          within(menu).getByRole('menuitem', { name: 'Block Jasmine' })
         )
         const dialog = await screen.findByRole('dialog')
         expect(block).not.toHaveBeenCalled()
@@ -1064,7 +1064,7 @@ describe('PostMenu', () => {
         )
         await openMenu()
         expect(
-          screen.getByRole('menuitem', { name: 'Unblock Maythee' })
+          screen.getByRole('menuitem', { name: 'Unblock Jasmine' })
         ).toBeInTheDocument()
       })
     })

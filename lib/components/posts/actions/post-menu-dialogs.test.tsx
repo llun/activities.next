@@ -42,7 +42,7 @@ vi.mock('@/lib/client', () => ({
   mute: vi.fn()
 }))
 
-const targetActorId = 'https://remote.example/users/maythee'
+const targetActorId = 'https://remote.example/users/jasmine'
 
 const relationship = (
   overrides: Partial<MastodonRelationship> = {}
@@ -114,7 +114,7 @@ describe('MuteDialog', () => {
       <MuteDialog
         open
         onOpenChange={onOpenChange}
-        actorName="Maythee"
+        actorName="Jasmine"
         targetActorId={targetActorId}
         onMuted={onMuted}
       />
@@ -131,7 +131,7 @@ describe('MuteDialog', () => {
     ;(mute as jest.Mock).mockResolvedValue(muted)
     const { onOpenChange, onMuted } = renderDialog()
 
-    expect(screen.getByText('Mute Maythee?')).toBeInTheDocument()
+    expect(screen.getByText('Mute Jasmine?')).toBeInTheDocument()
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Mute' }))
     })
@@ -215,7 +215,7 @@ describe('MuteDialog', () => {
     expect(screen.getByRole('alert')).toBeInTheDocument()
 
     const props = {
-      actorName: 'Maythee',
+      actorName: 'Jasmine',
       targetActorId,
       onOpenChange,
       onMuted
@@ -235,7 +235,7 @@ describe('BlockDialog', () => {
       <BlockDialog
         open
         onOpenChange={onOpenChange}
-        actorName="Maythee"
+        actorName="Jasmine"
         targetActorId={targetActorId}
         onBlocked={onBlocked}
       />
@@ -252,7 +252,7 @@ describe('BlockDialog', () => {
     ;(block as jest.Mock).mockResolvedValue(blocked)
     const { onOpenChange, onBlocked } = renderDialog()
 
-    expect(screen.getByText('Block Maythee?')).toBeInTheDocument()
+    expect(screen.getByText('Block Jasmine?')).toBeInTheDocument()
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Block' }))
     })
@@ -304,7 +304,7 @@ describe('ReportDialog', () => {
         open
         onOpenChange={onOpenChange}
         targetActorId={targetActorId}
-        statusId="https://remote.example/users/maythee/statuses/post-9"
+        statusId="https://remote.example/users/jasmine/statuses/post-9"
       />
     )
     return { onOpenChange }
@@ -331,7 +331,7 @@ describe('ReportDialog', () => {
 
     expect(createReport).toHaveBeenCalledWith({
       targetActorId,
-      statusId: 'https://remote.example/users/maythee/statuses/post-9',
+      statusId: 'https://remote.example/users/jasmine/statuses/post-9',
       category: 'violation',
       comment: 'harassing me'
     })
@@ -472,7 +472,7 @@ describe('dismissing a dialog with Escape', () => {
         <MuteDialog
           open
           onOpenChange={onOpenChange}
-          actorName="Maythee"
+          actorName="Jasmine"
           targetActorId={targetActorId}
           onMuted={vi.fn()}
         />
@@ -487,7 +487,7 @@ describe('dismissing a dialog with Escape', () => {
         <BlockDialog
           open
           onOpenChange={onOpenChange}
-          actorName="Maythee"
+          actorName="Jasmine"
           targetActorId={targetActorId}
           onBlocked={vi.fn()}
         />
