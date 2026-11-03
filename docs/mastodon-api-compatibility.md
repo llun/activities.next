@@ -1931,10 +1931,12 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   counts for public notes. A fetched `Question` (the requested note, a parent
   or a walked reply) is stored as a Poll with its choices, through the same
   `getPollFieldsFromQuestion` shape `createPollJob` uses, so it can be voted
-  on. The thread walk stores a reply only when it is publicly addressed
-  (public or unlisted, as the requested note must be) and its `inReplyTo` is
-  the note whose `replies` collection listed it; anything else is skipped and
-  not walked further. The web profile list, on the server-rendered first
+  on; a `Question` that fails the poll schema is stored as a Note so it stays
+  viewable. The thread walk stores a reply only when it is publicly addressed
+  (public or unlisted, as the requested note must be) and its `inReplyTo`
+  names a note of the thread — the requested note or a reply the walk already
+  accepted, by id or url, ignoring a trailing slash — so flat conversation
+  collections work; anything else is skipped and not walked further. The web profile list, on the server-rendered first
   page and later pages alike, overlays the viewer's own like, repost and
   bookmark state, plus the stored reactions, for stored statuses the viewer
   can read, when the stored author matches the live one. A live like count of

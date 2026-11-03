@@ -1582,7 +1582,11 @@ describe('fetchRemoteStatusJob', () => {
   })
 
   describe('reply gate for walked replies', () => {
-    const walkReplies = async (statusId: string, replies: unknown[]) => {
+    const walkReplies = async (
+      statusId: string,
+      replies: unknown[],
+      root: Record<string, unknown> = {}
+    ) => {
       mockRemoteServers(async (req) => {
         if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
         if (req.url === statusId) {
@@ -1592,7 +1596,8 @@ describe('fetchRemoteStatusJob', () => {
             attributedTo: REMOTE_ACTOR_ID,
             content: 'Root',
             to: [PUBLIC_STREAM],
-            replies: `${statusId}/replies`
+            replies: `${statusId}/replies`,
+            ...root
           })
         }
         if (req.url === `${statusId}/replies`) {
@@ -1670,10 +1675,51 @@ describe('fetchRemoteStatusJob', () => {
       expect(await database.getStatus({ statusId: REPLY_ID })).toBeNull()
     })
 
-    it('does not store a nested item that replies to the root instead of its own parent', async () => {
+    it('stores a reply that names the walked note by its url', async () => {
+      const STATUS_ID = `${REMOTE_STATUS_ID}/gate-by-url`
+      const STATUS_URL = 'https://mastodon.social/@testUser/gate-by-url'
+      const REPLY_ID = `${STATUS_ID}/reply`
+      await walkReplies(
+        STATUS_ID,
+        [reply(REPLY_ID, { inReplyTo: STATUS_URL })],
+        { url: STATUS_URL }
+      )
+
+      expect(await database.getStatus({ statusId: REPLY_ID })).not.toBeNull()
+    })
+
+    it('stores a reply that names the walked note with a trailing slash', async () => {
+      const STATUS_ID = `${REMOTE_STATUS_ID}/gate-slash`
+      const REPLY_ID = `${STATUS_ID}/reply`
+      await walkReplies(STATUS_ID, [
+        reply(REPLY_ID, { inReplyTo: `${STATUS_ID}/` })
+      ])
+
+      expect(await database.getStatus({ statusId: REPLY_ID })).not.toBeNull()
+    })
+
+    it('stores a reply to a sibling stored earlier in the walk', async () => {
+      const STATUS_ID = `${REMOTE_STATUS_ID}/gate-flat`
+      const FIRST_ID = `${STATUS_ID}/first`
+      const SECOND_ID = `${STATUS_ID}/second`
+      // A flat conversation collection: both items listed under the root,
+      // the second answering the first.
+      await walkReplies(STATUS_ID, [
+        reply(FIRST_ID, { inReplyTo: STATUS_ID }),
+        reply(SECOND_ID, { inReplyTo: FIRST_ID })
+      ])
+
+      expect(await database.getStatus({ statusId: FIRST_ID })).not.toBeNull()
+      expect(await database.getStatus({ statusId: SECOND_ID })).toMatchObject({
+        reply: FIRST_ID
+      })
+    })
+
+    it('stores a nested reply that answers the root rather than its own parent', async () => {
       const STATUS_ID = `${REMOTE_STATUS_ID}/gate-nested`
       const CHILD_ID = `${STATUS_ID}/child`
       const GRANDCHILD_ID = `${STATUS_ID}/grandchild`
+      const UNRELATED_ID = `${STATUS_ID}/unrelated`
       await walkReplies(STATUS_ID, [
         reply(CHILD_ID, {
           inReplyTo: STATUS_ID,
@@ -1682,14 +1728,22 @@ describe('fetchRemoteStatusJob', () => {
             type: 'Collection',
             first: {
               type: 'CollectionPage',
-              items: [reply(GRANDCHILD_ID, { inReplyTo: STATUS_ID })]
+              items: [
+                reply(GRANDCHILD_ID, { inReplyTo: STATUS_ID }),
+                reply(UNRELATED_ID, {
+                  inReplyTo: `${REMOTE_STATUS_ID}/not-in-this-thread`
+                })
+              ]
             }
           }
         })
       ])
 
       expect(await database.getStatus({ statusId: CHILD_ID })).not.toBeNull()
-      expect(await database.getStatus({ statusId: GRANDCHILD_ID })).toBeNull()
+      expect(
+        await database.getStatus({ statusId: GRANDCHILD_ID })
+      ).not.toBeNull()
+      expect(await database.getStatus({ statusId: UNRELATED_ID })).toBeNull()
     })
   })
 
@@ -1746,6 +1800,48 @@ describe('fetchRemoteStatusJob', () => {
       })
 
       await expectStoredPoll(STATUS_ID)
+    })
+
+    it('stores a Question that is not a valid poll as a note, keeping its parent chain', async () => {
+      const PARENT_ID = `${REMOTE_STATUS_ID}/broken-poll-parent`
+      const STATUS_ID = `${REMOTE_STATUS_ID}/broken-poll`
+      mockRemoteServers(async (req) => {
+        if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
+        if (req.url === PARENT_ID) {
+          return activityJson({
+            id: PARENT_ID,
+            type: 'Note',
+            attributedTo: REMOTE_ACTOR_ID,
+            content: 'Parent',
+            to: [PUBLIC_STREAM],
+            cc: [],
+            published: new Date().toISOString()
+          })
+        }
+        if (req.url === STATUS_ID) {
+          // An option without a name fails the poll schema.
+          return activityJson(
+            question(STATUS_ID, {
+              inReplyTo: PARENT_ID,
+              oneOf: [{ type: 'Note' }, { type: 'Note', name: 'No' }]
+            })
+          )
+        }
+        return activityJson({})
+      })
+
+      await fetchRemoteStatusJob(database, {
+        id: 'job-id',
+        name: FETCH_REMOTE_STATUS_JOB_NAME,
+        data: { statusId: STATUS_ID }
+      })
+
+      expect(await database.getStatus({ statusId: STATUS_ID })).toMatchObject({
+        type: StatusType.enum.Note,
+        text: 'Which one?',
+        reply: PARENT_ID
+      })
+      expect(await database.getStatus({ statusId: PARENT_ID })).not.toBeNull()
     })
 
     it('stores a Question parent as a poll', async () => {
