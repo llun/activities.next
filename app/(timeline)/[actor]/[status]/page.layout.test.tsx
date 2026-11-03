@@ -46,12 +46,39 @@ vi.mock('@/lib/config', async () => ({
 
 const mockGetStatus = vi.fn()
 const mockGetStatusReplies = vi.fn()
+const mockGetActorDomainBlocks = vi.fn(async () => [])
+// getStatusContext walks the reply tree through getStatusReplyRefs; derive the
+// tree from whatever getStatusReplies is set to return.
+const mockGetStatusReplyRefs = vi.fn(
+  async ({ statusId, url }: { statusId: string; url?: string }) => {
+    const rows = ((await mockGetStatusReplies.getMockImplementation()?.({
+      statusId,
+      url
+    })) ?? []) as Array<{
+      id: string
+      url?: string
+      reply?: string
+      createdAt: unknown
+    }>
+    return rows
+      .filter(
+        (row) => row.reply === statusId || (Boolean(url) && row.reply === url)
+      )
+      .map((row) => ({
+        id: row.id,
+        url: row.url ?? null,
+        createdAt: row.createdAt
+      }))
+  }
+)
 const mockGetAcceptedOrRequestedFollow = vi.fn()
 
 vi.mock('@/lib/database', async () => ({
   getDatabase: vi.fn(() => ({
     getStatus: mockGetStatus,
     getStatusReplies: mockGetStatusReplies,
+    getStatusReplyRefs: mockGetStatusReplyRefs,
+    getActorDomainBlocks: mockGetActorDomainBlocks,
     getAcceptedOrRequestedFollow: mockGetAcceptedOrRequestedFollow,
     // Read only by the real resolver, which the off-site Back test runs.
     getActorFromUsername: vi.fn(async () => null),
