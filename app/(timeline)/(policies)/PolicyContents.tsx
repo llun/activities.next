@@ -25,9 +25,7 @@ export const PolicyContents = ({ headings }: { headings: PolicyHeading[] }) => {
     <>
       <nav aria-label="On this page" className="mt-6 max-md:hidden">
         <Frame muted className="px-5 py-4">
-          <p className="text-muted-foreground text-[13px] font-semibold tracking-wide uppercase">
-            On this page
-          </p>
+          <p className="text-sm font-semibold">On this page</p>
           <ol className="mt-2 columns-2 gap-7 text-[15px] leading-[22px] [&_a]:py-1">
             {items}
           </ol>
