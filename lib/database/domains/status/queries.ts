@@ -63,6 +63,7 @@ import {
   getStatusReplies,
   getStatusRepliesCount,
   getStatusRepliesCounts,
+  getStatusReplyRefs,
   getStatusesByIds
 } from '@/lib/database/domains/status/reads'
 import { getRepliesTabStatusIds } from '@/lib/database/domains/status/repliesTab'
@@ -187,6 +188,7 @@ export const createStatusQueries = (
   recordPollVotes,
   getStatus,
   getStatusReplies,
+  getStatusReplyRefs,
   getStatusEditHistory,
   getActorStatusesCount,
   getActorStatuses,

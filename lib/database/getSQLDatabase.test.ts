@@ -207,6 +207,7 @@ describe('getSQLDatabase', () => {
     for (const name of [
       'getStatus',
       'getStatusReplies',
+      'getStatusReplyRefs',
       'getStatusEditHistory',
       'getActorStatusesCount',
       'getActorStatuses',

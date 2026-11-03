@@ -258,6 +258,49 @@ product or security decision, not a gap to be closed.
   underlying `getStatusContext` service is shared with native server components,
   resolves both database UUIDs and URL aliases, enforces viewer visibility/block
   predicates, and bounds iterative ancestor and descendant traversal.
+  - **Each status is filtered on its own, as in Mastodon.** A reply the viewer
+    may not see — unreadable to them, by an actor they block or mute, or from a
+    domain they blocked (`getActorDomainBlocks` + `filterDomainBlockedStatuses`,
+    read once per call and applied to ancestors and descendants alike) — is left
+    out, but the walk still steps through it, and each reply below it is returned
+    if it passes its own check. The client shows such a reply with "Prior reply
+    is unavailable" (`parentUnavailable` in `threadModel.ts`).
+  - The walk steps through hidden replies with `getStatusReplyRefs` (ids, urls
+    and `createdAt` only, **no visibility predicate**; never serve its rows) and
+    reads the replies it may return through `getStatusReplies` with the viewer's
+    SQL scope, then `filterReadableStatuses` on top, so a hidden reply is never
+    hydrated.
+  - Bounds: the descendants limit (60 signed out, 4096 signed in, 60 on the post
+    page), a visit budget of `DESCENDANTS_VISIT_FACTOR` (3) replies visited per
+    descendant the limit allows, and, for a signed-out viewer, Mastodon's depth
+    limit `ANONYMOUS_DESCENDANTS_DEPTH_LIMIT` (20 levels below the opened status).
+    A reply counts against the budget when the walk reaches it, not when it is
+    read: each status's replies are read in pages that start at 4, double up to
+    64 and never exceed what the budget has left, so a wide status (hundreds of
+    direct replies) does not spend the budget before the walk goes down. A
+    reply already walked counts again when it is read again (a cycle), and each
+    id or url is passed to a replies read only once, so many statuses carrying
+    the same author-supplied url read its replies once. Whether a reply was
+    already walked is decided by id alone, never by url, and siblings keep the
+    database's `(createdAt, id)` order across pages.
+  - Before the depth-first fill, the opened status's author's own self-thread
+    (each part the earliest visible reply by that author to the previous part,
+    read with `getStatusReplies({ actorId })`) is reserved, so earlier side
+    branches cannot push the author's part 2 out of the limit. Descendants are
+    still returned in depth-first pre-order, oldest first with an id tie-break.
+  - `hasMoreDescendants` is true when a visible reply was left out by the limit,
+    when a visible reply sits just below the anonymous depth limit, or when the
+    visit budget ran out with replies still unvisited. That last case is true
+    even if every unvisited reply turns out to be hidden from the viewer: the
+    walk cannot tell without visiting them, and the flag drives a "Load more"
+    control, so it errs towards offering one.
+  - `hasMoreAncestors` is true when the ancestors limit cut the chain and the
+    last loaded ancestor names a parent that exists and is not a cycle. The
+    parent's visibility is not checked (a hidden parent with visible ones above
+    it still counts), which reveals no more than that ancestor's own reply
+    target already does.
+  - The Mastodon route (`GET /api/v1/statuses/:id/context`) returns only
+    `{ ancestors, descendants }`; neither flag is exposed there.
 
 ### Media
 
