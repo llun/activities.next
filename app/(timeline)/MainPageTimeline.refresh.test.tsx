@@ -1477,6 +1477,45 @@ describe('MainPageTimeline', () => {
       ).toBeInTheDocument()
     })
 
+    it('holds reconnect refresh posts when the top row is a combined card', async () => {
+      const newest = createStatus('https://activities.local/users/llun/s/2')
+      const oldest = createStatus('https://activities.local/users/llun/s/1')
+      const newA = createStatus('https://activities.local/users/llun/s/new-a')
+      rowTops = { [oldest.id]: 310 }
+
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[newest]}
+        />
+      )
+      // A combined card carries its oldest part in data-status-id and every
+      // part in data-row-status-ids, while the feed's first status is the
+      // newest part.
+      const row = screen.getByTestId(`post-${newest.id}`)
+      row.setAttribute('data-status-id', oldest.id)
+      row.setAttribute('data-row-status-ids', `${oldest.id} ${newest.id}`)
+
+      vi.mocked(getTimeline).mockResolvedValueOnce({
+        statuses: [newA, newest],
+        nextMaxStatusId: null,
+        prevMinStatusId: newA.id
+      })
+      rowTops = { [newA.id]: 310, [oldest.id]: 560 }
+
+      await simulateOffline()
+      await simulateBackOnline()
+
+      expect(screen.queryByTestId(`post-${newA.id}`)).not.toBeInTheDocument()
+      expect(scrollByMock).not.toHaveBeenCalled()
+      expect(
+        await screen.findByRole('button', { name: '1 new post' })
+      ).toBeInTheDocument()
+    })
+
     it('does not correct scroll when a post is published during a top-of-feed reconnect refresh', async () => {
       const post1 = createStatus('https://activities.local/users/llun/s/1')
       const publishedPost = createStatus(

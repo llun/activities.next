@@ -1114,6 +1114,56 @@ describe('MainPageTimeline', () => {
         expect(scrollBy).not.toHaveBeenCalled()
       })
 
+      it('saves the feed first status as the anchor when the top row is a combined card', () => {
+        const newest = createStatus('https://activities.local/users/llun/s/2')
+        const oldest = createStatus('https://activities.local/users/llun/s/1')
+        const originalRect = HTMLElement.prototype.getBoundingClientRect
+        HTMLElement.prototype.getBoundingClientRect = function () {
+          return {
+            top: 60,
+            bottom: 160,
+            left: 0,
+            right: 0,
+            width: 0,
+            height: 100,
+            x: 0,
+            y: 60,
+            toJSON: () => ({})
+          } as DOMRect
+        }
+
+        try {
+          render(
+            <MainPageTimeline
+              host="activities.local"
+              currentTime={FIXED_CURRENT_TIME}
+              profile={profile}
+              isMediaUploadEnabled={false}
+              statuses={[newest]}
+            />
+          )
+          // A combined card: oldest part in data-status-id, every part listed.
+          const row = screen.getByTestId(`post-${newest.id}`)
+          row.setAttribute('data-status-id', oldest.id)
+          row.setAttribute('data-row-status-ids', `${oldest.id} ${newest.id}`)
+
+          vi.mocked(saveOfflineScrollAnchor).mockClear()
+          Object.defineProperty(document, 'visibilityState', {
+            value: 'hidden',
+            configurable: true
+          })
+          fireEvent(document, new Event('visibilitychange'))
+
+          expect(saveOfflineScrollAnchor).toHaveBeenCalledWith({
+            actorId: profile.id,
+            timeline: 'home',
+            scrollAnchor: expect.objectContaining({ statusId: newest.id })
+          })
+        } finally {
+          HTMLElement.prototype.getBoundingClientRect = originalRect
+        }
+      })
+
       it('saves scrollAnchor: null while first post is below header (even if scrolled into composer) and saves unclamped offsetTop once scrolled into feed', () => {
         const post1 = createStatus('https://activities.local/users/llun/s/1')
         const originalRect = HTMLElement.prototype.getBoundingClientRect
