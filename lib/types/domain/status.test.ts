@@ -681,7 +681,7 @@ describe('Status', () => {
           statusId: status3Id
         })) as Status
         const note3 = toActivityPubObject(status3)
-        expect(note3).toEqual(note2)
+        expect(withSortedAudience(note3)).toEqual(withSortedAudience(note2))
       })
     })
 

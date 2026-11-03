@@ -631,9 +631,12 @@ How are you?
       expect(status).toMatchObject({
         actorId: actor1.id,
         text,
-        to: [ACTIVITY_STREAM_PUBLIC],
-        cc: [`${actor1.id}/followers`, ACTOR2_ID]
+        to: [ACTIVITY_STREAM_PUBLIC]
       })
+      // `cc` is an unordered set read back without an ORDER BY.
+      expect([...status.cc].sort()).toEqual(
+        [`${actor1.id}/followers`, ACTOR2_ID].sort()
+      )
 
       const note = getNoteFromStatus(status) as Note
       expect(note.content).toEqual(convertMarkdownText(TEST_DOMAIN)(text))

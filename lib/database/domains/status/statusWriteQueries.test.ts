@@ -684,38 +684,45 @@ describe('createNote', () => {
     // The author is read through the actor domain, its lastStatusAt hidden.
     const { actor } = result.status as StatusNote
     expect(actor).toMatchObject({ id: local, lastStatusAt: null })
-    expect(result.status).toEqual(
-      StatusNote.parse({
-        id,
-        publicId: '01890000-0000-7000-8000-000000000001',
-        url: `https://${DOMAIN}/@local/1`,
-        actorId: local,
-        actor,
-        type: StatusType.enum.Note,
-        text: 'Hello',
-        summary: 'cw',
-        sensitive: true,
-        language: 'en',
-        quoteApprovalPolicy: 'followers',
-        detectedLanguage: null,
-        applicationName: 'app',
-        applicationWebsite: 'https://app.test',
-        reply: '',
-        to: [ACTIVITY_STREAM_PUBLIC],
-        cc: [`${local}/followers`, remote],
-        edits: [],
-        attachments: [],
-        tags: [],
-        replies: [],
-        totalLikes: 0,
-        reactions: [],
-        isActorLiked: false,
-        isActorBookmarked: false,
-        actorAnnounceStatusId: null,
-        isLocalActor: true,
-        createdAt,
-        updatedAt: now
-      })
+    // `cc` is an unordered set read back without an ORDER BY.
+    const sortCc = (status: StatusNote): StatusNote => ({
+      ...status,
+      cc: [...status.cc].sort()
+    })
+    expect(sortCc(result.status as StatusNote)).toEqual(
+      sortCc(
+        StatusNote.parse({
+          id,
+          publicId: '01890000-0000-7000-8000-000000000001',
+          url: `https://${DOMAIN}/@local/1`,
+          actorId: local,
+          actor,
+          type: StatusType.enum.Note,
+          text: 'Hello',
+          summary: 'cw',
+          sensitive: true,
+          language: 'en',
+          quoteApprovalPolicy: 'followers',
+          detectedLanguage: null,
+          applicationName: 'app',
+          applicationWebsite: 'https://app.test',
+          reply: '',
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [`${local}/followers`, remote],
+          edits: [],
+          attachments: [],
+          tags: [],
+          replies: [],
+          totalLikes: 0,
+          reactions: [],
+          isActorLiked: false,
+          isActorBookmarked: false,
+          actorAnnounceStatusId: null,
+          isLocalActor: true,
+          createdAt,
+          updatedAt: now
+        })
+      )
     )
     // A new status is not hydrated.
     expect(hydrationCalls).toEqual([])
