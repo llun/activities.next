@@ -104,15 +104,17 @@ export const ListTimeline: FC<ListTimelineProps> = ({
       if (previousStatuses.some((status) => status.id === reply.id)) {
         return previousStatuses
       }
-      const next = updateMatchingStatus(
-        previousStatuses,
-        getOriginalStatus(previousStatuses[parentIndex]).id,
-        (target) => ({
-          ...target,
-          totalReplies: (target.totalReplies ?? 0) + 1,
-          replies: target.replies ? [...target.replies, reply] : [reply]
-        })
-      )
+      const next = [
+        ...updateMatchingStatus(
+          previousStatuses,
+          getOriginalStatus(previousStatuses[parentIndex]).id,
+          (target) => ({
+            ...target,
+            totalReplies: (target.totalReplies ?? 0) + 1,
+            replies: target.replies ? [...target.replies, reply] : [reply]
+          })
+        )
+      ]
       next.splice(parentIndex + 1, 0, reply)
       return next
     })

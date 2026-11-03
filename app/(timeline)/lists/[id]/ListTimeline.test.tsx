@@ -107,6 +107,9 @@ vi.mock('@/lib/components/posts/timeline-feed', () => ({
             <span data-testid={`post-bookmarked-${status.id}`}>
               {String(target.isActorBookmarked)}
             </span>
+            <span data-testid={`post-replies-${status.id}`}>
+              {target.totalReplies ?? 0}
+            </span>
             <span data-testid={`post-likes-${status.id}`}>
               {target.totalLikes}
             </span>

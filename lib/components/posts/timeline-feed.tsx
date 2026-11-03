@@ -41,6 +41,7 @@ import { PostListItem } from './post-list-item'
 import { PRIORITY_ROW_WINDOW, showsPrioritizableMedia } from './posts'
 import {
   TimelineRow,
+  getStatusAliases,
   getStatusReplyTargetId,
   groupTimelinePage
 } from './timelineModel'
@@ -106,6 +107,36 @@ export interface TimelineFeedProps {
   onLoadGap?: (segmentIndex: number) => void
 }
 
+// A reply-context preview of a status already loaded in the feed.
+const previewFromStatus = (
+  status: Status
+): TimelineParentPreview | undefined => {
+  const actual = getActualStatus(status)
+  const actor = actual.actor
+  if (!actor) return undefined
+  const spoilerText = actual.summary?.trim() || undefined
+  const isSensitive = Boolean(actual.sensitive) || Boolean(spoilerText)
+  return {
+    id: actual.id,
+    url: actual.url,
+    actor: {
+      id: actor.id,
+      username: actor.username,
+      domain: actor.domain,
+      name: actor.name ?? undefined,
+      avatarUrl: actor.iconUrl ?? undefined
+    },
+    contentHtml: isSensitive ? '' : actual.text,
+    text: isSensitive ? '' : actual.text,
+    tags: actual.tags,
+    isLocalActor: actual.isLocalActor,
+    spoilerText,
+    isSensitive,
+    createdAt: new Date(actual.createdAt).toISOString(),
+    visibility: 'public'
+  }
+}
+
 export const TimelineFeed: FC<TimelineFeedProps> = ({
   host,
   className,
@@ -151,14 +182,14 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
   const [expandedThreads, setExpandedThreads] = useState<Set<string>>(
     () => new Set()
   )
-  // Status ids of thread rows that rendered in full (three posts or fewer). A
-  // row that grows past three parts while on screen stays in full instead of
-  // collapsing under the reader.
+  // Root ids of thread rows that rendered in full (three posts or fewer). A row
+  // that grows past three parts at its newest end stays in full instead of
+  // collapsing under the reader; one that gains older parts (a new root) is a
+  // different row and collapses as usual.
   const renderedInFull = useRef<Set<string>>(new Set())
   const isThreadExpanded = (entryIds: string[]) =>
-    entryIds.some(
-      (id) => expandedThreads.has(id) || renderedInFull.current.has(id)
-    )
+    entryIds.some((id) => expandedThreads.has(id)) ||
+    renderedInFull.current.has(entryIds[0])
 
   // Rows the viewer switched from the combined layout back to separate posts
   // (the combined post's "Show as separate posts" menu item). Every status id
@@ -221,7 +252,7 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
   useEffect(() => {
     for (const row of rows) {
       if (row.kind === 'thread' && row.entryIds.length <= 3) {
-        row.entryIds.forEach((id) => renderedInFull.current.add(id))
+        renderedInFull.current.add(row.entryIds[0])
       }
     }
   }, [rows])
@@ -397,14 +428,33 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
   // The reply context of a block after the first: a post split off a run (a late
   // reply from someone else, a sibling self-reply, the author answering a
   // tucked-in reply) would otherwise read as a reply to the block above it.
-  const getLaterBlockContext = (block: CombinedBlock) => {
+  // `getTimelineContext` gives no preview for a parent on the same page, so the
+  // preview is built from the loaded parent. The line is skipped when the
+  // parent is the post directly above (its last part, for a run).
+  const getLaterBlockContext = (
+    block: CombinedBlock,
+    previous: CombinedBlock,
+    entryIds: string[]
+  ) => {
     const first = block.kind === 'run' ? block.parts[0].status : block.status
     const replyTarget = getStatusReplyTargetId(getActualStatus(first))
+    if (!replyTarget)
+      return { showReplyContext: false, parentPreview: undefined }
+    const above =
+      previous.kind === 'run'
+        ? previous.parts[previous.parts.length - 1].status
+        : previous.status
+    const parent = getRowStatuses(entryIds).find((status) =>
+      getStatusAliases(getActualStatus(status)).includes(replyTarget)
+    )
+    if (parent && parent.id === above.id) {
+      return { showReplyContext: false, parentPreview: undefined }
+    }
     return {
-      showReplyContext: Boolean(replyTarget),
-      parentPreview: replyTarget
-        ? timelineContext?.ancestorsById?.[replyTarget]
-        : undefined
+      showReplyContext: true,
+      parentPreview:
+        timelineContext?.ancestorsById?.[replyTarget] ??
+        (parent ? previewFromStatus(parent) : undefined)
     }
   }
 
@@ -416,7 +466,7 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
               block.kind === 'run' ? block.parts[0].status : block.status,
               entryIds
             )
-          : getLaterBlockContext(block)
+          : getLaterBlockContext(block, blocks[index - 1], entryIds)
       if (block.kind === 'post') return renderPostItem(block.status, lead)
 
       // The composer may be anchored to any post of the run: a reply opened on
