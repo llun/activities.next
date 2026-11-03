@@ -11,13 +11,15 @@ import { isPubliclyAddressed } from '@/lib/database/domains/status/status'
 import { Database } from '@/lib/database/types'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
-import { Note } from '@/lib/types/activitypub/objects'
+import { getPollFieldsFromQuestion } from '@/lib/services/polls/pollChoices'
+import { ENTITY_TYPE_QUESTION, Question } from '@/lib/types/activitypub'
 import { Actor } from '@/lib/types/domain/actor'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import {
   extractActivityPubId,
   isSameActivityPubOrigin,
   normalizeActivityPubContent,
+  normalizeActivityPubUri,
   toRecipientArray
 } from '@/lib/utils/activitypub'
 import {
@@ -35,7 +37,7 @@ import { persistNoteTags } from './noteTags'
 
 interface FetchRemoteStatusResult {
   status: Status
-  note?: Note
+  note?: BaseNote
 }
 
 // Upper bound on how many reply notes a single fetch stores across the whole
@@ -126,6 +128,51 @@ const storeNewNoteSideEffects = async (
   }
 }
 
+// Writes a fetched note this job has gated. A `Question` is stored as a Poll
+// with its choices, the same shape createPollJob gives an inbound poll, so it
+// can be voted on; storing it as a Note would leave it unvotable for good,
+// since the row then exists and is never re-stored. createPollJob itself is not
+// used because it fans the poll out to home timelines, which this job never
+// does. A Question that does not parse as one is not stored at all.
+const createFetchedStatus = async (
+  database: Database,
+  note: BaseNote,
+  actorId: string,
+  createdAt: number
+): Promise<{ isNew: boolean }> => {
+  const fields = {
+    id: note.id,
+    url: getUrl(note.url) || note.id,
+    actorId,
+    text: Array.isArray(note.content)
+      ? note.content.join('')
+      : note.content || '',
+    summary: note.summary || '',
+    sensitive: note.sensitive === true,
+    to: toRecipientArray(note.to),
+    cc: toRecipientArray(note.cc),
+    reply: note.inReplyTo || '',
+    createdAt
+  }
+  if (note.type === ENTITY_TYPE_QUESTION) {
+    const question = Question.safeParse(note)
+    if (!question.success) return { isNew: false }
+    return database.createPollWithResult({
+      ...fields,
+      ...getPollFieldsFromQuestion(question.data, createdAt)
+    })
+  }
+  return database.createNoteWithResult(fields)
+}
+
+// Guard against an invalid `published` string: the note schemas only check it
+// is a string, so a non-date value would yield `NaN` and corrupt sorting once
+// written.
+const getCreatedAt = (published: string | undefined | null) => {
+  const publishedTime = published ? new Date(published).getTime() : Date.now()
+  return Number.isNaN(publishedTime) ? Date.now() : publishedTime
+}
+
 const fetchRemoteStatus = async (
   database: Database,
   statusId: string,
@@ -161,7 +208,7 @@ const fetchRemoteStatus = async (
   if (!isPublic) return null
 
   // 4. Sanitize and store actor
-  const sanitizedNote = normalizeActivityPubContent(note) as Note
+  const sanitizedNote = normalizeActivityPubContent(note) as BaseNote
   const actor = await recordActorIfNeeded({
     actorId: sanitizedNote.attributedTo,
     database,
@@ -170,29 +217,16 @@ const fetchRemoteStatus = async (
   if (!actor) return null
 
   // 5. Create status in database
-  const to = toRecipientArray(sanitizedNote.to)
-  const cc = toRecipientArray(sanitizedNote.cc)
-
   let noteWasInserted = false
   try {
-    const { isNew } = await database.createNoteWithResult({
-      id: sanitizedNote.id,
-      url: getUrl(sanitizedNote.url) || sanitizedNote.id,
+    const { isNew } = await createFetchedStatus(
+      database,
+      sanitizedNote,
       // The recorded row's id: an alias author (`/@bob`) is stored under the
       // id its origin names, and the status must point at that row.
-      actorId: actor.id,
-      text: Array.isArray(sanitizedNote.content)
-        ? sanitizedNote.content.join('')
-        : sanitizedNote.content || '',
-      summary: sanitizedNote.summary || '',
-      sensitive: sanitizedNote.sensitive === true,
-      to,
-      cc,
-      reply: sanitizedNote.inReplyTo || '',
-      createdAt: sanitizedNote.published
-        ? new Date(sanitizedNote.published).getTime()
-        : Date.now()
-    })
+      actor.id,
+      getCreatedAt(sanitizedNote.published)
+    )
     noteWasInserted = isNew
   } catch {
     // Ignore error if status already exists
@@ -277,12 +311,19 @@ export const fetchRemoteStatusJob = createJobHandle(
     //
     // `servedFrom` is the URL of the document the item came from: the page it
     // was inlined in, or the item's own URL once it is fetched separately.
+    //
+    // `parentIds` names the note whose `replies` collection the item came from
+    // (its stored id and, for the focused note, the id its document gives): an
+    // item that does not reply to it is skipped, so a collection cannot plant
+    // an unrelated note or graft one into this thread.
     const storeReplyNote = async (
       item: unknown,
-      pageServedFrom: string
+      pageServedFrom: string,
+      parentIds: string[]
     ): Promise<{
       replies: unknown
       repliesServedFrom: string
+      noteId: string
       newlyStored: boolean
     } | null> => {
       try {
@@ -335,6 +376,26 @@ export const fetchRemoteStatusJob = createJobHandle(
         const sanitizedReply = noteResult.data
         if (!isAuthoritativeNote(sanitizedReply, servedFrom)) return null
 
+        // Only a reply to the walked note, and only one addressed to the
+        // public (public or unlisted), as the focused note and every other
+        // fetch path require: a followers-only or direct reply this instance's
+        // signer was shown must not become readable to every local viewer.
+        const inReplyTo = normalizeActivityPubUri(sanitizedReply.inReplyTo)
+        if (
+          !inReplyTo ||
+          !parentIds.some((id) => normalizeActivityPubUri(id) === inReplyTo)
+        ) {
+          return null
+        }
+        if (
+          !isPubliclyAddressed({
+            to: toRecipientArray(sanitizedReply.to),
+            cc: toRecipientArray(sanitizedReply.cc)
+          })
+        ) {
+          return null
+        }
+
         // Already-cached notes don't count toward `notesStored` (the new-store
         // budget) but still yield their `replies`, so a re-fetch can traverse
         // the cached part of the thread to discover newly added descendants
@@ -344,6 +405,7 @@ export const fetchRemoteStatusJob = createJobHandle(
           return {
             replies: childReplies,
             repliesServedFrom: servedFrom,
+            noteId: exists.id,
             newlyStored: false
           }
         }
@@ -361,32 +423,13 @@ export const fetchRemoteStatusJob = createJobHandle(
         })
         if (!actor) return null
 
-        // Guard against an invalid `published` string: `Note.safeParse` only
-        // checks it is a string, so a non-date value would yield `NaN` here and
-        // corrupt sorting once written.
-        const publishedTime = sanitizedReply.published
-          ? new Date(sanitizedReply.published).getTime()
-          : Date.now()
-        const createdAt = Number.isNaN(publishedTime)
-          ? Date.now()
-          : publishedTime
-
         try {
-          const { isNew: replyWasInserted } =
-            await database.createNoteWithResult({
-              id: sanitizedReply.id,
-              url: getUrl(sanitizedReply.url) || sanitizedReply.id,
-              actorId: actor.id,
-              text: Array.isArray(sanitizedReply.content)
-                ? sanitizedReply.content.join('')
-                : sanitizedReply.content || '',
-              summary: sanitizedReply.summary || '',
-              sensitive: sanitizedReply.sensitive === true,
-              to: toRecipientArray(sanitizedReply.to),
-              cc: toRecipientArray(sanitizedReply.cc),
-              reply: sanitizedReply.inReplyTo || '',
-              createdAt
-            })
+          const { isNew: replyWasInserted } = await createFetchedStatus(
+            database,
+            sanitizedReply,
+            actor.id,
+            getCreatedAt(sanitizedReply.published)
+          )
           if (replyWasInserted) {
             await storeNewNoteSideEffects(
               database,
@@ -401,6 +444,7 @@ export const fetchRemoteStatusJob = createJobHandle(
         return {
           replies: childReplies,
           repliesServedFrom: servedFrom,
+          noteId: sanitizedReply.id,
           newlyStored: true
         }
       } catch {
@@ -410,10 +454,18 @@ export const fetchRemoteStatusJob = createJobHandle(
 
     // Each queued collection carries the URL of the document it was found in,
     // which is what an inlined collection's items are answerable to.
-    const pendingCollections: Array<{ ref: unknown; servedFrom: string }> = []
+    const pendingCollections: Array<{
+      ref: unknown
+      servedFrom: string
+      parentIds: string[]
+    }> = []
     const visitedCollections = new Set<string>()
 
-    const queueCollection = (collection: unknown, servedFrom: string) => {
+    const queueCollection = (
+      collection: unknown,
+      servedFrom: string,
+      parentIds: string[]
+    ) => {
       if (!collection) return
       // A `replies` ref can arrive as a URL string, an inlined collection
       // object, or — after JSON-LD compaction of a bare id ref — a `{ id }`
@@ -434,10 +486,12 @@ export const fetchRemoteStatusJob = createJobHandle(
         if (visitedCollections.has(ref)) return
         visitedCollections.add(ref)
       }
-      pendingCollections.push({ ref, servedFrom })
+      pendingCollections.push({ ref, servedFrom, parentIds })
     }
 
-    queueCollection((note as Record<string, unknown>).replies, statusId)
+    queueCollection((note as Record<string, unknown>).replies, statusId, [
+      ...new Set([result.status.id, note.id])
+    ])
 
     // `notesStored` is the meaningful cap (how many replies we persist);
     // `work` is the termination guard that advances on every page and every
@@ -456,12 +510,16 @@ export const fetchRemoteStatusJob = createJobHandle(
     // Under a deadline, stop waiting on an item the moment it passes, instead of
     // letting one slow fetch (the remote request has its own timeout and
     // retries) outlast it. The abandoned work finishes, or fails, on its own.
-    const storeWithinDeadline = async (item: unknown, servedFrom: string) => {
-      if (deadline === null) return storeReplyNote(item, servedFrom)
+    const storeWithinDeadline = async (
+      item: unknown,
+      servedFrom: string,
+      parentIds: string[]
+    ) => {
+      if (deadline === null) return storeReplyNote(item, servedFrom, parentIds)
       let timer: ReturnType<typeof setTimeout> | undefined
       try {
         return await Promise.race([
-          storeReplyNote(item, servedFrom),
+          storeReplyNote(item, servedFrom, parentIds),
           new Promise<null>((resolve) => {
             timer = setTimeout(
               () => resolve(null),
@@ -476,6 +534,7 @@ export const fetchRemoteStatusJob = createJobHandle(
     while (pendingCollections.length > 0 && withinBudget()) {
       const pending = pendingCollections.shift()
       if (!pending) break
+      const { parentIds } = pending
       let { ref: collection, servedFrom: pageServedFrom } = pending
       if (typeof collection === 'string') {
         pageServedFrom = collection
@@ -505,7 +564,11 @@ export const fetchRemoteStatusJob = createJobHandle(
           if (!withinBudget()) break
           work++
           itemsConsidered++
-          const stored = await storeWithinDeadline(item, pageServedFrom)
+          const stored = await storeWithinDeadline(
+            item,
+            pageServedFrom,
+            parentIds
+          )
           if (stored) {
             // Only newly stored notes count toward the store budget, so a
             // re-fetch can keep traversing already-cached parts of the thread to
@@ -514,7 +577,9 @@ export const fetchRemoteStatusJob = createJobHandle(
             // First-page mode stores only direct replies, so it never recurses
             // into a child's own thread.
             if (!firstPageOnly) {
-              queueCollection(stored.replies, stored.repliesServedFrom)
+              queueCollection(stored.replies, stored.repliesServedFrom, [
+                stored.noteId
+              ])
             }
           }
         }

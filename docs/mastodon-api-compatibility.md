@@ -1928,7 +1928,13 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   page and the thread walk (`fetchRemoteStatusJob`) deliberately do NOT take
   this path, so they never touch home timelines or send notifications, but
   they do store a new note's attachments, tags and emoji, and move hashtag
-  counts for public notes. The web profile list, on the server-rendered first
+  counts for public notes. A fetched `Question` (the requested note, a parent
+  or a walked reply) is stored as a Poll with its choices, through the same
+  `getPollFieldsFromQuestion` shape `createPollJob` uses, so it can be voted
+  on. The thread walk stores a reply only when it is publicly addressed
+  (public or unlisted, as the requested note must be) and its `inReplyTo` is
+  the note whose `replies` collection listed it; anything else is skipped and
+  not walked further. The web profile list, on the server-rendered first
   page and later pages alike, overlays the viewer's own like, repost and
   bookmark state, plus the stored reactions, for stored statuses the viewer
   can read, when the stored author matches the live one. A live like count of
