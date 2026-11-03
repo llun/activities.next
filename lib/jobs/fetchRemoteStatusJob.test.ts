@@ -302,6 +302,96 @@ describe('fetchRemoteStatusJob', () => {
     expect(reply?.reply).toBe(STATUS_ID)
   })
 
+  describe('walking the replies of an already stored status', () => {
+    const VICTIM_ACTOR_ID = 'https://victim.test/users/bob'
+    const VICTIM_STATUS_ID = `${VICTIM_ACTOR_ID}/statuses/stored-root`
+    const VICTIM_REPLY_ID = `${VICTIM_ACTOR_ID}/statuses/stored-root-reply`
+
+    it.each([
+      {
+        label: 'does not walk a re-fetched document that names a foreign id',
+        requestedId: 'https://attacker.test/users/eve/statuses/1',
+        stored: false
+      },
+      {
+        label: 'walks a re-fetched document that names the stored status',
+        requestedId: VICTIM_STATUS_ID,
+        stored: true
+      }
+    ])('$label', async ({ requestedId, stored }) => {
+      await database.createNote({
+        id: requestedId,
+        url: requestedId,
+        actorId: `${new URL(requestedId).origin}/users/someone`,
+        text: 'Already stored',
+        to: [PUBLIC_STREAM],
+        cc: []
+      })
+      mockRemoteServers(async (req) => {
+        if (req.url === VICTIM_ACTOR_ID) {
+          return activityJson({
+            ...MOCK_ACTOR,
+            id: VICTIM_ACTOR_ID,
+            preferredUsername: 'bob',
+            inbox: `${VICTIM_ACTOR_ID}/inbox`,
+            outbox: `${VICTIM_ACTOR_ID}/outbox`,
+            publicKey: {
+              id: `${VICTIM_ACTOR_ID}#main-key`,
+              owner: VICTIM_ACTOR_ID,
+              publicKeyPem: '-----BEGIN PUBLIC KEY-----\n...'
+            }
+          })
+        }
+        // The requested URL answers with the victim's status, whatever the
+        // URL's own host.
+        if (req.url === requestedId) {
+          return activityJson({
+            id: VICTIM_STATUS_ID,
+            type: 'Note',
+            attributedTo: VICTIM_ACTOR_ID,
+            content: 'Victim status',
+            to: [PUBLIC_STREAM],
+            cc: [],
+            replies: `${VICTIM_STATUS_ID}/replies`
+          })
+        }
+        if (req.url === `${VICTIM_STATUS_ID}/replies`) {
+          return activityJson({
+            id: `${VICTIM_STATUS_ID}/replies`,
+            type: 'OrderedCollection',
+            orderedItems: [VICTIM_REPLY_ID]
+          })
+        }
+        if (req.url === VICTIM_REPLY_ID) {
+          return activityJson({
+            id: VICTIM_REPLY_ID,
+            type: 'Note',
+            attributedTo: VICTIM_ACTOR_ID,
+            content: 'Victim reply',
+            inReplyTo: VICTIM_STATUS_ID,
+            to: [PUBLIC_STREAM],
+            cc: [],
+            published: new Date().toISOString()
+          })
+        }
+        return activityJson({})
+      })
+
+      await fetchRemoteStatusJob(database, {
+        id: 'job-id',
+        name: FETCH_REMOTE_STATUS_JOB_NAME,
+        data: { statusId: requestedId }
+      })
+
+      const reply = await database.getStatus({ statusId: VICTIM_REPLY_ID })
+      if (stored) {
+        expect(reply).toMatchObject({ reply: VICTIM_STATUS_ID })
+      } else {
+        expect(reply).toBeNull()
+      }
+    })
+  })
+
   describe('a replies page holding a single reply', () => {
     // JSON-LD compaction collapses a one-element `items` array into the bare
     // value, so a page with exactly one reply reaches the crawl as an object

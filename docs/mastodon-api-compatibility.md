@@ -1583,7 +1583,9 @@ quotedStatusId)`), and also binds attribution by requiring that `attributedTo` s
   - `fetchRemoteStatusJob` (the status page's on-demand fetch) applies the same pair to every note
     it stores — the requested note, each parent and each reply — against the URL that actually
     served it: the page a reply was inlined in, or the reply's own URL when it was fetched
-    separately. The requested note is gated before `normalizeActivityPubContent` runs, so, like
+    separately. When the requested status is already stored, the document re-fetched to walk its
+    replies must pass the same pair and name the stored status's own id, or its replies are not
+    walked. The requested note is gated before `normalizeActivityPubContent` runs, so, like
     `dispatchCreateNoteOrPollJob` below, it checks the `extractActivityPubId` author rather than the
     raw `attributedTo`, which may still be an embedded actor object or a PeerTube-style array.
   - The inbound-quote resolver `resolveInboundQuotedStatus`

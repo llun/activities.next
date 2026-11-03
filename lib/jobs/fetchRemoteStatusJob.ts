@@ -286,6 +286,18 @@ export const fetchRemoteStatusJob = createJobHandle(
     // bounds the work (and, under the in-process NoQueue, the render latency).
     const note = result.note ?? (await getNote({ statusId, signingActor }))
     if (!note) return
+    // A stored status is re-fetched here without the checks fetchRemoteStatus
+    // applies to a new one, and the document's id and `replies` seed the walk.
+    // Walk only a document that is authoritative for the requested URL and
+    // names the stored status itself; otherwise a server could answer with
+    // another host's id and graft that host's unrelated replies onto this one.
+    if (
+      !result.note &&
+      (!isAuthoritativeNote(note, statusId) ||
+        threadKey(note.id) !== threadKey(result.status.id))
+    ) {
+      return
+    }
 
     // A single failed federation request (timeout, offline instance, non-JSON
     // body) must not abort the whole walk, so swallow errors here and return
