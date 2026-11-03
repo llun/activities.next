@@ -1583,7 +1583,9 @@ quotedStatusId)`), and also binds attribution by requiring that `attributedTo` s
   - `fetchRemoteStatusJob` (the status page's on-demand fetch) applies the same pair to every note
     it stores — the requested note, each parent and each reply — against the URL that actually
     served it: the page a reply was inlined in, or the reply's own URL when it was fetched
-    separately. The requested note is gated before `normalizeActivityPubContent` runs, so, like
+    separately. When the requested status is already stored, the document re-fetched to walk its
+    replies must pass the same pair and name the stored status's own id, or its replies are not
+    walked. The requested note is gated before `normalizeActivityPubContent` runs, so, like
     `dispatchCreateNoteOrPollJob` below, it checks the `extractActivityPubId` author rather than the
     raw `attributedTo`, which may still be an embedded actor object or a PeerTube-style array.
   - The inbound-quote resolver `resolveInboundQuotedStatus`
@@ -1928,7 +1930,15 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   page and the thread walk (`fetchRemoteStatusJob`) deliberately do NOT take
   this path, so they never touch home timelines or send notifications, but
   they do store a new note's attachments, tags and emoji, and move hashtag
-  counts for public notes. The web profile list, on the server-rendered first
+  counts for public notes. A fetched `Question` (the requested note, a parent
+  or a walked reply) is stored as a Poll with its choices, through the same
+  `getPollFieldsFromQuestion` shape `createPollJob` uses, so it can be voted
+  on; a `Question` that fails the poll schema is stored as a Note so it stays
+  viewable. The thread walk stores a reply only when it is publicly addressed
+  (public or unlisted, as the requested note must be) and its `inReplyTo`
+  names a note of the thread — the requested note or a reply the walk already
+  accepted, by id or by a url on the note's own origin (a url pointing at another host never counts), ignoring a trailing slash — so flat conversation
+  collections work; anything else is skipped and not walked further. The web profile list, on the server-rendered first
   page and later pages alike, overlays the viewer's own like, repost and
   bookmark state, plus the stored reactions, for stored statuses the viewer
   can read, when the stored author matches the live one. A live like count of
