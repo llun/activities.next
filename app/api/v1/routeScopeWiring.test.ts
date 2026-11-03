@@ -293,6 +293,11 @@ const EXPECTED: Array<{
     guard: 'OptionalOAuthGuard:any'
   },
   {
+    module: '@/app/api/v1/statuses/[id]/thread/route',
+    scopes: ['read', 'read:statuses'],
+    guard: 'OptionalOAuthGuard:any'
+  },
+  {
     module: '@/app/api/v1/statuses/[id]/history/route',
     scopes: ['read', 'read:statuses'],
     guard: 'OptionalOAuthGuard:any'
