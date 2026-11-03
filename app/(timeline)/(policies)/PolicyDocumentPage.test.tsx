@@ -78,6 +78,23 @@ describe('PolicyDocumentPage', () => {
     expect(screen.getAllByRole('listitem')).toHaveLength(2)
   })
 
+  it('leaves h2s only 16px below the top bars the html scroll-padding clears', async () => {
+    render(await PolicyDocumentPage({ kind: 'terms' }))
+    const heading = screen.getByRole('heading', {
+      level: 2,
+      name: 'Your account'
+    })
+    // jsdom paints no CSS: the classes on the document are what can drift.
+    const classes = heading.parentElement?.className.split(/\s+/) ?? []
+    expect(classes).toContain('[&_h2]:scroll-mt-20')
+    expect(classes).toContain(
+      'max-md:[html:has([data-mobile-compact-header])_&_h2]:scroll-mt-4'
+    )
+    expect(classes).toContain(
+      '[html:has([data-public-top-bar])_&_h2]:scroll-mt-4'
+    )
+  })
+
   it('omits the date when the document has none', async () => {
     mockIdentity.mockResolvedValue(
       identity({ termsOfService: doc('Plain text.', null) })

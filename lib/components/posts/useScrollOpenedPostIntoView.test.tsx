@@ -2,7 +2,10 @@
 import { cleanup, render } from '@testing-library/react'
 import { useRef } from 'react'
 
-import { useScrollOpenedPostIntoView } from './useScrollOpenedPostIntoView'
+import {
+  OPENED_POST_LANDED_KEY,
+  useScrollOpenedPostIntoView
+} from './useScrollOpenedPostIntoView'
 
 const Opened = ({
   hasPostsAbove,
@@ -66,5 +69,34 @@ describe('useScrollOpenedPostIntoView', () => {
     window.history.replaceState(null, '', '/#reply-1')
     render(<Opened hasPostsAbove />)
     expect(scrollIntoView).not.toHaveBeenCalled()
+  })
+
+  it('marks the history entry once it has landed, keeping its state', () => {
+    window.history.replaceState({ router: 'kept' }, '')
+    render(<Opened hasPostsAbove />)
+    expect(window.history.state).toEqual({
+      router: 'kept',
+      [OPENED_POST_LANDED_KEY]: true
+    })
+  })
+
+  it('leaves Back, Forward and reload to the browser once the entry has landed', () => {
+    window.history.replaceState({ [OPENED_POST_LANDED_KEY]: true }, '')
+    render(<Opened hasPostsAbove />)
+    expect(scrollIntoView).not.toHaveBeenCalled()
+  })
+
+  it('still lands when history cannot be written', () => {
+    const replaceState = vi
+      .spyOn(window.history, 'replaceState')
+      .mockImplementation(() => {
+        throw new Error('SecurityError')
+      })
+    try {
+      render(<Opened hasPostsAbove />)
+      expect(scrollIntoView).toHaveBeenCalledTimes(1)
+    } finally {
+      replaceState.mockRestore()
+    }
   })
 })
