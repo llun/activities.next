@@ -9,6 +9,7 @@ import { BaseNote, BaseNoteSchema, getUrl } from '@/lib/activities/note'
 import { toCollectionItems } from '@/lib/activities/orderedCollection'
 import { isPubliclyAddressed } from '@/lib/database/domains/status/status'
 import { Database } from '@/lib/database/types'
+import { isLocalDomain } from '@/lib/services/domains/localDomains'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { getPollFieldsFromQuestion } from '@/lib/services/polls/pollChoices'
@@ -186,25 +187,38 @@ const threadKey = (id: string | null | undefined): string | null => {
     : normalized
 }
 
-const fetchRemoteStatus = async (
+// How far above the requested status the parent chain is followed, stored
+// parents included, and so the most parents one run fetches. It matches the
+// ancestors a context read serves an anonymous viewer (Mastodon's 40,
+// `ANONYMOUS_ANCESTORS_LIMIT` in getStatusContext), so a backfilled chain is
+// as deep as the thread view shows. Each fetch is one signed request to the
+// parent's own origin, gated like the requested note.
+export const MAX_ANCESTOR_DEPTH = 40
+
+// An inline (NoQueue) run is awaited by the request that queued it, so it
+// fetches at most this many missing parents (the walk over stored ones is not
+// limited by it) and stops fetching once `INLINE_DEADLINE_MS` has passed. A
+// queued run fetches up to `MAX_ANCESTOR_DEPTH`.
+export const INLINE_MAX_ANCESTOR_FETCHES = 3
+
+// The stored status `reference` names, by id or by url (a reply's `inReplyTo`
+// may name either, as resolveParentStatusIdByReply matches them).
+const getStoredStatus = async (database: Database, reference: string) =>
+  (await database.getStatus({ statusId: reference, withReplies: false })) ??
+  (await database.getStatusFromUrl({ url: reference }))
+
+// Fetches, gates and stores the note at `statusId`. Null when its domain may
+// not be federated with, it cannot be fetched, it is not authoritative for the
+// URL, it is not public, or its author cannot be recorded.
+const fetchAndStoreNote = async (
   database: Database,
   statusId: string,
-  depth = 0,
   signingActor?: Actor
 ): Promise<FetchRemoteStatusResult | null> => {
-  if (depth > 3) return null
-  if (!(await canFederateWithDomain(database, statusId))) return null
-
-  // 1. Check if already in database
-  const existing = await database.getStatus({ statusId })
-  if (existing) return { status: existing }
-
-  // 2. Fetch the Note
   const note = await getNote({ statusId, signingActor })
   if (!note) return null
   if (!isAuthoritativeNote(note, statusId)) return null
 
-  // 3. Check if public
   const publicStreams = [
     ACTIVITY_STREAM_PUBLIC,
     'Public',
@@ -220,7 +234,6 @@ const fetchRemoteStatus = async (
 
   if (!isPublic) return null
 
-  // 4. Sanitize and store actor
   const sanitizedNote = normalizeActivityPubContent(note) as BaseNote
   const actor = await recordActorIfNeeded({
     actorId: sanitizedNote.attributedTo,
@@ -229,7 +242,6 @@ const fetchRemoteStatus = async (
   })
   if (!actor) return null
 
-  // 5. Create status in database
   let noteWasInserted = false
   try {
     const { isNew } = await createFetchedStatus(
@@ -249,33 +261,114 @@ const fetchRemoteStatus = async (
     await storeNewNoteSideEffects(database, sanitizedNote.id, sanitizedNote)
   }
 
-  // 6. Get the created status
   const status = await database.getStatus({ statusId: sanitizedNote.id })
+  if (!status) return null
+  return { status, note: sanitizedNote }
+}
 
-  // 7. Fetch parent (if any)
-  if (status && status.type !== StatusType.enum.Announce && status.reply) {
-    await fetchRemoteStatus(database, status.reply, depth + 1, signingActor)
+// Resolves the requested status (stored, or fetched and stored) and then walks
+// its parent chain: a stored parent is read and passed through, a missing one
+// is fetched, so a gap anywhere in the chain is filled, not only one directly
+// above the requested status. The walk stops at the root, at a parent it
+// cannot fetch or federate with, at a cycle, after `MAX_ANCESTOR_DEPTH` hops,
+// or after `maxFetches` fetches (stored parents do not count) or `deadline`.
+const fetchRemoteStatus = async (
+  database: Database,
+  statusId: string,
+  signingActor: Actor | undefined,
+  {
+    maxFetches = MAX_ANCESTOR_DEPTH,
+    deadline = null
+  }: { maxFetches?: number; deadline?: number | null } = {}
+): Promise<FetchRemoteStatusResult | null> => {
+  if (!(await canFederateWithDomain(database, statusId))) return null
+
+  const existing = await database.getStatus({ statusId })
+  const result =
+    existing !== null
+      ? { status: existing }
+      : await fetchAndStoreNote(database, statusId, signingActor)
+  if (!result) return null
+
+  const seen = new Set<string>()
+  const remember = (status: Status) => {
+    for (const key of [
+      threadKey(status.id),
+      threadKey('url' in status ? status.url : null)
+    ]) {
+      if (key) seen.add(key)
+    }
+  }
+  remember(result.status)
+
+  let current: Status = result.status
+  let fetches = 0
+  for (let depth = 0; depth < MAX_ANCESTOR_DEPTH; depth++) {
+    if (current.type === StatusType.enum.Announce || !current.reply) break
+    const reference = current.reply
+    const key = threadKey(reference)
+    if (!key || seen.has(key)) break
+    // A parent on a blocked or suspended domain ends the walk, stored or
+    // not: what lies above it is only that server's claim.
+    if (!(await canFederateWithDomain(database, reference))) break
+
+    let parent: Status | null = await getStoredStatus(database, reference)
+    if (!parent) {
+      // A missing parent on a domain this server serves was deleted here (or
+      // never existed); asking our own host for it would only send a signed
+      // request to ourselves.
+      if (await isLocalDomain(database, reference)) break
+      if (fetches >= maxFetches) break
+      if (deadline !== null && Date.now() >= deadline) break
+      fetches++
+      parent =
+        (await fetchAndStoreNote(database, reference, signingActor))?.status ??
+        null
+    }
+    if (!parent) break
+    // The reference may be an alias of a status the walk already passed.
+    const parentKey = threadKey(parent.id)
+    if (parentKey && parentKey !== key && seen.has(parentKey)) break
+    seen.add(key)
+    remember(parent)
+    current = parent
   }
 
-  if (!status) return null
-
-  return { status, note: sanitizedNote }
+  return result
 }
 
 export const fetchRemoteStatusJob = createJobHandle(
   FETCH_REMOTE_STATUS_JOB_NAME,
   async (database, message) => {
     // `firstPageOnly` keeps an inline (NoQueue) run cheap: it stores just the
-    // focused note's direct replies (the opening page, no recursion) so awaiting
-    // the job during a page render stays fast. A real queue processes the job
-    // out of band and walks the full nested thread.
-    const { statusId, firstPageOnly } = z
-      .object({ statusId: z.string(), firstPageOnly: z.boolean().optional() })
+    // focused note's direct replies (the opening page, no recursion) and at
+    // most `INLINE_MAX_ANCESTOR_FETCHES` missing parents, so awaiting the job
+    // during a request stays fast. A real queue processes the job out of band
+    // and walks the full nested thread and parent chain.
+    //
+    // `ancestorsOnly` is the thread backfill (queueMissingParentFetch): it
+    // stores the status and its missing parents, and does not walk replies.
+    const { statusId, firstPageOnly, ancestorsOnly } = z
+      .object({
+        statusId: z.string(),
+        firstPageOnly: z.boolean().optional(),
+        ancestorsOnly: z.boolean().optional()
+      })
       .parse(message.data)
     const signingActor = await getFederationSigningActor(database)
 
-    const result = await fetchRemoteStatus(database, statusId, 0, signingActor)
-    if (!result) return
+    const result = await fetchRemoteStatus(
+      database,
+      statusId,
+      signingActor,
+      firstPageOnly
+        ? {
+            maxFetches: INLINE_MAX_ANCESTOR_FETCHES,
+            deadline: Date.now() + INLINE_DEADLINE_MS
+          }
+        : {}
+    )
+    if (!result || ancestorsOnly) return
 
     // 8. Fetch the reply thread.
     //

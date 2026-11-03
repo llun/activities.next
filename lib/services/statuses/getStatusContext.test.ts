@@ -161,6 +161,66 @@ describe('getStatusContext', () => {
     expect(result.hasMoreAncestors).toBe(true)
   })
 
+  describe('missingParentId', () => {
+    const MISSING = 'https://remote.example/users/x/statuses/never-stored'
+
+    it('names the unstored parent above a hidden ancestor', async () => {
+      const hiddenId = `${ACTOR2_ID}/statuses/ctx-missing-hidden`
+      const leafId = `${ACTOR1_ID}/statuses/ctx-missing-leaf`
+      // Followers-only by an actor the anonymous viewer cannot follow.
+      await database.createNote({
+        id: hiddenId,
+        url: hiddenId,
+        actorId: ACTOR2_ID,
+        text: 'Hidden ancestor',
+        reply: MISSING,
+        to: [ACTOR2_FOLLOWER_URL],
+        cc: []
+      })
+      await database.createNote({
+        id: leafId,
+        url: leafId,
+        actorId: ACTOR1_ID,
+        text: 'Leaf',
+        reply: hiddenId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const context = await getStatusContext({ database, statusId: leafId })
+
+      expect(context.ancestors).toEqual([])
+      expect(context.missingParentId).toBe(MISSING)
+    })
+
+    it('is empty when the chain reaches its root', async () => {
+      const rootId = `${ACTOR1_ID}/statuses/ctx-missing-root`
+      const leafId = `${ACTOR1_ID}/statuses/ctx-missing-root-leaf`
+      await database.createNote({
+        id: rootId,
+        url: rootId,
+        actorId: ACTOR1_ID,
+        text: 'Root',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createNote({
+        id: leafId,
+        url: leafId,
+        actorId: ACTOR1_ID,
+        text: 'Leaf',
+        reply: rootId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const context = await getStatusContext({ database, statusId: leafId })
+
+      expect(context.ancestors.map((status) => status.id)).toEqual([rootId])
+      expect(context.missingParentId).toBe('')
+    })
+  })
+
   it('loads descendants with deterministic (createdAt, id) ordering', async () => {
     const rootId = `${ACTOR1_ID}/statuses/ctx-desc-root`
     const childAId = `${ACTOR1_ID}/statuses/ctx-desc-child-a`

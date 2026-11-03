@@ -29,6 +29,7 @@ import {
   persistInboundQuoteEdge,
   resolveInboundQuotedStatus
 } from '@/lib/services/quotes/persistInboundQuoteEdge'
+import { queueMissingParentFetch } from '@/lib/services/statuses/parentBackfill'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import {
   ArticleContent,
@@ -255,56 +256,72 @@ export const createNoteJob = createJobHandle(
     // post should not wait on someone else's server to become visible here.
     await syncStatusLinkPreview({ database, status })
 
-    // Outbound Inbox Forwarding (W3C ActivityPub §7.1.2):
-    // Fan out verified public replies and mentions of local users to their followers.
-    if (
-      shouldForwardActivity({
-        message,
-        authorActorId: actorId,
-        activityId: note.id,
-        to: note.to,
-        cc: note.cc
-      })
-    ) {
-      const targetLocalActorIds = await getForwardingTargetLocalActorIds({
-        database,
-        inReplyTo: note.inReplyTo,
-        tags: note.tag,
-        to: note.to,
-        cc: note.cc
-      })
-
-      if (targetLocalActorIds.length > 0) {
-        const inboxes = await resolveForwardingInboxes({
-          database,
-          targetLocalActorIds,
+    try {
+      // Outbound Inbox Forwarding (W3C ActivityPub §7.1.2):
+      // Fan out verified public replies and mentions of local users to their followers.
+      if (
+        shouldForwardActivity({
+          message,
           authorActorId: actorId,
+          activityId: note.id,
+          to: note.to,
+          cc: note.cc
+        })
+      ) {
+        const targetLocalActorIds = await getForwardingTargetLocalActorIds({
+          database,
+          inReplyTo: note.inReplyTo,
+          tags: note.tag,
           to: note.to,
           cc: note.cc
         })
 
-        if (inboxes.length > 0) {
-          const createActivity = {
-            '@context': NOTE_ACTIVITY_CONTEXT,
-            id: `${note.id}#activity`,
-            type: CreateAction,
-            actor: note.attributedTo,
-            published: note.published,
+        if (targetLocalActorIds.length > 0) {
+          const inboxes = await resolveForwardingInboxes({
+            database,
+            targetLocalActorIds,
+            authorActorId: actorId,
             to: note.to,
-            cc: note.cc,
-            object: note
-          }
+            cc: note.cc
+          })
 
-          for (const forwardMessage of getForwardActivityJobMessages({
-            id: `${getHashFromString(note.id)}#forward`,
-            activity: createActivity,
-            inboxes,
-            localActorId: targetLocalActorIds[0]
-          })) {
-            await getQueue().publish(forwardMessage)
+          if (inboxes.length > 0) {
+            const createActivity = {
+              '@context': NOTE_ACTIVITY_CONTEXT,
+              id: `${note.id}#activity`,
+              type: CreateAction,
+              actor: note.attributedTo,
+              published: note.published,
+              to: note.to,
+              cc: note.cc,
+              object: note
+            }
+
+            for (const forwardMessage of getForwardActivityJobMessages({
+              id: `${getHashFromString(note.id)}#forward`,
+              activity: createActivity,
+              inboxes,
+              localActorId: targetLocalActorIds[0]
+            })) {
+              await getQueue().publish(forwardMessage)
+            }
           }
         }
       }
+    } finally {
+      // A reply whose parent is not stored here queues the parent's fetch
+      // (Mastodon's ThreadResolveWorker), which walks on up the chain. The
+      // helper skips a stored, local or blocked parent and queues a parent
+      // once per cooldown, so a burst of replies to one missing post fetches
+      // it once. Last, and not awaited under the in-process queue, so the
+      // fetch never holds up forwarding or the sender's delivery; in
+      // `finally`, so a failed forward still queues it (and still throws, as
+      // the helper itself never does).
+      await queueMissingParentFetch({
+        database,
+        inReplyTo: getReply(note.inReplyTo),
+        detachInline: true
+      })
     }
   }
 )

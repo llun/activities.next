@@ -31,6 +31,7 @@ import {
   isStatusPubliclyReadable
 } from '@/lib/services/statusAccess'
 import { getStatusContext } from '@/lib/services/statuses/getStatusContext'
+import { queueThreadGapBackfill } from '@/lib/services/statuses/parentBackfill'
 import { getActorProfile } from '@/lib/types/domain/actor'
 import {
   Status,
@@ -376,6 +377,14 @@ const Page: FC<Props> = async ({ params }) => {
     replies = threadContext.descendants
     hasMoreAncestors = threadContext.hasMoreAncestors
     hasMoreDescendants = threadContext.hasMoreDescendants
+    // A signed-in view of a stored thread that stops at a missing parent
+    // queues that parent's fetch (see the context route).
+    if (currentActor && isStoredStatus) {
+      await queueThreadGapBackfill({
+        database,
+        missingParentId: threadContext.missingParentId
+      })
+    }
   }
 
   const statusForLayout =

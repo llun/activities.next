@@ -3,6 +3,8 @@ import { NextRequest } from 'next/server'
 import { GET } from '@/app/api/v1/statuses/[id]/route'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import type { Database } from '@/lib/database/types'
+import { FETCH_REMOTE_STATUS_JOB_NAME } from '@/lib/jobs/names'
+import { resetParentBackfillStateForTesting } from '@/lib/services/statuses/parentBackfill'
 import { seedDatabase } from '@/lib/stub/database'
 import { statusPublicId } from '@/lib/stub/publicIds'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
@@ -413,6 +415,82 @@ describe('GET /api/v1/statuses/[id]/context', () => {
         (s: { id: string }) => s.id === rootPublicId
       )
       expect(ancestor.filtered ?? []).toHaveLength(0)
+    })
+  })
+
+  describe('thread backfill', () => {
+    const MISSING_PARENT =
+      'https://remote.example/users/someone/statuses/missing-parent'
+    const fetchJobs = async () => {
+      const { getQueue } = await import('@/lib/services/queue')
+      return vi
+        .mocked(getQueue().publish)
+        .mock.calls.map(([message]) => message)
+        .filter((message) => message.name === FETCH_REMOTE_STATUS_JOB_NAME)
+    }
+    const readContext = (statusId: string) =>
+      getStatusContext(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}/context`
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+    beforeEach(() => {
+      resetParentBackfillStateForTesting()
+    })
+
+    it('queues the missing parent above the loaded thread for a signed-in read', async () => {
+      const rootId = `${ACTOR1_ID}/statuses/api-context-gap-root`
+      const childId = `${ACTOR1_ID}/statuses/api-context-gap-child`
+      await database.createNote({
+        id: rootId,
+        url: rootId,
+        actorId: ACTOR1_ID,
+        text: 'Root replying to a parent this instance lacks',
+        reply: MISSING_PARENT,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createNote({
+        id: childId,
+        url: childId,
+        actorId: ACTOR1_ID,
+        text: 'Child',
+        reply: rootId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      expect((await readContext(childId)).status).toBe(200)
+      expect((await readContext(childId)).status).toBe(200)
+
+      // Once, though the thread was read twice.
+      expect(await fetchJobs()).toEqual([
+        expect.objectContaining({
+          data: expect.objectContaining({
+            statusId: MISSING_PARENT,
+            ancestorsOnly: true
+          })
+        })
+      ])
+    })
+
+    it('queues nothing for an anonymous read', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+      const statusId = `${ACTOR1_ID}/statuses/api-context-gap-anonymous`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Reply to a parent this instance lacks',
+        reply: MISSING_PARENT,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      expect((await readContext(statusId)).status).toBe(200)
+      expect(await fetchJobs()).toEqual([])
     })
   })
 })

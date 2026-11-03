@@ -462,6 +462,10 @@ const STATEMENTS: [RegExp, (bindings: unknown[]) => string][] = [
     /^select "id" from "statuses" where "urlHash" = \S+ and "url" = /,
     (b) => `parent by url ${b[1]}`
   ],
+  [
+    /^select count\(\*\) as "count" from "statuses" as "child" where "child"\."reply" = /,
+    (b) => `stored replies to ${b[0]}`
+  ],
   [/^insert into "recipients" /, (b) => `recipient ${b[3]} ${b[2]}`],
   [/^insert into "poll_choices" /, (b) => `insert choice ${b[1]}`],
   [/^select "title" from "poll_choices" /, () => 'read choice titles'],
@@ -987,6 +991,7 @@ describe('createNote', () => {
       `parent by id ${remote}/@parent`,
       `parent by url ${remote}/@parent`,
       `count ${CounterKey.totalReply(parent)}`,
+      `stored replies to ${id}`,
       `recipient to ${ACTIVITY_STREAM_PUBLIC}`,
       `recipient to ${remote}`,
       `recipient cc ${local}/followers`,
@@ -1245,6 +1250,7 @@ describe('createPoll', () => {
       `bucket hour ${bucketOf('statuses')}`,
       `lastStatusAt ${remote}`,
       `read account ${remote}`,
+      `stored replies to ${id}`,
       'insert choice b',
       'insert choice a',
       `recipient to ${ACTIVITY_STREAM_PUBLIC}`,

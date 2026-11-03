@@ -160,6 +160,92 @@ describe('counters anonymous surfaces read', () => {
       })
     })
 
+    describe('reply counter for replies stored before their parent', () => {
+      const createParent = async (
+        actorId: string,
+        id: string,
+        url: string = id
+      ) => {
+        await database.createNote({
+          id,
+          url,
+          actorId,
+          text: 'parent',
+          reply: '',
+          ...audience(actorId, 'public')
+        })
+        return id
+      }
+
+      it('seeds the parent count from the public replies already stored', async () => {
+        const author = await createActor('counter-early-replies')
+        const parentId = `${author}/statuses/late-parent`
+        const parentUrl = `${author}/@late-parent`
+        await createNote(database, author, 'public', { reply: parentId })
+        await createNote(database, author, 'unlisted', { reply: parentUrl })
+        await createNote(database, author, 'followers', { reply: parentId })
+        await createNote(database, author, 'direct', { reply: parentUrl })
+        await createNote(database, author, 'public', {
+          reply: `${author}/statuses/someone-else`
+        })
+
+        await createParent(author, parentId, parentUrl)
+        expect(
+          await database.getStatusRepliesCount({ statusId: parentId })
+        ).toBe(2)
+
+        // A reply arriving after the parent is counted as before.
+        await createNote(database, author, 'public', { reply: parentId })
+        expect(
+          await database.getStatusRepliesCount({ statusId: parentId })
+        ).toBe(3)
+      })
+
+      it('keeps the count consistent when an early reply is deleted', async () => {
+        const author = await createActor('counter-early-delete')
+        const parentId = `${author}/statuses/late-parent`
+        const first = await createNote(database, author, 'public', {
+          reply: parentId
+        })
+        const second = await createNote(database, author, 'public', {
+          reply: parentId
+        })
+        await createParent(author, parentId)
+
+        await database.deleteStatus({ statusId: first })
+        expect(
+          await database.getStatusRepliesCount({ statusId: parentId })
+        ).toBe(1)
+        await database.deleteStatus({ statusId: second })
+        expect(
+          await database.getStatusRepliesCount({ statusId: parentId })
+        ).toBe(0)
+      })
+
+      it('does not seed replies already counted toward another status', async () => {
+        const author = await createActor('counter-early-claimed')
+        // An existing status whose url is the reference the replies name.
+        const shared = `${author}/statuses/shared-reference`
+        const owner = await createParent(
+          author,
+          `${author}/statuses/owner`,
+          shared
+        )
+        await createNote(database, author, 'public', { reply: shared })
+        expect(await database.getStatusRepliesCount({ statusId: owner })).toBe(
+          1
+        )
+
+        await createParent(author, shared)
+        expect(await database.getStatusRepliesCount({ statusId: shared })).toBe(
+          0
+        )
+        expect(await database.getStatusRepliesCount({ statusId: owner })).toBe(
+          1
+        )
+      })
+    })
+
     describe('hashtag counter', () => {
       it('is not decremented by deleting a non-public tagged status', async () => {
         const author = await createActor('counter-tag-author')
