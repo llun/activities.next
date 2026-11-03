@@ -6,6 +6,7 @@ import '@testing-library/jest-dom'
 import { render, screen, within } from '@testing-library/react'
 
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { queueThreadGapBackfill } from '@/lib/services/statuses/parentBackfill'
 import { Actor } from '@/lib/types/domain/actor'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { Status, StatusNote } from '@/lib/types/domain/status'
@@ -97,6 +98,10 @@ vi.mock('@/lib/services/auth/getSession', async () => ({
 
 vi.mock('@/lib/services/queue', async () => ({
   getQueue: vi.fn()
+}))
+
+vi.mock('@/lib/services/statuses/parentBackfill', async () => ({
+  queueThreadGapBackfill: vi.fn().mockResolvedValue(false)
 }))
 
 vi.mock('@/lib/utils/getActorFromSession', async () => ({
@@ -870,5 +875,56 @@ describe('Page visibility for the focused-status author', () => {
     expect(screen.getByTestId(`status-${id}`)).toBeInTheDocument()
     // Access is granted by identity, not by a follow lookup.
     expect(mockGetAcceptedOrRequestedFollow).not.toHaveBeenCalled()
+  })
+})
+
+// A stored thread that stops at a parent this instance lacks queues that
+// parent's fetch for a signed-in view only (queueThreadGapBackfill owns the
+// gap check, the cooldown and the queue).
+describe('Page thread backfill', () => {
+  const focused = buildNote({ id: 'gap-reply', reply: 'gap-parent' })
+  const parent = buildNote({
+    id: 'gap-parent',
+    reply: 'https://remote.example/users/x/statuses/missing'
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetStatus.mockReset()
+    mockGetStatusReplies.mockResolvedValue([])
+    mockResolveStatusFromPath.mockResolvedValue({
+      pathActor: PATH_ACTOR,
+      status: focused,
+      statusId: 'gap-reply',
+      fullStatusId: focused.url,
+      isStatusHash: true
+    })
+    mockGetStatus.mockImplementation(async ({ statusId }) =>
+      statusId === 'gap-parent' ? parent : null
+    )
+  })
+
+  it('queues the parent the ancestor walk stopped at for a signed-in viewer', async () => {
+    mockGetServerAuthSession.mockResolvedValue({} as never)
+    mockGetActorFromSession.mockResolvedValue(buildViewer())
+
+    await renderPage()
+
+    expect(screen.getByTestId('status-gap-reply')).toBeInTheDocument()
+    expect(vi.mocked(queueThreadGapBackfill)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        missingParentId: 'https://remote.example/users/x/statuses/missing'
+      })
+    )
+  })
+
+  it('queues nothing for a logged-out visitor', async () => {
+    mockGetServerAuthSession.mockResolvedValue(null)
+    mockGetActorFromSession.mockResolvedValue(null)
+
+    await renderPage()
+
+    expect(screen.getByTestId('status-gap-reply')).toBeInTheDocument()
+    expect(vi.mocked(queueThreadGapBackfill)).not.toHaveBeenCalled()
   })
 })

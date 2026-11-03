@@ -12,6 +12,7 @@ import {
 import { isPubliclyAddressed } from '@/lib/database/domains/status/status'
 import { persistDetectedLanguage } from '@/lib/services/language-detection'
 import { getPollFieldsFromQuestion } from '@/lib/services/polls/pollChoices'
+import { queueMissingParentFetch } from '@/lib/services/statuses/parentBackfill'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { ENTITY_TYPE_QUESTION, Question } from '@/lib/types/activitypub'
 import {
@@ -148,5 +149,13 @@ export const createPollJob = createJobHandle(
         hashtags: affectedHashtags
       })
     }
+
+    // A poll replying to a parent that is not stored here queues the
+    // parent's fetch, last and detached, as createNoteJob does.
+    await queueMissingParentFetch({
+      database,
+      inReplyTo: getReply(question.inReplyTo),
+      detachInline: true
+    })
   }
 )
