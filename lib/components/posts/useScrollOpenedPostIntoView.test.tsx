@@ -41,6 +41,7 @@ describe('useScrollOpenedPostIntoView', () => {
   afterEach(() => {
     cleanup()
     window.history.replaceState(null, '', '/')
+    window.history.scrollRestoration = 'auto'
   })
 
   it('scrolls the opened post to the top, instantly, once', () => {
@@ -81,9 +82,47 @@ describe('useScrollOpenedPostIntoView', () => {
   })
 
   it('leaves Back, Forward and reload to the browser once the entry has landed', () => {
+    window.history.scrollRestoration = 'auto'
     window.history.replaceState({ [OPENED_POST_LANDED_KEY]: true }, '')
     render(<Opened hasPostsAbove />)
     expect(scrollIntoView).not.toHaveBeenCalled()
+  })
+
+  it('lands again under manual scroll restoration, which restores nothing', () => {
+    window.history.scrollRestoration = 'manual'
+    window.history.replaceState({ [OPENED_POST_LANDED_KEY]: true }, '')
+    render(<Opened hasPostsAbove />)
+    expect(scrollIntoView).toHaveBeenCalledTimes(1)
+  })
+
+  it('puts the mark back after a router write drops it, on the same page', () => {
+    const { rerender } = render(<Opened hasPostsAbove />)
+    // What the router's history write after `router.refresh()` leaves.
+    window.history.replaceState({ __NA: true }, '')
+    rerender(<Opened hasPostsAbove />)
+    expect(window.history.state).toEqual({
+      __NA: true,
+      [OPENED_POST_LANDED_KEY]: true
+    })
+    expect(scrollIntoView).toHaveBeenCalledTimes(1)
+  })
+
+  it('puts the mark back on pagehide', () => {
+    render(<Opened hasPostsAbove />)
+    window.history.replaceState({ __NA: true }, '')
+    window.dispatchEvent(new Event('pagehide'))
+    expect(window.history.state).toEqual({
+      __NA: true,
+      [OPENED_POST_LANDED_KEY]: true
+    })
+  })
+
+  it('leaves another page’s entry unmarked', () => {
+    const { rerender } = render(<Opened hasPostsAbove />)
+    window.history.replaceState({ __NA: true }, '', '/elsewhere')
+    rerender(<Opened hasPostsAbove />)
+    window.dispatchEvent(new Event('pagehide'))
+    expect(window.history.state).toEqual({ __NA: true })
   })
 
   it('still lands when history cannot be written', () => {

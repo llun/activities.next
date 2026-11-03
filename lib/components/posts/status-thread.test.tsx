@@ -104,6 +104,8 @@ describe('StatusThread', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockClampCollapsible = false
+    // The landing scroll marks the history entry; start each test unmarked.
+    window.history.replaceState(null, '', '/')
   })
 
   it('renders ancestors, focused status, and descendants in order', () => {
