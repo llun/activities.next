@@ -1,0 +1,19 @@
+app/(timeline)/(policies)/PolicyContents.tsx
+  s_faa2bc36e05ca4::t_4de1bf6c9c7975 28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d732bce0069ac9e9013cab326e9dabfec5d15a40",
+  "prompts": {},
+  "sessions": {
+    "s_faa2bc36e05ca4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "45466c22-d694-4813-89e3-b627832ab67f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
