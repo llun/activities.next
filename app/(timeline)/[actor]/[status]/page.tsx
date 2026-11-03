@@ -30,6 +30,7 @@ import {
   isStatusPubliclyReadable
 } from '@/lib/services/statusAccess'
 import { getStatusContext } from '@/lib/services/statuses/getStatusContext'
+import { queueThreadGapBackfill } from '@/lib/services/statuses/parentBackfill'
 import {
   THREAD_INITIAL_ANCESTORS_LIMIT,
   THREAD_INITIAL_DESCENDANTS_LIMIT
@@ -384,6 +385,14 @@ const Page: FC<Props> = async ({ params }) => {
     // from its origin (not stored yet) offers no "Load more" it cannot keep.
     hasMoreAncestors = isStoredStatus && threadContext.hasMoreAncestors
     hasMoreDescendants = isStoredStatus && threadContext.hasMoreDescendants
+    // A signed-in view of a stored thread that stops at a missing parent
+    // queues that parent's fetch (see the context route).
+    if (currentActor && isStoredStatus) {
+      await queueThreadGapBackfill({
+        database,
+        missingParentId: threadContext.missingParentId
+      })
+    }
   }
 
   const statusForLayout =

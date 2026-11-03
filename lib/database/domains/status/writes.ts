@@ -1,3 +1,5 @@
+import { sql } from 'kysely'
+
 import { getActorFromId } from '@/lib/database/domains/actor/lookups'
 import { getIdempotencyKey } from '@/lib/database/domains/idempotency/queries'
 import {
@@ -26,6 +28,7 @@ import { type Db, inTransaction } from '@/lib/database/kysely'
 import { increaseCounterValue } from '@/lib/database/kysely/counter'
 import { incrementBucket } from '@/lib/database/kysely/counterBucket'
 import { timestampValue } from '@/lib/database/kysely/dialect'
+import { PUBLIC_ACTIVITY_RECIPIENTS } from '@/lib/database/kysely/visibility/potentiallyReadable'
 import { CounterKey } from '@/lib/database/utils/counter'
 import {
   type Status,
@@ -71,6 +74,72 @@ export const resolveParentStatusIdByReply = async (
   if (byUrl?.id) return byUrl.id
 
   return null
+}
+
+// Seeds a new status's reply counter with the replies stored before it. A
+// reply that arrives (or is fetched) before its parent moves no counter,
+// because its parent cannot be resolved yet, so without this the parent's
+// replies_count would miss it for good, and deleting the reply later would
+// decrement a count it never added to (clamped at 0). Counted exactly as
+// updateStatusCounters counts one: a publicly addressed reply whose `reply`
+// names this status by id or by url. Replies naming a reference that already
+// resolved to another stored status were counted there, so they are skipped.
+// Runs inside the create's transaction, after the status row is inserted.
+export const seedReplyCounterFromStoredReplies = async (
+  trx: Db,
+  {
+    statusId,
+    url,
+    currentTime
+  }: { statusId: string; url: string | null; currentTime: Date }
+) => {
+  const references = [...new Set([statusId, url].filter(Boolean))] as string[]
+  let total = 0
+  for (const reference of references) {
+    const row = await trx
+      .selectFrom('statuses as child')
+      .select((eb) => eb.fn.countAll<number | string>().as('count'))
+      .where('child.reply', '=', reference)
+      .where('child.id', '!=', statusId)
+      .where((eb) =>
+        eb.exists(
+          eb
+            .selectFrom('recipients')
+            .select(sql.lit(1).as('one'))
+            .whereRef('recipients.statusId', '=', 'child.id')
+            .where('recipients.actorId', 'in', PUBLIC_ACTIVITY_RECIPIENTS)
+        )
+      )
+      .executeTakeFirst()
+    const count = Number(row?.count ?? 0)
+    if (count === 0) continue
+
+    const claimedElsewhere = await trx
+      .selectFrom('statuses')
+      .select('id')
+      .where('id', '!=', statusId)
+      .where((eb) =>
+        eb.or([
+          eb('id', '=', reference),
+          eb.and([
+            eb('urlHash', '=', getHashFromString(reference)),
+            eb('url', '=', reference)
+          ])
+        ])
+      )
+      .limit(1)
+      .executeTakeFirst()
+    if (claimedElsewhere) continue
+    total += count
+  }
+  if (total > 0) {
+    await increaseCounterValue(
+      trx,
+      CounterKey.totalReply(statusId),
+      total,
+      currentTime
+    )
+  }
 }
 
 // The counters a new status moves, inside its create's transaction: the
@@ -380,6 +449,11 @@ export const createNoteWithResult = async (
           statusCreatedAt,
           audience: { to, cc }
         })
+        await seedReplyCounterFromStoredReplies(trx, {
+          statusId: id,
+          url,
+          currentTime
+        })
         await insertStatusRecipients(trx, {
           statusId: id,
           to,
@@ -624,6 +698,11 @@ export const createPollWithResult = async (
           currentTime,
           statusCreatedAt,
           audience: { to, cc }
+        })
+        await seedReplyCounterFromStoredReplies(trx, {
+          statusId: id,
+          url,
+          currentTime
         })
         // One statement per choice, in order: choiceId follows the insert
         // order, and hydration lists the choices by choiceId.

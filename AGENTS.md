@@ -16,61 +16,36 @@ Every change, however small, is done only when ALL of these hold:
 
 For the most common task shapes, follow the step-by-step [Task Recipes](CONTRIBUTING.md#agents-task-recipes) instead of improvising.
 
-## Working with Sub-Agents (always)
+## Working with Sub-Agents
 
-The main thread (the top-level session the user talks to) always delegates work to sub-agents. It is the orchestrator: it understands the ask, splits it into tasks, briefs a sub-agent for each, checks what comes back, and owns the final answer — it does not do the bulk reading, searching, editing or reviewing itself. Sub-agents do their assigned task directly and spawn further sub-agents only if their brief says to. The only exception is a session that cannot spawn sub-agents at all ([when sub-agents are unavailable](CONTRIBUTING.md#when-sub-agents-are-unavailable)); the review loop is specified in [Code Review Loop (Sub-Agents)](CONTRIBUTING.md#agents-code-review-loop-sub-agents).
+When to delegate, which model to use and how much effort to spend come from one
+guide, kept in the `llun/labs` repository and not repeated here:
+[`agents-bridge/config/routing/shared.md`](https://github.com/llun/labs/blob/main/agents-bridge/config/routing/shared.md)
+and, for Claude Code,
+[`claude.md`](https://github.com/llun/labs/blob/main/agents-bridge/config/routing/claude.md)
+beside it. On the owner's Mac it is already loaded through `~/.claude/CLAUDE.md`.
 
-### Rules for the main thread
+Where the guide can't be read and the `delegate` tool is missing (cloud
+sessions), follow this summary of it:
 
-- **Delegate every non-trivial step** — exploration, code search, reading large files or logs, implementation, test runs, and code review each go to a sub-agent; the main thread keeps conclusions and evidence, not raw output. It may directly: read the parts of this file and its linked rule sections (Mandatory workflow, Routing table) needed to brief sub-agents; run one short command or read one small file whose output it needs anyway (`git status`, `git diff --stat`, spot-checking a cited `file:line`); do git/PR bookkeeping (commits, pushes, PR descriptions, review threads). Anything longer, and any edit to the repository's files, goes to a sub-agent.
-- **Set model and effort on every sub-agent explicitly** — never rely on the inherited default. Choose the cheapest model and lowest effort that will still do the task well (table below), stepping up only where quality depends on it.
-- **Run independent tasks in parallel** — launch sub-agents that do not depend on each other in a single message. Read-only work (search, reading, review) parallelizes freely; give parallel implementers separate worktrees or non-overlapping files.
-- **Brief each sub-agent completely** — it starts with no context: give it the goal, the relevant paths, the constraints from this file, the Routing table rows for the subsystems it touches, whether it may edit files, commit or push, and the exact shape of the result you want back.
-- **Verify before trusting** — check a sub-agent's claims (diffs, test output, `file:line`) before building on them: spot-check within the limits above; send anything bigger (re-running tests, reading a large diff) to a `fast`/`low` sub-agent. If a result is wrong or shallow because the brief left something out, fix the brief and re-run at the same tier; otherwise re-run one step up the escalation ladder below rather than patching around it.
-- **Review with a fresh sub-agent** — the review loop always uses a separate reviewer that did not write the change, and a new reviewer for each round; fixes go to an implementer sub-agent. Repeat until the reviewer comes back clean (stop conditions in the [review loop](CONTRIBUTING.md#agents-code-review-loop-sub-agents)).
+- Delegate work that runs in parallel, is bulk reading or editing, or needs a
+  fresh, independent context (review, verification). Do the rest in the main
+  thread.
+- Set `model` and `effort` on every Claude sub-agent: `haiku`/`low` (Fast),
+  `sonnet`/`medium` (Everyday), `sonnet`/`high` (Heavy), `opus`/`high`
+  (Frontier). Start at the tier that fits and go one up only after a wrong or
+  shallow answer. Use `xhigh` only for a bug that survived a fix, and never make
+  `max` a default.
+- Sub-agents see none of this conversation, so name the files, the goal and what
+  done looks like. Give parallel writers separate worktrees, and check their
+  diff and tests.
 
-### Choosing model and effort
-
-Match the tier to how much judgment the task needs, not to how important the overall change is. This policy works with any agent tool and any model, not only Claude: it is written in three model tiers (`fast`, `balanced`, `strongest`) and five effort steps (`low`, `medium`, `high`, `xhigh`, `max`), and the two tables after the task table map them onto each tool's own settings.
-
-| Task                                                                                                                                                                                                                       | Tier        | Effort   |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- | -------- |
-| Finding files, grepping, listing usages, reading logs, summarizing docs                                                                                                                                                    | `fast`      | `low`    |
-| Mechanical edit of exact text in one or two files (rename, formatting, an already-decided fix)                                                                                                                             | `fast`      | `low`    |
-| Mechanical edit spanning several files or needing surrounding code read (incl. updating docs to match code)                                                                                                                | `balanced`  | `low`    |
-| Running builds, tests and linters, reporting failures                                                                                                                                                                      | `fast`      | `low`    |
-| Implementing a well-specified feature or fix, writing tests                                                                                                                                                                | `balanced`  | `medium` |
-| Root-causing a CI failure or a bug with a clear reproduction                                                                                                                                                               | `balanced`  | `medium` |
-| High-risk areas: ActivityPub federation (signatures, JSON-LD, inbox/outbox, deletes), auth/OAuth/better-auth, actor and status visibility, migrator, baseline, schema dumps, storage-root and outbound-HTTP security rules | `strongest` | `high`   |
-| Architecture and design decisions, plans that touch several subsystems                                                                                                                                                     | `strongest` | `high`   |
-| Hard debugging (concurrency, data loss, security, flaky behavior with no clear cause)                                                                                                                                      | `strongest` | `high`   |
-| Code review of a change before it is pushed or merged                                                                                                                                                                      | `strongest` | `high`   |
-
-Model names change every few months — check the tool's current model list and use its newest model in the same tier; any model not listed here (another vendor, a local model, a new release) goes in the tier that matches its capability and cost.
-
-| Tier                                                           | Claude Code | OpenAI Codex               | Google Antigravity        | Open-weight (Qwen, DeepSeek, GLM, Kimi, gpt-oss, …)             |
-| -------------------------------------------------------------- | ----------- | -------------------------- | ------------------------- | --------------------------------------------------------------- |
-| `fast`: cheapest and quickest, retrieval and mechanical work   | `haiku`     | smallest current GPT model | a Gemini Flash model      | a small model, e.g. Qwen3-Coder-30B-A3B or gpt-oss-20b          |
-| `balanced`: most implementation work                           | `sonnet`    | mid-tier current GPT model | Claude Sonnet             | a mid-size coding model, e.g. Qwen3-Coder-Next or gpt-oss-120b  |
-| `strongest`: design, hard debugging, high-risk code and review | `opus`      | top current GPT model      | Claude Opus or Gemini Pro | the largest current frontier release, e.g. GLM-5.2 or Kimi K2.6 |
-
-How each tool sets the effort step:
-
-| Tool               | How to set effort                                                                                                                                                                                                                                                                                                                         |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Claude Code        | The Agent tool's `effort` takes the five steps as written.                                                                                                                                                                                                                                                                                |
-| OpenAI Codex       | `model_reasoning_effort` in the config or in a custom agent's TOML file (`.codex/agents/`); use the value Codex documents for each step (e.g. `low`, `medium`, `high`, `xhigh`), mapping `max` to its highest documented value.                                                                                                           |
-| Google Antigravity | For Gemini models, pick the effort level the model picker offers closest to the step. Models offered as a single thinking variant (such as Claude in Antigravity) have no effort steps — skip them as the ladder says.                                                                                                                    |
-| Open-weight models | Use the serving stack's reasoning setting where it has one (`reasoning_effort`, a thinking on/off switch, or a thinking-token budget): thinking off for `low`, on with the default budget for `medium`, a larger budget for `high`, the largest allowed for `xhigh` and `max`. If it has none, skip the effort steps, as the ladder says. |
-
-Guidelines:
-
-- When the table does not cover a task and you are unsure, use `balanced` at `medium`, a good balance of quality and cost for most coding work.
-- Use `fast` freely for retrieval and mechanical changes. It is the cheapest and quickest, and a wrong search result is cheap to redo.
-- Start at `strongest` or `high` effort only where a mistake is expensive: design, the high-risk areas in the table, subtle bugs, and review. When a task matches both a cheaper row and the high-risk row, the high-risk row wins. Reaching them by escalation is fine.
-- Escalate one step at a time, starting from the task's row in the table. The ladder is `fast`/`low` → `fast`/`medium` → `balanced`/`medium` → `balanced`/`high` → `strongest`/`high` → `strongest`/`xhigh` → `strongest`/`max`; a task that starts at `balanced`/`low` steps to `balanced`/`medium`. Never set `fast` above `medium`, and use `max` only on `strongest` after `xhigh` has fallen short. Where a tool has fewer effort steps than this ladder, skip the steps it lacks.
-- Do not go beyond these tiers and steps (for example Claude Code's `fable` model, or an effort level above `max`) unless the user asks for it.
-- Tools without a sub-agent feature still follow the same split as closely as they allow (a separate session or pass for review, the cheapest adequate model per task) rather than skipping it.
+In this repository, start at Frontier (`opus`/`high`) for the high-risk areas:
+ActivityPub federation (signatures, JSON-LD, inbox/outbox, deletes),
+auth/OAuth/better-auth, actor and status visibility, the migrator, baseline and
+schema dumps, and the storage-root and outbound-HTTP security rules. Code review
+always runs in fresh sub-agents, as the
+[review loop](CONTRIBUTING.md#agents-code-review-loop-sub-agents) describes.
 
 ## Project Structure & Module Organization
 

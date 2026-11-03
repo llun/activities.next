@@ -342,7 +342,8 @@ describe('Page remote-status fetch signing', () => {
       ancestors: [],
       descendants: [],
       hasMoreAncestors: true,
-      hasMoreDescendants: true
+      hasMoreDescendants: true,
+      missingParentId: ''
     })
 
     await renderRemoteStatusPage()
@@ -367,7 +368,8 @@ describe('Page remote-status fetch signing', () => {
       ancestors: [],
       descendants: [],
       hasMoreAncestors: true,
-      hasMoreDescendants: true
+      hasMoreDescendants: true,
+      missingParentId: ''
     })
 
     await renderRemoteStatusPage()
