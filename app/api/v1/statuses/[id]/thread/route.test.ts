@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import type { Database } from '@/lib/database/types'
 import { getStatusContext } from '@/lib/services/statuses/getStatusContext'
+import { queueThreadGapBackfill } from '@/lib/services/statuses/parentBackfill'
 import {
   THREAD_MAX_ANCESTORS_LIMIT,
   THREAD_MAX_DESCENDANTS_LIMIT,
@@ -64,6 +65,24 @@ vi.mock('@/lib/services/statuses/getStatusContext', async (importOriginal) => {
   return { ...actual, getStatusContext: vi.fn(actual.getStatusContext) }
 })
 const mockGetStatusContext = vi.mocked(getStatusContext)
+
+vi.mock('@/lib/services/statuses/parentBackfill', async () => ({
+  queueThreadGapBackfill: vi.fn(async () => false)
+}))
+const mockQueueThreadGapBackfill = vi.mocked(queueThreadGapBackfill)
+const MISSING_PARENT_ID = 'https://remote.example/statuses/missing-parent'
+// The real thread, reported as stopping at a parent this instance lacks.
+const withMissingParent = async (
+  params: Parameters<typeof getStatusContext>[0]
+) => {
+  const actual = await vi.importActual<
+    typeof import('@/lib/services/statuses/getStatusContext')
+  >('@/lib/services/statuses/getStatusContext')
+  return {
+    ...(await actual.getStatusContext(params)),
+    missingParentId: MISSING_PARENT_ID
+  }
+}
 
 const ROOT_ID = `${ACTOR1_ID}/statuses/thread-route-root`
 const MIDDLE_ID = `${ACTOR1_ID}/statuses/thread-route-middle`
@@ -158,6 +177,27 @@ describe('GET /api/v1/statuses/[id]/thread', () => {
     expect(mockGetStatusContext).toHaveBeenCalledWith(
       expect.objectContaining({ currentActor: null })
     )
+  })
+
+  it('queues the fetch of a missing parent for a signed-in viewer, as the context route does', async () => {
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor1.email }
+    })
+    mockGetStatusContext.mockImplementationOnce(withMissingParent)
+    const response = await requestThread(OPENED_ID)
+    expect(response.status).toBe(200)
+    expect(mockQueueThreadGapBackfill).toHaveBeenCalledWith(
+      expect.objectContaining({ missingParentId: MISSING_PARENT_ID })
+    )
+    // Server-side only: the id never goes out.
+    expect(await response.json()).not.toHaveProperty('missingParentId')
+  })
+
+  it('queues nothing for a signed-out read', async () => {
+    mockGetStatusContext.mockImplementationOnce(withMissingParent)
+    const response = await requestThread(OPENED_ID)
+    expect(response.status).toBe(200)
+    expect(mockQueueThreadGapBackfill).not.toHaveBeenCalled()
   })
 
   it('gives a signed-in viewer what they may read', async () => {

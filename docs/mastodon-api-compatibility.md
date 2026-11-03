@@ -573,8 +573,11 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   `{ ancestors, descendants, hasMoreAncestors, hasMoreDescendants }` with the
   same domain statuses the page renders, serialized the same way (`cleanJson`,
   dates as epoch milliseconds), not Mastodon `Status` entities. An unknown
-  status, or one the viewer may not read, is `404` `{ error }`.
-  Requests are limited to 30 a minute per signed-in actor and per trusted client address
+  status, or one the viewer may not read, is `404` `{ error }`. A signed-in
+  read whose ancestor walk stops at a parent this instance does not have
+  queues that parent's fetch, as the context route does
+  (`queueThreadGapBackfill`). Requests are
+  limited to 30 a minute per signed-in actor and per trusted client address
   (`getTrustedClientIp`), and signed-out requests to 300 a minute in all
   (`429` `{ error }`); together with the capped limits and the loader's visit
   budget this keeps an anonymous reader's work bounded. Without trusted proxy

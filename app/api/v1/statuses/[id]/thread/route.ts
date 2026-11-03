@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { createWindowCounter } from '@/lib/services/gallery/lookups/rateLimit'
 import { OptionalOAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { getStatusContext } from '@/lib/services/statuses/getStatusContext'
+import { queueThreadGapBackfill } from '@/lib/services/statuses/parentBackfill'
 import {
   THREAD_INITIAL_ANCESTORS_LIMIT,
   THREAD_INITIAL_DESCENDANTS_LIMIT,
@@ -106,7 +107,8 @@ export const GET = traceApiRoute(
         ancestors,
         descendants,
         hasMoreAncestors,
-        hasMoreDescendants
+        hasMoreDescendants,
+        missingParentId
       } = await getStatusContext({
         database,
         statusId: encodedStatusId,
@@ -125,6 +127,13 @@ export const GET = traceApiRoute(
             )
       })
       if (!status) return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+
+      // As the context route and the page do: a signed-in read whose ancestor
+      // walk stops at a parent this instance does not have queues its fetch.
+      // "Load earlier posts" can reach a gap the page's first step did not.
+      if (currentActor) {
+        await queueThreadGapBackfill({ database, missingParentId })
+      }
 
       return apiResponse({
         req,
