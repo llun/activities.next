@@ -190,7 +190,7 @@ Dependabot runs one job per manifest the dependency graph indexes. Only the `/` 
 
 `package.json` `resolutions` can't carry comments, so each entry's reason is recorded here; remove an entry once its parent's own range reaches the fixed version, and re-check the pin when the parent moves to a newer major:
 
-- `@trivago/prettier-plugin-sort-imports/minimatch: ^11.0.1` — GHSA-g3hv-75wg-m249 is fixed only in minimatch 11.0.1, while the plugin (6.0.2) still asks for `^9`. The plugin only imports `{ minimatch }` for `importOrderExclude` matching, which this repo does not set.
+- `@trivago/prettier-plugin-sort-imports/minimatch: ^11.0.1` — GHSA-g3hv-75wg-m249 is fixed only in minimatch 11.0.1, while the plugin (6.0.2) still asks for `^9`. The plugin calls minimatch only for `importOrderExclude` matching, which this repo does not set, but it imports the named `{ minimatch }` export every time it loads, so a pinned major must keep that export or every Prettier run breaks, including the pre-commit hook's `lint-staged` step and CI's `yarn prettier:check`.
 
 `All Tests` is the fail-closed fan-in over the four SQLite test shards and the two PostgreSQL test shards (`PostgreSQL Tests (shard N/2)` — shard 1 also runs the SQLite and PostgreSQL schema dump drift checks). `CI Success` is the overall aggregate of every job in the workflow: it fails closed over every upstream job (`Lint and Prettier`, `Type Check`, `Build`, `Test Shard N of 4`, `PostgreSQL Tests (shard N/2)`, `All Tests`, and the Docker smoke jobs `Docker Images Smoke Test (minimal)` / `(full)`). It is not required by the ruleset; it only reports the workflow-wide result.
 
