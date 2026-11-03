@@ -374,6 +374,8 @@ export type GetStatusRepliesParams = {
   order?: 'asc' | 'desc'
   // Only the replies this actor wrote (a self-thread's next part).
   actorId?: string
+  // Only these replies (a page of getStatusReplyRefs to hydrate).
+  statusIds?: string[]
 }
 // The reply tree's shape only — no content, no visibility predicate — for a
 // caller that walks through replies it may not show and hydrates the ones it
@@ -382,6 +384,7 @@ export type GetStatusReplyRefsParams = {
   statusId: string
   url?: string
   limit: number
+  offset?: number
 }
 export type StatusReplyRef = Pick<StatusRow, 'id' | 'url' | 'createdAt'>
 export type GetStatusEditHistoryParams = {

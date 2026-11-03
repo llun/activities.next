@@ -24,13 +24,17 @@ export const ANONYMOUS_DESCENDANTS_LIMIT = 60
 export const ANONYMOUS_DESCENDANTS_DEPTH_LIMIT = 20
 // The descendant walk steps through replies it may not show (a muted author,
 // a followers-only reply) to reach the replies under them, so the descendants
-// limit alone does not bound its work. It reads at most this many reply rows
+// limit alone does not bound its work. It visits at most this many replies
 // per descendant it may return.
 export const DESCENDANTS_VISIT_FACTOR = 3
 // How many of one status's replies by the opened status's author are read to
 // find the next part of the author's self-thread, and how many replies are
 // read below the anonymous depth limit to tell whether there are more.
 const SCAN_LIMIT = 5
+// The descendant walk reads one status's replies in pages that start at
+// FIRST_PAGE and double up to MAX_PAGE.
+const FIRST_PAGE = 4
+const MAX_PAGE = 64
 
 export interface GetStatusContextParams {
   database: Database
@@ -229,16 +233,14 @@ export async function getStatusContext({
     parentId = getReplyTarget(parent)
   }
 
-  // The chain is full and names a further parent: there is more only if that
-  // parent exists, is not one already read, and the viewer may see it.
+  // The limit cut the chain and the last ancestor names a parent: there is
+  // more when that parent exists and is not one already read (a cycle). Its
+  // visibility is not checked, so a hidden parent with visible ones above it
+  // still counts; this reveals no more than the reply target already does.
   let hasMoreAncestors = false
   if (parentId && !seenAncestorIds.has(parentId)) {
     const next = await loadParent(parentId)
-    hasMoreAncestors = Boolean(
-      next &&
-      !seenAncestorIds.has(next.id) &&
-      (await keepVisible([next])).length > 0
-    )
+    hasMoreAncestors = Boolean(next && !seenAncestorIds.has(next.id))
   }
 
   const ancestors = (await keepVisible(chain)).reverse()
@@ -259,7 +261,7 @@ export async function getStatusContext({
   const audience = currentActor
     ? { visibleToActorId: currentActor.id }
     : { publicOnly: true }
-  let rowsRead = 0
+  let visitedCount = 0
 
   const markSeen = (seen: Set<string>, id: string, url?: string | null) => {
     seen.add(id)
@@ -276,10 +278,11 @@ export async function getStatusContext({
     markSeen(chainSeen, status.id, initialStatusUrl)
     let tipId = status.id
     let tipUrl = initialStatusUrl
+    // At most one read per part, each of at most SCAN_LIMIT rows; the parts
+    // count against the visit budget when the walk below visits them.
     while (
       reserved.length < effectiveDescendantsLimit &&
-      reserved.length < maxDepth &&
-      rowsRead < visitCap
+      reserved.length < maxDepth
     ) {
       const candidates = await database.getStatusReplies({
         statusId: tipId,
@@ -288,9 +291,8 @@ export async function getStatusContext({
         actorId: status.actorId,
         currentActorId: currentActor?.id,
         order: 'asc',
-        limit: Math.min(SCAN_LIMIT, visitCap - rowsRead)
+        limit: SCAN_LIMIT
       })
-      rowsRead += candidates.length
       const visible = (await keepVisible(candidates)).sort(compareReplyOrder)
       const next = visible.find(
         (candidate) =>
@@ -321,60 +323,51 @@ export async function getStatusContext({
     collectedIds.add(reply.id)
   }
 
-  // One status's replies within the remaining visit budget: their refs (to
-  // walk), and the ones the viewer may see, hydrated. `overflow` means it has
-  // more replies than the budget lets the walk visit.
-  const readReplies = async (targetId: string, targetUrl: string) => {
-    const remaining = Math.max(0, visitCap - rowsRead)
-    const refs = await database.getStatusReplyRefs({
-      statusId: targetId,
-      url: targetUrl || undefined,
-      limit: remaining + 1
-    })
-    const overflow = refs.length > remaining
-    const kept = (overflow ? refs.slice(0, remaining) : refs).sort(
-      compareReplyOrder
-    )
-    rowsRead += kept.length
+  // A page of one status's replies: their refs (to walk) and the ones the
+  // viewer may see, hydrated. Nothing here counts against the visit budget;
+  // a ref counts when the walk visits it.
+  const readRepliesPage = async (
+    targetId: string,
+    targetUrl: string,
+    offset: number,
+    limit: number
+  ) => {
+    const refs = (
+      await database.getStatusReplyRefs({
+        statusId: targetId,
+        url: targetUrl || undefined,
+        offset,
+        limit
+      })
+    ).sort(compareReplyOrder)
     const visibleById = new Map<string, Status>()
-    if (kept.length > 0) {
-      const keptIds = new Set(kept.map((ref) => ref.id))
-      // Same order as the refs, so the visible rows among the first
-      // `kept.length` refs are within the first `kept.length` readable rows.
+    if (refs.length > 0) {
       const rows = await database.getStatusReplies({
         statusId: targetId,
         url: targetUrl || undefined,
         ...audience,
+        statusIds: refs.map((ref) => ref.id),
         currentActorId: currentActor?.id,
-        order: 'asc',
-        limit: kept.length
+        order: 'asc'
       })
-      for (const reply of await keepVisible(
-        rows.filter((row) => keptIds.has(row.id))
-      )) {
+      for (const reply of await keepVisible(rows)) {
         visibleById.set(reply.id, reply)
       }
     }
-    return { kept, visibleById, overflow }
+    return { refs, visibleById }
   }
 
   // Below the anonymous depth limit nothing is returned; read a few replies
   // only to tell whether there is more.
   const probeBelowDepthLimit = async (targetId: string, targetUrl: string) => {
-    const remaining = visitCap - rowsRead
-    if (remaining <= 0) {
-      hasMoreDescendants = true
-      return
-    }
     const rows = await database.getStatusReplies({
       statusId: targetId,
       url: targetUrl || undefined,
       ...audience,
       currentActorId: currentActor?.id,
       order: 'asc',
-      limit: Math.min(SCAN_LIMIT, remaining)
+      limit: SCAN_LIMIT
     })
-    rowsRead += rows.length
     const visible = await keepVisible(rows)
     if (visible.some((reply) => !visitedDescendantIds.has(reply.id))) {
       hasMoreDescendants = true
@@ -386,46 +379,65 @@ export async function getStatusContext({
     targetUrl: string,
     depth: number
   ): Promise<void> => {
-    const { kept, visibleById, overflow } = await readReplies(
-      targetId,
-      targetUrl
-    )
-    for (const ref of kept) {
-      if (stopped) return
-      const reply = visibleById.get(ref.id)
-      const replyUrl = reply ? getStatusUrl(reply) : ''
-      // Skipped by id only, as before: ids and urls share the set (a parent
-      // is named by either), and two statuses may share a url.
-      if (visitedDescendantIds.has(ref.id)) continue
-      markSeen(visitedDescendantIds, ref.id, ref.url)
-      if (replyUrl) visitedDescendantIds.add(replyUrl)
-
-      if (reply) {
-        if (reservedIds.has(reply.id)) {
-          collect(reply)
-        } else if (othersCollected < othersLimit) {
-          collect(reply)
-          othersCollected++
-        } else {
-          // A visible reply the limit leaves out.
+    // Pages grow from FIRST_PAGE to MAX_PAGE and never exceed what the visit
+    // budget has left (plus one, to see that more exist), so a leaf costs one
+    // small read and a wide status does not read rows the walk cannot visit.
+    let offset = 0
+    let pageSize = FIRST_PAGE
+    while (!stopped) {
+      const limit = Math.min(
+        pageSize,
+        MAX_PAGE,
+        Math.max(0, visitCap - visitedCount) + 1
+      )
+      const { refs, visibleById } = await readRepliesPage(
+        targetId,
+        targetUrl,
+        offset,
+        limit
+      )
+      offset += refs.length
+      for (const ref of refs) {
+        if (stopped) return
+        // Skipped by id only, as before: ids and urls share the set (a parent
+        // is named by either), and two statuses may share a url.
+        if (visitedDescendantIds.has(ref.id)) continue
+        if (visitedCount >= visitCap) {
+          // A reply the visit budget does not reach; everything collected so
+          // far comes before it in pre-order.
           hasMoreDescendants = true
           stopped = true
           return
         }
-      }
+        visitedCount++
+        const reply = visibleById.get(ref.id)
+        const replyUrl = reply ? getStatusUrl(reply) : ''
+        markSeen(visitedDescendantIds, ref.id, ref.url)
+        if (replyUrl) visitedDescendantIds.add(replyUrl)
 
-      const nextUrl = replyUrl || ref.url || ''
-      if (depth + 1 >= maxDepth) {
-        if (!hasMoreDescendants) await probeBelowDepthLimit(ref.id, nextUrl)
-        continue
+        if (reply) {
+          if (reservedIds.has(reply.id)) {
+            collect(reply)
+          } else if (othersCollected < othersLimit) {
+            collect(reply)
+            othersCollected++
+          } else {
+            // A visible reply the limit leaves out.
+            hasMoreDescendants = true
+            stopped = true
+            return
+          }
+        }
+
+        const nextUrl = replyUrl || ref.url || ''
+        if (depth + 1 >= maxDepth) {
+          if (!hasMoreDescendants) await probeBelowDepthLimit(ref.id, nextUrl)
+          continue
+        }
+        await walk(ref.id, nextUrl, depth + 1)
       }
-      await walk(ref.id, nextUrl, depth + 1)
-    }
-    if (overflow && !stopped) {
-      // Replies the visit budget does not reach; everything collected so far
-      // comes before them in pre-order.
-      hasMoreDescendants = true
-      stopped = true
+      if (refs.length < limit) return
+      pageSize *= 2
     }
   }
 

@@ -90,9 +90,12 @@ export const getStatusReplies = async (
     visibleToActorId,
     currentActorId,
     order = 'desc',
-    actorId
+    actorId,
+    statusIds
   }: GetStatusRepliesParams
 ): Promise<Status[]> => {
+  if (statusIds && statusIds.length === 0) return []
+
   let query = db
     .selectFrom('statuses')
     .selectAll()
@@ -102,6 +105,9 @@ export const getStatusReplies = async (
 
   if (actorId) {
     query = query.where('actorId', '=', actorId)
+  }
+  if (statusIds) {
+    query = query.where('id', 'in', statusIds)
   }
 
   if (publicOnly) {
@@ -126,7 +132,7 @@ export const getStatusReplies = async (
 // getStatusReplies, which applies the viewer's scope. Never serve these rows.
 export const getStatusReplyRefs = async (
   db: Db,
-  { statusId, url, limit }: GetStatusReplyRefsParams
+  { statusId, url, limit, offset = 0 }: GetStatusReplyRefsParams
 ): Promise<StatusReplyRef[]> =>
   db
     .selectFrom('statuses')
@@ -135,6 +141,7 @@ export const getStatusReplyRefs = async (
     .orderBy('createdAt', 'asc')
     .orderBy('id', 'asc')
     .limit(Math.max(1, Math.floor(limit)))
+    .offset(Math.max(0, Math.floor(offset)))
     .execute()
 
 export const getActorStatusesCount = async (

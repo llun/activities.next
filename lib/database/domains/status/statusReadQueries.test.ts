@@ -2011,6 +2011,29 @@ describe('getStatusReplies', () => {
       }).then(ids)
     ).resolves.toEqual([own])
   })
+
+  it('narrows to the given reply ids, and reads none for an empty list', async () => {
+    const prefix = nextPrefix()
+    const seed = await seedReplies(prefix)
+    const replyId = (name: string) => `${seed.replier}/statuses/${name}`
+
+    await expect(
+      getStatusReplies(db, {
+        statusId: seed.parent,
+        url: seed.url,
+        publicOnly: true,
+        statusIds: [
+          replyId('z1'),
+          replyId('a4-followers'),
+          replyId('06-sibling')
+        ],
+        order: 'asc'
+      }).then(ids)
+    ).resolves.toEqual([replyId('z1')])
+    await expect(
+      getStatusReplies(db, { statusId: seed.parent, statusIds: [] })
+    ).resolves.toEqual([])
+  })
 })
 
 describe('getStatusReplyRefs', () => {
@@ -2056,6 +2079,14 @@ describe('getStatusReplyRefs', () => {
         rows.map((row) => row.id)
       )
     ).resolves.toEqual([oldest])
+    await expect(
+      getStatusReplyRefs(db, {
+        statusId: parent,
+        url: `${author}/@parent`,
+        offset: 1,
+        limit: 1
+      }).then((rows) => rows.map((row) => row.id))
+    ).resolves.toEqual([byUrl])
   })
 })
 

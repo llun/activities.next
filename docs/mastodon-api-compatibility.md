@@ -271,19 +271,31 @@ product or security decision, not a gap to be closed.
     SQL scope, then `filterReadableStatuses` on top, so a hidden reply is never
     hydrated.
   - Bounds: the descendants limit (60 signed out, 4096 signed in, 60 on the post
-    page), a visit budget of `DESCENDANTS_VISIT_FACTOR` (3) reply rows per
+    page), a visit budget of `DESCENDANTS_VISIT_FACTOR` (3) replies visited per
     descendant the limit allows, and, for a signed-out viewer, Mastodon's depth
     limit `ANONYMOUS_DESCENDANTS_DEPTH_LIMIT` (20 levels below the opened status).
+    A reply counts against the budget when the walk visits it, not when it is
+    read: each status's replies are read in pages that start at 4, double up to
+    64 and never exceed what the budget has left, so a wide status (hundreds of
+    direct replies) does not spend the budget before the walk goes down.
   - Before the depth-first fill, the opened status's author's own self-thread
     (each part the earliest visible reply by that author to the previous part,
     read with `getStatusReplies({ actorId })`) is reserved, so earlier side
     branches cannot push the author's part 2 out of the limit. Descendants are
     still returned in depth-first pre-order, oldest first with an id tie-break.
   - `hasMoreDescendants` is true when a visible reply was left out by the limit,
-    when replies were left unread by the visit budget, or when a visible reply
-    sits just below the anonymous depth limit; `hasMoreAncestors` is true only
-    when the next parent exists and the viewer may see it. The Mastodon route
-    does not expose either.
+    when a visible reply sits just below the anonymous depth limit, or when the
+    visit budget ran out with replies still unvisited. That last case is true
+    even if every unvisited reply turns out to be hidden from the viewer: the
+    walk cannot tell without visiting them, and the flag drives a "Load more"
+    control, so it errs towards offering one.
+  - `hasMoreAncestors` is true when the ancestors limit cut the chain and the
+    last loaded ancestor names a parent that exists and is not a cycle. The
+    parent's visibility is not checked (a hidden parent with visible ones above
+    it still counts), which reveals no more than that ancestor's own reply
+    target already does.
+  - The Mastodon route (`GET /api/v1/statuses/:id/context`) returns only
+    `{ ancestors, descendants }`; neither flag is exposed there.
 
 ### Media
 

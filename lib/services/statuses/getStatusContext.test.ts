@@ -640,6 +640,32 @@ describe('getStatusContext', () => {
       expect(result.hasMoreAncestors).toBe(false)
     })
 
+    it('reports more ancestors when the next one is hidden from the viewer', async () => {
+      const topId = `${ACTOR1_ID}/statuses/ctx-anc-hidden-top`
+      const mutedId = `${ACTOR3_ID}/statuses/ctx-anc-hidden-muted`
+      const parentId = `${ACTOR1_ID}/statuses/ctx-anc-hidden-parent`
+      const leafId = `${ACTOR1_ID}/statuses/ctx-anc-hidden-leaf`
+      await note(topId, ACTOR1_ID)
+      await note(mutedId, ACTOR3_ID, { reply: topId })
+      await note(parentId, ACTOR1_ID, { reply: mutedId })
+      await note(leafId, ACTOR1_ID, { reply: parentId })
+      await database.createMute({
+        actorId: ACTOR1_ID,
+        targetActorId: ACTOR3_ID,
+        notifications: false,
+        endsAt: null
+      })
+
+      const result = await getStatusContext({
+        database,
+        statusId: leafId,
+        currentActor: actor1,
+        ancestorsLimit: 1
+      })
+      expect(ids(result.ancestors)).toEqual([parentId])
+      expect(result.hasMoreAncestors).toBe(true)
+    })
+
     it(`stops ${ANONYMOUS_DESCENDANTS_DEPTH_LIMIT} levels down for a signed-out viewer`, async () => {
       const rootId = `${ACTOR1_ID}/statuses/ctx-depth-root`
       await note(rootId, ACTOR1_ID)
@@ -705,6 +731,45 @@ describe('getStatusContext', () => {
       }
     })
 
+    it('fills the limit under a wide status whose replies each have a reply', async () => {
+      const rootId = `${ACTOR1_ID}/statuses/ctx-wide-root`
+      await note(rootId, ACTOR1_ID)
+      for (let index = 0; index < 210; index++) {
+        const suffix = String(index).padStart(3, '0')
+        const replyId = `${ACTOR2_ID}/statuses/ctx-wide-${suffix}`
+        await note(replyId, ACTOR2_ID, {
+          reply: rootId,
+          createdAt: 10_000 + index * 10
+        })
+        await note(
+          `${ACTOR3_ID}/statuses/ctx-wide-child-${suffix}`,
+          ACTOR3_ID,
+          {
+            reply: replyId,
+            createdAt: 10_000 + index * 10 + 5
+          }
+        )
+      }
+
+      for (const currentActor of [undefined, actor1]) {
+        const result = await getStatusContext({
+          database,
+          statusId: rootId,
+          currentActor,
+          descendantsLimit: 60
+        })
+        expect(result.descendants).toHaveLength(60)
+        // Pre-order: each reply, then its child.
+        expect(ids(result.descendants).slice(0, 4)).toEqual([
+          `${ACTOR2_ID}/statuses/ctx-wide-000`,
+          `${ACTOR3_ID}/statuses/ctx-wide-child-000`,
+          `${ACTOR2_ID}/statuses/ctx-wide-001`,
+          `${ACTOR3_ID}/statuses/ctx-wide-child-001`
+        ])
+        expect(result.hasMoreDescendants).toBe(true)
+      }
+    }, 60_000)
+
     it('bounds the reply reads by the visit budget when every reply is hidden', async () => {
       const rootId = `${ACTOR1_ID}/statuses/ctx-visit-root`
       await note(rootId, ACTOR1_ID)
@@ -732,10 +797,11 @@ describe('getStatusContext', () => {
 
       const visitCap = descendantsLimit * DESCENDANTS_VISIT_FACTOR
       expect(result.descendants).toEqual([])
-      // The walk stopped with replies left unread.
+      // The walk stopped with replies left unvisited.
       expect(result.hasMoreDescendants).toBe(true)
+      // One read per visited reply, plus the opened status's pages.
       expect(getStatusReplyRefs.mock.calls.length).toBeLessThanOrEqual(
-        visitCap + 1
+        visitCap + 3
       )
       const refsRead = (
         await Promise.all(
@@ -743,13 +809,12 @@ describe('getStatusContext', () => {
         )
       ).reduce((sum, rows) => sum + rows.length, 0)
       expect(refsRead).toBeLessThanOrEqual(visitCap + 1)
-      expect(getStatusReplies.mock.calls.length).toBeLessThanOrEqual(
-        visitCap + 2
-      )
+      expect(getStatusReplies.mock.calls.length).toBeLessThanOrEqual(4)
       for (const [params] of getStatusReplies.mock.calls) {
         expect(params.publicOnly).toBe(true)
-        expect(params.limit).toBeGreaterThan(0)
-        expect(params.limit).toBeLessThanOrEqual(visitCap)
+        const size = params.statusIds?.length ?? params.limit ?? Infinity
+        expect(size).toBeGreaterThan(0)
+        expect(size).toBeLessThanOrEqual(visitCap + 1)
       }
     })
   })
