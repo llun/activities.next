@@ -34,7 +34,7 @@ export const getShortName = (actor: NamedActor): string => {
 /**
  * Two-letter monogram for the avatar circle: initials of the first two words
  * ("Ben Carter" -> "BC"), or the first two characters of a single-word name
- * ("Maythee" -> "MA").
+ * ("Jasmine" -> "JA").
  *
  * This deliberately differs from the web `Avatar` component, which emits a
  * single letter for a one-word name. The email circle is a fixed 24px, and one

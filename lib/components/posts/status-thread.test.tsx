@@ -1170,18 +1170,18 @@ describe('StatusThread', () => {
     // "Replies", even though the run folds its later parts into one row.
     const makeAncestorRunWithOutsideReply = () => {
       const m1 = createMockNote({
-        id: 'https://activities.local/users/maythee/statuses/m1',
+        id: 'https://activities.local/users/jasmine/statuses/m1',
         actor: mockAlice,
         actorId: mockAlice.id,
-        text: 'Maythee run part 1',
+        text: 'Jasmine run part 1',
         createdAt: BASE_TIME
       })
       const m2 = createMockNote({
-        id: 'https://activities.local/users/maythee/statuses/m2',
+        id: 'https://activities.local/users/jasmine/statuses/m2',
         actor: mockAlice,
         actorId: mockAlice.id,
         reply: m1.id,
-        text: 'Maythee run part 2',
+        text: 'Jasmine run part 2',
         createdAt: BASE_TIME + MINUTE
       })
       const outsideReply = createMockNote({
@@ -1231,7 +1231,7 @@ describe('StatusThread', () => {
       )
 
       expect(screen.getByTestId('self-thread-run')).toHaveTextContent(
-        'Maythee run part 1'
+        'Jasmine run part 1'
       )
       expect(screen.getByTestId('ancestor-status')).toHaveTextContent(
         'Carol replies to part 2'
@@ -1250,11 +1250,11 @@ describe('StatusThread', () => {
         createdAt: BASE_TIME + 2 * MINUTE
       })
       const m3 = createMockNote({
-        id: 'https://activities.local/users/maythee/statuses/m3',
+        id: 'https://activities.local/users/jasmine/statuses/m3',
         actor: mockAlice,
         actorId: mockAlice.id,
         reply: veerBetween.id,
-        text: 'Maythee continues after veer',
+        text: 'Jasmine continues after veer',
         createdAt: BASE_TIME + 3 * MINUTE
       })
 
@@ -1270,28 +1270,28 @@ describe('StatusThread', () => {
 
       const runRow = screen
         .getAllByTestId('ancestor-status')
-        .find((row) => row.textContent?.includes('Maythee run part 1'))
+        .find((row) => row.textContent?.includes('Jasmine run part 1'))
       expect(runRow).toBeDefined()
       expect(runRow).toHaveTextContent('Carol replies to part 2')
       expectReplyUnderAncestorRun()
     })
 
-    // Maythee's two-part run with veer's reply to its second part: the shape
+    // Jasmine's two-part run with veer's reply to its second part: the shape
     // the "Replying to" line and the opened-row marker are built for.
     const makeAncestorRunWithOpenedReply = () => {
       const m1 = createMockNote({
-        id: 'https://activities.local/users/maythee/statuses/run-m1',
+        id: 'https://activities.local/users/jasmine/statuses/run-m1',
         actor: mockAlice,
         actorId: mockAlice.id,
-        text: 'Maythee run part 1',
+        text: 'Jasmine run part 1',
         createdAt: BASE_TIME
       })
       const m2 = createMockNote({
-        id: 'https://activities.local/users/maythee/statuses/run-m2',
+        id: 'https://activities.local/users/jasmine/statuses/run-m2',
         actor: mockAlice,
         actorId: mockAlice.id,
         reply: m1.id,
-        text: 'Maythee run part 2',
+        text: 'Jasmine run part 2',
         createdAt: BASE_TIME + MINUTE
       })
       const openedReply = createMockNote({
@@ -1319,8 +1319,8 @@ describe('StatusThread', () => {
       )
 
       const run = screen.getByTestId('self-thread-run')
-      expect(run).toHaveTextContent('Maythee run part 1')
-      expect(run).toHaveTextContent('Maythee run part 2')
+      expect(run).toHaveTextContent('Jasmine run part 1')
+      expect(run).toHaveTextContent('Jasmine run part 2')
       expect(
         within(run).getByRole('button', { name: /Open part 2 of 2/i })
       ).toBeInTheDocument()
@@ -1561,19 +1561,19 @@ describe('StatusThread', () => {
 
     it('falls back to the actor id handle when the answered part’s actor is missing', () => {
       const m1 = createMockNote({
-        id: 'https://activities.local/users/maythee/statuses/no-actor-m1',
+        id: 'https://activities.local/users/jasmine/statuses/no-actor-m1',
         actor: mockAlice,
-        actorId: 'https://activities.local/users/maythee',
-        text: 'Maythee run part 1',
+        actorId: 'https://activities.local/users/jasmine',
+        text: 'Jasmine run part 1',
         createdAt: BASE_TIME
       })
       const m2 = createMockNote({
-        id: 'https://activities.local/users/maythee/statuses/no-actor-m2',
+        id: 'https://activities.local/users/jasmine/statuses/no-actor-m2',
         actor: null,
-        actorId: 'https://activities.local/users/maythee',
-        url: 'https://activities.local/users/maythee/statuses/no-actor-m2',
+        actorId: 'https://activities.local/users/jasmine',
+        url: 'https://activities.local/users/jasmine/statuses/no-actor-m2',
         reply: m1.id,
-        text: 'Maythee run part 2',
+        text: 'Jasmine run part 2',
         createdAt: BASE_TIME + MINUTE
       })
       const openedReply = createMockNote({
@@ -1598,10 +1598,10 @@ describe('StatusThread', () => {
       const replyingToLine = screen.getByText(
         (_, element) =>
           element?.textContent ===
-          'Replying to @maythee@activities.local · 2 of 2'
+          'Replying to @jasmine@activities.local · 2 of 2'
       )
       const partLink = within(replyingToLine).getByRole('link', {
-        name: 'Part 2 of 2 by @maythee@activities.local'
+        name: 'Part 2 of 2 by @jasmine@activities.local'
       })
       expect(partLink).toHaveAttribute('href', `#${m2.id}`)
     })
@@ -1609,13 +1609,13 @@ describe('StatusThread', () => {
     it('keeps the answered part of a long ancestor run visible without marking it', () => {
       const parts = Array.from({ length: 8 }, (_, index) =>
         createMockNote({
-          id: `https://activities.local/users/maythee/statuses/long-${index + 1}`,
+          id: `https://activities.local/users/jasmine/statuses/long-${index + 1}`,
           actor: mockAlice,
           actorId: mockAlice.id,
           reply:
             index === 0
               ? ''
-              : `https://activities.local/users/maythee/statuses/long-${index}`,
+              : `https://activities.local/users/jasmine/statuses/long-${index}`,
           text: `Long run part ${index + 1}`,
           createdAt: BASE_TIME + index * MINUTE
         })

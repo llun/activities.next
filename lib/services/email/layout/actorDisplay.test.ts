@@ -60,8 +60,8 @@ describe('getShortName', () => {
     },
     {
       description: 'returns a single-word name unchanged',
-      name: 'Maythee',
-      expected: 'Maythee'
+      name: 'Jasmine',
+      expected: 'Jasmine'
     },
     {
       description: 'collapses repeated spaces between words',
@@ -82,8 +82,8 @@ describe('getInitials', () => {
   it.each([
     {
       description: 'uses the first two characters of a single-word name',
-      displayName: 'Maythee',
-      expected: 'MA'
+      displayName: 'Jasmine',
+      expected: 'JA'
     },
     {
       description: 'uses the initials of the first two words',
