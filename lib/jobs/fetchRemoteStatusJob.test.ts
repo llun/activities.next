@@ -302,6 +302,96 @@ describe('fetchRemoteStatusJob', () => {
     expect(reply?.reply).toBe(STATUS_ID)
   })
 
+  describe('walking the replies of an already stored status', () => {
+    const VICTIM_ACTOR_ID = 'https://victim.test/users/bob'
+    const VICTIM_STATUS_ID = `${VICTIM_ACTOR_ID}/statuses/stored-root`
+    const VICTIM_REPLY_ID = `${VICTIM_ACTOR_ID}/statuses/stored-root-reply`
+
+    it.each([
+      {
+        label: 'does not walk a re-fetched document that names a foreign id',
+        requestedId: 'https://attacker.test/users/eve/statuses/1',
+        stored: false
+      },
+      {
+        label: 'walks a re-fetched document that names the stored status',
+        requestedId: VICTIM_STATUS_ID,
+        stored: true
+      }
+    ])('$label', async ({ requestedId, stored }) => {
+      await database.createNote({
+        id: requestedId,
+        url: requestedId,
+        actorId: `${new URL(requestedId).origin}/users/someone`,
+        text: 'Already stored',
+        to: [PUBLIC_STREAM],
+        cc: []
+      })
+      mockRemoteServers(async (req) => {
+        if (req.url === VICTIM_ACTOR_ID) {
+          return activityJson({
+            ...MOCK_ACTOR,
+            id: VICTIM_ACTOR_ID,
+            preferredUsername: 'bob',
+            inbox: `${VICTIM_ACTOR_ID}/inbox`,
+            outbox: `${VICTIM_ACTOR_ID}/outbox`,
+            publicKey: {
+              id: `${VICTIM_ACTOR_ID}#main-key`,
+              owner: VICTIM_ACTOR_ID,
+              publicKeyPem: '-----BEGIN PUBLIC KEY-----\n...'
+            }
+          })
+        }
+        // The requested URL answers with the victim's status, whatever the
+        // URL's own host.
+        if (req.url === requestedId) {
+          return activityJson({
+            id: VICTIM_STATUS_ID,
+            type: 'Note',
+            attributedTo: VICTIM_ACTOR_ID,
+            content: 'Victim status',
+            to: [PUBLIC_STREAM],
+            cc: [],
+            replies: `${VICTIM_STATUS_ID}/replies`
+          })
+        }
+        if (req.url === `${VICTIM_STATUS_ID}/replies`) {
+          return activityJson({
+            id: `${VICTIM_STATUS_ID}/replies`,
+            type: 'OrderedCollection',
+            orderedItems: [VICTIM_REPLY_ID]
+          })
+        }
+        if (req.url === VICTIM_REPLY_ID) {
+          return activityJson({
+            id: VICTIM_REPLY_ID,
+            type: 'Note',
+            attributedTo: VICTIM_ACTOR_ID,
+            content: 'Victim reply',
+            inReplyTo: VICTIM_STATUS_ID,
+            to: [PUBLIC_STREAM],
+            cc: [],
+            published: new Date().toISOString()
+          })
+        }
+        return activityJson({})
+      })
+
+      await fetchRemoteStatusJob(database, {
+        id: 'job-id',
+        name: FETCH_REMOTE_STATUS_JOB_NAME,
+        data: { statusId: requestedId }
+      })
+
+      const reply = await database.getStatus({ statusId: VICTIM_REPLY_ID })
+      if (stored) {
+        expect(reply).toMatchObject({ reply: VICTIM_STATUS_ID })
+      } else {
+        expect(reply).toBeNull()
+      }
+    })
+  })
+
   describe('a replies page holding a single reply', () => {
     // JSON-LD compaction collapses a one-element `items` array into the bare
     // value, so a page with exactly one reply reaches the crawl as an object
@@ -1259,9 +1349,10 @@ describe('fetchRemoteStatusJob', () => {
   describe('storing attachments and tags for fetched notes', () => {
     // A fetched note carries its media documents and hashtags; both the
     // top-level fetch and the reply walk must persist them.
-    const noteWithMedia = (statusId: string) => ({
+    const noteWithMedia = (statusId: string, inReplyTo?: string) => ({
       id: statusId,
       type: 'Note',
+      ...(inReplyTo ? { inReplyTo } : {}),
       attributedTo: REMOTE_ACTOR_ID,
       content: 'With media',
       to: [PUBLIC_STREAM],
@@ -1333,7 +1424,7 @@ describe('fetchRemoteStatusJob', () => {
           })
         }
         if (req.url === REPLY_ID) {
-          return activityJson(noteWithMedia(REPLY_ID))
+          return activityJson(noteWithMedia(REPLY_ID, STATUS_ID))
         }
         return activityJson({})
       })
@@ -1448,7 +1539,7 @@ describe('fetchRemoteStatusJob', () => {
           })
         }
         if (req.url === REPLY_ID) {
-          return activityJson(noteWithMedia(REPLY_ID))
+          return activityJson(noteWithMedia(REPLY_ID, STATUS_ID))
         }
         return activityJson({})
       })
@@ -1558,7 +1649,7 @@ describe('fetchRemoteStatusJob', () => {
       expect(counterSpy).toHaveBeenCalledWith({ hashtag: 'testing' })
     })
 
-    it('does not move the hashtag counter for a non-public reply', async () => {
+    it('does not store a non-public reply or move the hashtag counter', async () => {
       const STATUS_ID = `${REMOTE_STATUS_ID}/hashtag-private`
       const REPLY_ID = `${STATUS_ID}/reply`
       const reply = {
@@ -1575,8 +1666,437 @@ describe('fetchRemoteStatusJob', () => {
         data: { statusId: STATUS_ID }
       })
 
-      expect(await database.getStatus({ statusId: REPLY_ID })).toBeDefined()
+      expect(await database.getStatus({ statusId: REPLY_ID })).toBeNull()
       expect(counterSpy).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('reply gate for walked replies', () => {
+    const walkReplies = async (
+      statusId: string,
+      replies: unknown[],
+      root: Record<string, unknown> = {}
+    ) => {
+      mockRemoteServers(async (req) => {
+        if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
+        if (req.url === statusId) {
+          return activityJson({
+            id: statusId,
+            type: 'Note',
+            attributedTo: REMOTE_ACTOR_ID,
+            content: 'Root',
+            to: [PUBLIC_STREAM],
+            replies: `${statusId}/replies`,
+            ...root
+          })
+        }
+        if (req.url === `${statusId}/replies`) {
+          return activityJson({
+            id: `${statusId}/replies`,
+            type: 'OrderedCollection',
+            orderedItems: replies
+          })
+        }
+        return activityJson({})
+      })
+      await fetchRemoteStatusJob(database, {
+        id: 'job-id',
+        name: FETCH_REMOTE_STATUS_JOB_NAME,
+        data: { statusId }
+      })
+    }
+
+    const reply = (id: string, overrides: Record<string, unknown>) => ({
+      id,
+      type: 'Note',
+      attributedTo: REMOTE_ACTOR_ID,
+      content: 'A reply',
+      to: [PUBLIC_STREAM],
+      cc: [],
+      published: new Date().toISOString(),
+      ...overrides
+    })
+
+    it('stores an unlisted reply to the walked note', async () => {
+      const STATUS_ID = `${REMOTE_STATUS_ID}/gate-unlisted`
+      const REPLY_ID = `${STATUS_ID}/reply`
+      await walkReplies(STATUS_ID, [
+        reply(REPLY_ID, {
+          inReplyTo: STATUS_ID,
+          to: [`${REMOTE_ACTOR_ID}/followers`],
+          cc: [PUBLIC_STREAM]
+        })
+      ])
+
+      expect(await database.getStatus({ statusId: REPLY_ID })).toMatchObject({
+        reply: STATUS_ID
+      })
+    })
+
+    it('does not store a followers-only reply', async () => {
+      const STATUS_ID = `${REMOTE_STATUS_ID}/gate-followers`
+      const REPLY_ID = `${STATUS_ID}/reply`
+      await walkReplies(STATUS_ID, [
+        reply(REPLY_ID, {
+          inReplyTo: STATUS_ID,
+          to: [`${REMOTE_ACTOR_ID}/followers`],
+          cc: []
+        })
+      ])
+
+      expect(await database.getStatus({ statusId: REPLY_ID })).toBeNull()
+    })
+
+    it('does not store an item that replies to another note', async () => {
+      const STATUS_ID = `${REMOTE_STATUS_ID}/gate-other-parent`
+      const REPLY_ID = `${STATUS_ID}/reply`
+      await walkReplies(STATUS_ID, [
+        reply(REPLY_ID, { inReplyTo: `${REMOTE_STATUS_ID}/someone-else` })
+      ])
+
+      expect(await database.getStatus({ statusId: REPLY_ID })).toBeNull()
+    })
+
+    it('does not store an item that replies to nothing', async () => {
+      const STATUS_ID = `${REMOTE_STATUS_ID}/gate-no-parent`
+      const REPLY_ID = `${STATUS_ID}/reply`
+      await walkReplies(STATUS_ID, [reply(REPLY_ID, {})])
+
+      expect(await database.getStatus({ statusId: REPLY_ID })).toBeNull()
+    })
+
+    it('stores a reply that names the walked note by its url', async () => {
+      const STATUS_ID = `${REMOTE_STATUS_ID}/gate-by-url`
+      const STATUS_URL = 'https://mastodon.social/@testUser/gate-by-url'
+      const REPLY_ID = `${STATUS_ID}/reply`
+      await walkReplies(
+        STATUS_ID,
+        [reply(REPLY_ID, { inReplyTo: STATUS_URL })],
+        { url: STATUS_URL }
+      )
+
+      expect(await database.getStatus({ statusId: REPLY_ID })).not.toBeNull()
+    })
+
+    it('does not let a reply claim a url on another host as part of the thread', async () => {
+      const STATUS_ID = `${REMOTE_STATUS_ID}/gate-foreign-url`
+      const ATTACKER_REPLY_ID = `${STATUS_ID}/reply`
+      const VICTIM_ACTOR_ID = 'https://victim.test/users/bob'
+      const UNRELATED_PARENT_ID = `${VICTIM_ACTOR_ID}/statuses/5`
+      const UNRELATED_REPLY_ID = `${VICTIM_ACTOR_ID}/statuses/6`
+      const CONTROL_REPLY_ID = `${VICTIM_ACTOR_ID}/statuses/7`
+      const victimNote = (id: string, inReplyTo: string) => ({
+        id,
+        type: 'Note',
+        attributedTo: VICTIM_ACTOR_ID,
+        content: 'Bob',
+        inReplyTo,
+        to: [PUBLIC_STREAM],
+        cc: [],
+        published: new Date().toISOString()
+      })
+      mockRemoteServers(async (req) => {
+        if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
+        if (req.url === VICTIM_ACTOR_ID) {
+          return activityJson({
+            ...MOCK_ACTOR,
+            id: VICTIM_ACTOR_ID,
+            preferredUsername: 'bob',
+            inbox: `${VICTIM_ACTOR_ID}/inbox`,
+            outbox: `${VICTIM_ACTOR_ID}/outbox`,
+            publicKey: {
+              id: `${VICTIM_ACTOR_ID}#main-key`,
+              owner: VICTIM_ACTOR_ID,
+              publicKeyPem: '-----BEGIN PUBLIC KEY-----\n...'
+            }
+          })
+        }
+        if (req.url === STATUS_ID) {
+          return activityJson({
+            id: STATUS_ID,
+            type: 'Note',
+            attributedTo: REMOTE_ACTOR_ID,
+            content: 'Root',
+            to: [PUBLIC_STREAM],
+            replies: `${STATUS_ID}/replies`
+          })
+        }
+        if (req.url === `${STATUS_ID}/replies`) {
+          return activityJson({
+            id: `${STATUS_ID}/replies`,
+            type: 'OrderedCollection',
+            orderedItems: [
+              reply(ATTACKER_REPLY_ID, {
+                inReplyTo: STATUS_ID,
+                // Claims to be the victim's unrelated status.
+                url: UNRELATED_PARENT_ID,
+                replies: {
+                  id: `${ATTACKER_REPLY_ID}/replies`,
+                  type: 'Collection',
+                  first: {
+                    type: 'CollectionPage',
+                    items: [UNRELATED_REPLY_ID, CONTROL_REPLY_ID]
+                  }
+                }
+              })
+            ]
+          })
+        }
+        if (req.url === UNRELATED_REPLY_ID) {
+          return activityJson(
+            victimNote(UNRELATED_REPLY_ID, UNRELATED_PARENT_ID)
+          )
+        }
+        if (req.url === CONTROL_REPLY_ID) {
+          return activityJson(victimNote(CONTROL_REPLY_ID, ATTACKER_REPLY_ID))
+        }
+        return activityJson({})
+      })
+
+      await fetchRemoteStatusJob(database, {
+        id: 'job-id',
+        name: FETCH_REMOTE_STATUS_JOB_NAME,
+        data: { statusId: STATUS_ID }
+      })
+
+      expect(
+        await database.getStatus({ statusId: ATTACKER_REPLY_ID })
+      ).not.toBeNull()
+      // The same host's genuine reply to the accepted note is stored...
+      expect(
+        await database.getStatus({ statusId: CONTROL_REPLY_ID })
+      ).not.toBeNull()
+      // ...but not its reply to the status the foreign url pointed at.
+      expect(
+        await database.getStatus({ statusId: UNRELATED_REPLY_ID })
+      ).toBeNull()
+    })
+
+    it('stores a reply that names the walked note with a trailing slash', async () => {
+      const STATUS_ID = `${REMOTE_STATUS_ID}/gate-slash`
+      const REPLY_ID = `${STATUS_ID}/reply`
+      await walkReplies(STATUS_ID, [
+        reply(REPLY_ID, { inReplyTo: `${STATUS_ID}/` })
+      ])
+
+      expect(await database.getStatus({ statusId: REPLY_ID })).not.toBeNull()
+    })
+
+    it('stores a reply to a sibling stored earlier in the walk', async () => {
+      const STATUS_ID = `${REMOTE_STATUS_ID}/gate-flat`
+      const FIRST_ID = `${STATUS_ID}/first`
+      const SECOND_ID = `${STATUS_ID}/second`
+      // A flat conversation collection: both items listed under the root,
+      // the second answering the first.
+      await walkReplies(STATUS_ID, [
+        reply(FIRST_ID, { inReplyTo: STATUS_ID }),
+        reply(SECOND_ID, { inReplyTo: FIRST_ID })
+      ])
+
+      expect(await database.getStatus({ statusId: FIRST_ID })).not.toBeNull()
+      expect(await database.getStatus({ statusId: SECOND_ID })).toMatchObject({
+        reply: FIRST_ID
+      })
+    })
+
+    it('stores a nested reply that answers the root rather than its own parent', async () => {
+      const STATUS_ID = `${REMOTE_STATUS_ID}/gate-nested`
+      const CHILD_ID = `${STATUS_ID}/child`
+      const GRANDCHILD_ID = `${STATUS_ID}/grandchild`
+      const UNRELATED_ID = `${STATUS_ID}/unrelated`
+      await walkReplies(STATUS_ID, [
+        reply(CHILD_ID, {
+          inReplyTo: STATUS_ID,
+          replies: {
+            id: `${CHILD_ID}/replies`,
+            type: 'Collection',
+            first: {
+              type: 'CollectionPage',
+              items: [
+                reply(GRANDCHILD_ID, { inReplyTo: STATUS_ID }),
+                reply(UNRELATED_ID, {
+                  inReplyTo: `${REMOTE_STATUS_ID}/not-in-this-thread`
+                })
+              ]
+            }
+          }
+        })
+      ])
+
+      expect(await database.getStatus({ statusId: CHILD_ID })).not.toBeNull()
+      expect(
+        await database.getStatus({ statusId: GRANDCHILD_ID })
+      ).not.toBeNull()
+      expect(await database.getStatus({ statusId: UNRELATED_ID })).toBeNull()
+    })
+  })
+
+  describe('polls', () => {
+    const question = (id: string, overrides: Record<string, unknown> = {}) => ({
+      id,
+      type: 'Question',
+      attributedTo: REMOTE_ACTOR_ID,
+      content: 'Which one?',
+      to: [PUBLIC_STREAM],
+      cc: [],
+      published: '2026-01-01T00:00:00.000Z',
+      endTime: '2026-01-02T00:00:00.000Z',
+      oneOf: [
+        {
+          type: 'Note',
+          name: 'Yes',
+          replies: { type: 'Collection', totalItems: 3 }
+        },
+        {
+          type: 'Note',
+          name: 'No',
+          replies: { type: 'Collection', totalItems: 1 }
+        }
+      ],
+      ...overrides
+    })
+
+    const expectStoredPoll = async (statusId: string) => {
+      const status = await database.getStatus({ statusId })
+      expect(status).toMatchObject({
+        type: StatusType.enum.Poll,
+        pollType: 'oneOf',
+        endAt: Date.parse('2026-01-02T00:00:00.000Z'),
+        choices: [
+          expect.objectContaining({ title: 'Yes', totalVotes: 3 }),
+          expect.objectContaining({ title: 'No', totalVotes: 1 })
+        ]
+      })
+    }
+
+    it('stores a requested Question as a poll with its choices', async () => {
+      const STATUS_ID = `${REMOTE_STATUS_ID}/poll-top`
+      mockRemoteServers(async (req) => {
+        if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
+        if (req.url === STATUS_ID) return activityJson(question(STATUS_ID))
+        return activityJson({})
+      })
+
+      await fetchRemoteStatusJob(database, {
+        id: 'job-id',
+        name: FETCH_REMOTE_STATUS_JOB_NAME,
+        data: { statusId: STATUS_ID }
+      })
+
+      await expectStoredPoll(STATUS_ID)
+    })
+
+    it('stores a Question that is not a valid poll as a note, keeping its parent chain', async () => {
+      const PARENT_ID = `${REMOTE_STATUS_ID}/broken-poll-parent`
+      const STATUS_ID = `${REMOTE_STATUS_ID}/broken-poll`
+      mockRemoteServers(async (req) => {
+        if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
+        if (req.url === PARENT_ID) {
+          return activityJson({
+            id: PARENT_ID,
+            type: 'Note',
+            attributedTo: REMOTE_ACTOR_ID,
+            content: 'Parent',
+            to: [PUBLIC_STREAM],
+            cc: [],
+            published: new Date().toISOString()
+          })
+        }
+        if (req.url === STATUS_ID) {
+          // An option without a name fails the poll schema.
+          return activityJson(
+            question(STATUS_ID, {
+              inReplyTo: PARENT_ID,
+              oneOf: [{ type: 'Note' }, { type: 'Note', name: 'No' }]
+            })
+          )
+        }
+        return activityJson({})
+      })
+
+      await fetchRemoteStatusJob(database, {
+        id: 'job-id',
+        name: FETCH_REMOTE_STATUS_JOB_NAME,
+        data: { statusId: STATUS_ID }
+      })
+
+      expect(await database.getStatus({ statusId: STATUS_ID })).toMatchObject({
+        type: StatusType.enum.Note,
+        text: 'Which one?',
+        reply: PARENT_ID
+      })
+      expect(await database.getStatus({ statusId: PARENT_ID })).not.toBeNull()
+    })
+
+    it('stores a Question parent as a poll', async () => {
+      const PARENT_ID = `${REMOTE_STATUS_ID}/poll-parent`
+      const STATUS_ID = `${REMOTE_STATUS_ID}/poll-parent-reply`
+      mockRemoteServers(async (req) => {
+        if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
+        if (req.url === PARENT_ID) return activityJson(question(PARENT_ID))
+        if (req.url === STATUS_ID) {
+          return activityJson({
+            id: STATUS_ID,
+            type: 'Note',
+            attributedTo: REMOTE_ACTOR_ID,
+            content: 'Voted yes',
+            inReplyTo: PARENT_ID,
+            to: [PUBLIC_STREAM],
+            cc: [],
+            published: new Date().toISOString()
+          })
+        }
+        return activityJson({})
+      })
+
+      await fetchRemoteStatusJob(database, {
+        id: 'job-id',
+        name: FETCH_REMOTE_STATUS_JOB_NAME,
+        data: { statusId: STATUS_ID }
+      })
+
+      expect(await database.getStatus({ statusId: STATUS_ID })).toMatchObject({
+        type: StatusType.enum.Note,
+        reply: PARENT_ID
+      })
+      await expectStoredPoll(PARENT_ID)
+    })
+
+    it('stores a Question found in the replies walk as a poll', async () => {
+      const STATUS_ID = `${REMOTE_STATUS_ID}/poll-walk`
+      const REPLY_ID = `${STATUS_ID}/poll`
+      mockRemoteServers(async (req) => {
+        if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
+        if (req.url === STATUS_ID) {
+          return activityJson({
+            id: STATUS_ID,
+            type: 'Note',
+            attributedTo: REMOTE_ACTOR_ID,
+            content: 'Root',
+            to: [PUBLIC_STREAM],
+            replies: `${STATUS_ID}/replies`
+          })
+        }
+        if (req.url === `${STATUS_ID}/replies`) {
+          return activityJson({
+            id: `${STATUS_ID}/replies`,
+            type: 'OrderedCollection',
+            orderedItems: [question(REPLY_ID, { inReplyTo: STATUS_ID })]
+          })
+        }
+        return activityJson({})
+      })
+
+      await fetchRemoteStatusJob(database, {
+        id: 'job-id',
+        name: FETCH_REMOTE_STATUS_JOB_NAME,
+        data: { statusId: STATUS_ID }
+      })
+
+      await expectStoredPoll(REPLY_ID)
+      expect(await database.getStatus({ statusId: REPLY_ID })).toMatchObject({
+        reply: STATUS_ID
+      })
     })
   })
 })

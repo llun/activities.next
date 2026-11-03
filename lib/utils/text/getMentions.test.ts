@@ -122,4 +122,17 @@ describe('getMentions', () => {
       name: getMention(actor2 as Actor, true)
     })
   })
+
+  it('does not mention the current actor when replying to their own status', async () => {
+    const status = await database.getStatus({
+      statusId: `${actor2?.id}/statuses/post-2`
+    })
+
+    const mentions = await getMentions({
+      text: 'Following up on my own post',
+      currentActor: actor2 as Actor,
+      replyStatus: status
+    })
+    expect(mentions).toEqual([])
+  })
 })

@@ -53,7 +53,7 @@ import {
   ACTIVITY_STREAM_PUBLIC_COMPACT
 } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
-import { MastodonVisibility } from '@/lib/utils/getVisibility'
+import { MastodonVisibility, getVisibility } from '@/lib/utils/getVisibility'
 import { logger } from '@/lib/utils/logger'
 import {
   getPostingLanguage,
@@ -469,10 +469,36 @@ export const getExplicitMentions = (
   )
 }
 
-const isActorRecipient = (recipient: string) =>
+// An addressee that is an account rather than a collection. `followersUrl` is
+// the collection's author's own followers URL when known: servers do not agree
+// on its path (Friendica uses `/followers/<nick>`), so the suffix alone misses
+// it, as in `getVisibility`.
+const isActorRecipient = (recipient: string, followersUrl?: string | null) =>
   recipient !== ACTIVITY_STREAM_PUBLIC &&
   recipient !== ACTIVITY_STREAM_PUBLIC_COMPACT &&
-  !recipient.endsWith('/followers')
+  !recipient.endsWith('/followers') &&
+  (!followersUrl || recipient !== followersUrl)
+
+// Who a direct reply in a direct thread goes to besides the accounts its text
+// mentions: the parent's author, as Mastodon addresses the in-reply-to account.
+// The parent's other recipients are NOT copied, so someone the author left out
+// of the text does not receive it (clients pre-fill every participant's
+// mention). A self-reply has no other author; when its text names nobody it
+// keeps the parent's own recipients instead of going to nobody. The current
+// actor is never one of them.
+const getDirectThreadRecipients = (
+  actor: Actor,
+  mentionHrefs: string[],
+  replyStatus: Status
+): string[] => {
+  if (replyStatus.actorId !== actor.id) return [replyStatus.actorId]
+  if (mentionHrefs.some((href) => href !== actor.id)) return []
+  return [...new Set([...replyStatus.to, ...replyStatus.cc])].filter(
+    (recipient) =>
+      recipient !== actor.id &&
+      isActorRecipient(recipient, replyStatus.actor?.followersUrl)
+  )
+}
 
 export const getMentionTagsForStatus = ({
   mentions,
@@ -498,20 +524,14 @@ export const getMentionTagsForStatus = ({
   const mentionsByHref = new Map(
     mentions.map((mention) => [mention.href, mention])
   )
-  const inheritedActorIds = [
-    replyStatus.actorId,
-    ...replyStatus.to,
-    ...replyStatus.cc
-  ]
+  const inheritedActorIds = getDirectThreadRecipients(
+    currentActor,
+    mentions.map((mention) => mention.href),
+    replyStatus
+  )
 
   for (const actorId of inheritedActorIds) {
-    if (
-      actorId === currentActor.id ||
-      !isActorRecipient(actorId) ||
-      mentionsByHref.has(actorId)
-    ) {
-      continue
-    }
+    if (mentionsByHref.has(actorId)) continue
 
     mentionsByHref.set(actorId, {
       type: 'Mention',
@@ -564,9 +584,11 @@ export const persistEmojiTagsForStatus = async ({
  * - public: [Public]
  * - unlisted: [followersUrl]
  * - private: [followersUrl]
- * - direct: [specific recipients from mentions], plus existing direct-thread recipients on direct replies
+ * - direct: [specific recipients from mentions], plus the parent author on
+ *   replies in a direct thread (see getDirectThreadRecipients)
  *
  * When replying, inherits visibility from the parent status if not specified.
+ * The current actor is never addressed (Mastodon skips self-mentions).
  */
 export const statusRecipientsTo = (
   actor: Actor,
@@ -577,16 +599,18 @@ export const statusRecipientsTo = (
     replyStatus
   )
 ): string[] => {
-  // Direct replies only inherit parent recipients when the parent is already
-  // direct; otherwise explicit direct recipients stay isolated from public or
-  // followers audiences on the parent.
+  const mentionHrefs = mentions
+    .map((item) => item.href)
+    .filter((href) => href !== actor.id)
+  // A direct reply goes to the accounts its text mentions, plus the parent's
+  // author when the parent is itself direct. Explicit direct recipients stay
+  // isolated from public or followers audiences on the parent.
   if (visibility === 'direct') {
-    const recipients = mentions.map((item) => item.href)
+    const recipients = [...mentionHrefs]
     if (replyStatus && replyVisibility === 'direct') {
-      recipients.push(...replyStatus.to)
-      // If replying to a direct thread, also include the original author even
-      // when they were only in cc.
-      recipients.push(replyStatus.actorId)
+      recipients.push(
+        ...getDirectThreadRecipients(actor, mentionHrefs, replyStatus)
+      )
     }
     return [...new Set(recipients)] // Remove duplicates
   }
@@ -603,7 +627,8 @@ export const statusRecipientsTo = (
   // (unlisted = followers in 'to', public in 'cc')
   // (private = followers in 'to', nothing public)
   // When replying, also include the original author so they receive the reply
-  if (replyStatus) {
+  // (not on a self-reply: the followers collection is its audience).
+  if (replyStatus && replyStatus.actorId !== actor.id) {
     return [...new Set([actor.followersUrl, replyStatus.actorId])]
   }
   return [actor.followersUrl]
@@ -616,7 +641,9 @@ export const statusRecipientsTo = (
  * - public: [followersUrl, ...mentions]
  * - unlisted: [Public, ...mentions]
  * - private: [...mentions only]
- * - direct: parent cc for direct-thread replies, otherwise [] (no cc for new direct messages)
+ * - direct: [] (every direct recipient is in 'to')
+ *
+ * The current actor is never addressed.
  */
 export const statusRecipientsCC = (
   actor: Actor,
@@ -628,7 +655,9 @@ export const statusRecipientsCC = (
   ),
   communityActorId: string | null = null
 ): string[] => {
-  const mentionHrefs = mentions.map((item) => item.href)
+  const mentionHrefs = mentions
+    .map((item) => item.href)
+    .filter((href) => href !== actor.id)
   // A reply in a community (FEP-1b12) is also addressed to the community actor
   // so its inbox gets it and the group can redistribute it. Never for
   // followers-only or direct replies: those must not reach a public group.
@@ -638,9 +667,7 @@ export const statusRecipientsCC = (
       : []
 
   if (visibility === 'direct') {
-    return replyStatus && replyVisibility === 'direct'
-      ? [...new Set(replyStatus.cc)]
-      : []
+    return []
   }
 
   // For private (followers only), only include mentions
@@ -667,33 +694,14 @@ export const getVisibilityFromReplyStatus = (
   replyStatus: Status | null
 ): MastodonVisibility | null => {
   if (!replyStatus) return null
-
-  // Check if parent is public
-  if (
-    replyStatus.to.includes(ACTIVITY_STREAM_PUBLIC) ||
-    replyStatus.to.includes(ACTIVITY_STREAM_PUBLIC_COMPACT)
-  ) {
-    return 'public'
-  }
-
-  // Check if parent is unlisted (Public in cc)
-  if (
-    replyStatus.cc.includes(ACTIVITY_STREAM_PUBLIC) ||
-    replyStatus.cc.includes(ACTIVITY_STREAM_PUBLIC_COMPACT)
-  ) {
-    return 'unlisted'
-  }
-
-  // Check if parent has followers (private)
-  const hasFollowers = [...replyStatus.to, ...replyStatus.cc].some((item) =>
-    item.endsWith('/followers')
+  // The parent author's own followers URL counts as a followers collection
+  // even off the `/followers` suffix (Friendica's `/followers/<nick>`), so a
+  // followers-only parent is not mistaken for a direct one.
+  return getVisibility(
+    replyStatus.to,
+    replyStatus.cc,
+    replyStatus.actor?.followersUrl
   )
-  if (hasFollowers) {
-    return 'private'
-  }
-
-  // Otherwise direct
-  return 'direct'
 }
 
 // The language a new status is declared in: the request's own (as sent, when
@@ -810,6 +818,9 @@ export const createNoteFromUserInput = async ({
     const replyStatus = replyNoteId
       ? await database.getStatus({ statusId: replyNoteId, withReplies: false })
       : null
+    // A reply whose parent is gone (deleted before a scheduled reply fired) is
+    // refused, never posted as a top-level status with a wider audience.
+    if (replyNoteId && !replyStatus) return null
     // A reply inherits its parent's audience (a direct reply copies the
     // parent's recipients), so the author must be able to read the parent.
     // Request routes check this up front; this covers every other caller,
