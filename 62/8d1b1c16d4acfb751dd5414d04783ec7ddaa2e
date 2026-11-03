@@ -1,0 +1,24 @@
+lib/services/mastodon/getMastodonStatus.test.ts
+  s_310719d8018dcf::t_af107828297d31 72-74
+  s_310719d8018dcf::t_5c2a3cfab94926 92
+  s_310719d8018dcf::t_48517cb6c4dbd1 88-89,91,93-100
+  s_310719d8018dcf::t_d726520f716045 66-71,75-87,90,101
+lib/services/mastodon/getMastodonStatus.ts
+  s_310719d8018dcf::t_86d1aceacfea21 10,298,300,302-327
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "628d1b1c16d4acfb751dd5414d04783ec7ddaa2e",
+  "prompts": {},
+  "sessions": {
+    "s_310719d8018dcf": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e3722-d1c9-7732-b66f-0221b95e639b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

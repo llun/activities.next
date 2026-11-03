@@ -1,0 +1,47 @@
+lib/database/sql/index.ts
+  s_4941627279dc6b::t_2198af969aea9a 130
+  s_4941627279dc6b::t_e6870ca9a83091 116-118
+  s_4941627279dc6b::t_c05b3a2ba01234 22,131-137,192,195-199,273-274,276-288
+  s_4941627279dc6b::t_e6081a1bf81776 80-98,100-115,119-127,289-293,295-308
+lib/search/normalizeAccountSearchQuery.ts
+  s_4941627279dc6b::t_2198af969aea9a 1-5
+app/api/v1/accounts/search/route.ts
+  s_4941627279dc6b::t_2198af969aea9a 3
+lib/search/meilisearch.ts
+  s_4941627279dc6b::t_2198af969aea9a 32-33
+  s_4941627279dc6b::t_d83a2358f3de77 284
+lib/database/sql/search.ts
+  s_4941627279dc6b::t_2198af969aea9a 209,254,432,596,712-719,721
+  s_4941627279dc6b::t_e9535997189b8b 844-846
+  s_4941627279dc6b::t_b033d33bc90696 772,781-783
+  s_4941627279dc6b::t_dd950150c7c4e4 85,99-100,236,334-337,488,491,523,525,586,771,773,775,837-842,862-873,878
+  s_4941627279dc6b::t_c05b3a2ba01234 83-84,86-89,107,387,393,453-454,465,470-487,492-522,524,526-531,535,542-548,569,571,576,578,644-660,676,679,788,793
+  s_4941627279dc6b::t_ef935d2fe25bdf 661-674
+  s_4941627279dc6b::t_acd3b4f71c04e0 6,489-490
+lib/database/sql/search.test.ts
+  s_4941627279dc6b::t_d0937e795acc0a 11,138-182,191-192,253-292,450-562
+  s_4941627279dc6b::t_e6870ca9a83091 891-895
+  s_4941627279dc6b::t_9083a1a915025e 97-103,183-190,563-647,897-899
+  s_4941627279dc6b::t_c0de8c2faf28e4 60-96,104-105
+lib/search/resolveAccount.ts
+  s_4941627279dc6b::t_2198af969aea9a 5,14
+migrations/20260517120000_add_search_index.js
+  s_4941627279dc6b::t_7fbbeba65b8aa0 10,19,23
+  s_4941627279dc6b::t_2198af969aea9a 9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "fff65917ecd7bf2784165c28b9dc3ab30c0ade10",
+  "prompts": {},
+  "sessions": {
+    "s_4941627279dc6b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e3721-11a9-7400-8ad7-c7ee1b4c4741",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

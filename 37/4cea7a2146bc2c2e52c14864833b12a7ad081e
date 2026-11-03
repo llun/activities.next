@@ -1,0 +1,65 @@
+lib/components/fitness/calendar/MiniMonthCalendar.tsx
+  s_a7418d31ae2421::t_b667b8de9af871 157-161
+  s_a7418d31ae2421::t_31f45f8a49ada1 101-105
+  s_a7418d31ae2421::t_b423422807e296 106
+lib/database/sql/fitnessFile.test.ts
+  s_a7418d31ae2421::t_af83ecaa916d42 1403,1416-1417,1421,1768-1797
+  s_a7418d31ae2421::t_f51f362e21bdfe 1798-1799
+app/(timeline)/fitness/useFitnessDayActivities.test.ts
+  s_a7418d31ae2421::t_af83ecaa916d42 179,234-318
+  s_a7418d31ae2421::t_f4be6f10843e36 180-233
+app/(timeline)/fitness/useViewerTimeZone.ts
+  s_a7418d31ae2421::t_6ab60b9fbe9c2e 7,20-21
+lib/components/fitness/calendar/MiniMonthCalendar.test.tsx
+  s_a7418d31ae2421::t_b667b8de9af871 126-133,214-227
+  s_a7418d31ae2421::t_bce5efe4087f2c 228
+lib/components/fitness/calendar/RangePicker.test.tsx
+  s_a7418d31ae2421::t_b667b8de9af871 91-105
+  s_a7418d31ae2421::t_af83ecaa916d42 289-323
+lib/fitness/calendar/localDay.ts
+  s_a7418d31ae2421::t_6ab60b9fbe9c2e 229-244
+lib/services/fitness-files/calendarQuery.ts
+  s_a7418d31ae2421::t_6ab60b9fbe9c2e 5,38,133-138,143
+  s_a7418d31ae2421::t_b423422807e296 139-142
+lib/fitness/calendar/localDay.test.ts
+  s_a7418d31ae2421::t_42c8a70f202f29 12,252-265,267
+  s_a7418d31ae2421::t_af83ecaa916d42 123,125-128,130-131
+lib/services/fitness-files/activityTitle.ts
+  s_a7418d31ae2421::t_ebd168c7703253 64-66,68-75,82-95
+lib/utils/isAbortError.test.ts
+  s_a7418d31ae2421::t_b423422807e296 26-29
+  s_a7418d31ae2421::t_0e24a0225f803f 1-25,30-39
+app/(timeline)/fitness/useFitnessDayActivities.ts
+  s_a7418d31ae2421::t_0e24a0225f803f 7
+  s_a7418d31ae2421::t_94db3f4426dbd8 81-85
+lib/utils/isAbortError.ts
+  s_a7418d31ae2421::t_0e24a0225f803f 1-9
+docs/fitness-file-storage.md
+  s_a7418d31ae2421::t_132fc254d5e0f6 300
+  s_a7418d31ae2421::t_f75f4c21c12cf3 307
+  s_a7418d31ae2421::t_75d7e42d5a1896 454-459
+lib/services/fitness-files/activityTitle.test.ts
+  s_a7418d31ae2421::t_73f4340f19764f 2
+  s_a7418d31ae2421::t_ebd168c7703253 73-107,117
+  s_a7418d31ae2421::t_b423422807e296 108-116
+lib/components/fitness/calendar/RangePicker.tsx
+  s_a7418d31ae2421::t_31f45f8a49ada1 28-32,95-110,250-253
+lib/services/fitness-files/calendarQuery.test.ts
+  s_a7418d31ae2421::t_42c8a70f202f29 160-189
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "374cea7a2146bc2c2e52c14864833b12a7ad081e",
+  "prompts": {},
+  "sessions": {
+    "s_a7418d31ae2421": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0f1fd2ae-8211-4deb-ba27-c7a8fdc4df54",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

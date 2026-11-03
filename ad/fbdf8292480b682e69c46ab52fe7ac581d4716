@@ -1,0 +1,16 @@
+lib/components/posts/attachments.test.tsx
+  h_580a04e334fef4 299,301-303,611-680
+lib/components/posts/attachments.tsx
+  h_580a04e334fef4 3-4,182-183,422-456,458
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "adfbdf8292480b682e69c46ab52fe7ac581d4716",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,18 @@
+package.json
+  h_580a04e334fef4 99,102,119,169
+packages/nodemailer/package.json
+  h_580a04e334fef4 8
+yarn.lock
+  h_580a04e334fef4 21,936,1330,1380-1383,1387-1389,1394-1396,1401-1403,1408-1410,1415-1417,1422-1424,1429-1431,1436-1438,2846,3412,3739,3803,3806,5811-5813,5820,6042,6072-6074,6076-6084,6089,6128,6204-6207,6645,7233,8367
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "644c5904cb6ff682a1498458cf9f4e43c9ee231e",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,23 @@
+app/(timeline)/MainPageTimeline.tsx
+  s_205c9d4610f915::t_fdc5ca81e5f88b 141-142,163
+migrations/20260624000000_remove_noannounce_mention_timelines.js
+  s_205c9d4610f915::t_dc0998583dfe86 12-17
+lib/services/timelines/index.test.ts
+  s_205c9d4610f915::t_282ce2cb0d1233 139-148
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "fd3d236230ee07ca9a9c903ef47a657678d2c9ba",
+  "prompts": {},
+  "sessions": {
+    "s_205c9d4610f915": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b1bda4e5-f883-4fdc-bc59-767c3fa3c860",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

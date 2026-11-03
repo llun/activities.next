@@ -1,0 +1,27 @@
+app/api/v1/statuses/[id]/translate/route.ts
+  s_bccef2ddac8769::t_59d0b2c6379090 69-71
+app/api/v1/statuses/[id]/translate/route.test.ts
+  s_bccef2ddac8769::t_9370cf7163b273 143-149
+lib/services/translation/index.ts
+  s_bccef2ddac8769::t_e4e1e217d11aca 18
+lib/services/translation/translateStatus.test.ts
+  s_bccef2ddac8769::t_53611d332645f1 253-293
+lib/services/translation/withLanguageCache.test.ts
+  s_bccef2ddac8769::t_edcfceed1c5d21 1-47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "459efc6a94314208f10e4222362b5d54f195a7fd",
+  "prompts": {},
+  "sessions": {
+    "s_bccef2ddac8769": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9075253d-6c2a-4513-a48e-8142382dc03a",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

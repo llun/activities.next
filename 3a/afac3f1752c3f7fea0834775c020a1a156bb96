@@ -1,0 +1,36 @@
+app/(timeline)/[actor]/FollowList.tsx
+  s_1f10c44d97cf0b::t_18e31191ab8bf5 4,13,16-25,59-61
+app/(timeline)/[actor]/following/page.tsx
+  s_1f10c44d97cf0b::t_caa135f84c7ce9 8
+  s_1f10c44d97cf0b::t_de1129cf50c315 68
+  s_1f10c44d97cf0b::t_18e31191ab8bf5 15,36,69-72,93-97
+app/(timeline)/[actor]/getFollowListBlockedActorIds.ts
+  s_1f10c44d97cf0b::t_de1129cf50c315 1-38
+app/(timeline)/[actor]/getFollowListBlockedActorIds.test.ts
+  s_1f10c44d97cf0b::t_de1129cf50c315 1-84
+app/(timeline)/[actor]/followers/page.tsx
+  s_1f10c44d97cf0b::t_caa135f84c7ce9 8
+  s_1f10c44d97cf0b::t_18e31191ab8bf5 15,36,69-72,93-97
+  s_1f10c44d97cf0b::t_de1129cf50c315 68
+app/(timeline)/settings/blocks/BlocksList.test.tsx
+  s_1f10c44d97cf0b::t_de1129cf50c315 5-12,104-108,137-139
+app/(timeline)/[actor]/FollowList.test.tsx
+  s_1f10c44d97cf0b::t_18e31191ab8bf5 1-6,8-57,73-74
+  s_1f10c44d97cf0b::t_de1129cf50c315 7,58-72
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "3aafac3f1752c3f7fea0834775c020a1a156bb96",
+  "prompts": {},
+  "sessions": {
+    "s_1f10c44d97cf0b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e06ca-749a-7ec0-912a-16e0f0292ef9",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

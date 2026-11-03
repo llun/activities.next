@@ -1,0 +1,28 @@
+lib/database/sql/media.ts
+  h_580a04e334fef4 44,86
+lib/services/medias/S3StorageFile.test.ts
+  h_580a04e334fef4 3,101,173,379-500
+lib/services/medias/S3StorageFile.ts
+  h_580a04e334fef4 433
+lib/services/medias/getMediaAttachment.test.ts
+  h_580a04e334fef4 136,141-148
+lib/services/medias/imageAnalysis.test.ts
+  h_580a04e334fef4 82-98
+lib/services/medias/imageAnalysis.ts
+  h_580a04e334fef4 70,86-88,119,148
+lib/services/medias/types.ts
+  h_580a04e334fef4 97
+scripts/maintenance/backfillMediaBlurhash.ts
+  h_580a04e334fef4 15,17-18,53-68,75,90,100,110-111,118,164,180-181,190-209,218,220-221,264
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "5bce3dd54e725b83b24194cb33955dfe5bf53d1c",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

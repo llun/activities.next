@@ -1,0 +1,53 @@
+app/api/users/[username]/inbox/route.ts
+  470df6e6a8098e99 19,63-78,181-184,235-238,247-250
+lib/types/activitypub/collections.test.ts
+  470df6e6a8098e99 1-13
+lib/types/activitypub/collections.ts
+  470df6e6a8098e99 4-6,9,11,21,29
+lib/utils/urlToId.test.ts
+  470df6e6a8098e99 92-95
+lib/utils/urlToId.ts
+  470df6e6a8098e99 8-10,25-27,63-66,68
+app/(timeline)/notifications/NotificationsList.tsx
+  470df6e6a8098e99 37,45,57,60,62-63,77-80,149-153
+lib/components/posts/poll.test.tsx
+  470df6e6a8098e99 5,7,16-17,71-92
+lib/jobs/createPollVoteJob.ts
+  470df6e6a8098e99 92
+lib/jobs/createPollVoteJob.test.ts
+  470df6e6a8098e99 361-382
+app/api/users/[username]/statuses/[statusId]/likes/route.ts
+  470df6e6a8098e99 32,40
+app/api/users/[username]/statuses/[statusId]/shares/route.ts
+  470df6e6a8098e99 32-35,42
+app/api/users/[username]/statuses/[statusId]/shares/route.test.ts
+  470df6e6a8098e99 1-79
+lib/components/follow-request-card/FollowRequestCard.tsx
+  470df6e6a8098e99 25,29,35,43,49,112-116
+app/api/users/[username]/statuses/[statusId]/likes/route.test.ts
+  470df6e6a8098e99 1-77
+app/api/v1/polls/[id]/route.test.ts
+  470df6e6a8098e99 127-164,245-281
+lib/components/posts/poll.tsx
+  470df6e6a8098e99 26,68,74,147-151
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "deaa6fc58ebe34d3ce1754d3ea2b6fa117cd12a8",
+  "prompts": {
+    "470df6e6a8098e99": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019de525-ee07-7b60-8309-2cd0207e24ce",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 467,
+      "total_deletions": 28,
+      "accepted_lines": 646,
+      "overriden_lines": 3
+    }
+  }
+}

@@ -1,0 +1,21 @@
+app/(timeline)/fitness/RecentFitnessActivities.tsx
+  s_f1e04a6319c868::t_f55e03df82bb36 1-25
+app/(timeline)/fitness/RecentFitnessActivities.test.tsx
+  s_f1e04a6319c868::t_69c46be986fa86 1-97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "d161e5047e52e53d4eb3824565f95fa79099c0e0",
+  "prompts": {},
+  "sessions": {
+    "s_f1e04a6319c868": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3a353c2f-880a-4289-a04e-ed72d007ab01",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

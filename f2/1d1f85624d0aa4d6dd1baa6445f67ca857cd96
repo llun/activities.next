@@ -1,0 +1,41 @@
+lib/jobs/followTimelineBackfillJob.test.ts
+  s_867498a5a8dd3b::t_9cedc6c30b0640 1-377
+lib/jobs/followTimelineBackfillJob.ts
+  s_9e9181f395c758::t_c4e2b1fc50b963 1-274
+lib/jobs/index.ts
+  s_9e9181f395c758::t_e095aee9fc1834 13,31,117
+lib/jobs/names.ts
+  s_a10056a778b9fd::t_719543d07c11cd 39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "f21d1f85624d0aa4d6dd1baa6445f67ca857cd96",
+  "prompts": {},
+  "sessions": {
+    "s_867498a5a8dd3b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "07b215df-f83e-435d-96c9-42900a5bfb30",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_9e9181f395c758": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bc2e929-9c85-4141-8d3b-ed40b9c01022",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_a10056a778b9fd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b745ec39-ac9d-4583-add3-a8e387fda6d6",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

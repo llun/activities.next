@@ -1,0 +1,19 @@
+lib/database/sql/status.test.ts
+  s_808d1ef98d3e5e::t_d34df16bd4b685 504-554
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "5fecd347927336196650a0f87f4dd6ce2d6ff2a1",
+  "prompts": {},
+  "sessions": {
+    "s_808d1ef98d3e5e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e3594-7780-7440-bcd3-4afb64e50ff2",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

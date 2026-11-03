@@ -1,0 +1,19 @@
+lib/services/mastodon/getMastodonConversation.test.ts
+  s_f7b91ac6284bd0::t_49d400f174003b 24,38,47-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d375d54626d04c8a27f8a5401aed4b212fae1eb0",
+  "prompts": {},
+  "sessions": {
+    "s_f7b91ac6284bd0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7e5d29e0-cb70-4516-b716-6108a10b94a2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

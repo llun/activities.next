@@ -1,0 +1,20 @@
+lib/components/photo-editor/Histogram.test.tsx
+  h_580a04e334fef4 20-22,50-51,84,86-90,94-103,105-110,119-120
+lib/components/photo-editor/Histogram.tsx
+  h_580a04e334fef4 33-34
+lib/components/photo-editor/histogramShape.test.ts
+  h_580a04e334fef4 17-22,51-64
+lib/components/photo-editor/histogramShape.ts
+  h_580a04e334fef4 16-26,28,30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "245a1ef8d3b3b385bf6241fe73a7135d43a9494d",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

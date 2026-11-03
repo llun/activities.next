@@ -1,0 +1,21 @@
+lib/actions/applyDomainBlock.ts
+  s_ab97d21f52c341::t_5139bb31dbc0fd 1-119
+lib/actions/applyDomainBlock.test.ts
+  s_ab97d21f52c341::t_04867c28f4b2b6 1-117
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8203cd313053e8254964cfdc1b7368c3e8870f8a",
+  "prompts": {},
+  "sessions": {
+    "s_ab97d21f52c341": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "62bf221b-714f-4225-95d2-e37f0d6fd6a3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

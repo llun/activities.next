@@ -1,0 +1,22 @@
+app/(timeline)/[actor]/profileFollowLookup.test.ts
+  s_d1695cdc0365a2::t_e17e16c8b78e6c 188-210
+  s_d1695cdc0365a2::t_f25cf2965b8f23 272-286
+lib/services/getViewerFollow.ts
+  s_d1695cdc0365a2::t_a37c97b7b4a292 19-26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "6239e7956c304c470507856fbf9a7df8622a29dd",
+  "prompts": {},
+  "sessions": {
+    "s_d1695cdc0365a2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7f34b138-131b-4c17-b1bf-51370d8efeb2",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

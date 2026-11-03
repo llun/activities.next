@@ -1,0 +1,53 @@
+docs/fitness-file-storage.md
+  s_f64561826c964f::t_09bdb95703879e 11
+lib/jobs/importStravaActivityJob.test.ts
+  s_f64561826c964f::t_1a020cee4e53c9 173-174
+  s_f64561826c964f::t_a391ff820e5d86 10,171-172,175-178,247-291
+  s_f64561826c964f::t_de19ba26d858d4 292-293
+docs/architecture.md
+  s_f64561826c964f::t_09bdb95703879e 2243-2246
+lib/jobs/importFitnessFilesJob.ts
+  s_f64561826c964f::t_5daf6bdb7989b4 526-544,553
+  s_f64561826c964f::t_1a020cee4e53c9 550
+lib/jobs/importFitnessFilesJob.test.ts
+  s_f64561826c964f::t_c1bf2759db949c 190-247,251-258,263-268
+  s_f64561826c964f::t_ce2d5049d49b4c 8-9,259-262
+  s_f64561826c964f::t_1a020cee4e53c9 248-250
+app/api/v1/accounts/migration/route.ts
+  s_f64561826c964f::t_c356e41591a252 204
+  s_f64561826c964f::t_266553f6292d26 203
+  s_f64561826c964f::t_147d1553637ab6 179-180
+  s_f64561826c964f::t_911cfd74fbf047 163-169,181-194,196-197,200-202,205-215,217
+lib/jobs/publishScheduledStatusJob.test.ts
+  s_f64561826c964f::t_da275e91f1043e 230,235-262
+  s_f64561826c964f::t_c6a05f72454ab5 227-229
+  s_f64561826c964f::t_912b4a4c6180ef 231-234
+docs/mastodon-api-compatibility.md
+  s_f64561826c964f::t_27c46f0f726ceb 1129-1132
+app/api/v1/accounts/migration/route.test.ts
+  s_f64561826c964f::t_989491db37e957 745-747
+  s_f64561826c964f::t_817eb7e530bcb3 708-719,741-744,748-770,777-780
+  s_f64561826c964f::t_06bc2e24c5243e 720-740,830,836,839,846,848-849
+  s_f64561826c964f::t_2e7fe6afd42bcd 771-772
+  s_f64561826c964f::t_24ba3cdd738c61 773-776
+lib/jobs/publishScheduledStatusJob.ts
+  s_f64561826c964f::t_09bdb95703879e 72
+lib/jobs/importStravaActivityJob.ts
+  s_f64561826c964f::t_f4f4957e7db93e 446-455,712,719-741
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a138c36c79f085ad00fc1308265b3f2b78e16604",
+  "prompts": {},
+  "sessions": {
+    "s_f64561826c964f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a17234-7f44-7f40-a8b9-9b2ee7ae7072",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

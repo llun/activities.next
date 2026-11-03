@@ -1,0 +1,23 @@
+lib/utils/text/sanitizeText.ts
+  s_8f8c7653879d27::t_c38065e10312af 38
+docs/environment-variables.md
+  s_8f8c7653879d27::t_367148b153de7b 167
+lib/utils/text/sanitizeText.test.ts
+  s_8f8c7653879d27::t_5c922d1d33c313 135-140
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "db820913b44793cd319b3c7bcddcc37081b5bbb3",
+  "prompts": {},
+  "sessions": {
+    "s_8f8c7653879d27": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1dff-6d59-7960-9eee-87eebfec6a18",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,247 @@
+app/api/v1/trends/tags/route.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 8-13,44
+app/(nosidebar)/auth/signin/page.tsx
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 19,59-68
+app/api/v1/media/route.test.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 136-181
+lib/services/mastodon/getMastodonStatus.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 431-436,449
+lib/services/mastodon/getMastodonTag.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 2,11-17,21
+lib/services/oauth/userinfo.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 5,28,35,44-48,52-56,59-62,64
+lib/types/domain/status.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 126-128
+app/(nosidebar)/oauth/authorize/types.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 3-4,7-10,22-30
+migrations/schema.sql
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 591
+app/api/v1/instance/domain_blocks/route.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 43-49,58
+lib/services/statuses/parseStatusRequestBody.test.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 122-188
+app/api/v1/apps/route.test.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 6-10,70,73-75,180-253
+  s_e1e33e67e0a88b::t_72d30df30b3d28 254
+app/api/v1/apps/verify_credentials/route.test.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 106,109-111,139-141,146-175
+  s_e1e33e67e0a88b::t_cf296119f54e5d 176-177
+lib/database/sql/actor.ts
+  s_e1e33e67e0a88b::t_fd254d42e4246b 743-750,752-753
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 273-275,292-297,310,713-714,722,724-726,728-729,731-739,742,751,754-757,759-760,806-808,848-850
+app/api/v1/tags/[tag]/route.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 14,19-22,31-33,56-64,72-80,84
+app/(nosidebar)/auth/signin/resolveSignInRedirect.test.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 30-43
+app/api/v1/media/[id]/route.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 12,43-47,49-51
+app/api/v1/statuses/[id]/route.test.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 9,31,67-73,2261-2875
+lib/database/sql/instanceActivity.test.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 5,287-379
+  s_e1e33e67e0a88b::t_1b71ef6de4aa1a 380
+lib/services/mastodon/getMastodonStatus.test.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 414-484
+lib/services/trends/request.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 4-8,11-15,18-19,22-32
+  s_e1e33e67e0a88b::t_ad72f879282923 33
+app/api/oauth/userinfo/route.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 3-5,44-47
+app/api/v1/apps/route.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 141-152
+app/api/v1/instance/route.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 3-4,10-14,19-20,22,31-33,36-56,58,64,66-76,78,104-110
+lib/database/sql/admin.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 424,431-434,537-572,589
+app/api/v1/instance/route.test.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 3-5,8-13,15-16,19-34,38-63,93-176
+app/api/v1/statuses/[id]/route.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 6,15-22,24-25,33,115-148,153-154,195,218-219,236-237,248-374,376,378-382,392,535-562,573-609
+  s_e1e33e67e0a88b::t_eaeff87bef26b3 610
+lib/actions/updatePoll.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 1-106
+app/api/v1/statuses/route.test.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 14,466-488
+  s_e1e33e67e0a88b::t_fe946aa28abd35 489-490
+app/api/v1/tags/[tag]/follow/route.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 5,9-12,20-22,45-54,56,60
+lib/database/sql/followedTag.test.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 69-91
+migrations/20260709053955_alter_medias_description_text.js
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 1-23
+lib/database/sql/instanceActivity.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 233-248,259-261
+app/api/v2/instance/route.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 3,7,11-15,36-37,39-40,55-58,63,70-85,87-89,91-99,128,133-136
+lib/services/trends/request.test.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 4-5,7-8,95-134
+  s_e1e33e67e0a88b::t_10852beeb176a1 135-136
+lib/services/trends/tagHistory.test.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 1-77
+app/api/v1/tags/[tag]/unfollow/route.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 5,9-12,20-22,45-54,56,60
+lib/actions/createPoll.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 30-31,48,123
+lib/services/medias/getMediaAttachment.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 67-70
+lib/types/database/rows.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 23-31
+lib/types/database/operations.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 78-81,101-103,482-483,488-497,518-522,1584,3253,3272,3306-3309
+app/api/v1/trends/statuses/route.test.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 209-289
+app/api/v1/instance/domain_blocks/route.test.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 3-4,36-49,55,76,79,85,88-94,106,122
+app/(nosidebar)/auth/signin/resolveSignInRedirect.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 12-15,20
+app/(nosidebar)/auth/signin/page.test.tsx
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 111-142
+app/(nosidebar)/oauth/authorize/authorizeQuery.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 36-40
+app/api/v1/apps/createApplication.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 232-238,313-314,316-324
+lib/database/sql/directory.test.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 7-8,86-170
+lib/database/sql/status.test.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 2132-2193,2500-2587,2701-2873
+lib/services/accounts/getFallbackBlockedAccount.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 43,57,66-68
+app/api/v1/media/[id]/route.test.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 227,242-275
+  s_e1e33e67e0a88b::t_3f31a2b5df237e 276
+lib/services/accounts/getFallbackMutedAccount.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 2,6-7,33,45,59,68-70,75-76
+lib/services/accounts/relationship.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 7-8,24,43-48,74-76,90-92,94-96
+app/api/v1/apps/createApplication.test.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 64,67-69,92,95-97,297-364
+app/api/v1/trends/statuses/route.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 4-5,26
+lib/jobs/publishScheduledStatusJob.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 125
+lib/database/sql/followedTag.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 91,98-106,132-133,136
+lib/services/accounts/getMuteExpiresAt.test.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 1-18
+lib/services/federation/domainRules.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 79-99,101
+lib/services/mastodon/constants.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 17-21
+lib/database/sql/status.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 566-572,661-689,854,871-872,982,993-999,1008-1013,1018-1024,1035-1049,1051-1055,1058-1061,1078-1095,1172-1180,1184-1187,2926
+app/api/v1/followed_tags/route.test.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 1-112
+lib/services/accounts/relationship.test.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 89-132,334-369
+app/api/v1/tags/[tag]/follow/route.test.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 1-107
+lib/client.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 1468
+lib/services/mastodon/getMastodonStatusEdits.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 4-5,40-44,46-50,60,62-63,66,68-109,114,120,124,129
+lib/services/federation/domainRules.test.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 1-2,46-60,62-64,70-99
+lib/services/statuses/parseStatusRequestBody.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 17-19,65-90
+  s_e1e33e67e0a88b::t_1ed2f9aa8011c5 91-92
+lib/services/trends/tagHistory.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 1-51
+docs/features.md
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 104
+app/api/v1/accounts/[id]/route.test.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 74-86
+lib/services/oauth/userinfo.test.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 39-42,44-54,57-61,82,91-95,106,111,115,123,139,147,151,155-158,173,192,211,230,248
+lib/types/mastodon/index.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 7
+lib/services/mastodon/instance.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 1-92
+lib/services/medias/constants.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 18-21
+lib/types/mastodon/account/source.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 20-25
+lib/services/mastodon/instance.test.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 1-151
+migrations/schema.sqlite.sql
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 234-237
+lib/types/mastodon/account/mutedAccount.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 1-16
+lib/database/sql/admin.test.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 297,301,309-318
+package.json
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 3
+app/api/v1/apps/types.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 5-8,24-26,28,30-32
+app/api/v1/followed_tags/route.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 6,35-37,40-50,56
+lib/services/accounts/updateCredentialsHandler.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 4,9,35-38,86-97,196-207,236-237,239-250,263-267,295-296,300-303
+app/api/oauth/userinfo/route.test.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 30-40,105-106,112,122
+app/api/v1/tags/[tag]/route.test.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 11,56,89-159
+app/api/v1/statuses/route.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 341
+lib/services/accounts/getMuteExpiresAt.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 1-9
+lib/services/mastodon/getMastodonConversation.test.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 24,38,47-49
+lib/services/medias/S3StorageFile.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 272
+app/api/v1/directory/route.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 10,20-23,27-28,45,50-51
+lib/jobs/publishScheduledStatusJob.test.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 10,130-156
+  s_e1e33e67e0a88b::t_d2b75478fec657 157-158
+app/(nosidebar)/oauth/authorize/page.tsx
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 24-26,41-45,58-64,67
+app/api/v1/mutes/route.test.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 73-76,82,217-267
+lib/services/medias/types.test.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 1,17-51
+  s_e1e33e67e0a88b::t_defef8b8fc43c7 52
+lib/services/mastodon/getMastodonStatusEdits.test.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 1-123
+lib/services/medias/types.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 6-10,55-66,100-101
+app/api/v1/apps/verify_credentials/route.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 17-19,26,31,34-38
+lib/types/mastodon/account.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 5,24-26,75-88
+  s_e1e33e67e0a88b::t_f1b9ea235a389c 89-90
+app/(nosidebar)/oauth/authorize/page.test.tsx
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 125-233
+app/api/v1/mutes/route.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 3,7,49-55
+lib/services/medias/getMediaAttachment.test.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 77,80-104
+app/api/v2/instance/route.test.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 3,15-16,19-34,50-55,132-203,215-219,224-250
+lib/database/sql/actor.test.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 349-382,767,783-785,793-794,950-974
+  s_e1e33e67e0a88b::t_a9654929e81d36 975
+app/api/v1/accounts/update_credentials/route.test.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 37,366-395,442-553,615-637
+app/api/v1/directory/route.test.ts
+  s_e1e33e67e0a88b::t_cf600fa6b9b319 102-119,121,127
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 101,120,122-126,128
+  s_e1e33e67e0a88b::t_4508828e2e6868 129
+app/api/v1/tags/[tag]/unfollow/route.test.ts
+  s_e1e33e67e0a88b::t_05ea9a37362cf4 1-102
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c6e3e04420f403c5d8be068d55792ee82918b7b4",
+  "prompts": {},
+  "sessions": {
+    "s_e1e33e67e0a88b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ed72f97c-9eb9-47b3-8694-04cebc7222ec",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

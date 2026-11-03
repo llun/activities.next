@@ -1,0 +1,49 @@
+app/(timeline)/[actor]/ActorTimelines.selfThreads.test.tsx
+  s_d3ef9b4551116f::t_207c7fda658d1a 5,128-163
+app/(timeline)/[actor]/ActorTimelines.tsx
+  s_d3ef9b4551116f::t_83f84ac4fd6dc0 99-100
+app/(timeline)/[actor]/getProfileData.test.ts
+  s_d3ef9b4551116f::t_c415752489a969 2605-2758
+app/(timeline)/[actor]/profileFeedTabs.test.ts
+  s_d3ef9b4551116f::t_0cbca31d10ddb0 83,89-109
+app/(timeline)/[actor]/profileFeedTabs.ts
+  s_d3ef9b4551116f::t_c9fe1711428546 22-23,48-54,62-72,74-82
+app/api/v1/accounts/[id]/statuses/route.test.ts
+  s_d3ef9b4551116f::t_fdd3c93d7eab15 11,83-84,1193-1351
+app/api/v1/accounts/[id]/statuses/route.ts
+  s_d3ef9b4551116f::t_a279a5d165bbae 313-329
+docs/architecture.md
+  s_d3ef9b4551116f::t_a374e09559eb43 1257,2255-2257,2262-2272,2279-2281
+docs/maintenance.md
+  s_d3ef9b4551116f::t_b92bcf0e2b124f 1325
+docs/mastodon-api-compatibility.md
+  s_d3ef9b4551116f::t_7cd976e23bd8ba 647
+lib/components/posts/combined-post-list-item.tsx
+  s_d3ef9b4551116f::t_a7a92ad454bf9b 33,60-65,389,432-434,493
+lib/components/posts/posts.tsx
+  s_d3ef9b4551116f::t_2ad15ff343550b 73-87,92-94,97
+lib/components/posts/timeline-feed.test.tsx
+  s_d3ef9b4551116f::t_46db0e36410ddf 960-1045
+lib/components/posts/timeline-feed.tsx
+  s_d3ef9b4551116f::t_855aadb4c44563 41-46,69-71,253-307,391-393,467,474-477,559,563-566
+lib/database/domains/status/repliesTab.test.ts
+  s_d3ef9b4551116f::t_71ec915e10833e 5-6,272,284,295-296,301-304,307-402
+lib/database/domains/status/repliesTab.ts
+  s_d3ef9b4551116f::t_bcfa5e17a638fe 11-14,18,28,37-39,55-59,67,69,72-118,134,149,155-157,179-181,194
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3cd4f7c394424742344ad449f5521a632b866564",
+  "prompts": {},
+  "sessions": {
+    "s_d3ef9b4551116f": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a19dea-6430-7764-9d76-cfe2adf803c4",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

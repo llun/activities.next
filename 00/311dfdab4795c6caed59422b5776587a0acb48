@@ -1,0 +1,50 @@
+lib/jobs/processFitnessFileJob.ts
+  s_ed05b2e981b84c::t_badfe50fe8e262 272-278,284,290
+lib/database/sql/fitnessFile.ts
+  s_ed05b2e981b84c::t_7cf0cf1d5d6a36 191
+  s_ed05b2e981b84c::t_7d0b5f18728d4d 230-268
+  s_ed05b2e981b84c::t_53992a9c49e951 669,676-677,681,690
+scripts/fitness/importStoredFitnessFile.ts
+  s_ed05b2e981b84c::t_4d27a32958887a 233,238-248,250,261,266-278
+  s_ed05b2e981b84c::t_9e3cbf9606e3f7 104-156
+  s_ed05b2e981b84c::t_f676a6822d8201 291-297,299-301,303-306,308-312,319,322-323
+  s_ed05b2e981b84c::t_df57e7a9515271 38,44
+  s_ed05b2e981b84c::t_066af7d6d1b68e 307,313-318,320-321
+  s_ed05b2e981b84c::t_70471098bf448f 364-366
+  s_ed05b2e981b84c::t_8fac6aa93eb483 341,347,351-356,375-376,379
+scripts/fitness/storedImportPlan.ts
+  s_ed05b2e981b84c::t_44966738d05157 130-133,137-146
+app/api/v1/statuses/[id]/retry-fitness/route.ts
+  s_ed05b2e981b84c::t_eb55e3126ff7cd 97-104
+lib/jobs/importFitnessFilesJob.ts
+  s_ed05b2e981b84c::t_d763340ac803bc 350-353,359,362
+  s_ed05b2e981b84c::t_b06a9c098e19dc 165-166,173-177
+lib/jobs/importStravaActivityJob.merge.test.ts
+  s_ed05b2e981b84c::t_117bcbf8f21346 180
+lib/jobs/processFitnessFileJob.test.ts
+  s_ed05b2e981b84c::t_bb257366d6baae 392-414
+lib/jobs/importStravaArchiveJob.ts
+  s_ed05b2e981b84c::t_1d55a8e3bb4c8b 1148-1162
+lib/jobs/importFitnessFilesJob.test.ts
+  s_ed05b2e981b84c::t_84de45cd1cf0db 466-472
+app/api/v1/statuses/[id]/retry-fitness/route.test.ts
+  s_ed05b2e981b84c::t_3ebab481c54748 157-177
+lib/services/fitness-files/index.ts
+  s_ed05b2e981b84c::t_baf4cb010219c9 112-119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "00311dfdab4795c6caed59422b5776587a0acb48",
+  "prompts": {},
+  "sessions": {
+    "s_ed05b2e981b84c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a61299ca-2ba8-497b-9eb6-b7afacc32f65",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

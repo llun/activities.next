@@ -1,0 +1,55 @@
+lib/jobs/replyByEmailJob.test.ts
+  s_2f8f98bd1d8b55::t_1912c217734b12 14,138
+  s_2f8f98bd1d8b55::t_30896cf0a0c4af 473,476-485,504-516
+  s_2f8f98bd1d8b55::t_b999398913cead 271-331
+  s_2f8f98bd1d8b55::t_831ab49bca7a28 51-58
+  s_2f8f98bd1d8b55::t_2d055c29244d3a 61-63
+  s_2f8f98bd1d8b55::t_29bcd7d8312dae 8-12
+lib/services/email/resend.test.ts
+  s_2f8f98bd1d8b55::t_ffa4188543b376 1-7,12-72
+  s_2f8f98bd1d8b55::t_21b6bf7ab88332 8-11
+lib/services/email/extractReplyText.ts
+  s_2f8f98bd1d8b55::t_59375911d414f1 111-112,120-121,127-138
+  s_2f8f98bd1d8b55::t_25f0ba732121d4 19-23
+lib/services/email/extractReplyText.test.ts
+  s_2f8f98bd1d8b55::t_0824bf97432617 132-153
+lib/services/email/replyToken.ts
+  s_2f8f98bd1d8b55::t_aceca21c94f6d3 174-178,180-186,190-191,196-200,202
+lib/services/email/templates/replyByEmailFailure.ts
+  s_2f8f98bd1d8b55::t_74911f52970076 11,20-21
+lib/services/email/replyToken.test.ts
+  s_2f8f98bd1d8b55::t_1310bf06f0ee39 143-148,191,194,216-217,220,226,242,279
+lib/services/timelines/mentionNotification.test.ts
+  s_2f8f98bd1d8b55::t_11cfa144c2545b 759-764
+lib/jobs/replyByEmailJob.ts
+  s_2f8f98bd1d8b55::t_d8dc2f1bf512db 159-162,165,177-186
+  s_85d91c6baf9d58::t_3dee76d5581ca3 187-188
+lib/services/email/resend.ts
+  s_2f8f98bd1d8b55::t_c0c1d6cf039208 32-36,38
+lib/actions/createNote.replyByEmail.test.ts
+  s_85d91c6baf9d58::t_1ced24adb4fd12 1-167
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "cd0ce5319ae7876d143354dc03922fab2b9e8ce5",
+  "prompts": {},
+  "sessions": {
+    "s_2f8f98bd1d8b55": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fe73386a-874f-4632-8456-f9a69e911a24",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_85d91c6baf9d58": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8685a26c-353a-478b-9125-3aeb9c98a29a",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,16 @@
+lib/services/guards/AdminApiGuard.test.ts
+  h_580a04e334fef4 524-543,546-550,560-568,573-576,599-602,624-627,644-647
+lib/services/guards/AdminApiGuard.ts
+  h_580a04e334fef4 180-181,202-203
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "41c15b4beee0d942f4d41fae93b11692c5fb2543",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

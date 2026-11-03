@@ -1,0 +1,26 @@
+lib/services/accounts/profileImageUrl.ts
+  s_3aa302c1cfeffe::t_84aa5c65f1227f 81-87
+app/api/v1/accounts/image/route.test.ts
+  s_3aa302c1cfeffe::t_fece63e49041e6 112-125
+AGENTS.md
+  s_3aa302c1cfeffe::t_6d5647d5546d0d 2310
+lib/services/accounts/profileImageUrl.test.ts
+  s_3aa302c1cfeffe::t_6d5647d5546d0d 169-184
+  s_3aa302c1cfeffe::t_930ea50b4e3318 166-168,185,249-262
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "e06b7a682fb52233a00d1c4eea43b4956f92a639",
+  "prompts": {},
+  "sessions": {
+    "s_3aa302c1cfeffe": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "86bc70bf-e3f5-4493-ad45-dbd859b08a86",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

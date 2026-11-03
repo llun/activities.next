@@ -1,0 +1,19 @@
+lib/components/fitness/RegionMap.test.tsx
+  s_a4e873d78b1275::t_2e3b488e48d4a9 307,309-316
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8afb2c11928178a3dc64fee8e1902f28df85c29b",
+  "prompts": {},
+  "sessions": {
+    "s_a4e873d78b1275": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "251449ad-9b95-488c-95c8-ce1136325fc9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,16 @@
+app/api/v1/accounts/[id]/followCollectionHandler.ts
+  h_580a04e334fef4 1,272-278
+lib/services/mastodon/remoteFollowCollection.ts
+  h_580a04e334fef4 1-2,18,216-224,226-258,262,264,321-332,334-340,342-359,361-382,384
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "1a3bd76a726218a7b6a20276107f44ea41322e4c",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

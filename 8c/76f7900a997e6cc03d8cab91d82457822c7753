@@ -1,0 +1,22 @@
+lib/jobs/createRelayAnnounceJob.test.ts
+  s_4940650f85d4fc::t_aae25366008811 86-109
+lib/jobs/createRelayAnnounceJob.ts
+  s_4940650f85d4fc::t_25e28f9a67f0ea 1-2,10-24
+  s_4940650f85d4fc::t_da205f7f2bc11c 51-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "8c76f7900a997e6cc03d8cab91d82457822c7753",
+  "prompts": {},
+  "sessions": {
+    "s_4940650f85d4fc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "63651c7d-28cf-4c4f-879c-781d84ce90aa",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

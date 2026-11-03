@@ -1,0 +1,19 @@
+lib/services/medias/storagePath.test.ts
+  s_de87c2a5ef964b::t_850186b364613d 63-68,70,72-79,81-88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "47ebe80d42498ba6953b72f089ea1812bdac6358",
+  "prompts": {},
+  "sessions": {
+    "s_de87c2a5ef964b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "86499a5a-b738-4afb-910f-3deae1bbf5ff",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

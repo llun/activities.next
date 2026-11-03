@@ -1,0 +1,33 @@
+app/(nosidebar)/oauth/token/route.ts
+  s_fb7bf078788a7a::t_2a3ec23c115611 45,162-177
+  s_8f8c7653879d27::t_48db91cd2c6c1b 50,52-53,57,59-66
+  s_fb7bf078788a7a::t_df291afa3c591e 47-49,51,54-56,58,67-82,92-105
+app/(nosidebar)/oauth/token/route.test.ts
+  s_fb7bf078788a7a::t_a4d133b45f331a 318-354
+lib/services/guards/OAuthGuard.test.ts
+  s_fb7bf078788a7a::t_77287127091cd9 126-127,129,179-193
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "ef1f1b5624c137b4b177d4f02dc33ca5b7f63754",
+  "prompts": {},
+  "sessions": {
+    "s_8f8c7653879d27": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1dff-6d59-7960-9eee-87eebfec6a18",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_fb7bf078788a7a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e20d7-3d1c-7f61-955b-dfd7a5930843",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,35 @@
+app/api/users/[username]/outbox/route.test.ts
+  s_895dd3c6090136::t_58cad2c317228d 4,105
+app/api/users/[username]/outbox/route.ts
+  s_895dd3c6090136::t_58cad2c317228d 5,55
+AGENTS.md
+  s_895dd3c6090136::t_9223dbecc6a646 2158
+lib/services/statuses/actorPublicStatusesCount.test.ts
+  s_895dd3c6090136::t_717c0e0031cd49 5
+  s_895dd3c6090136::t_58cad2c317228d 1-4,6-10,20-47,51-60,64-72,76-81,85-86,90-97,101,105-129,133-138,207,209-210
+  s_895dd3c6090136::t_81e257d3accf8b 158-161,167,171-172,180,184-185
+  s_895dd3c6090136::t_c92b589c4c80c3 48-50,61-63,73-75,82-84,87-89,98-100,102-104,130-132
+  s_895dd3c6090136::t_20e1480441c293 139-157,162-166,168-170,173-179,181-183,186-206,208
+  s_895dd3c6090136::t_1a7150dc3b773f 11-19
+lib/services/statuses/actorPublicStatusesCount.ts
+  s_895dd3c6090136::t_a5eeb7081920f2 113-117,121-123,126
+  s_895dd3c6090136::t_58cad2c317228d 15-20,29,61-69,77,81-90,98,100,105,107
+CLAUDE.md
+  s_895dd3c6090136::t_9223dbecc6a646 35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "63952c877f225822160e60b7bdaa46a0494faffc",
+  "prompts": {},
+  "sessions": {
+    "s_895dd3c6090136": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "976185f5-5df9-4b1a-927a-9d20f4178ce3",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

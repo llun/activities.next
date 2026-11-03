@@ -1,0 +1,18 @@
+lib/client.ts
+  h_580a04e334fef4 444,446
+lib/client/customEmojis.test.ts
+  h_580a04e334fef4 1-320
+lib/client/customEmojis.ts
+  h_580a04e334fef4 1-91
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "c8d18424c2349011c8e43c61f3223cdf3d6419ad",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

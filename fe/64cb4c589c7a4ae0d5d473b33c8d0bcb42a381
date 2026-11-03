@@ -1,0 +1,33 @@
+lib/database/sql/status.ts
+  h_580a04e334fef4 944-948,1024-1026
+lib/jobs/createAnnounceJob.test.ts
+  h_580a04e334fef4 25,190,200,269-291
+lib/database/sql/status.test.ts
+  h_580a04e334fef4 4485-4494
+  h_580a04e334fef4 4481-4484
+lib/types/database/operations.ts
+  h_580a04e334fef4 894
+lib/database/sql/bookmark.test.ts
+  h_580a04e334fef4 90,131,139,192
+app/api/v1/queue/qstash/route.ts
+  h_580a04e334fef4 1,12,49-59
+app/api/v1/queue/qstash/route.test.ts
+  h_580a04e334fef4 1-135
+lib/jobs/createAnnounceJob.ts
+  h_580a04e334fef4 49,53,71-82,98
+lib/services/queue/base.ts
+  h_580a04e334fef4 28,43
+lib/database/sql/fitnessGear.test.ts
+  h_580a04e334fef4 1958,1970,2162,2170
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "fe64cb4c589c7a4ae0d5d473b33c8d0bcb42a381",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

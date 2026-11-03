@@ -1,0 +1,44 @@
+lib/services/timelines/mentionNotification.ts
+  s_205c9d4610f915::t_78f76876b8398f 1-205
+lib/services/timelines/index.ts
+  s_205c9d4610f915::t_9db2b0d6be5f08 115,118-121,127,132-139,141
+  s_205c9d4610f915::t_9d55ba1844dd25 10
+migrations/20260624000000_remove_noannounce_mention_timelines.js
+  s_205c9d4610f915::t_b711d1a98106ea 1-33
+lib/database/sql/timeline.test.ts
+  s_205c9d4610f915::t_f4c78bdf6be2fd 537
+lib/services/timelines/mentionNotification.test.ts
+  s_205c9d4610f915::t_f6f17fec6bf49c 20-681
+lib/database/sql/timeline.ts
+  s_205c9d4610f915::t_1cbb5c769d3b2b 152
+  s_205c9d4610f915::t_4151995886f5d5 192-194
+lib/jobs/createNoteJob.ts
+  s_205c9d4610f915::t_69dd6e4ac812fc 107-108
+lib/actions/createNote.ts
+  s_205c9d4610f915::t_a00ae4262077f5 438-439
+lib/services/timelines/index.test.ts
+  s_205c9d4610f915::t_46feaf5e376e3b 76,79-80,98-107
+  s_205c9d4610f915::t_58f9483e94fee4 55
+scripts/mock/createMockStatuses.ts
+  s_205c9d4610f915::t_d94fb611626d56 140-144
+lib/services/timelines/types.ts
+  s_205c9d4610f915::t_d36a05059a81ea 47
+app/(timeline)/MainPageTimeline.tsx
+  s_205c9d4610f915::t_2204865d730c06 51,87,107,145,150-151,164,170,220-246
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "94f759970f9e0e4942c6408ffc9cb8aa163599f5",
+  "prompts": {},
+  "sessions": {
+    "s_205c9d4610f915": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b1bda4e5-f883-4fdc-bc59-767c3fa3c860",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

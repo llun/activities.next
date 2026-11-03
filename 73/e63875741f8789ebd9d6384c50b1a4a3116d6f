@@ -1,0 +1,23 @@
+app/api/v1/preferences/route.ts
+  s_2de5d568423448::t_74e996c45d3e19 13-17,21-28
+lib/database/sql/account.ts
+  s_2de5d568423448::t_b40f84d144bf76 467-475
+app/api/v1/preferences/route.test.ts
+  s_2de5d568423448::t_8ad05a77799225 1-110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "73e63875741f8789ebd9d6384c50b1a4a3116d6f",
+  "prompts": {},
+  "sessions": {
+    "s_2de5d568423448": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "380e0dd8-bb8c-402d-93c3-faf6bb59ed2f",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

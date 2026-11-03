@@ -1,0 +1,19 @@
+packages/cloudtasks/package.json
+  s_d14ca01079411b::t_a21f37f48ef9c5 8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "9f4112946b8ac654554e05a39bc2ad7c015a014c",
+  "prompts": {},
+  "sessions": {
+    "s_d14ca01079411b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d9d7-0e58-7040-8a9b-de72e5e8e886",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

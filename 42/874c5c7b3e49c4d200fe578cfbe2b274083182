@@ -1,0 +1,28 @@
+CLAUDE.md
+  s_b98662ca176e99::t_60d65b0289ea9e 32
+lib/database/sql/localPublicQueryShape.test.ts
+  s_b98662ca176e99::t_60d65b0289ea9e 119
+REVIEW.md
+  s_b98662ca176e99::t_60d65b0289ea9e 127-128
+lib/database/sql/timeline.ts
+  s_b98662ca176e99::t_036a6ac845c11f 116-142
+  s_b98662ca176e99::t_aaacac5a2c439a 146
+AGENTS.md
+  s_b98662ca176e99::t_aaacac5a2c439a 1852
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "42874c5c7b3e49c4d200fe578cfbe2b274083182",
+  "prompts": {},
+  "sessions": {
+    "s_b98662ca176e99": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a367446e-4043-4a34-b835-158addafb3de",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,65 @@
+lib/database/sql/bookmark.test.ts
+  s_c5c1b74f075916::t_f6cf5193ed4274 1-181
+app/api/v1/bookmarks/route.test.ts
+  s_c5c1b74f075916::t_f18d74058cc099 1-91,93-123,125-133
+  s_c5c1b74f075916::t_ab0854632c2d94 92,124
+lib/types/domain/status.ts
+  s_c5c1b74f075916::t_e5ba35932c3ca0 81
+  s_c5c1b74f075916::t_bbc2f067580a72 224
+lib/database/sql/bookmark.ts
+  s_c5c1b74f075916::t_4a8b207f382790 115
+  s_c5c1b74f075916::t_e69a32b9b842d9 57,105-107
+  s_c5c1b74f075916::t_6037a2dbd1e0a1 1-56,58-104,108-114,116-129
+app/api/v1/statuses/[id]/unbookmark/route.ts
+  s_c5c1b74f075916::t_847597933a6f66 25,37,43-77,81-82,87
+lib/database/sql/index.ts
+  s_c5c1b74f075916::t_e69a32b9b842d9 7
+  s_c5c1b74f075916::t_af2c8d621ba2c1 30,43,64
+app/api/v1/statuses/[id]/bookmark/route.ts
+  s_c5c1b74f075916::t_6fed57b022e4c0 25,51-64,68
+lib/services/mastodon/getMastodonStatus.ts
+  s_c5c1b74f075916::t_a77a79c5d8f11d 215
+lib/database/types.ts
+  s_c5c1b74f075916::t_f5825a906c1b17 29
+  s_c5c1b74f075916::t_e69a32b9b842d9 11
+lib/database/sql/status.ts
+  s_c5c1b74f075916::t_c20e5509f21060 14,176
+  s_c5c1b74f075916::t_3dc1362a690c59 482,761,1139,1377,1399-1404,1451
+lib/types/domain/bookmark.ts
+  s_c5c1b74f075916::t_4f516f4a0aaf87 1-11
+lib/types/database/operations.ts
+  s_c5c1b74f075916::t_a8d0c854bc2aaf 1028,1030,1041,1043
+  s_c5c1b74f075916::t_756f145666f210 743-768
+  s_c5c1b74f075916::t_e69a32b9b842d9 11
+lib/services/guards/OAuthGuard.test.ts
+  s_c5c1b74f075916::t_d588789aadcdfe 547-581,674-694
+lib/services/guards/OAuthGuard.ts
+  s_c5c1b74f075916::t_e69a32b9b842d9 210-212
+  s_c5c1b74f075916::t_d8d68176a88dab 109-128,204,244,249-251
+  s_c5c1b74f075916::t_2e5b54a8771a65 129-131,179-184
+app/api/v1/bookmarks/route.ts
+  s_c5c1b74f075916::t_7e87cf81eb211a 1-75
+app/api/v1/statuses/[id]/route.test.ts
+  s_c5c1b74f075916::t_5b76449861be16 540-652
+migrations/20260516000000_add_bookmarks_table.js
+  s_c5c1b74f075916::t_4abc663ffa0fba 1-26
+lib/services/mastodon/getMastodonStatus.test.ts
+  s_c5c1b74f075916::t_e69a32b9b842d9 221
+  s_c5c1b74f075916::t_d8082ca2438dba 200-220,222-228
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "907b49712042753fa9c063c3df2684ea5aa4f755",
+  "prompts": {},
+  "sessions": {
+    "s_c5c1b74f075916": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e3187-aa08-7c20-992d-980589a719f0",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

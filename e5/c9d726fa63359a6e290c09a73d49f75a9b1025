@@ -1,0 +1,38 @@
+lib/components/offline/OfflineAppShell.tsx
+  s_512188f2b1db53::t_c8ed61ae9febe3 194-195,198-199,205-206
+  s_512188f2b1db53::t_c16ce1e8966c43 73,75,78,84,100,200-204,460
+  s_512188f2b1db53::t_c22e9f797b8092 24-27,67-72,74,76-77,79-83,85
+  s_512188f2b1db53::t_40c7538bd40d99 23,86
+docs/architecture.md
+  s_512188f2b1db53::t_bccaa7ba61457b 3076
+lib/components/posts/status-reply-box.offline.test.tsx
+  s_512188f2b1db53::t_4a01a0d206959c 308-316
+  s_512188f2b1db53::t_ea3db89379d7df 317-336
+lib/components/posts/status-reply-box.tsx
+  s_512188f2b1db53::t_c22e9f797b8092 247
+lib/components/post-box/post-box.offline.test.tsx
+  s_512188f2b1db53::t_ea3db89379d7df 451-457,459-475,477,479-484
+lib/components/offline/OfflineAppShell.test.tsx
+  s_512188f2b1db53::t_37f3d6ed1b7538 575-581
+  s_512188f2b1db53::t_ea3db89379d7df 521-525
+  s_512188f2b1db53::t_f8bda9f668b2ac 29-30,33-35,542-574,582-589
+  s_512188f2b1db53::t_cb9a27b347b406 590-591
+lib/components/post-box/post-box.tsx
+  s_512188f2b1db53::t_c22e9f797b8092 2096
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e5c9d726fa63359a6e290c09a73d49f75a9b1025",
+  "prompts": {},
+  "sessions": {
+    "s_512188f2b1db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e467608a-8346-4544-b69a-fc45fca93669",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,16 @@
+package.json
+  h_580a04e334fef4 31,77-78
+yarn.lock
+  h_580a04e334fef4 533-535,564,703,721,833,3888,4275,4344-4345,5360,5552,5682,5704-5714,5780-5782,5787-5788,5790,5801-5804,5808-5810,5822,7506,8621,8663,9458
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "d6ad97a13af683de21fa3fa4c63bd856a7b140c3",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

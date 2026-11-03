@@ -1,0 +1,22 @@
+docs/architecture.md
+  s_e67afa7a51bb57::t_854f6413d6580e 1020,1042
+lib/components/surface/alertOutsideFrame.test.ts
+  s_e67afa7a51bb57::t_4bbf0e8fbf59f4 5-6,25-34,37-38,49,77-82,84-87,91-92
+  s_e67afa7a51bb57::t_854f6413d6580e 88-90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "07184284fce22b1b172f05a45446dc077636278a",
+  "prompts": {},
+  "sessions": {
+    "s_e67afa7a51bb57": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d6019d38-d013-4f5b-a5fb-8e915ee59ae7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

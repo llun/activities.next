@@ -1,0 +1,48 @@
+lib/services/getViewerFollow.test.ts
+  s_d1695cdc0365a2::t_ca6787805671c2 1-60,62-65,67-69,75,79
+  s_d1695cdc0365a2::t_2c2decec72ccca 61,66,70-74,76-78
+lib/services/statusAccess.ts
+  s_d1695cdc0365a2::t_ca6787805671c2 7
+  s_d1695cdc0365a2::t_25fbdf191f1e42 43,46-58
+  s_d1695cdc0365a2::t_19949bef67dccd 8
+lib/testing/reactCacheScope.test.ts
+  s_d1695cdc0365a2::t_18d65f133511da 72-92
+  s_d1695cdc0365a2::t_d1283cab43b3a3 1-71,93-109
+CLAUDE.md
+  s_d1695cdc0365a2::t_650bded0027f4c 32
+lib/testing/reactCacheScope.ts
+  s_d1695cdc0365a2::t_9b44fa3f9f137e 24-36
+  s_d1695cdc0365a2::t_74a33053c3fe0b 70-89,93-100,106,117
+AGENTS.md
+  s_d1695cdc0365a2::t_650bded0027f4c 2033
+  s_d1695cdc0365a2::t_0b4197aa0c01d0 1706-1712
+lib/services/accounts/relationship.ts
+  s_d1695cdc0365a2::t_ca6787805671c2 2
+REVIEW.md
+  s_d1695cdc0365a2::t_b30686b5f6a72f 116
+  s_d1695cdc0365a2::t_0b4197aa0c01d0 477-479
+app/(timeline)/[actor]/profileFollowLookup.test.ts
+  s_d1695cdc0365a2::t_04a344f130d176 202-204,208-209
+  s_d1695cdc0365a2::t_32a8c7a2765f72 151-152,155-156,158,173,175-179,182-187,190-201,205-207,210-222,224-226
+  s_d1695cdc0365a2::t_ae7b23e82a5532 100-103,107,110-115,118,122,124
+  s_d1695cdc0365a2::t_238cfcec4c36da 1-4,7,24-28
+  s_d1695cdc0365a2::t_c407be9215d8c5 39-48
+  s_d1695cdc0365a2::t_343d73d79e8aa9 153,159-172,174
+  s_d1695cdc0365a2::t_5e85476ee17bac 29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "73e4551678e235bdc2d800cb2b53ad33bb01a748",
+  "prompts": {},
+  "sessions": {
+    "s_d1695cdc0365a2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7f34b138-131b-4c17-b1bf-51370d8efeb2",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

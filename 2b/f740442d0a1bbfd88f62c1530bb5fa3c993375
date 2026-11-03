@@ -1,0 +1,21 @@
+lib/services/auth/knexAdapter.ts
+  s_e9567742ad147d::t_0a901eb82dc676 215-224
+lib/database/sql/account.ts
+  s_e9567742ad147d::t_80cbb0b1923a75 350-357,370-373
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "2bf740442d0a1bbfd88f62c1530bb5fa3c993375",
+  "prompts": {},
+  "sessions": {
+    "s_e9567742ad147d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6642b464-c4f6-43bb-b28f-70ae757e4119",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,33 @@
+app/api/v1/apps/createApplication.test.ts
+  s_b99265ceea4d5f::t_37c2ce2d20197b 108-136
+app/api/v1/accounts/email/verify/route.ts
+  s_b99265ceea4d5f::t_97e6a1675725ca 30-36
+app/api/v1/accounts/email/verify/route.test.ts
+  s_b99265ceea4d5f::t_8a9b1dfe13289c 1-97
+app/api/v1/apps/createApplication.ts
+  s_8f8c7653879d27::t_574b8466685a6c 65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "8db5ad5cb6dc9e4e6a97b3d897bfc2089d5e7564",
+  "prompts": {},
+  "sessions": {
+    "s_8f8c7653879d27": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1dff-6d59-7960-9eee-87eebfec6a18",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_b99265ceea4d5f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e203f-2705-7110-a25e-83288e55a3e7",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

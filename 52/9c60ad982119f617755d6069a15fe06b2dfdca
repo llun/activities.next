@@ -1,0 +1,28 @@
+app/(timeline)/[actor]/FollowListPage.test.tsx
+  h_580a04e334fef4 8-11,56-57,85,95,127-129,158-159,174,184-224,238,264,300,324
+app/(timeline)/[actor]/FollowListPage.tsx
+  h_580a04e334fef4 10-13,34,144
+app/(timeline)/[actor]/followListPage.testUtils.ts
+  h_580a04e334fef4 1,14
+app/(timeline)/[actor]/followers/page.test.tsx
+  h_580a04e334fef4 11,13-16,58-59,87,96,107,114,157,177,181,184,209,213,216,240,244,247,274,281,297-298
+app/(timeline)/[actor]/following/page.test.tsx
+  h_580a04e334fef4 11,13-16,58-59,87,96,107,114,157,177,181,184,212,216,219,243,247,250,277,284,300-301
+app/(timeline)/[actor]/getProfileData.identity.test.ts
+  h_580a04e334fef4 1-373
+app/(timeline)/[actor]/getProfileData.ts
+  h_580a04e334fef4 86-98,100-101,107-108,110-121,123-144,146,148-242,244,246-269,271-272,274-303,305,307-312
+docs/mastodon-api-compatibility.md
+  h_580a04e334fef4 1232-1233,1239
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "529c60ad982119f617755d6069a15fe06b2dfdca",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

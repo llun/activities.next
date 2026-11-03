@@ -1,0 +1,19 @@
+scripts/run.cjs
+  s_3f60008151784b::t_964d72b2286697 16-20,26,31,35-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "ef18aa1a211b9a1a6880f7ea12c485853cad36a5",
+  "prompts": {},
+  "sessions": {
+    "s_3f60008151784b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3a992b0b-32cd-410e-af78-a9eb383605b0",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

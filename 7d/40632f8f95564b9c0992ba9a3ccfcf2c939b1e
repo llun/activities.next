@@ -1,0 +1,124 @@
+.github/workflows/ci.yml
+  h_580a04e334fef4 235-236
+app/api/v1/gallery/settings/route.test.ts
+  h_580a04e334fef4 99,191,193-194
+app/api/v1/gallery/settings/route.ts
+  h_580a04e334fef4 1,22-23
+app/api/v1/media/[id]/edit/revert/route.test.ts
+  h_580a04e334fef4 38
+app/api/v1/media/[id]/edit/route.test.ts
+  h_580a04e334fef4 183,417,773,780
+docs/architecture.md
+  h_580a04e334fef4 986
+docs/maintenance.md
+  h_580a04e334fef4 1024,1029
+docs/mastodon-api-compatibility.md
+  h_580a04e334fef4 497,501
+lib/client/mediaEdit.ts
+  h_580a04e334fef4 12
+lib/components/photo-editor/AiPanel.test.tsx
+  h_580a04e334fef4 5,15-16,115-148,154,156,173,176-182,186-188,191,193,195-202,204-205,207-210,213,215,217,221-233,236,238,247,249,253-261,266-276,281-289,293,295-296,302-304,306,316-318,322,324-325,331-342,346,348,358,362,365-366,372,380,384,391-392,403,405,437,439,450,452,460-461,465,467,472-474,476,482,487,493,496,509,512,520,522-523,525-531,533-536,538-541,543-546,549,551,553-556,558-566,568-572,576,578
+lib/components/photo-editor/AiPanel.tsx
+  h_580a04e334fef4 3,13-14,17-19,23-24,38,42-43,45-70,78-86,122,128-131
+lib/components/photo-editor/CropPanel.tsx
+  h_580a04e334fef4 67-68,70,95-98,100-103,111-115,119-122,146,183-186,197-198,200,212-215
+lib/components/photo-editor/EditorStage.tsx
+  h_580a04e334fef4 3-14,17,23,45,72,79-212,239-259,264-269,272-280,304,311-312,317-323,334-355
+lib/components/photo-editor/PhotoEditorDialog.test.tsx
+  h_580a04e334fef4 34-37,78,92,198,202,1001,1005-1006,1018,1021,1029,1033,1036,1040-1045,1051,1054,1064,1067,1069,1076,1079,1097,1100,1114,1117,1127-1129,1132-1142,1145-1158
+lib/components/photo-editor/PhotoEditorDialog.tsx
+  h_580a04e334fef4 210-222,588,639
+lib/components/photo-editor/cropMath.test.ts
+  h_580a04e334fef4 92,102-117,122-151
+lib/components/photo-editor/cropMath.ts
+  h_580a04e334fef4 139,141
+lib/components/photo-editor/editorRecipe.ts
+  h_580a04e334fef4 4,8,27-32
+lib/components/photo-editor/engine/adjustments.test.ts
+  h_580a04e334fef4 9-15,129-164,179-196
+lib/components/photo-editor/engine/adjustments.ts
+  h_580a04e334fef4 11,20,98,120-122,124,126-129,199-203
+lib/components/photo-editor/engine/auto.test.ts
+  h_580a04e334fef4 2,85,90-114,136,142-143
+lib/components/photo-editor/engine/auto.ts
+  h_580a04e334fef4 34-36,45-56,59,70-71,74-79,81-82,85-86,89-118
+lib/components/photo-editor/engine/colour.ts
+  h_580a04e334fef4 20-22,60-62,98-116
+lib/components/photo-editor/engine/geometryCanvas.ts
+  h_580a04e334fef4 32-33,35-45,48-52,56-58
+lib/components/photo-editor/engine/histogram.test.ts
+  h_580a04e334fef4 23,27-28,41,47,53,58-60
+lib/components/photo-editor/engine/histogram.ts
+  h_580a04e334fef4 9,20-21,74-77,83-86,99-108,115,121-122,129,133,143-149
+lib/components/photo-editor/engine/shaders.test.ts
+  h_580a04e334fef4 31-33,126-157
+lib/components/photo-editor/engine/shaders.ts
+  h_580a04e334fef4 41-49,218-219,224-228,230-233,292-295
+lib/components/photo-editor/enhanceCopy.ts
+  h_580a04e334fef4 1-2,6,9,18,21,24-27
+lib/components/photo-editor/masks/MaskStageLayer.test.tsx
+  h_580a04e334fef4 18-20,77-94
+lib/components/photo-editor/masks/MaskStageLayer.tsx
+  h_580a04e334fef4 42-47,52-53,81,84-86,93-94,101-106,143-150,159-160,163-172,178,184-204,322-335
+lib/components/photo-editor/masks/guidedFilter.test.ts
+  h_580a04e334fef4 1,3-7,9-20,22-31,33-39,42-49,52-57,59-70
+lib/components/photo-editor/masks/guidedFilter.ts
+  h_580a04e334fef4 1-18,21-124
+lib/components/photo-editor/masks/maskFrame.test.ts
+  h_580a04e334fef4 1-6,9-27,104-171
+lib/components/photo-editor/masks/maskFrame.ts
+  h_580a04e334fef4 122-131,141,147-165
+lib/components/photo-editor/masks/saliency.test.ts
+  h_580a04e334fef4 1,3-10,12-20,22-25,27-36,38-39,41-54,58-79,81-84,88-91,93-94,96-97,99-101,103-109,111-119,122-127
+lib/components/photo-editor/masks/saliency.ts
+  h_580a04e334fef4 1-238
+lib/components/photo-editor/masks/sam.worker.ts
+  h_580a04e334fef4 7-11,27,67,80-81,109-111,115-119
+lib/components/photo-editor/masks/samClient.ts
+  h_580a04e334fef4 9
+lib/components/photo-editor/masks/samPost.test.ts
+  h_580a04e334fef4 10,33,36-42,63-98,103-108,148,152-155,158-182
+lib/components/photo-editor/masks/samPost.ts
+  h_580a04e334fef4 3-4,10-73,75-76,85,91-93,98,101,127-136,139-143
+lib/components/photo-editor/masks/samPre.test.ts
+  h_580a04e334fef4 7,115-140
+lib/components/photo-editor/masks/samPre.ts
+  h_580a04e334fef4 59-94
+lib/components/photo-editor/masks/useMasks.test.tsx
+  h_580a04e334fef4 285-318
+lib/components/photo-editor/masks/useMasks.ts
+  h_580a04e334fef4 5-9,27,59,313-369,374-376,382,392-421,573-579,634,663
+lib/components/photo-editor/presets.test.ts
+  h_580a04e334fef4 1-2,5-24,27-36,39-44,47,49-53,56-60,62,64-72,74,76-85,87,89-93,95,97-101,103-106,109-113,117-120,122-123,126-133,136-156,158-160,162-163,166-181,184-197,199,201-202,205-230,232-237,240-244
+lib/components/photo-editor/presets.ts
+  h_580a04e334fef4 1-4,11-23,25,27-31,33-75,77,80-86,90-106,108-126,128-144,146-162,164-216,220,222,224-225,227-244,248-266,269,271-273,275-283,285-288,293-298
+lib/components/photo-editor/useAiEnhance.ts
+  h_580a04e334fef4 5-7,9-11,14-16,18-19,23-24,26,28,39-40,42,44,46,48,50-51,53-54,58-61,65,68,70,74,76-92,96,99-100,103,105-106,108-109,113,116-117,121,125-128,134-135,140,146-148,151,153-164,168,172,179-192,194-242,244-261,270-277,279,281,283-285,287,293,296-298,300,303-339,341,345,347-351,354-359,361,363,370-371,374,379-382,390,395-397
+lib/components/photo-editor/useRenderer.ts
+  h_580a04e334fef4 20-24,48-49,95-98,147,153-157,168,170,210-211,221-222
+lib/config/__mocks__/index.ts
+  h_580a04e334fef4 22
+lib/config/index.test.ts
+  h_580a04e334fef4 118
+lib/config/index.ts
+  h_580a04e334fef4 218-220
+lib/config/photoEditor.test.ts
+  h_580a04e334fef4 28,67,79,97
+lib/config/photoEditor.ts
+  h_580a04e334fef4 62,128,139-141
+lib/services/medias/edit/recipe.ts
+  h_580a04e334fef4 178-180
+lib/services/medias/edit/saveMediaEdit.ts
+  h_580a04e334fef4 290-292,316,345,351,817,830
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7d40632f8f95564b9c0992ba9a3ccfcf2c939b1e",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

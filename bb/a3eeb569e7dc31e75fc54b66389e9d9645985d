@@ -1,0 +1,52 @@
+lib/config/index.ts
+  s_8ca4a458a9cece::t_c8d2bf4f239490 41,113-114
+app/api/v1/apps/route.test.ts
+  s_8ca4a458a9cece::t_55f117d77eb131 7-8,45-48,93-96
+AGENTS.md
+  s_8ca4a458a9cece::t_2d64dcaaffab37 30
+CLAUDE.md
+  s_8ca4a458a9cece::t_9d39203299d055 12
+next.config.ts
+  s_8ca4a458a9cece::t_7084450222443d 4,42
+app/(timeline)/admin/system/page.tsx
+  s_8ca4a458a9cece::t_62800a03e1da03 3,19
+lib/config/fitnessRouteHeatmap.test.ts
+  s_8ca4a458a9cece::t_efc6177e6039c2 1-54
+lib/config/fitnessRouteHeatmap.ts
+  s_8ca4a458a9cece::t_886b05599ccf78 1-14,16-21,36
+  s_8ca4a458a9cece::t_64a5b5d7156cfc 15,22-35,37-38
+lib/config/envAccess.test.ts
+  s_8ca4a458a9cece::t_40030c812abb1f 1-32,37-44
+  s_8ca4a458a9cece::t_64a5b5d7156cfc 33-36
+lib/utils/staticSecurityHeaders.ts
+  s_8ca4a458a9cece::t_31380d692756f4 1-22
+lib/config/securityHeaders.ts
+  s_8ca4a458a9cece::t_aec8e88a4c913c 8-9,12-14,28
+  s_8ca4a458a9cece::t_6c5798295b4383 1-7,10-11,15-27
+lib/jobs/generateFitnessRouteHeatmapJob.ts
+  s_8ca4a458a9cece::t_7702821c1f6ac5 3,162-167,210,377,448,467,477-482
+app/api/v1/apps/route.ts
+  s_8ca4a458a9cece::t_e292a49bb76318 33
+lib/utils/securityHeaders.ts
+  s_8ca4a458a9cece::t_fd8cdd147e1723 45-56
+  s_8ca4a458a9cece::t_69d44984d3d6ec 1,36-44,57,59-62,67-68,77-80,82-83,85,92-93
+  s_8ca4a458a9cece::t_f247794651ad66 58
+  s_8ca4a458a9cece::t_64a5b5d7156cfc 3-4,63,84
+  s_8ca4a458a9cece::t_91aae0e75a525d 2,5,149
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "bba3eeb569e7dc31e75fc54b66389e9d9645985d",
+  "prompts": {},
+  "sessions": {
+    "s_8ca4a458a9cece": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e2ced-1d77-73d3-933e-3837925c2c8e",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,44 @@
+lib/database/sql/account.ts
+  s_58892cc8b3e18b::t_9b20a4428eb240 3,271
+app/api/v1/instance/activity/route.ts
+  s_58892cc8b3e18b::t_2e1f8958e796e9 31-32
+migrations/20260526112702_backfill_instance_activity_counters.js
+  s_58892cc8b3e18b::t_23cf01e8ddd236 3-7,57-58,71-86,95-96,98-99,103-120,124,142,148-149,168,170-172,174,176,183-195,203-213,222,225,227-242,259-260
+  s_58892cc8b3e18b::t_80086bfc8069dd 196-199
+lib/database/sql/instanceActivity.ts
+  s_58892cc8b3e18b::t_37f6862e5ba1ff 199
+  s_58892cc8b3e18b::t_99cd39739d5695 182-183,198,200,202,211-219
+  s_58892cc8b3e18b::t_85a3828013974c 172-173
+lib/database/sql/instanceActivityMigration.test.ts
+  s_58892cc8b3e18b::t_1aa9097b9e9e15 157-158,162-163,165-179,182-193,196-202,211-237,292,297,306-308
+  s_58892cc8b3e18b::t_0c421d070b967d 203-210
+lib/services/auth/knexAdapter.test.ts
+  s_58892cc8b3e18b::t_97eb0210d9daad 168-169,174-175,330-331,335-336
+  s_58892cc8b3e18b::t_57a3c5ba6f9fd0 53,63,217-304
+app/api/v1/instance/activity/route.test.ts
+  s_58892cc8b3e18b::t_85a3828013974c 40
+lib/services/auth/knexAdapter.ts
+  s_58892cc8b3e18b::t_cc7805f3718475 4,37-39,41-42,44-52,165-166,172
+lib/database/sql/instanceActivity.test.ts
+  s_58892cc8b3e18b::t_85a3828013974c 175-189
+  s_58892cc8b3e18b::t_1f89384160655f 3-6,173-174,190-206
+lib/database/sql/account.test.ts
+  s_58892cc8b3e18b::t_073481d53ae804 474,476,481-482
+  s_58892cc8b3e18b::t_11c562d4575983 490-536
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "6b798836a58d4da136b6aa984aa36dc9e175dbb8",
+  "prompts": {},
+  "sessions": {
+    "s_58892cc8b3e18b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e6400-99fc-71c1-8ad5-9b1cf7d98715",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

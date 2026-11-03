@@ -1,0 +1,70 @@
+lib/services/accountImport/upload.ts
+  s_c030bf1950dbfc::t_e15c80b38cf0c3 47,58-63,83-86,101-110
+  s_c030bf1950dbfc::t_aaa4735f2c3edc 111-112
+lib/database/domains/accountImport/types.ts
+  s_c030bf1950dbfc::t_c4e2130248399f 14-15,51
+migrations/20261027134549_add_account_imports.ts
+  s_c030bf1950dbfc::t_175daec43d1e04 31
+migrations/schema.sql
+  s_c030bf1950dbfc::t_7fb5a27e63b6bd 54
+lib/database/domains/accountImport/queries.ts
+  s_c030bf1950dbfc::t_259cc3fb055562 41,75-77,189-191
+app/api/v1/account/imports/route.test.ts
+  s_c030bf1950dbfc::t_e8d1050455f9bf 371-382,384-387
+  s_c030bf1950dbfc::t_f671eb10f121ed 563
+  s_c030bf1950dbfc::t_88452ebb57fc46 298,311,322-323,355-370,383,388,404,581-605
+  s_c030bf1950dbfc::t_5ece1d9a65c8ba 326-354
+lib/services/accountImport/runner.ts
+  s_c030bf1950dbfc::t_07091200bb2835 10-12,76-82
+  s_c030bf1950dbfc::t_60fc8b8ae89266 9
+lib/services/accountArchive/objectStore.test.ts
+  s_c030bf1950dbfc::t_f671eb10f121ed 936,938-964
+  s_c030bf1950dbfc::t_a401ce933e2c62 237-241,243-252,254-261,263-267,271
+  s_c030bf1950dbfc::t_2c044c4d6b0d09 976-982,984-1007
+  s_c030bf1950dbfc::t_a1e388f7ba9d13 917-929
+  s_c030bf1950dbfc::t_424b79b0a7bd23 876-878,900-901,937
+migrations/schema.sqlite.sql
+  s_c030bf1950dbfc::t_7fb5a27e63b6bd 339
+lib/services/accountImport/objectStore.ts
+  s_c030bf1950dbfc::t_5dd2283d3b32f6 15-16,25-41,53-54,58-72,86-99
+lib/services/accountImport/start.ts
+  s_c030bf1950dbfc::t_d86c8659cce089 3,20-26,50,53-61,65-68,70-73,94-95
+lib/services/accountImport/request.ts
+  s_c030bf1950dbfc::t_aab6aa0f632424 14-15,20,30-31
+lib/database/kysely/db.ts
+  s_c030bf1950dbfc::t_c174d241db42fa 72
+app/api/v1/account/imports/presigned/route.ts
+  s_c030bf1950dbfc::t_5b8469a1dd801c 23-28,73-76,91-92,101
+lib/types/domain/accountImport.ts
+  s_c030bf1950dbfc::t_96967890e1d37c 24
+app/api/v1/account/imports/[id]/start/route.ts
+  s_c030bf1950dbfc::t_0aca479d52f24d 184-189
+lib/services/accountImport/runner.test.ts
+  s_c030bf1950dbfc::t_a1e388f7ba9d13 341,344
+  s_c030bf1950dbfc::t_17578f82183d01 1-5,9,14-17,19-22,28-29,33-34,93,318-340,342-343,345-388
+  s_c030bf1950dbfc::t_e8d1050455f9bf 6-7,30-32
+  s_c030bf1950dbfc::t_a386eab7042a8a 389
+lib/services/accountArchive/objectStore.ts
+  s_c030bf1950dbfc::t_7f0882257a67af 105-116,166-167,185-186,189-190,194,316,318-319,326-329,337-338,360,404-414,758,766-768,770-780,785-788,792-793,801-802,805-818,822-832,838-839,843,847,852-853
+lib/services/accountImport/start.test.ts
+  s_c030bf1950dbfc::t_e8d1050455f9bf 5,94-100
+  s_c030bf1950dbfc::t_b01331844750ea 23,28,64,113
+  s_c030bf1950dbfc::t_0fae9479d948ca 1-4,6-22,24-27,29-33,41-63,65-89,91-93,101-112,114-118,120-126
+  s_c030bf1950dbfc::t_adb62ee6329d38 34-40,90,119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "356263b58ab214a644b582578fa9a7897628f3d6",
+  "prompts": {},
+  "sessions": {
+    "s_c030bf1950dbfc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a17ee5-b31d-7051-b472-39e5a16d2028",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,16 @@
+app/api/v1/fitness-files/by-status/route.test.ts
+  h_580a04e334fef4 50-51,63,65,71-72,80-81,92,150,227-228,277,312,344
+app/api/v1/fitness/gear/[id]/activities/route.test.ts
+  h_580a04e334fef4 87-109,115-117
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "5acd8b36e97b5986dbc10969782b683ce1e2abf7",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

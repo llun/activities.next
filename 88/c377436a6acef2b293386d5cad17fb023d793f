@@ -1,0 +1,24 @@
+app/api/v1/bookmarks/route.ts
+  s_5d40a12a070d4a::t_f475a175d6ec9b 35,76-81
+lib/services/bookmarks/getBookmarkedStatusesPage.ts
+  s_5d40a12a070d4a::t_574be950316bee 7-8,35-114,117-121
+lib/services/bookmarks/getBookmarkedStatusesPage.test.ts
+  s_5d40a12a070d4a::t_c47c88dd4b0f11 4
+  s_5d40a12a070d4a::t_89d1195ee0f244 1-3,5-151
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "88c377436a6acef2b293386d5cad17fb023d793f",
+  "prompts": {},
+  "sessions": {
+    "s_5d40a12a070d4a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e34f2-5f7a-78f2-bcb3-e89e9dbef690",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

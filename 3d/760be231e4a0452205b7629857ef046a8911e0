@@ -1,0 +1,27 @@
+lib/jobs/recreateFitnessRouteHeatmapJobs.ts
+  129eb44ccbe19d68 1-292
+scripts/recreateFitnessRouteHeatmaps.ts
+  129eb44ccbe19d68 1-158
+lib/jobs/recreateFitnessRouteHeatmapJobs.test.ts
+  129eb44ccbe19d68 1-167
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "3d760be231e4a0452205b7629857ef046a8911e0",
+  "prompts": {
+    "129eb44ccbe19d68": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dee20-ccc9-7d00-a0fd-5ed1fb92bda9",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 802,
+      "total_deletions": 18,
+      "accepted_lines": 784,
+      "overriden_lines": 0
+    }
+  }
+}

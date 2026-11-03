@@ -1,0 +1,18 @@
+docs/architecture.md
+  h_580a04e334fef4 604,1443
+lib/components/scroll-to-top-button/scroll-to-top-button.test.tsx
+  h_580a04e334fef4 228,233-237
+lib/components/scroll-to-top-button/scroll-to-top-button.tsx
+  h_580a04e334fef4 65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "824f7d3e8811298f4f51b02f11b28016df1b6199",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

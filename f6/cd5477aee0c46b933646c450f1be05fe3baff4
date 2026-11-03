@@ -1,0 +1,52 @@
+app/api/v2/search/route.test.ts
+  s_a3b271796687f8::t_ad00f4db64f1dc 113-119,121-122
+AGENTS.md
+  s_a3b271796687f8::t_018ad372fb2e96 436-443
+lib/services/guards/OAuthGuard.test.ts
+  s_a3b271796687f8::t_3e7917db5704bc 617,625-629,644-650
+  s_a3b271796687f8::t_a2842681eb5134 452-470
+lib/utils/getActorFromSession.ts
+  s_a3b271796687f8::t_89ffa98c016072 64-68
+  s_a3b271796687f8::t_4de5531f3e4e1c 7
+lib/services/auth/consentReferenceId.test.ts
+  s_a3b271796687f8::t_ad85fb61514882 83-85
+  s_a3b271796687f8::t_6ed47a6a49dc7d 1-82,86-96
+lib/services/auth/auth.ts
+  s_a3b271796687f8::t_418f7895622efc 13
+  s_a3b271796687f8::t_ce9b08fcbbdadf 99-103
+lib/services/guards/OAuthGuard.ts
+  s_a3b271796687f8::t_8a526652fd9b65 101-113
+  s_a3b271796687f8::t_8c60ad6b23b221 467,474-481,483,487
+  s_a3b271796687f8::t_ad85fb61514882 22,219-222
+  s_a3b271796687f8::t_9c25578040acab 208-211
+  s_a3b271796687f8::t_4684685e4f9a35 237,244
+  s_a3b271796687f8::t_fc3b7eec5452c1 257-260
+  s_a3b271796687f8::t_7e6e8f67d79240 133-151
+  s_a3b271796687f8::t_1d30b1164a056c 8
+  s_a3b271796687f8::t_404e4e7e86916e 278-283
+  s_a3b271796687f8::t_70ee13713c1f2d 318,321-336,338-341,345-348
+  s_a3b271796687f8::t_7c2434b036a865 177-180
+lib/utils/selectAccountActor.ts
+  s_a3b271796687f8::t_971784af9b82dc 1-25
+lib/services/auth/consentReferenceId.ts
+  s_a3b271796687f8::t_2391f093a88c9e 1-57
+lib/utils/selectAccountActor.test.ts
+  s_a3b271796687f8::t_ad85fb61514882 5
+  s_a3b271796687f8::t_2eed518bc0d98e 1-4,6-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "f6cd5477aee0c46b933646c450f1be05fe3baff4",
+  "prompts": {},
+  "sessions": {
+    "s_a3b271796687f8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c04cc393-be1a-43b0-8bd6-fe3cd4bc778c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

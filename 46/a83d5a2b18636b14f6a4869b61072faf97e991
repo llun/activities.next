@@ -1,0 +1,28 @@
+lib/utils/http-headers/cors.test.ts
+  s_6be0a462a4fef4::t_e171fd600b4d94 21-22
+next.config.ts
+  s_6be0a462a4fef4::t_89a517a4af7a37 5
+  s_6be0a462a4fef4::t_20bdd3357be38d 4
+lib/utils/http-headers/index.ts
+  s_6be0a462a4fef4::t_5eefc1026b4042 26,30-33,38-39
+jest.setup-after-env.ts
+  s_6be0a462a4fef4::t_cf91e312227ccc 4-5
+proxy.ts
+  s_6be0a462a4fef4::t_85dfaa484885d3 6-7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "46a83d5a2b18636b14f6a4869b61072faf97e991",
+  "prompts": {},
+  "sessions": {
+    "s_6be0a462a4fef4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3985fcd6-fd13-42d3-ab77-3f03c02ce166",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

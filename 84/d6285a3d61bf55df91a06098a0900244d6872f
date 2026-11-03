@@ -1,0 +1,27 @@
+lib/components/posts/BlurhashCanvas.test.tsx
+  s_a3b90525842071::t_c9b3747b448f55 1-64,73-120
+  s_a3b90525842071::t_b46674d54b2c50 65-72
+lib/components/posts/media.test.tsx
+  s_a3b90525842071::t_2d31ceceede179 114-117
+  s_a3b90525842071::t_00df053f7dd9ad 102-113,118-161
+lib/services/medias/imageAnalysis.test.ts
+  s_a3b90525842071::t_6fc229c621c639 1,26-91
+lib/services/medias/imageAnalysis.ts
+  s_a3b90525842071::t_8f49f9bab3b82c 1,24-41,44-46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "84d6285a3d61bf55df91a06098a0900244d6872f",
+  "prompts": {},
+  "sessions": {
+    "s_a3b90525842071": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "029eb1cf-00b7-4f56-b1d3-679cd6f1e78c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

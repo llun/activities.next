@@ -1,0 +1,51 @@
+app/(nosidebar)/oauth/authorize/AuthorizeCard.test.tsx
+  s_c1426960ce0564::t_783c8dd9f55e33 14,954-1023
+app/(nosidebar)/auth/signin/CredentialForm.test.tsx
+  s_c1426960ce0564::t_d497efc18257fd 12,278-353
+app/(nosidebar)/auth/signin/CredentialForm.tsx
+  s_c1426960ce0564::t_d6dafbb5a088b4 15-22,31-34,46-50,100-108,194
+app/(nosidebar)/auth/signin/PasskeySigninButton.test.tsx
+  s_c1426960ce0564::t_2c25860198a7ab 10-13,16-17,58,174-215
+app/(nosidebar)/auth/signin/PasskeySigninButton.tsx
+  s_c1426960ce0564::t_efdc01bd35c14a 15-22,74-84
+app/(nosidebar)/auth/signin/page.test.tsx
+  s_c1426960ce0564::t_531939791089b8 1-2,10,74,193-325
+app/(nosidebar)/auth/signin/page.tsx
+  s_c1426960ce0564::t_8211299fe1fff9 12-13,25-29,36-38,86-102,134,144
+app/(nosidebar)/auth/signin/resolveSignInRedirect.test.ts
+  s_c1426960ce0564::t_66bc586d7078f6 1-4,260-380
+app/(nosidebar)/auth/signin/resolveSignInRedirect.ts
+  s_c1426960ce0564::t_4b80aa0ff1805b 12-14,20-51
+app/(nosidebar)/auth/signin/signInErrorMessage.test.ts
+  s_c1426960ce0564::t_678939d5e49fbd 1-56
+app/(nosidebar)/auth/signin/signInErrorMessage.ts
+  s_c1426960ce0564::t_71ba5f70998bb6 1-22
+app/(nosidebar)/oauth/authorize/AuthorizeCard.tsx
+  s_c1426960ce0564::t_98687720e86fdf 18,34,195-211,238-239,261-262
+app/(nosidebar)/oauth/authorize/authorizeQuery.test.ts
+  s_c1426960ce0564::t_4564f1ac6bfa63 5,218-240
+app/(nosidebar)/oauth/authorize/authorizeQuery.ts
+  s_c1426960ce0564::t_de7ddb8611bf7b 93-96,98-100
+app/(nosidebar)/oauth/authorize/page.test.tsx
+  s_c1426960ce0564::t_88c1ce5e2e2530 248-268
+app/(nosidebar)/oauth/authorize/page.tsx
+  s_c1426960ce0564::t_b79f8b0ee95469 44-52,106
+app/(nosidebar)/oauth/authorize/types.ts
+  s_c1426960ce0564::t_27e6c4694b3683 27-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ce92155122763e1941c72f46ed8cedb8c8759b32",
+  "prompts": {},
+  "sessions": {
+    "s_c1426960ce0564": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3dd722b4-3a1d-48b2-9396-ce601f284bf0",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

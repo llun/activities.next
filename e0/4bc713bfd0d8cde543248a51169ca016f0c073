@@ -1,0 +1,38 @@
+lib/database/sql/instanceRule.test.ts
+  s_2de5d568423448::t_ef716a3826aed3 1-195
+lib/types/database/operations.ts
+  s_2de5d568423448::t_1fdd7c25f1d63d 1513-1515
+  s_2de5d568423448::t_bfeef725ffa23f 1481-1512,1516-1526
+lib/database/types.ts
+  s_2de5d568423448::t_791af954d89ba0 46
+  s_2de5d568423448::t_4a12d4173aa6cd 22
+lib/types/mastodon/rule.ts
+  s_2de5d568423448::t_7d4c6718826cdf 1-9
+lib/database/sql/index.ts
+  s_2de5d568423448::t_693af215c7f1cb 65
+  s_2de5d568423448::t_3682cdbef3bb9f 115
+  s_2de5d568423448::t_1564b2a330ac4d 21
+migrations/20260612071825_add_instance_rules.js
+  s_2de5d568423448::t_e4e711c7b5fe01 1,11-13,24-28
+  s_2de5d568423448::t_b57d1ba804d303 2-10,14-23,29-31
+lib/types/mastodon/index.ts
+  s_2de5d568423448::t_434d48af157c87 17
+lib/database/sql/instanceRule.ts
+  s_2de5d568423448::t_32a417a232eddb 1-97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "e04bc713bfd0d8cde543248a51169ca016f0c073",
+  "prompts": {},
+  "sessions": {
+    "s_2de5d568423448": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "380e0dd8-bb8c-402d-93c3-faf6bb59ed2f",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,29 @@
+app/(timeline)/[actor]/page.test.tsx
+  s_279e7012f36c5f::t_ee30238507159d 973
+app/(timeline)/account/import-export/ArchiveImportForm.test.tsx
+  s_279e7012f36c5f::t_36881ca8d779fe 220
+app/(timeline)/account/import-export/ArchiveImportForm.tsx
+  s_279e7012f36c5f::t_68e70b1893af84 475-477
+app/(timeline)/account/import-export/CsvImportForm.tsx
+  s_279e7012f36c5f::t_104b0e8018113e 214-216
+app/(timeline)/settings/moving/AliasesSection.test.tsx
+  s_279e7012f36c5f::t_e0c85d92ca9f97 116-118
+app/(timeline)/settings/moving/HandleRenameForm.test.tsx
+  s_279e7012f36c5f::t_6bfba7c835d43d 149
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b1f9c0e0dd4909cc5e69d5c24189c9648b50ae7b",
+  "prompts": {},
+  "sessions": {
+    "s_279e7012f36c5f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0410f49d-2e94-45e1-bd1f-237e6f7747bc",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

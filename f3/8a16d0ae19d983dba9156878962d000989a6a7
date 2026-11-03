@@ -1,0 +1,20 @@
+app/api/v1/apps/createApplication.ts
+  s_7d363ad4ef32ad::t_a726c5179a2f5c 255
+  s_7d363ad4ef32ad::t_14903a7b8335ae 252-254
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "f38a16d0ae19d983dba9156878962d000989a6a7",
+  "prompts": {},
+  "sessions": {
+    "s_7d363ad4ef32ad": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a8f3506e-3eba-4a2f-a9d4-05ce66d6ae0b",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

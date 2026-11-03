@@ -1,0 +1,35 @@
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.test.tsx
+  s_de89e1b61fc1ed::t_e9fc56457d98b4 269-383
+  s_de89e1b61fc1ed::t_b23e327506605b 146-168
+  s_de89e1b61fc1ed::t_46c2668196969e 15
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  s_de89e1b61fc1ed::t_d53846cccf6fd4 1717-1727
+  s_de89e1b61fc1ed::t_b4789f2aa0c410 1916-1931,1950-1962
+  s_de89e1b61fc1ed::t_8aba0540579f54 237-238,240
+  s_de89e1b61fc1ed::t_6e3f2d6bb43cb1 674
+  s_de89e1b61fc1ed::t_4dda961063d6f5 2001-2039
+  s_de89e1b61fc1ed::t_f7f95d413aa4fd 760
+  s_de89e1b61fc1ed::t_d81c2e2fde75ad 263
+  s_de89e1b61fc1ed::t_de2ef141377cbc 643-644,649
+  s_de89e1b61fc1ed::t_c131d99dc90360 490,493
+  s_de89e1b61fc1ed::t_e554fe8a4a448c 2054,2071,2088,2105
+  s_de89e1b61fc1ed::t_8f86a6eae5535a 1439-1441,1627-1629
+  s_de89e1b61fc1ed::t_ae96096d15a5f4 1623-1626,1630-1633,1638-1642
+  s_de89e1b61fc1ed::t_fd435c4b0879dd 563-565
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "699f8b245502a2b584402753a80b5ac739250eaa",
+  "prompts": {},
+  "sessions": {
+    "s_de89e1b61fc1ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e0e92903-5c4d-41e1-803a-e7d5d9c3fc0f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+AGENTS.md
+  s_1120152b86a65b::t_b01770df930106 529-544
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "374d6275340e58286d8c6198c278876161e8aa5d",
+  "prompts": {},
+  "sessions": {
+    "s_1120152b86a65b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e74657a5-d824-414a-a492-8b3b090e65ec",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

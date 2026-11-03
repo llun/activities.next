@@ -1,0 +1,24 @@
+lib/database/sql/suggestion.test.ts
+  s_2de5d568423448::t_bce09139e05097 39-43,50
+  s_2de5d568423448::t_15d31c29477c57 74-77,86-89,91-98,100,111
+docs/features.md
+  s_2de5d568423448::t_4be7f4f87a9755 73
+lib/database/sql/suggestion.ts
+  s_2de5d568423448::t_f5208438a311ad 25-27,42-43,46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "9a3843fb713201b053786ccec553445a6b0fd384",
+  "prompts": {},
+  "sessions": {
+    "s_2de5d568423448": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "380e0dd8-bb8c-402d-93c3-faf6bb59ed2f",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

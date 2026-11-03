@@ -1,0 +1,26 @@
+lib/components/surfaceChromeUsage.test.ts
+  s_94426ef8ef042a::t_5ff4c6ad4997c3 5
+docs/architecture.md
+  s_94426ef8ef042a::t_b62c852624bc9c 589,610-613,616,619-620,636,698,707-717,1546,1633
+  s_94426ef8ef042a::t_32c8f889190eb0 1536-1542
+docs/features.md
+  s_94426ef8ef042a::t_7225d136e1f9a7 47-48
+CONTRIBUTING.md
+  s_94426ef8ef042a::t_286864f2b17b14 1065
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "23e12766724632c1d05ee9c6bdc98c5301eea4b5",
+  "prompts": {},
+  "sessions": {
+    "s_94426ef8ef042a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "08204b68-8e02-41c3-aa35-385d0860dc9b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

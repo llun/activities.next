@@ -1,0 +1,22 @@
+app/api/v2/notifications/[group_key]/accounts/route.test.ts
+  s_0289375c3b8b18::t_33865316452fab 8-9
+  s_0289375c3b8b18::t_e29d020cddcbfb 82-102
+app/api/v2/notifications/[group_key]/accounts/route.ts
+  s_0289375c3b8b18::t_7caed5348cc7da 60-63,69-90,92-94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "15694e9fecd5c90fea4f48f4bdcc8bff30913be1",
+  "prompts": {},
+  "sessions": {
+    "s_0289375c3b8b18": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f35aa937-fe21-4ae9-9b3f-fbe728f6847d",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

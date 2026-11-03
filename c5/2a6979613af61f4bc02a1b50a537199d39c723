@@ -1,0 +1,21 @@
+lib/components/posts/actor.tsx
+  s_963b5050397533::t_86db164387112a 184-186
+lib/components/posts/post.tsx
+  s_963b5050397533::t_b2d40747527b1d 99-102
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "c52a6979613af61f4bc02a1b50a537199d39c723",
+  "prompts": {},
+  "sessions": {
+    "s_963b5050397533": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9e57acd4-04bc-44f6-9064-828e03150e54",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

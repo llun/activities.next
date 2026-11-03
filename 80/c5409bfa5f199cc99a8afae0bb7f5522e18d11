@@ -1,0 +1,20 @@
+.env.example
+  s_4db689036d0146::t_87debfdb5cefd0 136-152
+  s_4db689036d0146::t_16fa95a8fe14c0 174-188
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "80c5409bfa5f199cc99a8afae0bb7f5522e18d11",
+  "prompts": {},
+  "sessions": {
+    "s_4db689036d0146": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b88eb30e-55b1-47d1-80ad-08055494e51e",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

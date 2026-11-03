@@ -1,0 +1,41 @@
+CLAUDE.md
+  s_256c7bcfaeebe0::t_d24c39e11081a8 1
+test/docLinks.test.ts
+  s_fff20077269c0b::t_7fb36cdc1443aa 1-153
+.github/workflows/ci.yml
+  s_fff20077269c0b::t_1bd8992d0e049b 763,862
+README.md
+  s_fff20077269c0b::t_6264199d38378d 102,115
+docs/architecture.md
+  s_fff20077269c0b::t_5dd2a6f98c7c50 405,1509
+docs/maintenance.md
+  s_fff20077269c0b::t_8664fd7936da73 401-411,1167,1171-1172
+docs/mastodon-api-compatibility.md
+  s_fff20077269c0b::t_98b0f8a2901381 1012
+docs/setup.md
+  s_fff20077269c0b::t_b18410ddafb2c4 383
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b23bbda1f43d6c66f2be2845bb69191b9d774dce",
+  "prompts": {},
+  "sessions": {
+    "s_256c7bcfaeebe0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f7866451-af6b-4e17-a428-98482aea26a3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_fff20077269c0b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cca5018b-df6d-449f-8437-9f272c4a26e5",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

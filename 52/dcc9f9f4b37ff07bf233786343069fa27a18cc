@@ -1,0 +1,24 @@
+lib/database/sql/pushSubscription.ts
+  s_0286db854ecabc::t_0da16687db897f 172-177
+app/api/v1/push/subscription/route.ts
+  s_0286db854ecabc::t_06f248b3b6246a 156
+  s_0286db854ecabc::t_72fd839ab5b121 149-153
+lib/database/sql/pushSubscription.test.ts
+  s_0286db854ecabc::t_fd216f568156fb 126,133,144-146,151-169
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "52dcc9f9f4b37ff07bf233786343069fa27a18cc",
+  "prompts": {},
+  "sessions": {
+    "s_0286db854ecabc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1a2fb078-8e8e-46e6-b1f1-5c8667e29f13",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

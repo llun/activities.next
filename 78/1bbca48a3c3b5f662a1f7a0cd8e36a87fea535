@@ -1,0 +1,19 @@
+.github/workflows/sync-main-to-oltp.yml
+  s_f9fc4a5cfd6676::t_4dea5161e41a32 127-128
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "781bbca48a3c3b5f662a1f7a0cd8e36a87fea535",
+  "prompts": {},
+  "sessions": {
+    "s_f9fc4a5cfd6676": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "264d3a4c-b8e5-4c5f-9965-43021ce8bb53",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

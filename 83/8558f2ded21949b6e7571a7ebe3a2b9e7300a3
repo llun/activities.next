@@ -1,0 +1,35 @@
+lib/services/announcements/reactionLimits.ts
+  s_69f35b0cf1b1f5::t_b67c61318529c6 1-6
+app/api/v1/announcements/route.test.ts
+  s_69f35b0cf1b1f5::t_ee3e2bcb1bc931 9,11
+  s_69f35b0cf1b1f5::t_c6254c7c6f1027 204-206,208,212-289
+lib/types/database/operations.ts
+  s_69f35b0cf1b1f5::t_b67c61318529c6 2381-2383
+lib/database/sql/announcement.ts
+  s_69f35b0cf1b1f5::t_b67c61318529c6 5,187-216
+lib/database/sql/announcement.test.ts
+  s_69f35b0cf1b1f5::t_7e31d8e0dabc40 3
+  s_69f35b0cf1b1f5::t_ee3e2bcb1bc931 385,388-463
+  s_69f35b0cf1b1f5::t_1dbf82f6308fcc 386-387
+docs/features.md
+  s_69f35b0cf1b1f5::t_9c2c4e1bded3f3 89
+app/api/v1/announcements/[id]/reactions/[name]/route.ts
+  s_69f35b0cf1b1f5::t_ebbcb507115578 9-12,33-35,54-58,60,62-66,70,72-73,78-80
+  s_69f35b0cf1b1f5::t_c6254c7c6f1027 59,61,67-69,71,76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "838558f2ded21949b6e7571a7ebe3a2b9e7300a3",
+  "prompts": {},
+  "sessions": {
+    "s_69f35b0cf1b1f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3e34abf-a75d-4da8-b371-1258aa33721a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

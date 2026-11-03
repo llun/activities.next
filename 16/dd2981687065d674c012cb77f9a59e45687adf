@@ -1,0 +1,22 @@
+docs/maintenance.md
+  s_181a4d159922fc::t_227b1e34bbcf42 128-169
+scripts/mock/renderEmailPreviews.ts
+  s_181a4d159922fc::t_99afde048e412d 1-6,10-11,21-174
+  s_181a4d159922fc::t_2dba631fe5aa54 7-9,12-20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "16dd2981687065d674c012cb77f9a59e45687adf",
+  "prompts": {},
+  "sessions": {
+    "s_181a4d159922fc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8b59141f-f9f0-4af4-8aea-39520836e6cc",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

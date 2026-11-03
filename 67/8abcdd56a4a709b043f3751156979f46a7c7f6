@@ -1,0 +1,19 @@
+app/api/v1/timelines/[timeline]/route.ts
+  s_6dd763a0b22888::t_5885d04521234c 113-115
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "678abcdd56a4a709b043f3751156979f46a7c7f6",
+  "prompts": {},
+  "sessions": {
+    "s_6dd763a0b22888": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9f2f2973-35a6-4476-8b76-95f49efde47d",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+AGENTS.md
+  h_580a04e334fef4 2021
+REVIEW.md
+  h_580a04e334fef4 517-519
+lib/services/guards/AdminApiGuard.test.ts
+  h_580a04e334fef4 1,4-7,14,16-18,20-22,27-41,44-50,53-66,69-88,91,103,111,119-127,129-133,135-165,168-173,175-234,237-260,263-310,313-335,338-398,401-403,405-431,434-436,438-455,457-521,524-552,554-630
+lib/services/guards/AdminApiGuard.ts
+  h_580a04e334fef4 5,8,13-16,126-158
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "6e07ca70a8834262f51a2da527a4865c6c150ca6",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

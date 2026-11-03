@@ -1,0 +1,39 @@
+scripts/maintenance/backfillMediaBlurhash.test.ts
+  s_3aef31ca22620f::t_f1b0286b044b56 253-265
+lib/services/auth/trustedOrigins.test.ts
+  s_3aef31ca22620f::t_f1b0286b044b56 4-28
+REVIEW.md
+  s_3aef31ca22620f::t_57996b953770c6 558-567
+lib/services/auth/trustedOrigins.ts
+  s_3aef31ca22620f::t_1af49a9fe08fb7 19-33
+scripts/maintenance/backfillMediaBlurhash.ts
+  s_3aef31ca22620f::t_1af49a9fe08fb7 136-141,144
+lib/services/medias/mediaFileUrl.ts
+  s_3aef31ca22620f::t_df000dab01f280 69-74
+lib/utils/host.test.ts
+  s_3aef31ca22620f::t_f1b0286b044b56 287-290,307
+  s_3aef31ca22620f::t_6f928c5f5f5048 291-306,308
+lib/utils/host.ts
+  s_3aef31ca22620f::t_1af49a9fe08fb7 93-102,104
+  s_3aef31ca22620f::t_df000dab01f280 124-133
+AGENTS.md
+  s_3aef31ca22620f::t_54db534eb0a704 2247
+CLAUDE.md
+  s_3aef31ca22620f::t_ed1b9fa9948d62 53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "b43a411d987651bd1966f53f66a0a5afb2f9d403",
+  "prompts": {},
+  "sessions": {
+    "s_3aef31ca22620f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c9b299cc-ec52-402d-a7a5-dd7991ecd229",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

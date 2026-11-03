@@ -1,0 +1,165 @@
+.env.example
+  s_e5fbe7890ae6b6::t_6e35611ad177f5 32,37
+app/(nosidebar)/auth/signin/page.test.tsx
+  s_e5fbe7890ae6b6::t_38a708fd7d2a0e 208
+app/(timeline)/(home)/page.test.tsx
+  s_e5fbe7890ae6b6::t_8b6daf66255cfa 53
+app/(timeline)/account/layout.test.tsx
+  s_e5fbe7890ae6b6::t_3f3f27f9d80b12 120-129
+app/(timeline)/admin/domains/new/page.tsx
+  s_e5fbe7890ae6b6::t_74c3baf81e35fc 25
+app/(timeline)/admin/domains/page.tsx
+  s_e5fbe7890ae6b6::t_cee09c7a966a38 39,41,89
+app/(timeline)/admin/instance/loading.tsx
+  s_e5fbe7890ae6b6::t_cc32045f74c935 11
+app/(timeline)/admin/layout.test.tsx
+  s_e5fbe7890ae6b6::t_cf32ce3a60d5f7 133-158
+app/(timeline)/admin/overview/loading.tsx
+  s_e5fbe7890ae6b6::t_5156a1d1bd8ad7 30
+app/(timeline)/admin/rules/page.tsx
+  s_e5fbe7890ae6b6::t_cc2293c45140db 12
+app/(timeline)/layout.test.tsx
+  s_e5fbe7890ae6b6::t_7f25f1816bc5c6 29
+app/api/auth/[...all]/route.test.ts
+  s_e5fbe7890ae6b6::t_8bb05a9c4c29f6 44
+app/api/auth/[...all]/route.ts
+  s_e5fbe7890ae6b6::t_53d2393fdfbf9e 17
+app/api/handle-redirect/route.ts
+  s_e5fbe7890ae6b6::t_1473d12a468cb6 16
+app/api/nodeinfo/2.0/route.test.ts
+  s_e5fbe7890ae6b6::t_53518ae5a8a014 40,165
+app/api/nodeinfo/2.1/route.test.ts
+  s_e5fbe7890ae6b6::t_83b9c43372546f 40,131
+app/api/v1/accounts/bootstrap/route.test.ts
+  s_e5fbe7890ae6b6::t_131dba265113aa 42
+app/api/v1/accounts/route.test.ts
+  s_e5fbe7890ae6b6::t_5f51d62deb0797 66,924
+app/api/v1/actors/domains/route.test.ts
+  s_e5fbe7890ae6b6::t_aa2faa0a703056 233
+app/api/v1/admin/domains/[domain]/route.test.ts
+  s_e5fbe7890ae6b6::t_d48745bef73e97 216,225-233
+app/api/v1/admin/domains/route.ts
+  s_e5fbe7890ae6b6::t_b5863fba259a05 21
+app/api/v1/admin/domains/schema.ts
+  s_e5fbe7890ae6b6::t_bcc0cedd4a88cf 7
+app/api/v1/emails/confirmations/route.test.ts
+  s_e5fbe7890ae6b6::t_128dbffacac23e 457
+app/api/v1/fitness/apple-maps-token/route.test.ts
+  s_e5fbe7890ae6b6::t_917f9505299fb5 195-196
+app/api/v1/fitness/apple-maps-token/route.ts
+  s_e5fbe7890ae6b6::t_bb3a08f0fa1070 63
+app/api/v1/instance/extended_description/route.test.ts
+  s_e5fbe7890ae6b6::t_d6dd203340ba27 64
+app/api/v1/instance/route.test.ts
+  s_e5fbe7890ae6b6::t_f8264cf7fef266 313
+app/api/v2/instance/route.test.ts
+  s_e5fbe7890ae6b6::t_54eada543bd335 424
+app/layout.test.tsx
+  s_e5fbe7890ae6b6::t_01d66b1327fc4b 82
+app/layout.tsx
+  s_e5fbe7890ae6b6::t_c407ccd038ff6a 46
+docs/architecture.md
+  s_e5fbe7890ae6b6::t_cd4cc9adf5d311 1278,1281
+docs/environment-variables.md
+  s_e5fbe7890ae6b6::t_6848b6b941dde8 132-144,218-222,433-440,448,451
+docs/fitness-file-storage.md
+  s_e5fbe7890ae6b6::t_a4ef58c84613c3 359
+docs/maintenance.md
+  s_e5fbe7890ae6b6::t_6162ade61e10c6 1154,1577,1695,1703
+docs/mastodon-api-compatibility.md
+  s_e5fbe7890ae6b6::t_0f8bfb1ee39187 282,991,1542
+docs/setup.md
+  s_e5fbe7890ae6b6::t_e03c25b0254d3c 71,73,75
+lib/client/adminDomains.ts
+  s_e5fbe7890ae6b6::t_9d02f5c7f4987b 10
+lib/components/admin/domains/AddDomainForm.tsx
+  s_e5fbe7890ae6b6::t_df8533b84e53d6 31
+lib/components/admin/domains/DomainFeaturesBox.test.tsx
+  s_e5fbe7890ae6b6::t_464335fd9da60e 121-123
+lib/components/admin/domains/DomainFeaturesBox.tsx
+  s_e5fbe7890ae6b6::t_c480db216cd3ae 40,190-191
+lib/components/admin/domains/DomainSettings.test.tsx
+  s_e5fbe7890ae6b6::t_6a7dab042b5d8c 214,217
+lib/components/admin/domains/DomainSettings.tsx
+  s_e5fbe7890ae6b6::t_d6c27efeba2f8b 69,847,868,902,934,941
+lib/components/admin/domains/domainLabels.ts
+  s_e5fbe7890ae6b6::t_52d8399ab3b6ab 7,10,62
+lib/components/section-nav-dropdown.tsx
+  s_e5fbe7890ae6b6::t_0f0cf24557bac5 31-33
+lib/components/section-nav.test.tsx
+  s_e5fbe7890ae6b6::t_219053ded4be40 102-113,116-118,120-141,143,322,327-328,333,339-356,373-380
+lib/components/section-nav.tsx
+  s_e5fbe7890ae6b6::t_79eb86ad702f2e 79-93,336-341,343,348-350,354,360,379,381
+lib/database/domains/servedDomain/types.ts
+  s_e5fbe7890ae6b6::t_56965174c3f7c9 2,36
+lib/services/accountArchive/runner.ts
+  s_e5fbe7890ae6b6::t_9871111bea309c 140
+lib/services/accounts/sendConfirmationEmail.ts
+  s_e5fbe7890ae6b6::t_c7c87aeabe2410 16
+lib/services/auth/auth.test.ts
+  s_e5fbe7890ae6b6::t_7a2fa69c894078 40,42
+lib/services/auth/auth.ts
+  s_e5fbe7890ae6b6::t_dd94144148f94b 41,85
+lib/services/auth/servedDomains.ts
+  s_e5fbe7890ae6b6::t_a4475c7b763e7f 4,37
+lib/services/auth/trustedOrigins.ts
+  s_e5fbe7890ae6b6::t_6ab2fd9ecb60b9 72
+lib/services/domains/actorDomains.ts
+  s_e5fbe7890ae6b6::t_89acc386cde966 23,48
+lib/services/domains/adminDomainTypes.ts
+  s_e5fbe7890ae6b6::t_ef176747e7e674 1,11,37,50,55
+lib/services/domains/adminDomains.test.ts
+  s_e5fbe7890ae6b6::t_948fd6a9cd73ea 324
+lib/services/domains/adminDomains.ts
+  s_e5fbe7890ae6b6::t_ab9c1b7d1eb6f6 170,200,367
+lib/services/domains/domainCheck.ts
+  s_e5fbe7890ae6b6::t_cafb4144dd6378 21
+lib/services/domains/domainDisplayName.ts
+  s_e5fbe7890ae6b6::t_d696e7d4b53c2f 4-5
+lib/services/domains/domainFeatures.ts
+  s_e5fbe7890ae6b6::t_a9394efe132f46 6
+lib/services/domains/domainIdentity.test.ts
+  s_e5fbe7890ae6b6::t_ef15496d14b2d5 143
+lib/services/domains/domainIdentity.ts
+  s_e5fbe7890ae6b6::t_5e7a8b227a18cf 42,137-138
+lib/services/domains/domainIdentityCache.ts
+  s_e5fbe7890ae6b6::t_0c961c2ea5b255 6
+lib/services/domains/domainScope.ts
+  s_e5fbe7890ae6b6::t_1c58849897d23d 16,32
+lib/services/domains/localDomains.test.ts
+  s_e5fbe7890ae6b6::t_f565ef1213286c 57
+lib/services/domains/localDomains.ts
+  s_e5fbe7890ae6b6::t_48674033d3e210 29,71
+lib/services/domains/signUpDomain.ts
+  s_e5fbe7890ae6b6::t_813149ca6bf3fe 18
+lib/services/domains/visitedFeatures.ts
+  s_e5fbe7890ae6b6::t_5447bc6e4a0619 15-16
+lib/services/email/brand.ts
+  s_e5fbe7890ae6b6::t_3b223232682097 9
+lib/services/email/sender.ts
+  s_e5fbe7890ae6b6::t_711856a606d1fa 19
+lib/services/guards/headerHost.ts
+  s_e5fbe7890ae6b6::t_196fd0c76ee164 25
+lib/services/wellknown/nodeinfo.test.ts
+  s_e5fbe7890ae6b6::t_348eab35391ee9 36
+lib/utils/getActorFromSession.ts
+  s_e5fbe7890ae6b6::t_dded4f44b2298f 42
+lib/utils/host.ts
+  s_e5fbe7890ae6b6::t_477c6d83b76bec 12,362
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "facb79cf334311762ac82fd9502ec4f1cc990f6f",
+  "prompts": {},
+  "sessions": {
+    "s_e5fbe7890ae6b6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5e8eb48f-8745-4126-bcf5-e366a854f5cb",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

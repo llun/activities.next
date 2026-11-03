@@ -1,0 +1,129 @@
+CONTRIBUTING.md
+  s_0f9a522b386a17::t_333c7e621d0159 380-382
+app/(timeline)/MainPageTimeline.refresh.test.tsx
+  s_0f9a522b386a17::t_558614c205b2da 5-12,563,735,1029
+app/(timeline)/PendingProfileNavigation.test.tsx
+  s_0f9a522b386a17::t_5a68a013daf3a1 5,50,173
+app/(timeline)/[actor]/[status]/ActivityMapPanel.test.tsx
+  s_0f9a522b386a17::t_c8e93cc163fd2e 5-12,248
+app/(timeline)/account/import-export/ArchiveExportSection.test.tsx
+  s_0f9a522b386a17::t_28bbac3196fbc0 5-12,122
+app/(timeline)/account/import-export/ArchiveImportForm.test.tsx
+  s_0f9a522b386a17::t_afe433322a5c39 5-12,167
+app/(timeline)/account/import-export/CsvImportForm.test.tsx
+  s_0f9a522b386a17::t_73c2623de49217 5-12,115
+app/(timeline)/account/import-export/ImportSection.test.tsx
+  s_0f9a522b386a17::t_84c9bc90427d8d 7,214
+app/(timeline)/fitness/connections/strava/StravaArchiveImportSection.test.tsx
+  s_0f9a522b386a17::t_99c16728261abd 5,109
+app/(timeline)/fitness/connections/strava/StravaSettingsForm.test.tsx
+  s_0f9a522b386a17::t_4c3f91f580f86c 5-11,76
+app/(timeline)/fitness/gear/GearFormDialog.test.tsx
+  s_0f9a522b386a17::t_1d7afde8df04af 5-11,92
+app/(timeline)/fitness/gear/GearListView.test.tsx
+  s_0f9a522b386a17::t_980cc3cb71d4b3 6,106
+app/(timeline)/fitness/gear/[id]/GearComponentsCard.test.tsx
+  s_0f9a522b386a17::t_5eb165425e862b 5-12,172
+app/(timeline)/fitness/gear/[id]/GearDetailView.test.tsx
+  s_0f9a522b386a17::t_34e8797c0018a1 6,161
+app/(timeline)/fitness/gear/useGearTableColumns.test.tsx
+  s_0f9a522b386a17::t_1eef1f7c09fa15 5,129
+app/(timeline)/fitness/heatmap/FitnessHeatmapView.test.tsx
+  s_0f9a522b386a17::t_6be50140145a0a 7,277
+app/(timeline)/notifications/components/FollowNotification.test.tsx
+  s_0f9a522b386a17::t_df431131b826cd 5-12,81
+app/(timeline)/settings/moving/MoveForm.test.tsx
+  s_0f9a522b386a17::t_ee40b08be58dc0 6,75
+app/(timeline)/settings/privacy/page.test.tsx
+  s_0f9a522b386a17::t_6529587c48ab49 5,106
+lib/components/actor-switcher/AddActorDialog.test.tsx
+  s_0f9a522b386a17::t_4735c8d943d64c 5-12,66
+lib/components/admin/StatsOverview.test.tsx
+  s_0f9a522b386a17::t_3e7edf842563c2 5-12,83
+lib/components/fitness/ActivityRouteMapKit.test.tsx
+  s_0f9a522b386a17::t_8effdde96c1dbe 5,46
+lib/components/fitness/RegionMap.test.tsx
+  s_0f9a522b386a17::t_d35caa2913266c 5-12,103,275
+lib/components/fitness/calendar/AnnualCalendar.test.tsx
+  s_0f9a522b386a17::t_713ce87922e453 5-12,74,730
+lib/components/fitness/calendar/CalendarTooltip.follow.test.tsx
+  s_0f9a522b386a17::t_355041f03ce569 5,71
+lib/components/fitness/calendar/CalendarTooltip.test.tsx
+  s_0f9a522b386a17::t_e25701e4e79a1d 5,155
+lib/components/fitness/calendar/MonthCalendar.test.tsx
+  s_0f9a522b386a17::t_6abb685bba8700 5,58,358,466,573
+lib/components/fitness/calendar/useElementWidth.test.tsx
+  s_0f9a522b386a17::t_aeb1438e7134e1 5,54
+lib/components/fitness/calendar/useRovingDateFocus.test.tsx
+  s_0f9a522b386a17::t_bdf5a21681c3ce 5,206
+lib/components/fitness/useHeatmapTiles.test.ts
+  s_0f9a522b386a17::t_ad18318f7177e8 4,67
+lib/components/gallery/AlbumUndoToast.test.tsx
+  s_0f9a522b386a17::t_376ccf2948971a 5,23
+lib/components/gallery/GalleryAddedToast.test.tsx
+  s_0f9a522b386a17::t_be346cd0bb32fc 5,14
+lib/components/layout/mobile-navigation-trigger.test.tsx
+  s_0f9a522b386a17::t_9a0076aa4c35ce 5,68
+lib/components/layout/sidebar.test.tsx
+  s_0f9a522b386a17::t_82422738a1a02e 793
+lib/components/media-details/media-details-dialog.lookup.test.tsx
+  s_0f9a522b386a17::t_5e1edd1c4bd7dd 5-11,71,178
+lib/components/photo-editor/EditedTime.test.tsx
+  s_0f9a522b386a17::t_8c96e43e4e89d4 5,23-26
+lib/components/posts/actions/actions.pickerChunkFailure.test.tsx
+  s_0f9a522b386a17::t_7dd7f3fd3aff8f 6,157
+lib/components/posts/actions/actions.test.tsx
+  s_0f9a522b386a17::t_7e42b6a2fa94d3 6,160
+lib/components/posts/actions/post-menu.test.tsx
+  s_0f9a522b386a17::t_6e8ca53bb963e2 7,676
+lib/components/posts/actions/reaction-button.idlePreload.test.tsx
+  s_0f9a522b386a17::t_f70e17afa5e8d9 4,34
+lib/components/posts/actions/useCompactActionBar.test.tsx
+  s_0f9a522b386a17::t_8268de3d5fd622 5,61
+lib/components/posts/fitness-processing-progress.test.tsx
+  s_0f9a522b386a17::t_b45d77cd024834 5,35
+lib/components/posts/poll.test.tsx
+  s_0f9a522b386a17::t_474e6caf3ae833 5,70
+lib/components/posts/post.translate-and-compact.test.tsx
+  s_0f9a522b386a17::t_b4c714dc794b71 7,258
+lib/components/posts/posts.preload.test.tsx
+  s_0f9a522b386a17::t_adb397c15e767f 4,40
+lib/components/posts/reply-toast.test.tsx
+  s_0f9a522b386a17::t_dabb539ccfd87f 5,18
+lib/components/posts/status-thread.test.tsx
+  s_0f9a522b386a17::t_8144f07aad9bcc 7,739
+lib/components/posts/useInlineComposer.preload.test.ts
+  s_0f9a522b386a17::t_1113043361a546 4,22
+lib/components/posts/useMediaStripScroll.test.tsx
+  s_0f9a522b386a17::t_9d7afdfdb96ef0 5,115
+lib/components/section-nav-dropdown.test.tsx
+  s_0f9a522b386a17::t_a24f8facc9e6ca 6,601
+lib/components/session-keep-alive.test.tsx
+  s_0f9a522b386a17::t_d3b518b645593c 4,60
+lib/components/settings/AppearanceSection.test.tsx
+  s_0f9a522b386a17::t_d0cd9e9d0115ac 5,29
+lib/components/settings/NotificationSettings.test.tsx
+  s_0f9a522b386a17::t_8db43776df56b3 5,21
+lib/components/settings/profile/ProfileEditor.test.tsx
+  s_0f9a522b386a17::t_bf06c74e9b632c 7,125,1240-1243
+lib/components/settings/profile/ProfileSavedToast.test.tsx
+  s_0f9a522b386a17::t_25b1dc742016e5 5,13-16
+lib/components/settings/profile/useUnsavedChangesGuard.test.tsx
+  s_0f9a522b386a17::t_ede675c989f438 5,184,326
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3e8375a5e7c0e40a12f53992bd22d1874e6587e0",
+  "prompts": {},
+  "sessions": {
+    "s_0f9a522b386a17": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8339dcdf-8288-4ca4-a992-7872ebb0ba95",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+lib/database/index.ts
+  h_580a04e334fef4 1,14-33,36
+lib/database/sqlcommenter.test.ts
+  h_580a04e334fef4 1-68
+lib/utils/traceApiRoute.test.ts
+  h_580a04e334fef4 4-38,242-286
+lib/utils/traceApiRoute.ts
+  h_580a04e334fef4 1-7,27-84,92-95,97-114,116-127,130-132,134-135,137-145,148-151,154,156-158,160
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "f78789d42c014dda6384b40d36d63df288d37b80",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,22 @@
+AGENTS.md
+  s_3ec04052f0950b::t_892653325a7e3a 154-162,179
+  s_3ec04052f0950b::t_4d43c1bf8de3a8 140-141
+lib/components/section-nav-dropdown.test.tsx
+  s_3ec04052f0950b::t_48218ff7173acc 1-75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "1ffa81b9ce14f35c2f6a2065883a93ec8a0b8e6a",
+  "prompts": {},
+  "sessions": {
+    "s_3ec04052f0950b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9f64ce4a-02a2-4cb8-9f12-0a23ab6a6068",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

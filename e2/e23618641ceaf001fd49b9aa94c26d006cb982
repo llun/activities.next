@@ -1,0 +1,69 @@
+app/(timeline)/messages/MessagesPage.test.tsx
+  s_9686503828309b::t_afe66940700d8a 190,201,241,251,262,277,297
+lib/services/mastodon/getMastodonConversation.ts
+  s_31717af284fc5c::t_653909352bb990 4,30-34,37-57
+  s_31717af284fc5c::t_401e61aaf7502e 35-36
+lib/database/sql/conversation.ts
+  s_310719d8018dcf::t_44eb2932033de5 325-338,340-345
+lib/client.ts
+  s_9686503828309b::t_e093cfdeaba946 2000-2003,2005
+  s_310719d8018dcf::t_98a20eb83f3ca3 18,1978-1981
+  s_9686503828309b::t_2f6143227781be 1913,1919,1972-1977,1982,2004,2006-2008
+app/(timeline)/messages/page.test.tsx
+  s_9686503828309b::t_05f6a4bc9a539b 1,3-121,123-142,144-147
+  s_9686503828309b::t_4918bb679f2540 2,122,143
+lib/database/sql/conversation.test.ts
+  s_310719d8018dcf::t_77d8dbe8ae0579 395
+  s_310719d8018dcf::t_2046f65ce356ea 379,393-394
+lib/services/mastodon/getMastodonConversation.test.ts
+  s_310719d8018dcf::t_61204c63ae7c4c 12,177
+  s_31717af284fc5c::t_85d05456beaca0 172-176,178-198
+lib/services/guards/OAuthGuard.ts
+  s_31717af284fc5c::t_c60d0b77b77a46 74-75
+lib/client.test.ts
+  s_310719d8018dcf::t_29b0afe2c926e0 241,243-244
+  s_9686503828309b::t_a518b43b97216c 10,228-240,242,245-270
+  s_9686503828309b::t_9ce1d111b5ff50 3-4
+app/(timeline)/messages/MessagesPage.tsx
+  s_9686503828309b::t_4918bb679f2540 290-293,296-304,309-312,314-316,318-353
+  s_9686503828309b::t_cb04b06aabc499 249,271,273,277,279,286,288-289,305-307
+app/(timeline)/messages/page.tsx
+  s_9686503828309b::t_cc4adaaff81b31 7-10,40-43,45-51
+  s_9686503828309b::t_ce316a32e5e3bf 52
+lib/services/guards/OAuthGuard.test.ts
+  s_31717af284fc5c::t_33d074dc863b5f 643-665
+migrations/20260517002000_add_direct_conversations.js
+  s_31717af284fc5c::t_9845e2b6be2533 194
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "e2e23618641ceaf001fd49b9aa94c26d006cb982",
+  "prompts": {},
+  "sessions": {
+    "s_310719d8018dcf": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e3722-d1c9-7732-b66f-0221b95e639b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_31717af284fc5c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e39b7-6f4b-7f32-9bdd-8a30fcc85594",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_9686503828309b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e39b7-5078-70e0-a066-6baaba780cd3",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

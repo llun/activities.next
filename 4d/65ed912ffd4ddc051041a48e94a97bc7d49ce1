@@ -1,0 +1,53 @@
+lib/services/federation/blocklistSources.test.ts
+  aec9357be833f4ad 4,17-21
+lib/services/federation/domainPolicy.ts
+  aec9357be833f4ad 75-79,81-91,94-97
+lib/types/database/operations.ts
+  aec9357be833f4ad 1102-1108,1131
+app/api/v1/admin/domain_allows/route.test.ts
+  aec9357be833f4ad 1-48
+app/api/v1/admin/domain_blocks/route.ts
+  aec9357be833f4ad 11,43-55
+lib/services/federation/domainPolicy.test.ts
+  aec9357be833f4ad 3-7,101-114
+app/api/v1/admin/domain_blocks/route.test.ts
+  aec9357be833f4ad 112-164
+lib/services/federation/blocklistSources.ts
+  aec9357be833f4ad 38-44,47-58,61,72-73,77-83,86-90,97-100,111
+app/(timeline)/admin/federation/page.tsx
+  aec9357be833f4ad 12-16,40-41,60,62-64,67,94,103,109,149-152,157-161,168-173,177,179-180,182-184,186-188,190,199-202,207,215-219,258-262
+lib/database/sql/admin.ts
+  aec9357be833f4ad 102-113,391-400,407-454
+app/api/v1/admin/domain_blocks/schema.ts
+  aec9357be833f4ad 8-9
+app/api/v1/admin/domain_allows/route.ts
+  aec9357be833f4ad 11,43-55
+app/api/v1/admin/domain_blocks/import/route.ts
+  aec9357be833f4ad 10,25-41
+lib/database/sql/admin.test.ts
+  aec9357be833f4ad 250-284,343-349
+app/api/v1/admin/domain_blocks/[id]/route.ts
+  aec9357be833f4ad 11,60-72
+lib/components/ui/select.tsx
+  aec9357be833f4ad 1-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "4d65ed912ffd4ddc051041a48e94a97bc7d49ce1",
+  "prompts": {
+    "aec9357be833f4ad": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dcb00-9e97-7592-828b-dd28aea9a215",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 592,
+      "total_deletions": 86,
+      "accepted_lines": 1179,
+      "overriden_lines": 8
+    }
+  }
+}

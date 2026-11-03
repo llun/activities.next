@@ -1,0 +1,19 @@
+app/api/v1/scheduled_statuses/[id]/route.ts
+  s_ad3d51a9ca1561::t_574377be90a845 5,105-106,218-219
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "9077466442e13e206b750525d82f8d0d147e4281",
+  "prompts": {},
+  "sessions": {
+    "s_ad3d51a9ca1561": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dfc4-8b9c-72c2-8e2f-01992cdf11d1",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

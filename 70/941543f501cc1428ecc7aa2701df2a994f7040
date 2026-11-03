@@ -1,0 +1,28 @@
+.github/workflows/version-bump.yml
+  s_0f9a522b386a17::t_4e8fe4df138f40 452-453
+  s_0f9a522b386a17::t_60656920bdf657 451
+  s_0f9a522b386a17::t_ae0a26bd79ac96 454-456
+  s_0f9a522b386a17::t_2cd374446dcc47 20-22,298-336,348-350,356,367,372-374,457-464,512
+.github/workflows/ci-rerun.yml
+  s_0f9a522b386a17::t_8e18fb03cad111 16
+.github/workflows/version-bump.test.ts
+  s_0f9a522b386a17::t_592944586d83db 2-12,202-567
+CONTRIBUTING.md
+  s_0f9a522b386a17::t_16b003601a42dd 183
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "70941543f501cc1428ecc7aa2701df2a994f7040",
+  "prompts": {},
+  "sessions": {
+    "s_0f9a522b386a17": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8339dcdf-8288-4ca4-a992-7872ebb0ba95",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

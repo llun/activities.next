@@ -1,0 +1,26 @@
+app/(timeline)/[actor]/ActorMediaGallery.tsx
+  h_580a04e334fef4 10,49-51
+lib/activities/getActorPosts.test.ts
+  h_580a04e334fef4 1208-1336
+lib/activities/getActorPosts.ts
+  h_580a04e334fef4 191-194,199-203,227-233
+lib/activities/note.ts
+  h_580a04e334fef4 16,83-84,94-102,112-120,125-130,139,143-144,177-178,227-230
+app/(timeline)/[actor]/getProfileData.test.ts
+  h_580a04e334fef4 184-196,768-835
+lib/activities/note.test.ts
+  h_580a04e334fef4 288-289,420-432,436,439-441
+app/(timeline)/[actor]/getProfileData.ts
+  h_580a04e334fef4 20,162,305,318-322
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "ba94cef4b5a345e28f699aa186967a6aa74ad085",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

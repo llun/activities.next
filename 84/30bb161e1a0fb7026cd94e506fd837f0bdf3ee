@@ -1,0 +1,32 @@
+lib/activities/announceStatus.ts
+  h_580a04e334fef4 9-10
+lib/activities/createStatus.ts
+  h_580a04e334fef4 17-18
+lib/activities/getRemoteStatus.test.ts
+  h_580a04e334fef4 187-228
+lib/activities/getRemoteStatus.ts
+  h_580a04e334fef4 30-32
+lib/activities/updateStatus.ts
+  h_580a04e334fef4 18-19
+lib/jobs/createAnnounceJob.test.ts
+  h_580a04e334fef4 488-510
+lib/types/activitypub/activities.test.ts
+  h_580a04e334fef4 1-39
+lib/types/activitypub/activities.ts
+  h_580a04e334fef4 158-159
+lib/types/activitypub/objects.test.ts
+  h_580a04e334fef4 170-200
+lib/types/activitypub/objects.ts
+  h_580a04e334fef4 105-106
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "8430bb161e1a0fb7026cd94e506fd837f0bdf3ee",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

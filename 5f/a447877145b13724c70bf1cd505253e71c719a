@@ -1,0 +1,19 @@
+lib/components/theme/ThemeControl.tsx
+  s_af827b916f0afb::t_7c24e6ecdd81ec 19-22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.8",
+  "base_commit_sha": "5fa447877145b13724c70bf1cd505253e71c719a",
+  "prompts": {},
+  "sessions": {
+    "s_af827b916f0afb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "559a812f-575a-41a3-89bf-3d309edd071b",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

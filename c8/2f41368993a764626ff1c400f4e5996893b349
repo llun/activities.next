@@ -1,0 +1,93 @@
+CLAUDE.md
+  s_5c05e157b3e02d::t_dfc23efb20aca9 135
+REVIEW.md
+  s_5c05e157b3e02d::t_cc22e3e03c711a 104-151
+lib/database/sql/utils/usernameMatchMysql.test.ts
+  s_5c05e157b3e02d::t_ad4c853bdeae02 1-56,59-105
+  s_eacd0c3a89f5e1::t_6db64ddaf01f38 57-58
+lib/database/sql/actor.ts
+  s_5c05e157b3e02d::t_de0718727c1a37 37
+  s_5c05e157b3e02d::t_b5721b09c3e62d 424-430
+migrations/schema.sqlite.sql
+  s_5c05e157b3e02d::t_0063c6b7cfb89a 283
+lib/database/sql/actorsLowerUsernameIndexMigration.test.ts
+  s_5c05e157b3e02d::t_6f0b9e8064b459 1-94,115-126
+  s_5c05e157b3e02d::t_fbf45373d5e74b 95-114
+lib/utils/normalizeUsername.ts
+  s_5c05e157b3e02d::t_50dca4ad8299ed 1-22
+lib/services/guards/OnlyLocalUserGuard.ts
+  s_5c05e157b3e02d::t_406ace2f0c982e 49-52
+  s_5c05e157b3e02d::t_210b79d688b34e 38-48
+lib/services/guards/OnlyLocalUserGuard.test.ts
+  s_5c05e157b3e02d::t_2ba0872bcda54b 106-156
+AGENTS.md
+  s_5c05e157b3e02d::t_2f35ad1aa8fdf3 175,181
+  s_5c05e157b3e02d::t_51c313cdd51d8e 170-174,176-177,179-180,182
+  s_5c05e157b3e02d::t_dfc23efb20aca9 178
+lib/services/accounts/localUsername.ts
+  s_5c05e157b3e02d::t_c82e0d4769ee0f 60
+  s_5c05e157b3e02d::t_9c99d0896cc446 48-59
+lib/services/accounts/registerAccount.ts
+  s_5c05e157b3e02d::t_452bfe5798b862 12,36,53-56
+lib/database/sql/account.ts
+  s_5c05e157b3e02d::t_e0dde98a047ef9 20,100,109-114,434,439-441
+  s_5c05e157b3e02d::t_ef6bd9d154e410 65,92-95
+migrations/schema.sql
+  s_5c05e157b3e02d::t_57964efd374c99 1736-1737
+lib/services/accounts/localUsername.test.ts
+  s_5c05e157b3e02d::t_b7fe141607bfc5 15-16,28-47,89,95,97
+  s_035dde829eac10::t_be20254aa0d9bf 85-88,90-94,96,98-99
+lib/database/sql/utils/usernameMatch.ts
+  s_5c05e157b3e02d::t_43f809c91c27dc 53-54,59-66
+  s_5c05e157b3e02d::t_f39f5558f7af69 3,39-48,58
+  s_5c05e157b3e02d::t_363a58ff4d51db 55
+  s_5c05e157b3e02d::t_aefa0bbec0382f 1-2,4-38,49-52,56-57
+migrations/20260826120000_add_actors_lower_username_index.js
+  s_5c05e157b3e02d::t_d34015b1184a7c 64
+  s_5c05e157b3e02d::t_e6004d62ddb02e 1-19,21,45-49,52,56-60,63,65-72,75-76
+  s_5c05e157b3e02d::t_f205210e0c85e4 20,22-44,50-51,53-55,61-62,73-74
+lib/database/sql/utils/usernameMatch.test.ts
+  s_5c05e157b3e02d::t_d7ae5d10183115 1-258
+lib/services/wellknown/index.test.ts
+  s_3f35ed36536e83::t_f54f71b64a0252 369-400
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "c82f41368993a764626ff1c400f4e5996893b349",
+  "prompts": {},
+  "sessions": {
+    "s_035dde829eac10": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4a26203c-4cad-407d-8ea5-6ac7f6abe5e9",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_3f35ed36536e83": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d4aa7473-150b-4909-9586-8c1c8de015e6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_5c05e157b3e02d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f1c386ef-32f2-4ca1-8042-fe368c055720",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_eacd0c3a89f5e1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4cf735c2-2b90-40eb-8be8-b59706ebd921",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

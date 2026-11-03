@@ -1,0 +1,39 @@
+lib/types/database/operations.ts
+  s_a3a57c3e535ceb::t_ae9c3e8b7a3662 752
+lib/database/sql/bookmarkSourceStatusIdMigration.test.ts
+  s_a3a57c3e535ceb::t_049ddb385bde86 1-58
+app/api/v1/statuses/[id]/route.test.ts
+  s_a3a57c3e535ceb::t_07755494f89872 732-782
+lib/database/sql/statusOriginalStatusIdMigration.test.ts
+  s_a3a57c3e535ceb::t_ab374941608d4f 41-45,63
+migrations/20260517001000_add_bookmark_source_status_id.js
+  s_a3a57c3e535ceb::t_8ca1006860d323 1-13,19-38
+  s_a3a57c3e535ceb::t_e46da2a26652b1 14-18
+lib/database/sql/bookmark.test.ts
+  s_a3a57c3e535ceb::t_e46da2a26652b1 3
+  s_a3a57c3e535ceb::t_061610f2565cfa 13,177-225
+  s_a3a57c3e535ceb::t_06b4304897d2ce 372-396
+lib/database/sql/status.ts
+  s_a3a57c3e535ceb::t_678d9b914075b7 306-308
+  s_a3a57c3e535ceb::t_57b847dc9ed563 252
+lib/database/sql/bookmark.ts
+  s_a3a57c3e535ceb::t_e46da2a26652b1 44,143
+  s_a3a57c3e535ceb::t_b0ae2517747039 17,63,93-108,140,144-153,157,174-176,188-190
+  s_a3a57c3e535ceb::t_d2aa9ecddc0327 30-43,45-46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "b34aca1d3aaf1749f2309f4712cfaeb861d59db5",
+  "prompts": {},
+  "sessions": {
+    "s_a3a57c3e535ceb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e31cc-9ba2-72d2-b9c8-69a141404fcb",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

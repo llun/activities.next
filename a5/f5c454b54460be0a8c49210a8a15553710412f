@@ -1,0 +1,84 @@
+app/(timeline)/[actor]/page.tsx
+  s_85d91c6baf9d58::t_3ab966022c52e3 72-73
+lib/components/posts/reaction-row.tsx
+  s_85d91c6baf9d58::t_d3409b4e752300 196-201,222-225,227,247
+  s_85d91c6baf9d58::t_dff7242b7dad34 8,24-37,112,121-125,273
+  s_85d91c6baf9d58::t_c784a919e353c4 4,94,245,262-269,272
+  s_85d91c6baf9d58::t_9e4862477a3206 38,106,113-116
+  s_85d91c6baf9d58::t_979f976c7dd658 97-102,104-105,107
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  s_85d91c6baf9d58::t_599f0fff658784 1968-1975
+  s_85d91c6baf9d58::t_1773937294d2ea 49,1963-1967
+  s_85d91c6baf9d58::t_ccb1b5b4bb22be 1976
+app/(timeline)/favorites/FavoritesTimeline.tsx
+  s_85d91c6baf9d58::t_0527585f3026d2 83-92,163
+  s_85d91c6baf9d58::t_2d3718a182acf4 20
+AGENTS.md
+  s_85d91c6baf9d58::t_599f0fff658784 372-375
+  s_85d91c6baf9d58::t_d52dace82eb08a 335-340
+lib/database/sql/status.test.ts
+  s_85d91c6baf9d58::t_0a6141c8e79ca8 412-415,438
+  s_85d91c6baf9d58::t_ee2b1bd6ac5d03 424-427,429-437,439-466
+lib/services/reactions/reactionRouteHandlers.ts
+  s_85d91c6baf9d58::t_d02988305fb502 79-83
+lib/database/sql/status.ts
+  s_85d91c6baf9d58::t_df0910cea51fde 1252-1253
+  s_85d91c6baf9d58::t_a4f8b2671c4e72 2643
+  s_85d91c6baf9d58::t_c1ab485dc7deeb 1293,1305,1369,1535,1547
+  s_85d91c6baf9d58::t_b1b442a5fa796d 2762
+  s_85d91c6baf9d58::t_5edcd7fa230621 3376-3377,3387
+lib/client.ts
+  s_85d91c6baf9d58::t_a6046f4893f7d2 484-499
+app/(timeline)/[actor]/ActorTimelines.tsx
+  s_85d91c6baf9d58::t_9f9383a1543468 25
+  s_85d91c6baf9d58::t_3e277d958c13b3 234-249,351
+lib/components/posts/reaction-row.test.tsx
+  s_85d91c6baf9d58::t_33389053db822a 295-299
+  s_85d91c6baf9d58::t_d68808edf2ce2d 302-306
+  s_85d91c6baf9d58::t_8d88752222c39b 74-86,100-103,113-117,214-218,228-238,242,263,319-358
+  s_85d91c6baf9d58::t_b6c98f42dbb7b2 219-227,239-241,243-262,264-294,300-301,307-318
+  s_85d91c6baf9d58::t_c07787c406dc6b 55-56,98,144,150,162,192
+  s_85d91c6baf9d58::t_3eb6d7b5fb23d4 67,132
+  s_85d91c6baf9d58::t_565baa36525d48 359
+lib/services/reactions/reactionRouteHandlers.test.ts
+  s_85d91c6baf9d58::t_7eed5c013250a8 91-95,106-128
+  s_85d91c6baf9d58::t_8fa186751dfa7f 129
+app/(timeline)/tags/[tag]/page.tsx
+  s_85d91c6baf9d58::t_2b9c0de903b151 53-56
+lib/components/posts/post.test.tsx
+  s_85d91c6baf9d58::t_c8bb2aa4697ae7 430-431,433-440,462-464
+lib/database/sql/timeline.ts
+  s_85d91c6baf9d58::t_3ed5844f9df533 263-273
+lib/types/database/operations.ts
+  s_85d91c6baf9d58::t_003a2ea7983331 556-557
+  s_85d91c6baf9d58::t_b1b442a5fa796d 638,716-719
+  s_85d91c6baf9d58::t_5edcd7fa230621 584-587
+  s_85d91c6baf9d58::t_13adec8a7e0d04 634-637
+lib/services/reactions/getStatusReactionList.ts
+  s_85d91c6baf9d58::t_be0b11a17be8f4 6,39-43,51,55
+app/(timeline)/[actor]/getProfileData.ts
+  s_85d91c6baf9d58::t_db19b55633dd81 60
+  s_85d91c6baf9d58::t_1ea077f20ba204 31-34,58-59,61
+app/(timeline)/[actor]/[status]/resolveStatusFromPath.ts
+  s_85d91c6baf9d58::t_5edcd7fa230621 81-82,87-88
+app/(timeline)/[actor]/[status]/page.tsx
+  s_85d91c6baf9d58::t_6da900c7354dc9 207-209
+app/(timeline)/[actor]/[status]/resolveStatusFromPath.test.ts
+  s_85d91c6baf9d58::t_9df3b930c74835 84-105
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "a5f5c454b54460be0a8c49210a8a15553710412f",
+  "prompts": {},
+  "sessions": {
+    "s_85d91c6baf9d58": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8685a26c-353a-478b-9125-3aeb9c98a29a",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

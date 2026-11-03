@@ -1,0 +1,21 @@
+app/(nosidebar)/oauth/token/route.ts
+  s_69f35b0cf1b1f5::t_2ebb81bb366b5a 44-51,538-539
+app/(nosidebar)/oauth/token/route.test.ts
+  s_69f35b0cf1b1f5::t_6f47adad9fa121 89-118
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "37540313a28ed1b4259f69029c5699f4a66eb346",
+  "prompts": {},
+  "sessions": {
+    "s_69f35b0cf1b1f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3e34abf-a75d-4da8-b371-1258aa33721a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

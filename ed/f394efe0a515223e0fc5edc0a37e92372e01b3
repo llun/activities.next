@@ -1,0 +1,26 @@
+app/api/v1/instance/terms_of_service/termsOfService.ts
+  s_ab97d21f52c341::t_cb4156f6fd26cc 1-25
+app/api/v1/instance/terms_of_service/route.test.ts
+  s_ab97d21f52c341::t_27fbe7b111a75e 1-100
+app/api/v1/instance/terms_of_service/route.ts
+  s_ab97d21f52c341::t_3a268ea05cfc10 1-21
+app/api/v1/instance/terms_of_service/[date]/route.ts
+  s_ab97d21f52c341::t_4a1f76af6873a3 1-29
+  s_ab97d21f52c341::t_a75de1a91036b2 30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "edf394efe0a515223e0fc5edc0a37e92372e01b3",
+  "prompts": {},
+  "sessions": {
+    "s_ab97d21f52c341": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "62bf221b-714f-4225-95d2-e37f0d6fd6a3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

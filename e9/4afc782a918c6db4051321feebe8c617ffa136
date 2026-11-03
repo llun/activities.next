@@ -1,0 +1,31 @@
+lib/database/sql/fitnessFile.test.ts
+  s_ed05b2e981b84c::t_2f723eff45a252 346-394
+  s_ed05b2e981b84c::t_828192fade119d 1
+lib/jobs/processFitnessFileJob.test.ts
+  s_ed05b2e981b84c::t_cddc9d76117019 63-78
+  s_ed05b2e981b84c::t_f8c03d38b2ff42 408
+  s_ed05b2e981b84c::t_e3aa85b3bb8381 373-407,409-421
+  s_ed05b2e981b84c::t_8568d7472a1cb4 422
+lib/jobs/processFitnessFileJob.ts
+  s_ed05b2e981b84c::t_620003019cd04d 305-309
+lib/database/sql/fitnessFile.ts
+  s_ed05b2e981b84c::t_d0066ce56185cb 624-625,627-645,648
+  s_ed05b2e981b84c::t_0bbb22b0439577 178-182,185-186
+  s_ed05b2e981b84c::t_f47f31f89e48cb 224-228
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "e94afc782a918c6db4051321feebe8c617ffa136",
+  "prompts": {},
+  "sessions": {
+    "s_ed05b2e981b84c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a61299ca-2ba8-497b-9eb6-b7afacc32f65",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

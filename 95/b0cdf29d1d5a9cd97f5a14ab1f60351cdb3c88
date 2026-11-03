@@ -1,0 +1,16 @@
+lib/components/block-action/block-action.test.tsx
+  h_580a04e334fef4 44
+lib/components/fitness/HeatmapShareEmbed.test.tsx
+  h_580a04e334fef4 8,42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "95b0cdf29d1d5a9cd97f5a14ab1f60351cdb3c88",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

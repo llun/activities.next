@@ -1,0 +1,24 @@
+app/api/v1/trends/route.ts
+  s_2de5d568423448::t_c79f3e5232b9a6 1-4
+app/api/v1/trends/tags/route.test.ts
+  s_2de5d568423448::t_b5c86ed10f7f9a 1-201,203-213
+  s_2de5d568423448::t_7a46e490fe749d 202
+app/api/v1/trends/tags/route.ts
+  s_2de5d568423448::t_abdee160f3cac0 2-4,13-50,52-53,56-94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "7be4bb746e54a847cfc0b15cdd6d556671f3c49e",
+  "prompts": {},
+  "sessions": {
+    "s_2de5d568423448": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "380e0dd8-bb8c-402d-93c3-faf6bb59ed2f",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

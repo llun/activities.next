@@ -1,0 +1,24 @@
+AGENTS.md
+  h_580a04e334fef4 2033
+app/api/v1/emails/confirmations/route.test.ts
+  h_580a04e334fef4 137-143,484-514,533,536-540,623-685
+app/api/v1/emails/confirmations/route.ts
+  h_580a04e334fef4 184,189-209
+lib/database/sql/account.test.ts
+  h_580a04e334fef4 205-209,214,220-225,228-231,233-236,239,275-276,278,280,283-289,537-538,541,543,546,549-550
+lib/database/sql/account.ts
+  h_580a04e334fef4 833,835-839,842-846,864-871
+lib/types/database/operations.ts
+  h_580a04e334fef4 427-432,514
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "2a0426842cdfac1357857374dedb759b0c6af974",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,51 @@
+app/api/v1/admin/accounts/adminAccounts.test.ts
+  s_7a29c31259b0a0::t_679c0ff2854f92 158,160,164,169,173,191-195,197,200,208,211,386,389-390,396,400-401
+app/api/v1/collections/[id]/route.test.ts
+  s_7a29c31259b0a0::t_049b0751f18899 256-274,282-297
+lib/actions/acceptFollowRequest.test.ts
+  s_712e362c845da1::t_1ad1161e5f83b8 44,49-70
+lib/actions/createFollower.test.ts
+  s_afcfe0b3b5cc6c::t_3faebbef6b5a09 67
+lib/actions/updateNote.test.ts
+  s_5ddd39fec85613::t_17372574936915 60-68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4d0386ca9c71465da1956e2fa8825e6fc7deb1bc",
+  "prompts": {},
+  "sessions": {
+    "s_5ddd39fec85613": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-abd0b28ae15b5155e",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_712e362c845da1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-ae68645e11cfdc195",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_7a29c31259b0a0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e61da06e-432e-42f9-a063-cc85e354e701",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_afcfe0b3b5cc6c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a1a424e7832ddfd7f",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

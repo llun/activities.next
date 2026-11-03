@@ -1,0 +1,16 @@
+lib/services/medias/animationMetadata.test.ts
+  h_580a04e334fef4 12,16-17,1166-1450
+lib/services/medias/animationMetadata.ts
+  h_580a04e334fef4 636,653-654
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "aa7d515ebbcfd4accc135292ee5aa7199a1b833d",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

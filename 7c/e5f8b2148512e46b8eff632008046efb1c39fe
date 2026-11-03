@@ -1,0 +1,20 @@
+docs/fitness-file-storage.md
+  h_580a04e334fef4 312
+lib/jobs/importStravaActivityJob.federation.test.ts
+  h_580a04e334fef4 347-388
+lib/jobs/importStravaActivityJob.test.ts
+  h_580a04e334fef4 1324-1356,1358-1367
+lib/jobs/importStravaActivityJob.ts
+  h_580a04e334fef4 472
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "7ce5f8b2148512e46b8eff632008046efb1c39fe",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

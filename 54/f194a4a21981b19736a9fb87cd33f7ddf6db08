@@ -1,0 +1,19 @@
+lib/components/posts/actions/actions.tsx
+  s_3a7a33cdcabfe3::t_add453321b9482 89
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "54f194a4a21981b19736a9fb87cd33f7ddf6db08",
+  "prompts": {},
+  "sessions": {
+    "s_3a7a33cdcabfe3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "65eb3439-7ca1-495c-96ac-e0cec9eed37b",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

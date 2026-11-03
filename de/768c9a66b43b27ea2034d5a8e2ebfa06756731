@@ -1,0 +1,21 @@
+lib/components/posts/actions/reaction-button.test.tsx
+  s_cc0419971a16a0::t_78e6b1062d7caf 236-238
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.test.tsx
+  s_cc0419971a16a0::t_0819c625884290 1451
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.19",
+  "base_commit_sha": "de768c9a66b43b27ea2034d5a8e2ebfa06756731",
+  "prompts": {},
+  "sessions": {
+    "s_cc0419971a16a0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3bd6f582-62ea-4456-b7a4-2d07f9edf23f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

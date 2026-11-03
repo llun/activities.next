@@ -1,0 +1,48 @@
+lib/database/sql/clearStaleVerificationCodesMigration.test.ts
+  s_801e94c1cd7091::t_efb66290d0327c 146-156,158-179
+  s_801e94c1cd7091::t_d734df8298ccfb 24-29
+  s_801e94c1cd7091::t_6482ff7cc820d6 157
+  s_801e94c1cd7091::t_a0641f40e2d6f2 145
+app/api/oauth/userinfo/route.test.ts
+  s_801e94c1cd7091::t_ada76064aad1de 48-50
+lib/database/sql/account.test.ts
+  s_801e94c1cd7091::t_07cb8cde9e32a5 176,184,215,267,517,522
+lib/types/database/operations.ts
+  s_801e94c1cd7091::t_6d8b6ad61e6612 415,418-434,506-508
+lib/services/guards/OAuthGuard.test.ts
+  s_801e94c1cd7091::t_307ce194271fe2 4-7,113-115
+  s_801e94c1cd7091::t_4aa83c00ae29ba 1223-1287
+AGENTS.md
+  s_801e94c1cd7091::t_d734df8298ccfb 2022
+lib/services/oauth/userinfo.test.ts
+  s_801e94c1cd7091::t_63f3285e14cd41 205-212,215-216,228-229,232-235,239-240,254-257,259-261,263,273
+  s_801e94c1cd7091::t_93c50ec2305d36 32-35,171
+lib/database/sql/account.ts
+  s_801e94c1cd7091::t_6482ff7cc820d6 40
+  s_801e94c1cd7091::t_6d8b6ad61e6612 829,833,846-854,856-857
+app/api/v1/emails/confirmations/route.ts
+  s_801e94c1cd7091::t_07cb8cde9e32a5 169
+migrations/20260828140000_clear_stale_verification_codes.js
+  s_801e94c1cd7091::t_d734df8298ccfb 58-62
+lib/services/oauth/userinfo.ts
+  s_801e94c1cd7091::t_07cb8cde9e32a5 70-78
+app/api/v1/emails/confirmations/route.test.ts
+  s_801e94c1cd7091::t_07cb8cde9e32a5 44,102,133,169-170,198,240-241,280,304,331,349,369,380-381,407,418
+  s_801e94c1cd7091::t_6482ff7cc820d6 248-249
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "2f7b381bbb1717319074cb230499c49920035c03",
+  "prompts": {},
+  "sessions": {
+    "s_801e94c1cd7091": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ec5dc893-542e-48be-a5e8-04c97a90d907",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

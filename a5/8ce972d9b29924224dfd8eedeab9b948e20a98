@@ -1,0 +1,56 @@
+lib/components/drafts/SavedToDraftsNote.test.tsx
+  s_512188f2b1db53::t_83040f984222fb 15-16,35,140
+lib/components/post-box/useComposerDraft.test.tsx
+  s_512188f2b1db53::t_42adcdb9384dba 236
+  s_512188f2b1db53::t_1b2faa2190fa49 356-362,364-376
+  s_512188f2b1db53::t_7819337ff93b0e 82-93,233-234,237-353,448,454-455,460-464,595,604,607-613,767,782-786,790-838,924-925,948-986,1016
+  s_512188f2b1db53::t_67709e8548ed41 235
+lib/components/drafts/SavedToDraftsNote.tsx
+  s_512188f2b1db53::t_b1bd0b56cd4ba4 3,11-15,21-22,35,45,51-52
+docs/architecture.md
+  s_512188f2b1db53::t_960a58f6939fe6 3069-3070,3072-3073
+lib/components/drafts/DraftRow.tsx
+  s_512188f2b1db53::t_bf20251ad2c4a0 149,152-155,170
+lib/components/posts/status-reply-box.drafts.test.tsx
+  s_512188f2b1db53::t_c7126278688737 276,288-292,294-302,306-311,315,317-324
+  s_512188f2b1db53::t_42adcdb9384dba 303-305
+  s_512188f2b1db53::t_11b2328d6fefaf 312-314
+  s_512188f2b1db53::t_e955259c959de7 316
+lib/components/drafts/DraftsProvider.test.tsx
+  s_512188f2b1db53::t_83040f984222fb 299,301-302,309,312,325,339,353,374-375,379,382-387,426-445,450-463,480,491
+  s_512188f2b1db53::t_cd60498459e968 446-449
+lib/components/drafts/DraftsProvider.tsx
+  s_512188f2b1db53::t_12db119755f50e 16,18-19,39-40,65-67,70,75,127,201,203-204
+lib/components/drafts/NotSavedToDraftsNote.tsx
+  s_512188f2b1db53::t_b1bd0b56cd4ba4 1-25,28-52
+  s_512188f2b1db53::t_12db119755f50e 26-27
+lib/components/post-box/useComposerDraft.ts
+  s_512188f2b1db53::t_42adcdb9384dba 592
+  s_512188f2b1db53::t_4e8cc9f3258d85 314-315
+  s_512188f2b1db53::t_0e9e609dc4cbde 102-105,118-120,140-141,179,185-187,494-521,539-541,549,580,593-597,659-664,736-741,794-799,808
+lib/components/post-box/post-box.drafts.test.tsx
+  s_512188f2b1db53::t_c7126278688737 436,446-469,474-482
+  s_512188f2b1db53::t_11b2328d6fefaf 470-473
+lib/components/connection/ConnectionStatus.test.tsx
+  s_512188f2b1db53::t_98e5aa03f25a10 110,257-284
+lib/components/drafts/DraftsList.test.tsx
+  s_512188f2b1db53::t_d3438d3b6f5d02 302,331-332,351-379
+lib/components/drafts/DraftRow.test.tsx
+  s_512188f2b1db53::t_d3438d3b6f5d02 283-284,288-289
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a58ce972d9b29924224dfd8eedeab9b948e20a98",
+  "prompts": {},
+  "sessions": {
+    "s_512188f2b1db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e467608a-8346-4544-b69a-fc45fca93669",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

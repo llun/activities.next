@@ -1,0 +1,115 @@
+docs/architecture.md
+  s_55b6d8fca1d2f9::t_d17dbc3b15f11b 405-407
+docs/maintenance.md
+  s_fb909f8bd7da38::t_c0ef76ec1a765f 1169,1172-1174,1195,1602,1645-1646
+test/docLinks.test.ts
+  s_55b6d8fca1d2f9::t_1ec0341ea75f3e 17-55,61-64,66-67,82,87-91,97,100,113-115,117-122,153-179,184-189,207,209-229,231,237-242
+.github/PULL_REQUEST_TEMPLATE.md
+  s_55b6d8fca1d2f9::t_a19d2dfb030f86 2-6
+.oxlintrc.json
+  s_55b6d8fca1d2f9::t_7d618c767bd192 4,210,230
+AGENTS.md
+  s_55b6d8fca1d2f9::t_b6339778c88195 12-14,17,21,25-30,34-55,59-64,68-72,76-80,82-83,87-91,96-98,102,106-109,113-115,129-184
+CONTRIBUTING.md
+  s_55b6d8fca1d2f9::t_a0f1529d3f6ae2 20,709,1222
+app/api/v1/accounts/relationships/route.test.ts
+  s_55b6d8fca1d2f9::t_31d438a010e1ce 21
+app/api/v1/admin/custom_emojis/route.ts
+  s_55b6d8fca1d2f9::t_42a2c3d24bc429 188
+app/api/v1/files/[...pathname]/route.ts
+  s_55b6d8fca1d2f9::t_771edaa89f536f 28
+docs/fitness-file-storage.md
+  s_55b6d8fca1d2f9::t_9f904bef9bed60 1556
+docs/mastodon-api-compatibility.md
+  s_55b6d8fca1d2f9::t_33a55ff21cae39 1833-1836,1900
+lib/actions/emojiReaction.ts
+  s_55b6d8fca1d2f9::t_ded6f336b05448 39-40
+lib/activities/index.ts
+  s_55b6d8fca1d2f9::t_8c45a180813f7f 192
+lib/components/posts/actions/actions.tsx
+  s_55b6d8fca1d2f9::t_41b8613e89970d 46
+lib/components/posts/actions/post-menu.tsx
+  s_55b6d8fca1d2f9::t_7badff83e0007f 173
+lib/components/posts/actor.tsx
+  s_55b6d8fca1d2f9::t_c88aed641d975f 214,256
+lib/components/posts/post.tsx
+  s_55b6d8fca1d2f9::t_e3e3a576d1b261 114
+lib/components/posts/reaction-picker.tsx
+  s_55b6d8fca1d2f9::t_1903aa9310eb00 48-50
+lib/components/settings/ImageUploadField.tsx
+  s_55b6d8fca1d2f9::t_08451fe2a5d8f2 80-81
+lib/database/domains/fitnessFile/writes.ts
+  s_55b6d8fca1d2f9::t_8d056293ffdc2b 85
+lib/database/testing/schema.ts
+  s_55b6d8fca1d2f9::t_8e26f48b1152fc 9-10
+lib/jobs/createRelayAnnounceJob.ts
+  s_55b6d8fca1d2f9::t_4f71629b5a9ade 22
+lib/jobs/followTimelineBackfillJob.ts
+  s_55b6d8fca1d2f9::t_bd34c1bc8bfa34 63,85-86,197
+lib/jobs/processFitnessFileJob.ts
+  s_55b6d8fca1d2f9::t_6fd1c8d99df1ae 581
+lib/services/accountArchive/actorArchive.ts
+  s_55b6d8fca1d2f9::t_93c267c8264ec8 584
+lib/services/auth/twoFactorSignIn.test.ts
+  s_55b6d8fca1d2f9::t_0e12608b878149 20-21
+lib/services/fitness-files/heatmapTiles/constants.ts
+  s_55b6d8fca1d2f9::t_25d51d30dd0e37 7,139
+lib/services/fitness-files/heatmapTiles/edgeMerge.ts
+  s_55b6d8fca1d2f9::t_dd67a8237d2c07 8
+lib/services/fitness-files/heatmapTiles/tileCodec.ts
+  s_55b6d8fca1d2f9::t_28a4168977ac03 14
+lib/services/fitness-files/heatmapTiles/tiler.ts
+  s_55b6d8fca1d2f9::t_00ba110da7fbc3 19
+lib/services/fitness-files/sportTypes.ts
+  s_55b6d8fca1d2f9::t_0629b7c24a882f 16
+lib/services/fitness-gears/deviceIdentity.ts
+  s_55b6d8fca1d2f9::t_855ebfb29209bc 25
+lib/services/guards/OAuthGuard.ts
+  s_55b6d8fca1d2f9::t_3f90ed1df1f528 752
+lib/services/guards/accountState.ts
+  s_55b6d8fca1d2f9::t_9ae7fd1717ecf1 25
+lib/services/navigation/navPreferences.ts
+  s_55b6d8fca1d2f9::t_ecf5b5c9f3b711 10
+lib/services/polls/syncRemotePoll.test.ts
+  s_55b6d8fca1d2f9::t_ae174c1bbbd170 329-330
+lib/services/statuses/reactionLimits.ts
+  s_55b6d8fca1d2f9::t_5a5ac49668f8e5 7
+lib/types/activitypub/activities.ts
+  s_55b6d8fca1d2f9::t_6355d58146533b 120-121
+lib/types/database/gallery.ts
+  s_55b6d8fca1d2f9::t_46581b6ad1d639 4
+lib/types/database/galleryAlbums.ts
+  s_55b6d8fca1d2f9::t_d7ae1deed2588d 4
+lib/utils/activitypub.ts
+  s_55b6d8fca1d2f9::t_2baef5469ba264 55-56
+lint/agentsRules.mjs
+  s_55b6d8fca1d2f9::t_e4b684ac7b3d88 33-34,377,383,393,404,416,431,443,477
+next.config.ts
+  s_55b6d8fca1d2f9::t_957e62e51dc97f 39-40
+scripts/backup/productionArchive.ts
+  s_55b6d8fca1d2f9::t_c4b5cdfbfd3b16 1549-1550,1654-1655
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b3b7cd98ae5558974b308944787d09bfe377440e",
+  "prompts": {},
+  "sessions": {
+    "s_55b6d8fca1d2f9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9b630085-bbc5-4a94-9cf4-4403b18b88a9",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_fb909f8bd7da38": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3328f849-a330-46e9-b5d0-ea3657d31622",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

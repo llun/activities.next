@@ -1,0 +1,109 @@
+lib/database/sql/status.ts
+  s_4c8a4513cc17f6::t_2726a50533af65 854,865-869
+  s_4c8a4513cc17f6::t_ef9dbe36b4d27f 860
+app/api/inbox/getJobMessage.test.ts
+  s_4c8a4513cc17f6::t_e4f026f8770e98 1-15,24-74,89
+  s_feba6f404411ee::t_a71ddd1702dfbc 16-21
+  s_23e3cc6270fa65::t_89947c6c371298 22-23
+  s_4c8a4513cc17f6::t_b4b4ed7443e928 75-84
+app/api/v1/statuses/[id]/route.test.ts
+  s_3c3c605b8f06bf::t_660a84fda41798 16,19,21,24,26,418,420-446
+  s_3c3c605b8f06bf::t_16a6e586387edf 17,20
+  s_3c3c605b8f06bf::t_34afb4d3ff2885 68-77,79,87-90,419
+  s_3c3c605b8f06bf::t_f4d9b72477f838 224-248
+  s_3c3c605b8f06bf::t_e0a5635a4ee5d6 368-417,447-448
+  s_4c8a4513cc17f6::t_e4f026f8770e98 18,22-23,27-31,78,80-86
+app/api/inbox/route.test.ts
+  s_3c3c605b8f06bf::t_de726a49545e16 11,27,47-48,93,198-221,223-248,148-149
+  s_4c8a4513cc17f6::t_b80023c68fa2cb 82,222
+lib/jobs/deleteObjectJob.test.ts
+  s_4c8a4513cc17f6::t_8ea9475ce1cded 9,95-120
+app/api/inbox/getJobMessage.ts
+  s_3c3c605b8f06bf::t_eef86407a0858e 22,24,39-43,78-80,82,84-90,99-103,105,45-47,57,60,62,65-67,70,76-77
+  s_3c3c605b8f06bf::t_939fb2860a1e41 114-117,125,128-130,133,136-138,146-150,153-155
+  s_4c8a4513cc17f6::t_1ef3c5e6fc334e 44,48-56,58-59,64,68-69,71-75,96,168,185,196-199,212-215
+  s_4c8a4513cc17f6::t_d07f9fcad69f07 95,165-167,169,172-174,182-184,186,189-191,200,203-205,216,219-221
+app/api/v1/statuses/[id]/favourite/route.ts
+  s_4c8a4513cc17f6::t_d07f9fcad69f07 4,38-39,41-42
+app/api/v1/statuses/[id]/unfavourite/route.ts
+  s_4c8a4513cc17f6::t_d07f9fcad69f07 4,39,41-42
+  s_feba6f404411ee::t_88e4ab640c3735 50
+app/api/users/[username]/outbox/route.test.ts
+  s_a64fcbca75c90b::t_d9883a4c1095d9 105
+  s_3c3c605b8f06bf::t_3c752ee1f06f0d 142-144,149-179,77,81,187-198,212
+  s_4c8a4513cc17f6::t_e4f026f8770e98 180,54,82,113,148,181,186,199-211,213,215-218
+  s_4c8a4513cc17f6::t_f3494cebbcae8c 30-53,73,110-112,145-147,183-184
+app/api/v1/statuses/[id]/unreblog/route.ts
+  s_4c8a4513cc17f6::t_d07f9fcad69f07 4,40-44,51
+  s_8f8c7653879d27::t_c928d2674e42e0 52
+app/api/v1/statuses/[id]/unpin/route.ts
+  s_4c8a4513cc17f6::t_d07f9fcad69f07 3,38-43
+lib/types/database/operations.ts
+  s_4c8a4513cc17f6::t_2726a50533af65 399-401
+lib/jobs/deleteObjectJob.ts
+  s_4c8a4513cc17f6::t_2726a50533af65 2-5,10-13,21-26,40-41,52-57,60-61
+app/api/v1/statuses/[id]/reblog/route.ts
+  s_4c8a4513cc17f6::t_d07f9fcad69f07 4,39-51
+app/api/v1/statuses/[id]/pin/route.ts
+  s_4c8a4513cc17f6::t_d07f9fcad69f07 3,38-43
+app/api/users/[username]/outbox/route.ts
+  s_3c3c605b8f06bf::t_59c68f6e54f0ba 3
+  s_4c8a4513cc17f6::t_d07f9fcad69f07 15,17-27,54-57
+  s_4c8a4513cc17f6::t_2726a50533af65 16,58-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "8227d2bffb6682f5394db600e28599fbee351add",
+  "prompts": {},
+  "sessions": {
+    "s_23e3cc6270fa65": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e2303-f3de-7f62-9a82-67036dea01be",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_3c3c605b8f06bf": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1e03-1eaf-76b1-9d25-8d5124e6974d",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_4c8a4513cc17f6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1ff9-6421-7f91-b33a-3ec0b5429434",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_8f8c7653879d27": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1dff-6d59-7960-9eee-87eebfec6a18",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_a64fcbca75c90b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e201c-31ba-76c1-90ec-08acecf005ec",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_feba6f404411ee": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e204c-d588-73c1-be25-fb2895e0a2eb",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

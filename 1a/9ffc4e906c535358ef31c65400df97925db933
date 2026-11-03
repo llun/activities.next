@@ -1,0 +1,97 @@
+app/api/v1/instance/domain_blocks/route.test.ts
+  aec9357be833f4ad 1-52
+lib/jobs/sendNoteJob.test.ts
+  aec9357be833f4ad 105-139
+lib/services/federation/blocklistSources.ts
+  aec9357be833f4ad 1-130
+app/(timeline)/admin/federation/actions.ts
+  aec9357be833f4ad 1-108
+app/api/v1/admin/domain_allows/route.ts
+  aec9357be833f4ad 1-62
+migrations/20260426180000_add_domain_federation_rules.js
+  aec9357be833f4ad 1-34
+app/api/users/[username]/inbox/route.ts
+  aec9357be833f4ad 11,34-42
+lib/services/federation/domainPolicy.ts
+  aec9357be833f4ad 1-84
+lib/services/federation/domainRules.test.ts
+  aec9357be833f4ad 1-60
+lib/jobs/sendUpdateNoteJob.ts
+  aec9357be833f4ad 6,90
+lib/actions/utils.ts
+  aec9357be833f4ad 3,14-17
+app/api/v1/admin/domain_allows/[id]/route.ts
+  aec9357be833f4ad 1-66
+lib/jobs/fetchRemoteStatusJob.ts
+  aec9357be833f4ad 6,21,112,180-188
+app/api/v1/instance/domain_blocks/route.ts
+  aec9357be833f4ad 1-6,9-28
+app/api/v1/admin/domain_blocks/[id]/route.ts
+  aec9357be833f4ad 1-119
+lib/database/sql/admin.test.ts
+  aec9357be833f4ad 1-2,205-306
+lib/types/database/operations.ts
+  aec9357be833f4ad 1039-1101,1112-1133
+app/api/v1/admin/domain_blocks/route.test.ts
+  aec9357be833f4ad 1-112
+app/api/v1/admin/domain_blocks/route.ts
+  aec9357be833f4ad 1-69
+app/api/v1/accounts/[id]/follow/route.ts
+  aec9357be833f4ad 4,12,41-48
+lib/config/index.ts
+  aec9357be833f4ad 24-25,38,85
+lib/jobs/sendNoteJob.ts
+  aec9357be833f4ad 7,100,103
+lib/services/guards/ActivityPubVerifyGuard.ts
+  aec9357be833f4ad 4,24-26
+lib/jobs/sendUndoAnnounceJob.ts
+  aec9357be833f4ad 6,43,45
+lib/database/sql/admin.ts
+  aec9357be833f4ad 1,13-17,21,26-27,29-34,68-135,330-528
+lib/jobs/sendAnnounceJob.ts
+  aec9357be833f4ad 6,40,42
+lib/services/guards/AdminApiGuard.ts
+  aec9357be833f4ad 1-45
+app/(timeline)/admin/federation/page.tsx
+  aec9357be833f4ad 1-283
+app/(timeline)/admin/layout.tsx
+  aec9357be833f4ad 28
+app/api/v1/admin/domain_allows/schema.ts
+  aec9357be833f4ad 1-22
+lib/services/federation/domainPolicy.test.ts
+  aec9357be833f4ad 1-90
+app/api/v1/accounts/follow/route.ts
+  aec9357be833f4ad 8,60-68
+lib/services/federation/domainRules.ts
+  aec9357be833f4ad 1-92
+app/api/v1/accounts/[id]/unfollow/route.ts
+  aec9357be833f4ad 3,41,43
+app/api/v1/admin/domain_blocks/schema.ts
+  aec9357be833f4ad 1-48
+app/api/v1/admin/domain_blocks/import/route.ts
+  aec9357be833f4ad 1-48
+lib/services/federation/blocklistSources.test.ts
+  aec9357be833f4ad 1-73
+lib/types/database/rows.ts
+  aec9357be833f4ad 76-90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "1a9ffc4e906c535358ef31c65400df97925db933",
+  "prompts": {
+    "aec9357be833f4ad": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dcb00-9e97-7592-828b-dd28aea9a215",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 2811,
+      "total_deletions": 18,
+      "accepted_lines": 2802,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -1,0 +1,23 @@
+package.json
+  642bae60024a21f5 3,50,126,130-131,137-141
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "28eedcdd61f053f414f0eeb8284d2666ae95fff7",
+  "prompts": {
+    "642bae60024a21f5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dcacd-e76d-7bd1-9bc6-e309ff39e100",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 10,
+      "total_deletions": 5,
+      "accepted_lines": 10,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -1,0 +1,59 @@
+lib/services/translation/translateStatus.test.ts
+  s_bccef2ddac8769::t_e7057912c35f4c 195-238
+  s_bccef2ddac8769::t_2cf54a040685c9 117-118,120
+  s_bccef2ddac8769::t_7e85bd1ccb234d 31-40,44,51
+  s_bccef2ddac8769::t_783b5f5c6796fe 138,158
+  s_bccef2ddac8769::t_3b0d3cef05c7e0 23-28
+app/api/v1/instance/translation_languages/route.ts
+  s_bccef2ddac8769::t_b84ae0b50bcd54 1,11-13,17-36
+lib/types/mastodon/translation.ts
+  s_bccef2ddac8769::t_1b0aa1d6572595 30-32
+migrations/20260607010000_add_translation_cache_table.js
+  s_bccef2ddac8769::t_28dcabef7cf7eb 3-9,17
+  s_bccef2ddac8769::t_3b0d3cef05c7e0 24-29
+lib/services/translation/httpClient.test.ts
+  s_bccef2ddac8769::t_0aa41b0d608bf7 1-74
+lib/types/database/operations.ts
+  s_bccef2ddac8769::t_cfd3cf13b31d7b 1200
+lib/database/sql/translationCache.ts
+  s_bccef2ddac8769::t_3b0d3cef05c7e0 48-53
+  s_bccef2ddac8769::t_0f6e0430ccd52e 14,19,30,41
+lib/client.ts
+  s_bccef2ddac8769::t_b2af82fb07cee6 353-381
+lib/services/translation/translationCache.integration.test.ts
+  s_bccef2ddac8769::t_43a9b3f8a23c30 73
+lib/components/posts/translate-content.test.tsx
+  s_bccef2ddac8769::t_3b0d3cef05c7e0 111-113,124-126
+  s_bccef2ddac8769::t_db8a76a7fbee16 5,7,13-14,20,27-35,46-48,54-55,57-75,82,86,104-105,109-110,114-122
+lib/services/translation/translateStatus.ts
+  s_bccef2ddac8769::t_5b428ec2e59e0c 12
+  s_bccef2ddac8769::t_798057d5e3184c 65-70,85,111
+  s_bccef2ddac8769::t_67e69ca20831e7 139-145,147
+app/api/v1/statuses/[id]/translate/route.ts
+  s_bccef2ddac8769::t_d2a4d631d128f6 11-16
+  s_bccef2ddac8769::t_22b4f1fab740ac 48-51,55-60
+lib/services/translation/httpClient.ts
+  s_bccef2ddac8769::t_64aa6e37cbec7a 19-22,30
+  s_bccef2ddac8769::t_810e19de84c24d 10-18,23-29,31-49,52-53,78,81
+lib/components/posts/translate-content.tsx
+  s_bccef2ddac8769::t_3b0d3cef05c7e0 23-24
+  s_bccef2ddac8769::t_df28b6029bc39d 3,5,22,25,30-33,44,46-66,74-83,88
+app/api/v1/instance/translation_languages/route.test.ts
+  s_bccef2ddac8769::t_dc670e2e33ba78 1-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "887e0e60e50da280c2888d9ee9fd76d61ec1fa4f",
+  "prompts": {},
+  "sessions": {
+    "s_bccef2ddac8769": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9075253d-6c2a-4513-a48e-8142382dc03a",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

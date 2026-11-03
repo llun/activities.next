@@ -1,0 +1,141 @@
+app/api/v1/statuses/route.ts
+  s_73f7ec2e056d5b::t_49d563fb7a39b9 126-128
+lib/client.ts
+  s_73f7ec2e056d5b::t_e0a1060a86e78f 791
+  s_73f7ec2e056d5b::t_c91b7d713f7260 796-797,802,813-822,824,826-831,862-863,865-866
+  s_137b1f60d30121::t_3a9368a085edc4 840-842
+app/api/v1/settings/fitness/strava/archive/presigned/route.ts
+  s_73f7ec2e056d5b::t_2dd51b8e10320b 64-70
+lib/services/medias/S3StorageFile.test.ts
+  s_73f7ec2e056d5b::t_2c7ec1cda320ce 1-122,124
+  s_882d23e66dbf6c::t_d353d15e0b520f 123
+lib/services/medias/types.ts
+  s_73f7ec2e056d5b::t_fe693c610444e2 78,96-97,111-114
+scripts/importStravaArchive.ts
+  s_73f7ec2e056d5b::t_19ee37fdec60ff 200
+lib/services/strava/archiveReader.open.test.ts
+  s_73f7ec2e056d5b::t_18f771b22b1617 22,24,27-32,37-50,71-143
+app/api/v1/medias/presigned/route.ts
+  s_73f7ec2e056d5b::t_1c307ae7a9f600 4-7,18-26,36-44,49,75-110
+lib/database/sql/media.ts
+  s_73f7ec2e056d5b::t_1817a3e9296d35 24,83-97,105-111,113-120,122-127,193-240,474
+  s_73f7ec2e056d5b::t_9f41c8e06c1db1 98-104,112,121
+  s_73f7ec2e056d5b::t_f0b63c6a07b819 428,437
+lib/jobs/importStravaActivityJob.test.ts
+  s_73f7ec2e056d5b::t_d067fd8b3d0da8 640-686
+lib/services/fitness-files/types.ts
+  s_73f7ec2e056d5b::t_582c24e1e60f9d 5,120-123
+lib/services/medias/localFile.ts
+  s_73f7ec2e056d5b::t_1aeaee0d175229 110-114
+app/api/v1/fitness-files/[id]/route-data/route.ts
+  s_73f7ec2e056d5b::t_ff9687340cef8f 3,35,63-73,237-239,241-243
+  s_73f7ec2e056d5b::t_28aabf84d39723 365-369,449-456,464-465,469
+  s_73f7ec2e056d5b::t_ca3c70754ae30b 403
+lib/services/fitness-files/localFile.ts
+  s_73f7ec2e056d5b::t_35376656a67e7d 18,67-71,97-101,142
+  s_73f7ec2e056d5b::t_879e03fa32ecf9 201-204
+lib/jobs/importStravaActivityJob.ts
+  s_73f7ec2e056d5b::t_3129f32021907b 43-46,336-340
+app/api/v1/settings/fitness/strava/archive/route.ts
+  s_73f7ec2e056d5b::t_8d592e93562853 7-8,248-253
+lib/services/fitness-files/S3StorageFile.ts
+  s_73f7ec2e056d5b::t_90ff14a65304d7 4,14-17,20,23-24,26,38-40,84-89,95-97,283-293,299,301-314
+  s_73f7ec2e056d5b::t_8410bcb717dad2 25,93-94
+lib/services/fitness-files/localFile.test.ts
+  s_73f7ec2e056d5b::t_7eadb2ee6f1156 1-40
+lib/services/strava/archiveReader.test.ts
+  s_73f7ec2e056d5b::t_f5d0173a6652fe 5,27-28,39-40,60-83
+  s_73f7ec2e056d5b::t_5838a0cdf4f5f4 51-54,57-58
+  s_73f7ec2e056d5b::t_b269c337b6252e 55-56,59
+lib/services/fitness-files/index.ts
+  s_73f7ec2e056d5b::t_6219efa1319b6f 172-193
+lib/services/medias/S3StorageFile.ts
+  s_73f7ec2e056d5b::t_29507756c24d8a 4,19-23,40-41,43-51
+  s_73f7ec2e056d5b::t_26941aabf3383c 42,110-111
+  s_73f7ec2e056d5b::t_9ce3fd8b79a1ee 98-103,106-109,112-114
+  s_73f7ec2e056d5b::t_b924e41f4faa65 175,182-186,197-204,233-236
+  s_73f7ec2e056d5b::t_fbf2cc308140ab 241-263,269,271-277,279-280,282-286,289-300,303-306
+  s_882d23e66dbf6c::t_16218dccd3f48a 287
+lib/jobs/importStravaArchiveJob.ts
+  s_73f7ec2e056d5b::t_411db41cb839c8 19,33-37,112-113,117,120-124,138-142,153-172,191-194,217-221,225-226
+  s_73f7ec2e056d5b::t_a53ba0f639d60c 25,278-284,301-306,737,765-784,819-822
+lib/services/fitness-files/path.ts
+  s_73f7ec2e056d5b::t_8d6fed975f6b65 1-29
+lib/services/strava/archiveReader.ts
+  s_73f7ec2e056d5b::t_b1442f9c9845e5 5-7,27-43,60-109,138-139,143,152-164,167,211-212,214,264-268,274-282,314,327,339,399,405-408,410-414,416-421,441,446-447,452,457,460-464,466,470-471,480,485,491,495-499,503,512-514
+  s_73f7ec2e056d5b::t_ed877fd6ddbac2 390-398
+lib/utils/streamLimit.ts
+  s_73f7ec2e056d5b::t_0e95e3bb79d7e4 1-77,114-118,120,123,125-127,132-156,161-173,175-184
+  s_73f7ec2e056d5b::t_23838ec96d28e7 78-98,102-113
+  s_73f7ec2e056d5b::t_626c960a2e5dc0 99-101,121,174,185-186
+lib/services/medias/index.ts
+  s_73f7ec2e056d5b::t_1fb578f4b7bb8f 53-72
+lib/types/database/operations.ts
+  s_73f7ec2e056d5b::t_659f85cb2a415a 749-756,840-844,848-850
+app/api/v1/settings/fitness/strava/archive/route.test.ts
+  s_73f7ec2e056d5b::t_c392ccfc94a8d7 4-5,55-56,77-80,141,430-434,441-472
+app/api/v1/fitness-files/[id]/route-data/route.test.ts
+  s_73f7ec2e056d5b::t_eac86de906d93c 14-16,99-100,181,211-240,244-245,247-268
+  s_0ffdd7b5464187::t_f93b87315c1c0a 44-45
+  s_73f7ec2e056d5b::t_6d280e88be8d69 95
+  s_7fb2d4963320e6::t_848cf3541831d1 207-209
+  s_882d23e66dbf6c::t_866318ab45ae3b 270-271,273-279
+  s_4301987c270c49::t_8bfefdd0a076dc 282-283
+  s_0ffdd7b5464187::t_13fc3ea5eac725 630
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "3f9ed46c8d0c25485eb6b0d52db9a1324551b2b6",
+  "prompts": {},
+  "sessions": {
+    "s_0ffdd7b5464187": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e20c0-ca9d-7252-ab8d-d53f9c7a8ea4",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_137b1f60d30121": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e201c-b2c2-7c42-b6ff-9d399e71684e",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_4301987c270c49": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e209a-bc18-7f62-9a09-4e693b9f82d8",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_73f7ec2e056d5b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1e04-5241-7880-b82c-c701d3ac8616",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_7fb2d4963320e6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e204d-8d0a-7702-bb34-bea296bd9320",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_882d23e66dbf6c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1ff9-6467-7201-9341-426ca0739c0c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

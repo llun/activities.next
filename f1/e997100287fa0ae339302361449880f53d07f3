@@ -1,0 +1,119 @@
+lib/services/link-previews/fetchLinkPreview.ts
+  s_8fbc352edaf843::t_7e730872cca56a 61-62
+  s_8fbc352edaf843::t_275d8d9b061b25 1-60,63-173
+lib/database/sql/linkPreview.test.ts
+  s_8fbc352edaf843::t_7cf9a385222aa2 1-248
+lib/jobs/fetchLinkPreviewJob.ts
+  s_8fbc352edaf843::t_5e07adb7aa60ed 1-33
+lib/services/mastodon/getMastodonPreviewCard.ts
+  s_8fbc352edaf843::t_98e635d3ebc286 1-46
+lib/services/link-previews/syncStatusLinkPreview.test.ts
+  s_8fbc352edaf843::t_bbc5a3852c5e7c 1-210
+lib/database/sql/index.test.ts
+  s_8fbc352edaf843::t_19ab62964f40e2 226-228
+lib/services/link-previews/parseOpenGraph.ts
+  s_8fbc352edaf843::t_1d9280a8db3b92 1-203
+lib/jobs/fetchLinkPreviewJob.test.ts
+  s_8fbc352edaf843::t_cc141c36edd071 1-78
+lib/utils/text/convertMarkdownText.ts
+  s_8fbc352edaf843::t_766f2022793e2a 126-140,142
+lib/database/types.ts
+  s_8fbc352edaf843::t_e202d89cbc9de1 89
+  s_8fbc352edaf843::t_e55b0979cec8b7 32
+lib/services/mastodon/getMastodonStatus.ts
+  s_8fbc352edaf843::t_2fdbf26c267adc 4
+  s_8fbc352edaf843::t_4b4730ea3e99ed 675-679
+lib/services/link-previews/parseOpenGraph.test.ts
+  s_8fbc352edaf843::t_155ddb10eab966 1-79,84-92,96-130,134-181,192-282
+  s_8fbc352edaf843::t_48b2e98ffad5b0 80-83,93-95,131-133,182-191
+lib/database/sql/linkPreview.ts
+  s_8fbc352edaf843::t_48b2e98ffad5b0 217-219
+  s_8fbc352edaf843::t_995caff6242ca1 1-216,220-222
+lib/database/sql/status.ts
+  s_8fbc352edaf843::t_c0afca919da43d 41-44
+  s_8fbc352edaf843::t_b2f973c3d17507 173-176
+  s_8fbc352edaf843::t_74c59d25321992 3211-3213
+  s_8fbc352edaf843::t_314cef1585bd7c 291-292,294-326
+  s_8fbc352edaf843::t_67866e68297d4c 1411-1431,1435,1665-1685,1689
+  s_8fbc352edaf843::t_98a52ff6c8ffb4 101
+  s_8fbc352edaf843::t_2cbebf2389b577 3144-3150
+  s_8fbc352edaf843::t_6023fcdc66eb7c 3043
+  s_8fbc352edaf843::t_d93ebb31a8c65b 1815-1840,1843
+migrations/schema.sqlite.sql
+  s_8fbc352edaf843::t_b9914b13a1d47d 269-272
+lib/jobs/index.ts
+  s_8fbc352edaf843::t_153bf7981c95d4 11
+  s_8fbc352edaf843::t_61e746f2a2209b 27
+  s_8fbc352edaf843::t_f2e2ec6cbd063f 109-110
+lib/jobs/createNoteJob.ts
+  s_8fbc352edaf843::t_ce2927910c8e65 20
+  s_8fbc352edaf843::t_14665aa32fe6e6 281-286
+lib/services/link-previews/fetchLinkPreview.test.ts
+  s_8fbc352edaf843::t_48b2e98ffad5b0 86
+  s_8fbc352edaf843::t_65b9ca36362604 1-7,12,15-21,23-38,47-48,51-53,55-57,59,65-66,68-81,83-85,87-89,91-96,98-100,102-107,109-113,115-117,119-121,123-126,128-147,149,151-154,156-159,161-162,164,166-167,169-223,225-236,238-249,251-267,269-283,285-299,301-303,305-309,311-314
+  s_8fbc352edaf843::t_cea2ce071ec051 22
+  s_8fbc352edaf843::t_b9a0d0a264761d 8-11,13-14
+  s_8fbc352edaf843::t_585b8d9fcb1d76 39-46,49-50,54,60-64
+  s_8fbc352edaf843::t_404c8539d806ad 58,67,82,90,97,101,108,114,122,127,148,150,155,160,165,168,224,237,250,268,284,300,304,310
+  s_8fbc352edaf843::t_822997916734cd 163
+  s_8fbc352edaf843::t_70a61240268dee 118
+lib/jobs/updateNoteJob.ts
+  s_8fbc352edaf843::t_0f8a5ec3365ebf 92-101
+  s_8fbc352edaf843::t_ce2927910c8e65 10
+lib/jobs/names.ts
+  s_8fbc352edaf843::t_643bb8e2d20566 35
+lib/database/sql/index.ts
+  s_8fbc352edaf843::t_c9c661b8c8df2e 116-117
+  s_8fbc352edaf843::t_819761fb19d44c 30
+  s_8fbc352edaf843::t_41834278ec3a23 165
+  s_8fbc352edaf843::t_896379b013ca9c 95
+migrations/schema.sql
+  s_8fbc352edaf843::t_4aabcefaf09af4 661-679,1057-1063,1464-1466,1581-1583,1749-1750,1839
+  s_8fbc352edaf843::t_a8a36dcdd530ab 1840
+migrations/20260820000000_add_link_previews.js
+  s_8fbc352edaf843::t_8cbc1d5e45215a 1-47,52-72
+  s_8fbc352edaf843::t_48b2e98ffad5b0 48-51
+lib/actions/updateNote.ts
+  s_8fbc352edaf843::t_632d410a2b7ab5 5
+  s_8fbc352edaf843::t_0d327c76febe44 79-83
+lib/services/link-previews/syncStatusLinkPreview.ts
+  s_8fbc352edaf843::t_48b2e98ffad5b0 1
+  s_8fbc352edaf843::t_8f12ed201a3fe4 2-90
+lib/services/link-previews/extractUrl.test.ts
+  s_8fbc352edaf843::t_48b2e98ffad5b0 75-77,110-112,155-157
+  s_8fbc352edaf843::t_cb16744f206541 1-74,78-109,113-154,158-214
+lib/config/serverSettings.ts
+  s_8fbc352edaf843::t_93f496aa8caab2 131-132
+  s_8fbc352edaf843::t_a8172dace5d644 326-335
+  s_8fbc352edaf843::t_4f018f19d806d2 83-88
+lib/services/mastodon/getMastodonPreviewCard.test.ts
+  s_8fbc352edaf843::t_48b2e98ffad5b0 3
+  s_8fbc352edaf843::t_fd0b07d33937e6 1-2,4-109
+lib/actions/createNote.ts
+  s_8fbc352edaf843::t_12aa22d3360294 10
+  s_8fbc352edaf843::t_f8916de58b1dec 757-761
+lib/types/database/operations.ts
+  s_8fbc352edaf843::t_4da582ae89d93c 3093-3149,3151-3166
+  s_8fbc352edaf843::t_48b2e98ffad5b0 3150
+lib/services/link-previews/extractUrl.ts
+  s_8fbc352edaf843::t_201dc60f49d09a 1-150
+lib/types/domain/status.ts
+  s_8fbc352edaf843::t_3a8b0c6d8f2a34 115-134
+  s_8fbc352edaf843::t_b8000d84217531 200-203
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "f1e997100287fa0ae339302361449880f53d07f3",
+  "prompts": {},
+  "sessions": {
+    "s_8fbc352edaf843": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f5805ef5-0c89-425f-91b8-cc86a0704bc4",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

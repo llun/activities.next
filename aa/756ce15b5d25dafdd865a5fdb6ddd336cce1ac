@@ -1,0 +1,24 @@
+app/(timeline)/[actor]/ActorMediaGallery.test.tsx
+  h_580a04e334fef4 1-70
+app/(timeline)/[actor]/ActorMediaGallery.tsx
+  h_580a04e334fef4 65-72
+lib/components/medias-modal/medias-modal.test.tsx
+  h_580a04e334fef4 1-88
+lib/components/medias-modal/medias-modal.tsx
+  h_580a04e334fef4 285,289-294,297-301
+lib/components/posts/attachments.test.tsx
+  h_580a04e334fef4 281-339,476-607
+lib/components/posts/attachments.tsx
+  h_580a04e334fef4 266,269,282-289,296-310,321-374,377-390,392-393,395-407,409,411,413,415-418,420-431,433
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "aa756ce15b5d25dafdd865a5fdb6ddd336cce1ac",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

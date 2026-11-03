@@ -1,0 +1,96 @@
+app/api/v2/notifications/policy/route.ts
+  s_fa22e9bcf5886a::t_8c6dd7b2b7f397 1-5,7-100
+  s_fa22e9bcf5886a::t_b82577b1a49252 6
+lib/services/notifications/evaluateNotificationPolicy.test.ts
+  s_fa22e9bcf5886a::t_f75e8c140dbc71 1-139,141-183
+  s_fa22e9bcf5886a::t_1e3c9d0fa46023 140
+app/api/v1/notifications/requests/merged/route.ts
+  s_fa22e9bcf5886a::t_6c0c4aa5dc0a85 1-22
+lib/actions/announce.ts
+  s_fa22e9bcf5886a::t_f59255102cb924 10
+  s_fa22e9bcf5886a::t_4bfdafac663a77 69
+app/api/v2/notifications/policy/route.test.ts
+  s_fa22e9bcf5886a::t_abdf08cc14b48f 1-109
+lib/actions/createNote.ts
+  s_fa22e9bcf5886a::t_75937138d0b797 18
+  s_fa22e9bcf5886a::t_a4d427b65a6518 464,480
+lib/services/notifications/createNotificationWithPolicy.ts
+  s_fa22e9bcf5886a::t_cb3ff120f6bc7c 1-34
+app/api/v1/notifications/requests/route.ts
+  s_fa22e9bcf5886a::t_d563def399a65a 1-52
+lib/actions/like.ts
+  s_fa22e9bcf5886a::t_3b5d80edfb41b9 8
+  s_fa22e9bcf5886a::t_e5db2d48a84727 38
+app/api/v1/notifications/requests/[id]/accept/route.ts
+  s_fa22e9bcf5886a::t_bdedbdb9cda31e 1-59
+lib/services/timelines/mention.ts
+  s_fa22e9bcf5886a::t_098c7a81b0ec58 9
+  s_fa22e9bcf5886a::t_74e3080ba680d6 68,105
+lib/types/database/rows.ts
+  s_fa22e9bcf5886a::t_ab7b9a855db372 34-44
+lib/database/sql/notification.ts
+  s_fa22e9bcf5886a::t_bd52e6e2a0f17e 6-7,13-14
+  s_fa22e9bcf5886a::t_326b16bae258d3 21
+  s_fa22e9bcf5886a::t_bfbc9e44e7af05 37-38,50
+  s_fa22e9bcf5886a::t_985083b6083183 74-75,83-87
+  s_fa22e9bcf5886a::t_0cb612bda7d74a 163-165,174-176,185-191,196-200
+  s_fa22e9bcf5886a::t_17a70af9f26fe1 166-167,171-173
+  s_fa22e9bcf5886a::t_265edf76548bdd 244-347,352-375,378-379
+  s_fa22e9bcf5886a::t_0e08bc2c9db430 376-377
+lib/database/sql/actor.ts
+  s_fa22e9bcf5886a::t_6d835be99ce6c8 44,57,60-61
+  s_fa22e9bcf5886a::t_8e68f39d79a84f 759
+  s_fa22e9bcf5886a::t_7d5173af5cfb12 784
+  s_fa22e9bcf5886a::t_c64023f4529a1c 907-924
+lib/jobs/importStravaActivityJob.ts
+  s_fa22e9bcf5886a::t_b82577b1a49252 20
+  s_fa22e9bcf5886a::t_42b181190352e0 557,693
+lib/types/database/operations.ts
+  s_fa22e9bcf5886a::t_ace43d25fc7437 100
+  s_fa22e9bcf5886a::t_45487cc766def0 178-185
+  s_fa22e9bcf5886a::t_e5a34629f95c54 1402-1404
+  s_fa22e9bcf5886a::t_a62b726df4430f 1416-1418
+  s_fa22e9bcf5886a::t_14868d0bbcfed4 1432-1434,1441-1445
+  s_fa22e9bcf5886a::t_ed770172797554 1446-1448
+  s_fa22e9bcf5886a::t_c55f84365a3083 1502-1529,1537-1553,1556-1570,1580-1582
+  s_fa22e9bcf5886a::t_219e76ef3d38e2 1571-1579
+lib/database/sql/actor.test.ts
+  s_fa22e9bcf5886a::t_4b138659fe20e7 664-702
+app/api/v1/notifications/requests/[id]/dismiss/route.ts
+  s_fa22e9bcf5886a::t_9ae3ba3b257aea 1-59
+app/api/v1/notifications/requests/[id]/accept/route.test.ts
+  s_fa22e9bcf5886a::t_935315d88d611c 1-81
+app/api/v1/notifications/requests/dismiss/route.ts
+  s_fa22e9bcf5886a::t_ff5846b57dbc67 1-59
+app/api/v1/notifications/requests/accept/route.ts
+  s_fa22e9bcf5886a::t_7f6efa4878df3f 1-59
+app/api/v1/notifications/requests/[id]/route.ts
+  s_fa22e9bcf5886a::t_51209bcf0e4722 1-24,37,42,51,65,69
+  s_fa22e9bcf5886a::t_b82577b1a49252 25-36,38-41,43-50,52-64,66-68
+lib/actions/createFollower.ts
+  s_fa22e9bcf5886a::t_a5de7d387e2375 15
+  s_fa22e9bcf5886a::t_3ebc42277a652f 68
+  s_fa22e9bcf5886a::t_d0dd86e3196624 107
+lib/services/notifications/getMastodonNotificationRequest.ts
+  s_fa22e9bcf5886a::t_fc44db84e66b05 1-49
+lib/database/sql/notification.test.ts
+  s_fa22e9bcf5886a::t_4c8d32a95d7f83 289-393
+  s_fa22e9bcf5886a::t_ace2c2b1dbda19 394-443,445-507,509-511
+  s_fa22e9bcf5886a::t_1e3c9d0fa46023 444,508
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "6e338c123577b7ef7b368eac2bdb33b3b9bca427",
+  "prompts": {},
+  "sessions": {
+    "s_fa22e9bcf5886a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1fda05fc-0d7e-4ea0-9245-8a6c12dd5340",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,18 @@
+app/api/v1/follow_requests/route.test.ts
+  h_580a04e334fef4 175,198,241,272,307
+app/api/v1/notifications/clear/route.test.ts
+  h_580a04e334fef4 42,65,97,99,130,159,193,211,228
+app/api/v1/push/subscription/route.test.ts
+  h_580a04e334fef4 3,10,393,430-435,443,456-461
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "b1e92a7b7d0e70cf5a3b6e90ef50021cce6ad37a",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

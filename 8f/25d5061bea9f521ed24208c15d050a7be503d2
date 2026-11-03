@@ -1,0 +1,23 @@
+lib/components/posts/post.test.tsx
+  s_30b9662e70826b::t_304836baa59411 386-395,457,488,491-519
+lib/components/posts/actions/reply-button.tsx
+  s_30b9662e70826b::t_b0d694038af745 23
+lib/components/posts/actions/like-button.tsx
+  s_30b9662e70826b::t_ab2428298ee3e1 27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "8f25d5061bea9f521ed24208c15d050a7be503d2",
+  "prompts": {},
+  "sessions": {
+    "s_30b9662e70826b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e31cb-e738-7883-98ff-e5d288fd8468",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

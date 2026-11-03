@@ -1,0 +1,38 @@
+lib/services/medias/localFile.ts
+  s_a42ba3e5953a60::t_304c6ffd600bd5 28-31,140-143,146-147,151,171-174,210-214,226-228
+  s_a42ba3e5953a60::t_6f0b3733039043 27
+lib/services/medias/S3StorageFile.test.ts
+  s_a42ba3e5953a60::t_7f3ec5e0baf127 888-891,902-929,931-946
+  s_a42ba3e5953a60::t_5641342707ff98 960-964,966-971,973,981-988,991
+  s_a42ba3e5953a60::t_bd5a4407c62fd7 852-864,965,972,974,995
+lib/services/medias/S3StorageFile.ts
+  s_a42ba3e5953a60::t_304c6ffd600bd5 42-45,414-417,420-421,425,453-456,490-494,505-507
+  s_a42ba3e5953a60::t_70ce65b6a6dcc3 41
+lib/services/medias/thumbnailInput.ts
+  s_a42ba3e5953a60::t_1b57285feb19f7 1-39
+lib/services/medias/localFile.test.ts
+  s_a42ba3e5953a60::t_bd5a4407c62fd7 577-588,660-661
+  s_a42ba3e5953a60::t_25bd30d2acdd55 521-575
+  s_a42ba3e5953a60::t_7f3ec5e0baf127 632-634,648-659
+  s_a42ba3e5953a60::t_4ce028a1eb8eba 576
+docs/architecture.md
+  s_a42ba3e5953a60::t_f088f87784adf5 186-190
+REVIEW.md
+  s_a42ba3e5953a60::t_de328ec8f0581a 254-267
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "71a18be4d07534f7d0c6b972a7a11c5c8b772f65",
+  "prompts": {},
+  "sessions": {
+    "s_a42ba3e5953a60": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7fdd9a44-e2f5-4086-9079-7f4d91769a7f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

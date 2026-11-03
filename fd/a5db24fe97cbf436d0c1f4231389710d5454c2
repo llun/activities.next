@@ -1,0 +1,21 @@
+app/api/v1/notifications/unread_count/route.test.ts
+  s_b976f920c7fbe8::t_15ff593d4769eb 111-143
+app/api/v1/notifications/route.ts
+  s_b976f920c7fbe8::t_9be6bc68966a61 38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "fda5db24fe97cbf436d0c1f4231389710d5454c2",
+  "prompts": {},
+  "sessions": {
+    "s_b976f920c7fbe8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "13bb7ca9-89e5-446d-b4ec-55646b22d3be",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

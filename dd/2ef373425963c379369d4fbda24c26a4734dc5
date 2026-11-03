@@ -1,0 +1,25 @@
+REVIEW.md
+  s_8a0253e66fa441::t_87d74e5fe6f797 543-545
+lib/services/medias/storagePathCallSites.test.ts
+  s_8a0253e66fa441::t_0f98018ed8b236 15-35,43-56,58-59,71,75,77-83,85,98-123
+AGENTS.md
+  s_8a0253e66fa441::t_87d74e5fe6f797 2291,2294
+CLAUDE.md
+  s_8a0253e66fa441::t_87d74e5fe6f797 55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "dd2ef373425963c379369d4fbda24c26a4734dc5",
+  "prompts": {},
+  "sessions": {
+    "s_8a0253e66fa441": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "003143ac-6d78-4908-9393-0a7ba5ca3617",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

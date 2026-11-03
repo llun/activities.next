@@ -1,0 +1,24 @@
+app/(timeline)/[actor]/FollowListLoadingSkeleton.test.tsx
+  h_580a04e334fef4 22-23,27,50-118
+app/(timeline)/[actor]/FollowListLoadingSkeleton.tsx
+  h_580a04e334fef4 1-3,7,20-21,24-40,46-47
+app/(timeline)/[actor]/followers/loading.test.tsx
+  h_580a04e334fef4 25-26,31,38-65
+app/(timeline)/[actor]/followers/loading.tsx
+  h_580a04e334fef4 6
+app/(timeline)/[actor]/following/loading.test.tsx
+  h_580a04e334fef4 25-26,31,38-65
+app/(timeline)/[actor]/following/loading.tsx
+  h_580a04e334fef4 6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "2bfb1a8a1add93f025aba59074c8b320fa25ff12",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

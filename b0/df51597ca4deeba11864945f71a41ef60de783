@@ -1,0 +1,43 @@
+lib/services/guards/AdminApiGuard.test.ts
+  aec9357be833f4ad 1-143
+lib/services/federation/domainRules.test.ts
+  aec9357be833f4ad 19,21-23,34
+lib/database/sql/admin.test.ts
+  aec9357be833f4ad 227,229-231,310,314-315,324,326-328,331,338-339,352,357,360-361,363,400,402-404
+app/api/v1/accounts/follow/route.test.ts
+  aec9357be833f4ad 1-99
+app/(timeline)/admin/federation/page.tsx
+  aec9357be833f4ad 292-295
+lib/database/sql/admin.ts
+  aec9357be833f4ad 108,110-113,115,134-137,141,460-462,493-495
+lib/services/guards/AdminApiGuard.ts
+  aec9357be833f4ad 6,21-23,39-43,52-67
+lib/utils/request.test.ts
+  aec9357be833f4ad 49-53,63-67,87-90,92,237-242
+lib/utils/request.ts
+  aec9357be833f4ad 79-87
+lib/services/federation/domainRules.ts
+  aec9357be833f4ad 52,63-70
+app/api/v1/accounts/follow/route.ts
+  aec9357be833f4ad 111,113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "b0df51597ca4deeba11864945f71a41ef60de783",
+  "prompts": {
+    "aec9357be833f4ad": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dcb00-9e97-7592-828b-dd28aea9a215",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 370,
+      "total_deletions": 34,
+      "accepted_lines": 1224,
+      "overriden_lines": 0
+    }
+  }
+}

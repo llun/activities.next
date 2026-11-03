@@ -1,0 +1,40 @@
+lib/database/sql/status.ts
+  s_a9c053813411a7::t_3aa4afb746b6ac 1692-1694,1731-1742
+  s_a9c053813411a7::t_258a82d154f5f7 18-22
+  s_a9c053813411a7::t_6122aee263c71f 1743-1748
+  s_a9c053813411a7::t_374d1dd71c1743 1571
+lib/database/sql/actor.ts
+  s_a9c053813411a7::t_063eef2dd6e780 24,1294-1305
+  s_a9c053813411a7::t_4a95e3b02e2c66 23,1306-1311
+  s_a9c053813411a7::t_89872edda18692 21,25
+lib/database/sql/search/hashtag.ts
+  s_a9c053813411a7::t_a17677e829e535 426-432,437-439
+lib/database/sql/status.test.ts
+  s_a9c053813411a7::t_24d47d39c282cb 2560-2580,2582-2670
+  s_a9c053813411a7::t_351da03e5dccc9 2581
+lib/database/sql/utils/knex.ts
+  s_a9c053813411a7::t_a20c4c23d1783f 58
+lib/database/sql/utils/status.ts
+  s_a9c053813411a7::t_7277ad487bd298 48
+  s_a9c053813411a7::t_afad95ab3db7b4 1-47,49-53,55-62
+  s_a9c053813411a7::t_114dae5ef0c88d 54
+lib/database/sql/search.test.ts
+  s_a9c053813411a7::t_9769c2ba76a370 1662,1687-1691,1693-1694
+  s_a9c053813411a7::t_792215d895c877 1692
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "71119d8c85068e6e8bae3a8c7a007b517509c851",
+  "prompts": {},
+  "sessions": {
+    "s_a9c053813411a7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e5ad7-c4c3-78e2-9686-a128443adab4",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,16 @@
+app/(timeline)/account/sessions/AccountSessions.test.tsx
+  h_580a04e334fef4 431-440
+app/(timeline)/account/sessions/AccountSessions.tsx
+  h_580a04e334fef4 452
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "142892f2ef9c2c57b0916bc46ad05514a955211c",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

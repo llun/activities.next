@@ -1,0 +1,16 @@
+CONTRIBUTING.md
+  h_580a04e334fef4 772
+docs/maintenance.md
+  h_580a04e334fef4 930,957
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "31e607bca4e52746b8d48477cf898a165ead2687",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

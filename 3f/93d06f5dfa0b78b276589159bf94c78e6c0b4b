@@ -1,0 +1,23 @@
+app/api/v1/fitness/strava/callback/route.test.ts
+  s_69f35b0cf1b1f5::t_f9764b755619d7 12-13,107-136,148-178
+  s_69f35b0cf1b1f5::t_ec807be80016f6 137-147
+  s_69f35b0cf1b1f5::t_be226df433ada0 179
+app/api/v1/fitness/strava/callback/route.ts
+  s_69f35b0cf1b1f5::t_f9764b755619d7 91-108,163
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3f93d06f5dfa0b78b276589159bf94c78e6c0b4b",
+  "prompts": {},
+  "sessions": {
+    "s_69f35b0cf1b1f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3e34abf-a75d-4da8-b371-1258aa33721a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

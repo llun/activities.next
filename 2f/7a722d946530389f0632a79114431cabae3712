@@ -1,0 +1,64 @@
+app/(nosidebar)/auth/select-actor/ActorSelectionList.tsx
+  h_580a04e334fef4 7,16,66-69
+app/(nosidebar)/authorize_interaction/AuthorizeInteractionCard.tsx
+  h_580a04e334fef4 4,18-20,28,33,69-71
+app/(nosidebar)/oauth/authorize/AuthorizeCard.tsx
+  h_580a04e334fef4 9,317-320,345-348
+app/(timeline)/[actor]/FollowList.tsx
+  h_580a04e334fef4 6,42-44,46,66
+app/(timeline)/[actor]/page.tsx
+  h_580a04e334fef4 6-7,32-34,42,218-222
+app/(timeline)/notifications/NotificationItem.tsx
+  h_580a04e334fef4 13,137-140
+docs/features.md
+  h_580a04e334fef4 22
+lib/actions/utils.test.ts
+  h_580a04e334fef4 6-10,313-383
+lib/actions/utils.ts
+  h_580a04e334fef4 65-95,103,116-117
+lib/components/actor-switcher/ActorSwitcher.tsx
+  h_580a04e334fef4 9,27,111-113,190-193
+lib/components/actors/ActorDisplayName.test.tsx
+  h_580a04e334fef4 1-117
+lib/components/actors/ActorDisplayName.tsx
+  h_580a04e334fef4 1-94
+lib/components/actors/index.ts
+  h_580a04e334fef4 1-5
+lib/components/posts/actor.test.tsx
+  h_580a04e334fef4 244-251,261-281
+lib/components/posts/actor.tsx
+  h_580a04e334fef4 4,25-27,29,31,35,259,262-264
+lib/components/posts/post.tsx
+  h_580a04e334fef4 9,125,128
+lib/components/settings/ActorsSection.tsx
+  h_580a04e334fef4 9,158-161,214-217
+lib/database/sql/actor.test.ts
+  h_580a04e334fef4 805-872
+lib/database/sql/actor.ts
+  h_580a04e334fef4 88-91,127-168,182,192-203,213-214,369,834,980,1019-1038,1051
+lib/types/database/operations.ts
+  h_580a04e334fef4 77,139
+lib/types/database/rows.ts
+  h_580a04e334fef4 18-19
+lib/types/domain/actor.test.ts
+  h_580a04e334fef4 5,70-101
+lib/types/domain/actor.ts
+  h_580a04e334fef4 17-23,35
+lib/utils/getPersonFromActor.test.ts
+  h_580a04e334fef4 37-68
+lib/utils/getPersonFromActor.ts
+  h_580a04e334fef4 11,15,40-55,80-81,90-93
+lib/utils/text/convertEmojisToImages.ts
+  h_580a04e334fef4 69-72
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "2f7a722d946530389f0632a79114431cabae3712",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,24 @@
+.github/aider/model-metadata.json
+  h_580a04e334fef4 1-20
+.github/aider/model-settings.yml
+  h_580a04e334fef4 1-4
+.github/scripts/resolve-merge-conflicts.py
+  h_580a04e334fef4 1-335
+.github/scripts/test_resolve_merge_conflicts.py
+  h_580a04e334fef4 1-128
+.github/workflows/sync-main-to-oltp.yml
+  h_580a04e334fef4 145-146,212-215,251-254,290-293
+.gitignore
+  h_580a04e334fef4 51-52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "9c854f1603480224a7202d564d0e4dcdc230cea7",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

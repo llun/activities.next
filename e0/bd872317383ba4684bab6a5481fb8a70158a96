@@ -1,0 +1,20 @@
+.github/workflows/ci.yml
+  s_bbabc3fdde5b37::t_e6821953f5c240 72-82,84-88,101-102,107-127
+  s_bbabc3fdde5b37::t_16f6c44d00bba7 128
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "e0bd872317383ba4684bab6a5481fb8a70158a96",
+  "prompts": {},
+  "sessions": {
+    "s_bbabc3fdde5b37": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b26ed86-a702-4ae7-9bd1-66c894cc31b4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

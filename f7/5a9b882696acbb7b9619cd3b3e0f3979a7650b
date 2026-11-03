@@ -1,0 +1,93 @@
+app/api/v1/admin/accounts/[id]/action/route.ts
+  s_6dd763a0b22888::t_3540493738ed8b 1-95
+app/api/v2/admin/accounts/route.ts
+  s_6dd763a0b22888::t_fa8c3aaed9cbd3 5,67-69
+  s_6dd763a0b22888::t_d3feec8af47d9e 1-4,6-66,70-104
+app/api/v1/admin/accounts/adminAccounts.test.ts
+  s_6dd763a0b22888::t_ba5fbc290560fb 177-196
+  s_6dd763a0b22888::t_fa8c3aaed9cbd3 97-102,132-134,158-160,169-171
+  s_6dd763a0b22888::t_c759581f357257 1-34,36-77,79-96,103-131,135-157,161-168,172-176,197-220
+  s_6dd763a0b22888::t_c56a8045eacb3a 35
+  s_6dd763a0b22888::t_dc912844195d86 78
+lib/services/admin/listAdminAccountsResponse.ts
+  s_6dd763a0b22888::t_fa8c3aaed9cbd3 37
+  s_6dd763a0b22888::t_fe4736c7b9737b 1-36,38-51
+lib/database/sql/moderation.ts
+  s_6dd763a0b22888::t_502e0792e2bfe6 4,8-10,12-13,15,24,37-41,44
+  s_6dd763a0b22888::t_be0689491935cf 169-193
+  s_6dd763a0b22888::t_fa8c3aaed9cbd3 228-230,257-258,309-313,318-320,328-332,355-357,362-364,403-406
+  s_6dd763a0b22888::t_4b0ff754a28cd0 167-168,194-227,231-256,259-308,314-317,321-327,333-354,358-361,365-402,407-410
+lib/services/admin/applyAdminAccountAction.ts
+  s_6dd763a0b22888::t_8601d3c8f1d30c 55-62
+  s_6dd763a0b22888::t_905235b2378b64 1-17,19-54,63-131
+  s_6dd763a0b22888::t_fa8c3aaed9cbd3 18
+app/api/v1/admin/accounts/[id]/unsuspend/route.ts
+  s_6dd763a0b22888::t_331ca1ba05dc0f 1-32
+lib/types/mastodon/index.ts
+  s_6dd763a0b22888::t_219482a07d2675 10
+lib/database/types.ts
+  s_6dd763a0b22888::t_81f47bddc857d4 11
+  s_6dd763a0b22888::t_340b5c3e9d4087 87
+lib/services/guards/AdminApiGuard.ts
+  s_6dd763a0b22888::t_55384573a091a0 14-23,29
+  s_6dd763a0b22888::t_bffc5f08b4b3f3 51-54
+  s_6dd763a0b22888::t_17ad8752439e48 150-157
+  s_6dd763a0b22888::t_ab7527dcb78840 116-125
+app/api/v1/admin/accounts/[id]/unsilence/route.ts
+  s_6dd763a0b22888::t_9439ff997c0d06 1-32
+app/api/v1/admin/accounts/route.ts
+  s_6dd763a0b22888::t_f9ce3170215b64 1-4,6-89
+  s_6dd763a0b22888::t_fa8c3aaed9cbd3 5
+lib/services/admin/handleAdminAccountStateChange.ts
+  s_6dd763a0b22888::t_133c83cc803ee5 1-74
+app/api/v1/admin/adminResourceWiring.test.ts
+  s_6dd763a0b22888::t_61260420ed066e 46-63
+lib/database/sql/moderation.test.ts
+  s_6dd763a0b22888::t_3b38ec04e750d9 323-360,379-388,393-424,429-457,462-534
+  s_6dd763a0b22888::t_5b7a16b307b686 10
+  s_6dd763a0b22888::t_fa8c3aaed9cbd3 361-378,389-392,425-428,458-461
+lib/services/admin/serializeAdminAccounts.test.ts
+  s_6dd763a0b22888::t_98a66bcaa8f998 1-19,24-84
+  s_6dd763a0b22888::t_fa8c3aaed9cbd3 20-23
+app/api/v1/admin/accounts/[id]/reject/route.ts
+  s_6dd763a0b22888::t_33204b74dd1a8c 1-32
+lib/types/database/operations.ts
+  s_6dd763a0b22888::t_e7c0fb4c7f23cb 2340,2342-2396
+  s_6dd763a0b22888::t_53014588a126de 2336-2339
+  s_6dd763a0b22888::t_1c348c99944826 2301-2307
+  s_6dd763a0b22888::t_43722ef7168168 4-9
+  s_6dd763a0b22888::t_9e9d252f3b1745 2341
+lib/types/mastodon/admin/account.ts
+  s_6dd763a0b22888::t_0059025b324888 1-42
+app/api/v1/admin/accounts/[id]/unsensitive/route.ts
+  s_6dd763a0b22888::t_e9a001281cd257 1-32
+app/api/v1/admin/accounts/[id]/approve/route.ts
+  s_6dd763a0b22888::t_57fda55a4b95c6 1-32
+app/api/v1/admin/accounts/[id]/enable/route.ts
+  s_6dd763a0b22888::t_dbc4dd08aca85b 1-32
+lib/services/admin/serializeAdminAccounts.ts
+  s_6dd763a0b22888::t_b29ced30be01a9 113-123
+  s_6dd763a0b22888::t_22370101fddc5d 106
+  s_6dd763a0b22888::t_dece136bdc9165 3
+  s_6dd763a0b22888::t_afba5567603227 11
+  s_6dd763a0b22888::t_fbded76090e52e 1-2,4-10,12-88
+  s_6dd763a0b22888::t_b5a2b29c5e09f4 89-105,107-112
+app/api/v1/admin/accounts/[id]/route.ts
+  s_6dd763a0b22888::t_3e4e61f16bfa84 1-100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "f75a9b882696acbb7b9619cd3b3e0f3979a7650b",
+  "prompts": {},
+  "sessions": {
+    "s_6dd763a0b22888": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9f2f2973-35a6-4476-8b76-95f49efde47d",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

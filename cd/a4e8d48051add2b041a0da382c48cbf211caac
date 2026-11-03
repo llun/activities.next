@@ -1,0 +1,29 @@
+app/(timeline)/settings/layout.tsx
+  s_3ec04052f0950b::t_ab34e178b8fe5a 29
+  s_3ec04052f0950b::t_ffafe7cfdd64ec 90-111
+app/(timeline)/fitness/layout.test.tsx
+  s_3ec04052f0950b::t_942e60b5b43de9 45-74
+  s_3ec04052f0950b::t_bb00a21b5d823c 5
+app/(timeline)/settings/layout.test.tsx
+  s_3ec04052f0950b::t_df386325110e7d 5
+  s_3ec04052f0950b::t_d01aebe3002da1 66-102
+app/(timeline)/fitness/layout.tsx
+  s_3ec04052f0950b::t_44dbb94a0de8c7 26
+  s_3ec04052f0950b::t_0903480b3cefdf 83-104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "cda4e8d48051add2b041a0da382c48cbf211caac",
+  "prompts": {},
+  "sessions": {
+    "s_3ec04052f0950b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9f64ce4a-02a2-4cb8-9f12-0a23ab6a6068",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": null
+    }
+  }
+}

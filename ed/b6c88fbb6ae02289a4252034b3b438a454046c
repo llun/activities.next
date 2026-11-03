@@ -1,0 +1,41 @@
+app/(timeline)/fitness/connections/connectionsLayout.test.tsx
+  s_b87e31a2061ef9::t_35ed35fe51cdd7 1-85
+app/(timeline)/fitness/connections/layout.tsx
+  s_d14ca01079411b::t_8a8be858780284 1-34
+app/(timeline)/fitness/layout.test.tsx
+  s_d14ca01079411b::t_f6b2927b63b0ad 27,31-33,75,79,88,95,97
+app/(timeline)/fitness/layout.tsx
+  s_725909a67e1914::t_e5cda6137467c2 3,21,25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "edb6c88fbb6ae02289a4252034b3b438a454046c",
+  "prompts": {},
+  "sessions": {
+    "s_725909a67e1914": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d554-1283-7a03-aa63-f06a555f70ba",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_b87e31a2061ef9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e1c7f30-c9e8-4ed9-b019-a0042fc2e1e5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_d14ca01079411b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d9d7-0e58-7040-8a9b-de72e5e8e886",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,48 @@
+lib/utils/activitypubActor.ts
+  f23a96401558c064 1-54
+lib/actions/utils.ts
+  f23a96401558c064 6,66,89
+lib/types/domain/status.ts
+  f23a96401558c064 6,215
+lib/components/posts/actor.tsx
+  f23a96401558c064 5-6,8-10,36-37,40-60,74-113
+app/(timeline)/[actor]/getProfileData.ts
+  f23a96401558c064 11,82-83
+lib/activities/getRemoteStatus.test.ts
+  f23a96401558c064 74-141
+lib/activities/getActorPosts.test.ts
+  f23a96401558c064 342-410
+lib/activities/getRemoteStatus.ts
+  f23a96401558c064 3,5,12,29,32-33,39,41-46,48-52,54-57,59-61,63,66-76
+lib/components/posts/post.test.tsx
+  f23a96401558c064 256-313
+lib/activities/getActorPosts.ts
+  f23a96401558c064 5,12-19,34,36,38,100-105,107,112,116-122,124,136-140
+lib/utils/activitypubActor.test.ts
+  f23a96401558c064 1-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "9778fa41e5e276a1cc0e2eb6627f19d4cee30af5",
+  "prompts": {
+    "f23a96401558c064": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dda5d-df1f-7683-875d-0597a2e808a0",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 457,
+      "total_deletions": 207,
+      "accepted_lines": 3251,
+      "overriden_lines": 0
+    }
+  },
+  "humans": {
+    "h_e5599db4cf9bba": {
+      "author": "Maythee Anegboonlap"
+    }
+  }
+}

@@ -1,0 +1,24 @@
+lib/jobs/importStravaActivityJob.test.ts
+  h_580a04e334fef4 710-713,1034,1056-1058,1060-1141,1143-1144,1560-1660
+lib/jobs/importStravaActivityJob.ts
+  h_580a04e334fef4 891,926
+lib/jobs/publishScheduledStatusJob.test.ts
+  h_580a04e334fef4 364-368,370-371,383-439
+lib/jobs/publishScheduledStatusJob.ts
+  h_580a04e334fef4 58-61,63
+lib/jobs/regenerateFitnessMapsJob.test.ts
+  h_580a04e334fef4 16,302-304,313-365
+lib/jobs/regenerateFitnessMapsJob.ts
+  h_580a04e334fef4 410-412
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "83df42616c8dfe45ea2ad4e56077f3d7df6cb048",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

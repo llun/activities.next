@@ -1,0 +1,57 @@
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.test.tsx
+  s_3abf984cc26ada::t_1037830d5520de 273-274,276
+  s_3abf984cc26ada::t_76c7e1b6ac647b 1761-1762
+  s_3abf984cc26ada::t_e8c76a16f8f5c3 1836
+  s_3abf984cc26ada::t_51c5b96feb889b 1747,1753-1755,1757,1759,1764,1782,1785,1790,1793,1812-1817,1819,1830-1835,1837
+  s_3abf984cc26ada::t_86156865536504 1863,1865-1867,1884,1889-1892,1895,1903,1905,1908-1912,1917,1934,1938,1941
+  s_3abf984cc26ada::t_e88773381a80ea 1968-1970,1995-1997,2016-2018,2020,2025
+  s_3abf984cc26ada::t_234d406785395b 1651
+  s_3abf984cc26ada::t_873f560b4b5dde 1652-1654
+  s_3abf984cc26ada::t_1d856b62d7d087 275,277-287
+REVIEW.md
+  s_3abf984cc26ada::t_812d7c3cacc9f8 218-222
+lib/components/posts/post.tsx
+  s_3abf984cc26ada::t_1a60205af0c4ad 310
+  s_3abf984cc26ada::t_32ac4ebd8a9f4d 328
+  s_3abf984cc26ada::t_681754b8c65a89 8
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  s_3abf984cc26ada::t_4e065209db87da 3178
+  s_3abf984cc26ada::t_a88f59064e8494 3217
+  s_3abf984cc26ada::t_77413e6bb5c222 3343-3348,3358
+  s_3abf984cc26ada::t_5ebded7da27333 2427-2431,2436-2441,2451-2453
+  s_3abf984cc26ada::t_81b5874a61eee1 981-985
+  s_3abf984cc26ada::t_fd445fe3895843 8,10,15,28-29
+  s_3abf984cc26ada::t_14a59cdbde5a50 1016-1019
+  s_3abf984cc26ada::t_85e2ad33d7cd07 89
+  s_3abf984cc26ada::t_9ecaf695e0e26f 2465
+  s_3abf984cc26ada::t_b1f760167d2082 895-980,986-1015,1020-1032
+  s_3abf984cc26ada::t_a671dd9f4943d7 54
+  s_3abf984cc26ada::t_1decb6b539668d 3095-3107,3110-3119
+  s_3abf984cc26ada::t_64902e7210b70c 43
+lib/components/fitness/FitnessStatGrid.test.tsx
+  s_3abf984cc26ada::t_c72e38944a829b 2
+  s_3abf984cc26ada::t_131f25c88cb22e 1,3-53
+lib/components/fitness/FitnessStatGrid.tsx
+  s_3abf984cc26ada::t_444089a4a73610 1-50
+AGENTS.md
+  s_3abf984cc26ada::t_dda788d7cdb13c 438-452
+  s_3abf984cc26ada::t_12a4526d9bfcc2 350-379
+CLAUDE.md
+  s_3abf984cc26ada::t_6b305f1483541d 51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "43910a51350fe6a27cfe23cdbd64d79f5f380d48",
+  "prompts": {},
+  "sessions": {
+    "s_3abf984cc26ada": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2bc0b46a-a064-4f95-b0ce-7aaa7d0323f5",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

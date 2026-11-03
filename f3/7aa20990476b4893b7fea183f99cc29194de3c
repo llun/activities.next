@@ -1,0 +1,22 @@
+lib/database/sql/fitnessSettings.test.ts
+  s_f1060d736d3617::t_fa9b56383d648a 6-22,780-783,833,845-861,863
+  s_f1060d736d3617::t_58018d1571bb45 862,864
+lib/database/sql/fitnessSettings.ts
+  s_f1060d736d3617::t_6984d1a76d8afc 99-101,106
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "f37aa20990476b4893b7fea183f99cc29194de3c",
+  "prompts": {},
+  "sessions": {
+    "s_f1060d736d3617": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "176afecc-def0-4231-84bd-81dc9f91fa81",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

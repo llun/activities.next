@@ -1,0 +1,29 @@
+lib/utils/safeImageDownload.ts
+  s_fda7ba9e961907::t_2b7094740cb92e 111-118,122-125,133,136
+scripts/backup/actorArchiveAttachmentCap.test.ts
+  s_fda7ba9e961907::t_a4c2aaa22615ee 37-42
+  s_fda7ba9e961907::t_778fecddb2c91f 1-36,43-44
+AGENTS.md
+  s_fda7ba9e961907::t_ca1cefddb4328c 2247-2248
+scripts/backup/actorArchive.test.ts
+  s_fda7ba9e961907::t_3f5e2c310526d1 9,16,32-40,435-440,445-447,449,456-458
+  s_fda7ba9e961907::t_a4c2aaa22615ee 13,455
+scripts/backup/actorArchive.ts
+  s_fda7ba9e961907::t_f789a964a15d34 74-76,82-90,742-743,819-824
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "8cff790403d6ecd6309a6bd63c900b0940e307b0",
+  "prompts": {},
+  "sessions": {
+    "s_fda7ba9e961907": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4a7bf65c-4b6f-438f-ada5-421e7d954be1",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

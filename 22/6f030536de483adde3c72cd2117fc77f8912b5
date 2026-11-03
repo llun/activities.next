@@ -1,0 +1,23 @@
+lib/database/sql/actor.ts
+  s_f1cb87d470a98e::t_14efb699e89469 791-792
+  s_f1cb87d470a98e::t_a9a8941c460772 27-28
+  s_f1cb87d470a98e::t_4ef7f95ad00050 812-838,848,853
+lib/services/notifications/evaluateNotificationPolicy.ts
+  s_f1cb87d470a98e::t_aaeab06dd2d4cb 24-26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "226f030536de483adde3c72cd2117fc77f8912b5",
+  "prompts": {},
+  "sessions": {
+    "s_f1cb87d470a98e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d97bc6f1-1664-4784-b116-542bc6beeb42",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

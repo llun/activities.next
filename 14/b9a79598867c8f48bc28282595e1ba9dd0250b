@@ -1,0 +1,28 @@
+app/(timeline)/messages/MessagesPage.tsx
+  s_6254e133ea83c6::t_ffa1768152b8a6 137
+  s_6254e133ea83c6::t_356847281b049e 7,110
+  s_6254e133ea83c6::t_5d393a81b36952 161-176
+  s_6254e133ea83c6::t_820a0051ab57d1 136,138-141,143-159
+  s_6254e133ea83c6::t_b6cb660cda998d 356-357,371
+  s_6254e133ea83c6::t_1826767ead25af 477-481,576
+app/(timeline)/messages/MessagesPage.test.tsx
+  s_6254e133ea83c6::t_45471f272593fe 377,406
+  s_6254e133ea83c6::t_a1c57670ab87e4 15,146-147,154,164,326-346,349-370,376,378-382,390-405,407-424
+  s_6254e133ea83c6::t_73febd45396e34 347-348,371-375,383-389
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "14b9a79598867c8f48bc28282595e1ba9dd0250b",
+  "prompts": {},
+  "sessions": {
+    "s_6254e133ea83c6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e3b94-e3be-7c51-b341-9742d36ae6ff",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

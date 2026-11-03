@@ -1,0 +1,24 @@
+migrations/20260530130000_add_markers_table.js
+  s_b1f1f42a61e7ae::t_ba76aba7a1e888 10
+lib/database/sql/marker.test.ts
+  s_b1f1f42a61e7ae::t_05bf1a2481344d 103-117
+lib/database/sql/marker.ts
+  s_b1f1f42a61e7ae::t_90e8e001a52f89 53-54
+  s_b1f1f42a61e7ae::t_8fcb8bb8858953 48-49,56-62,70,98
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "f69e9ecc694fd4b8b02e6b1021e9b8cf4d996659",
+  "prompts": {},
+  "sessions": {
+    "s_b1f1f42a61e7ae": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "88c6092d-a010-43cd-bc98-d9275159565f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

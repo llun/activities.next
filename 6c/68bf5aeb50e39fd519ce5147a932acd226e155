@@ -1,0 +1,37 @@
+AGENTS.md
+  s_8f873201dcfe54::t_3ed789691caf58 84-85
+lib/jobs/processFitnessFileJob.ts
+  s_8f873201dcfe54::t_6d60926d9ed34a 10-13
+  s_8f873201dcfe54::t_da6955ef7eb325 574-575
+  s_8f873201dcfe54::t_955f4a75c2961b 510-517,520-521,534-536
+  s_8f873201dcfe54::t_007cfdd247c79a 409-416,424-436,438-445,447-482,484-489,493-494
+lib/services/fitness-files/importError.ts
+  s_8f873201dcfe54::t_12f948272e9b2e 14-24
+docs/fitness-file-storage.md
+  s_8f873201dcfe54::t_5a9af36e1fa0c0 108-110
+lib/jobs/processFitnessFileJob.test.ts
+  s_8f873201dcfe54::t_de4ad17b988643 294-359,362-388,391-421
+  s_8f873201dcfe54::t_3a978532e44831 13
+lib/jobs/regenerateFitnessMapsJob.ts
+  s_8f873201dcfe54::t_b9daefeb030455 11-14
+  s_8f873201dcfe54::t_1524cad0aed009 328-329
+lib/jobs/regenerateFitnessMapsJob.test.ts
+  s_8f873201dcfe54::t_e7fe9546dac2a2 314-315,319-320
+  s_8f873201dcfe54::t_72b7893003b847 309-313,316-318,321-329,332,347
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "6c68bf5aeb50e39fd519ce5147a932acd226e155",
+  "prompts": {},
+  "sessions": {
+    "s_8f873201dcfe54": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8c84869c-9e41-4272-84a7-3a2b05263e7b",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

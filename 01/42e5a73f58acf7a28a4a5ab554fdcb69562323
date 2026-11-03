@@ -1,0 +1,67 @@
+app/api/v2/search/route.ts
+  s_387448deee3bd0::t_b448066b81f3e0 14,414-417
+  s_387448deee3bd0::t_66752b33c96a09 574-575
+  s_387448deee3bd0::t_d81c51debb1bb5 378-379,387
+lib/database/sql/actor.ts
+  s_387448deee3bd0::t_e2aea135a47b17 832-833
+  s_387448deee3bd0::t_4e9ac6e975e4c1 797-799,802
+  s_387448deee3bd0::t_b448066b81f3e0 678-681
+  s_387448deee3bd0::t_e6f51831497fdd 674-675,682
+  s_387448deee3bd0::t_fcb5f883b4f24c 770-771
+  s_387448deee3bd0::t_cc6189ee8ec4b0 166-172
+  s_387448deee3bd0::t_43b360d8d4e40a 83-90
+  s_387448deee3bd0::t_b5ef4c4145a94a 251-252,261-264,272-283,285
+lib/services/accounts/credentialsHandler.ts
+  s_387448deee3bd0::t_b448066b81f3e0 6
+  s_387448deee3bd0::t_4865f7ac4b3c42 21-23,25-28
+lib/types/database/operations.ts
+  s_387448deee3bd0::t_c29d0b7a1ee66b 65-72
+lib/database/sql/actor.test.ts
+  s_387448deee3bd0::t_bdbaff66b7adf4 638-680
+app/api/v1/accounts/[id]/route.ts
+  s_387448deee3bd0::t_c6babcd13b44f4 35-38
+  s_387448deee3bd0::t_b448066b81f3e0 5
+app/api/v1/accounts/route.test.ts
+  s_387448deee3bd0::t_794e1b02c9e4e1 94-95
+app/api/v1/accounts/search/route.test.ts
+  s_387448deee3bd0::t_c4e4a9bf214b54 109
+  s_387448deee3bd0::t_0b1545bc0fd15d 153-154
+  s_387448deee3bd0::t_b6058d5ace817c 208-209
+  s_387448deee3bd0::t_9cfd44242fac4b 110
+  s_387448deee3bd0::t_157238d2c325ee 314-315
+  s_387448deee3bd0::t_ac2932d1b2e471 182-183
+  s_387448deee3bd0::t_620c8ad51ad6a5 258-259
+app/api/v2/search/route.test.ts
+  s_387448deee3bd0::t_88a5eca6b2b762 687-688
+  s_387448deee3bd0::t_0daf706c1ba9ff 848-851,889-891
+  s_387448deee3bd0::t_b42702706b59ea 925-926
+  s_387448deee3bd0::t_cfaf84cce26cd4 826-827
+  s_387448deee3bd0::t_29b7c51c0742a8 945-946
+app/api/v1/accounts/route.ts
+  s_387448deee3bd0::t_b448066b81f3e0 13
+  s_387448deee3bd0::t_b32d0666662de9 72-75
+app/api/v1/accounts/lookup/route.ts
+  s_387448deee3bd0::t_b448066b81f3e0 13
+  s_387448deee3bd0::t_3e1d6e2a7ca77e 128-131
+app/api/v1/accounts/search/route.ts
+  s_387448deee3bd0::t_b448066b81f3e0 7
+  s_387448deee3bd0::t_c4421f15edb1a1 69
+  s_387448deee3bd0::t_6754afafade4df 107-108
+  s_387448deee3bd0::t_3929b7ba7f42bc 83-84
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "0142e5a73f58acf7a28a4a5ab554fdcb69562323",
+  "prompts": {},
+  "sessions": {
+    "s_387448deee3bd0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4a408259-c9fb-418d-8bf3-e7d041371398",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

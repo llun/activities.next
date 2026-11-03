@@ -1,0 +1,42 @@
+lib/components/gallery/filters/GalleryFilterMenu.tsx
+  s_d03298ea8712f0::t_c105e0321fd4a4 3,10-11,46-58,60-63
+lib/components/filters/filterConstants.ts
+  s_d03298ea8712f0::t_c105e0321fd4a4 4-10
+lib/components/filters/ServerFilterMenu.tsx
+  s_d03298ea8712f0::t_c105e0321fd4a4 73-82,84,86
+  s_d03298ea8712f0::t_8b87652f28007f 5
+lib/components/filters/FiltersPanel.test.tsx
+  s_d03298ea8712f0::t_a1faf764f1befc 532-549,551-556,591-595,725-750,752-757
+  s_d03298ea8712f0::t_3ef88ef3c35a85 751
+  s_d03298ea8712f0::t_c105e0321fd4a4 550
+  s_d03298ea8712f0::t_d2d218580f3e47 758
+lib/components/filters/serverFilterControls.ts
+  s_d03298ea8712f0::t_c105e0321fd4a4 3-7,29-31
+lib/components/gallery/filters/GalleryFilterChip.tsx
+  s_d03298ea8712f0::t_c105e0321fd4a4 1-52,54-96
+  s_d03298ea8712f0::t_5da0a7833fc0a0 53
+lib/components/filters/FilterRow.tsx
+  s_d03298ea8712f0::t_c105e0321fd4a4 14,69,71
+lib/components/filters/FilterRow.test.tsx
+  s_d03298ea8712f0::t_c105e0321fd4a4 65
+lib/components/filters/FiltersPanel.tsx
+  s_d03298ea8712f0::t_c105e0321fd4a4 122-124,176-180
+lib/components/filters/FilterEditor.tsx
+  s_d03298ea8712f0::t_c105e0321fd4a4 29,52,58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0524aa1a98e16d41a458485dc02979fa672a1f72",
+  "prompts": {},
+  "sessions": {
+    "s_d03298ea8712f0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a17367-2f3f-7231-abc0-63e0c1baf46e",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,44 @@
+lib/services/trends/tagHistory.ts
+  s_f7b91ac6284bd0::t_a37d2e4853b55e 1-51
+app/api/v1/tags/[tag]/route.ts
+  s_f7b91ac6284bd0::t_db097a4dc317ea 14,19,28
+  s_f7b91ac6284bd0::t_ce0d8d0626285a 51-59
+  s_f7b91ac6284bd0::t_5bf0dbf6e8933d 67-75,79
+app/api/v1/tags/[tag]/route.test.ts
+  s_f7b91ac6284bd0::t_eca3fb0c07c050 89-143
+  s_f7b91ac6284bd0::t_4c30a23bf1bbcb 56
+  s_f7b91ac6284bd0::t_6d1e3bdcf7af5e 11
+app/api/v1/tags/[tag]/follow/route.ts
+  s_f7b91ac6284bd0::t_76f3c0a093207d 5,9,17
+  s_f7b91ac6284bd0::t_c04482634bc22e 40-49,51,55
+app/api/v1/trends/tags/route.ts
+  s_f7b91ac6284bd0::t_ffa06c004a9f68 8-13
+  s_f7b91ac6284bd0::t_3b941abd16ab5e 44
+lib/services/trends/tagHistory.test.ts
+  s_f7b91ac6284bd0::t_a118ccbb18fcea 1-77
+app/api/v1/tags/[tag]/unfollow/route.test.ts
+  s_f7b91ac6284bd0::t_16c655149b152f 1-98
+app/api/v1/tags/[tag]/unfollow/route.ts
+  s_f7b91ac6284bd0::t_cc3125fcddf6de 5,9,17
+  s_f7b91ac6284bd0::t_e1201cc3cb97ad 40-49,51,55
+app/api/v1/tags/[tag]/follow/route.test.ts
+  s_f7b91ac6284bd0::t_83e7f77df83c04 1-103
+lib/services/mastodon/getMastodonTag.ts
+  s_f7b91ac6284bd0::t_cb5071f95db76d 2,11-17,21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "30559980bb7c5497e25f2a6a3bb71073103855a9",
+  "prompts": {},
+  "sessions": {
+    "s_f7b91ac6284bd0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7e5d29e0-cb70-4516-b716-6108a10b94a2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,41 @@
+docs/architecture.md
+  s_51fd2688de1d02::t_1687bd2ede11a7 396
+REVIEW.md
+  s_51fd2688de1d02::t_1687bd2ede11a7 159
+.oxlintrc.json
+  s_51fd2688de1d02::t_6a16a433e95c3a 12,100,142,163,176,189
+  s_51fd2688de1d02::t_5265efbd18b848 166-171,177-182,190-206,237
+  s_51fd2688de1d02::t_c615239778cfb3 1,10-11,13-99,101-112,115-141,143-162,165,207-236
+  s_51fd2688de1d02::t_bbc502c9b473e3 2-9,113-114,164,172-175,183-188
+AGENTS.md
+  s_51fd2688de1d02::t_1687bd2ede11a7 35,61,295
+lint/agentsRules.test.ts
+  s_51fd2688de1d02::t_2a1be1c1abb82f 1-124
+CONTRIBUTING.md
+  s_51fd2688de1d02::t_1687bd2ede11a7 114,369
+package.json
+  s_51fd2688de1d02::t_6cc92e437255a9 125
+  s_51fd2688de1d02::t_1d67dfa86bb24e 10
+  s_51fd2688de1d02::t_6a16a433e95c3a 13-14
+  s_51fd2688de1d02::t_749c381d568f4c 119
+lint/agentsRules.mjs
+  s_51fd2688de1d02::t_29f23a0f0f06ca 1-101
+yarn.lock
+  s_51fd2688de1d02::t_2454f458694780 1596-1728,3367,3840,3857,4472,4811,5970,6353-6428,6839,7277,7802,7873
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "fe833175457d935a43543b69e8d4c6099ce57cb5",
+  "prompts": {},
+  "sessions": {
+    "s_51fd2688de1d02": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "395909a7-92c9-431a-acba-c74922c99553",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

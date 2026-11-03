@@ -1,0 +1,36 @@
+lib/services/fitness-files/simplifyRoute.ts
+  s_dabfd6fcc025d2::t_59fa87df3d363c 24-33,42-43,77-82,87-94,96,98,101-104,109-115,125-131,136
+  s_dabfd6fcc025d2::t_329d06ca8a6e26 147-149,160,163-170,174
+lib/services/fitness-files/routeHeatmap.ts
+  s_dabfd6fcc025d2::t_593979d0bfadf1 124-127
+  s_dabfd6fcc025d2::t_ba155f7cf95a7d 118-119,123,128-129
+lib/services/fitness-files/routeHeatmap.test.ts
+  s_dabfd6fcc025d2::t_c6ce8f3ab08887 73-75
+  s_dabfd6fcc025d2::t_35775044d963ab 34-72,76
+docs/environment-variables.md
+  s_dabfd6fcc025d2::t_25cf30680e29d8 150-165
+lib/jobs/generateFitnessRouteHeatmapJob.test.ts
+  s_dabfd6fcc025d2::t_667ccf3a069640 704
+  s_dabfd6fcc025d2::t_ac4f8a97cf0604 500-503,552
+  s_dabfd6fcc025d2::t_d349db9443d8cd 506
+  s_dabfd6fcc025d2::t_97fd48dee57262 562-618
+  s_dabfd6fcc025d2::t_1b94e6d6015fce 695-703,705-714,726,730
+lib/services/fitness-files/simplifyRoute.test.ts
+  s_dabfd6fcc025d2::t_9f727321f10d99 133-153
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "d09c5e7da50a51a18995f152f43b83ebaa91b3f9",
+  "prompts": {},
+  "sessions": {
+    "s_dabfd6fcc025d2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8f5d8a71-454a-4294-9816-1d2edbd74c5e",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

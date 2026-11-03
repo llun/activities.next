@@ -1,0 +1,22 @@
+lib/services/fitness-files/sportTypes.ts
+  s_a99f23a799a218::t_571890571878c4 102-106,108
+lib/services/fitness-files/activityPresentation.ts
+  s_a99f23a799a218::t_bd21b1620cf21d 84-90,99-103
+  s_a99f23a799a218::t_571890571878c4 3-4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "c7be861148b0c3c101874083a24a8d17a582ac5f",
+  "prompts": {},
+  "sessions": {
+    "s_a99f23a799a218": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6babe34f-8b63-46b1-a9fa-a9e446461bb7",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,90 @@
+app/(timeline)/fitness/ActivityTypeBreakdown.test.tsx
+  s_a7418d31ae2421::t_163f37c3787330 187-188,190-202
+  s_a7418d31ae2421::t_fa8890b9c132bd 189
+lib/fitness/calendar/format.ts
+  s_a7418d31ae2421::t_22b09ad1ccefbd 104-105,108-111,113-115
+lib/components/fitness/FitnessStatGrid.tsx
+  s_a7418d31ae2421::t_83dcbbf361291c 34-39,44-45
+lib/components/fitness/calendar/rangePickerPresentation.ts
+  s_a7418d31ae2421::t_73d7bbc207305b 8-13,36,38-43,55,66-67,78-80,82
+lib/components/fitness/calendar/AnnualCalendar.test.tsx
+  s_a7418d31ae2421::t_2d16faef466ae9 522-547
+lib/fitness/calendar/geometry.ts
+  s_a7418d31ae2421::t_138a288d5bd76b 43-48,86
+lib/fitness/calendar/geometry.test.ts
+  s_a7418d31ae2421::t_f4c8948a44620d 113
+lib/components/fitness/calendar/RangePickerPanel.tsx
+  s_a7418d31ae2421::t_10245a569bc433 264-268,273-274
+lib/components/fitness/calendar/MetricSelector.tsx
+  s_a7418d31ae2421::t_b414afbed4ec33 27-36,73,91-93
+app/(timeline)/fitness/ActorFitnessDashboard.tsx
+  s_a7418d31ae2421::t_e9536a0f88cb1a 79-80,182-184,303,362-387,404-411,526-528,530-531,533-534,558-562,570-610,651,765-772
+  s_a7418d31ae2421::t_e7feb20840d450 137-138,140,148-150
+app/(timeline)/fitness/FitnessSummaryStrip.tsx
+  s_a7418d31ae2421::t_75ced8093f16c9 88,104-106,108,124
+  s_a7418d31ae2421::t_e067f9f049ce1e 89-90
+  s_a7418d31ae2421::t_36223de6eeb01c 115
+lib/components/fitness/calendar/RangePicker.tsx
+  s_a7418d31ae2421::t_73d7bbc207305b 171-183,195-196
+app/(timeline)/fitness/ActorFitnessDashboard.test.tsx
+  s_a7418d31ae2421::t_a724cffc78a005 417-420,463-558
+  s_a7418d31ae2421::t_117a974222ddaf 559
+app/(timeline)/fitness/ActivityTypeBreakdown.tsx
+  s_a7418d31ae2421::t_e7feb20840d450 112-117,126,129,132,135
+lib/components/fitness/calendar/RangePicker.test.tsx
+  s_a7418d31ae2421::t_b1df551b889963 164
+  s_a7418d31ae2421::t_96445145fd318b 552-571
+  s_a7418d31ae2421::t_428c55ed598dd7 500-551
+lib/components/fitness/calendar/MetricSelector.test.tsx
+  s_a7418d31ae2421::t_473307b83e2207 62,66-81
+lib/fitness/calendar/format.test.ts
+  s_a7418d31ae2421::t_5f8f27055ddb79 39,42-58
+  s_a7418d31ae2421::t_3917612d41cd61 40-41
+lib/components/fitness/FitnessStatGrid.test.tsx
+  s_a7418d31ae2421::t_75ced8093f16c9 73,76-86
+lib/components/fitness/calendar/calendar.module.css
+  s_a7418d31ae2421::t_7d6e52a5467b49 273
+  s_a7418d31ae2421::t_138a288d5bd76b 256-267,270-272,276-277,280-290
+app/(timeline)/fitness/FitnessOverviewHeader.test.tsx
+  s_a7418d31ae2421::t_2d16faef466ae9 93-98,105-109,152-164
+  s_a7418d31ae2421::t_e55feb7962413c 17-18,87-92,99-104
+  s_a7418d31ae2421::t_a8d867df36a379 165
+lib/components/fitness/calendar/AnnualCalendar.tsx
+  s_a7418d31ae2421::t_d1760260f9d83f 241
+  s_a7418d31ae2421::t_fbedadaab6bb76 235-240,242-245
+app/(timeline)/fitness/FitnessSummaryStrip.test.tsx
+  s_a7418d31ae2421::t_e067f9f049ce1e 70-75,79-80,102-104
+  s_a7418d31ae2421::t_fa8890b9c132bd 76-78
+lib/components/fitness/calendar/calendar.module.css.test.ts
+  s_a7418d31ae2421::t_7d6e52a5467b49 68-82,85
+lib/components/fitness/calendar/AnnualYearRow.tsx
+  s_a7418d31ae2421::t_138a288d5bd76b 302-303,307-309
+app/(timeline)/fitness/FitnessOverviewHeader.tsx
+  s_a7418d31ae2421::t_22b09ad1ccefbd 55-64,191,250-261
+lib/components/fitness/calendar/DayDetails.tsx
+  s_a7418d31ae2421::t_e7feb20840d450 216,218-219
+lib/components/fitness/calendar/rangePickerPresentation.test.ts
+  s_a7418d31ae2421::t_840de482d7f050 146,153
+  s_a7418d31ae2421::t_c1cc152e33b411 10-15,18-20,23-25,28-30,46-48,63,70,77,83,93,99,104-140
+  s_a7418d31ae2421::t_ae5c67690a50a6 141
+lib/components/fitness/calendar/CalendarLegend.tsx
+  s_a7418d31ae2421::t_fbedadaab6bb76 27-32,43
+lib/components/fitness/calendar/CalendarLegend.test.tsx
+  s_a7418d31ae2421::t_f9707b64457454 62-63,65-67,69-70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7c570a563d330fd72b8d6e0b5680f38000c841eb",
+  "prompts": {},
+  "sessions": {
+    "s_a7418d31ae2421": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0f1fd2ae-8211-4deb-ba27-c7a8fdc4df54",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

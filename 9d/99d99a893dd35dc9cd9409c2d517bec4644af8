@@ -1,0 +1,45 @@
+app/api/v1/statuses/[id]/bookmark/route.ts
+  s_195cb3eb51f376::t_fdd8d45e91665e 4,28,36-39,45
+app/api/v1/statuses/[id]/favourite/route.test.ts
+  s_195cb3eb51f376::t_94e4257cbdba52 9-10,36-38,41-49,153-250
+app/api/v1/statuses/[id]/favourite/route.ts
+  s_195cb3eb51f376::t_12a1b83d025bec 5,29,43-46,58
+app/api/v1/statuses/[id]/reblog/route.test.ts
+  s_195cb3eb51f376::t_177f5963839a81 1-194
+app/api/v1/statuses/[id]/reblog/route.ts
+  s_195cb3eb51f376::t_a235a38649a8c6 8,70,80
+docs/mastodon-api-compatibility.md
+  s_195cb3eb51f376::t_e0122bf2a250bf 376-378,1900-1905
+lib/components/posts/actions/repost-button.test.tsx
+  s_195cb3eb51f376::t_9cbe16ccc7a830 97,105-127
+lib/components/posts/actions/repost-button.tsx
+  s_195cb3eb51f376::t_57a763d718dd5a 46-47,55,89-100
+lib/jobs/fetchRemoteStatusJob.ts
+  s_195cb3eb51f376::t_b0735ae8ec49e1 78
+lib/services/reactions/reactStatus.ts
+  s_195cb3eb51f376::t_672478a92e8b7b 12,126
+lib/services/reactions/reactionRouteHandlers.ts
+  s_195cb3eb51f376::t_bc26199f568fb8 95
+lib/services/statuses/fetchEphemeralRemoteStatus.ts
+  s_195cb3eb51f376::t_06a991fb6ae5a9 19
+lib/services/statuses/getReadableStatusForAction.test.ts
+  s_195cb3eb51f376::t_ecbf02c0421cb8 1-182
+lib/services/statuses/getReadableStatusForAction.ts
+  s_195cb3eb51f376::t_14d55e8514c286 1-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9d99d99a893dd35dc9cd9409c2d517bec4644af8",
+  "prompts": {},
+  "sessions": {
+    "s_195cb3eb51f376": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0ddc170b-b456-4a8f-981e-76709f98f018",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

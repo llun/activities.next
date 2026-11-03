@@ -1,0 +1,27 @@
+lib/services/timelines/index.test.ts
+  s_310719d8018dcf::t_1932d0cfb6e8f2 124-130,146-152,159
+  s_310719d8018dcf::t_2372ba09279ad3 158
+lib/database/sql/directConversationsMigration.test.ts
+  s_310719d8018dcf::t_7f4deec17bac16 75-79,120
+lib/services/timelines/index.ts
+  s_310719d8018dcf::t_1932d0cfb6e8f2 74-77
+migrations/20260517002000_add_direct_conversations.js
+  s_310719d8018dcf::t_387a64ad1ba2ff 269-273,276-278,280-282,287-291,293-294,296-311,314-371,373-375
+  s_310719d8018dcf::t_f7c74bc756a8d4 90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "86032fbe4ed86376554a15a63ed163d2a2a395a2",
+  "prompts": {},
+  "sessions": {
+    "s_310719d8018dcf": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e3722-d1c9-7732-b66f-0221b95e639b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

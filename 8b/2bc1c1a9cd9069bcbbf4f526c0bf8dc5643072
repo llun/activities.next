@@ -1,0 +1,24 @@
+CONTRIBUTING.md
+  s_9642640c622ff2::t_040d2b3eefdbe4 115
+huskyHooks.test.ts
+  s_9642640c622ff2::t_c7024ac79e498a 1-51
+AGENTS.md
+  s_9642640c622ff2::t_a8e562f3d6600e 35
+  s_9642640c622ff2::t_ec716194da7370 565
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "8b2bc1c1a9cd9069bcbbf4f526c0bf8dc5643072",
+  "prompts": {},
+  "sessions": {
+    "s_9642640c622ff2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a1021dc3-9d34-481e-9398-354d447f82e8",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

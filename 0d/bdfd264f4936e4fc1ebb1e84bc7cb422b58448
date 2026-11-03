@@ -1,0 +1,22 @@
+lib/database/sqlcommenter.test.ts
+  s_a10056a778b9fd::t_c65045c1de74d6 53-74
+  s_a10056a778b9fd::t_f1391926f52661 16-18,20-22
+lib/database/index.ts
+  s_a10056a778b9fd::t_3662a36ab97fa4 14-15,17-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "0dbdfd264f4936e4fc1ebb1e84bc7cb422b58448",
+  "prompts": {},
+  "sessions": {
+    "s_a10056a778b9fd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b745ec39-ac9d-4583-add3-a8e387fda6d6",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

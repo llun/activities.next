@@ -1,0 +1,60 @@
+docs/maintenance.md
+  s_799b8b7cf2f595::t_13a42f5ad83d91 146,158-162
+.env.example
+  s_e7bf94e272e2ad::t_ddfb7ea9aaadb3 47,52,132-133
+docs/environment-variables.md
+  s_57dab98a11fa97::t_89181ebc1bf094 114-121,128-136,138-141,181-187,189-190
+  s_57dab98a11fa97::t_70ca6ef85d4fc8 112
+  s_e7bf94e272e2ad::t_7ac17f90da50e8 5
+  s_e7bf94e272e2ad::t_05ecb92f6a94cd 122,137,188,202,245-248
+docs/fitness-file-storage.md
+  s_799b8b7cf2f595::t_13a42f5ad83d91 70,89
+docs/features.md
+  s_799b8b7cf2f595::t_13a42f5ad83d91 44
+CLAUDE.md
+  s_799b8b7cf2f595::t_13a42f5ad83d91 15
+README.md
+  s_e22fb4a55374be::t_54f10347242d75 15-16,26-43
+docs/architecture.md
+  s_e22fb4a55374be::t_d629b2f751c91a 8,14-17,21,25,27-31,118,154
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "172aaf7d218f2d205ca80c788bde0783d1c61c5a",
+  "prompts": {},
+  "sessions": {
+    "s_57dab98a11fa97": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e0e0a-145d-7850-a332-7c0d4715223f",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_799b8b7cf2f595": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e0e1c-e043-7502-ab2b-b09405685deb",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_e22fb4a55374be": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e0e1c-c77c-7a50-8b46-6ad6f48e1313",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_e7bf94e272e2ad": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e0e1c-b0de-7462-9afe-c387f277fe7a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

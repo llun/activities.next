@@ -1,0 +1,72 @@
+lib/client.ts
+  s_fb4fdab06ac5dc::t_5af43b1f236709 3261-3288
+migrations/20260619000000_add_passkey_rpid.js
+  s_fb4fdab06ac5dc::t_83d2deb46ef8a6 1-28
+vitest.setup.ts
+  s_fb4fdab06ac5dc::t_66d93f7099d33e 136-139
+lib/components/ui/badge.tsx
+  s_fb4fdab06ac5dc::t_3f2ccc1078fbfb 1-27,29-31
+  s_fb4fdab06ac5dc::t_378b79cc0075c8 28
+lib/services/auth/requestOrigin.ts
+  s_fb4fdab06ac5dc::t_927fe0b671a8d4 1-28
+lib/services/auth/requestOrigin.test.ts
+  s_fb4fdab06ac5dc::t_03a8fc0d145e32 1-44
+app/(timeline)/settings/account/page.tsx
+  s_fb4fdab06ac5dc::t_c052c77c2465f4 48-54
+  s_fb4fdab06ac5dc::t_ac065acadc8793 2,14-15
+  s_fb4fdab06ac5dc::t_f8bd46d25f50b7 153-154,157-161
+  s_fb4fdab06ac5dc::t_378b79cc0075c8 55-56
+migrations/schema.sql
+  s_fb4fdab06ac5dc::t_235c4f9f82c6df 648-649,1398
+app/(timeline)/settings/account/PasskeyManager.test.tsx
+  s_fb4fdab06ac5dc::t_52e70718c6fb4f 1-78,82-121
+  s_fb4fdab06ac5dc::t_1b9ec4c2472d2e 79-81
+app/api/v1/passkeys/route.ts
+  s_fb4fdab06ac5dc::t_57996e624b3c32 1-63
+lib/services/auth/servedDomains.ts
+  s_fb4fdab06ac5dc::t_f692d6f6a6e79f 1-53
+lib/config/index.ts
+  s_fb4fdab06ac5dc::t_a64eb662c66cc0 174-186,188-189
+lib/services/auth/knexAdapter.ts
+  s_fb4fdab06ac5dc::t_0ea39a30744ad9 200-211,234-243
+migrations/schema.sqlite.sql
+  s_fb4fdab06ac5dc::t_930e81f00eecc7 83,220
+lib/services/auth/auth.ts
+  s_fb4fdab06ac5dc::t_a0fac048c3381e 18
+  s_fb4fdab06ac5dc::t_f6cc087df7163c 50
+  s_fb4fdab06ac5dc::t_0206c8068adc12 33-35
+  s_fb4fdab06ac5dc::t_19a15ac2f7e519 23
+  s_fb4fdab06ac5dc::t_958a1e879054ce 41
+  s_fb4fdab06ac5dc::t_c395f2bc1d6398 46-48
+  s_fb4fdab06ac5dc::t_378b79cc0075c8 36-39
+  s_fb4fdab06ac5dc::t_65490cd030fbc5 185-206
+app/api/v1/passkeys/route.test.ts
+  s_fb4fdab06ac5dc::t_2f0a324ef2e74b 1-142
+lib/services/auth/servedDomains.test.ts
+  s_fb4fdab06ac5dc::t_732b1a2d2b566f 1-46
+app/(timeline)/settings/account/PasskeyManager.tsx
+  s_fb4fdab06ac5dc::t_26b54434c9a108 183-187,191
+  s_fb4fdab06ac5dc::t_290b18b675d921 3-5,8,10-17,19,21,23,35-86,88-140,143-144,149-154,158,164,168-169,178-182,188-190,193-201,210-211,214,239-240,243,247,249,253-261,263,266-338
+  s_fb4fdab06ac5dc::t_378b79cc0075c8 7,87,170-175
+app/api/auth/[...all]/route.ts
+  s_fb4fdab06ac5dc::t_15b5d1375afe92 3,5,9-18,20
+lib/services/auth/knexAdapter.test.ts
+  s_fb4fdab06ac5dc::t_cf681bb3a08af5 103-143
+  s_fb4fdab06ac5dc::t_4a694b43ab07b5 80-85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "0b0fe7b22b545b8b301920db8d98c8d2dd136d72",
+  "prompts": {},
+  "sessions": {
+    "s_fb4fdab06ac5dc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8aa0c8d3-b0d9-4f54-9cab-1ebc3dc7b845",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

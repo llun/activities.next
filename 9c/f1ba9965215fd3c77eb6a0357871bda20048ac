@@ -1,0 +1,24 @@
+lib/types/mastodon/collection.ts
+  s_ab97d21f52c341::t_a5023d9e21b5ae 5-6
+  s_ab97d21f52c341::t_bf4ad1256c2e24 49-121
+lib/services/collections/serializers.ts
+  s_ab97d21f52c341::t_d501bc81a2f386 1-127
+lib/services/collections/serializers.test.ts
+  s_ab97d21f52c341::t_a455d73050034d 1-152
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9cf1ba9965215fd3c77eb6a0357871bda20048ac",
+  "prompts": {},
+  "sessions": {
+    "s_ab97d21f52c341": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "62bf221b-714f-4225-95d2-e37f0d6fd6a3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

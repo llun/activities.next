@@ -1,0 +1,24 @@
+lib/services/language-detection/index.ts
+  s_b4f867a916c2ae::t_aa4c69c9845ddc 4
+  s_b4f867a916c2ae::t_1fcb56bbb90c99 83-86,98-110
+lib/services/language-detection/index.test.ts
+  s_b4f867a916c2ae::t_b3c9475bddc72b 110-131
+  s_b4f867a916c2ae::t_3f797b269e5089 1-2,10-14
+  s_b4f867a916c2ae::t_eeb4a27033586f 15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.5",
+  "base_commit_sha": "d71fe0dfdcd62a9a7d7ed0d3c308d60a959003bc",
+  "prompts": {},
+  "sessions": {
+    "s_b4f867a916c2ae": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8a3d91b7-e2e6-4362-972c-c99fcd446161",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

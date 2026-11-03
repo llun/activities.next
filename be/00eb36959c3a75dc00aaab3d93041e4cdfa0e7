@@ -1,0 +1,49 @@
+app/api/v1/follow_requests/[id]/authorize/route.test.ts
+  s_279e7012f36c5f::t_c0b1bd49bcb43b 3,9,50,64-76
+app/api/v1/follow_requests/[id]/authorize/route.ts
+  s_279e7012f36c5f::t_ca34d0effa56cf 3,25-29
+docs/architecture.md
+  s_279e7012f36c5f::t_91bb7ace99a9bd 1949-1953,1966-1973,1994-1996,2012
+docs/mastodon-api-compatibility.md
+  s_279e7012f36c5f::t_2206230ce7fed9 1074-1077,1088-1090,1099-1100
+lib/database/domains/actorMigration/actorMigration.test.ts
+  s_279e7012f36c5f::t_6a2661ff46951a 335-340,344-370
+lib/database/domains/actorMigration/queries.ts
+  s_279e7012f36c5f::t_922b2aa3a71aaa 7,101-109,138-150,185
+lib/database/domains/actorMigration/types.ts
+  s_279e7012f36c5f::t_5b29b3269efa57 41-42,49-53,78-80
+lib/jobs/isOutgoingMoveAuthorized.ts
+  s_279e7012f36c5f::t_9af545b8d9e858 18-29
+lib/jobs/moveFollowerJob.test.ts
+  s_279e7012f36c5f::t_afb9513a36e3d1 772-779,783,920-948
+lib/jobs/moveFollowerJob.ts
+  s_279e7012f36c5f::t_eb40fb3e0129a1 24-26,142-147
+lib/jobs/moveRelationshipsJob.test.ts
+  s_279e7012f36c5f::t_e2891803c5f8d6 34,39,180-181,186,1099,1109-1216,1234,1252,1269
+lib/jobs/moveRelationshipsJob.ts
+  s_279e7012f36c5f::t_25b298df0b6ae7 24-26,43-44,49,67,129-134,301-312
+lib/jobs/sendMoveJob.test.ts
+  s_279e7012f36c5f::t_bcba0f5a7c57f2 161,207-208
+lib/jobs/sendMoveJob.ts
+  s_279e7012f36c5f::t_4d83e79890159a 92-93,133-137
+lib/services/accounts/migration/outgoingMove.test.ts
+  s_279e7012f36c5f::t_c2e090296e30e1 234-250
+lib/services/accounts/migration/outgoingMove.ts
+  s_279e7012f36c5f::t_42a31893fda481 217-219
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "be00eb36959c3a75dc00aaab3d93041e4cdfa0e7",
+  "prompts": {},
+  "sessions": {
+    "s_279e7012f36c5f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0410f49d-2e94-45e1-bd1f-237e6f7747bc",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

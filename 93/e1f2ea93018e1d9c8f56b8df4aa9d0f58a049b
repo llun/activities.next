@@ -1,0 +1,55 @@
+app/api/v1/accounts/update_credentials/route.test.ts
+  s_0a6bffb392e5bb::t_3ef40ceac61899 287-321,325-359
+  s_0a6bffb392e5bb::t_32e0bc7810b928 322-324
+app/api/v1/accounts/[id]/unpin/route.test.ts
+  s_0a6bffb392e5bb::t_32e0bc7810b928 61-63
+  s_0a6bffb392e5bb::t_560d94b18a75fc 1-60,64-94
+app/api/v1/accounts/[id]/remove_from_followers/route.test.ts
+  s_0a6bffb392e5bb::t_0c269ae624433e 1-2,4-5,7-65,69-83,85-107
+  s_0a6bffb392e5bb::t_32e0bc7810b928 3,66-68
+  s_0a6bffb392e5bb::t_abf64de9591624 6,84
+app/api/v1/accounts/familiar_followers/route.test.ts
+  s_0a6bffb392e5bb::t_32e0bc7810b928 61-63
+  s_0a6bffb392e5bb::t_b224b0c8f4bd67 1-60,64-93
+app/api/v1/accounts/[id]/followers/route.test.ts
+  s_0a6bffb392e5bb::t_b725cd08ba36fd 1-98
+app/api/v1/accounts/verify_credentials/route.test.ts
+  s_0a6bffb392e5bb::t_32e0bc7810b928 38-40,67-69
+  s_0a6bffb392e5bb::t_da1a077909fbba 1-37,41-66,70-92
+app/api/v1/accounts/relationships/route.test.ts
+  s_0a6bffb392e5bb::t_32e0bc7810b928 41-43,61-63
+  s_0a6bffb392e5bb::t_25779098edc393 1-40,44-60,64-108
+lib/database/sql/endorsement.test.ts
+  s_0a6bffb392e5bb::t_7fb05f6dd5d0b9 1-55,60-95
+  s_0a6bffb392e5bb::t_32e0bc7810b928 56-59
+app/api/v1/accounts/[id]/pin/route.test.ts
+  s_0a6bffb392e5bb::t_df1c16fe260970 80,98
+  s_0a6bffb392e5bb::t_32e0bc7810b928 67-69,88-90,105-107
+  s_0a6bffb392e5bb::t_7e8db621fdf8fe 1-4,6,8-66,70-79,81-87,91-97,99-104,108-116
+  s_0a6bffb392e5bb::t_680f4ac66eba90 5,7
+app/api/v1/endorsements/route.test.ts
+  s_0a6bffb392e5bb::t_5e3e7901505340 1-69,73-100
+  s_0a6bffb392e5bb::t_32e0bc7810b928 70-72
+app/api/v1/accounts/[id]/route.test.ts
+  s_0a6bffb392e5bb::t_be9bdc47db69ff 1-81
+app/api/v1/accounts/[id]/identity_proofs/route.test.ts
+  s_0a6bffb392e5bb::t_4a37bb797bc7ea 1-17
+app/api/v1/accounts/[id]/endorsements/route.test.ts
+  s_0a6bffb392e5bb::t_dbd3b23a7c4e00 1-86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "93e1f2ea93018e1d9c8f56b8df4aa9d0f58a049b",
+  "prompts": {},
+  "sessions": {
+    "s_0a6bffb392e5bb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f33db19d-86be-4aa2-83f5-fbcf68e3d44c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

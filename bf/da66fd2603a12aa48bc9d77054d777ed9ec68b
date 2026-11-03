@@ -1,0 +1,22 @@
+.github/scripts/major-release-approval.mjs
+  s_38e035b94b20f6::t_ec44fdc3c62fe0 29-30
+.github/workflows/version-bump.test.ts
+  s_38e035b94b20f6::t_8b4461b1e614ef 66,77,88,95,102,109-123
+  s_38e035b94b20f6::t_5c3af799a66a15 124-126
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "bfda66fd2603a12aa48bc9d77054d777ed9ec68b",
+  "prompts": {},
+  "sessions": {
+    "s_38e035b94b20f6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a081ac-57c9-75f2-9f13-77ef0756fa54",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,23 @@
+app/api/v1/tags/[tag]/route.test.ts
+  s_ab97d21f52c341::t_11e8eb4a26a96b 55-58,65,75,80,82-83
+  s_ab97d21f52c341::t_53099e45185dfc 9
+  s_ab97d21f52c341::t_fa5f061e6d889f 81
+app/api/v1/tags/[tag]/route.ts
+  s_ab97d21f52c341::t_8f117392ee2df5 72,79-83,89
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9328c56fb7dd99fb24583435478a6ad0a6a2aeb7",
+  "prompts": {},
+  "sessions": {
+    "s_ab97d21f52c341": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "62bf221b-714f-4225-95d2-e37f0d6fd6a3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

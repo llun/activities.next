@@ -1,0 +1,25 @@
+lib/client/connection.ts
+  s_0f9a522b386a17::t_155665375cccbd 37,109-114
+lib/client/connection.test.ts
+  s_0f9a522b386a17::t_46222d74e5ee6a 142,165,426-461
+test/setup/vitest.setup.ts
+  s_0f9a522b386a17::t_41487c95488399 4,220-222,226,232-234,236,246-248
+test/vitest.setup.test.ts
+  s_0f9a522b386a17::t_3af8b874220a93 4,6,41-55,65-73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ac88673ed91b5b784db980b9de457d5bacbd288e",
+  "prompts": {},
+  "sessions": {
+    "s_0f9a522b386a17": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8339dcdf-8288-4ca4-a992-7872ebb0ba95",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

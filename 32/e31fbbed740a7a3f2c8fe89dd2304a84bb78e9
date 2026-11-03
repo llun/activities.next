@@ -1,0 +1,18 @@
+app/(timeline)/[actor]/ActorMediaGallery.test.tsx
+  h_580a04e334fef4 265-315
+app/(timeline)/[actor]/ActorMediaGallery.tsx
+  h_580a04e334fef4 12,27,34-35,93-122,124-130,132-134,136,138,140-142,144,146-149,151-152,154,156-194,196-199
+app/(timeline)/[actor]/ActorTimelines.tsx
+  h_580a04e334fef4 434-439
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "32e31fbbed740a7a3f2c8fe89dd2304a84bb78e9",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

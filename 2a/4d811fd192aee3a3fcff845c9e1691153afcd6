@@ -1,0 +1,25 @@
+app/(timeline)/(policies)/PolicyDocumentPage.test.tsx
+  s_2acf9f64439649::t_4beb1244ad269a 120
+app/(timeline)/(policies)/PolicyDocumentPage.tsx
+  s_2acf9f64439649::t_4f53d500b01267 101-103,106-114
+docs/architecture.md
+  s_2acf9f64439649::t_b8befcee0e1b24 97
+next.config.ts
+  s_2acf9f64439649::t_ab9175d628eb2e 7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2a4d811fd192aee3a3fcff845c9e1691153afcd6",
+  "prompts": {},
+  "sessions": {
+    "s_2acf9f64439649": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4bd4eac0-2d18-48df-a666-da5180de0359",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

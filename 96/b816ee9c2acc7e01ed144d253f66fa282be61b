@@ -1,0 +1,26 @@
+lib/jobs/processFitnessFileJob.ts
+  s_49f1e724b425e6::t_3fab56a1b1b8f0 290-294
+app/api/v1/accounts/fitness-files/[fitnessFileId]/route.test.ts
+  s_49f1e724b425e6::t_c6251605aa2d83 27,42,80,92-94
+lib/jobs/processFitnessFileJob.test.ts
+  s_49f1e724b425e6::t_3515e8a9b8a52f 264,290
+  s_49f1e724b425e6::t_fb6cdc75792b68 227-230
+app/api/v1/accounts/fitness-files/[fitnessFileId]/route.ts
+  s_49f1e724b425e6::t_b0847bbed6864a 104-107
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.11",
+  "base_commit_sha": "96b816ee9c2acc7e01ed144d253f66fa282be61b",
+  "prompts": {},
+  "sessions": {
+    "s_49f1e724b425e6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e78f183e-5cba-4c45-98e0-037bb04abcd0",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

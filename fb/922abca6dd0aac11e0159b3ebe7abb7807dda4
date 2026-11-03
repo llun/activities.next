@@ -1,0 +1,29 @@
+docs/architecture.md
+  s_c332d2ffff4a32::t_ed4983cc89ffa0 220-221
+lib/jobs/followTimelineBackfillJob.test.ts
+  s_867498a5a8dd3b::t_9cedc6c30b0640 42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "fb922abca6dd0aac11e0159b3ebe7abb7807dda4",
+  "prompts": {},
+  "sessions": {
+    "s_867498a5a8dd3b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "07b215df-f83e-435d-96c9-42900a5bfb30",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_c332d2ffff4a32": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ca45c8aa-83ae-4444-9988-d5b4126e95a2",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,25 @@
+app/api/v1/fitness-files/[id]/primary/route.test.ts
+  s_f6091a1907b015::t_8b05f65590bbaa 97,187,189-190,392
+lib/jobs/bulkImportJob.test.ts
+  s_f6091a1907b015::t_399623b71a3b19 794-813
+lib/services/fitness-files/importLock.test.ts
+  s_f6091a1907b015::t_eaca435e9dc4c8 2-6,20-24
+lib/services/fitness-files/importLock.ts
+  s_f6091a1907b015::t_583c9c06f7e7e2 13-14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "58ff634a819b2de89740caa94edacdbb2d565240",
+  "prompts": {},
+  "sessions": {
+    "s_f6091a1907b015": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4002b74e-ccf2-4b38-b4b6-ddb1cc097d99",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

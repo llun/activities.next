@@ -1,0 +1,21 @@
+lib/jobs/importStravaActivityJob.test.ts
+  s_a4559fdd4d5311::t_5b9f1c46723d66 301-319
+lib/jobs/importStravaActivityJob.ts
+  s_a4559fdd4d5311::t_3db0e653cd1234 589-605,610-612,614-615,618
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "a72dc23d3a2897ba36eacb8ef80321b599c544f8",
+  "prompts": {},
+  "sessions": {
+    "s_a4559fdd4d5311": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7ec64578-ed27-4aba-8632-c0a3c93ebb92",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,33 @@
+lib/services/auth/knexAdapter.ts
+  s_e9567742ad147d::t_cca9903b9fac10 5
+  s_e9567742ad147d::t_01f1812f8a0e65 214-218
+lib/database/sql/utils/detachOAuthTokensFromSessions.ts
+  s_e9567742ad147d::t_4f783828c3973a 28-50
+lib/services/auth/knexAdapter.test.ts
+  s_e9567742ad147d::t_acf79075229e56 825-827,829,844-846,850-868,873-875
+  s_e9567742ad147d::t_ecb83bb03a4536 847-849,870-871
+lib/database/sql/account.test.ts
+  s_e9567742ad147d::t_ecb83bb03a4536 960-964,1027-1031
+  s_e9567742ad147d::t_378020b497d97a 908-959,965-1026,1032-1043
+lib/database/sql/account.ts
+  s_e9567742ad147d::t_ddd57fe35f723b 707-709
+  s_e9567742ad147d::t_b03a0b6d3637e1 346-348,355-359
+  s_e9567742ad147d::t_f8ee6ac98ad1f5 11
+  s_e9567742ad147d::t_74b57746f75b89 741-743
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "46cb4587d2d27f646a4e6f9a52a45ded0433bbdc",
+  "prompts": {},
+  "sessions": {
+    "s_e9567742ad147d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6642b464-c4f6-43bb-b28f-70ae757e4119",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

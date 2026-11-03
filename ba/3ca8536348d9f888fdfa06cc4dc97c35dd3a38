@@ -1,0 +1,21 @@
+lib/services/polls/syncRemotePoll.ts
+  s_867498a5a8dd3b::t_356bc187ee1806 79-86
+lib/utils/activitypub.ts
+  s_867498a5a8dd3b::t_356bc187ee1806 42-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "ba3ca8536348d9f888fdfa06cc4dc97c35dd3a38",
+  "prompts": {},
+  "sessions": {
+    "s_867498a5a8dd3b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "07b215df-f83e-435d-96c9-42900a5bfb30",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

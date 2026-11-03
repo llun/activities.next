@@ -1,0 +1,23 @@
+lib/services/timelines/main.test.ts
+  s_3550bed52eee41::t_c910a179cbc5f8 271-286
+migrations/20260531001000_add_account_notes.js
+  s_3550bed52eee41::t_2e00511593aa62 21-22
+lib/services/timelines/main.ts
+  s_3550bed52eee41::t_6c15de6e52c5b5 41-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "22724afa3a434813dd08494f9f06ba013311a8c9",
+  "prompts": {},
+  "sessions": {
+    "s_3550bed52eee41": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9550ec50-0df8-44cf-a07a-94f038da6ca8",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

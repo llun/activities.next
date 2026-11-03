@@ -1,0 +1,33 @@
+app/api/v1/settings/fitness/strava/route.test.ts
+  s_4472d6602f7380::t_ab29e9133094db 299-318
+app/api/v1/accounts/like/route.ts
+  s_4472d6602f7380::t_867e6d11eae6f9 11,33-44,75-86
+app/api/v1/accounts/repost/route.test.ts
+  s_4472d6602f7380::t_ab29e9133094db 1-88
+app/api/v1/accounts/repost/route.ts
+  s_4472d6602f7380::t_867e6d11eae6f9 12-17,34-45,82-93
+app/api/v1/accounts/password/reset/route.test.ts
+  s_4472d6602f7380::t_ab29e9133094db 1-68
+app/api/v1/accounts/like/route.test.ts
+  s_4472d6602f7380::t_ab29e9133094db 63-78,101-113
+app/api/v1/settings/fitness/strava/route.ts
+  s_4472d6602f7380::t_867e6d11eae6f9 14,110-126
+app/api/v1/accounts/password/reset/route.ts
+  s_4472d6602f7380::t_867e6d11eae6f9 9,39-60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "dd37456b2dd473843792c236a0b812a9919badc8",
+  "prompts": {},
+  "sessions": {
+    "s_4472d6602f7380": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e20e9-0519-79f2-89f9-053847d56747",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

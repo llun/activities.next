@@ -1,0 +1,65 @@
+app/(timeline)/[actor]/fitness/heatmap/FitnessHeatmapView.tsx
+  dea1526795d109d3 3,13,21,23,29,90,102,104,133-150,152,181-186,206,208,221,242,262-263,334,336-353,355-366,368-380,382-395,397-424,426-430,432-447,449-465,467-486,490-498,501-523,525,529-530,537-548
+lib/fitness/regions.ts
+  dea1526795d109d3 1013-1028
+lib/services/fitness-files/index.ts
+  dea1526795d109d3 172-216
+lib/activities/getActorPerson.ts
+  h_e5599db4cf9bba 37
+app/api/v1/accounts/[id]/fitness-heatmap/geojson/route.ts
+  dea1526795d109d3 1-193
+lib/services/auth/auth.ts
+  h_e5599db4cf9bba 184-186
+lib/services/fitness-files/getHeatmapGeoJSON.ts
+  dea1526795d109d3 1-118
+app/(timeline)/[actor]/ActorFitnessDashboard.tsx
+  dea1526795d109d3 3-12,16-23,52-60,125-143,145-173,177,182,187-226,228,232-234,238-241,244,246-288
+lib/components/fitness/InteractiveHeatmapMap.tsx
+  dea1526795d109d3 1-123
+lib/jobs/generateFitnessHeatmapJob.ts
+  dea1526795d109d3 9
+app/(timeline)/[actor]/fitness/heatmap/page.tsx
+  dea1526795d109d3 8,64-66,69,80-84
+lib/services/fitness-files/generateHeatmapImage.ts
+  dea1526795d109d3 3
+lib/client.ts
+  dea1526795d109d3 1230-1262
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "9633c33849e01d22620b18f80d8da2a29bd7b713",
+  "prompts": {
+    "9280586e83aef0d9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ddff7-93bb-7761-81fe-00363f0d4e95",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 135,
+      "overriden_lines": 0
+    },
+    "dea1526795d109d3": {
+      "agent_id": {
+        "tool": "gemini",
+        "id": "f418ef69-2f7f-4528-b311-6c2390184be3",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 951,
+      "total_deletions": 349,
+      "accepted_lines": 944,
+      "overriden_lines": 0
+    }
+  },
+  "humans": {
+    "h_e5599db4cf9bba": {
+      "author": "Maythee Anegboonlap"
+    }
+  }
+}

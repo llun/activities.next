@@ -1,0 +1,25 @@
+CONTRIBUTING.md
+  s_c587d6e0f997cb::t_6b68f11bbcd127 287-289
+lib/database/sql/queueJob.test.ts
+  s_c587d6e0f997cb::t_6b68f11bbcd127 517-519,548-556,558,563-565,568-569,571-572,575,578,583-586
+  s_c587d6e0f997cb::t_91246544afd22d 520-547
+  s_c587d6e0f997cb::t_b21181a3bef526 515-516
+.github/workflows/ci.yml
+  s_c587d6e0f997cb::t_6b68f11bbcd127 155-156,200-202
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "05ed8eb2c983edafbddf227ff8a1e4d5cf974f27",
+  "prompts": {},
+  "sessions": {
+    "s_c587d6e0f997cb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a077c9-2bf2-7110-89c4-bfded1f36b16",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

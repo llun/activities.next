@@ -1,0 +1,32 @@
+lib/database/sql/fitnessGearComponentPeriods.test.ts
+  s_eacd0c3a89f5e1::t_e4235139d1d074 155-160
+app/(timeline)/fitness/gear/[id]/GearComponentsCard.test.tsx
+  s_eacd0c3a89f5e1::t_a31dca6064894c 293-294,302
+  s_eacd0c3a89f5e1::t_e8c6626925d339 289-292
+lib/services/fitness-gears/gearRequests.test.ts
+  s_eacd0c3a89f5e1::t_34a62422400ddb 7,375-482
+  s_eacd0c3a89f5e1::t_f8bd5dc2ad19a3 483
+app/api/v1/fitness/gear/[id]/components/[componentId]/route.ts
+  s_eacd0c3a89f5e1::t_330d4f3c140220 2-5,52-56,67-73,77
+lib/services/fitness-gears/gearRequests.ts
+  s_eacd0c3a89f5e1::t_11ae9943b14b3b 184-248
+  s_eacd0c3a89f5e1::t_c557390c9fbfe6 183
+AGENTS.md
+  s_eacd0c3a89f5e1::t_e4235139d1d074 820-824
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "576885ff6bf4ddc70c3e650a1f5788a2c17832d8",
+  "prompts": {},
+  "sessions": {
+    "s_eacd0c3a89f5e1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4cf735c2-2b90-40eb-8be8-b59706ebd921",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

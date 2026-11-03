@@ -1,0 +1,39 @@
+lib/client.ts
+  s_ab97d21f52c341::t_b25ce4c8dcda8c 3460-3463
+app/api/v1/collections/[id]/items/[item_id]/revoke/route.ts
+  s_ab97d21f52c341::t_a198dc3b9c31b7 1-47,50-51,58-64
+app/api/v1/collections/[id]/items/[item_id]/route.test.ts
+  s_ab97d21f52c341::t_1a77dd5e614e0f 3
+  s_ab97d21f52c341::t_adcb1c96ceb731 1-2,4-136
+app/api/v1/collections/[id]/items/[item_id]/revoke/route.test.ts
+  s_ab97d21f52c341::t_a700aa005e5268 1-128
+app/api/v1/collections/[id]/items/route.test.ts
+  s_ab97d21f52c341::t_50168d3701e8cb 1-110
+app/api/v1/collections/[id]/items/route.ts
+  s_ab97d21f52c341::t_d1d3f1999e68df 4-11
+  s_ab97d21f52c341::t_34e61113dcdaa6 117,127-134,154-156,165-170,173-188,190-195
+app/api/v1/collections/[id]/items/[item_id]/approve/route.test.ts
+  s_ab97d21f52c341::t_d8a1a4f14c0a4b 1-107
+app/api/v1/collections/[id]/items/[item_id]/route.ts
+  s_ab97d21f52c341::t_9e964b1b540785 1-47
+app/api/v1/collections/[id]/items/[item_id]/approve/route.ts
+  s_ab97d21f52c341::t_10793279ce6db7 1-48,51-52,59-65
+lib/services/collections/resolveCollectionItem.ts
+  s_ab97d21f52c341::t_8634fb5c6abd75 1-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c47da0003085e20fdd1eec48b18a802a870e47cf",
+  "prompts": {},
+  "sessions": {
+    "s_ab97d21f52c341": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "62bf221b-714f-4225-95d2-e37f0d6fd6a3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

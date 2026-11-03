@@ -1,0 +1,36 @@
+app/api/well-known/oauth-authorization-server/route.ts
+  s_fa7033e52f84b1::t_ee6b7452049c71 3-4,19-22,26
+lib/services/wellknown/openidConfiguration.ts
+  s_fa7033e52f84b1::t_142ce34eec23f4 24-34
+lib/services/wellknown/oauthAuthorizationServer.ts
+  s_fa7033e52f84b1::t_0855f9d6c2a9c1 30-51,53
+  s_fa7033e52f84b1::t_da208cb1e0ef72 21-29
+lib/services/wellknown/index.test.ts
+  s_fa7033e52f84b1::t_1a950161d85995 62-85
+  s_fa7033e52f84b1::t_90368f11be1f87 178-198
+app/api/oauth/authorize/route.ts
+  s_fa7033e52f84b1::t_ddcf7aafb5e775 3
+  s_fa7033e52f84b1::t_c50cc043abf431 4
+  s_fa7033e52f84b1::t_7df1a8ebf8d2b2 34-36,38-41,48-51
+app/api/oauth/authorize/route.test.ts
+  s_fa7033e52f84b1::t_0855f9d6c2a9c1 10-13
+  s_fa7033e52f84b1::t_9ec5a2779ebbc1 1-9,14-87
+app/api/well-known/openid-configuration/route.ts
+  s_fa7033e52f84b1::t_2c1957364b73c4 3-4,19-23,27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "7eff1e7a606404abba359809671c5c5074e90149",
+  "prompts": {},
+  "sessions": {
+    "s_fa7033e52f84b1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "53796083-39cd-4ea1-b5f2-cb502febf0e7",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

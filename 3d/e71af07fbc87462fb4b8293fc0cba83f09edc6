@@ -1,0 +1,24 @@
+app/(timeline)/MainPageTimeline.test.tsx
+  h_580a04e334fef4 44-48,53-56,93,97,101-113,135-182,841-1025
+app/(timeline)/MainPageTimeline.tsx
+  h_580a04e334fef4 11-14,21-22,62-64,66-69,72,74-117,238-240
+app/(timeline)/lists/[id]/ListTimeline.test.tsx
+  h_580a04e334fef4 10,48-53,57-61,65-143,172,190,193-211,306-560
+app/(timeline)/lists/[id]/ListTimeline.tsx
+  h_580a04e334fef4 10-13,19,21,60,62,64,66,68-72,74-113,187-191
+app/(timeline)/tags/[tag]/HashtagTimeline.test.tsx
+  h_580a04e334fef4 5,8,23-28,33-37,44-122,138-162,194-353
+app/(timeline)/tags/[tag]/HashtagTimeline.tsx
+  h_580a04e334fef4 8-11,17-18,55-57,59,61,63-67,69-108,170-173
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "3de71af07fbc87462fb4b8293fc0cba83f09edc6",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

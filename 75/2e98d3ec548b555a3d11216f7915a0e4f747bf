@@ -1,0 +1,38 @@
+app/(timeline)/MainPageTimeline.tsx
+  h_580a04e334fef4 8,270-274
+app/(timeline)/[actor]/ActorMediaGallery.tsx
+  h_580a04e334fef4 7,220-224
+app/(timeline)/[actor]/ActorTimelines.tsx
+  h_580a04e334fef4 8,448-449,451,470-471,473,553-554,556
+app/(timeline)/bookmarks/BookmarksTimeline.tsx
+  h_580a04e334fef4 6,198-202
+app/(timeline)/collections/[id]/CollectionDetail.tsx
+  h_580a04e334fef4 20,382-386
+app/(timeline)/favorites/FavoritesTimeline.tsx
+  h_580a04e334fef4 6,198-202
+app/(timeline)/fitness/gear/[id]/GearActivitiesFeed.tsx
+  h_580a04e334fef4 9,294-299
+app/(timeline)/lists/[id]/ListTimeline.tsx
+  h_580a04e334fef4 8,208-212
+app/(timeline)/search/SearchPageClient.tsx
+  h_580a04e334fef4 19,596
+app/(timeline)/tags/[tag]/HashtagTimeline.tsx
+  h_580a04e334fef4 7,186-190
+lib/components/load-more-button/load-more-button.test.tsx
+  h_580a04e334fef4 1-96
+lib/components/load-more-button/load-more-button.tsx
+  h_580a04e334fef4 1-49
+lib/components/settings/ManageAccountList.tsx
+  h_580a04e334fef4 7,193-203
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "752e98d3ec548b555a3d11216f7915a0e4f747bf",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

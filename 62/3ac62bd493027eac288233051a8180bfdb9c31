@@ -1,0 +1,28 @@
+lib/services/wellknown/index.test.ts
+  s_8b26235d86ec5b::t_79605150c5be79 109-117
+lib/services/auth/constants.ts
+  s_8b26235d86ec5b::t_8504f784f72894 1-13
+docs/features.md
+  s_8b26235d86ec5b::t_4a62227c12989e 31
+app/api/v1/apps/createApplication.test.ts
+  s_8b26235d86ec5b::t_c37d83e72e1e36 354-357,376
+  s_8b26235d86ec5b::t_a2dfb98ada1e43 442-465
+app/api/v1/apps/createApplication.ts
+  s_8b26235d86ec5b::t_a0ccf27ebb5ef4 1-9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "623ac62bd493027eac288233051a8180bfdb9c31",
+  "prompts": {},
+  "sessions": {
+    "s_8b26235d86ec5b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e0c54908-1871-4c9e-940c-48f4b8e7ccc4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

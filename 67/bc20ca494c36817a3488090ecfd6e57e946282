@@ -1,0 +1,25 @@
+lib/services/federation/domainPolicy.test.ts
+  aec9357be833f4ad 31-45
+lib/services/federation/domainPolicy.ts
+  aec9357be833f4ad 50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "67bc20ca494c36817a3488090ecfd6e57e946282",
+  "prompts": {
+    "aec9357be833f4ad": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dcb00-9e97-7592-828b-dd28aea9a215",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 32,
+      "total_deletions": 22,
+      "accepted_lines": 605,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -1,0 +1,20 @@
+lib/components/layout/nav-items.ts
+  s_08a21c68f4b09c::t_5ed483bceb69c6 5,11
+  s_08a21c68f4b09c::t_b4631794980f38 30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "719907bce0ae6077a81a0ce6ac6763899c7c8a8e",
+  "prompts": {},
+  "sessions": {
+    "s_08a21c68f4b09c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "215382dd-1b2e-435b-9e2f-23f3dbc453ca",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,146 @@
+app/api/users/[username]/inbox/route.ts
+  s_6dd763a0b22888::t_f414df6a923abc 176-181,183-190
+  s_6dd763a0b22888::t_82d0fb98f072d4 182
+app/(timeline)/tags/[tag]/page.tsx
+  s_6dd763a0b22888::t_2fbe353227a647 48-49
+lib/database/sql/index.ts
+  s_6dd763a0b22888::t_8eb68533774fb9 169
+  s_6dd763a0b22888::t_2e56398186d253 30
+  s_6dd763a0b22888::t_16d53d57c8a8b4 84
+lib/services/guards/OnlyLocalUserGuard.test.ts
+  s_6dd763a0b22888::t_52c4080127ed68 119-165
+lib/database/testUtils.ts
+  s_6dd763a0b22888::t_c9f3db1fd7d75f 143-147,155,160,162
+  s_6dd763a0b22888::t_82d0fb98f072d4 163-164
+lib/services/guards/OnlyLocalUserGuard.ts
+  s_6dd763a0b22888::t_5cf37b66b7a97d 48-54
+app/api/v1/timelines/tag/[hashtag]/route.ts
+  s_6dd763a0b22888::t_fbdc90dc7d2744 139-140
+app/api/v1/timelines/public/route.test.ts
+  s_6dd763a0b22888::t_9961c5f80971c9 124-153
+lib/actions/createNote.test.ts
+  s_6dd763a0b22888::t_a6b94d101c3b3b 107-118
+lib/services/timelines/getFilteredTimelinePage.ts
+  s_6dd763a0b22888::t_cb726bfb585b2a 125-129,132-133
+  s_6dd763a0b22888::t_1fe9fee0caa1de 56-58,69,73
+  s_6dd763a0b22888::t_dde4625c717d63 14,17-21
+  s_5cb8e76b1f7ab2::t_241ad2fbc04f77 22
+app/api/inbox/route.ts
+  s_6dd763a0b22888::t_ea722a8836997b 70-84
+app/api/v1/timelines/public/route.ts
+  s_6dd763a0b22888::t_abb6fb1cf8ffb7 120-121
+app/api/v1/tags/[tag]/route.test.ts
+  s_6dd763a0b22888::t_511601838ba0ec 14-15
+migrations/schema.sqlite.sql
+  s_6dd763a0b22888::t_3a3d029dc4e1ba 3,34,183,245-247
+lib/database/sql/actor.ts
+  s_6dd763a0b22888::t_88cbce42a5a328 299-303
+  s_6dd763a0b22888::t_80e7f51457636f 669-678
+  s_6dd763a0b22888::t_ab8d3d21dc0417 727-735
+  s_6dd763a0b22888::t_019675ba9d347f 762-764
+migrations/schema.sql
+  s_6dd763a0b22888::t_57533e7a157fde 60-62,88-91,630-640,855-858,1326-1328,1570-1572
+  s_6dd763a0b22888::t_166b36acedd03b 1573
+lib/database/sql/moderation.ts
+  s_6dd763a0b22888::t_82d0fb98f072d4 25-27,112-116
+  s_6dd763a0b22888::t_14295ba7e62398 1-24,28-111,117-155
+lib/services/timelines/moderationFilter.test.ts
+  s_6dd763a0b22888::t_1efea21b55f041 1-36,38-67,73-93,99-116,122-138
+  s_6dd763a0b22888::t_82d0fb98f072d4 37,68-72,94-98,117-121
+app/api/v1/timelines/[timeline]/route.test.ts
+  s_6dd763a0b22888::t_f41f83b794501c 208-232
+lib/types/database/rows.ts
+  s_6dd763a0b22888::t_52ede41d05a6aa 106-112
+  s_6dd763a0b22888::t_32d76587dae88a 139-144
+lib/types/domain/account.ts
+  s_6dd763a0b22888::t_60f3abc4094f8d 19-22
+lib/actions/createNote.ts
+  s_6dd763a0b22888::t_1cd00cf5aafc06 432-434
+lib/types/domain/actor.ts
+  s_6dd763a0b22888::t_6e9c87014862ef 54-59
+lib/services/auth/canCreateSessionForAccount.ts
+  s_6dd763a0b22888::t_0142c81af09e40 1-18
+lib/database/sql/utils/toDomainAccount.ts
+  s_6dd763a0b22888::t_b52afcbbd9e35d 28-33
+lib/services/guards/OAuthGuard.test.ts
+  s_6dd763a0b22888::t_2199ffba6f8402 903-997
+app/api/v1/timelines/tag/[hashtag]/route.test.ts
+  s_6dd763a0b22888::t_af7346ada2f854 15-16
+lib/actions/createPoll.ts
+  s_6dd763a0b22888::t_0e8b107856d605 124-126
+lib/database/sql/actor.test.ts
+  s_6dd763a0b22888::t_06f05b5bcdc9bc 464-525
+lib/services/guards/OAuthGuard.ts
+  s_6dd763a0b22888::t_463748355fbd74 277-280,285
+  s_6dd763a0b22888::t_8b5ddb278748b3 311-313
+  s_6dd763a0b22888::t_cb2963cf2fd34e 413-415
+  s_6dd763a0b22888::t_8fb377ec50e904 89-96
+lib/services/auth/canCreateSessionForAccount.test.ts
+  s_6dd763a0b22888::t_c3a0d378fc42d7 1-28
+app/api/users/[username]/inbox/route.test.ts
+  s_6dd763a0b22888::t_82d0fb98f072d4 198-202
+  s_6dd763a0b22888::t_c9e9eae5baaefb 14,16-18
+  s_6dd763a0b22888::t_a0f254cf890f32 188,193-197,203-212
+  s_6dd763a0b22888::t_47f131b82ea342 213-214
+lib/services/timelines/getFilteredTimelinePage.test.ts
+  s_6dd763a0b22888::t_86684f490f884c 43-44,86-87,127-128,166-167,241-242,278-279,331-332,382-383,430-431,513-514
+  s_6dd763a0b22888::t_c4661769b8d988 473-474
+lib/types/database/operations.ts
+  s_6dd763a0b22888::t_82d0fb98f072d4 2321-2323
+  s_6dd763a0b22888::t_ce35db17fbfb1e 2236-2320,2324-2325
+lib/actions/createPoll.test.ts
+  s_6dd763a0b22888::t_2bcd41858fd940 72-85
+lib/utils/response.ts
+  s_6dd763a0b22888::t_3850de4787b91b 83
+  s_6dd763a0b22888::t_360f7f9ab93d1c 60
+  s_6dd763a0b22888::t_cd9504034ebe7b 23
+  s_6dd763a0b22888::t_e7221bf5b4b490 42
+lib/services/timelines/moderationFilter.ts
+  s_6dd763a0b22888::t_17ff1ea7171a00 1-36
+lib/database/types.ts
+  s_6dd763a0b22888::t_16dbf1d5ae282e 85
+  s_6dd763a0b22888::t_680b92c170cfba 31
+migrations/20260714000000_add_moderation_state.js
+  s_6dd763a0b22888::t_f96f8eea6823fc 1-61,63-90
+  s_6dd763a0b22888::t_82d0fb98f072d4 62
+app/api/inbox/route.test.ts
+  s_6dd763a0b22888::t_cc5e8b57b20e76 7,9-11
+  s_6dd763a0b22888::t_82d0fb98f072d4 112-116,121-126
+  s_6dd763a0b22888::t_012e73b8e86163 101-111,117-120,127-130
+lib/services/auth/auth.ts
+  s_6dd763a0b22888::t_808877cc93ec08 12
+  s_6dd763a0b22888::t_7fd0057bc51d80 192-193
+lib/database/sql/moderation.test.ts
+  s_6dd763a0b22888::t_b14a24d50d5993 1-96,105-218,222-303
+  s_6dd763a0b22888::t_82d0fb98f072d4 97-104,219-221
+app/api/v1/tags/[tag]/route.ts
+  s_6dd763a0b22888::t_256a07806ef3b1 106-107
+lib/database/sql/account.ts
+  s_6dd763a0b22888::t_31d8eb55e0c755 125-128
+app/(timeline)/page.tsx
+  s_6dd763a0b22888::t_9b219ad4fae909 61-62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "148c55ffe75fb7f9d1a43b0789ffdb3d1cd10c48",
+  "prompts": {},
+  "sessions": {
+    "s_5cb8e76b1f7ab2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d2771900-09a8-4624-b08d-9de9a67bd110",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_6dd763a0b22888": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9f2f2973-35a6-4476-8b76-95f49efde47d",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+lib/services/auth/knexAdapter.test.ts
+  s_58892cc8b3e18b::t_8b3b1aa47723b2 247-249,257
+lib/services/auth/knexAdapter.ts
+  s_58892cc8b3e18b::t_74776db4c887d4 44-46,48,51,165
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "f561f7b71f24fab1cec3948fd5cb6cc548ba5292",
+  "prompts": {},
+  "sessions": {
+    "s_58892cc8b3e18b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e6400-99fc-71c1-8ad5-9b1cf7d98715",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,89 @@
+app/(timeline)/notifications/loading.test.tsx
+  s_256c7bcfaeebe0::t_706f480e8a7499 7
+app/api/v1/admin/domain_blocks/[id]/route.test.ts
+  s_55b6d8fca1d2f9::t_ad092869310623 3
+app/api/v1/filters/[id]/route.test.ts
+  s_17b7477480da96::t_d77f18f4d409d2 9
+app/api/v1/gallery/albums/[id]/items/route.test.ts
+  s_55b6d8fca1d2f9::t_23881bfc0b4abb 10
+app/api/v1/gallery/albums/[id]/route.test.ts
+  s_55b6d8fca1d2f9::t_58bf3553c69453 10
+app/api/v1/gallery/albums/membership/route.test.ts
+  s_55b6d8fca1d2f9::t_978119399b1239 9
+app/api/v1/gallery/albums/suggestions/media/route.test.ts
+  s_55b6d8fca1d2f9::t_d3341b9448e1c4 10
+app/api/v1/gallery/albums/suggestions/route.test.ts
+  s_55b6d8fca1d2f9::t_28432b31e82847 11
+app/api/v1/gallery/media/facets/route.test.ts
+  s_55b6d8fca1d2f9::t_7f82836719c840 10
+app/api/v1/gallery/media/route.test.ts
+  s_55b6d8fca1d2f9::t_3c135aa231216e 11
+lib/components/photo-editor/PhotoEditPreview.test.tsx
+  s_f147bf36f62485::t_acd21ec845575e 14
+lib/components/posts/actions/visibility-button.test.tsx
+  s_f147bf36f62485::t_6734e3a138ac60 10
+app/(timeline)/settings/delete/page.test.tsx
+  s_55b6d8fca1d2f9::t_bce964fb3fcf1e 5
+app/api/v1/accounts/aliases/route.test.ts
+  s_55b6d8fca1d2f9::t_81f41c6009491c 10
+app/api/v1/accounts/bootstrap/route.test.ts
+  s_55b6d8fca1d2f9::t_c21ba406754983 8
+app/api/v1/accounts/handle/route.test.ts
+  s_55b6d8fca1d2f9::t_8024432583e712 11
+app/api/v1/accounts/media/[mediaId]/route.test.ts
+  s_55b6d8fca1d2f9::t_9c68e62bfc6041 11
+app/api/v1/accounts/media/route.test.ts
+  s_55b6d8fca1d2f9::t_d51b62990f8fcd 5
+app/api/v1/accounts/migration/route.test.ts
+  s_55b6d8fca1d2f9::t_fd1c2cd08df195 18
+lib/components/bio/Bio.test.tsx
+  s_55b6d8fca1d2f9::t_0fb3b3cdf00818 4
+lib/services/strava/activity.test.ts
+  s_55b6d8fca1d2f9::t_421af2b6ad2ef1 14
+lib/utils/response.test.ts
+  s_55b6d8fca1d2f9::t_8eca18ab874ef8 1
+lib/utils/version.test.ts
+  s_55b6d8fca1d2f9::t_083929ec6e93de 3
+lib/utils/webVitals/classify.test.ts
+  s_55b6d8fca1d2f9::t_285f235b862772 6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6e049b23c341eb15e191fc3c2c247b843236e2a0",
+  "prompts": {},
+  "sessions": {
+    "s_17b7477480da96": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2228ce77-e5f6-425a-b31c-1cf14bbecf3e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_256c7bcfaeebe0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f7866451-af6b-4e17-a428-98482aea26a3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_55b6d8fca1d2f9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9b630085-bbc5-4a94-9cf4-4403b18b88a9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_f147bf36f62485": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "25ee74e4-3619-4df9-8186-dcf3fd9b6ec2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

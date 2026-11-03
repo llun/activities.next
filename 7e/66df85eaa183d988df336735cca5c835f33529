@@ -1,0 +1,23 @@
+scripts/importStravaArchive.ts
+  4872823a5024da42 4,8,161-169,171-173,189-190,236,243,251-252,258-269
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "7e66df85eaa183d988df336735cca5c835f33529",
+  "prompts": {
+    "4872823a5024da42": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1157c301-afcc-41f0-90de-5ae07d0822f5",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 41,
+      "total_deletions": 25,
+      "accepted_lines": 32,
+      "overriden_lines": 0
+    }
+  }
+}

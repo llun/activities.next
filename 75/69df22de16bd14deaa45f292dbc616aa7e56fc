@@ -1,0 +1,175 @@
+lib/utils/text/getHashtags.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 3
+lib/actions/createPoll.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 48
+lib/services/notifications/groupNotifications.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 5
+lib/activities/getActorFollowers.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 22
+lib/services/timelines/mention.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 64
+lib/utils/getAttachmentMediaPath.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 3
+AGENTS.md
+  s_94ce91ff50c23c::t_5c02fe547c6383 222-230
+lib/services/email/templates/like.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 43,51,63
+lib/services/wellknown/nodeinfo.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 55,70
+lib/services/email/templates/reply.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 43,50,61
+lib/services/email/templates/mention.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 34,42,56
+lib/services/timelines/main.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 54
+lib/services/oauth/userinfo.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 25
+lib/services/timelines/noaanounce.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 58
+lib/services/timelines/index.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 19
+lib/actions/acceptFollowRequest.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 45
+CLAUDE.md
+  s_94ce91ff50c23c::t_da27bda60cb0fe 34
+lib/services/mastodon/getMastodonStatus.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 23,40
+lib/types/domain/attachment.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 23,55,162
+lib/actions/rejectFollowRequest.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 32
+lib/services/email/templates/activityImport.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 4,11,18
+lib/utils/activitypub.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 8,73,120,158
+lib/utils/http-headers/cors.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 3
+lib/actions/like.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 39
+lib/actions/createFollower.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 14
+lib/activities/orderedCollection.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 7
+lib/services/email/templates/reblog.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 43,51,65
+lib/services/guards/getHeaderValue.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 5
+lib/services/guards/headerHost.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 9
+lib/utils/activityPubContentNegotiation.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 9,74
+lib/utils/acceptContentTypes.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 6
+lib/actions/announce.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 55
+lib/utils/response.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 60,68,81
+lib/services/notifications/followGrouping.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 5
+lib/services/queue/index.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 5
+lib/services/notifications/collectNotificationGroups.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 17
+lib/services/notifications/getNotificationGroupsEnvelope.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 28
+lib/activities/getRemoteStatus.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 11
+lib/utils/text/convertEmojisToImages.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 5
+lib/actions/createNote.attachment.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 60
+lib/activities/getActorPerson.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 12
+lib/services/wellknown/index.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 18,63,104,120,139,181
+lib/services/guards/OAuthGuard.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 80,108,918
+lib/types/domain/status.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 39,149
+lib/utils/cleanJson.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 3
+lib/activities/getActorFollowing.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 22
+lib/utils/fitness.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 10-11,31,51,65,79,90
+lib/activities/getWebfingerSelf.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 9
+lib/utils/getStatusDetailPath.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 5
+lib/utils/text/convertMarkdownText.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 5
+lib/utils/urlToId.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 3,114
+app/(timeline)/[actor]/[status]/page.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 35
+lib/actions/updateNote.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 52
+lib/services/email/templates/follow.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 17,25,34
+lib/actions/createNote.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 76
+lib/activities/index.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 49,66,93,152,175,213,244,272,300,339
+lib/services/queue/noqueue.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 11,24
+lib/types/domain/actor.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 13,22,36,50,58
+lib/utils/getVisibility.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 8
+lib/activities/activityPubHeaders.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 19
+lib/actions/updateNoteVisibility.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 52
+lib/utils/acceptContainsContentTypes.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 3
+lib/utils/signature.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 13,31,179
+lib/utils/waitFor.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 3
+lib/utils/getStatusDetailPathClient.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 5
+app/(timeline)/[actor]/[status]/resolveStatusFromPath.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 6
+lib/utils/text/sanitizeText.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 36,187
+lib/services/guards/getRedirectUrl.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 9
+lib/actions/undoFollowRequest.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 10
+lib/services/notifications/getNotificationGroup.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 18
+lib/utils/text/getMentions.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 9
+lib/services/accounts/relationship.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 7
+lib/activities/getActorPosts.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 19
+lib/database/sql/actor.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 101,191,703,808,857,878,933,976,999,1021,1070,1155
+lib/services/notifications/evaluateNotificationPolicy.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 39
+lib/actions/undoAnnounce.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 45
+lib/utils/getPersonFromActor.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 4
+lib/activities/note.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 12,49,67,174,211,266
+lib/services/email/templates/followRequest.test.ts
+  s_94ce91ff50c23c::t_7a251d41286e1a 17,24,33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "7569df22de16bd14deaa45f292dbc616aa7e56fc",
+  "prompts": {},
+  "sessions": {
+    "s_94ce91ff50c23c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2d5e5b5-3299-45b2-9a92-9c8821ee3dba",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

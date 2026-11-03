@@ -1,0 +1,34 @@
+lib/client/drafts/draftsDb.ts
+  s_512188f2b1db53::t_114ff8b4558421 577-579,584-585,605-608,611-622
+lib/client/drafts/draftsDb.queue.test.ts
+  s_512188f2b1db53::t_bd3eed2019d18c 4,248-262,264-317
+  s_512188f2b1db53::t_3902ba88a11a51 263
+  s_512188f2b1db53::t_7037ba6041fbf0 318
+lib/components/post-box/useComposerDraft.ts
+  s_512188f2b1db53::t_05d03171366cf1 886-896
+lib/components/post-box/useComposerDraft.test.tsx
+  s_512188f2b1db53::t_bd3eed2019d18c 1303-1324
+lib/components/drafts/DraftsProvider.tsx
+  s_512188f2b1db53::t_aaf428271b32cb 355
+  s_512188f2b1db53::t_3b9c66499bafb3 356
+  s_512188f2b1db53::t_6612461fdff39d 26,442-455
+lib/components/drafts/DraftsProvider.queue.test.tsx
+  s_512188f2b1db53::t_f55e94c5c5207f 18,21,518-541,556-557,571-572,588,590-592
+  s_512188f2b1db53::t_cee9c90525f833 542-543,555,558-570,573-587,589,593-598
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f104975f1b77fa6f48c552570c312b201576f370",
+  "prompts": {},
+  "sessions": {
+    "s_512188f2b1db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e467608a-8346-4544-b69a-fc45fca93669",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

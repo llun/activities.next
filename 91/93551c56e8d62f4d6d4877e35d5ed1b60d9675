@@ -1,0 +1,24 @@
+lib/services/mastodon/featureTag.ts
+  s_ab97d21f52c341::t_15169b3a42ed49 1-51
+lib/services/mastodon/featureTag.test.ts
+  s_ab97d21f52c341::t_7bf9ce2f7dc470 1-87
+app/api/v1/featured_tags/route.ts
+  s_ab97d21f52c341::t_d460ac74faa62e 89-90,94,108-112
+  s_ab97d21f52c341::t_3c2ce30bc14eba 8-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9193551c56e8d62f4d6d4877e35d5ed1b60d9675",
+  "prompts": {},
+  "sessions": {
+    "s_ab97d21f52c341": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "62bf221b-714f-4225-95d2-e37f0d6fd6a3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

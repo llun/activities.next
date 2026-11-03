@@ -1,0 +1,22 @@
+app/(timeline)/account/sessions/AccountSessions.test.tsx
+  s_8686a688f38363::t_cc21a98775acab 255-270
+  s_8686a688f38363::t_ba930d6661044f 304,325-329
+app/(timeline)/account/sessions/AccountSessions.tsx
+  s_8686a688f38363::t_5dd8e7f3cf806f 165-172
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "1a286962bdc5e52a91e3afdb5207d4b3293f93d8",
+  "prompts": {},
+  "sessions": {
+    "s_8686a688f38363": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8364eb6d-b3d9-4624-a216-85365b9ac9bc",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

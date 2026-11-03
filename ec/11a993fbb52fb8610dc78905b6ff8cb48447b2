@@ -1,0 +1,22 @@
+lib/database/sql/utils/knex.test.ts
+  s_a9c053813411a7::t_17b427d196721c 37-41,45-55
+  s_a9c053813411a7::t_89ac8bdb6b4e3c 42-44
+lib/database/sql/utils/knex.ts
+  s_a9c053813411a7::t_ab972a14fc95ca 6,36,38-42,45-48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "ec11a993fbb52fb8610dc78905b6ff8cb48447b2",
+  "prompts": {},
+  "sessions": {
+    "s_a9c053813411a7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e5ad7-c4c3-78e2-9686-a128443adab4",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

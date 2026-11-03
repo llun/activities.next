@@ -1,0 +1,54 @@
+docs/environment-variables.md
+  s_8ca4a458a9cece::t_8e8f33e515912d 172-173,175-177
+  s_8ca4a458a9cece::t_76a3c1fecafa9f 174
+lib/config/trustProxyIpHeaders.ts
+  s_8ca4a458a9cece::t_86c6d9cf40ed83 1-9
+next.config.test.ts
+  s_8ca4a458a9cece::t_a7a3a400d5d683 279-283,326-329,106,6-10,34,39,284-289,291-293,295-304,330-339,341,343,345-346,496,510,537,550
+  s_8ca4a458a9cece::t_306c9942c24f46 444-446,79,82,96,109,447,452-469,472-473,479-483,485-490,492,497,499-507,514-518,520,290,305,347
+  s_8ca4a458a9cece::t_ceeb982c104010 559-560,562,565,567,573-575,83,111,585,593-594,448-451,470-471,474-478,484,491,493-495,498,508-509,511-513,519,521-536,538-549,551-555,294,306-308,340,342,344,348-350
+lib/utils/securityHeaders.ts
+  s_8ca4a458a9cece::t_3c45c567eb3f69 75-76,108-118,137-138,142-144,152-154,157-161,163-164,166-167
+  s_8ca4a458a9cece::t_f7940253139cac 131
+proxy.test.ts
+  s_8ca4a458a9cece::t_5e36a3bf94832f 8,156-157,299,10-51,80,94,158-163,300-316,318-345
+  s_8ca4a458a9cece::t_8e8f33e515912d 9
+  s_8ca4a458a9cece::t_41e84ccb0af24a 317
+proxy.ts
+  s_8ca4a458a9cece::t_3e004ec33a22ee 6,9,16-18,43,53,63-65,73,76,79
+lib/config/securityHeaders.ts
+  s_8ca4a458a9cece::t_68712e439723e0 15-22,34-36,38-42,44-46,54,62-64,80-82,25,32-33,56
+  s_8ca4a458a9cece::t_723d15bb9f93ed 37,43,55,1,12,23-24,26-31,47-53,57-61,65
+lib/config/host.ts
+  s_8ca4a458a9cece::t_723d15bb9f93ed 1,51-54,56-58,60-62
+lib/config/trustProxyIpHeaders.test.ts
+  s_8ca4a458a9cece::t_d14fe9fac06e92 1-57
+app/api/v1/apps/route.test.ts
+  s_8ca4a458a9cece::t_ecb36725156c5f 7,9,28-31,50,52-53,98
+Dockerfile
+  s_8ca4a458a9cece::t_b67e95dd1dd303 27
+lib/config/envAccess.test.ts
+  s_8ca4a458a9cece::t_f92758a7364723 20,28,10,13-19,23-27,54,60-71,73-99
+  s_8ca4a458a9cece::t_edb4b2304d8429 5-9,22
+  s_8ca4a458a9cece::t_8e8f33e515912d 72
+lib/config/runtimeConfigFile.ts
+  s_8ca4a458a9cece::t_723d15bb9f93ed 1-16
+app/api/v1/apps/route.ts
+  s_8ca4a458a9cece::t_86c6d9cf40ed83 5,34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "30dbf26c78092ae7a95af4cf39f31dc3d34c1d64",
+  "prompts": {},
+  "sessions": {
+    "s_8ca4a458a9cece": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e2ced-1d77-73d3-933e-3837925c2c8e",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

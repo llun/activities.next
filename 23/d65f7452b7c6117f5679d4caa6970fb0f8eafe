@@ -1,0 +1,21 @@
+lib/components/post-box/post-box.tsx
+  s_74958ad127584b::t_333cb502c5a781 868,962,1077
+docs/superpowers/specs/2026-05-28-postbox-controls-design-system-alignment.md
+  s_74958ad127584b::t_333cb502c5a781 63-64,69-70,87,90,94,153-165
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "23d65f7452b7c6117f5679d4caa6970fb0f8eafe",
+  "prompts": {},
+  "sessions": {
+    "s_74958ad127584b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cb79a0f2-c7f5-47e6-9bde-c7b746fdc356",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

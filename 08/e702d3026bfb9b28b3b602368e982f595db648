@@ -1,0 +1,36 @@
+AGENTS.md
+  s_801e94c1cd7091::t_4be10064415afc 2022-2023,2028,2031
+  s_801e94c1cd7091::t_1c92ba23a9f048 2032
+REVIEW.md
+  s_801e94c1cd7091::t_4be10064415afc 538-540
+lib/services/admin/serializeAdminAccounts.ts
+  s_801e94c1cd7091::t_cb194df844fda6 86-88
+lib/database/sql/account.ts
+  s_801e94c1cd7091::t_cb194df844fda6 846-855
+lib/database/sql/clearStaleVerificationCodesMigration.test.ts
+  s_801e94c1cd7091::t_0932fecc1a979b 30,39-40,54-59,126-129,132,143-144,149-152,155-156,163
+  s_801e94c1cd7091::t_e23e1204fb8ab7 145-148
+lib/database/sql/account.test.ts
+  s_801e94c1cd7091::t_7a40059f7a7aae 205-228
+  s_801e94c1cd7091::t_7d7b1393b38c23 229-230
+migrations/20260828140000_clear_stale_verification_codes.js
+  s_801e94c1cd7091::t_ee368fa51ee757 14-15,18-21,23-26,28-32,34-35,37-50,58-60,67-68,72-74
+lib/types/database/operations.ts
+  s_801e94c1cd7091::t_cb194df844fda6 426-427
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "08e702d3026bfb9b28b3b602368e982f595db648",
+  "prompts": {},
+  "sessions": {
+    "s_801e94c1cd7091": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ec5dc893-542e-48be-a5e8-04c97a90d907",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,50 @@
+lib/config/trustProxyIpHeaders.test.ts
+  s_8ca4a458a9cece::t_d14fe9fac06e92 1-57
+lib/utils/securityHeaders.ts
+  s_8ca4a458a9cece::t_f7940253139cac 131
+  s_8ca4a458a9cece::t_3c45c567eb3f69 81-86,88-91,95-98,110-118,137-138,142-144,152-154,157-161,163-164,166-167
+docs/environment-variables.md
+  s_8ca4a458a9cece::t_8e8f33e515912d 172-173,175-177
+  s_8ca4a458a9cece::t_76a3c1fecafa9f 174
+app/api/v1/apps/route.ts
+  s_8ca4a458a9cece::t_86c6d9cf40ed83 5,34
+lib/config/trustProxyIpHeaders.ts
+  s_8ca4a458a9cece::t_86c6d9cf40ed83 1-9
+Dockerfile
+  s_8ca4a458a9cece::t_b67e95dd1dd303 27
+proxy.ts
+  s_8ca4a458a9cece::t_3e004ec33a22ee 6,9,16-18,43,53,63-65,73,76,79
+lib/config/runtimeConfigFile.ts
+  s_8ca4a458a9cece::t_723d15bb9f93ed 1-16
+app/api/v1/apps/route.test.ts
+  s_8ca4a458a9cece::t_ecb36725156c5f 7,9,28-31,50,52-53,98
+proxy.test.ts
+  s_8ca4a458a9cece::t_8e8f33e515912d 9
+  s_8ca4a458a9cece::t_41e84ccb0af24a 317
+  s_8ca4a458a9cece::t_5e36a3bf94832f 7,10-51,80,94,158-163,300-316,318-345
+lib/config/envAccess.test.ts
+  s_8ca4a458a9cece::t_8e8f33e515912d 71-73
+  s_8ca4a458a9cece::t_f92758a7364723 13-19,23-27,54,60-70,74-98
+next.config.test.ts
+  s_8ca4a458a9cece::t_a7a3a400d5d683 6-10,34,39,284-308,330-350,496,510,537,550
+lib/config/host.ts
+  s_8ca4a458a9cece::t_723d15bb9f93ed 1,51-54,56-58,60-62
+lib/config/securityHeaders.ts
+  s_8ca4a458a9cece::t_723d15bb9f93ed 1,12,23-33,47-53,56-61,65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "8ab261a094bb9a7c3822a7aa4febf6bfce85a513",
+  "prompts": {},
+  "sessions": {
+    "s_8ca4a458a9cece": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e2ced-1d77-73d3-933e-3837925c2c8e",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

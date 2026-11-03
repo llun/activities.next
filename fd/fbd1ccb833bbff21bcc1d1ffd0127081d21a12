@@ -1,0 +1,29 @@
+lib/services/altText/typesafe.test.ts
+  s_3db64012b57825::t_6c5acb7ea778c3 1-231
+lib/services/medias/handleSyncMediaUpload.ts
+  s_39706b1ce7fe65::t_64b1c86185f21d 113-114
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "fdfbd1ccb833bbff21bcc1d1ffd0127081d21a12",
+  "prompts": {},
+  "sessions": {
+    "s_39706b1ce7fe65": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4641808fffeuHzzQPHJJw719C",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_3db64012b57825": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f46358286ffe1dq3tN8DrDMJPE",
+        "model": "deepseek-v4.1-flash"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

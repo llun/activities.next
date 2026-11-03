@@ -1,0 +1,76 @@
+app/(timeline)/[actor]/FollowList.tsx
+  h_580a04e334fef4 6-9,76
+app/(timeline)/[actor]/[status]/StatusBox.tsx
+  h_580a04e334fef4 18,52,79-83,88,135-139,164
+app/(timeline)/[actor]/[status]/StatusLikes.tsx
+  h_580a04e334fef4 7,124-127,192-195
+app/(timeline)/[actor]/page.tsx
+  h_580a04e334fef4 257
+app/(timeline)/notifications/components/StatusNotification.tsx
+  h_580a04e334fef4 9,55
+app/(timeline)/search/SearchPageClient.tsx
+  h_580a04e334fef4 18,215-217,222
+docs/features.md
+  h_580a04e334fef4 22
+lib/actions/createNote.ts
+  h_580a04e334fef4 173,175,177,557-561
+lib/actions/createNoteEmoji.test.ts
+  h_580a04e334fef4 6,202-305
+lib/actions/createPoll.ts
+  h_580a04e334fef4 153-157
+lib/actions/updateNote.ts
+  h_580a04e334fef4 82-90,92-110,112-117
+lib/actions/updatePoll.ts
+  h_580a04e334fef4 91-97,99-114
+lib/components/actors/ActorDisplayName.test.tsx
+  h_580a04e334fef4 6,117-135
+lib/components/actors/ActorDisplayName.tsx
+  h_580a04e334fef4 16-17,31-34,41-42,64-68,71,95-99,108-109
+lib/components/actors/index.ts
+  h_580a04e334fef4 1,4
+lib/components/bio/Bio.test.tsx
+  h_580a04e334fef4 1-63
+lib/components/bio/Bio.tsx
+  h_580a04e334fef4 5-7,9-14,18-25,28-44,46-52
+lib/components/medias-modal/medias-modal.test.tsx
+  h_580a04e334fef4 128-152
+lib/components/medias-modal/medias-modal.tsx
+  h_580a04e334fef4 5,8,10,19-25,32,314-317
+lib/components/post-box/post-box.test.tsx
+  h_580a04e334fef4 1053-1089
+lib/components/post-box/post-box.tsx
+  h_580a04e334fef4 31,395-397,405-406,1064-1088
+lib/components/posts/attachments.test.tsx
+  h_580a04e334fef4 1293-1358
+lib/components/posts/attachments.tsx
+  h_580a04e334fef4 6,290,455-457
+lib/components/posts/content-warning.test.tsx
+  h_580a04e334fef4 42-64
+lib/components/posts/content-warning.tsx
+  h_580a04e334fef4 6-9,13-20,23-29,47-49
+lib/components/posts/poll.test.tsx
+  h_580a04e334fef4 206-244
+lib/components/posts/poll.tsx
+  h_580a04e334fef4 8,186,216
+lib/components/posts/post.tsx
+  h_580a04e334fef4 486-488
+lib/components/posts/posts.tsx
+  h_580a04e334fef4 11,83,166-170,192
+lib/database/sql/actor.test.ts
+  h_580a04e334fef4 873-899
+lib/database/sql/actor.ts
+  h_580a04e334fef4 193,197-198,201,1021,1025,1035-1039,1042
+lib/services/mastodon/getMastodonStatus.ts
+  h_580a04e334fef4 819
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "607d2340cabccc7c9952462b5cdf837760a12fa3",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,42 @@
+lib/services/fitness-files/calendarQuery.test.ts
+  s_a7418d31ae2421::t_cf3e18c77c84c8 1-208
+  s_a7418d31ae2421::t_f6df9d5166d510 209-213
+lib/services/fitness-files/activityTitle.ts
+  s_a7418d31ae2421::t_c3feef4cdfdcc4 1-79
+lib/services/fitness-files/activityTitle.test.ts
+  s_a7418d31ae2421::t_56490ba2727ecd 1-87
+lib/services/fitness-files/calendarQuery.ts
+  s_a7418d31ae2421::t_16c6ab38def91f 1-90,119-125,138,141,146-199,202
+  s_a7418d31ae2421::t_26d1736af86566 91-118,126-137,139-140,142-145
+  s_a7418d31ae2421::t_854f262cb3372a 200-201,203-205
+app/api/v1/accounts/[id]/fitness-summary/route.ts
+  s_a7418d31ae2421::t_3115f0b3629b02 5-8,13,22,33-42,97-99,104,109-121,125-126
+app/api/v1/accounts/[id]/fitness-calendar/day/route.test.ts
+  s_a7418d31ae2421::t_f4d9c9fa81f01d 1-406
+  s_a7418d31ae2421::t_2a1e6c0291d6be 407-410
+app/api/v1/accounts/[id]/fitness-summary/route.test.ts
+  s_a7418d31ae2421::t_4507f89de22a75 5,7,19-22,29-30,33-34,39,41-47,49-55,59,69-81,84-85,88,90-91,94,99-101,103-105,107-112,115-125,128-150,153-156,158-162,166-167,170-173,176-178,180
+  s_a7418d31ae2421::t_b66446deb28fdb 179,183,185-186,190,193-195,199-204,206
+app/api/v1/accounts/[id]/fitness-calendar/day/route.ts
+  s_a7418d31ae2421::t_86d9e770257971 1-232
+app/api/v1/accounts/[id]/fitness-calendar/route.test.ts
+  s_a7418d31ae2421::t_53ac12da756c3b 5,7,19-22,29-30,33-34,39,41-47,49-55,59,69-81,84-85,88,90-91,94,99-101,103-105,107-112,115-125,128-150,153-156,158-165,169-170,172,175-176,179,182-183,186,188-189,193,196-200,205,207,209-210,214-217,219-223
+app/api/v1/accounts/[id]/fitness-calendar/route.ts
+  s_a7418d31ae2421::t_988a06347f55d2 5-8,13,22,33-39,94-96,101,106-131
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "88d10c67f3dea25a22d70716ffbdccfa12b6ebf0",
+  "prompts": {},
+  "sessions": {
+    "s_a7418d31ae2421": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0f1fd2ae-8211-4deb-ba27-c7a8fdc4df54",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

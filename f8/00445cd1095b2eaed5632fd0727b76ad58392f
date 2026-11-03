@@ -1,0 +1,30 @@
+lib/components/posts/post.test.tsx
+  s_7238054fa028fe::t_2042f2ed20bb5f 1038-1041,1046-1048,1052-1129
+  s_177aad017ed03b::t_2105e6820c36fd 1130
+lib/components/posts/post.tsx
+  s_7238054fa028fe::t_2fa684eb044352 203-205
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "f800445cd1095b2eaed5632fd0727b76ad58392f",
+  "prompts": {},
+  "sessions": {
+    "s_177aad017ed03b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a86a86b1-ee7c-411d-8d58-09f402cfb2f2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_7238054fa028fe": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "afa41111-c29c-454c-bc4a-918132aef630",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

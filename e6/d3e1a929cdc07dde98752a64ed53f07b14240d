@@ -1,0 +1,23 @@
+AGENTS.md
+  s_0e2fd6be727054::t_e31baea37bc18f 495-503
+REVIEW.md
+  s_0e2fd6be727054::t_e31baea37bc18f 474-479
+docs/fitness-file-storage.md
+  s_0e2fd6be727054::t_fe07af88a0c546 96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "e6d3e1a929cdc07dde98752a64ed53f07b14240d",
+  "prompts": {},
+  "sessions": {
+    "s_0e2fd6be727054": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8b4fe7c-fd3e-48ba-9e1d-ef3b99484c21",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

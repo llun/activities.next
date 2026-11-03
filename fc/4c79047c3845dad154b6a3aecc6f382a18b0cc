@@ -1,0 +1,14 @@
+lib/services/auth/errorPage.ts
+  h_580a04e334fef4 26-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fc4c79047c3845dad154b6a3aecc6f382a18b0cc",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

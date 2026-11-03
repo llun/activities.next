@@ -1,0 +1,22 @@
+lib/jobs/importStravaActivityJob.test.ts
+  s_a4559fdd4d5311::t_7353d2d529c703 320-370
+app/api/v1/statuses/[id]/retry-fitness/route.test.ts
+  s_a4559fdd4d5311::t_12a95f688e8155 169-234
+  s_a4559fdd4d5311::t_86b66e7329da71 13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "056acc0e524e0f7b5ec98b46fbeb61f26ccbebc2",
+  "prompts": {},
+  "sessions": {
+    "s_a4559fdd4d5311": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7ec64578-ed27-4aba-8632-c0a3c93ebb92",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

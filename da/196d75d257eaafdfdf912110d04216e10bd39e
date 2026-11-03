@@ -1,0 +1,27 @@
+lib/utils/accountHandle.ts
+  s_555d5c39b84f2a::t_66661508a8d922 2,5
+lib/database/sql/search/account.ts
+  s_555d5c39b84f2a::t_1e14b1333962d2 251-254
+lib/database/sql/account.ts
+  s_555d5c39b84f2a::t_d9872e66cd4d11 146,387-407
+lib/database/sql/actor.ts
+  s_555d5c39b84f2a::t_264c1732785093 293-296,344-347,859-862,1425
+app/api/v1/accounts/search/route.test.ts
+  s_555d5c39b84f2a::t_fedffde6630aec 130-133,135
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "da196d75d257eaafdfdf912110d04216e10bd39e",
+  "prompts": {},
+  "sessions": {
+    "s_555d5c39b84f2a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e53aa-9189-7e11-90ee-4e9fbaac8bf1",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

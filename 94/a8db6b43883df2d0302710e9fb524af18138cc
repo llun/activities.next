@@ -1,0 +1,29 @@
+app/api/v1/emails/confirmations/route.test.ts
+  s_a4109b2d9b71dd::t_12461fd5eca4ac 195-233
+lib/services/auth/knexAdapter.ts
+  s_a4109b2d9b71dd::t_c50c8f9a8649cc 291-294
+  s_a4109b2d9b71dd::t_28d2fae716ed78 207-210
+  s_a4109b2d9b71dd::t_ed025cad770a94 306-309
+  s_a4109b2d9b71dd::t_aee619dc454354 38-40,44-45,47,49
+lib/database/sql/account.ts
+  s_a4109b2d9b71dd::t_fd9e02fc4c5005 705-710
+migrations/20260611090000_lowercase_account_emails.js
+  s_a4109b2d9b71dd::t_b2478798f04aeb 13-17,21-44,51-55,57-65,86,88-94,107,114,119
+  s_a4109b2d9b71dd::t_a8a54666334310 95-100,102-106,109-113,116-118,121
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "94a8db6b43883df2d0302710e9fb524af18138cc",
+  "prompts": {},
+  "sessions": {
+    "s_a4109b2d9b71dd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "027e6fe0-5adf-4bd1-96f8-b6e384141935",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

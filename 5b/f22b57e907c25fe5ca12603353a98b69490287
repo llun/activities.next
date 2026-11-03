@@ -1,0 +1,31 @@
+lib/components/fitness/mapGeometry.test.ts
+  s_c2b45d1e3d2b49::t_4d380c92fa097d 374-379,383
+  s_c2b45d1e3d2b49::t_5f60149b9051e1 394
+  s_c2b45d1e3d2b49::t_8224ebce691616 1-373,380-382,384-393,395-434
+lib/components/fitness/mapGeometry.ts
+  s_c2b45d1e3d2b49::t_afadce52f6d19c 1-218
+app/(timeline)/fitness/heatmap/FitnessHeatmapView.tsx
+  s_c2b45d1e3d2b49::t_6a919a61bec112 34-35
+lib/components/fitness/RouteHeatmapMap.tsx
+  s_c2b45d1e3d2b49::t_37d268faf8dbd1 6,8-12
+lib/components/fitness/RegionMap.tsx
+  s_c2b45d1e3d2b49::t_dfe465cbda0850 6-10
+app/(timeline)/fitness/heatmap/FitnessHeatmapView.test.tsx
+  s_c2b45d1e3d2b49::t_c12909158399d0 23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5bf22b57e907c25fe5ca12603353a98b69490287",
+  "prompts": {},
+  "sessions": {
+    "s_c2b45d1e3d2b49": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b970d6ff-c482-4d45-848b-32f588a95c10",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+app/(timeline)/[actor]/ActorTimelines.test.tsx
+  h_580a04e334fef4 753-780
+app/(timeline)/[actor]/ActorTimelines.tsx
+  h_580a04e334fef4 9-12,239
+lib/components/posts/statusArray.test.ts
+  h_580a04e334fef4 1-353
+lib/components/posts/statusArray.ts
+  h_580a04e334fef4 1-69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "b2688ef95279c627be91ce3833f04da3ee83069c",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

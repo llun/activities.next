@@ -1,0 +1,49 @@
+app/(timeline)/[actor]/fitness/heatmap/FitnessHeatmapView.test.tsx
+  s_7141fcbc7c5178::t_d660b2224f9a7b 321-331,334-339
+  s_7141fcbc7c5178::t_0716961eaea8f5 332-333
+Dockerfile
+  s_7141fcbc7c5178::t_09dd4da6b30d24 24,30
+  s_7141fcbc7c5178::t_f26d11fe684bc4 22-23
+app/(timeline)/[actor]/fitness/heatmap/FitnessHeatmapView.tsx
+  s_7141fcbc7c5178::t_d5082b74f257c1 452
+  s_7141fcbc7c5178::t_eb5639139e6439 1045
+  s_7141fcbc7c5178::t_50e063e6d11d0f 1046-1060,1065-1066,1068-1076,1082-1084,1090-1092,1095-1097,1101-1105,1107-1108,1114-1116,1119-1121,1125-1129,1132-1134,1136-1137,1154-1155,1158,1213,1217,1230,1233,1293
+  s_6ac802a1126fc2::t_9f7f4fe93aba48 954-961,1077,1085-1089,1094,1098-1100,1106,1109-1113,1118,1122-1124,1130,1138-1141,1143-1146
+  s_8295ac895c5e7d::t_7f283f3c6432ae 1061-1064,1078-1081,1216
+app/(timeline)/[actor]/fitness/heatmap/page.tsx
+  s_7141fcbc7c5178::t_6eacf06b722b8d 75
+lib/components/fitness/FitnessHeatmapList.tsx
+  s_7141fcbc7c5178::t_4f345e07f5f929 59,62,83-87,154-155,165,170,238-240
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "59a12ff9c738899897bdc1e1db67152df15d4014",
+  "prompts": {},
+  "sessions": {
+    "s_6ac802a1126fc2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e2d21-d499-71b3-8750-a2a4508df648",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    },
+    "s_7141fcbc7c5178": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e2c72-928f-76a3-b3cd-a418ecb97624",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    },
+    "s_8295ac895c5e7d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e2d35-7342-7bd2-b8e9-43d5b9cdb3d2",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}

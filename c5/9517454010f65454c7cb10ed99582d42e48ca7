@@ -1,0 +1,18 @@
+lib/components/fitness/RegionHeatmapDetail.test.tsx
+  h_580a04e334fef4 58
+lib/components/fitness/RegionMap.test.tsx
+  h_580a04e334fef4 289-291
+lib/components/fitness/RouteHeatmapMap.test.tsx
+  h_580a04e334fef4 7-10,250
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "c59517454010f65454c7cb10ed99582d42e48ca7",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

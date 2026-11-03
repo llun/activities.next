@@ -1,0 +1,124 @@
+app/(timeline)/[actor]/page.tsx
+  s_8500a52257703f::t_236e16f8908bec 73
+app/(timeline)/[actor]/getProfileData.ts
+  s_8500a52257703f::t_236e16f8908bec 8-11,13,37-46,70,103-104,106-108,111-113,124-138,193-209,218-220
+  s_8500a52257703f::t_3ec5fecc3bc349 221
+  s_8500a52257703f::t_b5bdd577b82f8c 93-98
+  s_8500a52257703f::t_6fb947d45ddd41 114-123
+  s_8500a52257703f::t_b2f35b600eac3e 71-74,76,82-92,100,109
+  s_8500a52257703f::t_0632a35ca6b1b5 99
+  s_8500a52257703f::t_e9eb71122023db 69
+  s_8500a52257703f::t_cb63e656c8f8bc 36,47-53,60
+lib/database/sql/media.ts
+  s_8500a52257703f::t_236e16f8908bec 3,462-466,473-487
+  s_8500a52257703f::t_20f1033f66e935 488
+app/(timeline)/[actor]/followers/page.tsx
+  s_8500a52257703f::t_236e16f8908bec 48-49
+app/api/v1/accounts/[id]/media/route.test.ts
+  s_8500a52257703f::t_236e16f8908bec 3-10,13-17,19,21-45,48-62,64-122,125-126,130-169,216-219,221-222,226-229
+  s_8500a52257703f::t_ee52e6dee263af 170-215
+lib/database/sql/status.ts
+  s_8500a52257703f::t_236e16f8908bec 297-350,1611-1623
+app/api/v1/accounts/[id]/media/route.ts
+  s_8500a52257703f::t_40befa9579ceb0 104
+  s_8500a52257703f::t_236e16f8908bec 9-10,37-44,46-86,89-96,99-103,105-109,113-116,130
+  s_8500a52257703f::t_db84f9502269d8 118-128
+  s_8500a52257703f::t_7145c10d21cbb1 3-6
+app/api/v1/accounts/[id]/statuses/route.ts
+  s_8500a52257703f::t_21ac9826f530d5 11
+  s_8500a52257703f::t_236e16f8908bec 12-14,126-131,154-157
+lib/types/database/operations.ts
+  s_8500a52257703f::t_236e16f8908bec 3268-3276
+app/(timeline)/[actor]/following/page.tsx
+  s_8500a52257703f::t_236e16f8908bec 48-49
+lib/services/statusAccess.ts
+  s_8500a52257703f::t_236e16f8908bec 85-124,126,131-143
+  s_8500a52257703f::t_197fdec16f7abd 51,125,130
+  s_d1695cdc0365a2::t_59621ddb91e2e7 74-79
+  s_d1695cdc0365a2::t_2caa2febd71a4e 37-50
+  s_d1695cdc0365a2::t_710df4dfe6f054 127-129
+  s_d1695cdc0365a2::t_24d01c97b08ca8 2,4
+app/(timeline)/[actor]/getProfileData.test.ts
+  s_8500a52257703f::t_236e16f8908bec 10-11,40,111-113,191-236,240-251,255-362,365-368
+  s_8500a52257703f::t_4317c9170b1ecd 369
+  s_8500a52257703f::t_d8d9f4a41e56f7 502-528,532-541
+  s_8500a52257703f::t_7ccc0a231bfd2a 128-129,147-148,169-170,184-185,237-239,252-254,363-364,399-400,425-427,459-460,529-531,546-547,558-559,586-587,611-612,625-626,660-662
+  s_8500a52257703f::t_ce3a0a8a885291 65-67
+  s_8500a52257703f::t_d53335b0e918e0 488
+lib/database/sql/attachmentVisibility.test.ts
+  s_8500a52257703f::t_aeb2ba1b7d00e6 1-151
+scripts/backup/actorArchive.ts
+  s_8500a52257703f::t_236e16f8908bec 406-409
+AGENTS.md
+  s_8500a52257703f::t_ff3bb8bc22d732 2025-2027,2030-2031,2033
+  s_8500a52257703f::t_43431933690424 2028
+  s_8500a52257703f::t_596a150267ae8e 2032
+  s_d1695cdc0365a2::t_0e60901bd246b6 1694-1708
+  s_d1695cdc0365a2::t_41a5a3346f961a 2029
+lib/database/statusVisibilityCallSites.test.ts
+  s_8500a52257703f::t_a3d7a9421e0d8d 64
+  s_8500a52257703f::t_1cd93da146b6b3 44,339-342
+  s_8500a52257703f::t_b9d2ddf26dab2b 1-17,27,41-43,45-51,65-86,88-90,104-110,271-272,274-279,283-284,289,296,299-300,307-308,309,319,320-327,330,332-338,343,346-349,351-353
+  s_8500a52257703f::t_0fd708c4af552e 220
+  s_8500a52257703f::t_006b745875d33b 93-96,98
+  s_8500a52257703f::t_6ab901ae021010 59,87,91-92,97,99-101,194,201-202,209-210,219,221-225,227,237-239,242-244,260-263,267-268,309,331,344-345,350
+  s_8500a52257703f::t_aa05ea6c7c4031 269
+  s_8500a52257703f::t_6649b9563a7490 270
+  s_8500a52257703f::t_5fda570da88927 111-114,169-171,177,333
+  s_8500a52257703f::t_a2a3d38cfd0fdd 228-229,233-235,257-259,264-266
+  s_8500a52257703f::t_a95dcaf76078ae 28,30-32,59-63,102-110,115-140,141-142,159-168,172-176,178-184,203-208,211-218,226,230-232,280-282,285-288,290-295,297-309,316,318,328-329,334
+  s_8500a52257703f::t_0174ef2381adc2 335
+  s_8500a52257703f::t_dc47995058e04d 29,33-40
+  s_8500a52257703f::t_e5cf5bddbc562e 185-193,196-200
+  s_8500a52257703f::t_f0cbbb20ca2bb9 143-158
+  s_8500a52257703f::t_bae13360f972f5 195
+  s_8500a52257703f::t_65d360f0e63909 236,240-241,245-256
+  s_8500a52257703f::t_d7a822475d7bad 52-58,273,310-315,317,332
+  s_8500a52257703f::t_2086eedfdfd723 18-26
+CLAUDE.md
+  s_8500a52257703f::t_596a150267ae8e 47
+  s_d1695cdc0365a2::t_c78e4a039d63b4 32
+lib/services/statusAccess.test.ts
+  s_8500a52257703f::t_58bc2d29aa00ec 6-10,259-306
+  s_8500a52257703f::t_65c534a8968b4f 307
+lib/services/accounts/getViewerFollow.test.ts
+  s_d1695cdc0365a2::t_9bb740c1e3f8d3 62-63,67-68,70-76,78-81
+  s_d1695cdc0365a2::t_e90d24055a240a 1-32,37-61,64-66,69,77,82
+  s_d1695cdc0365a2::t_4e98747f0444b1 33-36
+lib/testing/reactCacheScope.ts
+  s_d1695cdc0365a2::t_4e98747f0444b1 63-64
+  s_d1695cdc0365a2::t_51e187e9d9821a 1-62,65-78
+app/(timeline)/[actor]/profileFollowLookup.test.ts
+  s_d1695cdc0365a2::t_9ec5b4fb356bca 1-159
+lib/services/accounts/relationship.ts
+  s_d1695cdc0365a2::t_89b02967ed4676 54-59,62-63
+  s_d1695cdc0365a2::t_59fe0ff9d92ac2 8
+lib/services/accounts/getViewerFollow.ts
+  s_d1695cdc0365a2::t_011f5a9ba146b5 1-44
+REVIEW.md
+  s_d1695cdc0365a2::t_015c4b0ee1e80a 115-123,472-477
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "2267132a50002ea9ff9367dd6b387001623eee9a",
+  "prompts": {},
+  "sessions": {
+    "s_8500a52257703f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "90abf0ee-902c-49a4-9c02-2af2482a33d5",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_d1695cdc0365a2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7f34b138-131b-4c17-b1bf-51370d8efeb2",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

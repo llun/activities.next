@@ -1,0 +1,31 @@
+app/api/users/[username]/inbox/route.ts
+  s_1e378ed0a5a2c9::t_2ba6cfcdef3d2b 118
+app/api/inbox/route.ts
+  s_1e378ed0a5a2c9::t_2ba6cfcdef3d2b 27
+lib/actions/applyRemoteUnblock.test.ts
+  s_1e378ed0a5a2c9::t_ea7f189498bfca 23,25-28,30-58,74-83
+lib/services/guards/types.ts
+  s_1e378ed0a5a2c9::t_2ba6cfcdef3d2b 31
+app/api/inbox/route.test.ts
+  s_1e378ed0a5a2c9::t_2ba6cfcdef3d2b 23
+app/api/users/[username]/inbox/route.test.ts
+  s_1e378ed0a5a2c9::t_2ba6cfcdef3d2b 41
+lib/actions/applyRemoteUnblock.ts
+  s_1e378ed0a5a2c9::t_596e8e0357114d 18-45,99-114
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "9c70effad30474f841ee405f0a8af8c1de21f4f3",
+  "prompts": {},
+  "sessions": {
+    "s_1e378ed0a5a2c9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1d94-78e4-7061-b5a6-2463b0b1d743",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

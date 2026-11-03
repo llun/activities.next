@@ -1,0 +1,47 @@
+lib/jobs/importAccountArchiveJob.test.ts
+  s_279e7012f36c5f::t_151acf087c6621 365-366,480-487,489-490,537
+lib/jobs/importAccountArchiveJob.ts
+  s_279e7012f36c5f::t_aa3f5d49808713 32
+lib/services/accountImport/createImportedStatus.test.ts
+  s_279e7012f36c5f::t_1cf68af9240557 289-352
+lib/services/accountImport/createImportedStatus.ts
+  s_279e7012f36c5f::t_8123119559c4d3 3,15,231-235,267-281,283,285-293,295-305
+lib/services/accountImport/mappers/mapMastodonItem.test.ts
+  s_279e7012f36c5f::t_bcae1f02c1a92b 261-296
+lib/services/accountImport/mappers/shared.ts
+  s_279e7012f36c5f::t_d4fe220e3c58da 22-33,132,152-156,164-168,176-180
+lib/services/accountImport/noSideEffects.test.ts
+  s_279e7012f36c5f::t_1f1fe25b14f28f 48
+lib/services/accountImport/ownArchivePhases.test.ts
+  s_279e7012f36c5f::t_74a843af250a76 5-10,298-299,315,491-561,565,578-602,604-614,616-631
+lib/services/accountImport/phases.test.ts
+  s_279e7012f36c5f::t_c3a4956d6d3d4a 387-491
+lib/services/accountImport/phases.ts
+  s_279e7012f36c5f::t_32106c5db56177 11,97,890,898,904,913-943,1336-1362,1364-1365,1440-1444,1491-1501,1503-1509,1537-1552,1558-1574,1577-1583,1680-1683,1685-1702,1704-1711,1713-1757,1844-1859,1869-1875,2034-2054,2059-2065,2068-2070,2072-2086
+lib/services/accountImport/profileSettingsPhase.test.ts
+  s_279e7012f36c5f::t_348da30004e3c0 494-589
+lib/services/accountImport/progress.ts
+  s_279e7012f36c5f::t_96dfd7fa465112 25-31,52-53,114-119
+lib/services/accountImport/reaper.ts
+  s_279e7012f36c5f::t_ca67d902ee8511 9-12,128-142,145
+lib/services/accountImport/runner.test.ts
+  s_279e7012f36c5f::t_bc16daba0326a3 23-26,28-31,396-492
+lib/services/accountImport/runner.ts
+  s_279e7012f36c5f::t_7194fbdc665125 55-57,85-91,347-348,357,378-388
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9537e5e230980efbeee87f2d3beb42c3513d3191",
+  "prompts": {},
+  "sessions": {
+    "s_279e7012f36c5f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0410f49d-2e94-45e1-bd1f-237e6f7747bc",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

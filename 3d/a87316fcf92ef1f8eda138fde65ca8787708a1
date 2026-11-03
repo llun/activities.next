@@ -1,0 +1,24 @@
+app/api/v1/accounts/types.test.ts
+  s_895dd3c6090136::t_b87c84df3ad371 1
+  s_895dd3c6090136::t_607b872bc3527c 57-73
+AGENTS.md
+  s_895dd3c6090136::t_7ef45bf59b4eda 2286-2287
+lib/services/accounts/localUsername.ts
+  s_895dd3c6090136::t_fc1d96d5a8707d 28-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "3da87316fcf92ef1f8eda138fde65ca8787708a1",
+  "prompts": {},
+  "sessions": {
+    "s_895dd3c6090136": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "976185f5-5df9-4b1a-927a-9d20f4178ce3",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

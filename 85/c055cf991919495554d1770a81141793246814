@@ -1,0 +1,52 @@
+app/(timeline)/[actor]/following/loading.tsx
+  s_c332d2ffff4a32::t_71d07a82f1a024 7,9-10,17,19-21,23
+app/(timeline)/[actor]/following/loading.test.tsx
+  s_c332d2ffff4a32::t_05d76586889440 23,30,36-37
+app/(timeline)/[actor]/loading.tsx
+  s_c332d2ffff4a32::t_7c16cdfe58b316 14-15,17,21-22,26-28,35-37,43,46-47,50-51,54-56
+app/(timeline)/[actor]/followers/loading.test.tsx
+  s_c332d2ffff4a32::t_ecdc47b361c966 23,30,36-37
+app/(timeline)/[actor]/loading.test.tsx
+  s_c332d2ffff4a32::t_b295c761276d49 23,30,36-37
+app/globals.css
+  s_c332d2ffff4a32::t_fe6939d4396d0b 106-116
+  s_c332d2ffff4a32::t_267c25dfef43df 180,183-185
+  s_c332d2ffff4a32::t_c34241f414e12d 273-312
+app/(timeline)/[actor]/[status]/loading.test.tsx
+  s_c332d2ffff4a32::t_12d6d5cb98e9bd 23,30,36-37
+app/(timeline)/[actor]/[status]/loading.tsx
+  s_c332d2ffff4a32::t_7b7f70a384de44 11,13-14,20,22-23,28-30,34-36
+app/globals.skeleton.test.ts
+  s_c332d2ffff4a32::t_de30aefb3652a0 1-15,21-43,51,56-57,62-88,107-112
+app/(timeline)/[actor]/followers/loading.tsx
+  s_c332d2ffff4a32::t_3d8bcaf14ce950 7,9-10,17,19-21,23
+app/(timeline)/settings/featured-hashtags/FeaturedTagsEditor.tsx
+  s_19192de7787161::t_4952553dd3b598 86,88-89,91
+app/(timeline)/settings/featured-hashtags/FeaturedTagsEditor.test.tsx
+  s_19192de7787161::t_e4aee3f97890e4 66-87
+  s_19192de7787161::t_8ce36eff4a57bd 13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "85c055cf991919495554d1770a81141793246814",
+  "prompts": {},
+  "sessions": {
+    "s_19192de7787161": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7c9d6699-6371-493a-aa12-4b09b40f832c",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_c332d2ffff4a32": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ca45c8aa-83ae-4444-9988-d5b4126e95a2",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

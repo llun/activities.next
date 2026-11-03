@@ -1,0 +1,16 @@
+app/(timeline)/[actor]/[status]/StatusBox.test.tsx
+  h_580a04e334fef4 62,93,108,123,145
+app/(timeline)/[actor]/[status]/page.layout.test.tsx
+  h_580a04e334fef4 9,85-108,112,115,120-122,127-144
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "7532d0765746d242c0eb50758de828c5923995d0",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

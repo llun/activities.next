@@ -1,0 +1,65 @@
+lib/database/sql/status.ts
+  s_4f4812f16bd65a::t_f3059223abe55a 492
+  s_4f4812f16bd65a::t_3f37ebf14e7872 467-468,803-804,904-905,3474-3476,3489-3492
+  s_4f4812f16bd65a::t_36a45bb141e28e 549
+  s_4f4812f16bd65a::t_c3589df9f899df 58,61,63
+  s_4f4812f16bd65a::t_f7ad896a83aaab 3060
+  s_4f4812f16bd65a::t_14b151031edd47 798-799,810
+  s_4f4812f16bd65a::t_fe4f7d35331c39 3626-3628
+  s_4f4812f16bd65a::t_6613de869daa65 462-463
+  s_4f4812f16bd65a::t_8e045d31529022 867
+  s_4f4812f16bd65a::t_7ea9e71f378805 929
+  s_4f4812f16bd65a::t_edd3ed02b69138 102
+  s_4f4812f16bd65a::t_eacf7fa3a5b02b 997
+  s_4f4812f16bd65a::t_105b3f37734ff4 899-900
+  s_4f4812f16bd65a::t_4b71c839775001 3461-3473,3477-3488,3493-3495
+  s_4f4812f16bd65a::t_04a0fe13f6385a 2932
+lib/database/sql/actor.ts
+  s_4f4812f16bd65a::t_01f29362cbb623 75
+  s_4f4812f16bd65a::t_b093511130f598 499
+  s_4f4812f16bd65a::t_f47b5312003da1 148
+  s_4f4812f16bd65a::t_a2bb8df99d8ea1 634-652
+  s_4f4812f16bd65a::t_553e3eff12231d 53-54
+lib/database/sql/status.test.ts
+  s_4f4812f16bd65a::t_6c89f5bf5dd091 977-993,996,1000,1015,1020,1031,1035,1054,1058
+  s_4f4812f16bd65a::t_f791ff2c6c8212 323
+  s_4f4812f16bd65a::t_9b6b23fc8cd247 9-10,33-37
+  s_4f4812f16bd65a::t_f7c2d9f0636486 976,994-995,997-999,1001-1014,1016-1019,1021-1030,1032-1034,1036-1053,1055-1057,1059-1130
+lib/types/domain/actor.ts
+  s_4f4812f16bd65a::t_7729b7d8595191 19
+lib/database/sql/actor.test.ts
+  s_4f4812f16bd65a::t_094012d184277c 2,10-11,32-36
+  s_4f4812f16bd65a::t_4917fd2ba0104f 195-197
+  s_4f4812f16bd65a::t_be8d740f1218d8 136-194,198-269
+lib/types/database/rows.ts
+  s_4f4812f16bd65a::t_b5a6777ab908c0 100
+lib/types/database/operations.ts
+  s_4f4812f16bd65a::t_f71de93b3a1adb 536
+  s_4f4812f16bd65a::t_30f4379212c739 87-92
+  s_4f4812f16bd65a::t_ca9940c245d66d 223-228
+  s_4f4812f16bd65a::t_53036ecf2a423f 505-508
+  s_4f4812f16bd65a::t_d6a04ebf42c08c 611-621
+  s_4f4812f16bd65a::t_a0e17b61aa4cce 848-856
+lib/types/domain/status.ts
+  s_4f4812f16bd65a::t_02a6fa349aed3e 105
+lib/database/sql/account.ts
+  s_4f4812f16bd65a::t_ace95440a90487 60
+  s_4f4812f16bd65a::t_b93297df901a9b 106
+  s_4f4812f16bd65a::t_d4cf50bd37a187 420
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "cf5cb38626f42ef3a01dc188f2e6363c18818f29",
+  "prompts": {},
+  "sessions": {
+    "s_4f4812f16bd65a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ef4966e6-a801-42ad-bea7-0a298c41d397",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

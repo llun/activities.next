@@ -1,0 +1,35 @@
+app/api/v1/accounts/[id]/fitness-route-heatmap/route.ts
+  s_a9667879921056::t_15ddc19681b60b 13-16
+  s_a9667879921056::t_5c73d24ebbca21 53,64
+app/api/v1/accounts/[id]/fitness-route-heatmap/share/route.ts
+  s_a9667879921056::t_f0197afab68ee5 8-11
+  s_a9667879921056::t_5c73d24ebbca21 44
+lib/services/fitness-files/calendarQuery.ts
+  s_a9667879921056::t_f0197afab68ee5 14
+lib/services/fitness-files/queryParams.test.ts
+  s_a9667879921056::t_bf30d2cad9d6ae 1-71
+lib/services/fitness-files/queryParams.ts
+  s_a9667879921056::t_f0197afab68ee5 1-28
+app/api/v1/accounts/[id]/fitness-route-heatmap/share/route.test.ts
+  s_a9667879921056::t_bf30d2cad9d6ae 298-330
+app/api/v1/accounts/[id]/fitness-route-heatmap/route.test.ts
+  s_a9667879921056::t_bf30d2cad9d6ae 1026-1073
+docs/fitness-file-storage.md
+  s_a9667879921056::t_bf30d2cad9d6ae 307,309
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ec433e745c5986529549182dbac14ffcf6d1c932",
+  "prompts": {},
+  "sessions": {
+    "s_a9667879921056": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "67df7cff-fdae-471d-b2b4-858ab596a529",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

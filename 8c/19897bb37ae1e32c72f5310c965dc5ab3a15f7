@@ -1,0 +1,33 @@
+app/(timeline)/fitness/gear/useGearTableColumns.ts
+  s_d1aa4fe9443c5e::t_68de9e044bc176 62-72,96-101,112-113,115-118,153-155,157-168,186
+app/(timeline)/fitness/gear/[id]/GearComponentsCard.test.tsx
+  s_bf95111a101b20::t_9fed916e6efc8b 207,219-221,224-239,241-242,245,247,250-251,558-559,569
+app/(timeline)/fitness/gear/[id]/GearComponentsCard.tsx
+  s_bf95111a101b20::t_91938c89a8098e 58-59,61-76,79-80,82-88,207-210,360-363,366-369,374,378-381,384-387,434,443,452,464,473,481,488,502,513,536,550
+app/(timeline)/fitness/gear/useGearTableColumns.test.tsx
+  s_d1aa4fe9443c5e::t_38c06cfa57bfb9 8,55-60,62-64,67,102-103,106-107,117,132-144
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8c19897bb37ae1e32c72f5310c965dc5ab3a15f7",
+  "prompts": {},
+  "sessions": {
+    "s_bf95111a101b20": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a3044e0f3f672fc28",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_d1aa4fe9443c5e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "90c166c9-9f62-428b-ba7f-30a3790a9508",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

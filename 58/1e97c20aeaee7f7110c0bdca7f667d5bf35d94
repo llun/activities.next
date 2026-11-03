@@ -1,0 +1,35 @@
+lib/utils/request.ts
+  aec9357be833f4ad 1-2,22,25-31,37,45-46,61-98,100-122
+app/(timeline)/admin/federation/actions.ts
+  aec9357be833f4ad 10,106
+app/api/v1/admin/domain_blocks/import/route.test.ts
+  aec9357be833f4ad 8,38-39,46-93,97-99
+lib/services/federation/blocklistSources.ts
+  aec9357be833f4ad 12,30,32-35,142,154-155,158
+app/api/v1/admin/domain_blocks/import/route.ts
+  aec9357be833f4ad 5,51,54
+lib/utils/request.test.ts
+  aec9357be833f4ad 2-3,7-75,78-104,190-223
+lib/services/federation/blocklistSources.test.ts
+  aec9357be833f4ad 4,69,77-78,98,110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "581e97c20aeaee7f7110c0bdca7f667d5bf35d94",
+  "prompts": {
+    "aec9357be833f4ad": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dcb00-9e97-7592-828b-dd28aea9a215",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 283,
+      "total_deletions": 34,
+      "accepted_lines": 1129,
+      "overriden_lines": 7
+    }
+  }
+}

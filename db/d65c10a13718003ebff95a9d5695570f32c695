@@ -1,0 +1,23 @@
+next.config.test.ts
+  s_ca00178bf5dc26::t_44feb7b6c20d2a 379-400
+  s_ca00178bf5dc26::t_e4a92b52a0bf4e 401-435
+lib/utils/securityHeaders.ts
+  s_ca00178bf5dc26::t_012077116840d9 93-104
+  s_ca00178bf5dc26::t_763f3b5e23b17d 134
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "dbd65c10a13718003ebff95a9d5695570f32c695",
+  "prompts": {},
+  "sessions": {
+    "s_ca00178bf5dc26": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e352e-7e88-7272-8bff-46dee463bf8f",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

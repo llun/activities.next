@@ -1,0 +1,39 @@
+.env.example
+  s_5abb8595372299::t_01dff281c19e72 27-31
+lib/services/guards/OAuthGuard.test.ts
+  s_5abb8595372299::t_8a39df423d872f 153-166
+docs/environment-variables.md
+  s_5abb8595372299::t_65565281b065ec 16-18,20-21
+app/api/v1/apps/route.ts
+  s_5abb8595372299::t_bdb984033fcb2f 25-27,29-30,40-41
+lib/services/guards/OAuthGuard.ts
+  s_8f8c7653879d27::t_5a98ff10d8189b 65-67
+  s_5abb8595372299::t_e65a7f2c2fb7d7 63-64,68,123
+app/api/v1/apps/route.test.ts
+  s_5abb8595372299::t_071404c8b2255a 1
+  s_5abb8595372299::t_c4e030ac4f8c1c 6-8,27-28,30,44-48,66-70,74-75,91
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "8d185447224092a6698892668aab80146a7e8401",
+  "prompts": {},
+  "sessions": {
+    "s_5abb8595372299": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e20df-027a-7180-9604-ae018946539c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_8f8c7653879d27": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1dff-6d59-7960-9eee-87eebfec6a18",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

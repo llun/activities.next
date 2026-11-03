@@ -1,0 +1,39 @@
+app/api/v1/polls/[id]/votes/route.test.ts
+  s_2431f00cc9b3cf::t_2cf6805e339dd6 3-10,15-22,25-28,31-32,35-44,47-51,53,56-72,74-89,92-106,109-110,114-146,150,155,158-162,164-166,168-174,178-180,182-186,188,196-199,201,215-218,220,223-271
+app/api/v1/polls/[id]/votes/route.ts
+  s_2431f00cc9b3cf::t_a219806ff5df50 8,98-101,103,156,172
+app/api/v1/statuses/[id]/mute/route.test.ts
+  s_2431f00cc9b3cf::t_4589cc0124df40 1-164
+app/api/v1/statuses/[id]/mute/route.ts
+  s_2431f00cc9b3cf::t_a045bc4890063e 5,34
+app/api/v1/statuses/route.test.ts
+  s_2431f00cc9b3cf::t_c5b78353c747d3 31,39,79-85,198-300
+app/api/v1/statuses/route.ts
+  s_2431f00cc9b3cf::t_3397a100fbb564 46,401,434-436,438,518
+app/api/v2/search/route.test.ts
+  s_2431f00cc9b3cf::t_7594e9adf347e9 25,108-112,204-206,696-860
+app/api/v2/search/route.ts
+  s_2431f00cc9b3cf::t_18b8f246fd5c74 26,405-419,422,430-433
+docs/mastodon-api-compatibility.md
+  s_2431f00cc9b3cf::t_8f7515bc900123 1903-1909,1916-1919
+lib/jobs/fetchRemoteStatusJob.test.ts
+  s_2431f00cc9b3cf::t_9cfd0c0918055e 1258-1416
+lib/jobs/fetchRemoteStatusJob.ts
+  s_2431f00cc9b3cf::t_f25a2e25a881fc 8,26,28,32-33,82-117,165,185-187,192-195,365,381-384,389-396
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8f8399595fa371cba4053e520ef998601469bae2",
+  "prompts": {},
+  "sessions": {
+    "s_2431f00cc9b3cf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "67b9d019-435a-4665-9448-1d82d1fe4525",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,25 @@
+docs/architecture.md
+  s_279e7012f36c5f::t_ac669e632a38fe 2249-2255
+docs/fitness-file-storage.md
+  s_279e7012f36c5f::t_5cab2cadb00da2 11
+lib/database/domains/status/edits.ts
+  s_279e7012f36c5f::t_eb2cea4ae47781 34-42,91,100-116,399-408,415-417
+lib/database/domains/status/statusWriteQueries.test.ts
+  s_279e7012f36c5f::t_1a914ff017cacf 1880-1953,2352-2398,2411,2414-2415,2441,2453
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c3a99437ec7a98e971859dc0d256183c45b0098c",
+  "prompts": {},
+  "sessions": {
+    "s_279e7012f36c5f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0410f49d-2e94-45e1-bd1f-237e6f7747bc",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

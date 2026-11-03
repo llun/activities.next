@@ -1,0 +1,288 @@
+app/api/v2/admin/announcements/route.ts
+  s_512188f2b1db53::t_728f61c20159bc 8-11,30-43,47-54,87-91,93
+app/api/v1/admin/domains/[domain]/route.test.ts
+  s_512188f2b1db53::t_728f61c20159bc 7,252-367
+  s_512188f2b1db53::t_fb19391a4de597 368
+lib/database/migrate/addDomainScopes.test.ts
+  s_512188f2b1db53::t_728f61c20159bc 1-72
+app/api/v1/admin/domains/[domain]/route.ts
+  s_512188f2b1db53::t_728f61c20159bc 9,72-73,190-194
+app/api/v1/admin/reports/[id]/route.ts
+  s_512188f2b1db53::t_728f61c20159bc 104
+docs/environment-variables.md
+  s_512188f2b1db53::t_728f61c20159bc 59-61
+app/(timeline)/fitness/connections/strava/StravaSettingsForm.test.tsx
+  s_512188f2b1db53::t_728f61c20159bc 681
+lib/database/domains/instanceRule/types.ts
+  s_512188f2b1db53::t_728f61c20159bc 10-12,15,24-25,37-46,59-74
+lib/components/admin/domains/DomainSettings.tsx
+  s_512188f2b1db53::t_728f61c20159bc 43,239,306-307,344-375,377,391-401
+lib/components/admin/domains/AddDomainForm.tsx
+  s_512188f2b1db53::t_728f61c20159bc 157-183
+lib/components/admin/domains/DomainSettings.test.tsx
+  s_512188f2b1db53::t_728f61c20159bc 69,290-300,305-307
+app/api/v1/reports/route.ts
+  s_512188f2b1db53::t_728f61c20159bc 4-5,7,145-171,175-176
+lib/services/domains/domainScope.test.ts
+  s_512188f2b1db53::t_728f61c20159bc 1-71
+app/(timeline)/fitness/connections/wahoo/WahooSettingsForm.tsx
+  s_512188f2b1db53::t_728f61c20159bc 169-194
+app/manifest.test.ts
+  s_512188f2b1db53::t_728f61c20159bc 18-19
+lib/components/admin-rules/RulesPanel.test.tsx
+  s_512188f2b1db53::t_728f61c20159bc 37,208-213
+app/api/v1/admin/domains/schema.ts
+  s_512188f2b1db53::t_728f61c20159bc 4,36-50,72
+app/(timeline)/account/LogoutButton.tsx
+  s_512188f2b1db53::t_728f61c20159bc 8-9,13-14,19,22,34,41-49
+migrations/schema.sql
+  s_512188f2b1db53::t_728f61c20159bc 119-120,365-366,744-745,1196-1197
+app/(timeline)/fitness/connections/wahoo/WahooHistorySection.test.tsx
+  s_512188f2b1db53::t_728f61c20159bc 56-82,117,119-124
+lib/components/admin-announcements/AnnouncementsPanel.test.tsx
+  s_512188f2b1db53::t_728f61c20159bc 40,361-383
+  s_512188f2b1db53::t_857bd9ba0a2e31 384-385
+lib/components/settings/NotificationSettings.tsx
+  s_512188f2b1db53::t_728f61c20159bc 288-311
+app/api/v1/admin/reports/route.ts
+  s_512188f2b1db53::t_728f61c20159bc 8,43-50,64-65,86-89,109-117
+lib/components/admin/settings/InstanceSettingsForm.tsx
+  s_512188f2b1db53::t_728f61c20159bc 153-157,259-269
+lib/components/surface/alertOutsideFrame.test.ts
+  s_512188f2b1db53::t_728f61c20159bc 1-131
+app/(timeline)/admin/accounts/[id]/ActorModerationPanel.test.tsx
+  s_512188f2b1db53::t_728f61c20159bc 159-161,173-245,253-256,267,269-272
+lib/services/admin/serializeAdminReports.ts
+  s_512188f2b1db53::t_728f61c20159bc 65-67,88
+lib/utils/paginationLinkHeader.ts
+  s_512188f2b1db53::t_728f61c20159bc 7-9,23-24,31-33
+app/api/v1/accounts/bootstrap/route.ts
+  s_512188f2b1db53::t_728f61c20159bc 3,47-53
+app/api/v2/admin/rules/route.test.ts
+  s_512188f2b1db53::t_728f61c20159bc 5,29,146-272
+  s_512188f2b1db53::t_81806dc6db7dd9 273
+lib/components/surface/Alert.tsx
+  s_512188f2b1db53::t_728f61c20159bc 63,75-78,98-99
+app/api/v2/admin/announcements/route.test.ts
+  s_512188f2b1db53::t_728f61c20159bc 29,171-281
+  s_512188f2b1db53::t_bfe9d6fe1ad6a9 282
+lib/components/settings/DeleteActorSection.tsx
+  s_512188f2b1db53::t_728f61c20159bc 22-25,53-57,63-78
+lib/database/domains/announcement/queries.ts
+  s_512188f2b1db53::t_728f61c20159bc 14,27,49,64,77,91-99,113,148-155,169,176-180
+app/api/v2/instance/route.ts
+  s_512188f2b1db53::t_728f61c20159bc 5,48
+app/(timeline)/account/LogoutButton.test.tsx
+  s_512188f2b1db53::t_728f61c20159bc 31,44,53,59-60,65-67,69,73
+app/api/v1/accounts/bootstrap/route.test.ts
+  s_512188f2b1db53::t_728f61c20159bc 42-56,89,287-309
+  s_512188f2b1db53::t_b3f68722af609c 310
+lib/client/serverRules.test.ts
+  s_512188f2b1db53::t_728f61c20159bc 20
+lib/database/domains/servedDomain/servedDomain.test.ts
+  s_512188f2b1db53::t_728f61c20159bc 248-324
+lib/services/domains/adminDomains.test.ts
+  s_512188f2b1db53::t_728f61c20159bc 514-587
+lib/services/domains/domainIdentity.ts
+  s_512188f2b1db53::t_728f61c20159bc 17,55-58,89-90,119-120
+app/(timeline)/account/sessions/AccountSessions.tsx
+  s_512188f2b1db53::t_728f61c20159bc 156,451,458-462
+lib/components/admin-rules/RulesPanel.tsx
+  s_512188f2b1db53::t_728f61c20159bc 463,478
+lib/services/domains/visitedFeatures.ts
+  s_512188f2b1db53::t_728f61c20159bc 1-36
+docs/architecture.md
+  s_512188f2b1db53::t_728f61c20159bc 193-194,850,1001,1017,1022,1034-1035,1039-1041,1044,2520
+app/api/v1/announcements/[id]/reactions/[name]/route.ts
+  s_512188f2b1db53::t_728f61c20159bc 4,9,53-57
+app/layout.test.tsx
+  s_512188f2b1db53::t_728f61c20159bc 21-22
+lib/services/domains/domainIdentityCache.ts
+  s_512188f2b1db53::t_728f61c20159bc 6-8,19,56-57
+app/(timeline)/lists/ListEditor.tsx
+  s_512188f2b1db53::t_728f61c20159bc 523-539
+app/(timeline)/settings/navigation/page.tsx
+  s_512188f2b1db53::t_728f61c20159bc 7,29-30
+package.json
+  s_512188f2b1db53::t_728f61c20159bc 3
+lib/components/privacy-locations/PrivacyLocationsEditor.test.tsx
+  s_512188f2b1db53::t_728f61c20159bc 158-177,225-229
+lib/services/announcements/adminAnnouncement.ts
+  s_512188f2b1db53::t_728f61c20159bc 12-15,29-30,39,47,68-69
+app/(timeline)/admin/accounts/[id]/page.test.tsx
+  s_512188f2b1db53::t_728f61c20159bc 6,40-50
+app/api/v1/instance/rules/route.test.ts
+  s_512188f2b1db53::t_728f61c20159bc 3,93-140
+  s_512188f2b1db53::t_24449d2de7d882 141
+lib/database/domains/servedDomain/queries.ts
+  s_512188f2b1db53::t_728f61c20159bc 14,17,61,92,116,125-131,287-318,347
+lib/components/settings/DeleteActorSection.test.tsx
+  s_512188f2b1db53::t_728f61c20159bc 47-49
+lib/database/kysely/db.ts
+  s_512188f2b1db53::t_728f61c20159bc 137,332,709,1110
+app/(timeline)/(policies)/PolicyDocumentPage.test.tsx
+  s_512188f2b1db53::t_728f61c20159bc 53
+lib/components/privacy-locations/PrivacyLocationsEditor.tsx
+  s_512188f2b1db53::t_728f61c20159bc 456-460,1067-1074,1077,1079,1081-1089,1091-1096,1098-1100,1102-1112,1114-1177,1180-1183,1185-1242,1244-1267,1269-1278,1280-1285,1287-1293,1296-1297,1299-1301,1303-1317,1319-1353,1355-1358
+app/api/v1/admin/reports/adminReports.test.ts
+  s_512188f2b1db53::t_728f61c20159bc 272-389
+lib/services/domains/domainScope.ts
+  s_512188f2b1db53::t_728f61c20159bc 1-59
+app/(timeline)/account/ChangeEmailForm.tsx
+  s_512188f2b1db53::t_728f61c20159bc 62-82,91-92
+lib/components/surface/Alert.test.tsx
+  s_512188f2b1db53::t_728f61c20159bc 76,78,83
+lib/database/domains/instanceRule/queries.ts
+  s_512188f2b1db53::t_728f61c20159bc 6-8,16,26,34,44,91-94,98-104,111-149,154-157
+lib/services/accounts/registerAccount.test.ts
+  s_512188f2b1db53::t_728f61c20159bc 63
+app/api/v2/admin/rules/[id]/route.test.ts
+  s_512188f2b1db53::t_728f61c20159bc 87
+app/(timeline)/fitness/connections/wahoo/WahooHistorySection.tsx
+  s_512188f2b1db53::t_728f61c20159bc 190-194
+lib/services/domains/domainAudience.test.ts
+  s_512188f2b1db53::t_728f61c20159bc 1-35
+lib/services/domains/domainFeatures.ts
+  s_512188f2b1db53::t_728f61c20159bc 1-46
+lib/database/domains/report/report.test.ts
+  s_512188f2b1db53::t_728f61c20159bc 57-113
+app/api/v1/announcements/route.ts
+  s_512188f2b1db53::t_728f61c20159bc 1-2,4,22-25,27-31
+lib/components/surface/Frame.tsx
+  s_512188f2b1db53::t_728f61c20159bc 55
+migrations/index.ts
+  s_512188f2b1db53::t_f582694751404d 32
+  s_512188f2b1db53::t_728f61c20159bc 13,33
+app/(timeline)/admin/accounts/[id]/page.tsx
+  s_512188f2b1db53::t_728f61c20159bc 84-86,88-110,112-113,115
+lib/services/domains/adminDomains.ts
+  s_512188f2b1db53::t_728f61c20159bc 103,193-194,398-400,448-450
+app/api/v1/instance/route.test.ts
+  s_512188f2b1db53::t_728f61c20159bc 342-385
+lib/components/admin-announcements/AnnouncementsPanel.tsx
+  s_512188f2b1db53::t_728f61c20159bc 4,85-89,259-263
+lib/services/domains/adminDomainTypes.ts
+  s_512188f2b1db53::t_728f61c20159bc 8,49-51,91-96,99-100,118-119
+  s_512188f2b1db53::t_3e83f28a7b535c 120
+lib/database/domains/report/types.ts
+  s_512188f2b1db53::t_728f61c20159bc 19-21,37-38,48-49
+lib/client/adminReports.test.ts
+  s_512188f2b1db53::t_728f61c20159bc 28
+lib/services/domains/domainIdentity.test.ts
+  s_512188f2b1db53::t_728f61c20159bc 89-90,280-315
+  s_512188f2b1db53::t_82df0a3c377536 316
+lib/services/rules/adminRule.ts
+  s_512188f2b1db53::t_728f61c20159bc 14-17,42-43,46
+lib/components/admin/domains/AddDomainForm.test.tsx
+  s_512188f2b1db53::t_728f61c20159bc 218
+lib/database/domains/announcement/types.ts
+  s_512188f2b1db53::t_728f61c20159bc 12-13,16,28-29,38-39,51-58,102-104,110-111
+lib/database/domains/servedDomain/types.ts
+  s_512188f2b1db53::t_728f61c20159bc 3,40-41,76-77,129-133
+app/(timeline)/gallery/privacy/GalleryPrivacySettings.tsx
+  s_512188f2b1db53::t_728f61c20159bc 259-260
+app/(timeline)/fitness/connections/wahoo/WahooSettingsForm.test.tsx
+  s_512188f2b1db53::t_728f61c20159bc 54-68,194-198
+lib/jobs/receiveFlagJob.test.ts
+  s_512188f2b1db53::t_728f61c20159bc 64-66,74-103
+  s_512188f2b1db53::t_c79163707a21f5 104-105
+lib/services/email/sender.test.ts
+  s_512188f2b1db53::t_728f61c20159bc 30
+app/api/v1/announcements/[id]/dismiss/route.ts
+  s_512188f2b1db53::t_728f61c20159bc 1,6,29-33
+app/api/v1/reports/route.rules.test.ts
+  s_512188f2b1db53::t_728f61c20159bc 1-156
+migrations/20261021072844_add_domain_scopes.ts
+  s_512188f2b1db53::t_728f61c20159bc 1-77
+migrations/names.ts
+  s_512188f2b1db53::t_f582694751404d 13
+  s_512188f2b1db53::t_728f61c20159bc 14
+app/api/v2/instance/route.test.ts
+  s_512188f2b1db53::t_728f61c20159bc 453-496
+lib/types/mastodon/admin/report.ts
+  s_512188f2b1db53::t_728f61c20159bc 16-18
+app/(timeline)/account/ChangeEmailForm.test.tsx
+  s_512188f2b1db53::t_728f61c20159bc 84-87
+docs/features.md
+  s_512188f2b1db53::t_728f61c20159bc 100
+app/(nosidebar)/auth/signin/page.test.tsx
+  s_512188f2b1db53::t_728f61c20159bc 33-34
+app/(timeline)/account/sessions/AccountSessions.test.tsx
+  s_512188f2b1db53::t_728f61c20159bc 34-42,450-459
+  s_512188f2b1db53::t_94026f0fd1de4a 460
+lib/database/domains/report/queries.ts
+  s_512188f2b1db53::t_728f61c20159bc 14,26,45,66,83-85,99,122,136
+app/(timeline)/admin/accounts/[id]/ActorModerationPanel.tsx
+  s_512188f2b1db53::t_728f61c20159bc 3,17,28-29,59-63,113-121,123-128,135-136,139-148,153-159,173-195,197-215,217-233,235-254,256-274,276-290,292-310
+lib/components/admin/settings/InstanceSettingsForm.test.tsx
+  s_512188f2b1db53::t_728f61c20159bc 306-312,318-346
+  s_512188f2b1db53::t_a6320f5996cad1 347
+app/(timeline)/layout.tsx
+  s_512188f2b1db53::t_728f61c20159bc 17,43-50
+app/api/v1/instance/route.ts
+  s_512188f2b1db53::t_728f61c20159bc 5,44
+app/(nosidebar)/auth/signup/page.test.tsx
+  s_512188f2b1db53::t_728f61c20159bc 51
+lib/client/serverAnnouncements.test.ts
+  s_512188f2b1db53::t_728f61c20159bc 20
+app/api/v2/admin/rules/route.ts
+  s_512188f2b1db53::t_728f61c20159bc 3-6,26-40,44-50,83-87,89
+lib/components/surface/AddBar.tsx
+  s_512188f2b1db53::t_728f61c20159bc 36
+app/api/v1/emails/confirmations/route.test.ts
+  s_512188f2b1db53::t_728f61c20159bc 498
+app/api/v2/admin/announcements/[id]/route.ts
+  s_512188f2b1db53::t_728f61c20159bc 8-11,62-77,80
+lib/services/mastodon/getMastodonAnnouncement.test.ts
+  s_512188f2b1db53::t_728f61c20159bc 12
+lib/database/domains/instanceRule/instanceRule.test.ts
+  s_512188f2b1db53::t_728f61c20159bc 216-336
+lib/database/domains/announcement/announcement.test.ts
+  s_512188f2b1db53::t_728f61c20159bc 802-901
+app/(timeline)/lists/ListEditor.test.tsx
+  s_512188f2b1db53::t_728f61c20159bc 531-534
+app/api/v1/instance/rules/route.ts
+  s_512188f2b1db53::t_728f61c20159bc 2-4,17-19,33-35
+lib/services/auth/authServiceName.test.ts
+  s_512188f2b1db53::t_728f61c20159bc 16-17
+lib/components/settings/NotificationSettings.test.tsx
+  s_512188f2b1db53::t_728f61c20159bc 64-68
+app/api/v1/announcements/route.test.ts
+  s_512188f2b1db53::t_728f61c20159bc 8,94-151,201-273
+  s_512188f2b1db53::t_2e92cc3c35e894 274
+lib/services/domains/domainAudience.ts
+  s_512188f2b1db53::t_728f61c20159bc 1-42
+app/(timeline)/PublicFooter.test.tsx
+  s_512188f2b1db53::t_728f61c20159bc 33
+app/(timeline)/fitness/connections/strava/StravaSettingsForm.tsx
+  s_512188f2b1db53::t_728f61c20159bc 246-262
+lib/services/announcements/getVisibleAnnouncement.ts
+  s_512188f2b1db53::t_728f61c20159bc 1-23
+migrations/schema.sqlite.sql
+  s_512188f2b1db53::t_728f61c20159bc 172,193,195,320
+docs/mastodon-api-compatibility.md
+  s_512188f2b1db53::t_728f61c20159bc 792-793,872-905
+app/(timeline)/layout.test.tsx
+  s_512188f2b1db53::t_728f61c20159bc 29-37,137,208-234,236,238-239
+  s_512188f2b1db53::t_c4b48da33a4655 235,237,240
+lib/services/domains/domainFeatures.test.ts
+  s_512188f2b1db53::t_728f61c20159bc 1-63
+lib/components/settings/FitnessImport.tsx
+  s_512188f2b1db53::t_728f61c20159bc 174
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1f515f61367f39829d55f5c0936b822f292e9879",
+  "prompts": {},
+  "sessions": {
+    "s_512188f2b1db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e467608a-8346-4544-b69a-fc45fca93669",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

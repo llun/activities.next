@@ -1,0 +1,47 @@
+docs/environment-variables.md
+  s_725909a67e1914::t_69fc008b4d4691 259
+docs/features.md
+  s_725909a67e1914::t_66dbfd081e79d1 59
+docs/fitness-file-storage.md
+  s_05598cebdd5503::t_e8c43fd8afc200 328
+lib/jobs/processFitnessFileJob.test.ts
+  s_05598cebdd5503::t_43333ac7024d71 9,67-70,211,2240-2340
+lib/jobs/processFitnessFileJob.ts
+  s_05598cebdd5503::t_f6e963a879fa32 6,662-670,673
+lib/jobs/regenerateFitnessMapsJob.ts
+  s_05598cebdd5503::t_5bc9aac3bc1cc9 3,9,217-225,234
+lib/services/altText/openai.ts
+  s_a396dd0a372109::t_758d5e0a0f69cf 15,18-24,29-34,43-44,75,85,110-111,117-133
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0d7c692da3db20ec3b627c66a804f801f78e70ae",
+  "prompts": {},
+  "sessions": {
+    "s_05598cebdd5503": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d555-002c-7842-b513-99555c30c534",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_725909a67e1914": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d554-1283-7a03-aa63-f06a555f70ba",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_a396dd0a372109": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d980-ad59-74b3-af3c-62d7e89c59ae",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

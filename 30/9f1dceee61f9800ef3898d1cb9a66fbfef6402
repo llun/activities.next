@@ -1,0 +1,19 @@
+lib/services/email/layout/renderEmail.test.ts
+  s_181a4d159922fc::t_3201f35395c61d 84-98
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "309f1dceee61f9800ef3898d1cb9a66fbfef6402",
+  "prompts": {},
+  "sessions": {
+    "s_181a4d159922fc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8b59141f-f9f0-4af4-8aea-39520836e6cc",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

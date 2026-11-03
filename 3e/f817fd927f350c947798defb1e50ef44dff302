@@ -1,0 +1,23 @@
+AGENTS.md
+  s_573a4f61d609a9::t_8c7447f2ccff29 1996
+migrations/20260828000000_backfill_oauth_client_credentials_scopes.js
+  s_573a4f61d609a9::t_966fe07c9d336c 25-28,30-33
+lib/services/oauth/clientCredentialsScopes.ts
+  s_573a4f61d609a9::t_f64826a6538231 11-26,40-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "3ef817fd927f350c947798defb1e50ef44dff302",
+  "prompts": {},
+  "sessions": {
+    "s_573a4f61d609a9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d903a10c-deef-49cb-ae5b-2198fabb750e",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

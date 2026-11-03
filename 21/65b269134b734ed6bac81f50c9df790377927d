@@ -1,0 +1,24 @@
+lib/client.test.ts
+  h_580a04e334fef4 9,20-21,27-28,38-40,51,56,61,70-72,76-77,2691-2729
+lib/client.ts
+  h_580a04e334fef4 47-49,2678
+lib/client/fitnessGear.test.ts
+  h_580a04e334fef4 1-490
+lib/client/fitnessGear.ts
+  h_580a04e334fef4 1-289
+lib/client/http.test.ts
+  h_580a04e334fef4 1-103
+lib/client/http.ts
+  h_580a04e334fef4 1-50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "2165b269134b734ed6bac81f50c9df790377927d",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

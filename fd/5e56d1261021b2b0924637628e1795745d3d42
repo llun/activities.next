@@ -1,0 +1,14 @@
+.github/workflows/sync-main-to-prod.yml
+  h_580a04e334fef4 49,55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "fd5e56d1261021b2b0924637628e1795745d3d42",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

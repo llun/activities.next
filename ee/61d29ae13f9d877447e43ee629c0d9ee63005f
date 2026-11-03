@@ -1,0 +1,19 @@
+app/api/v1/routeScopeWiring.test.ts
+  s_725909a67e1914::t_80c221b28af58f 143-222,548-570
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ee61d29ae13f9d877447e43ee629c0d9ee63005f",
+  "prompts": {},
+  "sessions": {
+    "s_725909a67e1914": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d554-1283-7a03-aa63-f06a555f70ba",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

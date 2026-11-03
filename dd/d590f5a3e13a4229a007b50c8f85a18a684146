@@ -1,0 +1,38 @@
+app/api/v1/favourites/route.ts
+  s_44807e29e64536::t_2350accffdfcdb 9
+  s_44807e29e64536::t_e147a2a79bb9a5 64-70,76
+app/api/v1/bookmarks/route.ts
+  s_44807e29e64536::t_8349900f720d36 9
+  s_44807e29e64536::t_691fd6fb1ff3bb 64-70,76
+lib/utils/paginationLinkHeader.ts
+  s_44807e29e64536::t_3842dd8b930cd3 1-39
+app/api/v1/accounts/[id]/following/route.ts
+  s_44807e29e64536::t_e125bab5e515d6 10
+  s_44807e29e64536::t_1689108c2024c4 112-121,127
+app/api/v1/accounts/[id]/followers/route.ts
+  s_44807e29e64536::t_0a36573ca49d8f 112-121,127
+  s_44807e29e64536::t_3d3b130b594929 10
+app/api/v1/mutes/route.ts
+  s_44807e29e64536::t_9277ab4ef3b12c 7
+  s_44807e29e64536::t_dbf51cc1519f2f 50-56,62
+app/api/v1/blocks/route.ts
+  s_44807e29e64536::t_ec310a6ff2f185 44-47,49-50,56
+  s_44807e29e64536::t_caee6a250eedf0 48
+  s_44807e29e64536::t_18dffa8adefb0b 7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "ddd590f5a3e13a4229a007b50c8f85a18a684146",
+  "prompts": {},
+  "sessions": {
+    "s_44807e29e64536": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d5791d6b-5c1d-4a48-a1aa-d091f3207ce6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

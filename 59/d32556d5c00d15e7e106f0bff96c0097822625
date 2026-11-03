@@ -1,0 +1,23 @@
+app/(timeline)/fitness/gear/[id]/GearComponentsCard.tsx
+  s_a3b90525842071::t_52b17bd15cd41c 219-228
+app/(timeline)/fitness/gear/[id]/GearComponentsCard.test.tsx
+  s_a3b90525842071::t_52b17bd15cd41c 108-109
+  s_a3b90525842071::t_47c720f7fef48b 104-107
+  s_a3b90525842071::t_68b6db89d55723 110,428-445
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "59d32556d5c00d15e7e106f0bff96c0097822625",
+  "prompts": {},
+  "sessions": {
+    "s_a3b90525842071": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "029eb1cf-00b7-4f56-b1d3-679cd6f1e78c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

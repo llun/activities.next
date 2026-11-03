@@ -1,0 +1,22 @@
+lib/actions/utils.actorBinding.test.ts
+  s_69f35b0cf1b1f5::t_ec728bc5598192 6,8,25-34,46-51,54-56,68-69,206-224
+  s_69f35b0cf1b1f5::t_0e2ee87229a137 225-226
+app/(timeline)/[actor]/getProfileData.actorBinding.test.ts
+  s_69f35b0cf1b1f5::t_ec728bc5598192 7,9,33-39,58-63,66-68,80-81,144-171
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dbdb04c40b09fff2e5905ea11cd86c31e4302680",
+  "prompts": {},
+  "sessions": {
+    "s_69f35b0cf1b1f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3e34abf-a75d-4da8-b371-1258aa33721a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

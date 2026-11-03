@@ -1,0 +1,49 @@
+lib/components/posts/post.tsx
+  s_bb92ee938bf6dc::t_f7be0fade0961e 468
+lib/components/posts/status-context.test.tsx
+  s_82468012d96a9d::t_e318ff4f683fb1 81-142
+lib/components/posts/status-context.tsx
+  s_bb92ee938bf6dc::t_f4d74ef979bf66 7-8,14,20-21,35-45
+lib/services/timelines/getTimelineContext.test.ts
+  s_82468012d96a9d::t_5e23d90a63b2ac 183,187-199,208-226,232-235,238-242,247,254-255,263,265-271
+lib/services/timelines/getTimelineContext.ts
+  s_bb92ee938bf6dc::t_672368fb96d0c6 6,244-246,291-292
+lib/types/domain/timeline.ts
+  s_bb92ee938bf6dc::t_95a0f59bebc106 2,16-17
+lib/utils/text/renderInlineSnippet.test.tsx
+  s_bb92ee938bf6dc::t_c5ef879e3dafc0 1-98
+lib/utils/text/renderInlineSnippet.tsx
+  s_49bdc04426cc05::t_395b9039e82ea9 1-97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "fe809870b0fed66f05fdd9894958697948d21f4a",
+  "prompts": {},
+  "sessions": {
+    "s_49bdc04426cc05": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a893035d9b2c23f2f",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_82468012d96a9d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c1772d3-df89-4813-8d33-4cbceee3810d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_bb92ee938bf6dc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e42ed834-8d66-48e4-81fb-7bba86cad7f1",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

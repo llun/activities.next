@@ -1,0 +1,21 @@
+lib/database/domains/gallery/galleryAlbums.test.ts
+  s_4997c85018e2cb::t_afc088e8c6fe41 145-148,204,208,722
+package.json
+  s_4997c85018e2cb::t_bf80dbef521da6 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "74b2a1bb0f7f3bf58c816f8f413a0fe72c2675eb",
+  "prompts": {},
+  "sessions": {
+    "s_4997c85018e2cb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8bf20e74-aa69-4992-bb02-e8f1bef36b0e",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

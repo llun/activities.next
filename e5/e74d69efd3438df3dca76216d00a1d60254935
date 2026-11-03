@@ -1,0 +1,19 @@
+app/(nosidebar)/oauth/authorize/AuthorizeCard.tsx
+  s_2e3e986c71e877::t_e5b4d57ee16b18 46-52,58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "e5e74d69efd3438df3dca76216d00a1d60254935",
+  "prompts": {},
+  "sessions": {
+    "s_2e3e986c71e877": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e64de-37ee-7d71-8c57-a0332805df7b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

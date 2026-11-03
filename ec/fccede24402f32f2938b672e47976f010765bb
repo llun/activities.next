@@ -1,0 +1,96 @@
+lib/types/database/fitnessRouteHeatmap.ts
+  s_4dffcd2598c0ab::t_7b3374f82f529b 74-78
+  s_4dffcd2598c0ab::t_55c03c64857825 46-51
+app/(timeline)/fitness/heatmap/FitnessHeatmapView.tsx
+  s_4dffcd2598c0ab::t_6fd7408d1ff893 1184,1187-1205,1208-1219
+  s_4dffcd2598c0ab::t_9c7b5c71da90a2 155-157
+  s_4dffcd2598c0ab::t_752fd393680bcc 1297
+  s_4dffcd2598c0ab::t_9db0348e4e0463 1347-1397
+  s_4dffcd2598c0ab::t_f1cca149446ef5 18
+  s_4dffcd2598c0ab::t_9d53a7c786c873 1002-1005,1011
+  s_4dffcd2598c0ab::t_b6f0a06f580906 158-194
+  s_4dffcd2598c0ab::t_f3362674036377 1012,1206-1207
+  s_4dffcd2598c0ab::t_717a96a893ea22 543-546
+  s_4dffcd2598c0ab::t_ac62cfa4b8163b 943-996
+lib/database/sql/fitnessFile.test.ts
+  s_4dffcd2598c0ab::t_3280d0ffe2a7dd 133-134,138-143,145,173-176,179,181-182,191,208-210
+  s_4dffcd2598c0ab::t_949a9c30bfb7c6 135-137,144,146-172,177-178,180,183-190,192-207
+lib/database/sql/fitnessFile.ts
+  s_4dffcd2598c0ab::t_6ee75327886cd0 138-145
+  s_4dffcd2598c0ab::t_a0be6654a7d124 396-434
+migrations/20260621000000_add_fitness_route_heatmap_total_count.js
+  s_4dffcd2598c0ab::t_09c5216a2b28c0 1-48
+lib/components/fitness/FitnessHeatmapList.tsx
+  s_4dffcd2598c0ab::t_f3362674036377 79,200
+  s_4dffcd2598c0ab::t_6b4d19ca5aa70c 11-12,24,45-78,80-109,160-182,187,195,199,201-204,244-245,268-276,283-292,301,335,364
+lib/database/sql/fitnessRouteHeatmap.test.ts
+  s_4dffcd2598c0ab::t_3aeb46c084e101 138-171
+  s_4dffcd2598c0ab::t_8fa889033f8d73 427-477
+app/api/v1/accounts/[id]/fitness-route-heatmap/route.ts
+  s_4dffcd2598c0ab::t_2c3dca86bbf16f 76
+  s_4dffcd2598c0ab::t_b757f3ec18c93c 29-30
+  s_4dffcd2598c0ab::t_2d1f29c5200e98 364-482
+lib/client.test.ts
+  s_4dffcd2598c0ab::t_c47420961fc325 561-598
+  s_4dffcd2598c0ab::t_f9811e19dfc0ff 12
+migrations/schema.sql
+  s_4dffcd2598c0ab::t_5e3c47bcc4cf9a 421-422
+lib/config/fitnessRouteHeatmap.ts
+  s_4dffcd2598c0ab::t_166b2ef57ad23c 4-10,16-17
+app/api/v1/accounts/[id]/fitness-route-heatmap/route.test.ts
+  s_4dffcd2598c0ab::t_d0d04da032483b 67
+  s_4dffcd2598c0ab::t_fb2c1461950bd2 570-667
+  s_4dffcd2598c0ab::t_6b579f94b146ab 25-28,37-38
+  s_4dffcd2598c0ab::t_c8aac7b70a2fe7 136
+  s_4dffcd2598c0ab::t_b65c3903645555 8
+  s_4dffcd2598c0ab::t_b4e134c7665443 97
+app/api/v1/accounts/[id]/fitness-route-heatmaps/route.test.ts
+  s_4dffcd2598c0ab::t_90df4ae731b50d 70,85
+  s_4dffcd2598c0ab::t_54f347f4138b30 111,126
+lib/jobs/generateFitnessRouteHeatmapJob.test.ts
+  s_4dffcd2598c0ab::t_91387ded6252f5 209-210
+  s_4dffcd2598c0ab::t_0041a9a2871fd9 595-597
+  s_4dffcd2598c0ab::t_671c93d4caed1d 164-165
+  s_4dffcd2598c0ab::t_880ed8f8b32f2a 989
+lib/components/fitness/FitnessHeatmapList.test.tsx
+  s_4dffcd2598c0ab::t_f9fe7ee251ce14 21,31-37,45,64,88,117,144,150,178,198,206-302,317
+lib/database/sql/fitnessRouteHeatmap.ts
+  s_4dffcd2598c0ab::t_e5285461452ce7 335
+  s_4dffcd2598c0ab::t_3874a2d58f0add 88-96
+  s_4dffcd2598c0ab::t_5c6a717218cb10 166
+  s_4dffcd2598c0ab::t_af2782f2cb1be0 451-469
+  s_4dffcd2598c0ab::t_dc18d1c2d2a9da 53
+  s_4dffcd2598c0ab::t_13abc383274769 357
+  s_4dffcd2598c0ab::t_574986f8d91b4a 383-385
+  s_4dffcd2598c0ab::t_e97d0f5718b5de 248
+  s_4dffcd2598c0ab::t_baf045cf911b96 189
+app/api/v1/accounts/[id]/fitness-route-heatmaps/route.ts
+  s_4dffcd2598c0ab::t_cf0745b3744e88 39
+lib/jobs/generateFitnessRouteHeatmapJob.ts
+  s_4dffcd2598c0ab::t_367063e3b37ed9 569
+  s_4dffcd2598c0ab::t_24dec54799094e 170-180
+  s_4dffcd2598c0ab::t_a16c75a6384ce8 404
+  s_4dffcd2598c0ab::t_32e73af3e2ff93 299-313,327,369
+  s_4dffcd2598c0ab::t_37403e236375a9 37-41
+lib/client.ts
+  s_4dffcd2598c0ab::t_090e6eef7514ab 2355-2397
+  s_4dffcd2598c0ab::t_9f9cf43b5cdb76 2223-2224,2241-2242
+migrations/schema.sqlite.sql
+  s_4dffcd2598c0ab::t_e8e1e530537897 103
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "ecfccede24402f32f2938b672e47976f010765bb",
+  "prompts": {},
+  "sessions": {
+    "s_4dffcd2598c0ab": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "89734c33-3db6-42de-a6b5-93cebf525090",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
