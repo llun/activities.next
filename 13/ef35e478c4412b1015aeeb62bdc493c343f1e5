@@ -1,0 +1,31 @@
+lib/components/posts/selfThreadModel.test.ts
+  s_88301bc85cae52::t_cc359a1f428247 478,485,512,529,557,640,659
+lib/services/email/layout/actorDisplay.test.ts
+  s_88301bc85cae52::t_cc359a1f428247 63-64,85-86
+lib/components/posts/actions/post-menu.test.tsx
+  s_88301bc85cae52::t_cc359a1f428247 106-107,109,114-115,118,125,246,249,252,275,341,377,714,948,971,999,1028,1051,1067
+lib/components/posts/status-thread.test.tsx
+  s_88301bc85cae52::t_cc359a1f428247 1173,1176,1180,1184,1234,1253,1257,1273,1279,1283,1286,1290,1294,1322-1323,1564,1566-1567,1571,1573-1574,1576,1601,1604,1612,1618
+lib/services/email/layout/actorDisplay.ts
+  s_88301bc85cae52::t_cc359a1f428247 37
+lib/components/posts/actions/post-menu-dialogs.test.tsx
+  s_88301bc85cae52::t_cc359a1f428247 45,117,134,218,238,255,307,334,475,490
+scripts/mock/renderEmailPreviews.ts
+  s_88301bc85cae52::t_cc359a1f428247 81,174,186,188,225
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "13ef35e478c4412b1015aeeb62bdc493c343f1e5",
+  "prompts": {},
+  "sessions": {
+    "s_88301bc85cae52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5f2b9174-f321-4365-a6bd-a2fcd7f3886a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
