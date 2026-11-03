@@ -26,6 +26,7 @@ import {
 import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
 import { cn } from '@/lib/utils'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
+import { getVisibility } from '@/lib/utils/getVisibility'
 import { getActualStatus } from '@/lib/utils/text/processStatusText'
 
 import { TimelineGapRow } from './TimelineGapRow'
@@ -133,7 +134,7 @@ const previewFromStatus = (
     spoilerText,
     isSensitive,
     createdAt: new Date(actual.createdAt).toISOString(),
-    visibility: 'public'
+    visibility: getVisibility(actual.to, actual.cc)
   }
 }
 
@@ -431,19 +432,14 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
   // `getTimelineContext` gives no preview for a parent on the same page, so the
   // preview is built from the loaded parent. The line is skipped when the
   // parent is the post directly above (its last part, for a run).
-  const getLaterBlockContext = (
-    block: CombinedBlock,
-    previous: CombinedBlock,
+  const getContextAfter = (
+    first: Status,
+    above: Status,
     entryIds: string[]
   ) => {
-    const first = block.kind === 'run' ? block.parts[0].status : block.status
     const replyTarget = getStatusReplyTargetId(getActualStatus(first))
     if (!replyTarget)
       return { showReplyContext: false, parentPreview: undefined }
-    const above =
-      previous.kind === 'run'
-        ? previous.parts[previous.parts.length - 1].status
-        : previous.status
     const parent = getRowStatuses(entryIds).find((status) =>
       getStatusAliases(getActualStatus(status)).includes(replyTarget)
     )
@@ -457,6 +453,31 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
         (parent ? previewFromStatus(parent) : undefined)
     }
   }
+
+  const getLaterBlockContext = (
+    block: CombinedBlock,
+    previous: CombinedBlock,
+    entryIds: string[]
+  ) =>
+    getContextAfter(
+      block.kind === 'run' ? block.parts[0].status : block.status,
+      previous.kind === 'run'
+        ? previous.parts[previous.parts.length - 1].status
+        : previous.status,
+      entryIds
+    )
+
+  // The post-by-post rendering of a row: the first post shows the context of
+  // what the row answers, every later one that of a parent not directly above.
+  const renderRowPosts = (statuses: Status[], entryIds: string[]) =>
+    statuses.map((status, index) =>
+      renderPostItem(
+        status,
+        index === 0
+          ? getLeadContext(status, entryIds)
+          : getContextAfter(status, statuses[index - 1], entryIds)
+      )
+    )
 
   const renderCombinedBlocks = (entryIds: string[], blocks: CombinedBlock[]) =>
     blocks.map((block, index) => {
@@ -632,23 +653,7 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
                     })}
                   </>
                 ) : (
-                  threadStatuses.map((status, index) => {
-                    const isFirst = index === 0
-                    const replyTarget = isFirst
-                      ? getStatusReplyTargetId(getActualStatus(status))
-                      : null
-                    const showReplyContext =
-                      Boolean(replyTarget) &&
-                      !row.entryIds.includes(replyTarget!)
-                    const parentPreview = replyTarget
-                      ? timelineContext?.ancestorsById?.[replyTarget]
-                      : undefined
-
-                    return renderPostItem(status, {
-                      showReplyContext,
-                      parentPreview
-                    })
-                  })
+                  renderRowPosts(threadStatuses, row.entryIds)
                 )}
               </div>
             )
@@ -677,23 +682,7 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
               >
                 {combinedBlocks
                   ? renderCombinedBlocks(row.entryIds, combinedBlocks)
-                  : convStatuses.map((status, index) => {
-                      const isFirst = index === 0
-                      const replyTarget = isFirst
-                        ? getStatusReplyTargetId(getActualStatus(status))
-                        : null
-                      const showReplyContext =
-                        Boolean(replyTarget) &&
-                        !row.entryIds.includes(replyTarget!)
-                      const parentPreview = replyTarget
-                        ? timelineContext?.ancestorsById?.[replyTarget]
-                        : undefined
-
-                      return renderPostItem(status, {
-                        showReplyContext,
-                        parentPreview
-                      })
-                    })}
+                  : renderRowPosts(convStatuses, row.entryIds)}
               </div>
             )
           } else if (row.kind === 'boosts') {

@@ -1123,6 +1123,29 @@ describe('TimelineFeed', () => {
       ).toBeInTheDocument()
     })
 
+    it('names the parent of later posts when a conversation no longer forms a run', () => {
+      const a1 = note('w1', 0, '')
+      const b1 = note('w2', MINUTE, a1.id, mockBob)
+      const c1 = note('w3', 2 * MINUTE, a1.id, mockCarol)
+      const a2 = note('w4', 3 * MINUTE, b1.id)
+
+      render(
+        <TimelineFeed
+          host="activities.local"
+          currentTime={BASE_TIME + 10 * MINUTE}
+          statuses={[a2, c1, b1, a1]}
+          currentActor={mockAlice}
+          showActions
+        />
+      )
+
+      expect(screen.queryByText(/\d of \d/)).not.toBeInTheDocument()
+      // b1 answers the post directly above it, c1 and a2 do not.
+      expect(screen.queryByLabelText('In reply to a post')).toBeNull()
+      expect(screen.getAllByLabelText(/^Reply to @/)).toHaveLength(2)
+      expect(screen.getByLabelText('Reply to @bob')).toBeInTheDocument()
+    })
+
     it('names the combined card for assistive technology', () => {
       render(
         <TimelineFeed
