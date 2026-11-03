@@ -14,7 +14,9 @@ import type {
   GetStatusReblogsCountParams,
   GetStatusRepliesCountParams,
   GetStatusRepliesParams,
+  GetStatusReplyRefsParams,
   GetStatusesByIdsParams,
+  StatusReplyRef,
   StatusRow
 } from '@/lib/database/domains/status/types'
 import type { DB, Db } from '@/lib/database/kysely'
@@ -87,15 +89,26 @@ export const getStatusReplies = async (
     publicOnly = false,
     visibleToActorId,
     currentActorId,
-    order = 'desc'
+    order = 'desc',
+    actorId,
+    statusIds
   }: GetStatusRepliesParams
 ): Promise<Status[]> => {
+  if (statusIds && statusIds.length === 0) return []
+
   let query = db
     .selectFrom('statuses')
     .selectAll()
     .where((eb) => repliesTo(eb, statusId, url))
     .orderBy('createdAt', order)
     .orderBy('id', order)
+
+  if (actorId) {
+    query = query.where('actorId', '=', actorId)
+  }
+  if (statusIds) {
+    query = query.where('id', 'in', statusIds)
+  }
 
   if (publicOnly) {
     query = query.where((eb) => publiclyReadableStatus(db, eb))
@@ -111,6 +124,25 @@ export const getStatusReplies = async (
 
   return hydrateRows(db, await query.execute(), currentActorId)
 }
+
+// The ids, urls and creation times of a status's replies, oldest first, with
+// NO visibility predicate and no hydration: the thread walk in
+// getStatusContext uses it to step through a reply it may not show to reach
+// the replies under it, and reads the rows it may show through
+// getStatusReplies, which applies the viewer's scope. Never serve these rows.
+export const getStatusReplyRefs = async (
+  db: Db,
+  { statusId, url, limit, offset = 0 }: GetStatusReplyRefsParams
+): Promise<StatusReplyRef[]> =>
+  db
+    .selectFrom('statuses')
+    .select(['id', 'url', 'createdAt'])
+    .where((eb) => repliesTo(eb, statusId, url))
+    .orderBy('createdAt', 'asc')
+    .orderBy('id', 'asc')
+    .limit(Math.max(1, Math.floor(limit)))
+    .offset(Math.max(0, Math.floor(offset)))
+    .execute()
 
 export const getActorStatusesCount = async (
   db: Db,
