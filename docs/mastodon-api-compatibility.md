@@ -274,10 +274,15 @@ product or security decision, not a gap to be closed.
     page), a visit budget of `DESCENDANTS_VISIT_FACTOR` (3) replies visited per
     descendant the limit allows, and, for a signed-out viewer, Mastodon's depth
     limit `ANONYMOUS_DESCENDANTS_DEPTH_LIMIT` (20 levels below the opened status).
-    A reply counts against the budget when the walk visits it, not when it is
+    A reply counts against the budget when the walk reaches it, not when it is
     read: each status's replies are read in pages that start at 4, double up to
     64 and never exceed what the budget has left, so a wide status (hundreds of
-    direct replies) does not spend the budget before the walk goes down.
+    direct replies) does not spend the budget before the walk goes down. A
+    reply already walked counts again when it is read again (a cycle), and each
+    id or url is passed to a replies read only once, so many statuses carrying
+    the same author-supplied url read its replies once. Whether a reply was
+    already walked is decided by id alone, never by url, and siblings keep the
+    database's `(createdAt, id)` order across pages.
   - Before the depth-first fill, the opened status's author's own self-thread
     (each part the earliest visible reply by that author to the previous part,
     read with `getStatusReplies({ actorId })`) is reserved, so earlier side

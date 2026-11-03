@@ -24,7 +24,7 @@ import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { ACTOR4_ID } from '@/lib/stub/seed/actor4'
 import { EXTERNAL_ACTOR1 } from '@/lib/stub/seed/external1'
 import { Actor } from '@/lib/types/domain/actor'
-import { Status, StatusType } from '@/lib/types/domain/status'
+import { Status } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 describe('getStatusContext', () => {
@@ -392,69 +392,41 @@ describe('getStatusContext', () => {
     })
   })
 
-  it('normalizes timestamp sorting and handles invalid dates gracefully', async () => {
-    const sortRootId = `${ACTOR1_ID}/statuses/ctx-sort-root`
+  it('orders siblings with the same createdAt by id, across reply pages', async () => {
+    const rootId = `${ACTOR1_ID}/statuses/ctx-tie-root`
     await database.createNote({
-      id: sortRootId,
-      url: sortRootId,
+      id: rootId,
+      url: rootId,
       actorId: ACTOR1_ID,
-      text: 'Sort Root',
+      text: 'Tie root',
       to: [ACTIVITY_STREAM_PUBLIC],
       cc: []
     })
-
-    const replyInvalidDateId = `${ACTOR1_ID}/statuses/ctx-sort-invalid-date`
-    const replyValidDateId = `${ACTOR1_ID}/statuses/ctx-sort-valid-date`
-
-    const wrappedDb = {
-      ...database,
-      getStatusReplyRefs: vi.fn(async ({ statusId }: { statusId: string }) =>
-        statusId === sortRootId
-          ? [
-              { id: replyValidDateId, url: null, createdAt: 50000 },
-              { id: replyInvalidDateId, url: null, createdAt: 'invalid-date' }
-            ]
-          : []
-      ),
-      getStatusReplies: vi.fn(async ({ statusId }: { statusId: string }) => {
-        if (statusId === sortRootId) {
-          return [
-            {
-              id: replyValidDateId,
-              actorId: ACTOR1_ID,
-              type: StatusType.enum.Note,
-              to: [ACTIVITY_STREAM_PUBLIC],
-              cc: [],
-              reply: sortRootId,
-              createdAt: 50000,
-              text: 'Valid date reply'
-            } as unknown as Status,
-            {
-              id: replyInvalidDateId,
-              actorId: ACTOR1_ID,
-              type: StatusType.enum.Note,
-              to: [ACTIVITY_STREAM_PUBLIC],
-              cc: [],
-              reply: sortRootId,
-              createdAt: 'invalid-date' as unknown as number,
-              text: 'Invalid date reply'
-            } as unknown as Status
-          ]
-        }
-        return []
+    // More than the first page, written out of id order, one timestamp.
+    const names = ['f', 'b', 'h', 'a', 'e', 'c', 'g', 'd']
+    for (const name of names) {
+      const id = `${ACTOR2_ID}/statuses/ctx-tie-${name}`
+      await database.createNote({
+        id,
+        url: id,
+        actorId: ACTOR2_ID,
+        text: name,
+        reply: rootId,
+        createdAt: 7000,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
       })
-    } as unknown as Database
+    }
 
     const result = await getStatusContext({
-      database: wrappedDb,
-      statusId: sortRootId,
+      database,
+      statusId: rootId,
       currentActor: actor1
     })
 
-    expect(result.descendants.map((s) => s.id)).toEqual([
-      replyInvalidDateId,
-      replyValidDateId
-    ])
+    expect(result.descendants.map((s) => s.id)).toEqual(
+      [...names].sort().map((name) => `${ACTOR2_ID}/statuses/ctx-tie-${name}`)
+    )
   })
 
   describe('per-status descendant filtering, limits and the author self-thread', () => {
@@ -758,17 +730,118 @@ describe('getStatusContext', () => {
           currentActor,
           descendantsLimit: 60
         })
-        expect(result.descendants).toHaveLength(60)
-        // Pre-order: each reply, then its child.
-        expect(ids(result.descendants).slice(0, 4)).toEqual([
-          `${ACTOR2_ID}/statuses/ctx-wide-000`,
-          `${ACTOR3_ID}/statuses/ctx-wide-child-000`,
-          `${ACTOR2_ID}/statuses/ctx-wide-001`,
-          `${ACTOR3_ID}/statuses/ctx-wide-child-001`
-        ])
+        // Pre-order: each reply, then its child, for the first 30 replies.
+        expect(ids(result.descendants)).toEqual(
+          Array.from({ length: 30 }, (_, index) => {
+            const suffix = String(index).padStart(3, '0')
+            return [
+              `${ACTOR2_ID}/statuses/ctx-wide-${suffix}`,
+              `${ACTOR3_ID}/statuses/ctx-wide-child-${suffix}`
+            ]
+          }).flat()
+        )
         expect(result.hasMoreDescendants).toBe(true)
       }
     }, 60_000)
+
+    it('bounds the reply reads when many replies share one url', async () => {
+      const rootId = `${ACTOR1_ID}/statuses/ctx-shared-url-root`
+      // An author-supplied url that several stored replies all carry.
+      const sharedUrl = `${ACTOR2_ID}/statuses/ctx-shared-url`
+      await note(rootId, ACTOR1_ID)
+      for (let index = 0; index < 12; index++) {
+        const id = `${ACTOR2_ID}/statuses/ctx-shared-url-${index}`
+        await database.createNote({
+          id,
+          url: sharedUrl,
+          actorId: ACTOR2_ID,
+          text: id,
+          reply: rootId,
+          createdAt: 1000 + index,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: []
+        })
+      }
+      // Hidden from the viewer, so walking them never fills the limit: each
+      // status carrying the shared url would otherwise read them all again.
+      for (let index = 0; index < 15; index++) {
+        await note(
+          `${ACTOR2_ID}/statuses/ctx-shared-url-child-${index}`,
+          ACTOR2_ID,
+          {
+            reply: sharedUrl,
+            createdAt: 2000 + index,
+            to: [ACTOR2_FOLLOWER_URL]
+          }
+        )
+      }
+      const getStatusReplyRefs = vi.fn(database.getStatusReplyRefs)
+      const spiedDb = { ...database, getStatusReplyRefs } as Database
+
+      const descendantsLimit = 10
+      const result = await getStatusContext({
+        database: spiedDb,
+        statusId: rootId,
+        currentActor: actor1,
+        descendantsLimit
+      })
+
+      const visitCap = descendantsLimit * DESCENDANTS_VISIT_FACTOR
+      expect(result.descendants).toHaveLength(descendantsLimit)
+      expect(result.hasMoreDescendants).toBe(true)
+      const refsRead = (
+        await Promise.all(
+          getStatusReplyRefs.mock.results.map((call) => call.value)
+        )
+      ).reduce((sum, rows) => sum + rows.length, 0)
+      expect(refsRead).toBeLessThanOrEqual(visitCap + 1)
+      // The shared url is read once, never once per status carrying it.
+      expect(
+        getStatusReplyRefs.mock.calls.filter(
+          ([params]) =>
+            params.statusId === sharedUrl || params.url === sharedUrl
+        ).length
+      ).toBeLessThanOrEqual(Math.ceil(Math.log2(visitCap)) + 1)
+      expect(getStatusReplyRefs.mock.calls.length).toBeLessThanOrEqual(
+        visitCap + 3
+      )
+    })
+
+    it('walks a reply whose id another reply uses as its url', async () => {
+      const rootId = `${ACTOR1_ID}/statuses/ctx-url-as-id-root`
+      const victimId = `${ACTOR4_ID}/statuses/ctx-url-as-id-victim`
+      const impostorId = `${ACTOR2_ID}/statuses/ctx-url-as-id-impostor`
+      const victimChildId = `${ACTOR3_ID}/statuses/ctx-url-as-id-child`
+      await note(rootId, ACTOR1_ID)
+      // A hidden (followers-only) reply whose url is the victim's id.
+      await database.createNote({
+        id: impostorId,
+        url: victimId,
+        actorId: ACTOR2_ID,
+        text: impostorId,
+        reply: rootId,
+        createdAt: 1000,
+        to: [ACTOR2_FOLLOWER_URL],
+        cc: []
+      })
+      await note(victimId, ACTOR4_ID, { reply: rootId, createdAt: 2000 })
+      await note(victimChildId, ACTOR3_ID, {
+        reply: victimId,
+        createdAt: 3000
+      })
+
+      const result = await getStatusContext({
+        database,
+        statusId: rootId
+      })
+
+      // Both are returned. The child names the victim by an id the impostor
+      // also uses as its url, so it is read under the impostor and comes
+      // first; the client nests it under the victim by its reply target.
+      expect(ids(result.descendants).sort()).toEqual(
+        [victimChildId, victimId].sort()
+      )
+    })
 
     it('bounds the reply reads by the visit budget when every reply is hidden', async () => {
       const rootId = `${ACTOR1_ID}/statuses/ctx-visit-root`

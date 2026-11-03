@@ -53,21 +53,6 @@ export interface StatusContextResult {
   hasMoreDescendants: boolean
 }
 
-const toTimestampMs = (value: unknown): number => {
-  if (value === null || value === undefined) return 0
-  const time = new Date(value as string | number | Date).getTime()
-  return Number.isNaN(time) ? 0 : time
-}
-
-const compareReplyOrder = (
-  a: { createdAt: unknown; id: string },
-  b: { createdAt: unknown; id: string }
-): number => {
-  const timeDiff = toTimestampMs(a.createdAt) - toTimestampMs(b.createdAt)
-  if (timeDiff !== 0) return timeDiff
-  return a.id.localeCompare(b.id)
-}
-
 const getReplyTarget = (status: Status): string =>
   status.type === StatusType.enum.Announce ? '' : status.reply
 
@@ -86,9 +71,10 @@ export const getStatusUrl = (status: Status): string => {
  * Every status is filtered on its own, as Mastodon does: a reply the viewer
  * may not see (unreadable, blocked, muted, or from a domain the viewer
  * blocked) is left out, but the replies under it are still walked and each
- * is returned if the viewer may see it. The walk reads at most
- * `descendantsLimit * DESCENDANTS_VISIT_FACTOR` reply rows, and for a
- * signed-out viewer stops ANONYMOUS_DESCENDANTS_DEPTH_LIMIT levels down.
+ * is returned if the viewer may see it. The walk visits at most
+ * `descendantsLimit * DESCENDANTS_VISIT_FACTOR` replies (every reply it reads
+ * counts, including one it has already seen), and for a signed-out viewer
+ * stops ANONYMOUS_DESCENDANTS_DEPTH_LIMIT levels down.
  *
  * Before the depth-first fill, the opened status's author's own self-thread
  * (each part the earliest visible reply by that author to the previous part)
@@ -263,19 +249,14 @@ export async function getStatusContext({
     : { publicOnly: true }
   let visitedCount = 0
 
-  const markSeen = (seen: Set<string>, id: string, url?: string | null) => {
-    seen.add(id)
-    if (url) seen.add(url)
-  }
-
   // Reserve the author's self-thread: from the opened status, the earliest
   // visible reply by the same author, then the earliest such reply to that
   // one, and so on.
   const reserved: Status[] = []
   const reservedIds = new Set<string>()
   {
-    const chainSeen = new Set<string>()
-    markSeen(chainSeen, status.id, initialStatusUrl)
+    // Ids only, as in the walk below.
+    const chainSeen = new Set<string>([status.id])
     let tipId = status.id
     let tipUrl = initialStatusUrl
     // At most one read per part, each of at most SCAN_LIMIT rows; the parts
@@ -293,7 +274,8 @@ export async function getStatusContext({
         order: 'asc',
         limit: SCAN_LIMIT
       })
-      const visible = (await keepVisible(candidates)).sort(compareReplyOrder)
+      // Oldest first, in the database's (createdAt, id) order.
+      const visible = await keepVisible(candidates)
       const next = visible.find(
         (candidate) =>
           candidate.type !== StatusType.enum.Announce &&
@@ -303,7 +285,7 @@ export async function getStatusContext({
       if (!next) break
       reserved.push(next)
       reservedIds.add(next.id)
-      markSeen(chainSeen, next.id, getStatusUrl(next))
+      chainSeen.add(next.id)
       tipId = next.id
       tipUrl = getStatusUrl(next)
     }
@@ -315,8 +297,21 @@ export async function getStatusContext({
   let othersCollected = 0
   let hasMoreDescendants = false
   let stopped = false
-  const visitedDescendantIds = new Set<string>()
-  markSeen(visitedDescendantIds, status.id, initialStatusUrl)
+  // Ids only: decides whether a reply was already walked. Never holds urls,
+  // which are author-supplied and may equal another status's id.
+  const visitedDescendantIds = new Set<string>([status.id])
+  // Every id and url already passed to a replies read, so a url several
+  // statuses share is read once, not once per status that carries it.
+  const queriedReplyKeys = new Set<string>()
+  // The keys to read a status's replies by, leaving out any already read.
+  const replyKeys = (id: string, url: string) => {
+    const keys = [id, url].filter(
+      (key, index, all) =>
+        Boolean(key) && !queriedReplyKeys.has(key) && all.indexOf(key) === index
+    )
+    for (const key of keys) queriedReplyKeys.add(key)
+    return keys
+  }
 
   const collect = (reply: Status) => {
     collected.push(reply)
@@ -332,14 +327,13 @@ export async function getStatusContext({
     offset: number,
     limit: number
   ) => {
-    const refs = (
-      await database.getStatusReplyRefs({
-        statusId: targetId,
-        url: targetUrl || undefined,
-        offset,
-        limit
-      })
-    ).sort(compareReplyOrder)
+    // In the database's (createdAt, id) order, which pages rely on.
+    const refs = await database.getStatusReplyRefs({
+      statusId: targetId,
+      url: targetUrl || undefined,
+      offset,
+      limit
+    })
     const visibleById = new Map<string, Status>()
     if (refs.length > 0) {
       const rows = await database.getStatusReplies({
@@ -399,9 +393,6 @@ export async function getStatusContext({
       offset += refs.length
       for (const ref of refs) {
         if (stopped) return
-        // Skipped by id only, as before: ids and urls share the set (a parent
-        // is named by either), and two statuses may share a url.
-        if (visitedDescendantIds.has(ref.id)) continue
         if (visitedCount >= visitCap) {
           // A reply the visit budget does not reach; everything collected so
           // far comes before it in pre-order.
@@ -409,11 +400,13 @@ export async function getStatusContext({
           stopped = true
           return
         }
+        // Every reply read counts, one already walked too (a cycle, or a url
+        // two statuses share), so repeats cannot outrun the budget.
         visitedCount++
+        if (visitedDescendantIds.has(ref.id)) continue
+        visitedDescendantIds.add(ref.id)
         const reply = visibleById.get(ref.id)
         const replyUrl = reply ? getStatusUrl(reply) : ''
-        markSeen(visitedDescendantIds, ref.id, ref.url)
-        if (replyUrl) visitedDescendantIds.add(replyUrl)
 
         if (reply) {
           if (reservedIds.has(reply.id)) {
@@ -429,12 +422,16 @@ export async function getStatusContext({
           }
         }
 
-        const nextUrl = replyUrl || ref.url || ''
+        const [key, otherKey = ''] = replyKeys(
+          ref.id,
+          replyUrl || ref.url || ''
+        )
+        if (!key) continue
         if (depth + 1 >= maxDepth) {
-          if (!hasMoreDescendants) await probeBelowDepthLimit(ref.id, nextUrl)
+          if (!hasMoreDescendants) await probeBelowDepthLimit(key, otherKey)
           continue
         }
-        await walk(ref.id, nextUrl, depth + 1)
+        await walk(key, otherKey, depth + 1)
       }
       if (refs.length < limit) return
       pageSize *= 2
@@ -442,7 +439,8 @@ export async function getStatusContext({
   }
 
   if (effectiveDescendantsLimit > 0) {
-    await walk(status.id, initialStatusUrl, 0)
+    const [key, otherKey = ''] = replyKeys(status.id, initialStatusUrl)
+    await walk(key, otherKey, 0)
   }
 
   // Reserved parts the walk stopped before reaching all come after the point
