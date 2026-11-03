@@ -52,7 +52,9 @@ export const getMentions = async ({
         })
       )
 
-      if (replyStatus) {
+      // The parent's author is mentioned by default, except on a reply to
+      // yourself: Mastodon never mentions the author of the status.
+      if (replyStatus && replyStatus.actorId !== currentActor.id) {
         const name = replyStatus.actor
           ? getMention(replyStatus.actor, true)
           : getMentionFromActorID(replyStatus.actorId, true)
