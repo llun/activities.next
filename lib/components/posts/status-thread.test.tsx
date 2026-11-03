@@ -964,7 +964,7 @@ describe('StatusThread', () => {
       return notes
     }
 
-    // The later run is unlisted: a visibility change is what splits two runs.
+    // The later run is followers-only: a visibility change is what splits two runs.
     const makeTwoRuns = () => {
       const [a1, a2] = makeAliceRun(2)
       const a3 = createMockNote({
@@ -973,8 +973,8 @@ describe('StatusThread', () => {
         actorId: mockAlice.id,
         reply: a2.id,
         text: 'Later run part 1',
-        to: [],
-        cc: ['https://www.w3.org/ns/activitystreams#Public'],
+        to: ['https://activities.local/users/alice/followers'],
+        cc: [],
         createdAt: BASE_TIME + 25 * MINUTE
       })
       const a4 = createMockNote({
@@ -983,8 +983,8 @@ describe('StatusThread', () => {
         actorId: mockAlice.id,
         reply: a3.id,
         text: 'Later run part 2',
-        to: [],
-        cc: ['https://www.w3.org/ns/activitystreams#Public'],
+        to: ['https://activities.local/users/alice/followers'],
+        cc: [],
         createdAt: BASE_TIME + 27 * MINUTE
       })
       return { a1, a2, a3, a4 }
@@ -2783,8 +2783,8 @@ describe('StatusThread', () => {
         actorId: mockAlice.id,
         reply: a2.id,
         text: 'Second block part 1 after visibility change',
-        to: [],
-        cc: ['https://www.w3.org/ns/activitystreams#Public'],
+        to: ['https://activities.local/users/alice/followers'],
+        cc: [],
         createdAt: BASE_TIME + 20 * MINUTE
       })
       const a4 = createMockNote({
@@ -2793,8 +2793,8 @@ describe('StatusThread', () => {
         actorId: mockAlice.id,
         reply: a3.id,
         text: 'Second block part 2 after visibility change',
-        to: [],
-        cc: ['https://www.w3.org/ns/activitystreams#Public'],
+        to: ['https://activities.local/users/alice/followers'],
+        cc: [],
         createdAt: BASE_TIME + 22 * MINUTE
       })
 
@@ -2819,7 +2819,7 @@ describe('StatusThread', () => {
         'location'
       )
 
-      // Second block (unlisted, so a separate run) has its own header time span (10m – 8m), its own 2 of 2 label, and no opened part
+      // Second block (followers-only, so a separate run) has its own header time span (10m – 8m), its own 2 of 2 label, and no opened part
       expect(within(runs[1]).getByText('10m – 8m')).toBeInTheDocument()
       expect(
         within(runs[1]).getByText('Second block part 1 after visibility change')

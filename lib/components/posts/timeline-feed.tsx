@@ -26,6 +26,7 @@ import {
 import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
 import { cn } from '@/lib/utils'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
+import { getVisibility } from '@/lib/utils/getVisibility'
 import { getActualStatus } from '@/lib/utils/text/processStatusText'
 
 import { TimelineGapRow } from './TimelineGapRow'
@@ -41,6 +42,7 @@ import { PostListItem } from './post-list-item'
 import { PRIORITY_ROW_WINDOW, showsPrioritizableMedia } from './posts'
 import {
   TimelineRow,
+  getStatusAliases,
   getStatusReplyTargetId,
   groupTimelinePage
 } from './timelineModel'
@@ -106,6 +108,36 @@ export interface TimelineFeedProps {
   onLoadGap?: (segmentIndex: number) => void
 }
 
+// A reply-context preview of a status already loaded in the feed.
+const previewFromStatus = (
+  status: Status
+): TimelineParentPreview | undefined => {
+  const actual = getActualStatus(status)
+  const actor = actual.actor
+  if (!actor) return undefined
+  const spoilerText = actual.summary?.trim() || undefined
+  const isSensitive = Boolean(actual.sensitive) || Boolean(spoilerText)
+  return {
+    id: actual.id,
+    url: actual.url,
+    actor: {
+      id: actor.id,
+      username: actor.username,
+      domain: actor.domain,
+      name: actor.name ?? undefined,
+      avatarUrl: actor.iconUrl ?? undefined
+    },
+    contentHtml: isSensitive ? '' : actual.text,
+    text: isSensitive ? '' : actual.text,
+    tags: actual.tags,
+    isLocalActor: actual.isLocalActor,
+    spoilerText,
+    isSensitive,
+    createdAt: new Date(actual.createdAt).toISOString(),
+    visibility: getVisibility(actual.to, actual.cc)
+  }
+}
+
 export const TimelineFeed: FC<TimelineFeedProps> = ({
   host,
   className,
@@ -145,9 +177,20 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
     albumsOwnerId: string | null
   } | null>(null)
   const composer = useInlineComposer(Boolean(currentActor) && showActions)
+  // Threads the viewer expanded, stored as every status id of the row (like
+  // `separateRows` below): a row's key changes whenever a part is added, so
+  // keying by it would collapse a thread right after the viewer replied to it.
   const [expandedThreads, setExpandedThreads] = useState<Set<string>>(
     () => new Set()
   )
+  // Root ids of thread rows that rendered in full (three posts or fewer). A row
+  // that grows past three parts at its newest end stays in full instead of
+  // collapsing under the reader; one that gains older parts (a new root) is a
+  // different row and collapses as usual.
+  const renderedInFull = useRef<Set<string>>(new Set())
+  const isThreadExpanded = (entryIds: string[]) =>
+    entryIds.some((id) => expandedThreads.has(id)) ||
+    renderedInFull.current.has(entryIds[0])
 
   // Rows the viewer switched from the combined layout back to separate posts
   // (the combined post's "Show as separate posts" menu item). Every status id
@@ -181,13 +224,13 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
     }
   }, [separateRows])
 
-  const toggleThreadExpanded = (key: string) => {
+  const toggleThreadExpanded = (entryIds: string[]) => {
     setExpandedThreads((prev) => {
       const next = new Set(prev)
-      if (next.has(key)) {
-        next.delete(key)
+      if (entryIds.some((id) => next.has(id))) {
+        entryIds.forEach((id) => next.delete(id))
       } else {
-        next.add(key)
+        entryIds.forEach((id) => next.add(id))
       }
       return next
     })
@@ -206,6 +249,14 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
       groupBoosts: readingGroupBoosts
     })
   }, [statuses, readingGroupBoosts])
+
+  useEffect(() => {
+    for (const row of rows) {
+      if (row.kind === 'thread' && row.entryIds.length <= 3) {
+        renderedInFull.current.add(row.entryIds[0])
+      }
+    }
+  }, [rows])
 
   // A thread or conversation row's self-replies, combined into runs. A
   // row with no run is absent, so it renders post by post exactly as before.
@@ -266,7 +317,7 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
     if (
       row.kind === 'thread' &&
       rowStatusCount > 3 &&
-      !expandedThreads.has(row.key)
+      !isThreadExpanded(row.entryIds)
     ) {
       return undefined
     }
@@ -306,6 +357,19 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
     : null
 
   const canCompose = Boolean(currentActor) && showActions
+
+  // A row's key must survive parts being added to it, or its state (an
+  // expanded long post, a translation, an open edit history, focus) is thrown
+  // away on every reply, refresh or page load. `row.key` joins every id, so it
+  // changes each time. The first id of a thread or conversation is its root,
+  // the oldest post: replies and refreshes only ever add newer parts, so it
+  // stays put; it moves only when older parents page in, which is rare and
+  // unavoidable. A boost carousel keeps its own key.
+  const getStableRowKey = (row: TimelineRow) => {
+    if (row.kind === 'status') return `row:${row.entryId}`
+    if (row.kind === 'boosts') return row.key
+    return `row:${row.entryIds[0]}`
+  }
 
   const renderPostItem = (
     status: Status,
@@ -362,6 +426,59 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
     }
   }
 
+  // The reply context of a block after the first: a post split off a run (a late
+  // reply from someone else, a sibling self-reply, the author answering a
+  // tucked-in reply) would otherwise read as a reply to the block above it.
+  // `getTimelineContext` gives no preview for a parent on the same page, so the
+  // preview is built from the loaded parent. The line is skipped when the
+  // parent is the post directly above (its last part, for a run).
+  const getContextAfter = (
+    first: Status,
+    above: Status,
+    entryIds: string[]
+  ) => {
+    const replyTarget = getStatusReplyTargetId(getActualStatus(first))
+    if (!replyTarget)
+      return { showReplyContext: false, parentPreview: undefined }
+    const parent = getRowStatuses(entryIds).find((status) =>
+      getStatusAliases(getActualStatus(status)).includes(replyTarget)
+    )
+    if (parent && parent.id === above.id) {
+      return { showReplyContext: false, parentPreview: undefined }
+    }
+    return {
+      showReplyContext: true,
+      parentPreview:
+        timelineContext?.ancestorsById?.[replyTarget] ??
+        (parent ? previewFromStatus(parent) : undefined)
+    }
+  }
+
+  const getLaterBlockContext = (
+    block: CombinedBlock,
+    previous: CombinedBlock,
+    entryIds: string[]
+  ) =>
+    getContextAfter(
+      block.kind === 'run' ? block.parts[0].status : block.status,
+      previous.kind === 'run'
+        ? previous.parts[previous.parts.length - 1].status
+        : previous.status,
+      entryIds
+    )
+
+  // The post-by-post rendering of a row: the first post shows the context of
+  // what the row answers, every later one that of a parent not directly above.
+  const renderRowPosts = (statuses: Status[], entryIds: string[]) =>
+    statuses.map((status, index) =>
+      renderPostItem(
+        status,
+        index === 0
+          ? getLeadContext(status, entryIds)
+          : getContextAfter(status, statuses[index - 1], entryIds)
+      )
+    )
+
   const renderCombinedBlocks = (entryIds: string[], blocks: CombinedBlock[]) =>
     blocks.map((block, index) => {
       const lead =
@@ -370,7 +487,7 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
               block.kind === 'run' ? block.parts[0].status : block.status,
               entryIds
             )
-          : { showReplyContext: false, parentPreview: undefined }
+          : getLaterBlockContext(block, blocks[index - 1], entryIds)
       if (block.kind === 'post') return renderPostItem(block.status, lead)
 
       // The composer may be anchored to any post of the run: a reply opened on
@@ -432,6 +549,7 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
         )}
       >
         {rows.map((row) => {
+          const rowKey = getStableRowKey(row)
           let rowContent: ReactNode = null
           let rowStatusIds: string[] = []
 
@@ -449,7 +567,7 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
 
             rowContent = (
               <div
-                key={row.key}
+                key={rowKey}
                 data-status-id={status.id}
                 data-row-status-ids={rowStatusIds.join(' ')}
                 className={cn(
@@ -469,7 +587,7 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
             if (threadStatuses.length === 0) return null
             rowStatusIds = threadStatuses.map((s) => s.id)
 
-            const isExpanded = expandedThreads.has(row.key)
+            const isExpanded = isThreadExpanded(row.entryIds)
             const shouldCollapse = threadStatuses.length > 3 && !isExpanded
             const combinedBlocks = getShownCombinedBlocks(
               row,
@@ -478,14 +596,14 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
 
             rowContent = (
               <div
-                key={row.key}
+                key={rowKey}
                 data-status-id={threadStatuses[0]?.id}
                 data-row-status-ids={rowStatusIds.join(' ')}
                 role="group"
                 aria-label="Thread"
                 tabIndex={-1}
                 className={cn(
-                  'min-h-0 min-w-0 bg-muted/30 focus:outline-none dark:bg-muted/15',
+                  'min-h-0 min-w-0 bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50 dark:bg-muted/15',
                   framed && 'first:rounded-t-lg last:rounded-b-lg'
                 )}
               >
@@ -521,7 +639,7 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
                       </div>
                       <button
                         type="button"
-                        onClick={() => toggleThreadExpanded(row.key)}
+                        onClick={() => toggleThreadExpanded(row.entryIds)}
                         aria-expanded={false}
                         className="rounded px-1 py-0.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                       >
@@ -535,23 +653,7 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
                     })}
                   </>
                 ) : (
-                  threadStatuses.map((status, index) => {
-                    const isFirst = index === 0
-                    const replyTarget = isFirst
-                      ? getStatusReplyTargetId(getActualStatus(status))
-                      : null
-                    const showReplyContext =
-                      Boolean(replyTarget) &&
-                      !row.entryIds.includes(replyTarget!)
-                    const parentPreview = replyTarget
-                      ? timelineContext?.ancestorsById?.[replyTarget]
-                      : undefined
-
-                    return renderPostItem(status, {
-                      showReplyContext,
-                      parentPreview
-                    })
-                  })
+                  renderRowPosts(threadStatuses, row.entryIds)
                 )}
               </div>
             )
@@ -567,36 +669,20 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
 
             rowContent = (
               <div
-                key={row.key}
+                key={rowKey}
                 data-status-id={convStatuses[0]?.id}
                 data-row-status-ids={rowStatusIds.join(' ')}
                 role="group"
                 aria-label="Conversation"
                 tabIndex={-1}
                 className={cn(
-                  'min-h-0 min-w-0 bg-muted/30 focus:outline-none dark:bg-muted/15',
+                  'min-h-0 min-w-0 bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50 dark:bg-muted/15',
                   framed && 'first:rounded-t-lg last:rounded-b-lg'
                 )}
               >
                 {combinedBlocks
                   ? renderCombinedBlocks(row.entryIds, combinedBlocks)
-                  : convStatuses.map((status, index) => {
-                      const isFirst = index === 0
-                      const replyTarget = isFirst
-                        ? getStatusReplyTargetId(getActualStatus(status))
-                        : null
-                      const showReplyContext =
-                        Boolean(replyTarget) &&
-                        !row.entryIds.includes(replyTarget!)
-                      const parentPreview = replyTarget
-                        ? timelineContext?.ancestorsById?.[replyTarget]
-                        : undefined
-
-                      return renderPostItem(status, {
-                        showReplyContext,
-                        parentPreview
-                      })
-                    })}
+                  : renderRowPosts(convStatuses, row.entryIds)}
               </div>
             )
           } else if (row.kind === 'boosts') {
@@ -609,7 +695,7 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
 
             rowContent = (
               <div
-                key={row.key}
+                key={rowKey}
                 data-status-id={boostStatuses[0]?.id}
                 data-row-status-ids={rowStatusIds.join(' ')}
               >
@@ -639,7 +725,7 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
           }
 
           return (
-            <Fragment key={row.key}>
+            <Fragment key={rowKey}>
               {rowContent}
               {gapSegmentIndex !== undefined && onLoadGap ? (
                 <TimelineGapRow

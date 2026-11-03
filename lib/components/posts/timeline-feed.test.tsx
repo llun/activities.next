@@ -20,6 +20,7 @@ import {
   createMockPhoto,
   mockAlice,
   mockBob,
+  mockCarol,
   multiAuthorConversationScenario,
   selfThreadScenario,
   singlePostScenario
@@ -755,12 +756,9 @@ describe('TimelineFeed', () => {
       const t4 = note('s4', 3 * MINUTE, t3.id)
       rerender(renderFeed([t4, t3, t2, t1]))
 
-      // Four posts collapse behind the expander, as separate posts do.
+      // The row was showing all three posts, so the fourth does not fold the
+      // others away behind the expander.
       expect(screen.getByText('Text of s4')).toBeInTheDocument()
-      expect(actionBars()).toHaveLength(2)
-      fireEvent.click(
-        screen.getByRole('button', { name: /Show 2 earlier posts in thread/i })
-      )
       expect(actionBars()).toHaveLength(4)
       expect(screen.queryByText(/\d of \d/)).not.toBeInTheDocument()
     })
@@ -826,6 +824,42 @@ describe('TimelineFeed', () => {
       expect(screen.getByRole('article')).toContainElement(
         screen.getByTestId('inline-composer')
       )
+    })
+
+    it('anchors the reply composer to the latest part, so it stays under it after the row is split', async () => {
+      const t1 = note('z1', 0, '')
+      const t2 = note('z2', MINUTE, t1.id)
+      const t3 = note('z3', 2 * MINUTE, t2.id)
+
+      render(
+        <TimelineFeed
+          host="activities.local"
+          currentTime={BASE_TIME + 10 * MINUTE}
+          statuses={[t3, t2, t1]}
+          currentActor={mockBob}
+          showActions
+        />
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: /^Reply to/ }))
+      expect(screen.getByTestId('inline-composer')).toHaveAttribute(
+        'data-status',
+        t3.id
+      )
+
+      await chooseFromMenu(
+        screen.getByRole('button', {
+          name: 'More actions for this post group'
+        }),
+        'Show as separate posts'
+      )
+      await waitFor(() => expect(actionBars()).toHaveLength(3))
+
+      const articles = screen.getAllByRole('article')
+      expect(articles).toHaveLength(3)
+      const composer = screen.getByTestId('inline-composer')
+      expect(articles[2]).toContainElement(composer)
+      expect(articles[0]).not.toContainElement(composer)
     })
 
     describe('edit history of later parts', () => {
@@ -953,6 +987,178 @@ describe('TimelineFeed', () => {
       )
       expect(
         await screen.findByRole('menuitem', { name: /Copy link/ })
+      ).toBeInTheDocument()
+    })
+
+    describe('stable rows', () => {
+      const feed = (statuses: Status[], extra = {}) => (
+        <TimelineFeed
+          host="activities.local"
+          currentTime={BASE_TIME + 30 * MINUTE}
+          statuses={statuses}
+          currentActor={mockBob}
+          showActions
+          {...extra}
+        />
+      )
+
+      it('keeps an expanded long thread expanded when a reply arrives', () => {
+        const t1 = note('e1', 0, '')
+        const t2 = note('e2', MINUTE, t1.id)
+        const t3 = note('e3', 2 * MINUTE, t2.id)
+        const t4 = note('e4', 3 * MINUTE, t3.id)
+        const { rerender } = render(feed([t4, t3, t2, t1]))
+        fireEvent.click(
+          screen.getByRole('button', { name: /Show 2 earlier posts/i })
+        )
+        expect(actionBars()).toHaveLength(1)
+
+        const t5 = note('e5', 4 * MINUTE, t4.id)
+        rerender(feed([t5, t4, t3, t2, t1]))
+
+        expect(
+          screen.queryByRole('button', { name: /earlier posts in thread/i })
+        ).toBeNull()
+        expect(actionBars()).toHaveLength(1)
+        expect(screen.getByText('Text of e5')).toBeInTheDocument()
+      })
+
+      it('keeps a three-post combined card combined when a fourth part arrives', () => {
+        const t1 = note('g1', 0, '')
+        const t2 = note('g2', MINUTE, t1.id)
+        const t3 = note('g3', 2 * MINUTE, t2.id)
+        const { rerender } = render(feed([t3, t2, t1]))
+        expect(screen.getByText(/2 of 3/)).toBeInTheDocument()
+
+        const t4 = note('g4', 3 * MINUTE, t3.id)
+        rerender(feed([t4, t3, t2, t1]))
+
+        expect(
+          screen.queryByRole('button', { name: /earlier posts in thread/i })
+        ).toBeNull()
+        expect(screen.getByText(/4 of 4/)).toBeInTheDocument()
+      })
+
+      it('does not remount a row when a part is added to it', () => {
+        const t1 = note('k1', 0, '')
+        const t2 = note('k2', MINUTE, t1.id)
+        const { rerender } = render(feed([t2, t1]))
+        const before = document.querySelector('[data-row-status-ids]')
+
+        const t3 = note('k3', 2 * MINUTE, t2.id)
+        rerender(feed([t3, t2, t1]))
+
+        expect(document.querySelector('[data-row-status-ids]')).toBe(before)
+      })
+    })
+
+    describe('posts split off a run', () => {
+      it('shows a reply preview built from the loaded parent on posts split off a run', () => {
+        const a1 = note('p1', 0, '')
+        const a2 = note('p2', MINUTE, a1.id)
+        const b1 = note('p3', 2 * MINUTE, a1.id, mockBob)
+        const c1 = note('p4', 3 * MINUTE, a2.id, mockCarol)
+
+        render(
+          <TimelineFeed
+            host="activities.local"
+            currentTime={BASE_TIME + 10 * MINUTE}
+            statuses={[c1, b1, a2, a1]}
+            currentActor={mockAlice}
+            showActions
+          />
+        )
+
+        // One combined card, then Bob's and Carol's replies as plain posts;
+        // neither answers the post right above it, so each names its parent.
+        expect(screen.getByText(/2 of 2/)).toBeInTheDocument()
+        expect(screen.getByText('Text of p3')).toBeInTheDocument()
+        expect(screen.getByText('Text of p4')).toBeInTheDocument()
+        expect(screen.queryByLabelText('In reply to a post')).toBeNull()
+        expect(screen.getAllByLabelText('Reply to @alice')).toHaveLength(2)
+      })
+
+      it('shows no reply context on a post that answers the post right above it', () => {
+        const a1 = note('q1', 0, '')
+        const a2 = note('q2', MINUTE, a1.id)
+        const b1 = note('q3', 2 * MINUTE, a2.id, mockBob)
+
+        render(
+          <TimelineFeed
+            host="activities.local"
+            currentTime={BASE_TIME + 10 * MINUTE}
+            statuses={[b1, a2, a1]}
+            currentActor={mockAlice}
+            showActions
+          />
+        )
+
+        expect(
+          screen.queryByLabelText(/Reply to @|In reply to a post/)
+        ).toBeNull()
+      })
+    })
+
+    it('collapses a thread that gains older parts instead of keeping it in full', () => {
+      const parts: Status[] = []
+      for (let i = 0; i < 8; i++) {
+        parts.push(note(`o${i}`, i * MINUTE, i === 0 ? '' : parts[i - 1].id))
+      }
+      const feed = (statuses: Status[]) => (
+        <TimelineFeed
+          host="activities.local"
+          currentTime={BASE_TIME + 30 * MINUTE}
+          statuses={statuses}
+          currentActor={mockBob}
+          showActions
+        />
+      )
+      const { rerender } = render(feed(parts.slice(5).reverse()))
+      expect(screen.getByText(/2 of 3/)).toBeInTheDocument()
+
+      // Five older parts load in, so the row has a new root.
+      rerender(feed([...parts].reverse()))
+      expect(
+        screen.getByRole('button', { name: /earlier posts in thread/i })
+      ).toBeInTheDocument()
+    })
+
+    it('names the parent of later posts when a conversation no longer forms a run', () => {
+      const a1 = note('w1', 0, '')
+      const b1 = note('w2', MINUTE, a1.id, mockBob)
+      const c1 = note('w3', 2 * MINUTE, a1.id, mockCarol)
+      const a2 = note('w4', 3 * MINUTE, b1.id)
+
+      render(
+        <TimelineFeed
+          host="activities.local"
+          currentTime={BASE_TIME + 10 * MINUTE}
+          statuses={[a2, c1, b1, a1]}
+          currentActor={mockAlice}
+          showActions
+        />
+      )
+
+      expect(screen.queryByText(/\d of \d/)).not.toBeInTheDocument()
+      // b1 answers the post directly above it, c1 and a2 do not.
+      expect(screen.queryByLabelText('In reply to a post')).toBeNull()
+      expect(screen.getAllByLabelText(/^Reply to @/)).toHaveLength(2)
+      expect(screen.getByLabelText('Reply to @bob')).toBeInTheDocument()
+    })
+
+    it('names the combined card for assistive technology', () => {
+      render(
+        <TimelineFeed
+          host="activities.local"
+          currentTime={BASE_TIME + 200000}
+          statuses={selfThreadScenario.statuses}
+          currentActor={mockBob}
+          showActions
+        />
+      )
+
+      expect(
+        screen.getByRole('article', { name: 'Thread by Alice Smith, 3 posts' })
       ).toBeInTheDocument()
     })
   })

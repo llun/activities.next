@@ -171,6 +171,28 @@ const findStatusElement = (statusId: string): HTMLElement | null => {
   return null
 }
 
+/**
+ * The status id to remember for a feed row. A combined or thread row carries
+ * its oldest post in `data-status-id`, while the feed's first status is the
+ * newest one; when the row holds the feed's first status, remember that id so
+ * `isTopOfFeedAnchor` still sees the reader at the top. Restoring finds the
+ * row by any id it holds (`findStatusElement`).
+ */
+const getAnchorStatusId = (
+  el: HTMLElement,
+  firstStatusId: string | undefined
+): string | null => {
+  if (
+    firstStatusId &&
+    (el.getAttribute('data-row-status-ids') ?? '')
+      .split(' ')
+      .includes(firstStatusId)
+  ) {
+    return firstStatusId
+  }
+  return el.getAttribute('data-status-id')
+}
+
 const isTopOfFeedAnchor = (
   anchor: ScrollAnchorState | null | undefined,
   firstStatusId: string | undefined
@@ -624,7 +646,10 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
             })
             break
           }
-          const statusId = el.getAttribute('data-status-id')
+          const statusId = getAnchorStatusId(
+            el,
+            currentStatusesRef.current[0]?.id
+          )
           if (statusId) {
             const anchor: ScrollAnchorState = {
               statusId,
@@ -1074,7 +1099,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
           const el = elements[i]
           const rect = el.getBoundingClientRect()
           if (rect.bottom > VIEW_TOP_EDGE) {
-            const statusId = el.getAttribute('data-status-id')
+            const statusId = getAnchorStatusId(el, previousFirstId)
             if (statusId) {
               capturedAnchor = {
                 statusId,
