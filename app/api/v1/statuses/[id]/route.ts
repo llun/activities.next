@@ -10,6 +10,7 @@ import {
   getActiveFilters
 } from '@/lib/services/filters/applyFilters'
 import { deleteEmailMapImage } from '@/lib/services/fitness-files/emailMapImage'
+import { ROUTE_MAP_ATTACHMENT_NAME } from '@/lib/services/fitness-files/mapAttachments'
 import {
   OAuthGuardAnyScope,
   OptionalOAuthGuard
@@ -504,6 +505,14 @@ export const PUT = traceApiRoute(
         // attachment, and a details save can run ahead of a post edit that
         // was cancelled), so only the photos this request describes take
         // their alt text from the row; every other photo keeps the post's.
+        //
+        // A generated route map keeps its name whatever the request says: the
+        // attachment name `ROUTE_MAP_ATTACHMENT_NAME` is how the map is found
+        // (map regeneration and replacement, the fitness post leaving it out of
+        // the photo strip, the gallery's route-map filters), and its media row
+        // usually has no description at all. The map's alt text lives on that
+        // media row (where the generated route description goes), so a
+        // `media_attributes` description still reaches the row above.
         const attachments =
           resolvedAttachments === undefined || resolvedAttachments === null
             ? resolvedAttachments
@@ -517,6 +526,9 @@ export const PUT = traceApiRoute(
                 )
                 if (!existing) return attachment
                 const kept = withStatusAttachmentFile(attachment, existing)
+                if (existing.name === ROUTE_MAP_ATTACHMENT_NAME) {
+                  return { ...kept, name: ROUTE_MAP_ATTACHMENT_NAME }
+                }
                 if (resolvedMediaIds !== undefined) return kept
                 const { name: rowName, ...rest } = kept
                 const name = describedMediaIds.has(attachmentMediaId)

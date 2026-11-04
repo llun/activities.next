@@ -797,7 +797,12 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   edit that sends only `media_attributes` keeps the post's
   text, spoiler, sensitivity, visibility and other attachments (with the alt
   text they already publish: only the photos it describes change theirs),
-  records a history entry and federates one Update.
+  records a history entry and federates one Update. A fitness post's
+  generated route map is the exception: it keeps its `Activity route map`
+  name through every edit, with `media_ids` or `media_attributes`, because
+  that name is how the map is found (see **Processing Pipeline** in
+  `docs/fitness-file-storage.md`); a description sent for it is stored on its
+  media row only.
   The owner's `details` (camelCase on the way out) also reports what the
   lookups found: `subject.taxonKey`, `subject.taxonPath`,
   `subject.iucnCategory`, `subject.threatStatus` (`threatened`,

@@ -2,6 +2,10 @@ import { NextRequest } from 'next/server'
 
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import type { Database } from '@/lib/database/types'
+import {
+  ROUTE_MAP_ATTACHMENT_NAME,
+  findRouteMapAttachments
+} from '@/lib/services/fitness-files/mapAttachments'
 import { MAX_STORED_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import { getQueue } from '@/lib/services/queue'
 import { seedDatabase } from '@/lib/stub/database'
@@ -267,7 +271,9 @@ describe('PUT /api/v1/statuses/[id] media edits', () => {
         cc: [`${ACTOR1_ID}/followers`]
       })
       // The route map is a media-manager image upload, mirroring the fitness
-      // import job (processFitnessFileJob stores it via saveMedia).
+      // import job (processFitnessFileJob stores it via saveMedia). Like the
+      // job's map without a generated route description, its media row has
+      // no description: the name is the attachment's alone.
       const mapMedia = await database.createMedia({
         actorId: ACTOR1_ID,
         original: {
@@ -276,8 +282,7 @@ describe('PUT /api/v1/statuses/[id] media edits', () => {
           mimeType: 'image/png',
           metaData: { width: 640, height: 480 },
           fileName: 'ride-route-map.png'
-        },
-        description: 'Activity route map'
+        }
       })
       expect(mapMedia).not.toBeNull()
       await database.createAttachment({
@@ -358,6 +363,193 @@ describe('PUT /api/v1/statuses/[id] media edits', () => {
           ...photoMediaIds.map((_, index) => `Ride photo ${index}`)
         ]
       )
+    })
+
+    describe('route map identity', () => {
+      const createRouteMapPost = async (
+        slug: string,
+        mapDescription?: string
+      ) => {
+        const statusId = `${ACTOR1_ID}/statuses/${slug}`
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: ACTOR1_ID,
+          text: 'Evening ride',
+          summary: null,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [`${ACTOR1_ID}/followers`]
+        })
+        // Stored as processFitnessFileJob stores it: the media row carries a
+        // description only when a route description was generated, while the
+        // attachment is always named ROUTE_MAP_ATTACHMENT_NAME.
+        const mapMedia = await database.createMedia({
+          actorId: ACTOR1_ID,
+          original: {
+            path: `medias/${slug}-route-map.webp`,
+            bytes: 2048,
+            mimeType: 'image/webp',
+            metaData: { width: 640, height: 480 },
+            fileName: `${slug}-route-map.png`
+          },
+          ...(mapDescription ? { description: mapDescription } : {})
+        })
+        const photoMedia = await database.createMedia({
+          actorId: ACTOR1_ID,
+          original: {
+            path: `medias/${slug}-photo.webp`,
+            bytes: 1024,
+            mimeType: 'image/webp',
+            metaData: { width: 320, height: 240 },
+            fileName: `${slug}-photo.jpg`
+          },
+          description: 'Summit'
+        })
+        if (!mapMedia || !photoMedia) throw new Error('Expected media rows')
+        await database.createAttachment({
+          actorId: ACTOR1_ID,
+          statusId,
+          mediaType: 'image/webp',
+          url: `https://llun.test/api/v1/files/medias/${slug}-route-map.webp`,
+          width: 640,
+          height: 480,
+          name: ROUTE_MAP_ATTACHMENT_NAME,
+          mediaId: mapMedia.id
+        })
+        await database.createAttachment({
+          actorId: ACTOR1_ID,
+          statusId,
+          mediaType: 'image/webp',
+          url: `https://llun.test/api/v1/files/medias/${slug}-photo.webp`,
+          width: 320,
+          height: 240,
+          name: 'Summit',
+          mediaId: photoMedia.id
+        })
+        return {
+          statusId,
+          mapMediaId: mapMedia.id,
+          photoMediaId: photoMedia.id
+        }
+      }
+
+      const editStatus = (statusId: string, body: Record<string, unknown>) =>
+        PUT(
+          new NextRequest(
+            `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+            {
+              method: 'PUT',
+              body: JSON.stringify(body),
+              headers: {
+                'Content-Type': 'application/json',
+                Origin: 'https://llun.test'
+              }
+            }
+          ),
+          { params: Promise.resolve({ id: urlToId(statusId) }) }
+        )
+
+      const getAttachmentNames = async (statusId: string) => {
+        const status = await database.getStatus({
+          statusId,
+          withReplies: false
+        })
+        if (!status || status.type !== StatusType.enum.Note) {
+          throw new Error('Expected note status')
+        }
+        // By media id: these tests are about each attachment's name, not the
+        // order the status stores them in.
+        return status.attachments
+          .map((attachment) => ({
+            mediaId: String(attachment.mediaId),
+            name: attachment.name
+          }))
+          .sort((a, b) => Number(a.mediaId) - Number(b.mediaId))
+      }
+
+      it('keeps the route map name when media_ids is resent and the map media has no description', async () => {
+        const { statusId, mapMediaId, photoMediaId } = await createRouteMapPost(
+          'route-map-media-ids'
+        )
+
+        const response = await editStatus(statusId, {
+          status: 'Evening ride, edited',
+          media_ids: [mapMediaId, photoMediaId]
+        })
+        expect(response.status).toBe(200)
+
+        expect(await getAttachmentNames(statusId)).toEqual([
+          { mediaId: String(mapMediaId), name: ROUTE_MAP_ATTACHMENT_NAME },
+          { mediaId: String(photoMediaId), name: 'Summit' }
+        ])
+        const maps = await findRouteMapAttachments({
+          database,
+          statusId,
+          mapImagePath: 'medias/route-map-media-ids-route-map.webp'
+        })
+        expect(maps.map((attachment) => String(attachment.mediaId))).toEqual([
+          String(mapMediaId)
+        ])
+      })
+
+      it('keeps the route map name when media_ids is resent and the map media has a generated description', async () => {
+        const { statusId, mapMediaId, photoMediaId } = await createRouteMapPost(
+          'route-map-media-ids-described',
+          'A loop along the river'
+        )
+
+        const response = await editStatus(statusId, {
+          media_ids: [photoMediaId, mapMediaId]
+        })
+        expect(response.status).toBe(200)
+
+        expect(await getAttachmentNames(statusId)).toEqual([
+          { mediaId: String(mapMediaId), name: ROUTE_MAP_ATTACHMENT_NAME },
+          { mediaId: String(photoMediaId), name: 'Summit' }
+        ])
+      })
+
+      it('keeps the route map name when media_attributes describes the map, storing the alt text on its media row', async () => {
+        const { statusId, mapMediaId, photoMediaId } = await createRouteMapPost(
+          'route-map-media-attributes'
+        )
+
+        const response = await editStatus(statusId, {
+          media_attributes: [
+            { id: mapMediaId, description: 'A loop along the river' },
+            { id: photoMediaId, description: 'Summit, at dusk' }
+          ]
+        })
+        expect(response.status).toBe(200)
+
+        expect(await getAttachmentNames(statusId)).toEqual([
+          { mediaId: String(mapMediaId), name: ROUTE_MAP_ATTACHMENT_NAME },
+          { mediaId: String(photoMediaId), name: 'Summit, at dusk' }
+        ])
+        const actor = await database.getActorFromId({ id: ACTOR1_ID })
+        const mapMedia = await database.getMediaByIdForAccount({
+          mediaId: mapMediaId,
+          accountId: actor!.account!.id
+        })
+        expect(mapMedia?.description).toBe('A loop along the river')
+      })
+
+      it('keeps the route map name when media_ids and media_attributes come together', async () => {
+        const { statusId, mapMediaId, photoMediaId } = await createRouteMapPost(
+          'route-map-media-ids-attributes'
+        )
+
+        const response = await editStatus(statusId, {
+          media_ids: [mapMediaId, photoMediaId],
+          media_attributes: [{ id: mapMediaId, description: '' }]
+        })
+        expect(response.status).toBe(200)
+
+        expect(await getAttachmentNames(statusId)).toEqual([
+          { mediaId: String(mapMediaId), name: ROUTE_MAP_ATTACHMENT_NAME },
+          { mediaId: String(photoMediaId), name: 'Summit' }
+        ])
+      })
     })
 
     it('rejects more media_ids than the stored ceiling with 422', async () => {
