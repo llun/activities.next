@@ -102,13 +102,14 @@ describe('20261104133123_add_attachments_is_route_map', () => {
     await down(testDb.db)
     expect(await hasColumn()).toBe(false)
 
-    // A map still under its default name.
+    // A map still under its default name, found by the name alone: neither
+    // its url nor its media matches the file, which records no map path.
     const named = await createStatus('named')
-    await createFitnessFile(named, 'medias/named-map.webp')
+    await createFitnessFile(named, null)
     await createAttachment('named-map', named, {
       name: 'Activity route map',
-      url: fileUrl('medias/named-map.webp'),
-      mediaId: await createMedia('medias/named-map.webp')
+      url: fileUrl('medias/named-old-map.webp'),
+      mediaId: await createMedia('medias/named-old-map.webp')
     })
     // A photo on the same post.
     await createAttachment('named-photo', named, {
@@ -117,13 +118,14 @@ describe('20261104133123_add_attachments_is_route_map', () => {
       mediaId: await createMedia('medias/named-photo.jpg')
     })
 
-    // A map an edit renamed: its url still ends with mapImagePath.
+    // A map an edit renamed, found by its url alone: it still ends with
+    // mapImagePath, while its media row has moved on.
     const renamed = await createStatus('renamed')
     await createFitnessFile(renamed, 'medias/renamed-map.webp')
     await createAttachment('renamed-map', renamed, {
       name: '',
       url: fileUrl('medias/renamed-map.webp'),
-      mediaId: await createMedia('medias/renamed-map.webp')
+      mediaId: await createMedia('medias/renamed-later.webp')
     })
 
     // A renamed map whose url does not end with the path (another host

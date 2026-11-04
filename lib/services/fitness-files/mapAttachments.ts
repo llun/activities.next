@@ -13,9 +13,9 @@ export const ROUTE_MAP_ATTACHMENT_NAME = 'Activity route map'
 /**
  * The route map attachments a fitness file owns on its status.
  *
- * Matched by the `isRouteMap` flag AND by the file's recorded `mapImagePath`, so a status
- * carrying two activities (a merged same-ride post) never has one file's
- * regeneration delete the other's map.
+ * Matched by the `isRouteMap` flag AND by the file's recorded `mapImagePath`,
+ * so a status carrying two activities (a merged same-ride post) never has one
+ * file's regeneration delete the other's map.
  */
 export const findRouteMapAttachments = async ({
   database,

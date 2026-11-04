@@ -42,10 +42,10 @@ import type { StatusFitnessFiles } from './useStatusFitnessFiles'
 
 /**
  * Which attachment is the route map the server rendered for this activity:
- * the one flagged `isRouteMap`, else the one named "route map" (a remote
- * post's), else the first attachment of a file with map data, else none. The
- * post's media strip leaves it out (the Overview section draws the route
- * itself, falling back to this image).
+ * the one flagged `isRouteMap`, else the one named "route map" (a map the
+ * flag does not mark), else the first attachment of a file with map data,
+ * else none. The post's media strip leaves it out (the Overview section draws
+ * the route itself, falling back to this image).
  */
 export const getRouteMapAttachmentIndex = (
   attachments: Attachment[],

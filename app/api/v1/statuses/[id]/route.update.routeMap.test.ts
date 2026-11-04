@@ -291,6 +291,43 @@ describe('PUT /api/v1/statuses/[id] keeps a fitness route map', () => {
     await expectRouteMap(ride, OWNER_ALT_TEXT, { findsByPath: true })
   })
 
+  it('flags the map again when an edit drops it and a later one puts it back', async () => {
+    const ride = await createRide('re-added')
+
+    expect(
+      (await edit(ride.statusId, { media_ids: [ride.photo.id] })).status
+    ).toBe(200)
+    expect(
+      (
+        await edit(ride.statusId, {
+          media_ids: [ride.map.id, ride.photo.id]
+        })
+      ).status
+    ).toBe(200)
+
+    // A media new to the post again: it takes the media row's (empty) alt
+    // text, but it is the route map.
+    await expectRouteMap(ride, '', { findsByPath: true })
+  })
+
+  it('leads with the flagged map when the primary file records no map path', async () => {
+    const ride = await createRide('no-map-path')
+    await testDb.db
+      .updateTable('fitness_files')
+      .set({ mapImagePath: null })
+      .where('id', '=', ride.fitnessFileId)
+      .execute()
+
+    const status = (await database.getStatus({
+      statusId: ride.statusId
+    })) as StatusNote
+
+    expect(status.attachments.map((attachment) => attachment.mediaId)).toEqual([
+      ride.map.id,
+      ride.photo.id
+    ])
+  })
+
   it('keeps the map and its name when the photo editor updates the post', async () => {
     const ride = await createRide('photo-editor')
 

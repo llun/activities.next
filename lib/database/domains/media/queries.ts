@@ -89,8 +89,8 @@ const toAttachment = (row: AttachmentRow): Attachment | null => {
         : undefined,
     thumbnailUrl: row.thumbnailUrl ?? undefined,
     playbackType: row.playbackType ?? undefined,
-    // SQLite reads the column back as 0/1.
-    isRouteMap: row.isRouteMap ? true : undefined
+    // Left off when false, as createAttachment leaves it off.
+    isRouteMap: row.isRouteMap || undefined
   })
 }
 

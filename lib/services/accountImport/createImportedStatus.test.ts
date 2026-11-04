@@ -424,4 +424,50 @@ describe('createImportedStatus', () => {
     expect(attachments).toHaveLength(1)
     expect(String(attachments[0].mediaId)).toBe(String(media!.id))
   })
+
+  it('keeps the route map flag an archive carries', async () => {
+    const createImage = async (path: string) =>
+      (await database.createMedia({
+        actorId: actor.id,
+        original: {
+          path,
+          bytes: 8,
+          mimeType: 'image/webp',
+          metaData: { width: 1, height: 1 }
+        }
+      }))!
+    const map = await createImage('/tests/r2code-route-map.webp')
+    const photo = await createImage('/tests/r2code-ride-photo.webp')
+    const attachment = (mediaId: string, name: string) => ({
+      mediaId,
+      sourceUrl: `https://archive.test/media/${name}.webp`,
+      mediaType: 'image/webp',
+      name,
+      width: 1,
+      height: 1,
+      thumbnailUrl: null
+    })
+
+    const status = await createImportedStatus(
+      database,
+      actor,
+      makeInput('018d0000-0000-7000-8000-000000000007', {
+        attachments: [
+          { ...attachment(map.id, 'Loop around the lake'), isRouteMap: true },
+          attachment(photo.id, 'Summit')
+        ]
+      })
+    )
+
+    const rows = await db
+      .selectFrom('attachments')
+      .select(['mediaId', 'isRouteMap'])
+      .where('statusId', '=', status.id)
+      .execute()
+    expect(
+      Object.fromEntries(
+        rows.map((row) => [String(row.mediaId), Boolean(row.isRouteMap)])
+      )
+    ).toEqual({ [map.id]: true, [photo.id]: false })
+  })
 })

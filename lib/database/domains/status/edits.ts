@@ -27,6 +27,7 @@ import { getCompatibleJSON } from '@/lib/database/utils/getCompatibleJSON'
 import { MAX_FUTURE_SKEW_MS } from '@/lib/services/accountImport/mappers/timeSkew'
 import { Attachment, isFitnessAttachment } from '@/lib/types/domain/attachment'
 import { type Status, StatusType } from '@/lib/types/domain/status'
+import { getAttachmentMediaPath } from '@/lib/utils/getAttachmentMediaPath'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 import { widensStatusAudience } from '@/lib/utils/widensStatusAudience'
@@ -56,6 +57,56 @@ const isReplaceableMediaAttachment = (
   !isFitnessAttachment(attachment) &&
   attachment.mediaId !== null &&
   attachment.mediaId !== undefined
+
+// The media of `attachments` that show one of the status's recorded route map
+// files: as their url, or as a file their photo edits keep (a re-rendered
+// map). The isRouteMap backfill's rule, so a map an edit dropped and a later
+// edit puts back is the map again.
+const selectRouteMapMediaIds = async (
+  trx: Db,
+  statusId: string,
+  attachments: Attachment[]
+): Promise<Set<number>> => {
+  const found = new Set<number>()
+  if (attachments.length === 0) return found
+  const mapPaths = new Set(
+    (
+      await trx
+        .selectFrom('fitness_files')
+        .select('mapImagePath')
+        .where('statusId', '=', statusId)
+        .where('mapImagePath', 'is not', null)
+        .where('mapImagePath', '<>', '')
+        .execute()
+    ).map((row) => row.mapImagePath as string)
+  )
+  if (mapPaths.size === 0) return found
+  const mediaIds = attachments.flatMap((attachment) => {
+    const id = toAttachmentMediaId(attachment.mediaId)
+    return id === null ? [] : [id]
+  })
+  const editFiles =
+    mediaIds.length > 0
+      ? await trx
+          .selectFrom('media_edit_files')
+          .select(['mediaId', 'path'])
+          .where('mediaId', 'in', mediaIds)
+          .execute()
+      : []
+  for (const attachment of attachments) {
+    const id = toAttachmentMediaId(attachment.mediaId)
+    if (id === null) continue
+    if (
+      mapPaths.has(getAttachmentMediaPath(attachment.url)) ||
+      editFiles.some(
+        (file) => Number(file.mediaId) === id && mapPaths.has(file.path)
+      )
+    ) {
+      found.add(id)
+    }
+  }
+  return found
+}
 
 export const updateNote = async (
   db: Db,
@@ -197,6 +248,11 @@ export const updateNote = async (
         return { data, attachmentCreatedAt }
       })
 
+    const routeMapMediaIds = await selectRouteMapMediaIds(
+      trx,
+      status.id,
+      newAttachments.map(({ data }) => data)
+    )
     for (const { data, attachmentCreatedAt } of newAttachments) {
       // `focus` is one object on the parsed row and two columns in the
       // table, so the insert is written out column by column the way
@@ -218,6 +274,7 @@ export const updateNote = async (
           focusX: data.focus?.x ?? null,
           focusY: data.focus?.y ?? null,
           thumbnailUrl: data.thumbnailUrl ?? null,
+          isRouteMap: routeMapMediaIds.has(toAttachmentMediaId(data.mediaId)!),
           createdAt: attachmentCreatedAt,
           updatedAt: attachmentCreatedAt
         })

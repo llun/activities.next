@@ -12,6 +12,7 @@ import type {
   ImportMapperResult
 } from '@/lib/services/accountImport/mappers/types'
 import { ownStatusRecordSchema } from '@/lib/services/accountImport/schemas'
+import { ROUTE_MAP_ATTACHMENT_NAME } from '@/lib/services/fitness-files/mapAttachments'
 
 export const mapOwnStatus = (
   row: unknown,
@@ -76,7 +77,16 @@ export const mapOwnStatus = (
       quoteStatusId: quoteSourceId,
       quoteApprovalPolicy: status.quoteApprovalPolicy,
       tags,
-      attachments: buildAttachments(status.attachments),
+      // An archive written before the flag existed marks the map by its
+      // default name only.
+      attachments: buildAttachments(
+        status.attachments.map((attachment) => ({
+          ...attachment,
+          isRouteMap:
+            attachment.isRouteMap ??
+            attachment.name === ROUTE_MAP_ATTACHMENT_NAME
+        }))
+      ),
       poll:
         status.type === 'Poll'
           ? {

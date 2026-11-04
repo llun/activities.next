@@ -1,5 +1,8 @@
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
-import { removeRouteMapAttachmentsAndMedia } from '@/lib/services/fitness-files/mapAttachments'
+import {
+  findRouteMapAttachments,
+  removeRouteMapAttachmentsAndMedia
+} from '@/lib/services/fitness-files/mapAttachments'
 import { deleteMediaFile } from '@/lib/services/medias'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
@@ -85,5 +88,67 @@ describe('removeRouteMapAttachmentsAndMedia', () => {
     expect(await database.getStorageUsageForAccount({ accountId })).toBe(
       usageBefore - 1600
     )
+  })
+})
+
+describe('findRouteMapAttachments', () => {
+  const testDb = createTestDatabase()
+  const { database } = testDb
+
+  beforeAll(async () => {
+    await testDb.prepare()
+    await database.migrate()
+    await seedDatabase(database)
+  })
+
+  afterAll(async () => {
+    await testDb.destroy()
+  })
+
+  // Only a flagged map at the file's path is the file's map: a photo that
+  // happens to show the same file is never removed with it.
+  it('finds the flagged map at the path and leaves an unflagged attachment there alone', async () => {
+    const statusId = `${ACTOR1_ID}/statuses/find-route-map`
+    await database.createNote({
+      id: statusId,
+      url: statusId,
+      actorId: ACTOR1_ID,
+      text: 'Ride',
+      summary: null,
+      to: [],
+      cc: []
+    })
+    const mapImagePath = 'medias/find-route-map.webp'
+    const media = (await database.createMedia({
+      actorId: ACTOR1_ID,
+      original: {
+        path: mapImagePath,
+        bytes: 1000,
+        mimeType: 'image/webp',
+        metaData: { width: 800, height: 600 }
+      }
+    }))!
+    const attach = (isRouteMap: boolean) =>
+      database.createAttachment({
+        actorId: ACTOR1_ID,
+        statusId,
+        mediaType: 'image/webp',
+        url: `https://llun.test/api/v1/files/${mapImagePath}`,
+        width: 800,
+        height: 600,
+        name: '',
+        mediaId: media.id,
+        isRouteMap
+      })
+    const map = await attach(true)
+    await attach(false)
+
+    const found = await findRouteMapAttachments({
+      database,
+      statusId,
+      mapImagePath
+    })
+
+    expect(found.map((attachment) => attachment.id)).toEqual([map.id])
   })
 })

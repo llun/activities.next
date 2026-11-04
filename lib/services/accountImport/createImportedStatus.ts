@@ -56,6 +56,7 @@ const createStatusAttachment = async ({
     height: owned.height,
     name: owned.name,
     mediaId: String(owned.id),
+    isRouteMap: attachment.isRouteMap,
     ...metadata
   })
 }

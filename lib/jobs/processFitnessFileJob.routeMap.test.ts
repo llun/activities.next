@@ -610,7 +610,8 @@ describe('processFitnessFileJob', () => {
         width: 800,
         height: 600,
         name: 'Activity route map',
-        mediaId: otherMedia!.id
+        mediaId: otherMedia!.id,
+        isRouteMap: true
       })
       const otherFitnessFile = await database.createFitnessFile({
         actorId: actor.id,
@@ -642,7 +643,7 @@ describe('processFitnessFileJob', () => {
       })
 
       // Matching on this file's own recorded path is what keeps the other
-      // file's map out of the cleanup, even though both are named the same.
+      // file's map out of the cleanup, though both are flagged route maps.
       const status = await database.getStatus({ statusId, withReplies: false })
       if (status?.type !== StatusType.enum.Note) fail('Expected a note status')
       expect(

@@ -62,7 +62,8 @@ export const buildStatusRecord = ({
     attachments: status.attachments.map((attachment) => ({
       ...getDocumentFromAttachment(attachment),
       mediaId: attachment.mediaId ?? null,
-      url: urlToArchivePath(attachment.url)
+      url: urlToArchivePath(attachment.url),
+      ...(attachment.isRouteMap ? { isRouteMap: true } : null)
     })),
     poll:
       status.type === StatusType.enum.Poll

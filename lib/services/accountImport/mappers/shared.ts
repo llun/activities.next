@@ -197,6 +197,7 @@ export const buildAttachments = (
     width?: number
     height?: number
     thumbnailUrl?: string | null
+    isRouteMap?: boolean
   }[]
 ): ImportedAttachment[] =>
   attachments.map((attachment) => ({
@@ -209,7 +210,8 @@ export const buildAttachments = (
     name: attachment.name ?? null,
     width: attachment.width ?? null,
     height: attachment.height ?? null,
-    thumbnailUrl: attachment.thumbnailUrl ?? null
+    thumbnailUrl: attachment.thumbnailUrl ?? null,
+    ...(attachment.isRouteMap ? { isRouteMap: true } : null)
   }))
 
 export const parseEditedAt = (value: string): number => Date.parse(value)

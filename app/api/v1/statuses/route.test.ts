@@ -814,8 +814,8 @@ describe('POST /api/v1/statuses', () => {
     }
 
     // What processFitnessFileJob does once the route is drawn: a media-manager
-    // upload attached under ROUTE_MAP_ATTACHMENT_NAME, its path recorded on
-    // the fitness file.
+    // upload attached as the route map (isRouteMap, under
+    // ROUTE_MAP_ATTACHMENT_NAME), its path recorded on the fitness file.
     const attachRouteMap = async ({
       prefix,
       statusId,
@@ -845,7 +845,8 @@ describe('POST /api/v1/statuses', () => {
         width: 640,
         height: 480,
         name: ROUTE_MAP_ATTACHMENT_NAME,
-        mediaId: mapMedia!.id
+        mediaId: mapMedia!.id,
+        isRouteMap: true
       })
       await database.updateFitnessFileActivityData(fitnessFileId, {
         hasMapData: true,
