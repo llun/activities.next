@@ -121,6 +121,12 @@ describe('Send update note job', () => {
           ...(expired ? { closed: getISOTimeUTC(endAt) } : {})
         }
       })
+      const call = fetchMock.mock.calls.find(
+        ([url]) => url === 'https://somewhere.test/inbox'
+      )
+      const body = JSON.parse(String(call?.[1]?.body))
+      // toMatchObject ignores extra keys: pin that an open poll has no closed.
+      expect('closed' in body.object).toBe(expired)
     }
   )
 

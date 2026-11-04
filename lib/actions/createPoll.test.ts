@@ -62,6 +62,7 @@ describe('Create poll action', () => {
     fetchMock.resetMocks()
     mockRequests(fetchMock)
     vi.clearAllMocks()
+    mockPublish.mockReset().mockResolvedValue(undefined)
   })
 
   afterEach(() => vi.restoreAllMocks())
