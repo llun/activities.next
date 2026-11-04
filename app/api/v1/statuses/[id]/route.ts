@@ -386,33 +386,55 @@ export const PUT = traceApiRoute(
         // (getMaxStatusMediaAttachments): processFitnessFileJob attaches the
         // map after the create, and a retry or a map regeneration can attach
         // one later still, so filling that slot here would leave the status
-        // one over MAX_STORED_MEDIA_ATTACHMENTS. The map already attached is
-        // recognised by its fitness file's mapImagePath rather than by name,
-        // which an edit does not preserve. Checked before any media row is
-        // written, so a refused edit changes nothing.
+        // one over MAX_STORED_MEDIA_ATTACHMENTS. A map the edit keeps is not
+        // counted. It is recognised by its fitness file's mapImagePath, not by
+        // name, which an edit does not preserve: first on the attachment's
+        // url, then, for a map the photo editor re-rendered ("Update posts"
+        // moves the url to the render), on the files the media's edits keep,
+        // whose original slot is the file the map was stored at. Checked
+        // before any media row is written, so a refused edit changes nothing.
         if (resolvedMediaIds !== undefined && existingStatus.fitness) {
-          const routeMapPaths = new Set(
-            (await database.getFitnessFilesByStatus({ statusId }))
-              .map((fitnessFile) => fitnessFile.mapImagePath)
-              .filter((path): path is string => Boolean(path))
+          const routeMapPaths = [
+            ...new Set(
+              (await database.getFitnessFilesByStatus({ statusId }))
+                .map((fitnessFile) => fitnessFile.mapImagePath)
+                .filter((path): path is string => Boolean(path))
+            )
+          ]
+          const sentMediaIds = new Set(
+            resolvedMediaIds.map((mediaId) =>
+              toCanonicalMediaId(String(mediaId))
+            )
           )
-          const routeMapMediaIds = new Set(
+          const sentPaths = new Set(
             existingStatus.attachments
               .filter(
                 (attachment) =>
                   attachment.mediaId != null &&
-                  routeMapPaths.has(getAttachmentMediaPath(attachment.url))
+                  sentMediaIds.has(
+                    toCanonicalMediaId(String(attachment.mediaId))
+                  )
               )
-              .map((attachment) =>
-                toCanonicalMediaId(String(attachment.mediaId))
-              )
+              .map((attachment) => getAttachmentMediaPath(attachment.url))
           )
-          const mediaBesidesRouteMap = resolvedMediaIds.filter(
-            (mediaId) =>
-              !routeMapMediaIds.has(toCanonicalMediaId(String(mediaId)))
+          let unsentRouteMapPaths = routeMapPaths.filter(
+            (path) => !sentPaths.has(path)
           )
+          if (unsentRouteMapPaths.length > 0) {
+            const editedFilePaths = new Set(
+              await database.getMediaEditFilePaths({
+                mediaIds: [...sentMediaIds]
+              })
+            )
+            unsentRouteMapPaths = unsentRouteMapPaths.filter(
+              (path) => !editedFilePaths.has(path)
+            )
+          }
+          const sentRouteMaps =
+            routeMapPaths.length - unsentRouteMapPaths.length
           if (
-            mediaBesidesRouteMap.length > getMaxStatusMediaAttachments(true)
+            sentMediaIds.size - sentRouteMaps >
+            getMaxStatusMediaAttachments(true)
           ) {
             return apiResponse({
               req,
