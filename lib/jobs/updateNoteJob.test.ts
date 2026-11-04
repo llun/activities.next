@@ -1538,5 +1538,193 @@ describe('updateNoteJob', () => {
       }
       expect(chunks.flat()).toEqual(manyInboxes)
     })
+
+    // The queue (and QStash) dedupe by job id, and a receiver dedupes inbound
+    // activities by id, so a fixed id per note silently drops every edit after
+    // the first. Each edit must forward under its own ids, while a retry of the
+    // same edit must still derive the same ones.
+    const seedForwardingScenario = async (suffix: string) => {
+      const actor1 = await database.getActorFromUsername({
+        username: seedActor1.username,
+        domain: seedActor1.domain
+      })
+      const localActorId = actor1!.id
+
+      const localStatusId = `${localActorId}/statuses/parent-for-update-revision-${suffix}`
+      await database.createNote({
+        id: localStatusId,
+        url: localStatusId,
+        actorId: localActorId,
+        text: 'parent note for update revision',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      await database.createFollow({
+        actorId: `https://update-revision-follower.test/users/${suffix}`,
+        targetActorId: localActorId,
+        status: 'Accepted',
+        inbox: `https://update-revision-follower.test/users/${suffix}/inbox`,
+        sharedInbox: 'https://update-revision-follower.test/inbox'
+      })
+
+      const remoteAuthor = `https://update-revision-author.test/users/${suffix}`
+      const noteId = `${remoteAuthor}/statuses/reply-to-update-revision`
+      const initialNote = MockMastodonActivityPubNote({
+        id: noteId,
+        from: remoteAuthor,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [localActorId],
+        inReplyTo: localStatusId,
+        content: '<p>Initial content</p>'
+      })
+
+      await createNoteJob(database, {
+        id: `initial-reply-revision-${suffix}`,
+        name: CREATE_NOTE_JOB_NAME,
+        data: initialNote,
+        verifiedSenderActorId: remoteAuthor
+      })
+
+      return { remoteAuthor, initialNote }
+    }
+
+    const forwardedMessages = () =>
+      queueSpy.mock.calls
+        .filter(
+          ([message]: [JobMessage]) =>
+            message.name === FORWARD_ACTIVITY_JOB_NAME
+        )
+        .map(([message]: [JobMessage]) => message)
+
+    const forwardedActivityId = (message: JobMessage) =>
+      (message.data as { activity: { id: string } }).activity.id
+
+    it('forwards two distinct edits of the same note under different ids', async () => {
+      process.env.ACTIVITIES_ENABLE_INBOX_FORWARDING = 'true'
+      const { remoteAuthor, initialNote } =
+        await seedForwardingScenario('distinct')
+
+      queueSpy.mockClear()
+      await updateNoteJob(database, {
+        id: 'update-revision-first',
+        name: UPDATE_NOTE_JOB_NAME,
+        data: {
+          ...initialNote,
+          content: '<p>First edit</p>',
+          updated: '2026-01-01T00:00:00.000Z'
+        },
+        verifiedSenderActorId: remoteAuthor
+      })
+      const first = forwardedMessages()
+      expect(first).toHaveLength(1)
+
+      queueSpy.mockClear()
+      await updateNoteJob(database, {
+        id: 'update-revision-second',
+        name: UPDATE_NOTE_JOB_NAME,
+        data: {
+          ...initialNote,
+          content: '<p>Second edit</p>',
+          updated: '2026-01-01T00:05:00.000Z'
+        },
+        verifiedSenderActorId: remoteAuthor
+      })
+      const second = forwardedMessages()
+      expect(second).toHaveLength(1)
+
+      expect(second[0].id).not.toEqual(first[0].id)
+      expect(forwardedActivityId(second[0])).not.toEqual(
+        forwardedActivityId(first[0])
+      )
+    })
+
+    it('derives the same forwarding ids for a retry of the same edit', async () => {
+      process.env.ACTIVITIES_ENABLE_INBOX_FORWARDING = 'true'
+      const { remoteAuthor, initialNote } =
+        await seedForwardingScenario('retry')
+      const edit = {
+        ...initialNote,
+        content: '<p>Retried edit</p>',
+        updated: '2026-02-02T00:00:00.000Z'
+      }
+
+      queueSpy.mockClear()
+      await updateNoteJob(database, {
+        id: 'update-retry-first',
+        name: UPDATE_NOTE_JOB_NAME,
+        data: edit,
+        verifiedSenderActorId: remoteAuthor
+      })
+      const first = forwardedMessages()
+      expect(first).toHaveLength(1)
+      // The revision is the edit's own `updated`, not the inbound job id, so a
+      // retry that arrives under a different job id still dedupes.
+      expect(forwardedActivityId(first[0])).toEqual(
+        `${initialNote.id}#updates/${Date.parse(edit.updated)}`
+      )
+
+      queueSpy.mockClear()
+      await updateNoteJob(database, {
+        id: 'update-retry-second',
+        name: UPDATE_NOTE_JOB_NAME,
+        data: edit,
+        verifiedSenderActorId: remoteAuthor
+      })
+      const second = forwardedMessages()
+      expect(second).toHaveLength(1)
+
+      expect(second[0].id).toEqual(first[0].id)
+      expect(forwardedActivityId(second[0])).toEqual(
+        forwardedActivityId(first[0])
+      )
+    })
+
+    it('falls back to the inbound job id when an edit carries no updated', async () => {
+      process.env.ACTIVITIES_ENABLE_INBOX_FORWARDING = 'true'
+      const { remoteAuthor, initialNote } =
+        await seedForwardingScenario('no-updated')
+      const edit = { ...initialNote, content: '<p>Edit without updated</p>' }
+
+      queueSpy.mockClear()
+      await updateNoteJob(database, {
+        id: 'update-no-updated-first',
+        name: UPDATE_NOTE_JOB_NAME,
+        data: edit,
+        verifiedSenderActorId: remoteAuthor
+      })
+      const first = forwardedMessages()
+      expect(first).toHaveLength(1)
+
+      queueSpy.mockClear()
+      await updateNoteJob(database, {
+        id: 'update-no-updated-second',
+        name: UPDATE_NOTE_JOB_NAME,
+        data: edit,
+        verifiedSenderActorId: remoteAuthor
+      })
+      const second = forwardedMessages()
+      expect(second).toHaveLength(1)
+
+      expect(second[0].id).not.toEqual(first[0].id)
+      expect(forwardedActivityId(second[0])).not.toEqual(
+        forwardedActivityId(first[0])
+      )
+
+      // A retry of the same inbound job still dedupes.
+      queueSpy.mockClear()
+      await updateNoteJob(database, {
+        id: 'update-no-updated-first',
+        name: UPDATE_NOTE_JOB_NAME,
+        data: edit,
+        verifiedSenderActorId: remoteAuthor
+      })
+      const retry = forwardedMessages()
+      expect(retry).toHaveLength(1)
+      expect(retry[0].id).toEqual(first[0].id)
+      expect(forwardedActivityId(retry[0])).toEqual(
+        forwardedActivityId(first[0])
+      )
+    })
   })
 })

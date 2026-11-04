@@ -369,9 +369,21 @@ export const updateNoteJob = createJobHandle(
         })
 
         if (inboxes.length > 0) {
+          // Each edit of the same note must forward under its own ids: the
+          // queue (and QStash) dedupe by job id, and a receiver dedupes inbound
+          // activities by id, so a fixed id silently drops the second and later
+          // edits. `updated` is what distinguishes revisions (Mastodon always
+          // sets it on an edit); an Update without it falls back to the inbound
+          // job id, which is unique per Update activity. A retry of the same
+          // edit still derives the same revision, so it stays deduplicated.
+          const updatedEpochMs = note.updated ? Date.parse(note.updated) : NaN
+          const revision = Number.isFinite(updatedEpochMs)
+            ? String(updatedEpochMs)
+            : getHashFromString(message.id)
+
           const updateActivity = {
             '@context': NOTE_ACTIVITY_CONTEXT,
-            id: `${note.id}#activity`,
+            id: `${note.id}#updates/${revision}`,
             type: UpdateAction,
             actor: note.attributedTo,
             published: note.published,
@@ -381,7 +393,7 @@ export const updateNoteJob = createJobHandle(
           }
 
           for (const forwardMessage of getForwardActivityJobMessages({
-            id: `${getHashFromString(note.id)}#forward-update`,
+            id: getHashFromString(`${note.id}#forward-update/${revision}`),
             activity: updateActivity,
             inboxes,
             localActorId: targetLocalActorIds[0]

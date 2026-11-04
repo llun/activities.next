@@ -4,11 +4,21 @@ import { getConfig } from '@/lib/config'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { PROCESS_FORWARDED_ACTIVITY_JOB_NAME } from '@/lib/jobs/names'
 import { processForwardedActivityJob } from '@/lib/jobs/processForwardedActivityJob'
+import { updateNoteJob } from '@/lib/jobs/updateNoteJob'
 import { ACTIVITY_JSON_HEADERS, mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { StatusPoll, StatusType } from '@/lib/types/domain/status'
 
 enableFetchMocks()
+
+vi.mock('@/lib/jobs/updateNoteJob', async () => {
+  const actual = await vi.importActual<
+    typeof import('@/lib/jobs/updateNoteJob')
+  >('@/lib/jobs/updateNoteJob')
+  // Passthrough, so a test can read the job id this job hands the update
+  // pipeline without changing what the update does.
+  return { ...actual, updateNoteJob: vi.fn(actual.updateNoteJob) }
+})
 
 const ACTIVITY_STREAM_PUBLIC = 'https://www.w3.org/ns/activitystreams#Public'
 const AUTHOR = 'https://writing.example/users/ninetiger'
@@ -391,6 +401,44 @@ describe('processForwardedActivityJob', () => {
     } else {
       expect.fail('Expected stored status to be a Note')
     }
+  })
+
+  it('hands updateNoteJob an id that identifies the forwarded activity', async () => {
+    await database.createNote({
+      id: NOTE_ID,
+      url: NOTE_ID,
+      actorId: AUTHOR,
+      text: 'old',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+
+    const updateJobIdFor = async (activityId: string) => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify(noteDocument({ content: '<p>edited</p>' })),
+        { headers: ACTIVITY_JSON_HEADERS }
+      )
+      vi.mocked(updateNoteJob).mockClear()
+      await processForwardedActivityJob(
+        database,
+        jobMessage(
+          forwardedActivity('Update', { id: NOTE_ID, type: 'Note' }, activityId)
+        )
+      )
+      const calls = vi.mocked(updateNoteJob).mock.calls
+      expect(calls).toHaveLength(1)
+      return calls[0][1].id
+    }
+
+    const first = await updateJobIdFor(`${AUTHOR}/statuses/1/activity-a`)
+    const second = await updateJobIdFor(`${AUTHOR}/statuses/1/activity-b`)
+    const retry = await updateJobIdFor(`${AUTHOR}/statuses/1/activity-a`)
+
+    // The note id is the same for every edit, so using it here would make the
+    // second edit dedupe away as the first one's retry.
+    expect(first).not.toEqual(NOTE_ID)
+    expect(second).not.toEqual(first)
+    expect(retry).toEqual(first)
   })
 
   it('stores a forwarded Update of a status never seen before', async () => {

@@ -12,6 +12,7 @@ import {
   isSameActivityPubOrigin,
   normalizeActorId
 } from '@/lib/utils/activitypub'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { request } from '@/lib/utils/request'
 import { withSpan } from '@/lib/utils/trace'
 
@@ -224,8 +225,12 @@ export const processForwardedActivityJob = createJobHandle(
             data: note
           })
         } else {
+          // The job id is updateNoteJob's revision fallback for an Update that
+          // carries no `updated`, so it must identify THIS forwarded activity,
+          // not the note: `note.id` is the same for every edit and would make
+          // the second and later edits dedupe away as the first one's retry.
           await updateNoteJob(database, {
-            id: note.id,
+            id: getHashFromString(`forwarded-update:${activity.id}`),
             name: UPDATE_NOTE_JOB_NAME,
             data: note
           })
