@@ -413,6 +413,192 @@ describe('processFitnessFileJob', () => {
       expect(status.attachments).toHaveLength(1)
     })
 
+    describe('a route map the photo editor re-rendered', () => {
+      const rerenderMap = async ({
+        mediaId,
+        statusId,
+        revert = false
+      }: {
+        mediaId: string
+        statusId: string
+        revert?: boolean
+      }) => {
+        const renderPath = `medias/edited-route-map-${mediaId}.webp`
+        const edited = await database.applyMediaEdit({
+          mediaId,
+          accountId: actor.account!.id,
+          baseVersion: 0,
+          saveId: 'route-map-edit',
+          recipe: '{"v":1}',
+          render: {
+            path: renderPath,
+            bytes: 300,
+            mimeType: 'image/webp',
+            width: 800,
+            height: 600,
+            blurhash: null,
+            focus: null
+          }
+        })
+        expect(edited.status).toBe('ok')
+        const attachments = await database.getAttachmentsWithMedia({ statusId })
+        const attachment = attachments.find(
+          (item) => String(item.mediaId) === mediaId
+        )
+        expect(attachment).toBeDefined()
+        await database.deleteAttachmentsByIds({
+          attachmentIds: [attachment!.id]
+        })
+        await database.createAttachment({
+          actorId: actor.id,
+          statusId,
+          mediaType: 'image/webp',
+          url: `https://llun.test/api/v1/files/${renderPath}`,
+          width: 800,
+          height: 600,
+          name: 'Edited map',
+          mediaId
+        })
+        if (revert) {
+          const reverted = await database.revertMediaEdit({
+            mediaId,
+            accountId: actor.account!.id,
+            baseVersion: 1,
+            saveId: 'route-map-revert'
+          })
+          expect(reverted.status).toBe('ok')
+        }
+      }
+
+      it.each([
+        { state: 'untouched', edited: false, revert: false },
+        { state: 'Update posts', edited: true, revert: false },
+        { state: 'Gallery only revert', edited: true, revert: true }
+      ])(
+        'replaces the $state map on reprocess without adding an attachment',
+        async ({ edited, revert }) => {
+          const { statusId, fitnessFileId } = await createStatusWithFitnessFile(
+            { text: 'Route map reprocess' }
+          )
+          const firstMap = await storeMapMedia(
+            `medias/reprocess-${fitnessFileId}.webp`
+          )
+          const secondMap = await storeMapMedia(
+            `medias/reprocess-${fitnessFileId}-new-route-map.webp`
+          )
+          mockSaveMedia
+            .mockResolvedValueOnce(firstMap)
+            .mockResolvedValueOnce(secondMap)
+          await processFitnessFileJob(database, {
+            id: 'job-edited-map-first',
+            name: PROCESS_FITNESS_FILE_JOB_NAME,
+            data: { actorId: actor.id, statusId, fitnessFileId }
+          })
+          if (edited)
+            await rerenderMap({ mediaId: firstMap.id, statusId, revert })
+
+          await processFitnessFileJob(database, {
+            id: 'job-edited-map-reprocess',
+            name: PROCESS_FITNESS_FILE_JOB_NAME,
+            data: { actorId: actor.id, statusId, fitnessFileId }
+          })
+
+          const status = await database.getStatus({
+            statusId,
+            withReplies: false
+          })
+          if (status?.type !== StatusType.enum.Note)
+            throw new Error('Expected a note status')
+          expect(status.attachments).toHaveLength(1)
+          expect(status.attachments[0].url).toBe(secondMap.url)
+          expect(
+            await database.getMediaByIdForAccount({
+              mediaId: firstMap.id,
+              accountId: actor.account!.id
+            })
+          ).toBeNull()
+        }
+      )
+
+      it('reprocesses only the edited map on a merged two-file status', async () => {
+        const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+          text: 'Merged route map reprocess'
+        })
+        const firstMap = await storeMapMedia(
+          `medias/merged-${fitnessFileId}.webp`
+        )
+        const secondMap = await storeMapMedia(
+          `medias/merged-${fitnessFileId}-new-route-map.webp`
+        )
+        mockSaveMedia
+          .mockResolvedValueOnce(firstMap)
+          .mockResolvedValueOnce(secondMap)
+        await processFitnessFileJob(database, {
+          id: 'job-edited-merged-first',
+          name: PROCESS_FITNESS_FILE_JOB_NAME,
+          data: { actorId: actor.id, statusId, fitnessFileId }
+        })
+        const otherMap = await storeMapMedia(
+          `medias/merged-${fitnessFileId}-other.webp`
+        )
+        await database.createAttachment({
+          actorId: actor.id,
+          statusId,
+          mediaType: 'image/webp',
+          url: otherMap.url,
+          width: 800,
+          height: 600,
+          name: ROUTE_MAP_ATTACHMENT_NAME,
+          mediaId: otherMap.id
+        })
+        const otherFile = await database.createFitnessFile({
+          actorId: actor.id,
+          statusId,
+          path: `fitness/merged-${fitnessFileId}-other.fit`,
+          fileName: 'other-device.fit',
+          fileType: 'fit',
+          mimeType: 'application/vnd.ant.fit',
+          bytes: 4_096
+        })
+        await database.updateFitnessFileActivityData(otherFile!.id, {
+          hasMapData: true,
+          mapImagePath: `medias/merged-${fitnessFileId}-other.webp`
+        })
+        await rerenderMap({ mediaId: firstMap.id, statusId })
+
+        await processFitnessFileJob(database, {
+          id: 'job-edited-merged-reprocess',
+          name: PROCESS_FITNESS_FILE_JOB_NAME,
+          data: { actorId: actor.id, statusId, fitnessFileId }
+        })
+
+        const status = await database.getStatus({
+          statusId,
+          withReplies: false
+        })
+        if (status?.type !== StatusType.enum.Note)
+          throw new Error('Expected a note status')
+        expect(status.attachments).toHaveLength(2)
+        expect(status.attachments.map((attachment) => attachment.url)).toEqual(
+          expect.arrayContaining([secondMap.url, otherMap.url])
+        )
+        expect(
+          await database.getMediaByIdForAccount({
+            mediaId: firstMap.id,
+            accountId: actor.account!.id
+          })
+        ).toBeNull()
+        expect(
+          await database.getMediaByIdForAccount({
+            mediaId: otherMap.id,
+            accountId: actor.account!.id
+          })
+        ).toMatchObject({
+          original: { path: `medias/merged-${fitnessFileId}-other.webp` }
+        })
+      })
+    })
+
     it('replaces the previous map instead of attaching a second one', async () => {
       const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
         text: 'Morning run'

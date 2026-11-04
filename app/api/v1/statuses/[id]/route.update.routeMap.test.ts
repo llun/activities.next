@@ -192,11 +192,7 @@ describe('PUT /api/v1/statuses/[id] keeps a fitness route map', () => {
       { params: Promise.resolve({ id: urlToId(statusId) }) }
     )
 
-  const expectRouteMap = async (
-    ride: Ride,
-    expectedName: string,
-    { findsByPath }: { findsByPath: boolean }
-  ) => {
+  const expectRouteMap = async (ride: Ride, expectedName: string) => {
     const status = await database.getStatus({
       statusId: ride.statusId,
       withReplies: false
@@ -226,14 +222,14 @@ describe('PUT /api/v1/statuses/[id] keeps a fitness route map', () => {
     })
     expect(activityMedia.map((row) => row.media.id)).toEqual([ride.photo.id])
 
-    if (findsByPath) {
-      const found = await findRouteMapAttachments({
-        database,
-        statusId: ride.statusId,
-        mapImagePath: ride.mapImagePath
-      })
-      expect(found.map((attachment) => attachment.id)).toEqual([map!.id])
-    }
+    // The map jobs still find it as the file's own map.
+    const found = await findRouteMapAttachments({
+      database,
+      accountId,
+      statusId: ride.statusId,
+      mapImagePath: ride.mapImagePath
+    })
+    expect(found.map((attachment) => attachment.id)).toEqual([map!.id])
 
     // The alt text reaches clients and peers; the flag never does.
     const mastodon = await getMastodonStatus(database, status)
@@ -263,9 +259,7 @@ describe('PUT /api/v1/statuses/[id] keeps a fitness route map', () => {
     })
 
     expect(response.status).toBe(200)
-    await expectRouteMap(ride, ROUTE_MAP_ATTACHMENT_NAME, {
-      findsByPath: true
-    })
+    await expectRouteMap(ride, ROUTE_MAP_ATTACHMENT_NAME)
   })
 
   it('takes the alt text the owner sets through media_attributes', async () => {
@@ -277,7 +271,7 @@ describe('PUT /api/v1/statuses/[id] keeps a fitness route map', () => {
     })
 
     expect(response.status).toBe(200)
-    await expectRouteMap(ride, OWNER_ALT_TEXT, { findsByPath: true })
+    await expectRouteMap(ride, OWNER_ALT_TEXT)
   })
 
   it('takes the alt text the owner sets through media_attributes alone', async () => {
@@ -288,7 +282,7 @@ describe('PUT /api/v1/statuses/[id] keeps a fitness route map', () => {
     })
 
     expect(response.status).toBe(200)
-    await expectRouteMap(ride, OWNER_ALT_TEXT, { findsByPath: true })
+    await expectRouteMap(ride, OWNER_ALT_TEXT)
   })
 
   it('flags the map again when an edit drops it and a later one puts it back', async () => {
@@ -307,7 +301,7 @@ describe('PUT /api/v1/statuses/[id] keeps a fitness route map', () => {
 
     // A media new to the post again: it takes the media row's (empty) alt
     // text, but it is the route map.
-    await expectRouteMap(ride, '', { findsByPath: true })
+    await expectRouteMap(ride, '')
   })
 
   it('flags a re-rendered map put back after an edit dropped it', async () => {
@@ -353,7 +347,7 @@ describe('PUT /api/v1/statuses/[id] keeps a fitness route map', () => {
     ).toBe(
       'https://llun.test/api/v1/files/medias/route-map-re-rendered-re-added-render.webp'
     )
-    await expectRouteMap(ride, '', { findsByPath: false })
+    await expectRouteMap(ride, '')
   })
 
   it('leaves a new photo on the ride, and the map put on another post, unflagged', async () => {
@@ -478,10 +472,6 @@ describe('PUT /api/v1/statuses/[id] keeps a fitness route map', () => {
     ).toBe(
       'https://llun.test/api/v1/files/medias/route-map-photo-editor-render.webp'
     )
-    // The url moved off mapImagePath; matching the moved map by path is
-    // findRouteMapAttachments' own concern, not checked here.
-    await expectRouteMap(ride, ROUTE_MAP_ATTACHMENT_NAME, {
-      findsByPath: false
-    })
+    await expectRouteMap(ride, ROUTE_MAP_ATTACHMENT_NAME)
   })
 })

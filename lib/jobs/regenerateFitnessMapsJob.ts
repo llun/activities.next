@@ -110,6 +110,7 @@ export const regenerateFitnessMapsJob = createJobHandle(
 
         const oldMapAttachments = await findRouteMapAttachments({
           database,
+          accountId: actor.account.id,
           statusId,
           mapImagePath: fitnessFile.mapImagePath
         })

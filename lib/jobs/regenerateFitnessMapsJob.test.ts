@@ -268,6 +268,135 @@ describe('regenerateFitnessMapsJob', () => {
     return { statusId, entries }
   }
 
+  describe('a route map the photo editor re-rendered', () => {
+    const rerenderMap = async ({
+      mediaId,
+      statusId,
+      revert = false
+    }: {
+      mediaId: string
+      statusId: string
+      revert?: boolean
+    }) => {
+      const renderPath = `medias/edited-route-map-${mediaId}.webp`
+      const edited = await database.applyMediaEdit({
+        mediaId,
+        accountId: actor.account!.id,
+        baseVersion: 0,
+        saveId: 'route-map-edit',
+        recipe: '{"v":1}',
+        render: {
+          path: renderPath,
+          bytes: 300,
+          mimeType: 'image/webp',
+          width: 800,
+          height: 600,
+          blurhash: null,
+          focus: null
+        }
+      })
+      expect(edited.status).toBe('ok')
+      const attachments = await database.getAttachmentsWithMedia({ statusId })
+      const attachment = attachments.find(
+        (item) => String(item.mediaId) === mediaId
+      )
+      expect(attachment).toBeDefined()
+      await database.deleteAttachmentsByIds({ attachmentIds: [attachment!.id] })
+      await database.createAttachment({
+        actorId: actor.id,
+        statusId,
+        mediaType: 'image/webp',
+        url: `https://llun.test/api/v1/files/${renderPath}`,
+        width: 800,
+        height: 600,
+        name: 'Edited map',
+        mediaId
+      })
+      if (revert) {
+        const reverted = await database.revertMediaEdit({
+          mediaId,
+          accountId: actor.account!.id,
+          baseVersion: 1,
+          saveId: 'route-map-revert'
+        })
+        expect(reverted.status).toBe('ok')
+      }
+    }
+
+    it.each([
+      { state: 'untouched', edited: false, revert: false },
+      { state: 'Update posts', edited: true, revert: false },
+      { state: 'Gallery only revert', edited: true, revert: true }
+    ])(
+      'replaces the $state map without adding an attachment',
+      async ({ edited, revert }) => {
+        const { statusId, fitnessFileId, oldMediaId } =
+          await setupStatusWithOldMap()
+        if (edited) await rerenderMap({ mediaId: oldMediaId, statusId, revert })
+
+        await regenerateFitnessMapsJob(database, {
+          id: 'job-regenerate-edited-map',
+          name: REGENERATE_FITNESS_MAPS_JOB_NAME,
+          data: { actorId: actor.id, fitnessFileIds: [fitnessFileId] }
+        })
+
+        const status = (await database.getStatus({
+          statusId,
+          withReplies: false
+        })) as StatusNote
+        expect(status.attachments).toHaveLength(1)
+        expect(status.attachments[0].url).toContain('new-route-map.webp')
+        expect(
+          await database.getMediaByIdForAccount({
+            mediaId: oldMediaId,
+            accountId: actor.account!.id
+          })
+        ).toBeNull()
+      }
+    )
+
+    it('replaces only the edited map on a merged two-file status', async () => {
+      const { statusId, entries } = await setupStatusWithMultipleOldMaps()
+      const [first, other] = entries
+      await rerenderMap({ mediaId: first.oldMediaId, statusId })
+      const otherMedia = await database.getMediaByIdForAccount({
+        mediaId: other.oldMediaId,
+        accountId: actor.account!.id
+      })
+      expect(otherMedia).toBeTruthy()
+
+      await regenerateFitnessMapsJob(database, {
+        id: 'job-regenerate-edited-merged',
+        name: REGENERATE_FITNESS_MAPS_JOB_NAME,
+        data: { actorId: actor.id, fitnessFileIds: [first.fitnessFileId] }
+      })
+
+      const status = (await database.getStatus({
+        statusId,
+        withReplies: false
+      })) as StatusNote
+      expect(status.attachments).toHaveLength(2)
+      expect(status.attachments.map((attachment) => attachment.url)).toEqual(
+        expect.arrayContaining([
+          'https://llun.test/api/v1/files/medias/new-route-map.webp',
+          `https://llun.test/api/v1/files/${otherMedia!.original.path}`
+        ])
+      )
+      expect(
+        await database.getMediaByIdForAccount({
+          mediaId: first.oldMediaId,
+          accountId: actor.account!.id
+        })
+      ).toBeNull()
+      expect(
+        await database.getMediaByIdForAccount({
+          mediaId: other.oldMediaId,
+          accountId: actor.account!.id
+        })
+      ).toEqual(otherMedia)
+    })
+  })
+
   it('replaces old maps and publishes an update note job', async () => {
     const { statusId, fitnessFileId, oldMediaId, oldEmailMapPath } =
       await setupStatusWithOldMap()
