@@ -609,6 +609,103 @@ describe('PUT /api/v1/statuses/[id] media edits', () => {
         ])
       })
 
+      // "Update posts" after a photo-editor save points the post's attachment
+      // at the render, while the file the fitness file recorded stays in the
+      // edit's original slot: the map is found among its media's files.
+      const createRerenderedRenamedMapPost = async (slug: string) => {
+        const { statusId, mapMediaId, photoMediaId } = await createRouteMapPost(
+          slug,
+          {
+            mapAttachmentName: 'An earlier alt text'
+          }
+        )
+        const actor = await database.getActorFromId({ id: ACTOR1_ID })
+        const renderPath = `medias/${slug}-route-map-render.webp`
+        const edited = await database.applyMediaEdit({
+          mediaId: mapMediaId,
+          accountId: actor!.account!.id,
+          baseVersion: 0,
+          saveId: `${slug}-edit`,
+          recipe: '{"v":1}',
+          render: {
+            path: renderPath,
+            bytes: 300,
+            mimeType: 'image/webp',
+            width: 640,
+            height: 480,
+            blurhash: null,
+            focus: null
+          }
+        })
+        expect(edited.status).toBe('ok')
+        const mapAttachment = (
+          await database.getAttachmentsWithMedia({ statusId })
+        ).find((attachment) => String(attachment.mediaId) === mapMediaId)
+        await database.deleteAttachmentsByIds({
+          attachmentIds: [mapAttachment!.id]
+        })
+        await database.createAttachment({
+          actorId: ACTOR1_ID,
+          statusId,
+          mediaType: 'image/webp',
+          url: `https://llun.test/api/v1/files/${renderPath}`,
+          width: 640,
+          height: 480,
+          name: 'An earlier alt text',
+          mediaId: mapMediaId
+        })
+        await database.createFitnessFile({
+          actorId: ACTOR1_ID,
+          statusId,
+          path: `fitness/${slug}.fit`,
+          fileName: `${slug}.fit`,
+          fileType: 'fit',
+          mimeType: 'application/vnd.ant.fit',
+          bytes: 1000,
+          hasMapData: true,
+          mapImagePath: `medias/${slug}-route-map.webp`
+        })
+        return { statusId, mapMediaId, photoMediaId }
+      }
+
+      it.each([
+        {
+          description: 'media_ids',
+          slug: 'route-map-rerendered-media-ids',
+          body: (mapMediaId: string, photoMediaId: string) => ({
+            media_ids: [mapMediaId, photoMediaId]
+          }),
+          photoName: 'Summit'
+        },
+        {
+          description: 'a media_attributes-only edit of the photo',
+          slug: 'route-map-rerendered-attributes',
+          body: (_mapMediaId: string, photoMediaId: string) => ({
+            media_attributes: [
+              { id: photoMediaId, description: 'Summit, at dusk' }
+            ]
+          }),
+          photoName: 'Summit, at dusk'
+        }
+      ])(
+        'gives a renamed map the photo editor re-rendered its name back through $description',
+        async ({ slug, body, photoName }) => {
+          const { statusId, mapMediaId, photoMediaId } =
+            await createRerenderedRenamedMapPost(slug)
+
+          const response = await editStatus(
+            statusId,
+            body(mapMediaId, photoMediaId)
+          )
+          expect(response.status).toBe(200)
+
+          expect(await getAttachmentNames(statusId)).toEqual([
+            { mediaId: String(mapMediaId), name: ROUTE_MAP_ATTACHMENT_NAME },
+            { mediaId: String(photoMediaId), name: photoName }
+          ])
+        }
+      )
+
       it('keeps the route map name when media_ids and media_attributes come together', async () => {
         const { statusId, mapMediaId, photoMediaId } = await createRouteMapPost(
           'route-map-media-ids-attributes'

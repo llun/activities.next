@@ -46,6 +46,7 @@ import type { FitnessFile } from '@/lib/types/database/fitnessFile'
 import { Scope } from '@/lib/types/database/operations'
 import { isFitnessAttachment } from '@/lib/types/domain/attachment'
 import { StatusType } from '@/lib/types/domain/status'
+import { getAttachmentMediaPath } from '@/lib/utils/getAttachmentMediaPath'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -593,8 +594,16 @@ export const PUT = traceApiRoute(
                 (fitnessFile) => fitnessFile.mapImagePath
               )
             : []
+        // The media's files are only needed for a map not already found at
+        // its attachment's url (one the photo editor re-rendered).
+        const shownPaths = new Set(
+          existingStatus.attachments.map((attachment) =>
+            getAttachmentMediaPath(attachment.url)
+          )
+        )
         const mediaFilePaths =
-          resolvedAttachments && mapImagePaths.some(Boolean)
+          resolvedAttachments &&
+          mapImagePaths.some((path) => path && !shownPaths.has(path))
             ? (sentMediaFilePaths ??
               (await getMediaFilePaths({
                 database,

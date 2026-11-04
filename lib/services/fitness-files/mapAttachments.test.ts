@@ -70,10 +70,19 @@ describe('isRouteMapAttachment', () => {
       expected: true
     },
     {
-      description: "a photo whose media's files hold no map",
+      description: "a photo when only another media's files hold the map",
       attachment: { name: 'Summit', url, mediaId: '8' },
       mapImagePaths: ['medias/other-route-map.webp'],
-      mediaFilePaths: new Map([['8', new Set(['medias/summit.webp'])]]),
+      mediaFilePaths: new Map([
+        ['8', new Set(['medias/summit.webp'])],
+        ['9', new Set(['medias/other-route-map.webp'])]
+      ]),
+      expected: false
+    },
+    {
+      description: 'a photo with a media id but no files read',
+      attachment: { name: 'Summit', url, mediaId: '8' },
+      mapImagePaths: ['medias/other-route-map.webp'],
       expected: false
     },
     {
