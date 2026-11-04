@@ -45,6 +45,7 @@ import {
 import {
   getPinnedStatusIds,
   pinStatus,
+  pinStatusWithResult,
   unpinStatus
 } from '@/lib/database/domains/status/pins'
 import {
@@ -144,6 +145,7 @@ export const createStatusQueries = (
   getActorAnnounceStatus: (db: Db, params: HasActorAnnouncedStatusParams) =>
     getActorAnnounceStatus(db, hydrationFor(db), params),
   pinStatus,
+  pinStatusWithResult,
   unpinStatus,
   getPinnedStatusIds,
   getFavouritedBy,

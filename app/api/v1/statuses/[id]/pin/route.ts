@@ -3,6 +3,11 @@ import { MAX_PINNED_STATUSES } from '@/lib/services/mastodon/constants'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { getReadableStatus } from '@/lib/services/statusRouteAccess'
+import {
+  nextPinEventTimestamp,
+  publishStatusPin
+} from '@/lib/services/statuses/publishStatusPin'
+import { AddAction } from '@/lib/types/activitypub/activities'
 import { Scope } from '@/lib/types/database/operations'
 import { StatusType } from '@/lib/types/domain/status'
 import { getVisibility } from '@/lib/utils/getVisibility'
@@ -65,7 +70,7 @@ export const POST = traceApiRoute(
         })
       }
 
-      const pinned = await database.pinStatus({
+      const { pinned, isNew } = await database.pinStatusWithResult({
         actorId: currentActor.id,
         statusId,
         maxPinnedStatuses: MAX_PINNED_STATUSES
@@ -76,6 +81,15 @@ export const POST = traceApiRoute(
           allowedMethods: CORS_HEADERS,
           data: ERROR_422,
           responseStatusCode: 422
+        })
+      }
+
+      if (isNew) {
+        await publishStatusPin({
+          actorId: currentActor.id,
+          statusId,
+          action: AddAction,
+          timestamp: nextPinEventTimestamp()
         })
       }
 

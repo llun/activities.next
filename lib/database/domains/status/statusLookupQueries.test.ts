@@ -26,6 +26,7 @@ import {
 import {
   getPinnedStatusIds,
   pinStatus,
+  pinStatusWithResult,
   unpinStatus
 } from '@/lib/database/domains/status/pins'
 import {
@@ -1556,16 +1557,54 @@ describe('pins', () => {
     ])
   })
 
-  it('unpinStatus removes only that pin of that actor', async () => {
+  it('unpinStatus removes only that pin of that actor and reports whether a row was deleted', async () => {
     const { alice, bob, statuses } = await setupPins()
     const [s1, s2] = statuses
     await seedPin(alice, s1, BASE)
     await seedPin(alice, s2, BASE)
     await seedPin(bob, s1, BASE)
 
-    await unpinStatus(db, { actorId: alice, statusId: s1 })
+    await expect(
+      unpinStatus(db, { actorId: alice, statusId: s1 })
+    ).resolves.toBe(true)
+    await expect(
+      unpinStatus(db, { actorId: alice, statusId: s1 })
+    ).resolves.toBe(false)
     expect(await pinsOf(alice)).toEqual([s2])
     expect(await pinsOf(bob)).toEqual([s1])
+  })
+
+  it('pinStatusWithResult distinguishes newly created pins, existing pins, and quota refusals', async () => {
+    const { alice: actorOne, statuses } = await setupPins()
+    const [s1, s2] = statuses
+
+    await expect(
+      pinStatusWithResult(db, {
+        actorId: actorOne,
+        statusId: s1,
+        maxPinnedStatuses: 1
+      })
+    ).resolves.toEqual({ pinned: true, isNew: true })
+    await expect(
+      pinStatusWithResult(db, {
+        actorId: actorOne,
+        statusId: s1,
+        maxPinnedStatuses: 1
+      })
+    ).resolves.toEqual({ pinned: true, isNew: false })
+    await expect(
+      pinStatusWithResult(db, {
+        actorId: actorOne,
+        statusId: s2,
+        maxPinnedStatuses: 1
+      })
+    ).resolves.toEqual({ pinned: false, isNew: false })
+    await expect(
+      pinStatusWithResult(db, {
+        actorId: actorOne,
+        statusId: s1
+      })
+    ).resolves.toEqual({ pinned: true, isNew: false })
   })
 
   it("getPinnedStatusIds lists the actor's pins newest first, ties by status id descending", async () => {
@@ -2143,12 +2182,12 @@ describe('driver edge cases', () => {
     [
       'unpinStatus without an actorId',
       ({ status }) => unpinStatus(db, { actorId: missing, statusId: status }),
-      undefined
+      false
     ],
     [
       'unpinStatus without a statusId',
       ({ actor }) => unpinStatus(db, { actorId: actor, statusId: missing }),
-      undefined
+      false
     ],
     [
       'hasActorVoted without a statusId',

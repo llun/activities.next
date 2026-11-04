@@ -67,6 +67,7 @@ import {
   SEND_ANNOUNCE_JOB_NAME,
   SEND_BLOCK_JOB_NAME,
   SEND_DELETE_NOTE_JOB_NAME,
+  SEND_FEATURED_STATUS_JOB_NAME,
   SEND_FLAG_JOB_NAME,
   SEND_MOVE_JOB_NAME,
   SEND_NOTE_JOB_NAME,
@@ -95,6 +96,7 @@ import { resolveMediaSubjectJob } from './resolveMediaSubjectJob'
 import { sendAnnounceJob } from './sendAnnounceJob'
 import { sendBlockJob } from './sendBlockJob'
 import { sendDeleteNoteJob } from './sendDeleteNoteJob'
+import { sendFeaturedStatusJob } from './sendFeaturedStatusJob'
 import { sendFlagJob } from './sendFlagJob'
 import { sendMoveJob } from './sendMoveJob'
 import { sendNoteJob } from './sendNoteJob'
@@ -211,6 +213,9 @@ export const JOBS: Record<string, JobHandle> = {
   },
   get [SEND_UPDATE_ACTOR_JOB_NAME]() {
     return sendUpdateActorJob
+  },
+  get [SEND_FEATURED_STATUS_JOB_NAME]() {
+    return sendFeaturedStatusJob
   },
   get [MOVE_ACTOR_JOB_NAME]() {
     return moveActorJob

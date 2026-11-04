@@ -50,14 +50,16 @@ export const NOTE_CONTEXT_TERMS = {
 
 /**
  * The `@context` for any activity or object that carries a Note this instance
- * built. Seven surfaces: `sendNote`'s Create, `sendUpdateNote`'s Update,
- * `sendQuoteRequest`'s `instrument`, the outbox page, the AP representation of
- * a single status, the AP replies collection, and the `outbox.json` writer in
- * `scripts/backup/actorArchive.ts`. The other quote activities echo ids rather
- * than Notes and keep `QUOTE_ACTIVITY_CONTEXT`.
+ * built. Eight surfaces: `sendNote`'s Create, `sendUpdateNote`'s Update,
+ * `sendQuoteRequest`'s `instrument`, the outbox page, the AP featured
+ * collection, the AP representation of a single status, the AP replies
+ * collection, and the `outbox.json` writer in `scripts/backup/actorArchive.ts`.
+ * The other quote activities echo ids rather than Notes and keep
+ * `QUOTE_ACTIVITY_CONTEXT`.
  *
- * On the outbox page the context sits on the `OrderedCollectionPage`, so the
- * embedded Notes inherit it only from a receiver that processes the page as
- * one document — `getActorPosts` compacts each entry on its own and does not.
+ * On the outbox page and featured collection the context sits on the outer
+ * collection object, so the embedded Notes inherit it only from a receiver that
+ * processes the collection as one document — `getActorPosts` compacts each
+ * entry on its own and does not.
  */
 export const NOTE_ACTIVITY_CONTEXT = [ACTIVITY_STREAM_URL, NOTE_CONTEXT_TERMS]

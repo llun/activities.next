@@ -134,6 +134,7 @@ export type {
   IncreaseHashtagCounterParams,
   IncrementPollChoiceVotesParams,
   PinStatusParams,
+  PinStatusResult,
   RebloggedByAccount,
   RecordPollVotesParams,
   StatusDeletionDatabase,

@@ -1,6 +1,7 @@
 import type {
   GetPinnedStatusIdsParams,
-  PinStatusParams
+  PinStatusParams,
+  PinStatusResult
 } from '@/lib/database/domains/status/types'
 import { type Db, inTransaction } from '@/lib/database/kysely'
 import { forUpdate } from '@/lib/database/kysely/dialect'
@@ -8,14 +9,16 @@ import { selectInChunks } from '@/lib/database/kysely/inList'
 
 // An actor's pinned statuses (`status_pins`, keyed by actorId and statusId).
 
-// Pins `statusId` for `actorId`. With `maxPinnedStatuses`, the actor's row is
-// locked first so concurrent pins of the same actor count one after the
-// other: an existing pin is reported as pinned, and a new one is refused
-// (false) once the actor has that many.
-export const pinStatus = async (
+// Pins `statusId` for `actorId` and reports both whether the status is pinned
+// after the call (`pinned`) and whether this call inserted a new row (`isNew`).
+// With `maxPinnedStatuses`, the actor's row is locked first so concurrent pins
+// of the same actor count one after the other: an existing pin is reported as
+// `{ pinned: true, isNew: false }`, and a new one is refused (`pinned: false`)
+// once the actor has that many.
+export const pinStatusWithResult = async (
   db: Db,
   { actorId, statusId, maxPinnedStatuses }: PinStatusParams
-): Promise<boolean> => {
+): Promise<PinStatusResult> => {
   // The NOT NULL columns refuse a missing key at the insert, but the capped
   // path's lookups would bind it as NULL, lock nothing and count nothing on
   // the way there, so a missing key is refused before any query.
@@ -41,17 +44,19 @@ export const pinStatus = async (
         .where('statusId', '=', statusId)
         .limit(1)
         .executeTakeFirst()
-      if (existingPin) return true
+      if (existingPin) return { pinned: true, isNew: false }
 
       const countRow = await trx
         .selectFrom('status_pins')
         .select((eb) => eb.fn.countAll().as('count'))
         .where('actorId', '=', actorId)
         .executeTakeFirst()
-      if (Number(countRow?.count ?? 0) >= maxPinnedStatuses) return false
+      if (Number(countRow?.count ?? 0) >= maxPinnedStatuses) {
+        return { pinned: false, isNew: false }
+      }
     }
 
-    await trx
+    const insertResult = await trx
       .insertInto('status_pins')
       .values({
         actorId,
@@ -62,20 +67,29 @@ export const pinStatus = async (
       .onConflict((conflict) =>
         conflict.columns(['actorId', 'statusId']).doNothing()
       )
-      .execute()
-    return true
+      .executeTakeFirst()
+    return {
+      pinned: true,
+      isNew: Number(insertResult.numInsertedOrUpdatedRows ?? 0) > 0
+    }
   })
 }
+
+export const pinStatus = async (
+  db: Db,
+  params: PinStatusParams
+): Promise<boolean> => (await pinStatusWithResult(db, params)).pinned
 
 export const unpinStatus = async (
   db: Db,
   { actorId, statusId }: PinStatusParams
-): Promise<void> => {
-  await db
+): Promise<boolean> => {
+  const { numDeletedRows } = await db
     .deleteFrom('status_pins')
     .where('actorId', '=', actorId)
     .where('statusId', '=', statusId)
-    .execute()
+    .executeTakeFirst()
+  return Number(numDeletedRows) > 0
 }
 
 // The actor's pinned status ids, newest pin first (ties by statusId,

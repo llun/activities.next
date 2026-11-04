@@ -444,7 +444,10 @@ a string>`, which returns an empty page, so that poller never detects new
   `Link` pagination headers (remote ids cannot cursor the local store), and
   the fetched statuses are display-only — they are not persisted. Acting on
   one of them stores it first; see
-  [Status Posts & Actions](#agents-status-posts-actions).
+  [Status Posts & Actions](#agents-status-posts-actions). Inbound remote `Add`
+  and `Remove` activities targeting an actor's `featured` collection are not
+  ingested yet, so `?pinned=true` reflects local `status_pins` rows only (local
+  pins federate outbound via `featured` and `Add`/`Remove`).
 
 ### Lists & imports
 
@@ -2018,6 +2021,28 @@ open state; deleted polls are skipped. Queueing this delayed update is best
 effort and logs an error without failing the saved create or edit. Automatic
 expiration delivery requires a queue that supports delayed messages: in-process
 NoQueue drops them. Live vote-count updates are not federated separately.
+
+Local pinned statuses federate through the actor's `featured` collection and
+outbound `Add`/`Remove` activities:
+
+- `GET /api/users/:username/collections/featured` serves an `OrderedCollection`
+  with `@context: NOTE_ACTIVITY_CONTEXT` containing up to `MAX_PINNED_STATUSES`
+  (5) of the local actor's pinned statuses that satisfy
+  `isStatusPubliclyReadable` (public or unlisted `Note`/`Question` objects built
+  by `toActivityPubObject`, newest pin first, excluding followers-only and
+  direct posts, `Announce`s, and deleted statuses), with `totalItems` matching
+  the served items.
+- `POST /api/v1/statuses/:id/pin` and `POST /api/v1/statuses/:id/unpin` queue
+  `SendFeaturedStatusJob` (`publishStatusPin`) only when the pin state changed
+  (`pinStatusWithResult.isNew` on pin, or `unpinStatus` deleting a row on
+  unpin). The job fans out an `Add` or `Remove` activity
+  (`id: <statusId>#pin/<timestamp>` or `<statusId>#unpin/<timestamp>`,
+  `object: <statusId>`, `target: <actorId>/collections/featured`) via
+  `DeliverActivityJob` to the post's own audience (followers, plus accepted
+  relays only for a listed public post), and only while the post is publicly
+  readable: a followers-only pin is not in the collection and federates nothing.
+  Queueing is best effort and logs errors without failing the pin/unpin
+  response; inbound remote `Add`/`Remove` activities are not handled.
 
 Every surface that renders a status post — the home timeline, profiles, lists,
 favourites, bookmarks, hashtags, search, and the status **detail**
