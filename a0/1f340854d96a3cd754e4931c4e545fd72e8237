@@ -1,0 +1,83 @@
+app/api/v1/statuses/[id]/route.update.routeMap.test.ts
+  s_04ac36afd169cb::t_0308ca97cdc19e 1-142,146-164,167,174-250,252-328,332-338
+  s_04ac36afd169cb::t_c399bcfa1d842f 168-173
+  s_04ac36afd169cb::t_06b73d48485a66 251
+  s_04ac36afd169cb::t_a96c2053a78992 329-331
+  s_04ac36afd169cb::t_e244d811558fba 143-145,165-166
+lib/services/gallery/galleryMediaFacets.test.ts
+  s_04ac36afd169cb::t_d7b284ff11c13d 576-577
+lib/jobs/regenerateFitnessMapsJob.test.ts
+  s_04ac36afd169cb::t_83971bf63d8b53 168-169,239-240,303,307
+lib/database/migrate/addAttachmentsIsRouteMap.test.ts
+  s_04ac36afd169cb::t_56aff67bf61229 1-246
+lib/database/kysely/db.ts
+  s_04ac36afd169cb::t_15a9d480e578d6 231
+lib/database/domains/gallery/galleryMediaFilters.test.ts
+  s_04ac36afd169cb::t_d7b284ff11c13d 1080-1081,1085-1086,1108,1123-1124,1129-1132
+migrations/names.ts
+  s_04ac36afd169cb::t_f8fec00890465c 20-21
+migrations/index.ts
+  s_04ac36afd169cb::t_f8fec00890465c 20,46-47
+app/(timeline)/[actor]/[status]/ActivityPostFrame.tsx
+  s_04ac36afd169cb::t_e1dd74dc122f09 46-48
+  s_04ac36afd169cb::t_7f98a809bad068 45,54-55
+app/api/v1/statuses/[id]/route.update.media.test.ts
+  s_04ac36afd169cb::t_d7cf1cfd98309a 270-272,281,292-293
+migrations/20261104133123_add_attachments_is_route_map.ts
+  s_04ac36afd169cb::t_d1a95d76af7ac9 1,3-5,7-13,15-16,18-86,89-91
+  s_04ac36afd169cb::t_e60f2e5d09c8fa 2,6,14,17,87-88
+lib/types/domain/attachment.ts
+  s_04ac36afd169cb::t_23855720cb380b 56-58
+lib/jobs/processFitnessFileJob.routeMap.test.ts
+  s_04ac36afd169cb::t_83971bf63d8b53 177,180
+app/(timeline)/[actor]/[status]/activityPageHelpers.test.ts
+  s_04ac36afd169cb::t_b633266da5cb31 110-122
+lib/types/domain/attachment.test.ts
+  s_04ac36afd169cb::t_8cfa032d8fc7b0 32-37
+migrations/schema.sqlite.sql
+  s_04ac36afd169cb::t_78ba1fd1a917d2 314
+docs/mastodon-api-compatibility.md
+  s_04ac36afd169cb::t_e93e60f0a43406 762
+lib/database/domains/status/hydration.ts
+  s_04ac36afd169cb::t_a1ee554873a0ef 115-120,124-136
+lib/database/domains/media/writes.ts
+  s_04ac36afd169cb::t_23855720cb380b 96-97,116,138
+lib/database/domains/media/queries.ts
+  s_04ac36afd169cb::t_23855720cb380b 91-93,137-138
+lib/jobs/processFitnessFileJob.ts
+  s_04ac36afd169cb::t_23855720cb380b 716
+app/api/v1/statuses/[id]/route.ts
+  s_04ac36afd169cb::t_7f98a809bad068 570-572,586-588
+lib/database/domains/gallery/galleryDayStats.test.ts
+  s_04ac36afd169cb::t_d7b284ff11c13d 536-537
+lib/database/domains/media/types.ts
+  s_04ac36afd169cb::t_23855720cb380b 102
+docs/fitness-file-storage.md
+  s_04ac36afd169cb::t_3dc56e36c817f9 356
+migrations/schema.sql
+  s_04ac36afd169cb::t_78e7cb62d266e1 215-216
+lib/database/domains/gallery/activityPhotos.ts
+  s_04ac36afd169cb::t_de53de63b1e7b6 6-10,27
+lib/database/domains/status/statusWriteQueries.test.ts
+  s_04ac36afd169cb::t_d254c2d36e5e06 1746,1780-1801
+lib/jobs/regenerateFitnessMapsJob.ts
+  s_04ac36afd169cb::t_23855720cb380b 252
+lib/services/fitness-files/mapAttachments.ts
+  s_04ac36afd169cb::t_23855720cb380b 7-10,16,33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a01f340854d96a3cd754e4931c4e545fd72e8237",
+  "prompts": {},
+  "sessions": {
+    "s_04ac36afd169cb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "577caac6-7a12-41cb-a74d-3d29dc7cfcac",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
