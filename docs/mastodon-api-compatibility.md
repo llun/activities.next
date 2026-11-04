@@ -800,11 +800,13 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   records a history entry and federates one Update. A fitness post's
   generated route map is the exception: it keeps its `Activity route map`
   name through every edit, with `media_ids` or `media_attributes`, because
-  map regeneration and replacement find the map by that name (see
-  **Processing Pipeline** in `docs/fitness-file-storage.md`); a description
-  sent for it is stored on its media row only. The edit recognises the map by
-  that name or by a fitness file's `mapImagePath`, so a map an earlier edit
-  renamed gets the name back while it is still at its file's `mapImagePath`.
+  the post publishes that name as the map's alt text and the fitness post
+  and the gallery tell the map from a photo by it (see **Processing
+  Pipeline** in `docs/fitness-file-storage.md`); a description sent for it is
+  stored on its media row only. The edit recognises the map by that name or
+  by a fitness file's `mapImagePath` (at its url or among its media's files),
+  so a map an earlier edit renamed gets the name back while it is still its
+  file's map.
   The owner's `details` (camelCase on the way out) also reports what the
   lookups found: `subject.taxonKey`, `subject.taxonPath`,
   `subject.iucnCategory`, `subject.threatStatus` (`threatened`,

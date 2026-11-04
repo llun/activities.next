@@ -1,5 +1,7 @@
+import { getMediaEditFilePathsFromFiles } from '@/lib/database/domains/mediaEdit/queries'
 import { Database } from '@/lib/database/types'
 import { deleteMediaFile } from '@/lib/services/medias'
+import { toCanonicalMediaId } from '@/lib/services/statuses/mediaIds'
 import { ROUTE_MAP_ATTACHMENT_NAME } from '@/lib/types/domain/routeMap'
 import { getAttachmentMediaPath } from '@/lib/utils/getAttachmentMediaPath'
 import { logger } from '@/lib/utils/logger'
@@ -9,43 +11,125 @@ export { ROUTE_MAP_ATTACHMENT_NAME }
 
 /**
  * Whether an attachment a status shows is a generated route map: it carries
- * the route map name, or its file is the map a fitness file of that status
- * records in `mapImagePath` (the signal hydration and the gallery use). The
- * path also recognises a map whose name an edit rewrote before edits kept it.
+ * the route map name, or a fitness file of that status records its file in
+ * `mapImagePath` — the attachment's own url, or (with `mediaFilePaths` from
+ * getMediaFilePaths) one of the files of the media behind it, as
+ * findRouteMapAttachments matches it. The path also recognises a map whose
+ * name an edit rewrote before edits kept it.
  */
 export const isRouteMapAttachment = (
-  attachment: { name?: string | null; url: string },
-  mapImagePaths: ReadonlyArray<string | null | undefined>
-) =>
-  attachment.name === ROUTE_MAP_ATTACHMENT_NAME ||
-  mapImagePaths.some(
+  attachment: { name?: string | null; url: string; mediaId?: string | null },
+  mapImagePaths: ReadonlyArray<string | null | undefined>,
+  mediaFilePaths?: ReadonlyMap<string, ReadonlySet<string>>
+) => {
+  if (attachment.name === ROUTE_MAP_ATTACHMENT_NAME) return true
+  const mediaFiles = attachment.mediaId
+    ? mediaFilePaths?.get(toCanonicalMediaId(String(attachment.mediaId)))
+    : undefined
+  return mapImagePaths.some(
     (mapImagePath) =>
       Boolean(mapImagePath) &&
-      getAttachmentMediaPath(attachment.url) === mapImagePath
+      (getAttachmentMediaPath(attachment.url) === mapImagePath ||
+        Boolean(mediaFiles?.has(mapImagePath as string)))
   )
+}
+
+/**
+ * Every stored file each media keeps, by canonical media id: its live file
+ * (read only for media of `accountId`) and the files its photo-editor edits
+ * keep. That is where a route map's recorded `mapImagePath` survives once the
+ * map is re-rendered: "Update posts" moves the attachment's url to the render
+ * while the uploaded original stays in the edit's original slot, and a
+ * "Gallery only" revert makes that original the live file again while the
+ * post keeps the render.
+ */
+export const getMediaFilePaths = async ({
+  database,
+  accountId,
+  mediaIds
+}: {
+  database: Database
+  accountId?: string | null
+  mediaIds: string[]
+}) => {
+  const paths = new Map<string, Set<string>>()
+  const ids = [...new Set(mediaIds.map(toCanonicalMediaId))]
+  if (ids.length === 0) return paths
+
+  const add = (mediaId: string, filePaths: string[]) => {
+    const key = toCanonicalMediaId(mediaId)
+    const set = paths.get(key) ?? new Set<string>()
+    filePaths.forEach((path) => set.add(path))
+    paths.set(key, set)
+  }
+  const readLive = async () => {
+    const media = accountId
+      ? await database.getMediaByIdsForAccount({ mediaIds: ids, accountId })
+      : []
+    media.forEach((item) => add(item.id, [item.original.path]))
+    return media
+      .map((item) => `${item.id}:${item.edit?.version ?? 0}`)
+      .sort()
+      .join()
+  }
+
+  // The live file and the edit files are two statements, and a save or revert
+  // committing between them moves the original from one to the other unseen
+  // (a revert: live still the render, original slot already gone). Every save
+  // and revert moves the edit version, so the reads are re-taken until the
+  // versions stand still around the edit-files read.
+  let versions = await readLive()
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const editFiles = await database.listMediaEditFiles({ mediaIds: ids })
+    editFiles.forEach((file) =>
+      add(file.mediaId, getMediaEditFilePathsFromFiles([file]))
+    )
+    const after = await readLive()
+    if (after === versions) break
+    versions = after
+  }
+  return paths
+}
 
 /**
  * The route map attachments a fitness file owns on its status.
  *
- * Matched by name AND by the file's recorded `mapImagePath`, so a status
- * carrying two activities (a merged same-ride post) never has one file's
- * regeneration delete the other's map.
+ * Matched by the file's recorded `mapImagePath` against the attachment's own
+ * url (an untouched map) and the files of the media behind it (a map the
+ * photo editor re-rendered, see getMediaFilePaths). Never by the name: edits
+ * keep it now, but one made before they did may have rewritten it, and a
+ * photo can carry it as alt text. A status carrying two
+ * activities (a merged same-ride post) has one map per file, each at its own
+ * path, so one file's regeneration never deletes the other's map.
  */
 export const findRouteMapAttachments = async ({
   database,
+  accountId,
   statusId,
   mapImagePath
 }: {
   database: Database
+  accountId?: string | null
   statusId: string
   mapImagePath?: string | null
 }) => {
   if (!mapImagePath) return []
 
-  return (await database.getAttachmentsWithMedia({ statusId })).filter(
+  const attachments = await database.getAttachmentsWithMedia({ statusId })
+  const mediaPaths = await getMediaFilePaths({
+    database,
+    accountId,
+    mediaIds: getAttachmentMediaIds(attachments)
+  })
+  return attachments.filter(
     (attachment) =>
-      attachment.name === ROUTE_MAP_ATTACHMENT_NAME &&
-      getAttachmentMediaPath(attachment.url) === mapImagePath
+      getAttachmentMediaPath(attachment.url) === mapImagePath ||
+      Boolean(
+        attachment.mediaId &&
+        mediaPaths
+          .get(toCanonicalMediaId(attachment.mediaId))
+          ?.has(mapImagePath)
+      )
   )
 }
 

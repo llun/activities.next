@@ -19,6 +19,7 @@ import {
   mockDeleteMediaFile,
   mockGenerateMapImage,
   mockParseFitnessFile,
+  mockSaveMedia,
   mockSaveMediaImageRendition,
   resetProcessMocks
 } from './processFitnessFileJob.testUtils'
@@ -242,6 +243,142 @@ describe('processFitnessFileJob', () => {
         getQueue().publish as jest.MockedFunction<Queue['publish']>
       ).mock.calls.filter(([message]) => message.name === SEND_NOTE_JOB_NAME)
       expect(sendNoteCalls).toHaveLength(1)
+    })
+
+    // The queued-import branch (a stale job for a non-primary file whose
+    // primary already completed) reads the map back off the post to put it in
+    // the first-import email. A map the photo editor re-rendered is attached
+    // at its render, not at the path the fitness file recorded, so the lookup
+    // has to go through the media's files.
+    it('emails the re-rendered map when a stale job delivers the first-import side effects', async () => {
+      const { statusId, fitnessFileId: oldPrimaryId } =
+        await createStatusWithFitnessFile({ text: 'Morning run' })
+      const newPrimary = await database.createFitnessFile({
+        actorId: actor.id,
+        statusId,
+        path: 'fitness/wahoo-rerendered-map-primary.fit',
+        fileName: 'wahoo-rerendered-map-primary.fit',
+        fileType: 'fit',
+        mimeType: 'application/vnd.ant.fit',
+        bytes: 4_096
+      })
+      expect(newPrimary).toBeDefined()
+      await database.assignFitnessFilesToImportedStatus({
+        fitnessFileIds: [oldPrimaryId, newPrimary!.id],
+        primaryFitnessFileId: newPrimary!.id,
+        statusId
+      })
+      arrangeRouteWithMap()
+
+      // The job's map media has to be a real row for the photo editor to edit,
+      // so the mocked saveMedia hands back a media created here.
+      const mapMedia = await database.createMedia({
+        actorId: actor.id,
+        original: {
+          path: 'medias/route-map.webp',
+          bytes: 1000,
+          mimeType: 'image/webp',
+          metaData: { width: 800, height: 600 }
+        }
+      })
+      expect(mapMedia).toBeDefined()
+      mockSaveMedia.mockResolvedValue({
+        id: mapMedia!.id,
+        type: 'image',
+        mime_type: 'image/webp',
+        url: 'https://llun.test/api/v1/files/medias/route-map.webp',
+        preview_url: null,
+        text_url: null,
+        remote_url: null,
+        meta: {
+          original: {
+            width: 800,
+            height: 600,
+            size: '800x600',
+            aspect: 1.3333333333
+          }
+        },
+        description: 'Route map',
+        blurhash: null
+      })
+
+      await processFitnessFileJob(database, {
+        id: 'job-rerendered-map-primary',
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: {
+          actorId: actor.id,
+          statusId,
+          fitnessFileId: newPrimary!.id,
+          publishSendNote: false,
+          notifyOnComplete: false
+        }
+      })
+
+      const imported = await database.getStatus({
+        statusId,
+        withReplies: false
+      })
+      if (imported?.type !== StatusType.enum.Note) {
+        fail('Expected a note status')
+      }
+      const mapAttachment = imported.attachments.find(
+        (attachment) => attachment.name === ROUTE_MAP_ATTACHMENT_NAME
+      )
+      expect(mapAttachment).toBeDefined()
+      expect(mapAttachment!.mediaId).toBe(mapMedia!.id)
+
+      // The owner re-rendered the map and chose "Update posts": the post now
+      // shows the render while the fitness file still records the original.
+      const renderPath = 'medias/edited-route-map.webp'
+      const edited = await database.applyMediaEdit({
+        mediaId: mapMedia!.id,
+        accountId: actor.account!.id,
+        baseVersion: 0,
+        saveId: 'route-map-edit',
+        recipe: '{"v":1}',
+        render: {
+          path: renderPath,
+          bytes: 300,
+          mimeType: 'image/webp',
+          width: 800,
+          height: 600,
+          blurhash: null,
+          focus: null
+        }
+      })
+      expect(edited.status).toBe('ok')
+      await database.deleteAttachmentsByIds({
+        attachmentIds: [mapAttachment!.id]
+      })
+      await database.createAttachment({
+        actorId: actor.id,
+        statusId,
+        mediaType: 'image/webp',
+        url: `https://llun.test/api/v1/files/${renderPath}`,
+        width: 800,
+        height: 600,
+        name: 'Edited map',
+        mediaId: mapMedia!.id
+      })
+
+      await processFitnessFileJob(database, {
+        id: 'job-rerendered-map-stale-primary',
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: {
+          actorId: actor.id,
+          statusId,
+          fitnessFileId: oldPrimaryId,
+          publishSendNote: true,
+          notifyOnComplete: true
+        }
+      })
+
+      expect(mockSendNotificationAlerts).toHaveBeenCalledTimes(1)
+      const { html } =
+        mockSendNotificationAlerts.mock.calls[0][0].events[0].emailContent
+      expect(html).toContain(
+        `<img src="https://llun.test/api/v1/files/${renderPath}"`
+      )
     })
 
     it('tells the actor when a first import completes', async () => {

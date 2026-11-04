@@ -13,9 +13,9 @@ import { ROUTE_MAP_ATTACHMENT_NAME } from '@/lib/types/domain/routeMap'
  * The map is recognised by the file's recorded `mapImagePath` (what hydration
  * uses) as well as by its name: post edits keep the name now, but an edit that
  * resent media_ids, or set the map's alt text through media_attributes, used
- * to rename the attachment; such a map still at its file's `mapImagePath` keeps
- * the wrong name until an edit of its post sends media_ids or media_attributes
- * again, and one no longer at it keeps it for good. The path is matched as
+ * to rename the attachment; such a map keeps the wrong name until an edit of
+ * its post sends media_ids or media_attributes again (or for good, once a
+ * regeneration has moved `mapImagePath` to a new map). The path is matched as
  * a url suffix with substr, not LIKE, so `%` and `_` in a path are not
  * wildcards.
  * shortcut: a url that percent-encodes the path is not matched here, generated

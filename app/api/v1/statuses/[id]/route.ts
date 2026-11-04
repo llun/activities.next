@@ -12,6 +12,7 @@ import {
 import { deleteEmailMapImage } from '@/lib/services/fitness-files/emailMapImage'
 import {
   ROUTE_MAP_ATTACHMENT_NAME,
+  getMediaFilePaths,
   isRouteMapAttachment
 } from '@/lib/services/fitness-files/mapAttachments'
 import {
@@ -386,6 +387,16 @@ export const PUT = traceApiRoute(
                 )
               ]
 
+        // Read once for both checks that need them: the media ceiling below
+        // and keeping the route map's name further down. The files of the
+        // media sent are kept from the ceiling check for the same reason.
+        let statusFitnessFiles: FitnessFile[] | undefined
+        const getStatusFitnessFiles = async () =>
+          (statusFitnessFiles ??= await database.getFitnessFilesByStatus({
+            statusId
+          }))
+        let sentMediaFilePaths: Map<string, Set<string>> | undefined
+
         // A fitness post keeps one slot for its route map, as its create did
         // (getMaxStatusMediaAttachments): processFitnessFileJob attaches the
         // map after the create, and a retry or a map regeneration can attach
@@ -395,21 +406,15 @@ export const PUT = traceApiRoute(
         // file the map was stored at, among the files of the media sent: the
         // media's live file, or, once the photo editor has re-rendered it,
         // one its edits keep (the uploaded original stays in the original
-        // slot, and a revert makes it the live file again). Not by the name
-        // (edits keep it now, but one made before they did may have renamed
-        // the map), nor by the attachment's url, which "Update posts" moves to
-        // the render. Every id sent counts: a second
+        // slot, and a revert makes it the live file again), read by
+        // getMediaFilePaths, which the map jobs share. Not by the name (edits
+        // keep it now, but one made before they did may have renamed the map),
+        // nor by the attachment's url, which "Update posts" moves to the
+        // render. Every id sent counts: a second
         // spelling of a media new to the status becomes a row of its own, and
         // for media the post already shows the count only errs on the safe
         // side. Checked before any media row is written, so a refused edit
         // changes nothing.
-        // Read once for both checks that need them: this media ceiling and
-        // keeping the route map's name below.
-        let statusFitnessFiles: FitnessFile[] | undefined
-        const getStatusFitnessFiles = async () =>
-          (statusFitnessFiles ??= await database.getFitnessFilesByStatus({
-            statusId
-          }))
         if (resolvedMediaIds !== undefined && existingStatus.fitness) {
           const routeMapPaths = new Set(
             (await getStatusFitnessFiles())
@@ -418,27 +423,15 @@ export const PUT = traceApiRoute(
           )
           let sentRouteMaps = 0
           if (routeMapPaths.size > 0) {
-            const sentMediaIds = [
-              ...new Set(
-                resolvedMediaIds.map((mediaId) =>
-                  toCanonicalMediaId(String(mediaId))
-                )
-              )
-            ]
-            const accountId = currentActor.account?.id
-            const [sentMedia, editedFilePaths] = await Promise.all([
-              accountId
-                ? database.getMediaByIdsForAccount({
-                    mediaIds: sentMediaIds,
-                    accountId
-                  })
-                : Promise.resolve([]),
-              database.getMediaEditFilePaths({ mediaIds: sentMediaIds })
-            ])
-            const sentFilePaths = new Set([
-              ...sentMedia.map((media) => media.original.path),
-              ...editedFilePaths
-            ])
+            const sentMedia = await getMediaFilePaths({
+              database,
+              accountId: currentActor.account?.id,
+              mediaIds: resolvedMediaIds.map(String)
+            })
+            sentMediaFilePaths = sentMedia
+            const sentFilePaths = new Set(
+              [...sentMedia.values()].flatMap((paths) => [...paths])
+            )
             sentRouteMaps = [...routeMapPaths].filter((path) =>
               sentFilePaths.has(path)
             ).length
@@ -581,23 +574,36 @@ export const PUT = traceApiRoute(
         // was cancelled), so only the photos this request describes take
         // their alt text from the row; every other photo keeps the post's.
         //
-        // A generated route map keeps its name whatever the request says: map
-        // regeneration and replacement (`findRouteMapAttachments`) only find a
-        // map named `ROUTE_MAP_ATTACHMENT_NAME`, the name is one of the signals
-        // the photo strip and the gallery's route-map filters use, and the
-        // map's media row usually has no description at all. The map's alt
+        // A generated route map keeps its name whatever the request says: the
+        // post publishes `ROUTE_MAP_ATTACHMENT_NAME` as the map's alt text, the
+        // name is one of the signals the photo strip and the gallery's
+        // route-map filters use, and the map's media row usually has no
+        // description at all. The map's alt
         // text lives on that media row (where the generated route description
         // goes), so a `media_attributes` description still reaches the row
         // above. A map is recognised by its name or by the `mapImagePath` a
-        // fitness file of this status records, so a map an earlier edit
-        // renamed, while still at that path, gets its name back from any edit
-        // that resolves attachments.
+        // fitness file of this status records — at its url or among its
+        // media's live and photo-editor files, as findRouteMapAttachments
+        // matches it — so a map an earlier edit renamed, while a file of it is
+        // still at that path, gets its name back from any edit that resolves
+        // attachments.
         const mapImagePaths =
           resolvedAttachments && resolvedAttachments.length > 0
             ? (await getStatusFitnessFiles()).map(
                 (fitnessFile) => fitnessFile.mapImagePath
               )
             : []
+        const mediaFilePaths =
+          resolvedAttachments && mapImagePaths.some(Boolean)
+            ? (sentMediaFilePaths ??
+              (await getMediaFilePaths({
+                database,
+                accountId: currentActor.account?.id,
+                mediaIds: resolvedAttachments.map((attachment) =>
+                  String(attachment.id)
+                )
+              })))
+            : undefined
         const attachments =
           resolvedAttachments === undefined || resolvedAttachments === null
             ? resolvedAttachments
@@ -611,7 +617,9 @@ export const PUT = traceApiRoute(
                 )
                 if (!existing) return attachment
                 const kept = withStatusAttachmentFile(attachment, existing)
-                if (isRouteMapAttachment(existing, mapImagePaths)) {
+                if (
+                  isRouteMapAttachment(existing, mapImagePaths, mediaFilePaths)
+                ) {
                   return { ...kept, name: ROUTE_MAP_ATTACHMENT_NAME }
                 }
                 if (resolvedMediaIds !== undefined) return kept
