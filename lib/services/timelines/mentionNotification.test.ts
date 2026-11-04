@@ -17,7 +17,10 @@ import { Actor, getActorURL } from '@/lib/types/domain/actor'
 import { Status } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
-import { notifyRemoteReplyAndMention } from './mentionNotification'
+import {
+  notifyRemoteMention,
+  notifyRemoteReplyAndMention
+} from './mentionNotification'
 
 vi.mock('@/lib/services/notifications/sendNotificationAlerts', () => ({
   sendNotificationAlerts: vi.fn()
@@ -679,5 +682,59 @@ describe('notifyRemoteReplyAndMention', () => {
       await notificationsForStatus(database, actor.id, replyStatus.id)
     ).toHaveLength(0)
     expect(mockSendAlerts).not.toHaveBeenCalled()
+  })
+
+  describe('notifyRemoteMention', () => {
+    it('creates a mention-only notification with email alert and skips duplicate calls', async () => {
+      const actor = (await database.getActorFromId({ id: ACTOR2_ID })) as Actor
+      const parentPost = await createNote(
+        database,
+        ACTOR2_ID,
+        'Parent post by actor2',
+        `${ACTOR2_ID}/followers`
+      )
+      const remoteReply = await createNote(
+        database,
+        EXTERNAL_ACTOR1,
+        `Edited reply mentioning ${getActorURL(actor)}`,
+        EXTERNAL_ACTOR1_FOLLOWERS,
+        parentPost.id
+      )
+
+      await notifyRemoteMention({
+        database,
+        currentActor: actor,
+        status: remoteReply
+      })
+      await notifyRemoteMention({
+        database,
+        currentActor: actor,
+        status: remoteReply
+      })
+
+      const forStatus = await notificationsForStatus(
+        database,
+        actor.id,
+        remoteReply.id
+      )
+      expect(forStatus).toHaveLength(1)
+      expect(forStatus[0].type).toBe(NotificationType.enum.mention)
+      expect(mockSendAlerts).toHaveBeenCalledTimes(1)
+      expect(mockSendAlerts).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorId: actor.id,
+          sourceActorId: EXTERNAL_ACTOR1,
+          statusId: remoteReply.id,
+          events: [
+            expect.objectContaining({
+              type: NotificationType.enum.mention,
+              emailContent: expect.objectContaining({
+                subject: expect.stringContaining('mentions you in')
+              })
+            })
+          ]
+        })
+      )
+    })
   })
 })

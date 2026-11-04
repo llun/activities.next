@@ -1,4 +1,11 @@
-import { persistEmojiTagsForStatus } from '@/lib/actions/createNote'
+import {
+  notifyNewLocalMentions,
+  persistEmojiTagsForStatus,
+  resolveStatusMentions,
+  runBestEffortStep,
+  settleAll
+} from '@/lib/actions/createNote'
+import { normalizeHashtagSearchName } from '@/lib/database/domains/search/rows'
 import { Database } from '@/lib/database/types'
 import { SEND_UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { persistDetectedLanguage } from '@/lib/services/language-detection'
@@ -6,11 +13,15 @@ import { syncStatusLinkPreview } from '@/lib/services/link-previews/syncStatusLi
 import { withAttachmentMediaMetadata } from '@/lib/services/medias/attachmentMediaMetadata'
 import { notifyQuotedStatusUpdate } from '@/lib/services/notifications/notifyQuotedStatusUpdate'
 import { getQueue } from '@/lib/services/queue'
+import { isPublicOrUnlisted } from '@/lib/services/statusAccess'
 import { addStatusToTimelines } from '@/lib/services/timelines'
+import { Mention } from '@/lib/types/activitypub'
 import { Actor } from '@/lib/types/domain/actor'
 import { PostBoxAttachment } from '@/lib/types/domain/attachment'
 import { StatusNote, StatusType } from '@/lib/types/domain/status'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
+import { getVisibility } from '@/lib/utils/getVisibility'
+import { getHashtags } from '@/lib/utils/text/getHashtags'
 import { withSpan } from '@/lib/utils/trace'
 
 interface UpdateNoteFromUserInput {
@@ -82,10 +93,14 @@ export const updateNoteFromUserInput = async ({
       return null
     }
 
-    // Re-sync emoji tags when the text, summary, or attachments change so newly
-    // added `:shortcode:` tokens federate and removed ones stop federating, then
-    // re-fetch so the returned status and the timeline cache reflect the
-    // re-synced tags (mirroring createNoteFromUserInput).
+    const previousHashtagCounts = new Map<string, number>()
+    let currentHashtagNames: string[] = []
+    let newlyMentioned: Mention[] = []
+
+    // Re-sync tags when the text, summary, or attachments change so newly added
+    // emoji, mentions and hashtags federate and removed ones stop federating,
+    // then re-fetch so the returned status and the timeline cache reflect the
+    // re-synced tags and recipients (mirroring createNoteFromUserInput).
     if (
       text !== undefined ||
       summary !== undefined ||
@@ -112,7 +127,119 @@ export const updateNoteFromUserInput = async ({
         ]
       })
 
-      if (text !== undefined) {
+      if (text !== undefined && updatedStatus.type === StatusType.enum.Note) {
+        for (const tag of updatedStatus.tags) {
+          if (tag.type !== 'hashtag') continue
+          const name = normalizeHashtagSearchName(tag.name)
+          if (name) {
+            previousHashtagCounts.set(
+              name,
+              (previousHashtagCounts.get(name) ?? 0) + 1
+            )
+          }
+        }
+        const previousMentionActorIds = new Set(
+          updatedStatus.tags
+            .filter((tag) => tag.type === 'mention')
+            .map((tag) => tag.value)
+        )
+
+        const replyStatus = updatedStatus.reply
+          ? await database.getStatus({
+              statusId: updatedStatus.reply,
+              withReplies: false
+            })
+          : null
+        const currentVisibility = getVisibility(
+          updatedStatus.to,
+          updatedStatus.cc,
+          currentActor.followersUrl
+        )
+        const {
+          effectiveVisibility,
+          recipientMentions,
+          mentionTags,
+          notificationMentions
+        } = await resolveStatusMentions({
+          text,
+          currentActor,
+          replyStatus,
+          visibility: currentVisibility
+        })
+        const hashtags = getHashtags(text, currentActor.domain)
+        currentHashtagNames = [
+          ...new Set(
+            hashtags
+              .map((hashtag) => normalizeHashtagSearchName(hashtag.name))
+              .filter(Boolean)
+          )
+        ]
+        newlyMentioned = notificationMentions.filter(
+          (mention) => !previousMentionActorIds.has(mention.href)
+        )
+
+        await Promise.all([
+          database.deleteStatusTagsByType({ statusId, type: 'mention' }),
+          database.deleteStatusTagsByType({ statusId, type: 'hashtag' })
+        ])
+
+        // Add newly mentioned actors to the status's recipients the way create
+        // would address them (direct → to; otherwise cc) without removing
+        // existing recipients (removed mentions stay silent; access is not
+        // revoked by an edit). Self-mentions are never addressed. Run before
+        // inserting the new hashtag tags so updateNoteVisibility does not run
+        // an unguarded hashtag-search reindex ahead of the best-effort step.
+        const existingRecipients = new Set([
+          ...updatedStatus.to,
+          ...updatedStatus.cc
+        ])
+        const newRecipientActorIds = [
+          ...new Set(
+            recipientMentions
+              .map((mention) => mention.href)
+              .filter(
+                (href) =>
+                  href !== currentActor.id && !existingRecipients.has(href)
+              )
+          )
+        ]
+        if (newRecipientActorIds.length > 0) {
+          const nextTo =
+            effectiveVisibility === 'direct'
+              ? [...updatedStatus.to, ...newRecipientActorIds]
+              : updatedStatus.to
+          const nextCc =
+            effectiveVisibility === 'direct'
+              ? updatedStatus.cc
+              : [...updatedStatus.cc, ...newRecipientActorIds]
+          updatedStatus =
+            (await database.updateNoteVisibility({
+              statusId,
+              to: nextTo,
+              cc: nextCc
+            })) ?? updatedStatus
+        }
+
+        await settleAll([
+          ...mentionTags.map((mention) =>
+            database.createTag({
+              statusId,
+              name: mention.name || '',
+              value: mention.href,
+              type: 'mention'
+            })
+          ),
+          ...hashtags.map((hashtag) =>
+            database.createTag({
+              statusId,
+              name: hashtag.name,
+              value: hashtag.value,
+              type: 'hashtag',
+              skipSearchIndex: true
+            })
+          )
+        ])
+
         // Re-detect the content language alongside the edit; the previous
         // detection (if any) is stale once the text changes — persistDetectedLanguage
         // clears the old row when the new text no longer detects confidently.
@@ -127,6 +254,49 @@ export const updateNoteFromUserInput = async ({
       }
 
       updatedStatus = (await database.getStatus({ statusId })) ?? updatedStatus
+    }
+
+    if (text !== undefined) {
+      await runBestEffortStep(
+        statusId,
+        'hashtag counters and search',
+        async () => {
+          const currentSet = new Set(currentHashtagNames)
+          if (
+            isPublicOrUnlisted({
+              to: updatedStatus.to,
+              cc: updatedStatus.cc
+            })
+          ) {
+            for (const hashtag of currentHashtagNames) {
+              const delta = 1 - (previousHashtagCounts.get(hashtag) ?? 0)
+              for (let i = 0; i < delta; i++) {
+                await database.increaseHashtagCounter({ hashtag })
+              }
+              for (let i = 0; i > delta; i--) {
+                await database.decreaseHashtagCounter({ hashtag })
+              }
+            }
+            for (const [hashtag, count] of previousHashtagCounts) {
+              if (currentSet.has(hashtag)) continue
+              for (let i = 0; i < count; i++) {
+                await database.decreaseHashtagCounter({ hashtag })
+              }
+            }
+          }
+
+          const affected = [
+            ...new Set([
+              ...previousHashtagCounts.keys(),
+              ...currentHashtagNames
+            ])
+          ]
+          if (affected.length > 0) {
+            await database.indexHashtagSearchDocuments({ hashtags: affected })
+          }
+        },
+        'Status update'
+      )
     }
 
     await addStatusToTimelines(database, updatedStatus)
@@ -149,6 +319,26 @@ export const updateNoteFromUserInput = async ({
         sourceActorId: currentActor.id,
         sourceActor: currentActor
       })
+    }
+
+    if (
+      text !== undefined &&
+      newlyMentioned.length > 0 &&
+      updatedStatus.type === StatusType.enum.Note
+    ) {
+      const noteStatus = updatedStatus
+      await runBestEffortStep(
+        statusId,
+        'notifications',
+        () =>
+          notifyNewLocalMentions({
+            database,
+            currentActor,
+            status: noteStatus,
+            mentions: newlyMentioned
+          }),
+        'Status update'
+      )
     }
 
     // The edit may have added, changed or removed the link the card was for.

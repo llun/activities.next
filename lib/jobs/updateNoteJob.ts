@@ -21,6 +21,7 @@ import { syncStatusLinkPreview } from '@/lib/services/link-previews/syncStatusLi
 import { notifyQuotedStatusUpdate } from '@/lib/services/notifications/notifyQuotedStatusUpdate'
 import { getQueue } from '@/lib/services/queue'
 import { syncQuoteEdgeFromUpdate } from '@/lib/services/quotes/persistInboundQuoteEdge'
+import { notifyRemoteMention } from '@/lib/services/timelines/mentionNotification'
 import {
   ArticleContent,
   AudioContent,
@@ -32,6 +33,7 @@ import {
   VideoContent
 } from '@/lib/types/activitypub'
 import { UpdateAction } from '@/lib/types/activitypub/activities'
+import { Actor, getActorURL } from '@/lib/types/domain/actor'
 import { isFitnessAttachment } from '@/lib/types/domain/attachment'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import {
@@ -40,6 +42,7 @@ import {
 } from '@/lib/utils/activitypub'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import { createJobHandle } from './createJobHandle'
 import { createNoteJob } from './createNoteJob'
@@ -118,8 +121,20 @@ const syncRemoteTags = async ({
   database: Database
   note: BaseNote
   status: Status
-}) => {
-  if (status.isLocalActor || status.type !== StatusType.enum.Note) return
+}): Promise<{
+  previousMentionValues: Set<string>
+  hasNewMentionCandidates: boolean
+}> => {
+  if (status.isLocalActor || status.type !== StatusType.enum.Note) {
+    return {
+      previousMentionValues: new Set(),
+      hasNewMentionCandidates: false
+    }
+  }
+
+  const previousMentionValues = new Set(
+    status.tags.filter((tag) => tag.type === 'mention').map((tag) => tag.value)
+  )
 
   // Built from the raw stored names, without re-validating them, as
   // deleteStatus does: a legacy name the current rule rejects must still be
@@ -173,6 +188,109 @@ const syncRemoteTags = async ({
   const affected = [...new Set([...previousCounts.keys(), ...currentNames])]
   if (affected.length > 0) {
     await database.indexHashtagSearchDocuments({ hashtags: affected })
+  }
+
+  return {
+    previousMentionValues,
+    hasNewMentionCandidates: planned.some(
+      (tag) => tag.type === 'mention' && !previousMentionValues.has(tag.value)
+    )
+  }
+}
+
+const resolveLocalActorFromMentionHref = async (
+  database: Database,
+  href: string
+): Promise<Actor | null> => {
+  const byId = await database.getActorFromId({ id: href })
+  if (byId) return byId.privateKey ? byId : null
+
+  try {
+    const url = new URL(href)
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return null
+    const match = /^\/@([^/]+)$/.exec(url.pathname)
+    if (!match) return null
+    const byUsername = await database.getActorFromUsername({
+      username: decodeURIComponent(match[1]),
+      domain: url.host
+    })
+    return byUsername?.privateKey ? byUsername : null
+  } catch {
+    return null
+  }
+}
+
+const notifyNewRemoteMentions = async ({
+  database,
+  statusId,
+  previousMentionValues
+}: {
+  database: Database
+  statusId: string
+  previousMentionValues: ReadonlySet<string>
+}): Promise<Status | null> => {
+  try {
+    const updatedStatus = await database.getStatus({
+      statusId,
+      withReplies: false
+    })
+    if (
+      !updatedStatus ||
+      updatedStatus.isLocalActor ||
+      updatedStatus.type !== StatusType.enum.Note
+    ) {
+      return updatedStatus
+    }
+
+    const newMentionHrefs = [
+      ...new Set(
+        updatedStatus.tags
+          .filter(
+            (tag) =>
+              tag.type === 'mention' && !previousMentionValues.has(tag.value)
+          )
+          .map((tag) => tag.value)
+      )
+    ]
+    if (newMentionHrefs.length === 0) return updatedStatus
+
+    const seenActorIds = new Set<string>()
+    for (const href of newMentionHrefs) {
+      const localActor = await resolveLocalActorFromMentionHref(database, href)
+      if (!localActor || seenActorIds.has(localActor.id)) continue
+      seenActorIds.add(localActor.id)
+      if (
+        previousMentionValues.has(localActor.id) ||
+        previousMentionValues.has(getActorURL(localActor))
+      ) {
+        continue
+      }
+
+      try {
+        await notifyRemoteMention({
+          database,
+          currentActor: localActor,
+          status: updatedStatus
+        })
+      } catch (error) {
+        logger.error({
+          message:
+            'Failed to create remote edit mention notification; continuing',
+          statusId,
+          actorId: localActor.id,
+          err: toLoggableError(error)
+        })
+      }
+    }
+
+    return updatedStatus
+  } catch (error) {
+    logger.error({
+      message: 'Failed to process remote edit mentions; continuing',
+      statusId,
+      err: toLoggableError(error)
+    })
+    return null
   }
 }
 
@@ -272,7 +390,8 @@ export const updateNoteJob = createJobHandle(
     })
 
     await syncRemoteAttachments({ database, note, status: existingStatus })
-    await syncRemoteTags({ database, note, status: existingStatus })
+    const { previousMentionValues, hasNewMentionCandidates } =
+      await syncRemoteTags({ database, note, status: existingStatus })
 
     // A quoter re-federates its note as an Update once the quoted author's
     // Accept hands it a `quoteAuthorization` stamp, so an Update is the second
@@ -318,11 +437,20 @@ export const updateNoteJob = createJobHandle(
       declaredLanguage: language
     })
 
+    const statusAfterMentions = hasNewMentionCandidates
+      ? await notifyNewRemoteMentions({
+          database,
+          statusId: note.id,
+          previousMentionValues
+        })
+      : null
+
     // Re-run the preview card only for a real content edit, for the same reason
     // the quoter notification below is gated on it: a metadata-only Update
     // carries the same text and cannot have moved the link.
     if (contentChanged) {
-      const updatedStatus = await database.getStatus({ statusId: note.id })
+      const updatedStatus =
+        statusAfterMentions ?? (await database.getStatus({ statusId: note.id }))
       if (updatedStatus) {
         await syncStatusLinkPreview({ database, status: updatedStatus })
       }
