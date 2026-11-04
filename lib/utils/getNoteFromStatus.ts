@@ -4,7 +4,6 @@ import {
   getQuoteNoteFields
 } from '@/lib/activities/quoteNoteFields'
 import { getConfig } from '@/lib/config'
-import { MAX_FEDERATION_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import { Note } from '@/lib/types/activitypub'
 import {
   getDocumentFromAttachment,
@@ -54,12 +53,14 @@ export const getNoteFromStatus = (
       convertMarkdownText(getConfig().host)(actualStatus.text),
       actualStatus.quote
     ),
-    // A status may store more media than Mastodon renders; only the first
-    // MAX_FEDERATION_MEDIA_ATTACHMENTS federate so remote servers receive a
-    // Mastodon-compatible payload. The extras stay visible on local surfaces.
+    // Every non-fitness attachment federates, in stored order, as Pixelfed
+    // does. Every write path bounds the list: MAX_STORED_MEDIA_ATTACHMENTS,
+    // with a fitness file's generated route map counted inside it (the status
+    // create and edit routes keep its slot free), or a lower import cap.
+    // Mastodon keeps the first 4 of a remote post itself, so cutting here gains
+    // nothing there and only loses photos on servers that show them all.
     attachment: actualStatus.attachments
       .filter((attachment) => !isFitnessAttachment(attachment))
-      .slice(0, MAX_FEDERATION_MEDIA_ATTACHMENTS)
       .map((attachment) => getDocumentFromAttachment(attachment)),
     tag: actualStatus.tags
       .map((tag) => getMentionFromTag(tag) ?? getEmojiFromTag(tag))

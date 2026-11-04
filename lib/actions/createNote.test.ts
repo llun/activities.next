@@ -3,7 +3,6 @@ import {
   FETCH_LINK_PREVIEW_JOB_NAME,
   SEND_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
-import { MAX_FEDERATION_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import { getQueue } from '@/lib/services/queue'
 import { updateServerSettings } from '@/lib/services/serverSettings'
 import * as timelinesService from '@/lib/services/timelines'
@@ -861,12 +860,12 @@ How are you?
       })
     })
 
-    it('federates only the first MAX_FEDERATION_MEDIA_ATTACHMENTS media even when the status stores more', async () => {
-      const storedCount = MAX_FEDERATION_MEDIA_ATTACHMENTS + 1
+    it('federates every stored photo, in order, when the status stores more than 4', async () => {
+      const photoCount = 10
       const status = (await createNoteFromUserInput({
         text: 'Post with more photos than Mastodon renders',
         currentActor: actor1,
-        attachments: Array.from({ length: storedCount }, (_, index) => ({
+        attachments: Array.from({ length: photoCount }, (_, index) => ({
           type: 'upload' as const,
           id: `overflow-image-${index}`,
           mediaType: 'image/png',
@@ -878,20 +877,20 @@ How are you?
         database
       })) as StatusNote
 
-      // The status keeps every attachment locally...
-      expect(status.attachments).toHaveLength(storedCount)
+      expect(status.attachments).toHaveLength(photoCount)
 
-      // ...but the outbound ActivityPub note only carries the federation cap,
-      // keeping the first N of the stored attachments in their stored order.
+      // The outbound note carries every attachment the status stores, in its
+      // stored order, as Pixelfed does; Mastodon trims to 4 on its own side.
       const note = getNoteFromStatus(status) as Note
       const attachments = Array.isArray(note.attachment) ? note.attachment : []
-      expect(attachments).toHaveLength(MAX_FEDERATION_MEDIA_ATTACHMENTS)
-      const expectedUrls = status.attachments
-        .slice(0, MAX_FEDERATION_MEDIA_ATTACHMENTS)
-        .map((attachment) => attachment.url)
       expect(
         attachments.map((attachment) => (attachment as Document).url)
-      ).toEqual(expectedUrls)
+      ).toEqual(
+        Array.from(
+          { length: photoCount },
+          (_, index) => `https://example.com/media/overflow-${index}.png`
+        )
+      )
     })
   })
   describe('link preview scheduling', () => {

@@ -10,6 +10,7 @@ import {
   getActiveFilters
 } from '@/lib/services/filters/applyFilters'
 import { deleteEmailMapImage } from '@/lib/services/fitness-files/emailMapImage'
+import { getMediaFilePaths } from '@/lib/services/fitness-files/mapAttachments'
 import {
   OAuthGuardAnyScope,
   OptionalOAuthGuard
@@ -18,7 +19,8 @@ import {
   MAX_STORED_MEDIA_ATTACHMENTS,
   MIN_POLL_OPTIONS,
   POLL_OPTIONS_CEILING,
-  POLL_OPTION_CHARS_CEILING
+  POLL_OPTION_CHARS_CEILING,
+  getMaxStatusMediaAttachments
 } from '@/lib/services/mastodon/constants'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
@@ -379,6 +381,56 @@ export const PUT = traceApiRoute(
                   resolveStatusAttachmentMediaIds(existingStatus, mediaIds)
                 )
               ]
+
+        // A fitness post keeps one slot for its route map, as its create did
+        // (getMaxStatusMediaAttachments): processFitnessFileJob attaches the
+        // map after the create, and a retry or a map regeneration can attach
+        // one later still, so filling that slot here would leave the status
+        // one over MAX_STORED_MEDIA_ATTACHMENTS. A map the edit keeps is not
+        // counted. It is recognised by its fitness file's mapImagePath, the
+        // file the map was stored at, among the files of the media sent: the
+        // media's live file, or, once the photo editor has re-rendered it,
+        // one its edits keep (the uploaded original stays in the original
+        // slot, and a revert makes it the live file again), read by
+        // getMediaFilePaths, which the map jobs share. Not by the name, which
+        // an edit does not preserve, nor by the attachment's url, which
+        // "Update posts" moves to the render. Every id sent counts: a second
+        // spelling of a media new to the status becomes a row of its own, and
+        // for media the post already shows the count only errs on the safe
+        // side. Checked before any media row is written, so a refused edit
+        // changes nothing.
+        if (resolvedMediaIds !== undefined && existingStatus.fitness) {
+          const routeMapPaths = new Set(
+            (await database.getFitnessFilesByStatus({ statusId }))
+              .map((fitnessFile) => fitnessFile.mapImagePath)
+              .filter((path): path is string => Boolean(path))
+          )
+          let sentRouteMaps = 0
+          if (routeMapPaths.size > 0) {
+            const sentMedia = await getMediaFilePaths({
+              database,
+              accountId: currentActor.account?.id,
+              mediaIds: resolvedMediaIds.map(String)
+            })
+            const sentFilePaths = new Set(
+              [...sentMedia.values()].flatMap((paths) => [...paths])
+            )
+            sentRouteMaps = [...routeMapPaths].filter((path) =>
+              sentFilePaths.has(path)
+            ).length
+          }
+          if (
+            resolvedMediaIds.length - sentRouteMaps >
+            getMaxStatusMediaAttachments(true)
+          ) {
+            return apiResponse({
+              req,
+              allowedMethods: CORS_HEADERS,
+              data: ERROR_422,
+              responseStatusCode: 422
+            })
+          }
+        }
 
         // Apply per-attachment metadata edits (Mastodon media_attributes[])
         // before resolving attachments so the refreshed description/focus flow

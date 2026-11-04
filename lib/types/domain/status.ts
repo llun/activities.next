@@ -16,7 +16,6 @@ import {
   getInteractionPolicyFields,
   getQuoteNoteFields
 } from '@/lib/activities/quoteNoteFields'
-import { MAX_FEDERATION_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import type { Announce as ActivityPubAnnounce } from '@/lib/types/activitypub/activities'
 import {
   ENTITY_TYPE_QUESTION,
@@ -503,12 +502,11 @@ export const toActivityPubObject = (status: Status): Note | Question => {
       originalStatus.text,
       originalStatus.quote
     ),
-    // Only the first MAX_FEDERATION_MEDIA_ATTACHMENTS federate (outbox and the
-    // AP note/replies endpoints); a status may store more, but remote servers
-    // receive a Mastodon-compatible payload. Mirrors getNoteFromStatus.
+    // Every non-fitness attachment, in stored order (outbox and the AP
+    // note/replies endpoints). Mirrors getNoteFromStatus so a fetched note
+    // carries the same media as a delivered one.
     attachment: originalStatus.attachments
       .filter((attachment) => !isFitnessAttachment(attachment))
-      .slice(0, MAX_FEDERATION_MEDIA_ATTACHMENTS)
       .map((attachment) => getDocumentFromAttachment(attachment)),
     tag: originalStatus.tags
       .map((tag) => getMentionFromTag(tag) ?? getEmojiFromTag(tag))

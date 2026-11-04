@@ -14,6 +14,7 @@ import {
   sendLike,
   sendNote,
   sendUndoLike,
+  sendUpdateNote,
   unfollow,
   unfollowRelay
 } from '@/lib/activities'
@@ -195,6 +196,80 @@ describe('activities', () => {
         'https://www.w3.org/ns/activitystreams#Public'
       )
       expect(object.cc).toContain('https://chat.llun.dev/users/me/followers')
+    })
+  })
+
+  describe('sendUpdateNote', () => {
+    // An edit re-federates the whole note. Pixelfed shows every attachment of
+    // an Update and Mastodon keeps the first 4 itself, so the Update carries
+    // every stored photo, in order, and still drops fitness attachments.
+    it('carries every non-fitness attachment of an edited multi-photo post', async () => {
+      const actor = MockActor({})
+      const statusId = `${actor.id}/statuses/edited-photo-set`
+      const createdAt = 1700000000000
+      const attachment = (
+        id: string,
+        mediaType: string,
+        url: string,
+        name: string
+      ) => ({
+        id,
+        actorId: actor.id,
+        statusId,
+        type: 'Document',
+        mediaType,
+        url,
+        width: 100,
+        height: 80,
+        name,
+        createdAt,
+        updatedAt: createdAt
+      })
+      const photoUrls = Array.from(
+        { length: 7 },
+        (_, index) =>
+          `https://llun.test/api/v1/files/medias/photo-${index}.webp`
+      )
+      const photos = photoUrls.map((url, index) =>
+        attachment(`photo-${index}`, 'image/webp', url, `Photo ${index}`)
+      )
+      const fitness = attachment(
+        'fitness',
+        'application/gpx+xml',
+        '/api/v1/fitness-files/fitness-file-id',
+        'activity.gpx'
+      )
+      const status = {
+        id: statusId,
+        type: StatusType.enum.Note,
+        actorId: actor.id,
+        url: statusId,
+        text: 'Edited ride with a full photo set',
+        summary: null,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [`${actor.id}/followers`],
+        reply: '',
+        attachments: [...photos.slice(0, 2), fitness, ...photos.slice(2)],
+        tags: [],
+        replies: [],
+        edits: [],
+        createdAt,
+        updatedAt: createdAt + 60_000
+      } as unknown as Status
+
+      await sendUpdateNote({
+        currentActor: actor,
+        inbox: TEST_SHARED_INBOX,
+        status
+      })
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const [, options] = fetchMock.mock.lastCall as any
+      const data = JSON.parse(options.body)
+      expect(data.type).toBe('Update')
+      expect(
+        data.object.attachment.map((item: { url: string }) => item.url)
+      ).toEqual(photoUrls)
     })
   })
 

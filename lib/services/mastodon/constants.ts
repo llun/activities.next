@@ -1,15 +1,22 @@
-// The number of media attachments Mastodon (and the wider fediverse) render on
-// a status. We may store more than this locally, but the outbound ActivityPub
-// note only carries the first MAX_FEDERATION_MEDIA_ATTACHMENTS so remote servers
-// receive a Mastodon-compatible payload.
-export const MAX_FEDERATION_MEDIA_ATTACHMENTS = 4
-
 // Upper bound on how many media a single status may store / accept through the
 // create and edit APIs, and how many a federated Note keeps at ingest
 // (`getAttachments`). Purely a safety ceiling so one status can't fan out an
-// unbounded number of media lookups; the fediverse still only ever sees the
-// first MAX_FEDERATION_MEDIA_ATTACHMENTS of them.
+// unbounded number of media lookups. The outbound Note carries every
+// non-fitness attachment, as Pixelfed does; Mastodon keeps only the first 4 of
+// a remote post on its side.
 export const MAX_STORED_MEDIA_ATTACHMENTS = 50
+
+// The media a status may carry besides its route map. A fitness file takes
+// one slot: its processing job attaches the activity's generated route map
+// after the create returns (and a retry or a map regeneration can attach one
+// later), so a fitness post accepts one fewer photo, on create and on edit,
+// and the photos plus the map still fit MAX_STORED_MEDIA_ATTACHMENTS. Without
+// the reserved slot the stored set ends one over the ceiling, and an edit that
+// sends every media id back is refused.
+export const getMaxStatusMediaAttachments = (hasFitnessFile: boolean) =>
+  hasFitnessFile
+    ? MAX_STORED_MEDIA_ATTACHMENTS - 1
+    : MAX_STORED_MEDIA_ATTACHMENTS
 
 export const MAX_PINNED_STATUSES = 5
 

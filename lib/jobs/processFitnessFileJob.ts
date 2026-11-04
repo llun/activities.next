@@ -414,6 +414,7 @@ const processFitnessFileJobUnlocked = createJobHandle(
       // regenerateFitnessMapsJob makes.
       const previousMapAttachments = await findRouteMapAttachments({
         database,
+        accountId: actor.account?.id,
         statusId,
         mapImagePath: fitnessFile.mapImagePath
       })
@@ -1033,9 +1034,11 @@ export const processFitnessFileJob: JobHandle = async (database, message) => {
         'completed'
       )
       if (primary.processingStatus === 'completed') {
+        const actor = await database.getActorFromId({ id: actorId })
         const map = (
           await findRouteMapAttachments({
             database,
+            accountId: actor?.account?.id,
             statusId,
             mapImagePath: primary.mapImagePath
           })

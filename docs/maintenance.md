@@ -383,7 +383,7 @@ manifest.json                 Counts, storage results, and warnings
 ```
 
 Unlike the ActivityPub outbox route, every attachment on a status is kept
-(the federation format truncates to a handful and drops fitness attachments),
+(the federation format drops fitness attachments),
 and every visibility is included — this is an owner's export, not a
 visitor's view. Like `productionArchive.ts`, it prints the resolved database
 connection before doing anything, and `@next/env` loads `.env.local` at
