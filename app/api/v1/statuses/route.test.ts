@@ -951,7 +951,8 @@ describe('POST /api/v1/statuses', () => {
           mediaId: mapMediaId,
           accountId,
           baseVersion: 0,
-          saveId: `${prefix}-save`,
+          // editSaveId is varchar(36) on PostgreSQL.
+          saveId: `map-save-${revert ? 'reverted' : 'live'}`,
           recipe: '{"v":1}',
           render: {
             path: renderPath,
@@ -975,7 +976,7 @@ describe('POST /api/v1/statuses', () => {
             mediaId: mapMediaId,
             accountId,
             baseVersion: 1,
-            saveId: `${prefix}-revert`
+            saveId: 'map-revert'
           })
           expect(reverted.status).toBe('ok')
         }
