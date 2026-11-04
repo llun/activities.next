@@ -1,0 +1,43 @@
+app/api/v1/statuses/[id]/route.ts
+  s_04ac36afd169cb::t_7a22bfd46403b9 13,394-396,410-417
+lib/jobs/regenerateFitnessMapsJob.test.ts
+  s_04ac36afd169cb::t_7a22bfd46403b9 271-399
+lib/services/fitness-files/mapAttachments.test.ts
+  s_04ac36afd169cb::t_7a22bfd46403b9 9,15-17,19-28,30,96-97,100-101,104,106,108-110,112-116,119,124-171,174-214,216,218,220,223-260
+lib/services/fitness-files/mapAttachments.ts
+  s_04ac36afd169cb::t_7a22bfd46403b9 1,4,16-71,75-80,84,89,95-101,103-109
+  s_04ac36afd169cb::t_15dee4d2ebc821 10-11
+  s_04ac36afd169cb::t_976e7efbc524dd 15
+lib/jobs/processFitnessFileJob.routeMap.test.ts
+  s_04ac36afd169cb::t_7a22bfd46403b9 416-601
+lib/jobs/processFitnessFileJob.ts
+  s_04ac36afd169cb::t_7a22bfd46403b9 417,1038,1042
+package.json
+  s_04ac36afd169cb::t_7a22bfd46403b9 3
+app/api/v1/statuses/[id]/route.update.routeMap.test.ts
+  s_04ac36afd169cb::t_01026492933200 195,225-232,262,274,285,304,350,475
+lib/jobs/regenerateFitnessMapsJob.ts
+  s_04ac36afd169cb::t_7a22bfd46403b9 113
+docs/fitness-file-storage.md
+  s_04ac36afd169cb::t_825272dfb95be0 356
+  s_04ac36afd169cb::t_7a22bfd46403b9 365
+lib/jobs/processFitnessFileJob.notification.test.ts
+  s_04ac36afd169cb::t_7a22bfd46403b9 22,248-381
+  s_04ac36afd169cb::t_f5b66624a7f1f8 382-383
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a1e46ccf1ed599b47cb6e0b4612ec5f67ca31da2",
+  "prompts": {},
+  "sessions": {
+    "s_04ac36afd169cb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "577caac6-7a12-41cb-a74d-3d29dc7cfcac",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
