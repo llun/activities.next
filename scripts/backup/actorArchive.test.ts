@@ -5,7 +5,6 @@ import path from 'path'
 import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import type { Database } from '@/lib/database/types'
-import { MAX_FEDERATION_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { logger } from '@/lib/utils/logger'
@@ -402,14 +401,12 @@ describe('buildExportActivity', () => {
     expect(activity).not.toHaveProperty('attachment')
   })
 
-  it('keeps every attachment, beyond the federation cap, and rewrites local URLs', () => {
-    const attachments = Array.from(
-      { length: MAX_FEDERATION_MEDIA_ATTACHMENTS + 1 },
-      (_, index) =>
-        buildAttachment({
-          id: `attachment-${index}`,
-          url: `https://example.test/api/v1/files/photo-${index}.webp`
-        })
+  it('keeps every attachment and rewrites local URLs', () => {
+    const attachments = Array.from({ length: 5 }, (_, index) =>
+      buildAttachment({
+        id: `attachment-${index}`,
+        url: `https://example.test/api/v1/files/photo-${index}.webp`
+      })
     )
     // One attachment resolves through the local-file URL map; the rest are
     // left as absolute URLs (as a remote/unmapped attachment would be).

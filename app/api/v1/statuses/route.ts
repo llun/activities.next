@@ -159,9 +159,9 @@ const computeStatusIdempotencyHash = (note: ParsedNote): string =>
 // Dedupe, enforce the stored-media ceiling, and resolve media ids to
 // attachments. Returns null when the set exceeds the ceiling or any id can't be
 // resolved for the actor — both the scheduled and immediate POST paths treat
-// that as a 422. Shared so the two paths can't drift apart. The ceiling only
-// bounds how much a single status stores; the federation cap that trims the
-// outbound note lives in getNoteFromStatus.
+// that as a 422. Shared so the two paths can't drift apart. The ceiling bounds
+// how much a single status stores, and so how much its outbound note carries:
+// getNoteFromStatus federates every non-fitness attachment.
 const resolveStatusMedia = async (
   database: Database,
   currentActor: Actor,

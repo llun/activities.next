@@ -14,10 +14,9 @@ export const PRESIGNED_ANALYSIS_MAX_BYTES = 104_857_600
 //
 // It is NOT the composer's cap and NOT a Mastodon limit. The authoring UI caps
 // itself at the admin-configured `posts.maxMediaAttachments` via
-// `useInstanceLimits()` (lib/components/instance-limits.tsx), and Mastodon's
-// 4-attachment limit is `MAX_FEDERATION_MEDIA_ATTACHMENTS`, applied when a note
-// is serialised outbound — so an imported status federates 4 however many it
-// stores, while local surfaces still show them all.
+// `useInstanceLimits()` (lib/components/instance-limits.tsx). Mastodon's
+// 4-attachment limit is applied by Mastodon when it receives a note, not here:
+// an imported status federates every non-fitness attachment it stores.
 //
 // The value is inherited: it was the composer's upload cap before that moved to
 // the server setting, so 10 is a historical number rather than a reasoned one.

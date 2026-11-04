@@ -12,10 +12,7 @@ import type { Database } from '@/lib/database/types'
 import { CounterKey } from '@/lib/database/utils/counter'
 import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { hashToken } from '@/lib/services/guards/OAuthGuard'
-import {
-  MAX_FEDERATION_MEDIA_ATTACHMENTS,
-  MAX_STORED_MEDIA_ATTACHMENTS
-} from '@/lib/services/mastodon/constants'
+import { MAX_STORED_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { getQueue } from '@/lib/services/queue'
@@ -661,8 +658,10 @@ describe('POST /api/v1/statuses', () => {
     expect(getQueue().publish).not.toHaveBeenCalled()
   })
 
-  it('accepts more media_ids than the federation cap and stores them all', async () => {
-    const storedCount = MAX_FEDERATION_MEDIA_ATTACHMENTS + 1
+  it('accepts more media_ids than Mastodon renders and stores them all', async () => {
+    // Mastodon shows only the first 4 of a post; this instance stores and
+    // federates more.
+    const storedCount = 5
     const mediaIds: string[] = []
     for (let index = 0; index < storedCount; index += 1) {
       const media = await database.createMedia({

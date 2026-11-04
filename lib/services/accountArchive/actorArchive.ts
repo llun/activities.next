@@ -93,8 +93,7 @@ export interface AttachmentRegistrationResult {
  * Shapes one status as the Create/Announce activity the ActivityPub outbox
  * would emit, mirroring app/api/users/[username]/outbox/route.ts, but for an
  * OWNER export rather than a federation response: every attachment is kept
- * (the federation serializer truncates to MAX_FEDERATION_MEDIA_ATTACHMENTS and
- * drops fitness attachments), attachment URLs are rewritten to their
+ * (the federation serializer drops fitness attachments), attachment URLs are rewritten to their
  * archive-relative path, and embedded reply objects are stripped (they belong
  * to other actors and only bloat the file).
  */

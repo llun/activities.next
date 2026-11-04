@@ -234,7 +234,7 @@ describe('getMastodonStatus', () => {
     })
   })
 
-  it('returns every attachment without applying the federation cap', async () => {
+  it('returns every attachment of a large photo set', async () => {
     const statusId = `${ACTOR1_ID}/statuses/many-media-attachments`
     await database.createNote({
       id: statusId,

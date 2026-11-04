@@ -2,10 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import type { Database } from '@/lib/database/types'
-import {
-  MAX_FEDERATION_MEDIA_ATTACHMENTS,
-  MAX_STORED_MEDIA_ATTACHMENTS
-} from '@/lib/services/mastodon/constants'
+import { MAX_STORED_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import { getQueue } from '@/lib/services/queue'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
@@ -188,7 +185,7 @@ describe('PUT /api/v1/statuses/[id] media edits', () => {
       expect(getQueue().publish).toHaveBeenCalledTimes(1)
     })
 
-    it('stores more media than the federation cap and federates only the first few', async () => {
+    it('stores more media than Mastodon renders and federates every one, in order', async () => {
       const statusId = `${ACTOR1_ID}/statuses/api-edit-many-media`
       await database.createNote({
         id: statusId,
@@ -200,7 +197,8 @@ describe('PUT /api/v1/statuses/[id] media edits', () => {
         cc: [`${ACTOR1_ID}/followers`]
       })
 
-      const storedCount = MAX_FEDERATION_MEDIA_ATTACHMENTS + 1
+      // More than the 4 Mastodon renders of a post.
+      const storedCount = 6
       const mediaIds: string[] = []
       for (let index = 0; index < storedCount; index += 1) {
         const media = await database.createMedia({
@@ -242,7 +240,8 @@ describe('PUT /api/v1/statuses/[id] media edits', () => {
       const attachments = await database.getAttachmentsWithMedia({ statusId })
       expect(attachments).toHaveLength(storedCount)
 
-      // ...while the outbound ActivityPub note is trimmed to the federation cap.
+      // ...and so does the outbound ActivityPub note an edit re-federates, in
+      // the order the edit set them.
       const updatedStatus = (await database.getStatus({
         statusId,
         withReplies: false
@@ -251,8 +250,8 @@ describe('PUT /api/v1/statuses/[id] media edits', () => {
       const federatedAttachments = Array.isArray(activityPubNote?.attachment)
         ? activityPubNote.attachment
         : []
-      expect(federatedAttachments).toHaveLength(
-        MAX_FEDERATION_MEDIA_ATTACHMENTS
+      expect(federatedAttachments.map((attachment) => attachment.name)).toEqual(
+        mediaIds.map((_, index) => `Ride photo ${index}`)
       )
     })
 
@@ -292,7 +291,7 @@ describe('PUT /api/v1/statuses/[id] media edits', () => {
         mediaId: mapMedia!.id
       })
 
-      const photoCount = MAX_FEDERATION_MEDIA_ATTACHMENTS
+      const photoCount = 4
       const photoMediaIds: string[] = []
       for (let index = 0; index < photoCount; index += 1) {
         const media = await database.createMedia({
@@ -311,7 +310,7 @@ describe('PUT /api/v1/statuses/[id] media edits', () => {
       }
 
       // A correct client re-sends the existing map alongside the new photos, so
-      // the edited set (map + photos) is larger than the federation cap.
+      // the edited set (map + photos) is larger than the 4 Mastodon renders.
       const mediaIds = [mapMedia!.id, ...photoMediaIds]
 
       const response = await PUT(
@@ -347,14 +346,12 @@ describe('PUT /api/v1/statuses/[id] media edits', () => {
         )
       ).toBe(true)
 
-      // The federated note is still trimmed to the Mastodon cap.
+      // The federated note carries the route map and every photo.
       const activityPubNote = getNoteFromStatus(updatedStatus)
       const federatedAttachments = Array.isArray(activityPubNote?.attachment)
         ? activityPubNote.attachment
         : []
-      expect(federatedAttachments).toHaveLength(
-        MAX_FEDERATION_MEDIA_ATTACHMENTS
-      )
+      expect(federatedAttachments).toHaveLength(mediaIds.length)
     })
 
     it('rejects more media_ids than the stored ceiling with 422', async () => {
