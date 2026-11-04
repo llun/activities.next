@@ -1,0 +1,41 @@
+docs/architecture.md
+  s_2b1a50e2f9b981::t_592f293e36fd52 229
+docs/mastodon-api-compatibility.md
+  s_2b1a50e2f9b981::t_7009ed80163f41 157-164,175-186,1635-1637,2468
+lib/actions/createNote.ts
+  s_2b1a50e2f9b981::t_7ef65a292a3b76 36,1531
+lib/actions/updateNote.test.ts
+  s_2b1a50e2f9b981::t_d82d80c9b371c5 1003-1190
+lib/actions/updateNote.ts
+  s_2b1a50e2f9b981::t_c801979904bcbf 9,17,25-28,45-55,157-159,161,194-206,251-256,258-299,321-326,330
+lib/jobs/updateNoteJob.ts
+  s_2b1a50e2f9b981::t_310996236a7d2f 24,170-175
+lib/services/statuses/hashtagCounters.test.ts
+  s_2b1a50e2f9b981::t_adf1b6b69194b2 1-98
+lib/services/statuses/hashtagCounters.ts
+  s_2b1a50e2f9b981::t_9fd0305d3a05b6 1-56
+lib/services/timelines/mentionNotification.test.ts
+  s_2b1a50e2f9b981::t_a8b1e6e64cc4c8 21,691-692,695-697,742-875
+lib/services/timelines/mentionNotification.ts
+  s_2b1a50e2f9b981::t_782cb37b0d860d 4,13,22-48,136-154,156-160
+lib/utils/widensStatusAudience.test.ts
+  s_2b1a50e2f9b981::t_d8d0f3bbd98f2d 1-65
+lib/utils/widensStatusAudience.ts
+  s_2b1a50e2f9b981::t_959e1880ea48af 1-2,11-15,21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "90436398b747d0beb5ebfbe69970205af6e3cff4",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
