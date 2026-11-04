@@ -1,0 +1,23 @@
+lib/services/fitness-files/mapAttachments.ts
+  s_d9b04e559a909f::t_40c2dd76577734 40-65
+lib/jobs/processFitnessFileJob.notification.test.ts
+  s_d9b04e559a909f::t_f2511b9a2b56df 22,248-383
+lib/services/fitness-files/mapAttachments.test.ts
+  s_d9b04e559a909f::t_3a43e487f3a9ff 2-5,9,15-17,19-24,26-30,94-262
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "829aff09752189cbe4cb0347c2ec5cf377a3855c",
+  "prompts": {},
+  "sessions": {
+    "s_d9b04e559a909f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ac808271-fcaa-43c0-98a8-ce08ce0a7e01",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
