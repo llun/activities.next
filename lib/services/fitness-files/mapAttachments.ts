@@ -31,22 +31,38 @@ export const getMediaFilePaths = async ({
   const ids = [...new Set(mediaIds.map(toCanonicalMediaId))]
   if (ids.length === 0) return paths
 
-  const [media, editFiles] = await Promise.all([
-    accountId
-      ? database.getMediaByIdsForAccount({ mediaIds: ids, accountId })
-      : Promise.resolve([]),
-    database.listMediaEditFiles({ mediaIds: ids })
-  ])
   const add = (mediaId: string, filePaths: string[]) => {
     const key = toCanonicalMediaId(mediaId)
     const set = paths.get(key) ?? new Set<string>()
     filePaths.forEach((path) => set.add(path))
     paths.set(key, set)
   }
-  media.forEach((item) => add(item.id, [item.original.path]))
-  editFiles.forEach((file) =>
-    add(file.mediaId, getMediaEditFilePathsFromFiles([file]))
-  )
+  const readLive = async () => {
+    const media = accountId
+      ? await database.getMediaByIdsForAccount({ mediaIds: ids, accountId })
+      : []
+    media.forEach((item) => add(item.id, [item.original.path]))
+    return media
+      .map((item) => `${item.id}:${item.edit?.version ?? 0}`)
+      .sort()
+      .join()
+  }
+
+  // The live file and the edit files are two statements, and a save or revert
+  // committing between them moves the original from one to the other unseen
+  // (a revert: live still the render, original slot already gone). Every save
+  // and revert moves the edit version, so the reads are re-taken until the
+  // versions stand still around the edit-files read.
+  let versions = await readLive()
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const editFiles = await database.listMediaEditFiles({ mediaIds: ids })
+    editFiles.forEach((file) =>
+      add(file.mediaId, getMediaEditFilePathsFromFiles([file]))
+    )
+    const after = await readLive()
+    if (after === versions) break
+    versions = after
+  }
   return paths
 }
 
