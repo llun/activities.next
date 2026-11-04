@@ -369,9 +369,16 @@ export const updateNoteJob = createJobHandle(
         })
 
         if (inboxes.length > 0) {
+          // Each edit must forward under its own ids: the queue (and QStash)
+          // dedupe by job id and receivers dedupe by activity id, so a fixed id
+          // drops every edit after the first. Forwarding only runs for a direct
+          // inbox delivery, whose job id is getInboxJobId(activity.id): unique
+          // per Update activity and the same on a retry of it.
+          const revision = getHashFromString(message.id)
+
           const updateActivity = {
             '@context': NOTE_ACTIVITY_CONTEXT,
-            id: `${note.id}#activity`,
+            id: `${note.id}#updates/${revision}`,
             type: UpdateAction,
             actor: note.attributedTo,
             published: note.published,
@@ -381,7 +388,7 @@ export const updateNoteJob = createJobHandle(
           }
 
           for (const forwardMessage of getForwardActivityJobMessages({
-            id: `${getHashFromString(note.id)}#forward-update`,
+            id: getHashFromString(`${note.id}#forward-update/${revision}`),
             activity: updateActivity,
             inboxes,
             localActorId: targetLocalActorIds[0]
