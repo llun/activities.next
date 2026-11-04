@@ -392,9 +392,11 @@ export const PUT = traceApiRoute(
         // one its edits keep (the uploaded original stays in the original
         // slot, and a revert makes it the live file again). Not by the name,
         // which an edit does not preserve, nor by the attachment's url, which
-        // "Update posts" moves to the render. Every id sent counts, two
-        // spellings of one media included, since each becomes a row. Checked
-        // before any media row is written, so a refused edit changes nothing.
+        // "Update posts" moves to the render. Every id sent counts: a second
+        // spelling of a media new to the status becomes a row of its own, and
+        // for media the post already shows the count only errs on the safe
+        // side. Checked before any media row is written, so a refused edit
+        // changes nothing.
         if (resolvedMediaIds !== undefined && existingStatus.fitness) {
           const routeMapPaths = new Set(
             (await database.getFitnessFilesByStatus({ statusId }))

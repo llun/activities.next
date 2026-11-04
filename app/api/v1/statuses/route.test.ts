@@ -992,8 +992,8 @@ describe('POST /api/v1/statuses', () => {
       }
     )
 
-    // Every id sent becomes an attachment row, so a second spelling of one
-    // media ("012" beside "12") takes a slot like any other id.
+    // A second spelling ("012" beside "12") of a media new to the status
+    // becomes an attachment row of its own, so it takes a slot like any id.
     it('counts every spelling of a media id against the route map slot', async () => {
       const prefix = 'fitness-edit-spellings'
       const { clientId, statusId } = await createFitnessPost(prefix, 1)
