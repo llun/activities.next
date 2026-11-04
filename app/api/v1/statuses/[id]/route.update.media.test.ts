@@ -576,6 +576,39 @@ describe('PUT /api/v1/statuses/[id] media edits', () => {
         ])
       })
 
+      it('gives back the route map name an earlier edit took on an edit that only describes another photo', async () => {
+        const slug = 'route-map-renamed-before-attributes'
+        const { statusId, mapMediaId, photoMediaId } = await createRouteMapPost(
+          slug,
+          {
+            mapAttachmentName: 'An earlier alt text'
+          }
+        )
+        await database.createFitnessFile({
+          actorId: ACTOR1_ID,
+          statusId,
+          path: `fitness/${slug}.fit`,
+          fileName: `${slug}.fit`,
+          fileType: 'fit',
+          mimeType: 'application/vnd.ant.fit',
+          bytes: 1000,
+          hasMapData: true,
+          mapImagePath: `medias/${slug}-route-map.webp`
+        })
+
+        const response = await editStatus(statusId, {
+          media_attributes: [
+            { id: photoMediaId, description: 'Summit, at dusk' }
+          ]
+        })
+        expect(response.status).toBe(200)
+
+        expect(await getAttachmentNames(statusId)).toEqual([
+          { mediaId: String(mapMediaId), name: ROUTE_MAP_ATTACHMENT_NAME },
+          { mediaId: String(photoMediaId), name: 'Summit, at dusk' }
+        ])
+      })
+
       it('keeps the route map name when media_ids and media_attributes come together', async () => {
         const { statusId, mapMediaId, photoMediaId } = await createRouteMapPost(
           'route-map-media-ids-attributes'

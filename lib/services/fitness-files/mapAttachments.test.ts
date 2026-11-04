@@ -15,43 +15,52 @@ vi.mock('@/lib/services/medias', () => ({
 describe('isRouteMapAttachment', () => {
   const url = 'https://llun.test/api/v1/files/medias/ride-route-map.webp'
 
-  it('recognises the route map name whatever the paths say', () => {
-    expect(
-      isRouteMapAttachment({ name: ROUTE_MAP_ATTACHMENT_NAME, url }, [])
-    ).toBe(true)
-  })
-
-  it("recognises a renamed map by a fitness file's mapImagePath", () => {
-    expect(
-      isRouteMapAttachment({ name: 'Old alt text', url }, [
+  it.each([
+    {
+      description: 'the route map name, with no paths',
+      attachment: { name: ROUTE_MAP_ATTACHMENT_NAME, url },
+      mapImagePaths: [],
+      expected: true
+    },
+    {
+      description: 'the route map name, with a path that does not match',
+      attachment: { name: ROUTE_MAP_ATTACHMENT_NAME, url },
+      mapImagePaths: ['medias/other-route-map.webp'],
+      expected: true
+    },
+    {
+      description: "a renamed map, by one fitness file's mapImagePath",
+      attachment: { name: 'Old alt text', url },
+      mapImagePaths: [
         null,
         'medias/other-route-map.webp',
         'medias/ride-route-map.webp'
-      ])
-    ).toBe(true)
-  })
-
-  it('matches the path after decoding the url, as the stored path is written', () => {
-    expect(
-      isRouteMapAttachment(
-        {
-          name: '',
-          url: 'https://llun.test/api/v1/files/medias/ride%20route-map.webp'
-        },
-        ['medias/ride route-map.webp']
-      )
-    ).toBe(true)
-  })
-
-  it('leaves a photo alone when no path matches, or the paths are empty', () => {
-    expect(
-      isRouteMapAttachment({ name: 'Summit', url }, [
-        'medias/other-route-map.webp'
-      ])
-    ).toBe(false)
-    expect(
-      isRouteMapAttachment({ name: null, url: '' }, [null, undefined, ''])
-    ).toBe(false)
+      ],
+      expected: true
+    },
+    {
+      description: 'a path that matches once the url is decoded',
+      attachment: {
+        name: '',
+        url: 'https://llun.test/api/v1/files/medias/ride%20route-map.webp'
+      },
+      mapImagePaths: ['medias/ride route-map.webp'],
+      expected: true
+    },
+    {
+      description: 'a photo whose path matches no map',
+      attachment: { name: 'Summit', url },
+      mapImagePaths: ['medias/other-route-map.webp'],
+      expected: false
+    },
+    {
+      description: 'an empty url against only empty paths',
+      attachment: { name: null, url: '' },
+      mapImagePaths: [null, undefined, ''],
+      expected: false
+    }
+  ])('$description', ({ attachment, mapImagePaths, expected }) => {
+    expect(isRouteMapAttachment(attachment, mapImagePaths)).toBe(expected)
   })
 })
 
