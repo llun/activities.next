@@ -924,52 +924,91 @@ describe('POST /api/v1/statuses', () => {
 
     // The photo editor's "Update posts" moves the map's attachment url to the
     // render and leaves the fitness file's mapImagePath on the uploaded
-    // original, which the media's edits keep in their original slot.
-    it('keeps a route map re-rendered in the photo editor editable', async () => {
-      const prefix = 'fitness-edit-rerendered'
-      const { clientId, statusId, photoIds, fitnessFileId } =
-        await createFitnessPost(prefix, MAX_STORED_MEDIA_ATTACHMENTS - 1)
-      const mapMediaId = await attachRouteMap({
-        prefix,
-        statusId,
-        fitnessFileId
-      })
-      const accountId = (await database.getActorFromId({ id: ACTOR1_ID }))!
-        .account!.id
-      const renderPath = `medias/${prefix}-route-map-render.webp`
-      const edit = await database.applyMediaEdit({
-        mediaId: mapMediaId,
-        accountId,
-        baseVersion: 0,
-        saveId: `${prefix}-save`,
-        recipe: '{"v":1}',
-        render: {
-          path: renderPath,
-          bytes: 1024,
-          mimeType: 'image/webp',
-          width: 600,
-          height: 450,
-          blurhash: 'L00000fQfQfQfQfQfQfQfQfQfQfQ',
-          focus: { x: 0, y: 0 }
+    // original, which the media's edits keep in their original slot. A revert
+    // "Gallery only" then makes that original the media's live file again
+    // while the post keeps showing the render.
+    it.each([
+      { description: 're-rendered', revert: false },
+      {
+        description: 're-rendered and then reverted for the gallery only',
+        revert: true
+      }
+    ])(
+      'keeps a route map $description in the photo editor editable',
+      async ({ revert }) => {
+        const prefix = `fitness-edit-rerendered-${revert ? 'reverted' : 'live'}`
+        const { clientId, statusId, photoIds, fitnessFileId } =
+          await createFitnessPost(prefix, MAX_STORED_MEDIA_ATTACHMENTS - 1)
+        const mapMediaId = await attachRouteMap({
+          prefix,
+          statusId,
+          fitnessFileId
+        })
+        const accountId = (await database.getActorFromId({ id: ACTOR1_ID }))!
+          .account!.id
+        const renderPath = `medias/${prefix}-route-map-render.webp`
+        const edit = await database.applyMediaEdit({
+          mediaId: mapMediaId,
+          accountId,
+          baseVersion: 0,
+          saveId: `${prefix}-save`,
+          recipe: '{"v":1}',
+          render: {
+            path: renderPath,
+            bytes: 1024,
+            mimeType: 'image/webp',
+            width: 600,
+            height: 450,
+            blurhash: 'L00000fQfQfQfQfQfQfQfQfQfQfQ',
+            focus: { x: 0, y: 0 }
+          }
+        })
+        expect(edit.status).toBe('ok')
+        await db
+          .updateTable('attachments')
+          .set({ url: `https://llun.test/api/v1/files/${renderPath}` })
+          .where('statusId', '=', statusId)
+          .where('mediaId', '=', Number(mapMediaId))
+          .execute()
+        if (revert) {
+          const reverted = await database.revertMediaEdit({
+            mediaId: mapMediaId,
+            accountId,
+            baseVersion: 1,
+            saveId: `${prefix}-revert`
+          })
+          expect(reverted.status).toBe('ok')
         }
-      })
-      expect(edit.status).toBe('ok')
-      await db
-        .updateTable('attachments')
-        .set({ url: `https://llun.test/api/v1/files/${renderPath}` })
-        .where('statusId', '=', statusId)
-        .where('mediaId', '=', Number(mapMediaId))
-        .execute()
+
+        const response = await editMedia(clientId, {
+          status: 'A ride with a cropped map',
+          media_ids: [mapMediaId, ...photoIds]
+        })
+
+        expect(response.status).toBe(200)
+        expect((await getStoredNote(statusId)).attachments).toHaveLength(
+          MAX_STORED_MEDIA_ATTACHMENTS
+        )
+      }
+    )
+
+    // Every id sent becomes an attachment row, so a second spelling of one
+    // media ("012" beside "12") takes a slot like any other id.
+    it('counts every spelling of a media id against the route map slot', async () => {
+      const prefix = 'fitness-edit-spellings'
+      const { clientId, statusId } = await createFitnessPost(prefix, 1)
+      const newPhotoIds = await createOwnedMediaIds(
+        `${prefix}-new`,
+        MAX_STORED_MEDIA_ATTACHMENTS - 1
+      )
+      const before = (await getStoredNote(statusId)).attachments.length
 
       const response = await editMedia(clientId, {
-        status: 'A ride with a cropped map',
-        media_ids: [mapMediaId, ...photoIds]
+        media_ids: [...newPhotoIds, `0${newPhotoIds[0]}`]
       })
 
-      expect(response.status).toBe(200)
-      expect((await getStoredNote(statusId)).attachments).toHaveLength(
-        MAX_STORED_MEDIA_ATTACHMENTS
-      )
+      expect(response.status).toBe(422)
+      expect((await getStoredNote(statusId)).attachments).toHaveLength(before)
     })
 
     // A map attached later — the job running after the edit, a retry after a
