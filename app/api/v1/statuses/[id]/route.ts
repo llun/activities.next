@@ -391,9 +391,9 @@ export const PUT = traceApiRoute(
         // file the map was stored at, among the files of the media sent: the
         // media's live file, or, once the photo editor has re-rendered it,
         // one its edits keep (the uploaded original stays in the original
-        // slot, and a revert makes it the live file again; getMediaFilePaths, which
-        // the map jobs share). Not by the name,
-        // which an edit does not preserve, nor by the attachment's url, which
+        // slot, and a revert makes it the live file again), read by
+        // getMediaFilePaths, which the map jobs share. Not by the name, which
+        // an edit does not preserve, nor by the attachment's url, which
         // "Update posts" moves to the render. Every id sent counts: a second
         // spelling of a media new to the status becomes a row of its own, and
         // for media the post already shows the count only errs on the safe
