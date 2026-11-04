@@ -659,8 +659,9 @@ describe('POST /api/v1/statuses', () => {
   })
 
   it('accepts more media_ids than Mastodon renders and stores them all', async () => {
-    // Mastodon shows only the first 4 of a post; this instance stores and
-    // federates more.
+    // Mastodon shows only the first 4 of a post; this instance stores more.
+    // That the outbound note carries them all is covered by the
+    // getNoteFromStatus, createNote and sendUpdateNote tests.
     const storedCount = 5
     const mediaIds: string[] = []
     for (let index = 0; index < storedCount; index += 1) {
