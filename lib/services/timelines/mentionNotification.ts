@@ -1,6 +1,7 @@
 import { Span, SpanStatusCode } from '@opentelemetry/api'
 
 import { getConfig } from '@/lib/config'
+import { Database } from '@/lib/database/types'
 import { resolveActorEmailBrand } from '@/lib/services/email/sender'
 import { buildMentionEmail } from '@/lib/services/email/templates/mention'
 import { buildReplyEmail } from '@/lib/services/email/templates/reply'
@@ -9,6 +10,7 @@ import {
   NotificationEvent,
   sendNotificationAlerts
 } from '@/lib/services/notifications/sendNotificationAlerts'
+import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { NotificationType } from '@/lib/types/database/operations'
 import { getActorURL } from '@/lib/types/domain/actor'
 import { StatusType } from '@/lib/types/domain/status'
@@ -16,6 +18,33 @@ import { TagType } from '@/lib/types/domain/tag'
 import { withSpan } from '@/lib/utils/trace'
 
 import { TimelineRuleParams } from './types'
+
+/**
+ * Whether `actorId` already holds a `mention:<statusId>` notification for this
+ * status, filtered or not. Both mention-notification paths check it so a
+ * partial-failure retry (or a re-delivered Update) cannot double-notify.
+ */
+export const hasMentionNotification = async ({
+  database,
+  actorId,
+  statusId
+}: {
+  database: Database
+  actorId: string
+  statusId: string
+}): Promise<boolean> => {
+  const existing = await database.getNotificationsForGroupKey({
+    actorId,
+    groupKey: `mention:${statusId}`,
+    includeFiltered: true,
+    limit: 1
+  })
+  return existing.some(
+    (notification) =>
+      notification.type === NotificationType.enum.mention &&
+      notification.statusId === statusId
+  )
+}
 
 const createRemoteMentionNotificationEvent = async ({
   database,
@@ -104,18 +133,31 @@ export const notifyRemoteMention = async ({
         return
       }
 
-      const existing = await database.getNotificationsForGroupKey({
-        actorId: currentActor.id,
-        groupKey: `mention:${status.id}`,
-        includeFiltered: true,
-        limit: 1
-      })
+      // A mention-only notification is for an actor who can read the status. An
+      // Update can add a Mention tag for someone the status does not address,
+      // and notifying them would leak that the post exists.
+      if (!(await canActorReadStatus({ database, status, currentActor }))) {
+        return
+      }
+
+      // A reply to the recipient's own post is already covered by the reply
+      // notification, which `notifyRemoteReplyAndMention` suppresses the
+      // mention for. An edit that adds the Mention tag must not create a
+      // second entry for the same event.
+      if (status.reply) {
+        const repliedStatus = await database.getStatus({
+          statusId: status.reply,
+          withReplies: false
+        })
+        if (repliedStatus?.actorId === currentActor.id) return
+      }
+
       if (
-        existing.some(
-          (notification) =>
-            notification.type === NotificationType.enum.mention &&
-            notification.statusId === status.id
-        )
+        await hasMentionNotification({
+          database,
+          actorId: currentActor.id,
+          statusId: status.id
+        })
       ) {
         return
       }

@@ -33,6 +33,7 @@ import {
   isPublicOrUnlisted
 } from '@/lib/services/statusAccess'
 import { addStatusToTimelines } from '@/lib/services/timelines'
+import { hasMentionNotification } from '@/lib/services/timelines/mentionNotification'
 import { Mention } from '@/lib/types/activitypub'
 import { NotificationType } from '@/lib/types/database/operations'
 import {
@@ -1527,19 +1528,7 @@ export const notifyNewLocalMentions = async ({
   const toNotifyIds: string[] = []
   for (const actorId of localActorIds) {
     if (!eligibleActorIds.has(actorId)) continue
-    const existing = await database.getNotificationsForGroupKey({
-      actorId,
-      groupKey,
-      includeFiltered: true,
-      limit: 1
-    })
-    if (
-      existing.some(
-        (notification) =>
-          notification.type === NotificationType.enum.mention &&
-          notification.statusId === statusId
-      )
-    ) {
+    if (await hasMentionNotification({ database, actorId, statusId })) {
       continue
     }
     toNotifyIds.push(actorId)

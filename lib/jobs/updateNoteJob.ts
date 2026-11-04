@@ -21,6 +21,7 @@ import { syncStatusLinkPreview } from '@/lib/services/link-previews/syncStatusLi
 import { notifyQuotedStatusUpdate } from '@/lib/services/notifications/notifyQuotedStatusUpdate'
 import { getQueue } from '@/lib/services/queue'
 import { syncQuoteEdgeFromUpdate } from '@/lib/services/quotes/persistInboundQuoteEdge'
+import { syncHashtagCounters } from '@/lib/services/statuses/hashtagCounters'
 import { notifyRemoteMention } from '@/lib/services/timelines/mentionNotification'
 import {
   ArticleContent,
@@ -166,29 +167,12 @@ const syncRemoteTags = async ({
   // difference to what the old rows had counted. The rule is the one Create and
   // Delete use, so a legacy bare-`Public` row moves nothing.
   const currentNames = [...new Set(current.map(normalizeHashtagSearchName))]
-  const currentSet = new Set(currentNames)
-  if (isPubliclyAddressed({ to: status.to, cc: status.cc })) {
-    for (const hashtag of currentNames) {
-      const delta = 1 - (previousCounts.get(hashtag) ?? 0)
-      for (let i = 0; i < delta; i++) {
-        await database.increaseHashtagCounter({ hashtag })
-      }
-      for (let i = 0; i > delta; i--) {
-        await database.decreaseHashtagCounter({ hashtag })
-      }
-    }
-    for (const [hashtag, count] of previousCounts) {
-      if (currentSet.has(hashtag)) continue
-      for (let i = 0; i < count; i++) {
-        await database.decreaseHashtagCounter({ hashtag })
-      }
-    }
-  }
-
-  const affected = [...new Set([...previousCounts.keys(), ...currentNames])]
-  if (affected.length > 0) {
-    await database.indexHashtagSearchDocuments({ hashtags: affected })
-  }
+  await syncHashtagCounters({
+    database,
+    previousCounts,
+    currentNames,
+    publiclyAddressed: isPubliclyAddressed({ to: status.to, cc: status.cc })
+  })
 
   return {
     previousMentionValues,

@@ -6,6 +6,7 @@ import {
   settleAll
 } from '@/lib/actions/createNote'
 import { normalizeHashtagSearchName } from '@/lib/database/domains/search/rows'
+import { isPubliclyAddressed } from '@/lib/database/domains/status/status'
 import { Database } from '@/lib/database/types'
 import { SEND_UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { persistDetectedLanguage } from '@/lib/services/language-detection'
@@ -13,7 +14,7 @@ import { syncStatusLinkPreview } from '@/lib/services/link-previews/syncStatusLi
 import { withAttachmentMediaMetadata } from '@/lib/services/medias/attachmentMediaMetadata'
 import { notifyQuotedStatusUpdate } from '@/lib/services/notifications/notifyQuotedStatusUpdate'
 import { getQueue } from '@/lib/services/queue'
-import { isPublicOrUnlisted } from '@/lib/services/statusAccess'
+import { syncHashtagCounters } from '@/lib/services/statuses/hashtagCounters'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Mention } from '@/lib/types/activitypub'
 import { Actor } from '@/lib/types/domain/actor'
@@ -21,6 +22,10 @@ import { PostBoxAttachment } from '@/lib/types/domain/attachment'
 import { StatusNote, StatusType } from '@/lib/types/domain/status'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { getVisibility } from '@/lib/utils/getVisibility'
+import {
+  MENTION_GLOBAL_REGEX,
+  MentionMatchGroup
+} from '@/lib/utils/text/convertMarkdownText'
 import { getHashtags } from '@/lib/utils/text/getHashtags'
 import { withSpan } from '@/lib/utils/trace'
 
@@ -36,6 +41,17 @@ interface UpdateNoteFromUserInput {
   status?: StatusNote
   database: Database
 }
+
+// The mention tokens the text names, lowercased, so a stored tag's `name`
+// (`@user@domain`) can be matched as a whole token rather than as a prefix of a
+// longer handle.
+const mentionNamesInText = (text: string): Set<string> =>
+  new Set(
+    Array.from(text.matchAll(MENTION_GLOBAL_REGEX)).map((match) => {
+      const { username, domain } = match.groups as MentionMatchGroup
+      return `@${username}${domain ? `@${domain}` : ''}`.toLowerCase()
+    })
+  )
 
 export const updateNoteFromUserInput = async ({
   statusId,
@@ -138,10 +154,11 @@ export const updateNoteFromUserInput = async ({
             )
           }
         }
+        const previousMentionTags = updatedStatus.tags.filter(
+          (tag) => tag.type === 'mention'
+        )
         const previousMentionActorIds = new Set(
-          updatedStatus.tags
-            .filter((tag) => tag.type === 'mention')
-            .map((tag) => tag.value)
+          previousMentionTags.map((tag) => tag.value)
         )
 
         const replyStatus = updatedStatus.reply
@@ -174,8 +191,19 @@ export const updateNoteFromUserInput = async ({
               .filter(Boolean)
           )
         ]
-        newlyMentioned = notificationMentions.filter(
-          (mention) => !previousMentionActorIds.has(mention.href)
+
+        // A webfinger failure on an edit must not drop a mention the post still
+        // names: keep the stored tag for an account the new text still names,
+        // even though it did not resolve this time. It is not newly mentioned,
+        // so it neither notifies nor changes recipients.
+        const resolvedMentionActorIds = new Set(
+          mentionTags.map((mention) => mention.href)
+        )
+        const namedMentionNames = mentionNamesInText(text)
+        const keptMentionTags = previousMentionTags.filter(
+          (tag) =>
+            !resolvedMentionActorIds.has(tag.value) &&
+            namedMentionNames.has(tag.name.toLowerCase())
         )
 
         await Promise.all([
@@ -220,25 +248,55 @@ export const updateNoteFromUserInput = async ({
             })) ?? updatedStatus
         }
 
-        await settleAll([
-          ...mentionTags.map((mention) =>
-            database.createTag({
-              statusId,
-              name: mention.name || '',
-              value: mention.href,
-              type: 'mention'
-            })
-          ),
-          ...hashtags.map((hashtag) =>
-            database.createTag({
-              statusId,
-              name: hashtag.name,
-              value: hashtag.value,
-              type: 'hashtag',
-              skipSearchIndex: true
-            })
-          )
+        // Only notify actors the status actually addresses: in a direct thread
+        // `notificationMentions` also carries inherited thread recipients,
+        // which are not added to `to`/`cc` from `recipientMentions`.
+        const addressedActorIds = new Set([
+          ...updatedStatus.to,
+          ...updatedStatus.cc
         ])
+        newlyMentioned = notificationMentions.filter(
+          (mention) =>
+            !previousMentionActorIds.has(mention.href) &&
+            addressedActorIds.has(mention.href)
+        )
+
+        // Best-effort: a failed tag insert must not leave the edit half applied
+        // (text saved, old tags deleted, timelines not re-added). The edit
+        // continues to the timeline fan-out and SEND_UPDATE_NOTE.
+        await runBestEffortStep(
+          statusId,
+          'tags',
+          () =>
+            settleAll([
+              ...mentionTags.map((mention) =>
+                database.createTag({
+                  statusId,
+                  name: mention.name || '',
+                  value: mention.href,
+                  type: 'mention'
+                })
+              ),
+              ...keptMentionTags.map((tag) =>
+                database.createTag({
+                  statusId,
+                  name: tag.name,
+                  value: tag.value,
+                  type: 'mention'
+                })
+              ),
+              ...hashtags.map((hashtag) =>
+                database.createTag({
+                  statusId,
+                  name: hashtag.name,
+                  value: hashtag.value,
+                  type: 'hashtag',
+                  skipSearchIndex: true
+                })
+              )
+            ]),
+          'Status update'
+        )
 
         // Re-detect the content language alongside the edit; the previous
         // detection (if any) is stale once the text changes — persistDetectedLanguage
@@ -260,41 +318,16 @@ export const updateNoteFromUserInput = async ({
       await runBestEffortStep(
         statusId,
         'hashtag counters and search',
-        async () => {
-          const currentSet = new Set(currentHashtagNames)
-          if (
-            isPublicOrUnlisted({
+        () =>
+          syncHashtagCounters({
+            database,
+            previousCounts: previousHashtagCounts,
+            currentNames: currentHashtagNames,
+            publiclyAddressed: isPubliclyAddressed({
               to: updatedStatus.to,
               cc: updatedStatus.cc
             })
-          ) {
-            for (const hashtag of currentHashtagNames) {
-              const delta = 1 - (previousHashtagCounts.get(hashtag) ?? 0)
-              for (let i = 0; i < delta; i++) {
-                await database.increaseHashtagCounter({ hashtag })
-              }
-              for (let i = 0; i > delta; i--) {
-                await database.decreaseHashtagCounter({ hashtag })
-              }
-            }
-            for (const [hashtag, count] of previousHashtagCounts) {
-              if (currentSet.has(hashtag)) continue
-              for (let i = 0; i < count; i++) {
-                await database.decreaseHashtagCounter({ hashtag })
-              }
-            }
-          }
-
-          const affected = [
-            ...new Set([
-              ...previousHashtagCounts.keys(),
-              ...currentHashtagNames
-            ])
-          ]
-          if (affected.length > 0) {
-            await database.indexHashtagSearchDocuments({ hashtags: affected })
-          }
-        },
+          }),
         'Status update'
       )
     }

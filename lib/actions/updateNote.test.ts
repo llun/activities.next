@@ -1000,6 +1000,194 @@ describe('Update note action', () => {
         )
         expect(editedDirect.to).toHaveLength(2)
       })
+
+      it('keeps edit history when a public post gains a mention but drops it for a followers-only post', async () => {
+        if (!actor1) fail('Actor1 is required')
+
+        const publicNote = (await createNoteFromUserInput({
+          text: 'Public note before mention',
+          currentActor: actor1,
+          database
+        })) as StatusNote
+        const publicFirstEdit = (await updateNoteFromUserInput({
+          statusId: publicNote.id,
+          currentActor: actor1,
+          database,
+          text: 'Public note first edit'
+        })) as StatusNote
+        expect(publicFirstEdit.edits).toHaveLength(1)
+
+        const publicSecondEdit = (await updateNoteFromUserInput({
+          statusId: publicNote.id,
+          currentActor: actor1,
+          database,
+          text: 'Public note first edit mentioning @cedarpine@grove.example'
+        })) as StatusNote
+        expect(publicSecondEdit.edits).toHaveLength(2)
+
+        const privateNote = (await createNoteFromUserInput({
+          text: 'Followers-only note before mention',
+          currentActor: actor1,
+          visibility: 'private',
+          database
+        })) as StatusNote
+        const privateFirstEdit = (await updateNoteFromUserInput({
+          statusId: privateNote.id,
+          currentActor: actor1,
+          database,
+          text: 'Followers-only note first edit'
+        })) as StatusNote
+        expect(privateFirstEdit.edits).toHaveLength(1)
+
+        const privateSecondEdit = (await updateNoteFromUserInput({
+          statusId: privateNote.id,
+          currentActor: actor1,
+          database,
+          text: 'Followers-only note first edit mentioning @cedarpine@grove.example'
+        })) as StatusNote
+        expect(privateSecondEdit.edits).toHaveLength(0)
+      })
+
+      it('keeps a stored mention tag when webfinger fails but the text still names the account', async () => {
+        if (!actor1) fail('Actor1 is required')
+
+        const remoteActorId = 'https://grove.example/users/maplefern'
+        const note = (await createNoteFromUserInput({
+          text: 'Hello @maplefern@grove.example',
+          currentActor: actor1,
+          database
+        })) as StatusNote
+        expect(note.tags.map((tag) => tag.value)).toContain(remoteActorId)
+
+        // Every webfinger lookup fails for the edits below.
+        fetchMock.mockResponse(async () => ({ status: 404 }))
+
+        const kept = (await updateNoteFromUserInput({
+          statusId: note.id,
+          currentActor: actor1,
+          database,
+          text: 'Hello again @maplefern@grove.example'
+        })) as StatusNote
+        expect(kept.tags.filter((tag) => tag.type === 'mention')).toEqual([
+          expect.objectContaining({
+            name: '@maplefern@grove.example',
+            value: remoteActorId
+          })
+        ])
+
+        const removed = (await updateNoteFromUserInput({
+          statusId: note.id,
+          currentActor: actor1,
+          database,
+          text: 'Hello again without the handle'
+        })) as StatusNote
+        expect(removed.tags.filter((tag) => tag.type === 'mention')).toEqual([])
+      })
+
+      it('does not notify an inherited direct-thread recipient the status does not address', async () => {
+        if (!actor1) fail('Actor1 is required')
+
+        const parentId = `${actor1.id}/statuses/direct-parent-for-edit`
+        await database.createNote({
+          id: parentId,
+          url: parentId,
+          actorId: actor1.id,
+          text: 'Direct parent',
+          to: [actor2.id],
+          cc: []
+        })
+
+        // A self-reply that names nobody inherits the parent's recipients as
+        // mention tags, but they are not added to this status's to/cc.
+        const replyId = `${actor1.id}/statuses/direct-reply-for-edit`
+        await database.createNote({
+          id: replyId,
+          url: replyId,
+          actorId: actor1.id,
+          text: 'Direct reply',
+          to: [actor1.id],
+          cc: [],
+          reply: parentId
+        })
+
+        await updateNoteFromUserInput({
+          statusId: replyId,
+          currentActor: actor1,
+          database,
+          text: 'Direct reply edited'
+        })
+
+        const actor2Notifications = (
+          await database.getNotifications({ actorId: actor2.id, limit: 100 })
+        ).filter((notification) => notification.statusId === replyId)
+        expect(actor2Notifications).toHaveLength(0)
+      })
+
+      it('moves no hashtag counter for a stored legacy bare `Public` row', async () => {
+        if (!actor1) fail('Actor1 is required')
+
+        const statusId = `${actor1.id}/statuses/legacy-bare-public-edit`
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: actor1.id,
+          text: 'Legacy bare public note',
+          to: ['Public'],
+          cc: []
+        })
+
+        const updated = (await updateNoteFromUserInput({
+          statusId,
+          currentActor: actor1,
+          database,
+          text: 'Legacy bare public note #barepublictag'
+        })) as StatusNote
+
+        expect(updated.tags.map((tag) => tag.name)).toContain('#barepublictag')
+        expect(
+          await database.getHashtagCounter({ hashtag: 'barepublictag' })
+        ).toBe(0)
+      })
+
+      it('still returns the status and queues the update when a tag insert fails', async () => {
+        if (!actor1) fail('Actor1 is required')
+
+        const created = (await createNoteFromUserInput({
+          text: 'Note before a failing tag insert',
+          currentActor: actor1,
+          database
+        })) as StatusNote
+
+        const originalCreateTag = database.createTag.bind(database)
+        const createTagSpy = vi
+          .spyOn(database, 'createTag')
+          .mockImplementation(async (params) => {
+            if (params.type === 'hashtag') {
+              throw new Error('tag insert failed')
+            }
+            return originalCreateTag(params)
+          })
+
+        try {
+          const updated = await updateNoteFromUserInput({
+            statusId: created.id,
+            currentActor: actor1,
+            database,
+            text: 'Note with #failingtag'
+          })
+
+          expect(updated).toMatchObject({ id: created.id })
+          expect(getQueue().publish).toHaveBeenCalledWith(
+            expect.objectContaining({
+              name: SEND_UPDATE_NOTE_JOB_NAME,
+              data: { actorId: actor1.id, statusId: created.id }
+            })
+          )
+          expect(timelinesService.addStatusToTimelines).toHaveBeenCalled()
+        } finally {
+          createTagSpy.mockRestore()
+        }
+      })
     })
   })
 })
