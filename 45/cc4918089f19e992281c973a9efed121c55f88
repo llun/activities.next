@@ -1,0 +1,27 @@
+docs/architecture.md
+  s_ab46b68757c610::t_363c8d4ad6673d 254
+lib/jobs/processForwardedActivityJob.test.ts
+  s_ab46b68757c610::t_51a9d4b7e03885 7,14-22,406-443
+lib/jobs/processForwardedActivityJob.ts
+  s_ab46b68757c610::t_6c828cf2e81d88 15,228-231,233
+lib/jobs/updateNoteJob.test.ts
+  s_ab46b68757c610::t_5f4c55f9414c5d 1541-1728
+lib/jobs/updateNoteJob.ts
+  s_ab46b68757c610::t_0c69460e4477bf 372-383,386,396
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "45cc4918089f19e992281c973a9efed121c55f88",
+  "prompts": {},
+  "sessions": {
+    "s_ab46b68757c610": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7f003cba-7865-408e-8dfe-90482469e43e",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
