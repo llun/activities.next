@@ -1,0 +1,43 @@
+lib/actions/createNote.ts
+  s_ab46b68757c610::t_2b16082e432357 104,109-110,116,711-765,903-915,1228,1442-1447,1456-1587
+docs/architecture.md
+  s_2b1a50e2f9b981::t_1352857291c2de 229-230
+docs/mastodon-api-compatibility.md
+  s_2b1a50e2f9b981::t_d8df8aed125e4f 163-179,1622-1629,1631,2459
+lib/actions/updateNote.test.ts
+  s_2b1a50e2f9b981::t_d11d3c16a3935e 3,7-8,15-17,19,22,512-1003
+lib/actions/updateNote.ts
+  s_2b1a50e2f9b981::t_bb3f245e834686 1-8,16,18,23-24,96-103,130-242,259-301,324-343
+lib/jobs/updateNoteJob.test.ts
+  s_2b1a50e2f9b981::t_70c24d604668d6 19,30,32,40-43,1680-1963
+lib/jobs/updateNoteJob.ts
+  s_2b1a50e2f9b981::t_3c13aa482b881b 24,36,45,124-137,192-294,393-394,440-447,452-453
+lib/services/timelines/mentionNotification.test.ts
+  s_2b1a50e2f9b981::t_e83d2619a80989 20-23,686-739
+lib/services/timelines/mentionNotification.ts
+  s_2b1a50e2f9b981::t_3a875857719fca 1,20-140,267-273
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bd06d30103dc580d44290e445af91b77fd2133af",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_ab46b68757c610": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7f003cba-7865-408e-8dfe-90482469e43e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
