@@ -804,7 +804,7 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   **Processing Pipeline** in `docs/fitness-file-storage.md`); a description
   sent for it is stored on its media row only. The edit recognises the map by
   that name or by a fitness file's `mapImagePath`, so a map an earlier edit
-  renamed gets the name back.
+  renamed gets the name back while it is still at its file's `mapImagePath`.
   The owner's `details` (camelCase on the way out) also reports what the
   lookups found: `subject.taxonKey`, `subject.taxonPath`,
   `subject.iucnCategory`, `subject.threatStatus` (`threatened`,

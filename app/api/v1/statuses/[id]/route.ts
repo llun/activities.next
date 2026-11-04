@@ -518,7 +518,8 @@ export const PUT = traceApiRoute(
         // goes), so a `media_attributes` description still reaches the row
         // above. A map is recognised by its name or by the `mapImagePath` a
         // fitness file of this status records, so a map an earlier edit
-        // renamed gets its name back from any edit that resolves attachments.
+        // renamed, while still at that path, gets its name back from any edit
+        // that resolves attachments.
         const mapImagePaths =
           resolvedAttachments && resolvedAttachments.length > 0
             ? (await database.getFitnessFilesByStatus({ statusId })).map(
