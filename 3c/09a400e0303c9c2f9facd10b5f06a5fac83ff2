@@ -1,0 +1,74 @@
+lib/utils/getNoteFromStatus.ts
+  s_da44385d8112c8::t_d936ce87b6ffa2 1,8,32,35-44
+docs/mastodon-api-compatibility.md
+  s_da44385d8112c8::t_4a3e230ea849dc 1371-1373,1974-1992
+  s_da44385d8112c8::t_e044c46797d19b 1993
+lib/activities/pollQuestion.ts
+  s_da44385d8112c8::t_d936ce87b6ffa2 1-88
+lib/actions/createNote.idempotency.test.ts
+  s_da44385d8112c8::t_a5087365246a7a 18-19,248,271-283
+lib/jobs/sendQuoteRequestJob.ts
+  s_da44385d8112c8::t_d936ce87b6ffa2 41
+lib/actions/updatePoll.ts
+  s_da44385d8112c8::t_d936ce87b6ffa2 139
+  s_ab46b68757c610::t_3e3216bab046fe 129-138
+  s_ab46b68757c610::t_6a7300b3a62b2c 3,5-6,10
+lib/types/domain/status.ts
+  s_da44385d8112c8::t_d936ce87b6ffa2 416-422
+  s_da44385d8112c8::t_abaeddf11c6f92 14,21
+lib/services/polls/queuePollCloseUpdate.ts
+  s_da44385d8112c8::t_d936ce87b6ffa2 1-28
+lib/activities/noteContext.ts
+  s_da44385d8112c8::t_4a3e230ea849dc 5,43-44
+lib/activities/pollQuestion.test.ts
+  s_da44385d8112c8::t_a5087365246a7a 1-130
+  s_da44385d8112c8::t_789b200d2fba1c 131-175
+lib/actions/createPoll.ts
+  s_da44385d8112c8::t_d936ce87b6ffa2 275-276
+lib/jobs/sendUpdateNoteJob.ts
+  s_da44385d8112c8::t_d936ce87b6ffa2 42-46
+lib/actions/createPoll.test.ts
+  s_da44385d8112c8::t_a5087365246a7a 26-30,70,72-94,96-123
+  s_da44385d8112c8::t_789b200d2fba1c 67-68,71,95
+  s_da44385d8112c8::t_5764a2ec5e4865 6,16-17
+docs/architecture.md
+  s_ab46b68757c610::t_3e3216bab046fe 227
+  s_da44385d8112c8::t_4a3e230ea849dc 228
+lib/actions/updatePoll.test.ts
+  s_da44385d8112c8::t_4a3e230ea849dc 1-34,36-67,69-106
+  s_da44385d8112c8::t_789b200d2fba1c 35,68
+lib/actions/createNote.ts
+  s_da44385d8112c8::t_d936ce87b6ffa2 123,129,167,186-187
+  s_da44385d8112c8::t_6881f76ae9a9b8 27,188
+lib/jobs/sendNoteJob.test.ts
+  s_da44385d8112c8::t_4a3e230ea849dc 112-162
+lib/jobs/sendUpdateNoteJob.test.ts
+  s_da44385d8112c8::t_4a3e230ea849dc 92-121,123
+  s_da44385d8112c8::t_aa0ab40caafb6b 3,122,124-126
+docs/features.md
+  s_da44385d8112c8::t_4a3e230ea849dc 21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3c09a400e0303c9c2f9facd10b5f06a5fac83ff2",
+  "prompts": {},
+  "sessions": {
+    "s_ab46b68757c610": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7f003cba-7865-408e-8dfe-90482469e43e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_da44385d8112c8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a810-b385-7231-ad07-d03f02e7e909",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
