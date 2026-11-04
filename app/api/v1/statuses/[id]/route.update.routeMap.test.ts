@@ -287,14 +287,24 @@ describe('PUT /api/v1/statuses/[id] keeps a fitness route map', () => {
 
   it('flags the map again when an edit drops it and a later one puts it back', async () => {
     const ride = await createRide('re-added')
+    const newPhoto = (await database.createMedia({
+      actorId: ACTOR1_ID,
+      original: {
+        path: 'medias/route-map-re-added-extra.jpg',
+        bytes: 1024,
+        mimeType: 'image/jpeg',
+        metaData: { width: 320, height: 240 }
+      }
+    }))!
 
     expect(
       (await edit(ride.statusId, { media_ids: [ride.photo.id] })).status
     ).toBe(200)
+    // The map comes back with a photo new to the post: only the map is one.
     expect(
       (
         await edit(ride.statusId, {
-          media_ids: [ride.map.id, ride.photo.id]
+          media_ids: [ride.map.id, ride.photo.id, newPhoto.id]
         })
       ).status
     ).toBe(200)
@@ -302,6 +312,49 @@ describe('PUT /api/v1/statuses/[id] keeps a fitness route map', () => {
     // A media new to the post again: it takes the media row's (empty) alt
     // text, but it is the route map.
     await expectRouteMap(ride, '')
+    const added = (
+      await database.getAttachments({ statusId: ride.statusId })
+    ).find((attachment) => attachment.mediaId === newPhoto.id)
+    expect(added).toBeDefined()
+    expect(added?.isRouteMap).toBeFalsy()
+  })
+
+  it('flags a map put back at its recorded url whatever its media row holds', async () => {
+    const ride = await createRide('recorded-url')
+    expect(
+      (await edit(ride.statusId, { media_ids: [ride.photo.id] })).status
+    ).toBe(200)
+    // Neither the media's live file nor any edit file is the recorded path
+    // any more; the url the map is put back at still is.
+    await testDb.db
+      .updateTable('medias')
+      .set({ original: 'medias/route-map-recorded-url-moved.webp' })
+      .where('id', '=', Number(ride.map.id))
+      .execute()
+
+    await database.updateNote({
+      statusId: ride.statusId,
+      text: 'Evening ride',
+      summary: null,
+      attachments: [
+        {
+          type: 'upload',
+          id: ride.map.id,
+          mediaType: 'image/webp',
+          url: `https://llun.test/api/v1/files/${ride.mapImagePath}`,
+          width: 640,
+          height: 480,
+          blurhash: null,
+          focus: null,
+          thumbnailUrl: null
+        }
+      ]
+    })
+
+    const map = (
+      await database.getAttachments({ statusId: ride.statusId })
+    ).find((attachment) => attachment.mediaId === ride.map.id)
+    expect(map?.isRouteMap).toBe(true)
   })
 
   it('flags a re-rendered map put back after an edit dropped it', async () => {

@@ -60,10 +60,11 @@ const isReplaceableMediaAttachment = (
 
 // The media of `attachments` that show one of the status's recorded route map
 // files (its live fitness files' `mapImagePath`): as their url, as the media's
-// live file, or as a file their photo edits keep (a re-rendered map). The
-// isRouteMap backfill's rule, so a map an edit dropped and a later edit puts
-// back is the map again. The media's files are read in one statement, so a
-// photo-editor save or revert committing meanwhile cannot hide the path.
+// live file, or as a file their photo edits keep (a re-rendered map), the
+// files getMediaFilePaths and the isRouteMap backfill match too. So a map an
+// edit dropped and a later edit puts back is the map again. The media's files
+// are read in one statement, so a photo-editor save or revert committing
+// meanwhile cannot hide the path.
 const selectRouteMapMediaIds = async (
   trx: Db,
   statusId: string,
