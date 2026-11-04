@@ -1,5 +1,9 @@
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
-import { removeRouteMapAttachmentsAndMedia } from '@/lib/services/fitness-files/mapAttachments'
+import {
+  ROUTE_MAP_ATTACHMENT_NAME,
+  isRouteMapAttachment,
+  removeRouteMapAttachmentsAndMedia
+} from '@/lib/services/fitness-files/mapAttachments'
 import { deleteMediaFile } from '@/lib/services/medias'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
@@ -7,6 +11,49 @@ import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 vi.mock('@/lib/services/medias', () => ({
   deleteMediaFile: vi.fn()
 }))
+
+describe('isRouteMapAttachment', () => {
+  const url = 'https://llun.test/api/v1/files/medias/ride-route-map.webp'
+
+  it('recognises the route map name whatever the paths say', () => {
+    expect(
+      isRouteMapAttachment({ name: ROUTE_MAP_ATTACHMENT_NAME, url }, [])
+    ).toBe(true)
+  })
+
+  it("recognises a renamed map by a fitness file's mapImagePath", () => {
+    expect(
+      isRouteMapAttachment({ name: 'Old alt text', url }, [
+        null,
+        'medias/other-route-map.webp',
+        'medias/ride-route-map.webp'
+      ])
+    ).toBe(true)
+  })
+
+  it('matches the path after decoding the url, as the stored path is written', () => {
+    expect(
+      isRouteMapAttachment(
+        {
+          name: '',
+          url: 'https://llun.test/api/v1/files/medias/ride%20route-map.webp'
+        },
+        ['medias/ride route-map.webp']
+      )
+    ).toBe(true)
+  })
+
+  it('leaves a photo alone when no path matches, or the paths are empty', () => {
+    expect(
+      isRouteMapAttachment({ name: 'Summit', url }, [
+        'medias/other-route-map.webp'
+      ])
+    ).toBe(false)
+    expect(
+      isRouteMapAttachment({ name: null, url: '' }, [null, undefined, ''])
+    ).toBe(false)
+  })
+})
 
 describe('removeRouteMapAttachmentsAndMedia', () => {
   const testDb = createTestDatabase()
