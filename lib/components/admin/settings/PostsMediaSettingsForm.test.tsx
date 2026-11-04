@@ -5,10 +5,7 @@ import '@testing-library/jest-dom'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import type { ResolvedServerSettings } from '@/lib/config/serverSettings'
-import {
-  MAX_FEDERATION_MEDIA_ATTACHMENTS,
-  MAX_STORED_MEDIA_ATTACHMENTS
-} from '@/lib/services/mastodon/constants'
+import { MAX_STORED_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import { MAX_CONFIGURABLE_FILE_SIZE } from '@/lib/services/medias/constants'
 import type { MediaStorageBackendSummary } from '@/lib/services/medias/storageBackendSummary'
 
@@ -107,14 +104,15 @@ describe('PostsMediaSettingsForm', () => {
     expect(field).toHaveValue(MAX_STORED_MEDIA_ATTACHMENTS)
   })
 
-  // The help copy is derived from the same two constants the field and the
-  // outbound note are bounded by, so it drifts silently: a stale "Up to 20"
-  // would misdescribe a field that accepts 50.
-  it('states both media ceilings in the help copy', () => {
+  // The help copy is derived from the constant the field is bounded by, so it
+  // drifts silently: a stale "Up to 20" would misdescribe a field that accepts
+  // 50. It must also not claim the outbound note is cut to 4 — every photo
+  // federates, and only Mastodon trims to its first 4 on receipt.
+  it('states the media ceiling and what other servers receive', () => {
     renderForm()
     expect(
       screen.getByText(
-        `Up to ${MAX_STORED_MEDIA_ATTACHMENTS}. The fediverse still only ever sees the first ${MAX_FEDERATION_MEDIA_ATTACHMENTS}.`
+        `Up to ${MAX_STORED_MEDIA_ATTACHMENTS}. Every photo is sent to other servers; Mastodon shows only the first 4.`
       )
     ).toBeInTheDocument()
   })

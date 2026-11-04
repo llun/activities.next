@@ -154,3 +154,58 @@ describe('getNoteFromStatus sensitive flag', () => {
     }
   )
 })
+
+describe('getNoteFromStatus attachments', () => {
+  const attachment = (id: string, mediaType: string, url: string) => ({
+    id,
+    actorId: ACTOR_ID,
+    statusId: STATUS_ID,
+    type: 'Document',
+    mediaType,
+    url,
+    width: 100,
+    height: 80,
+    name: id,
+    createdAt: 1700000000000,
+    updatedAt: 1700000000000
+  })
+  const photoUrls = Array.from(
+    { length: 10 },
+    (_, index) => `https://llun.test/api/v1/files/medias/photo-${index}.webp`
+  )
+  const photos = photoUrls.map((url, index) =>
+    attachment(`photo-${index}`, 'image/webp', url)
+  )
+  const fitness = attachment(
+    'fitness',
+    'application/vnd.ant.fit',
+    '/api/v1/fitness-files/fitness-file-id'
+  )
+  const attachmentUrls = (note: unknown) =>
+    ((note as { attachment: { url: string }[] }).attachment ?? []).map(
+      (item) => item.url
+    )
+
+  // Pixelfed sends and shows every attachment; Mastodon keeps the first 4 of a
+  // remote post itself, so cutting before sending only loses photos.
+  it('carries every non-fitness attachment in stored order when the status stores more than 4', () => {
+    const note = getNoteFromStatus(
+      baseStatus({
+        attachments: [...photos.slice(0, 4), fitness, ...photos.slice(4)]
+      })
+    )
+    expect(attachmentUrls(note)).toEqual(photoUrls)
+  })
+
+  it('carries every attachment on the Update of an edited post', () => {
+    const note = getNoteFromStatus(
+      baseStatus({
+        attachments: [fitness, ...photos],
+        updatedAt: 1700000060000
+      }),
+      { includeUpdated: true }
+    )
+    expect(attachmentUrls(note)).toEqual(photoUrls)
+    expect((note as Record<string, unknown>).updated).toBeDefined()
+  })
+})

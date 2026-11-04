@@ -2,7 +2,7 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { BaseNote } from '@/lib/activities/note'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
-import { MAX_FEDERATION_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
+import { MAX_STORED_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { MockMastodonActivityPubNote } from '@/lib/stub/note'
@@ -511,43 +511,87 @@ describe('Status', () => {
         )
       })
 
-      it('caps Note attachments at the federation limit when the status stores more', async () => {
+      // Pixelfed sends every attachment and Mastodon keeps the first 4 of a
+      // remote post itself, so a fetched note (AP status GET, outbox, replies)
+      // must carry every stored photo, in order, minus fitness attachments.
+      it('carries every non-fitness attachment in stored order when the status stores more than 4', async () => {
         const statusId = `${actor1?.id}/statuses/post-1`
         const status = (await database.getStatus({
           statusId
         })) as StatusNote
 
         const createdAt = Date.now()
-        const storedCount = MAX_FEDERATION_MEDIA_ATTACHMENTS + 2
+        const photoCount = 10
+        const photos = Array.from({ length: photoCount }, (_, index) => ({
+          id: `image-attachment-${index}`,
+          actorId: status.actorId,
+          statusId: status.id,
+          type: 'Document' as const,
+          mediaType: 'image/png',
+          url: `https://example.com/files/image-${index}.png`,
+          width: 100,
+          height: 80,
+          name: `image-${index}.png`,
+          createdAt,
+          updatedAt: createdAt
+        }))
+        const fitness = {
+          id: 'fitness-attachment',
+          actorId: status.actorId,
+          statusId: status.id,
+          type: 'Document' as const,
+          mediaType: 'application/gpx+xml',
+          url: '/api/v1/fitness-files/fitness-file-id',
+          width: 0,
+          height: 0,
+          name: 'activity.gpx',
+          createdAt,
+          updatedAt: createdAt
+        }
         const note = toActivityPubObject({
           ...status,
-          attachments: Array.from({ length: storedCount }, (_, index) => ({
-            id: `image-attachment-${index}`,
-            actorId: status.actorId,
-            statusId: status.id,
-            type: 'Document' as const,
-            mediaType: 'image/png',
-            url: `https://example.com/files/image-${index}.png`,
-            width: 100,
-            height: 80,
-            name: `image-${index}.png`,
-            createdAt,
-            updatedAt: createdAt
-          }))
+          attachments: [...photos.slice(0, 3), fitness, ...photos.slice(3)]
         })
 
         const attachments = Array.isArray(note.attachment)
           ? note.attachment
           : []
-        expect(attachments).toHaveLength(MAX_FEDERATION_MEDIA_ATTACHMENTS)
         expect(
           attachments.map((attachment) => (attachment as Document).url)
-        ).toEqual(
-          Array.from(
-            { length: MAX_FEDERATION_MEDIA_ATTACHMENTS },
-            (_, index) => `https://example.com/files/image-${index}.png`
+        ).toEqual(photos.map((photo) => photo.url))
+      })
+
+      it('carries MAX_STORED_MEDIA_ATTACHMENTS attachments when the status stores that many', async () => {
+        const statusId = `${actor1?.id}/statuses/post-1`
+        const status = (await database.getStatus({
+          statusId
+        })) as StatusNote
+
+        const createdAt = Date.now()
+        const note = toActivityPubObject({
+          ...status,
+          attachments: Array.from(
+            { length: MAX_STORED_MEDIA_ATTACHMENTS },
+            (_, index) => ({
+              id: `image-attachment-${index}`,
+              actorId: status.actorId,
+              statusId: status.id,
+              type: 'Document' as const,
+              mediaType: 'image/png',
+              url: `https://example.com/files/image-${index}.png`,
+              width: 100,
+              height: 80,
+              name: `image-${index}.png`,
+              createdAt,
+              updatedAt: createdAt
+            })
           )
-        )
+        })
+
+        const attachments = Array.isArray(note.attachment)
+          ? note.attachment
+          : []
+        expect(attachments).toHaveLength(MAX_STORED_MEDIA_ATTACHMENTS)
       })
       describe('quote emission', () => {
         // A peer that FETCHES a note (this object backs the AP status GET, the
