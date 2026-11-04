@@ -59,9 +59,11 @@ const isReplaceableMediaAttachment = (
   attachment.mediaId !== undefined
 
 // The media of `attachments` that show one of the status's recorded route map
-// files: as their url, or as a file their photo edits keep (a re-rendered
-// map). The isRouteMap backfill's rule, so a map an edit dropped and a later
-// edit puts back is the map again.
+// files (its live fitness files' `mapImagePath`): as their url, as the media's
+// live file, or as a file their photo edits keep (a re-rendered map). The
+// isRouteMap backfill's rule, so a map an edit dropped and a later edit puts
+// back is the map again. The media's files are read in one statement, so a
+// photo-editor save or revert committing meanwhile cannot hide the path.
 const selectRouteMapMediaIds = async (
   trx: Db,
   statusId: string,
@@ -75,6 +77,7 @@ const selectRouteMapMediaIds = async (
         .selectFrom('fitness_files')
         .select('mapImagePath')
         .where('statusId', '=', statusId)
+        .where('deletedAt', 'is', null)
         .where('mapImagePath', 'is not', null)
         .execute()
     ).map((row) => row.mapImagePath as string)
@@ -84,12 +87,17 @@ const selectRouteMapMediaIds = async (
     const id = toAttachmentMediaId(attachment.mediaId)
     return id === null ? [] : [id]
   })
-  const editFiles =
+  const mediaFiles =
     mediaIds.length > 0
       ? await trx
-          .selectFrom('media_edit_files')
-          .select(['mediaId', 'path'])
-          .where('mediaId', 'in', mediaIds)
+          .selectFrom('medias')
+          .leftJoin('media_edit_files', 'media_edit_files.mediaId', 'medias.id')
+          .select([
+            'medias.id as mediaId',
+            'medias.original',
+            'media_edit_files.path'
+          ])
+          .where('medias.id', 'in', mediaIds)
           .execute()
       : []
   for (const attachment of attachments) {
@@ -97,8 +105,11 @@ const selectRouteMapMediaIds = async (
     if (id === null) continue
     if (
       mapPaths.has(getAttachmentMediaPath(attachment.url)) ||
-      editFiles.some(
-        (file) => Number(file.mediaId) === id && mapPaths.has(file.path)
+      mediaFiles.some(
+        (file) =>
+          Number(file.mediaId) === id &&
+          ((file.original !== null && mapPaths.has(file.original)) ||
+            (file.path !== null && mapPaths.has(file.path)))
       )
     ) {
       found.add(id)

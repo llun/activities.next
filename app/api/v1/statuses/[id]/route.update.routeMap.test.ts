@@ -416,6 +416,77 @@ describe('PUT /api/v1/statuses/[id] keeps a fitness route map', () => {
     ])
   })
 
+  it("flags a map put back under another url of its media's file", async () => {
+    const ride = await createRide('other-url')
+    expect(
+      (await edit(ride.statusId, { media_ids: [ride.photo.id] })).status
+    ).toBe(200)
+
+    // Not the url the post showed, but the media's live file is still the
+    // recorded map path.
+    await database.updateNote({
+      statusId: ride.statusId,
+      text: 'Evening ride',
+      summary: null,
+      attachments: [
+        {
+          type: 'upload',
+          id: ride.map.id,
+          mediaType: 'image/webp',
+          url: `https://llun.test/api/v1/files/${ride.mapImagePath}?v=2`,
+          width: 640,
+          height: 480,
+          blurhash: null,
+          focus: null,
+          thumbnailUrl: null
+        },
+        {
+          type: 'upload',
+          id: ride.photo.id,
+          mediaType: 'image/jpeg',
+          url: `https://llun.test/api/v1/files/${ride.photo.original.path}`,
+          width: 320,
+          height: 240,
+          name: 'Bikes at the summit',
+          blurhash: null,
+          focus: null,
+          thumbnailUrl: null
+        }
+      ]
+    })
+
+    const map = (
+      await database.getAttachments({ statusId: ride.statusId })
+    ).find((attachment) => attachment.mediaId === ride.map.id)
+    expect(map?.isRouteMap).toBe(true)
+  })
+
+  it('does not flag a map put back once the activity is deleted', async () => {
+    const ride = await createRide('deleted-re-added')
+    await testDb.db
+      .updateTable('fitness_files')
+      .set({ deletedAt: new Date() })
+      .where('id', '=', ride.fitnessFileId)
+      .execute()
+
+    expect(
+      (await edit(ride.statusId, { media_ids: [ride.photo.id] })).status
+    ).toBe(200)
+    expect(
+      (
+        await edit(ride.statusId, {
+          media_ids: [ride.map.id, ride.photo.id]
+        })
+      ).status
+    ).toBe(200)
+
+    const map = (
+      await database.getAttachments({ statusId: ride.statusId })
+    ).find((attachment) => attachment.mediaId === ride.map.id)
+    expect(map).toBeDefined()
+    expect(map?.isRouteMap).toBeFalsy()
+  })
+
   it('leads with the flagged map when the primary file records no map path', async () => {
     const ride = await createRide('no-map-path')
     await testDb.db
