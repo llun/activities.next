@@ -10,6 +10,7 @@ import {
   getActiveFilters
 } from '@/lib/services/filters/applyFilters'
 import { deleteEmailMapImage } from '@/lib/services/fitness-files/emailMapImage'
+import { getMediaFilePaths } from '@/lib/services/fitness-files/mapAttachments'
 import {
   OAuthGuardAnyScope,
   OptionalOAuthGuard
@@ -390,7 +391,8 @@ export const PUT = traceApiRoute(
         // file the map was stored at, among the files of the media sent: the
         // media's live file, or, once the photo editor has re-rendered it,
         // one its edits keep (the uploaded original stays in the original
-        // slot, and a revert makes it the live file again). Not by the name,
+        // slot, and a revert makes it the live file again; getMediaFilePaths, which
+        // the map jobs share). Not by the name,
         // which an edit does not preserve, nor by the attachment's url, which
         // "Update posts" moves to the render. Every id sent counts: a second
         // spelling of a media new to the status becomes a row of its own, and
@@ -405,27 +407,14 @@ export const PUT = traceApiRoute(
           )
           let sentRouteMaps = 0
           if (routeMapPaths.size > 0) {
-            const sentMediaIds = [
-              ...new Set(
-                resolvedMediaIds.map((mediaId) =>
-                  toCanonicalMediaId(String(mediaId))
-                )
-              )
-            ]
-            const accountId = currentActor.account?.id
-            const [sentMedia, editedFilePaths] = await Promise.all([
-              accountId
-                ? database.getMediaByIdsForAccount({
-                    mediaIds: sentMediaIds,
-                    accountId
-                  })
-                : Promise.resolve([]),
-              database.getMediaEditFilePaths({ mediaIds: sentMediaIds })
-            ])
-            const sentFilePaths = new Set([
-              ...sentMedia.map((media) => media.original.path),
-              ...editedFilePaths
-            ])
+            const sentMedia = await getMediaFilePaths({
+              database,
+              accountId: currentActor.account?.id,
+              mediaIds: resolvedMediaIds.map(String)
+            })
+            const sentFilePaths = new Set(
+              [...sentMedia.values()].flatMap((paths) => [...paths])
+            )
             sentRouteMaps = [...routeMapPaths].filter((path) =>
               sentFilePaths.has(path)
             ).length
