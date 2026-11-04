@@ -1,6 +1,7 @@
-import { SpanStatusCode } from '@opentelemetry/api'
+import { Span, SpanStatusCode } from '@opentelemetry/api'
 
 import { getConfig } from '@/lib/config'
+import { Database } from '@/lib/database/types'
 import { resolveActorEmailBrand } from '@/lib/services/email/sender'
 import { buildMentionEmail } from '@/lib/services/email/templates/mention'
 import { buildReplyEmail } from '@/lib/services/email/templates/reply'
@@ -9,6 +10,7 @@ import {
   NotificationEvent,
   sendNotificationAlerts
 } from '@/lib/services/notifications/sendNotificationAlerts'
+import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { NotificationType } from '@/lib/types/database/operations'
 import { getActorURL } from '@/lib/types/domain/actor'
 import { StatusType } from '@/lib/types/domain/status'
@@ -16,6 +18,159 @@ import { TagType } from '@/lib/types/domain/tag'
 import { withSpan } from '@/lib/utils/trace'
 
 import { TimelineRuleParams } from './types'
+
+/**
+ * Whether `actorId` already holds a `mention:<statusId>` notification for this
+ * status, filtered or not. Both mention-notification paths check it so a
+ * partial-failure retry (or a re-delivered Update) cannot double-notify.
+ */
+export const hasMentionNotification = async ({
+  database,
+  actorId,
+  statusId
+}: {
+  database: Database
+  actorId: string
+  statusId: string
+}): Promise<boolean> => {
+  const existing = await database.getNotificationsForGroupKey({
+    actorId,
+    groupKey: `mention:${statusId}`,
+    includeFiltered: true,
+    limit: 1
+  })
+  return existing.some(
+    (notification) =>
+      notification.type === NotificationType.enum.mention &&
+      notification.statusId === statusId
+  )
+}
+
+const createRemoteMentionNotificationEvent = async ({
+  database,
+  currentActor,
+  status,
+  span
+}: TimelineRuleParams & { span: Span }): Promise<NotificationEvent | null> => {
+  if (status.type === StatusType.enum.Announce) return null
+  const config = getConfig()
+  const account = currentActor.account
+  // Error is recorded but not re-thrown: a notification DB failure should
+  // not block the rest of the alert dispatch.
+  let mentionNotification = null
+  try {
+    mentionNotification = await createNotificationWithPolicy(database, {
+      actorId: currentActor.id,
+      type: NotificationType.enum.mention,
+      sourceActorId: status.actorId,
+      statusId: status.id,
+      groupKey: `mention:${status.id}`
+    })
+  } catch (error) {
+    span.setStatus({
+      code: SpanStatusCode.ERROR,
+      message: 'Failed to create mention notification record'
+    })
+    span.recordException(
+      error instanceof Error ? error : new Error(String(error))
+    )
+  }
+
+  if (!mentionNotification || mentionNotification.filtered) {
+    return null
+  }
+
+  const mentionEvent: NotificationEvent = {
+    type: NotificationType.enum.mention,
+    notificationId: mentionNotification.id
+  }
+  if (config.email && account && status.actor) {
+    mentionEvent.emailContent = {
+      recipientEmail: account.email,
+      ...buildMentionEmail({
+        recipient: currentActor,
+        brand: await resolveActorEmailBrand(database, currentActor),
+        actor: status.actor,
+        status
+      })
+    }
+  }
+  return mentionEvent
+}
+
+/**
+ * Create a mention-only notification (with push and email alerts) for a local
+ * actor newly mentioned in an inbound remote status edit. Never creates reply
+ * notifications, and skips actors who already have a `mention:<statusId>`
+ * notification for this status.
+ */
+export const notifyRemoteMention = async ({
+  database,
+  currentActor,
+  status
+}: TimelineRuleParams): Promise<void> =>
+  withSpan(
+    'timeline',
+    'notifyRemoteMention',
+    {
+      actorId: currentActor.id,
+      statusId: status.id
+    },
+    async (span) => {
+      if (
+        status.type === StatusType.enum.Announce ||
+        status.isLocalActor ||
+        status.actorId === currentActor.id
+      ) {
+        return
+      }
+
+      // A mention-only notification is for an actor who can read the status. An
+      // Update can add a Mention tag for someone the status does not address,
+      // and notifying them would leak that the post exists.
+      if (!(await canActorReadStatus({ database, status, currentActor }))) {
+        return
+      }
+
+      // A reply to the recipient's own post is already covered by the reply
+      // notification, which `notifyRemoteReplyAndMention` suppresses the
+      // mention for. An edit that adds the Mention tag must not create a
+      // second entry for the same event.
+      if (status.reply) {
+        const repliedStatus = await database.getStatus({
+          statusId: status.reply,
+          withReplies: false
+        })
+        if (repliedStatus?.actorId === currentActor.id) return
+      }
+
+      if (
+        await hasMentionNotification({
+          database,
+          actorId: currentActor.id,
+          statusId: status.id
+        })
+      ) {
+        return
+      }
+
+      const mentionEvent = await createRemoteMentionNotificationEvent({
+        database,
+        currentActor,
+        status,
+        span
+      })
+      if (mentionEvent) {
+        sendNotificationAlerts({
+          database,
+          actorId: currentActor.id,
+          sourceActorId: status.actorId,
+          statusId: status.id,
+          events: [mentionEvent]
+        })
+      }
+    }
+  )
 
 /**
  * Create reply/mention notifications for an inbound REMOTE status.
@@ -143,44 +298,13 @@ export const notifyRemoteReplyAndMention = async ({
       // Skip the mention notification when a reply notification already covers
       // this status for the same recipient — they are the same event.
       if (isMentioned && !replyNotificationCreated) {
-        const account = currentActor.account
-        // Error is recorded but not re-thrown: a notification DB failure should
-        // not block the rest of the alert dispatch.
-        let mentionNotification = null
-        try {
-          mentionNotification = await createNotificationWithPolicy(database, {
-            actorId: currentActor.id,
-            type: NotificationType.enum.mention,
-            sourceActorId: status.actorId,
-            statusId: status.id,
-            groupKey: `mention:${status.id}`
-          })
-        } catch (error) {
-          span.setStatus({
-            code: SpanStatusCode.ERROR,
-            message: 'Failed to create mention notification record'
-          })
-          span.recordException(
-            error instanceof Error ? error : new Error(String(error))
-          )
-        }
-
-        if (mentionNotification && !mentionNotification.filtered) {
-          const mentionEvent: NotificationEvent = {
-            type: NotificationType.enum.mention,
-            notificationId: mentionNotification.id
-          }
-          if (config.email && account && status.actor) {
-            mentionEvent.emailContent = {
-              recipientEmail: account.email,
-              ...buildMentionEmail({
-                recipient: currentActor,
-                brand: await resolveActorEmailBrand(database, currentActor),
-                actor: status.actor,
-                status
-              })
-            }
-          }
+        const mentionEvent = await createRemoteMentionNotificationEvent({
+          database,
+          currentActor,
+          status,
+          span
+        })
+        if (mentionEvent) {
           alertEvents.push(mentionEvent)
         }
       }

@@ -17,7 +17,11 @@ import { Actor, getActorURL } from '@/lib/types/domain/actor'
 import { Status } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
-import { notifyRemoteReplyAndMention } from './mentionNotification'
+import {
+  hasMentionNotification,
+  notifyRemoteMention,
+  notifyRemoteReplyAndMention
+} from './mentionNotification'
 
 vi.mock('@/lib/services/notifications/sendNotificationAlerts', () => ({
   sendNotificationAlerts: vi.fn()
@@ -679,5 +683,195 @@ describe('notifyRemoteReplyAndMention', () => {
       await notificationsForStatus(database, actor.id, replyStatus.id)
     ).toHaveLength(0)
     expect(mockSendAlerts).not.toHaveBeenCalled()
+  })
+
+  describe('notifyRemoteMention', () => {
+    it('creates a mention-only notification with email alert and skips duplicate calls', async () => {
+      const actor = (await database.getActorFromId({ id: ACTOR2_ID })) as Actor
+      // The parent belongs to another actor: a reply to the recipient's own
+      // post is covered by the reply notification instead.
+      const parentPost = await createNote(
+        database,
+        ACTOR1_ID,
+        'Parent post by actor1',
+        `${ACTOR1_ID}/followers`
+      )
+      const remoteReply = await createNote(
+        database,
+        EXTERNAL_ACTOR1,
+        `Edited reply mentioning ${getActorURL(actor)}`,
+        EXTERNAL_ACTOR1_FOLLOWERS,
+        parentPost.id
+      )
+
+      await notifyRemoteMention({
+        database,
+        currentActor: actor,
+        status: remoteReply
+      })
+      await notifyRemoteMention({
+        database,
+        currentActor: actor,
+        status: remoteReply
+      })
+
+      const forStatus = await notificationsForStatus(
+        database,
+        actor.id,
+        remoteReply.id
+      )
+      expect(forStatus).toHaveLength(1)
+      expect(forStatus[0].type).toBe(NotificationType.enum.mention)
+      expect(mockSendAlerts).toHaveBeenCalledTimes(1)
+      expect(mockSendAlerts).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorId: actor.id,
+          sourceActorId: EXTERNAL_ACTOR1,
+          statusId: remoteReply.id,
+          events: [
+            expect.objectContaining({
+              type: NotificationType.enum.mention,
+              emailContent: expect.objectContaining({
+                subject: expect.stringContaining('mentions you in')
+              })
+            })
+          ]
+        })
+      )
+    })
+
+    it('does not notify a local actor who cannot read the status', async () => {
+      const actorA = (await database.getActorFromId({ id: ACTOR2_ID })) as Actor
+      const actorB = (await database.getActorFromId({ id: ACTOR3_ID })) as Actor
+      const id = randomBytes(16).toString('hex')
+      const directNote = await database.createNote({
+        id: `${EXTERNAL_ACTOR1}/statuses/${id}`,
+        url: `${EXTERNAL_ACTOR1}/statuses/${id}`,
+        actorId: EXTERNAL_ACTOR1,
+        to: [actorA.id],
+        cc: [],
+        text: 'Direct note to actor2'
+      })
+
+      // The Update adds a Mention tag for actorB without addressing them.
+      await createMentionTag(
+        database,
+        directNote.id,
+        getActorURL(actorB),
+        actorB.username
+      )
+      await notifyRemoteMention({
+        database,
+        currentActor: actorB,
+        status: directNote
+      })
+      expect(
+        await notificationsForStatus(database, actorB.id, directNote.id)
+      ).toHaveLength(0)
+
+      // actorA is addressed, so a newly added mention still notifies them.
+      await createMentionTag(
+        database,
+        directNote.id,
+        getActorURL(actorA),
+        actorA.username
+      )
+      await notifyRemoteMention({
+        database,
+        currentActor: actorA,
+        status: directNote
+      })
+      expect(
+        await notificationsForStatus(database, actorA.id, directNote.id)
+      ).toHaveLength(1)
+    })
+
+    it('does not add a mention notification when the recipient authored the parent', async () => {
+      const actor = (await database.getActorFromId({ id: ACTOR2_ID })) as Actor
+      const parentPost = await createNote(
+        database,
+        ACTOR2_ID,
+        'Parent post by actor2',
+        `${ACTOR2_ID}/followers`
+      )
+      const remoteReply = await createNote(
+        database,
+        EXTERNAL_ACTOR1,
+        'Reply without a mention tag',
+        EXTERNAL_ACTOR1_FOLLOWERS,
+        parentPost.id
+      )
+
+      await notifyRemoteReplyAndMention({
+        database,
+        currentActor: actor,
+        status: remoteReply
+      })
+      const afterReply = await notificationsForStatus(
+        database,
+        actor.id,
+        remoteReply.id
+      )
+      expect(afterReply).toHaveLength(1)
+      expect(afterReply[0].type).toBe(NotificationType.enum.reply)
+
+      // The Update adds a Mention tag for the parent's author.
+      await createMentionTag(
+        database,
+        remoteReply.id,
+        getActorURL(actor),
+        actor.username
+      )
+      await notifyRemoteMention({
+        database,
+        currentActor: actor,
+        status: remoteReply
+      })
+
+      const afterMention = await notificationsForStatus(
+        database,
+        actor.id,
+        remoteReply.id
+      )
+      expect(afterMention).toHaveLength(1)
+      expect(afterMention[0].type).toBe(NotificationType.enum.reply)
+    })
+  })
+
+  describe('hasMentionNotification', () => {
+    it('reports a mention notification for the status, filtered or not', async () => {
+      const actor = (await database.getActorFromId({ id: ACTOR2_ID })) as Actor
+      const status = await createNote(
+        database,
+        EXTERNAL_ACTOR1,
+        'Hello',
+        EXTERNAL_ACTOR1_FOLLOWERS
+      )
+
+      expect(
+        await hasMentionNotification({
+          database,
+          actorId: actor.id,
+          statusId: status.id
+        })
+      ).toBe(false)
+
+      await database.createNotification({
+        actorId: actor.id,
+        type: NotificationType.enum.mention,
+        sourceActorId: EXTERNAL_ACTOR1,
+        statusId: status.id,
+        groupKey: `mention:${status.id}`,
+        filtered: true
+      })
+
+      expect(
+        await hasMentionNotification({
+          database,
+          actorId: actor.id,
+          statusId: status.id
+        })
+      ).toBe(true)
+    })
   })
 })

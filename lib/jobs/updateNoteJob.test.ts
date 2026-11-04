@@ -16,6 +16,7 @@ import {
   MAX_FORWARD_INBOXES_PER_JOB,
   resolveForwardingInboxes
 } from '@/lib/services/federation/forwardingDelivery'
+import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { getQueue } from '@/lib/services/queue'
 import type { JobMessage, Queue } from '@/lib/services/queue/type'
 import {
@@ -26,13 +27,19 @@ import { ACTIVITY_JSON_HEADERS, mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { MockMastodonActivityPubNote } from '@/lib/stub/note'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
+import { seedActor2 } from '@/lib/stub/seed/actor2'
 import { EXTERNAL_ACTOR1 } from '@/lib/stub/seed/external1'
+import { NotificationType } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
 import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 enableFetchMocks()
+
+vi.mock('@/lib/services/notifications/sendNotificationAlerts', () => ({
+  sendNotificationAlerts: vi.fn()
+}))
 
 vi.mock('@/lib/services/federation/forwardingDelivery', async () => {
   const actual = await vi.importActual<
@@ -1668,6 +1675,342 @@ describe('updateNoteJob', () => {
       expect(forwardedActivityId(second[0])).toEqual(
         forwardedActivityId(first[0])
       )
+    })
+  })
+
+  describe('newly mentioned local user notifications on remote Update', () => {
+    let actor1: Actor
+    let actor2: Actor
+
+    beforeAll(async () => {
+      actor1 = (await database.getActorFromUsername({
+        username: seedActor1.username,
+        domain: seedActor1.domain
+      })) as Actor
+      actor2 = (await database.getActorFromUsername({
+        username: seedActor2.username,
+        domain: seedActor2.domain
+      })) as Actor
+    })
+
+    beforeEach(() => {
+      vi.mocked(sendNotificationAlerts).mockClear()
+    })
+
+    it('notifies a local user newly mentioned by a remote edit once without re-notifying existing mentions', async () => {
+      const noteId = `${EXTERNAL_ACTOR1}/statuses/remote-edit-new-mention`
+      const initialNote = {
+        ...MockMastodonActivityPubNote({
+          id: noteId,
+          from: EXTERNAL_ACTOR1,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [actor1.id],
+          content: '<p>Hello @test1</p>'
+        }),
+        tag: [
+          {
+            type: 'Mention' as const,
+            href: actor1.id,
+            name: '@test1@llun.test'
+          }
+        ]
+      }
+      await createNoteJob(database, {
+        id: 'create-remote-edit-new-mention',
+        name: CREATE_NOTE_JOB_NAME,
+        data: initialNote
+      })
+      vi.mocked(sendNotificationAlerts).mockClear()
+
+      await updateNoteJob(database, {
+        id: 'update-remote-edit-new-mention',
+        name: UPDATE_NOTE_JOB_NAME,
+        data: {
+          ...initialNote,
+          cc: [actor1.id, actor2.id],
+          content: '<p>Hello @test1 and @test2</p>',
+          tag: [
+            {
+              type: 'Mention' as const,
+              href: actor1.id,
+              name: '@test1@llun.test'
+            },
+            {
+              type: 'Mention' as const,
+              href: actor2.id,
+              name: '@test2@llun.test'
+            }
+          ]
+        }
+      })
+
+      const actor2Notifications = (
+        await database.getNotifications({ actorId: actor2.id, limit: 100 })
+      ).filter((n) => n.statusId === noteId)
+      expect(actor2Notifications).toHaveLength(1)
+      expect(actor2Notifications[0]).toMatchObject({
+        type: NotificationType.enum.mention,
+        sourceActorId: EXTERNAL_ACTOR1,
+        groupKey: `mention:${noteId}`
+      })
+      expect(vi.mocked(sendNotificationAlerts)).toHaveBeenCalledTimes(1)
+      expect(vi.mocked(sendNotificationAlerts)).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorId: actor2.id,
+          sourceActorId: EXTERNAL_ACTOR1,
+          statusId: noteId,
+          events: [
+            expect.objectContaining({
+              type: NotificationType.enum.mention,
+              notificationId: actor2Notifications[0].id
+            })
+          ]
+        })
+      )
+
+      const actor1Notifications = (
+        await database.getNotifications({ actorId: actor1.id, limit: 100 })
+      ).filter((n) => n.statusId === noteId)
+      expect(actor1Notifications).toHaveLength(1)
+    })
+
+    it('notifies a local user whose Mention href is the profile URL form', async () => {
+      const noteId = `${EXTERNAL_ACTOR1}/statuses/remote-edit-profile-url-mention`
+      const initialNote = MockMastodonActivityPubNote({
+        id: noteId,
+        from: EXTERNAL_ACTOR1,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        content: '<p>Before edit</p>'
+      })
+      await createNoteJob(database, {
+        id: 'create-remote-edit-profile-url-mention',
+        name: CREATE_NOTE_JOB_NAME,
+        data: initialNote
+      })
+      vi.mocked(sendNotificationAlerts).mockClear()
+
+      // Some servers address a Mention by the actor's profile URL rather than
+      // its id; the local actor behind it must still be notified.
+      await updateNoteJob(database, {
+        id: 'update-remote-edit-profile-url-mention',
+        name: UPDATE_NOTE_JOB_NAME,
+        data: {
+          ...initialNote,
+          cc: [actor1.id],
+          content: '<p>Edited note mentioning @test1</p>',
+          tag: [
+            {
+              type: 'Mention' as const,
+              href: 'https://llun.test/@test1',
+              name: '@test1@llun.test'
+            }
+          ]
+        }
+      })
+
+      const notifications = (
+        await database.getNotifications({ actorId: actor1.id, limit: 100 })
+      ).filter((n) => n.statusId === noteId)
+      expect(notifications).toHaveLength(1)
+      expect(notifications[0]).toMatchObject({
+        type: NotificationType.enum.mention,
+        sourceActorId: EXTERNAL_ACTOR1,
+        groupKey: `mention:${noteId}`
+      })
+      expect(vi.mocked(sendNotificationAlerts)).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorId: actor1.id,
+          statusId: noteId
+        })
+      )
+    })
+
+    it('does not notify again when the same remote Update is re-delivered', async () => {
+      const noteId = `${EXTERNAL_ACTOR1}/statuses/remote-edit-redelivery`
+      const initialNote = MockMastodonActivityPubNote({
+        id: noteId,
+        from: EXTERNAL_ACTOR1,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        content: '<p>Initial note</p>'
+      })
+      await createNoteJob(database, {
+        id: 'create-remote-edit-redelivery',
+        name: CREATE_NOTE_JOB_NAME,
+        data: initialNote
+      })
+      vi.mocked(sendNotificationAlerts).mockClear()
+
+      const updatedPayload = {
+        ...initialNote,
+        cc: [actor2.id],
+        content: '<p>Edited note mentioning @test2</p>',
+        tag: [
+          {
+            type: 'Mention' as const,
+            href: actor2.id,
+            name: '@test2@llun.test'
+          }
+        ]
+      }
+
+      await updateNoteJob(database, {
+        id: 'update-remote-edit-redelivery-1',
+        name: UPDATE_NOTE_JOB_NAME,
+        data: updatedPayload
+      })
+      await updateNoteJob(database, {
+        id: 'update-remote-edit-redelivery-2',
+        name: UPDATE_NOTE_JOB_NAME,
+        data: updatedPayload
+      })
+
+      const actor2Notifications = (
+        await database.getNotifications({ actorId: actor2.id, limit: 100 })
+      ).filter((n) => n.statusId === noteId)
+      expect(actor2Notifications).toHaveLength(1)
+      expect(vi.mocked(sendNotificationAlerts)).toHaveBeenCalledTimes(1)
+    })
+
+    it('never creates a reply notification when a remote reply is edited', async () => {
+      const localParentId = `${actor1.id}/statuses/parent-for-remote-reply-edit`
+      await database.createNote({
+        id: localParentId,
+        url: localParentId,
+        actorId: actor1.id,
+        text: 'Local parent note',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const remoteReplyId = `${EXTERNAL_ACTOR1}/statuses/remote-reply-edited`
+      const initialReply = {
+        ...MockMastodonActivityPubNote({
+          id: remoteReplyId,
+          from: EXTERNAL_ACTOR1,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [actor1.id],
+          inReplyTo: localParentId,
+          content: '<p>@test1 initial reply</p>'
+        }),
+        tag: [
+          {
+            type: 'Mention' as const,
+            href: actor1.id,
+            name: '@test1@llun.test'
+          }
+        ]
+      }
+      await createNoteJob(database, {
+        id: 'create-remote-reply-edited',
+        name: CREATE_NOTE_JOB_NAME,
+        data: initialReply
+      })
+      vi.mocked(sendNotificationAlerts).mockClear()
+
+      await updateNoteJob(database, {
+        id: 'update-remote-reply-edited',
+        name: UPDATE_NOTE_JOB_NAME,
+        data: {
+          ...initialReply,
+          cc: [actor1.id, actor2.id],
+          content: '<p>@test1 edited reply adding @test2</p>',
+          tag: [
+            {
+              type: 'Mention' as const,
+              href: actor1.id,
+              name: '@test1@llun.test'
+            },
+            {
+              type: 'Mention' as const,
+              href: actor2.id,
+              name: '@test2@llun.test'
+            }
+          ]
+        }
+      })
+
+      const actor1Notifications = (
+        await database.getNotifications({ actorId: actor1.id, limit: 100 })
+      ).filter((n) => n.statusId === remoteReplyId)
+      expect(actor1Notifications).toHaveLength(1)
+      expect(actor1Notifications[0].type).toBe(NotificationType.enum.reply)
+
+      const actor2Notifications = (
+        await database.getNotifications({ actorId: actor2.id, limit: 100 })
+      ).filter((n) => n.statusId === remoteReplyId)
+      expect(actor2Notifications).toHaveLength(1)
+      expect(actor2Notifications[0].type).toBe(NotificationType.enum.mention)
+    })
+
+    it('does not notify when the remote author is blocked', async () => {
+      await database.createBlock({
+        actorId: actor1.id,
+        targetActorId: EXTERNAL_ACTOR1,
+        uri: `${actor1.id}#blocks/remote-edit-blocked-author`
+      })
+
+      try {
+        const noteId = `${EXTERNAL_ACTOR1}/statuses/remote-edit-blocked`
+        const initialNote = MockMastodonActivityPubNote({
+          id: noteId,
+          from: EXTERNAL_ACTOR1,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          content: '<p>Before edit</p>'
+        })
+        await createNoteJob(database, {
+          id: 'create-remote-edit-blocked',
+          name: CREATE_NOTE_JOB_NAME,
+          data: initialNote
+        })
+        vi.mocked(sendNotificationAlerts).mockClear()
+
+        await updateNoteJob(database, {
+          id: 'update-remote-edit-blocked',
+          name: UPDATE_NOTE_JOB_NAME,
+          data: {
+            ...initialNote,
+            cc: [actor1.id, actor2.id],
+            content: '<p>Mentioning @test1 and @test2</p>',
+            tag: [
+              {
+                type: 'Mention' as const,
+                href: actor1.id,
+                name: '@test1@llun.test'
+              },
+              {
+                type: 'Mention' as const,
+                href: actor2.id,
+                name: '@test2@llun.test'
+              }
+            ]
+          }
+        })
+
+        const blockedActorNotifications = (
+          await database.getNotifications({ actorId: actor1.id, limit: 100 })
+        ).filter((n) => n.statusId === noteId)
+        const unblockedActorNotifications = (
+          await database.getNotifications({ actorId: actor2.id, limit: 100 })
+        ).filter((n) => n.statusId === noteId)
+
+        expect(blockedActorNotifications).toHaveLength(0)
+        expect(unblockedActorNotifications).toHaveLength(1)
+        expect(vi.mocked(sendNotificationAlerts)).toHaveBeenCalledTimes(1)
+        expect(vi.mocked(sendNotificationAlerts)).toHaveBeenCalledWith(
+          expect.objectContaining({
+            actorId: actor2.id,
+            statusId: noteId
+          })
+        )
+      } finally {
+        await database.deleteBlock({
+          actorId: actor1.id,
+          targetActorId: EXTERNAL_ACTOR1
+        })
+      }
     })
   })
 })

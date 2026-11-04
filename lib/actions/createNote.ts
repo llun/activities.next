@@ -33,6 +33,7 @@ import {
   isPublicOrUnlisted
 } from '@/lib/services/statusAccess'
 import { addStatusToTimelines } from '@/lib/services/timelines'
+import { hasMentionNotification } from '@/lib/services/timelines/mentionNotification'
 import { Mention } from '@/lib/types/activitypub'
 import { NotificationType } from '@/lib/types/database/operations'
 import {
@@ -101,18 +102,19 @@ export const settleAll = async (work: Promise<unknown>[]): Promise<void> => {
   if (failure) throw failure.reason
 }
 
-// One best-effort step of a status create: a failure is logged and the post
+// One best-effort step of a status write: a failure is logged and the write
 // still succeeds.
 export const runBestEffortStep = async (
   statusId: string,
   step: string,
-  work: () => Promise<unknown>
+  work: () => Promise<unknown>,
+  action = 'Status create'
 ): Promise<void> => {
   try {
     await work()
   } catch (error) {
     logger.error({
-      message: `Status create: ${step} failed`,
+      message: `${action}: ${step} failed`,
       statusId,
       err: toLoggableError(error)
     })
@@ -707,6 +709,61 @@ export const getVisibilityFromReplyStatus = (
   )
 }
 
+/**
+ * Computes the mention sets for a status write (create or edit) given its
+ * reply parent and visibility:
+ * - `recipientMentions`: addressed in `to`/`cc` (explicit-only on a direct
+ *   reply to a non-direct parent so the parent author is not pulled in)
+ * - `mentionTags`: persisted as `mention` tags (adds inherited direct-thread
+ *   recipients when replying inside a direct thread)
+ * - `notificationMentions`: candidates for mention notifications
+ */
+export const resolveStatusMentions = async ({
+  text,
+  currentActor,
+  replyStatus,
+  visibility
+}: {
+  text: string
+  currentActor: Actor
+  replyStatus: Status | null
+  visibility?: MastodonVisibility
+}) => {
+  const mentions = await getMentions({ text, currentActor, replyStatus })
+  const explicitMentions = getExplicitMentions(text, mentions)
+  const replyVisibility = getVisibilityFromReplyStatus(replyStatus)
+  const effectiveVisibility = visibility ?? replyVisibility ?? 'public'
+  const recipientMentions =
+    effectiveVisibility === 'direct' &&
+    replyStatus &&
+    replyVisibility !== 'direct'
+      ? explicitMentions
+      : mentions
+  const mentionTags = getMentionTagsForStatus({
+    mentions,
+    currentActor,
+    replyStatus,
+    effectiveVisibility,
+    replyVisibility
+  })
+  const notificationMentions =
+    effectiveVisibility === 'direct' &&
+    replyStatus &&
+    replyVisibility === 'direct'
+      ? mentionTags
+      : recipientMentions
+
+  return {
+    mentions,
+    explicitMentions,
+    replyVisibility,
+    effectiveVisibility,
+    recipientMentions,
+    mentionTags,
+    notificationMentions
+  }
+}
+
 // The language a new status is declared in: the request's own (as sent, when
 // it looks like a language code), else
 // the author's posting language, else the instance default (Mastodon:
@@ -844,15 +901,19 @@ export const createNoteFromUserInput = async ({
       actorId: currentActor.id,
       statusId: postId
     })
-    const mentions = await getMentions({ text, currentActor, replyStatus })
-    const explicitMentions = getExplicitMentions(text, mentions)
-
-    // Determine effective visibility:
-    // 1. Use provided visibility if specified
-    // 2. Otherwise inherit from reply status if replying
-    // 3. Default to 'public'
-    const replyVisibility = getVisibilityFromReplyStatus(replyStatus)
-    const effectiveVisibility = visibility ?? replyVisibility ?? 'public'
+    const {
+      explicitMentions,
+      replyVisibility,
+      effectiveVisibility,
+      recipientMentions,
+      mentionTags,
+      notificationMentions
+    } = await resolveStatusMentions({
+      text,
+      currentActor,
+      replyStatus,
+      visibility
+    })
     const isReplyingToDirectThread = replyStatus && replyVisibility === 'direct'
     if (
       effectiveVisibility === 'direct' &&
@@ -861,12 +922,6 @@ export const createNoteFromUserInput = async ({
     ) {
       return null
     }
-    const recipientMentions =
-      effectiveVisibility === 'direct' &&
-      replyStatus &&
-      replyVisibility !== 'direct'
-        ? explicitMentions
-        : mentions
     const shouldNotifyReply =
       Boolean(replyStatus) &&
       !(
@@ -898,13 +953,6 @@ export const createNoteFromUserInput = async ({
       replyVisibility,
       communityActorId
     )
-    const mentionTags = getMentionTagsForStatus({
-      mentions,
-      currentActor,
-      replyStatus,
-      effectiveVisibility,
-      replyVisibility
-    })
 
     const finishInFlight = trackInFlightStatusCreation(statusId)
     let createdStatus: Status
@@ -1178,12 +1226,7 @@ export const createNoteFromUserInput = async ({
         localQuotedAuthorId,
         replyStatus,
         shouldNotifyReply,
-        notificationMentions:
-          effectiveVisibility === 'direct' &&
-          replyStatus &&
-          replyVisibility === 'direct'
-            ? mentionTags
-            : recipientMentions
+        notificationMentions
       })
     )
 
@@ -1397,20 +1440,12 @@ const notifyStatusRecipients = async ({
               {
                 type: NotificationType.enum.mention,
                 notificationId: notificationIdByActorId.get(mentionedActorId),
-                emailContent: targetActor?.account
-                  ? {
-                      recipientEmail: targetActor.account.email,
-                      ...buildMentionEmail({
-                        recipient: targetActor,
-                        brand: await resolveActorEmailBrand(
-                          database,
-                          targetActor
-                        ),
-                        actor: currentActor,
-                        status
-                      })
-                    }
-                  : undefined
+                emailContent: await buildMentionNotificationEmailContent({
+                  database,
+                  targetActor,
+                  sourceActor: currentActor,
+                  status
+                })
               }
             ]
           })
@@ -1418,4 +1453,124 @@ const notifyStatusRecipients = async ({
         .catch(() => undefined)
     }
   }
+}
+
+const buildMentionNotificationEmailContent = async ({
+  database,
+  targetActor,
+  sourceActor,
+  status
+}: {
+  database: Database
+  targetActor: Actor | null | undefined
+  sourceActor: Actor
+  status: StatusNote
+}) => {
+  if (!targetActor?.account) return undefined
+  return {
+    recipientEmail: targetActor.account.email,
+    ...buildMentionEmail({
+      recipient: targetActor,
+      brand: await resolveActorEmailBrand(database, targetActor),
+      actor: sourceActor,
+      status
+    })
+  }
+}
+
+/**
+ * Creates mention notifications and dispatches push/email alerts for local,
+ * eligible actors newly mentioned by a status edit. Never creates reply
+ * notifications, and skips any actor who already has a `mention:<statusId>`
+ * notification for this status so partial-failure retries cannot double-notify.
+ */
+export const notifyNewLocalMentions = async ({
+  database,
+  currentActor,
+  status,
+  mentions
+}: {
+  database: Database
+  currentActor: Actor
+  status: StatusNote
+  mentions: Mention[]
+}): Promise<void> => {
+  const statusId = status.id
+  const candidateIds = [
+    ...new Set(
+      mentions
+        .map((mention) => mention.href)
+        .filter((actorId) => actorId !== currentActor.id)
+    )
+  ]
+  if (candidateIds.length === 0) return
+
+  const resolvedActors = await Promise.all(
+    candidateIds.map((id) => database.getActorFromId({ id }))
+  )
+  const localActorsById = new Map<string, Actor>()
+  for (const actor of resolvedActors) {
+    if (actor?.privateKey) {
+      localActorsById.set(actor.id, actor)
+    }
+  }
+  const localActorIds = candidateIds.filter((id) => localActorsById.has(id))
+  if (localActorIds.length === 0) return
+
+  const eligibleActorIds = await getNotificationEligibleActorIds(
+    database,
+    localActorIds,
+    currentActor.id
+  )
+  if (eligibleActorIds.size === 0) return
+
+  const groupKey = `mention:${statusId}`
+  const toNotifyIds: string[] = []
+  for (const actorId of localActorIds) {
+    if (!eligibleActorIds.has(actorId)) continue
+    if (await hasMentionNotification({ database, actorId, statusId })) {
+      continue
+    }
+    toNotifyIds.push(actorId)
+  }
+  if (toNotifyIds.length === 0) return
+
+  const notifications = await Promise.all(
+    toNotifyIds.map((actorId) =>
+      createNotificationWithPolicy(database, {
+        actorId,
+        type: NotificationType.enum.mention,
+        sourceActorId: currentActor.id,
+        statusId,
+        groupKey
+      })
+    )
+  )
+
+  await Promise.all(
+    toNotifyIds.map(async (actorId, index) => {
+      const notification = notifications[index]
+      if (!notification || notification.filtered) return
+      const emailContent = await buildMentionNotificationEmailContent({
+        database,
+        targetActor: localActorsById.get(actorId),
+        sourceActor: currentActor,
+        status
+      })
+      sendNotificationAlerts({
+        database,
+        actorId,
+        sourceActorId: currentActor.id,
+        sourceActor: currentActor,
+        statusId,
+        events: [
+          {
+            type: NotificationType.enum.mention,
+            notificationId: notification.id,
+            emailContent
+          }
+        ]
+      })
+    })
+  )
 }
