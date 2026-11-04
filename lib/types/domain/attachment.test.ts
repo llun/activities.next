@@ -29,6 +29,12 @@ describe('attachment', () => {
   const metaOf = (attachment: ReturnType<typeof getMastodonAttachment>) =>
     'meta' in attachment ? attachment.meta : undefined
 
+  it('keeps the route map flag out of what clients and peers see', () => {
+    const map = { ...baseAttachment, isRouteMap: true }
+    expect(getDocumentFromAttachment(map)).not.toHaveProperty('isRouteMap')
+    expect(getMastodonAttachment(map)).not.toHaveProperty('isRouteMap')
+  })
+
   describe('getDocumentFromAttachment', () => {
     it('converts attachment to Document schema', () => {
       const result = getDocumentFromAttachment(baseAttachment)

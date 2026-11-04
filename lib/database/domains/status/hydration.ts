@@ -112,23 +112,28 @@ export const getStatusLinkPreviewsForIds = async (
   )
 }
 
-const sortAttachmentsForFitnessMap = <T extends { id: string; url: string }>(
+// The route map leads the status's attachments: the one showing the primary
+// file's `mapImagePath`, else the first flagged `isRouteMap` (a map the photo
+// editor re-rendered no longer shows that path).
+const sortAttachmentsForFitnessMap = <
+  T extends { id: string; url: string; isRouteMap?: boolean }
+>(
   attachments: T[],
   mapImagePath?: string | null
 ): T[] => {
-  if (!mapImagePath) return attachments
-
-  const normalizedMapImagePath = decodeURIComponent(mapImagePath).replace(
-    /^\/+/,
-    ''
-  )
-  const mapAttachment = attachments.find((attachment) => {
-    const attachmentPath = getAttachmentMediaPath(attachment.url)
-    return (
-      attachmentPath === normalizedMapImagePath ||
-      attachmentPath.endsWith(normalizedMapImagePath)
-    )
-  })
+  const normalizedMapImagePath = mapImagePath
+    ? decodeURIComponent(mapImagePath).replace(/^\/+/, '')
+    : null
+  const mapAttachment =
+    (normalizedMapImagePath
+      ? attachments.find((attachment) => {
+          const attachmentPath = getAttachmentMediaPath(attachment.url)
+          return (
+            attachmentPath === normalizedMapImagePath ||
+            attachmentPath.endsWith(normalizedMapImagePath)
+          )
+        })
+      : undefined) ?? attachments.find((attachment) => attachment.isRouteMap)
 
   if (!mapAttachment) return attachments
 

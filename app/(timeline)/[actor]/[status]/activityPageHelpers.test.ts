@@ -107,6 +107,19 @@ describe('formatEffortDuration', () => {
 })
 
 describe('getRouteMapAttachmentIndex', () => {
+  it('prefers the flagged route map, whatever its alt text says', () => {
+    expect(
+      getRouteMapAttachmentIndex(
+        [
+          attachment('Activity route map'),
+          attachment('Summit'),
+          { ...attachment('Loop around the reservoir'), isRouteMap: true }
+        ],
+        true
+      )
+    ).toBe(2)
+  })
+
   it('finds the attachment named as the route map, wherever it is', () => {
     expect(
       getRouteMapAttachmentIndex(

@@ -4,13 +4,16 @@ import { getAttachmentMediaPath } from '@/lib/utils/getAttachmentMediaPath'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
-/** The attachment name every generated route map is stored under. */
+/**
+ * The alt text a generated route map starts with. It is not how the map is
+ * recognised (`attachments.isRouteMap` is): an edit may change it.
+ */
 export const ROUTE_MAP_ATTACHMENT_NAME = 'Activity route map'
 
 /**
  * The route map attachments a fitness file owns on its status.
  *
- * Matched by name AND by the file's recorded `mapImagePath`, so a status
+ * Matched by the `isRouteMap` flag AND by the file's recorded `mapImagePath`, so a status
  * carrying two activities (a merged same-ride post) never has one file's
  * regeneration delete the other's map.
  */
@@ -27,7 +30,7 @@ export const findRouteMapAttachments = async ({
 
   return (await database.getAttachmentsWithMedia({ statusId })).filter(
     (attachment) =>
-      attachment.name === ROUTE_MAP_ATTACHMENT_NAME &&
+      attachment.isRouteMap &&
       getAttachmentMediaPath(attachment.url) === mapImagePath
   )
 }

@@ -212,7 +212,8 @@ CREATE TABLE public.attachments (
     "focusX" double precision,
     "focusY" double precision,
     "thumbnailUrl" character varying(255),
-    "playbackType" character varying(32)
+    "playbackType" character varying(32),
+    "isRouteMap" boolean DEFAULT false NOT NULL
 );
 
 CREATE TABLE public.auth_codes (

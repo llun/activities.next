@@ -1,0 +1,338 @@
+import { NextRequest } from 'next/server'
+
+import { getRouteMapAttachmentIndex } from '@/app/(timeline)/[actor]/[status]/ActivityPostFrame'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import type { Database } from '@/lib/database/types'
+import {
+  ROUTE_MAP_ATTACHMENT_NAME,
+  findRouteMapAttachments
+} from '@/lib/services/fitness-files/mapAttachments'
+import { OWNER_GALLERY_AUDIENCE } from '@/lib/services/gallery/galleryAudience'
+import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
+import { refreshPostsForEditedMedia } from '@/lib/services/medias/edit/refreshPostsForEditedMedia'
+import { seedDatabase } from '@/lib/stub/database'
+import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
+import { StatusNote, StatusType } from '@/lib/types/domain/status'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
+import { urlToId } from '@/lib/utils/urlToId'
+
+import { PUT } from './route'
+
+const mockGetServerSession = vi.fn()
+vi.mock('@/lib/services/auth/getSession', async () => ({
+  getServerAuthSession: () => mockGetServerSession()
+}))
+
+let mockDatabase: Database | null = null
+vi.mock('@/lib/database', async () => ({
+  getDatabase: () => mockDatabase
+}))
+
+vi.mock('next/headers', async () => ({
+  cookies: vi.fn().mockResolvedValue({
+    get: vi.fn().mockReturnValue(undefined)
+  })
+}))
+
+vi.mock('better-auth/oauth2', async () => ({
+  verifyBearerToken: vi.fn()
+}))
+
+vi.mock('@/lib/services/queue', async () => ({
+  getQueue: vi.fn().mockReturnValue({
+    publish: vi.fn().mockResolvedValue(undefined)
+  })
+}))
+
+vi.mock('@/lib/services/medias', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/services/medias')>()),
+  deleteMediaFile: vi.fn().mockResolvedValue(true)
+}))
+
+vi.mock('@/lib/config', async () => ({
+  getBaseURL: vi.fn().mockReturnValue('https://llun.test'),
+  getConfig: vi.fn().mockReturnValue({
+    allowEmails: [],
+    host: 'llun.test',
+    secretPhase: 'test-secret'
+  })
+}))
+
+const OWNER_ALT_TEXT = 'Loop around the reservoir, clockwise'
+
+// A fitness post edited after its route map was attached: whatever the edit,
+// the map stays the map (isRouteMap), out of the activity's photos, first in
+// the hydrated post and picked by the post frame, and its alt text is what
+// the owner last set (the default name until they set one).
+describe('PUT /api/v1/statuses/[id] keeps a fitness route map', () => {
+  const testDb = createTestDatabase()
+  const { database } = testDb
+  let accountId = ''
+
+  beforeAll(async () => {
+    await testDb.prepare()
+    await database.migrate()
+    await seedDatabase(database)
+    mockDatabase = database
+    accountId = (await database.getActorFromId({ id: ACTOR1_ID }))!.account!.id
+  })
+
+  afterAll(async () => {
+    mockDatabase = null
+    await testDb.destroy()
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor1.email }
+    })
+  })
+
+  const createRide = async (label: string) => {
+    const statusId = `${ACTOR1_ID}/statuses/route-map-${label}`
+    await database.createNote({
+      id: statusId,
+      url: statusId,
+      actorId: ACTOR1_ID,
+      text: 'Evening ride',
+      summary: null,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [`${ACTOR1_ID}/followers`]
+    })
+    const mapImagePath = `medias/route-map-${label}.webp`
+    const fitnessFileId = `route-map-fit-${label}`
+    await testDb.db
+      .insertInto('fitness_files')
+      .values({
+        id: fitnessFileId,
+        actorId: ACTOR1_ID,
+        statusId,
+        path: `fitness/${fitnessFileId}.fit`,
+        fileName: `${fitnessFileId}.fit`,
+        fileType: 'fit',
+        mimeType: 'application/vnd.ant.fit',
+        bytes: 1000,
+        processingStatus: 'completed',
+        isPrimary: true,
+        hasMapData: true,
+        mapImagePath
+      })
+      .execute()
+    // As processFitnessFileJob stores it: no description on the media row
+    // (route alt text was not generated), the name on the attachment only.
+    const map = (await database.createMedia({
+      actorId: ACTOR1_ID,
+      original: {
+        path: mapImagePath,
+        bytes: 2048,
+        mimeType: 'image/webp',
+        metaData: { width: 640, height: 480 }
+      }
+    }))!
+    await database.createAttachment({
+      actorId: ACTOR1_ID,
+      statusId,
+      mediaType: 'image/webp',
+      url: `https://llun.test/api/v1/files/${mapImagePath}`,
+      width: 640,
+      height: 480,
+      name: ROUTE_MAP_ATTACHMENT_NAME,
+      mediaId: map.id,
+      isRouteMap: true,
+      // Stored after the photo, so only the route map rules put it first.
+      createdAt: Date.UTC(2026, 0, 1, 8, 0, 1)
+    })
+    const photo = (await database.createMedia({
+      actorId: ACTOR1_ID,
+      original: {
+        path: `medias/route-map-${label}-photo.jpg`,
+        bytes: 1024,
+        mimeType: 'image/jpeg',
+        metaData: { width: 320, height: 240 }
+      },
+      description: 'Bikes at the summit'
+    }))!
+    await database.createAttachment({
+      actorId: ACTOR1_ID,
+      statusId,
+      mediaType: 'image/jpeg',
+      url: `https://llun.test/api/v1/files/${photo.original.path}`,
+      width: 320,
+      height: 240,
+      name: 'Bikes at the summit',
+      mediaId: photo.id,
+      createdAt: Date.UTC(2026, 0, 1, 8, 0, 0)
+    })
+    // Both in the gallery, so only the route map rule can leave the map out.
+    await testDb.db
+      .updateTable('medias')
+      .set({ inGallery: true, galleryAddedAt: new Date() })
+      .where('id', 'in', [Number(map.id), Number(photo.id)])
+      .execute()
+    return { statusId, mapImagePath, fitnessFileId, map, photo }
+  }
+
+  type Ride = Awaited<ReturnType<typeof createRide>>
+
+  const edit = (statusId: string, body: unknown) =>
+    PUT(
+      new NextRequest(
+        `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+        {
+          method: 'PUT',
+          body: JSON.stringify(body),
+          headers: {
+            'Content-Type': 'application/json',
+            Origin: 'https://llun.test'
+          }
+        }
+      ),
+      { params: Promise.resolve({ id: urlToId(statusId) }) }
+    )
+
+  const expectRouteMap = async (
+    ride: Ride,
+    expectedName: string,
+    { findsByPath }: { findsByPath: boolean }
+  ) => {
+    const status = await database.getStatus({
+      statusId: ride.statusId,
+      withReplies: false
+    })
+    if (!status || status.type !== StatusType.enum.Note) {
+      throw new Error('Expected note status')
+    }
+    const note = status as StatusNote
+    const map = note.attachments.find(
+      (attachment) => attachment.mediaId === ride.map.id
+    )
+    expect(map).toBeDefined()
+    expect(map!.isRouteMap).toBe(true)
+    expect(map!.name).toBe(expectedName)
+
+    // Hydration puts the map first and the post frame picks it, without
+    // leaning on the "first attachment of a file with map data" fallback.
+    expect(note.attachments[0].id).toBe(map!.id)
+    expect(getRouteMapAttachmentIndex(note.attachments, false)).toBe(0)
+
+    // The gallery leaves it out of the activity's photos.
+    const activityMedia = await database.getGalleryMedia({
+      actorId: ACTOR1_ID,
+      audience: OWNER_GALLERY_AUDIENCE,
+      limit: 10,
+      filters: { activityId: ride.fitnessFileId }
+    })
+    expect(activityMedia.map((row) => row.media.id)).toEqual([ride.photo.id])
+
+    if (findsByPath) {
+      const found = await findRouteMapAttachments({
+        database,
+        statusId: ride.statusId,
+        mapImagePath: ride.mapImagePath
+      })
+      expect(found.map((attachment) => attachment.id)).toEqual([map!.id])
+    }
+
+    // The alt text reaches clients and peers; the flag never does.
+    const mastodon = await getMastodonStatus(database, status)
+    const mastodonMap = mastodon?.media_attachments.find(
+      (attachment) => attachment.id === map!.id
+    )
+    expect(mastodonMap?.description).toBe(expectedName)
+    expect(JSON.stringify(mastodon)).not.toContain('isRouteMap')
+
+    const federated = getNoteFromStatus(status)
+    const federatedAttachments = Array.isArray(federated?.attachment)
+      ? federated.attachment
+      : []
+    const federatedMap = federatedAttachments.find(
+      (attachment) => 'url' in attachment && attachment.url === map!.url
+    )
+    expect(federatedMap?.name).toBe(expectedName)
+    expect(JSON.stringify(federated)).not.toContain('isRouteMap')
+  }
+
+  it('keeps the map and its name when a client resends media_ids', async () => {
+    const ride = await createRide('media-ids')
+
+    const response = await edit(ride.statusId, {
+      status: 'Evening ride, edited',
+      media_ids: [ride.map.id, ride.photo.id]
+    })
+
+    expect(response.status).toBe(200)
+    await expectRouteMap(ride, ROUTE_MAP_ATTACHMENT_NAME, {
+      findsByPath: true
+    })
+  })
+
+  it('takes the alt text the owner sets through media_attributes', async () => {
+    const ride = await createRide('media-attributes')
+
+    const response = await edit(ride.statusId, {
+      media_ids: [ride.map.id, ride.photo.id],
+      media_attributes: [{ id: ride.map.id, description: OWNER_ALT_TEXT }]
+    })
+
+    expect(response.status).toBe(200)
+    await expectRouteMap(ride, OWNER_ALT_TEXT, { findsByPath: true })
+  })
+
+  it('takes the alt text the owner sets through media_attributes alone', async () => {
+    const ride = await createRide('media-attributes-only')
+
+    const response = await edit(ride.statusId, {
+      media_attributes: [{ id: ride.map.id, description: OWNER_ALT_TEXT }]
+    })
+
+    expect(response.status).toBe(200)
+    await expectRouteMap(ride, OWNER_ALT_TEXT, { findsByPath: true })
+  })
+
+  it('keeps the map and its name when the photo editor updates the post', async () => {
+    const ride = await createRide('photo-editor')
+
+    const result = await database.applyMediaEdit({
+      mediaId: ride.map.id,
+      accountId,
+      baseVersion: 0,
+      saveId: `route-map-${ride.map.id}`,
+      recipe: JSON.stringify({ v: 1 }),
+      render: {
+        path: 'medias/route-map-photo-editor-render.webp',
+        bytes: 200,
+        mimeType: 'image/webp',
+        width: 640,
+        height: 480,
+        blurhash: null,
+        focus: null
+      }
+    })
+    if (result.status !== 'ok') throw new Error('edit failed')
+    const refreshed = await refreshPostsForEditedMedia({
+      database,
+      media: result.media,
+      version: result.media.edit!.version,
+      accountId
+    })
+
+    expect(refreshed).toEqual({ updated: [ride.statusId], skipped: [] })
+    const status = (await database.getStatus({
+      statusId: ride.statusId
+    })) as StatusNote
+    expect(
+      status.attachments.find(
+        (attachment) => attachment.mediaId === ride.map.id
+      )?.url
+    ).toBe(
+      'https://llun.test/api/v1/files/medias/route-map-photo-editor-render.webp'
+    )
+    // The url moved off mapImagePath; matching the moved map by path is
+    // findRouteMapAttachments' own concern, not checked here.
+    await expectRouteMap(ride, ROUTE_MAP_ATTACHMENT_NAME, {
+      findsByPath: false
+    })
+  })
+})

@@ -99,6 +99,7 @@ export type CreateAttachmentParams = {
   focus?: { x: number; y: number } | null
   thumbnailUrl?: string | null
   playbackType?: 'gifv' | 'video' | 'unknown' | null
+  isRouteMap?: boolean
 }
 export type UpdateAttachmentPlaybackParams = {
   id: string

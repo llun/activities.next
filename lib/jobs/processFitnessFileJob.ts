@@ -713,6 +713,7 @@ const processFitnessFileJobUnlocked = createJobHandle(
             width: storedMap.meta.original.width,
             height: storedMap.meta.original.height,
             name: ROUTE_MAP_ATTACHMENT_NAME,
+            isRouteMap: true,
             mediaId: storedMap.id,
             ...getSavedMediaAttachmentMetadata(storedMap)
           })

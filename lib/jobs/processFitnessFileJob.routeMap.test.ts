@@ -174,9 +174,10 @@ describe('processFitnessFileJob', () => {
 
       const attachments = await database.getAttachments({ statusId })
       const mapAttachment = attachments.find(
-        (attachment) => attachment.name === ROUTE_MAP_ATTACHMENT_NAME
+        (attachment) => attachment.isRouteMap
       )
       expect(mapAttachment).toMatchObject({
+        name: ROUTE_MAP_ATTACHMENT_NAME,
         blurhash: 'LEHV6nWB2yk8pyo0adR*',
         focus: { x: 0.25, y: -0.5 },
         thumbnailUrl: 'https://llun.test/api/v1/files/medias/map-thumbnail.webp'

@@ -228,6 +228,7 @@ export interface Attachments {
   focusY: Nullable<number>
   height: Nullable<number>
   id: string
+  isRouteMap: WithDefault<boolean>
   mediaId: Nullable<number>
   mediaType: Nullable<string>
   name: Nullable<string>

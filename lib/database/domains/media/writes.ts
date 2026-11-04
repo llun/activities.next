@@ -93,7 +93,8 @@ const insertAttachment = async (
     blurhash,
     focus,
     thumbnailUrl,
-    playbackType
+    playbackType,
+    isRouteMap = false
   }: CreateAttachmentParams
 ): Promise<Attachment> => {
   const currentTime =
@@ -112,6 +113,7 @@ const insertAttachment = async (
     focus: focus ?? undefined,
     thumbnailUrl: thumbnailUrl ?? undefined,
     playbackType: playbackType ?? undefined,
+    ...(isRouteMap ? { isRouteMap } : {}),
     createdAt: currentTime.getTime(),
     updatedAt: currentTime.getTime()
   })
@@ -133,6 +135,7 @@ const insertAttachment = async (
       focusY: focus?.y ?? null,
       thumbnailUrl: thumbnailUrl ?? null,
       playbackType: playbackType ?? null,
+      isRouteMap,
       createdAt: currentTime,
       updatedAt: currentTime
     })
