@@ -1,0 +1,25 @@
+docs/mastodon-api-compatibility.md
+  s_2b1a50e2f9b981::t_2a548100bcbc77 161-164
+lib/actions/updateNote.test.ts
+  s_2b1a50e2f9b981::t_56abdb5231233f 730-739,790-791,861-862,1096-1121,1222-1226
+lib/actions/updateNote.ts
+  s_2b1a50e2f9b981::t_509f79f9f3830e 310-323
+lib/jobs/updateNoteJob.test.ts
+  s_2b1a50e2f9b981::t_b535516efcb9cb 1777-1828
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ff941176b84d7c83fdbf31b1a711f075e938ee7b",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
