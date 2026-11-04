@@ -10,7 +10,7 @@ import { StatusPublishFailedError } from '@/lib/database/domains/idempotency/typ
 import { toMediaRowId } from '@/lib/database/domains/media/rows'
 import { movedAccountResponse } from '@/lib/services/accounts/movedAccount'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
-import { getMaxCreateMediaAttachments } from '@/lib/services/mastodon/constants'
+import { getMaxStatusMediaAttachments } from '@/lib/services/mastodon/constants'
 import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { resolveQuoteForCreate } from '@/lib/services/quotes/resolveQuoteForCreate'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
@@ -111,7 +111,7 @@ export const POST = traceApiRoute(
           if (
             attachments &&
             attachments.length >
-              getMaxCreateMediaAttachments(Boolean(fitnessFileId))
+              getMaxStatusMediaAttachments(Boolean(fitnessFileId))
           ) {
             return apiResponse({
               req,

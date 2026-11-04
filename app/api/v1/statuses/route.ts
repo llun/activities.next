@@ -26,7 +26,7 @@ import {
   POLL_OPTIONS_CEILING,
   POLL_OPTION_CHARS_CEILING,
   SCHEDULED_AT_TOO_SOON_ERROR,
-  getMaxCreateMediaAttachments
+  getMaxStatusMediaAttachments
 } from '@/lib/services/mastodon/constants'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import {
@@ -174,7 +174,7 @@ const resolveStatusMedia = async (
   hasFitnessFile: boolean
 ): Promise<PostBoxAttachment[] | null> => {
   const uniqueIds = [...new Set(mediaIds)]
-  if (uniqueIds.length > getMaxCreateMediaAttachments(hasFitnessFile)) {
+  if (uniqueIds.length > getMaxStatusMediaAttachments(hasFitnessFile)) {
     return null
   }
   return getAttachmentsFromMediaIds(database, currentActor, uniqueIds)

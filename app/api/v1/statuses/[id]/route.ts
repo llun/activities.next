@@ -18,7 +18,8 @@ import {
   MAX_STORED_MEDIA_ATTACHMENTS,
   MIN_POLL_OPTIONS,
   POLL_OPTIONS_CEILING,
-  POLL_OPTION_CHARS_CEILING
+  POLL_OPTION_CHARS_CEILING,
+  getMaxStatusMediaAttachments
 } from '@/lib/services/mastodon/constants'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
@@ -39,6 +40,7 @@ import { parseStatusRequestBody } from '@/lib/services/statuses/parseStatusReque
 import { Scope } from '@/lib/types/database/operations'
 import { isFitnessAttachment } from '@/lib/types/domain/attachment'
 import { StatusType } from '@/lib/types/domain/status'
+import { getAttachmentMediaPath } from '@/lib/utils/getAttachmentMediaPath'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -379,6 +381,47 @@ export const PUT = traceApiRoute(
                   resolveStatusAttachmentMediaIds(existingStatus, mediaIds)
                 )
               ]
+
+        // A fitness post keeps one slot for its route map, as its create did
+        // (getMaxStatusMediaAttachments): processFitnessFileJob attaches the
+        // map after the create, and a retry or a map regeneration can attach
+        // one later still, so filling that slot here would leave the status
+        // one over MAX_STORED_MEDIA_ATTACHMENTS. The map already attached is
+        // recognised by its fitness file's mapImagePath rather than by name,
+        // which an edit does not preserve. Checked before any media row is
+        // written, so a refused edit changes nothing.
+        if (resolvedMediaIds !== undefined && existingStatus.fitness) {
+          const routeMapPaths = new Set(
+            (await database.getFitnessFilesByStatus({ statusId }))
+              .map((fitnessFile) => fitnessFile.mapImagePath)
+              .filter((path): path is string => Boolean(path))
+          )
+          const routeMapMediaIds = new Set(
+            existingStatus.attachments
+              .filter(
+                (attachment) =>
+                  attachment.mediaId != null &&
+                  routeMapPaths.has(getAttachmentMediaPath(attachment.url))
+              )
+              .map((attachment) =>
+                toCanonicalMediaId(String(attachment.mediaId))
+              )
+          )
+          const mediaBesidesRouteMap = resolvedMediaIds.filter(
+            (mediaId) =>
+              !routeMapMediaIds.has(toCanonicalMediaId(String(mediaId)))
+          )
+          if (
+            mediaBesidesRouteMap.length > getMaxStatusMediaAttachments(true)
+          ) {
+            return apiResponse({
+              req,
+              allowedMethods: CORS_HEADERS,
+              data: ERROR_422,
+              responseStatusCode: 422
+            })
+          }
+        }
 
         // Apply per-attachment metadata edits (Mastodon media_attributes[])
         // before resolving attachments so the refreshed description/focus flow

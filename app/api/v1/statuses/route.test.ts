@@ -39,6 +39,7 @@ import {
   StatusType
 } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import { getAttachmentMediaPath } from '@/lib/utils/getAttachmentMediaPath'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 import { generatePublicId, getPublicIdTimestamp } from '@/lib/utils/publicId'
@@ -792,33 +793,47 @@ describe('POST /api/v1/statuses', () => {
       }
     )
 
-    it('keeps the full photo set plus its route map editable', async () => {
-      const photoIds = await createOwnedMediaIds(
-        'fitness-edit-photo',
-        MAX_STORED_MEDIA_ATTACHMENTS - 1
-      )
-      const fitnessFileId = await createRideFitnessFile('fitness-edit')
-
-      const createResponse = await postStatus({
+    // POST a fitness post with `photoCount` photos; the job is queued, not run.
+    const createFitnessPost = async (prefix: string, photoCount: number) => {
+      const photoIds = await createOwnedMediaIds(`${prefix}-photo`, photoCount)
+      const fitnessFileId = await createRideFitnessFile(prefix)
+      const response = await postStatus({
         status: 'A ride to edit later',
         media_ids: photoIds,
         fitness_file_id: fitnessFileId
       })
-      expect(createResponse.status).toBe(200)
-      const created = await createResponse.json()
+      expect(response.status).toBe(200)
+      const created = await response.json()
       const statusId = await resolveStatusIdParam(database, created.id)
+      return {
+        clientId: created.id as string,
+        statusId,
+        photoIds,
+        fitnessFileId
+      }
+    }
 
-      // processFitnessFileJob attaches the generated route map after the
-      // create returns, as a media-manager upload named
-      // ROUTE_MAP_ATTACHMENT_NAME.
+    // What processFitnessFileJob does once the route is drawn: a media-manager
+    // upload attached under ROUTE_MAP_ATTACHMENT_NAME, its path recorded on
+    // the fitness file.
+    const attachRouteMap = async ({
+      prefix,
+      statusId,
+      fitnessFileId
+    }: {
+      prefix: string
+      statusId: string
+      fitnessFileId: string
+    }) => {
+      const url = `https://llun.test/api/v1/files/medias/${prefix}-route-map.webp`
       const mapMedia = await database.createMedia({
         actorId: ACTOR1_ID,
         original: {
-          path: 'medias/fitness-edit-route-map.webp',
+          path: `medias/${prefix}-route-map.webp`,
           bytes: 2048,
           mimeType: 'image/webp',
           metaData: { width: 640, height: 480 },
-          fileName: 'fitness-edit-route-map.png'
+          fileName: `${prefix}-route-map.png`
         }
       })
       expect(mapMedia).not.toBeNull()
@@ -826,60 +841,119 @@ describe('POST /api/v1/statuses', () => {
         actorId: ACTOR1_ID,
         statusId,
         mediaType: 'image/webp',
-        url: 'https://llun.test/api/v1/files/medias/fitness-edit-route-map.webp',
+        url,
         width: 640,
         height: 480,
         name: ROUTE_MAP_ATTACHMENT_NAME,
         mediaId: mapMedia!.id
       })
+      await database.updateFitnessFileActivityData(fitnessFileId, {
+        hasMapData: true,
+        mapImagePath: getAttachmentMediaPath(url)
+      })
+      return mapMedia!.id
+    }
 
-      const stored = await database.getStatus({ statusId, withReplies: false })
-      if (!stored || stored.type !== StatusType.enum.Note) {
-        throw new Error('Expected note status')
-      }
-      expect(stored.attachments).toHaveLength(MAX_STORED_MEDIA_ATTACHMENTS)
-
-      // A correct client reads the status and sends every media id back with
-      // its edit, the route map included.
-      const readResponse = await getStatusById(
-        new NextRequest(`https://llun.test/api/v1/statuses/${created.id}`),
-        { params: Promise.resolve({ id: created.id }) }
-      )
-      expect(readResponse.status).toBe(200)
-      const readBack = await readResponse.json()
-      const everyMediaId = readBack.media_attachments.map(
-        (attachment: { id: string }) => attachment.id
-      )
-      expect(everyMediaId).toHaveLength(MAX_STORED_MEDIA_ATTACHMENTS)
-
-      const editResponse = await updateStatus(
-        new NextRequest(`https://llun.test/api/v1/statuses/${created.id}`, {
+    const editMedia = (clientId: string, body: Record<string, unknown>) =>
+      updateStatus(
+        new NextRequest(`https://llun.test/api/v1/statuses/${clientId}`, {
           method: 'PUT',
-          body: JSON.stringify({
-            status: 'A ride, edited',
-            media_ids: everyMediaId
-          }),
+          body: JSON.stringify(body),
           headers: {
             'Content-Type': 'application/json',
             Origin: 'https://llun.test'
           }
         }),
-        { params: Promise.resolve({ id: created.id }) }
+        { params: Promise.resolve({ id: clientId }) }
       )
 
-      expect(editResponse.status).toBe(200)
-      const edited = await database.getStatus({ statusId, withReplies: false })
-      if (!edited || edited.type !== StatusType.enum.Note) {
+    const getStoredNote = async (statusId: string) => {
+      const stored = await database.getStatus({ statusId, withReplies: false })
+      if (!stored || stored.type !== StatusType.enum.Note) {
         throw new Error('Expected note status')
       }
-      expect(edited.text).toBe('A ride, edited')
-      expect(edited.attachments).toHaveLength(MAX_STORED_MEDIA_ATTACHMENTS)
-      expect(
-        edited.attachments.filter(
-          (attachment) => String(attachment.mediaId) === String(mapMedia!.id)
+      return stored
+    }
+
+    it('keeps the full photo set plus its route map editable', async () => {
+      const prefix = 'fitness-edit'
+      const { clientId, statusId, fitnessFileId } = await createFitnessPost(
+        prefix,
+        MAX_STORED_MEDIA_ATTACHMENTS - 1
+      )
+      const mapMediaId = await attachRouteMap({
+        prefix,
+        statusId,
+        fitnessFileId
+      })
+      expect((await getStoredNote(statusId)).attachments).toHaveLength(
+        MAX_STORED_MEDIA_ATTACHMENTS
+      )
+
+      // A correct client reads the status and sends every media id back with
+      // its edit, the route map included. The second edit runs against what
+      // the first one stored, so the map still counts as the map after an
+      // edit has rewritten its row.
+      for (const text of ['A ride, edited', 'A ride, edited again']) {
+        const readResponse = await getStatusById(
+          new NextRequest(`https://llun.test/api/v1/statuses/${clientId}`),
+          { params: Promise.resolve({ id: clientId }) }
         )
-      ).toHaveLength(1)
+        expect(readResponse.status).toBe(200)
+        const everyMediaId = (await readResponse.json()).media_attachments.map(
+          (attachment: { id: string }) => attachment.id
+        )
+        expect(everyMediaId).toHaveLength(MAX_STORED_MEDIA_ATTACHMENTS)
+
+        const editResponse = await editMedia(clientId, {
+          status: text,
+          media_ids: everyMediaId
+        })
+        expect(editResponse.status).toBe(200)
+
+        const edited = await getStoredNote(statusId)
+        expect(edited.text).toBe(text)
+        expect(edited.attachments).toHaveLength(MAX_STORED_MEDIA_ATTACHMENTS)
+        expect(
+          edited.attachments.filter(
+            (attachment) => String(attachment.mediaId) === String(mapMediaId)
+          )
+        ).toHaveLength(1)
+      }
     })
+
+    // A map attached later — the job running after the edit, a retry after a
+    // failed render, a regeneration once a privacy zone is lifted — would take
+    // a status filled to the ceiling one over it.
+    it.each([
+      {
+        description: 'before the route map is attached',
+        hasRouteMap: false
+      },
+      {
+        description: 'in place of the attached route map',
+        hasRouteMap: true
+      }
+    ])(
+      'refuses an edit that fills the route map slot $description',
+      async ({ hasRouteMap }) => {
+        const prefix = `fitness-slot-edit-${hasRouteMap ? 'map' : 'nomap'}`
+        const { clientId, statusId, photoIds, fitnessFileId } =
+          await createFitnessPost(prefix, MAX_STORED_MEDIA_ATTACHMENTS - 1)
+        if (hasRouteMap) {
+          await attachRouteMap({ prefix, statusId, fitnessFileId })
+        }
+        const before = (await getStoredNote(statusId)).attachments.length
+        const [extraPhotoId] = await createOwnedMediaIds(`${prefix}-extra`, 1)
+
+        const response = await editMedia(clientId, {
+          media_ids: [...photoIds, extraPhotoId]
+        })
+
+        expect(response.status).toBe(422)
+        expect((await getStoredNote(statusId)).attachments).toHaveLength(before)
+      }
+    )
   })
 
   it('honors sensitive and language on a JSON create', async () => {

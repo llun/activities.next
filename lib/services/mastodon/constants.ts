@@ -6,13 +6,14 @@
 // a remote post on its side.
 export const MAX_STORED_MEDIA_ATTACHMENTS = 50
 
-// The media a create request may carry. A fitness file takes one slot: its
-// processing job attaches the activity's generated route map to the status
-// after the create returns, so a create with one accepts one fewer photo and
-// the photos plus the map still fit MAX_STORED_MEDIA_ATTACHMENTS. Without the
-// reserved slot the stored set ends one over the ceiling, and an edit that
+// The media a status may carry besides its route map. A fitness file takes
+// one slot: its processing job attaches the activity's generated route map
+// after the create returns (and a retry or a map regeneration can attach one
+// later), so a fitness post accepts one fewer photo, on create and on edit,
+// and the photos plus the map still fit MAX_STORED_MEDIA_ATTACHMENTS. Without
+// the reserved slot the stored set ends one over the ceiling, and an edit that
 // sends every media id back is refused.
-export const getMaxCreateMediaAttachments = (hasFitnessFile: boolean) =>
+export const getMaxStatusMediaAttachments = (hasFitnessFile: boolean) =>
   hasFitnessFile
     ? MAX_STORED_MEDIA_ATTACHMENTS - 1
     : MAX_STORED_MEDIA_ATTACHMENTS
