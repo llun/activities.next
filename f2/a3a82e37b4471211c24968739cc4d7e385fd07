@@ -1,0 +1,28 @@
+lib/services/accountImport/mappers/mapOwnStatus.test.ts
+  s_04ac36afd169cb::t_a1a674519f5a6b 299-302
+  s_04ac36afd169cb::t_c5bb887b6124ea 297-298,311
+lib/database/domains/status/hydration.ts
+  s_04ac36afd169cb::t_c5bb887b6124ea 115-118,123,125-126,653
+lib/services/accountArchive/statusRecord.test.ts
+  s_04ac36afd169cb::t_c5bb887b6124ea 27,56-59
+app/api/v1/statuses/[id]/route.update.routeMap.test.ts
+  s_04ac36afd169cb::t_72c79eacf4eefa 313-424
+lib/services/accountArchive/statusRecord.ts
+  s_04ac36afd169cb::t_c5bb887b6124ea 66-68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f2a3a82e37b4471211c24968739cc4d7e385fd07",
+  "prompts": {},
+  "sessions": {
+    "s_04ac36afd169cb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "577caac6-7a12-41cb-a74d-3d29dc7cfcac",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
