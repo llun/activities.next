@@ -21,12 +21,12 @@ import {
   corsErrorResponse
 } from '@/lib/services/guards/OAuthGuard'
 import {
-  MAX_STORED_MEDIA_ATTACHMENTS,
   MIN_POLL_OPTIONS,
   MIN_SCHEDULED_STATUS_AHEAD_MS,
   POLL_OPTIONS_CEILING,
   POLL_OPTION_CHARS_CEILING,
-  SCHEDULED_AT_TOO_SOON_ERROR
+  SCHEDULED_AT_TOO_SOON_ERROR,
+  getMaxStatusMediaAttachments
 } from '@/lib/services/mastodon/constants'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import {
@@ -162,15 +162,21 @@ const computeStatusIdempotencyHash = (note: ParsedNote): string =>
 // that as a 422. Shared so the two paths can't drift apart. The ceiling bounds
 // the media a status created here stores, and so how much its outbound note
 // carries (getNoteFromStatus federates every non-fitness attachment). A
-// fitness file adds its generated route map on top of the ceiling, after this
-// check. Import paths apply their own lower caps.
+// fitness file counts as one slot, since its processing job attaches the
+// generated route map after this check: a create with one takes at most
+// MAX_STORED_MEDIA_ATTACHMENTS - 1 photos, so photos plus map never pass
+// MAX_STORED_MEDIA_ATTACHMENTS and an edit can send every id back. Import
+// paths apply their own lower caps.
 const resolveStatusMedia = async (
   database: Database,
   currentActor: Actor,
-  mediaIds: string[]
+  mediaIds: string[],
+  hasFitnessFile: boolean
 ): Promise<PostBoxAttachment[] | null> => {
   const uniqueIds = [...new Set(mediaIds)]
-  if (uniqueIds.length > MAX_STORED_MEDIA_ATTACHMENTS) return null
+  if (uniqueIds.length > getMaxStatusMediaAttachments(hasFitnessFile)) {
+    return null
+  }
   return getAttachmentsFromMediaIds(database, currentActor, uniqueIds)
 }
 
@@ -380,10 +386,12 @@ export const POST = traceApiRoute(
             // Validate media up front so a scheduled status never references
             // media that is missing or over the cap (same rules as an immediate
             // post). The resolved attachments are rebuilt from params at publish.
+            // A scheduled status never carries a fitness file (refused above).
             const attachments = await resolveStatusMedia(
               database,
               currentActor,
-              note.media_ids
+              note.media_ids,
+              false
             )
             if (!attachments) {
               return apiResponse({
@@ -561,7 +569,8 @@ export const POST = traceApiRoute(
           const attachments = await resolveStatusMedia(
             database,
             currentActor,
-            note.media_ids
+            note.media_ids,
+            Boolean(note.fitness_file_id)
           )
           if (!attachments) {
             return apiResponse({

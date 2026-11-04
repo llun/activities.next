@@ -41,7 +41,10 @@ honoured by this instance's own composer, but the routes instead cap
 attachment lists at the fixed `MAX_STORED_MEDIA_ATTACHMENTS` ceiling (50), so
 lowering it changes what clients are told and the composer offers, never what
 the routes accept (an API client ignoring the advertised value can still store
-up to the ceiling).
+up to the ceiling). A fitness post accepts one fewer media item besides its
+route map, on create and on edit, because the file's processing job (or a
+later retry or map regeneration) attaches the generated route map to the
+status and the ceiling bounds the stored total.
 
 Which settings can be set from the admin UI:
 

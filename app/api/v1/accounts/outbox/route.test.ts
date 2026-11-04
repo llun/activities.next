@@ -515,40 +515,68 @@ describe('POST /api/v1/accounts/outbox', () => {
       description: 'accepts a note carrying exactly the ceiling',
       attachmentCount: MAX_STORED_MEDIA_ATTACHMENTS,
       expectedRejected: false
+    },
+    // The fitness file's processing job attaches its route map afterwards, so
+    // it takes one slot and the stored set still fits the ceiling.
+    {
+      description:
+        'rejects a note carrying the ceiling of attachments and a fitness file',
+      attachmentCount: MAX_STORED_MEDIA_ATTACHMENTS,
+      fitnessFileId: 'fitness-file-at-ceiling',
+      expectedRejected: true
+    },
+    {
+      description:
+        'accepts a note carrying one attachment under the ceiling and a fitness file',
+      attachmentCount: MAX_STORED_MEDIA_ATTACHMENTS - 1,
+      fitnessFileId: 'fitness-file-under-ceiling',
+      expectedRejected: false
     }
-  ])('$description', async ({ attachmentCount, expectedRejected }) => {
-    const attachments = buildAttachments(attachmentCount)
-    const req = new NextRequest('http://localhost/api/v1/accounts/outbox', {
-      method: 'POST',
-      body: JSON.stringify({
-        type: 'note',
-        message: 'a note with media',
-        attachments
-      }),
-      headers: {
-        'Content-Type': 'application/json',
-        Origin: 'https://test.llun.dev'
-      }
-    })
-
-    const res = await POST(req, { params: Promise.resolve({}) })
-
-    if (expectedRejected) {
-      // Assert the gate first: without the cap the route hands the whole
-      // over-ceiling list to the create action, one insert per entry.
-      expect(mockCreateNoteFromUserInput).not.toHaveBeenCalled()
-      expect(res.status).toBe(422)
-      await expect(res.json()).resolves.toEqual({
-        error: 'Unprocessable entity'
+  ])(
+    '$description',
+    async ({
+      attachmentCount,
+      fitnessFileId,
+      expectedRejected
+    }: {
+      attachmentCount: number
+      fitnessFileId?: string
+      expectedRejected: boolean
+    }) => {
+      const attachments = buildAttachments(attachmentCount)
+      const req = new NextRequest('http://localhost/api/v1/accounts/outbox', {
+        method: 'POST',
+        body: JSON.stringify({
+          type: 'note',
+          message: 'a note with media',
+          attachments,
+          ...(fitnessFileId ? { fitnessFileId } : {})
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://test.llun.dev'
+        }
       })
-      return
+
+      const res = await POST(req, { params: Promise.resolve({}) })
+
+      if (expectedRejected) {
+        // Assert the gate first: without the cap the route hands the whole
+        // over-ceiling list to the create action, one insert per entry.
+        expect(mockCreateNoteFromUserInput).not.toHaveBeenCalled()
+        expect(res.status).toBe(422)
+        await expect(res.json()).resolves.toEqual({
+          error: 'Unprocessable entity'
+        })
+        return
+      }
+      // The create action is stubbed, so assert on what the gate forwarded
+      // rather than on the response status.
+      expect(mockCreateNoteFromUserInput).toHaveBeenCalledWith(
+        expect.objectContaining({ attachments })
+      )
     }
-    // The create action is stubbed, so assert on what the gate forwarded
-    // rather than on the response status.
-    expect(mockCreateNoteFromUserInput).toHaveBeenCalledWith(
-      expect.objectContaining({ attachments })
-    )
-  })
+  )
 
   // `createNoteFromUserInput` hands `attachment.id` to
   // `database.createAttachment` as `mediaId`, and `attachments.mediaId` is
