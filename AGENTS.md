@@ -32,7 +32,7 @@ sessions), follow this summary of it:
   fresh, independent context (review, verification). Do the rest in the main
   thread.
 - Set `model` and `effort` on every Claude sub-agent: `haiku`/`low` (Fast),
-  `sonnet`/`medium` (Everyday), `sonnet`/`high` (Heavy), `opus`/`high`
+  `sonnet`/`medium` (Everyday), `opus`/`high` (Heavy), `fable`/`high`
   (Frontier). Start at the tier that fits and go one up only after a wrong or
   shallow answer. Use `xhigh` only for a bug that survived a fix, and never make
   `max` a default.
@@ -40,7 +40,7 @@ sessions), follow this summary of it:
   done looks like. Give parallel writers separate worktrees, and check their
   diff and tests.
 
-In this repository, start at Frontier (`opus`/`high`) for the high-risk areas:
+In this repository, start at Frontier (`fable`/`high`) for the high-risk areas:
 ActivityPub federation (signatures, JSON-LD, inbox/outbox, deletes),
 auth/OAuth/better-auth, actor and status visibility, the migrator, baseline and
 schema dumps, and the storage-root and outbound-HTTP security rules. Code review
