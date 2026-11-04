@@ -54,10 +54,11 @@ export const getNoteFromStatus = (
       actualStatus.quote
     ),
     // Every non-fitness attachment federates, in stored order, as Pixelfed
-    // does. Every write path bounds the list (MAX_STORED_MEDIA_ATTACHMENTS, or
-    // a lower import cap). Mastodon keeps the first 4 of a remote post itself,
-    // so cutting here gains nothing there and only loses photos on servers
-    // that show them all.
+    // does. Every write path bounds the list: MAX_STORED_MEDIA_ATTACHMENTS
+    // (plus the route map a fitness file generates afterwards), or a lower
+    // import cap. Mastodon keeps the first 4 of a remote post itself, so
+    // cutting here gains nothing there and only loses photos on servers that
+    // show them all.
     attachment: actualStatus.attachments
       .filter((attachment) => !isFitnessAttachment(attachment))
       .map((attachment) => getDocumentFromAttachment(attachment)),
