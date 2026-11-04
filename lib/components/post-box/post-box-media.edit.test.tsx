@@ -153,6 +153,83 @@ describe('PostBox media details', () => {
     )
   })
 
+  it("holds the edited post's route map alt text read-only, not its photo's", async () => {
+    getMediaMock.mockImplementation(async (id) => mediaEntity(id, ''))
+    const attachment = (mediaId: string, name: string) => ({
+      id: `att-${mediaId}`,
+      actorId: profile.id,
+      statusId: 'status-1',
+      type: 'Document',
+      mediaType: 'image/png',
+      url: `https://activities.local/api/v1/files/${mediaId}.png`,
+      width: 10,
+      height: 10,
+      name,
+      createdAt: 1,
+      updatedAt: 1,
+      mediaId
+    })
+    render(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        editStatus={
+          {
+            id: 'status-1',
+            actorId: profile.id,
+            actor: profile,
+            to: [],
+            cc: [],
+            edits: [],
+            isLocalActor: true,
+            createdAt: 1,
+            updatedAt: 1,
+            type: 'Note',
+            url: 'https://activities.local/@llun/status-1',
+            text: 'Evening ride',
+            summary: null,
+            reply: '',
+            replies: [],
+            actorAnnounceStatusId: null,
+            isActorLiked: false,
+            isActorBookmarked: false,
+            totalLikes: 0,
+            totalShares: 0,
+            attachments: [
+              attachment('media-map', 'Activity route map'),
+              attachment('media-photo', 'Summit')
+            ],
+            tags: []
+          } as never
+        }
+        isMediaUploadEnabled
+        onDiscardReply={vi.fn()}
+        onPostCreated={vi.fn()}
+        onPostUpdated={vi.fn()}
+        onDiscardEdit={vi.fn()}
+      />
+    )
+
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: /details of Activity route map/
+      })
+    )
+    await screen.findByRole('dialog')
+    expect(screen.getByLabelText('Description (alt text)')).toHaveAttribute(
+      'readonly'
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Next item' }))
+    await waitFor(() =>
+      expect(screen.getByLabelText('Description (alt text)')).toHaveValue(
+        'Summit'
+      )
+    )
+    expect(screen.getByLabelText('Description (alt text)')).not.toHaveAttribute(
+      'readonly'
+    )
+  })
+
   describe('editing a status with existing media', () => {
     const makeEditStatus = () =>
       ({

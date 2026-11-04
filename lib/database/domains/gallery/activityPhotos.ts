@@ -2,11 +2,12 @@ import { sql } from 'kysely'
 
 import type { Db } from '@/lib/database/kysely'
 import { countableActivity } from '@/lib/database/kysely/countableActivity'
+import { ROUTE_MAP_ATTACHMENT_NAME } from '@/lib/types/domain/attachment'
 
-// Equals ROUTE_MAP_ATTACHMENT_NAME (services/fitness-files/mapAttachments),
-// which is not imported here: that module pulls the media services into the
-// database layer and breaks its import order. A filters test pins the two.
-export const ROUTE_MAP_NAME = 'Activity route map'
+// The route map's attachment name, from the domain types (not from
+// services/fitness-files/mapAttachments, which would pull the media services
+// into the database layer).
+export const ROUTE_MAP_NAME = ROUTE_MAP_ATTACHMENT_NAME
 
 /**
  * The owner's attachments on statuses that carry a countable activity: one row
