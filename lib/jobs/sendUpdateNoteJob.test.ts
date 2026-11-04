@@ -1,5 +1,6 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
+import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
 import { QUOTE_ACTIVITY_CONTEXT } from '@/lib/activities/quoteContext'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { sendUpdateNoteJob } from '@/lib/jobs/sendUpdateNoteJob'
@@ -87,6 +88,47 @@ describe('Send update note job', () => {
       }
     })
   })
+
+  it.each([false, true])(
+    'delivers Update(Question), including the closed state when expired=%s',
+    async (expired) => {
+      if (!actor1) fail('Actor1 is required')
+      const statusId = `${actor1.id}/statuses/update-poll-${expired}`
+      const endAt = Date.now() + (expired ? -1000 : 60_000)
+      const status = await database.createPoll({
+        id: statusId,
+        url: statusId,
+        actorId: actor1.id,
+        text: 'Choose a color',
+        choices: ['Red', 'Blue'],
+        endAt,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [`${actor1.id}/followers`]
+      })
+      await sendUpdateNoteJob(database, {
+        id: `poll-update-${expired}`,
+        name: 'SendUpdateNoteJob',
+        data: { actorId: actor1.id, statusId }
+      })
+      expectCall(fetchMock, 'https://somewhere.test/inbox', 'POST', {
+        '@context': NOTE_ACTIVITY_CONTEXT,
+        type: 'Update',
+        object: {
+          type: 'Question',
+          id: statusId,
+          updated: getISOTimeUTC(status.updatedAt),
+          endTime: getISOTimeUTC(endAt),
+          ...(expired ? { closed: getISOTimeUTC(endAt) } : {})
+        }
+      })
+      const call = fetchMock.mock.calls.find(
+        ([url]) => url === 'https://somewhere.test/inbox'
+      )
+      const body = JSON.parse(String(call?.[1]?.body))
+      // toMatchObject ignores extra keys: pin that an open poll has no closed.
+      expect('closed' in body.object).toBe(expired)
+    }
+  )
 
   it('does nothing if status is not found', async () => {
     if (!actor1) fail('Actor1 is required')

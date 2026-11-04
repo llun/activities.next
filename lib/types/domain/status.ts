@@ -11,17 +11,14 @@ import {
   getStatusUrl,
   getSummary
 } from '@/lib/activities/note'
+import { getPollQuestion } from '@/lib/activities/pollQuestion'
 import {
   addQuoteFallbackToContent,
   getInteractionPolicyFields,
   getQuoteNoteFields
 } from '@/lib/activities/quoteNoteFields'
 import type { Announce as ActivityPubAnnounce } from '@/lib/types/activitypub/activities'
-import {
-  ENTITY_TYPE_QUESTION,
-  Note,
-  Question
-} from '@/lib/types/activitypub/objects'
+import { Note, Question } from '@/lib/types/activitypub/objects'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import {
   Attachment,
@@ -416,73 +413,16 @@ export const fromAnnounce = (
 }
 
 export const toActivityPubObject = (status: Status): Note | Question => {
-  if (status.type === StatusType.enum.Poll) {
-    const pollOptions = status.choices.map((choice) => ({
-      type: 'Note' as const,
-      name: choice.title,
-      replies: {
-        type: 'Collection' as const,
-        totalItems: choice.totalVotes
-      }
-    }))
-
-    return Question.parse({
-      id: status.id,
-      type: ENTITY_TYPE_QUESTION,
-      summary: status.summary || null,
-
-      url: status.url,
-      attributedTo: status.actorId,
-      to: status.to,
-      cc: status.cc,
-      inReplyTo: status.reply || null,
-      content: status.text,
-      tag: status.tags
-        .map((tag) => getMentionFromTag(tag) ?? getEmojiFromTag(tag))
-        .filter((tag) => tag !== null),
-
-      ...(status.pollType === 'anyOf'
-        ? { anyOf: pollOptions }
-        : { oneOf: pollOptions }),
-      replies: {
-        id: `${status.id}/replies`,
-        type: 'Collection',
-        totalItems: status.replies.length,
-        items: status.replies.map((reply) =>
-          toActivityPubObject(Status.parse(reply))
-        )
-      },
-      likes: {
-        id: `${status.id}/likes`,
-        type: 'Collection',
-        totalItems: status.totalLikes
-      },
-      shares: {
-        id: `${status.id}/shares`,
-        type: 'Collection',
-        totalItems: status.totalShares
-      },
-
-      published: getISOTimeUTC(status.createdAt),
-      endTime: getISOTimeUTC(status.endAt),
-      ...(status.pollType === 'oneOf'
-        ? {
-            votersCount: status.choices.reduce(
-              (totalVotes, choice) => totalVotes + choice.totalVotes,
-              0
-            )
-          }
-        : {}),
-      ...(status.endAt <= Date.now()
-        ? { closed: getISOTimeUTC(status.endAt) }
-        : {}),
-      ...(hasStatusBeenEdited(status)
-        ? { updated: getISOTimeUTC(status.updatedAt) }
-        : null)
+  const originalStatus = getOriginalStatus(status)
+  if (originalStatus.type === StatusType.enum.Poll) {
+    return getPollQuestion(originalStatus, {
+      includeUpdated: hasStatusBeenEdited(originalStatus),
+      replies: originalStatus.replies.map((reply) =>
+        toActivityPubObject(Status.parse(reply))
+      )
     })
   }
 
-  const originalStatus = getOriginalStatus(status)
   // Quote emission (FEP-044f), shared with `getNoteFromStatus` so a note a peer
   // FETCHES (this route, the outbox, the replies collection) describes its quote
   // exactly as one delivered to their inbox does. Every surface returning this

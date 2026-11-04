@@ -1,9 +1,13 @@
 import { persistEmojiTagsForStatus } from '@/lib/actions/createNote'
 import { Database } from '@/lib/database/types'
+import { SEND_UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { persistDetectedLanguage } from '@/lib/services/language-detection'
+import { queuePollCloseUpdate } from '@/lib/services/polls/queuePollCloseUpdate'
+import { getQueue } from '@/lib/services/queue'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Actor } from '@/lib/types/domain/actor'
 import { StatusPoll, StatusType } from '@/lib/types/domain/status'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { withSpan } from '@/lib/utils/trace'
 
 interface UpdatePollFromUserInput {
@@ -122,9 +126,17 @@ export const updatePollFromUserInput = async ({
 
     await addStatusToTimelines(database, updatedStatus)
 
-    // Outbound federation of poll edits (Update(Question)) is not wired up:
-    // getNoteFromStatus returns null for polls and sendUpdateNoteJob rejects
-    // non-Note statuses, so the edit stays local for now.
+    await getQueue().publish({
+      id: getHashFromString(`${statusId}#update/${updatedStatus.updatedAt}`),
+      name: SEND_UPDATE_NOTE_JOB_NAME,
+      data: { actorId: currentActor.id, statusId }
+    })
+    if (
+      updatedStatus.type === StatusType.enum.Poll &&
+      updatedStatus.endAt !== status.endAt
+    ) {
+      await queuePollCloseUpdate(updatedStatus)
+    }
 
     return updatedStatus
   })

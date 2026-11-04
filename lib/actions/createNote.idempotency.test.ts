@@ -15,7 +15,8 @@ import {
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import {
   PROCESS_FITNESS_FILE_JOB_NAME,
-  SEND_NOTE_JOB_NAME
+  SEND_NOTE_JOB_NAME,
+  SEND_UPDATE_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
 import { createDeferred } from '@/lib/testing/deferred'
 import type { Actor } from '@/lib/types/domain/actor'
@@ -244,7 +245,7 @@ describe('idempotent status lookup', () => {
     })
   })
 
-  it('marks a stale pending poll complete without queueing a job', async () => {
+  it('recovers a stale pending poll by queueing Create and its expiration Update', async () => {
     const statusId = `${actorId}/statuses/stale-poll`
     await database.createPollWithResult({
       id: statusId,
@@ -267,7 +268,19 @@ describe('idempotent status lookup', () => {
     await expect(load('stale-poll', statusId)).resolves.toMatchObject({
       id: statusId
     })
-    expect(mockPublish).not.toHaveBeenCalled()
+    expect(mockPublish).toHaveBeenCalledTimes(2)
+    expect(mockPublish).toHaveBeenCalledWith({
+      id: getHashFromString(statusId),
+      name: SEND_NOTE_JOB_NAME,
+      data: { actorId, statusId }
+    })
+    expect(mockPublish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: SEND_UPDATE_NOTE_JOB_NAME,
+        delaySeconds: expect.any(Number),
+        data: { actorId, statusId }
+      })
+    )
     await expect(stateOf('stale-poll')).resolves.toBe('complete')
   })
 

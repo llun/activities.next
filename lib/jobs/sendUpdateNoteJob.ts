@@ -39,8 +39,11 @@ export const sendUpdateNoteJob: JobHandle = createJobHandle(
         return
       }
 
-      if (status.type !== StatusType.enum.Note) {
-        span.recordException(new Error('Status is not a Note'))
+      if (
+        status.type !== StatusType.enum.Note &&
+        status.type !== StatusType.enum.Poll
+      ) {
+        span.recordException(new Error('Status is not a Note or Poll'))
         return
       }
 

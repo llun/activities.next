@@ -3,6 +3,7 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 import { createPollFromUserInput } from '@/lib/actions/createPoll'
 import { StatusPublishFailedError } from '@/lib/database/domains/idempotency/types'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import { SEND_NOTE_JOB_NAME, SEND_UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
@@ -12,12 +13,19 @@ import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { Actor } from '@/lib/types/domain/actor'
 import { Status, StatusPoll, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
+import { logger } from '@/lib/utils/logger'
 import { isPublicId } from '@/lib/utils/publicId'
 
 enableFetchMocks()
 
 vi.mock('@/lib/services/timelines', () => ({
   addStatusToTimelines: vi.fn().mockResolvedValue(undefined)
+}))
+
+const mockPublish = vi.fn().mockResolvedValue(undefined)
+vi.mock('@/lib/services/queue', () => ({
+  getQueue: () => ({ publish: mockPublish, runsInline: false })
 }))
 
 const findPoll = (statuses: Status[], text: string): StatusPoll | undefined =>
@@ -54,9 +62,66 @@ describe('Create poll action', () => {
     fetchMock.resetMocks()
     mockRequests(fetchMock)
     vi.clearAllMocks()
+    mockPublish.mockReset().mockResolvedValue(undefined)
   })
 
+  afterEach(() => vi.restoreAllMocks())
+
   describe('createPollFromUserInput', () => {
+    it('queues Create and a deduplicated delayed expiration Update only once for an idempotent create', async () => {
+      vi.spyOn(Date, 'now').mockReturnValue(Date.now())
+      const endAt = Date.now() + 60_000
+      const params = {
+        text: 'Choose a color',
+        currentActor: actor1,
+        choices: ['Red', 'Blue'],
+        database,
+        endAt,
+        idempotency: { key: 'federated-poll', contentHash: 'poll-hash' }
+      }
+      const status = await createPollFromUserInput(params)
+      expect(status).toBeTruthy()
+      expect(mockPublish).toHaveBeenNthCalledWith(1, {
+        id: getHashFromString(status!.id),
+        name: SEND_NOTE_JOB_NAME,
+        data: { actorId: actor1.id, statusId: status!.id }
+      })
+      expect(mockPublish).toHaveBeenNthCalledWith(2, {
+        id: getHashFromString(`${status!.id}#poll-closed/${endAt}`),
+        name: SEND_UPDATE_NOTE_JOB_NAME,
+        data: { actorId: actor1.id, statusId: status!.id },
+        delaySeconds: expect.any(Number)
+      })
+      const delay = mockPublish.mock.calls[1][0].delaySeconds
+      expect(delay).toBe(61)
+      expect((await createPollFromUserInput(params))?.id).toBe(status!.id)
+      expect(mockPublish).toHaveBeenCalledTimes(2)
+    })
+
+    it('keeps the poll and completes creation when queuing the close update fails', async () => {
+      const error = new Error('Delayed queue unavailable')
+      mockPublish.mockResolvedValueOnce(undefined).mockRejectedValueOnce(error)
+      const log = vi.spyOn(logger, 'error')
+      try {
+        const status = await createPollFromUserInput({
+          text: 'Saved despite scheduler outage',
+          currentActor: actor1,
+          choices: ['Red', 'Blue'],
+          database,
+          endAt: Date.now() + 60_000
+        })
+        expect(status).toBeTruthy()
+        expect(
+          await database.getStatus({ statusId: status!.id })
+        ).toMatchObject({ id: status!.id })
+        expect(log).toHaveBeenCalledWith(
+          expect.objectContaining({ statusId: status!.id, err: error })
+        )
+      } finally {
+        log.mockRestore()
+      }
+    })
+
     it('defaults the language to the actor posting language, and keeps an explicit one', async () => {
       try {
         await database.updateActor({

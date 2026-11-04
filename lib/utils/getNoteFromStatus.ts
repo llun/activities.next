@@ -1,10 +1,11 @@
+import { getPollQuestion } from '@/lib/activities/pollQuestion'
 import {
   addQuoteFallbackToContent,
   getInteractionPolicyFields,
   getQuoteNoteFields
 } from '@/lib/activities/quoteNoteFields'
 import { getConfig } from '@/lib/config'
-import { Note } from '@/lib/types/activitypub'
+import { Note, Question } from '@/lib/types/activitypub'
 import {
   getDocumentFromAttachment,
   isFitnessAttachment
@@ -28,10 +29,19 @@ interface GetNoteFromStatusOptions {
 export const getNoteFromStatus = (
   status: Status,
   options: GetNoteFromStatusOptions = {}
-): Note | null => {
+): Note | Question | null => {
   const actualStatus = getOriginalStatus(status)
-  if (actualStatus.type === StatusType.enum.Poll) return null
   const includeUpdated = options.includeUpdated ?? hasStatusBeenEdited(status)
+  if (actualStatus.type === StatusType.enum.Poll) {
+    return getPollQuestion(actualStatus, {
+      ...options,
+      includeUpdated,
+      content: convertMarkdownText(getConfig().host)(actualStatus.text),
+      replies: actualStatus.replies.map((reply) =>
+        getNoteFromStatus(Status.parse(reply))
+      )
+    })
+  }
 
   // Quote emission (FEP-044f), shared with the AP GET/outbox/replies surfaces so
   // a delivered note and a fetched one describe the same quote. Always advertise

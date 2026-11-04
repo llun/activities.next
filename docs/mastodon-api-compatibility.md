@@ -1368,8 +1368,9 @@ class="quote-inline">RE: <a href="…">…</a></p>` — to both emitters' `conte
     the sanitizer/extractor half).
   - `interactionPolicy` arrives through a spread (`getInteractionPolicyFields`), so grepping for the
     literal key finds nothing: check the spreads.
-  - The only asymmetry left is `votersCount`, which `toActivityPubObject` emits on a poll Question
-    while `getNoteFromStatus` returns null for Polls entirely. Both also carry an attachment's
+  - Poll Questions share `getPollQuestion` between `toActivityPubObject` and
+    `getNoteFromStatus`, including `votersCount` for both single- and multiple-choice polls.
+    Both also carry an attachment's
     `blurhash`/`focalPoint` and the `Hashtag`/`Emoji` tag TYPES, none of which the bundled
     ActivityStreams context defines. `focalPoint` needs `"@container": "@list"` or a processor is
     free to reorder the `[x, y]` pair.
@@ -1969,6 +1970,26 @@ confirm` line is logged.
 <a id="agents-status-posts-actions"></a>
 
 ### Status Posts & Actions
+
+Local polls federate as `Create(Question)` and edits as `Update(Question)` through
+the same recipient selection as Notes. Delivery and AP fetch share the Question
+builder: `oneOf`/`anyOf` options contain `type: Note`, `name`, and a `replies`
+Collection with `totalItems`; `endTime` names the deadline and `closed` contains
+that same timestamp once it passes. `votersCount` uses hydrated distinct voters
+for either poll mode, falling back to the option sum only for single-choice
+polls without a distinct count. With `hide_totals`, option `replies` are omitted
+until expiration; the overall `votersCount` stays visible. Reply collection
+counts, non-fitness attachments, sensitivity and interaction policy are shared;
+delivery also includes the community `audience` when applicable and forces
+`updated` on Updates.
+
+Creation and changes to `endAt` schedule an expiration Update one second after
+the deadline, deduplicated by status id and deadline. The job reads the current
+poll, so a job for an earlier deadline after an extension sends its current
+open state; deleted polls are skipped. Queueing this delayed update is best
+effort and logs an error without failing the saved create or edit. Automatic
+expiration delivery requires a queue that supports delayed messages: in-process
+NoQueue drops them. Live vote-count updates are not federated separately.
 
 Every surface that renders a status post — the home timeline, profiles, lists,
 favourites, bookmarks, hashtags, search, and the status **detail**

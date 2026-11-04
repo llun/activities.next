@@ -272,7 +272,8 @@ export const createPollFromUserInput = async ({
           error
         })
       }
-      // A poll queues no job at creation; this marks its key 'complete'.
+      // Queue Create(Question) and its expiration update through the same
+      // idempotent publication flow as Notes.
       await publishCreatedStatus({
         database,
         actorId: currentActor.id,
