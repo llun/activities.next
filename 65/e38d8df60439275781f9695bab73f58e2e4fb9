@@ -1,0 +1,44 @@
+lib/jobs/regenerateFitnessMapsJob.ts
+  s_d9b04e559a909f::t_532e4b9e87e5cb 113
+lib/jobs/processFitnessFileJob.ts
+  s_d9b04e559a909f::t_532e4b9e87e5cb 417,1037,1041
+lib/jobs/processFitnessFileJob.routeMap.test.ts
+  s_f62d16ea7bd5fa::t_6c9d673fc58e80 415-443,447,451-475,498,504,521-522,535-539,543-573,580-583,598-600
+  s_f62d16ea7bd5fa::t_2d4e33d7a87a68 444-446,448-450,476-497,499-503,505-520,523-534,540-542,574-579,584-597
+app/api/v1/statuses/[id]/route.ts
+  s_d9b04e559a909f::t_4f1cc9ab9919dc 394-395
+  s_d9b04e559a909f::t_532e4b9e87e5cb 415,417
+  s_d9b04e559a909f::t_4e0ca48b0a7794 13,410-414,416
+lib/jobs/regenerateFitnessMapsJob.test.ts
+  s_f62d16ea7bd5fa::t_2d4e33d7a87a68 298-300,328-333,335-339,341-354,372-375,383-394
+  s_f62d16ea7bd5fa::t_6c9d673fc58e80 269-297,301-327,334,340,355-371,376-382,395-397
+docs/fitness-file-storage.md
+  s_d9b04e559a909f::t_4f1cc9ab9919dc 365
+lib/services/fitness-files/mapAttachments.ts
+  s_d9b04e559a909f::t_121e3f0f146ae5 1,4,12-52,56-61,65,70,76-82,84-87,89-90
+  s_d9b04e559a909f::t_532e4b9e87e5cb 88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "65e38d8df60439275781f9695bab73f58e2e4fb9",
+  "prompts": {},
+  "sessions": {
+    "s_d9b04e559a909f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ac808271-fcaa-43c0-98a8-ce08ce0a7e01",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_f62d16ea7bd5fa": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a6be-e446-7783-a41d-654c6872db42",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
