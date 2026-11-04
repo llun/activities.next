@@ -267,7 +267,9 @@ describe('PUT /api/v1/statuses/[id] media edits', () => {
         cc: [`${ACTOR1_ID}/followers`]
       })
       // The route map is a media-manager image upload, mirroring the fitness
-      // import job (processFitnessFileJob stores it via saveMedia).
+      // import job (processFitnessFileJob stores it via saveMedia). Its media
+      // row has no description unless route alt text was generated; the name
+      // lives on the attachment only.
       const mapMedia = await database.createMedia({
         actorId: ACTOR1_ID,
         original: {
@@ -276,8 +278,7 @@ describe('PUT /api/v1/statuses/[id] media edits', () => {
           mimeType: 'image/png',
           metaData: { width: 640, height: 480 },
           fileName: 'ride-route-map.png'
-        },
-        description: 'Activity route map'
+        }
       })
       expect(mapMedia).not.toBeNull()
       await database.createAttachment({
@@ -288,7 +289,8 @@ describe('PUT /api/v1/statuses/[id] media edits', () => {
         width: 640,
         height: 480,
         name: 'Activity route map',
-        mediaId: mapMedia!.id
+        mediaId: mapMedia!.id,
+        isRouteMap: true
       })
 
       const photoCount = 4

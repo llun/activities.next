@@ -323,7 +323,8 @@ const statusTagSchema = z
 
 const statusAttachmentSchema = attachmentSchema.extend({
   type: z.literal('Document'),
-  mediaId: text(256).nullable()
+  mediaId: text(256).nullable(),
+  isRouteMap: z.boolean().optional()
 })
 
 const statusQuoteSchema = z

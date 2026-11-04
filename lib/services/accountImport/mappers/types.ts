@@ -17,6 +17,8 @@ export type ImportedAttachment = {
   width: number | null
   height: number | null
   thumbnailUrl: string | null
+  /** The fitness route map (`attachments.isRouteMap`), from an own archive. */
+  isRouteMap?: boolean
 }
 
 export type ImportedEdit = {

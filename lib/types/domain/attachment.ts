@@ -53,6 +53,9 @@ export const Attachment = z.object({
   focus: z.object({ x: z.number(), y: z.number() }).nullish(),
   thumbnailUrl: z.string().nullish(),
   playbackType: PlaybackType.nullish(),
+  // The route map a fitness job rendered for the status. The name is only its
+  // alt text; this is what marks it. Never serialised for clients or peers.
+  isRouteMap: z.boolean().optional(),
 
   createdAt: z.number(),
   updatedAt: z.number()

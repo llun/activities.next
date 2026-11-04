@@ -6,7 +6,10 @@ import { getAttachmentMediaPath } from '@/lib/utils/getAttachmentMediaPath'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
-/** The attachment name every generated route map is stored under. */
+/**
+ * The alt text a generated route map starts with. It is only alt text, never
+ * how the map is recognised: an edit may change it.
+ */
 export const ROUTE_MAP_ATTACHMENT_NAME = 'Activity route map'
 
 /**

@@ -759,7 +759,7 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   `sort` (`taken_desc` default for UI, `uploaded` default for API and non-owners, `taken_asc`),
   `cursor` (opaque keyset date cursor `<sortAt ms>:<mediaId>` for date sorts),
   `taken_from` and `taken_to` (`YYYY-MM-DD` inclusive UTC date range),
-  `place` (place name or `none`), `activity_id` (fitness file id or `none`; the activity's route map image, found by the file's recorded `mapImagePath` and so still after a post edit renames it, is not one of its photos), and `album_id`
+  `place` (place name or `none`), `activity_id` (fitness file id or `none`; the activity's route map image, found by its `attachments.isRouteMap` flag and so still after a post edit renames it or the photo editor moves its file, is not one of its photos), and `album_id`
   (calculates membership for album pickers), `include_total=true`, `include_days=true` (the
   owner's page then also carries `days`, per-day stats keyed by the day a photo is shown under:
   `YYYY-MM-DD` of `sortAt` for a dated photo under a date sort, `uploaded:YYYY-MM-DD` of

@@ -1,6 +1,5 @@
 import type { Insertable } from 'kysely'
 
-import { ROUTE_MAP_NAME } from '@/lib/database/domains/gallery/activityPhotos'
 import type {
   Attachments,
   FitnessFiles,
@@ -1071,7 +1070,6 @@ describe('gallery media filters and ordering', () => {
 
   describe('route map and date sorts', () => {
     it('does not treat the route map as an activity photo', async () => {
-      expect(ROUTE_MAP_NAME).toBe(ROUTE_MAP_ATTACHMENT_NAME)
       const actorId = await newActor()
       const mapOnly = await createPublicNote(actorId)
       const mixed = await createPublicNote(actorId)
@@ -1079,11 +1077,13 @@ describe('gallery media filters and ordering', () => {
       await seedFitnessFile('fit-mixed', actorId, mixed)
       const mapA = await seedMedia(actorId)
       await seedAttachment(mapA, mapOnly, actorId, {
-        name: ROUTE_MAP_ATTACHMENT_NAME
+        name: ROUTE_MAP_ATTACHMENT_NAME,
+        isRouteMap: true
       })
       const mapB = await seedMedia(actorId)
       await seedAttachment(mapB, mixed, actorId, {
-        name: ROUTE_MAP_ATTACHMENT_NAME
+        name: ROUTE_MAP_ATTACHMENT_NAME,
+        isRouteMap: true
       })
       const photo = await seedMedia(actorId)
       await seedAttachment(photo, mixed, actorId)
@@ -1105,7 +1105,7 @@ describe('gallery media filters and ordering', () => {
       expect(await ids(null)).toEqual([])
     })
 
-    it('still excludes a renamed route map found by mapImagePath, and lists it as from the activity', async () => {
+    it('still excludes a renamed route map by its flag, and lists it as from the activity', async () => {
       const actorId = await newActor()
       const mapOnly = await createPublicNote(actorId)
       const mixed = await createPublicNote(actorId)
@@ -1120,12 +1120,16 @@ describe('gallery media filters and ordering', () => {
       const mapA = await seedMedia(actorId)
       await seedAttachment(mapA, mapOnly, actorId, {
         name: 'edited description',
-        url: `https://${DOMAIN}/api/v1/files/${mapPath('a')}`
+        url: `https://${DOMAIN}/api/v1/files/${mapPath('a')}`,
+        isRouteMap: true
       })
       const mapB = await seedMedia(actorId)
       await seedAttachment(mapB, mixed, actorId, {
         name: '',
-        url: `https://${DOMAIN}/api/v1/files/${mapPath('b')}`
+        // The photo editor re-rendered this one: its url no longer ends with
+        // the file's mapImagePath.
+        url: `https://${DOMAIN}/api/v1/files/medias/${actorId}/b_map_edit.webp`,
+        isRouteMap: true
       })
       const photo = await seedMedia(actorId)
       await seedAttachment(photo, mixed, actorId)

@@ -88,7 +88,9 @@ const toAttachment = (row: AttachmentRow): Attachment | null => {
         ? { x: Number(row.focusX), y: Number(row.focusY) }
         : undefined,
     thumbnailUrl: row.thumbnailUrl ?? undefined,
-    playbackType: row.playbackType ?? undefined
+    playbackType: row.playbackType ?? undefined,
+    // Left off when false, as createAttachment leaves it off.
+    isRouteMap: row.isRouteMap || undefined
   })
 }
 
@@ -132,7 +134,8 @@ export const getAttachmentsWithMedia = async (
       'focusX',
       'focusY',
       'thumbnailUrl',
-      'playbackType'
+      'playbackType',
+      'isRouteMap'
     ])
     .where('statusId', '=', statusId)
     .orderBy('createdAt', 'asc')

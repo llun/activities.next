@@ -165,7 +165,8 @@ describe('regenerateFitnessMapsJob', () => {
       width: 800,
       height: 600,
       name: 'Activity route map',
-      mediaId: oldMedia!.id
+      mediaId: oldMedia!.id,
+      isRouteMap: true
     })
 
     const fitnessFile = await database.createFitnessFile({
@@ -235,7 +236,8 @@ describe('regenerateFitnessMapsJob', () => {
         width: 800,
         height: 600,
         name: 'Activity route map',
-        mediaId: oldMedia!.id
+        mediaId: oldMedia!.id,
+        isRouteMap: true
       })
 
       const fitnessFile = await database.createFitnessFile({
@@ -427,10 +429,11 @@ describe('regenerateFitnessMapsJob', () => {
       withReplies: false
     })) as StatusNote
     const mapAttachments = refreshedStatus?.attachments.filter((attachment) => {
-      return attachment.name === 'Activity route map'
+      return attachment.isRouteMap
     })
     expect(mapAttachments).toHaveLength(1)
     expect(mapAttachments?.[0]?.url).toContain('new-route-map.webp')
+    expect(mapAttachments?.[0]?.name).toBe('Activity route map')
 
     const oldMedia = await database.getMediaByIdForAccount({
       mediaId: oldMediaId,

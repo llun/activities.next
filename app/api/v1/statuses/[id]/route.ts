@@ -556,6 +556,9 @@ export const PUT = traceApiRoute(
         // attachment, and a details save can run ahead of a post edit that
         // was cancelled), so only the photos this request describes take
         // their alt text from the row; every other photo keeps the post's.
+        // The route map keeps its alt text by that rule on the media_ids path
+        // too: its media row usually has no description, so a client resending
+        // media_ids would otherwise rename it to ''.
         const attachments =
           resolvedAttachments === undefined || resolvedAttachments === null
             ? resolvedAttachments
@@ -569,7 +572,9 @@ export const PUT = traceApiRoute(
                 )
                 if (!existing) return attachment
                 const kept = withStatusAttachmentFile(attachment, existing)
-                if (resolvedMediaIds !== undefined) return kept
+                if (resolvedMediaIds !== undefined && !existing.isRouteMap) {
+                  return kept
+                }
                 const { name: rowName, ...rest } = kept
                 const name = describedMediaIds.has(attachmentMediaId)
                   ? rowName

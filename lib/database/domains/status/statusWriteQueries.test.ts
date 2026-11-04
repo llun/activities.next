@@ -472,6 +472,7 @@ const STATEMENTS: [RegExp, (bindings: unknown[]) => string][] = [
   [/^insert into "status_history" /, () => 'insert history'],
   [/^update "statuses" set /, () => 'update status'],
   [/^delete from "attachments" /, () => 'delete attachments'],
+  [/^select "mapImagePath" from "fitness_files" /, () => 'read map paths'],
   [/^insert into "attachments" /, () => 'insert attachment'],
   [/^update "attachments" set /, (b) => `update attachment ${b.at(-1)}`],
   [/^delete from "status_history" /, () => 'delete history'],
@@ -1743,6 +1744,7 @@ describe('updateNote', () => {
       focusY: null,
       thumbnailUrl: null,
       playbackType: null,
+      isRouteMap: false,
       createdAt: now,
       updatedAt: now
     })
@@ -1776,6 +1778,28 @@ describe('updateNote', () => {
     expect(status).toMatchObject({ id, text: 'after', summary: 'new cw' })
   })
 
+  it('leaves the route map flag of a kept attachment it rewrites alone', async () => {
+    const { id, attachments } = await setup()
+    await db
+      .updateTable('attachments')
+      .set({ isRouteMap: true })
+      .where('id', '=', attachments.changed)
+      .execute()
+
+    await updateNote(db, hydration, {
+      statusId: id,
+      text: 'after',
+      summary: null,
+      attachments: [incoming('9101', { name: 'alt text' }), incoming('9102')]
+    })
+
+    const rows = Object.fromEntries(
+      (await attachmentsOf(id)).map((row) => [row.id, row])
+    )
+    expect(rows[attachments.changed]).toMatchObject({ name: 'alt text' })
+    expect(Boolean(rows[attachments.changed].isRouteMap)).toBe(true)
+    expect(Boolean(rows[attachments.kept].isRouteMap)).toBe(false)
+  })
   it('keeps the flags it is not given and the attachments when none are given', async () => {
     const { id } = await setup()
     const attachmentsBefore = await attachmentsOf(id)
@@ -1843,6 +1867,7 @@ describe('updateNote', () => {
       'insert history',
       'update status',
       'delete attachments',
+      'read map paths',
       'insert attachment',
       'insert attachment',
       'update attachment 9101',

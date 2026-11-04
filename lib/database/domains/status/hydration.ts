@@ -112,23 +112,31 @@ export const getStatusLinkPreviewsForIds = async (
   )
 }
 
-const sortAttachmentsForFitnessMap = <T extends { id: string; url: string }>(
+// On a status with a live fitness file, the route map leads its attachments:
+// the one showing the primary file's `mapImagePath`, else the first flagged
+// `isRouteMap` (a map the photo editor re-rendered no longer shows that path).
+// Any other status keeps the order it stores.
+const sortAttachmentsForFitnessMap = <
+  T extends { id: string; url: string; isRouteMap?: boolean }
+>(
   attachments: T[],
-  mapImagePath?: string | null
+  fitnessFile?: { mapImagePath?: string | null } | null
 ): T[] => {
-  if (!mapImagePath) return attachments
-
-  const normalizedMapImagePath = decodeURIComponent(mapImagePath).replace(
-    /^\/+/,
-    ''
-  )
-  const mapAttachment = attachments.find((attachment) => {
-    const attachmentPath = getAttachmentMediaPath(attachment.url)
-    return (
-      attachmentPath === normalizedMapImagePath ||
-      attachmentPath.endsWith(normalizedMapImagePath)
-    )
-  })
+  if (!fitnessFile) return attachments
+  const mapImagePath = fitnessFile.mapImagePath
+  const normalizedMapImagePath = mapImagePath
+    ? decodeURIComponent(mapImagePath).replace(/^\/+/, '')
+    : null
+  const mapAttachment =
+    (normalizedMapImagePath
+      ? attachments.find((attachment) => {
+          const attachmentPath = getAttachmentMediaPath(attachment.url)
+          return (
+            attachmentPath === normalizedMapImagePath ||
+            attachmentPath.endsWith(normalizedMapImagePath)
+          )
+        })
+      : undefined) ?? attachments.find((attachment) => attachment.isRouteMap)
 
   if (!mapAttachment) return attachments
 
@@ -642,7 +650,7 @@ export const hydrateStatusRow = async (
     .filter((item): item is StatusNote => Boolean(item))
   const orderedAttachments = sortAttachmentsForFitnessMap(
     attachments,
-    fitnessFile?.mapImagePath
+    fitnessFile
   )
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

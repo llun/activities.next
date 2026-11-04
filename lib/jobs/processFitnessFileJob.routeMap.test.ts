@@ -174,9 +174,10 @@ describe('processFitnessFileJob', () => {
 
       const attachments = await database.getAttachments({ statusId })
       const mapAttachment = attachments.find(
-        (attachment) => attachment.name === ROUTE_MAP_ATTACHMENT_NAME
+        (attachment) => attachment.isRouteMap
       )
       expect(mapAttachment).toMatchObject({
+        name: ROUTE_MAP_ATTACHMENT_NAME,
         blurhash: 'LEHV6nWB2yk8pyo0adR*',
         focus: { x: 0.25, y: -0.5 },
         thumbnailUrl: 'https://llun.test/api/v1/files/medias/map-thumbnail.webp'
@@ -795,7 +796,8 @@ describe('processFitnessFileJob', () => {
         width: 800,
         height: 600,
         name: 'Activity route map',
-        mediaId: otherMedia!.id
+        mediaId: otherMedia!.id,
+        isRouteMap: true
       })
       const otherFitnessFile = await database.createFitnessFile({
         actorId: actor.id,
@@ -827,7 +829,7 @@ describe('processFitnessFileJob', () => {
       })
 
       // Matching on this file's own recorded path is what keeps the other
-      // file's map out of the cleanup, even though both are named the same.
+      // file's map out of the cleanup, though both are flagged route maps.
       const status = await database.getStatus({ statusId, withReplies: false })
       if (status?.type !== StatusType.enum.Note) fail('Expected a note status')
       expect(

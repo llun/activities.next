@@ -573,7 +573,8 @@ describe('galleryMediaFacets service', () => {
       width: 100,
       height: 100,
       mediaId,
-      name
+      name,
+      isRouteMap: name === ROUTE_MAP_ATTACHMENT_NAME
     })
   }
 

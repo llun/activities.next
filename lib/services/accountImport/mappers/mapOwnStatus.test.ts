@@ -279,4 +279,35 @@ describe('mapOwnStatus', () => {
       }
     ])
   })
+
+  it('reads the route map flag, and the default map name in an archive older than the flag', () => {
+    const attachment = (name: string, extra: Record<string, unknown> = {}) => ({
+      type: 'Document',
+      mediaType: 'image/webp',
+      url: `media/${name.length}.webp`,
+      name,
+      mediaId: String(name.length),
+      ...extra
+    })
+    const result = mapOwnStatus(
+      row({
+        attachments: [
+          attachment('Loop around the lake', { isRouteMap: true }),
+          attachment('Activity route map'),
+          attachment('Summit'),
+          // A photo given the default name, in an archive that has the flag.
+          {
+            ...attachment('Activity route map', { isRouteMap: false }),
+            mediaId: '99'
+          }
+        ]
+      }),
+      context()
+    )
+
+    if (!result.ok) throw new Error('expected a mapped status')
+    expect(
+      result.input.attachments.map((item) => item.isRouteMap ?? false)
+    ).toEqual([true, true, false, false])
+  })
 })
