@@ -1,5 +1,6 @@
 import { buildGalleryItem } from '@/lib/components/gallery/__fixtures__/galleryItems'
 import type { MediaDetailsEntity } from '@/lib/services/medias/types'
+import { ROUTE_MAP_ATTACHMENT_NAME } from '@/lib/types/domain/attachment'
 import { urlToId } from '@/lib/utils/urlToId'
 
 import {
@@ -95,6 +96,35 @@ describe('toMediaDetailsDialogItem', () => {
         href: `/@llun@activities.local/${PUBLIC_ID}`
       }
     })
+  })
+})
+
+describe('toMediaDetailsDialogItem for a route map', () => {
+  const named = (name: string, statusId: string | null) =>
+    buildGalleryItem('map', {
+      statusId,
+      posted: statusId !== null,
+      attachment: { ...buildGalleryItem('map').attachment, name }
+    })
+
+  it.each([
+    {
+      description: "a posted route map, by its post's attachment name",
+      item: named(ROUTE_MAP_ATTACHMENT_NAME, PUBLIC_ID),
+      expected: true
+    },
+    {
+      description: 'a posted photo with any other name',
+      item: named('A heron', PUBLIC_ID),
+      expected: undefined
+    },
+    {
+      description: 'an unposted photo, whatever its name',
+      item: named(ROUTE_MAP_ATTACHMENT_NAME, null),
+      expected: undefined
+    }
+  ])('marks $description', ({ item, expected }) => {
+    expect(toMediaDetailsDialogItem(item, null, OWNER).routeMap).toBe(expected)
   })
 })
 

@@ -128,6 +128,12 @@ export interface MediaDetailsDialogItem {
    */
   unposted?: boolean
   /**
+   * The post's generated route map. Its alt text is shown read-only: the post
+   * always publishes the map as `ROUTE_MAP_ATTACHMENT_NAME`, which is how the
+   * map jobs find it again, so an edit could not change what followers see.
+   */
+  routeMap?: boolean
+  /**
    * Add to gallery only: the file is still going up (or did not). The item has
    * no details to edit yet, and it is left out of "Add N to gallery".
    */
@@ -1807,58 +1813,86 @@ export const MediaDetailsDialog: FC<Props> = ({
                 <Section title="Description (alt text)">
                   <Textarea
                     aria-label="Description (alt text)"
+                    aria-describedby={
+                      item.routeMap ? idFor('route-map-alt') : undefined
+                    }
                     value={draft.description}
                     maxLength={MAX_MEDIA_DESCRIPTION_LENGTH}
+                    readOnly={item.routeMap}
+                    className={
+                      item.routeMap
+                        ? 'resize-none bg-muted text-muted-foreground dark:bg-muted'
+                        : undefined
+                    }
                     disabled={draft.decorative || describing}
                     rows={4}
-                    onChange={(event) =>
+                    onChange={(event) => {
+                      if (item.routeMap) return
                       patchDraft({ description: event.target.value })
-                    }
+                    }}
                   />
-                  <div className="flex items-center justify-between gap-2">
-                    <span
-                      className="text-xs tabular-nums text-muted-foreground"
-                      aria-live="off"
+                  {item.routeMap ? (
+                    <p
+                      id={idFor('route-map-alt')}
+                      className="flex items-start gap-1.5 text-xs text-muted-foreground"
                     >
-                      {descriptionLength}/{MAX_MEDIA_DESCRIPTION_LENGTH}
-                    </span>
-                    {settings?.altTextAvailable ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={describing}
-                        onClick={() => void onRegenerate()}
-                      >
-                        {describing ? (
-                          <Loader2 className="animate-spin" />
-                        ) : (
-                          <Sparkles />
-                        )}
-                        Regenerate
-                      </Button>
-                    ) : null}
-                  </div>
-                  {describeError ? <Alert title={describeError} /> : null}
-                  <CheckRow
-                    id={idFor('decorative')}
-                    checked={draft.decorative}
-                    onChange={(checked) => patchDraft({ decorative: checked })}
-                  >
-                    {context !== 'composer'
-                      ? 'Decorative image, no description'
-                      : 'Post without a description (decorative image)'}
-                  </CheckRow>
-                  {item.post ? (
-                    <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
                       <Info
                         className="mt-0.5 size-3.5 shrink-0"
                         aria-hidden="true"
                       />
-                      Changing alt text edits the post, like Mastodon. Followers
-                      see it as edited.
+                      The route map&apos;s alt text is set by the activity and
+                      can&apos;t be changed.
                     </p>
-                  ) : null}
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between gap-2">
+                        <span
+                          className="text-xs tabular-nums text-muted-foreground"
+                          aria-live="off"
+                        >
+                          {descriptionLength}/{MAX_MEDIA_DESCRIPTION_LENGTH}
+                        </span>
+                        {settings?.altTextAvailable ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={describing}
+                            onClick={() => void onRegenerate()}
+                          >
+                            {describing ? (
+                              <Loader2 className="animate-spin" />
+                            ) : (
+                              <Sparkles />
+                            )}
+                            Regenerate
+                          </Button>
+                        ) : null}
+                      </div>
+                      {describeError ? <Alert title={describeError} /> : null}
+                      <CheckRow
+                        id={idFor('decorative')}
+                        checked={draft.decorative}
+                        onChange={(checked) =>
+                          patchDraft({ decorative: checked })
+                        }
+                      >
+                        {context !== 'composer'
+                          ? 'Decorative image, no description'
+                          : 'Post without a description (decorative image)'}
+                      </CheckRow>
+                      {item.post ? (
+                        <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                          <Info
+                            className="mt-0.5 size-3.5 shrink-0"
+                            aria-hidden="true"
+                          />
+                          Changing alt text edits the post, like Mastodon.
+                          Followers see it as edited.
+                        </p>
+                      ) : null}
+                    </>
+                  )}
                 </Section>
 
                 <Section title="Gear">

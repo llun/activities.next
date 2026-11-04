@@ -1,11 +1,11 @@
 import { Database } from '@/lib/database/types'
 import { deleteMediaFile } from '@/lib/services/medias'
+import { ROUTE_MAP_ATTACHMENT_NAME } from '@/lib/types/domain/attachment'
 import { getAttachmentMediaPath } from '@/lib/utils/getAttachmentMediaPath'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
-/** The attachment name every generated route map is stored under. */
-export const ROUTE_MAP_ATTACHMENT_NAME = 'Activity route map'
+export { ROUTE_MAP_ATTACHMENT_NAME }
 
 /**
  * Whether an attachment a status shows is a generated route map: it carries

@@ -97,6 +97,7 @@ import {
   areAttachmentIdsEqualInOrder,
   getChangedAttachmentDescriptions,
   getEditableStatusAttachments,
+  getRouteMapMediaIds,
   getStatusAttachmentsFromUpdateResponse,
   getTimestamp,
   shouldTakeEditedMedia
@@ -2065,6 +2066,7 @@ export const PostBox: FC<Props> = ({
     // retargetAfterSend: run again with the latest props once a send settles.
   }, [profile, replyStatus, editStatus, quotedStatus, retargetAfterSend])
 
+  const routeMapMediaIds = getRouteMapMediaIds(editStatus)
   const detailsDialogItems: MediaDetailsDialogItem[] = postExtension.attachments
     // Items still reading their details have nothing to edit yet.
     .filter((item) => !item.file && !item.isLoading && !detailsPending[item.id])
@@ -2077,7 +2079,8 @@ export const PostBox: FC<Props> = ({
       height: item.height,
       description: item.name ?? '',
       decorative: Boolean(decorativeIds[item.id]),
-      details: detailsById[item.id] ?? null
+      details: detailsById[item.id] ?? null,
+      ...(routeMapMediaIds.has(item.id) ? { routeMap: true } : {})
     }))
 
   // Offline a post cannot go out: Post gives way to Save draft and Send when

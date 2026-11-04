@@ -2,6 +2,7 @@ import type { updateNote } from '@/lib/client'
 import {
   Attachment,
   PostBoxAttachment,
+  ROUTE_MAP_ATTACHMENT_NAME,
   isFitnessAttachment
 } from '@/lib/types/domain/attachment'
 import { EditableStatus } from '@/lib/types/domain/status'
@@ -33,6 +34,24 @@ export const getEditableStatusAttachments = (
       }
     ]
   })
+
+/**
+ * Media ids of the generated route map(s) the post being edited shows, read
+ * from the post as published (not from the composer's draft, whose names the
+ * owner may change), so only the map itself is held read-only.
+ */
+export const getRouteMapMediaIds = (
+  status: Pick<EditableStatus, 'attachments'> | undefined
+): Set<string> =>
+  new Set(
+    (status?.attachments ?? [])
+      .filter(
+        (attachment) =>
+          isEditableStatusMediaAttachment(attachment) &&
+          attachment.name === ROUTE_MAP_ATTACHMENT_NAME
+      )
+      .map((attachment) => String(attachment.mediaId))
+  )
 
 /**
  * Whether the composer should take over an edited photo's new file. Not when

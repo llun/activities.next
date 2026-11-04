@@ -102,6 +102,35 @@ describe('MediaDetailsDialog in the gallery', () => {
     expect(screen.getByText('1 of 1')).toBeInTheDocument()
   })
 
+  it("holds a posted route map's alt text read-only and never edits its post for it", async () => {
+    const { onClose } = renderDialog(
+      [
+        makeItem('map', {
+          post: POST,
+          description: 'Activity route map',
+          routeMap: true
+        })
+      ],
+      { context: 'gallery' }
+    )
+
+    expect(screen.getByLabelText('Description (alt text)')).toHaveAttribute(
+      'readonly'
+    )
+    expect(
+      screen.queryByText(
+        'Changing alt text edits the post, like Mastodon. Followers see it as edited.'
+      )
+    ).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Description (alt text)'), {
+      target: { value: 'A loop along the river' }
+    })
+    save()
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled())
+    expect(updateNoteMock).not.toHaveBeenCalled()
+  })
+
   it('explains that alt text edits the post and links to it', () => {
     renderDialog([makeItem('a', { post: POST })], { context: 'gallery' })
 

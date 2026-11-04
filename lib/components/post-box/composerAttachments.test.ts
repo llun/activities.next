@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { Attachment, PostBoxAttachment } from '@/lib/types/domain/attachment'
+import {
+  Attachment,
+  PostBoxAttachment,
+  ROUTE_MAP_ATTACHMENT_NAME
+} from '@/lib/types/domain/attachment'
 import { EditableStatus, StatusType } from '@/lib/types/domain/status'
 
 import {
@@ -11,6 +15,7 @@ import {
   getMediaAttachmentDimensions,
   getMediaTypeFromMastodonAttachment,
   getPreservedStatusAttachments,
+  getRouteMapMediaIds,
   getStatusAttachmentsFromUpdateResponse,
   getTimestamp,
   isEditableStatusMediaAttachment,
@@ -144,6 +149,26 @@ describe('composerAttachments', () => {
       const extracted = getEditableStatusAttachments(status)
       expect(extracted[0].width).toBe(0)
       expect(extracted[0].height).toBe(0)
+    })
+  })
+
+  describe('getRouteMapMediaIds', () => {
+    it("lists the media ids of the post's route map, not its photos", () => {
+      const routeMap: Attachment = {
+        ...mediaAttachment1,
+        id: 'att-map',
+        mediaId: 'media-map',
+        name: ROUTE_MAP_ATTACHMENT_NAME
+      }
+      const status = {
+        attachments: [routeMap, mediaAttachment1, fitnessAttachment]
+      } as unknown as EditableStatus
+
+      expect(getRouteMapMediaIds(status)).toEqual(new Set(['media-map']))
+    })
+
+    it('is empty when no post is being edited', () => {
+      expect(getRouteMapMediaIds(undefined)).toEqual(new Set())
     })
   })
 

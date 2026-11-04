@@ -4,7 +4,10 @@ import type {
 } from '@/lib/components/media-details/media-details-dialog'
 import type { GalleryItemEntity } from '@/lib/services/gallery/galleryEntities'
 import type { MediaDetailsEntity } from '@/lib/services/medias/types'
-import type { Attachment } from '@/lib/types/domain/attachment'
+import {
+  type Attachment,
+  ROUTE_MAP_ATTACHMENT_NAME
+} from '@/lib/types/domain/attachment'
 import { getActorMentionPathSegment } from '@/lib/utils/getActorMentionPathSegment'
 import { isPublicId } from '@/lib/utils/publicId'
 import { idToUrl, urlToId } from '@/lib/utils/urlToId'
@@ -56,6 +59,12 @@ export const toMediaDetailsDialogItem = (
   decorative: false,
   details,
   unposted: item.posted === false || undefined,
+  // A posted route map: `attachment` is the post's own row, whose name the
+  // post publishes and the map jobs find it by.
+  routeMap:
+    (item.statusId !== null &&
+      item.attachment.name === ROUTE_MAP_ATTACHMENT_NAME) ||
+    undefined,
   post:
     item.statusId === null
       ? undefined

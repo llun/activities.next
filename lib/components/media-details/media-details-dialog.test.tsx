@@ -417,6 +417,40 @@ describe('MediaDetailsDialog', () => {
     ).not.toBeInTheDocument()
   })
 
+  it("shows a route map's alt text read-only, without Regenerate or decorative", () => {
+    renderDialog([
+      makeItem('map', { description: 'Activity route map', routeMap: true })
+    ])
+
+    const field = screen.getByLabelText('Description (alt text)')
+    expect(field).toHaveValue('Activity route map')
+    expect(field).toHaveAttribute('readonly')
+    expect(field).toHaveAccessibleDescription(
+      "The route map's alt text is set by the activity and can't be changed."
+    )
+    expect(
+      screen.queryByRole('button', { name: 'Regenerate' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByLabelText('Post without a description (decorative image)')
+    ).not.toBeInTheDocument()
+  })
+
+  it("ignores input into a route map's alt text, so a save changes nothing", async () => {
+    const { onSaved, onClose } = renderDialog([
+      makeItem('map', { description: 'Activity route map', routeMap: true })
+    ])
+
+    const field = screen.getByLabelText('Description (alt text)')
+    fireEvent.change(field, { target: { value: 'A loop along the river' } })
+    expect(field).toHaveValue('Activity route map')
+    fireEvent.click(screen.getByRole('button', { name: 'Save details' }))
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled())
+    expect(onSaved).not.toHaveBeenCalled()
+    expect(updateMediaDetailsMock).not.toHaveBeenCalled()
+  })
+
   it('reports a decorative item without sending a description', async () => {
     const { onSaved, onClose } = renderDialog([makeItem('a')])
 
