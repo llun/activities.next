@@ -44,12 +44,14 @@ interface UpdateNoteFromUserInput {
 
 // The mention tokens the text names, lowercased, so a stored tag's `name`
 // (`@user@domain`) can be matched as a whole token rather than as a prefix of a
-// longer handle.
+// longer handle. The domain pattern swallows a sentence's trailing period, so
+// it is trimmed.
 const mentionNamesInText = (text: string): Set<string> =>
   new Set(
     Array.from(text.matchAll(MENTION_GLOBAL_REGEX)).map((match) => {
       const { username, domain } = match.groups as MentionMatchGroup
-      return `@${username}${domain ? `@${domain}` : ''}`.toLowerCase()
+      const host = domain?.replace(/\.+$/, '')
+      return `@${username}${host ? `@${host}` : ''}`.toLowerCase()
     })
   )
 

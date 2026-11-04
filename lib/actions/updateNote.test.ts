@@ -1093,6 +1093,33 @@ describe('Update note action', () => {
         expect(removed.tags.filter((tag) => tag.type === 'mention')).toEqual([])
       })
 
+      it('keeps a stored mention tag when the text names the handle at the end of a sentence', async () => {
+        if (!actor1) fail('Actor1 is required')
+
+        const remoteActorId = 'https://grove.example/users/maplefern'
+        const note = (await createNoteFromUserInput({
+          text: 'Hello @maplefern@grove.example',
+          currentActor: actor1,
+          database
+        })) as StatusNote
+        expect(note.tags.map((tag) => tag.value)).toContain(remoteActorId)
+
+        fetchMock.mockResponse(async () => ({ status: 404 }))
+
+        const updated = (await updateNoteFromUserInput({
+          statusId: note.id,
+          currentActor: actor1,
+          database,
+          text: 'Hello again @maplefern@grove.example.'
+        })) as StatusNote
+
+        expect(
+          updated.tags
+            .filter((tag) => tag.type === 'mention')
+            .map((tag) => tag.value)
+        ).toEqual([remoteActorId])
+      })
+
       it('does not keep a stored mention tag when the text only names a longer handle sharing its prefix', async () => {
         if (!actor1) fail('Actor1 is required')
 
