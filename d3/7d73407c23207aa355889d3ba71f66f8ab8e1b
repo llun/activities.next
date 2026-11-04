@@ -1,0 +1,21 @@
+lib/jobs/sendUpdateNoteJob.test.ts
+  s_ab46b68757c610::t_146893b7348ab4 124-129
+lib/actions/createPoll.test.ts
+  s_ab46b68757c610::t_146893b7348ab4 65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d37d73407c23207aa355889d3ba71f66f8ab8e1b",
+  "prompts": {},
+  "sessions": {
+    "s_ab46b68757c610": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7f003cba-7865-408e-8dfe-90482469e43e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
