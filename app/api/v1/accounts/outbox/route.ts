@@ -10,7 +10,10 @@ import { StatusPublishFailedError } from '@/lib/database/domains/idempotency/typ
 import { toMediaRowId } from '@/lib/database/domains/media/rows'
 import { movedAccountResponse } from '@/lib/services/accounts/movedAccount'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
-import { MAX_STORED_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
+import {
+  MAX_STORED_MEDIA_ATTACHMENTS,
+  getMaxCreateMediaAttachments
+} from '@/lib/services/mastodon/constants'
 import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { resolveQuoteForCreate } from '@/lib/services/quotes/resolveQuoteForCreate'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
@@ -106,9 +109,12 @@ export const POST = traceApiRoute(
           // posts.maxMediaAttachments, which drives the value advertised to
           // clients rather than the create-route cap; enforcing the setting
           // here alone would make this route stricter than the two it matches.
+          // A fitness file takes one slot of it, as on POST /api/v1/statuses:
+          // its processing job attaches the generated route map afterwards.
           if (
             attachments &&
-            attachments.length > MAX_STORED_MEDIA_ATTACHMENTS
+            attachments.length >
+              getMaxCreateMediaAttachments(Boolean(fitnessFileId))
           ) {
             return apiResponse({
               req,

@@ -6,6 +6,17 @@
 // a remote post on its side.
 export const MAX_STORED_MEDIA_ATTACHMENTS = 50
 
+// The media a create request may carry. A fitness file takes one slot: its
+// processing job attaches the activity's generated route map to the status
+// after the create returns, so a create with one accepts one fewer photo and
+// the photos plus the map still fit MAX_STORED_MEDIA_ATTACHMENTS. Without the
+// reserved slot the stored set ends one over the ceiling, and an edit that
+// sends every media id back is refused.
+export const getMaxCreateMediaAttachments = (hasFitnessFile: boolean) =>
+  hasFitnessFile
+    ? MAX_STORED_MEDIA_ATTACHMENTS - 1
+    : MAX_STORED_MEDIA_ATTACHMENTS
+
 export const MAX_PINNED_STATUSES = 5
 
 // Mastodon's default status length, and the fallback for the admin-configurable
