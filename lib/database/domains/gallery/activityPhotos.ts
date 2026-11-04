@@ -18,8 +18,9 @@ export const ROUTE_MAP_NAME = 'Activity route map'
  * uses) as well as by its name: post edits keep the name now, but an edit that
  * resent media_ids, or set the map's alt text through media_attributes, used
  * to rename the attachment, and those maps keep the wrong name until an edit of
- * their post sends media_ids or media_attributes again. The path is matched as a url suffix
- * with substr, not LIKE, so `%` and `_` in a path are not wildcards.
+ * their post sends media_ids or media_attributes again. The path is matched as
+ * a url suffix with substr, not LIKE, so `%` and `_` in a path are not
+ * wildcards.
  * shortcut: a url that percent-encodes the path is not matched here, generated
  * map paths never need encoding. A route map that the photo editor re-renders
  * ("Update posts" moves its url) and that an earlier post edit renamed matches
