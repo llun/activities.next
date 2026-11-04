@@ -14,14 +14,6 @@ const FITNESS_MEDIA_TYPES = [
 const FITNESS_MEDIA_TYPE_PATTERN = /(?:^|[./+-])(fit|gpx|tcx)(?:$|[./+-])/i
 const FITNESS_FILE_PATH_SEGMENT = '/api/v1/fitness-files/'
 
-/**
- * The attachment name every generated route map is stored under. Here rather
- * than beside the map jobs so client components (the composer and the media
- * details dialog) can read it; `lib/services/fitness-files/mapAttachments.ts`
- * re-exports it for the server.
- */
-export const ROUTE_MAP_ATTACHMENT_NAME = 'Activity route map'
-
 export const UploadedAttachment = z.object({
   type: z.literal('upload'),
   id: z.string(),

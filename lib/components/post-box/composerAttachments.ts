@@ -2,9 +2,9 @@ import type { updateNote } from '@/lib/client'
 import {
   Attachment,
   PostBoxAttachment,
-  ROUTE_MAP_ATTACHMENT_NAME,
   isFitnessAttachment
 } from '@/lib/types/domain/attachment'
+import { ROUTE_MAP_ATTACHMENT_NAME } from '@/lib/types/domain/routeMap'
 import { EditableStatus } from '@/lib/types/domain/status'
 
 export type UpdateNoteResponse = Awaited<ReturnType<typeof updateNote>>

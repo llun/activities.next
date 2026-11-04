@@ -1,6 +1,6 @@
 import { Database } from '@/lib/database/types'
 import { deleteMediaFile } from '@/lib/services/medias'
-import { ROUTE_MAP_ATTACHMENT_NAME } from '@/lib/types/domain/attachment'
+import { ROUTE_MAP_ATTACHMENT_NAME } from '@/lib/types/domain/routeMap'
 import { getAttachmentMediaPath } from '@/lib/utils/getAttachmentMediaPath'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'

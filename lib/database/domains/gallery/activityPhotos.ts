@@ -2,7 +2,7 @@ import { sql } from 'kysely'
 
 import type { Db } from '@/lib/database/kysely'
 import { countableActivity } from '@/lib/database/kysely/countableActivity'
-import { ROUTE_MAP_ATTACHMENT_NAME } from '@/lib/types/domain/attachment'
+import { ROUTE_MAP_ATTACHMENT_NAME } from '@/lib/types/domain/routeMap'
 
 /**
  * The owner's attachments on statuses that carry a countable activity: one row

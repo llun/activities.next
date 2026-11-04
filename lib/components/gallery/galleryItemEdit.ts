@@ -4,10 +4,8 @@ import type {
 } from '@/lib/components/media-details/media-details-dialog'
 import type { GalleryItemEntity } from '@/lib/services/gallery/galleryEntities'
 import type { MediaDetailsEntity } from '@/lib/services/medias/types'
-import {
-  type Attachment,
-  ROUTE_MAP_ATTACHMENT_NAME
-} from '@/lib/types/domain/attachment'
+import type { Attachment } from '@/lib/types/domain/attachment'
+import { ROUTE_MAP_ATTACHMENT_NAME } from '@/lib/types/domain/routeMap'
 import { getActorMentionPathSegment } from '@/lib/utils/getActorMentionPathSegment'
 import { isPublicId } from '@/lib/utils/publicId'
 import { idToUrl, urlToId } from '@/lib/utils/urlToId'

@@ -1,6 +1,6 @@
 import { buildGalleryItem } from '@/lib/components/gallery/__fixtures__/galleryItems'
 import type { MediaDetailsEntity } from '@/lib/services/medias/types'
-import { ROUTE_MAP_ATTACHMENT_NAME } from '@/lib/types/domain/attachment'
+import { ROUTE_MAP_ATTACHMENT_NAME } from '@/lib/types/domain/routeMap'
 import { urlToId } from '@/lib/utils/urlToId'
 
 import {

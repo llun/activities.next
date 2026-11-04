@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  Attachment,
-  PostBoxAttachment,
-  ROUTE_MAP_ATTACHMENT_NAME
-} from '@/lib/types/domain/attachment'
+import { Attachment, PostBoxAttachment } from '@/lib/types/domain/attachment'
+import { ROUTE_MAP_ATTACHMENT_NAME } from '@/lib/types/domain/routeMap'
 import { EditableStatus, StatusType } from '@/lib/types/domain/status'
 
 import {
