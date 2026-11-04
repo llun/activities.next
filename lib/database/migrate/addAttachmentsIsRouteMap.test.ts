@@ -161,6 +161,18 @@ describe('20261104133123_add_attachments_is_route_map', () => {
       url: fileUrl('medias/rerendered-render.webp'),
       mediaId: reRenderedMedia
     })
+    // Photos beside the two maps found through their media: the media checks
+    // match each attachment's own media, never the status's.
+    await createAttachment('bymedia-photo', byMedia, {
+      name: '',
+      url: fileUrl('medias/bymedia-photo.jpg'),
+      mediaId: await createMedia('medias/bymedia-photo.jpg')
+    })
+    await createAttachment('rerendered-photo', reRendered, {
+      name: '',
+      url: fileUrl('medias/rerendered-photo.jpg'),
+      mediaId: await createMedia('medias/rerendered-photo.jpg')
+    })
 
     // `%` and `_` in a path are literal: this photo's url matches the path as
     // a LIKE pattern, not as a suffix.
@@ -201,6 +213,8 @@ describe('20261104133123_add_attachments_is_route_map', () => {
               'renamed-map',
               'bymedia-map',
               'rerendered-map',
+              'bymedia-photo',
+              'rerendered-photo',
               'wildcard-photo',
               'emptypath-photo',
               'plain-named'
@@ -214,6 +228,8 @@ describe('20261104133123_add_attachments_is_route_map', () => {
       'renamed-map': true,
       'bymedia-map': true,
       'rerendered-map': true,
+      'bymedia-photo': false,
+      'rerendered-photo': false,
       'wildcard-photo': false,
       'emptypath-photo': false,
       'plain-named': false

@@ -131,7 +131,7 @@ describe('PUT /api/v1/statuses/[id] keeps a fitness route map', () => {
         metaData: { width: 640, height: 480 }
       }
     }))!
-    await database.createAttachment({
+    const mapAttachment = await database.createAttachment({
       actorId: ACTOR1_ID,
       statusId,
       mediaType: 'image/webp',
@@ -144,6 +144,7 @@ describe('PUT /api/v1/statuses/[id] keeps a fitness route map', () => {
       // Stored after the photo, so only the route map rules put it first.
       createdAt: Date.UTC(2026, 0, 1, 8, 0, 1)
     })
+    expect(mapAttachment.isRouteMap).toBe(true)
     const photo = (await database.createMedia({
       actorId: ACTOR1_ID,
       original: {
@@ -230,6 +231,7 @@ describe('PUT /api/v1/statuses/[id] keeps a fitness route map', () => {
       mapImagePath: ride.mapImagePath
     })
     expect(found.map((attachment) => attachment.id)).toEqual([map!.id])
+    expect(found[0].isRouteMap).toBe(true)
 
     // The alt text reaches clients and peers; the flag never does.
     const mastodon = await getMastodonStatus(database, status)
@@ -538,6 +540,39 @@ describe('PUT /api/v1/statuses/[id] keeps a fitness route map', () => {
     ).find((attachment) => attachment.mediaId === ride.map.id)
     expect(map).toBeDefined()
     expect(map?.isRouteMap).toBeFalsy()
+  })
+
+  it("leads with the primary file's map on a ride merged from two devices", async () => {
+    const ride = await createRide('merged-devices')
+    // The other device's map, also flagged and stored before every other
+    // attachment: the primary file's recorded path still decides the lead.
+    const otherMap = (await database.createMedia({
+      actorId: ACTOR1_ID,
+      original: {
+        path: 'medias/route-map-merged-devices-other.webp',
+        bytes: 2048,
+        mimeType: 'image/webp',
+        metaData: { width: 640, height: 480 }
+      }
+    }))!
+    await database.createAttachment({
+      actorId: ACTOR1_ID,
+      statusId: ride.statusId,
+      mediaType: 'image/webp',
+      url: `https://llun.test/api/v1/files/${otherMap.original.path}`,
+      width: 640,
+      height: 480,
+      name: ROUTE_MAP_ATTACHMENT_NAME,
+      mediaId: otherMap.id,
+      isRouteMap: true,
+      createdAt: Date.UTC(2026, 0, 1, 7, 59, 59)
+    })
+
+    const status = (await database.getStatus({
+      statusId: ride.statusId
+    })) as StatusNote
+
+    expect(status.attachments[0].mediaId).toBe(ride.map.id)
   })
 
   it('leads with the flagged map when the primary file records no map path', async () => {
