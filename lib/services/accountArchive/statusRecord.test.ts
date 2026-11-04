@@ -24,7 +24,7 @@ const attachment = (
 })
 
 describe('buildStatusRecord', () => {
-  it('carries the route map flag, and only on the map', () => {
+  it('writes the route map flag on every attachment', () => {
     const status = {
       id: statusId,
       actorId,
@@ -53,6 +53,9 @@ describe('buildStatusRecord', () => {
       name: 'Loop around the lake',
       isRouteMap: true
     })
-    expect(record.attachments[1]).not.toHaveProperty('isRouteMap')
+    expect(record.attachments[1]).toMatchObject({
+      name: 'Summit',
+      isRouteMap: false
+    })
   })
 })

@@ -76,7 +76,6 @@ const selectRouteMapMediaIds = async (
         .select('mapImagePath')
         .where('statusId', '=', statusId)
         .where('mapImagePath', 'is not', null)
-        .where('mapImagePath', '<>', '')
         .execute()
     ).map((row) => row.mapImagePath as string)
   )

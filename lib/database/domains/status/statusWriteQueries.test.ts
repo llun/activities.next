@@ -473,10 +473,6 @@ const STATEMENTS: [RegExp, (bindings: unknown[]) => string][] = [
   [/^update "statuses" set /, () => 'update status'],
   [/^delete from "attachments" /, () => 'delete attachments'],
   [/^select "mapImagePath" from "fitness_files" /, () => 'read map paths'],
-  [
-    /^select "mediaId", "path" from "media_edit_files" /,
-    () => 'read edit files'
-  ],
   [/^insert into "attachments" /, () => 'insert attachment'],
   [/^update "attachments" set /, (b) => `update attachment ${b.at(-1)}`],
   [/^delete from "status_history" /, () => 'delete history'],

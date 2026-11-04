@@ -112,15 +112,18 @@ export const getStatusLinkPreviewsForIds = async (
   )
 }
 
-// The route map leads the status's attachments: the one showing the primary
-// file's `mapImagePath`, else the first flagged `isRouteMap` (a map the photo
-// editor re-rendered no longer shows that path).
+// On a status with a live fitness file, the route map leads its attachments:
+// the one showing the primary file's `mapImagePath`, else the first flagged
+// `isRouteMap` (a map the photo editor re-rendered no longer shows that path).
+// Any other status keeps the order it stores.
 const sortAttachmentsForFitnessMap = <
   T extends { id: string; url: string; isRouteMap?: boolean }
 >(
   attachments: T[],
-  mapImagePath?: string | null
+  fitnessFile?: { mapImagePath?: string | null } | null
 ): T[] => {
+  if (!fitnessFile) return attachments
+  const mapImagePath = fitnessFile.mapImagePath
   const normalizedMapImagePath = mapImagePath
     ? decodeURIComponent(mapImagePath).replace(/^\/+/, '')
     : null
@@ -647,7 +650,7 @@ export const hydrateStatusRow = async (
     .filter((item): item is StatusNote => Boolean(item))
   const orderedAttachments = sortAttachmentsForFitnessMap(
     attachments,
-    fitnessFile?.mapImagePath
+    fitnessFile
   )
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

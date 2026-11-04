@@ -310,6 +310,118 @@ describe('PUT /api/v1/statuses/[id] keeps a fitness route map', () => {
     await expectRouteMap(ride, '', { findsByPath: true })
   })
 
+  it('flags a re-rendered map put back after an edit dropped it', async () => {
+    const ride = await createRide('re-rendered-re-added')
+    const result = await database.applyMediaEdit({
+      mediaId: ride.map.id,
+      accountId,
+      baseVersion: 0,
+      saveId: `route-map-readd-${ride.map.id}`,
+      recipe: JSON.stringify({ v: 1 }),
+      render: {
+        path: 'medias/route-map-re-rendered-re-added-render.webp',
+        bytes: 200,
+        mimeType: 'image/webp',
+        width: 640,
+        height: 480,
+        blurhash: null,
+        focus: null
+      }
+    })
+    if (result.status !== 'ok') throw new Error('edit failed')
+
+    expect(
+      (await edit(ride.statusId, { media_ids: [ride.photo.id] })).status
+    ).toBe(200)
+    expect(
+      (
+        await edit(ride.statusId, {
+          media_ids: [ride.map.id, ride.photo.id]
+        })
+      ).status
+    ).toBe(200)
+
+    // It comes back on the render, which is no mapImagePath: the uploaded
+    // original its edit keeps is what marks it.
+    const status = (await database.getStatus({
+      statusId: ride.statusId
+    })) as StatusNote
+    expect(
+      status.attachments.find(
+        (attachment) => attachment.mediaId === ride.map.id
+      )?.url
+    ).toBe(
+      'https://llun.test/api/v1/files/medias/route-map-re-rendered-re-added-render.webp'
+    )
+    await expectRouteMap(ride, '', { findsByPath: false })
+  })
+
+  it('leaves a new photo on the ride, and the map put on another post, unflagged', async () => {
+    const ride = await createRide('new-photo')
+    const newPhoto = (await database.createMedia({
+      actorId: ACTOR1_ID,
+      original: {
+        path: 'medias/route-map-new-photo-extra.jpg',
+        bytes: 1024,
+        mimeType: 'image/jpeg',
+        metaData: { width: 320, height: 240 }
+      }
+    }))!
+    const otherStatusId = `${ACTOR1_ID}/statuses/route-map-other-post`
+    await database.createNote({
+      id: otherStatusId,
+      url: otherStatusId,
+      actorId: ACTOR1_ID,
+      text: 'Not a ride',
+      summary: null,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+
+    expect(
+      (
+        await edit(ride.statusId, {
+          media_ids: [ride.map.id, ride.photo.id, newPhoto.id]
+        })
+      ).status
+    ).toBe(200)
+    expect(
+      (await edit(otherStatusId, { media_ids: [ride.map.id] })).status
+    ).toBe(200)
+
+    const flags = async (statusId: string) =>
+      Object.fromEntries(
+        (await database.getAttachments({ statusId })).map((attachment) => [
+          attachment.mediaId,
+          Boolean(attachment.isRouteMap)
+        ])
+      )
+    expect(await flags(ride.statusId)).toEqual({
+      [ride.map.id]: true,
+      [ride.photo.id]: false,
+      [newPhoto.id]: false
+    })
+    expect(await flags(otherStatusId)).toEqual({ [ride.map.id]: false })
+  })
+
+  it('keeps the stored order once the activity is deleted', async () => {
+    const ride = await createRide('deleted-activity')
+    await testDb.db
+      .updateTable('fitness_files')
+      .set({ deletedAt: new Date() })
+      .where('id', '=', ride.fitnessFileId)
+      .execute()
+
+    const status = (await database.getStatus({
+      statusId: ride.statusId
+    })) as StatusNote
+
+    expect(status.attachments.map((attachment) => attachment.mediaId)).toEqual([
+      ride.photo.id,
+      ride.map.id
+    ])
+  })
+
   it('leads with the flagged map when the primary file records no map path', async () => {
     const ride = await createRide('no-map-path')
     await testDb.db

@@ -63,7 +63,9 @@ export const buildStatusRecord = ({
       ...getDocumentFromAttachment(attachment),
       mediaId: attachment.mediaId ?? null,
       url: urlToArchivePath(attachment.url),
-      ...(attachment.isRouteMap ? { isRouteMap: true } : null)
+      // Always written, so an importer tells a photo from an archive older
+      // than the flag (which marks the map by its default name only).
+      isRouteMap: Boolean(attachment.isRouteMap)
     })),
     poll:
       status.type === StatusType.enum.Poll

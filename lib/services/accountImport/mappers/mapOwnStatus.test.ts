@@ -294,7 +294,12 @@ describe('mapOwnStatus', () => {
         attachments: [
           attachment('Loop around the lake', { isRouteMap: true }),
           attachment('Activity route map'),
-          attachment('Summit')
+          attachment('Summit'),
+          // A photo given the default name, in an archive that has the flag.
+          {
+            ...attachment('Activity route map', { isRouteMap: false }),
+            mediaId: '99'
+          }
         ]
       }),
       context()
@@ -303,6 +308,6 @@ describe('mapOwnStatus', () => {
     if (!result.ok) throw new Error('expected a mapped status')
     expect(
       result.input.attachments.map((item) => item.isRouteMap ?? false)
-    ).toEqual([true, true, false])
+    ).toEqual([true, true, false, false])
   })
 })
