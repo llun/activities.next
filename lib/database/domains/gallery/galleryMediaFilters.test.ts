@@ -1,6 +1,5 @@
 import type { Insertable } from 'kysely'
 
-import { ROUTE_MAP_NAME } from '@/lib/database/domains/gallery/activityPhotos'
 import type {
   Attachments,
   FitnessFiles,
@@ -1071,7 +1070,6 @@ describe('gallery media filters and ordering', () => {
 
   describe('route map and date sorts', () => {
     it('does not treat the route map as an activity photo', async () => {
-      expect(ROUTE_MAP_NAME).toBe(ROUTE_MAP_ATTACHMENT_NAME)
       const actorId = await newActor()
       const mapOnly = await createPublicNote(actorId)
       const mixed = await createPublicNote(actorId)

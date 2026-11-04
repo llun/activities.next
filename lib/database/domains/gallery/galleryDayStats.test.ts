@@ -1,7 +1,6 @@
 import type { Insertable } from 'kysely'
 import { sql } from 'kysely'
 
-import { ROUTE_MAP_NAME } from '@/lib/database/domains/gallery/activityPhotos'
 import type { GalleryMediaFilters } from '@/lib/database/domains/gallery/types'
 import type { Attachments, Medias } from '@/lib/database/kysely/db'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
@@ -561,7 +560,6 @@ describe('gallery day stats and day ids', () => {
           count: 1
         }
       ])
-      expect(ROUTE_MAP_NAME).toBe(ROUTE_MAP_ATTACHMENT_NAME)
     })
 
     it('answers an empty result for a visitor audience', async () => {

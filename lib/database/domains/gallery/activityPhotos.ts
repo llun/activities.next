@@ -4,11 +4,6 @@ import type { Db } from '@/lib/database/kysely'
 import { countableActivity } from '@/lib/database/kysely/countableActivity'
 import { ROUTE_MAP_ATTACHMENT_NAME } from '@/lib/types/domain/attachment'
 
-// The route map's attachment name, from the domain types (not from
-// services/fitness-files/mapAttachments, which would pull the media services
-// into the database layer).
-export const ROUTE_MAP_NAME = ROUTE_MAP_ATTACHMENT_NAME
-
 /**
  * The owner's attachments on statuses that carry a countable activity: one row
  * per (attachment, activity). The generated route map is left out unless
@@ -47,7 +42,7 @@ export const activityPhotoAttachments = (
       .where((eb) =>
         eb.or([
           eb('activity_attachments.name', 'is', null),
-          eb('activity_attachments.name', '<>', ROUTE_MAP_NAME)
+          eb('activity_attachments.name', '<>', ROUTE_MAP_ATTACHMENT_NAME)
         ])
       )
       .where((eb) =>
