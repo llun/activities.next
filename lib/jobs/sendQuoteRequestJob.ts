@@ -38,7 +38,7 @@ export const sendQuoteRequestJob: JobHandle = createJobHandle(
       }
 
       const instrument = getNoteFromStatus(status)
-      if (!instrument) {
+      if (!instrument || instrument.type !== 'Note') {
         return
       }
 

@@ -2,7 +2,7 @@ import { QUOTE_CONTEXT_TERMS } from '@/lib/activities/quoteContext'
 import { ACTIVITY_STREAM_URL } from '@/lib/utils/activitystream'
 
 /**
- * JSON-LD term map for every extension this instance writes onto a Note.
+ * JSON-LD term map for every extension this instance writes onto a Note or Question.
  *
  * A receiver that runs real JSON-LD processing resolves each property through
  * the document's own `@context`, and the ActivityStreams context this instance
@@ -40,8 +40,8 @@ export const NOTE_CONTEXT_TERMS = {
   blurhash: 'toot:blurhash',
   focalPoint: { '@id': 'toot:focalPoint', '@container': '@list' },
 
-  // `votersCount` is emitted: `toActivityPubObject` puts it on a poll Question,
-  // which the status route and the replies collection both serve. `sensitive`
+  // `votersCount` is emitted by the shared poll Question builder on both
+  // delivery and the status/outbox/replies fetch surfaces. `sensitive`
   // is emitted on every Note and Question by `getNoteFromStatus` and
   // `toActivityPubObject`.
   votersCount: 'toot:votersCount',

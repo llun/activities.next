@@ -109,6 +109,57 @@ describe('sendNoteJob', () => {
     hoisted.publishDelayMs = 0
   })
 
+  it('fans out Create(Question) to the follower inbox with the Note context', async () => {
+    if (!actor1) fail('Actor1 is required')
+    const statusId = `${actor1.id}/statuses/federated-poll`
+    const endAt = Date.now() + 60_000
+    await database.createPoll({
+      id: statusId,
+      url: statusId,
+      actorId: actor1.id,
+      text: 'Choose a color',
+      choices: ['Red', 'Blue'],
+      endAt,
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: [`${actor1.id}/followers`]
+    })
+    hoisted.runsInline = false
+    await sendNoteJob(database, {
+      id: 'poll-create',
+      name: SEND_NOTE_JOB_NAME,
+      data: { actorId: actor1.id, statusId }
+    })
+    expect(hoisted.publishSpy).toHaveBeenCalledWith({
+      id: getDeliveryJobId('poll-create', 'https://somewhere.test/inbox'),
+      name: DELIVER_ACTIVITY_JOB_NAME,
+      data: {
+        inbox: 'https://somewhere.test/inbox',
+        actorId: actor1.id,
+        activity: expect.objectContaining({
+          '@context': NOTE_ACTIVITY_CONTEXT,
+          type: 'Create',
+          object: expect.objectContaining({
+            id: statusId,
+            type: 'Question',
+            endTime: new Date(endAt).toISOString(),
+            oneOf: [
+              {
+                type: 'Note',
+                name: 'Red',
+                replies: { type: 'Collection', totalItems: 0 }
+              },
+              {
+                type: 'Note',
+                name: 'Blue',
+                replies: { type: 'Collection', totalItems: 0 }
+              }
+            ]
+          })
+        })
+      }
+    })
+  })
+
   it('does nothing when status is not found', async () => {
     if (!actor1) fail('Actor1 is required')
 

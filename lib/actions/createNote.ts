@@ -24,6 +24,7 @@ import {
 } from '@/lib/services/medias/attachmentMediaMetadata'
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
+import { queuePollCloseUpdate } from '@/lib/services/polls/queuePollCloseUpdate'
 import { getQueue } from '@/lib/services/queue'
 import type { JobMessage } from '@/lib/services/queue/type'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
@@ -119,14 +120,13 @@ export const runBestEffortStep = async (
 }
 
 // The federation job of a created status: PROCESS_FITNESS_FILE (which sends
-// the note itself) for a fitness post, SEND_NOTE otherwise, none for a poll.
+// the note itself) for a fitness post, SEND_NOTE otherwise (including polls).
 // The id is derived from the status, so queueing it again is deduplicated.
 const getStatusCreationJob = (
   actorId: string,
   status: Status,
   fitnessFileId?: string
-): JobMessage | null => {
-  if (status.type === StatusType.enum.Poll) return null
+): JobMessage => {
   const id = getHashFromString(status.id)
   return fitnessFileId
     ? {
@@ -164,7 +164,7 @@ const queueStatusCreationJob = async ({
 }): Promise<void> => {
   const job = getStatusCreationJob(actorId, status, fitnessFileId)
   try {
-    if (job) await getQueue().publish(job)
+    await getQueue().publish(job)
   } catch (error) {
     logger.error({
       message: 'Status create: federation job could not be queued',
@@ -182,6 +182,9 @@ const queueStatusCreationJob = async ({
       )
     }
     throw new StatusPublishFailedError(Boolean(key))
+  }
+  if (status.type === StatusType.enum.Poll) {
+    await queuePollCloseUpdate(status)
   }
   if (key) {
     await runBestEffortStep(status.id, 'Idempotency-Key complete', () =>

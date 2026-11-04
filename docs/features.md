@@ -18,7 +18,7 @@ The features Activity.next ships today. Most lines link to the documentation tha
 - ✅ **Image and video attachments** — Upload and display images and video in posts, with automatic preview frames and blurhash ([Architecture](architecture.md#media--file-storage))
 - ✅ **Boost / Repost** — Share other users' posts, with undo ([Mastodon API](mastodon-api-compatibility.md#status-posts--actions))
 - ✅ **Like / Favorite** — React to posts, with undo ([Mastodon API](mastodon-api-compatibility.md#status-posts--actions))
-- ✅ **Polls** — Create, vote on, and view poll results, single and multiple choice ([Mastodon API](mastodon-api-compatibility.md#status-posts--actions))
+- ✅ **Polls** — Create, edit, vote on, and view single- and multiple-choice polls; federate creation, edits and expiration as ActivityPub Questions, with optional hidden tallies until expiration (automatic expiration delivery requires a delayed-job queue; NoQueue drops delayed messages) ([Mastodon API](mastodon-api-compatibility.md#status-posts--actions))
 - ✅ **Quote posts (Mastodon 4.5)** — Quote another post with the FEP-044f consent handshake and a per-post quote-approval policy ([Mastodon API](mastodon-api-compatibility.md#extensions))
 - ✅ **Multiple profiles per account & account menu** — Create and switch between multiple handles/profiles under one account from the account menu ([Architecture](architecture.md#navigation-customization))
 - ✅ **Multi-domain support** — Different domains for different actors ([Architecture](architecture.md#served-domains))
