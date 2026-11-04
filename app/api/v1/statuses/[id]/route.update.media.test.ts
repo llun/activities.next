@@ -346,12 +346,18 @@ describe('PUT /api/v1/statuses/[id] media edits', () => {
         )
       ).toBe(true)
 
-      // The federated note carries the route map and every photo.
+      // The federated note carries the route map and every photo, in the
+      // order the status stores them.
       const activityPubNote = getNoteFromStatus(updatedStatus)
       const federatedAttachments = Array.isArray(activityPubNote?.attachment)
         ? activityPubNote.attachment
         : []
-      expect(federatedAttachments).toHaveLength(mediaIds.length)
+      expect(federatedAttachments.map((attachment) => attachment.name)).toEqual(
+        [
+          'Activity route map',
+          ...photoMediaIds.map((_, index) => `Ride photo ${index}`)
+        ]
+      )
     })
 
     it('rejects more media_ids than the stored ceiling with 422', async () => {
