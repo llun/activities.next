@@ -124,14 +124,6 @@ export const notifyRemoteMention = async ({
       ) {
         return
       }
-      if (
-        await database.isEitherBlocking({
-          actorIdA: currentActor.id,
-          actorIdB: status.actorId
-        })
-      ) {
-        return
-      }
 
       // A mention-only notification is for an actor who can read the status. An
       // Update can add a Mention tag for someone the status does not address,

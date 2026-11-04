@@ -1774,6 +1774,58 @@ describe('updateNoteJob', () => {
       expect(actor1Notifications).toHaveLength(1)
     })
 
+    it('notifies a local user whose Mention href is the profile URL form', async () => {
+      const noteId = `${EXTERNAL_ACTOR1}/statuses/remote-edit-profile-url-mention`
+      const initialNote = MockMastodonActivityPubNote({
+        id: noteId,
+        from: EXTERNAL_ACTOR1,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        content: '<p>Before edit</p>'
+      })
+      await createNoteJob(database, {
+        id: 'create-remote-edit-profile-url-mention',
+        name: CREATE_NOTE_JOB_NAME,
+        data: initialNote
+      })
+      vi.mocked(sendNotificationAlerts).mockClear()
+
+      // Some servers address a Mention by the actor's profile URL rather than
+      // its id; the local actor behind it must still be notified.
+      await updateNoteJob(database, {
+        id: 'update-remote-edit-profile-url-mention',
+        name: UPDATE_NOTE_JOB_NAME,
+        data: {
+          ...initialNote,
+          cc: [actor1.id],
+          content: '<p>Edited note mentioning @test1</p>',
+          tag: [
+            {
+              type: 'Mention' as const,
+              href: 'https://llun.test/@test1',
+              name: '@test1@llun.test'
+            }
+          ]
+        }
+      })
+
+      const notifications = (
+        await database.getNotifications({ actorId: actor1.id, limit: 100 })
+      ).filter((n) => n.statusId === noteId)
+      expect(notifications).toHaveLength(1)
+      expect(notifications[0]).toMatchObject({
+        type: NotificationType.enum.mention,
+        sourceActorId: EXTERNAL_ACTOR1,
+        groupKey: `mention:${noteId}`
+      })
+      expect(vi.mocked(sendNotificationAlerts)).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorId: actor1.id,
+          statusId: noteId
+        })
+      )
+    })
+
     it('does not notify again when the same remote Update is re-delivered', async () => {
       const noteId = `${EXTERNAL_ACTOR1}/statuses/remote-edit-redelivery`
       const initialNote = MockMastodonActivityPubNote({

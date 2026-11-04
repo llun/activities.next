@@ -158,9 +158,10 @@ product or security decision, not a gap to be closed.
   history, and the route deletes it again after a combined visibility + content
   edit, whose content half snapshots the pre-edit (narrower-audience) version.
   A change between two publicly addressed audiences drops nothing — public ↔
-  unlisted, or a mention added to a public or unlisted post — because both
-  already let anyone read the status, so the prior revisions were readable by
-  the same people. Narrowing keeps the history.
+  unlisted, or a mention added to a publicly addressed post (the full public IRI
+  or `as:Public`, not a legacy row stored with the bare `Public` term) — because
+  both already let anyone read the status, so the prior revisions were readable
+  by the same people. Narrowing keeps the history.
   `GET /api/v1/statuses/:id/history` then returns only the current version.
 
 - **Editing a local Note's text re-syncs mentions, hashtags, recipients and

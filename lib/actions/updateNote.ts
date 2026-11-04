@@ -110,7 +110,6 @@ export const updateNoteFromUserInput = async ({
     }
 
     const previousHashtagCounts = new Map<string, number>()
-    let currentHashtagNames: string[] = []
     let newlyMentioned: Mention[] = []
 
     // Re-sync tags when the text, summary, or attachments change so newly added
@@ -184,13 +183,6 @@ export const updateNoteFromUserInput = async ({
           visibility: currentVisibility
         })
         const hashtags = getHashtags(text, currentActor.domain)
-        currentHashtagNames = [
-          ...new Set(
-            hashtags
-              .map((hashtag) => normalizeHashtagSearchName(hashtag.name))
-              .filter(Boolean)
-          )
-        ]
 
         // A webfinger failure on an edit must not drop a mention the post still
         // names: keep the stored tag for an account the new text still names,
@@ -315,6 +307,20 @@ export const updateNoteFromUserInput = async ({
     }
 
     if (text !== undefined) {
+      // The counters follow what is actually stored, not what the text asked
+      // for: a failed hashtag insert must not move a counter for a tag that is
+      // not there.
+      const currentHashtagNames =
+        updatedStatus.type === StatusType.enum.Note
+          ? [
+              ...new Set(
+                updatedStatus.tags
+                  .filter((tag) => tag.type === 'hashtag')
+                  .map((tag) => normalizeHashtagSearchName(tag.name))
+                  .filter(Boolean)
+              )
+            ]
+          : []
       await runBestEffortStep(
         statusId,
         'hashtag counters and search',

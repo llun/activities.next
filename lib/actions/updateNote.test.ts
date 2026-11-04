@@ -727,7 +727,16 @@ describe('Update note action', () => {
           replyNoteId: parent.id,
           database
         })) as StatusNote
-        await new Promise((resolve) => setTimeout(resolve, 20))
+        // The create dispatches the reply alert fire-and-forget; wait for that
+        // exact dispatch so the clear below leaves only the edit's alert.
+        await vi.waitFor(() =>
+          expect(sendNotificationAlerts).toHaveBeenCalledWith(
+            expect.objectContaining({
+              actorId: actor2.id,
+              statusId: reply.id
+            })
+          )
+        )
         vi.mocked(sendNotificationAlerts).mockClear()
 
         await updateNoteFromUserInput({
@@ -778,8 +787,8 @@ describe('Update note action', () => {
           currentActor: actor1,
           database
         })) as StatusNote
-        await new Promise((resolve) => setTimeout(resolve, 20))
-        vi.mocked(sendNotificationAlerts).mockClear()
+        // The create names nobody, so it dispatches no alert at all.
+        expect(sendNotificationAlerts).not.toHaveBeenCalled()
 
         await updateNoteFromUserInput({
           statusId: created.id,
@@ -849,8 +858,8 @@ describe('Update note action', () => {
             currentActor: actor1,
             database
           })) as StatusNote
-          await new Promise((resolve) => setTimeout(resolve, 20))
-          vi.mocked(sendNotificationAlerts).mockClear()
+          // The create names nobody, so it dispatches no alert at all.
+          expect(sendNotificationAlerts).not.toHaveBeenCalled()
 
           await updateNoteFromUserInput({
             statusId: created.id,
@@ -1084,6 +1093,32 @@ describe('Update note action', () => {
         expect(removed.tags.filter((tag) => tag.type === 'mention')).toEqual([])
       })
 
+      it('does not keep a stored mention tag when the text only names a longer handle sharing its prefix', async () => {
+        if (!actor1) fail('Actor1 is required')
+
+        const remoteActorId = 'https://grove.example/users/maplefern'
+        const note = (await createNoteFromUserInput({
+          text: 'Hello @maplefern@grove.example',
+          currentActor: actor1,
+          database
+        })) as StatusNote
+        expect(note.tags.map((tag) => tag.value)).toContain(remoteActorId)
+
+        // Every webfinger lookup fails, so the longer handle does not resolve
+        // either. The stored tag names a different account and must not be kept
+        // just because its name is a prefix of the one the text names.
+        fetchMock.mockResponse(async () => ({ status: 404 }))
+
+        const updated = (await updateNoteFromUserInput({
+          statusId: note.id,
+          currentActor: actor1,
+          database,
+          text: 'Hello @maplefern@grove.example.extra'
+        })) as StatusNote
+
+        expect(updated.tags.filter((tag) => tag.type === 'mention')).toEqual([])
+      })
+
       it('does not notify an inherited direct-thread recipient the status does not address', async () => {
         if (!actor1) fail('Actor1 is required')
 
@@ -1184,6 +1219,11 @@ describe('Update note action', () => {
             })
           )
           expect(timelinesService.addStatusToTimelines).toHaveBeenCalled()
+          // The counter follows what is stored: the tag insert failed, so the
+          // hashtag is not on the status and its counter must not move.
+          expect(
+            await database.getHashtagCounter({ hashtag: 'failingtag' })
+          ).toBe(0)
         } finally {
           createTagSpy.mockRestore()
         }
