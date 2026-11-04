@@ -15,13 +15,14 @@ export const ROUTE_MAP_NAME = 'Activity route map'
  * from the activity's post, so "not from an activity" counts it as one.
  *
  * The map is recognised by the file's recorded `mapImagePath` (what hydration
- * uses) because an edit that resends media_ids renames the attachment; the
- * name check stays as a second signal. The path is matched as a url suffix
+ * uses) as well as by its name: post edits keep the name now, but an edit that
+ * resent media_ids used to rename the attachment, and those maps keep the
+ * wrong name until their post is edited again. The path is matched as a url suffix
  * with substr, not LIKE, so `%` and `_` in a path are not wildcards.
  * shortcut: a url that percent-encodes the path is not matched here, generated
  * map paths never need encoding. A route map that the photo editor re-renders
- * ("Update posts" moves its url) and that a post edit renames matches neither
- * signal, so it is counted as a photo; same limit as hydration.
+ * ("Update posts" moves its url) and that an earlier post edit renamed matches
+ * neither signal, so it is counted as a photo; same limit as hydration.
  */
 export const activityPhotoAttachments = (
   db: Db,

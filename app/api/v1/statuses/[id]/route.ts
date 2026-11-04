@@ -10,7 +10,10 @@ import {
   getActiveFilters
 } from '@/lib/services/filters/applyFilters'
 import { deleteEmailMapImage } from '@/lib/services/fitness-files/emailMapImage'
-import { ROUTE_MAP_ATTACHMENT_NAME } from '@/lib/services/fitness-files/mapAttachments'
+import {
+  ROUTE_MAP_ATTACHMENT_NAME,
+  isRouteMapAttachment
+} from '@/lib/services/fitness-files/mapAttachments'
 import {
   OAuthGuardAnyScope,
   OptionalOAuthGuard
@@ -506,13 +509,22 @@ export const PUT = traceApiRoute(
         // was cancelled), so only the photos this request describes take
         // their alt text from the row; every other photo keeps the post's.
         //
-        // A generated route map keeps its name whatever the request says: the
-        // attachment name `ROUTE_MAP_ATTACHMENT_NAME` is how the map is found
-        // (map regeneration and replacement, the fitness post leaving it out of
-        // the photo strip, the gallery's route-map filters), and its media row
-        // usually has no description at all. The map's alt text lives on that
-        // media row (where the generated route description goes), so a
-        // `media_attributes` description still reaches the row above.
+        // A generated route map keeps its name whatever the request says: map
+        // regeneration and replacement (`findRouteMapAttachments`) only find a
+        // map named `ROUTE_MAP_ATTACHMENT_NAME`, the name is one of the signals
+        // the photo strip and the gallery's route-map filters use, and the
+        // map's media row usually has no description at all. The map's alt
+        // text lives on that media row (where the generated route description
+        // goes), so a `media_attributes` description still reaches the row
+        // above. A map is recognised by its name or by the `mapImagePath` a
+        // fitness file of this status records, so a map an earlier edit
+        // renamed gets its name back.
+        const mapImagePaths =
+          resolvedAttachments && resolvedAttachments.length > 0
+            ? (await database.getFitnessFilesByStatus({ statusId })).map(
+                (fitnessFile) => fitnessFile.mapImagePath
+              )
+            : []
         const attachments =
           resolvedAttachments === undefined || resolvedAttachments === null
             ? resolvedAttachments
@@ -526,7 +538,7 @@ export const PUT = traceApiRoute(
                 )
                 if (!existing) return attachment
                 const kept = withStatusAttachmentFile(attachment, existing)
-                if (existing.name === ROUTE_MAP_ATTACHMENT_NAME) {
+                if (isRouteMapAttachment(existing, mapImagePaths)) {
                   return { ...kept, name: ROUTE_MAP_ATTACHMENT_NAME }
                 }
                 if (resolvedMediaIds !== undefined) return kept

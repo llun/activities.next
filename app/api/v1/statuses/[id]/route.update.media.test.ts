@@ -368,7 +368,10 @@ describe('PUT /api/v1/statuses/[id] media edits', () => {
     describe('route map identity', () => {
       const createRouteMapPost = async (
         slug: string,
-        mapDescription?: string
+        {
+          mapDescription,
+          mapAttachmentName = ROUTE_MAP_ATTACHMENT_NAME
+        }: { mapDescription?: string; mapAttachmentName?: string } = {}
       ) => {
         const statusId = `${ACTOR1_ID}/statuses/${slug}`
         await database.createNote({
@@ -413,7 +416,7 @@ describe('PUT /api/v1/statuses/[id] media edits', () => {
           url: `https://llun.test/api/v1/files/medias/${slug}-route-map.webp`,
           width: 640,
           height: 480,
-          name: ROUTE_MAP_ATTACHMENT_NAME,
+          name: mapAttachmentName,
           mediaId: mapMedia.id
         })
         await database.createAttachment({
@@ -495,7 +498,7 @@ describe('PUT /api/v1/statuses/[id] media edits', () => {
       it('keeps the route map name when media_ids is resent and the map media has a generated description', async () => {
         const { statusId, mapMediaId, photoMediaId } = await createRouteMapPost(
           'route-map-media-ids-described',
-          'A loop along the river'
+          { mapDescription: 'A loop along the river' }
         )
 
         const response = await editStatus(statusId, {
@@ -532,6 +535,45 @@ describe('PUT /api/v1/statuses/[id] media edits', () => {
           accountId: actor!.account!.id
         })
         expect(mapMedia?.description).toBe('A loop along the river')
+      })
+
+      it('gives back the route map name an earlier edit took, recognising the map by its mapImagePath', async () => {
+        const slug = 'route-map-renamed-before'
+        const { statusId, mapMediaId, photoMediaId } = await createRouteMapPost(
+          slug,
+          {
+            mapAttachmentName: 'An earlier alt text'
+          }
+        )
+        await database.createFitnessFile({
+          actorId: ACTOR1_ID,
+          statusId,
+          path: `fitness/${slug}.fit`,
+          fileName: `${slug}.fit`,
+          fileType: 'fit',
+          mimeType: 'application/vnd.ant.fit',
+          bytes: 1000,
+          hasMapData: true,
+          mapImagePath: `medias/${slug}-route-map.webp`
+        })
+
+        const response = await editStatus(statusId, {
+          media_ids: [mapMediaId, photoMediaId]
+        })
+        expect(response.status).toBe(200)
+
+        expect(await getAttachmentNames(statusId)).toEqual([
+          { mediaId: String(mapMediaId), name: ROUTE_MAP_ATTACHMENT_NAME },
+          { mediaId: String(photoMediaId), name: 'Summit' }
+        ])
+        const maps = await findRouteMapAttachments({
+          database,
+          statusId,
+          mapImagePath: `medias/${slug}-route-map.webp`
+        })
+        expect(maps.map((attachment) => String(attachment.mediaId))).toEqual([
+          String(mapMediaId)
+        ])
       })
 
       it('keeps the route map name when media_ids and media_attributes come together', async () => {

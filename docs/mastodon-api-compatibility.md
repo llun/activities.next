@@ -759,7 +759,7 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   `sort` (`taken_desc` default for UI, `uploaded` default for API and non-owners, `taken_asc`),
   `cursor` (opaque keyset date cursor `<sortAt ms>:<mediaId>` for date sorts),
   `taken_from` and `taken_to` (`YYYY-MM-DD` inclusive UTC date range),
-  `place` (place name or `none`), `activity_id` (fitness file id or `none`; the activity's route map image, found by the file's recorded `mapImagePath` and so still after a post edit renames it, is not one of its photos), and `album_id`
+  `place` (place name or `none`), `activity_id` (fitness file id or `none`; the activity's route map image, found by its name or by the file's recorded `mapImagePath` (so also a map an edit renamed before post edits kept its name), is not one of its photos), and `album_id`
   (calculates membership for album pickers), `include_total=true`, `include_days=true` (the
   owner's page then also carries `days`, per-day stats keyed by the day a photo is shown under:
   `YYYY-MM-DD` of `sortAt` for a dated photo under a date sort, `uploaded:YYYY-MM-DD` of
@@ -800,9 +800,11 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   records a history entry and federates one Update. A fitness post's
   generated route map is the exception: it keeps its `Activity route map`
   name through every edit, with `media_ids` or `media_attributes`, because
-  that name is how the map is found (see **Processing Pipeline** in
-  `docs/fitness-file-storage.md`); a description sent for it is stored on its
-  media row only.
+  map regeneration and replacement find the map by that name (see
+  **Processing Pipeline** in `docs/fitness-file-storage.md`); a description
+  sent for it is stored on its media row only. The edit recognises the map by
+  that name or by a fitness file's `mapImagePath`, so a map an earlier edit
+  renamed gets the name back.
   The owner's `details` (camelCase on the way out) also reports what the
   lookups found: `subject.taxonKey`, `subject.taxonPath`,
   `subject.iucnCategory`, `subject.threatStatus` (`threatened`,

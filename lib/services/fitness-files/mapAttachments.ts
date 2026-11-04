@@ -8,6 +8,23 @@ import { toLoggableError } from '@/lib/utils/toLoggableError'
 export const ROUTE_MAP_ATTACHMENT_NAME = 'Activity route map'
 
 /**
+ * Whether an attachment a status shows is a generated route map: it carries
+ * the route map name, or its file is the map a fitness file of that status
+ * records in `mapImagePath` (the signal hydration and the gallery use). The
+ * path also recognises a map whose name an edit rewrote before edits kept it.
+ */
+export const isRouteMapAttachment = (
+  attachment: { name?: string | null; url: string },
+  mapImagePaths: ReadonlyArray<string | null | undefined>
+) =>
+  attachment.name === ROUTE_MAP_ATTACHMENT_NAME ||
+  mapImagePaths.some(
+    (mapImagePath) =>
+      Boolean(mapImagePath) &&
+      getAttachmentMediaPath(attachment.url) === mapImagePath
+  )
+
+/**
  * The route map attachments a fitness file owns on its status.
  *
  * Matched by name AND by the file's recorded `mapImagePath`, so a status
