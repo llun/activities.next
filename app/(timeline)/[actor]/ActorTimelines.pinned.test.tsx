@@ -100,6 +100,17 @@ describe('ActorTimelines pinned statuses', () => {
     rerender(<ActorTimelines {...props} pinnedStatuses={[]} />)
     expect(screen.queryByText('Pinned')).not.toBeInTheDocument()
     expect(screen.queryByText(pinnedPostId)).not.toBeInTheDocument()
+
+    // A refresh that drops the prop clears the list too.
+    rerender(
+      <ActorTimelines
+        {...props}
+        pinnedStatuses={[createStatus(pinnedPostId)]}
+      />
+    )
+    expect(screen.getByText('Pinned')).toBeInTheDocument()
+    rerender(<ActorTimelines {...props} />)
+    expect(screen.queryByText('Pinned')).not.toBeInTheDocument()
   })
 
   it('shows the pins and not the empty state when there are pins but no regular posts', () => {

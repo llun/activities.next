@@ -186,6 +186,8 @@ describe('PostMenu', () => {
     vi.clearAllMocks()
     ;(getRelationship as jest.Mock).mockResolvedValue(null)
     ;(getStatusById as jest.Mock).mockResolvedValue(null)
+    ;(pinStatus as jest.Mock).mockResolvedValue({ ok: true, status: 200 })
+    ;(unpinStatus as jest.Mock).mockResolvedValue({ ok: true, status: 200 })
   })
 
   it('shows authoring actions for the post owner', async () => {

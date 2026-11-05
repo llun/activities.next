@@ -995,6 +995,8 @@ describe('getProfileData', () => {
       expect(result?.isInternalAccount).toBe(false)
       // A remote profile keeps its plain feed: no reply-parent previews.
       expect(result).not.toHaveProperty('timelineContext')
+      // Remote pins (`featured`) are not ingested, so none are loaded.
+      expect(result?.pinnedStatuses).toBeUndefined()
       expect(mockDatabase.getActorFromUsername).toHaveBeenCalledWith({
         username: 'remoteuser',
         domain: 'remote.com'
