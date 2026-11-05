@@ -750,6 +750,13 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   backdated direct message older than a conversation's latest message does not
   mark the conversation unread or move it up the conversations list (its mention
   notification still arrives). Mastodon clients never send it.
+- **Scheduling needs a queue that runs delayed jobs.** A scheduled status is
+  published by a delayed job, and the in-process NoQueue drops delayed
+  messages (`Queue.dropsDelayedJobs`), so under NoQueue `POST /api/v1/statuses`
+  with a non-blank `scheduled_at` and `PUT /api/v1/scheduled_statuses/:id`
+  answer 422 `{ "error": "Validation failed: Scheduled at is not available on
+this server" }` instead of storing a post that would never be published. The
+  database queue, QStash and Cloud Tasks schedule normally.
 
 - **`?format=activities_next`** — timeline endpoints,
   `GET /api/v1/trends/statuses` and `GET /api/v1/accounts/:id/statuses` accept
@@ -1583,7 +1590,8 @@ domain)` index and the ledger arm of `isUsernameExists` fold casing at every
   `DELETE` with no current redirect does not replay them, including after a
   partial queue failure, so `PUT /api/v1/scheduled_statuses/:id` is the
   recovery path for due posts a partial queue failure left unpublished: it
-  requeues a post, and its minimum-ahead check is the only gate. Other API
+  requeues a post, and its minimum-ahead check (with the delayed-job queue
+  check above) is the only gate. Other API
   actions retain their ordinary permissions: follow-request rejection, status
   deletion, favourites, bookmarks, poll votes, reactions, quote revocation,
   following an account that has not moved, unfollowing even a moved target,

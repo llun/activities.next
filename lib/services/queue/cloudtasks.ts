@@ -10,6 +10,7 @@ import { JobMessage, Queue } from './type'
 
 export class CloudTasksQueue implements Queue {
   readonly runsInline = false
+  readonly dropsDelayedJobs = false
 
   private _config?: CloudTasksConfig
   private _client?: CloudTasksClient

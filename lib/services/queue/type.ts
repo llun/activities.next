@@ -25,6 +25,10 @@ export interface Queue {
   // job runs out of band. Callers that await `publish` during a request can use
   // this to keep the inline work small.
   readonly runsInline: boolean
+  // True when a message with a positive `delaySeconds` is dropped rather than
+  // run later (NoQueue), so a caller that relies on a delayed job (scheduling a
+  // status) can refuse up front instead of storing work that never fires.
+  readonly dropsDelayedJobs: boolean
   publish(message: JobMessage): Promise<void>
   handle(message: JobMessage): Promise<void>
 }

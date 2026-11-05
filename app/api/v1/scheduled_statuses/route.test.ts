@@ -2,7 +2,10 @@ import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { PUBLISH_SCHEDULED_STATUS_JOB_NAME } from '@/lib/jobs/names'
-import { SCHEDULED_AT_TOO_SOON_ERROR } from '@/lib/services/mastodon/constants'
+import {
+  SCHEDULED_AT_TOO_SOON_ERROR,
+  SCHEDULED_STATUSES_UNAVAILABLE_ERROR
+} from '@/lib/services/mastodon/constants'
 import { getQueue } from '@/lib/services/queue'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
@@ -225,6 +228,49 @@ describe('scheduled_statuses CRUD', () => {
     expect(response.status).toBe(422)
     const error = await response.json()
     expect(error.error).toBe(SCHEDULED_AT_TOO_SOON_ERROR)
+  })
+
+  it('refuses to reschedule when the queue drops delayed jobs', async () => {
+    const created = await database.createScheduledStatus({
+      actorId: ACTOR1_ID,
+      scheduledAt: tenMinutesAhead(),
+      params: baseParams('No delayed queue')
+    })
+    const publish = vi.fn()
+    vi.mocked(getQueue).mockReturnValueOnce({
+      runsInline: true,
+      dropsDelayedJobs: true,
+      publish,
+      handle: vi.fn()
+    })
+
+    const response = await PUT(
+      new NextRequest(
+        `https://llun.test/api/v1/scheduled_statuses/${created.id}`,
+        {
+          method: 'PUT',
+          body: JSON.stringify({
+            scheduled_at: new Date(Date.now() + 60 * 60 * 1000).toISOString()
+          }),
+          headers: {
+            'Content-Type': 'application/json',
+            Origin: 'https://llun.test'
+          }
+        }
+      ),
+      { params: Promise.resolve({ id: created.id }) }
+    )
+
+    expect(response.status).toBe(422)
+    expect(await response.json()).toEqual({
+      error: SCHEDULED_STATUSES_UNAVAILABLE_ERROR
+    })
+    expect(publish).not.toHaveBeenCalled()
+    const stored = await database.getScheduledStatus({
+      actorId: ACTOR1_ID,
+      id: created.id
+    })
+    expect(stored?.scheduledAt).toBe(created.scheduledAt)
   })
 
   it('deletes a scheduled status and then 404s on lookup', async () => {

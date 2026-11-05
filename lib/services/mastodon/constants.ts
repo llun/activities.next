@@ -47,6 +47,10 @@ export const POLL_OPTION_CHARS_CEILING = 1000
 export const MIN_SCHEDULED_STATUS_AHEAD_MS = 5 * 60 * 1000
 export const SCHEDULED_AT_TOO_SOON_ERROR =
   'Validation failed: Scheduled at must be at least 5 minutes in the future'
+// Refused on a server whose queue cannot run delayed jobs (NoQueue), where a
+// scheduled status would be stored and never published.
+export const SCHEDULED_STATUSES_UNAVAILABLE_ERROR =
+  'Validation failed: Scheduled at is not available on this server'
 
 // Mastodon's ListAccount :must_be_following error: a list member other than
 // the owner needs a follow or a pending follow request.

@@ -2739,8 +2739,9 @@ account` whenever `movedTo` already equals the target and the request is
     next `DELETE`, scoped to the new migration, replays those posts. A
     partial queue failure can still leave due posts unpublished with no
     `DELETE` left to retry them: `PUT /api/v1/scheduled_statuses/:id` is the
-    recovery path, as its minimum-ahead check is the only gate on
-    rescheduling. Mastodon's `RedirectsController#destroy` clears the
+    recovery path, as its minimum-ahead check (and, under NoQueue, which
+    refuses scheduling outright, the delayed-job queue check) is the only gate
+    on rescheduling. Mastodon's `RedirectsController#destroy` clears the
     redirect.
   - It cancels a redirect, but a performed move is not undone and an
     in-flight one still completes: the queued `SendMoveJob` continuations and
