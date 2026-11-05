@@ -58,7 +58,7 @@ export const createLike = (
 export const deleteLike = (
   db: Db,
   { actorId, statusId }: DeleteLikeParams
-): Promise<void> =>
+): Promise<boolean> =>
   inTransaction(db, async (trx) => {
     const { numDeletedRows } = await trx
       .deleteFrom('likes')
@@ -66,7 +66,7 @@ export const deleteLike = (
       .where('statusId', '=', statusId)
       .executeTakeFirst()
     const deleted = Number(numDeletedRows)
-    if (!deleted) return
+    if (!deleted) return false
 
     await decreaseCounterValue(
       trx,
@@ -74,6 +74,7 @@ export const deleteLike = (
       deleted,
       new Date()
     )
+    return true
   })
 
 export const getLikeCount = (

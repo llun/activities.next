@@ -5,8 +5,7 @@ import { DELETE, POST } from './route'
 const mockDatabase = {
   getStatus: vi.fn(),
   createLike: vi.fn(),
-  deleteLike: vi.fn(),
-  isActorLikedStatus: vi.fn()
+  deleteLike: vi.fn()
 }
 
 const mockCurrentActor = {
@@ -133,7 +132,8 @@ describe('like and unlike of an existing status', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockDatabase.getStatus.mockResolvedValue(status)
-    mockDatabase.isActorLikedStatus.mockResolvedValue(false)
+    mockDatabase.createLike.mockResolvedValue(true)
+    mockDatabase.deleteLike.mockResolvedValue(true)
   })
 
   it('POST stores the like, then federates it to the status author', async () => {
@@ -161,7 +161,6 @@ describe('like and unlike of an existing status', () => {
   })
 
   it('DELETE removes the like, then federates an Undo', async () => {
-    mockDatabase.isActorLikedStatus.mockResolvedValue(true)
     const response = await DELETE(
       jsonRequest('DELETE', { statusId: status.id }),
       context
@@ -203,7 +202,7 @@ describe('like and unlike of an existing status', () => {
   )
 
   it('POST of a status already liked stores nothing new and sends no second Like', async () => {
-    mockDatabase.isActorLikedStatus.mockResolvedValue(true)
+    mockDatabase.createLike.mockResolvedValue(false)
 
     const response = await POST(
       jsonRequest('POST', { statusId: status.id }),
@@ -215,6 +214,7 @@ describe('like and unlike of an existing status', () => {
   })
 
   it('DELETE of a status not liked sends no Undo', async () => {
+    mockDatabase.deleteLike.mockResolvedValue(false)
     const response = await DELETE(
       jsonRequest('DELETE', { statusId: status.id }),
       context

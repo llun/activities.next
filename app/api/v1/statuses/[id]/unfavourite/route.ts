@@ -49,12 +49,11 @@ export const POST = traceApiRoute(
 
       // Each Undo is its own retrying delivery, so only a like that existed
       // is undone remotely: a repeated unfavourite sends nothing.
-      const wasLiked = await database.isActorLikedStatus({
+      const removed = await database.deleteLike({
         actorId: currentActor.id,
         statusId
       })
-      await database.deleteLike({ actorId: currentActor.id, statusId })
-      if (wasLiked) await sendUndoLike({ currentActor, status })
+      if (removed) await sendUndoLike({ currentActor, status })
 
       // Refetch status to get updated counts
       return refetchedStatusResponse({
