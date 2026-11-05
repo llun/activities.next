@@ -9,8 +9,8 @@ import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
  *
  * Local statuses store Markdown source in `text` (or HTML on polls and on
  * statuses imported from a Mastodon archive, which `convertMarkdownText` passes
- * through), while stored remote statuses hold the HTML as received (stored raw,
- * sanitized only at render) and must not be run through Markdown.
+ * through), while stored remote statuses hold HTML that is never sanitized on
+ * write (only when read for display) and must not be run through Markdown.
  */
 export const getStatusWireContent = (status: Status): string => {
   const actualStatus = getOriginalStatus(status)
