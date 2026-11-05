@@ -390,20 +390,6 @@ describe('better-auth rate limits', () => {
     expect(oauthTokenThrottled.status).toBe(429)
   })
 
-  it('leaves an over-long sign-in email to better-auth instead of counting it', async () => {
-    delete process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS
-    resetTrustProxyIpHeadersConfigCacheForTests()
-    const tooLong = `${'a'.repeat(250)}@example.com`
-
-    for (let i = 0; i <= SIGN_IN_EMAIL_LIMIT; i += 1) {
-      const attempt = await postAuth('/sign-in/email', {
-        email: tooLong,
-        password: 'wrong-password'
-      })
-      expect(attempt.status).not.toBe(429)
-    }
-  })
-
   it('does not let X-Forwarded-For or internal-header spoofing reset the limit behind a trusted proxy header', async () => {
     for (let i = 0; i < SIGN_IN_PER_IP_LIMIT; i += 1) {
       const attempt = await postAuth(

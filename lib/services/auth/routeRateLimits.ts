@@ -72,20 +72,17 @@ const consumeByIp = (
   return key ? byIp.consume(key) : { allowed: true }
 }
 
-// RFC 5321's longest deliverable address; anything longer is not an account
-// and is left to better-auth's own validation, uncounted.
-const MAX_SIGN_IN_EMAIL_LENGTH = 254
-
 // Fixed-size key that holds no address: SHA-256 of the trimmed, lower-cased
 // email. Exported for its test only.
 export const signInEmailRateLimitKey = (email: string) =>
   createHash('sha256').update(email.trim().toLowerCase()).digest('hex')
 
-// Every attempt counts, as Mastodon's does.
+// Every attempt counts, as Mastodon's does, whatever its length: the digest
+// keeps the key fixed size, so no length shortcut is needed (one would exempt
+// any address longer than it that an account could hold).
 export const checkSignInEmailRateLimit = (
   email: string
 ): WindowCounterResult => {
-  if (email.trim().length > MAX_SIGN_IN_EMAIL_LENGTH) return { allowed: true }
   return signInByEmail.consume(signInEmailRateLimitKey(email))
 }
 

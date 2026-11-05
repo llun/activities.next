@@ -43,10 +43,11 @@ describe('checkSignInEmailRateLimit', () => {
     })
   })
 
-  it('does not count an email longer than 254 characters', () => {
-    const tooLong = `${'a'.repeat(250)}@example.com`
-    for (let i = 0; i <= SIGN_IN_EMAIL_LIMIT; i += 1) {
-      expect(checkSignInEmailRateLimit(tooLong)).toEqual({ allowed: true })
+  it('counts a long email too, under its fixed-size digest', () => {
+    const long = `${'a'.repeat(250)}@example.com`
+    for (let i = 0; i < SIGN_IN_EMAIL_LIMIT; i += 1) {
+      expect(checkSignInEmailRateLimit(long)).toEqual({ allowed: true })
     }
+    expect(checkSignInEmailRateLimit(long).allowed).toBe(false)
   })
 })
