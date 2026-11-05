@@ -3815,12 +3815,11 @@ describe('single-row reads', () => {
         ].some((pattern) => pattern.test(text))
       )
       .map(({ sql: text }) =>
-        text
-          .replace(/\$\d+/g, '?')
-          .replace(
-            /^(select \S+ from "\w+") .*?( limit \? offset \?| limit \?)?$/,
-            '$1$2'
-          )
+        text.replace(/\$\d+/g, '?').replace(
+          // A PostgreSQL row lock ends in ` for update`, after its limit.
+          /^(select \S+ from "\w+") .*?( limit \? offset \?| limit \?)?( for update)?$/,
+          '$1$2'
+        )
       )
     expect(reads).toEqual([
       'select "accountId" from "actors" limit ?',
