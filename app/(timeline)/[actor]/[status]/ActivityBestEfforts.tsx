@@ -20,15 +20,30 @@ export const formatEffortDuration = (seconds: number): string => {
   return `${Number.isInteger(hours) ? hours : hours.toFixed(1)} h`
 }
 
+/** Marks an effort that equals the owner's all-time best for its duration. */
+const PersonalRecordBadge: FC = () => (
+  <span className="inline-flex items-center gap-0.5 text-xs font-medium text-warning-text">
+    <Trophy aria-hidden="true" className="size-3.5" />
+    PR
+  </span>
+)
+
 /**
  * The best average power held for 5 s, 1, 5, 20 and 60 min. A stat strip on a
  * tablet or desktop column; on a phone-width column, a list with a bar per
  * duration so the drop-off reads at a glance.
+ *
+ * `recordDurations` are the durations where this activity holds the owner's
+ * all-time best, read on the server for the owner only; everyone else passes
+ * nothing and sees no badge.
  */
-export const ActivityBestEfforts: FC<{ efforts: PowerEffort[] }> = ({
-  efforts
-}) => {
+export const ActivityBestEfforts: FC<{
+  efforts: PowerEffort[]
+  recordDurations?: number[]
+}> = ({ efforts, recordDurations = [] }) => {
   if (efforts.length === 0) return null
+  const isRecord = (effort: PowerEffort) =>
+    recordDurations.includes(effort.durationSeconds)
   const peak = Math.max(1, ...efforts.map((effort) => effort.watts))
   return (
     <Section id="best-efforts" title="Best efforts" icon={Trophy} meta="power">
@@ -40,7 +55,16 @@ export const ActivityBestEfforts: FC<{ efforts: PowerEffort[] }> = ({
           <StatCell
             key={effort.durationSeconds}
             label={formatEffortDuration(effort.durationSeconds)}
-            value={`${effort.watts} W`}
+            value={
+              isRecord(effort) ? (
+                <span className="inline-flex items-baseline gap-1.5">
+                  {effort.watts} W
+                  <PersonalRecordBadge />
+                </span>
+              ) : (
+                `${effort.watts} W`
+              )
+            }
           />
         ))}
       </StatStrip>
@@ -68,6 +92,11 @@ export const ActivityBestEfforts: FC<{ efforts: PowerEffort[] }> = ({
             <span className="w-16 shrink-0 text-right font-semibold">
               {effort.watts} W
             </span>
+            {recordDurations.length > 0 ? (
+              <span className="w-8 shrink-0">
+                {isRecord(effort) ? <PersonalRecordBadge /> : null}
+              </span>
+            ) : null}
           </div>
         ))}
       </Frame>

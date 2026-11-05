@@ -724,6 +724,19 @@ const executeStatusDeletion = async ({
           .where('statusId', 'in', statusIdChunk)
       )
       .execute()
+    // A deleted post takes its activities' records with it. Matched through
+    // the files' current link, before it is cleared below.
+    await trx
+      .deleteFrom('fitness_best_efforts')
+      .where(
+        'fitnessFileId',
+        'in',
+        trx
+          .selectFrom('fitness_files')
+          .select('id')
+          .where('statusId', 'in', statusIdChunk)
+      )
+      .execute()
     await trx
       .updateTable('fitness_files')
       .set({ statusId: null })

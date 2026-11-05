@@ -24,6 +24,7 @@ describe('Fitness Layout', () => {
   // deeper tab — see the /fitness/heatmap and /fitness/files cases.
   it.each([
     ['/fitness', 'Overview'],
+    ['/fitness/records', 'Records'],
     ['/fitness/gear', 'Gear'],
     ['/fitness/heatmap', 'Heatmaps'],
     ['/fitness/files', 'Files'],
@@ -73,6 +74,7 @@ describe('Fitness Layout', () => {
     const menu = await screen.findByRole('menu')
     for (const label of [
       'Overview',
+      'Records',
       'Gear',
       'Heatmaps',
       'Files',
@@ -84,6 +86,19 @@ describe('Fitness Layout', () => {
         within(menu).getByRole('menuitem', { name: label })
       ).toBeInTheDocument()
     }
+  })
+
+  it('links Records to its page', async () => {
+    ;(usePathname as jest.Mock).mockReturnValue('/fitness/records')
+    renderLayout()
+
+    const nav = screen.getByRole('navigation', { name: 'Fitness' })
+    fireEvent.keyDown(within(nav).getByRole('button'), { key: 'ArrowDown' })
+
+    const menu = await screen.findByRole('menu')
+    const records = within(menu).getByRole('menuitem', { name: 'Records' })
+    expect(records).toHaveAttribute('href', '/fitness/records')
+    expect(records).toHaveAttribute('aria-current', 'page')
   })
 
   it('marks the active section as current in the opened dropdown', async () => {

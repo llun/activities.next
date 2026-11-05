@@ -686,6 +686,19 @@ NODE_ENV=production ./scripts/fitness/backfillFitnessRouteData.ts --actor-id htt
 NODE_ENV=production ./scripts/fitness/backfillFitnessRouteData.ts --actor-id https://your-domain.tld/users/username --force
 ```
 
+#### backfillFitnessBestEfforts.ts
+
+Fills `fitness_best_efforts` (the per-activity best power and, for runs, fastest distances behind Fitness › Records and the PR badge) for an actor's completed primary fitness files, from the cached route data; a file with no cache row is parsed from storage and its cache row written on the way. It pages through files 200 at a time and skips files that already have efforts, so an interrupted run can be resumed; `--force` recomputes them, and `--dry-run` previews without writing. Secondary recordings are skipped: a recording made primary is reprocessed, which computes them.
+
+```bash
+# Preview, then backfill
+NODE_ENV=production ./scripts/fitness/backfillFitnessBestEfforts.ts --actor-id https://your-domain.tld/users/username --dry-run
+NODE_ENV=production ./scripts/fitness/backfillFitnessBestEfforts.ts --actor-id https://your-domain.tld/users/username
+
+# Recompute files that already have efforts
+NODE_ENV=production ./scripts/fitness/backfillFitnessBestEfforts.ts --actor-id https://your-domain.tld/users/username --force
+```
+
 #### backfillFitnessDevices.ts
 
 `scripts/fitness/backfillFitnessDevices.ts` links an actor's already-stored

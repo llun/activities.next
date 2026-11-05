@@ -93,6 +93,8 @@ interface Props {
   hasMoreDescendants?: boolean
   isMediaUploadEnabled?: boolean
   initialFitnessFiles?: StatusFitnessFileItem[]
+  /** Owner only: per fitness file, the power durations that are all-time bests. */
+  personalRecordDurations?: Record<string, number[]>
   /**
    * The status author's own zone inputs (their general fitness settings), or
    * null when they set none or are not on this server.
@@ -313,6 +315,7 @@ export const FitnessStatusDetail: FC<Props> = ({
   hasMoreDescendants = false,
   isMediaUploadEnabled,
   initialFitnessFiles,
+  personalRecordDurations,
   trainingZones = null,
   onShowAttachment
 }) => {
@@ -1074,7 +1077,14 @@ export const FitnessStatusDetail: FC<Props> = ({
           </>
         ) : analysis ? (
           <>
-            <ActivityBestEfforts efforts={analysis.bestEfforts} />
+            <ActivityBestEfforts
+              efforts={analysis.bestEfforts}
+              recordDurations={
+                isOwner && fitness
+                  ? personalRecordDurations?.[fitness.id]
+                  : undefined
+              }
+            />
             <ActivityDistributionRow
               heartRateZones={heartRateZones}
               isDefaultHeartRateZones={!personalHeartRateZones}

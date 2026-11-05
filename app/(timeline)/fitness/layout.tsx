@@ -7,6 +7,7 @@ import {
   HeartPulse,
   Lock,
   Plug,
+  Trophy,
   Wrench
 } from 'lucide-react'
 import { FC, ReactNode } from 'react'
@@ -26,6 +27,7 @@ const groups: SectionNavGroup[] = [
   {
     items: [
       { name: 'Overview', url: '/fitness', icon: <Activity /> },
+      { name: 'Records', url: '/fitness/records', icon: <Trophy /> },
       { name: 'Gear', url: '/fitness/gear', icon: <Wrench /> },
       { name: 'Heatmaps', url: '/fitness/heatmap', icon: <Flame /> },
       { name: 'Files', url: '/fitness/files', icon: <Files /> },

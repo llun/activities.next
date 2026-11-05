@@ -22,6 +22,7 @@ import { deliveryInboxesQueries } from '@/lib/database/domains/deliveryInboxes/q
 import { endorsementQueries } from '@/lib/database/domains/endorsement/queries'
 import { featuredTagQueries } from '@/lib/database/domains/featuredTag/queries'
 import { filterQueries } from '@/lib/database/domains/filter/queries'
+import { fitnessBestEffortQueries } from '@/lib/database/domains/fitnessBestEffort/queries'
 import { fitnessFileQueries } from '@/lib/database/domains/fitnessFile/queries'
 import { fitnessFileRouteQueries } from '@/lib/database/domains/fitnessFileRoute/queries'
 import { fitnessFileRouteDataQueries } from '@/lib/database/domains/fitnessFileRouteData/queries'
@@ -125,6 +126,7 @@ export const getSQLDatabase = (
     ...bindDb(kysely, actorDomainBlockQueries),
     ...bindDb(kysely, adminQueries),
     ...bindDb(kysely, announcementQueries),
+    ...bindDb(kysely, fitnessBestEffortQueries),
     ...bindDb(kysely, fitnessFileQueries),
     ...bindDb(kysely, fitnessFileRouteQueries),
     ...bindDb(kysely, fitnessFileRouteDataQueries),

@@ -503,6 +503,9 @@ const expectedAfterDeletion = (
         : row
     )
   )
+  dump = withTable(dump, 'fitness_best_efforts', (rows) =>
+    rows.filter((row) => !unlinkedFiles.has(row.fitnessFileId as string))
+  )
   dump = withTable(dump, 'fitness_files', (rows) =>
     rows.map((row) =>
       gone.has(row.statusId as string) ? { ...row, statusId: null } : row
@@ -713,6 +716,20 @@ const seedThread = async () => {
         bytes: 100,
         createdAt: at,
         updatedAt: at
+      })
+      .execute()
+    await db()
+      .insertInto('fitness_best_efforts')
+      .values({
+        fitnessFileId: id,
+        actorId: statusId === root ? author : neighbourActor,
+        statusId,
+        activityType: 'ride',
+        kind: 'power',
+        key: 5,
+        value: 900,
+        activityDate: at,
+        createdAt: at
       })
       .execute()
   }
@@ -1407,6 +1424,10 @@ const STATEMENTS: StatementNames = [
     /^update "wahoo_imports" set .* where "statusId" in/,
     () => 'tombstone wahoo by status'
   ],
+  [
+    /^delete from "fitness_best_efforts" where "fitnessFileId" in \(select "id" from "fitness_files"/,
+    () => 'delete best efforts'
+  ],
   [/^update "fitness_files" set "statusId" = /, () => 'unlink fitness files'],
   [/^delete from "statuses" where "id" in/, () => 'delete statuses'],
   [
@@ -1500,6 +1521,7 @@ describe('statements', () => {
     'delete status_link_previews',
     'tombstone wahoo by status',
     'tombstone wahoo by file',
+    'delete best efforts',
     'unlink fitness files',
     'delete statuses',
     'lock actors',
