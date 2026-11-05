@@ -50,7 +50,8 @@ vi.mock('@/lib/config', () => ({
 
 const trustProxyMock = vi.hoisted(() => vi.fn())
 vi.mock('@/lib/config/trustProxyIpHeaders', () => ({
-  getTrustProxyIpHeadersConfig: () => trustProxyMock()
+  getTrustProxyIpHeadersConfig: () => trustProxyMock(),
+  getTrustProxyIpHeaderConfig: () => null
 }))
 
 const takeMock = vi.hoisted(() => vi.fn())

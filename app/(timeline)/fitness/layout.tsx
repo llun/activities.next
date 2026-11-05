@@ -4,6 +4,7 @@ import {
   Activity,
   Files,
   Flame,
+  HeartPulse,
   Lock,
   Plug,
   Trophy,
@@ -30,6 +31,7 @@ const groups: SectionNavGroup[] = [
       { name: 'Gear', url: '/fitness/gear', icon: <Wrench /> },
       { name: 'Heatmaps', url: '/fitness/heatmap', icon: <Flame /> },
       { name: 'Files', url: '/fitness/files', icon: <Files /> },
+      { name: 'Zones', url: '/fitness/zones', icon: <HeartPulse /> },
       { name: 'Privacy', url: '/fitness/privacy', icon: <Lock /> },
       { name: 'Connections', url: '/fitness/connections', icon: <Plug /> }
     ]

@@ -31,6 +31,9 @@ import { UndoFollow } from '@/lib/activities/undoFollow'
 import { UndoLike } from '@/lib/activities/undoLike'
 import { UndoStatus } from '@/lib/activities/undoStatus'
 import { UpdateStatus } from '@/lib/activities/updateStatus'
+import { DELIVER_ACTIVITY_JOB_NAME } from '@/lib/jobs/names'
+import { getDeliveryJobId } from '@/lib/services/federation/enqueueDeliveries'
+import { getQueue } from '@/lib/services/queue'
 import { Note } from '@/lib/types/activitypub'
 import {
   AnnounceAction,
@@ -58,6 +61,7 @@ import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 import { logger } from '@/lib/utils/logger'
 import { RequestOptions, request } from '@/lib/utils/request'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { withSpan } from '@/lib/utils/trace'
 
 interface PostActivityToInboxParams {
@@ -210,6 +214,39 @@ export const sendNote = async ({ currentActor, inbox, note }: SendNoteParams) =>
     }
   )
 
+export interface BuildUpdateNoteActivityParams {
+  status: Status
+  // FEP-1b12 community actor id the note belongs to
+  audience?: string | null
+  updatedAtMs?: number
+}
+
+export const buildUpdateNoteActivity = ({
+  status,
+  audience,
+  updatedAtMs = Date.now()
+}: BuildUpdateNoteActivityParams): UpdateStatus | null => {
+  const note = getNoteFromStatus(status, { includeUpdated: true, audience })
+  if (!note) {
+    return null
+  }
+
+  return {
+    // Also the activity that re-federates a note once its quote is
+    // approved, so dropping the terms here hides the approval from the
+    // receiver.
+    '@context': NOTE_ACTIVITY_CONTEXT,
+    id: `${note.id}#updates/${updatedAtMs}`,
+    type: UpdateAction,
+    actor: note.attributedTo,
+    published: getISOTimeUTC(status.updatedAt),
+    to: note.to,
+    cc: note.cc,
+    ...(audience ? { audience } : null),
+    object: note
+  }
+}
+
 interface SendUpdateNoteParams {
   currentActor: Actor
   inbox: string
@@ -231,24 +268,9 @@ export const sendUpdateNote = async ({
       inbox
     },
     async (span) => {
-      const note = getNoteFromStatus(status, { includeUpdated: true, audience })
-      if (!note) {
+      const activity = buildUpdateNoteActivity({ status, audience })
+      if (!activity) {
         return
-      }
-
-      const activity: UpdateStatus = {
-        // Also the activity that re-federates a note once its quote is
-        // approved, so dropping the terms here hides the approval from the
-        // receiver.
-        '@context': NOTE_ACTIVITY_CONTEXT,
-        id: `${note.id}#updates/${Date.now()}`,
-        type: UpdateAction,
-        actor: note.attributedTo,
-        published: getISOTimeUTC(status.updatedAt),
-        to: note.to,
-        cc: note.cc,
-        ...(audience ? { audience } : null),
-        object: note
       }
       const statusCode = await postActivityToInbox({
         span,
@@ -425,6 +447,27 @@ export const sendQuoteRevoke = async ({
     }
   )
 
+export const buildAnnounceActivity = ({
+  status
+}: {
+  status: Status
+}): AnnounceStatus | null => {
+  if (status.type !== StatusType.enum.Announce) {
+    return null
+  }
+
+  return {
+    '@context': ACTIVITY_STREAM_URL,
+    id: `${status.id}/activity`,
+    type: AnnounceAction,
+    actor: status.actorId,
+    published: getISOTimeUTC(status.createdAt),
+    to: status.to,
+    cc: status.cc,
+    object: status.originalStatus.id
+  }
+}
+
 interface SendAnnounceParams {
   currentActor: Actor
   inbox: string
@@ -443,20 +486,11 @@ export const sendAnnounce = async ({
       inbox
     },
     async (span) => {
-      if (status.type !== StatusType.enum.Announce) {
+      const activity = buildAnnounceActivity({ status })
+      if (!activity) {
         return null
       }
 
-      const activity: AnnounceStatus = {
-        '@context': ACTIVITY_STREAM_URL,
-        id: `${status.id}/activity`,
-        type: AnnounceAction,
-        actor: status.actorId,
-        published: getISOTimeUTC(status.createdAt),
-        to: status.to,
-        cc: status.cc,
-        object: status.originalStatus.id
-      }
       await postActivityToInbox({
         span,
         inbox,
@@ -467,6 +501,31 @@ export const sendAnnounce = async ({
       })
     }
   )
+
+export interface BuildDeleteStatusActivityParams {
+  actorId: string
+  statusId: string
+  to?: string[]
+  cc?: string[]
+}
+
+export const buildDeleteStatusActivity = ({
+  actorId,
+  statusId,
+  to,
+  cc
+}: BuildDeleteStatusActivityParams): DeleteStatus => ({
+  '@context': ACTIVITY_STREAM_URL,
+  id: `${statusId}#delete`,
+  type: DeleteAction,
+  actor: actorId,
+  to: to ?? [ACTIVITY_STREAM_PUBLIC],
+  ...(cc ? { cc } : {}),
+  object: {
+    id: statusId,
+    type: 'Tombstone'
+  }
+})
 
 interface DeleteStatusParams {
   currentActor: Actor
@@ -490,18 +549,12 @@ export const deleteStatus = async ({
       inbox
     },
     async (span) => {
-      const activity: DeleteStatus = {
-        '@context': ACTIVITY_STREAM_URL,
-        id: `${statusId}#delete`,
-        type: DeleteAction,
-        actor: currentActor.id,
-        to: to ?? [ACTIVITY_STREAM_PUBLIC],
-        ...(cc ? { cc } : {}),
-        object: {
-          id: statusId,
-          type: 'Tombstone'
-        }
-      }
+      const activity = buildDeleteStatusActivity({
+        actorId: currentActor.id,
+        statusId,
+        to,
+        cc
+      })
       await postActivityToInbox({
         span,
         inbox,
@@ -563,12 +616,35 @@ export const deleteActor = async ({ currentActor, inbox }: DeleteActorParams) =>
 // Exactly the fields the Undo activity below is built from. Narrowed from
 // StatusAnnounce so SendUndoAnnounceJob can pass data captured before the
 // Announce row was hard-deleted, rather than a Status it can no longer load.
-type UndoAnnounceTarget = Pick<
+export type UndoAnnounceTarget = Pick<
   StatusAnnounce,
   'id' | 'actorId' | 'createdAt' | 'to' | 'cc'
 > & {
   originalStatus: Pick<Status, 'id'>
 }
+
+export const buildUndoAnnounceActivity = ({
+  actorId,
+  announce
+}: {
+  actorId: string
+  announce: UndoAnnounceTarget
+}): UndoStatus => ({
+  '@context': ACTIVITY_STREAM_URL,
+  id: `${announce.id}#undo`,
+  type: UndoAction,
+  actor: actorId,
+  to: [ACTIVITY_STREAM_PUBLIC],
+  object: {
+    id: `${announce.id}/activity`,
+    type: AnnounceAction,
+    actor: announce.actorId,
+    published: getISOTimeUTC(announce.createdAt),
+    to: announce.to,
+    cc: announce.cc,
+    object: announce.originalStatus.id
+  }
+})
 
 interface UndoAnnounceParams {
   currentActor: Actor
@@ -588,22 +664,10 @@ export const undoAnnounce = async ({
       inbox
     },
     async (span) => {
-      const activity: UndoStatus = {
-        '@context': ACTIVITY_STREAM_URL,
-        id: `${announce.id}#undo`,
-        type: UndoAction,
-        actor: currentActor.id,
-        to: [ACTIVITY_STREAM_PUBLIC],
-        object: {
-          id: `${announce.id}/activity`,
-          type: AnnounceAction,
-          actor: announce.actorId,
-          published: getISOTimeUTC(announce.createdAt),
-          to: announce.to,
-          cc: announce.cc,
-          object: announce.originalStatus.id
-        }
-      }
+      const activity = buildUndoAnnounceActivity({
+        actorId: currentActor.id,
+        announce
+      })
       await postActivityToInbox({
         span,
         inbox,
@@ -988,6 +1052,44 @@ export const rejectFollow = async (
 const statusIdHash = (statusId: string) =>
   crypto.createHash('md5').update(statusId).digest('hex')
 
+const publishInteractionDelivery = async ({
+  span,
+  inbox,
+  actorId,
+  activityId,
+  activity,
+  logPrefix
+}: {
+  span: Span
+  inbox: string
+  actorId: string
+  activityId: string
+  activity: Record<string, unknown>
+  logPrefix: string
+}): Promise<void> => {
+  try {
+    await getQueue().publish({
+      // A fresh id per call: the activity id is stable per actor and status
+      // (an Undo names it), and the queue dedups job ids for days, so
+      // like, unlike, like again would drop the second Like.
+      id: getDeliveryJobId(`${activityId}#${crypto.randomUUID()}`, inbox),
+      name: DELIVER_ACTIVITY_JOB_NAME,
+      data: {
+        inbox,
+        actorId,
+        activity
+      }
+    })
+  } catch (error) {
+    const exception = error instanceof Error ? error : new Error(String(error))
+    span.recordException(exception)
+    logger.error(
+      { err: toLoggableError(error), inbox, actorId, logPrefix },
+      `[${logPrefix}] Failed to deliver activity`
+    )
+  }
+}
+
 interface LikeParams {
   currentActor: Actor
   status: Status
@@ -998,7 +1100,7 @@ export const sendLike = async ({ currentActor, status }: LikeParams) =>
     'sendLike',
     { actorId: currentActor.id, statusId: status.id },
     async (span) => {
-      if (!status.actor) return
+      if (!status.actor?.inboxUrl) return
 
       const activity: LikeStatus = {
         '@context': ACTIVITY_STREAM_URL,
@@ -1007,11 +1109,12 @@ export const sendLike = async ({ currentActor, status }: LikeParams) =>
         actor: currentActor.id,
         object: status.id
       }
-      await postActivityToInbox({
+      await publishInteractionDelivery({
         span,
         inbox: status.actor.inboxUrl,
-        currentActor,
-        activity,
+        actorId: currentActor.id,
+        activityId: activity.id,
+        activity: activity as unknown as Record<string, unknown>,
         logPrefix: 'sendLike'
       })
     }
@@ -1057,13 +1160,15 @@ export const sendReaction = async (params: ReactionParams) =>
     },
     async (span) => {
       const { currentActor, status } = params
-      if (!status.actor) return
+      if (!status.actor?.inboxUrl) return
 
-      await postActivityToInbox({
+      const activity = buildReactionActivity(params)
+      await publishInteractionDelivery({
         span,
         inbox: status.actor.inboxUrl,
-        currentActor,
-        activity: buildReactionActivity(params),
+        actorId: currentActor.id,
+        activityId: activity.id,
+        activity: activity as unknown as Record<string, unknown>,
         logPrefix: 'sendReaction'
       })
     }
@@ -1079,7 +1184,7 @@ export const sendUndoReaction = async (params: ReactionParams) =>
     },
     async (span) => {
       const { currentActor, status } = params
-      if (!status.actor) return
+      if (!status.actor?.inboxUrl) return
 
       const reactionActivity = buildReactionActivity(params)
       const activity: UndoReactionActivity = {
@@ -1091,11 +1196,12 @@ export const sendUndoReaction = async (params: ReactionParams) =>
         // receiver needs the content to know which reaction is being retracted.
         object: reactionActivity
       }
-      await postActivityToInbox({
+      await publishInteractionDelivery({
         span,
         inbox: status.actor.inboxUrl,
-        currentActor,
-        activity,
+        actorId: currentActor.id,
+        activityId: activity.id,
+        activity: activity as unknown as Record<string, unknown>,
         logPrefix: 'sendUndoReaction'
       })
     }
@@ -1111,7 +1217,7 @@ export const sendUndoLike = async ({ currentActor, status }: UndoLikeParams) =>
     'sendUndoLike',
     { actorId: currentActor.id, statusId: status.id },
     async (span) => {
-      if (!status.actor) return
+      if (!status.actor?.inboxUrl) return
 
       const activity: UndoLike = {
         '@context': ACTIVITY_STREAM_URL,
@@ -1125,11 +1231,12 @@ export const sendUndoLike = async ({ currentActor, status }: UndoLikeParams) =>
           object: status.id
         }
       }
-      await postActivityToInbox({
+      await publishInteractionDelivery({
         span,
         inbox: status.actor.inboxUrl,
-        currentActor,
-        activity,
+        actorId: currentActor.id,
+        activityId: activity.id,
+        activity: activity as unknown as Record<string, unknown>,
         logPrefix: 'sendUndoLike'
       })
     }
@@ -1155,7 +1262,7 @@ export const sendPollVotes = async ({
       choices: choices.join(',')
     },
     async (span) => {
-      if (!status.actor) return
+      if (!status.actor?.inboxUrl) return
 
       for (const choiceIndex of choices) {
         const choice = status.choices[choiceIndex]
@@ -1186,11 +1293,12 @@ export const sendPollVotes = async ({
           object: voteNote
         }
 
-        await postActivityToInbox({
+        await publishInteractionDelivery({
           span,
           inbox: status.actor.inboxUrl,
-          currentActor,
-          activity,
+          actorId: currentActor.id,
+          activityId: activity.id,
+          activity: activity as unknown as Record<string, unknown>,
           logPrefix: 'sendPollVotes'
         })
       }

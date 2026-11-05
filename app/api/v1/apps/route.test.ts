@@ -30,7 +30,8 @@ vi.mock('@/lib/config', () => ({
 }))
 
 vi.mock('@/lib/config/trustProxyIpHeaders', () => ({
-  getTrustProxyIpHeadersConfig: () => mockGetTrustProxyIpHeadersConfig()
+  getTrustProxyIpHeadersConfig: () => mockGetTrustProxyIpHeadersConfig(),
+  getTrustProxyIpHeaderConfig: () => null
 }))
 
 vi.mock('@/lib/utils/logger', () => {

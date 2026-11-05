@@ -2,6 +2,7 @@ import crypto from 'crypto'
 import { z } from 'zod'
 
 import { getConfig } from '@/lib/config'
+import { checkEmailChangeRateLimit } from '@/lib/services/auth/routeRateLimits'
 import { getServedLinkDomain } from '@/lib/services/domains/localDomains'
 import { sendMail } from '@/lib/services/email'
 import { resolveEmailIdentity } from '@/lib/services/email/sender'
@@ -11,6 +12,7 @@ import { logger } from '@/lib/utils/logger'
 import {
   HTTP_STATUS,
   apiErrorResponse,
+  apiRateLimitedResponse,
   apiResponse
 } from '@/lib/utils/response'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
@@ -34,6 +36,11 @@ export const POST = traceApiRoute(
         data: { error: 'Account not found' },
         responseStatusCode: 404
       })
+    }
+
+    const rateLimit = checkEmailChangeRateLimit(currentActor.account.id)
+    if (!rateLimit.allowed) {
+      return apiRateLimitedResponse(req, rateLimit.retryAfterSeconds)
     }
 
     let body: unknown

@@ -189,11 +189,13 @@ describe('LikeDatabase', () => {
         expect(beforeIsLiked).toBeTrue()
         expect(beforeLikeCount).toBe(2) // Original like + the one we just created
 
-        // Delete the like
-        await database.deleteLike({
-          actorId: primaryActorId,
-          statusId: statuses.poll.status
-        })
+        // Delete the like; it reports that one was removed
+        await expect(
+          database.deleteLike({
+            actorId: primaryActorId,
+            statusId: statuses.poll.status
+          })
+        ).resolves.toBe(true)
 
         // Verify like is deleted
         const afterIsLiked = await database.isActorLikedStatus({
@@ -242,7 +244,7 @@ describe('LikeDatabase', () => {
             actorId: primaryActorId,
             statusId: 'https://nonexistent.status/id'
           })
-        ).resolves.toBeUndefined()
+        ).resolves.toBe(false)
       })
     })
 

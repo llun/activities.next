@@ -62,8 +62,15 @@ export const POST = traceApiRoute(
         responseStatusCode: 404
       })
 
-    await database.createLike({ actorId: currentActor.id, statusId })
-    await sendLike({ currentActor, status })
+    // Each Like is its own retrying delivery: a repeat of an existing like
+    // sends nothing.
+    // The write decides, so a concurrent unlike cannot leave a new like
+    // unsent.
+    const created = await database.createLike({
+      actorId: currentActor.id,
+      statusId
+    })
+    if (created) await sendLike({ currentActor, status })
     return apiResponse({ req, allowedMethods: CORS_HEADERS, data: DEFAULT_202 })
   })
 )
@@ -104,8 +111,11 @@ export const DELETE = traceApiRoute(
         responseStatusCode: 404
       })
 
-    await database.deleteLike({ actorId: currentActor.id, statusId })
-    await sendUndoLike({ currentActor, status })
+    const removed = await database.deleteLike({
+      actorId: currentActor.id,
+      statusId
+    })
+    if (removed) await sendUndoLike({ currentActor, status })
     return apiResponse({ req, allowedMethods: CORS_HEADERS, data: DEFAULT_202 })
   })
 )

@@ -1,4 +1,4 @@
-import { BarChart3, HeartPulse, TrendingUp } from 'lucide-react'
+import { BarChart3, Gauge, HeartPulse, TrendingUp } from 'lucide-react'
 import { FC, ReactNode } from 'react'
 
 import { ANALYSIS_SERIES_COLOURS } from '@/lib/components/fitness/palette'
@@ -244,8 +244,22 @@ const PowerCurveChart: FC<{ curve: PowerEffort[] }> = ({ curve }) => {
   )
 }
 
+// Three across a wide column, two across a tablet, stacked on a phone; four
+// sections pair up two by two, since three across would leave the fourth alone.
+// The loading skeleton uses it too, so the row does not jump when it loads.
+export const distributionGridClass = (sectionCount: number) =>
+  cn(
+    'grid gap-6 @min-[600px]:grid-cols-2 @min-[600px]:gap-4 @min-[600px]:[&>*:last-child:nth-child(odd)]:col-span-2',
+    sectionCount !== 4 &&
+      '@min-[820px]:grid-cols-3 @min-[820px]:[&>*:last-child:nth-child(odd)]:col-span-1'
+  )
+
 export interface ActivityDistributionRowProps {
   heartRateZones: HeartRateZone[]
+  /** The heart-rate zones are the default ones, not the author's. */
+  isDefaultHeartRateZones?: boolean
+  /** Time in the author's power zones; empty when they set no FTP. */
+  powerZones?: HeartRateZone[]
   heartRateStats: HeartRateStats | null
   powerDistribution: PowerDistribution
   avgPower: number | null
@@ -254,12 +268,16 @@ export interface ActivityDistributionRowProps {
 }
 
 /**
- * Heart-rate zones, the power distribution and the power curve side by side:
- * three across a desktop column, two over one on a tablet, stacked on a phone.
- * Each is left out when the file has nothing to draw it from.
+ * Heart-rate zones, power zones (when the author set an FTP), the power
+ * distribution and the power curve side by side: three across a desktop
+ * column (two by two when all four show), two across on a tablet, stacked on
+ * a phone. Each is left out when
+ * the file has nothing to draw it from.
  */
 export const ActivityDistributionRow: FC<ActivityDistributionRowProps> = ({
   heartRateZones,
+  isDefaultHeartRateZones = true,
+  powerZones = [],
   heartRateStats,
   powerDistribution,
   avgPower,
@@ -267,14 +285,21 @@ export const ActivityDistributionRow: FC<ActivityDistributionRowProps> = ({
   powerCurve
 }) => {
   const hasZones = heartRateZones.some((zone) => zone.seconds > 0)
+  const hasPowerZones = powerZones.some((zone) => zone.seconds > 0)
   const hasDistribution = powerDistribution.bins.length > 0
   const hasCurve = powerCurve.length >= 2
-  if (!hasZones && !hasDistribution && !hasCurve) return null
+  if (!hasZones && !hasPowerZones && !hasDistribution && !hasCurve) return null
+  const sectionCount = [
+    hasZones,
+    hasPowerZones,
+    hasDistribution,
+    hasCurve
+  ].filter(Boolean).length
 
   return (
     <div
       id="zones"
-      className="grid scroll-mt-4 gap-6 @min-[600px]:grid-cols-2 @min-[600px]:gap-4 @min-[600px]:[&>*:last-child:nth-child(odd)]:col-span-2 @min-[820px]:grid-cols-3 @min-[820px]:[&>*:last-child:nth-child(odd)]:col-span-1"
+      className={cn('scroll-mt-4', distributionGridClass(sectionCount))}
     >
       {hasZones ? (
         <Section
@@ -287,8 +312,18 @@ export const ActivityDistributionRow: FC<ActivityDistributionRowProps> = ({
           }
           className="min-w-0"
         >
-          <Frame className="px-3.5 py-3">
+          <Frame className="space-y-2.5 px-3.5 py-3">
             <HeartRateZonesPanel zones={heartRateZones} />
+            {isDefaultHeartRateZones ? (
+              <p className="text-xs text-muted-foreground">Default zones</p>
+            ) : null}
+          </Frame>
+        </Section>
+      ) : null}
+      {hasPowerZones ? (
+        <Section title="Power zones" icon={Gauge} className="min-w-0">
+          <Frame className="px-3.5 py-3">
+            <HeartRateZonesPanel zones={powerZones} unit="W" />
           </Frame>
         </Section>
       ) : null}

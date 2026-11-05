@@ -123,14 +123,33 @@ export const createLimiter = ({
 export interface WindowCounterOptions {
   limit: number
   windowMs: number
-  // The map is bounded: past this many keys the oldest window is dropped.
+  // The map is bounded. Expired keys are dropped first; when every held key is
+  // still live, the oldest is evicted, so a flood of fresh keys cannot refuse
+  // everyone else.
   maxKeys?: number
+  // For a security limit, where evicting a live key would reset a victim's
+  // allowance (random sign-in emails pushing a target's counter out): a key
+  // whose count has reached this is never evicted. The oldest key below it is
+  // evicted instead, so a flood of one-off keys only pushes out its own kind;
+  // when every held key is protected a NEW key is refused until a window
+  // expires. Unset, any key may be evicted.
+  protectCountsFrom?: number
+  // With protectCountsFrom: whether a full map of protected keys refuses new
+  // keys (true, the default) or evicts the one with the fewest hits (false). Read on
+  // each overflow, so it can follow runtime config.
+  refuseWhenAllProtected?: boolean | (() => boolean)
 }
+
+export type WindowCounterResult =
+  { allowed: true } | { allowed: false; retryAfterSeconds: number }
 
 export interface WindowCounter {
   // Counts one hit for the key. False when the key is over its limit for the
   // current window (the hit is not counted then).
   tryHit(key: string): boolean
+  // Same as tryHit, returning the remaining window seconds when rejected so
+  // HTTP routes can populate Retry-After.
+  consume(key: string): WindowCounterResult
   reset(): void
 }
 
@@ -138,28 +157,81 @@ export interface WindowCounter {
 export const createWindowCounter = ({
   limit,
   windowMs,
-  maxKeys = 1000
+  maxKeys = 1000,
+  protectCountsFrom = Number.POSITIVE_INFINITY,
+  refuseWhenAllProtected = true
 }: WindowCounterOptions): WindowCounter => {
   const windows = new Map<string, { count: number; resetAt: number }>()
 
+  const retryAfterSeconds = (resetAt: number, now: number) =>
+    Math.max(1, Math.ceil((resetAt - now) / 1000))
+
+  const consume = (key: string): WindowCounterResult => {
+    const now = Date.now()
+    const current = windows.get(key)
+    if (current && current.resetAt > now) {
+      if (current.count >= limit) {
+        return {
+          allowed: false,
+          retryAfterSeconds: retryAfterSeconds(current.resetAt, now)
+        }
+      }
+      current.count += 1
+      return { allowed: true }
+    }
+    // A new key, or one whose window has passed.
+    if (current) windows.delete(key)
+    if (windows.size >= maxKeys) {
+      for (const [other, window] of windows) {
+        if (window.resetAt <= now) windows.delete(other)
+      }
+      if (windows.size >= maxKeys) {
+        // Insertion order is age order, so the first unprotected key is the
+        // oldest one that may go.
+        for (const [other, window] of windows) {
+          if (window.count < protectCountsFrom) {
+            windows.delete(other)
+            break
+          }
+        }
+      }
+      const refuse =
+        typeof refuseWhenAllProtected === 'function'
+          ? refuseWhenAllProtected()
+          : refuseWhenAllProtected
+      if (windows.size >= maxKeys && !refuse) {
+        // The key with the fewest hits goes, so the one under the heaviest
+        // guessing is the last a flood can flush.
+        let lowest: string | undefined
+        let lowestCount = Number.POSITIVE_INFINITY
+        for (const [other, window] of windows) {
+          if (window.count < lowestCount) {
+            lowest = other
+            lowestCount = window.count
+          }
+        }
+        if (lowest !== undefined) windows.delete(lowest)
+      }
+      if (windows.size >= maxKeys) {
+        let soonest = Number.POSITIVE_INFINITY
+        for (const window of windows.values()) {
+          soonest = Math.min(soonest, window.resetAt)
+        }
+        return {
+          allowed: false,
+          retryAfterSeconds: retryAfterSeconds(soonest, now)
+        }
+      }
+    }
+    windows.set(key, { count: 1, resetAt: now + windowMs })
+    return { allowed: true }
+  }
+
   return {
     tryHit(key) {
-      const now = Date.now()
-      const current = windows.get(key)
-      if (!current || current.resetAt <= now) {
-        // Re-insert so Map order stays oldest-first.
-        windows.delete(key)
-        windows.set(key, { count: 1, resetAt: now + windowMs })
-        if (windows.size > maxKeys) {
-          const oldest = windows.keys().next().value
-          if (oldest !== undefined) windows.delete(oldest)
-        }
-        return true
-      }
-      if (current.count >= limit) return false
-      current.count += 1
-      return true
+      return consume(key).allowed
     },
+    consume,
     reset() {
       windows.clear()
     }

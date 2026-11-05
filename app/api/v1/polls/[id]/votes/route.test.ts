@@ -5,7 +5,10 @@ import type { Database } from '@/lib/database/types'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
-import { EXTERNAL_ACTOR1 } from '@/lib/stub/seed/external1'
+import {
+  EXTERNAL_ACTOR1,
+  EXTERNAL_ACTOR1_INBOX
+} from '@/lib/stub/seed/external1'
 import { StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { urlToId } from '@/lib/utils/urlToId'
@@ -69,7 +72,7 @@ vi.mock('@/lib/config', () => ({
   getConfig: vi.fn().mockReturnValue({
     allowEmails: [],
     host: 'llun.test',
-    secretPhase: 'test-secret'
+    secretPhase: 'secret phases'
   })
 }))
 
@@ -371,5 +374,41 @@ describe('POST /api/v1/polls/[id]/votes', () => {
       expect(stored).toBeNull()
       expect(mockSendPollVotes).not.toHaveBeenCalled()
     })
+  })
+
+  it('returns 200 when inline NoQueue vote delivery to a remote inbox fails with HTTP 503', async () => {
+    const actualActivities =
+      await vi.importActual<typeof import('@/lib/activities')>(
+        '@/lib/activities'
+      )
+    mockSendPollVotes.mockImplementationOnce(actualActivities.sendPollVotes)
+
+    const pollId = `${REMOTE_ACTOR_ID}/statuses/inline-fail-poll-1`
+    await database.createPoll({
+      id: pollId,
+      url: pollId,
+      actorId: REMOTE_ACTOR_ID,
+      text: 'remote poll',
+      choices: ['Yes', 'No'],
+      endAt: Date.now() + 86_400_000,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+
+    fetchMock.mockResponse(async () => ({
+      status: 503,
+      body: 'Service Unavailable'
+    }))
+
+    const response = await vote(pollId, { choices: ['0'] })
+
+    expect(response.status).toBe(200)
+    expect(
+      fetchMock.mock.calls.some(([input]) => {
+        const url = typeof input === 'string' ? input : (input as Request)?.url
+        return url === EXTERNAL_ACTOR1_INBOX
+      })
+    ).toBe(true)
+    await database.clearDeliveryFailuresForDomain({ domain: 'llun.dev' })
   })
 })

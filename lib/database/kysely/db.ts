@@ -390,6 +390,19 @@ export interface DeletedAttachmentMedia {
   mediaId: number
 }
 
+export interface DeliveryInboxFailures {
+  createdAt: WithDefault<Timestamp>
+  domain: string
+  failureDays: WithDefault<number>
+  firstFailureAt: Timestamp
+  inbox: string
+  lastError: Nullable<string>
+  lastFailureAt: Timestamp
+  lastFailureDay: Nullable<string>
+  unavailableSince: Nullable<Timestamp>
+  updatedAt: WithDefault<Timestamp>
+}
+
 export interface DirectConversationMemberships {
   actorId: string
   conversationId: string
@@ -715,11 +728,13 @@ export interface FitnessSettings {
   credentialVersion: WithDefault<number>
   defaultVisibility: Nullable<string>
   deletedAt: Nullable<Timestamp>
+  functionalThresholdPower: Nullable<number>
   generateRouteDescription: WithDefault<boolean>
   grantedScopes: Nullable<string>
   id: string
   lastImportAt: Nullable<Timestamp>
   lastWebhookAt: Nullable<Timestamp>
+  maxHeartRate: Nullable<number>
   oauthState: Nullable<string>
   oauthStateExpiry: Nullable<Timestamp>
   privacyHideRadiusMeters: Nullable<number>
@@ -729,6 +744,7 @@ export interface FitnessSettings {
   providerEnvironment: Nullable<string>
   providerUserId: Nullable<string>
   refreshToken: Nullable<string>
+  restingHeartRate: Nullable<number>
   serviceType: string
   tokenExpiresAt: Nullable<Timestamp>
   updatedAt: WithDefault<Nullable<Timestamp>>
@@ -1207,6 +1223,13 @@ export interface QueueJobs {
   updated_at: WithDefault<Nullable<Timestamp>>
 }
 
+export interface RateLimit {
+  count: number
+  id: string
+  key: string
+  lastRequest: number
+}
+
 export interface Recipients {
   actorId: Nullable<string>
   createdAt: WithDefault<Nullable<Timestamp>>
@@ -1540,6 +1563,7 @@ export interface DB {
   customEmojis: CustomEmojis
   dead_letter_jobs: DeadLetterJobs
   deleted_attachment_media: DeletedAttachmentMedia
+  delivery_inbox_failures: DeliveryInboxFailures
   direct_conversation_memberships: DirectConversationMemberships
   direct_conversation_participants: DirectConversationParticipants
   direct_conversation_statuses: DirectConversationStatuses
@@ -1599,6 +1623,7 @@ export interface DB {
   poll_voters: PollVoters
   push_subscriptions: PushSubscriptions
   queue_jobs: QueueJobs
+  rateLimit: RateLimit
   recipients: Recipients
   relays: Relays
   reports: Reports

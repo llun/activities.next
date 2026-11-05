@@ -24,6 +24,7 @@ import { getVisitedSignUpDomain } from '@/lib/services/domains/visitedSignUpDoma
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { getPersonalRecordDurations } from '@/lib/services/fitness-files/personalRecords'
 import { getStatusFitnessFiles } from '@/lib/services/fitness-files/statusFitnessFiles'
+import { getTrainingZoneSettings } from '@/lib/services/fitness-files/trainingZoneSettings'
 import { enrichStatusAttachments } from '@/lib/services/medias/animationMetadata'
 import { getQueue } from '@/lib/services/queue'
 import {
@@ -499,11 +500,15 @@ const Page: FC<Props> = async ({ params }) => {
     : null
 
   if (isFitnessDashboard) {
-    const fitnessFiles = await getStatusFitnessFiles(
-      database,
-      statusForLayout.id,
-      currentTime
-    )
+    const [fitnessFiles, trainingZones] = await Promise.all([
+      getStatusFitnessFiles(database, statusForLayout.id, currentTime),
+      // Only the author's own view uses their zones: their max heart rate and
+      // FTP never reach anyone else's page. Others see the default zones.
+      statusForLayout.isLocalActor &&
+      currentActor?.id === statusForLayout.actorId
+        ? getTrainingZoneSettings(database, statusForLayout.actorId)
+        : null
+    ])
     // The PR badges are the owner's own records, so only the owner's page
     // reads them. A failed read only costs the badges.
     const isOwner =
@@ -611,6 +616,7 @@ const Page: FC<Props> = async ({ params }) => {
               hasMoreDescendants={hasMoreDescendants}
               fitnessFiles={fitnessFiles}
               personalRecordDurations={personalRecordDurations}
+              trainingZones={trainingZones}
             />
           </div>
 

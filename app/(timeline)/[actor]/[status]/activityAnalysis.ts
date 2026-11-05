@@ -1,6 +1,10 @@
 import type { FitnessRouteDataResponse } from '@/lib/client/fitnessRoutes'
 import type { AnalysisSeriesKey } from '@/lib/components/fitness/palette'
 import { resolveRecordingSeconds } from '@/lib/fitness/bestEfforts'
+import {
+  DEFAULT_HEART_RATE_ZONES,
+  type TrainingZoneDefinition
+} from '@/lib/fitness/trainingZones'
 
 import {
   type ActivityPoint,
@@ -36,6 +40,7 @@ import {
   type HeartRateZone,
   computeHeartRateStats,
   computeHeartRateZones,
+  computeZoneTimes,
   fillHeartRateDropouts,
   filterPositiveHeartRateSeries,
   getSeriesMinMax
@@ -83,6 +88,8 @@ export interface ActivityAnalysis {
   decouplingPercent: number | null
   heartRateStats: HeartRateStats | null
   heartRateZones: HeartRateZone[]
+  /** Time in each power zone; empty without power or without zones. */
+  powerZones: HeartRateZone[]
   maxSpeedKmh: number | null
   avgCadence: number | null
   cadenceUnit: 'rpm' | 'spm'
@@ -116,7 +123,9 @@ export const deriveActivityAnalysis = ({
   activityType,
   fallbackDurationSeconds = 0,
   movingTimeSeconds = null,
-  skipPauses = true
+  skipPauses = true,
+  heartRateZones = DEFAULT_HEART_RATE_ZONES,
+  powerZones = null
 }: {
   data: FitnessRouteDataResponse
   activityType?: string | null
@@ -128,6 +137,10 @@ export const deriveActivityAnalysis = ({
    * or on elapsed time, where each pause shows as a shaded gap.
    */
   skipPauses?: boolean
+  /** The author's heart-rate zones; the default zones when left out. */
+  heartRateZones?: TrainingZoneDefinition[]
+  /** The author's power zones; no power-zone times without them. */
+  powerZones?: TrainingZoneDefinition[] | null
 }): ActivityAnalysis => {
   const cadenceMultiplier = getCadenceMultiplier(activityType, [
     ...(data.samples ?? []).map((sample) => sample.cadence),
@@ -312,7 +325,16 @@ export const deriveActivityAnalysis = ({
               estimateSampleSeconds(
                 (data.heartRateSeries ?? []).length,
                 recordingSeconds
-              )
+              ),
+            heartRateZones
+          )
+        : [],
+    powerZones:
+      hasPower && powerZones
+        ? computeZoneTimes(
+            powerSeries,
+            powerSeries.length * sampleSeconds,
+            powerZones
           )
         : [],
     maxSpeedKmh: speeds.length > 0 ? getSeriesMinMax(speeds).maxValue : null,

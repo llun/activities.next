@@ -85,7 +85,9 @@ vi.mock('@/lib/database', async () => ({
     getStatusFromPublicId: vi.fn(async () => null),
     // Without this the page's settings read throws and every test logs an
     // error while quietly exercising the env/default fallback path.
-    getAllServerSettings: vi.fn(async () => [])
+    getAllServerSettings: vi.fn(async () => []),
+    // The owner's training zones (none here); read beside the PR durations.
+    getFitnessSettings: vi.fn(async () => null)
   }))
 }))
 

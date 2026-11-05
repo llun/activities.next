@@ -3,6 +3,10 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import {
   acceptFollow,
+  buildAnnounceActivity,
+  buildDeleteStatusActivity,
+  buildUndoAnnounceActivity,
+  buildUpdateNoteActivity,
   deleteActor,
   deleteStatus,
   follow,
@@ -13,7 +17,10 @@ import {
   sendFlag,
   sendLike,
   sendNote,
+  sendPollVotes,
+  sendReaction,
   sendUndoLike,
+  sendUndoReaction,
   sendUpdateNote,
   unfollow,
   unfollowRelay
@@ -23,6 +30,9 @@ import { compactActivityPub } from '@/lib/activities/jsonld'
 import { BaseNoteSchema } from '@/lib/activities/note'
 import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import type { Database } from '@/lib/database/types'
+import { DELIVER_ACTIVITY_JOB_NAME } from '@/lib/jobs/names'
+import { getQueue } from '@/lib/services/queue'
 import { ACTIVITY_JSON_HEADERS, mockRequests } from '@/lib/stub/activities'
 import { MockActor } from '@/lib/stub/actor'
 import { TEST_SHARED_INBOX, seedDatabase } from '@/lib/stub/database'
@@ -50,6 +60,11 @@ const mockRelay = (overrides: Partial<Relay> = {}): Relay => ({
   ...overrides
 })
 
+let mockDatabase: Database | null = null
+vi.mock('@/lib/database', () => ({
+  getDatabase: () => mockDatabase
+}))
+
 enableFetchMocks()
 
 describe('activities', () => {
@@ -59,18 +74,21 @@ describe('activities', () => {
   beforeAll(async () => {
     await database.migrate()
     await seedDatabase(database)
+    mockDatabase = database
 
     actor1 = await database.getActorFromEmail({ email: seedActor1.email })
   })
 
   afterAll(async () => {
     if (!database) return
+    mockDatabase = null
     await database.destroy()
   })
 
-  beforeEach(() => {
+  beforeEach(async () => {
     fetchMock.resetMocks()
     mockRequests(fetchMock)
+    await database.clearDeliveryFailuresForDomain({ domain: 'somewhere.test' })
   })
 
   describe('getNote', () => {
@@ -687,7 +705,7 @@ describe('activities', () => {
 
   describe('sendLike', () => {
     it('sends like to status author inbox', async () => {
-      const currentActor = MockActor({})
+      if (!actor1) fail('Actor1 is required')
       const statusActor = {
         id: 'https://somewhere.test/actors/author',
         inboxUrl: 'https://somewhere.test/actors/author/inbox'
@@ -698,7 +716,7 @@ describe('activities', () => {
       }
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await sendLike({ currentActor, status: status as any })
+      await sendLike({ currentActor: actor1, status: status as any })
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const [url, options] = fetchMock.mock.lastCall as any
@@ -710,14 +728,14 @@ describe('activities', () => {
     })
 
     it('does nothing when status has no actor', async () => {
-      const currentActor = MockActor({})
+      if (!actor1) fail('Actor1 is required')
       const status = {
         id: 'https://somewhere.test/statuses/orphan',
         actor: null
       }
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await sendLike({ currentActor, status: status as any })
+      await sendLike({ currentActor: actor1, status: status as any })
 
       // Should not have made any requests
       expect(fetchMock.mock.calls.length).toBe(0)
@@ -817,7 +835,7 @@ describe('activities', () => {
 
   describe('sendUndoLike', () => {
     it('sends undo like to status author inbox', async () => {
-      const currentActor = MockActor({})
+      if (!actor1) fail('Actor1 is required')
       const statusActor = {
         id: 'https://somewhere.test/actors/author',
         inboxUrl: 'https://somewhere.test/actors/author/inbox'
@@ -828,7 +846,7 @@ describe('activities', () => {
       }
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await sendUndoLike({ currentActor, status: status as any })
+      await sendUndoLike({ currentActor: actor1, status: status as any })
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const [url, options] = fetchMock.mock.lastCall as any
@@ -840,17 +858,235 @@ describe('activities', () => {
     })
 
     it('does nothing when status has no actor', async () => {
-      const currentActor = MockActor({})
+      if (!actor1) fail('Actor1 is required')
       const status = {
         id: 'https://somewhere.test/statuses/orphan',
         actor: null
       }
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await sendUndoLike({ currentActor, status: status as any })
+      await sendUndoLike({ currentActor: actor1, status: status as any })
 
       // Should not have made any requests
       expect(fetchMock.mock.calls.length).toBe(0)
+    })
+  })
+
+  describe('queued interaction sends and pure activity builders', () => {
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    it('publishes DELIVER_ACTIVITY with per-call ids for sendLike, sendUndoLike, sendReaction, sendUndoReaction, and sendPollVotes', async () => {
+      if (!actor1) fail('Actor1 is required')
+      const queue = getQueue()
+      const publishSpy = vi.spyOn(queue, 'publish').mockResolvedValue(undefined)
+      const targetInbox = 'https://somewhere.test/actors/author/inbox'
+      const remoteStatus = {
+        id: 'https://somewhere.test/statuses/target-1',
+        actorId: 'https://somewhere.test/actors/author',
+        actor: {
+          id: 'https://somewhere.test/actors/author',
+          inboxUrl: targetInbox
+        }
+      }
+      const remotePoll = {
+        ...remoteStatus,
+        type: StatusType.enum.Poll,
+        choices: [
+          { title: 'Option A', totalVotes: 0 },
+          { title: 'Option B', totalVotes: 0 }
+        ]
+      }
+
+      await sendLike({
+        currentActor: actor1,
+        status: remoteStatus as unknown as Status
+      })
+      await sendUndoLike({
+        currentActor: actor1,
+        status: remoteStatus as unknown as Status
+      })
+      await sendReaction({
+        currentActor: actor1,
+        status: remoteStatus as unknown as Status,
+        reaction: '🔥',
+        customEmoji: null
+      })
+      await sendUndoReaction({
+        currentActor: actor1,
+        status: remoteStatus as unknown as Status,
+        reaction: '🔥',
+        customEmoji: null
+      })
+      await sendPollVotes({
+        currentActor: actor1,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        status: remotePoll as any,
+        choices: [0, 1]
+      })
+
+      expect(publishSpy).toHaveBeenCalledTimes(6)
+      expect(new Set(publishSpy.mock.calls.map(([msg]) => msg.id)).size).toBe(6)
+      for (const [msg] of publishSpy.mock.calls) {
+        expect(msg.name).toBe(DELIVER_ACTIVITY_JOB_NAME)
+        const data = msg.data as {
+          inbox: string
+          actorId: string
+          activity: { id: string }
+        }
+        expect(data.inbox).toBe(targetInbox)
+        expect(data.actorId).toBe(actor1.id)
+        expect(msg.id).toEqual(expect.any(String))
+      }
+    })
+
+    it('publishes different delivery job ids for two sendLike calls on the same status', async () => {
+      if (!actor1) fail('Actor1 is required')
+      const publishSpy = vi
+        .spyOn(getQueue(), 'publish')
+        .mockResolvedValue(undefined)
+      const status = {
+        id: 'https://somewhere.test/statuses/repeated-like',
+        actorId: 'https://somewhere.test/actors/author',
+        actor: {
+          id: 'https://somewhere.test/actors/author',
+          inboxUrl: 'https://somewhere.test/actors/author/inbox'
+        }
+      } as unknown as Status
+      await sendLike({ currentActor: actor1, status })
+      await sendLike({ currentActor: actor1, status })
+      expect(publishSpy).toHaveBeenCalledTimes(2)
+      const [first, second] = publishSpy.mock.calls.map(([message]) => message)
+      expect(first.data).toEqual(second.data)
+      expect(first.id).not.toBe(second.id)
+    })
+
+    it('swallows and logs inline NoQueue salvageable failures without throwing', async () => {
+      if (!actor1) fail('Actor1 is required')
+      const errorSpy = vi.spyOn(logger, 'error')
+      const targetInbox = 'https://somewhere.test/actors/author/inbox'
+      const remoteStatus = {
+        id: 'https://somewhere.test/statuses/inline-fail-1',
+        actorId: 'https://somewhere.test/actors/author',
+        actor: {
+          id: 'https://somewhere.test/actors/author',
+          inboxUrl: targetInbox
+        },
+        type: StatusType.enum.Poll,
+        choices: [{ title: 'Yes', totalVotes: 0 }]
+      }
+
+      fetchMock.resetMocks()
+      fetchMock.mockResponse('', { status: 503 })
+
+      await expect(
+        sendLike({
+          currentActor: actor1,
+          status: remoteStatus as unknown as Status
+        })
+      ).resolves.toBeUndefined()
+      await expect(
+        sendUndoLike({
+          currentActor: actor1,
+          status: remoteStatus as unknown as Status
+        })
+      ).resolves.toBeUndefined()
+      await expect(
+        sendReaction({
+          currentActor: actor1,
+          status: remoteStatus as unknown as Status,
+          reaction: '🎉',
+          customEmoji: null
+        })
+      ).resolves.toBeUndefined()
+      await expect(
+        sendUndoReaction({
+          currentActor: actor1,
+          status: remoteStatus as unknown as Status,
+          reaction: '🎉',
+          customEmoji: null
+        })
+      ).resolves.toBeUndefined()
+      await expect(
+        sendPollVotes({
+          currentActor: actor1,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          status: remoteStatus as any,
+          choices: [0]
+        })
+      ).resolves.toBeUndefined()
+
+      expect(fetchMock).toHaveBeenCalledTimes(5)
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          inbox: targetInbox,
+          logPrefix: 'sendLike',
+          err: expect.objectContaining({
+            message: expect.stringContaining('503')
+          })
+        }),
+        '[sendLike] Failed to deliver activity'
+      )
+    })
+
+    it('builds deterministic Update, Delete, Announce, and Undo(Announce) activities', async () => {
+      if (!actor1) fail('Actor1 is required')
+      const status = await database.getStatus({
+        statusId: `${actor1.id}/statuses/post-1`,
+        withReplies: false
+      })
+      if (!status) fail('Status is required')
+
+      const update = buildUpdateNoteActivity({
+        status,
+        updatedAtMs: 1700000001234
+      })
+      expect(update?.id).toBe(`${status.id}#updates/1700000001234`)
+      expect(update?.type).toBe('Update')
+
+      const del = buildDeleteStatusActivity({
+        actorId: actor1.id,
+        statusId: status.id
+      })
+      expect(del).toMatchObject({
+        id: `${status.id}#delete`,
+        type: 'Delete',
+        actor: actor1.id,
+        to: [ACTIVITY_STREAM_PUBLIC]
+      })
+
+      expect(buildAnnounceActivity({ status })).toBeNull()
+      const announceActivity = buildAnnounceActivity({
+        status: {
+          id: `${actor1.id}/statuses/ann-1`,
+          actorId: actor1.id,
+          actor: actor1,
+          type: StatusType.enum.Announce,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          edits: [],
+          originalStatus: status as any,
+          isLocalActor: true,
+          createdAt: 1700000000000,
+          updatedAt: 1700000000000
+        }
+      })
+      expect(announceActivity?.id).toBe(`${actor1.id}/statuses/ann-1/activity`)
+
+      const undo = buildUndoAnnounceActivity({
+        actorId: actor1.id,
+        announce: {
+          id: `${actor1.id}/statuses/ann-1`,
+          actorId: actor1.id,
+          createdAt: 1700000000000,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          originalStatus: { id: status.id }
+        }
+      })
+      expect(undo.id).toBe(`${actor1.id}/statuses/ann-1#undo`)
+      expect(undo.object.id).toBe(`${actor1.id}/statuses/ann-1/activity`)
     })
   })
 
@@ -863,13 +1099,6 @@ describe('activities', () => {
     const senderErrors = (spy: { mock: { calls: unknown[][] } }) =>
       spy.mock.calls.filter(([message]) => typeof message === 'string')
 
-    const likedStatus = {
-      id: 'https://somewhere.test/statuses/liked',
-      actor: {
-        id: 'https://somewhere.test/actors/author',
-        inboxUrl: 'https://somewhere.test/actors/author/inbox'
-      }
-    }
     const unfollowTargetId = 'https://somewhere.test/actors/test1'
     const unfollowRecord = {
       id: 'follow-123',
@@ -908,26 +1137,6 @@ describe('activities', () => {
             currentActor: MockActor({}),
             inbox: TEST_SHARED_INBOX,
             statusId: 'https://llun.test/statuses/to-delete'
-          })
-      },
-      {
-        name: 'sendLike',
-        inbox: likedStatus.actor.inboxUrl,
-        logsTimeout: true,
-        send: () =>
-          sendLike({
-            currentActor: MockActor({}),
-            status: likedStatus as unknown as Status
-          })
-      },
-      {
-        name: 'sendUndoLike',
-        inbox: likedStatus.actor.inboxUrl,
-        logsTimeout: true,
-        send: () =>
-          sendUndoLike({
-            currentActor: MockActor({}),
-            status: likedStatus as unknown as Status
           })
       }
     ]

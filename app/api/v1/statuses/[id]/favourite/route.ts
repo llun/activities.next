@@ -34,21 +34,13 @@ export const POST = traceApiRoute(
       })
       if (!status) return apiCorsError(req, CORS_HEADERS, 404)
 
-      // Check if already liked to avoid duplicate activities
-      const alreadyLiked =
-        (status.type === 'Note' || status.type === 'Poll') &&
-        status.isActorLiked
-
-      // Create like (database handles idempotency)
-      await database.createLike({
+      // The write decides whether this is a new like, so a repeat or a
+      // concurrent unfavourite never leaves the remote out of step.
+      const created = await database.createLike({
         actorId: currentActor.id,
         statusId: status.id
       })
-
-      // Only send Like activity if not already liked
-      if (!alreadyLiked) {
-        await sendLike({ currentActor, status })
-      }
+      if (created) await sendLike({ currentActor, status })
 
       // Refetch status to get updated counts
       return refetchedStatusResponse({

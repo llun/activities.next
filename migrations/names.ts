@@ -20,6 +20,9 @@ export const MIGRATION_NAMES = [
   '20261027134549_add_account_imports',
   '20261104133123_add_attachments_is_route_map',
   '20261105034530_add_deleted_attachment_media',
+  '20261105072156_add_auth_rate_limits',
+  '20261105144958_add_delivery_inbox_failures',
+  '20261105174143_add_fitness_settings_training_zones',
   '20261105185059_add_fitness_best_efforts'
 ] as const
 

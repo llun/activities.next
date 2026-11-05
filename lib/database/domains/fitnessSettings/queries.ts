@@ -97,6 +97,9 @@ const toFitnessSettings = (row: Row): FitnessSettings => ({
   privacyHomeLongitude: row.privacyHomeLongitude ?? undefined,
   privacyHideRadiusMeters: row.privacyHideRadiusMeters ?? undefined,
   generateRouteDescription: row.generateRouteDescription,
+  maxHeartRate: row.maxHeartRate ?? undefined,
+  restingHeartRate: row.restingHeartRate ?? undefined,
+  functionalThresholdPower: row.functionalThresholdPower ?? undefined,
   providerUserId: row.providerUserId || undefined,
   providerEnvironment:
     row.providerEnvironment === 'production' ? 'production' : 'sandbox',
@@ -132,7 +135,10 @@ export const createFitnessSettings = async (
     privacyHomeLatitude,
     privacyHomeLongitude,
     privacyHideRadiusMeters,
-    generateRouteDescription
+    generateRouteDescription,
+    maxHeartRate,
+    restingHeartRate,
+    functionalThresholdPower
   }: CreateFitnessSettingsParams
 ): Promise<FitnessSettings> => {
   const existing = await db
@@ -188,6 +194,9 @@ export const createFitnessSettings = async (
       privacyHomeLongitude,
       privacyHideRadiusMeters,
       generateRouteDescription: generateRouteDescription ?? false,
+      maxHeartRate: maxHeartRate ?? null,
+      restingHeartRate: restingHeartRate ?? null,
+      functionalThresholdPower: functionalThresholdPower ?? null,
       createdAt: currentTime,
       updatedAt: currentTime
     })
@@ -215,6 +224,9 @@ export const createFitnessSettings = async (
     privacyHomeLongitude,
     privacyHideRadiusMeters,
     generateRouteDescription: generateRouteDescription ?? false,
+    maxHeartRate: maxHeartRate ?? undefined,
+    restingHeartRate: restingHeartRate ?? undefined,
+    functionalThresholdPower: functionalThresholdPower ?? undefined,
     createdAt: currentTime.getTime(),
     updatedAt: currentTime.getTime()
   }
@@ -244,7 +256,10 @@ export const updateFitnessSettings = async (
     privacyHomeLatitude,
     privacyHomeLongitude,
     privacyHideRadiusMeters,
-    generateRouteDescription
+    generateRouteDescription,
+    maxHeartRate,
+    restingHeartRate,
+    functionalThresholdPower
   }: UpdateFitnessSettingsParams
 ): Promise<FitnessSettings | null> => {
   const updateData: Updateable<FitnessSettingsTable> = {
@@ -312,6 +327,11 @@ export const updateFitnessSettings = async (
     updateData.privacyHideRadiusMeters = privacyHideRadiusMeters
   if (generateRouteDescription !== undefined)
     updateData.generateRouteDescription = generateRouteDescription ?? false
+  if (maxHeartRate !== undefined) updateData.maxHeartRate = maxHeartRate
+  if (restingHeartRate !== undefined)
+    updateData.restingHeartRate = restingHeartRate
+  if (functionalThresholdPower !== undefined)
+    updateData.functionalThresholdPower = functionalThresholdPower
 
   const credentialEdit = clientId !== undefined || clientSecret !== undefined
 

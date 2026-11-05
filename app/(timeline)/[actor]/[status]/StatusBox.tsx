@@ -14,6 +14,7 @@ import { useInlineComposer } from '@/lib/components/posts/useInlineComposer'
 import { useOpenStatusPath } from '@/lib/components/posts/useOpenStatusPath'
 import { SectionSkeleton } from '@/lib/components/surface/SectionSkeleton'
 import { SkeletonBar } from '@/lib/components/surface/Skeleton'
+import type { TrainingZoneSettings } from '@/lib/fitness/trainingZones'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import {
@@ -66,6 +67,8 @@ interface Props {
   fitnessFiles?: StatusFitnessFileItem[]
   /** Owner only: per fitness file, the power durations that are all-time bests. */
   personalRecordDurations?: Record<string, number[]>
+  /** The fitness author's zone inputs, for the activity's zone charts. */
+  trainingZones?: TrainingZoneSettings | null
 }
 
 export const StatusBox: FC<Props> = ({
@@ -81,7 +84,8 @@ export const StatusBox: FC<Props> = ({
   hasMoreAncestors,
   hasMoreDescendants,
   fitnessFiles,
-  personalRecordDurations
+  personalRecordDurations,
+  trainingZones
 }) => {
   const router = useRouter()
   const openStatusPath = useOpenStatusPath()
@@ -119,6 +123,7 @@ export const StatusBox: FC<Props> = ({
             isMediaUploadEnabled={isMediaUploadEnabled}
             initialFitnessFiles={fitnessFiles}
             personalRecordDurations={personalRecordDurations}
+            trainingZones={trainingZones}
             onShowAttachment={(allMedias, index) => {
               setModalMedias({
                 medias: allMedias,

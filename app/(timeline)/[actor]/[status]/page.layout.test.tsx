@@ -72,6 +72,7 @@ const mockGetStatusReplyRefs = vi.fn(
   }
 )
 const mockGetAcceptedOrRequestedFollow = vi.fn()
+const mockGetFitnessSettings = vi.fn(async (): Promise<unknown> => null)
 
 vi.mock('@/lib/database', async () => ({
   getDatabase: vi.fn(() => ({
@@ -80,6 +81,7 @@ vi.mock('@/lib/database', async () => ({
     getStatusReplyRefs: mockGetStatusReplyRefs,
     getActorDomainBlocks: mockGetActorDomainBlocks,
     getAcceptedOrRequestedFollow: mockGetAcceptedOrRequestedFollow,
+    getFitnessSettings: mockGetFitnessSettings,
     // Read only by the real resolver, which the off-site Back test runs.
     getActorFromUsername: vi.fn(async () => null),
     getStatusFromUrlHash: vi.fn(async () => null),
@@ -117,8 +119,17 @@ vi.mock('./RemoteStatusLoading', async () => ({
 }))
 
 vi.mock('./StatusBox', async () => ({
-  StatusBox: ({ status }: { status: { id: string } }) => (
-    <div data-testid={`status-${status.id}`} />
+  StatusBox: ({
+    status,
+    trainingZones
+  }: {
+    status: { id: string }
+    trainingZones?: unknown
+  }) => (
+    <div
+      data-testid={`status-${status.id}`}
+      data-training-zones={JSON.stringify(trainingZones ?? null)}
+    />
   )
 }))
 
@@ -581,6 +592,56 @@ describe('Fitness activity card chrome', () => {
     const card = await renderPage()
 
     expect(clipsBetween(card, 'ride-1')).toEqual([])
+  })
+
+  it('hands the activity the author’s zone inputs and nothing else of their settings', async () => {
+    mockGetActorFromSession.mockResolvedValue({
+      ...buildViewer(),
+      id: AUTHOR_ID
+    })
+    mockGetFitnessSettings.mockResolvedValueOnce({
+      id: 'general-id',
+      actorId: AUTHOR_ID,
+      serviceType: 'general',
+      privacyLocations: [
+        { latitude: 13.7, longitude: 100.5, hideRadiusMeters: 200 }
+      ],
+      maxHeartRate: 186,
+      functionalThresholdPower: 260,
+      createdAt: 1,
+      updatedAt: 1
+    })
+
+    await renderPage()
+
+    expect(mockGetFitnessSettings).toHaveBeenCalledWith({
+      actorId: AUTHOR_ID,
+      serviceType: 'general'
+    })
+    expect(
+      JSON.parse(
+        screen
+          .getByTestId('status-ride-1')
+          .getAttribute('data-training-zones') ?? ''
+      )
+    ).toEqual({
+      maxHeartRate: 186,
+      restingHeartRate: null,
+      functionalThresholdPower: 260
+    })
+  })
+
+  it('gives anyone but the author no zone inputs, so their numbers stay on the server', async () => {
+    mockGetActorFromSession.mockResolvedValue(buildViewer())
+
+    await renderPage()
+
+    expect(mockGetFitnessSettings).not.toHaveBeenCalledWith(
+      expect.objectContaining({ serviceType: 'general' })
+    )
+    expect(
+      screen.getByTestId('status-ride-1').getAttribute('data-training-zones')
+    ).toBe('null')
   })
 
   // Every child here paints a background, so with the clip gone each corner a
