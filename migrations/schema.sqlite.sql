@@ -343,3 +343,6 @@ CREATE INDEX "account_imports_account_started_idx" on "account_imports" ("accoun
 CREATE UNIQUE INDEX "account_imports_actor_active_idx" on "account_imports" ("actorId") where ("status" = 'queued' or "status" = 'running');
 CREATE UNIQUE INDEX "account_import_items_actor_source_unique" on "account_import_items" ("actorId", "kind", "sourceId");
 CREATE INDEX "account_import_items_import_state_position_idx" on "account_import_items" ("importId", "state", "position");
+CREATE TABLE IF NOT EXISTS "deleted_attachment_media" ("attachmentId" varchar(255) primary key, "actorId" varchar(255) not null, "mediaId" integer not null, "createdAt" datetime default CURRENT_TIMESTAMP not null);
+CREATE INDEX "deleted_attachment_media_createdAt_idx" on "deleted_attachment_media" ("createdAt");
+CREATE INDEX "deleted_attachment_media_actorId_idx" on "deleted_attachment_media" ("actorId");

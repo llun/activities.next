@@ -1,3 +1,4 @@
+import { DELETED_ATTACHMENT_MEDIA_TTL_MS } from '@/lib/database/domains/media/types'
 import { createQueueJob } from '@/lib/database/domains/queueJob/queries'
 import { searchQueries } from '@/lib/database/domains/search/queries'
 import { normalizeHashtagSearchName } from '@/lib/database/domains/search/rows'
@@ -15,10 +16,11 @@ import {
   decreaseCounterValue,
   deleteCounterValues
 } from '@/lib/database/kysely/counter'
-import { forUpdate } from '@/lib/database/kysely/dialect'
+import { forUpdate, timestampValue } from '@/lib/database/kysely/dialect'
 import {
   chunkArray,
   getWhereInBatchSize,
+  insertInChunks,
   selectInChunks
 } from '@/lib/database/kysely/inList'
 import { PUBLIC_ACTIVITY_RECIPIENTS } from '@/lib/database/kysely/visibility/potentiallyReadable'
@@ -560,6 +562,59 @@ const executeStatusDeletion = async ({
   await deleteByStatusIds((chunk) =>
     trx.deleteFrom('tags').where('statusId', 'in', chunk).execute()
   )
+  // Preserve a 7-day attachmentId -> mediaId mapping for attachments owned by
+  // the deleted status's author so Mastodon delete-and-redraft can re-attach
+  // the surviving media rows, and prune expired mappings in the same pass.
+  const authorByStatusId = new Map(
+    statusesToDelete.map((status) => [status.id, status.actorId])
+  )
+  await deleteByStatusIds(async (chunk) => {
+    const attachmentRows = await trx
+      .selectFrom('attachments')
+      .select(['id', 'statusId', 'actorId', 'mediaId'])
+      .where('statusId', 'in', chunk)
+      .where('mediaId', 'is not', null)
+      .where('actorId', 'is not', null)
+      .execute()
+    const mappings = attachmentRows.flatMap((row) => {
+      if (
+        row.mediaId === null ||
+        row.actorId === null ||
+        row.statusId === null
+      ) {
+        return []
+      }
+      const statusAuthorId = authorByStatusId.get(row.statusId)
+      if (!statusAuthorId || row.actorId !== statusAuthorId) {
+        return []
+      }
+      return [
+        {
+          attachmentId: row.id,
+          actorId: row.actorId,
+          mediaId: row.mediaId,
+          createdAt: currentTime
+        }
+      ]
+    })
+    await insertInChunks(trx, mappings, (rowsChunk) =>
+      trx
+        .insertInto('deleted_attachment_media')
+        .values(rowsChunk)
+        .onConflict((oc) => oc.column('attachmentId').doNothing())
+        .execute()
+    )
+  })
+  await trx
+    .deleteFrom('deleted_attachment_media')
+    .where(
+      'createdAt',
+      '<',
+      timestampValue(
+        new Date(currentTime.getTime() - DELETED_ATTACHMENT_MEDIA_TTL_MS)
+      )
+    )
+    .execute()
   await deleteByStatusIds((chunk) =>
     trx.deleteFrom('attachments').where('statusId', 'in', chunk).execute()
   )

@@ -383,6 +383,13 @@ export interface DeadLetterJobs {
   updated_at: WithDefault<Nullable<Timestamp>>
 }
 
+export interface DeletedAttachmentMedia {
+  actorId: string
+  attachmentId: string
+  createdAt: WithDefault<Timestamp>
+  mediaId: number
+}
+
 export interface DirectConversationMemberships {
   actorId: string
   conversationId: string
@@ -1520,6 +1527,7 @@ export interface DB {
   counters: Counters
   customEmojis: CustomEmojis
   dead_letter_jobs: DeadLetterJobs
+  deleted_attachment_media: DeletedAttachmentMedia
   direct_conversation_memberships: DirectConversationMemberships
   direct_conversation_participants: DirectConversationParticipants
   direct_conversation_statuses: DirectConversationStatuses

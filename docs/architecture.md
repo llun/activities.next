@@ -1174,9 +1174,9 @@ Reports unhandled browser errors and chunk-load failures to server logs. The roo
          │ follows  │ │ likes  │ │attachments │ │ tags  │ │timelines │
          └──────────┘ └────────┘ └────────────┘ └───────┘ └──────────┘
 
-Other tables: sessions, notifications, medias, gallery_gears,
-              gallery_settings, gallery_lookup_cache, gallery_albums,
-              gallery_album_items, fitness_files,
+Other tables: sessions, notifications, medias, deleted_attachment_media,
+              gallery_gears, gallery_settings, gallery_lookup_cache,
+              gallery_albums, gallery_album_items, fitness_files,
               fitness_settings, strava_archive_imports,
               wahoo_imports, wahoo_history_imports,
               fitness_route_heatmaps, fitness_route_heatmap_region_names,

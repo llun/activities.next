@@ -679,6 +679,7 @@ export type {
 // Media Database
 // ============================================================================
 
+export { DELETED_ATTACHMENT_MEDIA_TTL_MS } from '@/lib/database/domains/media/types'
 export type {
   AttachmentWithMedia,
   CreateAttachmentParams,
@@ -691,6 +692,7 @@ export type {
   GetAttachmentsForActorParams,
   GetAttachmentsParams,
   GetAttachmentsWithMediaParams,
+  GetDeletedAttachmentMediaIdsParams,
   GetMediaByIdParams,
   GetMediaByIdsForAccountParams,
   GetMediaWithAttachedStatusIdsParams,

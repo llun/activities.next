@@ -12,6 +12,7 @@ import {
   IdempotencyInProgressError,
   StatusPublishFailedError
 } from '@/lib/database/domains/idempotency/types'
+import { toMediaRowId } from '@/lib/database/domains/media/rows'
 import { Database } from '@/lib/database/types'
 import { PUBLISH_SCHEDULED_STATUS_JOB_NAME } from '@/lib/jobs/names'
 import { movedAccountResponse } from '@/lib/services/accounts/movedAccount'
@@ -44,7 +45,10 @@ import {
 import { validateStatusContentLimits } from '@/lib/services/statuses/contentLimits'
 import { expectedActorMismatchResponse } from '@/lib/services/statuses/expectedActorMismatch'
 import { getReadableStatusForAction } from '@/lib/services/statuses/getReadableStatusForAction'
-import { getAttachmentsFromMediaIds } from '@/lib/services/statuses/mediaIds'
+import {
+  getAttachmentsFromMediaIds,
+  toCanonicalMediaId
+} from '@/lib/services/statuses/mediaIds'
 import { parseStatusRequestBody } from '@/lib/services/statuses/parseStatusRequestBody'
 import {
   buildScheduledParams,
@@ -173,11 +177,28 @@ const resolveStatusMedia = async (
   mediaIds: string[],
   hasFitnessFile: boolean
 ): Promise<PostBoxAttachment[] | null> => {
-  const uniqueIds = [...new Set(mediaIds)]
-  if (uniqueIds.length > getMaxStatusMediaAttachments(hasFitnessFile)) {
-    return null
-  }
-  return getAttachmentsFromMediaIds(database, currentActor, uniqueIds)
+  const maxAttachments = getMaxStatusMediaAttachments(hasFitnessFile)
+  // A media can arrive twice (its attachment uuid and its row id), so more
+  // than twice the cap of distinct ids is over it whatever they resolve to;
+  // refuse before looking any of them up.
+  if (new Set(mediaIds).size > maxAttachments * 2) return null
+  const nonRowIds = [
+    ...new Set(mediaIds.filter((id) => toMediaRowId(id) === null))
+  ]
+  const deletedMediaIds =
+    nonRowIds.length > 0
+      ? await database.getDeletedAttachmentMediaIds({
+          actorId: currentActor.id,
+          attachmentIds: nonRowIds
+        })
+      : new Map<string, string>()
+  const resolvedIds = [
+    ...new Set(
+      mediaIds.map((id) => toCanonicalMediaId(deletedMediaIds.get(id) ?? id))
+    )
+  ]
+  if (resolvedIds.length > maxAttachments) return null
+  return getAttachmentsFromMediaIds(database, currentActor, resolvedIds)
 }
 
 // GET /api/v1/statuses?id[]=1&id[]=2 — batch-fetch multiple statuses at once.
@@ -382,10 +403,13 @@ export const POST = traceApiRoute(
             })
           }
 
+          let scheduledMediaIds = note.media_ids
           if (!note.poll) {
             // Validate media up front so a scheduled status never references
             // media that is missing or over the cap (same rules as an immediate
-            // post). The resolved attachments are rebuilt from params at publish.
+            // post). Store the resolved media row ids in params so redrafted
+            // attachment UUIDs hydrate immediately and publish even after the
+            // 7-day redraft mapping expires.
             // A scheduled status never carries a fitness file (refused above).
             const attachments = await resolveStatusMedia(
               database,
@@ -401,6 +425,7 @@ export const POST = traceApiRoute(
                 responseStatusCode: 422
               })
             }
+            scheduledMediaIds = attachments.map((attachment) => attachment.id)
           }
 
           // A scheduled reply is authorized now exactly as an immediate one is
@@ -448,9 +473,13 @@ export const POST = traceApiRoute(
             // publicIds. The publish job maps it back through
             // resolveStatusIdParam.
             params: buildScheduledParams(
-              replyStatus
-                ? { ...note, in_reply_to_id: getClientStatusId(replyStatus) }
-                : note,
+              {
+                ...note,
+                media_ids: scheduledMediaIds,
+                ...(replyStatus
+                  ? { in_reply_to_id: getClientStatusId(replyStatus) }
+                  : {})
+              },
               idempotencyKey ?? null,
               defaultPrivacy,
               clientId ?? null
