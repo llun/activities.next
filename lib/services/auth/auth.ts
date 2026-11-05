@@ -197,7 +197,8 @@ const buildKnownEndpointPathMatcher = (
 const PASSWORD_CHALLENGE_PATHS = new Set([
   '/two-factor/enable',
   '/two-factor/disable',
-  '/two-factor/get-totp-uri'
+  '/two-factor/get-totp-uri',
+  '/two-factor/generate-backup-codes'
 ])
 
 const tooManyRequests = (retryAfterSeconds: number) => {
@@ -213,7 +214,9 @@ const signInEmailRateLimitHook = createAuthMiddleware(async (ctx) => {
   if (PASSWORD_CHALLENGE_PATHS.has(ctx.path)) {
     // The user id is the account id (`account.fields.userId: 'accountId'`), the
     // key the app's own password routes use.
-    const session = await getSessionFromCtx(ctx, { disableRefresh: true })
+    // A normal lookup (refresh included): the endpoint reuses this session, so
+    // it must be the one its own middleware would have read.
+    const session = await getSessionFromCtx(ctx)
     if (!session) return
     const result = checkPasswordChangeRateLimit(session.user.id)
     if (!result.allowed) throw tooManyRequests(result.retryAfterSeconds)

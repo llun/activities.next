@@ -253,7 +253,7 @@ describe('createWindowCounter', () => {
     })
   })
 
-  it('with refuseWhenAllProtected false, evicts the oldest protected key instead of refusing', () => {
+  it('with refuseWhenAllProtected false, evicts the protected key with the fewest hits instead of refusing', () => {
     const counter = createWindowCounter({
       limit: 3,
       windowMs: 60_000,
@@ -261,11 +261,15 @@ describe('createWindowCounter', () => {
       protectCountsFrom: 2,
       refuseWhenAllProtected: () => false
     })
-    counter.consume('a')
-    counter.consume('a')
+    // "guessed" is older and at its limit; "b" has two hits.
+    counter.consume('guessed')
+    counter.consume('guessed')
+    counter.consume('guessed')
     counter.consume('b')
     counter.consume('b')
     expect(counter.consume('c')).toEqual({ allowed: true })
+    // "b" went, so "guessed" is still limited.
+    expect(counter.consume('guessed')).toMatchObject({ allowed: false })
   })
 
   it('with protectCountsFrom, refuses a new key once every held key is protected, until a window expires', () => {

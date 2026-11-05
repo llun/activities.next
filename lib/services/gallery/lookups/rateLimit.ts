@@ -135,7 +135,7 @@ export interface WindowCounterOptions {
   // expires. Unset, any key may be evicted.
   protectCountsFrom?: number
   // With protectCountsFrom: whether a full map of protected keys refuses new
-  // keys (true, the default) or evicts the oldest one anyway (false). Read on
+  // keys (true, the default) or evicts the one with the fewest hits (false). Read on
   // each overflow, so it can follow runtime config.
   refuseWhenAllProtected?: boolean | (() => boolean)
 }
@@ -200,8 +200,17 @@ export const createWindowCounter = ({
           ? refuseWhenAllProtected()
           : refuseWhenAllProtected
       if (windows.size >= maxKeys && !refuse) {
-        const oldest = windows.keys().next().value
-        if (oldest !== undefined) windows.delete(oldest)
+        // The key with the fewest hits goes, so the one under the heaviest
+        // guessing is the last a flood can flush.
+        let lowest: string | undefined
+        let lowestCount = Number.POSITIVE_INFINITY
+        for (const [other, window] of windows) {
+          if (window.count < lowestCount) {
+            lowest = other
+            lowestCount = window.count
+          }
+        }
+        if (lowest !== undefined) windows.delete(lowest)
       }
       if (windows.size >= maxKeys) {
         let soonest = Number.POSITIVE_INFINITY
