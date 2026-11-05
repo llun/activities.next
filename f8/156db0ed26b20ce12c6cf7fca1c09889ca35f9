@@ -1,0 +1,24 @@
+lib/services/gallery/galleryQueries.test.ts
+  s_2b1a50e2f9b981::t_5a913a60c55b5b 1586
+  s_2b1a50e2f9b981::t_3a89879d95ccf0 1769-1788
+docs/architecture.md
+  s_2b1a50e2f9b981::t_5a913a60c55b5b 329
+lib/services/gallery/galleryQueries.ts
+  s_2b1a50e2f9b981::t_5a913a60c55b5b 65-66
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f8156db0ed26b20ce12c6cf7fca1c09889ca35f9",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
