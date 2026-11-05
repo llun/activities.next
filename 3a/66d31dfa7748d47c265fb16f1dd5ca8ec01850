@@ -1,0 +1,48 @@
+lib/database/domains/status/types.ts
+  s_2b1a50e2f9b981::t_388c4dd55baea4 295-297,299-301
+lib/services/polls/pollChoices.test.ts
+  s_2b1a50e2f9b981::t_edb08b59c85c67 5-9,56,59-60,65-66,72-73,77-80,90-93,97-138,143-145
+  s_2b1a50e2f9b981::t_708374248b49ba 94-96,139-142
+lib/database/domains/status/statusWriteQueries.test.ts
+  s_2b1a50e2f9b981::t_1390852121aa63 471-474,2715,2734-2738,2785,2887
+lib/services/polls/pollChoices.ts
+  s_2b1a50e2f9b981::t_e466563a9889f2 8-16,22-25,31,34,37-52,56-59,66
+lib/services/polls/syncRemotePoll.test.ts
+  s_2b1a50e2f9b981::t_edb08b59c85c67 198-225
+lib/types/activitypub/objects.ts
+  s_2b1a50e2f9b981::t_388c4dd55baea4 223-224,226
+docs/mastodon-api-compatibility.md
+  s_2b1a50e2f9b981::t_708374248b49ba 2068-2099
+lib/jobs/updatePollJob.ts
+  s_2b1a50e2f9b981::t_985e8c554ec650 2-6,67-77,81-91,101-104,111-115,122-131
+  s_2b1a50e2f9b981::t_c077ef461e58e3 78-80
+lib/database/domains/status/hydration.ts
+  s_2b1a50e2f9b981::t_388c4dd55baea4 846
+lib/database/domains/status/edits.ts
+  s_2b1a50e2f9b981::t_708374248b49ba 602-603
+  s_2b1a50e2f9b981::t_388c4dd55baea4 548,573-574,600-601,606-611,629-630,637,673-678,682
+lib/services/polls/syncRemotePoll.ts
+  s_2b1a50e2f9b981::t_388c4dd55baea4 16-19,105-108,113
+lib/types/domain/status.ts
+  s_2b1a50e2f9b981::t_388c4dd55baea4 199-202
+lib/jobs/updatePollJob.test.ts
+  s_2b1a50e2f9b981::t_edb08b59c85c67 42-45,57-58,90-91,396-397,400-401,415,484-492,496-510,514-536,540-559,563-566,598-628,632,637-673,678-710,714-715
+  s_2b1a50e2f9b981::t_708374248b49ba 493-495,511-513,537-539,560-562,629-631,633-636,674-677,711-713
+  s_2b1a50e2f9b981::t_c077ef461e58e3 567-597
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3a66d31dfa7748d47c265fb16f1dd5ca8ec01850",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
