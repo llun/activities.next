@@ -101,7 +101,7 @@ export const MediaDetailsEntity = z.object({
       scientificName: z.string().nullable(),
       category: z.enum(MEDIA_SUBJECT_CATEGORIES).nullable(),
       taxonKey: z.string().nullable(),
-      // GBIF rank, upper case; null until the lookup resolved the taxon.
+      // GBIF rank, upper case; null unless the lookup resolved and confirmed a taxon.
       taxonRank: z.string().nullable().optional(),
       // Kingdom to family names, once the lookup resolved the taxon.
       taxonPath: z.array(z.string()).nullable(),
