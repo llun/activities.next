@@ -398,6 +398,9 @@ describe('runBackfill', () => {
       MAX_CONSECUTIVE_OUTAGES * 2
     )
     expect(summary.gaveUp).toEqual(['Nominatim'])
+    // Photo 9 still needs its place and was never asked, so the reported
+    // resume point stops before it, and the scan ends there.
+    expect(summary.lastIdExamined).toBe(8)
     // The subject lookups still ran.
     expect(resolveMediaSubjectJob).toHaveBeenCalledTimes(2)
     expect(log).toHaveBeenCalledWith(

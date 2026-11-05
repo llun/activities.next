@@ -455,7 +455,7 @@ NODE_ENV=production ./scripts/maintenance/backfillGalleryLookups.ts \
   --limit 200 --after-id 0
 ```
 
-Use the reported last id examined as the next `--after-id`, so permanently ambiguous subjects cannot consume every bounded rerun. Broad names and unavailable providers may remain unconfirmed. Apply the schema first and replace all old app and worker processes before writing ranks or backfilling: older writers do not clear rank when identity changes. Re-lookup can refresh IUCN and therefore affect place visibility under the existing privacy rule.
+Use the reported last id examined as the next `--after-id`, so permanently ambiguous subjects cannot consume every bounded rerun. When a provider is given up mid-run, the reported id stays before the first photo that still needed it, and a run that has nothing left to ask stops there, so resuming never skips a photo that was not looked up. Broad names and unavailable providers may remain unconfirmed. Apply the schema first and replace all old app and worker processes before writing ranks or backfilling: older writers do not clear rank when identity changes. Re-lookup can refresh IUCN and therefore affect place visibility under the existing privacy rule.
 
 ### Options
 

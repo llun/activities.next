@@ -367,6 +367,8 @@ export const runBackfill = async ({
 
   let afterId = options.afterId ?? 0
   let done = false
+  // The first row skipped because its provider was given up, if any.
+  let resumeBefore: number | undefined
   while (!done) {
     const rows = await selectCandidates({ db, options, afterId })
     if (rows.length === 0) break
@@ -377,17 +379,27 @@ export const runBackfill = async ({
         done = true
         break
       }
-      afterId = Number(row.id)
-      summary.lastIdExamined = afterId
-      // A provider given up on (see runLookup) is not asked again this run.
-      const wantsPlace =
-        options.only !== 'subjects' &&
-        needsPlaceLookup(row) &&
-        !hasGivenUp('Nominatim')
-      const wantsSubject =
+      const needsPlace = options.only !== 'subjects' && needsPlaceLookup(row)
+      const needsSubject =
         options.only !== 'places' &&
-        needsSubjectLookup(row, options.missingSubjectRanks) &&
-        !hasGivenUp('GBIF')
+        needsSubjectLookup(row, options.missingSubjectRanks)
+      // A provider given up on (see runLookup) is not asked again this run.
+      const wantsPlace = needsPlace && !hasGivenUp('Nominatim')
+      const wantsSubject = needsSubject && !hasGivenUp('GBIF')
+      const skipsGivenUp =
+        (needsPlace && !wantsPlace) || (needsSubject && !wantsSubject)
+      if (skipsGivenUp && !wantsPlace && !wantsSubject) {
+        // Nothing left this run can do for this row or, once every provider
+        // it needs is given up, for the rows after it: stop here so the
+        // reported last id never passes a row that was not attempted.
+        done = true
+        break
+      }
+      afterId = Number(row.id)
+      // A row skipped for a given-up provider must be visited again, so the
+      // resume point stays before the first one.
+      if (skipsGivenUp) resumeBefore ??= afterId
+      if (resumeBefore === undefined) summary.lastIdExamined = afterId
       if (!wantsPlace && !wantsSubject) continue
 
       summary.mediaSeen++
