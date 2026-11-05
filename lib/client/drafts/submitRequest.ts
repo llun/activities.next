@@ -86,6 +86,7 @@ export const uploadedDraftAttachment = (
   posterUrl: item.posterUrl,
   width: item.width ?? 0,
   height: item.height ?? 0,
+  ...(item.pages ? { pages: item.pages } : {}),
   name: item.description
 })
 

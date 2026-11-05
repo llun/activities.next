@@ -282,6 +282,7 @@ export const toDraftAttachment = (
     fileName: fileName ?? attachment.file?.name ?? attachment.name ?? '',
     width: attachment.width,
     height: attachment.height,
+    ...(attachment.pages ? { pages: attachment.pages } : {}),
     url: attachment.url.startsWith('blob:') ? undefined : attachment.url,
     posterUrl: attachment.posterUrl?.startsWith('blob:')
       ? undefined

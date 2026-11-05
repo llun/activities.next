@@ -128,6 +128,12 @@ describe('uploadedDraftAttachment', () => {
     })
   })
 
+  it('keeps the frame count of an animated upload', () => {
+    expect(
+      uploadedDraftAttachment({ ...uploaded({ pages: 2 }), mediaId: 'media-1' })
+    ).toMatchObject({ pages: 2 })
+  })
+
   it('defaults a missing url and size', () => {
     const item = uploadedDraftAttachment({
       ...uploaded({ url: undefined, width: undefined, height: undefined }),

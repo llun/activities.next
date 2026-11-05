@@ -56,6 +56,10 @@ export const getComposerPrefillAttachments = async ({
         url: getMediaFileUrl(host, media.original.path),
         width: media.original.metaData.width ?? 0,
         height: media.original.metaData.height ?? 0,
+        // Lets the composer hide the Edit pill on an animated image.
+        ...(media.original.metaData.pages && media.original.metaData.pages > 1
+          ? { pages: media.original.metaData.pages }
+          : {}),
         ...(media.thumbnail
           ? { posterUrl: getMediaFileUrl(host, media.thumbnail.path) }
           : {}),

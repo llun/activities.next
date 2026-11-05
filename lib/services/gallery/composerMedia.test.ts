@@ -48,7 +48,12 @@ describe('getComposerPrefillAttachments', () => {
     const createMedia = async (
       name: string,
       actorId: string,
-      extra: { description?: string; pending?: boolean; poster?: boolean } = {}
+      extra: {
+        description?: string
+        pending?: boolean
+        poster?: boolean
+        pages?: number
+      } = {}
     ) => {
       const media = await database.createMedia({
         actorId,
@@ -59,7 +64,8 @@ describe('getComposerPrefillAttachments', () => {
           metaData: {
             width: 640,
             height: 480,
-            ...(extra.pending ? { upload: { state: 'pending' } } : {})
+            ...(extra.pending ? { upload: { state: 'pending' } } : {}),
+            ...(extra.pages ? { pages: extra.pages } : {})
           } as never
         },
         ...(extra.poster
@@ -85,6 +91,7 @@ describe('getComposerPrefillAttachments', () => {
       await createMedia('poster', ownerId, { poster: true })
       await createMedia('theirs', otherId)
       await createMedia('pending', ownerId, { pending: true })
+      await createMedia('animated', ownerId, { pages: 3 })
       const posted = await createMedia('posted', ownerId)
       await database.createAttachment({
         actorId: ownerId,
@@ -120,6 +127,21 @@ describe('getComposerPrefillAttachments', () => {
       })
       expect(result[0].url).toContain('composer-mine.jpg')
       expect(result[1]).not.toHaveProperty('name')
+    })
+
+    it('carries the frame count of an animated upload', async () => {
+      const [animated] = await getComposerPrefillAttachments({
+        database,
+        actorId: ownerId,
+        mediaIds: [ids.animated]
+      })
+      expect(animated).toMatchObject({ id: ids.animated, pages: 3 })
+      const [still] = await getComposerPrefillAttachments({
+        database,
+        actorId: ownerId,
+        mediaIds: [ids.bare]
+      })
+      expect(still).not.toHaveProperty('pages')
     })
 
     it('carries the poster of a video-like upload', async () => {
