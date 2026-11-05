@@ -7,12 +7,7 @@ import {
 import { AppRouterParams } from '@/lib/services/guards/types'
 import { isStatusPubliclyReadable } from '@/lib/services/statusAccess'
 import { getMention } from '@/lib/types/domain/actor'
-import {
-  StatusNote,
-  StatusPoll,
-  StatusType,
-  toActivityPubObject
-} from '@/lib/types/domain/status'
+import { StatusNote, StatusPoll, StatusType } from '@/lib/types/domain/status'
 import {
   activityPubRedirectResponse,
   activityPubResponse,
@@ -20,6 +15,7 @@ import {
 } from '@/lib/utils/activityPubContentNegotiation'
 import { getStatusDetailPath } from '@/lib/utils/getStatusDetailPath'
 import { apiErrorResponse } from '@/lib/utils/response'
+import { toActivityPubObject } from '@/lib/utils/toActivityPubObject'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 type StatusParams = OnlyLocalUserGuardHandle & {

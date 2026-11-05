@@ -1,13 +1,10 @@
 import { compactActivityPub } from '@/lib/activities/jsonld'
 import { BaseNoteSchema } from '@/lib/activities/note'
 import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
-import {
-  type Status,
-  fromNote,
-  toActivityPubObject
-} from '@/lib/types/domain/status'
+import { type Status, fromNote } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
+import { toActivityPubObject } from '@/lib/utils/toActivityPubObject'
 
 const ACTOR_ID = 'https://llun.test/users/me'
 const STATUS_ID = `${ACTOR_ID}/statuses/1`
@@ -18,6 +15,7 @@ const baseStatus = (overrides: Record<string, unknown> = {}): Status =>
     id: STATUS_ID,
     type: 'Note',
     actorId: ACTOR_ID,
+    actor: null,
     url: 'https://llun.test/@me/1',
     text: 'hello',
     summary: null,
@@ -28,6 +26,10 @@ const baseStatus = (overrides: Record<string, unknown> = {}): Status =>
     tags: [],
     replies: [],
     edits: [],
+    isLocalActor: true,
+    actorAnnounceStatusId: null,
+    isActorLiked: false,
+    isActorBookmarked: false,
     totalLikes: 0,
     totalShares: 0,
     createdAt: 1700000000000,
@@ -325,5 +327,60 @@ describe('getNoteFromStatus attachments', () => {
     )
     expect(attachmentUrls(note)).toEqual(photoUrls)
     expect((note as Record<string, unknown>).updated).toBeDefined()
+  })
+})
+
+describe('wire content parity across delivery and fetch', () => {
+  it('emits identical rendered HTML content and contentMap for a local Markdown status', () => {
+    const status = baseStatus({
+      text: 'Read **bold** and [docs](https://example.com/docs)',
+      language: 'en',
+      isLocalActor: true,
+      quote: {
+        quotedStatusId: 'https://remote.example/users/peer/statuses/9',
+        state: 'accepted'
+      }
+    })
+    const delivered = getNoteFromStatus(status)!
+    const fetched = toActivityPubObject(status)
+
+    expect(fetched.content).toContain('<strong>bold</strong>')
+    expect(fetched.content).toContain('<a href="https://example.com/docs"')
+    expect(fetched.content).toContain('quote-inline')
+    expect(fetched.content).toBe(delivered.content)
+    expect(fetched.contentMap).toEqual({ en: fetched.content })
+    expect(fetched.contentMap).toEqual(delivered.contentMap)
+  })
+
+  it('keeps stored HTML unchanged for a remote reply embedded in replies', () => {
+    const remoteHtml = '<span>Remote **literal** #topic</span>'
+    const remoteReply = baseStatus({
+      id: 'https://remote.example/users/peer/statuses/reply-1',
+      actorId: 'https://remote.example/users/peer',
+      url: 'https://remote.example/@peer/reply-1',
+      text: remoteHtml,
+      language: 'en',
+      isLocalActor: false,
+      reply: STATUS_ID
+    })
+    const parent = baseStatus({
+      replies: [remoteReply]
+    })
+
+    const deliveredReplies = (
+      getNoteFromStatus(parent)?.replies as {
+        items: Array<{ content: string; contentMap?: Record<string, string> }>
+      }
+    ).items
+    const fetchedReplies = (
+      toActivityPubObject(parent).replies as {
+        items: Array<{ content: string; contentMap?: Record<string, string> }>
+      }
+    ).items
+
+    expect(deliveredReplies[0].content).toBe(remoteHtml)
+    expect(deliveredReplies[0].contentMap).toEqual({ en: remoteHtml })
+    expect(fetchedReplies[0].content).toBe(remoteHtml)
+    expect(fetchedReplies[0].contentMap).toEqual({ en: remoteHtml })
   })
 })

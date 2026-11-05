@@ -1,11 +1,9 @@
 import { getLanguageMapFields } from '@/lib/activities/languageMapFields'
 import { getPollQuestion } from '@/lib/activities/pollQuestion'
 import {
-  addQuoteFallbackToContent,
   getInteractionPolicyFields,
   getQuoteNoteFields
 } from '@/lib/activities/quoteNoteFields'
-import { getConfig } from '@/lib/config'
 import { Note, Question } from '@/lib/types/activitypub'
 import {
   getDocumentFromAttachment,
@@ -19,7 +17,8 @@ import {
 } from '@/lib/types/domain/status'
 import { getEmojiFromTag, getMentionFromTag } from '@/lib/types/domain/tag'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
-import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
+
+import { getStatusWireContent } from './getStatusWireContent'
 
 interface GetNoteFromStatusOptions {
   includeUpdated?: boolean
@@ -37,7 +36,7 @@ export const getNoteFromStatus = (
     return getPollQuestion(actualStatus, {
       ...options,
       includeUpdated,
-      content: convertMarkdownText(getConfig().host)(actualStatus.text),
+      content: getStatusWireContent(actualStatus),
       replies: actualStatus.replies.map((reply) =>
         getNoteFromStatus(Status.parse(reply))
       )
@@ -48,10 +47,7 @@ export const getNoteFromStatus = (
   // a delivered note and a fetched one describe the same quote. Always advertise
   // who may quote THIS status via interactionPolicy.
   const quoteFields = getQuoteNoteFields(actualStatus.quote)
-  const content = addQuoteFallbackToContent(
-    convertMarkdownText(getConfig().host)(actualStatus.text),
-    actualStatus.quote
-  )
+  const content = getStatusWireContent(actualStatus)
 
   return Note.parse({
     id: actualStatus.id,

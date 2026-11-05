@@ -2,7 +2,6 @@ import identity from 'lodash/identity'
 import { z } from 'zod'
 
 import { AnnounceStatus } from '@/lib/activities/announceStatus'
-import { getLanguageMapFields } from '@/lib/activities/languageMapFields'
 import {
   BaseNote,
   getAttachments,
@@ -12,25 +11,13 @@ import {
   getStatusUrl,
   getSummary
 } from '@/lib/activities/note'
-import { getPollQuestion } from '@/lib/activities/pollQuestion'
-import {
-  addQuoteFallbackToContent,
-  getInteractionPolicyFields,
-  getQuoteNoteFields
-} from '@/lib/activities/quoteNoteFields'
 import type { Announce as ActivityPubAnnounce } from '@/lib/types/activitypub/activities'
-import { Note, Question } from '@/lib/types/activitypub/objects'
 import { ActorProfile } from '@/lib/types/domain/actor'
-import {
-  Attachment,
-  getDocumentFromAttachment,
-  isFitnessAttachment
-} from '@/lib/types/domain/attachment'
+import { Attachment } from '@/lib/types/domain/attachment'
 import { PollChoice } from '@/lib/types/domain/pollChoice'
 import { StatusFitnessFile } from '@/lib/types/domain/statusFitnessFile'
-import { Tag, getEmojiFromTag, getMentionFromTag } from '@/lib/types/domain/tag'
+import { Tag } from '@/lib/types/domain/tag'
 import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
-import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { isHttpUrl } from '@/lib/utils/isHttpUrl'
 
 export { StatusFitnessFile }
@@ -410,78 +397,5 @@ export const fromAnnounce = (
       return Number.isNaN(publishedTime) ? currentTime : publishedTime
     })(),
     updatedAt: currentTime
-  })
-}
-
-export const toActivityPubObject = (status: Status): Note | Question => {
-  const originalStatus = getOriginalStatus(status)
-  if (originalStatus.type === StatusType.enum.Poll) {
-    return getPollQuestion(originalStatus, {
-      includeUpdated: hasStatusBeenEdited(originalStatus),
-      replies: originalStatus.replies.map((reply) =>
-        toActivityPubObject(Status.parse(reply))
-      )
-    })
-  }
-
-  // Quote emission (FEP-044f), shared with `getNoteFromStatus` so a note a peer
-  // FETCHES (this route, the outbox, the replies collection) describes its quote
-  // exactly as one delivered to their inbox does. Every surface returning this
-  // object must declare QUOTE_ACTIVITY_CONTEXT or a receiver that compacts the
-  // document drops these terms.
-  const quoteFields = getQuoteNoteFields(originalStatus.quote)
-  const content = addQuoteFallbackToContent(
-    originalStatus.text,
-    originalStatus.quote
-  )
-  return Note.parse({
-    id: originalStatus.id,
-    type: originalStatus.type,
-    summary: originalStatus.summary || null,
-    url: originalStatus.url,
-    attributedTo: originalStatus.actorId,
-    to: originalStatus.to,
-    cc: originalStatus.cc,
-    inReplyTo: originalStatus.reply || null,
-    content,
-    ...getLanguageMapFields(originalStatus, content),
-    // Every non-fitness attachment, in stored order (outbox and the AP
-    // note/replies endpoints). Mirrors getNoteFromStatus so a fetched note
-    // carries the same media as a delivered one.
-    attachment: originalStatus.attachments
-      .filter((attachment) => !isFitnessAttachment(attachment))
-      .map((attachment) => getDocumentFromAttachment(attachment)),
-    tag: originalStatus.tags
-      .map((tag) => getMentionFromTag(tag) ?? getEmojiFromTag(tag))
-      .filter((tag) => tag !== null),
-    // Mirrors getNoteFromStatus so a fetched note hides the same media as a
-    // delivered one.
-    sensitive:
-      'sensitive' in originalStatus && Boolean(originalStatus.sensitive),
-    replies: {
-      id: `${originalStatus.id}/replies`,
-      type: 'Collection',
-      totalItems: originalStatus.replies.length,
-      items: originalStatus.replies.map((reply) =>
-        toActivityPubObject(Status.parse(reply))
-      )
-    },
-    likes: {
-      id: `${originalStatus.id}/likes`,
-      type: 'Collection',
-      totalItems: originalStatus.totalLikes
-    },
-    shares: {
-      id: `${originalStatus.id}/shares`,
-      type: 'Collection',
-      totalItems: originalStatus.totalShares
-    },
-    ...quoteFields,
-    ...getInteractionPolicyFields(originalStatus),
-
-    published: getISOTimeUTC(originalStatus.createdAt),
-    ...(hasStatusBeenEdited(originalStatus)
-      ? { updated: getISOTimeUTC(originalStatus.updatedAt) }
-      : null)
   })
 }

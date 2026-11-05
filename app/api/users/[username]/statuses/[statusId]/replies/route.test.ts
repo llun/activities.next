@@ -4,6 +4,7 @@ import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
 import { type Actor } from '@/lib/types/domain/actor'
 import { StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 import { generatePublicId } from '@/lib/utils/publicId'
 
 import { GET } from './route'
@@ -126,6 +127,68 @@ describe('GET /api/users/[username]/statuses/[statusId]/replies', () => {
         }
       ]
     })
+  })
+
+  it('renders local Markdown replies as HTML while keeping stored remote reply HTML unchanged', async () => {
+    const remoteHtml =
+      '<span>Remote **literal** #topic @peer@remote.example</span>'
+    const localReply = {
+      id: 'https://example.com/users/test/statuses/local-reply',
+      actorId: mockActor.id,
+      actor: null,
+      type: StatusType.enum.Note,
+      url: 'https://example.com/@test/local-reply',
+      text: 'Local **bold** and [docs](https://example.com/docs)',
+      language: 'en',
+      summary: null,
+      reply: 'https://example.com/users/test/statuses/123',
+      replies: [],
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      edits: [],
+      isLocalActor: true,
+      actorAnnounceStatusId: null,
+      isActorLiked: false,
+      isActorBookmarked: false,
+      totalLikes: 0,
+      totalShares: 0,
+      attachments: [],
+      tags: [],
+      createdAt: Date.UTC(2026, 0, 1),
+      updatedAt: Date.UTC(2026, 0, 1)
+    }
+    const remoteReply = {
+      ...localReply,
+      id: 'https://remote.example/users/peer/statuses/remote-reply',
+      actorId: 'https://remote.example/users/peer',
+      url: 'https://remote.example/@peer/remote-reply',
+      text: remoteHtml,
+      isLocalActor: false
+    }
+    mockDatabase.getStatusReplies.mockResolvedValue([localReply, remoteReply])
+    mockDatabase.getStatusRepliesCount.mockResolvedValue(2)
+
+    const response = await GET(
+      new NextRequest(
+        'https://example.com/api/users/test/statuses/123/replies',
+        { headers: { accept: 'application/activity+json' } }
+      ),
+      { params: Promise.resolve({ username: 'test', statusId: '123' }) }
+    )
+
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    const deliveredLocal = getNoteFromStatus(localReply)
+
+    expect(data.items[0].content).toContain('<strong>bold</strong>')
+    expect(data.items[0].content).toContain(
+      '<a href="https://example.com/docs"'
+    )
+    expect(data.items[0].content).toBe(deliveredLocal?.content)
+    expect(data.items[0].contentMap).toEqual(deliveredLocal?.contentMap)
+
+    expect(data.items[1].content).toBe(remoteHtml)
+    expect(data.items[1].contentMap).toEqual({ en: remoteHtml })
   })
 
   describe('publicId path segment', () => {

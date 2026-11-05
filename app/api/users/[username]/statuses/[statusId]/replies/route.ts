@@ -5,14 +5,10 @@ import {
 } from '@/lib/services/guards/OnlyLocalUserGuard'
 import { AppRouterParams } from '@/lib/services/guards/types'
 import { isStatusPubliclyReadable } from '@/lib/services/statusAccess'
-import {
-  StatusNote,
-  StatusPoll,
-  StatusType,
-  toActivityPubObject
-} from '@/lib/types/domain/status'
+import { StatusNote, StatusPoll, StatusType } from '@/lib/types/domain/status'
 import { activityPubResponse } from '@/lib/utils/activityPubContentNegotiation'
 import { apiErrorResponse } from '@/lib/utils/response'
+import { toActivityPubObject } from '@/lib/utils/toActivityPubObject'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 type StatusRepliesParams = OnlyLocalUserGuardHandle & {

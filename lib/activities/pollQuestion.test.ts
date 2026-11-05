@@ -1,6 +1,7 @@
 import { getPollQuestion } from '@/lib/activities/pollQuestion'
-import { StatusPoll, toActivityPubObject } from '@/lib/types/domain/status'
+import { StatusPoll } from '@/lib/types/domain/status'
 import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
+import { toActivityPubObject } from '@/lib/utils/toActivityPubObject'
 
 const now = Date.UTC(2026, 10, 4)
 const statusId = 'https://example.test/users/pollbot/statuses/1'
@@ -161,6 +162,22 @@ it('keeps fetch and delivery aligned and adds delivery audience and forced updat
       updated: new Date(now).toISOString()
     }
   )
+})
+
+it('renders local Markdown in Question content and contentMap identically on fetch and delivery', () => {
+  const status = poll({
+    text: 'Vote **bold** at [docs](https://example.com/docs)',
+    language: 'en',
+    isLocalActor: true
+  })
+  const delivered = getNoteFromStatus(status)!
+  const fetched = toActivityPubObject(status)
+
+  expect(fetched.content).toContain('<strong>bold</strong>')
+  expect(fetched.content).toContain('<a href="https://example.com/docs"')
+  expect(fetched.content).toBe(delivered.content)
+  expect(fetched.contentMap).toEqual({ en: fetched.content })
+  expect(fetched.contentMap).toEqual(delivered.contentMap)
 })
 
 it('preserves non-fitness media, sensitivity and quote fields on fetch and delivery', () => {

@@ -14,11 +14,11 @@ import {
   Status,
   StatusNote,
   StatusType,
-  fromNote,
-  toActivityPubObject
+  fromNote
 } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import { toActivityPubObject } from '@/lib/utils/toActivityPubObject'
 
 enableFetchMocks()
 
@@ -333,7 +333,7 @@ describe('Status', () => {
           attributedTo: status.actorId,
           to: [...status.to].sort(),
           cc: [...status.cc].sort(),
-          content: status.text,
+          content: '<p>This is Actor1 post</p>',
           attachment: [],
           tag: [],
           sensitive: false,
@@ -401,7 +401,7 @@ describe('Status', () => {
 
         expect(note).toMatchObject({
           id: statusId,
-          content: 'Edited ActivityPub object content',
+          content: '<p>Edited ActivityPub object content</p>',
           updated: getISOTimeUTC(status.updatedAt)
         })
       })
