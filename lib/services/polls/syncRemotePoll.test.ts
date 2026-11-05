@@ -254,6 +254,45 @@ describe('syncRemotePoll', () => {
     )
   })
 
+  it.each([
+    ['records a newer fetched updated', undefined, true],
+    [
+      'keeps a stored updated that is newer',
+      Date.parse('2026-09-02T00:00:00Z'),
+      false
+    ]
+  ])('%s', async (_name, storedUpdatedAt, expectRecorded) => {
+    ;(getNote as jest.Mock).mockResolvedValue({
+      '@context': 'https://www.w3.org/ns/activitystreams',
+      id: remotePollStatus.id,
+      type: 'Question',
+      attributedTo: remotePollStatus.actorId,
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: [],
+      content: '<p>Favorite color?</p>',
+      published: '2026-08-31T00:00:00Z',
+      updated: '2026-09-01T00:00:00Z',
+      oneOf: [
+        {
+          type: 'Note',
+          name: 'Red',
+          replies: { type: 'Collection', totalItems: 1 }
+        }
+      ]
+    })
+    ;(mockDatabase.updatePoll as jest.Mock).mockResolvedValue(remotePollStatus)
+
+    await syncRemotePoll({
+      database: mockDatabase,
+      status: { ...remotePollStatus, remoteUpdatedAt: storedUpdatedAt }
+    })
+
+    const params = (mockDatabase.updatePoll as jest.Mock).mock.calls.at(-1)?.[0]
+    expect(params.remoteUpdatedAt).toEqual(
+      expectRecorded ? Date.parse('2026-09-01T00:00:00Z') : undefined
+    )
+  })
+
   it('handles multiple-choice anyOf polls correctly', async () => {
     const remoteQuestion = {
       '@context': 'https://www.w3.org/ns/activitystreams',

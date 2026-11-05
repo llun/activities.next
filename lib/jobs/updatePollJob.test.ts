@@ -594,6 +594,36 @@ describe('updatePollJob', () => {
     expect(status.choices.map((choice) => choice.totalVotes)).toEqual([8, 9])
   })
 
+  it('treats an Update with the same updated as implicit: tallies only', async () => {
+    const pollId = `${REMOTE_ACTOR_ID}/questions/same-updated-implicit-${Date.now()}`
+    const updated = Date.now()
+    await createPollJob(database, {
+      id: 'id-same-implicit-create',
+      name: CREATE_POLL_JOB_NAME,
+      data: MockActivityPubQuestion(pollId, {
+        content: '<p>Stored</p>',
+        updated,
+        oneOf: [createOption('Red', 1), createOption('Blue', 2)]
+      })
+    })
+    await updatePollJob(database, {
+      id: 'id-same-implicit-update',
+      name: UPDATE_POLL_JOB_NAME,
+      data: MockActivityPubQuestion(pollId, {
+        content: '<p>Reserialized</p>',
+        updated,
+        oneOf: [createOption('Red', 3), createOption('Blue', 4)]
+      })
+    })
+
+    const status = (await database.getStatus({
+      statusId: pollId
+    })) as StatusPoll
+    expect(status.text).toEqual('<p>Stored</p>')
+    expect(status.choices.map((choice) => choice.totalVotes)).toEqual([3, 4])
+    expect(status.edits).toHaveLength(0)
+  })
+
   it('ignores an Update whose updated is older than the last applied one', async () => {
     const pollId = `${REMOTE_ACTOR_ID}/questions/stale-${Date.now()}`
     await createPollJob(database, {
@@ -771,7 +801,10 @@ describe('updatePollJob', () => {
     await createPollJob(database, {
       id: 'id-closed-twice-create',
       name: CREATE_POLL_JOB_NAME,
-      data: MockActivityPubQuestion(pollId, { endTime })
+      data: MockActivityPubQuestion(pollId, {
+        endTime,
+        updated: updated - 60_000
+      })
     })
 
     await updatePollJob(database, {

@@ -2076,8 +2076,10 @@ remote poll (`syncRemotePoll`) follow Mastodon's
   via `getPollFieldsFromQuestion`), so a poll first seen already edited is not
   reverted by that earlier edit arriving late. An Update whose
   `updated` is older is ignored (`already_updated_more_recently?`), logged at
-  info; one with the same `updated` still applies (a tally refresh).
-- **Implicit Updates.** An Update with no `updated` is a tally refresh, not an
+  info; one with the same `updated` is handled as implicit (below), since
+  `handle_explicit_update!` runs only for a strictly newer `updated`.
+- **Implicit Updates.** An Update with no `updated`, or the same `updated` as
+  the last applied one, is a tally refresh, not an
   edit (`handle_implicit_update!`, which never touches the text or spoiler, and
   `update_poll!` with `allow_significant_changes: false`): it applies the
   tallies, and only when the option set is unchanged — never the text or
@@ -2085,8 +2087,10 @@ remote poll (`syncRemotePoll`) follow Mastodon's
   the deadline alone too is this project's choice: Mastodon's implicit path
   does set `expires_at` unless the options changed significantly, but a
   deadline move records a revision here, which a tally refresh should never
-  do. `syncRemotePoll` (a fetch, not an Update) is a tally and deadline refresh
-  only and never resets votes.
+  do. `syncRemotePoll` (a fetch, not an Update) refreshes the text, summary,
+  tallies and deadline and never resets votes; it records the fetched
+  `updated` as `remoteUpdatedAt` when it is newer than the stored one, so a
+  late, older Update cannot revert what the fetch applied.
 - **Deadline.** A parseable string `closed` wins over `endTime`; any other
   truthy `closed` (a bare boolean, which the `Question` schema accepts) means
   the poll closed at processing time — unless the stored `endAt` has already

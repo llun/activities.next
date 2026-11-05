@@ -15,7 +15,8 @@ import { withSpan } from '@/lib/utils/trace'
 
 import {
   getPollChoicesFromQuestion,
-  getPollEndAtFromQuestion
+  getPollEndAtFromQuestion,
+  parseQuestionTime
 } from './pollChoices'
 
 const FAILURE_COOLDOWN_MS = 60 * 1000
@@ -102,7 +103,7 @@ const performPollSync = async ({
       return null
     }
 
-    // A fetch is a tally and deadline refresh only: an option without
+    // A fetch refreshes the text, summary, tallies and deadline: an option without
     // `replies` keeps its stored tally, and updatePoll writes a tally only
     // where the title at that position still matches, so a changed option set
     // never resets votes here (that is updatePollJob's job, on an Update).
@@ -111,6 +112,16 @@ const performPollSync = async ({
     const text = getContent(question)
     const summary = getSummary(question)
     const endAt = getPollEndAtFromQuestion(question, status.endAt)
+    // The fetched document is the origin's latest, so record its `updated`
+    // (never moving the stored one back): a late, older Update must not revert
+    // what this fetch applied.
+    const fetchedUpdatedAt = parseQuestionTime(question.updated)
+    const remoteUpdatedAt =
+      fetchedUpdatedAt !== undefined &&
+      (status.remoteUpdatedAt === undefined ||
+        fetchedUpdatedAt > status.remoteUpdatedAt)
+        ? fetchedUpdatedAt
+        : undefined
 
     const updated = await database.updatePoll({
       // The id-match guard above already proves these are the same poll; using
@@ -120,7 +131,8 @@ const performPollSync = async ({
       summary,
       text,
       choices,
-      ...(endAt !== undefined ? { endAt } : {})
+      ...(endAt !== undefined ? { endAt } : {}),
+      ...(remoteUpdatedAt !== undefined ? { remoteUpdatedAt } : {})
     })
 
     failedPollSyncsAt.delete(status.id)

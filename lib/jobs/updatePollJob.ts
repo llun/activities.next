@@ -76,8 +76,9 @@ export const updatePollJob = createJobHandle(
     if (
       remoteUpdatedAt !== undefined &&
       existingStatus.remoteUpdatedAt !== undefined &&
-      // Strictly older only, as Mastodon's already_updated_more_recently?: an
-      // Update with the same `updated` (a tally refresh) still applies.
+      // Strictly older only, as Mastodon's already_updated_more_recently?; an
+      // Update with the same `updated` is a tally refresh, handled as implicit
+      // below.
       remoteUpdatedAt < existingStatus.remoteUpdatedAt
     ) {
       logger.info({
@@ -88,7 +89,11 @@ export const updatePollJob = createJobHandle(
       })
       return
     }
-    const implicit = remoteUpdatedAt === undefined
+    // Explicit only when strictly newer, as ProcessStatusUpdateService picks
+    // handle_explicit_update! for `edited_at > @status.edited_at`.
+    const implicit =
+      remoteUpdatedAt === undefined ||
+      remoteUpdatedAt === existingStatus.remoteUpdatedAt
 
     const text = getContent(question)
     const summary = getSummary(question)
