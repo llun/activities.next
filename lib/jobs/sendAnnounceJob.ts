@@ -1,10 +1,11 @@
 import { z } from 'zod'
 
-import { sendAnnounce } from '@/lib/activities'
+import { buildAnnounceActivity } from '@/lib/activities'
 import { createJobHandle } from '@/lib/jobs/createJobHandle'
 import { loadStatusAndActor } from '@/lib/jobs/loadStatusAndActor'
 import { SEND_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
 import { filterFederatedUrls } from '@/lib/services/federation/domainPolicy'
+import { enqueueDeliveries } from '@/lib/services/federation/enqueueDeliveries'
 import { JobHandle } from '@/lib/services/queue/type'
 import { withSpan } from '@/lib/utils/trace'
 
@@ -27,15 +28,26 @@ export const sendAnnounceJob: JobHandle = createJobHandle(
         return
       }
 
+      const activity = buildAnnounceActivity({ status })
+      if (!activity) {
+        span.recordException(new Error('Status is not an Announce'))
+        return
+      }
+
       const inboxes = await database.getFollowersInbox({
         targetActorId: actorId
       })
       const federatedInboxes = await filterFederatedUrls(database, inboxes)
-      await Promise.all(
-        federatedInboxes.map((inbox) =>
-          sendAnnounce({ currentActor: actor, inbox, status })
-        )
-      )
+
+      await enqueueDeliveries({
+        database,
+        parentMessageId: message.id,
+        actorId: actor.id,
+        activity: activity as unknown as Record<string, unknown>,
+        inboxes: federatedInboxes,
+        span,
+        statusId: status.id
+      })
     })
   }
 )

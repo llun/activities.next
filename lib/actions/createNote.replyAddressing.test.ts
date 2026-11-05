@@ -1,12 +1,10 @@
-import fetchMock from 'jest-fetch-mock'
-
 import {
   createNoteFromUserInput,
   statusRecipientsCC
 } from '@/lib/actions/createNote'
 import { createPollFromUserInput } from '@/lib/actions/createPoll'
 import { updateNoteVisibilityFromUserInput } from '@/lib/actions/updateNoteVisibility'
-import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
+import { SEND_NOTE_JOB_NAME, SEND_UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { sendNoteJob } from '@/lib/jobs/sendNoteJob'
 import { sendUpdateNoteJob } from '@/lib/jobs/sendUpdateNoteJob'
 import { getQueue } from '@/lib/services/queue'
@@ -177,15 +175,15 @@ describe('Reply addressing', () => {
   }
 
   const sentUpdateActivities = async (status: StatusNote) => {
-    fetchMock.resetMocks()
-    fetchMock.mockResponse('{}', { status: 202 })
+    const publish = getQueue().publish as ReturnType<typeof vi.fn>
+    publish.mockClear()
     await sendUpdateNoteJob(database, {
       id: `job-${crypto.randomUUID()}`,
-      name: 'SendUpdateNoteJob',
+      name: SEND_UPDATE_NOTE_JOB_NAME,
       data: { actorId: status.actorId, statusId: status.id }
     })
-    return fetchMock.mock.calls
-      .map(([, init]) => JSON.parse(String(init?.body ?? 'null')))
+    return publish.mock.calls
+      .map(([m]) => m?.data?.activity)
       .filter((body) => body?.type === 'Update') as {
       audience?: string
       object: { audience?: string }

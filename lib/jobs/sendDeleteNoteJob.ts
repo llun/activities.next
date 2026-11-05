@@ -1,13 +1,13 @@
 import { z } from 'zod'
 
-import { deleteStatus } from '@/lib/activities'
+import { buildDeleteStatusActivity } from '@/lib/activities'
 import { createJobHandle } from '@/lib/jobs/createJobHandle'
 import { SEND_DELETE_NOTE_JOB_NAME } from '@/lib/jobs/names'
+import { enqueueDeliveries } from '@/lib/services/federation/enqueueDeliveries'
 import { getFederatedStatusDeliveryInboxes } from '@/lib/services/federation/statusDelivery'
 import { JobHandle } from '@/lib/services/queue/type'
 import { getVisibility } from '@/lib/utils/getVisibility'
 import { logger } from '@/lib/utils/logger'
-import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { withSpan } from '@/lib/utils/trace'
 
 export const JobData = z.object({
@@ -55,24 +55,22 @@ export const sendDeleteNoteJob: JobHandle = createJobHandle(
       // Direct statuses keep their original recipients so the Delete reaches
       // exactly who saw the status; everything else defaults to Public.
       const isDirect = getVisibility(to, cc) === 'direct'
-      await Promise.all(
-        inboxes.map(async (inbox) => {
-          try {
-            await deleteStatus({
-              currentActor: actor,
-              inbox,
-              statusId,
-              to: isDirect ? to : undefined,
-              cc: isDirect ? cc : undefined
-            })
-          } catch (error) {
-            logger.error(
-              { inbox, statusId, err: toLoggableError(error) },
-              'Failed to send delete status'
-            )
-          }
-        })
-      )
+      const activity = buildDeleteStatusActivity({
+        actorId: actor.id,
+        statusId,
+        to: isDirect ? to : undefined,
+        cc: isDirect ? cc : undefined
+      })
+
+      await enqueueDeliveries({
+        database,
+        parentMessageId: message.id,
+        actorId: actor.id,
+        activity: activity as unknown as Record<string, unknown>,
+        inboxes,
+        span,
+        statusId
+      })
     })
   }
 )

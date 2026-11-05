@@ -1,9 +1,10 @@
 import { z } from 'zod'
 
-import { sendUpdateNote } from '@/lib/activities'
+import { buildUpdateNoteActivity } from '@/lib/activities'
 import { createJobHandle } from '@/lib/jobs/createJobHandle'
 import { loadStatusAndActor } from '@/lib/jobs/loadStatusAndActor'
 import { SEND_UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
+import { enqueueDeliveries } from '@/lib/services/federation/enqueueDeliveries'
 import { getStatusCommunityActorId } from '@/lib/services/federation/replyCommunity'
 import { getFederatedStatusDeliveryInboxes } from '@/lib/services/federation/statusDelivery'
 import { JobHandle } from '@/lib/services/queue/type'
@@ -21,8 +22,8 @@ export const JobData = z.object({
 /**
  * Job handler for sending note updates to federated actors
  *
- * This job fetches the status and actor, then sends update activities
- * to all relevant inboxes based on the note's to/cc fields
+ * This job fetches the status and actor, builds one Update activity, and
+ * enqueues deliveries to all relevant inboxes based on the note's to/cc fields.
  */
 export const sendUpdateNoteJob: JobHandle = createJobHandle(
   SEND_UPDATE_NOTE_JOB_NAME,
@@ -48,29 +49,30 @@ export const sendUpdateNoteJob: JobHandle = createJobHandle(
       }
 
       const audience = await getStatusCommunityActorId({ database, status })
+      const activity = buildUpdateNoteActivity({ status, audience })
+      if (!activity) {
+        span.recordException(
+          new Error('Failed to build update activity from status')
+        )
+        return
+      }
+
       const uniqueInboxes = await getFederatedStatusDeliveryInboxes({
         database,
         currentActor: actor,
         status,
         statusId: status.id
       })
-      await Promise.all(
-        uniqueInboxes.map(async (inbox) => {
-          try {
-            await sendUpdateNote({
-              currentActor: actor,
-              inbox,
-              status,
-              audience
-            })
-          } catch (e) {
-            // Delivery errors never change follow state; the follow stays and
-            // later deliveries retry (Mastodon behaves the same way).
-            span.recordException(e as Error)
-            span.setAttribute('error.inbox', inbox)
-          }
-        })
-      )
+
+      await enqueueDeliveries({
+        database,
+        parentMessageId: message.id,
+        actorId: actor.id,
+        activity: activity as unknown as Record<string, unknown>,
+        inboxes: uniqueInboxes,
+        span,
+        statusId: status.id
+      })
     })
   }
 )

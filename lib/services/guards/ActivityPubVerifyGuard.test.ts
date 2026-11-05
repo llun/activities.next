@@ -4,6 +4,7 @@ import crypto from 'node:crypto'
 
 import { setupRecordingTracer } from '@/lib/testing/recordingTracer'
 import { HttpMethod } from '@/lib/utils/http-headers'
+import { logger } from '@/lib/utils/logger'
 
 import { ActivityPubVerifySenderGuard } from './ActivityPubVerifyGuard'
 import {
@@ -12,8 +13,11 @@ import {
 } from './ActivityPubVerifyGuard.testUtils'
 
 const mockCanFederateWithDomain = vi.fn()
+const mockClearDeliveryFailuresForDomain = vi.fn()
 const mockGetActorFromId = vi.fn()
 const mockDatabase = {
+  clearDeliveryFailuresForDomain: (...params: unknown[]) =>
+    mockClearDeliveryFailuresForDomain(...params),
   getActorFromId: (...params: unknown[]) => mockGetActorFromId(...params)
 }
 const mockGetSenderPublicKey = vi.fn()
@@ -26,10 +30,17 @@ vi.mock('@/lib/database', async () => ({
   getDatabase: () => mockDatabase
 }))
 
-vi.mock('@/lib/services/federation/domainPolicy', async () => ({
-  canFederateWithDomain: (...params: unknown[]) =>
-    mockCanFederateWithDomain(...params)
-}))
+vi.mock('@/lib/services/federation/domainPolicy', async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import('@/lib/services/federation/domainPolicy')
+    >()
+  return {
+    ...actual,
+    canFederateWithDomain: (...params: unknown[]) =>
+      mockCanFederateWithDomain(...params)
+  }
+})
 
 vi.mock('@/lib/services/guards/getSenderPublicKey', async () => ({
   getSenderPublicKey: (...params: unknown[]) =>
@@ -58,6 +69,7 @@ describe('ActivityPubVerifySenderGuard', () => {
     harness = setupRecordingTracer()
     vi.clearAllMocks()
     mockCanFederateWithDomain.mockResolvedValue(true)
+    mockClearDeliveryFailuresForDomain.mockResolvedValue(undefined)
     mockGetSenderPublicKey.mockResolvedValue('public-key')
     mockGetSenderPublicKeyDetails.mockResolvedValue({
       owner: 'https://remote.test/users/alice',
@@ -906,6 +918,129 @@ describe('ActivityPubVerifySenderGuard', () => {
         forwarded: false,
         verifiedSenderActorId: 'https://remote.test/users/alice'
       })
+    })
+  })
+
+  describe('delivery failure domain clearing', () => {
+    it('clears delivery failures for the verified signer key-owner domain', async () => {
+      mockGetSenderPublicKeyDetails.mockResolvedValue({
+        owner: 'https://forwarder.test/users/sender1',
+        publicKey: 'public-key'
+      })
+      mockVerify.mockResolvedValue(true)
+
+      const handler = vi.fn().mockResolvedValue(Response.json({ ok: true }))
+      const guard = ActivityPubVerifySenderGuard(handler)
+
+      const response = await guard(
+        createSignedPostRequest({
+          keyId: 'https://forwarder.test/users/sender1#main-key',
+          body: {
+            id: 'https://origin.test/users/author1/activities/1',
+            type: 'Create',
+            actor: 'https://origin.test/users/author1'
+          }
+        }),
+        { params: Promise.resolve({}) }
+      )
+
+      expect(response.status).toBe(200)
+      expect(mockClearDeliveryFailuresForDomain).toHaveBeenCalledTimes(1)
+      expect(mockClearDeliveryFailuresForDomain).toHaveBeenCalledWith({
+        domain: 'forwarder.test'
+      })
+      expect(handler).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not clear delivery failures when signature verification fails', async () => {
+      mockGetSenderPublicKeyDetails.mockResolvedValue({
+        owner: 'https://remote.test/users/sender1',
+        publicKey: 'public-key'
+      })
+      mockVerify.mockResolvedValue(false)
+
+      const handler = vi.fn()
+      const guard = ActivityPubVerifySenderGuard(handler)
+
+      const response = await guard(
+        createSignedPostRequest({
+          keyId: 'https://remote.test/users/sender1#main-key',
+          body: {
+            id: 'https://remote.test/users/sender1/activities/1',
+            type: 'Follow',
+            actor: 'https://remote.test/users/sender1'
+          }
+        }),
+        { params: Promise.resolve({}) }
+      )
+
+      expect(response.status).toBe(401)
+      expect(mockClearDeliveryFailuresForDomain).not.toHaveBeenCalled()
+      expect(handler).not.toHaveBeenCalled()
+    })
+
+    it('does not clear delivery failures when key owner cannot be resolved', async () => {
+      mockGetSenderPublicKeyDetails.mockResolvedValue({
+        owner: null,
+        publicKey: 'public-key'
+      })
+      mockVerify.mockResolvedValue(true)
+
+      const handler = vi.fn()
+      const guard = ActivityPubVerifySenderGuard(handler)
+
+      const response = await guard(
+        createSignedPostRequest({
+          keyId: 'https://remote.test/users/sender1#main-key',
+          body: {
+            id: 'https://remote.test/users/sender1/activities/1',
+            type: 'Follow',
+            actor: 'https://remote.test/users/sender1'
+          }
+        }),
+        { params: Promise.resolve({}) }
+      )
+
+      expect(response.status).toBe(401)
+      expect(mockClearDeliveryFailuresForDomain).not.toHaveBeenCalled()
+      expect(handler).not.toHaveBeenCalled()
+    })
+
+    it('logs err and still passes verified request to handler when clearDeliveryFailuresForDomain throws', async () => {
+      const errorSpy = vi.spyOn(logger, 'error').mockImplementation(() => {})
+      mockGetSenderPublicKeyDetails.mockResolvedValue({
+        owner: 'https://remote.test/users/sender1',
+        publicKey: 'public-key'
+      })
+      mockVerify.mockResolvedValue(true)
+      mockClearDeliveryFailuresForDomain.mockRejectedValueOnce(
+        new Error('db write unavailable')
+      )
+
+      const handler = vi.fn().mockResolvedValue(Response.json({ ok: true }))
+      const guard = ActivityPubVerifySenderGuard(handler)
+
+      const response = await guard(
+        createSignedPostRequest({
+          keyId: 'https://remote.test/users/sender1#main-key',
+          body: {
+            id: 'https://remote.test/users/sender1/activities/1',
+            type: 'Follow',
+            actor: 'https://remote.test/users/sender1'
+          }
+        }),
+        { params: Promise.resolve({}) }
+      )
+
+      expect(response.status).toBe(200)
+      expect(handler).toHaveBeenCalledTimes(1)
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          domain: 'remote.test',
+          err: expect.objectContaining({ message: 'db write unavailable' })
+        })
+      )
+      errorSpy.mockRestore()
     })
   })
 })

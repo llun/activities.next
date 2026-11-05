@@ -2,7 +2,10 @@ import { NextRequest } from 'next/server'
 import crypto from 'node:crypto'
 
 import { getDatabase } from '@/lib/database'
-import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
+import {
+  canFederateWithDomain,
+  getDomainFromUrl
+} from '@/lib/services/federation/domainPolicy'
 import { getHeadersValue } from '@/lib/services/guards/getHeaderValue'
 import { extractActivityPubId, normalizeActorId } from '@/lib/utils/activitypub'
 import { verifyContentDigest } from '@/lib/utils/contentDigest'
@@ -743,6 +746,23 @@ export const ActivityPubVerifySenderGuard =
           ...getActivityTraceAttributes(activity.body)
         }
       )
+    }
+
+    const verifiedSenderDomain = getDomainFromUrl(verifiedSenderActorId)
+    if (verifiedSenderDomain) {
+      try {
+        await database.clearDeliveryFailuresForDomain({
+          domain: verifiedSenderDomain
+        })
+      } catch (error) {
+        logger.error({
+          err: toLoggableError(error),
+          domain: verifiedSenderDomain,
+          keyId: signature.keyId,
+          message:
+            'Unable to clear delivery failure tracking for verified sender domain'
+        })
+      }
     }
 
     let forwarded = false

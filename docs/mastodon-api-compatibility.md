@@ -1411,7 +1411,7 @@ ActivityPub objects are **JSON-LD**, so the same logical object can arrive in ma
   conformant receiver — GoToSocial, or another activities.next, whose inbox runs
   `compactActivityPub` — silently loses the terms.
   - **Eight surfaces carry a Note and all eight send `NOTE_ACTIVITY_CONTEXT`:** `sendNote`'s Create,
-    `sendUpdateNote`'s Update, `sendQuoteRequest`'s `instrument`, the AP status GET, the `/replies`
+    `buildUpdateNoteActivity` / `sendUpdateNote`'s Update, `sendQuoteRequest`'s `instrument`, the AP status GET, the `/replies`
     collection, the user outbox page, the `featured` collection, and the `outbox.json` writer in
     `scripts/backup/actorArchive.ts`. It supersets `QUOTE_ACTIVITY_CONTEXT`, so a surface on it also
     satisfies the quote vocabulary's own requirement; the other quote activities

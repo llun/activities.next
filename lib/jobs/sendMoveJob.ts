@@ -6,17 +6,13 @@ import { createJobHandle } from '@/lib/jobs/createJobHandle'
 import { isOutgoingMoveAuthorized } from '@/lib/jobs/isOutgoingMoveAuthorized'
 import { getMoveFollowerJobId } from '@/lib/jobs/moveFollowerJob'
 import { publishMoveRelationshipsJobs } from '@/lib/jobs/moveRelationshipsJob'
-import {
-  DELIVER_ACTIVITY_JOB_NAME,
-  MOVE_FOLLOWER_JOB_NAME,
-  SEND_MOVE_JOB_NAME
-} from '@/lib/jobs/names'
+import { MOVE_FOLLOWER_JOB_NAME, SEND_MOVE_JOB_NAME } from '@/lib/jobs/names'
+import { filterFederatedUrls } from '@/lib/services/federation/domainPolicy'
 import {
   MAX_CONCURRENT_DELIVERY_PUBLICATIONS,
-  getDeliveryJobId,
+  enqueueDeliveries,
   runWithConcurrencyLimit
-} from '@/lib/jobs/sendNoteJob'
-import { filterFederatedUrls } from '@/lib/services/federation/domainPolicy'
+} from '@/lib/services/federation/enqueueDeliveries'
 import { getQueue } from '@/lib/services/queue'
 import { JobHandle, JobMessage } from '@/lib/services/queue/type'
 import { withSpan } from '@/lib/utils/trace'
@@ -88,7 +84,7 @@ export const runSendMove = async (
       migrationId,
       originActorId: origin.id,
       targetActorId: target.id
-    })
+    }) as unknown as Record<string, unknown>
     let phase = parsed.data.phase ?? 'followers'
     let cursor = parsed.data.cursor
     const isFirstSlice = phase === 'followers' && !cursor
@@ -121,12 +117,6 @@ export const runSendMove = async (
         errors.forEach((error) => span.recordException(error))
       }
     }
-    const deliveryJobs = (inboxes: string[]): JobMessage[] =>
-      inboxes.map((inbox) => ({
-        id: getDeliveryJobId(migrationId, inbox),
-        name: DELIVER_ACTIVITY_JOB_NAME,
-        data: { inbox, actorId: origin.id, activity }
-      }))
 
     if (isFirstSlice) {
       const failures = await publishMoveRelationshipsJobs({
@@ -142,20 +132,25 @@ export const runSendMove = async (
       }
       // Mastodon also sends the Move to every enabled relay.
       const relays = await database.getAcceptedRelays()
-      await publishAll(
-        deliveryJobs(
-          await filterFederatedUrls(
-            database,
-            relays
-              .map((relay) => relay.inboxUrl)
-              .filter((url): url is string => Boolean(url))
-          )
-        )
+      const relayInboxes = await filterFederatedUrls(
+        database,
+        relays
+          .map((relay) => relay.inboxUrl)
+          .filter((url): url is string => Boolean(url))
       )
+      if (relayInboxes.length > 0) {
+        await enqueueDeliveries({
+          database,
+          parentMessageId: migrationId,
+          actorId: origin.id,
+          activity,
+          inboxes: relayInboxes,
+          span
+        })
+      }
     }
 
     for (;;) {
-      let jobs: JobMessage[]
       let last: string | undefined
       let count: number
       if (phase === 'followers') {
@@ -184,18 +179,29 @@ export const runSendMove = async (
         const rewire = target.movedTo
           ? []
           : follows.filter((follow) => localIds.has(follow.actorId))
-        jobs = [
-          ...rewire.map((follow) => ({
-            id: getMoveFollowerJobId(follow.id, target.id),
-            name: MOVE_FOLLOWER_JOB_NAME,
-            data: {
-              followId: follow.id,
-              targetActorId: target.id,
-              migrationId
-            }
-          })),
-          ...deliveryJobs(inboxes)
-        ]
+        if (rewire.length > 0) {
+          await publishAll(
+            rewire.map((follow) => ({
+              id: getMoveFollowerJobId(follow.id, target.id),
+              name: MOVE_FOLLOWER_JOB_NAME,
+              data: {
+                followId: follow.id,
+                targetActorId: target.id,
+                migrationId
+              }
+            }))
+          )
+        }
+        if (inboxes.length > 0) {
+          await enqueueDeliveries({
+            database,
+            parentMessageId: migrationId,
+            actorId: origin.id,
+            activity,
+            inboxes,
+            span
+          })
+        }
       } else {
         // Mastodon's MoveDistributionWorker also reaches the accounts that
         // block the origin (account.blocked_by.inboxes).
@@ -209,18 +215,24 @@ export const runSendMove = async (
         const actors = await database.getActorsFromIds({
           ids: [...new Set(blocks.map((block) => block.actorId))]
         })
-        jobs = deliveryJobs(
-          await filterFederatedUrls(database, [
-            ...new Set(
-              actors
-                .map((actor) => actor.sharedInboxUrl || actor.inboxUrl)
-                .filter((url): url is string => Boolean(url))
-            )
-          ])
-        )
+        const blockerInboxes = await filterFederatedUrls(database, [
+          ...new Set(
+            actors
+              .map((actor) => actor.sharedInboxUrl || actor.inboxUrl)
+              .filter((url): url is string => Boolean(url))
+          )
+        ])
+        if (blockerInboxes.length > 0) {
+          await enqueueDeliveries({
+            database,
+            parentMessageId: migrationId,
+            actorId: origin.id,
+            activity,
+            inboxes: blockerInboxes,
+            span
+          })
+        }
       }
-
-      await publishAll(jobs)
 
       if (count < pageSize) {
         // Followers are done: the blockers follow in the same slice.

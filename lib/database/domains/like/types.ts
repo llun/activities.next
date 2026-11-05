@@ -31,7 +31,8 @@ export interface LikeDatabase {
   // Resolves true only when a new like row was inserted (false for an existing
   // like or an unknown status), so callers notify once per real like.
   createLike(params: CreateLikeParams): Promise<boolean>
-  deleteLike(params: DeleteLikeParams): Promise<void>
+  // Whether a like was removed.
+  deleteLike(params: DeleteLikeParams): Promise<boolean>
   getLikeCount(params: GetLikeCountParams): Promise<number>
   isActorLikedStatus(params: IsActorLikedStatusParams): Promise<boolean>
   getLikes(params: GetLikesParams): Promise<Like[]>

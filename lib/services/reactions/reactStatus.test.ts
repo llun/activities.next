@@ -1,4 +1,7 @@
+import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
+
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import type { Database } from '@/lib/database/types'
 import {
   reactStatus,
   unreactStatus
@@ -7,20 +10,34 @@ import { MAX_REACTIONS_PER_ACTOR } from '@/lib/services/statuses/reactionLimits'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
-import { EXTERNAL_ACTOR1 } from '@/lib/stub/seed/external1'
+import {
+  EXTERNAL_ACTOR1,
+  EXTERNAL_ACTOR1_INBOX
+} from '@/lib/stub/seed/external1'
 import { NotificationType } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+
+enableFetchMocks()
+
+let mockDatabase: Database | null = null
+vi.mock('@/lib/database', () => ({
+  getDatabase: () => mockDatabase
+}))
 
 const mockSendReaction = vi.fn()
 const mockSendUndoReaction = vi.fn()
 const mockGetNote = vi.fn()
 
-vi.mock('@/lib/activities', () => ({
-  sendReaction: (...params: unknown[]) => mockSendReaction(...params),
-  sendUndoReaction: (...params: unknown[]) => mockSendUndoReaction(...params),
-  getNote: (...params: unknown[]) => mockGetNote(...params)
-}))
+vi.mock('@/lib/activities', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/activities')>()
+  return {
+    ...actual,
+    sendReaction: (...params: unknown[]) => mockSendReaction(...params),
+    sendUndoReaction: (...params: unknown[]) => mockSendUndoReaction(...params),
+    getNote: (...params: unknown[]) => mockGetNote(...params)
+  }
+})
 
 describe('reactStatus', () => {
   const { database, prepare } = createTestDatabase()
@@ -31,6 +48,7 @@ describe('reactStatus', () => {
     await prepare()
     await database.migrate()
     await seedDatabase(database)
+    mockDatabase = database
     reactor = (await database.getActorFromUsername({
       username: seedActor2.username,
       domain: seedActor2.domain
@@ -53,6 +71,7 @@ describe('reactStatus', () => {
   })
 
   afterAll(async () => {
+    mockDatabase = null
     await database.destroy()
   })
 
@@ -282,6 +301,7 @@ describe('unreactStatus', () => {
     await prepare()
     await database.migrate()
     await seedDatabase(database)
+    mockDatabase = database
     reactor = (await database.getActorFromUsername({
       username: seedActor2.username,
       domain: seedActor2.domain
@@ -294,6 +314,7 @@ describe('unreactStatus', () => {
   })
 
   afterAll(async () => {
+    mockDatabase = null
     await database.destroy()
   })
 
@@ -488,5 +509,54 @@ describe('unreactStatus', () => {
 
     expect(result).toMatchObject({ ok: true, changed: false })
     expect(mockSendUndoReaction).not.toHaveBeenCalled()
+  })
+
+  it('succeeds when inline NoQueue reaction and undo-reaction deliveries fail with HTTP 503', async () => {
+    const actualActivities =
+      await vi.importActual<typeof import('@/lib/activities')>(
+        '@/lib/activities'
+      )
+    mockSendReaction.mockImplementationOnce(actualActivities.sendReaction)
+    mockSendUndoReaction.mockImplementationOnce(
+      actualActivities.sendUndoReaction
+    )
+
+    const remoteStatusId = `${EXTERNAL_ACTOR1}/statuses/inline-fail-react-1`
+    await database.createNote({
+      id: remoteStatusId,
+      url: remoteStatusId,
+      actorId: EXTERNAL_ACTOR1,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      text: 'Remote note to react to'
+    })
+
+    fetchMock.resetMocks()
+    fetchMock.mockResponse(async () => ({
+      status: 503,
+      body: 'Service Unavailable'
+    }))
+
+    const reactResult = await reactStatus({
+      database,
+      currentActor: reactor,
+      statusId: remoteStatusId,
+      name: '🔥'
+    })
+    expect(reactResult).toMatchObject({ ok: true, changed: true })
+
+    const unreactResult = await unreactStatus({
+      database,
+      currentActor: reactor,
+      statusId: remoteStatusId,
+      name: '🔥'
+    })
+    expect(unreactResult).toMatchObject({ ok: true, changed: true })
+
+    expect(
+      fetchMock.mock.calls.filter(
+        ([url]) => String(url) === EXTERNAL_ACTOR1_INBOX
+      )
+    ).toHaveLength(2)
   })
 })
