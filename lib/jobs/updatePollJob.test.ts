@@ -655,13 +655,16 @@ describe('updatePollJob', () => {
       choices: [0]
     })
 
-    // No `updated`: Mastodon applies no significant change (options, mode,
-    // deadline) from such an Update, so nothing here may reset the votes.
+    // No `updated`: Mastodon's implicit path never touches the text or
+    // spoiler and applies no significant change (options, mode, deadline), so
+    // nothing here may change the post or reset the votes.
     await updatePollJob(database, {
       id: 'id-implicit-update',
       name: UPDATE_POLL_JOB_NAME,
       data: MockActivityPubQuestion(pollId, {
         updated: null,
+        content: '<p>Not an edit</p>',
+        summary: 'Not a spoiler',
         endTime: originalEnd + 60 * 60 * 1000,
         anyOf: [createOption('Crimson', 9), createOption('Blue', 9)]
       })
@@ -678,6 +681,9 @@ describe('updatePollJob', () => {
     expect(status.choices.map((choice) => choice.totalVotes)).toEqual([2, 2])
     expect(status.pollType).toEqual('oneOf')
     expect(status.endAt).toEqual(new Date(getISOTimeUTC(originalEnd)).getTime())
+    expect(status.text).toEqual('<p>What is your favorite color?</p>')
+    expect(status.summary).toEqual('')
+    expect(status.edits).toHaveLength(0)
     expect(status.voted).toBe(true)
     expect(status.ownVotes).toEqual([0])
   })
@@ -712,5 +718,85 @@ describe('updatePollJob', () => {
       statusId: pollId
     })) as StatusPoll
     expect(status.choices.map((choice) => choice.totalVotes)).toEqual([1, 7, 3])
+  })
+
+  it('ignores an Update older than the updated the poll was first stored with', async () => {
+    // A poll first seen (Create or fetch) already edited at T2 must not be
+    // reverted by its earlier edit at T1 arriving late.
+    const pollId = `${REMOTE_ACTOR_ID}/questions/first-seen-${Date.now()}`
+    const firstSeen = Date.now()
+    await createPollJob(database, {
+      id: 'id-first-seen-create',
+      name: CREATE_POLL_JOB_NAME,
+      data: MockActivityPubQuestion(pollId, {
+        content: '<p>Second edit</p>',
+        updated: firstSeen,
+        oneOf: [createOption('Red', 1), createOption('Blue', 2)]
+      })
+    })
+    await database.recordPollVotes({
+      statusId: pollId,
+      actorId: ACTOR1_ID,
+      choices: [0]
+    })
+
+    await updatePollJob(database, {
+      id: 'id-first-seen-update',
+      name: UPDATE_POLL_JOB_NAME,
+      data: MockActivityPubQuestion(pollId, {
+        content: '<p>First edit</p>',
+        updated: firstSeen - 60_000,
+        oneOf: [createOption('Red', 3), createOption('Teal', 4)]
+      })
+    })
+
+    const status = (await database.getStatus({
+      statusId: pollId,
+      currentActorId: ACTOR1_ID
+    })) as StatusPoll
+    expect(status.text).toEqual('<p>Second edit</p>')
+    expect(status.choices.map((choice) => choice.title)).toEqual([
+      'Red',
+      'Blue'
+    ])
+    expect(status.voted).toBe(true)
+    expect(status.ownVotes).toEqual([0])
+    expect(status.edits).toHaveLength(0)
+  })
+
+  it('keeps the deadline of a poll a boolean closed already closed', async () => {
+    const pollId = `${REMOTE_ACTOR_ID}/questions/closed-twice-${Date.now()}`
+    const endTime = Date.now() + 24 * 60 * 60 * 1000
+    const updated = Date.now()
+    await createPollJob(database, {
+      id: 'id-closed-twice-create',
+      name: CREATE_POLL_JOB_NAME,
+      data: MockActivityPubQuestion(pollId, { endTime })
+    })
+
+    await updatePollJob(database, {
+      id: 'id-closed-twice-update-1',
+      name: UPDATE_POLL_JOB_NAME,
+      data: MockActivityPubQuestion(pollId, { endTime, updated, closed: true })
+    })
+    const closedOnce = (await database.getStatus({
+      statusId: pollId
+    })) as StatusPoll
+    expect(closedOnce.endAt).toBeLessThanOrEqual(Date.now())
+
+    // The same Update delivered again: the poll is already closed, so it must
+    // not be re-closed at a new "now" and no further revision recorded.
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    await updatePollJob(database, {
+      id: 'id-closed-twice-update-2',
+      name: UPDATE_POLL_JOB_NAME,
+      data: MockActivityPubQuestion(pollId, { endTime, updated, closed: true })
+    })
+
+    const status = (await database.getStatus({
+      statusId: pollId
+    })) as StatusPoll
+    expect(status.endAt).toEqual(closedOnce.endAt)
+    expect(status.edits.length).toBeLessThanOrEqual(1)
   })
 })

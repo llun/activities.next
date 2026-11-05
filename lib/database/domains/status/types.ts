@@ -268,6 +268,8 @@ export type CreatePollParams = BaseCreateStatusParams & {
   pollType?: 'oneOf' | 'anyOf'
   // Mastodon poll[hide_totals]: hide per-option tallies until the poll expires.
   hideTotals?: boolean
+  // A remote poll's `updated` as first seen (see UpdatePollParams).
+  remoteUpdatedAt?: number
 }
 
 /**
@@ -283,7 +285,9 @@ export type CreateStatusResult = {
   status: Status
   isNew: boolean
 }
-export type UpdatePollParams = Pick<CreatePollParams, 'text' | 'summary'> & {
+export type UpdatePollParams = Partial<
+  Pick<CreatePollParams, 'text' | 'summary'>
+> & {
   statusId: string
   choices: { title: string; totalVotes: number }[]
   // Omit to preserve the existing values; provide to overwrite (user edits).

@@ -629,6 +629,7 @@ export const createPollWithResult = async (
     choices,
     pollType = 'oneOf',
     hideTotals = false,
+    remoteUpdatedAt,
     sensitive = false,
     language = null,
     applicationName = null,
@@ -650,7 +651,8 @@ export const createPollWithResult = async (
     language,
     endAt,
     pollType,
-    hideTotals
+    hideTotals,
+    remoteUpdatedAt
   }
   const statusContent = JSON.stringify(content)
   const searchStatus: StatusSearchRow = {
@@ -774,6 +776,7 @@ export const createPollWithResult = async (
     endAt,
     pollType,
     hideTotals,
+    remoteUpdatedAt,
     isLocalActor: Boolean(actor?.account),
     createdAt: statusCreatedAt.getTime(),
     updatedAt: statusUpdatedAt.getTime()

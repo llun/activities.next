@@ -69,8 +69,9 @@ export const updatePollJob = createJobHandle(
     // (already_updated_more_recently?); one with no `updated` is implicit (a
     // tally refresh) and may not make a significant change — no option change,
     // vote reset, mode switch or deadline move (update_poll! with
-    // allow_significant_changes: false) — so it refreshes text, summary and,
-    // when the options are unchanged, the tallies.
+    // allow_significant_changes: false) and, as handle_implicit_update! never
+    // touches the text or spoiler, refreshes only the tallies, and those only
+    // when the options are unchanged.
     const remoteUpdatedAt = parseQuestionTime(question.updated)
     if (
       remoteUpdatedAt !== undefined &&
@@ -112,11 +113,9 @@ export const updatePollJob = createJobHandle(
     // and the new options carry the Update's own tallies (0 when absent).
     // Otherwise an option without `replies` keeps its stored tally.
     const resetVotes = optionsChanged && !implicit
-    const endAt = getPollEndAtFromQuestion(question)
+    const endAt = getPollEndAtFromQuestion(question, existingStatus.endAt)
     await database.updatePoll({
       statusId: question.id,
-      summary,
-      text,
       choices: resetVotes
         ? nextChoices
         : optionsChanged
@@ -125,6 +124,8 @@ export const updatePollJob = createJobHandle(
       ...(implicit
         ? {}
         : {
+            text,
+            summary,
             pollType,
             remoteUpdatedAt,
             ...(endAt !== undefined ? { endAt } : {})

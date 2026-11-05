@@ -2071,18 +2071,28 @@ remote poll (`syncRemotePoll`) follow Mastodon's
 
 - **Staleness.** The origin's `updated` of the last applied Update is stored on
   the poll's content JSON (`remoteUpdatedAt`, no migration; written without a
-  revision or an `updatedAt` bump when nothing else changed). An Update whose
+  revision or an `updatedAt` bump when nothing else changed), and first
+  recorded when the poll is stored (`createPollJob`, `fetchRemoteStatusJob`
+  via `getPollFieldsFromQuestion`), so a poll first seen already edited is not
+  reverted by that earlier edit arriving late. An Update whose
   `updated` is older is ignored (`already_updated_more_recently?`), logged at
   info; one with the same `updated` still applies (a tally refresh).
 - **Implicit Updates.** An Update with no `updated` is a tally refresh, not an
-  edit (`update_poll!` with `allow_significant_changes: false`): it applies the
-  text and summary and, only when the option set is unchanged, the tallies —
-  never an option change, a vote reset, a `oneOf`/`anyOf` switch or a deadline
-  move. `syncRemotePoll` (a fetch, not an Update) is likewise a tally and
-  deadline refresh only and never resets votes.
+  edit (`handle_implicit_update!`, which never touches the text or spoiler, and
+  `update_poll!` with `allow_significant_changes: false`): it applies the
+  tallies, and only when the option set is unchanged — never the text or
+  summary, an option change, a vote reset or a `oneOf`/`anyOf` switch. Leaving
+  the deadline alone too is this project's choice: Mastodon's implicit path
+  does set `expires_at` unless the options changed significantly, but a
+  deadline move records a revision here, which a tally refresh should never
+  do. `syncRemotePoll` (a fetch, not an Update) is a tally and deadline refresh
+  only and never resets votes.
 - **Deadline.** A parseable string `closed` wins over `endTime`; any other
   truthy `closed` (a bare boolean, which the `Question` schema accepts) means
-  the poll closed at processing time; otherwise `endTime`. An unparseable
+  the poll closed at processing time — unless the stored `endAt` has already
+  passed, which is kept, so a redelivery or a `syncRemotePoll` read of a closed
+  poll does not re-close it at a new "now" and record a revision each time;
+  otherwise `endTime`. An unparseable
   value is "no deadline given": the stored `endAt` is kept (never NaN, which
   would be stored as null and hydrate as expired, adding a revision on every
   redelivery), and a new poll (`createPollJob`) falls back as if it had none.

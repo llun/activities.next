@@ -117,13 +117,23 @@ describe('getPollEndAtFromQuestion', () => {
     ).toEqual(Date.UTC(2026, 8, 5))
   })
 
-  it('closes the poll now for a boolean closed', () => {
+  it('closes the poll now for a boolean closed, unless it is already closed', () => {
     const before = Date.now()
     const endAt = getPollEndAtFromQuestion(
       buildQuestion({ endTime: '2099-09-05T00:00:00Z', closed: true })
     )
     expect(endAt).toBeGreaterThanOrEqual(before)
     expect(endAt).toBeLessThanOrEqual(Date.now())
+    // A stored deadline still ahead is closed now; one already past is kept.
+    expect(
+      getPollEndAtFromQuestion(
+        buildQuestion({ closed: true }),
+        Date.now() + 60_000
+      )
+    ).toBeLessThanOrEqual(Date.now())
+    expect(
+      getPollEndAtFromQuestion(buildQuestion({ closed: true }), 1_000)
+    ).toEqual(1_000)
     expect(
       getPollEndAtFromQuestion(
         buildQuestion({ endTime: '2026-09-05T00:00:00Z', closed: false })
@@ -133,6 +143,23 @@ describe('getPollEndAtFromQuestion', () => {
 })
 
 describe('getPollFieldsFromQuestion', () => {
+  it('carries the updated the poll was first seen with, undefined when absent or bad', () => {
+    const publishedAt = Date.UTC(2026, 0, 1)
+    expect(
+      getPollFieldsFromQuestion(
+        buildQuestion({ updated: '2026-02-01T00:00:00Z' }),
+        publishedAt
+      ).remoteUpdatedAt
+    ).toEqual(Date.UTC(2026, 1, 1))
+    expect(
+      getPollFieldsFromQuestion(buildQuestion({}), publishedAt).remoteUpdatedAt
+    ).toBeUndefined()
+    expect(
+      getPollFieldsFromQuestion(buildQuestion({ updated: 'bad' }), publishedAt)
+        .remoteUpdatedAt
+    ).toBeUndefined()
+  })
+
   it('keeps a new poll with an unparseable endTime open like one without', () => {
     const publishedAt = Date.UTC(2026, 0, 1)
     expect(

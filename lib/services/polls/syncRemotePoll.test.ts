@@ -223,6 +223,37 @@ describe('syncRemotePoll', () => {
     )
   })
 
+  it('does not move the deadline of an already closed poll on a boolean closed', async () => {
+    // remotePollStatus.endAt (200000) is long past: a fetch of the closed
+    // poll must keep it rather than re-close at "now" and record a revision.
+    ;(getNote as jest.Mock).mockResolvedValue({
+      '@context': 'https://www.w3.org/ns/activitystreams',
+      id: remotePollStatus.id,
+      type: 'Question',
+      attributedTo: remotePollStatus.actorId,
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: [],
+      content: '<p>Favorite color?</p>',
+      published: '2026-08-31T00:00:00Z',
+      endTime: '2026-09-05T00:00:00Z',
+      closed: true,
+      oneOf: [
+        {
+          type: 'Note',
+          name: 'Red',
+          replies: { type: 'Collection', totalItems: 1 }
+        }
+      ]
+    })
+    ;(mockDatabase.updatePoll as jest.Mock).mockResolvedValue(remotePollStatus)
+
+    await syncRemotePoll({ database: mockDatabase, status: remotePollStatus })
+
+    expect(mockDatabase.updatePoll).toHaveBeenCalledWith(
+      expect.objectContaining({ endAt: remotePollStatus.endAt })
+    )
+  })
+
   it('handles multiple-choice anyOf polls correctly', async () => {
     const remoteQuestion = {
       '@context': 'https://www.w3.org/ns/activitystreams',

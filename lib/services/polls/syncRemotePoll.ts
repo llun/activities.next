@@ -110,7 +110,7 @@ const performPollSync = async ({
 
     const text = getContent(question)
     const summary = getSummary(question)
-    const endAt = getPollEndAtFromQuestion(question)
+    const endAt = getPollEndAtFromQuestion(question, status.endAt)
 
     const updated = await database.updatePoll({
       // The id-match guard above already proves these are the same poll; using
