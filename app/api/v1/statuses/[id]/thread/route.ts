@@ -15,7 +15,7 @@ import {
 import { Scope } from '@/lib/types/database/operations'
 import { clampedLimit } from '@/lib/utils/clampedLimit'
 import { cleanJson } from '@/lib/utils/cleanJson'
-import { getTrustedClientIp } from '@/lib/utils/getTrustedClientIp'
+import { getTrustedClientRateLimitKey } from '@/lib/utils/getTrustedClientIp'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   HTTP_STATUS,
@@ -50,7 +50,14 @@ const WINDOW_MS = 60_000
 // shares one pool; their limits are capped lower (the middle step) for that.
 const PER_VIEWER_LIMIT = 30
 const ANONYMOUS_GLOBAL_LIMIT = 300
-const viewerCounter = createWindowCounter({
+// Signed-in readers and signed-out addresses get separate maps, so a flood of
+// fresh addresses can only push other addresses out, never a reader's count.
+const actorCounter = createWindowCounter({
+  limit: PER_VIEWER_LIMIT,
+  windowMs: WINDOW_MS,
+  maxKeys: 10_000
+})
+const ipCounter = createWindowCounter({
   limit: PER_VIEWER_LIMIT,
   windowMs: WINDOW_MS,
   maxKeys: 10_000
@@ -63,7 +70,8 @@ const anonymousCounter = createWindowCounter({
 
 /** Clears the request windows (tests only). */
 export const resetThreadRateLimitsForTesting = () => {
-  viewerCounter.reset()
+  actorCounter.reset()
+  ipCounter.reset()
   anonymousCounter.reset()
 }
 
@@ -84,13 +92,13 @@ export const GET = traceApiRoute(
       const encodedStatusId = (await params).id
       if (!encodedStatusId) return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
 
-      const viewerKey = currentActor
-        ? `actor:${currentActor.id}`
-        : (() => {
-            const ip = getTrustedClientIp(req)
-            return ip ? `ip:${ip}` : null
-          })()
-      if (viewerKey && !viewerCounter.tryHit(viewerKey)) {
+      // Signed out, keyed by the trusted address with IPv6 collapsed to its
+      // /64, so rotating interface ids does not mint new keys.
+      const ipKey = currentActor ? undefined : getTrustedClientRateLimitKey(req)
+      const withinViewerLimit = currentActor
+        ? actorCounter.tryHit(currentActor.id)
+        : ipKey === undefined || ipCounter.tryHit(ipKey)
+      if (!withinViewerLimit) {
         return apiErrorResponse(HTTP_STATUS.TOO_MANY_REQUESTS)
       }
       if (!currentActor && !anonymousCounter.tryHit('anonymous')) {

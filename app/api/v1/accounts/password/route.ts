@@ -1,11 +1,13 @@
 import { z } from 'zod'
 
 import { comparePassword, hashPassword } from '@/lib/services/auth/passwordHash'
+import { checkPasswordChangeRateLimit } from '@/lib/services/auth/routeRateLimits'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { logger } from '@/lib/utils/logger'
 import {
   HTTP_STATUS,
   apiErrorResponse,
+  apiRateLimitedResponse,
   apiResponse
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
@@ -27,6 +29,11 @@ export const POST = traceApiRoute(
         data: { error: 'Account not found' },
         responseStatusCode: 404
       })
+    }
+
+    const rateLimit = checkPasswordChangeRateLimit(currentActor.account.id)
+    if (!rateLimit.allowed) {
+      return apiRateLimitedResponse(req, rateLimit.retryAfterSeconds)
     }
 
     if (!currentActor.account.passwordHash) {

@@ -1195,6 +1195,13 @@ export interface QueueJobs {
   updated_at: WithDefault<Nullable<Timestamp>>
 }
 
+export interface RateLimit {
+  count: number
+  id: string
+  key: string
+  lastRequest: number
+}
+
 export interface Recipients {
   actorId: Nullable<string>
   createdAt: WithDefault<Nullable<Timestamp>>
@@ -1586,6 +1593,7 @@ export interface DB {
   poll_voters: PollVoters
   push_subscriptions: PushSubscriptions
   queue_jobs: QueueJobs
+  rateLimit: RateLimit
   recipients: Recipients
   relays: Relays
   reports: Reports
