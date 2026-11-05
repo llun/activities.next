@@ -13,6 +13,7 @@ import {
   buildStatus,
   mockGetFitnessFilesByStatus,
   mockGetFitnessRouteData,
+  notMe,
   renderDetail,
   resetFitnessStatusDetailMocks,
   routeData
@@ -645,5 +646,62 @@ describe('FitnessStatusDetail analysis', () => {
     expect(
       within(analysisSection).getByTestId('analysis-combined-plot')
     ).toBeInTheDocument()
+  })
+
+  describe('training zones', () => {
+    // Max HR 186: 0/123/141/158/171 bpm. FTP 260: 0/143/195/234/273/312 W.
+    const trainingZones = {
+      maxHeartRate: 186,
+      restingHeartRate: null,
+      functionalThresholdPower: 260
+    }
+
+    it('charts the author’s zones with their ranges for the author', async () => {
+      renderDetail({ trainingZones })
+
+      const heartRate = await screen.findByRole('region', {
+        name: 'Heart rate zones'
+      })
+      expect(within(heartRate).getByText('< 123 bpm')).toBeInTheDocument()
+      expect(within(heartRate).getByText('158–171 bpm')).toBeInTheDocument()
+      expect(within(heartRate).getByText('171+ bpm')).toBeInTheDocument()
+      expect(
+        within(heartRate).queryByText('Default zones')
+      ).not.toBeInTheDocument()
+
+      const power = screen.getByRole('region', { name: 'Power zones' })
+      for (const label of ['Active recovery', 'VO2 max', 'Anaerobic']) {
+        expect(within(power).getByText(label)).toBeInTheDocument()
+      }
+      expect(within(power).getByText('< 143 W')).toBeInTheDocument()
+      expect(within(power).getByText('143–195 W')).toBeInTheDocument()
+      expect(within(power).getByText('312+ W')).toBeInTheDocument()
+    })
+
+    it('ignores personal zones handed to anyone but the author', async () => {
+      renderDetail({ trainingZones, currentActor: notMe })
+
+      const heartRate = await screen.findByRole('region', {
+        name: 'Heart rate zones'
+      })
+      expect(within(heartRate).getByText('Default zones')).toBeInTheDocument()
+      expect(within(heartRate).queryByText('< 123 bpm')).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('region', { name: 'Power zones' })
+      ).not.toBeInTheDocument()
+    })
+
+    it('marks the default zones and shows their ranges to everyone', async () => {
+      renderDetail({ currentActor: notMe })
+
+      const heartRate = await screen.findByRole('region', {
+        name: 'Heart rate zones'
+      })
+      expect(within(heartRate).getByText('Default zones')).toBeInTheDocument()
+      expect(within(heartRate).getByText('< 122 bpm')).toBeInTheDocument()
+      expect(
+        screen.queryByRole('region', { name: 'Power zones' })
+      ).not.toBeInTheDocument()
+    })
   })
 })

@@ -10,6 +10,9 @@ export interface FitnessGeneralSettingsResponse {
   privacyHomeLongitude?: number | null
   privacyHideRadiusMeters?: number
   generateRouteDescription?: boolean
+  maxHeartRate?: number | null
+  restingHeartRate?: number | null
+  functionalThresholdPower?: number | null
 }
 
 export interface FitnessPrivacyLocationInput {
@@ -21,6 +24,13 @@ export interface FitnessPrivacyLocationInput {
 export interface UpdateFitnessGeneralSettingsInput {
   privacyLocations?: FitnessPrivacyLocationInput[]
   generateRouteDescription?: boolean
+}
+
+/** The training zone inputs, saved together; null clears one. */
+export interface FitnessTrainingZonesInput {
+  maxHeartRate: number | null
+  restingHeartRate: number | null
+  functionalThresholdPower: number | null
 }
 
 export interface RegenerateFitnessMapsResponse {
@@ -65,7 +75,10 @@ export const getFitnessGeneralSettings =
   }
 
 export const updateFitnessGeneralSettings = async (
-  input: FitnessPrivacyLocationInput[] | UpdateFitnessGeneralSettingsInput
+  input:
+    | FitnessPrivacyLocationInput[]
+    | UpdateFitnessGeneralSettingsInput
+    | FitnessTrainingZonesInput
 ): Promise<{ ok: boolean; data: FitnessGeneralSettingsResponse }> => {
   const body = Array.isArray(input) ? { privacyLocations: input } : input
   const response = await fetch('/api/v1/fitness/general', {

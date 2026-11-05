@@ -399,6 +399,9 @@ export const ACCOUNT_EXPORT_TABLES: Record<
       'privacyLocations',
       'defaultVisibility',
       'generateRouteDescription',
+      'maxHeartRate',
+      'restingHeartRate',
+      'functionalThresholdPower',
       'createdAt',
       'updatedAt'
     ],

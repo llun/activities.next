@@ -1,3 +1,7 @@
+import {
+  DEFAULT_HEART_RATE_ZONES,
+  type TrainingZoneDefinition
+} from '@/lib/fitness/trainingZones'
 import { formatFitnessDuration } from '@/lib/utils/fitness'
 
 /** Default tick count for a time axis. */
@@ -96,58 +100,31 @@ export const buildXAxisLabels = (
   return labels
 }
 
-export interface HeartRateZoneDefinition {
-  name: string
-  label: string
-  lo: number
-  hi: number | null
-  color: string
-}
-
-export const HEART_RATE_ZONES: HeartRateZoneDefinition[] = [
-  { name: 'Z1', label: 'Recovery', lo: 0, hi: 122, color: 'hsl(205 45% 62%)' },
-  {
-    name: 'Z2',
-    label: 'Endurance',
-    lo: 122,
-    hi: 142,
-    color: 'hsl(142 60% 45%)'
-  },
-  { name: 'Z3', label: 'Tempo', lo: 142, hi: 158, color: 'hsl(45 92% 50%)' },
-  {
-    name: 'Z4',
-    label: 'Threshold',
-    lo: 158,
-    hi: 172,
-    color: 'hsl(24 95% 50%)'
-  },
-  { name: 'Z5', label: 'Anaerobic', lo: 172, hi: null, color: 'hsl(2 78% 55%)' }
-]
-
-export interface HeartRateZone extends HeartRateZoneDefinition {
+/** A zone with the time spent in it. Heart-rate and power zones alike. */
+export interface HeartRateZone extends TrainingZoneDefinition {
   seconds: number
   pct: number
   rawPct: number
 }
 
 /**
- * Buckets heart-rate samples into 5 standard training zones.
- * Excludes 0 bpm sensor dropouts from inflating Zone 1.
+ * Buckets samples into `zones` and spreads `durationSeconds` over them by
+ * their share of the samples. A sample below every zone is not counted.
  */
-export const computeHeartRateZones = (
+export const computeZoneTimes = (
   series: number[],
-  durationSeconds: number
+  durationSeconds: number,
+  zones: TrainingZoneDefinition[]
 ): HeartRateZone[] => {
-  const counts = HEART_RATE_ZONES.map(() => 0)
-  for (const bpm of series) {
-    if (bpm <= 0) continue
-    const index = HEART_RATE_ZONES.findIndex(
-      (zone) => bpm >= zone.lo && (zone.hi === null || bpm < zone.hi)
+  const counts = zones.map(() => 0)
+  for (const value of series) {
+    const index = zones.findIndex(
+      (zone) => value >= zone.lo && (zone.hi === null || value < zone.hi)
     )
     if (index >= 0) counts[index] += 1
   }
   const totalSamples = counts.reduce((sum, value) => sum + value, 0)
-  return HEART_RATE_ZONES.map((zone, index) => {
+  return zones.map((zone, index) => {
     const fraction = totalSamples > 0 ? counts[index] / totalSamples : 0
     return {
       ...zone,
@@ -157,6 +134,22 @@ export const computeHeartRateZones = (
     }
   })
 }
+
+/**
+ * Buckets heart-rate samples into training zones (the default ones unless the
+ * athlete's own are given). Excludes 0 bpm sensor dropouts from inflating
+ * Zone 1.
+ */
+export const computeHeartRateZones = (
+  series: number[],
+  durationSeconds: number,
+  zones: TrainingZoneDefinition[] = DEFAULT_HEART_RATE_ZONES
+): HeartRateZone[] =>
+  computeZoneTimes(
+    series.filter((bpm) => bpm > 0),
+    durationSeconds,
+    zones
+  )
 
 /**
  * Filter out sensor dropouts (<= 0 bpm) for tallies like avg, max, and zone buckets.

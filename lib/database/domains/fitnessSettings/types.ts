@@ -27,6 +27,9 @@ export interface CreateFitnessSettingsParams {
   privacyHomeLongitude?: number
   privacyHideRadiusMeters?: number
   generateRouteDescription?: boolean
+  maxHeartRate?: number | null
+  restingHeartRate?: number | null
+  functionalThresholdPower?: number | null
 }
 
 export interface UpdateFitnessSettingsParams {
@@ -52,6 +55,9 @@ export interface UpdateFitnessSettingsParams {
   privacyHomeLongitude?: number | null
   privacyHideRadiusMeters?: number | null
   generateRouteDescription?: boolean | null
+  maxHeartRate?: number | null
+  restingHeartRate?: number | null
+  functionalThresholdPower?: number | null
 }
 
 export interface GetFitnessSettingsParams {

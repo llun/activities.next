@@ -88,7 +88,8 @@ vi.mock('@/lib/database', async () => ({
     getStatusReplies: mockGetStatusReplies,
     getStatusReplyRefs: mockGetStatusReplyRefs,
     getActorDomainBlocks: mockGetActorDomainBlocks,
-    getAcceptedOrRequestedFollow: mockGetAcceptedOrRequestedFollow
+    getAcceptedOrRequestedFollow: mockGetAcceptedOrRequestedFollow,
+    getFitnessSettings: vi.fn(async () => null)
   }))
 }))
 

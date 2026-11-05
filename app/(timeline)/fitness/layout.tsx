@@ -1,6 +1,14 @@
 'use client'
 
-import { Activity, Files, Flame, Lock, Plug, Wrench } from 'lucide-react'
+import {
+  Activity,
+  Files,
+  Flame,
+  HeartPulse,
+  Lock,
+  Plug,
+  Wrench
+} from 'lucide-react'
 import { FC, ReactNode } from 'react'
 
 import {
@@ -21,6 +29,7 @@ const groups: SectionNavGroup[] = [
       { name: 'Gear', url: '/fitness/gear', icon: <Wrench /> },
       { name: 'Heatmaps', url: '/fitness/heatmap', icon: <Flame /> },
       { name: 'Files', url: '/fitness/files', icon: <Files /> },
+      { name: 'Zones', url: '/fitness/zones', icon: <HeartPulse /> },
       { name: 'Privacy', url: '/fitness/privacy', icon: <Lock /> },
       { name: 'Connections', url: '/fitness/connections', icon: <Plug /> }
     ]

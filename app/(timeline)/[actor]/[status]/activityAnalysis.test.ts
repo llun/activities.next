@@ -1,4 +1,5 @@
 import type { FitnessRouteDataResponse } from '@/lib/client/fitnessRoutes'
+import { getHeartRateZones, getPowerZones } from '@/lib/fitness/trainingZones'
 
 import {
   deriveActivityAnalysis,
@@ -404,5 +405,63 @@ describe('deriveActivityAnalysis running cadence', () => {
     })
     expect(analysis.cadenceUnit).toBe('spm')
     expect(analysis.avgCadence).toBe(172)
+  })
+})
+
+describe('deriveActivityAnalysis with the author’s zones', () => {
+  it('buckets heart rate into the default zones without the author’s', () => {
+    const analysis = deriveActivityAnalysis({
+      data: buildRouteData(),
+      activityType: 'ride'
+    })
+    // 140 bpm is Z2 (122–142) of the default zones.
+    expect(analysis.heartRateZones.map((zone) => zone.pct)).toEqual([
+      0, 100, 0, 0, 0
+    ])
+    expect(analysis.powerZones).toEqual([])
+  })
+
+  it('buckets heart rate and power into the author’s zones', () => {
+    const analysis = deriveActivityAnalysis({
+      data: buildRouteData(),
+      activityType: 'ride',
+      // Max HR 170: Z3 is 129–145, so 140 bpm is Z3.
+      heartRateZones: getHeartRateZones({ maxHeartRate: 170 })!,
+      // FTP 260: 0 W is Z1, 200 W is Z3 (195–234).
+      powerZones: getPowerZones({ functionalThresholdPower: 260 })
+    })
+
+    expect(analysis.heartRateZones.map((zone) => zone.lo)).toEqual([
+      0, 112, 129, 145, 156
+    ])
+    expect(analysis.heartRateZones.map((zone) => zone.pct)).toEqual([
+      0, 0, 100, 0, 0
+    ])
+    expect(analysis.powerZones.map((zone) => zone.name)).toEqual([
+      'Z1',
+      'Z2',
+      'Z3',
+      'Z4',
+      'Z5',
+      'Z6'
+    ])
+    // 30 of the 181 power samples are 0 W.
+    expect(analysis.powerZones.map((zone) => zone.pct)).toEqual([
+      17, 0, 83, 0, 0, 0
+    ])
+    const powerSeconds = analysis.powerZones.reduce(
+      (sum, zone) => sum + zone.seconds,
+      0
+    )
+    expect(powerSeconds).toBeCloseTo(181 * analysis.sampleSeconds, -1)
+  })
+
+  it('has no power zones for a file without power', () => {
+    const analysis = deriveActivityAnalysis({
+      data: buildRouteData({ powerSeries: [] }),
+      activityType: 'ride',
+      powerZones: getPowerZones({ functionalThresholdPower: 260 })
+    })
+    expect(analysis.powerZones).toEqual([])
   })
 })

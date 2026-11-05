@@ -20,6 +20,11 @@ import { Alert } from '@/lib/components/surface/Alert'
 import { Frame } from '@/lib/components/surface/Frame'
 import { Section } from '@/lib/components/surface/Section'
 import { SkeletonBar } from '@/lib/components/surface/Skeleton'
+import {
+  type TrainingZoneSettings,
+  getHeartRateZones,
+  getPowerZones
+} from '@/lib/fitness/trainingZones'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Status, StatusNote } from '@/lib/types/domain/status'
@@ -34,7 +39,10 @@ import {
   type ActivityAnalysisChartProps
 } from './ActivityAnalysisChart'
 import { ActivityBestEfforts } from './ActivityBestEfforts'
-import { ActivityDistributionRow } from './ActivityDistributionRow'
+import {
+  ActivityDistributionRow,
+  distributionGridClass
+} from './ActivityDistributionRow'
 import {
   ActivityMapPanel,
   type ActivityMapPanelProps
@@ -85,6 +93,11 @@ interface Props {
   hasMoreDescendants?: boolean
   isMediaUploadEnabled?: boolean
   initialFitnessFiles?: StatusFitnessFileItem[]
+  /**
+   * The status author's own zone inputs (their general fitness settings), or
+   * null when they set none or are not on this server.
+   */
+  trainingZones?: TrainingZoneSettings | null
   onShowAttachment: (allMedias: Attachment[], selectedIndex: number) => void
 }
 
@@ -300,6 +313,7 @@ export const FitnessStatusDetail: FC<Props> = ({
   hasMoreDescendants = false,
   isMediaUploadEnabled,
   initialFitnessFiles,
+  trainingZones = null,
   onShowAttachment
 }) => {
   // The activity's conversation, with "Load earlier posts" above it and "Load
@@ -360,6 +374,20 @@ export const FitnessStatusDetail: FC<Props> = ({
   }, [fitness?.id, scrubStore])
 
   const activityType = fitness?.activityType ?? null
+  // The page passes personal zones only to their author; this is the second
+  // guard, so another viewer never sees them even if a caller passes them.
+  const ownZones = isOwner ? trainingZones : null
+  const maxHeartRate = ownZones?.maxHeartRate
+  const restingHeartRate = ownZones?.restingHeartRate
+  const functionalThresholdPower = ownZones?.functionalThresholdPower
+  const personalHeartRateZones = useMemo(
+    () => getHeartRateZones({ maxHeartRate, restingHeartRate }),
+    [maxHeartRate, restingHeartRate]
+  )
+  const personalPowerZones = useMemo(
+    () => getPowerZones({ functionalThresholdPower }),
+    [functionalThresholdPower]
+  )
   const analysis = useMemo(
     () =>
       route.data
@@ -368,7 +396,9 @@ export const FitnessStatusDetail: FC<Props> = ({
             activityType,
             fallbackDurationSeconds: fitness?.totalDurationSeconds ?? 0,
             movingTimeSeconds: fitness?.movingTimeSeconds ?? null,
-            skipPauses: !showPauses
+            skipPauses: !showPauses,
+            heartRateZones: personalHeartRateZones ?? undefined,
+            powerZones: personalPowerZones
           })
         : null,
     [
@@ -376,7 +406,9 @@ export const FitnessStatusDetail: FC<Props> = ({
       activityType,
       fitness?.totalDurationSeconds,
       fitness?.movingTimeSeconds,
-      showPauses
+      showPauses,
+      personalHeartRateZones,
+      personalPowerZones
     ]
   )
 
@@ -490,8 +522,10 @@ export const FitnessStatusDetail: FC<Props> = ({
     hasStructuredFitnessFormat && isCadenceSport && hasSummarySensors
   const likelyHasLaps =
     hasStructuredFitnessFormat && hasSummarySensors && durationSeconds > 0
+  // Heart-rate zones; power zones (with an FTP), distribution and curve.
   const expectedDistributionCount =
-    (hasSummaryHeartRate ? 1 : 0) + (hasSummaryPower ? 2 : 0)
+    (hasSummaryHeartRate ? 1 : 0) +
+    (hasSummaryPower ? (personalPowerZones ? 3 : 2) : 0)
   const expectedAnalysisSeries = [
     {
       key: 'elevation',
@@ -1022,7 +1056,7 @@ export const FitnessStatusDetail: FC<Props> = ({
                 aria-hidden={route.error ? 'true' : undefined}
                 data-testid="analysis-distribution-skeleton"
                 className={cn(
-                  'grid gap-6 @min-[600px]:grid-cols-2 @min-[600px]:gap-4 @min-[600px]:[&>*:last-child:nth-child(odd)]:col-span-2 @min-[820px]:grid-cols-3 @min-[820px]:[&>*:last-child:nth-child(odd)]:col-span-1',
+                  distributionGridClass(expectedDistributionCount),
                   route.error && FAILED_PLACEHOLDER_CLASS
                 )}
               >
@@ -1043,6 +1077,8 @@ export const FitnessStatusDetail: FC<Props> = ({
             <ActivityBestEfforts efforts={analysis.bestEfforts} />
             <ActivityDistributionRow
               heartRateZones={heartRateZones}
+              isDefaultHeartRateZones={!personalHeartRateZones}
+              powerZones={analysis.powerZones}
               heartRateStats={heartRateStats}
               powerDistribution={analysis.powerDistribution}
               avgPower={avgPower}

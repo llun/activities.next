@@ -14,6 +14,7 @@ import { useInlineComposer } from '@/lib/components/posts/useInlineComposer'
 import { useOpenStatusPath } from '@/lib/components/posts/useOpenStatusPath'
 import { SectionSkeleton } from '@/lib/components/surface/SectionSkeleton'
 import { SkeletonBar } from '@/lib/components/surface/Skeleton'
+import type { TrainingZoneSettings } from '@/lib/fitness/trainingZones'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import {
@@ -64,6 +65,8 @@ interface Props {
   hasMoreAncestors?: boolean
   hasMoreDescendants?: boolean
   fitnessFiles?: StatusFitnessFileItem[]
+  /** The fitness author's zone inputs, for the activity's zone charts. */
+  trainingZones?: TrainingZoneSettings | null
 }
 
 export const StatusBox: FC<Props> = ({
@@ -78,7 +81,8 @@ export const StatusBox: FC<Props> = ({
   ancestors,
   hasMoreAncestors,
   hasMoreDescendants,
-  fitnessFiles
+  fitnessFiles,
+  trainingZones
 }) => {
   const router = useRouter()
   const openStatusPath = useOpenStatusPath()
@@ -115,6 +119,7 @@ export const StatusBox: FC<Props> = ({
             hasMoreDescendants={hasMoreDescendants}
             isMediaUploadEnabled={isMediaUploadEnabled}
             initialFitnessFiles={fitnessFiles}
+            trainingZones={trainingZones}
             onShowAttachment={(allMedias, index) => {
               setModalMedias({
                 medias: allMedias,
