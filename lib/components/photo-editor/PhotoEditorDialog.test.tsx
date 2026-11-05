@@ -246,6 +246,20 @@ describe('PhotoEditorDialog', () => {
     expect(
       await screen.findByText("Animated images can't be edited")
     ).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /retry/i })).toBeNull()
+  })
+
+  it('keeps the generic copy and a retry for any other refusal', async () => {
+    mockGetMediaEdit.mockRejectedValue(
+      new MediaEditError(422, "This media can't be edited")
+    )
+    render(
+      <PhotoEditorDialog mediaId="12" onClose={vi.fn()} onSaved={vi.fn()} />
+    )
+    expect(
+      await screen.findByText("Couldn't load the photo.")
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument()
   })
 
   it('refuses a photo that is too large to edit in the browser', async () => {

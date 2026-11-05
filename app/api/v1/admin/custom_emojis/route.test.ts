@@ -260,6 +260,34 @@ describe('/api/v1/admin/custom_emojis', () => {
     expect(mockSaveMedia).not.toHaveBeenCalled()
   })
 
+  // The cap is checked before the image is decoded, so an oversized animated
+  // upload gets the size refusal, not the frame-count one.
+  it('refuses an over-cap upload before reading its frames', async () => {
+    mockDatabase.getCustomEmojiByShortcode.mockResolvedValue(null)
+    mockDatabase.getAllServerSettings.mockResolvedValue([
+      { key: 'media.maxFileSize', value: 2 }
+    ])
+    const form = new FormData()
+    form.set('shortcode', 'blobcat')
+    form.set(
+      'image',
+      new File(
+        [new Uint8Array(await uploadImageFixture('gif', { animated: true }))],
+        'e.gif',
+        { type: 'image/gif' }
+      )
+    )
+
+    const response = await POST(makeMultipartRequest(form), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(422)
+    expect(await response.json()).not.toEqual({
+      error: 'Custom emoji must be a static image'
+    })
+  })
+
   it.each(['gif', 'webp', 'avif'] as const)(
     'accepts a static %s upload',
     async (format) => {
