@@ -209,8 +209,6 @@ describe('getProfileIdentity', () => {
         id: remotePerson.id
       } as DomainActor)
       vi.mocked(mockDatabase.getAttachmentsForActor).mockResolvedValue([])
-      // The profile's pinned posts.
-      vi.mocked(mockDatabase.getActorStatuses).mockResolvedValue([])
       vi.mocked(getWebfingerSelf).mockResolvedValue(remotePerson.id)
       vi.mocked(getActorPerson).mockResolvedValue(remotePerson)
       vi.mocked(getActorPosts).mockResolvedValue({
@@ -232,11 +230,6 @@ describe('getProfileIdentity', () => {
       )
       const profileWrites = vi.mocked(mockDatabase.setActorCounters).mock.calls
       vi.mocked(mockDatabase.setActorCounters).mockClear()
-      // The profile loads its pinned posts; the identity shows none.
-      expect(mockDatabase.getActorStatuses).toHaveBeenCalledWith(
-        expect.objectContaining({ pinned: true })
-      )
-      vi.mocked(mockDatabase.getActorStatuses).mockClear()
 
       const identity = await getProfileIdentity(
         mockDatabase,
@@ -257,7 +250,6 @@ describe('getProfileIdentity', () => {
         profileWrites
       )
       expect(profileWrites).toHaveLength(1)
-      expect(mockDatabase.getActorStatuses).not.toHaveBeenCalled()
     })
   })
 })

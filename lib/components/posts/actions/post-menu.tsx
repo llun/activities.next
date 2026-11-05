@@ -58,6 +58,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger
 } from '@/lib/components/ui/dropdown-menu'
+import { MAX_PINNED_STATUSES } from '@/lib/services/mastodon/constants'
 import { getEffectiveQuoteApprovalPolicy } from '@/lib/services/quotes/quotePolicy'
 import {
   EditableStatus,
@@ -187,6 +188,12 @@ interface Props {
   isOwner: boolean
   canEdit: boolean
   /**
+   * The post is shown as pinned (the profile's pinned list), so the menu
+   * starts from that instead of reading it. The read cannot tell for a direct
+   * post: the API omits `pinned` on a post that is not pinnable.
+   */
+  isPinned?: boolean
+  /**
    * Lets the caller anchor an overlay to the ⋯ trigger — the reaction picker
    * uses it when the row is compact and the picker is opened from this menu.
    */
@@ -223,6 +230,7 @@ export const PostMenu: FC<Props> = ({
   status,
   isOwner,
   canEdit,
+  isPinned: knownPinned = false,
   triggerRef,
   extraItems,
   onMenuOpen,
@@ -270,8 +278,8 @@ export const PostMenu: FC<Props> = ({
 
   // Whether the owner has pinned this post is read when the menu opens; the
   // item stays disabled until then so it never offers the wrong action.
-  const [isPinned, setIsPinned] = useState(false)
-  const [pinnedLoaded, setPinnedLoaded] = useState(false)
+  const [isPinned, setIsPinned] = useState(knownPinned)
+  const [pinnedLoaded, setPinnedLoaded] = useState(knownPinned)
   const [pinSaving, setPinSaving] = useState(false)
 
   useEffect(() => {
@@ -408,11 +416,13 @@ export const PostMenu: FC<Props> = ({
         setPinnedLoaded(true)
         router.refresh()
       } else {
+        // The pin route answers the pin limit with a bare 422.
         setActionError(
-          result.error ||
-            (isPinned
+          !isPinned && result.status === 422
+            ? `You can pin up to ${MAX_PINNED_STATUSES} posts. Unpin one first.`
+            : isPinned
               ? "Couldn't unpin post. Please try again."
-              : "Couldn't pin post. Please try again.")
+              : "Couldn't pin post. Please try again."
         )
       }
     } catch {

@@ -222,10 +222,9 @@ export const ActorTimelines: FC<Props> = ({
   const [currentPinnedStatuses, setCurrentPinnedStatuses] = useState<Status[]>(
     () => pinnedStatuses ?? []
   )
+  // A pin or unpin refreshes the page, which sends the new list.
   useEffect(() => {
-    if (pinnedStatuses) {
-      setCurrentPinnedStatuses(pinnedStatuses)
-    }
+    setCurrentPinnedStatuses(pinnedStatuses ?? [])
   }, [pinnedStatuses])
   // Null for a remote profile, whose tabs split on "is it a reply" alone.
   const [currentRepliesTabIds, setCurrentRepliesTabIds] =
@@ -382,89 +381,80 @@ export const ActorTimelines: FC<Props> = ({
     [isCurrentUser]
   )
 
-  const handlePostUpdated = useCallback((updatedStatus: Status) => {
-    // Announce-aware (like handlePostDeleted): also refreshes a boost row whose
-    // original was the edited post. An edited status is always a note/poll.
-    setCurrentStatuses((previousStatuses) =>
-      updateMatchingStatus(
-        previousStatuses,
-        updatedStatus.id,
-        () => updatedStatus as StatusNote | StatusPoll
-      )
-    )
-    setCurrentPinnedStatuses((previousStatuses) =>
-      updateMatchingStatus(
-        previousStatuses,
-        updatedStatus.id,
-        () => updatedStatus as StatusNote | StatusPoll
-      )
-    )
-  }, [])
-
-  const handlePostDeleted = useCallback((status: Status) => {
-    const remainingStatuses = removeOriginalStatus(
-      currentStatusesRef.current,
-      status.id
-    )
-    setCurrentStatuses((previousStatuses) =>
-      removeOriginalStatus(previousStatuses, status.id)
-    )
-    setCurrentPinnedStatuses((previousStatuses) =>
-      removeOriginalStatus(previousStatuses, status.id)
-    )
-    // The database ignores a `max_id` that matches no row, so a cursor on
-    // the deleted post would restart paging from the newest page. Step back
-    // to the last post still loaded instead.
-    setCurrentStatusPagination((previous) =>
-      previous.nextMaxStatusId === status.id
-        ? {
-            ...previous,
-            nextMaxStatusId: remainingStatuses.at(-1)?.id ?? null
-          }
-        : previous
-    )
-  }, [])
-
-  const handleLikeChanged = useCallback(
-    (status: StatusNote | StatusPoll, isLiked: boolean) => {
-      setCurrentStatuses((previousStatuses) =>
-        updateMatchingStatus(previousStatuses, status.id, (target) => ({
-          ...target,
-          isActorLiked: isLiked,
-          totalLikes: isLiked
-            ? target.totalLikes + 1
-            : Math.max(0, target.totalLikes - 1)
-        }))
-      )
-      setCurrentPinnedStatuses((previousStatuses) =>
-        updateMatchingStatus(previousStatuses, status.id, (target) => ({
-          ...target,
-          isActorLiked: isLiked,
-          totalLikes: isLiked
-            ? target.totalLikes + 1
-            : Math.max(0, target.totalLikes - 1)
-        }))
-      )
+  // The pinned list shows the same posts as the feed, so every change to a
+  // post is applied to both.
+  const updateBothLists = useCallback(
+    (update: (previousStatuses: Status[]) => Status[]) => {
+      setCurrentStatuses(update)
+      setCurrentPinnedStatuses(update)
     },
     []
   )
 
-  const handleBookmarkChanged = useCallback(
-    (status: StatusNote | StatusPoll, isBookmarked: boolean) => {
-      setCurrentStatuses((previousStatuses) =>
+  const handlePostUpdated = useCallback(
+    (updatedStatus: Status) => {
+      // Announce-aware (like handlePostDeleted): also refreshes a boost row whose
+      // original was the edited post. An edited status is always a note/poll.
+      updateBothLists((previousStatuses) =>
+        updateMatchingStatus(
+          previousStatuses,
+          updatedStatus.id,
+          () => updatedStatus as StatusNote | StatusPoll
+        )
+      )
+    },
+    [updateBothLists]
+  )
+
+  const handlePostDeleted = useCallback(
+    (status: Status) => {
+      const remainingStatuses = removeOriginalStatus(
+        currentStatusesRef.current,
+        status.id
+      )
+      updateBothLists((previousStatuses) =>
+        removeOriginalStatus(previousStatuses, status.id)
+      )
+      // The database ignores a `max_id` that matches no row, so a cursor on
+      // the deleted post would restart paging from the newest page. Step back
+      // to the last post still loaded instead.
+      setCurrentStatusPagination((previous) =>
+        previous.nextMaxStatusId === status.id
+          ? {
+              ...previous,
+              nextMaxStatusId: remainingStatuses.at(-1)?.id ?? null
+            }
+          : previous
+      )
+    },
+    [updateBothLists]
+  )
+
+  const handleLikeChanged = useCallback(
+    (status: StatusNote | StatusPoll, isLiked: boolean) => {
+      updateBothLists((previousStatuses) =>
         updateMatchingStatus(previousStatuses, status.id, (target) => ({
           ...target,
-          isActorBookmarked: isBookmarked
+          isActorLiked: isLiked,
+          totalLikes: isLiked
+            ? target.totalLikes + 1
+            : Math.max(0, target.totalLikes - 1)
         }))
       )
-      setCurrentPinnedStatuses((previousStatuses) =>
+    },
+    [updateBothLists]
+  )
+
+  const handleBookmarkChanged = useCallback(
+    (status: StatusNote | StatusPoll, isBookmarked: boolean) => {
+      updateBothLists((previousStatuses) =>
         updateMatchingStatus(previousStatuses, status.id, (target) => ({
           ...target,
           isActorBookmarked: isBookmarked
         }))
       )
     },
-    []
+    [updateBothLists]
   )
 
   // Reactions have to be synced alongside likes and bookmarks: those handlers
@@ -473,20 +463,14 @@ export const ActorTimelines: FC<Props> = ({
   // revert a chip the viewer just added.
   const handleReactionsChanged = useCallback(
     (status: StatusNote | StatusPoll, reactions: StatusReaction[]) => {
-      setCurrentStatuses((previousStatuses) =>
-        updateMatchingStatus(previousStatuses, status.id, (target) => ({
-          ...target,
-          reactions
-        }))
-      )
-      setCurrentPinnedStatuses((previousStatuses) =>
+      updateBothLists((previousStatuses) =>
         updateMatchingStatus(previousStatuses, status.id, (target) => ({
           ...target,
           reactions
         }))
       )
     },
-    []
+    [updateBothLists]
   )
 
   const loadMoreStatuses = useCallback(async () => {
@@ -712,26 +696,19 @@ export const ActorTimelines: FC<Props> = ({
     hint: 'Activities shared as posts show up here.'
   }
 
+  // Pinned posts open the Posts tab; the feed follows, and its empty state
+  // shows only when there are no pins either.
   const renderPostsTab = () => {
     const hasPins = currentPinnedStatuses.length > 0
-    const hasPosts = postStatuses.length > 0
-
-    if (!hasPins && !hasPosts) {
-      return (
-        <EmptyState icon={noPosts.icon} title={noPosts.title}>
-          {noPosts.hint}
-        </EmptyState>
-      )
-    }
-
     return (
       <div className="space-y-4">
-        {hasPins && (
+        {hasPins ? (
           <Posts
             host={host}
             currentTime={currentTime}
             statuses={currentPinnedStatuses}
             isPinned
+            prioritizeFirstMedia={!hasHeaderImage}
             currentActor={currentActor}
             showActions={showActions}
             showReadOnlyStats={!showActions}
@@ -744,46 +721,13 @@ export const ActorTimelines: FC<Props> = ({
             onBookmarkChanged={handleBookmarkChanged}
             onReactionsChanged={handleReactionsChanged}
           />
-        )}
-        {hasPosts &&
-          (combinesSelfThreads ? (
-            <TimelineFeed
-              host={host}
-              currentTime={currentTime}
-              statuses={postStatuses}
-              timelineContext={currentTimelineContext}
-              prioritizeFirstMedia={!hasHeaderImage && !hasPins}
-              currentActor={currentActor}
-              showActions={showActions}
-              showReadOnlyStats={!showActions}
-              isMediaUploadEnabled={isMediaUploadEnabled}
-              postLineLimit={postLineLimit}
-              onStatusCreated={handleStatusCreated}
-              onPostUpdated={handlePostUpdated}
-              onPostDeleted={handlePostDeleted}
-              onLikeChanged={handleLikeChanged}
-              onBookmarkChanged={handleBookmarkChanged}
-              onReactionsChanged={handleReactionsChanged}
-            />
-          ) : (
-            <Posts
-              host={host}
-              currentTime={currentTime}
-              statuses={postStatuses}
-              prioritizeFirstMedia={!hasHeaderImage && !hasPins}
-              currentActor={currentActor}
-              showActions={showActions}
-              showReadOnlyStats={!showActions}
-              isMediaUploadEnabled={isMediaUploadEnabled}
-              postLineLimit={postLineLimit}
-              onStatusCreated={handleStatusCreated}
-              onPostUpdated={handlePostUpdated}
-              onPostDeleted={handlePostDeleted}
-              onLikeChanged={handleLikeChanged}
-              onBookmarkChanged={handleBookmarkChanged}
-              onReactionsChanged={handleReactionsChanged}
-            />
-          ))}
+        ) : null}
+        {!hasPins || postStatuses.length > 0
+          ? renderFeed(postStatuses, noPosts, {
+              prioritizeFirstMedia: !hasHeaderImage && !hasPins,
+              combineSelfThreads: combinesSelfThreads
+            })
+          : null}
       </div>
     )
   }

@@ -55,6 +55,8 @@ type ProfileData = {
   // values are HTML, `verifiedAt` comes from the stored actor row.
   profileFields: ProfileFieldItem[]
   statuses: Status[]
+  // A local account's pinned posts for the Posts tab, scoped like `statuses`.
+  // Absent for a remote profile: its pins (`featured`) are not ingested.
   pinnedStatuses?: Status[]
   // A local account's statuses that belong on the profile's Replies tab: its
   // replies whose self-reply chain starts with a reply to someone else. Every
@@ -589,36 +591,21 @@ const getRemoteProfileData = async (
     // Malformed person.id
   }
 
-  const [
-    actorPostsResponse,
-    attachments,
-    rawPinnedStatuses,
-    collectionCounts,
-    serverSoftware
-  ] = await Promise.all([
-    getActorPosts({
-      database,
-      person,
-      pageUrl: options.statusPageUrl,
-      ...signingParams
-    }),
-    database.getAttachmentsForActor({
-      actorId: person.id,
-      ...remoteVisibilityScope
-    }),
-    // The identity (followers/following pages) shows no statuses.
-    skipViewerStateOverlay
-      ? Promise.resolve([] as Status[])
-      : database.getActorStatuses({
-          actorId: person.id,
-          currentActorId: options.currentActor?.id,
-          limit: MAX_PINNED_STATUSES,
-          pinned: true,
-          ...remoteVisibilityScope
-        }),
-    getActorCollectionCounts({ person, ...signingParams }),
-    remoteDomain ? getServerSoftwareInfo(remoteDomain) : Promise.resolve(null)
-  ])
+  const [actorPostsResponse, attachments, collectionCounts, serverSoftware] =
+    await Promise.all([
+      getActorPosts({
+        database,
+        person,
+        pageUrl: options.statusPageUrl,
+        ...signingParams
+      }),
+      database.getAttachmentsForActor({
+        actorId: person.id,
+        ...remoteVisibilityScope
+      }),
+      getActorCollectionCounts({ person, ...signingParams }),
+      remoteDomain ? getServerSoftwareInfo(remoteDomain) : Promise.resolve(null)
+    ])
 
   // The live outbox does not carry the viewer's like/bookmark state; overlay
   // what the stored rows say. With no viewer the helper returns the statuses
@@ -630,29 +617,6 @@ const getRemoteProfileData = async (
         database,
         currentActor: options.currentActor,
         statuses: actorPostsResponse.statuses
-      })
-
-  const readablePinnedStatuses = (
-    await Promise.all(
-      rawPinnedStatuses.map(async (status) =>
-        (await canActorReadStatus({
-          database,
-          status,
-          currentActor: options.currentActor,
-          isFollower: remoteAudience.isFollower
-        }))
-          ? status
-          : null
-      )
-    )
-  ).filter((status): status is Status => status !== null)
-
-  const pinnedStatuses = skipViewerStateOverlay
-    ? readablePinnedStatuses
-    : await overlayStoredViewerState({
-        database,
-        currentActor: options.currentActor,
-        statuses: readablePinnedStatuses
       })
 
   const resolvedStatusesCount =
@@ -694,7 +658,6 @@ const getRemoteProfileData = async (
   return {
     ...actorPostsResponse,
     statuses,
-    pinnedStatuses,
     person,
     // The live document's fields, with the verification of the stored row's
     // field of the same name and value (a changed value is not verified).

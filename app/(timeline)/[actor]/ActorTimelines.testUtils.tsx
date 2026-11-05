@@ -31,7 +31,7 @@ export const MockPosts = ({
   currentTime: number
   showActions?: boolean
   showReadOnlyStats?: boolean
-  isPinned?: boolean | ((status: Status) => boolean)
+  isPinned?: boolean
   onStatusCreated?: (status: Status) => void
   onPostUpdated?: (status: Status) => void
   onPostDeleted?: (status: Status) => void
@@ -65,8 +65,7 @@ export const MockPosts = ({
         // For a boost, the action callbacks fire with the unwrapped original
         // status (mirroring the real Posts/Actions wiring).
         const target = getOriginalStatus(status)
-        const pinned =
-          typeof isPinned === 'function' ? isPinned(status) : isPinned
+        const pinned = isPinned
         return (
           <div key={status.id}>
             {pinned && (

@@ -83,6 +83,7 @@ export const Actions: FC<Props> = ({
   fullBleed = true,
   extraMenuItems,
   splitTargets,
+  isPinned,
   onReply,
   onEdit,
   onQuote,
@@ -242,6 +243,7 @@ export const Actions: FC<Props> = ({
         status={actualStatus}
         isOwner={isOwner}
         canEdit={canEdit}
+        isPinned={isPinned}
         triggerRef={isCompact ? reactionState.triggerRef : undefined}
         extraItems={extraItems}
         // The compact row's "React to post" item mounts the lazy picker.

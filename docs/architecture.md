@@ -2327,21 +2327,25 @@ false`), so users who never opted in are not advertised to remote servers
   `TimelineFeed` above); a reply to someone else, a reply to a parent this
   server does not have, and the author's self-replies under either are on
   Replies, so nothing shows on both. Boosts are on Posts.
-  - **Pinned posts on the Posts tab:** `getProfileData` loads the actor's
-    pinned statuses (`getActorStatuses` with `pinned: true`, at most
+  - **Pinned posts on the Posts tab:** for a local account, `getProfileData`
+    loads its pinned statuses (`getActorStatuses` with `pinned: true`, at most
     `MAX_PINNED_STATUSES`) with the same viewer audience and read check as the
-    other statuses, so a pin the viewer may not see is never sent. They render
-    at the top of the Posts tab only, newest post first (not pin order, which
-    `status_pins` does not keep for this query), each with a "Pinned" line
-    styled like the boosted-by line (`PinnedStatus` in
-    `lib/components/posts/post.tsx`). The chronological feed follows unchanged,
-    so a pinned post can appear in both, as on Mastodon; with pins and no other
-    posts, "No posts yet" is not shown. The owner pins and unpins from the
-    post's `⋯` menu ("Pin to profile" / "Unpin from profile"; a direct post
-    can only be unpinned, if it was pinned before it became direct), which
-    reads the current state from `GET /api/v1/statuses/:id` when the menu opens
-    and keeps the item disabled until it has it. The followers/following pages
-    (`getProfileIdentity`) load no pins.
+    other statuses, so a pin the viewer may not see is never sent. A remote
+    profile has none: inbound `featured` collections are not ingested, so
+    `status_pins` only holds local actors' pins. The pins render at the top of
+    the Posts tab only, newest post first (not pin order), each with a
+    "Pinned" line styled like the boosted-by line (`PinnedStatus` in
+    `lib/components/posts/post.tsx`); the pinned list takes the first-media
+    priority when there is no cover image. The chronological feed follows
+    unchanged, so a pinned post can appear in both, as on Mastodon; with pins
+    and no other posts, "No posts yet" is not shown. The owner pins and unpins
+    from the post's `⋯` menu ("Pin to profile" / "Unpin from profile"). The
+    menu reads the state from `GET /api/v1/statuses/:id` when it opens and
+    keeps the item disabled until then; a post in the pinned list passes
+    `isPinned` instead, because that read omits `pinned` on a direct post (one
+    pinned before it became direct can still be unpinned there). The pin
+    route answers the pin limit with a bare 422, which the menu words as the
+    limit.
   - The profile loads one list of statuses; `getProfileData` and
     `GET /api/v1/accounts/:id/statuses?format=activities_next` send
     `repliesTabStatusIds` beside each page (the page's statuses that open

@@ -78,6 +78,30 @@ describe('ActorTimelines pinned statuses', () => {
     expect(pinnedIndex).toBeLessThan(regularIndex)
   })
 
+  it('follows a new pinned list after the page refreshes (pin or unpin)', () => {
+    const props = {
+      host: 'localhost:3000',
+      actorId,
+      statuses: [createStatus(regularPostId)],
+      attachments: [],
+      currentTime: FIXED_CURRENT_TIME,
+      currentActor: currentActorProfile,
+      statusPagination: { nextPageUrl: null, prevPageUrl: null }
+    }
+    const { rerender } = render(
+      <ActorTimelines
+        {...props}
+        pinnedStatuses={[createStatus(pinnedPostId)]}
+      />
+    )
+    expect(screen.getByText('Pinned')).toBeInTheDocument()
+
+    // The unpin's router.refresh sends the list without the post.
+    rerender(<ActorTimelines {...props} pinnedStatuses={[]} />)
+    expect(screen.queryByText('Pinned')).not.toBeInTheDocument()
+    expect(screen.queryByText(pinnedPostId)).not.toBeInTheDocument()
+  })
+
   it('shows the pins and not the empty state when there are pins but no regular posts', () => {
     render(
       <ActorTimelines

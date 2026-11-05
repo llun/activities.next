@@ -45,8 +45,8 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/lib/client', () => ({
   getRelationship: vi.fn().mockResolvedValue(null),
   getStatusById: vi.fn().mockResolvedValue(null),
-  pinStatus: vi.fn().mockResolvedValue({ ok: true }),
-  unpinStatus: vi.fn().mockResolvedValue({ ok: true }),
+  pinStatus: vi.fn().mockResolvedValue({ ok: true, status: 200 }),
+  unpinStatus: vi.fn().mockResolvedValue({ ok: true, status: 200 }),
   mute: vi.fn(),
   unmute: vi.fn(),
   block: vi.fn(),
@@ -792,27 +792,29 @@ describe('PostMenu', () => {
         ).not.toBeInTheDocument()
       })
 
-      it('offers Unpin for a direct post that was pinned before it became direct', async () => {
-        ;(getStatusById as jest.Mock).mockResolvedValue({
-          id: ownStatus.id,
-          pinned: true
-        })
+      it('offers Unpin for a post shown as pinned, even a direct one', async () => {
+        // The API omits `pinned` on a direct post, so the read cannot tell;
+        // the profile's pinned list says so instead.
+        ;(getStatusById as jest.Mock).mockResolvedValue({ id: ownStatus.id })
         const directStatus: StatusNote = {
           ...ownStatus,
           to: ['https://activities.local/users/someone'],
           cc: []
         }
-        render(<PostMenu status={directStatus} isOwner canEdit={false} />)
+        render(
+          <PostMenu status={directStatus} isOwner canEdit={false} isPinned />
+        )
 
         const menu = await openMenu()
-        expect(
-          await within(menu).findByRole('menuitem', {
-            name: 'Unpin from profile'
-          })
-        ).toBeInTheDocument()
-        expect(
-          within(menu).queryByRole('menuitem', { name: 'Pin to profile' })
-        ).not.toBeInTheDocument()
+        const unpin = within(menu).getByRole('menuitem', {
+          name: 'Unpin from profile'
+        })
+        expect(unpin).not.toHaveAttribute('aria-disabled', 'true')
+        expect(getStatusById).not.toHaveBeenCalled()
+        await act(async () => {
+          fireEvent.click(unpin)
+        })
+        expect(unpinStatus).toHaveBeenCalledWith({ statusId: ownStatus.id })
       })
 
       it('does not show Pin to profile for other actors posts', async () => {
@@ -841,8 +843,8 @@ describe('PostMenu', () => {
           id: publicOwnStatus.id,
           pinned: false
         })
-        ;(pinStatus as jest.Mock).mockResolvedValue({ ok: true })
-        ;(unpinStatus as jest.Mock).mockResolvedValue({ ok: true })
+        ;(pinStatus as jest.Mock).mockResolvedValue({ ok: true, status: 200 })
+        ;(unpinStatus as jest.Mock).mockResolvedValue({ ok: true, status: 200 })
 
         render(<PostMenu status={publicOwnStatus} isOwner canEdit={false} />)
 
@@ -881,7 +883,8 @@ describe('PostMenu', () => {
       it('surfaces error feedback when pin fails', async () => {
         ;(pinStatus as jest.Mock).mockResolvedValue({
           ok: false,
-          error: 'Maximum 5 pinned posts reached'
+          // The pin route's answer to the limit: a bare 422.
+          status: 422
         })
         ;(getStatusById as jest.Mock).mockResolvedValue({
           id: publicOwnStatus.id,
@@ -904,7 +907,7 @@ describe('PostMenu', () => {
 
         expect(
           await screen.findByRole('alert', { hidden: true })
-        ).toHaveTextContent('Maximum 5 pinned posts reached')
+        ).toHaveTextContent('You can pin up to 5 posts. Unpin one first.')
         expect(refresh).not.toHaveBeenCalled()
       })
     })

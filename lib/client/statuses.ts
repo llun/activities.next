@@ -890,8 +890,8 @@ export const undoBookmarkStatus = async ({ statusId }: DefaultStatusParams) => {
 
 export interface PinStatusResult {
   ok: boolean
-  /** The server's message, e.g. for the pin limit. */
-  error?: string
+  /** The HTTP status, e.g. 422 for the pin limit. */
+  status: number
 }
 
 const setStatusPinned = async (
@@ -902,17 +902,7 @@ const setStatusPinned = async (
     `/api/v1/statuses/${toIdPathSegment(statusId)}/${action}`,
     { method: 'POST', headers: { 'Content-Type': 'application/json' } }
   )
-  if (response.ok) return { ok: true }
-  const body = (await response.json().catch(() => null)) as {
-    error?: unknown
-  } | null
-  return {
-    ok: false,
-    error:
-      typeof body?.error === 'string' && body.error.length > 0
-        ? body.error
-        : undefined
-  }
+  return { ok: response.ok, status: response.status }
 }
 
 /** @see https://docs.joinmastodon.org/methods/statuses/#pin */
