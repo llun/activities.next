@@ -453,6 +453,10 @@ const capture = async <T>(run: () => Promise<T>) => {
 const STATEMENTS: [RegExp, (bindings: unknown[]) => string][] = [
   [/^(begin|commit|rollback)$/, () => ''],
   [/^insert into "statuses" /, () => 'insert status'],
+  [
+    /^select \* from "statuses" where "id" = (\$1|\?) limit (\$2|\?)( for update)?$/,
+    () => 'lock status'
+  ],
   [/^insert into "counters" .* on conflict/, (b) => `count ${b[0]}`],
   [/^update "counters" set "bucketHour" /, (b) => `bucket hour ${b.at(-1)}`],
   [/^update "actors" set "lastStatusAt" /, (b) => `lastStatusAt ${b[1]}`],
@@ -468,7 +472,10 @@ const STATEMENTS: [RegExp, (bindings: unknown[]) => string][] = [
   ],
   [/^insert into "recipients" /, (b) => `recipient ${b[3]} ${b[2]}`],
   [/^insert into "poll_choices" /, (b) => `insert choice ${b[1]}`],
-  [/^select "title" from "poll_choices" /, () => 'read choice titles'],
+  [
+    /^select "choiceId", "title" from "poll_choices" /,
+    () => 'read choice titles'
+  ],
   [/^insert into "status_history" /, () => 'insert history'],
   [/^update "statuses" set /, () => 'update status'],
   [/^delete from "attachments" /, () => 'delete attachments'],
@@ -2709,6 +2716,8 @@ describe('updatePoll', () => {
     expect(await neighbourRows(neighbour)).toEqual(neighbourBefore)
     expect(transactionSteps(statements)).toEqual([
       'begin',
+      'lock status',
+      'read choice titles',
       'tally red',
       'tally green',
       'tally blue',
@@ -2727,7 +2736,11 @@ describe('updatePoll', () => {
         statusId: id,
         text: 'new question',
         sensitive: true,
-        choices: [{ title: 'green', totalVotes: 9 }]
+        // Tallies are positional: the list is the stored one in order.
+        choices: [
+          { title: 'red', totalVotes: 3 },
+          { title: 'green', totalVotes: 9 }
+        ]
       })
     )
 
@@ -2771,9 +2784,11 @@ describe('updatePoll', () => {
     })
     expect(transactionSteps(statements)).toEqual([
       'begin',
+      'lock status',
       'read choice titles',
       'insert history',
       'update status',
+      'tally red',
       'tally green',
       'commit'
     ])
@@ -2798,6 +2813,7 @@ describe('updatePoll', () => {
     ])
     expect(transactionSteps(statements)).toEqual([
       'begin',
+      'lock status',
       'read choice titles',
       'insert history',
       'update status',
@@ -2809,6 +2825,8 @@ describe('updatePoll', () => {
     ])
   })
 
+  // A reset seeds the new options with the given tallies: a local edit passes
+  // 0, a remote Update(Question) passes the counts it carries.
   it('resets the votes and replaces the options of that poll only', async () => {
     const { id, neighbour } = await setup()
     const neighbourBefore = await neighbourRows(neighbour)
@@ -2841,13 +2859,14 @@ describe('updatePoll', () => {
         .orderBy('choiceId')
         .execute()
     ).toEqual([
-      { title: 'yes', totalVotes: 0, createdAt: now, updatedAt: now },
-      { title: 'no', totalVotes: 0, createdAt: now, updatedAt: now }
+      { title: 'yes', totalVotes: 4, createdAt: now, updatedAt: now },
+      { title: 'no', totalVotes: 2, createdAt: now, updatedAt: now }
     ])
     expect(await votesOf(id)).toEqual({ voters: [], answers: [] })
     expect(await neighbourRows(neighbour)).toEqual(neighbourBefore)
     expect(transactionSteps(statements)).toEqual([
       'begin',
+      'lock status',
       'read choice titles',
       'insert history',
       'update status',
@@ -2873,6 +2892,7 @@ describe('updatePoll', () => {
         text: 'new question',
         choices: [
           { title: 'red', totalVotes: 4 },
+          { title: 'green', totalVotes: 6 },
           { title: 'blue', totalVotes: 1 }
         ]
       })
@@ -2933,6 +2953,94 @@ describe('updatePoll', () => {
     ).resolves.toBeNull()
     expect(await dumpTables()).toEqual(before)
     expect(hydrationCalls).toEqual([])
+  })
+
+  it('locks the status row before it reads the content it rebuilds', async () => {
+    const { id } = await setup()
+    const { statements } = await capture(() =>
+      updatePoll(db, hydration, {
+        statusId: id,
+        text: 'edited',
+        choices: [{ title: 'red', totalVotes: 4 }]
+      })
+    )
+    // A concurrent Update is waited for on PostgreSQL, so the revision and
+    // the content are built from what it committed.
+    const lock = statusRowLock(statements)
+    expect(lock?.sql.endsWith(' for update')).toBe(testDb.backend === 'pg')
+  })
+
+  it('writes nothing when the stored updated is no longer the one the caller read', async () => {
+    const { id } = await setup()
+    const before = await statusRow(id)
+
+    await updatePoll(db, hydration, {
+      statusId: id,
+      text: 'from an older fetch',
+      summary: 'cw',
+      endAt: BASE + 60_000,
+      remoteUpdatedAt: BASE + 5_000,
+      // The poll holds no `updated`, so a caller that read one is stale.
+      expectedRemoteUpdatedAt: BASE + 1_000,
+      choices: [
+        { title: 'red', totalVotes: 4 },
+        { title: 'green', totalVotes: 6 },
+        { title: 'blue', totalVotes: 1 }
+      ]
+    })
+
+    expect(await statusRow(id)).toEqual(before)
+    expect(await historyOf(id)).toEqual([])
+    // Not even the tallies: they may predate a reset the newer edit applied.
+    expect(
+      (await choicesOf(id)).map(({ title, totalVotes }) => [title, totalVotes])
+    ).toEqual([
+      ['red', 3],
+      ['green', 5],
+      ['blue', 0]
+    ])
+  })
+
+  it('writes the content when the stored updated is still the one the caller read', async () => {
+    const { id } = await setup()
+
+    await updatePoll(db, hydration, {
+      statusId: id,
+      text: 'edited',
+      remoteUpdatedAt: BASE + 5_000,
+      expectedRemoteUpdatedAt: null,
+      choices: [{ title: 'red', totalVotes: 4 }]
+    })
+
+    const content = JSON.parse(String((await statusRow(id))?.content))
+    expect(content).toMatchObject({
+      text: 'edited',
+      remoteUpdatedAt: BASE + 5_000
+    })
+  })
+
+  it('compares a recorded updated by value', async () => {
+    const { id } = await setup()
+    await updatePoll(db, hydration, {
+      statusId: id,
+      remoteUpdatedAt: BASE + 5_000,
+      choices: []
+    })
+
+    await updatePoll(db, hydration, {
+      statusId: id,
+      text: 'edited again',
+      remoteUpdatedAt: BASE + 6_000,
+      expectedRemoteUpdatedAt: BASE + 5_000,
+      choices: [{ title: 'red', totalVotes: 9 }]
+    })
+
+    const content = JSON.parse(String((await statusRow(id))?.content))
+    expect(content).toMatchObject({
+      text: 'edited again',
+      remoteUpdatedAt: BASE + 6_000
+    })
+    expect((await choicesOf(id))[0]).toMatchObject({ totalVotes: 9 })
   })
 })
 
@@ -3707,12 +3815,11 @@ describe('single-row reads', () => {
         ].some((pattern) => pattern.test(text))
       )
       .map(({ sql: text }) =>
-        text
-          .replace(/\$\d+/g, '?')
-          .replace(
-            /^(select \S+ from "\w+") .*?( limit \? offset \?| limit \?)?$/,
-            '$1$2'
-          )
+        text.replace(/\$\d+/g, '?').replace(
+          // A PostgreSQL row lock ends in ` for update`, after its limit.
+          /^(select \S+ from "\w+") .*?( limit \? offset \?| limit \?)?( for update)?$/,
+          '$1$2'
+        )
       )
     expect(reads).toEqual([
       'select "accountId" from "actors" limit ?',

@@ -268,6 +268,8 @@ export type CreatePollParams = BaseCreateStatusParams & {
   pollType?: 'oneOf' | 'anyOf'
   // Mastodon poll[hide_totals]: hide per-option tallies until the poll expires.
   hideTotals?: boolean
+  // A remote poll's `updated` as first seen (see UpdatePollParams).
+  remoteUpdatedAt?: number
 }
 
 /**
@@ -283,7 +285,9 @@ export type CreateStatusResult = {
   status: Status
   isNew: boolean
 }
-export type UpdatePollParams = Pick<CreatePollParams, 'text' | 'summary'> & {
+export type UpdatePollParams = Partial<
+  Pick<CreatePollParams, 'text' | 'summary'>
+> & {
   statusId: string
   choices: { title: string; totalVotes: number }[]
   // Omit to preserve the existing values; provide to overwrite (user edits).
@@ -292,9 +296,17 @@ export type UpdatePollParams = Pick<CreatePollParams, 'text' | 'summary'> & {
   endAt?: number
   pollType?: 'oneOf' | 'anyOf'
   hideTotals?: boolean
+  // The origin's `updated` timestamp this Update(Question) carries; stored so
+  // updatePollJob can ignore an older one delivered later. Omit to keep it.
+  remoteUpdatedAt?: number
+  // The stored `updated` (null when none) the caller's decision was based on.
+  // When the row no longer holds it, nothing is written (the current poll is
+  // returned). Omit to skip the check.
+  expectedRemoteUpdatedAt?: number | null
   // When true `choices` replaces the option set and all recorded votes are
-  // cleared (Mastodon edit semantics); when false/omitted `choices` only
-  // refreshes tallies for the existing titles (federated poll refresh).
+  // cleared (Mastodon edit semantics); when false/omitted `choices` refreshes
+  // the tallies of the existing choices by position (federated poll refresh),
+  // each only where its title still matches the stored row.
   resetVotes?: boolean
 }
 

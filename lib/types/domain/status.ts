@@ -196,6 +196,10 @@ export const StatusPoll = StatusNote.extend({
   // Mastodon poll[hide_totals]: per-option tallies stay hidden until the poll
   // expires. Optional so existing rows/literals default to false.
   hideTotals: z.boolean().optional(),
+  // The origin's `updated` of the last Update(Question) applied to a remote
+  // poll, so an older one redelivered later is ignored. Stored in the content
+  // JSON blob; absent on local polls and before the first explicit Update.
+  remoteUpdatedAt: z.number().optional(),
   votersCount: z.number().optional(),
   voted: z.boolean().optional(),
   ownVotes: z.array(z.number()).optional()

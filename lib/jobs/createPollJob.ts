@@ -63,10 +63,11 @@ export const createPollJob = createJobHandle(
     // content/summary locale maps so polls carry it like notes do, which lets
     // the Translate control appear on polls too.
     const language = getLanguage(question)
-    const { choices, pollType, endAt } = getPollFieldsFromQuestion(
-      question,
-      new Date(question.published).getTime()
-    )
+    const { choices, pollType, endAt, remoteUpdatedAt } =
+      getPollFieldsFromQuestion(
+        question,
+        new Date(question.published).getTime()
+      )
 
     await assertActorCanFederate({
       actorId: question.attributedTo,
@@ -97,6 +98,7 @@ export const createPollJob = createJobHandle(
         pollType,
         language,
         endAt,
+        remoteUpdatedAt,
         createdAt: new Date(question.published).getTime()
       })
     ])

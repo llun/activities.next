@@ -545,65 +545,85 @@ export const updatePoll = async (
     endAt,
     pollType,
     hideTotals,
+    remoteUpdatedAt,
+    expectedRemoteUpdatedAt,
     resetVotes = false
   }: UpdatePollParams
 ): Promise<Status | null> => {
-  const existingStatus = await selectStatusRow(db, statusId)
-  if (!existingStatus) return null
   const currentTime = new Date()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const data = getCompatibleJSON<any>(existingStatus.content)
-  const nextText = text ?? data.text
-  // undefined = keep the existing summary; a provided value (including an
-  // empty/whitespace string) normalizes to null when blank, matching
-  // createPoll's `summary?.trim() || null` so a cleared CW never persists as
-  // '' (which would flip contentChanged and record a spurious edit revision).
-  const nextSummary =
-    summary === undefined ? data.summary : summary?.trim() || null
-  const content = {
-    url: data.url,
-    text: nextText,
-    summary: nextSummary,
-    sensitive: sensitive === undefined ? (data.sensitive ?? false) : sensitive,
-    language: language === undefined ? (data.language ?? null) : language,
-    endAt: endAt ?? data.endAt,
-    pollType: pollType ?? data.pollType,
-    hideTotals:
-      hideTotals === undefined ? (data.hideTotals ?? false) : hideTotals
-  }
-  const statusContent = JSON.stringify(content)
-  const searchStatus: StatusSearchRow = {
-    id: existingStatus.id,
-    actorId: existingStatus.actorId as string,
-    type: existingStatus.type as string,
-    content: statusContent,
-    // A NULL createdAt is indexed as epoch 0.
-    createdAt: existingStatus.createdAt ?? 0
-  }
+  // The row is read, locked (PostgreSQL) and written in one transaction, so
+  // the content is rebuilt from what is committed, not a copy another writer
+  // has since replaced.
+  const searchStatus = await inTransaction(db, async (trx) => {
+    const existingStatus = await selectStatusRowForUpdate(trx, statusId)
+    if (!existingStatus) return null
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data = getCompatibleJSON<any>(existingStatus.content)
+    // A caller that decided from an earlier read of the origin's `updated`
+    // passes it; when another write has changed it since, nothing is written:
+    // even the tallies may predate an option change that reset them.
+    if (
+      expectedRemoteUpdatedAt !== undefined &&
+      (data.remoteUpdatedAt ?? null) !== expectedRemoteUpdatedAt
+    ) {
+      return 'superseded' as const
+    }
+    const nextText = text ?? data.text
+    // undefined = keep the existing summary; a provided value (including an
+    // empty/whitespace string) normalizes to null when blank, matching
+    // createPoll's `summary?.trim() || null` so a cleared CW never persists as
+    // '' (which would flip contentChanged and record a spurious edit revision).
+    const nextSummary =
+      summary === undefined ? data.summary : summary?.trim() || null
+    const content = {
+      url: data.url,
+      text: nextText,
+      summary: nextSummary,
+      sensitive:
+        sensitive === undefined ? (data.sensitive ?? false) : sensitive,
+      language: language === undefined ? (data.language ?? null) : language,
+      endAt: endAt ?? data.endAt,
+      pollType: pollType ?? data.pollType,
+      hideTotals:
+        hideTotals === undefined ? (data.hideTotals ?? false) : hideTotals,
+      remoteUpdatedAt: remoteUpdatedAt ?? data.remoteUpdatedAt
+    }
+    const statusContent = JSON.stringify(content)
+    const searchStatus: StatusSearchRow = {
+      id: existingStatus.id,
+      actorId: existingStatus.actorId as string,
+      type: existingStatus.type as string,
+      content: statusContent,
+      // A NULL createdAt is indexed as epoch 0.
+      createdAt: existingStatus.createdAt ?? 0
+    }
 
-  // Any user-visible change records an edit revision; a tally-only refresh
-  // (federated vote sync) must not.
-  const contentChanged =
-    nextText !== data.text ||
-    // Treat an empty-string summary the same as null: a poll created with the
-    // createPoll default ('') edited with a blank spoiler normalizes to null,
-    // which is not a user-visible change and must not record a revision.
-    (nextSummary || null) !== (data.summary || null) ||
-    content.sensitive !== (data.sensitive ?? false) ||
-    content.language !== (data.language ?? null) ||
-    content.endAt !== data.endAt ||
-    content.pollType !== data.pollType ||
-    content.hideTotals !== (data.hideTotals ?? false) ||
-    resetVotes
+    // Any user-visible change records an edit revision; a tally-only refresh
+    // (federated vote sync) must not.
+    const contentChanged =
+      nextText !== data.text ||
+      // Treat an empty-string summary the same as null: a poll created with the
+      // createPoll default ('') edited with a blank spoiler normalizes to null,
+      // which is not a user-visible change and must not record a revision.
+      (nextSummary || null) !== (data.summary || null) ||
+      content.sensitive !== (data.sensitive ?? false) ||
+      content.language !== (data.language ?? null) ||
+      content.endAt !== data.endAt ||
+      content.pollType !== data.pollType ||
+      content.hideTotals !== (data.hideTotals ?? false) ||
+      resetVotes
+    // The origin's last applied `updated` is bookkeeping, not an edit: it is
+    // written to the content without a revision or an updatedAt bump.
+    const remoteUpdatedAtChanged =
+      content.remoteUpdatedAt !== data.remoteUpdatedAt
 
-  await inTransaction(db, async (trx) => {
+    const previousChoices = await trx
+      .selectFrom('poll_choices')
+      .select(['choiceId', 'title'])
+      .where('statusId', '=', statusId)
+      .orderBy('choiceId', 'asc')
+      .execute()
     if (contentChanged) {
-      const previousChoices = await trx
-        .selectFrom('poll_choices')
-        .select('title')
-        .where('statusId', '=', statusId)
-        .orderBy('choiceId', 'asc')
-        .execute()
       const previousData = {
         text: data.text,
         summary: data.summary,
@@ -620,21 +640,24 @@ export const updatePoll = async (
           updatedAt: currentTime
         })
         .execute()
+    }
+    if (contentChanged || remoteUpdatedAtChanged) {
       await trx
         .updateTable('statuses')
         .set({
           url: data.url || null,
           urlHash: data.url ? getHashFromString(data.url) : null,
           content: statusContent,
-          updatedAt: currentTime
+          ...(contentChanged ? { updatedAt: currentTime } : {})
         })
         .where('id', '=', statusId)
         .execute()
     }
     if (resetVotes) {
       // Mastodon resets a poll whose options changed: all recorded votes are
-      // removed and the replacement options start from zero. Sequential
-      // inserts keep choiceId order deterministic for hydration.
+      // removed and the replacement options start from the tallies given (a
+      // local edit passes 0; an inbound Update passes the origin's counts).
+      // Sequential inserts keep choiceId order deterministic for hydration.
       await trx
         .deleteFrom('poll_answers')
         .where('statusId', '=', statusId)
@@ -653,24 +676,33 @@ export const updatePoll = async (
           .values({
             statusId,
             title: choice.title,
-            totalVotes: 0,
+            totalVotes: choice.totalVotes,
             createdAt: currentTime,
             updatedAt: currentTime
           })
           .execute()
       }
-      return
+      return searchStatus
     }
-    for (const choice of choices) {
+    // Tallies are keyed by position (the stored rows in choiceId order), so
+    // duplicate titles each keep their own count; the title must still match,
+    // so an option list that is not the stored one in order writes nothing.
+    for (const [index, choice] of choices.entries()) {
+      const stored = previousChoices[index]
+      if (!stored) continue
       await trx
         .updateTable('poll_choices')
         .set({ totalVotes: choice.totalVotes, updatedAt: currentTime })
-        .where('statusId', '=', statusId)
+        .where('choiceId', '=', stored.choiceId)
         .where('title', '=', choice.title)
         .execute()
     }
+    return searchStatus
   })
-  await indexStatusSearchDocument(db, { status: searchStatus })
+  if (!searchStatus) return null
+  if (searchStatus !== 'superseded') {
+    await indexStatusSearchDocument(db, { status: searchStatus })
+  }
   return hydration.getStatus({ statusId })
 }
 
