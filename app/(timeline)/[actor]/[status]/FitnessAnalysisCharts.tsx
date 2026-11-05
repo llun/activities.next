@@ -207,11 +207,6 @@ export interface HeartRateZonesPanelProps {
   zones: HeartRateZone[]
   /** The bounds' unit, bpm unless the zones are power zones. */
   unit?: string
-  /**
-   * Show each zone's numeric range. Personal zones give away the author's max
-   * heart rate or FTP, so only the author sees theirs.
-   */
-  showRanges?: boolean
 }
 
 /**
@@ -221,8 +216,7 @@ export interface HeartRateZonesPanelProps {
  */
 export const HeartRateZonesPanel: FC<HeartRateZonesPanelProps> = ({
   zones,
-  unit = 'bpm',
-  showRanges = true
+  unit = 'bpm'
 }) => {
   const longest = Math.max(1, ...zones.map((zone) => zone.seconds))
   return (
@@ -253,7 +247,7 @@ export const HeartRateZonesPanel: FC<HeartRateZonesPanelProps> = ({
             <span className="flex min-w-0 justify-between gap-1.5 text-muted-foreground">
               <span className="truncate">{zone.label}</span>
               <span className="whitespace-nowrap">
-                {showRanges ? formatZoneRange(zone, unit) : `${zone.pct}%`}
+                {formatZoneRange(zone, unit)}
               </span>
             </span>
             <span className="min-w-10 text-right font-medium">

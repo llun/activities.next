@@ -333,6 +333,35 @@ describe('FitnessStatusDetail', () => {
     ).toHaveLength(3)
   })
 
+  it('reserves the power-zones chart too, two by two, for an author with an FTP', async () => {
+    mockGetFitnessRouteData.mockImplementation(() => new Promise(() => {}))
+    renderDetail({
+      status: buildStatus({
+        fitness: {
+          ...buildStatus().fitness,
+          avgPower: 215,
+          avgHeartRate: 148
+        }
+      } as Partial<StatusNote>),
+      trainingZones: {
+        maxHeartRate: 186,
+        restingHeartRate: null,
+        functionalThresholdPower: 260
+      }
+    })
+
+    const distributionSkeleton = screen.getByTestId(
+      'analysis-distribution-skeleton'
+    )
+    // HR zones, power zones, power distribution and power curve.
+    expect(
+      distributionSkeleton.querySelectorAll('[data-slot="frame"]')
+    ).toHaveLength(4)
+    expect(distributionSkeleton.className).not.toContain(
+      '@min-[820px]:grid-cols-3'
+    )
+  })
+
   it('keeps reserved layout static with em-dash overview rows and a retry overlay when route data fails', async () => {
     mockGetFitnessRouteData.mockRejectedValue(new Error('request failed'))
     renderDetail({

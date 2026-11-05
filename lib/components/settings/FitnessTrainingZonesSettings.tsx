@@ -195,7 +195,7 @@ export const FitnessTrainingZonesSettings: FC<Props> = ({ initialZones }) => {
       title="Training zones"
       description="Used for the zone charts on your activities. Until you set them, activities use default zones."
     >
-      <form onSubmit={handleSubmit} method="post">
+      <form onSubmit={handleSubmit}>
         <Frame
           form
           footer={

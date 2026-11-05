@@ -244,17 +244,22 @@ const PowerCurveChart: FC<{ curve: PowerEffort[] }> = ({ curve }) => {
   )
 }
 
+// Three across a wide column, two across a tablet, stacked on a phone; four
+// sections pair up two by two, since three across would leave the fourth alone.
+// The loading skeleton uses it too, so the row does not jump when it loads.
+export const distributionGridClass = (sectionCount: number) =>
+  cn(
+    'grid gap-6 @min-[600px]:grid-cols-2 @min-[600px]:gap-4 @min-[600px]:[&>*:last-child:nth-child(odd)]:col-span-2',
+    sectionCount !== 4 &&
+      '@min-[820px]:grid-cols-3 @min-[820px]:[&>*:last-child:nth-child(odd)]:col-span-1'
+  )
+
 export interface ActivityDistributionRowProps {
   heartRateZones: HeartRateZone[]
   /** The heart-rate zones are the default ones, not the author's. */
   isDefaultHeartRateZones?: boolean
   /** Time in the author's power zones; empty when they set no FTP. */
   powerZones?: HeartRateZone[]
-  /**
-   * Show the zones' numeric ranges. Off for personal zones seen by anyone but
-   * the author, since the ranges give away their max heart rate and FTP.
-   */
-  showZoneRanges?: boolean
   heartRateStats: HeartRateStats | null
   powerDistribution: PowerDistribution
   avgPower: number | null
@@ -273,7 +278,6 @@ export const ActivityDistributionRow: FC<ActivityDistributionRowProps> = ({
   heartRateZones,
   isDefaultHeartRateZones = true,
   powerZones = [],
-  showZoneRanges = true,
   heartRateStats,
   powerDistribution,
   avgPower,
@@ -285,20 +289,17 @@ export const ActivityDistributionRow: FC<ActivityDistributionRowProps> = ({
   const hasDistribution = powerDistribution.bins.length > 0
   const hasCurve = powerCurve.length >= 2
   if (!hasZones && !hasPowerZones && !hasDistribution && !hasCurve) return null
-  // Four sections pair up two by two; three across would leave the fourth
-  // alone on its row.
-  const fourSections =
-    [hasZones, hasPowerZones, hasDistribution, hasCurve].filter(Boolean)
-      .length === 4
+  const sectionCount = [
+    hasZones,
+    hasPowerZones,
+    hasDistribution,
+    hasCurve
+  ].filter(Boolean).length
 
   return (
     <div
       id="zones"
-      className={cn(
-        'grid scroll-mt-4 gap-6 @min-[600px]:grid-cols-2 @min-[600px]:gap-4 @min-[600px]:[&>*:last-child:nth-child(odd)]:col-span-2',
-        !fourSections &&
-          '@min-[820px]:grid-cols-3 @min-[820px]:[&>*:last-child:nth-child(odd)]:col-span-1'
-      )}
+      className={cn('scroll-mt-4', distributionGridClass(sectionCount))}
     >
       {hasZones ? (
         <Section
@@ -312,11 +313,7 @@ export const ActivityDistributionRow: FC<ActivityDistributionRowProps> = ({
           className="min-w-0"
         >
           <Frame className="space-y-2.5 px-3.5 py-3">
-            <HeartRateZonesPanel
-              zones={heartRateZones}
-              // The default zones are no one's own numbers.
-              showRanges={showZoneRanges || isDefaultHeartRateZones}
-            />
+            <HeartRateZonesPanel zones={heartRateZones} />
             {isDefaultHeartRateZones ? (
               <p className="text-xs text-muted-foreground">Default zones</p>
             ) : null}
@@ -326,11 +323,7 @@ export const ActivityDistributionRow: FC<ActivityDistributionRowProps> = ({
       {hasPowerZones ? (
         <Section title="Power zones" icon={Gauge} className="min-w-0">
           <Frame className="px-3.5 py-3">
-            <HeartRateZonesPanel
-              zones={powerZones}
-              unit="W"
-              showRanges={showZoneRanges}
-            />
+            <HeartRateZonesPanel zones={powerZones} unit="W" />
           </Frame>
         </Section>
       ) : null}

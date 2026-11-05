@@ -39,7 +39,10 @@ import {
   type ActivityAnalysisChartProps
 } from './ActivityAnalysisChart'
 import { ActivityBestEfforts } from './ActivityBestEfforts'
-import { ActivityDistributionRow } from './ActivityDistributionRow'
+import {
+  ActivityDistributionRow,
+  distributionGridClass
+} from './ActivityDistributionRow'
 import {
   ActivityMapPanel,
   type ActivityMapPanelProps
@@ -516,8 +519,10 @@ export const FitnessStatusDetail: FC<Props> = ({
     hasStructuredFitnessFormat && isCadenceSport && hasSummarySensors
   const likelyHasLaps =
     hasStructuredFitnessFormat && hasSummarySensors && durationSeconds > 0
+  // Heart-rate zones; power zones (with an FTP), distribution and curve.
   const expectedDistributionCount =
-    (hasSummaryHeartRate ? 1 : 0) + (hasSummaryPower ? 2 : 0)
+    (hasSummaryHeartRate ? 1 : 0) +
+    (hasSummaryPower ? (personalPowerZones ? 3 : 2) : 0)
   const expectedAnalysisSeries = [
     {
       key: 'elevation',
@@ -1048,7 +1053,7 @@ export const FitnessStatusDetail: FC<Props> = ({
                 aria-hidden={route.error ? 'true' : undefined}
                 data-testid="analysis-distribution-skeleton"
                 className={cn(
-                  'grid gap-6 @min-[600px]:grid-cols-2 @min-[600px]:gap-4 @min-[600px]:[&>*:last-child:nth-child(odd)]:col-span-2 @min-[820px]:grid-cols-3 @min-[820px]:[&>*:last-child:nth-child(odd)]:col-span-1',
+                  distributionGridClass(expectedDistributionCount),
                   route.error && FAILED_PLACEHOLDER_CLASS
                 )}
               >
@@ -1072,7 +1077,6 @@ export const FitnessStatusDetail: FC<Props> = ({
               isDefaultHeartRateZones={!personalHeartRateZones}
               powerZones={analysis.powerZones}
               // Personal bounds give away the author's max HR and FTP.
-              showZoneRanges={isOwner}
               heartRateStats={heartRateStats}
               powerDistribution={analysis.powerDistribution}
               avgPower={avgPower}
