@@ -232,51 +232,46 @@ describe('createWindowCounter', () => {
     expect(counter.consume('a')).toEqual({ allowed: true })
   })
 
-  it('reads a refuseNewKeysWhenFull function on each overflow', () => {
-    let refuse = false
+  it('with protectCountsFrom, never evicts a protected key and evicts the oldest unprotected one', () => {
     const counter = createWindowCounter({
-      limit: 2,
-      windowMs: 60_000,
-      maxKeys: 1,
-      refuseNewKeysWhenFull: () => refuse
-    })
-    expect(counter.consume('a')).toEqual({ allowed: true })
-    expect(counter.consume('b')).toEqual({ allowed: true })
-    refuse = true
-    expect(counter.consume('c').allowed).toBe(false)
-  })
-
-  it('with refuseNewKeysWhenFull, refuses a new key while full of live keys instead of evicting one, and accepts it once a window expires', () => {
-    const counter = createWindowCounter({
-      limit: 2,
+      limit: 3,
       windowMs: 60_000,
       maxKeys: 2,
-      refuseNewKeysWhenFull: true
+      protectCountsFrom: 2
     })
-    expect(counter.consume('a')).toEqual({ allowed: true })
-    vi.advanceTimersByTime(10_000)
-    expect(counter.consume('b')).toEqual({ allowed: true })
+    // "victim" reaches the protected count; "junk" is a one-off key.
+    expect(counter.consume('victim')).toEqual({ allowed: true })
+    expect(counter.consume('victim')).toEqual({ allowed: true })
+    expect(counter.consume('junk')).toEqual({ allowed: true })
 
-    // Full: "c" is refused until the soonest live window ("a", 50 s) ends.
+    // Full: the new key pushes out "junk", never "victim".
+    expect(counter.consume('flood')).toEqual({ allowed: true })
+    expect(counter.consume('victim')).toEqual({ allowed: true })
+    expect(counter.consume('victim')).toEqual({
+      allowed: false,
+      retryAfterSeconds: 60
+    })
+  })
+
+  it('with protectCountsFrom, refuses a new key once every held key is protected, until a window expires', () => {
+    const counter = createWindowCounter({
+      limit: 3,
+      windowMs: 60_000,
+      maxKeys: 2,
+      protectCountsFrom: 2
+    })
+    counter.consume('a')
+    counter.consume('a')
+    vi.advanceTimersByTime(10_000)
+    counter.consume('b')
+    counter.consume('b')
+
     expect(counter.consume('c')).toEqual({
       allowed: false,
       retryAfterSeconds: 50
     })
-    // "a" kept its count: one more hit allowed, then limited.
-    expect(counter.consume('a')).toEqual({ allowed: true })
-    expect(counter.consume('a')).toEqual({
-      allowed: false,
-      retryAfterSeconds: 50
-    })
-
     vi.advanceTimersByTime(50_001)
-    // "a" expired, so its slot is freed for "c"; "b" is still live.
     expect(counter.consume('c')).toEqual({ allowed: true })
-    expect(counter.consume('d')).toEqual({
-      allowed: false,
-      retryAfterSeconds: 10
-    })
-    expect(counter.consume('b')).toEqual({ allowed: true })
   })
 })
 

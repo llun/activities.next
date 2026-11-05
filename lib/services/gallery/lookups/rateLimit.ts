@@ -128,11 +128,12 @@ export interface WindowCounterOptions {
   // everyone else.
   maxKeys?: number
   // For a security limit, where evicting a live key would reset a victim's
-  // allowance (random sign-in emails pushing a target's counter out): refuse a
-  // NEW key while the map is full of live keys instead. Size `maxKeys` well
-  // above normal load, since a flood then answers 429 to new keys until a
-  // window expires.
-  refuseNewKeysWhenFull?: boolean | (() => boolean)
+  // allowance (random sign-in emails pushing a target's counter out): a key
+  // whose count has reached this is never evicted. The oldest key below it is
+  // evicted instead, so a flood of one-off keys only pushes out its own kind;
+  // when every held key is protected a NEW key is refused until a window
+  // expires. Unset, any key may be evicted.
+  protectCountsFrom?: number
 }
 
 export type WindowCounterResult =
@@ -153,7 +154,7 @@ export const createWindowCounter = ({
   limit,
   windowMs,
   maxKeys = 1000,
-  refuseNewKeysWhenFull = false
+  protectCountsFrom = Number.POSITIVE_INFINITY
 }: WindowCounterOptions): WindowCounter => {
   const windows = new Map<string, { count: number; resetAt: number }>()
 
@@ -179,13 +180,15 @@ export const createWindowCounter = ({
       for (const [other, window] of windows) {
         if (window.resetAt <= now) windows.delete(other)
       }
-      const refuse =
-        typeof refuseNewKeysWhenFull === 'function'
-          ? refuseNewKeysWhenFull()
-          : refuseNewKeysWhenFull
-      if (windows.size >= maxKeys && !refuse) {
-        const oldest = windows.keys().next().value
-        if (oldest !== undefined) windows.delete(oldest)
+      if (windows.size >= maxKeys) {
+        // Insertion order is age order, so the first unprotected key is the
+        // oldest one that may go.
+        for (const [other, window] of windows) {
+          if (window.count < protectCountsFrom) {
+            windows.delete(other)
+            break
+          }
+        }
       }
       if (windows.size >= maxKeys) {
         let soonest = Number.POSITIVE_INFINITY

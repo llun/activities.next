@@ -27,6 +27,22 @@ describe('checkSignInEmailRateLimit', () => {
     expect(signInEmailRateLimitKey('person@example.com')).toBe(key)
   })
 
+  it('keeps a guessed email limited through a flood of one-off emails, and still admits a new one', () => {
+    for (let i = 0; i < SIGN_IN_EMAIL_LIMIT; i += 1) {
+      checkSignInEmailRateLimit('target@example.com')
+    }
+    // More one-attempt keys than the map holds.
+    for (let i = 0; i <= 100_000; i += 1) {
+      checkSignInEmailRateLimit(`bot${i}@example.com`)
+    }
+    expect(checkSignInEmailRateLimit('target@example.com')).toMatchObject({
+      allowed: false
+    })
+    expect(checkSignInEmailRateLimit('new-user@example.com')).toEqual({
+      allowed: true
+    })
+  })
+
   it('counts every attempt per normalised email and refuses the 26th', () => {
     for (let i = 0; i < SIGN_IN_EMAIL_LIMIT; i += 1) {
       expect(
