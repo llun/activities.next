@@ -919,7 +919,7 @@ preserved as animated WebP, including frame timing and loop count, with a
 static first-frame preview. BlurHash, focus analysis and JPEG email renditions
 also use the first frame. These remain image attachments: `gifv`/`playbackType`
 is reserved here for video-container animations rendered by a video player.
-The photo editor refuses animated WebP rather than flattening it: the composer and gallery hide the Edit pill for media whose `pages` is above 1, and where an item does not carry `pages` (a post attachment row does not store it) the edit route answers 422 "Animated images can't be edited", which the editor shows as its error, without a retry; any other load failure keeps the generic copy and its retry.
+The photo editor opens still JPEG, PNG, WebP, GIF and AVIF uploads (a still GIF or AVIF is stored as WebP) and refuses animated ones rather than flattening them: the composer and gallery hide the Edit pill for media whose `pages` is above 1, and where an item does not carry `pages` (a post attachment row does not store it) the edit route answers 422 "Animated images can't be edited", which the editor shows as its error, without a retry; any other load failure keeps the generic copy and its retry.
 
 Before decoding all frames, the server caps input at 100 million total pixels
 (width × frame height × frame count), in addition to sharp's pixel limit.

@@ -18,6 +18,7 @@ import {
   TooltipContent,
   TooltipTrigger
 } from '@/lib/components/ui/tooltip'
+import { EDITABLE_MEDIA_TYPES } from '@/lib/services/medias/edit/editable'
 import type {
   MediaDetailsEntity,
   MediaStorageSaveFileOutput
@@ -54,8 +55,6 @@ interface Props {
   ) => void
 }
 
-const EDITABLE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
-
 /**
  * Still images the editor can open (the server checks the rest). An animated
  * WebP is an accepted upload but the server refuses to edit it, so the pill is
@@ -64,7 +63,7 @@ const EDITABLE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 export const isEditableItem = (
   item: Pick<PreviewItem, 'mediaType' | 'pages'>
 ) =>
-  EDITABLE_TYPES.includes(item.mediaType.toLowerCase()) &&
+  EDITABLE_MEDIA_TYPES.includes(item.mediaType.toLowerCase()) &&
   (item.pages ?? 1) <= 1
 
 const getEditedAt = (item: PreviewItem): Date | null => {

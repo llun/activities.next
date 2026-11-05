@@ -30,7 +30,13 @@ describe('isEditableMedia', () => {
       media('image/webp', { width: 8, height: 6, pages: 2 }),
       false
     ],
-    ['a GIF', media('image/gif'), false],
+    ['a still GIF (stored as WebP)', media('image/gif'), true],
+    ['a still AVIF (stored as WebP)', media('image/avif'), true],
+    [
+      'an animated GIF',
+      media('image/gif', { width: 8, height: 6, pages: 3 }),
+      false
+    ],
     ['a video', media('video/mp4'), false],
     ['audio', media('audio/mp4'), false],
     [

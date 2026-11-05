@@ -119,7 +119,8 @@ describe('PhotoEditPreview', () => {
   it.each([
     ['image/png', true],
     ['image/webp', true],
-    ['image/gif', false],
+    ['image/gif', true],
+    ['image/avif', true],
     ['image/heic', false]
   ])('offers editing for %s: %s', (mediaType, editable) => {
     expect(isEditableItem({ mediaType })).toBe(editable)

@@ -1,10 +1,14 @@
 import { MAX_SOURCE_PIXELS } from '@/lib/services/medias/edit/recipe'
 import type { Media } from '@/lib/types/database/operations'
 
+// The upload's type, which the row keeps. A still GIF or AVIF is stored as
+// WebP (the edit source is sniffed from the stored bytes), so it edits like one.
 export const EDITABLE_MEDIA_TYPES: readonly string[] = [
   'image/jpeg',
   'image/png',
-  'image/webp'
+  'image/webp',
+  'image/gif',
+  'image/avif'
 ]
 
 export const MEDIA_NOT_EDITABLE_ERROR = "This media can't be edited"
