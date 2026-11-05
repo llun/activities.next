@@ -1,0 +1,21 @@
+app/(timeline)/[actor]/[status]/ActivityBestEfforts.test.tsx
+  s_2b1a50e2f9b981::t_e3f3d0ac85458f 19,21,23-26
+app/(timeline)/[actor]/[status]/ActivityBestEfforts.tsx
+  s_2b1a50e2f9b981::t_e3f3d0ac85458f 62-66
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a2426be61545f94fdc00c6dd6d7291c2af46a6be",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
