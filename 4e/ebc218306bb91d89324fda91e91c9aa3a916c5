@@ -1,0 +1,116 @@
+lib/fitness/trainingZones.ts
+  s_2b1a50e2f9b981::t_4205e0ccd93294 1-97,104-124
+  s_2b1a50e2f9b981::t_db0c9e0ccd4bdd 98-103
+app/(timeline)/[actor]/[status]/ActivityDistributionRow.tsx
+  s_2b1a50e2f9b981::t_70965905c4a2db 1,249-257,273-275,283,286,304-317,319-323
+  s_2b1a50e2f9b981::t_44993ed0e78383 266-269
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  s_2b1a50e2f9b981::t_65b3d046bec0b9 23-27
+  s_2b1a50e2f9b981::t_6bf95668412531 93-97,313,374-384,393-395,403-405,1072-1075
+migrations/20261105174143_add_fitness_settings_training_zones.ts
+  s_2b1a50e2f9b981::t_c716d6fffa8d64 3-7,9-14,16-30,33-37
+  s_2b1a50e2f9b981::t_76d7617c26abe0 1-2,8,15,31-32
+app/(timeline)/[actor]/[status]/page.visibility.test.tsx
+  s_2b1a50e2f9b981::t_d8fa13d0ad337f 91-92
+lib/types/database/fitnessSettings.ts
+  s_2b1a50e2f9b981::t_77ad08f9c66d4e 45-49
+app/(timeline)/fitness/layout.tsx
+  s_2b1a50e2f9b981::t_0ca6046b73a9dc 3-11,32
+lib/database/domains/accountExport/accountExport.test.ts
+  s_2b1a50e2f9b981::t_d34b7328aab270 188-191,211-215
+app/(timeline)/[actor]/[status]/FitnessAnalysisCharts.tsx
+  s_2b1a50e2f9b981::t_917f6a4b5af2cc 10
+  s_2b1a50e2f9b981::t_2c0ebfe0590006 208-214,218-220,223-225,255-257
+app/(timeline)/[actor]/[status]/activityAnalysis.ts
+  s_2b1a50e2f9b981::t_48ee192611a420 3-6,43,91-92,126-128,140-143,337-346
+docs/architecture.md
+  s_2b1a50e2f9b981::t_94db57326b2df2 1563
+migrations/names.ts
+  s_2b1a50e2f9b981::t_c716d6fffa8d64 22-23
+lib/database/domains/fitnessSettings/trainingZoneSettings.test.ts
+  s_2b1a50e2f9b981::t_03806c40038b91 1-105
+app/api/v1/fitness/general/route.zones.test.ts
+  s_2b1a50e2f9b981::t_ca314588747bd1 1-219
+app/(timeline)/[actor]/[status]/fitnessChartData.ts
+  s_2b1a50e2f9b981::t_87bb8a201d0f77 103-104,111-112,114,116-117,119-122,127,138-152
+  s_2b1a50e2f9b981::t_7b1c448f4d5da9 1-4
+  s_2b1a50e2f9b981::t_ac39371285a732 153
+lib/database/domains/fitnessSettings/types.ts
+  s_2b1a50e2f9b981::t_77ad08f9c66d4e 30-32,58-60
+app/(timeline)/[actor]/[status]/page.tsx
+  s_2b1a50e2f9b981::t_6eddb99e692133 26,501-507,595
+app/(timeline)/fitness/loading.test.tsx
+  s_2b1a50e2f9b981::t_0ca6046b73a9dc 17,33
+docs/fitness-file-storage.md
+  s_2b1a50e2f9b981::t_2eeac24ea021aa 396
+  s_2b1a50e2f9b981::t_94db57326b2df2 389,403,409-418
+  s_2b1a50e2f9b981::t_04fd6d7412e67f 419
+migrations/index.ts
+  s_2b1a50e2f9b981::t_c716d6fffa8d64 22,50-52
+lib/database/domains/accountExport/tables.ts
+  s_2b1a50e2f9b981::t_1956fc9f69c9c3 402-404
+app/(timeline)/fitness/zones/page.tsx
+  s_2b1a50e2f9b981::t_0ca6046b73a9dc 1-42
+lib/services/accountImport/schemas/index.ts
+  s_2b1a50e2f9b981::t_1956fc9f69c9c3 729-732
+lib/database/domains/fitnessSettings/queries.ts
+  s_2b1a50e2f9b981::t_77ad08f9c66d4e 100-102,138-141,197-199,227-229,259-262,330-334
+app/(timeline)/[actor]/[status]/fitnessChartData.test.ts
+  s_2b1a50e2f9b981::t_85ef9dfbbea9c9 3-4
+  s_2b1a50e2f9b981::t_e7a9bcf4fd14da 135
+lib/fitness/trainingZones.test.ts
+  s_2b1a50e2f9b981::t_f0ca50916cccad 1-54,58-94
+  s_2b1a50e2f9b981::t_db0c9e0ccd4bdd 55-57
+lib/database/kysely/db.ts
+  s_2b1a50e2f9b981::t_8b96b42d2e97ca 706,712,722
+lib/services/fitness-files/trainingZoneSettings.ts
+  s_2b1a50e2f9b981::t_6eddb99e692133 1-23
+app/(timeline)/[actor]/[status]/StatusBox.tsx
+  s_2b1a50e2f9b981::t_c632d37e97965d 17
+  s_2b1a50e2f9b981::t_65b3d046bec0b9 68-69,84-85,122
+app/(timeline)/fitness/layout.test.tsx
+  s_2b1a50e2f9b981::t_0ca6046b73a9dc 30,79
+app/(timeline)/fitness/zones/loading.tsx
+  s_2b1a50e2f9b981::t_0ca6046b73a9dc 1-38
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.analysis.test.tsx
+  s_2b1a50e2f9b981::t_2897cf01f7653e 650-727
+  s_2b1a50e2f9b981::t_77b7fa1c6f0777 16
+app/(timeline)/[actor]/[status]/page.layout.test.tsx
+  s_2b1a50e2f9b981::t_dc7015e3ab6177 601-633
+  s_2b1a50e2f9b981::t_d8fa13d0ad337f 75,84,122-132
+migrations/schema.sql
+  s_2b1a50e2f9b981::t_eefd270616ad6b 755-758
+app/(timeline)/[actor]/[status]/activityAnalysis.test.ts
+  s_2b1a50e2f9b981::t_1636f370cbcc8c 2,410-466
+  s_2b1a50e2f9b981::t_0fc04f6f0d7f74 467
+lib/components/settings/FitnessTrainingZonesSettings.tsx
+  s_2b1a50e2f9b981::t_db0c9e0ccd4bdd 71
+  s_2b1a50e2f9b981::t_1801188a3fae17 1-70,72-292
+migrations/schema.sqlite.sql
+  s_2b1a50e2f9b981::t_aeb99f768c1f42 40
+app/api/v1/fitness/general/route.ts
+  s_2b1a50e2f9b981::t_c64d113da3107d 4-7,49-93,121,126-128,147-154,182-184,195-197,217-220,238,244-247,348-355,389-390,400-401
+  s_2b1a50e2f9b981::t_db0c9e0ccd4bdd 129
+  s_2b1a50e2f9b981::t_6abb4e107bcd50 3,130
+lib/components/settings/FitnessTrainingZonesSettings.test.tsx
+  s_2b1a50e2f9b981::t_14217b78fc677a 1-169,172-196
+  s_2b1a50e2f9b981::t_9f4fadac96e348 170-171
+lib/client/fitnessGeneralSettings.ts
+  s_2b1a50e2f9b981::t_b18edc7a0adfe6 13-15,29-35,78-81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4eebc218306bb91d89324fda91e91c9aa3a916c5",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
