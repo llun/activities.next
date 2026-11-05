@@ -277,6 +277,11 @@ describe('syncRemotePoll', () => {
           type: 'Note',
           name: 'Red',
           replies: { type: 'Collection', totalItems: 1 }
+        },
+        {
+          type: 'Note',
+          name: 'Blue',
+          replies: { type: 'Collection', totalItems: 2 }
         }
       ]
     })
@@ -291,6 +296,44 @@ describe('syncRemotePoll', () => {
     expect(params.remoteUpdatedAt).toEqual(
       expectRecorded ? Date.parse('2026-09-01T00:00:00Z') : undefined
     )
+    // An older copy refreshes tallies alone: no stale text, summary or deadline.
+    if (!expectRecorded) {
+      expect(params).not.toHaveProperty('text')
+      expect(params).not.toHaveProperty('summary')
+      expect(params).not.toHaveProperty('endAt')
+    }
+  })
+
+  it('does not record the updated of a fetch whose options differ, so the Update stays explicit', async () => {
+    ;(getNote as jest.Mock).mockResolvedValue({
+      '@context': 'https://www.w3.org/ns/activitystreams',
+      id: remotePollStatus.id,
+      type: 'Question',
+      attributedTo: remotePollStatus.actorId,
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: [],
+      content: '<p>Edited</p>',
+      published: '2026-08-31T00:00:00Z',
+      updated: '2026-09-01T00:00:00Z',
+      oneOf: [
+        {
+          type: 'Note',
+          name: 'Green',
+          replies: { type: 'Collection', totalItems: 1 }
+        },
+        {
+          type: 'Note',
+          name: 'Yellow',
+          replies: { type: 'Collection', totalItems: 2 }
+        }
+      ]
+    })
+    ;(mockDatabase.updatePoll as jest.Mock).mockResolvedValue(remotePollStatus)
+
+    await syncRemotePoll({ database: mockDatabase, status: remotePollStatus })
+
+    const params = (mockDatabase.updatePoll as jest.Mock).mock.calls.at(-1)?.[0]
+    expect(params).not.toHaveProperty('remoteUpdatedAt')
   })
 
   it('handles multiple-choice anyOf polls correctly', async () => {

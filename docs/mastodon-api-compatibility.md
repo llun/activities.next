@@ -2087,10 +2087,13 @@ remote poll (`syncRemotePoll`) follow Mastodon's
   the deadline alone too is this project's choice: Mastodon's implicit path
   does set `expires_at` unless the options changed significantly, but a
   deadline move records a revision here, which a tally refresh should never
-  do. `syncRemotePoll` (a fetch, not an Update) refreshes the text, summary,
-  tallies and deadline and never resets votes; it records the fetched
-  `updated` as `remoteUpdatedAt` when it is newer than the stored one, so a
-  late, older Update cannot revert what the fetch applied.
+  do. `syncRemotePoll` (a fetch, not an Update) never resets votes or changes the
+  options. It refreshes tallies always, and the text, summary and deadline only
+  from a document at least as new as the last applied edit (an older cached
+  copy cannot revert them). It records the fetched `updated` as
+  `remoteUpdatedAt` when it is newer and the fetched option set and mode match
+  the stored ones, so a late, older Update cannot revert what the fetch applied,
+  while an Update that changes the options stays explicit and still applies.
 - **Deadline.** A parseable string `closed` wins over `endTime`; any other
   truthy `closed` (a bare boolean, which the `Question` schema accepts) means
   the poll closed at processing time — unless the stored `endAt` has already

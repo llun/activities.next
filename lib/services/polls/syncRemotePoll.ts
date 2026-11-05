@@ -103,33 +103,56 @@ const performPollSync = async ({
       return null
     }
 
-    // A fetch refreshes the text, summary, tallies and deadline: an option without
-    // `replies` keeps its stored tally, and updatePoll writes a tally only
-    // where the title at that position still matches, so a changed option set
-    // never resets votes here (that is updatePollJob's job, on an Update).
+    // A fetch never resets votes or changes options (that is updatePollJob's
+    // job, on an Update): updatePoll writes a tally only where the title at that
+    // position still matches, and an option without `replies` keeps its stored
+    // tally. When the fetched option set or mode differs, the fetch's `updated`
+    // is not recorded, so the Update carrying that change stays explicit.
+    const fetchedOptions = (question.oneOf ?? question.anyOf ?? []).map(
+      (answer) => answer.name
+    )
+    const fetchedPollType = question.oneOf
+      ? 'oneOf'
+      : question.anyOf
+        ? 'anyOf'
+        : status.pollType
+    const optionsMatch =
+      fetchedPollType === status.pollType &&
+      fetchedOptions.length === status.choices.length &&
+      fetchedOptions.every(
+        (title, index) => title === status.choices[index]?.title
+      )
     const choices = getPollChoicesFromQuestion(question, status.choices)
 
-    const text = getContent(question)
-    const summary = getSummary(question)
-    const endAt = getPollEndAtFromQuestion(question, status.endAt)
-    // The fetched document is the origin's latest, so record its `updated`
-    // (never moving the stored one back): a late, older Update must not revert
-    // what this fetch applied.
+    // The text, summary and deadline apply only from a document at least as new
+    // as the last applied edit (an older cached copy refreshes tallies alone),
+    // and a newer document's `updated` is recorded so a late, older Update
+    // cannot revert what this fetch applied.
     const fetchedUpdatedAt = parseQuestionTime(question.updated)
+    const storedUpdatedAt = status.remoteUpdatedAt
+    const current =
+      storedUpdatedAt === undefined ||
+      (fetchedUpdatedAt !== undefined && fetchedUpdatedAt >= storedUpdatedAt)
     const remoteUpdatedAt =
+      current &&
+      optionsMatch &&
       fetchedUpdatedAt !== undefined &&
-      (status.remoteUpdatedAt === undefined ||
-        fetchedUpdatedAt > status.remoteUpdatedAt)
+      (storedUpdatedAt === undefined || fetchedUpdatedAt > storedUpdatedAt)
         ? fetchedUpdatedAt
         : undefined
+    const text = current ? getContent(question) : undefined
+    const summary = current ? getSummary(question) : undefined
+    const endAt = current
+      ? getPollEndAtFromQuestion(question, status.endAt)
+      : undefined
 
     const updated = await database.updatePoll({
       // The id-match guard above already proves these are the same poll; using
       // `status.id` keeps the write target correct by construction rather than
       // by that guard alone, and matches the row this sync was asked about.
       statusId: status.id,
-      summary,
-      text,
+      ...(text !== undefined ? { text } : {}),
+      ...(summary !== undefined ? { summary } : {}),
       choices,
       ...(endAt !== undefined ? { endAt } : {}),
       ...(remoteUpdatedAt !== undefined ? { remoteUpdatedAt } : {})
