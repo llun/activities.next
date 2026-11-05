@@ -1,0 +1,23 @@
+docs/architecture.md
+  s_2b1a50e2f9b981::t_5f24bf1a7e6b42 1184-1185
+docs/fitness-file-storage.md
+  s_2b1a50e2f9b981::t_5f24bf1a7e6b42 118
+docs/maintenance.md
+  s_2b1a50e2f9b981::t_5f24bf1a7e6b42 677-689
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ba7ba6f8d38b0432802cb631b98deb86812152e8",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
