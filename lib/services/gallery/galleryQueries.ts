@@ -62,8 +62,8 @@ import {
 // Subjects and the life list scan the owner's whole index in keyset batches
 // and fold each row into per-subject totals in JS, keyed by `toSubjectKey`, so
 // both backends agree on what one subject is (the viewer's place also needs
-// per-row `getPublicPlace`). Only a scan that reaches the row ceiling answers
-// `truncated: true`. The map is a separate render cap on its points.
+// per-row `getPublicPlace`). Only a scan with rows left past the row ceiling
+// answers `truncated: true`. The map is a separate render cap on its points.
 
 // shortcut: one request folds at most this many rows; past it Subjects and the
 // life list say `truncated`. Upgrade to stored per-subject totals when a

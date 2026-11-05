@@ -1583,7 +1583,7 @@ describe('reduceGalleryDayStats tie-breaking', () => {
   })
 })
 
-describe('gallery queries at the index cap', () => {
+describe('gallery queries at the row ceiling and caps', () => {
   const indexRows = (count: number): GalleryIndexRow[] =>
     Array.from({ length: count }, (_, index) => ({
       id: String(count - index),
@@ -1763,6 +1763,26 @@ describe('gallery queries at the index cap', () => {
           coverMediaId: String(newest),
           firstPlaceName: 'Paris'
         }
+      ])
+    })
+
+    it('lets the older photo name the first place when two share a time', async () => {
+      const takenAt = Date.UTC(2015, 5, 1)
+      const database = fakeDatabase(
+        galleryRows({
+          [newest]: { subjectName: 'Heron', placeName: 'Newer', takenAt },
+          100: { subjectName: 'Heron', placeName: 'Older', takenAt }
+        })
+      )
+
+      const lifeList = await getGalleryLifeList({
+        database,
+        owner: { id: 'owner' },
+        audience: OWNER_GALLERY_AUDIENCE
+      })
+
+      expect(lifeList.entries).toMatchObject([
+        { key: 'name:heron', count: 2, firstPlaceName: 'Older' }
       ])
     })
 
