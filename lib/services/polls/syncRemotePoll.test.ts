@@ -158,6 +158,43 @@ describe('syncRemotePoll', () => {
     expect(result).toEqual(updatedStatus)
   })
 
+  it('keeps stored tallies for options the remote document sends without replies', async () => {
+    // Mastodon omits option `replies` on a hide_totals poll until it closes.
+    const storedStatus: StatusPoll = {
+      ...remotePollStatus,
+      choices: [
+        { ...remotePollStatus.choices[0], totalVotes: 4 },
+        { ...remotePollStatus.choices[1], totalVotes: 6 }
+      ]
+    }
+    ;(getNote as jest.Mock).mockResolvedValue({
+      '@context': 'https://www.w3.org/ns/activitystreams',
+      id: remotePollStatus.id,
+      type: 'Question',
+      attributedTo: remotePollStatus.actorId,
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: [],
+      content: '<p>Favorite color?</p>',
+      published: '2026-08-31T00:00:00Z',
+      oneOf: [
+        { type: 'Note', name: 'Red' },
+        { type: 'Note', name: 'Blue' }
+      ]
+    })
+    ;(mockDatabase.updatePoll as jest.Mock).mockResolvedValue(storedStatus)
+
+    await syncRemotePoll({ database: mockDatabase, status: storedStatus })
+
+    expect(mockDatabase.updatePoll).toHaveBeenCalledWith(
+      expect.objectContaining({
+        choices: [
+          { title: 'Red', totalVotes: 4 },
+          { title: 'Blue', totalVotes: 6 }
+        ]
+      })
+    )
+  })
+
   it('handles multiple-choice anyOf polls correctly', async () => {
     const remoteQuestion = {
       '@context': 'https://www.w3.org/ns/activitystreams',

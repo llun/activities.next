@@ -2809,6 +2809,8 @@ describe('updatePoll', () => {
     ])
   })
 
+  // A reset seeds the new options with the given tallies: a local edit passes
+  // 0, a remote Update(Question) passes the counts it carries.
   it('resets the votes and replaces the options of that poll only', async () => {
     const { id, neighbour } = await setup()
     const neighbourBefore = await neighbourRows(neighbour)
@@ -2841,8 +2843,8 @@ describe('updatePoll', () => {
         .orderBy('choiceId')
         .execute()
     ).toEqual([
-      { title: 'yes', totalVotes: 0, createdAt: now, updatedAt: now },
-      { title: 'no', totalVotes: 0, createdAt: now, updatedAt: now }
+      { title: 'yes', totalVotes: 4, createdAt: now, updatedAt: now },
+      { title: 'no', totalVotes: 2, createdAt: now, updatedAt: now }
     ])
     expect(await votesOf(id)).toEqual({ voters: [], answers: [] })
     expect(await neighbourRows(neighbour)).toEqual(neighbourBefore)

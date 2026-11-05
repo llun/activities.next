@@ -6,6 +6,7 @@ import { CREATE_POLL_JOB_NAME, UPDATE_POLL_JOB_NAME } from '@/lib/jobs/names'
 import { updatePollJob } from '@/lib/jobs/updatePollJob'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
+import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { StatusPoll, StatusType } from '@/lib/types/domain/status'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
@@ -16,13 +17,19 @@ const REMOTE_ACTOR_ID = 'https://somewhere.test/actors/pollcreator'
 interface QuestionOption {
   type: string
   name: string
-  replies: { type: string; totalItems: number }
+  replies?: { type: string; totalItems: number }
 }
 
 const createOption = (name: string, votes = 0): QuestionOption => ({
   type: 'Note',
   name,
   replies: { type: 'Collection', totalItems: votes }
+})
+
+// What Mastodon sends for a `hide_totals` poll until it closes: no `replies`.
+const createUntalliedOption = (name: string): QuestionOption => ({
+  type: 'Note',
+  name
 })
 
 const MockActivityPubQuestion = (
@@ -309,5 +316,159 @@ describe('updatePollJob', () => {
     expect(status.choices).toHaveLength(2)
     expect(status.choices[0].totalVotes).toEqual(15)
     expect(status.choices[1].totalVotes).toEqual(20)
+  })
+
+  it('moves the stored end time when the Update changes endTime', async () => {
+    const pollId = `${REMOTE_ACTOR_ID}/questions/endtime-${Date.now()}`
+    const originalEnd = Date.now() + 24 * 60 * 60 * 1000
+    const extendedEnd = originalEnd + 48 * 60 * 60 * 1000
+    await createPollJob(database, {
+      id: 'id-endtime-create',
+      name: CREATE_POLL_JOB_NAME,
+      data: MockActivityPubQuestion(pollId, { endTime: originalEnd })
+    })
+
+    await updatePollJob(database, {
+      id: 'id-endtime-update',
+      name: UPDATE_POLL_JOB_NAME,
+      data: MockActivityPubQuestion(pollId, { endTime: extendedEnd })
+    })
+
+    const status = (await database.getStatus({
+      statusId: pollId
+    })) as StatusPoll
+    expect(status.endAt).toEqual(new Date(getISOTimeUTC(extendedEnd)).getTime())
+  })
+
+  it('keeps stored tallies for options the Update sends without replies', async () => {
+    const pollId = `${REMOTE_ACTOR_ID}/questions/untallied-${Date.now()}`
+    await createPollJob(database, {
+      id: 'id-untallied-create',
+      name: CREATE_POLL_JOB_NAME,
+      data: MockActivityPubQuestion(pollId, {
+        oneOf: [createOption('Red', 5), createOption('Blue', 3)]
+      })
+    })
+
+    await updatePollJob(database, {
+      id: 'id-untallied-update',
+      name: UPDATE_POLL_JOB_NAME,
+      data: MockActivityPubQuestion(pollId, {
+        content: '<p>Edited, totals hidden</p>',
+        oneOf: [createUntalliedOption('Red'), createOption('Blue', 4)]
+      })
+    })
+
+    const status = (await database.getStatus({
+      statusId: pollId
+    })) as StatusPoll
+    expect(status.text).toEqual('<p>Edited, totals hidden</p>')
+    expect(status.choices.map((choice) => choice.totalVotes)).toEqual([5, 4])
+  })
+
+  it('resets votes and takes the Update tallies when the option set changes', async () => {
+    const pollId = `${REMOTE_ACTOR_ID}/questions/reset-${Date.now()}`
+    await createPollJob(database, {
+      id: 'id-reset-create',
+      name: CREATE_POLL_JOB_NAME,
+      data: MockActivityPubQuestion(pollId, {
+        oneOf: [createOption('Red', 1), createOption('Blue', 2)]
+      })
+    })
+    await database.recordPollVotes({
+      statusId: pollId,
+      actorId: ACTOR1_ID,
+      choices: [0]
+    })
+
+    await updatePollJob(database, {
+      id: 'id-reset-update',
+      name: UPDATE_POLL_JOB_NAME,
+      data: MockActivityPubQuestion(pollId, {
+        oneOf: [
+          createOption('Crimson', 7),
+          createOption('Blue', 2),
+          createUntalliedOption('Green')
+        ]
+      })
+    })
+
+    const status = (await database.getStatus({
+      statusId: pollId,
+      currentActorId: ACTOR1_ID
+    })) as StatusPoll
+    expect(status.choices.map((choice) => choice.title)).toEqual([
+      'Crimson',
+      'Blue',
+      'Green'
+    ])
+    expect(status.choices.map((choice) => choice.totalVotes)).toEqual([7, 2, 0])
+    expect(status.voted).toBe(false)
+    expect(status.ownVotes).toEqual([])
+    expect(status.votersCount).toBe(0)
+  })
+
+  it('switches pollType and resets votes when the Update changes oneOf to anyOf', async () => {
+    const pollId = `${REMOTE_ACTOR_ID}/questions/mode-${Date.now()}`
+    await createPollJob(database, {
+      id: 'id-mode-create',
+      name: CREATE_POLL_JOB_NAME,
+      data: MockActivityPubQuestion(pollId, {
+        oneOf: [createOption('Red', 1), createOption('Blue', 2)]
+      })
+    })
+    await database.recordPollVotes({
+      statusId: pollId,
+      actorId: ACTOR1_ID,
+      choices: [1]
+    })
+
+    await updatePollJob(database, {
+      id: 'id-mode-update',
+      name: UPDATE_POLL_JOB_NAME,
+      data: MockActivityPubQuestion(pollId, {
+        anyOf: [createOption('Red', 1), createOption('Blue', 2)]
+      })
+    })
+
+    const status = (await database.getStatus({
+      statusId: pollId,
+      currentActorId: ACTOR1_ID
+    })) as StatusPoll
+    expect(status.pollType).toEqual('anyOf')
+    expect(status.voted).toBe(false)
+    expect(status.ownVotes).toEqual([])
+  })
+
+  it('updates totals without resetting votes when the options are unchanged', async () => {
+    const pollId = `${REMOTE_ACTOR_ID}/questions/keep-${Date.now()}`
+    await createPollJob(database, {
+      id: 'id-keep-create',
+      name: CREATE_POLL_JOB_NAME,
+      data: MockActivityPubQuestion(pollId, {
+        oneOf: [createOption('Red', 1), createOption('Blue', 2)]
+      })
+    })
+    await database.recordPollVotes({
+      statusId: pollId,
+      actorId: ACTOR1_ID,
+      choices: [0]
+    })
+
+    await updatePollJob(database, {
+      id: 'id-keep-update',
+      name: UPDATE_POLL_JOB_NAME,
+      data: MockActivityPubQuestion(pollId, {
+        oneOf: [createOption('Red', 9), createOption('Blue', 4)]
+      })
+    })
+
+    const status = (await database.getStatus({
+      statusId: pollId,
+      currentActorId: ACTOR1_ID
+    })) as StatusPoll
+    expect(status.choices.map((choice) => choice.totalVotes)).toEqual([9, 4])
+    expect(status.voted).toBe(true)
+    expect(status.ownVotes).toEqual([0])
   })
 })

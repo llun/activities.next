@@ -49,6 +49,31 @@ describe('getPollChoicesFromQuestion', () => {
     ])
   })
 
+  it('keeps the stored tally for an option without replies and 0 for a new one', () => {
+    const question = buildQuestion({
+      oneOf: [
+        { type: 'Note', name: 'Hidden' },
+        { type: 'Note', name: 'Added' },
+        {
+          type: 'Note',
+          name: 'Counted',
+          replies: { type: 'Collection', totalItems: 2 }
+        }
+      ]
+    })
+
+    expect(
+      getPollChoicesFromQuestion(question, [
+        { title: 'Hidden', totalVotes: 5 },
+        { title: 'Counted', totalVotes: 9 }
+      ])
+    ).toEqual([
+      { title: 'Hidden', totalVotes: 5 },
+      { title: 'Added', totalVotes: 0 },
+      { title: 'Counted', totalVotes: 2 }
+    ])
+  })
+
   it('returns an empty list when the question carries neither oneOf nor anyOf', () => {
     const question = buildQuestion({})
 

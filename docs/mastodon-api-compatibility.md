@@ -2064,6 +2064,24 @@ effort and logs an error without failing the saved create or edit. Automatic
 expiration delivery requires a queue that supports delayed messages: in-process
 NoQueue drops them. Live vote-count updates are not federated separately.
 
+An inbound `Update(Question)` (`updatePollJob`) and the on-read refresh of a
+remote poll (`syncRemotePoll`) mirror Mastodon's
+`ActivityPub::ProcessStatusUpdateService`, sharing `getPollChoicesFromQuestion`:
+
+- `endTime` moves the stored `endAt`, so a poll the origin extends, shortens or
+  closes early ends when the origin says; an Update without `endTime` keeps the
+  stored deadline.
+- An option without `replies` keeps the stored tally of the choice with the same
+  title (Mastodon omits `replies` for a `hide_totals` poll until it closes, and
+  some servers never send them), so such an Update does not wipe the counts to 0. Only a brand-new poll (`createPollJob`) starts an untallied option at 0.
+- When the option set changes (added, removed or renamed titles, compared in
+  order, or a `oneOf`/`anyOf` switch) the votes are reset: `updatePoll` with
+  `resetVotes` clears the poll's stored local votes (`poll_answers`,
+  `poll_voters`) so local voters can vote again, replaces the options and seeds
+  each with the Update's own tally (0 when absent) and the new `pollType`. An
+  Update whose option set is unchanged only refreshes the tallies and leaves
+  the recorded votes alone, as does one that carries no options at all.
+
 Local pinned statuses federate through the actor's `featured` collection and
 outbound `Add`/`Remove` activities:
 

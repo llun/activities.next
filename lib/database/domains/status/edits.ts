@@ -633,8 +633,9 @@ export const updatePoll = async (
     }
     if (resetVotes) {
       // Mastodon resets a poll whose options changed: all recorded votes are
-      // removed and the replacement options start from zero. Sequential
-      // inserts keep choiceId order deterministic for hydration.
+      // removed and the replacement options start from the tallies given (a
+      // local edit passes 0; an inbound Update passes the origin's counts).
+      // Sequential inserts keep choiceId order deterministic for hydration.
       await trx
         .deleteFrom('poll_answers')
         .where('statusId', '=', statusId)
@@ -653,7 +654,7 @@ export const updatePoll = async (
           .values({
             statusId,
             title: choice.title,
-            totalVotes: 0,
+            totalVotes: choice.totalVotes,
             createdAt: currentTime,
             updatedAt: currentTime
           })

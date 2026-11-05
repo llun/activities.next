@@ -99,7 +99,8 @@ const performPollSync = async ({
       return null
     }
 
-    const choices = getPollChoicesFromQuestion(question)
+    // An option without `replies` keeps its stored tally, as updatePollJob does.
+    const choices = getPollChoicesFromQuestion(question, status.choices)
 
     const text = getContent(question)
     const summary = getSummary(question)

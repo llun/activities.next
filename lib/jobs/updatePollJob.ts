@@ -62,11 +62,38 @@ export const updatePollJob = createJobHandle(
 
     const text = getContent(question)
     const summary = getSummary(question)
+    const pollType = question.oneOf
+      ? 'oneOf'
+      : question.anyOf
+        ? 'anyOf'
+        : existingStatus.pollType
+    const nextChoices = getPollChoicesFromQuestion(question)
+    const storedTitles = existingStatus.choices.map((choice) => choice.title)
+    // Mastodon resets a poll's votes when its option set or its single/multiple
+    // mode changes (PollParser#significantly_changes? in
+    // ActivityPub::ProcessStatusUpdateService): stored local votes are cleared
+    // so voters can vote again and the new options carry the Update's own
+    // tallies (0 when absent). Otherwise an option without `replies` keeps its
+    // stored tally. An Update carrying no options leaves the option set alone.
+    const resetVotes =
+      nextChoices.length > 0 &&
+      (pollType !== existingStatus.pollType ||
+        nextChoices.length !== storedTitles.length ||
+        nextChoices.some(
+          (choice, index) => choice.title !== storedTitles[index]
+        ))
     await database.updatePoll({
       statusId: question.id,
       summary,
       text,
-      choices: getPollChoicesFromQuestion(question)
+      choices: resetVotes
+        ? nextChoices
+        : getPollChoicesFromQuestion(question, existingStatus.choices),
+      pollType,
+      ...(question.endTime
+        ? { endAt: new Date(question.endTime).getTime() }
+        : {}),
+      resetVotes
     })
   }
 )
