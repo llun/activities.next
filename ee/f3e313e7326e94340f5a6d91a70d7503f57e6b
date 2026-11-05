@@ -1,0 +1,44 @@
+lib/components/gallery/galleryItemEdit.test.ts
+  s_2b1a50e2f9b981::t_f6001614893b91 167-179
+lib/types/database/gallery.ts
+  s_2b1a50e2f9b981::t_5bd07f8e9caa51 183-185
+lib/components/gallery/GalleryLifeListTable.test.tsx
+  s_2b1a50e2f9b981::t_36778d9f9f9ca4 125-184
+app/(timeline)/gallery/life-list/loading.tsx
+  s_2b1a50e2f9b981::t_b2592defcc798f 1,23-24,28
+migrations/20261105210627_add_media_subject_taxon_rank.ts
+  s_2b1a50e2f9b981::t_67900d3d6c1349 3-11
+lib/services/medias/types.ts
+  s_2b1a50e2f9b981::t_5bd07f8e9caa51 104,106
+docs/mastodon-api-compatibility.md
+  s_2b1a50e2f9b981::t_518cd4fe1a6e1c 860-862
+lib/services/medias/mediaDetails.test.ts
+  s_2b1a50e2f9b981::t_f6001614893b91 110-122
+app/api/v1/media/[id]/lookups/route.test.ts
+  s_2b1a50e2f9b981::t_9a38d1fb0b81dd 182-204
+lib/components/gallery/GalleryLifeListTable.tsx
+  s_2b1a50e2f9b981::t_b2592defcc798f 3,61,66
+app/api/v1/media/[id]/lookups/route.ts
+  s_2b1a50e2f9b981::t_8ec9d79eda2831 164-165
+lib/services/gallery/publicMediaDetails.test.ts
+  s_2b1a50e2f9b981::t_f6001614893b91 6-7,887-896
+  s_2b1a50e2f9b981::t_7b30cdd9e3be94 897-899
+docs/maintenance.md
+  s_2b1a50e2f9b981::t_518cd4fe1a6e1c 1064
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "eef3e313e7326e94340f5a6d91a70d7503f57e6b",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
