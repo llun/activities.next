@@ -38,6 +38,17 @@ describe('account import subject suggestions', () => {
     ])
   })
 
+  it('reads the nulls an export writes for an unknown country, month or record', () => {
+    const parsed = suggestionsSchema.parse({
+      ...base,
+      candidates: [{ ...candidate, recordedInCountry: null }],
+      context: { countryCode: null, month: null }
+    })
+
+    expect(parsed?.context).toEqual({ countryCode: null, month: null })
+    expect(parsed?.candidates[0].recordedInCountry).toBeNull()
+  })
+
   it('still reads an archive written before the context existed', () => {
     const parsed = suggestionsSchema.parse(base)
 
