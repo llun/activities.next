@@ -97,7 +97,7 @@ describe('sendUpdateActorJob', () => {
         name: SEND_UPDATE_ACTOR_JOB_NAME,
         data: { actorId: ACTOR1_ID, updatedAt: 1700000000000 }
       })
-    ).rejects.toThrow('actor update deliveries')
+    ).rejects.toThrow('queue unavailable')
   })
 
   it('keeps going when an inline delivery fails', async () => {

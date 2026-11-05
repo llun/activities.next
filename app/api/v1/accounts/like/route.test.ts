@@ -132,6 +132,8 @@ describe('like and unlike of an existing status', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockDatabase.getStatus.mockResolvedValue(status)
+    mockDatabase.createLike.mockResolvedValue(true)
+    mockDatabase.deleteLike.mockResolvedValue(true)
   })
 
   it('POST stores the like, then federates it to the status author', async () => {
@@ -198,6 +200,29 @@ describe('like and unlike of an existing status', () => {
       expect(mockSendUndoLike).not.toHaveBeenCalled()
     }
   )
+
+  it('POST of a status already liked stores nothing new and sends no second Like', async () => {
+    mockDatabase.createLike.mockResolvedValue(false)
+
+    const response = await POST(
+      jsonRequest('POST', { statusId: status.id }),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockSendLike).not.toHaveBeenCalled()
+  })
+
+  it('DELETE of a status not liked sends no Undo', async () => {
+    mockDatabase.deleteLike.mockResolvedValue(false)
+    const response = await DELETE(
+      jsonRequest('DELETE', { statusId: status.id }),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockSendUndoLike).not.toHaveBeenCalled()
+  })
 
   it('does not federate a like whose local write failed', async () => {
     mockDatabase.createLike.mockRejectedValueOnce(new Error('db down'))
