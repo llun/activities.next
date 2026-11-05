@@ -40,11 +40,14 @@ import { logger } from '@/lib/utils/logger'
 import {
   ERROR_400,
   ERROR_401,
+  apiRateLimitedResponse,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
 import { MAX_SEARCH_QUERY_LENGTH } from '@/lib/utils/searchQueryLimits'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
+
+import { checkSearchResolveRateLimit } from './rateLimit'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
@@ -655,6 +658,17 @@ export const GET = traceApiRoute(
           data: ERROR_401,
           responseStatusCode: 401
         })
+      }
+
+      if (params.resolve === true && currentActor) {
+        const rateLimit = checkSearchResolveRateLimit(currentActor.id)
+        if (!rateLimit.allowed) {
+          return apiRateLimitedResponse(
+            req,
+            rateLimit.retryAfterSeconds,
+            CORS_HEADERS
+          )
+        }
       }
 
       if (query.length === 0) {

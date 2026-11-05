@@ -4,12 +4,14 @@ import { z } from 'zod'
 import { getDatabase } from '@/lib/database'
 import { hashPassword } from '@/lib/services/auth/passwordHash'
 import { hashPasswordResetCode } from '@/lib/services/auth/passwordResetCode'
+import { checkPasswordResetRateLimit } from '@/lib/services/auth/routeRateLimits'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
   ERROR_400,
   ERROR_422,
   ERROR_500,
+  apiRateLimitedResponse,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -35,6 +37,15 @@ export const POST = traceApiRoute(
         data: ERROR_500,
         responseStatusCode: 500
       })
+    }
+
+    const rateLimit = checkPasswordResetRateLimit(request)
+    if (!rateLimit.allowed) {
+      return apiRateLimitedResponse(
+        request,
+        rateLimit.retryAfterSeconds,
+        CORS_HEADERS
+      )
     }
 
     let body: unknown

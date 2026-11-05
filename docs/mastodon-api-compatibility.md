@@ -427,7 +427,12 @@ a string>`, which returns an empty page, so that poller never detects new
   without it the answer is `422` with an `agreement` `ERR_ACCEPTED` detail.
   The web sign-up form needs it only when the domain it is on has a terms of
   service or privacy policy. Mastodon also stores when a user agreed; this
-  server does not.
+  server does not. Both paths share Mastodon's `throttle_sign_up_attempts`
+  limit, 25 per 5 minutes per trusted client IP, in process (`429` with
+  `Retry-After`); the credential routes `POST /api/v1/accounts/password`,
+  `POST /api/v1/accounts/email`, `POST /api/v1/emails/confirmations` and
+  `POST /api/v1/accounts/password/reset[/request]` carry their own per-account
+  and per-IP buckets (see "Better-auth" in `docs/architecture.md`).
 
 - **`GET /api/v1/tags/:name` always includes `following` and `featuring`.**
   Mastodon omits these optional `Tag` fields for unauthorized tokens;
@@ -1115,9 +1120,13 @@ this server" }` instead of storing a post that would never be published. The
   falling back to Mastodon's conventional `/authorize_interaction?uri={uri}`
   path when that server advertises none. Deliberately unauthenticated — the
   feature exists for visitors with no account here — and read-only; `target`
-  must name an actor this instance hosts. The inbound half is the
-  Mastodon-compatible `/authorize_interaction` **page** (not an API endpoint),
-  which this instance advertises in its own WebFinger document.
+  must name an actor this instance hosts. Rate-limited in process to 10 requests
+  per minute per trusted client IP (`/64` for IPv6, when
+  `ACTIVITIES_TRUST_PROXY_IP_HEADERS=true`) plus a 600 requests per minute
+  per-process global circuit breaker, answering
+  `429 { "error": "Too many requests" }` with `Retry-After`. The inbound half is
+  the Mastodon-compatible `/authorize_interaction` **page** (not an API
+  endpoint), which this instance advertises in its own WebFinger document.
 
 - **Remote statuses** — `/api/v1/accounts/:id/remote-statuses` exposes cached
   remote posts for an actor.
@@ -2168,7 +2177,11 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   in its poll (POST /api/v1/polls/:id/votes). Resolving a status URL through
   `GET /api/v2/search` with `resolve=true` stores the status inline through
   this same path, so a resolve on an unseen URL takes as long as fetching and
-  storing it. The requested id is checked before fetching: non-URL ids and
+  storing it (`GET /api/v2/search` with `resolve=true` is rate-limited in
+  process to 30 requests per minute per authenticated actor, answering
+  `429 { "error": "Too many requests" }` with `Retry-After`; an unauthenticated
+  `resolve=true` request is refused with `401` before anything is counted, and
+  plain searches without `resolve=true` are not counted). The requested id is checked before fetching: non-URL ids and
   served domains are refused, domain policy applies, and an existing row the
   viewer can't read is never fetched. A fetched note is accepted only when it
   is on the same origin as the requested id, with an author on that origin

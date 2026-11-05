@@ -1,6 +1,11 @@
 import { NextRequest } from 'next/server'
 
+import { resetTrustProxyIpHeadersConfigCacheForTests } from '@/lib/config/trustProxyIpHeaders'
 import { Database } from '@/lib/database/types'
+import {
+  PASSWORD_RESET_LIMIT,
+  resetRouteRateLimitsForTests
+} from '@/lib/services/auth/routeRateLimits'
 
 import { POST } from './route'
 
@@ -34,6 +39,7 @@ describe('POST /api/v1/accounts/password/reset', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    resetRouteRateLimitsForTests()
     mockBcryptHash.mockResolvedValue('new-password-hash')
     mockDb.validatePasswordResetCode.mockResolvedValue('account-1')
     mockDb.resetPasswordWithCode.mockResolvedValue({
@@ -44,6 +50,52 @@ describe('POST /api/v1/accounts/password/reset', () => {
       createdAt: Date.now(),
       updatedAt: Date.now()
     })
+  })
+
+  afterEach(() => {
+    delete process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS
+    resetTrustProxyIpHeadersConfigCacheForTests()
+    resetRouteRateLimitsForTests()
+  })
+
+  it('answers 429 past 25 requests per trusted client IP while another IP passes', async () => {
+    expect(PASSWORD_RESET_LIMIT).toBe(25)
+    process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS = 'true'
+    resetTrustProxyIpHeadersConfigCacheForTests()
+
+    const call = (ip: string) =>
+      POST(
+        new NextRequest('http://llun.test/api/v1/accounts/password/reset', {
+          method: 'POST',
+          body: JSON.stringify({
+            code: 'valid-code-123',
+            newPassword: 'new-password-123'
+          }),
+          headers: {
+            'Content-Type': 'application/json',
+            Origin: 'https://client.llun.test',
+            'x-forwarded-for': ip
+          }
+        }),
+        { params: Promise.resolve({}) }
+      )
+
+    for (let i = 0; i < PASSWORD_RESET_LIMIT; i += 1) {
+      expect((await call('198.51.100.30')).status).toBe(200)
+    }
+
+    const limited = await call('198.51.100.30')
+    expect(limited.status).toBe(429)
+    expect(await limited.json()).toEqual({ error: 'Too many requests' })
+    expect(Number(limited.headers.get('Retry-After'))).toBeGreaterThan(0)
+    expect(limited.headers.get('access-control-allow-origin')).toBe(
+      'https://client.llun.test'
+    )
+    expect(mockDb.validatePasswordResetCode).toHaveBeenCalledTimes(
+      PASSWORD_RESET_LIMIT
+    )
+
+    expect((await call('198.51.100.31')).status).toBe(200)
   })
 
   it('returns a CORS-aware bad request response for malformed JSON bodies', async () => {

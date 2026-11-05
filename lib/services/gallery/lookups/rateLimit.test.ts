@@ -207,19 +207,90 @@ describe('createWindowCounter', () => {
     expect(counter.tryHit('a')).toBe(true)
   })
 
-  it('stays bounded by dropping the oldest key', () => {
+  it('reports remaining window seconds from consume when over the limit', () => {
+    const counter = createWindowCounter({ limit: 1, windowMs: 60_000 })
+
+    expect(counter.consume('a')).toEqual({ allowed: true })
+    vi.advanceTimersByTime(15_200)
+    expect(counter.consume('a')).toEqual({
+      allowed: false,
+      retryAfterSeconds: 45
+    })
+  })
+
+  it('evicts the oldest live key by default, so a flood of new keys never refuses anyone', () => {
     const counter = createWindowCounter({
-      limit: 1,
+      limit: 2,
       windowMs: 60_000,
       maxKeys: 2
     })
-    counter.tryHit('a')
-    counter.tryHit('b')
-    counter.tryHit('c')
+    expect(counter.consume('a')).toEqual({ allowed: true })
+    expect(counter.consume('b')).toEqual({ allowed: true })
+    expect(counter.consume('c')).toEqual({ allowed: true })
+    // "a" was evicted, so it starts a fresh window.
+    expect(counter.consume('a')).toEqual({ allowed: true })
+    expect(counter.consume('a')).toEqual({ allowed: true })
+  })
 
-    // "a" was evicted, so it counts as new again; "c" is still limited.
-    expect(counter.tryHit('a')).toBe(true)
-    expect(counter.tryHit('c')).toBe(false)
+  it('with protectCountsFrom, never evicts a protected key and evicts the oldest unprotected one', () => {
+    const counter = createWindowCounter({
+      limit: 3,
+      windowMs: 60_000,
+      maxKeys: 2,
+      protectCountsFrom: 2
+    })
+    // "victim" reaches the protected count; "junk" is a one-off key.
+    expect(counter.consume('victim')).toEqual({ allowed: true })
+    expect(counter.consume('victim')).toEqual({ allowed: true })
+    expect(counter.consume('junk')).toEqual({ allowed: true })
+
+    // Full: the new key pushes out "junk", never "victim".
+    expect(counter.consume('flood')).toEqual({ allowed: true })
+    expect(counter.consume('victim')).toEqual({ allowed: true })
+    expect(counter.consume('victim')).toEqual({
+      allowed: false,
+      retryAfterSeconds: 60
+    })
+  })
+
+  it('with refuseWhenAllProtected false, evicts the protected key with the fewest hits instead of refusing', () => {
+    const counter = createWindowCounter({
+      limit: 3,
+      windowMs: 60_000,
+      maxKeys: 2,
+      protectCountsFrom: 2,
+      refuseWhenAllProtected: () => false
+    })
+    // "guessed" is older and at its limit; "b" has two hits.
+    counter.consume('guessed')
+    counter.consume('guessed')
+    counter.consume('guessed')
+    counter.consume('b')
+    counter.consume('b')
+    expect(counter.consume('c')).toEqual({ allowed: true })
+    // "b" went, so "guessed" is still limited.
+    expect(counter.consume('guessed')).toMatchObject({ allowed: false })
+  })
+
+  it('with protectCountsFrom, refuses a new key once every held key is protected, until a window expires', () => {
+    const counter = createWindowCounter({
+      limit: 3,
+      windowMs: 60_000,
+      maxKeys: 2,
+      protectCountsFrom: 2
+    })
+    counter.consume('a')
+    counter.consume('a')
+    vi.advanceTimersByTime(10_000)
+    counter.consume('b')
+    counter.consume('b')
+
+    expect(counter.consume('c')).toEqual({
+      allowed: false,
+      retryAfterSeconds: 50
+    })
+    vi.advanceTimersByTime(50_001)
+    expect(counter.consume('c')).toEqual({ allowed: true })
   })
 })
 
