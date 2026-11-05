@@ -1,0 +1,105 @@
+lib/database/domains/deliveryDomains/queries.ts
+  s_2b1a50e2f9b981::t_ca382deebfa0e1 24,102,115,136,154,161
+  s_2b1a50e2f9b981::t_fe21d506e47d8f 1-23,25-101,103-114,116-135,137-153,155-160
+lib/jobs/sendDeleteNoteJob.test.ts
+  s_2b1a50e2f9b981::t_1f7f3837efbb93 20,22-24,26-27
+  s_2b1a50e2f9b981::t_6d2dadab04e88b 1-2,4-7,9,19,28-32,35-36,38-39,42,56-60,69,73-86,88,93,98-115,125,135-138,146,156-174,191,194,197-200,207,218-223
+app/api/v1/polls/[id]/votes/route.test.ts
+  s_2b1a50e2f9b981::t_8492209c279c0b 8-11,75,378-413
+app/api/v1/statuses/[id]/favourite/route.test.ts
+  s_2b1a50e2f9b981::t_58e22f3c0a8be2 9-12,58,350-386
+docs/architecture.md
+  s_2b1a50e2f9b981::t_2d5a03f57dd3f2 222-234,251,2198,2200,2202,2207-2208,2215-2217,2226-2230
+docs/mastodon-api-compatibility.md
+  s_2b1a50e2f9b981::t_e98ff227de9b42 1405
+lib/actions/createNote.replyAddressing.test.ts
+  s_2b1a50e2f9b981::t_54ff38accd9158 7,178-179,182,185-186
+lib/activities/index.test.ts
+  s_2b1a50e2f9b981::t_e93635f0962cd8 6-9,20-21,23,33-36,64-68,78,85,89,92,709,720,732,739,839,850,862,869,876-1071
+lib/activities/index.ts
+  s_2b1a50e2f9b981::t_cd9a0b40cf292a 34-36,64,217-249,271-272,450-470,489-490,505-529,552-557,619,626-648,667-670,1055-1089,1100,1109,1112-1114,1160,1162-1163,1166-1168,1184,1196,1199-1201,1217,1231,1234-1236,1262,1293,1296-1298
+lib/jobs/deliverActivityJob.ts
+  s_2b1a50e2f9b981::t_bba808de6d0dca 10,36,40-65,86-107,123-132,142,180
+lib/jobs/sendAnnounceJob.test.ts
+  s_2b1a50e2f9b981::t_2c5bebf962aa46 1,3-6,8,12-17,19-21,24,42-58,75,86,102-103,106,109-123,129,135,140,143,147,155-173
+lib/jobs/sendAnnounceJob.ts
+  s_2b1a50e2f9b981::t_cc039ff66410ac 3,8,31-36,41-50
+lib/jobs/sendDeleteNoteJob.ts
+  s_2b1a50e2f9b981::t_6c8dfe3b691eae 3,6,58-73
+lib/jobs/sendUndoAnnounceJob.test.ts
+  s_2b1a50e2f9b981::t_e6bda0e3fd7a34 1-2,4-7,9,13,17-22,27-28,31,45-61,72,78-96,98,110-132,154,172
+lib/jobs/sendUndoAnnounceJob.ts
+  s_2b1a50e2f9b981::t_b8e659374f5354 3,7,48-59,66-75
+lib/jobs/sendUpdateNoteJob.test.ts
+  s_2b1a50e2f9b981::t_0159415cbaae1f 2,4-7,9,11-15,17,22-37,40,58-69,72,75-96,105-106,113-140,144,157,159,162,165-185,188-192,201,208,219,226,229,231-238,241-244,248-269
+lib/jobs/sendUpdateNoteJob.ts
+  s_2b1a50e2f9b981::t_2e7c8b2422ab06 3,7,25-26,52-59,66-75
+lib/services/federation/enqueueDeliveries.test.ts
+  s_2b1a50e2f9b981::t_8d19a35ac361b2 1-107
+lib/services/federation/enqueueDeliveries.ts
+  s_2b1a50e2f9b981::t_c246750a880127 1-195
+lib/services/guards/ActivityPubVerifyGuard.freshness.test.ts
+  s_2b1a50e2f9b981::t_cd37a1b5808c6a 13,16-17,30-40,69
+lib/services/guards/ActivityPubVerifyGuard.rfc9421.test.ts
+  s_2b1a50e2f9b981::t_b1491dfe729d16 17,20-21,34-44,170
+lib/services/guards/ActivityPubVerifyGuard.test.ts
+  s_2b1a50e2f9b981::t_96ba97c32d36e7 7,16,19-20,33-43,72,923-1045
+lib/services/guards/ActivityPubVerifyGuard.ts
+  s_2b1a50e2f9b981::t_a27868cda9d9b2 5-8,751-765
+lib/jobs/sendMoveJob.ts
+  s_2b1a50e2f9b981::t_caae1e98a55e60 9-10,13,15,87,135-139,141-150,182-204,218-234
+lib/database/domains/deliveryDomains/deliveryDomains.test.ts
+  s_2b1a50e2f9b981::t_3e5ba95541baee 1-206
+lib/database/domains/deliveryDomains/types.ts
+  s_2b1a50e2f9b981::t_fd89ec9c80c050 1-27
+lib/database/getSQLDatabase.ts
+  s_2b1a50e2f9b981::t_f0c87f554baf68 21,147
+lib/database/kysely/db.ts
+  s_2b1a50e2f9b981::t_81ea00e30afc27 393-404,1543
+lib/database/types.ts
+  s_2b1a50e2f9b981::t_1c2da0662f1bac 7,119
+lib/jobs/deliverActivityJob.test.ts
+  s_2b1a50e2f9b981::t_7aabca3bdf1e97 7,27-30,40-42,230-411
+lib/jobs/sendFeaturedStatusJob.test.ts
+  s_2b1a50e2f9b981::t_eb507636a93c42 229
+lib/jobs/sendFeaturedStatusJob.ts
+  s_2b1a50e2f9b981::t_bbb85d32515a60 4-5,90-94,96-98
+lib/jobs/sendNoteJob.ts
+  s_2b1a50e2f9b981::t_3a8cc3c6963af8 7-13,22-25,81-88
+lib/jobs/sendUpdateActorJob.test.ts
+  s_2b1a50e2f9b981::t_9abbeca9fdcf01 100
+lib/jobs/sendUpdateActorJob.ts
+  s_2b1a50e2f9b981::t_c10fd41724a862 4-5,55-59,61-62
+lib/services/queue/base.ts
+  s_2b1a50e2f9b981::t_7526e4c1b0e801 4,32
+lib/services/reactions/reactStatus.test.ts
+  s_2b1a50e2f9b981::t_92cbec976fecf2 1-2,4,13-16,21-27,32-40,51,74,304,317,513-561
+lib/types/database/operations.ts
+  s_2b1a50e2f9b981::t_b3b54aedfe9db2 1004-1015
+migrations/20261105144958_add_delivery_domain_failures.ts
+  s_2b1a50e2f9b981::t_fd79d5e2fc0549 1-48
+migrations/index.ts
+  s_2b1a50e2f9b981::t_a5740fd9435edc 22,50-51
+migrations/names.ts
+  s_2b1a50e2f9b981::t_88f7268468a15d 22-23
+migrations/schema.sql
+  s_2b1a50e2f9b981::t_0e533e8013d962 404-415,1756-1758,2207-2208
+migrations/schema.sqlite.sql
+  s_2b1a50e2f9b981::t_87dd2c26776720 349-350
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "03918873f285a3214f1a33796b640b8603d19b6c",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
