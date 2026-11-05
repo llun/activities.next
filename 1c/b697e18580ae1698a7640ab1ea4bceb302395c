@@ -1,0 +1,128 @@
+app/(timeline)/fitness/layout.test.tsx
+  s_2b1a50e2f9b981::t_219f4ef0ba6b87 27,76,89-99
+  s_2b1a50e2f9b981::t_349eec7d987d46 100-101
+lib/database/kysely/db.ts
+  s_2b1a50e2f9b981::t_594d93b62513ae 515-526,1555
+app/(timeline)/[actor]/[status]/page.tsx
+  s_2b1a50e2f9b981::t_d96ef869bb7a1b 25,54,507-525,613
+lib/database/domains/fitnessBestEffort/queries.ts
+  s_2b1a50e2f9b981::t_5baf7669934dc8 1-182
+app/(timeline)/fitness/records/page.tsx
+  s_2b1a50e2f9b981::t_10ddbd7d3dab16 34
+  s_2b1a50e2f9b981::t_d55ba2dd57fedd 1-33,35-41
+lib/fitness/bestEfforts.test.ts
+  s_2b1a50e2f9b981::t_b511e5bf8e6f7f 69-74,76,80-82,85-87,90,102,104
+  s_2b1a50e2f9b981::t_d8a5aac52f7cc1 1-23,27-68,75,77-79,83-84,88-89,91-101,103,105-134
+  s_2b1a50e2f9b981::t_14a070587aeb28 24-26
+docs/fitness-file-storage.md
+  s_2b1a50e2f9b981::t_a20b0b88b9d668 9,102-121,340-343,378,415,428,450,475
+migrations/schema.sql
+  s_2b1a50e2f9b981::t_594d93b62513ae 545-556,1816-1818,2235-2236,2470-2474
+  s_2b1a50e2f9b981::t_63cfc30b26843c 2475
+scripts/fitness/backfillFitnessBestEfforts.ts
+  s_2b1a50e2f9b981::t_4922c10aeaf2a6 1-227
+lib/database/domains/status/deletion.ts
+  s_2b1a50e2f9b981::t_1bd5804f72c7a2 727-739
+migrations/20261105185059_add_fitness_best_efforts.ts
+  s_2b1a50e2f9b981::t_7906bc9af6211c 1,3-9,11-26,29-46,49-51
+  s_2b1a50e2f9b981::t_05397afa75386b 2,10,47-48
+  s_2b1a50e2f9b981::t_594d93b62513ae 27-28
+lib/fitness/bestEfforts.ts
+  s_2b1a50e2f9b981::t_14a070587aeb28 177-181
+  s_2b1a50e2f9b981::t_f055a5241bfcc6 227-254
+  s_2b1a50e2f9b981::t_28efe14f94f3e9 1-176,182-226
+lib/services/fitness-files/personalRecords.ts
+  s_2b1a50e2f9b981::t_f055a5241bfcc6 1-67,74-75,78-82,84-129
+  s_2b1a50e2f9b981::t_013d9ec6b6ba6d 68-73,76-77
+  s_2b1a50e2f9b981::t_899cd0d8a5821f 83
+migrations/schema.sqlite.sql
+  s_2b1a50e2f9b981::t_594d93b62513ae 349-350
+lib/client.ts
+  s_2b1a50e2f9b981::t_f9f21bfc24d518 59
+app/(timeline)/fitness/records/PersonalRecordsView.tsx
+  s_2b1a50e2f9b981::t_d55ba2dd57fedd 1-10,12-215
+  s_2b1a50e2f9b981::t_14a070587aeb28 11
+app/(timeline)/[actor]/[status]/fitnessActivityMetrics.ts
+  s_2b1a50e2f9b981::t_14a070587aeb28 8
+  s_2b1a50e2f9b981::t_3e83da0f3afd82 7,9-15,23-29
+  s_2b1a50e2f9b981::t_55b02fbe4c4a27 30
+lib/jobs/processFitnessFileJob.bestEfforts.test.ts
+  s_2b1a50e2f9b981::t_55df7ac8cc5453 1-135
+app/(timeline)/fitness/records/PersonalRecordsView.test.tsx
+  s_2b1a50e2f9b981::t_14a070587aeb28 26-30,108-111,136-139
+  s_2b1a50e2f9b981::t_5b590a7bde32e0 1-25,31-107,112-135,140-152
+lib/database/domains/fitnessFile/writes.ts
+  s_2b1a50e2f9b981::t_1bd5804f72c7a2 168-172
+lib/database/types.ts
+  s_2b1a50e2f9b981::t_1bd5804f72c7a2 7,88
+app/api/v1/fitness/records/route.ts
+  s_2b1a50e2f9b981::t_ce9ff6d25f550c 1-44
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  s_2b1a50e2f9b981::t_d96ef869bb7a1b 88-89,305,1046-1053
+lib/services/fitness-files/bestEfforts.test.ts
+  s_2b1a50e2f9b981::t_14a070587aeb28 42-47
+  s_2b1a50e2f9b981::t_3d69ac69fd59f7 1-41,48-110
+lib/services/fitness-files/personalRecords.test.ts
+  s_2b1a50e2f9b981::t_eb60a19222756a 1-16,18,32-115,117-190
+  s_2b1a50e2f9b981::t_96a48145292c23 17,19-31,116
+app/api/v1/fitness/records/route.test.ts
+  s_2b1a50e2f9b981::t_ca2d0d50ea1b74 1-133
+docs/architecture.md
+  s_2b1a50e2f9b981::t_a20b0b88b9d668 1563
+lib/jobs/processFitnessFileJob.ts
+  s_2b1a50e2f9b981::t_7149b2bf75ce7c 14-17,527-529,534,576-601
+  s_2b1a50e2f9b981::t_14a070587aeb28 11
+  s_2b1a50e2f9b981::t_3394667fc72884 602
+lib/database/getSQLDatabase.ts
+  s_2b1a50e2f9b981::t_1bd5804f72c7a2 24,128
+app/(timeline)/[actor]/[status]/ActivityBestEfforts.tsx
+  s_2b1a50e2f9b981::t_24be26fccdc651 23-30,35-38,40-43,45-46,58-67,95-99
+lib/client/fitnessRecords.ts
+  s_2b1a50e2f9b981::t_f9f21bfc24d518 1-19
+app/(timeline)/fitness/records/loading.tsx
+  s_2b1a50e2f9b981::t_d55ba2dd57fedd 1-22
+app/(timeline)/[actor]/[status]/activityAnalysis.ts
+  s_2b1a50e2f9b981::t_f0a0f875ed44e8 258
+  s_2b1a50e2f9b981::t_fdee336482541a 3,259-263
+lib/services/fitness-files/bestEfforts.ts
+  s_2b1a50e2f9b981::t_491cec7294aaf9 1-138
+app/(timeline)/[actor]/[status]/StatusBox.tsx
+  s_2b1a50e2f9b981::t_d96ef869bb7a1b 67-68,83-84,121
+migrations/names.ts
+  s_2b1a50e2f9b981::t_7906bc9af6211c 22-23
+lib/database/domains/fitnessBestEffort/fitnessBestEffort.test.ts
+  s_2b1a50e2f9b981::t_1eb2a974b5344a 1-82,85-124,128-169,171-247,254-284,288-298,302-310
+  s_2b1a50e2f9b981::t_14a070587aeb28 83-84,125-127,170,248-253,285-287,299-301
+lib/database/domains/fitnessBestEffort/types.ts
+  s_2b1a50e2f9b981::t_295164d98e1b34 1-54
+app/(timeline)/fitness/layout.tsx
+  s_2b1a50e2f9b981::t_d55ba2dd57fedd 3-11,29
+migrations/index.ts
+  s_2b1a50e2f9b981::t_7906bc9af6211c 22,50-51
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.personalRecords.test.tsx
+  s_2b1a50e2f9b981::t_d4bcd2677c9188 1-91,97-133
+  s_2b1a50e2f9b981::t_8d6f6751c4cddc 92-96
+lib/services/fitness-files/sportTypes.ts
+  s_2b1a50e2f9b981::t_3e83da0f3afd82 264-269
+scripts/fitness/backfillFitnessBestEfforts.test.ts
+  s_2b1a50e2f9b981::t_557bfd9edbe546 1-188
+lib/database/domains/status/statusDeletionQueries.test.ts
+  s_2b1a50e2f9b981::t_93fad38da1366f 506-508,1427-1430,1524
+  s_2b1a50e2f9b981::t_e68f04953f4bc2 721-734
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1cb697e18580ae1698a7640ab1ea4bceb302395c",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
