@@ -5,7 +5,8 @@ import { PUBLISH_SCHEDULED_STATUS_JOB_NAME } from '@/lib/jobs/names'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import {
   MIN_SCHEDULED_STATUS_AHEAD_MS,
-  SCHEDULED_AT_TOO_SOON_ERROR
+  SCHEDULED_AT_TOO_SOON_ERROR,
+  SCHEDULED_STATUSES_UNAVAILABLE_ERROR
 } from '@/lib/services/mastodon/constants'
 import { getQueue } from '@/lib/services/queue'
 import {
@@ -124,6 +125,15 @@ export const PUT = traceApiRoute(
           req,
           allowedMethods: CORS_HEADERS,
           data: ERROR_422,
+          responseStatusCode: 422
+        })
+      }
+
+      if (getQueue().dropsDelayedJobs) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: SCHEDULED_STATUSES_UNAVAILABLE_ERROR },
           responseStatusCode: 422
         })
       }

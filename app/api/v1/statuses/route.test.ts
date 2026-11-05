@@ -16,7 +16,10 @@ import { CounterKey } from '@/lib/database/utils/counter'
 import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { ROUTE_MAP_ATTACHMENT_NAME } from '@/lib/services/fitness-files/mapAttachments'
 import { hashToken } from '@/lib/services/guards/OAuthGuard'
-import { MAX_STORED_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
+import {
+  MAX_STORED_MEDIA_ATTACHMENTS,
+  SCHEDULED_STATUSES_UNAVAILABLE_ERROR
+} from '@/lib/services/mastodon/constants'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { getQueue } from '@/lib/services/queue'
@@ -2688,6 +2691,27 @@ describe('POST /api/v1/statuses', () => {
         error: CREATED_AT_WITH_SCHEDULED_AT_ERROR
       })
       expect(getQueue().publish).not.toHaveBeenCalled()
+    })
+
+    it('refuses scheduled_at when the queue drops delayed jobs', async () => {
+      const publish = vi.fn()
+      vi.mocked(getQueue).mockReturnValueOnce({
+        runsInline: true,
+        dropsDelayedJobs: true,
+        publish,
+        handle: vi.fn()
+      })
+
+      const response = await postStatus({
+        status: 'Scheduled without a delayed queue',
+        scheduled_at: new Date(Date.now() + 60 * 60 * 1000).toISOString()
+      })
+
+      expect(response.status).toBe(422)
+      expect(await response.json()).toEqual({
+        error: SCHEDULED_STATUSES_UNAVAILABLE_ERROR
+      })
+      expect(publish).not.toHaveBeenCalled()
     })
   })
 })

@@ -10,6 +10,7 @@ export { DatabaseQueueConfig } from '@/lib/config/queue'
 
 export class DatabaseQueue implements Queue {
   readonly runsInline = false
+  readonly dropsDelayedJobs = false
 
   private config?: DatabaseQueueConfig
   private database?: Database

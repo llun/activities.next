@@ -144,6 +144,7 @@ describe('DatabaseDLQProvider', () => {
       const mockPublish = vi.fn().mockResolvedValue(undefined)
       const mockQueue: Queue = {
         runsInline: false,
+        dropsDelayedJobs: false,
         publish: mockPublish,
         handle: vi.fn()
       }
@@ -182,6 +183,7 @@ describe('DatabaseDLQProvider', () => {
       const mockPublish = vi.fn().mockResolvedValue(undefined)
       const mockQueue: Queue = {
         runsInline: false,
+        dropsDelayedJobs: false,
         publish: mockPublish,
         handle: vi.fn()
       }
@@ -214,6 +216,7 @@ describe('DatabaseDLQProvider', () => {
       const mockPublish = vi.fn().mockResolvedValue(undefined)
       const mockQueue: Queue = {
         runsInline: false,
+        dropsDelayedJobs: false,
         publish: mockPublish,
         handle: vi.fn()
       }

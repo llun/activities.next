@@ -18,6 +18,7 @@ const makeQueue = (runsInline: boolean) => {
   const published: JobMessage[] = []
   const queue: Queue = {
     runsInline,
+    dropsDelayedJobs: false,
     publish: vi.fn(async (message: JobMessage) => {
       published.push(message)
     }),

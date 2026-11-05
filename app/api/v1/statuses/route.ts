@@ -27,6 +27,7 @@ import {
   POLL_OPTIONS_CEILING,
   POLL_OPTION_CHARS_CEILING,
   SCHEDULED_AT_TOO_SOON_ERROR,
+  SCHEDULED_STATUSES_UNAVAILABLE_ERROR,
   getMaxStatusMediaAttachments
 } from '@/lib/services/mastodon/constants'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
@@ -382,6 +383,14 @@ export const POST = traceApiRoute(
         // but unparseable value still falls through to the 422 below.
         const scheduledAtInput = note.scheduled_at?.trim()
         if (scheduledAtInput) {
+          if (getQueue().dropsDelayedJobs) {
+            return apiResponse({
+              req,
+              allowedMethods: CORS_HEADERS,
+              data: { error: SCHEDULED_STATUSES_UNAVAILABLE_ERROR },
+              responseStatusCode: 422
+            })
+          }
           if (note.fitness_file_id) {
             return apiResponse({
               req,

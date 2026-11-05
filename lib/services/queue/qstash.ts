@@ -16,6 +16,7 @@ const DEFAULT_MAX_JOB_RETRIES = 3
 export class QStashQueue implements Queue {
   // QStash only enqueues on `publish`; the job runs out of band, not inline.
   readonly runsInline = false
+  readonly dropsDelayedJobs = false
 
   private _client?: Client
   private _url: string
