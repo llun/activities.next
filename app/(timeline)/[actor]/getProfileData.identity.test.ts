@@ -232,6 +232,11 @@ describe('getProfileIdentity', () => {
       )
       const profileWrites = vi.mocked(mockDatabase.setActorCounters).mock.calls
       vi.mocked(mockDatabase.setActorCounters).mockClear()
+      // The profile loads its pinned posts; the identity shows none.
+      expect(mockDatabase.getActorStatuses).toHaveBeenCalledWith(
+        expect.objectContaining({ pinned: true })
+      )
+      vi.mocked(mockDatabase.getActorStatuses).mockClear()
 
       const identity = await getProfileIdentity(
         mockDatabase,
@@ -252,6 +257,7 @@ describe('getProfileIdentity', () => {
         profileWrites
       )
       expect(profileWrites).toHaveLength(1)
+      expect(mockDatabase.getActorStatuses).not.toHaveBeenCalled()
     })
   })
 })

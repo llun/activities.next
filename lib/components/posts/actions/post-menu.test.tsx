@@ -792,6 +792,29 @@ describe('PostMenu', () => {
         ).not.toBeInTheDocument()
       })
 
+      it('offers Unpin for a direct post that was pinned before it became direct', async () => {
+        ;(getStatusById as jest.Mock).mockResolvedValue({
+          id: ownStatus.id,
+          pinned: true
+        })
+        const directStatus: StatusNote = {
+          ...ownStatus,
+          to: ['https://activities.local/users/someone'],
+          cc: []
+        }
+        render(<PostMenu status={directStatus} isOwner canEdit={false} />)
+
+        const menu = await openMenu()
+        expect(
+          await within(menu).findByRole('menuitem', {
+            name: 'Unpin from profile'
+          })
+        ).toBeInTheDocument()
+        expect(
+          within(menu).queryByRole('menuitem', { name: 'Pin to profile' })
+        ).not.toBeInTheDocument()
+      })
+
       it('does not show Pin to profile for other actors posts', async () => {
         render(
           <PostMenu status={otherStatus} isOwner={false} canEdit={false} />

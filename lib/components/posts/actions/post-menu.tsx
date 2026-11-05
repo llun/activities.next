@@ -303,7 +303,7 @@ export const PostMenu: FC<Props> = ({
   }
 
   const loadPinnedState = async () => {
-    if (!isOwner || pinnedLoaded || visibility === 'direct') return
+    if (!isOwner || pinnedLoaded) return
     try {
       const next = await getStatusById(status.id)
       if (next) {
@@ -592,7 +592,9 @@ export const PostMenu: FC<Props> = ({
                     Edit post
                   </DropdownMenuItem>
                 ) : null}
-                {visibility !== 'direct' ? (
+                {/* A direct post cannot be pinned, but one pinned before it
+                    became direct can still be unpinned. */}
+                {visibility !== 'direct' || isPinned ? (
                   <DropdownMenuItem
                     disabled={pinSaving || !pinnedLoaded}
                     onSelect={() => {

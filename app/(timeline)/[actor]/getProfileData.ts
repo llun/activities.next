@@ -606,13 +606,16 @@ const getRemoteProfileData = async (
       actorId: person.id,
       ...remoteVisibilityScope
     }),
-    database.getActorStatuses({
-      actorId: person.id,
-      currentActorId: options.currentActor?.id,
-      limit: MAX_PINNED_STATUSES,
-      pinned: true,
-      ...remoteVisibilityScope
-    }),
+    // The identity (followers/following pages) shows no statuses.
+    skipViewerStateOverlay
+      ? Promise.resolve([] as Status[])
+      : database.getActorStatuses({
+          actorId: person.id,
+          currentActorId: options.currentActor?.id,
+          limit: MAX_PINNED_STATUSES,
+          pinned: true,
+          ...remoteVisibilityScope
+        }),
     getActorCollectionCounts({ person, ...signingParams }),
     remoteDomain ? getServerSoftwareInfo(remoteDomain) : Promise.resolve(null)
   ])

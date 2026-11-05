@@ -2337,9 +2337,11 @@ false`), so users who never opted in are not advertised to remote servers
     `lib/components/posts/post.tsx`). The chronological feed follows unchanged,
     so a pinned post can appear in both, as on Mastodon; with pins and no other
     posts, "No posts yet" is not shown. The owner pins and unpins from the
-    post's `⋯` menu ("Pin to profile" / "Unpin from profile", not for direct
-    posts), which reads the current state from `GET /api/v1/statuses/:id` when
-    the menu opens and keeps the item disabled until it has it.
+    post's `⋯` menu ("Pin to profile" / "Unpin from profile"; a direct post
+    can only be unpinned, if it was pinned before it became direct), which
+    reads the current state from `GET /api/v1/statuses/:id` when the menu opens
+    and keeps the item disabled until it has it. The followers/following pages
+    (`getProfileIdentity`) load no pins.
   - The profile loads one list of statuses; `getProfileData` and
     `GET /api/v1/accounts/:id/statuses?format=activities_next` send
     `repliesTabStatusIds` beside each page (the page's statuses that open
