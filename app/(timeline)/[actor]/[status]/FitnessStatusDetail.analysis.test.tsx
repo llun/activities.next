@@ -678,6 +678,19 @@ describe('FitnessStatusDetail analysis', () => {
       expect(within(power).getByText('312+ W')).toBeInTheDocument()
     })
 
+    it('ignores personal zones handed to anyone but the author', async () => {
+      renderDetail({ trainingZones, currentActor: notMe })
+
+      const heartRate = await screen.findByRole('region', {
+        name: 'Heart rate zones'
+      })
+      expect(within(heartRate).getByText('Default zones')).toBeInTheDocument()
+      expect(within(heartRate).queryByText('< 123 bpm')).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('region', { name: 'Power zones' })
+      ).not.toBeInTheDocument()
+    })
+
     it('marks the default zones and shows their ranges to everyone', async () => {
       renderDetail({ currentActor: notMe })
 

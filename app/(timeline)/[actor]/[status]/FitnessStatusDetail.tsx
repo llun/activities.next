@@ -374,9 +374,12 @@ export const FitnessStatusDetail: FC<Props> = ({
   }, [fitness?.id, scrubStore])
 
   const activityType = fitness?.activityType ?? null
-  const maxHeartRate = trainingZones?.maxHeartRate
-  const restingHeartRate = trainingZones?.restingHeartRate
-  const functionalThresholdPower = trainingZones?.functionalThresholdPower
+  // The page passes personal zones only to their author; this is the second
+  // guard, so another viewer never sees them even if a caller passes them.
+  const ownZones = isOwner ? trainingZones : null
+  const maxHeartRate = ownZones?.maxHeartRate
+  const restingHeartRate = ownZones?.restingHeartRate
+  const functionalThresholdPower = ownZones?.functionalThresholdPower
   const personalHeartRateZones = useMemo(
     () => getHeartRateZones({ maxHeartRate, restingHeartRate }),
     [maxHeartRate, restingHeartRate]
@@ -1076,7 +1079,6 @@ export const FitnessStatusDetail: FC<Props> = ({
               heartRateZones={heartRateZones}
               isDefaultHeartRateZones={!personalHeartRateZones}
               powerZones={analysis.powerZones}
-              // Personal bounds give away the author's max HR and FTP.
               heartRateStats={heartRateStats}
               powerDistribution={analysis.powerDistribution}
               avgPower={avgPower}
