@@ -68,13 +68,21 @@ describe.each([
     }
   )
 
-  it.each(['th', 'fil', 'pt-BR', 'zh_TW', 'zh_Hant_TW', ' en '])(
+  it.each([
+    'th',
+    'fil',
+    'pt-BR',
+    'zh_TW',
+    'zh_Hant_TW',
+    'zh-yue-HK',
+    'zh-min-nan',
+    ' en '
+  ])(
     'uses the same language-code validation as status creation for %j',
     (language) => {
       const note = serialize(baseStatus({ language }))!
       expect(note.contentMap).toEqual({
-        [Intl.getCanonicalLocales(language.trim().replaceAll('_', '-'))[0]]:
-          note.content
+        [language.trim().replaceAll('_', '-')]: note.content
       })
     }
   )

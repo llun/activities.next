@@ -3163,7 +3163,7 @@ moved` (`movedAccountResponse`): on `POST /api/v1/statuses` (the check
 #### Declared language on outbound Notes and Questions
 
 Both delivery and fetch serializers carry `contentMap` keyed by the status's
-valid declared `language` (canonicalised to a BCP 47 tag: `zh_TW` → `zh-TW`; a code BCP 47 rejects sends no map), as
+valid declared `language` (underscores become hyphens, `zh_TW` → `zh-TW`; a code whose subtags do not fit RFC 5646 sends no map), as
 Mastodon does, plus `summaryMap` for a non-empty summary, which Mastodon reads but
 does not send. The shared `getLanguageMapFields` helper uses the same language-code
 validation as status creation and never substitutes `detectedLanguage`. Map
