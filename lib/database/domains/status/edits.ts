@@ -560,16 +560,13 @@ export const updatePoll = async (
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const data = getCompatibleJSON<any>(existingStatus.content)
     // A caller that decided from an earlier read of the origin's `updated`
-    // passes it; when another write has changed it since, only the tallies are
-    // written and the rest is left to that newer edit.
+    // passes it; when another write has changed it since, nothing is written:
+    // even the tallies may predate an option change that reset them.
     if (
       expectedRemoteUpdatedAt !== undefined &&
       (data.remoteUpdatedAt ?? null) !== expectedRemoteUpdatedAt
     ) {
-      text = undefined
-      summary = undefined
-      endAt = undefined
-      remoteUpdatedAt = undefined
+      return 'superseded' as const
     }
     const nextText = text ?? data.text
     // undefined = keep the existing summary; a provided value (including an
@@ -703,7 +700,9 @@ export const updatePoll = async (
     return searchStatus
   })
   if (!searchStatus) return null
-  await indexStatusSearchDocument(db, { status: searchStatus })
+  if (searchStatus !== 'superseded') {
+    await indexStatusSearchDocument(db, { status: searchStatus })
+  }
   return hydration.getStatus({ statusId })
 }
 

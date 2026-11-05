@@ -300,8 +300,8 @@ export type UpdatePollParams = Partial<
   // updatePollJob can ignore an older one delivered later. Omit to keep it.
   remoteUpdatedAt?: number
   // The stored `updated` (null when none) the caller's decision was based on.
-  // When the row no longer holds it, text, summary, endAt and remoteUpdatedAt
-  // are dropped and only the tallies are written. Omit to skip the check.
+  // When the row no longer holds it, nothing is written (the current poll is
+  // returned). Omit to skip the check.
   expectedRemoteUpdatedAt?: number | null
   // When true `choices` replaces the option set and all recorded votes are
   // cleared (Mastodon edit semantics); when false/omitted `choices` refreshes

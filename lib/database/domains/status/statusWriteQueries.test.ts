@@ -2970,7 +2970,7 @@ describe('updatePoll', () => {
     expect(lock?.sql.endsWith(' for update')).toBe(testDb.backend === 'pg')
   })
 
-  it('writes the tallies alone when the stored updated is no longer the one the caller read', async () => {
+  it('writes nothing when the stored updated is no longer the one the caller read', async () => {
     const { id } = await setup()
     const before = await statusRow(id)
 
@@ -2991,12 +2991,13 @@ describe('updatePoll', () => {
 
     expect(await statusRow(id)).toEqual(before)
     expect(await historyOf(id)).toEqual([])
+    // Not even the tallies: they may predate a reset the newer edit applied.
     expect(
       (await choicesOf(id)).map(({ title, totalVotes }) => [title, totalVotes])
     ).toEqual([
-      ['red', 4],
-      ['green', 6],
-      ['blue', 1]
+      ['red', 3],
+      ['green', 5],
+      ['blue', 0]
     ])
   })
 
@@ -3016,6 +3017,30 @@ describe('updatePoll', () => {
       text: 'edited',
       remoteUpdatedAt: BASE + 5_000
     })
+  })
+
+  it('compares a recorded updated by value', async () => {
+    const { id } = await setup()
+    await updatePoll(db, hydration, {
+      statusId: id,
+      remoteUpdatedAt: BASE + 5_000,
+      choices: []
+    })
+
+    await updatePoll(db, hydration, {
+      statusId: id,
+      text: 'edited again',
+      remoteUpdatedAt: BASE + 6_000,
+      expectedRemoteUpdatedAt: BASE + 5_000,
+      choices: [{ title: 'red', totalVotes: 9 }]
+    })
+
+    const content = JSON.parse(String((await statusRow(id))?.content))
+    expect(content).toMatchObject({
+      text: 'edited again',
+      remoteUpdatedAt: BASE + 6_000
+    })
+    expect((await choicesOf(id))[0]).toMatchObject({ totalVotes: 9 })
   })
 })
 

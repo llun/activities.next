@@ -179,7 +179,7 @@ const performPollSync = async ({
       ...(endAt !== undefined ? { endAt } : {}),
       ...(remoteUpdatedAt !== undefined ? { remoteUpdatedAt } : {}),
       // The decision above used this read; an Update that commits before the
-      // write lands leaves only the tallies to this fetch.
+      // write lands makes this write a no-op.
       ...(current ? { expectedRemoteUpdatedAt: storedUpdatedAt ?? null } : {})
     })
 

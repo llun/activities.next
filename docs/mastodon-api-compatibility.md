@@ -2099,7 +2099,7 @@ remote poll (`syncRemotePoll`) follow Mastodon's
   that changes the options stays explicit and still applies. Its write passes
   the `remoteUpdatedAt` it read as `expectedRemoteUpdatedAt`: `updatePoll`
   reads and locks the row in its own transaction and, when an Update committed
-  in between, writes the tallies alone.
+  in between, writes nothing, not even the tallies.
 - **Deadline.** A parseable string `closed` wins over `endTime`; any other
   truthy `closed` (a bare boolean, which the `Question` schema accepts) means
   the poll closed at processing time — unless the stored `endAt` has already
