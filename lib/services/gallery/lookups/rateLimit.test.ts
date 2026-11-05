@@ -232,6 +232,20 @@ describe('createWindowCounter', () => {
     expect(counter.consume('a')).toEqual({ allowed: true })
   })
 
+  it('reads a refuseNewKeysWhenFull function on each overflow', () => {
+    let refuse = false
+    const counter = createWindowCounter({
+      limit: 2,
+      windowMs: 60_000,
+      maxKeys: 1,
+      refuseNewKeysWhenFull: () => refuse
+    })
+    expect(counter.consume('a')).toEqual({ allowed: true })
+    expect(counter.consume('b')).toEqual({ allowed: true })
+    refuse = true
+    expect(counter.consume('c').allowed).toBe(false)
+  })
+
   it('with refuseNewKeysWhenFull, refuses a new key while full of live keys instead of evicting one, and accepts it once a window expires', () => {
     const counter = createWindowCounter({
       limit: 2,

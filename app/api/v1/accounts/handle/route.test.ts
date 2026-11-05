@@ -2,6 +2,7 @@ import bcrypt from 'bcrypt'
 import { NextRequest } from 'next/server'
 
 import { publishActorUpdate } from '@/lib/services/actors/actorUpdate'
+import { resetRouteRateLimitsForTests } from '@/lib/services/auth/routeRateLimits'
 import { getQueue } from '@/lib/services/queue'
 import { MockActor } from '@/lib/stub/actor'
 import { Actor } from '@/lib/types/domain/actor'
@@ -141,6 +142,7 @@ describe('Account handle API route', () => {
   })
 
   beforeEach(() => {
+    resetRouteRateLimitsForTests()
     vi.clearAllMocks()
     storedActor = Actor.parse({
       ...MockActor({ id: ME }),

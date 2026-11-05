@@ -132,7 +132,7 @@ export interface WindowCounterOptions {
   // NEW key while the map is full of live keys instead. Size `maxKeys` well
   // above normal load, since a flood then answers 429 to new keys until a
   // window expires.
-  refuseNewKeysWhenFull?: boolean
+  refuseNewKeysWhenFull?: boolean | (() => boolean)
 }
 
 export type WindowCounterResult =
@@ -179,7 +179,11 @@ export const createWindowCounter = ({
       for (const [other, window] of windows) {
         if (window.resetAt <= now) windows.delete(other)
       }
-      if (windows.size >= maxKeys && !refuseNewKeysWhenFull) {
+      const refuse =
+        typeof refuseNewKeysWhenFull === 'function'
+          ? refuseNewKeysWhenFull()
+          : refuseNewKeysWhenFull
+      if (windows.size >= maxKeys && !refuse) {
         const oldest = windows.keys().next().value
         if (oldest !== undefined) windows.delete(oldest)
       }

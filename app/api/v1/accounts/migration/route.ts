@@ -9,6 +9,7 @@ import {
 } from '@/lib/services/accounts/migration/outgoingMove'
 import { publishActorUpdate } from '@/lib/services/actors/actorUpdate'
 import { resolveAccountTarget } from '@/lib/services/actors/resolveAccountTarget'
+import { checkPasswordChangeRateLimit } from '@/lib/services/auth/routeRateLimits'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { getQueue } from '@/lib/services/queue'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
@@ -16,6 +17,7 @@ import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   HTTP_STATUS,
   StatusCode,
+  apiRateLimitedResponse,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -85,6 +87,14 @@ export const POST = traceApiRoute(
       return errorResponse(req, 'Actor changed', HTTP_STATUS.CONFLICT)
     }
 
+    // The same per-account bucket as the password change route, so the current
+    // password cannot be guessed here around that route's limit.
+    if (currentActor.account) {
+      const rateLimit = checkPasswordChangeRateLimit(currentActor.account.id)
+      if (!rateLimit.allowed) {
+        return apiRateLimitedResponse(req, rateLimit.retryAfterSeconds)
+      }
+    }
     const challengeError = await verifyChallenge({
       actor: currentActor,
       password,

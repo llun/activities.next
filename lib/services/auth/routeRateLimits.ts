@@ -15,6 +15,7 @@
 import { NextRequest } from 'next/server'
 import { createHash } from 'node:crypto'
 
+import { getTrustProxyIpHeadersConfig } from '@/lib/config/trustProxyIpHeaders'
 import {
   WindowCounter,
   WindowCounterResult,
@@ -50,9 +51,11 @@ const signInByEmail = createWindowCounter({
   windowMs: ONE_HOUR_MS,
   maxKeys: SIGN_IN_EMAIL_MAX_KEYS,
   // One source can mint unlimited emails, so eviction would let it flush a
-  // victim's counter; refuse new keys instead (the other buckets here key on
+  // victim's counter; refuse new keys instead, but only while per-IP limits
+  // exist: without them one source could fill the map and stall sign-in for
+  // every account, which is worse than the flush (the other buckets here key on
   // IPs or signed-in accounts and keep the default eviction).
-  refuseNewKeysWhenFull: true
+  refuseNewKeysWhenFull: () => getTrustProxyIpHeadersConfig()
 })
 const passwordResetRequestByIp = counter(PASSWORD_RESET_LIMIT, FIVE_MINUTES_MS)
 const passwordResetByIp = counter(PASSWORD_RESET_LIMIT, FIVE_MINUTES_MS)

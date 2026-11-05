@@ -17,6 +17,7 @@ import {
 } from '@/lib/services/accounts/migration/outgoingMove'
 import { ACCOUNT_MOVED_ERROR } from '@/lib/services/accounts/movedAccount'
 import { publishActorUpdate } from '@/lib/services/actors/actorUpdate'
+import { checkPasswordChangeRateLimit } from '@/lib/services/auth/routeRateLimits'
 import { isFederationSigningActor } from '@/lib/services/federation/instanceActor'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
@@ -26,6 +27,7 @@ import { logger } from '@/lib/utils/logger'
 import {
   HTTP_STATUS,
   StatusCode,
+  apiRateLimitedResponse,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -112,6 +114,14 @@ export const POST = traceApiRoute(
 
     // Passwordless accounts confirm with their CURRENT username, so the body
     // carries it separately: `username` is the new name (D6).
+    // The same per-account bucket as the password change route, so the current
+    // password cannot be guessed here around that route's limit.
+    if (currentActor.account) {
+      const rateLimit = checkPasswordChangeRateLimit(currentActor.account.id)
+      if (!rateLimit.allowed) {
+        return apiRateLimitedResponse(req, rateLimit.retryAfterSeconds)
+      }
+    }
     const challengeError = await verifyChallenge({
       actor: currentActor,
       password,

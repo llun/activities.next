@@ -8,6 +8,10 @@ import {
 } from '@/lib/jobs/names'
 import { publishActorUpdate } from '@/lib/services/actors/actorUpdate'
 import { resolveAccountTarget } from '@/lib/services/actors/resolveAccountTarget'
+import {
+  PASSWORD_CHANGE_LIMIT,
+  resetRouteRateLimitsForTests
+} from '@/lib/services/auth/routeRateLimits'
 import { getFederationSigningActorSafe } from '@/lib/services/federation/getFederationSigningActor'
 import { getQueue } from '@/lib/services/queue'
 import { MockActor } from '@/lib/stub/actor'
@@ -232,6 +236,7 @@ describe('Account migration API route', () => {
   })
 
   beforeEach(() => {
+    resetRouteRateLimitsForTests()
     vi.clearAllMocks()
     migrations.length = 0
     scheduledStatuses.length = 0
@@ -320,6 +325,17 @@ describe('Account migration API route', () => {
       const res = await post({ ...goodBody, password })
       expect(res.status).toBe(HTTP_STATUS.UNPROCESSABLE_ENTITY)
       expect(await res.json()).toEqual({ error: 'Invalid password' })
+      expect(mockDatabase.recordActorMigration).not.toHaveBeenCalled()
+    })
+
+    it('answers 429 past 10 password attempts per account, like the password change route', async () => {
+      for (let i = 0; i < PASSWORD_CHANGE_LIMIT; i += 1) {
+        const res = await post({ ...goodBody, password: 'nope' })
+        expect(res.status).toBe(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+      }
+      const limited = await post(goodBody)
+      expect(limited.status).toBe(429)
+      expect(await limited.json()).toEqual({ error: 'Too many requests' })
       expect(mockDatabase.recordActorMigration).not.toHaveBeenCalled()
     })
 
