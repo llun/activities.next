@@ -59,11 +59,19 @@ import {
 // rows through the scoped database methods, resolves gear names in one batch
 // and projects through `galleryProjection.ts`.
 //
-// Subjects and the life list group in JS over one capped index read, keyed by
-// `toSubjectKey`, so both backends agree on what one subject is. Past the cap,
-// those responses say `truncated: true`.
+// Subjects and the life list scan the owner's whole index in keyset batches
+// and fold each row into per-subject totals in JS, keyed by `toSubjectKey`, so
+// both backends agree on what one subject is (the viewer's place also needs
+// per-row `getPublicPlace`). Only a scan that reaches the row ceiling answers
+// `truncated: true`. The map is a separate render cap on its points.
 
-export const GALLERY_INDEX_CAP = 5000
+// shortcut: one request folds at most this many rows; past it Subjects and the
+// life list say `truncated`. Upgrade to stored per-subject totals when a
+// gallery nears it.
+export const GALLERY_AGGREGATE_ROW_CEILING = 100_000
+export const GALLERY_INDEX_BATCH = 1000
+// The most points the map renders; past it the map says `truncated: true`.
+export const GALLERY_MAP_POINT_CAP = 5000
 // Index windows (or short reads) one page request may scan before it answers
 // with what it has and a cursor to continue from.
 export const MAX_INDEX_WINDOWS = 3
@@ -663,51 +671,40 @@ export const getGalleryMediaIds = async ({
   }
 }
 
-interface SubjectGroup {
-  key: string
-  // Newest first.
-  rows: GalleryIndexRow[]
-}
-
-const readIndex = async (
+/**
+ * Scans the owner's whole index for the audience, newest first, in keyset
+ * batches, handing each row to `onRow` and keeping none. Answers whether it
+ * stopped at `GALLERY_AGGREGATE_ROW_CEILING` with rows left unread.
+ */
+const scanIndex = async (
   database: GalleryQueryDatabase,
   ownerId: string,
-  audience: GalleryAudience
-): Promise<{ rows: GalleryIndexRow[]; truncated: boolean }> => {
-  const rows = await database.getGalleryMediaIndex({
-    actorId: ownerId,
-    audience,
-    limit: GALLERY_INDEX_CAP + 1
-  })
-  return {
-    rows: rows.slice(0, GALLERY_INDEX_CAP),
-    truncated: rows.length > GALLERY_INDEX_CAP
-  }
-}
-
-const groupBySubject = (
-  rows: GalleryIndexRow[]
-): { groups: SubjectGroup[]; unidentifiedCount: number } => {
-  const groups = new Map<string, SubjectGroup>()
-  let unidentifiedCount = 0
-  for (const row of rows) {
-    const key = toSubjectKey({
-      name: row.subjectName,
-      scientificName: row.subjectScientificName
+  audience: GalleryAudience,
+  onRow: (row: GalleryIndexRow) => void
+): Promise<boolean> => {
+  let scanned = 0
+  let maxId: string | undefined
+  for (;;) {
+    // One past the ceiling, so a gallery of exactly the ceiling is complete.
+    const limit = Math.min(
+      GALLERY_INDEX_BATCH,
+      GALLERY_AGGREGATE_ROW_CEILING - scanned + 1
+    )
+    const batch = await database.getGalleryMediaIndex({
+      actorId: ownerId,
+      audience,
+      limit,
+      ...(maxId === undefined ? null : { maxId })
     })
-    if (!key) {
-      unidentifiedCount += 1
-      continue
+    for (const row of batch) {
+      if (scanned === GALLERY_AGGREGATE_ROW_CEILING) return true
+      onRow(row)
+      scanned += 1
     }
-    const group = groups.get(key)
-    if (group) group.rows.push(row)
-    else groups.set(key, { key, rows: [row] })
+    if (batch.length < limit) return false
+    maxId = batch[batch.length - 1].id
   }
-  return { groups: [...groups.values()], unidentifiedCount }
 }
-
-const firstNonNull = <T>(values: Array<T | null>): T | null =>
-  values.find((value): value is T => value !== null) ?? null
 
 interface ViewerPlace {
   name: string | null
@@ -727,43 +724,24 @@ const toPlaceOf = (
   viewer: GalleryProjectionViewer,
   settings: GalleryPlaceSettings
 ): PlaceOf => {
-  const cache = new Map<string, ViewerPlace | null>()
+  if (viewer === 'owner') {
+    return (row) =>
+      row.placeName === null && row.placeCountryCode === null
+        ? null
+        : {
+            name: row.placeName,
+            countryCode: toCountryCode(row.placeCountryCode)
+          }
+  }
   return (row) => {
-    const cached = cache.get(row.id)
-    if (cached !== undefined) return cached
-    let place: ViewerPlace | null
-    if (viewer === 'owner') {
-      place =
-        row.placeName === null && row.placeCountryCode === null
-          ? null
-          : {
-              name: row.placeName,
-              countryCode: toCountryCode(row.placeCountryCode)
-            }
-    } else {
-      const projected = getPublicPlace(row, {
-        hiddenLocations: settings.hiddenLocations,
-        hideThreatenedPlaces: settings.hideThreatenedPlaces
-      })
-      place = projected
-        ? { name: projected.name, countryCode: projected.countryCode }
-        : null
-    }
-    cache.set(row.id, place)
-    return place
+    const projected = getPublicPlace(row, {
+      hiddenLocations: settings.hiddenLocations,
+      hideThreatenedPlaces: settings.hideThreatenedPlaces
+    })
+    return projected
+      ? { name: projected.name, countryCode: projected.countryCode }
+      : null
   }
-}
-
-/** Country codes, most rows first (then by code); each row counts once. */
-const toCountryCodes = (rows: GalleryIndexRow[], placeOf: PlaceOf) => {
-  const counts = new Map<string, number>()
-  for (const row of rows) {
-    const code = placeOf(row)?.countryCode
-    if (code) counts.set(code, (counts.get(code) ?? 0) + 1)
-  }
-  return [...counts.entries()]
-    .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
-    .map(([code]) => code)
 }
 
 /** Distinct countries, or null when none is known (the stat is omitted). */
@@ -776,47 +754,128 @@ export const toCountryCount = (codes: Iterable<string | null>) => {
 const toIso = (time: number | null): string | null =>
   time === null || !Number.isFinite(time) ? null : new Date(time).toISOString()
 
+// One subject's running totals while the index streams past, newest row first.
+interface SubjectAccumulator {
+  key: string
+  name: string | null
+  scientificName: string | null
+  category: MediaSubjectCategory | null
+  taxonKey: string | null
+  taxonPath: string[] | null
+  // Rows per country code.
+  countries: Map<string, number>
+  count: number
+  first: number | null
+  last: number | null
+  coverMediaId: string
+  firstPlaceName: string | null
+  firstPlaceSeenAt: number | null
+}
+
 // Min and max are reduced here, over parsed times, never with SQL MIN/MAX over
 // SQLite's mixed storage types.
-const summarizeGroup = (
-  group: SubjectGroup,
-  placeOf: PlaceOf
-): GalleryLifeListEntry => {
-  let first: number | null = null
-  let last: number | null = null
-  let firstPlaceName: string | null = null
-  let firstPlaceSeenAt: number | null = null
-  for (const row of group.rows) {
-    const seenAt = row.takenAt ?? row.createdAt
-    if (!Number.isFinite(seenAt)) continue
-    if (first === null || seenAt < first) first = seenAt
-    if (last === null || seenAt > last) last = seenAt
-    const placeName = placeOf(row)?.name ?? null
-    // Rows are newest first, so `<=` lets an older row with the same time win.
-    if (
-      placeName !== null &&
-      (firstPlaceSeenAt === null || seenAt <= firstPlaceSeenAt)
-    ) {
-      firstPlaceName = placeName
-      firstPlaceSeenAt = seenAt
-    }
+const foldRow = (
+  subject: SubjectAccumulator,
+  row: GalleryIndexRow,
+  place: ViewerPlace | null
+) => {
+  // The newest photo's naming wins; older spellings fill gaps.
+  subject.name ??= row.subjectName
+  subject.scientificName ??= row.subjectScientificName
+  subject.category ??= row.subjectCategory
+  subject.taxonKey ??= row.subjectTaxonKey
+  subject.taxonPath ??= row.subjectTaxonPath
+  subject.count += 1
+  const code = place?.countryCode
+  if (code) subject.countries.set(code, (subject.countries.get(code) ?? 0) + 1)
+  const seenAt = row.takenAt ?? row.createdAt
+  if (!Number.isFinite(seenAt)) return
+  if (subject.first === null || seenAt < subject.first) subject.first = seenAt
+  if (subject.last === null || seenAt > subject.last) subject.last = seenAt
+  const placeName = place?.name ?? null
+  // Rows are newest first, so `<=` lets an older row with the same time win.
+  if (
+    placeName !== null &&
+    (subject.firstPlaceSeenAt === null || seenAt <= subject.firstPlaceSeenAt)
+  ) {
+    subject.firstPlaceName = placeName
+    subject.firstPlaceSeenAt = seenAt
   }
+}
+
+const toLifeListEntry = (
+  subject: SubjectAccumulator
+): GalleryLifeListEntry => ({
+  key: subject.key,
+  name: subject.name,
+  scientificName: subject.scientificName,
+  category: subject.category,
+  taxonKey: subject.taxonKey,
+  taxonPath: subject.taxonPath,
+  // Most rows first, then by code.
+  countryCodes: [...subject.countries.entries()]
+    .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
+    .map(([code]) => code),
+  count: subject.count,
+  firstSeenAt: toIso(subject.first),
+  lastSeenAt: toIso(subject.last),
+  coverMediaId: subject.coverMediaId,
+  firstPlaceName: subject.firstPlaceName
+})
+
+/**
+ * Every subject of the owner's index as the viewer is shown it, keyed by
+ * `toSubjectKey` (in the order first met, newest first), plus the
+ * whole-gallery counts: unidentified rows and distinct countries over every
+ * row.
+ */
+const summarizeSubjects = async (
+  database: GalleryQueryDatabase,
+  ownerId: string,
+  audience: GalleryAudience,
+  settings: GalleryPlaceSettings
+) => {
+  const placeOf = toPlaceOf(toGalleryProjectionViewer(audience), settings)
+  const subjects = new Map<string, SubjectAccumulator>()
+  const countryCodes = new Set<string>()
+  let unidentifiedCount = 0
+  const truncated = await scanIndex(database, ownerId, audience, (row) => {
+    const place = placeOf(row)
+    if (place?.countryCode) countryCodes.add(place.countryCode)
+    const key = toSubjectKey({
+      name: row.subjectName,
+      scientificName: row.subjectScientificName
+    })
+    if (!key) {
+      unidentifiedCount += 1
+      return
+    }
+    let subject = subjects.get(key)
+    if (!subject) {
+      subject = {
+        key,
+        name: null,
+        scientificName: null,
+        category: null,
+        taxonKey: null,
+        taxonPath: null,
+        countries: new Map(),
+        count: 0,
+        first: null,
+        last: null,
+        coverMediaId: row.id,
+        firstPlaceName: null,
+        firstPlaceSeenAt: null
+      }
+      subjects.set(key, subject)
+    }
+    foldRow(subject, row, place)
+  })
   return {
-    key: group.key,
-    // The newest photo's naming wins; older spellings fill gaps.
-    name: firstNonNull(group.rows.map((row) => row.subjectName)),
-    scientificName: firstNonNull(
-      group.rows.map((row) => row.subjectScientificName)
-    ),
-    category: firstNonNull(group.rows.map((row) => row.subjectCategory)),
-    taxonKey: firstNonNull(group.rows.map((row) => row.subjectTaxonKey)),
-    taxonPath: firstNonNull(group.rows.map((row) => row.subjectTaxonPath)),
-    countryCodes: toCountryCodes(group.rows, placeOf),
-    count: group.rows.length,
-    firstSeenAt: toIso(first),
-    lastSeenAt: toIso(last),
-    coverMediaId: group.rows[0].id,
-    firstPlaceName
+    entries: [...subjects.values()].map(toLifeListEntry),
+    unidentifiedCount,
+    countryCount: toCountryCount(countryCodes),
+    truncated
   }
 }
 
@@ -825,13 +884,13 @@ export const getGallerySubjects = async ({
   owner,
   audience
 }: GalleryQueryBase): Promise<GallerySubjectsResponse> => {
-  const [settings, { rows, truncated }] = await Promise.all([
-    database.getGallerySettings({ actorId: owner.id }),
-    readIndex(database, owner.id, audience)
-  ])
-  const { groups, unidentifiedCount } = groupBySubject(rows)
-  const placeOf = toPlaceOf(toGalleryProjectionViewer(audience), settings)
-  const summaries = groups.map((group) => summarizeGroup(group, placeOf))
+  const settings = await database.getGallerySettings({ actorId: owner.id })
+  const {
+    entries: summaries,
+    unidentifiedCount,
+    countryCount,
+    truncated
+  } = await summarizeSubjects(database, owner.id, audience, settings)
 
   const coverRows = await database.getGalleryMediaByIds({
     actorId: owner.id,
@@ -871,9 +930,7 @@ export const getGallerySubjects = async ({
       return [{ category, subjects }]
     }),
     unidentifiedCount,
-    countryCount: toCountryCount(
-      rows.map((row) => placeOf(row)?.countryCode ?? null)
-    ),
+    countryCount,
     truncated
   }
 }
@@ -883,16 +940,16 @@ export const getGalleryLifeList = async ({
   owner,
   audience
 }: GalleryQueryBase): Promise<GalleryLifeListResponse> => {
-  const [settings, { rows, truncated }] = await Promise.all([
-    database.getGallerySettings({ actorId: owner.id }),
-    readIndex(database, owner.id, audience)
-  ])
-  const { groups } = groupBySubject(rows)
-  const placeOf = toPlaceOf(toGalleryProjectionViewer(audience), settings)
+  const settings = await database.getGallerySettings({ actorId: owner.id })
+  const { entries: summaries, truncated } = await summarizeSubjects(
+    database,
+    owner.id,
+    audience,
+    settings
+  )
 
   // A landscape is not a species. A subject with no key never reaches here.
-  const entries: GalleryLifeListEntry[] = groups
-    .map((group) => summarizeGroup(group, placeOf))
+  const entries: GalleryLifeListEntry[] = summaries
     .filter((entry) => entry.category !== 'landscape')
     .sort((a, b) => {
       if (a.firstSeenAt !== b.firstSeenAt) {
@@ -922,7 +979,7 @@ export const getGalleryMapPoints = async ({
     database.getGalleryMapRows({
       actorId: owner.id,
       audience,
-      limit: GALLERY_INDEX_CAP + 1
+      limit: GALLERY_MAP_POINT_CAP + 1
     })
   ])
   const viewer = toGalleryProjectionViewer(audience)
@@ -936,13 +993,13 @@ export const getGalleryMapPoints = async ({
             await database.getGalleryMapRows({
               actorId: owner.id,
               audience: PUBLIC_GALLERY_AUDIENCE,
-              limit: GALLERY_INDEX_CAP + 1
+              limit: GALLERY_MAP_POINT_CAP + 1
             })
           ).map((row) => row.id)
         )
       : undefined
 
-  const points = rows.slice(0, GALLERY_INDEX_CAP).flatMap((row) => {
+  const points = rows.slice(0, GALLERY_MAP_POINT_CAP).flatMap((row) => {
     const point = toGalleryMapPoint(row, { viewer, settings, publicMediaIds })
     return point ? [point] : []
   })
@@ -950,6 +1007,6 @@ export const getGalleryMapPoints = async ({
     points,
     // From the points as projected, so a withheld point adds no country.
     countryCount: toCountryCount(points.map((point) => point.countryCode)),
-    truncated: rows.length > GALLERY_INDEX_CAP
+    truncated: rows.length > GALLERY_MAP_POINT_CAP
   }
 }

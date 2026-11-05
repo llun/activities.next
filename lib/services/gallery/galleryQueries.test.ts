@@ -18,7 +18,9 @@ import {
   PUBLIC_GALLERY_AUDIENCE
 } from '@/lib/services/gallery/galleryAudience'
 import {
-  GALLERY_INDEX_CAP,
+  GALLERY_AGGREGATE_ROW_CEILING,
+  GALLERY_INDEX_BATCH,
+  GALLERY_MAP_POINT_CAP,
   getGalleryLifeList,
   getGalleryMapPoints,
   getGalleryMediaIds,
@@ -1626,10 +1628,14 @@ describe('gallery queries at the index cap', () => {
   })
 
   it.each([
-    { description: 'at the cap', count: GALLERY_INDEX_CAP, truncated: false },
+    {
+      description: 'at the cap',
+      count: GALLERY_AGGREGATE_ROW_CEILING,
+      truncated: false
+    },
     {
       description: 'past the cap',
-      count: GALLERY_INDEX_CAP + 10,
+      count: GALLERY_AGGREGATE_ROW_CEILING + 10,
       truncated: true
     }
   ])(
@@ -1650,10 +1656,219 @@ describe('gallery queries at the index cap', () => {
 
       expect(lifeList.truncated).toBe(truncated)
       expect(subjects.truncated).toBe(truncated)
-      expect(subjects.unidentifiedCount).toBe(GALLERY_INDEX_CAP / 2)
-      expect(lifeList.entries[0].count).toBe(GALLERY_INDEX_CAP / 2)
+      expect(subjects.unidentifiedCount).toBe(GALLERY_AGGREGATE_ROW_CEILING / 2)
+      expect(lifeList.entries[0].count).toBe(GALLERY_AGGREGATE_ROW_CEILING / 2)
     }
   )
+
+  describe('a gallery larger than one index batch', () => {
+    // Past the old 5,000-row single read, ending on a short batch.
+    const total = GALLERY_INDEX_BATCH * 6 + GALLERY_INDEX_BATCH / 2
+    const blank: Omit<GalleryIndexRow, 'id'> = {
+      subjectName: null,
+      subjectScientificName: null,
+      subjectCategory: null,
+      subjectTaxonKey: null,
+      subjectTaxonPath: null,
+      subjectIucnCategory: null,
+      subjectLookupStatus: null,
+      placeName: null,
+      placePrecision: null,
+      placeLatitude: null,
+      placeLongitude: null,
+      placeCountryCode: null,
+      placeNameSource: null,
+      takenAt: null,
+      createdAt: 1_700_000_000_000
+    }
+    // Newest (highest id) first; every row not listed is unidentified.
+    const galleryRows = (overrides: Record<number, Partial<GalleryIndexRow>>) =>
+      Array.from({ length: total }, (_, index): GalleryIndexRow => {
+        const id = total - index
+        return { ...blank, ...overrides[id], id: String(id) }
+      })
+    const newest = total
+    const middle = GALLERY_INDEX_BATCH * 3 + 200
+    const rows = galleryRows({
+      [newest]: {
+        subjectName: 'Robin',
+        placeName: 'Park',
+        placeCountryCode: 'GB',
+        takenAt: Date.UTC(2025, 0, 1)
+      },
+      [middle]: {
+        subjectName: 'robin',
+        subjectCategory: 'bird',
+        placeName: 'Lyon',
+        placeCountryCode: 'FR',
+        takenAt: Date.UTC(2020, 0, 1)
+      },
+      100: {
+        subjectName: ' ROBIN ',
+        subjectCategory: 'mammal',
+        subjectTaxonKey: 'taxon-robin',
+        placeName: 'Paris',
+        placeCountryCode: 'FR',
+        takenAt: Date.UTC(2010, 0, 1)
+      },
+      50: {
+        subjectName: 'Old Owl',
+        subjectCategory: 'bird',
+        placeCountryCode: 'JP',
+        takenAt: Date.UTC(2005, 0, 1)
+      },
+      10: { placeCountryCode: 'US' }
+    })
+    const expectedMaxIds = Array.from({ length: 7 }, (_, read) =>
+      read === 0 ? undefined : String(total - read * GALLERY_INDEX_BATCH + 1)
+    )
+
+    it('folds subjects from every batch into the life list', async () => {
+      const database = fakeDatabase(rows)
+
+      const lifeList = await getGalleryLifeList({
+        database,
+        owner: { id: 'owner' },
+        audience: OWNER_GALLERY_AUDIENCE
+      })
+
+      expect(lifeList.truncated).toBe(false)
+      expect(lifeList.entries).toEqual([
+        {
+          key: 'name:old owl',
+          name: 'Old Owl',
+          scientificName: null,
+          category: 'bird',
+          taxonKey: null,
+          taxonPath: null,
+          countryCodes: ['JP'],
+          count: 1,
+          firstSeenAt: new Date(Date.UTC(2005, 0, 1)).toISOString(),
+          lastSeenAt: new Date(Date.UTC(2005, 0, 1)).toISOString(),
+          coverMediaId: '50',
+          firstPlaceName: null
+        },
+        {
+          key: 'name:robin',
+          // The newest spelling wins; older rows fill the gaps.
+          name: 'Robin',
+          scientificName: null,
+          category: 'bird',
+          taxonKey: 'taxon-robin',
+          taxonPath: null,
+          countryCodes: ['FR', 'GB'],
+          count: 3,
+          firstSeenAt: new Date(Date.UTC(2010, 0, 1)).toISOString(),
+          lastSeenAt: new Date(Date.UTC(2025, 0, 1)).toISOString(),
+          coverMediaId: String(newest),
+          firstPlaceName: 'Paris'
+        }
+      ])
+    })
+
+    it('reads each batch below the last id of the one before and stops on a short batch', async () => {
+      const database = fakeDatabase(rows)
+
+      await getGalleryLifeList({
+        database,
+        owner: { id: 'owner' },
+        audience: OWNER_GALLERY_AUDIENCE
+      })
+
+      const calls = database.getGalleryMediaIndex.mock.calls.map(
+        ([params]) => params
+      )
+      expect(calls.map((params) => params.maxId)).toEqual(expectedMaxIds)
+      expect(calls.map((params) => params.limit)).toEqual(
+        expectedMaxIds.map(() => GALLERY_INDEX_BATCH)
+      )
+    })
+
+    it('counts unidentified photos and countries across batches for Subjects', async () => {
+      const database = fakeDatabase(rows)
+
+      const subjects = await getGallerySubjects({
+        database,
+        owner: { id: 'owner' },
+        audience: OWNER_GALLERY_AUDIENCE
+      })
+
+      expect(subjects.truncated).toBe(false)
+      expect(subjects.unidentifiedCount).toBe(total - 4)
+      // GB, FR and JP from subjects, US from an unidentified photo.
+      expect(subjects.countryCount).toBe(4)
+      expect(
+        database.getGalleryMediaIndex.mock.calls.map(([params]) => params.maxId)
+      ).toEqual(expectedMaxIds)
+      // Each subject's cover is its newest photo, the old one included.
+      expect(database.getGalleryMediaByIds).toHaveBeenCalledWith(
+        expect.objectContaining({ mediaIds: [String(newest), '50'] })
+      )
+    })
+
+    it('gives a visitor public places, so a hidden location in a later batch adds nothing', async () => {
+      const hidden = { latitude: 35.68, longitude: 139.76 }
+      const database = {
+        ...fakeDatabase(
+          galleryRows({
+            [newest]: {
+              subjectName: 'Heron',
+              placeName: 'Secret Pond',
+              placePrecision: 'exact',
+              placeLatitude: hidden.latitude,
+              placeLongitude: hidden.longitude,
+              placeCountryCode: 'JP',
+              takenAt: Date.UTC(2025, 0, 1)
+            },
+            100: {
+              subjectName: 'Heron',
+              placeName: 'Hidden Marsh',
+              placePrecision: 'exact',
+              placeLatitude: hidden.latitude,
+              placeLongitude: hidden.longitude,
+              placeCountryCode: 'JP',
+              takenAt: Date.UTC(2010, 0, 1)
+            },
+            50: {
+              subjectName: 'Heron',
+              placeName: 'Harbour',
+              placePrecision: 'area',
+              placeLatitude: -41.29,
+              placeLongitude: 174.78,
+              placeCountryCode: 'NZ',
+              takenAt: Date.UTC(2015, 0, 1)
+            }
+          })
+        ),
+        getGallerySettings: vi.fn(async () => ({
+          ...DEFAULT_GALLERY_SETTINGS,
+          hiddenLocations: [{ ...hidden, hideRadiusMeters: 1000 as const }]
+        }))
+      }
+
+      const lifeList = await getGalleryLifeList({
+        database,
+        owner: { id: 'owner' },
+        audience: PUBLIC_GALLERY_AUDIENCE
+      })
+      const subjects = await getGallerySubjects({
+        database,
+        owner: { id: 'owner' },
+        audience: PUBLIC_GALLERY_AUDIENCE
+      })
+
+      expect(lifeList.entries).toHaveLength(1)
+      expect(lifeList.entries[0]).toMatchObject({
+        count: 3,
+        countryCodes: ['NZ'],
+        firstSeenAt: new Date(Date.UTC(2010, 0, 1)).toISOString(),
+        // The oldest photo sits in the hidden location, so the oldest place a
+        // visitor is shown wins.
+        firstPlaceName: 'Harbour'
+      })
+      expect(subjects.countryCount).toBe(1)
+    })
+  })
 
   const mapRows = (count: number): GalleryMapRow[] =>
     Array.from({ length: count }, (_, index) => ({
@@ -1678,10 +1893,14 @@ describe('gallery queries at the index cap', () => {
     }))
 
   it.each([
-    { description: 'at the cap', count: GALLERY_INDEX_CAP, truncated: false },
+    {
+      description: 'at the cap',
+      count: GALLERY_MAP_POINT_CAP,
+      truncated: false
+    },
     {
       description: 'past the cap',
-      count: GALLERY_INDEX_CAP + 10,
+      count: GALLERY_MAP_POINT_CAP + 10,
       truncated: true
     }
   ])(
@@ -1701,9 +1920,9 @@ describe('gallery queries at the index cap', () => {
       })
 
       expect(database.getGalleryMapRows).toHaveBeenCalledWith(
-        expect.objectContaining({ limit: GALLERY_INDEX_CAP + 1 })
+        expect.objectContaining({ limit: GALLERY_MAP_POINT_CAP + 1 })
       )
-      expect(result.points).toHaveLength(GALLERY_INDEX_CAP)
+      expect(result.points).toHaveLength(GALLERY_MAP_POINT_CAP)
       expect(result.truncated).toBe(truncated)
     }
   )
