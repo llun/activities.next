@@ -4,8 +4,10 @@ import {
   MAX_SUGGESTIONS_PER_KIND,
   MAX_SUGGESTION_MEDIA_IDS
 } from '@/lib/services/gallery/galleryAlbumSuggestionEntities'
-import { getGalleryAlbumSuggestions } from '@/lib/services/gallery/galleryAlbumSuggestions'
-import { GALLERY_INDEX_CAP } from '@/lib/services/gallery/galleryQueries'
+import {
+  SUGGESTION_INDEX_WINDOW,
+  getGalleryAlbumSuggestions
+} from '@/lib/services/gallery/galleryAlbumSuggestions'
 
 // The reads of `getGalleryAlbumSuggestions` that need more data than a real
 // database is worth seeding with: the activity windows, the index windows and
@@ -484,7 +486,7 @@ describe('getGalleryAlbumSuggestions: index windows and long clusters', () => {
   const owner = { id: 'https://llun.test/users/owner' }
 
   it('reads a second index window with the last id as the cursor, and stops at a short one', async () => {
-    const first = Array.from({ length: GALLERY_INDEX_CAP }, (_, index) =>
+    const first = Array.from({ length: SUGGESTION_INDEX_WINDOW }, (_, index) =>
       buildIndexRow(100_000 - index, { takenAt: null })
     )
     const second = photosOnDay(1, Date.UTC(2026, 5, 1), 8)
@@ -500,7 +502,7 @@ describe('getGalleryAlbumSuggestions: index windows and long clusters', () => {
     const ownerCalls = indexCalls.filter((call) => call.audience === 'owner')
     expect(ownerCalls.map((call) => call.maxId)).toEqual([
       undefined,
-      String(100_000 - GALLERY_INDEX_CAP + 1)
+      String(100_000 - SUGGESTION_INDEX_WINDOW + 1)
     ])
     // The photos of the second window are part of the suggestions.
     expect(suggestions.map((suggestion) => suggestion.kind)).toEqual(['trip'])

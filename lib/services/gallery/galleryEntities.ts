@@ -284,7 +284,8 @@ export interface GallerySubjectsResponse {
   // Distinct countries over every photo's place the viewer is shown; null when
   // no such place has a country code (the stat is then left out, not 0).
   countryCount: number | null
-  // The index read stopped at `GALLERY_INDEX_CAP`; counts are a lower bound.
+  // The index scan stopped at `GALLERY_AGGREGATE_ROW_CEILING`; counts are a
+  // lower bound.
   truncated: boolean
 }
 

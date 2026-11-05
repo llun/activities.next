@@ -42,7 +42,6 @@ import {
 } from '@/lib/services/gallery/galleryAudience'
 import { GalleryItemEntity } from '@/lib/services/gallery/galleryEntities'
 import {
-  GALLERY_INDEX_CAP,
   MAX_INDEX_WINDOWS,
   projectRows
 } from '@/lib/services/gallery/galleryQueries'
@@ -106,6 +105,9 @@ interface Candidate {
   activityStatusIds: string[]
 }
 
+// Rows per index window.
+export const SUGGESTION_INDEX_WINDOW = 5000
+
 /**
  * The gallery as the light index for an audience, newest upload first, read in
  * windows moved by a cursor (the way the subject pages read it) up to a bound.
@@ -122,11 +124,11 @@ const readIndex = async (
     const window = await database.getGalleryMediaIndex({
       actorId: ownerId,
       audience,
-      limit: GALLERY_INDEX_CAP,
+      limit: SUGGESTION_INDEX_WINDOW,
       ...(cursor === undefined ? null : { maxId: cursor })
     })
     rows.push(...window)
-    if (window.length < GALLERY_INDEX_CAP) break
+    if (window.length < SUGGESTION_INDEX_WINDOW) break
     cursor = window[window.length - 1].id
   }
   return rows
