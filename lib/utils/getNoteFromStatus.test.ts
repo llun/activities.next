@@ -1,4 +1,11 @@
-import type { Status } from '@/lib/types/domain/status'
+import { compactActivityPub } from '@/lib/activities/jsonld'
+import { BaseNoteSchema } from '@/lib/activities/note'
+import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
+import {
+  type Status,
+  fromNote,
+  toActivityPubObject
+} from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 
@@ -21,10 +28,121 @@ const baseStatus = (overrides: Record<string, unknown> = {}): Status =>
     tags: [],
     replies: [],
     edits: [],
+    totalLikes: 0,
+    totalShares: 0,
     createdAt: 1700000000000,
     updatedAt: 1700000000000,
     ...overrides
   }) as unknown as Status
+
+describe.each([
+  ['delivery', getNoteFromStatus],
+  ['fetch', toActivityPubObject]
+] as const)('%s Note language maps', (_surface, serialize) => {
+  it('keys the final content and summary by the declared language', () => {
+    const note = serialize(
+      baseStatus({
+        language: 'th',
+        detectedLanguage: 'en',
+        summary: 'คำเตือน',
+        text: '<p>สวัสดี</p>'
+      })
+    )!
+
+    expect(note.contentMap).toEqual({ th: note.content })
+    expect(note.summaryMap).toEqual({ th: 'คำเตือน' })
+  })
+
+  it.each([undefined, null, '', ' ', '12', 'a', 'not a language'])(
+    'omits both maps for an absent or invalid declared language %j',
+    (language) => {
+      const note = serialize(
+        baseStatus({
+          language,
+          detectedLanguage: 'th',
+          summary: 'Warning'
+        })
+      )!
+      expect(note).not.toHaveProperty('contentMap')
+      expect(note).not.toHaveProperty('summaryMap')
+    }
+  )
+
+  it.each([
+    'th',
+    'fil',
+    'pt-BR',
+    'zh_TW',
+    'zh_Hant_TW',
+    'zh-yue-HK',
+    'zh-min-nan',
+    ' en '
+  ])(
+    'uses the same language-code validation as status creation for %j',
+    (language) => {
+      const note = serialize(baseStatus({ language }))!
+      expect(note.contentMap).toEqual({
+        [language.trim().replaceAll('_', '-')]: note.content
+      })
+    }
+  )
+
+  it.each(['en-abcdefghi', 'zh_'])(
+    'omits the maps for %j, which is not a BCP 47 tag',
+    (language) => {
+      const note = serialize(baseStatus({ language, summary: 'CW' }))!
+      expect(note).not.toHaveProperty('contentMap')
+      expect(note).not.toHaveProperty('summaryMap')
+    }
+  )
+
+  it.each([undefined, null, ''])(
+    'omits the map for an empty summary %j',
+    (summary) => {
+      const note = serialize(baseStatus({ language: 'th', summary }))!
+      expect(note.contentMap).toEqual({ th: note.content })
+      expect(note).not.toHaveProperty('summaryMap')
+    }
+  )
+
+  it('includes the quote fallback in the mapped content', () => {
+    const note = serialize(
+      baseStatus({
+        language: 'th',
+        quote: {
+          quotedStatusId: 'https://remote.example/users/test/statuses/7',
+          state: 'accepted'
+        }
+      })
+    )!
+    expect(note.content).toContain('quote-inline')
+    expect(note.contentMap).toEqual({ th: note.content })
+  })
+
+  it('preserves maps through JSON-LD compaction, schema parsing and inbound conversion', async () => {
+    const note = serialize(
+      baseStatus({
+        language: 'th',
+        text: '<p>สวัสดี</p>',
+        summary: 'คำเตือน'
+      })
+    )!
+    const parsed = BaseNoteSchema.parse(
+      await compactActivityPub({
+        '@context': NOTE_ACTIVITY_CONTEXT,
+        ...note
+      })
+    )
+
+    expect(parsed.contentMap).toEqual({ th: note.content })
+    expect(parsed.summaryMap).toEqual({ th: note.summary })
+    expect(fromNote(parsed)).toMatchObject({
+      language: 'th',
+      text: note.content,
+      summary: note.summary
+    })
+  })
+})
 
 describe('getNoteFromStatus quote emission', () => {
   it('emits the quote target under all compat aliases plus the stamp for an accepted quote', () => {

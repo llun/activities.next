@@ -50,6 +50,40 @@ describe.each([
   ['delivery', getNoteFromStatus],
   ['fetch', toActivityPubObject]
 ] as const)('%s Question', (_surface, serialize) => {
+  it('maps the final quoted content and summary to the declared language', () => {
+    const question = serialize(
+      poll({
+        language: 'th',
+        detectedLanguage: 'en',
+        summary: 'คำเตือน',
+        quote: {
+          quotedStatusId: 'https://remote.example/statuses/quoted',
+          state: 'accepted'
+        }
+      })
+    )!
+    expect(question.content).toContain('quote-inline')
+    expect(question.contentMap).toEqual({ th: question.content })
+    expect(question.summaryMap).toEqual({ th: question.summary })
+  })
+
+  it.each([undefined, null, '', '12'])(
+    'omits language maps for an absent or invalid language %j',
+    (language) => {
+      const question = serialize(
+        poll({ language, detectedLanguage: 'th', summary: 'Warning' })
+      )!
+      expect(question).not.toHaveProperty('contentMap')
+      expect(question).not.toHaveProperty('summaryMap')
+    }
+  )
+
+  it('omits summaryMap when the poll has no summary', () => {
+    const question = serialize(poll({ language: 'th' }))!
+    expect(question.contentMap).toEqual({ th: question.content })
+    expect(question).not.toHaveProperty('summaryMap')
+  })
+
   it.each(['oneOf', 'anyOf'] as const)(
     'emits %s options, distinct voters and endTime',
     (pollType) => {

@@ -3160,6 +3160,16 @@ moved` (`movedAccountResponse`): on `POST /api/v1/statuses` (the check
   refreshes only a stored remote row: an actor never stored has nothing to
   refresh, and a local row is never rewritten from the network.
 
+#### Declared language on outbound Notes and Questions
+
+Both delivery and fetch serializers carry `contentMap` keyed by the status's
+valid declared `language` (underscores become hyphens, `zh_TW` → `zh-TW`; a code whose subtags do not fit RFC 5646 sends no map), as
+Mastodon does, plus `summaryMap` for a non-empty summary, which Mastodon reads but
+does not send. The shared `getLanguageMapFields` helper uses the same language-code
+validation as status creation and never substitutes `detectedLanguage`. Map
+values match the final `content` (including quote fallback) and `summary`.
+The ActivityStreams context already declares both maps as language containers.
+
 #### The `sensitive` flag federates both ways
 
 - **`sensitive` federates both ways.** Outbound notes always carry it as a

@@ -2,6 +2,7 @@ import identity from 'lodash/identity'
 import { z } from 'zod'
 
 import { AnnounceStatus } from '@/lib/activities/announceStatus'
+import { getLanguageMapFields } from '@/lib/activities/languageMapFields'
 import {
   BaseNote,
   getAttachments,
@@ -429,6 +430,10 @@ export const toActivityPubObject = (status: Status): Note | Question => {
   // object must declare QUOTE_ACTIVITY_CONTEXT or a receiver that compacts the
   // document drops these terms.
   const quoteFields = getQuoteNoteFields(originalStatus.quote)
+  const content = addQuoteFallbackToContent(
+    originalStatus.text,
+    originalStatus.quote
+  )
   return Note.parse({
     id: originalStatus.id,
     type: originalStatus.type,
@@ -438,10 +443,8 @@ export const toActivityPubObject = (status: Status): Note | Question => {
     to: originalStatus.to,
     cc: originalStatus.cc,
     inReplyTo: originalStatus.reply || null,
-    content: addQuoteFallbackToContent(
-      originalStatus.text,
-      originalStatus.quote
-    ),
+    content,
+    ...getLanguageMapFields(originalStatus, content),
     // Every non-fitness attachment, in stored order (outbox and the AP
     // note/replies endpoints). Mirrors getNoteFromStatus so a fetched note
     // carries the same media as a delivered one.

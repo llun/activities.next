@@ -1,3 +1,4 @@
+import { getLanguageMapFields } from '@/lib/activities/languageMapFields'
 import {
   addQuoteFallbackToContent,
   getInteractionPolicyFields,
@@ -36,6 +37,10 @@ export const getPollQuestion = (
     (status.pollType === 'oneOf'
       ? status.choices.reduce((total, choice) => total + choice.totalVotes, 0)
       : undefined)
+  const content = addQuoteFallbackToContent(
+    options.content ?? status.text,
+    status.quote
+  )
 
   return Question.parse({
     id: status.id,
@@ -46,10 +51,8 @@ export const getPollQuestion = (
     to: status.to,
     cc: status.cc,
     inReplyTo: status.reply || null,
-    content: addQuoteFallbackToContent(
-      options.content ?? status.text,
-      status.quote
-    ),
+    content,
+    ...getLanguageMapFields(status, content),
     attachment: status.attachments
       .filter((attachment) => !isFitnessAttachment(attachment))
       .map(getDocumentFromAttachment),
