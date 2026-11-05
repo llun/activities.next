@@ -857,7 +857,9 @@ this server" }` instead of storing a post that would never be published. The
   text they already publish: only the photos it describes change theirs),
   records a history entry and federates one Update.
   The owner's `details` (camelCase on the way out) also reports what the
-  lookups found: `subject.taxonKey`, `subject.taxonPath`,
+  lookups found: `subject.taxonKey`, `subject.taxonRank` (the GBIF rank,
+  upper case, such as `SPECIES` or `GENUS`; null until the lookup resolved),
+  `subject.taxonPath`,
   `subject.iucnCategory`, `subject.threatStatus` (`threatened`,
   `not-threatened` or `unchecked`), `subject.lookupStatus`,
   `subject.lookupAt` (when the status was last written, ISO 8601),

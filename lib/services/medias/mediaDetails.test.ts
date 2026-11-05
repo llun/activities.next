@@ -107,6 +107,19 @@ describe('buildOwnerMediaDetails', () => {
     })
   })
 
+  it('gives the owner the stored taxon rank', async () => {
+    const details = await buildOwnerMediaDetails(
+      database(),
+      media({
+        subjectScientificName: 'Buceros bicornis',
+        subjectTaxonRank: 'SPECIES',
+        subjectLookupStatus: 'resolved'
+      })
+    )
+
+    expect(details.subject?.taxonRank).toBe('SPECIES')
+  })
+
   it('does not query gear for a media that has none', async () => {
     const db = database()
 
@@ -157,7 +170,6 @@ describe('buildOwnerMediaDetails', () => {
           confidence: 0.9,
           taxonKey: '2481839',
           rank: 'SPECIES',
-          taxonRank: null,
           taxonPath: ['Animalia', 'Chordata', 'Aves']
         }
       ],

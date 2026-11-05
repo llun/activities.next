@@ -164,6 +164,19 @@ describe('applySavedToItem', () => {
     })
   })
 
+  it('carries the taxon rank from fresh details', () => {
+    const next = applySavedToItem(item, {
+      id: 'm1',
+      description: 'New alt',
+      decorative: false,
+      details: {
+        ...details,
+        subject: { ...details.subject!, taxonRank: 'SPECIES' }
+      }
+    })
+    expect(next.subject?.taxonRank).toBe('SPECIES')
+  })
+
   it('clears details the save removed', () => {
     const next = applySavedToItem(
       buildGalleryItem('m1', { subject: details.subject as never }),

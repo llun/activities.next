@@ -1,6 +1,6 @@
 'use client'
 
-import { Images, ListChecks } from 'lucide-react'
+import { CircleHelp, Images, Layers, ListChecks } from 'lucide-react'
 import Link from 'next/link'
 import { FC } from 'react'
 
@@ -58,10 +58,12 @@ export const GalleryLifeListTable: FC<Props> = ({
         />
         <StatCell
           label="Groups"
+          icon={Layers}
           value={`${numberFormat.format(counts.groups)}${suffix}`}
         />
         <StatCell
           label="Unconfirmed"
+          icon={CircleHelp}
           value={`${numberFormat.format(counts.unknown)}${suffix}`}
         />
         <StatCell

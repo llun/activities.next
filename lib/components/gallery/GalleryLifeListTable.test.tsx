@@ -121,58 +121,65 @@ describe('GalleryLifeListTable', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Red Fox' }))
     expect(onSelectSubject).toHaveBeenCalledWith('sci:vulpes vulpes', 'Red Fox')
   })
-})
 
-it('numbers only species through interleaved groups, with labels beside the name', () => {
-  render(
-    <GalleryLifeListTable
-      data={{
-        ...data,
-        total: 5,
-        counts: { species: 2, groups: 2, unknown: 1 },
-        entries: [
-          data.entries[0],
-          buildLifeListEntry('pongo', {
-            name: 'Pongo',
-            taxonRank: 'GENUS',
-            identificationLevel: 'group'
-          }),
-          data.entries[1],
-          buildLifeListEntry('family', {
-            name: 'Corvidae',
-            taxonRank: 'FAMILY',
-            identificationLevel: 'group'
-          }),
-          data.entries[2]
-        ]
-      }}
-    />
-  )
-  const rows = screen.getAllByRole('row').slice(1)
-  expect(
-    rows.map((row) => within(row).getAllByRole('cell')[0].textContent)
-  ).toEqual([
-    '1',
-    '–Not a confirmed species',
-    '2',
-    '–Not a confirmed species',
-    '–Not a confirmed species'
-  ])
-  expect(within(rows[1]).getByText('Genus')).toBeInTheDocument()
-  expect(within(rows[3]).getByText('Family')).toBeInTheDocument()
-})
-it('treats an older response without counts as all unknown, even with stray classification fields', () => {
-  render(
-    <GalleryLifeListTable
-      data={{ ...data, counts: undefined, countsByCategory: undefined }}
-    />
-  )
-  expect(screen.getByText('Species').closest('dl')).toHaveTextContent('0')
-  expect(
-    screen.getByText('Unconfirmed', { selector: 'dt' }).closest('dl')
-  ).toHaveTextContent('3')
-  expect(
-    screen.getAllByText('Unconfirmed', { selector: '[data-slot=badge]' })
-  ).toHaveLength(3)
-  expect(screen.queryByText('Birds', { selector: 'dt' })).toBeNull()
+  it('numbers only species through interleaved groups, with labels beside the name', () => {
+    render(
+      <GalleryLifeListTable
+        data={{
+          ...data,
+          total: 5,
+          counts: { species: 2, groups: 2, unknown: 1 },
+          entries: [
+            data.entries[0],
+            buildLifeListEntry('pongo', {
+              name: 'Pongo',
+              taxonRank: 'GENUS',
+              identificationLevel: 'group'
+            }),
+            data.entries[1],
+            buildLifeListEntry('family', {
+              name: 'Corvidae',
+              taxonRank: 'FAMILY',
+              identificationLevel: 'group'
+            }),
+            data.entries[2]
+          ]
+        }}
+      />
+    )
+    const rows = screen.getAllByRole('row').slice(1)
+    expect(
+      rows.map((row) => within(row).getAllByRole('cell')[0].textContent)
+    ).toEqual([
+      '1',
+      '–Not a confirmed species',
+      '2',
+      '–Not a confirmed species',
+      '–Not a confirmed species'
+    ])
+    expect(within(rows[1]).getByText('Genus')).toBeInTheDocument()
+    expect(within(rows[3]).getByText('Family')).toBeInTheDocument()
+    expect(
+      screen.getByText('Groups', { selector: 'dt' }).closest('dl')
+    ).toHaveTextContent('2')
+    expect(
+      screen.getByText('Unconfirmed', { selector: 'dt' }).closest('dl')
+    ).toHaveTextContent('1')
+  })
+
+  it('treats an older response without counts as all unknown, even with stray classification fields', () => {
+    render(
+      <GalleryLifeListTable
+        data={{ ...data, counts: undefined, countsByCategory: undefined }}
+      />
+    )
+    expect(screen.getByText('Species').closest('dl')).toHaveTextContent('0')
+    expect(
+      screen.getByText('Unconfirmed', { selector: 'dt' }).closest('dl')
+    ).toHaveTextContent('3')
+    expect(
+      screen.getAllByText('Unconfirmed', { selector: '[data-slot=badge]' })
+    ).toHaveLength(3)
+    expect(screen.queryByText('Birds', { selector: 'dt' })).toBeNull()
+  })
 })

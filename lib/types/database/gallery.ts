@@ -180,9 +180,11 @@ export interface MediaDetailsRecord {
   // `setMediaSubjectLookup` / `setMediaPlaceLookup` /
   // `setMediaSubjectSuggestions` write it.
   //
+  // GBIF rank of the resolved taxon (upper case, e.g. `SPECIES`, `GENUS`);
+  // null unless the subject lookup is `resolved`.
+  subjectTaxonRank: string | null
   // Kingdom to family names, stored at resolve time so a public read never
   // triggers a lookup.
-  subjectTaxonRank: string | null
   subjectTaxonPath: string[] | null
   // Owner-only: never sent to anyone else. It only drives the place rule.
   subjectIucnCategory: IucnCategory | null

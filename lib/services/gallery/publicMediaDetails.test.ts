@@ -3,7 +3,8 @@ import {
   PUBLIC_PLACE_INPUT_KEYS,
   buildPublicMediaDetails,
   countryDisplayName,
-  getPublicPlace
+  getPublicPlace,
+  toSubjectEntity
 } from '@/lib/services/gallery/publicMediaDetails'
 import { EMPTY_MEDIA_DETAILS } from '@/lib/types/database/gallery'
 import { Media } from '@/lib/types/database/operations'
@@ -880,6 +881,19 @@ describe('buildPublicMediaDetails and threatened species', () => {
       longitude: 101.3722,
       countryCode: 'TH'
     })
+  })
+})
+
+describe('toSubjectEntity', () => {
+  it('carries the stored taxon rank', () => {
+    expect(
+      toSubjectEntity({
+        ...EMPTY_MEDIA_DETAILS,
+        subjectScientificName: 'Buceros',
+        subjectTaxonKey: '2481838',
+        subjectTaxonRank: 'GENUS'
+      })
+    ).toMatchObject({ taxonKey: '2481838', taxonRank: 'GENUS' })
   })
 })
 

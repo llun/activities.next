@@ -1,4 +1,4 @@
-import { Images, ListChecks } from 'lucide-react'
+import { CircleHelp, Images, Layers, ListChecks } from 'lucide-react'
 import { FC } from 'react'
 
 import {
@@ -20,11 +20,12 @@ const Loading: FC = () => (
       <StatStripSkeleton
         cells={[
           { label: 'Species', icon: ListChecks },
-          { label: 'Groups', icon: ListChecks },
-          { label: 'Unconfirmed', icon: ListChecks },
+          { label: 'Groups', icon: Layers },
+          { label: 'Unconfirmed', icon: CircleHelp },
           { label: 'Photos', icon: Images }
         ]}
       />
+      {/* No second (category) strip: its cells depend on the data. */}
       <div className="rounded-lg border">
         <div className="bg-muted/40 h-10 border-b" />
         {Array.from({ length: 5 }, (_, index) => (
