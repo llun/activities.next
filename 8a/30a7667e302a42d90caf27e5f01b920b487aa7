@@ -1,0 +1,125 @@
+lib/services/medias/saveMediaFile.ts
+  s_2b1a50e2f9b981::t_ac9e273922dd09 15
+  s_2b1a50e2f9b981::t_a53982ddabf365 20-21,116-125,152-177,197
+lib/services/medias/handleSyncMediaUpload.ts
+  s_2b1a50e2f9b981::t_ac9e273922dd09 6
+  s_2b1a50e2f9b981::t_49d673d97d67a9 13-14,146-157,159-170,174
+lib/services/gallery/galleryProjection.ts
+  s_2b1a50e2f9b981::t_703cae148b43bd 62-64,170-175
+  s_2b1a50e2f9b981::t_8c13546cf61cc8 176-179
+lib/services/medias/S3StorageFile.ts
+  s_2b1a50e2f9b981::t_ac9e273922dd09 810
+  s_2b1a50e2f9b981::t_60fad324e2e32e 559-562,703-708,782-787,800-801,805,807,812-819,821-826,828-829,848,1114-1118,1136-1139,1192
+lib/services/medias/imageAnalysis.pixelLimit.test.ts
+  s_2b1a50e2f9b981::t_ac9e273922dd09 15-21
+  s_2b1a50e2f9b981::t_99a1b3e2ddc730 1-14,22-32
+lib/services/medias/imageInput.avif.test.ts
+  s_2b1a50e2f9b981::t_703cae148b43bd 7-31,34-46
+  s_2b1a50e2f9b981::t_ac9e273922dd09 32-33
+  s_2b1a50e2f9b981::t_3de00484d4a584 1-6,47
+lib/services/medias/localFile.test.ts
+  s_2b1a50e2f9b981::t_ac9e273922dd09 347-412
+  s_2b1a50e2f9b981::t_bed8322139a20f 38-57,313,335-346,413-416
+app/api/v1/admin/custom_emojis/route.test.ts
+  s_2b1a50e2f9b981::t_ac9e273922dd09 285-315,317
+  s_2b1a50e2f9b981::t_50f4bd0a7996af 4,59-65,67-69,245-247,263-284,316,318-331
+lib/services/medias/edit/saveMediaEdit.ts
+  s_2b1a50e2f9b981::t_ac9e273922dd09 18
+  s_2b1a50e2f9b981::t_d086f1158c366b 190-192,573-575,718-720
+app/api/v1/admin/custom_emojis/route.ts
+  s_dc239db0cc1c9d::t_2346b7809600f1 10,85-111,169
+app/api/v1/media/[id]/describe/route.test.ts
+  s_2b1a50e2f9b981::t_7b939d95e26bea 91-93,102-116,196-208
+app/api/v1/media/[id]/describe/route.ts
+  s_2b1a50e2f9b981::t_821c2f2180278e 67-78
+app/api/v1/media/[id]/subject-suggestions/route.test.ts
+  s_2b1a50e2f9b981::t_c9ac2f22de16b8 144-146,155-169,260-273
+app/api/v1/media/[id]/subject-suggestions/route.ts
+  s_2b1a50e2f9b981::t_dd3d772acfd362 86-97
+app/api/v2/media/route.test.ts
+  s_2b1a50e2f9b981::t_0a0316fe975382 62-67,143-146,456-458,465-466
+docs/architecture.md
+  s_2b1a50e2f9b981::t_4a0d5e0859a9fe 926-931,934-937,942-951,979-980
+docs/maintenance.md
+  s_2b1a50e2f9b981::t_7ede82d8afbc57 1010,1013,1057,1190-1191
+docs/mastodon-api-compatibility.md
+  s_2b1a50e2f9b981::t_938669704ba2be 339-346,1232-1234
+lib/client/media.ts
+  s_2b1a50e2f9b981::t_4cd61ff4a03070 191,313
+lib/components/admin/CustomEmojiManager.tsx
+  s_2b1a50e2f9b981::t_bfb79de28a4f8c 127-128,149
+lib/components/gallery/AddToGalleryDialog.tsx
+  s_2b1a50e2f9b981::t_7766e6980f0b3c 47,200,287
+lib/components/gallery/galleryItemEdit.ts
+  s_2b1a50e2f9b981::t_24a48959f7eb89 55
+lib/components/media-details/media-details-dialog.tsx
+  s_2b1a50e2f9b981::t_2c2c38ef819c8a 108-109
+lib/components/photo-editor/PhotoEditPreview.test.tsx
+  s_2b1a50e2f9b981::t_4b69447c22b554 143-154
+lib/components/photo-editor/PhotoEditPreview.tsx
+  s_2b1a50e2f9b981::t_5b20d3ce9ed947 41-42,59-68
+lib/components/post-box/post-box.tsx
+  s_2b1a50e2f9b981::t_5c51cc4b0634a2 2078
+lib/jobs/importStravaActivityJob.test.ts
+  s_2b1a50e2f9b981::t_d07b9fd8ff06f9 885-938
+lib/jobs/importStravaActivityJob.ts
+  s_2b1a50e2f9b981::t_0285457e01eb5f 29,133-136
+lib/services/accountImport/phases.test.ts
+  s_2b1a50e2f9b981::t_05f5307272d17f 978-1040
+lib/services/accountImport/phases.ts
+  s_2b1a50e2f9b981::t_f5bf67690f1346 975-995
+lib/services/altText/openai.test.ts
+  s_2b1a50e2f9b981::t_deffb21b7ae95e 1-2,4,102-125
+lib/services/altText/openai.ts
+  s_2b1a50e2f9b981::t_efb7a53833b8ca 4-7,71-74,76,78-80,86,88,94
+lib/services/medias/constants.ts
+  s_2b1a50e2f9b981::t_3f69334772018d 34-39
+lib/services/medias/getMediaAttachment.ts
+  s_2b1a50e2f9b981::t_fb0d0d59fdd719 16-17
+lib/services/medias/imageAnalysis.ts
+  s_2b1a50e2f9b981::t_dfb3c6078d14b8 4,73-75,122-124
+lib/services/medias/imageInput.ts
+  s_2b1a50e2f9b981::t_1c2360037c4c67 3,56-66
+lib/services/medias/localFile.ts
+  s_2b1a50e2f9b981::t_b4c65ae41d6fa7 326-331,340-343,392
+lib/services/medias/quota.ts
+  s_2b1a50e2f9b981::t_57c53cad05700d 46,51-52
+lib/services/medias/readStoredMedia.heif.test.ts
+  s_2b1a50e2f9b981::t_3e17927377931a 1-44
+lib/services/medias/readStoredMedia.ts
+  s_2b1a50e2f9b981::t_3a055fea472e03 5,22-23,27-28,32-41,45
+lib/services/medias/saveMediaFile.test.ts
+  s_2b1a50e2f9b981::t_e681236aa1d257 46,54
+lib/services/medias/storedImagePipeline.ts
+  s_2b1a50e2f9b981::t_9f8993ac644310 45
+lib/services/medias/types.ts
+  s_2b1a50e2f9b981::t_daed128eae0883 77-80
+lib/services/medias/uploadImage.fixture.ts
+  s_2b1a50e2f9b981::t_2b0dc74d47eaff 4,34
+lib/types/domain/attachment.ts
+  s_2b1a50e2f9b981::t_f0b1ba24de38e1 24-25,52-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8a30a7667e302a42d90caf27e5f01b920b487aa7",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_dc239db0cc1c9d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "39fbbf59-c54b-41d1-b7f6-3bfb9de173ec",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
