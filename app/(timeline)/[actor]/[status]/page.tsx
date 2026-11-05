@@ -500,8 +500,10 @@ const Page: FC<Props> = async ({ params }) => {
   if (isFitnessDashboard) {
     const [fitnessFiles, trainingZones] = await Promise.all([
       getStatusFitnessFiles(database, statusForLayout.id, currentTime),
-      // The zone charts use the author's zones; a remote author has none here.
-      statusForLayout.isLocalActor
+      // Only the author's own view uses their zones: their max heart rate and
+      // FTP never reach anyone else's page. Others see the default zones.
+      statusForLayout.isLocalActor &&
+      currentActor?.id === statusForLayout.actorId
         ? getTrainingZoneSettings(database, statusForLayout.actorId)
         : null
     ])

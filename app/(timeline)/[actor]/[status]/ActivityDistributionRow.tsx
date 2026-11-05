@@ -265,7 +265,8 @@ export interface ActivityDistributionRowProps {
 /**
  * Heart-rate zones, power zones (when the author set an FTP), the power
  * distribution and the power curve side by side: three across a desktop
- * column, two across on a tablet, stacked on a phone. Each is left out when
+ * column (two by two when all four show), two across on a tablet, stacked on
+ * a phone. Each is left out when
  * the file has nothing to draw it from.
  */
 export const ActivityDistributionRow: FC<ActivityDistributionRowProps> = ({
@@ -284,11 +285,20 @@ export const ActivityDistributionRow: FC<ActivityDistributionRowProps> = ({
   const hasDistribution = powerDistribution.bins.length > 0
   const hasCurve = powerCurve.length >= 2
   if (!hasZones && !hasPowerZones && !hasDistribution && !hasCurve) return null
+  // Four sections pair up two by two; three across would leave the fourth
+  // alone on its row.
+  const fourSections =
+    [hasZones, hasPowerZones, hasDistribution, hasCurve].filter(Boolean)
+      .length === 4
 
   return (
     <div
       id="zones"
-      className="grid scroll-mt-4 gap-6 @min-[600px]:grid-cols-2 @min-[600px]:gap-4 @min-[600px]:[&>*:last-child:nth-child(odd)]:col-span-2 @min-[820px]:grid-cols-3 @min-[820px]:[&>*:last-child:nth-child(odd)]:col-span-1"
+      className={cn(
+        'grid scroll-mt-4 gap-6 @min-[600px]:grid-cols-2 @min-[600px]:gap-4 @min-[600px]:[&>*:last-child:nth-child(odd)]:col-span-2',
+        !fourSections &&
+          '@min-[820px]:grid-cols-3 @min-[820px]:[&>*:last-child:nth-child(odd)]:col-span-1'
+      )}
     >
       {hasZones ? (
         <Section

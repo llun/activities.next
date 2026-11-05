@@ -594,11 +594,11 @@ describe('Fitness activity card chrome', () => {
     expect(clipsBetween(card, 'ride-1')).toEqual([])
   })
 
-  // Every child here paints a background, so with the clip gone each corner a
-  // child reaches has to be rounded by that child. That is only right while the
-  // header wrapper stays first and the post block stays last: append another
-  // painted block and a rounded row is notched into the middle of the card.
   it('hands the activity the author’s zone inputs and nothing else of their settings', async () => {
+    mockGetActorFromSession.mockResolvedValue({
+      ...buildViewer(),
+      id: AUTHOR_ID
+    })
     mockGetFitnessSettings.mockResolvedValueOnce({
       id: 'general-id',
       actorId: AUTHOR_ID,
@@ -631,6 +631,23 @@ describe('Fitness activity card chrome', () => {
     })
   })
 
+  it('gives anyone but the author no zone inputs, so their numbers stay on the server', async () => {
+    mockGetActorFromSession.mockResolvedValue(buildViewer())
+
+    await renderPage()
+
+    expect(mockGetFitnessSettings).not.toHaveBeenCalledWith(
+      expect.objectContaining({ serviceType: 'general' })
+    )
+    expect(
+      screen.getByTestId('status-ride-1').getAttribute('data-training-zones')
+    ).toBe('null')
+  })
+
+  // Every child here paints a background, so with the clip gone each corner a
+  // child reaches has to be rounded by that child. That is only right while the
+  // header wrapper stays first and the post block stays last: append another
+  // painted block and a rounded row is notched into the middle of the card.
   it('keeps the header wrapper first and the post block last for a signed-in viewer', async () => {
     mockGetActorFromSession.mockResolvedValue(buildViewer())
 

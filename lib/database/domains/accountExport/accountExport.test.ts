@@ -209,7 +209,8 @@ describe('account export readers', () => {
       privacyHideRadiusMeters: 200,
       defaultVisibility: 'private',
       privacyLocations: [],
-      // The training zones go with the archive.
+      // The training zones are in the archive (the importer restores no
+      // fitness settings).
       maxHeartRate: 186,
       restingHeartRate: 52,
       functionalThresholdPower: 260
