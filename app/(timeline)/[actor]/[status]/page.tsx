@@ -23,6 +23,7 @@ import { getServedHostConfig } from '@/lib/services/domains/servedDomainSnapshot
 import { getVisitedSignUpDomain } from '@/lib/services/domains/visitedSignUpDomain'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { getStatusFitnessFiles } from '@/lib/services/fitness-files/statusFitnessFiles'
+import { getTrainingZoneSettings } from '@/lib/services/fitness-files/trainingZoneSettings'
 import { enrichStatusAttachments } from '@/lib/services/medias/animationMetadata'
 import { getQueue } from '@/lib/services/queue'
 import {
@@ -497,11 +498,15 @@ const Page: FC<Props> = async ({ params }) => {
     : null
 
   if (isFitnessDashboard) {
-    const fitnessFiles = await getStatusFitnessFiles(
-      database,
-      statusForLayout.id,
-      currentTime
-    )
+    const [fitnessFiles, trainingZones] = await Promise.all([
+      getStatusFitnessFiles(database, statusForLayout.id, currentTime),
+      // Only the author's own view uses their zones: their max heart rate and
+      // FTP never reach anyone else's page. Others see the default zones.
+      statusForLayout.isLocalActor &&
+      currentActor?.id === statusForLayout.actorId
+        ? getTrainingZoneSettings(database, statusForLayout.actorId)
+        : null
+    ])
 
     return (
       <>
@@ -589,6 +594,7 @@ const Page: FC<Props> = async ({ params }) => {
               hasMoreAncestors={hasMoreAncestors}
               hasMoreDescendants={hasMoreDescendants}
               fitnessFiles={fitnessFiles}
+              trainingZones={trainingZones}
             />
           </div>
 

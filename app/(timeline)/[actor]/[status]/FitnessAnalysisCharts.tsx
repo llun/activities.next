@@ -7,6 +7,7 @@ import {
 import { Frame } from '@/lib/components/surface/Frame'
 import { Label } from '@/lib/components/ui/label'
 import { Switch } from '@/lib/components/ui/switch'
+import { formatZoneRange } from '@/lib/fitness/trainingZones'
 import { cn } from '@/lib/utils'
 
 import { type HeartRateZone, formatDuration } from './fitnessChartData'
@@ -204,21 +205,18 @@ export const GraphDisplayCard: FC<GraphDisplayCardProps> = ({
 
 export interface HeartRateZonesPanelProps {
   zones: HeartRateZone[]
-}
-
-const formatZoneRange = (zone: HeartRateZone) => {
-  if (zone.lo === 0 && zone.hi !== null) return `< ${zone.hi} bpm`
-  if (zone.hi === null) return `${zone.lo}+ bpm`
-  return `${zone.lo}–${zone.hi} bpm`
+  /** The bounds' unit, bpm unless the zones are power zones. */
+  unit?: string
 }
 
 /**
- * Time in each heart-rate zone: the stacked share bar, then one row per zone
- * with its name, range and time over a bar scaled to the zone with the most
- * time. Laid out on a grid so it fits a third of a desktop column.
+ * Time in each zone (heart rate or power): the stacked share bar, then one row
+ * per zone with its name, range and time over a bar scaled to the zone with
+ * the most time. Laid out on a grid so it fits a third of a desktop column.
  */
 export const HeartRateZonesPanel: FC<HeartRateZonesPanelProps> = ({
-  zones
+  zones,
+  unit = 'bpm'
 }) => {
   const longest = Math.max(1, ...zones.map((zone) => zone.seconds))
   return (
@@ -248,7 +246,9 @@ export const HeartRateZonesPanel: FC<HeartRateZonesPanelProps> = ({
             <span className="font-semibold">{zone.name}</span>
             <span className="flex min-w-0 justify-between gap-1.5 text-muted-foreground">
               <span className="truncate">{zone.label}</span>
-              <span className="whitespace-nowrap">{formatZoneRange(zone)}</span>
+              <span className="whitespace-nowrap">
+                {formatZoneRange(zone, unit)}
+              </span>
             </span>
             <span className="min-w-10 text-right font-medium">
               {formatDuration(zone.seconds)}

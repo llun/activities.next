@@ -1,6 +1,11 @@
 import { z } from 'zod'
 
 import {
+  FUNCTIONAL_THRESHOLD_POWER_RANGE,
+  MAX_HEART_RATE_RANGE,
+  RESTING_HEART_RATE_RANGE
+} from '@/lib/fitness/trainingZones'
+import {
   FITNESS_PRIVACY_RADIUS_OPTIONS,
   getFitnessPrivacyLocations,
   sanitizePrivacyLocationSettings,
@@ -41,6 +46,51 @@ const PrivacyLocationRadiusSchema = z
     }
   )
 
+const zoneInput = (
+  name: string,
+  unit: string,
+  range: { min: number; max: number }
+) =>
+  z
+    .number()
+    .int(`${name} must be a whole number`)
+    .min(range.min, `${name} must be ${range.min}–${range.max} ${unit}`)
+    .max(range.max, `${name} must be ${range.min}–${range.max} ${unit}`)
+    .nullable()
+
+// All three are sent together, as the zones form saves them; null clears one.
+const FitnessGeneralSettingsZonesRequest = z
+  .object({
+    maxHeartRate: zoneInput('Max heart rate', 'bpm', MAX_HEART_RATE_RANGE),
+    restingHeartRate: zoneInput(
+      'Resting heart rate',
+      'bpm',
+      RESTING_HEART_RATE_RANGE
+    ),
+    functionalThresholdPower: zoneInput(
+      'Functional threshold power',
+      'W',
+      FUNCTIONAL_THRESHOLD_POWER_RANGE
+    )
+  })
+  .strict()
+  .refine(
+    ({ maxHeartRate, restingHeartRate }) =>
+      maxHeartRate === null ||
+      restingHeartRate === null ||
+      restingHeartRate < maxHeartRate,
+    {
+      message: 'Resting heart rate must be below max heart rate',
+      path: ['restingHeartRate']
+    }
+  )
+
+const ZONE_FIELDS = [
+  'maxHeartRate',
+  'restingHeartRate',
+  'functionalThresholdPower'
+] as const
+
 const FitnessGeneralSettingsRouteDescriptionRequest = z
   .object({
     generateRouteDescription: z.boolean()
@@ -68,9 +118,15 @@ const FitnessGeneralSettingsListRequest = z.object({
 })
 
 type FitnessGeneralSettingsRequest =
+  | z.infer<typeof FitnessGeneralSettingsZonesRequest>
   | z.infer<typeof FitnessGeneralSettingsLegacyRequest>
   | z.infer<typeof FitnessGeneralSettingsListRequest>
   | z.infer<typeof FitnessGeneralSettingsRouteDescriptionRequest>
+
+const hasZonesPayload = (body: unknown) =>
+  body !== null &&
+  typeof body === 'object' &&
+  ZONE_FIELDS.some((field) => Object.prototype.hasOwnProperty.call(body, field))
 
 const hasPrivacyLocationsPayload = (body: unknown) =>
   body !== null &&
@@ -88,7 +144,14 @@ const safeParseFitnessGeneralSettingsRequest = (
   body: unknown
 ):
   | { success: true; data: FitnessGeneralSettingsRequest }
-  | { success: false } => {
+  | { success: false; error?: string } => {
+  if (hasZonesPayload(body)) {
+    const zonesResult = FitnessGeneralSettingsZonesRequest.safeParse(body)
+    return zonesResult.success
+      ? { success: true, data: zonesResult.data }
+      : { success: false, error: zonesResult.error.issues[0]?.message }
+  }
+
   const listResult = FitnessGeneralSettingsListRequest.safeParse(body)
   if (listResult.success) return { success: true, data: listResult.data }
   if (hasPrivacyLocationsPayload(body)) return { success: false }
@@ -116,6 +179,9 @@ interface FitnessGeneralSettingsResponse {
   privacyHomeLongitude: number | null
   privacyHideRadiusMeters: number
   generateRouteDescription: boolean
+  maxHeartRate: number | null
+  restingHeartRate: number | null
+  functionalThresholdPower: number | null
 }
 
 const toPrivacyLocationsResponse = (
@@ -126,6 +192,9 @@ const toPrivacyLocationsResponse = (
         privacyHomeLongitude?: number | null
         privacyHideRadiusMeters?: number | null
         generateRouteDescription?: boolean | null
+        maxHeartRate?: number | null
+        restingHeartRate?: number | null
+        functionalThresholdPower?: number | null
       }
     | null
     | undefined
@@ -145,7 +214,10 @@ const toPrivacyLocationsResponse = (
     privacyHideRadiusMeters: sanitizePrivacyRadiusMeters(
       firstLocation?.hideRadiusMeters
     ),
-    generateRouteDescription: settings?.generateRouteDescription ?? false
+    generateRouteDescription: settings?.generateRouteDescription ?? false,
+    maxHeartRate: settings?.maxHeartRate ?? null,
+    restingHeartRate: settings?.restingHeartRate ?? null,
+    functionalThresholdPower: settings?.functionalThresholdPower ?? null
   }
 }
 
@@ -163,11 +235,16 @@ type NormalizedSettingsPayload =
       privacyHomeLongitude?: number | null
       privacyHideRadiusMeters?: number
       generateRouteDescription?: boolean
+      zones?: z.infer<typeof FitnessGeneralSettingsZonesRequest>
     }
 
 const toSettingsPayload = (
   parsed: FitnessGeneralSettingsRequest
 ): NormalizedSettingsPayload => {
+  if ('maxHeartRate' in parsed) {
+    return { zones: parsed }
+  }
+
   if ('privacyLocations' in parsed) {
     const privacyLocations = sanitizePrivacyLocationSettings(
       parsed.privacyLocations
@@ -268,7 +345,14 @@ export const POST = traceApiRoute(
 
     const parsed = safeParseFitnessGeneralSettingsRequest(body)
     if (!parsed.success) {
-      return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+      return parsed.error
+        ? apiResponse({
+            req,
+            allowedMethods: [],
+            data: { error: parsed.error },
+            responseStatusCode: HTTP_STATUS.UNPROCESSABLE_ENTITY
+          })
+        : apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
     }
 
     const normalized = toSettingsPayload(parsed.data)
@@ -302,7 +386,8 @@ export const POST = traceApiRoute(
               ? {
                   generateRouteDescription: normalized.generateRouteDescription
                 }
-              : {})
+              : {}),
+            ...normalized.zones
           })
         : await database.createFitnessSettings({
             actorId: currentActor.id,
@@ -312,7 +397,8 @@ export const POST = traceApiRoute(
             privacyHomeLongitude: normalized.privacyHomeLongitude ?? undefined,
             privacyHideRadiusMeters: normalized.privacyHideRadiusMeters ?? 0,
             generateRouteDescription:
-              normalized.generateRouteDescription ?? false
+              normalized.generateRouteDescription ?? false,
+            ...normalized.zones
           })
 
       if (!saved) {

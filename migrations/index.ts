@@ -21,6 +21,7 @@ import * as addAttachmentsIsRouteMap from './20261104133123_add_attachments_is_r
 import * as addDeletedAttachmentMedia from './20261105034530_add_deleted_attachment_media'
 import * as addAuthRateLimits from './20261105072156_add_auth_rate_limits'
 import * as addDeliveryInboxFailures from './20261105144958_add_delivery_inbox_failures'
+import * as addFitnessSettingsTrainingZones from './20261105174143_add_fitness_settings_training_zones'
 import type { MigrationName } from './names'
 
 // Every migration, registered by name (the file name without `.ts`). `yarn
@@ -50,5 +51,7 @@ export const migrations: MigrationRegistry = {
   '20261104133123_add_attachments_is_route_map': addAttachmentsIsRouteMap,
   '20261105034530_add_deleted_attachment_media': addDeletedAttachmentMedia,
   '20261105072156_add_auth_rate_limits': addAuthRateLimits,
-  '20261105144958_add_delivery_inbox_failures': addDeliveryInboxFailures
+  '20261105144958_add_delivery_inbox_failures': addDeliveryInboxFailures,
+  '20261105174143_add_fitness_settings_training_zones':
+    addFitnessSettingsTrainingZones
 } satisfies Record<MigrationName, MigrationModule>

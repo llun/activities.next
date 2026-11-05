@@ -765,7 +765,10 @@ CREATE TABLE public.fitness_settings (
     "lastImportAt" timestamp with time zone,
     "connectionError" text,
     "credentialVersion" integer DEFAULT 0 NOT NULL,
-    "generateRouteDescription" boolean DEFAULT false NOT NULL
+    "generateRouteDescription" boolean DEFAULT false NOT NULL,
+    "maxHeartRate" integer,
+    "restingHeartRate" integer,
+    "functionalThresholdPower" integer
 );
 
 CREATE TABLE public.followed_tags (

@@ -716,11 +716,13 @@ export interface FitnessSettings {
   credentialVersion: WithDefault<number>
   defaultVisibility: Nullable<string>
   deletedAt: Nullable<Timestamp>
+  functionalThresholdPower: Nullable<number>
   generateRouteDescription: WithDefault<boolean>
   grantedScopes: Nullable<string>
   id: string
   lastImportAt: Nullable<Timestamp>
   lastWebhookAt: Nullable<Timestamp>
+  maxHeartRate: Nullable<number>
   oauthState: Nullable<string>
   oauthStateExpiry: Nullable<Timestamp>
   privacyHideRadiusMeters: Nullable<number>
@@ -730,6 +732,7 @@ export interface FitnessSettings {
   providerEnvironment: Nullable<string>
   providerUserId: Nullable<string>
   refreshToken: Nullable<string>
+  restingHeartRate: Nullable<number>
   serviceType: string
   tokenExpiresAt: Nullable<Timestamp>
   updatedAt: WithDefault<Nullable<Timestamp>>
