@@ -1,0 +1,39 @@
+docs/mastodon-api-compatibility.md
+  s_2b1a50e2f9b981::t_efd6c9b93eee92 2076
+  s_2b1a50e2f9b981::t_bfddfcced9e57e 2067-2075,2077-2084
+lib/services/polls/syncRemotePoll.ts
+  s_2b1a50e2f9b981::t_807c5e9bee6e96 102-103
+lib/services/polls/pollChoices.test.ts
+  s_2b1a50e2f9b981::t_d6f050efe2a10e 52-76
+lib/database/domains/status/edits.ts
+  s_2b1a50e2f9b981::t_8973e6abd0fe6c 657
+  s_2b1a50e2f9b981::t_3ca73263d1243d 636-638
+lib/jobs/updatePollJob.test.ts
+  s_2b1a50e2f9b981::t_efd6c9b93eee92 337-339,362-364
+  s_2b1a50e2f9b981::t_20c7a3b62a5aca 9,20,29-34,320-336,340-361,365-473
+lib/services/polls/pollChoices.ts
+  s_2b1a50e2f9b981::t_f07d19c5d74bfa 11-20,22-27
+lib/jobs/updatePollJob.ts
+  s_2b1a50e2f9b981::t_c65e2f3ee6cfc1 65-81,89-96
+  s_2b1a50e2f9b981::t_efd6c9b93eee92 82-84
+lib/database/domains/status/statusWriteQueries.test.ts
+  s_2b1a50e2f9b981::t_a26a2deff83000 2812-2813,2846-2847
+lib/services/polls/syncRemotePoll.test.ts
+  s_2b1a50e2f9b981::t_d6f050efe2a10e 161-197
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b45fd21ae3a1f45b42ac5ac28c7b9e00b979b8b0",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
