@@ -264,18 +264,40 @@ export const parseSubjectSuggestions = (
             : 0,
           taxonKey: toNullableString(candidate.taxonKey),
           rank: toNullableString(candidate.rank),
-          taxonPath: toTaxonPath(candidate.taxonPath) ?? []
+          taxonPath: toTaxonPath(candidate.taxonPath) ?? [],
+          // Absent on rows stored before the country check.
+          ...('recordedInCountry' in candidate
+            ? {
+                recordedInCountry:
+                  typeof candidate.recordedInCountry === 'boolean'
+                    ? candidate.recordedInCountry
+                    : null
+              }
+            : {})
         }
       ]
     }
   )
+  const context = isRecord(parsed.context)
+    ? {
+        countryCode: parseCountryCode(parsed.context.countryCode),
+        month:
+          Number.isInteger(parsed.context.month) &&
+          Number(parsed.context.month) >= 1 &&
+          Number(parsed.context.month) <= 12
+            ? Number(parsed.context.month)
+            : null
+      }
+    : null
   return {
     model: parsed.model,
     generatedAt:
       typeof parsed.generatedAt === 'string' ? parsed.generatedAt : '',
     checkedAgainst: parsed.checkedAgainst === 'gbif' ? 'gbif' : null,
     candidates,
-    group: parseEnum(MEDIA_SUBJECT_CATEGORIES, parsed.group)
+    group: parseEnum(MEDIA_SUBJECT_CATEGORIES, parsed.group),
+    // Absent on rows stored before the model was told the place and month.
+    ...(context && (context.countryCode || context.month) ? { context } : {})
   }
 }
 

@@ -19,6 +19,8 @@ import * as addActorHandles from './20261025141323_add_actor_handles'
 import * as addAccountImports from './20261027134549_add_account_imports'
 import * as addAttachmentsIsRouteMap from './20261104133123_add_attachments_is_route_map'
 import * as addDeletedAttachmentMedia from './20261105034530_add_deleted_attachment_media'
+import * as addAuthRateLimits from './20261105072156_add_auth_rate_limits'
+import * as addDeliveryInboxFailures from './20261105144958_add_delivery_inbox_failures'
 import * as addFitnessSettingsTrainingZones from './20261105174143_add_fitness_settings_training_zones'
 import type { MigrationName } from './names'
 
@@ -48,6 +50,8 @@ export const migrations: MigrationRegistry = {
   '20261027134549_add_account_imports': addAccountImports,
   '20261104133123_add_attachments_is_route_map': addAttachmentsIsRouteMap,
   '20261105034530_add_deleted_attachment_media': addDeletedAttachmentMedia,
+  '20261105072156_add_auth_rate_limits': addAuthRateLimits,
+  '20261105144958_add_delivery_inbox_failures': addDeliveryInboxFailures,
   '20261105174143_add_fitness_settings_training_zones':
     addFitnessSettingsTrainingZones
 } satisfies Record<MigrationName, MigrationModule>

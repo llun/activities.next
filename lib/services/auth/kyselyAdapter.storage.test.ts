@@ -407,4 +407,114 @@ describe('kyselyAdapter storage', () => {
       expectedDate(rotatedAt.getTime())
     )
   })
+
+  it('round-trips rateLimit counters, guarded increments, window resets, and expiry deletes with JS numbers on both backends', async () => {
+    expect(tables.rateLimit?.modelName).toBe('rateLimit')
+
+    const initialLastRequest = FIRST_DATE + 12_345
+    const key = '198.51.100.50|/sign-in/email'
+    const inserted = (await adapter.create({
+      model: 'rateLimit',
+      data: {
+        key,
+        count: 1,
+        lastRequest: initialLastRequest
+      }
+    })) as Row
+
+    expect(typeof inserted.id).toBe('string')
+    expect(inserted.key).toBe(key)
+    expect(inserted.count).toBe(1)
+    expect(inserted.lastRequest).toBe(initialLastRequest)
+    expect(typeof inserted.lastRequest).toBe('number')
+
+    const found = (
+      await adapter.findMany({
+        model: 'rateLimit',
+        where: [{ field: 'key', value: key }]
+      })
+    )[0] as Row | undefined
+    expect(found).toMatchObject({
+      id: inserted.id,
+      key,
+      count: 1,
+      lastRequest: initialLastRequest
+    })
+    expect(typeof found?.count).toBe('number')
+    expect(typeof found?.lastRequest).toBe('number')
+
+    // Guarded increment within the window while count < max (max = 2).
+    const nextRequest = initialLastRequest + 1_000
+    const incremented = await adapter.incrementOne<Row>({
+      model: 'rateLimit',
+      where: [
+        { field: 'key', value: key },
+        { field: 'lastRequest', operator: 'gt', value: initialLastRequest - 1 },
+        { field: 'count', operator: 'lt', value: 2 }
+      ],
+      increment: { count: 1 },
+      set: { lastRequest: nextRequest }
+    })
+    expect(incremented).toMatchObject({
+      id: inserted.id,
+      key,
+      count: 2,
+      lastRequest: nextRequest
+    })
+    expect(typeof incremented?.lastRequest).toBe('number')
+
+    // Once count === max, the guarded increment refuses to advance.
+    const overLimit = await adapter.incrementOne<Row>({
+      model: 'rateLimit',
+      where: [
+        { field: 'key', value: key },
+        { field: 'lastRequest', operator: 'gt', value: initialLastRequest - 1 },
+        { field: 'count', operator: 'lt', value: 2 }
+      ],
+      increment: { count: 1 },
+      set: { lastRequest: nextRequest + 500 }
+    })
+    expect(overLimit).toBeNull()
+
+    // Window reset uses increment: {} with set: { count: 1, lastRequest }.
+    const resetTime = initialLastRequest + 301_000
+    const resetRow = await adapter.incrementOne<Row>({
+      model: 'rateLimit',
+      where: [
+        { field: 'key', value: key },
+        { field: 'lastRequest', operator: 'lte', value: nextRequest }
+      ],
+      increment: {},
+      set: { count: 1, lastRequest: resetTime }
+    })
+    expect(resetRow).toMatchObject({
+      id: inserted.id,
+      key,
+      count: 1,
+      lastRequest: resetTime
+    })
+
+    // Expired rows are pruned by lastRequest < cutoff without touching active rows.
+    await adapter.create({
+      model: 'rateLimit',
+      data: {
+        key: '198.51.100.51|/sign-in/email',
+        count: 5,
+        lastRequest: initialLastRequest - 2_000_000
+      }
+    })
+    const deleted = await adapter.deleteMany({
+      model: 'rateLimit',
+      where: [
+        { field: 'lastRequest', operator: 'lt', value: initialLastRequest }
+      ]
+    })
+    expect(deleted).toBeGreaterThanOrEqual(1)
+
+    const remaining = await adapter.findMany({
+      model: 'rateLimit',
+      where: [{ field: 'key', value: key }]
+    })
+    expect(remaining).toHaveLength(1)
+  })
 })

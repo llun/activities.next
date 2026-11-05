@@ -11,6 +11,7 @@ import { z } from 'zod'
 
 import { isUniqueConstraintError } from '@/lib/database/utils/isUniqueConstraintError'
 import { sendConfirmationEmail } from '@/lib/services/accounts/sendConfirmationEmail'
+import { checkEmailConfirmationRateLimit } from '@/lib/services/auth/routeRateLimits'
 import { isEmailAllowedForSignUpDomain } from '@/lib/services/domains/signUpDomain'
 import {
   OAuthGuardAnyScope,
@@ -21,7 +22,12 @@ import { Scope } from '@/lib/types/database/operations'
 import { getRequestBody } from '@/lib/utils/getRequestBody'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
-import { HTTP_STATUS, apiResponse, defaultOptions } from '@/lib/utils/response'
+import {
+  HTTP_STATUS,
+  apiRateLimitedResponse,
+  apiResponse,
+  defaultOptions
+} from '@/lib/utils/response'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
@@ -67,6 +73,15 @@ export const POST = traceApiRoute(
           data: { error: 'Account not found' },
           responseStatusCode: HTTP_STATUS.NOT_FOUND
         })
+      }
+
+      const rateLimit = checkEmailConfirmationRateLimit(req, account.id)
+      if (!rateLimit.allowed) {
+        return apiRateLimitedResponse(
+          req,
+          rateLimit.retryAfterSeconds,
+          CORS_HEADERS
+        )
       }
 
       // The SAME predicate the guards, `canCreateSessionForAccount`, the admin

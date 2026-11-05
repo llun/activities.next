@@ -525,12 +525,24 @@ const subjectSuggestionsSchema = z
           confidence: finiteNumber,
           taxonKey: text(128).nullable(),
           rank: text(128).nullable(),
-          taxonPath: smallCount(text(1_024), 100)
+          taxonPath: smallCount(text(1_024), 100),
+          recordedInCountry: z.boolean().nullable().optional()
         })
         .strip(),
       20
     ),
-    group: z.enum(MEDIA_SUBJECT_CATEGORIES).nullable()
+    group: z.enum(MEDIA_SUBJECT_CATEGORIES).nullable(),
+    context: z
+      .object({
+        countryCode: z
+          .string()
+          .regex(/^[A-Z]{2}$/)
+          .nullable(),
+        month: z.number().int().min(1).max(12).nullable()
+      })
+      .strip()
+      .nullable()
+      .optional()
   })
   .strip()
 

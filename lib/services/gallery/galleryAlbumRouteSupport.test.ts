@@ -75,7 +75,8 @@ describe('public album reads', () => {
     const loadWithTrust = async (trusted: boolean) => {
       vi.resetModules()
       vi.doMock('@/lib/config/trustProxyIpHeaders', () => ({
-        getTrustProxyIpHeadersConfig: () => trusted
+        getTrustProxyIpHeadersConfig: () => trusted,
+        getTrustProxyIpHeaderConfig: () => null
       }))
       return import('@/lib/services/gallery/galleryAlbumRouteSupport')
     }
@@ -141,6 +142,18 @@ describe('public album reads', () => {
       vi.advanceTimersByTime(60_000)
 
       expect(tryAlbumRead('ip:1.2.3.4')).toBeTrue()
+    })
+
+    it('keeps a signed-in reader counted however many addresses flood in', async () => {
+      const { tryAlbumRead } = await loadSupport()
+      for (let hit = 0; hit < 300; hit += 1) tryAlbumRead('actor:a')
+      expect(tryAlbumRead('actor:a')).toBeFalse()
+
+      // Enough fresh addresses to fill any shared map and evict its oldest key.
+      for (let n = 0; n < 10_001; n += 1)
+        tryAlbumRead(`ip:10.0.${n >> 8}.${n & 255}`)
+
+      expect(tryAlbumRead('actor:a')).toBeFalse()
     })
 
     it('does not count reads against writes', async () => {

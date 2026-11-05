@@ -1,14 +1,27 @@
+import { isValidIP } from '@better-auth/core/utils/ip'
+import { normalizePathname } from '@better-auth/core/utils/url'
 import { oauthProvider } from '@better-auth/oauth-provider'
 import { passkey } from '@better-auth/passkey'
 import { betterAuth } from 'better-auth'
+import {
+  APIError,
+  createAuthMiddleware,
+  getSessionFromCtx
+} from 'better-auth/api'
 import { jwt, twoFactor } from 'better-auth/plugins'
 
 import { getBaseURL, getConfig } from '@/lib/config'
 import { DEFAULT_SERVER_SETTINGS } from '@/lib/config/serverSettings'
+import { getTrustProxyIpHeadersConfig } from '@/lib/config/trustProxyIpHeaders'
 import { getDatabase, getKysely } from '@/lib/database'
 import { comparePassword, hashPassword } from '@/lib/services/auth/passwordHash'
+import {
+  checkPasswordChangeRateLimit,
+  checkSignInEmailRateLimit
+} from '@/lib/services/auth/routeRateLimits'
 import { getActiveServedDomainNames } from '@/lib/services/domains/servedDomainSnapshot'
 import { UsableScopes } from '@/lib/types/database/operations'
+import { getTrustedClientIp } from '@/lib/utils/getTrustedClientIp'
 import { logger } from '@/lib/utils/logger'
 
 import { canCreateSessionForAccount } from './canCreateSessionForAccount'
@@ -25,6 +38,196 @@ import { createTrustedOriginsResolver } from './trustedOrigins'
 
 export const AUTH_COOKIE_PREFIX = 'better-auth'
 export const AUTH_SESSION_COOKIE_NAME = 'session_token'
+
+// Internal-only header populated inside `auth.handler` after stripping any
+// client-supplied copy. Driving better-auth's `advanced.ipAddress` from one
+// pre-validated header keeps its IP resolution byte-for-byte aligned with
+// `getTrustedClientIp` (honoring `ACTIVITIES_TRUST_PROXY_IP_HEADERS`, reading
+// `cf-connecting-ip` -> `x-real-ip` -> leftmost `x-forwarded-for`, including
+// multi-hop chains that better-auth's raw header parser would reject when
+// `trustedProxies` is unset).
+const TRUSTED_CLIENT_IP_HEADER = 'x-activities-trusted-client-ip'
+
+// Rate-limit windows and caps. better-auth keys on `ip|path` before reading
+// the request body, so its rules are per IP; the per-email sign-in limit lives
+// in the `hooks.before` middleware below (`checkSignInEmailRateLimit`).
+// - `/sign-in/email`: 25 attempts per 5 minutes per IP (Mastodon
+//   `throttle_login_attempts/ip`: 25 / 5 min), plus 25 per hour per email
+//   (Mastodon `throttle_login_attempts/email`), which needs no trusted IP.
+// - 2FA challenge endpoints: the same 25 per 5 minutes per IP, so one NAT or
+//   IPv6 /64 does not lock out its sixth user; the two-factor plugin's
+//   per-account lockout (10 consecutive failures, 15 minutes, its defaults)
+//   is what bounds guessing.
+// - Other mounted better-auth endpoints under `/api/auth/*`: better-auth's
+//   per-IP defaults (100 / 10 s default, 3 / 10 s on `/sign-up*`,
+//   `/change-password*`, `/change-email*` and remaining `/two-factor/*` routes,
+//   plus OAuth plugin per-endpoint rules). Unknown paths, and parameterised
+//   endpoints such as `/callback/:id` (whose concrete pathname is the key, so
+//   every `:id` would be a fresh row), return `false` so probes do not insert
+//   unbounded `ip|pathname` rows into `rateLimit`.
+const AUTH_GLOBAL_RATE_LIMIT = { window: 10, max: 100 } as const
+const AUTH_SIGN_IN_RATE_LIMIT = { window: 300, max: 25 } as const
+
+// Endpoints this app never uses (it serves its own `/api/v1/accounts/password/*`
+// and `/api/v1/emails/confirmations` routes, and mints OAuth tokens through
+// `oauthProvider()` rather than `jwt()`'s standalone `/token`).
+const DISABLED_AUTH_PATHS = [
+  '/token',
+  '/request-password-reset',
+  '/reset-password',
+  '/reset-password/:token',
+  '/send-verification-email',
+  '/verify-password',
+  // The app's own /api/v1/accounts/password and /api/v1/accounts/email routes
+  // (with their account-keyed limits) are the only change flows; these core
+  // ones would let a session guess the current password around those limits.
+  '/change-password',
+  '/change-email'
+] as const
+
+let hasWarnedMissingAuthClientIp = false
+
+export const resetMissingAuthClientIpWarningForTests = () => {
+  hasWarnedMissingAuthClientIp = false
+}
+
+const withTrustedClientIpHeader = (request: Request): Request => {
+  const candidate = getTrustedClientIp(request)
+  const verifiedIp = candidate && isValidIP(candidate) ? candidate : undefined
+
+  if (
+    !verifiedIp &&
+    getTrustProxyIpHeadersConfig() &&
+    !hasWarnedMissingAuthClientIp
+  ) {
+    hasWarnedMissingAuthClientIp = true
+    logger.warn({
+      message:
+        'Auth request arrived without a valid trusted proxy IP header; per-IP auth rate limiting skipped for requests missing an IP'
+    })
+  }
+
+  if (!verifiedIp && !request.headers.has(TRUSTED_CLIENT_IP_HEADER)) {
+    return request
+  }
+
+  const headers = new Headers(request.headers)
+  if (verifiedIp) {
+    headers.set(TRUSTED_CLIENT_IP_HEADER, verifiedIp)
+  } else {
+    headers.delete(TRUSTED_CLIENT_IP_HEADER)
+  }
+
+  const init: RequestInit & { duplex?: 'half' } =
+    request.method !== 'GET' && request.method !== 'HEAD' && request.body
+      ? { headers, duplex: 'half' }
+      : { headers }
+  return new Request(request, init)
+}
+
+const hasVerifiedClientIp = (request: Request): boolean =>
+  request.headers.has(TRUSTED_CLIENT_IP_HEADER)
+
+const ruleWhenClientIpPresent =
+  (rule: { window: number; max: number }) => (request: Request) =>
+    hasVerifiedClientIp(request) ? rule : false
+
+interface AuthEndpointMetadata {
+  path?: string
+  options?: {
+    metadata?: {
+      SERVER_ONLY?: boolean
+    }
+  }
+}
+
+const matchesAuthPathPattern = (pattern: string, path: string): boolean => {
+  if (!pattern.includes(':')) return pattern === path
+  const patternParts = pattern.split('/')
+  const pathParts = path.split('/')
+  if (patternParts.length !== pathParts.length) return false
+  return patternParts.every((part, index) => {
+    const candidate = pathParts[index] ?? ''
+    return part.startsWith(':') ? candidate.length > 0 : part === candidate
+  })
+}
+
+const isDisabledAuthPath = (request: Request): boolean => {
+  const path = normalizePathname(request.url, AUTH_BASE_PATH)
+  return DISABLED_AUTH_PATHS.some((pattern) =>
+    matchesAuthPathPattern(pattern, path)
+  )
+}
+
+// A predicate over the exact paths better-auth actually mounts over HTTP (core
+// and plugin endpoints, minus `disabledPaths`, server-only ones and
+// parameterised patterns such as `/callback/:id`, see the comment above).
+const buildKnownEndpointPathMatcher = (
+  api: Record<string, unknown>,
+  disabledPaths: readonly string[]
+): ((path: string) => boolean) => {
+  const disabled = new Set(disabledPaths)
+  const exact = new Set<string>()
+  for (const value of Object.values(api)) {
+    const endpoint = value as AuthEndpointMetadata | undefined
+    const path = endpoint?.path
+    if (
+      !path ||
+      !endpoint.options ||
+      endpoint.options.metadata?.SERVER_ONLY ||
+      disabled.has(path) ||
+      path.includes(':')
+    ) {
+      continue
+    }
+    exact.add(path)
+  }
+  return (path) => exact.has(path)
+}
+
+// Mastodon's `throttle_login_attempts/email`, 25 per hour per normalised
+// email, in process and independent of any trusted IP. Runs after better-auth's
+// own `ip|path` limiter (which answers first when it trips) and answers the
+// same way it does: 429, `{ message }` body and `X-Retry-After`. Never log the
+// email here.
+// Two-factor endpoints that check the session user's current password: they
+// share the app's password-change account bucket, so a session cannot guess the
+// password here around that route's limit (the plugin's own per-IP rule is off
+// without a trusted IP).
+const PASSWORD_CHALLENGE_PATHS = new Set([
+  '/two-factor/enable',
+  '/two-factor/disable',
+  '/two-factor/get-totp-uri',
+  '/two-factor/generate-backup-codes'
+])
+
+const tooManyRequests = (retryAfterSeconds: number) => {
+  const retryAfter = String(retryAfterSeconds)
+  return new APIError(
+    'TOO_MANY_REQUESTS',
+    { message: 'Too many requests. Please try again later.' },
+    { 'Retry-After': retryAfter, 'X-Retry-After': retryAfter }
+  )
+}
+
+const signInEmailRateLimitHook = createAuthMiddleware(async (ctx) => {
+  if (PASSWORD_CHALLENGE_PATHS.has(ctx.path)) {
+    // The user id is the account id (`account.fields.userId: 'accountId'`), the
+    // key the app's own password routes use.
+    // A normal lookup (refresh included): the endpoint reuses this session, so
+    // it must be the one its own middleware would have read.
+    const session = await getSessionFromCtx(ctx)
+    if (!session) return
+    const result = checkPasswordChangeRateLimit(session.user.id)
+    if (!result.allowed) throw tooManyRequests(result.retryAfterSeconds)
+    return
+  }
+  if (ctx.path !== '/sign-in/email') return
+  const email = (ctx.body as { email?: unknown } | undefined)?.email
+  if (typeof email !== 'string') return
+  const result = checkSignInEmailRateLimit(email)
+  if (!result.allowed) throw tooManyRequests(result.retryAfterSeconds)
+})
 
 // `serviceName` is the visited domain's name (see `resolveAuthServiceName`):
 // the passkey relying party name and the 2FA issuer. Both are labels only.
@@ -46,7 +249,9 @@ const buildAuth = (baseURL: string, serviceName: string) => {
     getActiveServedDomainNames
   )
 
-  return betterAuth({
+  let isKnownEndpointPath: ((path: string) => boolean) | undefined
+
+  const baseAuth = betterAuth({
     logger: {
       level: process.env.NODE_ENV === 'development' ? 'debug' : 'warn'
     },
@@ -68,7 +273,51 @@ const buildAuth = (baseURL: string, serviceName: string) => {
     advanced: {
       database: {
         joins: true
+      },
+      ipAddress: {
+        ipAddressHeaders: [TRUSTED_CLIENT_IP_HEADER]
       }
+    },
+    // Database-backed rate limits shared across server processes and restarts.
+    // When no trusted client IP can be resolved (`ACTIVITIES_TRUST_PROXY_IP_HEADERS`
+    // is unset/false, or a request arrives without a valid IP header), rules
+    // return `false` rather than falling back to better-auth's single
+    // `no-trusted-ip` / `127.0.0.1` bucket, which would let five failed attempts
+    // lock out every user on the instance.
+    rateLimit: {
+      enabled: true,
+      storage: 'database',
+      window: AUTH_GLOBAL_RATE_LIMIT.window,
+      max: AUTH_GLOBAL_RATE_LIMIT.max,
+      customRules: {
+        '/sign-in/email': ruleWhenClientIpPresent(AUTH_SIGN_IN_RATE_LIMIT),
+        '/two-factor/verify-totp': ruleWhenClientIpPresent(
+          AUTH_SIGN_IN_RATE_LIMIT
+        ),
+        '/two-factor/verify-backup-code': ruleWhenClientIpPresent(
+          AUTH_SIGN_IN_RATE_LIMIT
+        ),
+        '/two-factor/verify-otp': ruleWhenClientIpPresent(
+          AUTH_SIGN_IN_RATE_LIMIT
+        ),
+        '/two-factor/send-otp': ruleWhenClientIpPresent(
+          AUTH_SIGN_IN_RATE_LIMIT
+        ),
+        '/**': (request, currentRule) => {
+          if (!hasVerifiedClientIp(request)) return false
+          return isKnownEndpointPath?.(
+            normalizePathname(request.url, AUTH_BASE_PATH)
+          )
+            ? currentRule
+            : false
+        },
+        // Static entry so better-auth's `getConfiguredRateLimitWindows` sees the
+        // 5-minute window at boot in every process when pruning expired rows.
+        '/__max_configured_window__': AUTH_SIGN_IN_RATE_LIMIT
+      }
+    },
+    hooks: {
+      before: signInEmailRateLimitHook
     },
     // Better-auth 1.7.4 added experimental OpenTelemetry instrumentation for
     // endpoints, hooks, and database operations, enabled by default. Disable it
@@ -120,10 +369,10 @@ const buildAuth = (baseURL: string, serviceName: string) => {
       errorURL: AUTH_ERROR_PATH
     },
     database: kyselyAdapter(db, { passkeyRpID: rpID }),
-    // jwt() only provides JWKS and token signing for oauthProvider(). Keep its
-    // standalone /api/auth/token disabled alongside disableSettingJwtHeader below,
-    // so session reads cannot mint unscoped JWTs through either path.
-    disabledPaths: ['/token'],
+    // Disable unused core credential/mail routes and `jwt()`'s standalone
+    // `/api/auth/token` (alongside `disableSettingJwtHeader` below, so session
+    // reads cannot mint unscoped JWTs through either path).
+    disabledPaths: [...DISABLED_AUTH_PATHS],
     plugins: [
       // Sign the JWKS key (and therefore the OIDC id_tokens the oauthProvider
       // signs via this plugin) with RS256 so the published JWKS matches the
@@ -284,14 +533,32 @@ const buildAuth = (baseURL: string, serviceName: string) => {
       }
     }
   })
+
+  isKnownEndpointPath = buildKnownEndpointPathMatcher(
+    baseAuth.api,
+    DISABLED_AUTH_PATHS
+  )
+
+  return {
+    ...baseAuth,
+    // Check `DISABLED_AUTH_PATHS` here as well: better-auth's own `disabledPaths`
+    // filter uses `Array.prototype.includes` on the concrete pathname, so a
+    // parameterized pattern like `/reset-password/:token` would otherwise slip
+    // past `onRequest` and reach the router.
+    handler: (request: Request) => {
+      if (isDisabledAuthPath(request)) {
+        return Promise.resolve(new Response('Not Found', { status: 404 }))
+      }
+      return baseAuth.handler(withTrustedClientIpHeader(request))
+    }
+  }
 }
 
 // Cache one better-auth instance per resolved base URL and service name.
 // Instances differ only in their passkey rpID/origin and the rpName/issuer
-// labels; everything else (database, secret, trusted-origin union) is shared,
-// so they all read/write the same sessions and accounts. Each instance keeps
-// its own in-memory rate-limit counters, so a domain renamed in Admin starts
-// fresh counters under its new name.
+// labels; everything else (database, secret, trusted-origin union, and
+// database-backed `rateLimit` counters) is shared across instances and
+// processes.
 //
 // The cache is LRU-bounded: with a concrete ACTIVITIES_TRUSTED_HOSTS list the key
 // set is small, but a wildcard entry (e.g. `*.example.com`) lets

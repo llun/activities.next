@@ -401,6 +401,19 @@ CREATE TABLE public.deleted_attachment_media (
     "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
+CREATE TABLE public.delivery_inbox_failures (
+    inbox text NOT NULL,
+    domain text NOT NULL,
+    "failureDays" integer DEFAULT 0 NOT NULL,
+    "lastFailureDay" text,
+    "firstFailureAt" timestamp with time zone NOT NULL,
+    "lastFailureAt" timestamp with time zone NOT NULL,
+    "unavailableSince" timestamp with time zone,
+    "lastError" text,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
 CREATE TABLE public.direct_conversation_memberships (
     id bigint NOT NULL,
     "actorId" character varying(255) NOT NULL,
@@ -1278,6 +1291,13 @@ CREATE TABLE public.queue_jobs (
     claim_token character varying(255) DEFAULT NULL::character varying
 );
 
+CREATE TABLE public."rateLimit" (
+    id character varying(255) NOT NULL,
+    key text NOT NULL,
+    count integer NOT NULL,
+    "lastRequest" bigint NOT NULL
+);
+
 CREATE TABLE public.recipients (
     id character varying(255) NOT NULL,
     "statusId" character varying(255),
@@ -1744,6 +1764,9 @@ ALTER TABLE ONLY public.dead_letter_jobs
 ALTER TABLE ONLY public.deleted_attachment_media
     ADD CONSTRAINT deleted_attachment_media_pkey PRIMARY KEY ("attachmentId");
 
+ALTER TABLE ONLY public.delivery_inbox_failures
+    ADD CONSTRAINT delivery_inbox_failures_pkey PRIMARY KEY (inbox);
+
 ALTER TABLE ONLY public.direct_conversation_memberships
     ADD CONSTRAINT direct_conversation_memberships_pkey PRIMARY KEY (id);
 
@@ -2002,6 +2025,9 @@ ALTER TABLE ONLY public.push_subscriptions
 ALTER TABLE ONLY public.queue_jobs
     ADD CONSTRAINT queue_jobs_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY public."rateLimit"
+    ADD CONSTRAINT "rateLimit_pkey" PRIMARY KEY (id);
+
 ALTER TABLE ONLY public.recipients
     ADD CONSTRAINT recipients_pkey PRIMARY KEY (id);
 
@@ -2192,6 +2218,8 @@ CREATE INDEX "deleted_attachment_media_actorId_idx" ON public.deleted_attachment
 
 CREATE INDEX "deleted_attachment_media_createdAt_idx" ON public.deleted_attachment_media USING btree ("createdAt");
 
+CREATE INDEX delivery_inbox_failures_domain_idx ON public.delivery_inbox_failures USING btree (domain);
+
 CREATE INDEX direct_conversation_status ON public.direct_conversation_statuses USING btree ("statusId");
 
 CREATE INDEX direct_conversation_statuses_order ON public.direct_conversation_statuses USING btree ("conversationId", "createdAt", "statusId");
@@ -2335,6 +2363,10 @@ CREATE INDEX queue_jobs_created_at_idx ON public.queue_jobs USING btree (created
 CREATE INDEX queue_jobs_name_idx ON public.queue_jobs USING btree (name);
 
 CREATE INDEX queue_jobs_status_next_run_at_idx ON public.queue_jobs USING btree (status, next_run_at);
+
+CREATE UNIQUE INDEX rate_limit_key_unique ON public."rateLimit" USING btree (key);
+
+CREATE INDEX rate_limit_last_request_idx ON public."rateLimit" USING btree ("lastRequest");
 
 CREATE INDEX "recipiences_statusId_type_idx" ON public.recipients USING btree ("statusId", type, "createdAt", "updatedAt");
 

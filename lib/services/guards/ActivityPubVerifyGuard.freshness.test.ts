@@ -10,8 +10,11 @@ import {
 } from './ActivityPubVerifyGuard.testUtils'
 
 const mockCanFederateWithDomain = vi.fn()
+const mockClearDeliveryFailuresForDomain = vi.fn()
 const mockGetActorFromId = vi.fn()
 const mockDatabase = {
+  clearDeliveryFailuresForDomain: (...params: unknown[]) =>
+    mockClearDeliveryFailuresForDomain(...params),
   getActorFromId: (...params: unknown[]) => mockGetActorFromId(...params)
 }
 const mockGetSenderPublicKey = vi.fn()
@@ -24,10 +27,17 @@ vi.mock('@/lib/database', async () => ({
   getDatabase: () => mockDatabase
 }))
 
-vi.mock('@/lib/services/federation/domainPolicy', async () => ({
-  canFederateWithDomain: (...params: unknown[]) =>
-    mockCanFederateWithDomain(...params)
-}))
+vi.mock('@/lib/services/federation/domainPolicy', async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import('@/lib/services/federation/domainPolicy')
+    >()
+  return {
+    ...actual,
+    canFederateWithDomain: (...params: unknown[]) =>
+      mockCanFederateWithDomain(...params)
+  }
+})
 
 vi.mock('@/lib/services/guards/getSenderPublicKey', async () => ({
   getSenderPublicKey: (...params: unknown[]) =>
@@ -56,6 +66,7 @@ describe('ActivityPubVerifySenderGuard', () => {
     harness = setupRecordingTracer()
     vi.clearAllMocks()
     mockCanFederateWithDomain.mockResolvedValue(true)
+    mockClearDeliveryFailuresForDomain.mockResolvedValue(undefined)
     mockGetSenderPublicKey.mockResolvedValue('public-key')
     mockGetSenderPublicKeyDetails.mockResolvedValue({
       owner: 'https://remote.test/users/alice',

@@ -2,9 +2,14 @@ import { NextRequest } from 'next/server'
 
 import { GET as verifyCredentials } from '@/app/api/v1/accounts/verify_credentials/route'
 import { DEFAULT_SERVER_SETTINGS } from '@/lib/config/serverSettings'
+import { resetTrustProxyIpHeadersConfigCacheForTests } from '@/lib/config/trustProxyIpHeaders'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import { registerAccount } from '@/lib/services/accounts/registerAccount'
+import {
+  SIGN_UP_LIMIT,
+  resetRouteRateLimitsForTests
+} from '@/lib/services/auth/routeRateLimits'
 import {
   SERVED_DOMAIN_REFRESH_MS,
   refreshServedDomains,
@@ -88,6 +93,7 @@ const mastodonAccount = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  resetRouteRateLimitsForTests()
   vi.mocked(getResolvedServerSettings).mockResolvedValue(settingsWith(true))
 })
 
@@ -194,6 +200,54 @@ describe('POST /api/v1/accounts (web form / non-bearer)', () => {
     mockDatabase = {
       getMastodonActorsFromIds: vi.fn().mockResolvedValue([mastodonAccount])
     }
+  })
+
+  afterEach(() => {
+    delete process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS
+    resetTrustProxyIpHeadersConfigCacheForTests()
+    resetRouteRateLimitsForTests()
+  })
+
+  it('answers 429 past 25 sign-ups per trusted client IP while another IP passes', async () => {
+    expect(SIGN_UP_LIMIT).toBe(25)
+    process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS = 'true'
+    resetTrustProxyIpHeadersConfigCacheForTests()
+
+    vi.mocked(registerAccount).mockResolvedValue({
+      type: 'success',
+      accountId: 'new-account-id',
+      username: 'alice',
+      actorId: 'https://llun.test/users/alice'
+    })
+    const call = (ip: string) =>
+      POST(
+        new NextRequest('http://localhost/api/v1/accounts', {
+          method: 'POST',
+          body: 'username=alice&email=alice@example.com&password=password123',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            Accept: 'text/html',
+            Origin: 'https://client.llun.test',
+            'x-forwarded-for': ip
+          }
+        }),
+        { params: Promise.resolve({}) }
+      )
+
+    for (let i = 0; i < SIGN_UP_LIMIT; i += 1) {
+      expect((await call('198.51.100.30')).status).toBe(303)
+    }
+
+    const limited = await call('198.51.100.30')
+    expect(limited.status).toBe(429)
+    expect(await limited.json()).toEqual({ error: 'Too many requests' })
+    expect(Number(limited.headers.get('Retry-After'))).toBeGreaterThan(0)
+    expect(limited.headers.get('access-control-allow-origin')).toBe(
+      'https://client.llun.test'
+    )
+    expect(registerAccount).toHaveBeenCalledTimes(SIGN_UP_LIMIT)
+
+    expect((await call('198.51.100.31')).status).toBe(303)
   })
 
   it('declines JSON API clients with 501 and does not create an account', async () => {

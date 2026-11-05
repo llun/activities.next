@@ -1,36 +1,43 @@
-import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
-
 import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
-import { QUOTE_ACTIVITY_CONTEXT } from '@/lib/activities/quoteContext'
+import { DELIVERY_FAILURE_DAYS_THRESHOLD } from '@/lib/database/domains/deliveryInboxes/types'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import {
+  DELIVER_ACTIVITY_JOB_NAME,
+  SEND_UPDATE_NOTE_JOB_NAME
+} from '@/lib/jobs/names'
 import { sendUpdateNoteJob } from '@/lib/jobs/sendUpdateNoteJob'
-import { expectCall, mockRequests } from '@/lib/stub/activities'
+import { getDeliveryJobId } from '@/lib/services/federation/enqueueDeliveries'
 import { seedDatabase } from '@/lib/stub/database'
-import { seedActor1 } from '@/lib/stub/seed/actor1'
+import { ACTOR1_FOLLOWER_URL, seedActor1 } from '@/lib/stub/seed/actor1'
+import {
+  EXTERNAL_ACTOR1,
+  EXTERNAL_ACTOR1_INBOX
+} from '@/lib/stub/seed/external1'
 import { Actor } from '@/lib/types/domain/actor'
+import { FollowStatus } from '@/lib/types/domain/follow'
 import { Status } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
-import { logger } from '@/lib/utils/logger'
 
-enableFetchMocks()
+const publish = vi.fn()
+const mockGetQueue = vi.fn()
 
-vi.mock('@/lib/services/serverSettings', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('@/lib/services/serverSettings')>()
-  const { DEFAULT_SERVER_SETTINGS } =
-    await import('@/lib/config/serverSettings')
-  return {
-    ...actual,
-    getResolvedServerSettings: vi
-      .fn()
-      .mockResolvedValue(DEFAULT_SERVER_SETTINGS)
-  }
-})
+vi.mock('@/lib/services/queue', () => ({
+  getQueue: () => mockGetQueue()
+}))
+
+const mockQueue = (runsInline = false) => {
+  mockGetQueue.mockReturnValue({
+    runsInline,
+    dropsDelayedJobs: runsInline,
+    publish,
+    handle: vi.fn()
+  })
+}
 
 describe('Send update note job', () => {
-  const { database, prepare } = createTestDatabase()
+  const { database, db, prepare } = createTestDatabase()
   let actor1: Actor | null | undefined
 
   beforeAll(async () => {
@@ -48,13 +55,47 @@ describe('Send update note job', () => {
     await database.destroy()
   })
 
-  beforeEach(() => {
-    fetchMock.resetMocks()
-    mockRequests(fetchMock)
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    publish.mockReset().mockResolvedValue(undefined)
+    mockQueue(false)
+    await db.deleteFrom('delivery_inbox_failures').execute()
+    if (actor1?.id) {
+      await db
+        .deleteFrom('follows')
+        .where('targetActorId', '=', actor1.id)
+        .where('actorId', '!=', 'https://somewhere.test/actors/friend')
+        .execute()
+    }
   })
 
-  it('sends update note activities to followers and mentions', async () => {
+  it('builds one Update activity and publishes DELIVER_ACTIVITY per available inbox with dedup ids', async () => {
     if (!actor1) fail('Actor1 is required')
+
+    await database.createFollow({
+      actorId: 'https://second.example/users/follower2',
+      targetActorId: actor1.id,
+      inbox: 'https://second.example/inbox',
+      sharedInbox: 'https://second.example/inbox',
+      status: FollowStatus.enum.Accepted
+    })
+    await database.createFollow({
+      actorId: 'https://dead.example/users/follower3',
+      targetActorId: actor1.id,
+      inbox: 'https://dead.example/inbox',
+      sharedInbox: 'https://dead.example/inbox',
+      status: FollowStatus.enum.Accepted
+    })
+    const failureAt = Date.now()
+    for (let day = 1; day <= DELIVERY_FAILURE_DAYS_THRESHOLD; day++) {
+      await database.recordDeliveryFailure({
+        inbox: 'https://dead.example/inbox',
+        error: 'HTTP 503',
+        now:
+          failureAt -
+          (DELIVERY_FAILURE_DAYS_THRESHOLD - day) * 24 * 60 * 60 * 1000
+      })
+    }
 
     const status = (await database.getStatus({
       statusId: `${actor1.id}/statuses/post-1`,
@@ -64,33 +105,46 @@ describe('Send update note job', () => {
     if (!note) fail('Note is required')
 
     await sendUpdateNoteJob(database, {
-      id: 'job-id',
-      name: 'SendUpdateNoteJob',
+      id: 'update-job-1',
+      name: SEND_UPDATE_NOTE_JOB_NAME,
       data: {
         actorId: actor1.id,
         statusId: status.id
       }
     })
 
-    expectCall(fetchMock, 'https://somewhere.test/inbox', 'POST', {
-      // An Update is how a quoter re-federates its note once the quote is
-      // approved, so dropping the FEP-044f term definitions here is what would
-      // leave that approval invisible to a receiver that compacts.
-      '@context': QUOTE_ACTIVITY_CONTEXT,
-      id: expect.stringMatching(status.id),
-      type: 'Update',
-      actor: actor1.id,
-      to: [ACTIVITY_STREAM_PUBLIC],
-      cc: [],
-      object: {
-        ...note,
-        updated: getISOTimeUTC(status.updatedAt)
-      }
-    })
+    expect(publish).toHaveBeenCalledTimes(2)
+    const calls = publish.mock.calls.map(([msg]) => msg)
+    const inboxes = calls.map((msg) => msg.data.inbox).sort()
+    expect(inboxes).toEqual([
+      'https://second.example/inbox',
+      'https://somewhere.test/inbox'
+    ])
+
+    for (const msg of calls) {
+      expect(msg.id).toBe(getDeliveryJobId('update-job-1', msg.data.inbox))
+      expect(msg.name).toBe(DELIVER_ACTIVITY_JOB_NAME)
+      expect(msg.data.actorId).toBe(actor1.id)
+      expect(msg.data.activity).toMatchObject({
+        '@context': NOTE_ACTIVITY_CONTEXT,
+        id: expect.stringMatching(new RegExp(`^${status.id}#updates/\\d+$`)),
+        type: 'Update',
+        actor: actor1.id,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        object: {
+          ...note,
+          updated: getISOTimeUTC(status.updatedAt)
+        }
+      })
+    }
+
+    // Activity is built once: every inbox receives the exact same Update id.
+    expect(calls[0].data.activity.id).toBe(calls[1].data.activity.id)
   })
 
   it.each([false, true])(
-    'delivers Update(Question), including the closed state when expired=%s',
+    'publishes Update(Question), including the closed state when expired=%s',
     async (expired) => {
       if (!actor1) fail('Actor1 is required')
       const statusId = `${actor1.id}/statuses/update-poll-${expired}`
@@ -103,30 +157,42 @@ describe('Send update note job', () => {
         choices: ['Red', 'Blue'],
         endAt,
         to: [ACTIVITY_STREAM_PUBLIC],
-        cc: [`${actor1.id}/followers`]
+        cc: [ACTOR1_FOLLOWER_URL]
       })
+
       await sendUpdateNoteJob(database, {
         id: `poll-update-${expired}`,
-        name: 'SendUpdateNoteJob',
+        name: SEND_UPDATE_NOTE_JOB_NAME,
         data: { actorId: actor1.id, statusId }
       })
-      expectCall(fetchMock, 'https://somewhere.test/inbox', 'POST', {
-        '@context': NOTE_ACTIVITY_CONTEXT,
-        type: 'Update',
-        object: {
-          type: 'Question',
-          id: statusId,
-          updated: getISOTimeUTC(status.updatedAt),
-          endTime: getISOTimeUTC(endAt),
-          ...(expired ? { closed: getISOTimeUTC(endAt) } : {})
+
+      expect(publish).toHaveBeenCalledWith({
+        id: getDeliveryJobId(
+          `poll-update-${expired}`,
+          'https://somewhere.test/inbox'
+        ),
+        name: DELIVER_ACTIVITY_JOB_NAME,
+        data: {
+          inbox: 'https://somewhere.test/inbox',
+          actorId: actor1.id,
+          activity: expect.objectContaining({
+            '@context': NOTE_ACTIVITY_CONTEXT,
+            type: 'Update',
+            object: expect.objectContaining({
+              type: 'Question',
+              id: statusId,
+              updated: getISOTimeUTC(status.updatedAt),
+              endTime: getISOTimeUTC(endAt),
+              ...(expired ? { closed: getISOTimeUTC(endAt) } : {})
+            })
+          })
         }
       })
-      const call = fetchMock.mock.calls.find(
-        ([url]) => url === 'https://somewhere.test/inbox'
-      )
-      const body = JSON.parse(String(call?.[1]?.body))
-      // toMatchObject ignores extra keys: pin that an open poll has no closed.
-      expect('closed' in body.object).toBe(expired)
+
+      const published = publish.mock.calls.find(
+        ([msg]) => msg.data.inbox === 'https://somewhere.test/inbox'
+      )?.[0]
+      expect('closed' in published.data.activity.object).toBe(expired)
     }
   )
 
@@ -135,14 +201,14 @@ describe('Send update note job', () => {
 
     await sendUpdateNoteJob(database, {
       id: 'job-id',
-      name: 'SendUpdateNoteJob',
+      name: SEND_UPDATE_NOTE_JOB_NAME,
       data: {
         actorId: actor1.id,
         statusId: 'not-exist-status'
       }
     })
 
-    expect(fetchMock).not.toHaveBeenCalled()
+    expect(publish).not.toHaveBeenCalled()
   })
 
   it('does nothing if actor is not found', async () => {
@@ -153,63 +219,56 @@ describe('Send update note job', () => {
 
     await sendUpdateNoteJob(database, {
       id: 'job-id',
-      name: 'SendUpdateNoteJob',
+      name: SEND_UPDATE_NOTE_JOB_NAME,
       data: {
         actorId: 'not-exist-actor',
         statusId: status.id
       }
     })
 
-    expect(fetchMock).not.toHaveBeenCalled()
+    expect(publish).not.toHaveBeenCalled()
   })
 
-  it('does not log to logger.error when inbox request fails with network error', async () => {
+  it('isolates inline delivery errors and retries when a real queue publish fails', async () => {
     if (!actor1) fail('Actor1 is required')
+    const statusId = `${actor1.id}/statuses/direct-update-1`
+    await database.createNote({
+      id: statusId,
+      url: statusId,
+      actorId: actor1.id,
+      text: 'edited direct note',
+      to: [ACTIVITY_STREAM_PUBLIC, EXTERNAL_ACTOR1],
+      cc: [ACTOR1_FOLLOWER_URL]
+    })
 
-    const status = (await database.getStatus({
-      statusId: `${actor1.id}/statuses/post-1`,
-      withReplies: false
-    })) as Status
-
-    fetchMock.mockRejectOnce(new Error('Network error'))
-    const loggerErrorSpy = vi.spyOn(logger, 'error')
-
-    await sendUpdateNoteJob(database, {
-      id: 'job-id',
-      name: 'SendUpdateNoteJob',
-      data: {
-        actorId: actor1.id,
-        statusId: status.id
+    mockQueue(true)
+    publish.mockImplementation(async (msg) => {
+      if (msg.data.inbox === 'https://somewhere.test/inbox') {
+        throw new Error('inline delivery failed')
       }
     })
 
-    expect(loggerErrorSpy).not.toHaveBeenCalled()
-    loggerErrorSpy.mockRestore()
-  })
+    await expect(
+      sendUpdateNoteJob(database, {
+        id: 'inline-update-1',
+        name: SEND_UPDATE_NOTE_JOB_NAME,
+        data: { actorId: actor1.id, statusId }
+      })
+    ).resolves.toBeUndefined()
+    expect(publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ inbox: EXTERNAL_ACTOR1_INBOX })
+      })
+    )
 
-  it('does not log to logger.error when inbox responds with HTTP error status code', async () => {
-    if (!actor1) fail('Actor1 is required')
-
-    const status = (await database.getStatus({
-      statusId: `${actor1.id}/statuses/post-1`,
-      withReplies: false
-    })) as Status
-
-    fetchMock.mockResponseOnce(JSON.stringify({ error: 'Unprocessable' }), {
-      status: 422
-    })
-    const loggerErrorSpy = vi.spyOn(logger, 'error')
-
-    await sendUpdateNoteJob(database, {
-      id: 'job-id',
-      name: 'SendUpdateNoteJob',
-      data: {
-        actorId: actor1.id,
-        statusId: status.id
-      }
-    })
-
-    expect(loggerErrorSpy).not.toHaveBeenCalled()
-    loggerErrorSpy.mockRestore()
+    mockQueue(false)
+    publish.mockReset().mockRejectedValue(new Error('queue unavailable'))
+    await expect(
+      sendUpdateNoteJob(database, {
+        id: 'queued-update-1',
+        name: SEND_UPDATE_NOTE_JOB_NAME,
+        data: { actorId: actor1.id, statusId }
+      })
+    ).rejects.toThrow('Failed to publish 2 delivery jobs')
   })
 })

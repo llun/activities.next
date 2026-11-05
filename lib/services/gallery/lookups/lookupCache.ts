@@ -8,7 +8,7 @@ const MINUTE = 60 * 1000
 const DAY = 24 * 60 * MINUTE
 
 export type LookupCacheKind =
-  'gbif-match' | 'gbif-taxon' | 'gbif-search' | 'geocode'
+  'gbif-match' | 'gbif-taxon' | 'gbif-search' | 'gbif-occurrence' | 'geocode'
 
 // How long each outcome of each kind is trusted. A hit is trusted longest, a
 // miss for less (so a new name can appear), an error only briefly (so a
@@ -20,6 +20,7 @@ export const LOOKUP_CACHE_TTL_MS: Record<
   'gbif-match': { ok: 30 * DAY, miss: 7 * DAY, error: 10 * MINUTE },
   'gbif-taxon': { ok: 30 * DAY, miss: 7 * DAY, error: 10 * MINUTE },
   'gbif-search': { ok: DAY, miss: DAY, error: 10 * MINUTE },
+  'gbif-occurrence': { ok: 30 * DAY, miss: 7 * DAY, error: 10 * MINUTE },
   geocode: { ok: 180 * DAY, miss: 30 * DAY, error: 10 * MINUTE }
 }
 

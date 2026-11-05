@@ -4,6 +4,7 @@ import { AccountImportDatabase } from '@/lib/database/domains/accountImport/type
 import { ActorHandleDatabase } from '@/lib/database/domains/actorHandle/types'
 import { ActorMigrationDatabase } from '@/lib/database/domains/actorMigration/types'
 import { BulkImportDatabase } from '@/lib/database/domains/bulkImport/types'
+import { DeliveryInboxesDatabase } from '@/lib/database/domains/deliveryInboxes/types'
 import { FitnessFileDatabase } from '@/lib/database/domains/fitnessFile/types'
 import { FitnessFileRouteDatabase } from '@/lib/database/domains/fitnessFileRoute/types'
 import { FitnessFileRouteDataDatabase } from '@/lib/database/domains/fitnessFileRouteData/types'
@@ -115,6 +116,7 @@ export type Database = AccountDatabase &
   BookmarkDatabase &
   CustomEmojiDatabase &
   DeadLetterJobDatabase &
+  DeliveryInboxesDatabase &
   DirectConversationDatabase &
   FollowDatabase &
   LikeDatabase &

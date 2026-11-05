@@ -226,7 +226,7 @@ describe('sendFeaturedStatusJob', () => {
           eventId: 'pin-event-1'
         }
       })
-    ).rejects.toThrow('featured status deliveries')
+    ).rejects.toThrow('queue unavailable')
   })
 
   it('keeps going when an inline delivery fails', async () => {
