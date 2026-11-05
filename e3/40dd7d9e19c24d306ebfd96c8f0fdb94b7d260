@@ -1,0 +1,29 @@
+lib/components/photo-editor/PhotoEditPreview.tsx
+  s_2b1a50e2f9b981::t_06052345abb1a7 21,66
+lib/components/photo-editor/PhotoEditPreview.test.tsx
+  s_2b1a50e2f9b981::t_06052345abb1a7 122-123
+docs/architecture.md
+  s_2b1a50e2f9b981::t_09e706d9a5c9d4 922
+docs/maintenance.md
+  s_2b1a50e2f9b981::t_60feff7989fe9f 1015
+lib/services/medias/edit/editable.test.ts
+  s_2b1a50e2f9b981::t_06052345abb1a7 33-39
+lib/services/medias/edit/editable.ts
+  s_2b1a50e2f9b981::t_06052345abb1a7 4-5,9-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e340dd7d9e19c24d306ebfd96c8f0fdb94b7d260",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
