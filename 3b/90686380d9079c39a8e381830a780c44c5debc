@@ -1,0 +1,39 @@
+lib/services/auth/rateLimit.test.ts
+  s_2b1a50e2f9b981::t_b3a2e6a6d37619 197-200,393-404
+  s_2b1a50e2f9b981::t_5f1ff72df1d1f5 405-406
+lib/utils/getTrustedClientIp.test.ts
+  s_2b1a50e2f9b981::t_b3a2e6a6d37619 65,67-68,73,77-79
+docs/architecture.md
+  s_2b1a50e2f9b981::t_b3a2e6a6d37619 180-181
+lib/services/auth/routeRateLimits.ts
+  s_2b1a50e2f9b981::t_b3a2e6a6d37619 16,75-90
+  s_2b1a50e2f9b981::t_bc618c6bf7b8be 42-52
+lib/utils/getTrustedClientIp.ts
+  s_2b1a50e2f9b981::t_b3a2e6a6d37619 9-12,15-16,20-25,44,47-49
+lib/services/gallery/lookups/rateLimit.ts
+  s_2b1a50e2f9b981::t_b3a2e6a6d37619 126-129,154-156,160-165,167,170-184,187
+lib/services/gallery/lookups/rateLimit.test.ts
+  s_2b1a50e2f9b981::t_b3a2e6a6d37619 221,223,227-229,231-250
+docs/environment-variables.md
+  s_2b1a50e2f9b981::t_609c748044bdc7 119-122
+lib/services/auth/auth.ts
+  s_2b1a50e2f9b981::t_b3a2e6a6d37619 50-53,258,261,264,267
+lib/services/auth/routeRateLimits.test.ts
+  s_2b1a50e2f9b981::t_b3a2e6a6d37619 1-52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3b90686380d9079c39a8e381830a780c44c5debc",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
