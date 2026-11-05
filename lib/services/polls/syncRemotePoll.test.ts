@@ -195,6 +195,34 @@ describe('syncRemotePoll', () => {
     )
   })
 
+  it('keeps the stored deadline when the remote endTime is unparseable', async () => {
+    ;(getNote as jest.Mock).mockResolvedValue({
+      '@context': 'https://www.w3.org/ns/activitystreams',
+      id: remotePollStatus.id,
+      type: 'Question',
+      attributedTo: remotePollStatus.actorId,
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: [],
+      content: '<p>Favorite color?</p>',
+      published: '2026-08-31T00:00:00Z',
+      endTime: 'not-a-date',
+      oneOf: [
+        {
+          type: 'Note',
+          name: 'Red',
+          replies: { type: 'Collection', totalItems: 1 }
+        }
+      ]
+    })
+    ;(mockDatabase.updatePoll as jest.Mock).mockResolvedValue(remotePollStatus)
+
+    await syncRemotePoll({ database: mockDatabase, status: remotePollStatus })
+
+    expect(mockDatabase.updatePoll).toHaveBeenCalledWith(
+      expect.not.objectContaining({ endAt: expect.anything() })
+    )
+  })
+
   it('handles multiple-choice anyOf polls correctly', async () => {
     const remoteQuestion = {
       '@context': 'https://www.w3.org/ns/activitystreams',

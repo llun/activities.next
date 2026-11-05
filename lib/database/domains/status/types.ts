@@ -292,9 +292,13 @@ export type UpdatePollParams = Pick<CreatePollParams, 'text' | 'summary'> & {
   endAt?: number
   pollType?: 'oneOf' | 'anyOf'
   hideTotals?: boolean
+  // The origin's `updated` timestamp this Update(Question) carries; stored so
+  // updatePollJob can ignore an older one delivered later. Omit to keep it.
+  remoteUpdatedAt?: number
   // When true `choices` replaces the option set and all recorded votes are
-  // cleared (Mastodon edit semantics); when false/omitted `choices` only
-  // refreshes tallies for the existing titles (federated poll refresh).
+  // cleared (Mastodon edit semantics); when false/omitted `choices` refreshes
+  // the tallies of the existing choices by position (federated poll refresh),
+  // each only where its title still matches the stored row.
   resetVotes?: boolean
 }
 

@@ -39,6 +39,10 @@ const MockActivityPubQuestion = (
     summary?: string | null
     published?: number
     endTime?: number
+    // Mastodon's `updated` on an explicit edit; null omits it (an implicit
+    // Update, e.g. a tally refresh). Defaults to the build time.
+    updated?: number | null
+    closed?: string | boolean
     oneOf?: QuestionOption[]
     anyOf?: QuestionOption[]
     includeTag?: boolean
@@ -50,6 +54,8 @@ const MockActivityPubQuestion = (
     summary = null,
     published = Date.now(),
     endTime = Date.now() + 24 * 60 * 60 * 1000,
+    updated = Date.now(),
+    closed,
     oneOf,
     anyOf,
     includeTag = true,
@@ -81,6 +87,8 @@ const MockActivityPubQuestion = (
     summary,
     published: getISOTimeUTC(published),
     endTime: getISOTimeUTC(endTime),
+    ...(updated === null ? {} : { updated: getISOTimeUTC(updated) }),
+    ...(closed === undefined ? {} : { closed }),
     inReplyTo: null,
     url: id,
     ...(includeTag ? { tag: [] } : {}),
@@ -385,10 +393,12 @@ describe('updatePollJob', () => {
       id: 'id-reset-update',
       name: UPDATE_POLL_JOB_NAME,
       data: MockActivityPubQuestion(pollId, {
+        // Blue survives the edit but arrives untallied: on a reset its tally
+        // comes from the Update (0), not from the stored row (2).
         oneOf: [
           createOption('Crimson', 7),
-          createOption('Blue', 2),
-          createUntalliedOption('Green')
+          createUntalliedOption('Blue'),
+          createOption('Green', 3)
         ]
       })
     })
@@ -402,7 +412,7 @@ describe('updatePollJob', () => {
       'Blue',
       'Green'
     ])
-    expect(status.choices.map((choice) => choice.totalVotes)).toEqual([7, 2, 0])
+    expect(status.choices.map((choice) => choice.totalVotes)).toEqual([7, 0, 3])
     expect(status.voted).toBe(false)
     expect(status.ownVotes).toEqual([])
     expect(status.votersCount).toBe(0)
@@ -470,5 +480,237 @@ describe('updatePollJob', () => {
     expect(status.choices.map((choice) => choice.totalVotes)).toEqual([9, 4])
     expect(status.voted).toBe(true)
     expect(status.ownVotes).toEqual([0])
+  })
+
+  it('keeps the stored deadline and records no revision for an unparseable endTime', async () => {
+    const pollId = `${REMOTE_ACTOR_ID}/questions/bad-endtime-${Date.now()}`
+    const originalEnd = Date.now() + 24 * 60 * 60 * 1000
+    await createPollJob(database, {
+      id: 'id-bad-endtime-create',
+      name: CREATE_POLL_JOB_NAME,
+      data: MockActivityPubQuestion(pollId, { endTime: originalEnd })
+    })
+    const before = (await database.getStatus({
+      statusId: pollId
+    })) as StatusPoll
+
+    // Two explicit Updates, each newer than the last, both with a bad endTime:
+    // NaN must not be stored as null (hydrated as "expired at creation"), and a
+    // redelivery must not keep adding revisions for an unchanged poll.
+    for (const [index, updated] of [Date.now(), Date.now() + 1000].entries()) {
+      await updatePollJob(database, {
+        id: `id-bad-endtime-update-${index}`,
+        name: UPDATE_POLL_JOB_NAME,
+        data: {
+          ...MockActivityPubQuestion(pollId, { updated }),
+          endTime: 'not-a-date'
+        }
+      })
+    }
+
+    const status = (await database.getStatus({
+      statusId: pollId
+    })) as StatusPoll
+    expect(status.endAt).toEqual(before.endAt)
+    expect(status.edits).toHaveLength(0)
+  })
+
+  it('prefers a string closed over endTime as the deadline', async () => {
+    const pollId = `${REMOTE_ACTOR_ID}/questions/closed-string-${Date.now()}`
+    const endTime = Date.now() + 24 * 60 * 60 * 1000
+    const closedAt = Date.now() - 60 * 60 * 1000
+    await createPollJob(database, {
+      id: 'id-closed-string-create',
+      name: CREATE_POLL_JOB_NAME,
+      data: MockActivityPubQuestion(pollId, { endTime })
+    })
+
+    await updatePollJob(database, {
+      id: 'id-closed-string-update',
+      name: UPDATE_POLL_JOB_NAME,
+      data: MockActivityPubQuestion(pollId, {
+        endTime,
+        closed: getISOTimeUTC(closedAt)
+      })
+    })
+
+    const status = (await database.getStatus({
+      statusId: pollId
+    })) as StatusPoll
+    expect(status.endAt).toEqual(new Date(getISOTimeUTC(closedAt)).getTime())
+  })
+
+  it('accepts a boolean closed and closes the poll now', async () => {
+    const pollId = `${REMOTE_ACTOR_ID}/questions/closed-bool-${Date.now()}`
+    const endTime = Date.now() + 24 * 60 * 60 * 1000
+    await createPollJob(database, {
+      id: 'id-closed-bool-create',
+      name: CREATE_POLL_JOB_NAME,
+      data: MockActivityPubQuestion(pollId, { endTime })
+    })
+
+    const before = Date.now()
+    await updatePollJob(database, {
+      id: 'id-closed-bool-update',
+      name: UPDATE_POLL_JOB_NAME,
+      data: MockActivityPubQuestion(pollId, { endTime, closed: true })
+    })
+    const after = Date.now()
+
+    const status = (await database.getStatus({
+      statusId: pollId
+    })) as StatusPoll
+    expect(status.endAt).toBeGreaterThanOrEqual(before)
+    expect(status.endAt).toBeLessThanOrEqual(after)
+  })
+
+  it('applies tallies from an Update with the same updated as the last applied one', async () => {
+    const pollId = `${REMOTE_ACTOR_ID}/questions/same-updated-${Date.now()}`
+    await createPollJob(database, {
+      id: 'id-same-updated-create',
+      name: CREATE_POLL_JOB_NAME,
+      data: MockActivityPubQuestion(pollId, {
+        oneOf: [createOption('Red', 1), createOption('Blue', 2)]
+      })
+    })
+    const updated = Date.now()
+    for (const [id, red, blue] of [
+      ['id-same-updated-1', 3, 4],
+      ['id-same-updated-2', 8, 9]
+    ] as const) {
+      await updatePollJob(database, {
+        id,
+        name: UPDATE_POLL_JOB_NAME,
+        data: MockActivityPubQuestion(pollId, {
+          updated,
+          oneOf: [createOption('Red', red), createOption('Blue', blue)]
+        })
+      })
+    }
+
+    const status = (await database.getStatus({
+      statusId: pollId
+    })) as StatusPoll
+    expect(status.choices.map((choice) => choice.totalVotes)).toEqual([8, 9])
+  })
+
+  it('ignores an Update whose updated is older than the last applied one', async () => {
+    const pollId = `${REMOTE_ACTOR_ID}/questions/stale-${Date.now()}`
+    await createPollJob(database, {
+      id: 'id-stale-create',
+      name: CREATE_POLL_JOB_NAME,
+      data: MockActivityPubQuestion(pollId, {
+        oneOf: [createOption('Red', 1), createOption('Blue', 2)]
+      })
+    })
+    const newer = Date.now()
+    await updatePollJob(database, {
+      id: 'id-stale-update-newer',
+      name: UPDATE_POLL_JOB_NAME,
+      data: MockActivityPubQuestion(pollId, {
+        content: '<p>Second edit</p>',
+        updated: newer,
+        oneOf: [createOption('Red', 5), createOption('Blue', 6)]
+      })
+    })
+
+    // The first edit, delivered late: older `updated`, older text and tallies
+    // and a different option set, none of which may apply.
+    await updatePollJob(database, {
+      id: 'id-stale-update-older',
+      name: UPDATE_POLL_JOB_NAME,
+      data: MockActivityPubQuestion(pollId, {
+        content: '<p>First edit</p>',
+        updated: newer - 60_000,
+        oneOf: [createOption('Red', 3), createOption('Teal', 4)]
+      })
+    })
+
+    const status = (await database.getStatus({
+      statusId: pollId
+    })) as StatusPoll
+    expect(status.text).toEqual('<p>Second edit</p>')
+    expect(status.choices.map((choice) => choice.title)).toEqual([
+      'Red',
+      'Blue'
+    ])
+    expect(status.choices.map((choice) => choice.totalVotes)).toEqual([5, 6])
+    expect(status.edits).toHaveLength(1)
+  })
+
+  it('does not reset votes or change the options on an implicit Update', async () => {
+    const pollId = `${REMOTE_ACTOR_ID}/questions/implicit-${Date.now()}`
+    const originalEnd = Date.now() + 24 * 60 * 60 * 1000
+    await createPollJob(database, {
+      id: 'id-implicit-create',
+      name: CREATE_POLL_JOB_NAME,
+      data: MockActivityPubQuestion(pollId, {
+        endTime: originalEnd,
+        oneOf: [createOption('Red', 1), createOption('Blue', 2)]
+      })
+    })
+    await database.recordPollVotes({
+      statusId: pollId,
+      actorId: ACTOR1_ID,
+      choices: [0]
+    })
+
+    // No `updated`: Mastodon applies no significant change (options, mode,
+    // deadline) from such an Update, so nothing here may reset the votes.
+    await updatePollJob(database, {
+      id: 'id-implicit-update',
+      name: UPDATE_POLL_JOB_NAME,
+      data: MockActivityPubQuestion(pollId, {
+        updated: null,
+        endTime: originalEnd + 60 * 60 * 1000,
+        anyOf: [createOption('Crimson', 9), createOption('Blue', 9)]
+      })
+    })
+
+    const status = (await database.getStatus({
+      statusId: pollId,
+      currentActorId: ACTOR1_ID
+    })) as StatusPoll
+    expect(status.choices.map((choice) => choice.title)).toEqual([
+      'Red',
+      'Blue'
+    ])
+    expect(status.choices.map((choice) => choice.totalVotes)).toEqual([2, 2])
+    expect(status.pollType).toEqual('oneOf')
+    expect(status.endAt).toEqual(new Date(getISOTimeUTC(originalEnd)).getTime())
+    expect(status.voted).toBe(true)
+    expect(status.ownVotes).toEqual([0])
+  })
+
+  it('keeps each tally of options that share a title', async () => {
+    const pollId = `${REMOTE_ACTOR_ID}/questions/dupes-${Date.now()}`
+    await createPollJob(database, {
+      id: 'id-dupes-create',
+      name: CREATE_POLL_JOB_NAME,
+      data: MockActivityPubQuestion(pollId, {
+        oneOf: [
+          createOption('Same', 1),
+          createOption('Same', 2),
+          createOption('Other', 3)
+        ]
+      })
+    })
+
+    await updatePollJob(database, {
+      id: 'id-dupes-update',
+      name: UPDATE_POLL_JOB_NAME,
+      data: MockActivityPubQuestion(pollId, {
+        oneOf: [
+          createUntalliedOption('Same'),
+          createOption('Same', 7),
+          createUntalliedOption('Other')
+        ]
+      })
+    })
+
+    const status = (await database.getStatus({
+      statusId: pollId
+    })) as StatusPoll
+    expect(status.choices.map((choice) => choice.totalVotes)).toEqual([1, 7, 3])
   })
 })

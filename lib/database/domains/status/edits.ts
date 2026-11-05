@@ -545,6 +545,7 @@ export const updatePoll = async (
     endAt,
     pollType,
     hideTotals,
+    remoteUpdatedAt,
     resetVotes = false
   }: UpdatePollParams
 ): Promise<Status | null> => {
@@ -569,7 +570,8 @@ export const updatePoll = async (
     endAt: endAt ?? data.endAt,
     pollType: pollType ?? data.pollType,
     hideTotals:
-      hideTotals === undefined ? (data.hideTotals ?? false) : hideTotals
+      hideTotals === undefined ? (data.hideTotals ?? false) : hideTotals,
+    remoteUpdatedAt: remoteUpdatedAt ?? data.remoteUpdatedAt
   }
   const statusContent = JSON.stringify(content)
   const searchStatus: StatusSearchRow = {
@@ -595,15 +597,19 @@ export const updatePoll = async (
     content.pollType !== data.pollType ||
     content.hideTotals !== (data.hideTotals ?? false) ||
     resetVotes
+  // The origin's last applied `updated` is bookkeeping, not an edit: it is
+  // written to the content without a revision or an updatedAt bump.
+  const remoteUpdatedAtChanged =
+    content.remoteUpdatedAt !== data.remoteUpdatedAt
 
   await inTransaction(db, async (trx) => {
+    const previousChoices = await trx
+      .selectFrom('poll_choices')
+      .select(['choiceId', 'title'])
+      .where('statusId', '=', statusId)
+      .orderBy('choiceId', 'asc')
+      .execute()
     if (contentChanged) {
-      const previousChoices = await trx
-        .selectFrom('poll_choices')
-        .select('title')
-        .where('statusId', '=', statusId)
-        .orderBy('choiceId', 'asc')
-        .execute()
       const previousData = {
         text: data.text,
         summary: data.summary,
@@ -620,13 +626,15 @@ export const updatePoll = async (
           updatedAt: currentTime
         })
         .execute()
+    }
+    if (contentChanged || remoteUpdatedAtChanged) {
       await trx
         .updateTable('statuses')
         .set({
           url: data.url || null,
           urlHash: data.url ? getHashFromString(data.url) : null,
           content: statusContent,
-          updatedAt: currentTime
+          ...(contentChanged ? { updatedAt: currentTime } : {})
         })
         .where('id', '=', statusId)
         .execute()
@@ -662,11 +670,16 @@ export const updatePoll = async (
       }
       return
     }
-    for (const choice of choices) {
+    // Tallies are keyed by position (the stored rows in choiceId order), so
+    // duplicate titles each keep their own count; the title must still match,
+    // so an option list that is not the stored one in order writes nothing.
+    for (const [index, choice] of choices.entries()) {
+      const stored = previousChoices[index]
+      if (!stored) continue
       await trx
         .updateTable('poll_choices')
         .set({ totalVotes: choice.totalVotes, updatedAt: currentTime })
-        .where('statusId', '=', statusId)
+        .where('choiceId', '=', stored.choiceId)
         .where('title', '=', choice.title)
         .execute()
     }

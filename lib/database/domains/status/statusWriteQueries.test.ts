@@ -468,7 +468,10 @@ const STATEMENTS: [RegExp, (bindings: unknown[]) => string][] = [
   ],
   [/^insert into "recipients" /, (b) => `recipient ${b[3]} ${b[2]}`],
   [/^insert into "poll_choices" /, (b) => `insert choice ${b[1]}`],
-  [/^select "title" from "poll_choices" /, () => 'read choice titles'],
+  [
+    /^select "choiceId", "title" from "poll_choices" /,
+    () => 'read choice titles'
+  ],
   [/^insert into "status_history" /, () => 'insert history'],
   [/^update "statuses" set /, () => 'update status'],
   [/^delete from "attachments" /, () => 'delete attachments'],
@@ -2709,6 +2712,7 @@ describe('updatePoll', () => {
     expect(await neighbourRows(neighbour)).toEqual(neighbourBefore)
     expect(transactionSteps(statements)).toEqual([
       'begin',
+      'read choice titles',
       'tally red',
       'tally green',
       'tally blue',
@@ -2727,7 +2731,11 @@ describe('updatePoll', () => {
         statusId: id,
         text: 'new question',
         sensitive: true,
-        choices: [{ title: 'green', totalVotes: 9 }]
+        // Tallies are positional: the list is the stored one in order.
+        choices: [
+          { title: 'red', totalVotes: 3 },
+          { title: 'green', totalVotes: 9 }
+        ]
       })
     )
 
@@ -2774,6 +2782,7 @@ describe('updatePoll', () => {
       'read choice titles',
       'insert history',
       'update status',
+      'tally red',
       'tally green',
       'commit'
     ])
@@ -2875,6 +2884,7 @@ describe('updatePoll', () => {
         text: 'new question',
         choices: [
           { title: 'red', totalVotes: 4 },
+          { title: 'green', totalVotes: 6 },
           { title: 'blue', totalVotes: 1 }
         ]
       })

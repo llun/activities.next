@@ -1,5 +1,9 @@
 import { getContent, getSummary } from '@/lib/activities/note'
-import { getPollChoicesFromQuestion } from '@/lib/services/polls/pollChoices'
+import {
+  getPollChoicesFromQuestion,
+  getPollEndAtFromQuestion,
+  parseQuestionTime
+} from '@/lib/services/polls/pollChoices'
 import { ENTITY_TYPE_QUESTION, Question } from '@/lib/types/activitypub'
 import { StatusType } from '@/lib/types/domain/status'
 import {
@@ -60,6 +64,31 @@ export const updatePollJob = createJobHandle(
       return
     }
 
+    // Mastodon's ActivityPub::ProcessStatusUpdateService: an Update whose
+    // `updated` is not newer than the last one applied is stale and ignored
+    // (already_updated_more_recently?); one with no `updated` is implicit (a
+    // tally refresh) and may not make a significant change — no option change,
+    // vote reset, mode switch or deadline move (update_poll! with
+    // allow_significant_changes: false) — so it refreshes text, summary and,
+    // when the options are unchanged, the tallies.
+    const remoteUpdatedAt = parseQuestionTime(question.updated)
+    if (
+      remoteUpdatedAt !== undefined &&
+      existingStatus.remoteUpdatedAt !== undefined &&
+      // Strictly older only, as Mastodon's already_updated_more_recently?: an
+      // Update with the same `updated` (a tally refresh) still applies.
+      remoteUpdatedAt < existingStatus.remoteUpdatedAt
+    ) {
+      logger.info({
+        message: 'Ignoring a stale poll update',
+        statusId: question.id,
+        updated: question.updated,
+        lastAppliedUpdated: existingStatus.remoteUpdatedAt
+      })
+      return
+    }
+    const implicit = remoteUpdatedAt === undefined
+
     const text = getContent(question)
     const summary = getSummary(question)
     const pollType = question.oneOf
@@ -69,30 +98,37 @@ export const updatePollJob = createJobHandle(
         : existingStatus.pollType
     const nextChoices = getPollChoicesFromQuestion(question)
     const storedTitles = existingStatus.choices.map((choice) => choice.title)
-    // Mastodon resets a poll's votes when its option set or its single/multiple
-    // mode changes (PollParser#significantly_changes? in
-    // ActivityPub::ProcessStatusUpdateService): stored local votes are cleared
-    // so voters can vote again and the new options carry the Update's own
-    // tallies (0 when absent). Otherwise an option without `replies` keeps its
-    // stored tally. An Update carrying no options leaves the option set alone.
-    const resetVotes =
+    // Mastodon's PollParser#significantly_changes?: the option titles in order
+    // or the single/multiple mode differ. An Update carrying no options leaves
+    // the option set alone.
+    const optionsChanged =
       nextChoices.length > 0 &&
       (pollType !== existingStatus.pollType ||
         nextChoices.length !== storedTitles.length ||
         nextChoices.some(
           (choice, index) => choice.title !== storedTitles[index]
         ))
+    // On a reset the stored local votes are cleared so voters can vote again
+    // and the new options carry the Update's own tallies (0 when absent).
+    // Otherwise an option without `replies` keeps its stored tally.
+    const resetVotes = optionsChanged && !implicit
+    const endAt = getPollEndAtFromQuestion(question)
     await database.updatePoll({
       statusId: question.id,
       summary,
       text,
       choices: resetVotes
         ? nextChoices
-        : getPollChoicesFromQuestion(question, existingStatus.choices),
-      pollType,
-      ...(question.endTime
-        ? { endAt: new Date(question.endTime).getTime() }
-        : {}),
+        : optionsChanged
+          ? []
+          : getPollChoicesFromQuestion(question, existingStatus.choices),
+      ...(implicit
+        ? {}
+        : {
+            pollType,
+            remoteUpdatedAt,
+            ...(endAt !== undefined ? { endAt } : {})
+          }),
       resetVotes
     })
   }

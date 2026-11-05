@@ -220,8 +220,10 @@ export const Question = BaseContent.extend({
     .string()
     .describe('Question end time in ISO 8601 datetime format')
     .optional(),
+  // A datetime string once the poll closed (Mastodon); some servers send a
+  // bare boolean instead, which must not fail the whole Question.
   closed: z
-    .string()
+    .union([z.string(), z.boolean()])
     .describe(
       'The datetime when the poll was closed, in ISO 8601 format. Used when a poll is closed early'
     )

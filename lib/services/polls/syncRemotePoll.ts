@@ -13,7 +13,10 @@ import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { withSpan } from '@/lib/utils/trace'
 
-import { getPollChoicesFromQuestion } from './pollChoices'
+import {
+  getPollChoicesFromQuestion,
+  getPollEndAtFromQuestion
+} from './pollChoices'
 
 const FAILURE_COOLDOWN_MS = 60 * 1000
 const REFRESH_WAIT_BUDGET_MS = 5_000
@@ -99,14 +102,15 @@ const performPollSync = async ({
       return null
     }
 
-    // An option without `replies` keeps its stored tally, as updatePollJob does.
+    // A fetch is a tally and deadline refresh only: an option without
+    // `replies` keeps its stored tally, and updatePoll writes a tally only
+    // where the title at that position still matches, so a changed option set
+    // never resets votes here (that is updatePollJob's job, on an Update).
     const choices = getPollChoicesFromQuestion(question, status.choices)
 
     const text = getContent(question)
     const summary = getSummary(question)
-    const endAt = question.endTime
-      ? new Date(question.endTime).getTime()
-      : undefined
+    const endAt = getPollEndAtFromQuestion(question)
 
     const updated = await database.updatePoll({
       // The id-match guard above already proves these are the same poll; using

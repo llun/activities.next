@@ -2065,17 +2065,38 @@ expiration delivery requires a queue that supports delayed messages: in-process
 NoQueue drops them. Live vote-count updates are not federated separately.
 
 An inbound `Update(Question)` (`updatePollJob`) and the on-read refresh of a
-remote poll (`syncRemotePoll`) mirror Mastodon's
-`ActivityPub::ProcessStatusUpdateService`, sharing `getPollChoicesFromQuestion`:
+remote poll (`syncRemotePoll`) follow Mastodon's
+`ActivityPub::ProcessStatusUpdateService` and `Parser::PollParser`, sharing
+`getPollChoicesFromQuestion` and `getPollEndAtFromQuestion`:
 
-- `endTime` moves the stored `endAt`, so a poll the origin extends, shortens or
-  closes early ends when the origin says; an Update without `endTime` keeps the
-  stored deadline.
-- An option without `replies` keeps the stored tally of the choice with the same
-  title (Mastodon omits `replies` for a `hide_totals` poll until it closes, and
-  some servers never send them), so such an Update does not wipe the counts to 0. Only a brand-new poll (`createPollJob`) starts an untallied option at 0.
-- When the option set changes (added, removed or renamed titles, compared in
-  order, or a `oneOf`/`anyOf` switch) the votes are reset: `updatePoll` with
+- **Staleness.** The origin's `updated` of the last applied Update is stored on
+  the poll's content JSON (`remoteUpdatedAt`, no migration; written without a
+  revision or an `updatedAt` bump when nothing else changed). An Update whose
+  `updated` is older is ignored (`already_updated_more_recently?`), logged at
+  info; one with the same `updated` still applies (a tally refresh).
+- **Implicit Updates.** An Update with no `updated` is a tally refresh, not an
+  edit (`update_poll!` with `allow_significant_changes: false`): it applies the
+  text and summary and, only when the option set is unchanged, the tallies —
+  never an option change, a vote reset, a `oneOf`/`anyOf` switch or a deadline
+  move. `syncRemotePoll` (a fetch, not an Update) is likewise a tally and
+  deadline refresh only and never resets votes.
+- **Deadline.** A parseable string `closed` wins over `endTime`; any other
+  truthy `closed` (a bare boolean, which the `Question` schema accepts) means
+  the poll closed at processing time; otherwise `endTime`. An unparseable
+  value is "no deadline given": the stored `endAt` is kept (never NaN, which
+  would be stored as null and hydrate as expired, adding a revision on every
+  redelivery), and a new poll (`createPollJob`) falls back as if it had none.
+- **Hidden tallies.** An option without `replies` keeps the stored tally at the
+  same POSITION (by index, not title, so duplicate titles keep their own
+  counts; `updatePoll` writes each tally to the stored row at that position and
+  only where the title still matches). This is this project's choice: Mastodon
+  omits `replies` for a `hide_totals` poll until it closes, and some servers
+  never send them, so Mastodon's own rule — an absent count is 0 — would wipe
+  the counts on every such Update. Only a brand-new poll starts an untallied
+  option at 0.
+- **Option changes.** On an explicit Update whose option set changes (added,
+  removed or renamed titles, compared in order, or a `oneOf`/`anyOf` switch:
+  `PollParser#significantly_changes?`) the votes are reset: `updatePoll` with
   `resetVotes` clears the poll's stored local votes (`poll_answers`,
   `poll_voters`) so local voters can vote again, replaces the options and seeds
   each with the Update's own tally (0 when absent) and the new `pollType`. An

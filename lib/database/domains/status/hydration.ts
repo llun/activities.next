@@ -843,6 +843,7 @@ export const hydrateStatusRow = async (
       endAt: coercePollEndAt(content.endAt, base.createdAt),
       pollType: content.pollType ?? 'oneOf',
       hideTotals: content.hideTotals ?? false,
+      remoteUpdatedAt: content.remoteUpdatedAt ?? undefined,
       votersCount,
       voted,
       ownVotes
