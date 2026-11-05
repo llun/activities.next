@@ -1,25 +1,34 @@
-import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
-
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { DELIVERY_FAILURE_DAYS_THRESHOLD } from '@/lib/database/domains/deliveryDomains/types'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { JOBS } from '@/lib/jobs'
-import { SEND_UNDO_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
+import {
+  DELIVER_ACTIVITY_JOB_NAME,
+  SEND_UNDO_ANNOUNCE_JOB_NAME
+} from '@/lib/jobs/names'
 import { sendUndoAnnounceJob } from '@/lib/jobs/sendUndoAnnounceJob'
-import { expectCall, mockRequests } from '@/lib/stub/activities'
+import { getDeliveryJobId } from '@/lib/services/federation/enqueueDeliveries'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_FOLLOWER_URL, seedActor1 } from '@/lib/stub/seed/actor1'
 import { Actor } from '@/lib/types/domain/actor'
+import { FollowStatus } from '@/lib/types/domain/follow'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
-enableFetchMocks()
+const publish = vi.fn()
+const mockGetQueue = vi.fn()
+
+vi.mock('@/lib/services/queue', () => ({
+  getQueue: () => mockGetQueue()
+}))
 
 const FOLLOWERS_SHARED_INBOX = 'https://somewhere.test/inbox'
 
 describe('sendUndoAnnounceJob', () => {
-  const database = getTestSQLDatabase()
-  let actor1: Actor | null = null
+  const { database, db, prepare } = createTestDatabase()
+  let actor1: Actor | null | undefined
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     actor1 = await database.getActorFromUsername({
@@ -33,9 +42,23 @@ describe('sendUndoAnnounceJob', () => {
     await database.destroy()
   })
 
-  beforeEach(() => {
-    fetchMock.resetMocks()
-    mockRequests(fetchMock)
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    publish.mockReset().mockResolvedValue(undefined)
+    mockGetQueue.mockReturnValue({
+      runsInline: false,
+      dropsDelayedJobs: false,
+      publish,
+      handle: vi.fn()
+    })
+    await db.deleteFrom('delivery_domain_failures').execute()
+    if (actor1?.id) {
+      await db
+        .deleteFrom('follows')
+        .where('targetActorId', '=', actor1.id)
+        .where('actorId', '!=', 'https://somewhere.test/actors/friend')
+        .execute()
+    }
   })
 
   it('is registered under its job name', () => {
@@ -46,14 +69,33 @@ describe('sendUndoAnnounceJob', () => {
   // hard-deletes it before publishing - so the ids below are deliberately absent
   // from the database. Seeding the announce here (as this test used to) makes
   // the job pass against code that always fails in production.
-  it('sends the undo for an announce that no longer exists', async () => {
+  it('publishes the undo for an announce that no longer exists and skips unavailable domains', async () => {
     if (!actor1) fail('Actor1 is required')
     const announceId = `${actor1.id}/statuses/announce-already-deleted`
     const originalStatusId = 'https://somewhere.test/actors/friend/statuses/1'
     const createdAt = 1700000000000
 
+    await expect(
+      database.getStatus({ statusId: announceId, withReplies: false })
+    ).resolves.toBeNull()
+
+    await database.createFollow({
+      actorId: 'https://dead.example/actors/follower2',
+      targetActorId: actor1.id,
+      inbox: 'https://dead.example/inbox',
+      sharedInbox: 'https://dead.example/inbox',
+      status: FollowStatus.enum.Accepted
+    })
+    for (let day = 1; day <= DELIVERY_FAILURE_DAYS_THRESHOLD; day++) {
+      await database.recordDeliveryFailure({
+        domain: 'dead.example',
+        error: 'HTTP 503',
+        now: Date.parse(`2026-11-0${day}T00:00:00.000Z`)
+      })
+    }
+
     await sendUndoAnnounceJob(database, {
-      id: 'job-id',
+      id: 'undo-announce-job-1',
       name: SEND_UNDO_ANNOUNCE_JOB_NAME,
       data: {
         actorId: actor1.id,
@@ -65,27 +107,34 @@ describe('sendUndoAnnounceJob', () => {
       }
     })
 
-    expectCall(fetchMock, FOLLOWERS_SHARED_INBOX, 'POST', {
-      id: `${announceId}#undo`,
-      type: 'Undo',
-      actor: actor1.id,
-      to: [ACTIVITY_STREAM_PUBLIC],
-      object: {
-        id: `${announceId}/activity`,
-        type: 'Announce',
-        actor: actor1.id,
-        published: getISOTimeUTC(createdAt),
-        to: [ACTIVITY_STREAM_PUBLIC],
-        cc: [ACTOR1_FOLLOWER_URL],
-        object: originalStatusId
+    expect(publish).toHaveBeenCalledTimes(1)
+    expect(publish).toHaveBeenCalledWith({
+      id: getDeliveryJobId('undo-announce-job-1', FOLLOWERS_SHARED_INBOX),
+      name: DELIVER_ACTIVITY_JOB_NAME,
+      data: {
+        inbox: FOLLOWERS_SHARED_INBOX,
+        actorId: actor1.id,
+        activity: {
+          '@context': 'https://www.w3.org/ns/activitystreams',
+          id: `${announceId}#undo`,
+          type: 'Undo',
+          actor: actor1.id,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          object: {
+            id: `${announceId}/activity`,
+            type: 'Announce',
+            actor: actor1.id,
+            published: getISOTimeUTC(createdAt),
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: [ACTOR1_FOLLOWER_URL],
+            object: originalStatusId
+          }
+        }
       }
     })
   })
 
   it('does nothing if actor is not found', async () => {
-    // Asserting "no fetch" alone proves nothing here: an unknown actor has no
-    // followers either, so the fan-out would be empty with or without the
-    // guard. Watch the call the guard is there to prevent instead.
     const followersSpy = vi.spyOn(database, 'getFollowersInbox')
 
     await sendUndoAnnounceJob(database, {
@@ -102,15 +151,13 @@ describe('sendUndoAnnounceJob', () => {
     })
 
     expect(followersSpy).not.toHaveBeenCalled()
-    expect(fetchMock).not.toHaveBeenCalled()
+    expect(publish).not.toHaveBeenCalled()
     followersSpy.mockRestore()
   })
 
   it('rejects a payload missing the announce data it can no longer look up', async () => {
     if (!actor1) fail('Actor1 is required')
 
-    // The pre-fix payload shape. It must fail loudly rather than federate an
-    // Undo with an undefined boosted status.
     await expect(
       sendUndoAnnounceJob(database, {
         id: 'job-id',
@@ -122,6 +169,6 @@ describe('sendUndoAnnounceJob', () => {
       })
     ).rejects.toThrow()
 
-    expect(fetchMock).not.toHaveBeenCalled()
+    expect(publish).not.toHaveBeenCalled()
   })
 })

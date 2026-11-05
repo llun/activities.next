@@ -1,17 +1,9 @@
 import { z } from 'zod'
 
 import { createJobHandle } from '@/lib/jobs/createJobHandle'
-import {
-  DELIVER_ACTIVITY_JOB_NAME,
-  SEND_UPDATE_ACTOR_JOB_NAME
-} from '@/lib/jobs/names'
-import {
-  MAX_CONCURRENT_DELIVERY_PUBLICATIONS,
-  getDeliveryJobId,
-  runWithConcurrencyLimit
-} from '@/lib/jobs/sendNoteJob'
+import { SEND_UPDATE_ACTOR_JOB_NAME } from '@/lib/jobs/names'
+import { enqueueDeliveries } from '@/lib/services/federation/enqueueDeliveries'
 import { getFederatedStatusDeliveryInboxes } from '@/lib/services/federation/statusDelivery'
-import { getQueue } from '@/lib/services/queue'
 import { JobHandle } from '@/lib/services/queue/type'
 import { UpdateAction } from '@/lib/types/activitypub/activities'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
@@ -60,41 +52,14 @@ export const sendUpdateActorJob: JobHandle = createJobHandle(
         status: { to: [ACTIVITY_STREAM_PUBLIC], cc: [actor.followersUrl] }
       })
 
-      const queue = getQueue()
-      const results = await runWithConcurrencyLimit(
+      await enqueueDeliveries({
+        database,
+        parentMessageId: message.id,
+        actorId: actor.id,
+        activity,
         inboxes,
-        MAX_CONCURRENT_DELIVERY_PUBLICATIONS,
-        (inbox) =>
-          queue.publish({
-            id: getDeliveryJobId(message.id, inbox),
-            name: DELIVER_ACTIVITY_JOB_NAME,
-            data: { inbox, actorId: actor.id, activity }
-          })
-      )
-      span.setAttribute('fanout.inbox_count', inboxes.length)
-
-      const failures = results.filter(
-        (result): result is PromiseRejectedResult =>
-          result.status === 'rejected'
-      )
-      if (failures.length === 0) return
-      const errors = failures.map((failure) =>
-        failure.reason instanceof Error
-          ? failure.reason
-          : new Error(String(failure.reason))
-      )
-      // The in-process queue ran each delivery inline, so a rejection is one
-      // inbox failing; record it and let the rest stand. A real queue failed
-      // to accept the job, so retry the fan-out: each delivery keeps its id
-      // and the queue drops the ones it already holds.
-      if (queue.runsInline) {
-        errors.forEach((error) => span.recordException(error))
-        return
-      }
-      throw new AggregateError(
-        errors,
-        `Failed to publish ${errors.length} actor update deliveries`
-      )
+        span
+      })
     })
   }
 )

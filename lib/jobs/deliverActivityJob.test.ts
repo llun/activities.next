@@ -4,6 +4,7 @@ import { Database } from '@/lib/database/types'
 import { SalvageableDeliveryError } from '@/lib/services/federation/deliveryError'
 import { setupRecordingTracer } from '@/lib/testing/recordingTracer'
 import { Actor } from '@/lib/types/domain/actor'
+import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
 
 import {
@@ -23,7 +24,10 @@ describe('deliverActivityJob', () => {
   const mockDatabase = {
     getActorFromId: vi.fn(),
     getLocalFollowsFromInboxUrl: vi.fn(),
-    updateFollowStatus: vi.fn()
+    updateFollowStatus: vi.fn(),
+    isDomainUnavailable: vi.fn(),
+    recordDeliveryFailure: vi.fn(),
+    clearDeliveryFailures: vi.fn()
   } as unknown as Database
 
   beforeEach(() => {
@@ -33,6 +37,9 @@ describe('deliverActivityJob', () => {
       id: 'https://activities.local/users/alice',
       privateKey: 'mock-key'
     } as unknown as Actor)
+    vi.mocked(mockDatabase.isDomainUnavailable).mockResolvedValue(false)
+    vi.mocked(mockDatabase.recordDeliveryFailure).mockResolvedValue(false)
+    vi.mocked(mockDatabase.clearDeliveryFailures).mockResolvedValue(undefined)
   })
 
   afterEach(() => {
@@ -220,4 +227,186 @@ describe('deliverActivityJob', () => {
       expect(mockDatabase.updateFollowStatus).not.toHaveBeenCalled()
     }
   )
+
+  describe('domain availability tracking', () => {
+    const baseMessage = {
+      id: 'msg-track',
+      name: 'DeliverActivityJob',
+      data: {
+        inbox: 'https://Remote.Example/inbox',
+        actorId: 'https://activities.local/users/actor1',
+        activity: { type: 'Create', id: 'https://activities.local/status/1' }
+      }
+    }
+
+    it('skips delivery without sending a request or retrying when the domain is unavailable', async () => {
+      const infoSpy = vi.spyOn(logger, 'info')
+      vi.mocked(mockDatabase.isDomainUnavailable).mockResolvedValue(true)
+
+      await expect(
+        deliverActivityJob(mockDatabase, baseMessage)
+      ).resolves.toBeUndefined()
+
+      expect(mockDatabase.isDomainUnavailable).toHaveBeenCalledWith({
+        domain: 'remote.example'
+      })
+      expect(request).not.toHaveBeenCalled()
+      expect(mockDatabase.recordDeliveryFailure).not.toHaveBeenCalled()
+      expect(infoSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          inbox: 'https://Remote.Example/inbox',
+          domain: 'remote.example'
+        }),
+        'DeliverActivityJob: skipping delivery to unavailable domain'
+      )
+
+      const span = harness.recordedSpans.find(
+        (s) => s.name === 'job.DeliverActivityJob'
+      )
+      expect(span?.events.map((e) => e.name)).toContain(
+        'delivery_skipped_unavailable_domain'
+      )
+      infoSpy.mockRestore()
+    })
+
+    it('records salvageable HTTP and network failures, logging warn once when the domain becomes unavailable', async () => {
+      const warnSpy = vi.spyOn(logger, 'warn')
+      vi.mocked(mockDatabase.recordDeliveryFailure).mockResolvedValueOnce(false)
+      vi.mocked(request).mockResolvedValueOnce({
+        statusCode: 503,
+        body: 'Sensitive response body that must not be stored',
+        headers: { 'set-cookie': 'secret' }
+      })
+
+      await expect(
+        deliverActivityJob(mockDatabase, baseMessage)
+      ).rejects.toBeInstanceOf(SalvageableDeliveryError)
+
+      expect(mockDatabase.recordDeliveryFailure).toHaveBeenCalledTimes(1)
+      expect(mockDatabase.recordDeliveryFailure).toHaveBeenCalledWith(
+        expect.objectContaining({
+          domain: 'remote.example',
+          error: 'HTTP 503 is transient/salvageable'
+        })
+      )
+      expect(warnSpy).not.toHaveBeenCalled()
+
+      vi.mocked(mockDatabase.recordDeliveryFailure).mockResolvedValueOnce(true)
+      const timeoutErr = Object.assign(new Error('timed out'), {
+        code: 'ETIMEDOUT'
+      })
+      vi.mocked(request).mockRejectedValueOnce(timeoutErr)
+
+      await expect(
+        deliverActivityJob(mockDatabase, baseMessage)
+      ).rejects.toBeInstanceOf(SalvageableDeliveryError)
+
+      expect(mockDatabase.recordDeliveryFailure).toHaveBeenCalledTimes(2)
+      expect(mockDatabase.recordDeliveryFailure).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          domain: 'remote.example',
+          error: 'Network error ETIMEDOUT is transient/salvageable'
+        })
+      )
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          domain: 'remote.example',
+          inbox: 'https://Remote.Example/inbox'
+        }),
+        'DeliverActivityJob: domain marked unavailable after repeated delivery failures'
+      )
+      warnSpy.mockRestore()
+    })
+
+    it.each([400, 403, 404, 410, 501])(
+      'does not count unsalvageable HTTP %i toward domain unavailability',
+      async (statusCode) => {
+        vi.mocked(request).mockResolvedValue({
+          statusCode,
+          body: '',
+          headers: {}
+        })
+
+        await expect(
+          deliverActivityJob(mockDatabase, baseMessage)
+        ).resolves.toBeUndefined()
+
+        expect(mockDatabase.recordDeliveryFailure).not.toHaveBeenCalled()
+      }
+    )
+
+    it('clears domain delivery failures on a 2xx response', async () => {
+      vi.mocked(request).mockResolvedValue({
+        statusCode: 202,
+        body: '',
+        headers: {}
+      })
+
+      await expect(
+        deliverActivityJob(mockDatabase, baseMessage)
+      ).resolves.toBeUndefined()
+
+      expect(mockDatabase.clearDeliveryFailures).toHaveBeenCalledWith({
+        domain: 'remote.example'
+      })
+    })
+
+    it('logs tracking read/write errors with err and never changes delivery outcomes', async () => {
+      const errorSpy = vi.spyOn(logger, 'error')
+
+      vi.mocked(mockDatabase.isDomainUnavailable).mockRejectedValueOnce(
+        new Error('db read down')
+      )
+      vi.mocked(mockDatabase.clearDeliveryFailures).mockRejectedValueOnce(
+        new Error('db clear down')
+      )
+      vi.mocked(request).mockResolvedValueOnce({
+        statusCode: 202,
+        body: '',
+        headers: {}
+      })
+
+      await expect(
+        deliverActivityJob(mockDatabase, baseMessage)
+      ).resolves.toBeUndefined()
+
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          domain: 'remote.example',
+          err: expect.objectContaining({ message: 'db read down' })
+        }),
+        'DeliverActivityJob: failed to check domain availability'
+      )
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          domain: 'remote.example',
+          err: expect.objectContaining({ message: 'db clear down' })
+        }),
+        'DeliverActivityJob: failed to clear domain delivery failures'
+      )
+
+      vi.mocked(mockDatabase.recordDeliveryFailure).mockRejectedValueOnce(
+        new Error('db write down')
+      )
+      vi.mocked(request).mockResolvedValueOnce({
+        statusCode: 503,
+        body: '',
+        headers: {}
+      })
+
+      await expect(
+        deliverActivityJob(mockDatabase, baseMessage)
+      ).rejects.toBeInstanceOf(SalvageableDeliveryError)
+
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          domain: 'remote.example',
+          err: expect.objectContaining({ message: 'db write down' })
+        }),
+        'DeliverActivityJob: failed to record domain delivery failure'
+      )
+
+      errorSpy.mockRestore()
+    })
+  })
 })

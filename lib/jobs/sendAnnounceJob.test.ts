@@ -1,17 +1,27 @@
-import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
-
+import { DELIVERY_FAILURE_DAYS_THRESHOLD } from '@/lib/database/domains/deliveryDomains/types'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
-import { SEND_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
+import {
+  DELIVER_ACTIVITY_JOB_NAME,
+  SEND_ANNOUNCE_JOB_NAME
+} from '@/lib/jobs/names'
 import { sendAnnounceJob } from '@/lib/jobs/sendAnnounceJob'
-import { mockRequests } from '@/lib/stub/activities'
+import { getDeliveryJobId } from '@/lib/services/federation/enqueueDeliveries'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { Actor } from '@/lib/types/domain/actor'
+import { FollowStatus } from '@/lib/types/domain/follow'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
-enableFetchMocks()
+const publish = vi.fn()
+const mockGetQueue = vi.fn()
+
+vi.mock('@/lib/services/queue', () => ({
+  getQueue: () => mockGetQueue()
+}))
 
 describe('sendAnnounceJob', () => {
-  const { database, prepare } = createTestDatabase()
+  const { database, db, prepare } = createTestDatabase()
   let actor1: Actor | null | undefined
 
   beforeAll(async () => {
@@ -29,9 +39,23 @@ describe('sendAnnounceJob', () => {
     await database.destroy()
   })
 
-  beforeEach(() => {
-    fetchMock.resetMocks()
-    mockRequests(fetchMock)
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    publish.mockReset().mockResolvedValue(undefined)
+    mockGetQueue.mockReturnValue({
+      runsInline: false,
+      dropsDelayedJobs: false,
+      publish,
+      handle: vi.fn()
+    })
+    await db.deleteFrom('delivery_domain_failures').execute()
+    if (actor1?.id) {
+      await db
+        .deleteFrom('follows')
+        .where('targetActorId', '=', actor1.id)
+        .where('actorId', '!=', 'https://somewhere.test/actors/friend')
+        .execute()
+    }
   })
 
   it('does nothing when status is not found', async () => {
@@ -48,25 +72,18 @@ describe('sendAnnounceJob', () => {
       })
     ).resolves.toBeUndefined()
 
-    // No fetch calls should be made for announce
-    const announceCalls = fetchMock.mock.calls.filter((call) => {
-      if (!call[1]?.body) return false
-      const body = JSON.parse(call[1].body as string)
-      return body.type === 'Announce'
-    })
-    expect(announceCalls.length).toBe(0)
+    expect(publish).not.toHaveBeenCalled()
   })
 
   it('does nothing when actor is not found', async () => {
     if (!actor1) fail('Actor1 is required')
 
-    // Create a status
     const statusId = `${actor1.id}/statuses/for-announce-test`
     await database.createNote({
       id: statusId,
       url: statusId,
       actorId: actor1.id,
-      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      to: [ACTIVITY_STREAM_PUBLIC],
       cc: [],
       text: 'Test status',
       createdAt: Date.now()
@@ -82,36 +99,52 @@ describe('sendAnnounceJob', () => {
         }
       })
     ).resolves.toBeUndefined()
+
+    expect(publish).not.toHaveBeenCalled()
   })
 
-  it('sends announce to follower inboxes', async () => {
+  it('publishes Announce to available follower inboxes with dedup ids and skips unavailable domains', async () => {
     if (!actor1) fail('Actor1 is required')
 
-    // Create an original status
+    await database.createFollow({
+      actorId: 'https://dead.example/actors/follower2',
+      targetActorId: actor1.id,
+      inbox: 'https://dead.example/inbox',
+      sharedInbox: 'https://dead.example/inbox',
+      status: FollowStatus.enum.Accepted
+    })
+    for (let day = 1; day <= DELIVERY_FAILURE_DAYS_THRESHOLD; day++) {
+      await database.recordDeliveryFailure({
+        domain: 'dead.example',
+        error: 'HTTP 503',
+        now: Date.parse(`2026-11-0${day}T00:00:00.000Z`)
+      })
+    }
+
     const originalStatusId = `${actor1.id}/statuses/original-to-boost`
     await database.createNote({
       id: originalStatusId,
       url: originalStatusId,
       actorId: actor1.id,
-      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      to: [ACTIVITY_STREAM_PUBLIC],
       cc: [],
       text: 'Original content',
       createdAt: Date.now()
     })
 
-    // Create an announce
+    const createdAt = 1700000000000
     const announceId = `${actor1.id}/statuses/announce-job-test`
     await database.createAnnounce({
       id: announceId,
       actorId: actor1.id,
-      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      to: [ACTIVITY_STREAM_PUBLIC],
       cc: [],
       originalStatusId,
-      createdAt: Date.now()
+      createdAt
     })
 
     await sendAnnounceJob(database, {
-      id: 'job-3',
+      id: 'announce-job-3',
       name: SEND_ANNOUNCE_JOB_NAME,
       data: {
         actorId: actor1.id,
@@ -119,10 +152,24 @@ describe('sendAnnounceJob', () => {
       }
     })
 
-    expect(
-      fetchMock.mock.calls.some(
-        (call) => call[0] === 'https://somewhere.test/inbox'
-      )
-    ).toBe(true)
+    expect(publish).toHaveBeenCalledTimes(1)
+    expect(publish).toHaveBeenCalledWith({
+      id: getDeliveryJobId('announce-job-3', 'https://somewhere.test/inbox'),
+      name: DELIVER_ACTIVITY_JOB_NAME,
+      data: {
+        inbox: 'https://somewhere.test/inbox',
+        actorId: actor1.id,
+        activity: {
+          '@context': 'https://www.w3.org/ns/activitystreams',
+          id: `${announceId}/activity`,
+          type: 'Announce',
+          actor: actor1.id,
+          published: getISOTimeUTC(createdAt),
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          object: originalStatusId
+        }
+      }
+    })
   })
 })

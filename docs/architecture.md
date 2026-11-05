@@ -219,7 +219,19 @@ Incoming HTTP deliveries to `/api/inbox` and `/api/users/:username/inbox` are gu
 
 #### Outbound Delivery Outcomes
 
-`DeliverActivityJob` (`lib/jobs/deliverActivityJob.ts`) treats any 2xx response as delivered (some Pleroma, Akkoma, GoToSocial and Misskey setups answer 201 or 204). A salvageable failure (HTTP 401, 408, 429 and every 5xx except 501; network errors including DNS failures such as `ENOTFOUND`/`EAI_AGAIN`, timeouts such as `ETIMEDOUT`, connection resets/refusals, and TLS certificate errors such as `DEPTH_ZERO_SELF_SIGNED_CERT` or `CERT_HAS_EXPIRED`; see `classifyDeliveryError`) is thrown as `SalvageableDeliveryError` so the queue retries it with its normal backoff; other responses such as 400, 403, 404, 410 Gone or 501 are logged and discarded. Delivery errors never change follow state: a DNS blip or short outage must not drop follow relationships, matching Mastodon, which retries and only marks a domain unavailable after sustained failure. There is no unavailable-domain tracking here yet, so a server that is gone for good costs each job its full retries before it is dead-lettered. `sendUpdateNoteJob` also never changes follow state; it delivers inline and does not retry failed inboxes.
+`DeliverActivityJob` (`lib/jobs/deliverActivityJob.ts`) handles per-inbox signed HTTP POST delivery (`DELIVER_ACTIVITY`) and treats any 2xx response as delivered (some Pleroma, Akkoma, GoToSocial and Misskey setups answer 201 or 204). A salvageable failure (HTTP 401, 408, 429 and every 5xx except 501; network errors including DNS failures such as `ENOTFOUND`/`EAI_AGAIN`, timeouts such as `ETIMEDOUT`, connection resets/refusals, and TLS certificate errors such as `DEPTH_ZERO_SELF_SIGNED_CERT` or `CERT_HAS_EXPIRED`; see `classifyDeliveryError`) is thrown as `SalvageableDeliveryError` so the queue retries it with its normal backoff; unsalvageable responses such as 400, 403, 404, 410 Gone or 501 are logged and discarded.
+
+- **Activities routed through `DELIVER_ACTIVITY`**:
+  - **Multi-inbox fan-outs** build the activity once per job run and publish one `DELIVER_ACTIVITY` job per available inbox via `enqueueDeliveries` (`lib/services/federation/enqueueDeliveries.ts`), deduplicated on `getDeliveryJobId(parentMessageId, inbox)` with bounded publication concurrency (`MAX_CONCURRENT_DELIVERY_PUBLICATIONS`): `Create` (`sendNoteJob`), `Update` of `Note`/`Question` (`sendUpdateNoteJob`, minting one `#updates/<timestamp>` id per job run across all inboxes), `Delete` (`sendDeleteNoteJob`), `Announce` (`sendAnnounceJob`), `Undo(Announce)` (`sendUndoAnnounceJob`), `Update(Person)` (`sendUpdateActorJob`), featured collection `Add`/`Remove` (`sendFeaturedStatusJob`), and `Move` (`sendMoveJob`).
+  - **Single-target interaction sends** (`sendLike`, `sendUndoLike`, `sendReaction`, `sendUndoReaction`, and `sendPollVotes` in `lib/activities/index.ts`) publish `DELIVER_ACTIVITY` keyed on the local activity id and inbox (`getDeliveryJobId(activity.id, inbox)`), swallowing and logging publish or inline (`NoQueue`) delivery errors so user-facing routes and services never fail with `500` when a remote inbox fails.
+  - **Direct sends kept outside `DELIVER_ACTIVITY`**: `follow`, `unfollow`, `acceptFollow`, `rejectFollow`, `block`, `unblock`, `sendFlag`, `deleteActor`, relays, `forwardActivity`, and quote activities remain direct because their callers inspect the response or already run inside dedicated retryable jobs.
+- **Per-domain unavailability (`delivery_domain_failures`, `lib/database/domains/deliveryDomains/`)**:
+  - Follows Mastodon's `DeliveryFailureTracker` / `UnavailableDomain` model, keyed by the inbox URL's normalized domain (`getDomainFromUrl`).
+  - Each salvageable delivery failure records today's UTC date (`YYYY-MM-DD`) on the domain row, incrementing `failureDays` at most once per distinct UTC day; unsalvageable failures (such as 400, 403, 404, 410, 501) are never counted.
+  - Once a domain accumulates salvageable failures on **7 distinct UTC days** (`DELIVERY_FAILURE_DAYS_THRESHOLD`) without a successful delivery in between, `unavailableSince` is set and logged once at `warn`.
+  - While a domain is unavailable, `enqueueDeliveries` filters out its inboxes before publishing `DELIVER_ACTIVITY` jobs, and `deliverActivityJob` discards any already-queued delivery to it with a span event and `info` log without making a network request or retrying.
+  - A domain's failure row is cleared by any 2xx outbound delivery to that domain or by any cryptographically verified inbound request signed by a key whose verified owner (`ActivityPubVerifySenderGuard`) belongs to that domain.
+  - All tracking reads and writes are best-effort (`logger.error` with `err`) and never change a delivery outcome, an inbox response, or follow state.
 
 #### Reply Addressing and Communities (FEP-1b12)
 
@@ -236,7 +248,7 @@ Inbound `audience` is not stored (no migration, and the schema accepts any shape
 - A parent of ours has no stored community; it is the community of its own parent, followed up the thread (depth limit 20, cycle guard). Its `to`/`cc` are never scanned for a Group. The walk reads each of our posts through the light `getStatusThreadStep` (parent id, author, whether the author is local, `to`/`cc`; two queries, no hydration) and fully reads only the remote post it ends on. Any ancestor, local or remote, that is not public or unlisted stops the walk with no community, so a hidden post in the chain never ties a public reply to a group.
 - For a remote parent: the author if it is a Group (Mbin, Friendica); else the one Group in `to`/`cc` that is not a Mention tag of the parent (Lemmy, PieFed); else, when exactly one Group is in `to`/`cc` and it is mentioned, that one (Guppe, Friendica group-by-mention). When the remote parent addresses exactly one Group this way (for example a Mastodon post that mentions a Guppe group, or a Lemmy community), a public or unlisted reply also cc's that Group and carries `audience`: this is the group-by-mention convention of Guppe and Friendica. Several candidates are ambiguous and give no community: a wrong audience makes Lemmy reject the reply, so none is better than a guess.
 
-Because our own notes do not store it either, `sendNoteJob` and `sendUpdateNoteJob` re-derive it (`sendUpdateNote` receives the audience from `sendUpdateNoteJob`) with `getStatusCommunityActorId`: the reply and its parent must both be public or unlisted, the parent's community is looked up as above, and it is used only if the reply's own `to`/`cc` names it. A Group that is merely mentioned, or one mentioned in a private reply, is therefore never used as the audience. `audience` is emitted on the `Create`/`Update` activity and on its note, as Lemmy and PieFed do; the ActivityPub GET/outbox representations of a note do not include it yet.
+Because our own notes do not store it either, `sendNoteJob` and `sendUpdateNoteJob` re-derive it (`buildUpdateNoteActivity` / `sendUpdateNote` receives the audience from `sendUpdateNoteJob`) with `getStatusCommunityActorId`: the reply and its parent must both be public or unlisted, the parent's community is looked up as above, and it is used only if the reply's own `to`/`cc` names it. A Group that is merely mentioned, or one mentioned in a private reply, is therefore never used as the audience. `audience` is emitted on the `Create`/`Update` activity and on its note, as Lemmy and PieFed do; the ActivityPub GET/outbox representations of a note do not include it yet.
 
 - **On-demand fetching of full remote reply threads.** Opening a remote status that is not yet stored live-fetches it, and for a signed-in viewer the status page also queues `FetchRemoteStatusJob` to persist the status plus its full remote reply thread: the in-process synchronous queue keeps the awaited run to the focused note's direct replies so the page stays fast, while a real queue walks the whole thread out of band and it appears on a later view (later views resolve the focused status from the database and skip the branch). A queue failure logs and continues — the live-fetched status still renders.
 - **Missing parents are backfilled (Mastodon's ThreadResolveWorker).** `queueMissingParentFetch` (`lib/services/statuses/parentBackfill.ts`) queues `FetchRemoteStatusJob` with `ancestorsOnly: true` for a reply's `inReplyTo` when that parent is not stored (by id or url), is HTTPS, is not on a domain this server serves (`isLocalDomain`; the federation allow-list is not "local" here) and passes `canFederateWithDomain` (blocked, suspended and non-allow-listed domains get nothing). It runs last in `createNoteJob` and `createPollJob` for every new inbound reply (after inbox forwarding), and from the Mastodon `GET /api/v1/statuses/:id/context` route, the post page and the web thread route (`GET /api/v1/statuses/:id/thread`, where "Load earlier posts" can reach a gap the page's first step did not), for **signed-in viewers only**, on the reference `getStatusContext`'s ancestor walk stopped at because nothing is stored for it (`missingParentId`, read before visibility filtering, so a gap above an ancestor the viewer cannot see is found too; `queueThreadGapBackfill`). Anonymous reads queue nothing, as Mastodon fetches a thread only for a signed-in context read. A parent is queued at most once per `PARENT_FETCH_COOLDOWN_MS` (10 minutes): a per-process map (bounded to 10,000 parents, oldest dropped) deduplicates a burst of replies or views, and the job id is the parent's hash plus the window number, which the database queue and QStash deduplicate across processes and which changes after the window, so a parent that could not be fetched is tried again. None of them waits for an in-process (NoQueue) run, so the fetch never holds up a response, forwarding or the sender's delivery. The job's ancestor walk passes through stored parents (read, not re-fetched) and fetches missing ones, up to `MAX_ANCESTOR_DEPTH` (40, the anonymous context ancestor limit, Mastodon's too) hops above the requested status; an inline (`firstPageOnly`) run fetches at most `INLINE_MAX_ANCESTOR_FETCHES` (3) parents within `INLINE_DEADLINE_MS`. The walk stops at a blocked domain, a missing parent on a served domain (it is never fetched from ourselves), a parent that cannot be fetched, is not public or fails the origin and author checks, and a cycle. A reply stored before its parent is not re-evaluated for home timelines once the parent arrives (the main timeline rule still drops a reply whose parent is missing at fan-out).
@@ -2183,26 +2195,26 @@ legacy shape left to copy.
   queue's `createQueueJob` throws when a conflicting id already belongs to a job
   of a different `name` instead of returning that row as success.
 - **Unboost carries more than the audience, because its activity embeds the
-  Announce.** `undoAnnounce` (`lib/activities/index.ts`) builds its object from
+  Announce.** `buildUndoAnnounceActivity` / `undoAnnounce` (`lib/activities/index.ts`) build the object from
   `id`, `actorId`, `createdAt`, `to`, `cc` and `originalStatus.id`, so the job
-  payload carries all six and the sender's `announce` parameter is narrowed to
+  payload carries all six and the builder's `announce` parameter is narrowed to
   exactly that shape (`UndoAnnounceTarget`) rather than a whole `StatusAnnounce`
-  — the same narrowing trick `getFederatedStatusDeliveryInboxes` uses, and safe
-  because the job is the sender's only consumer. Its dedup id is
+  — the same narrowing trick `getFederatedStatusDeliveryInboxes` uses. Its dedup id is
   `getHashFromString(`${statusId}#undo`)`, matching the emitted `<id>#undo`;
   `SendAnnounceJob` publishes under the bare status id, so without the suffix a
   boost followed by an unboost inside the dedup window drops the `Undo`. It
   keeps `getFollowersInbox` + `filterFederatedUrls` rather than the shared
-  delivery helper, because `sendAnnounceJob` resolves inboxes the same way and
-  the two must stay symmetric.
+  status-recipient inbox helper, because `sendAnnounceJob` resolves inboxes the same way and
+  the two must stay symmetric; both jobs then fan out through `enqueueDeliveries`.
 - **Fan-out failure handling follows the queue backend.** The database queue uses
   `deleteStatusWithQueueJob`: deletion and queue insertion share one transaction,
   so a transaction failure propagates and rolls the local delete back. External
   and synchronous queues commit through `database.deleteStatus` first and publish
   afterwards — never inline fan-out ahead of the commit, which makes the
   response wait on remote inboxes and lets inbox-resolution errors abandon the
-  local deletion (a failing remote server alone is not that risk: the sender
-  and `getActorPerson` swallow remote lookup and network failures). A
+  local deletion (a failing remote server alone is not that risk: inline `NoQueue`
+  `DELIVER_ACTIVITY` failures are caught in `enqueueDeliveries` and `getActorPerson`
+  swallows remote lookup failures). A
   post-commit publish failure is logged without reporting the
   committed deletion as a failed request, which would tell the author their post
   is still present when it is gone. Unboost keeps delete-then-publish and the same isolation for every queue backend.
@@ -2211,11 +2223,11 @@ legacy shape left to copy.
   which returns 404; this is not a guarantee that every remote copy will fetch again.
   With the default in-process queue, follower-inbox lookup and fan-out happen
   inside `publish`, so those operations can throw after the local unboost commits.
-- Delivery errors never reach that catch: `postActivityToInbox` swallows every
-  network failure and returns `undefined`, so the activities `deleteStatus`
-  sender does not reject. A test that fails the _socket_ therefore proves nothing
-  about the job's per-inbox guard — mock the **sender** to reject, which is the
-  only seam that can.
+- Per-inbox HTTP/network errors under `NoQueue` never reach that catch because
+  `enqueueDeliveries` swallows inline `DELIVER_ACTIVITY` failures (`queue.runsInline`);
+  on a queued backend (`runsInline === false`), `enqueueDeliveries` throws an
+  `AggregateError` if any `queue.publish` call rejects so the fan-out job retries
+  while `getDeliveryJobId(message.id, inbox)` deduplicates already-published inboxes.
 - Known gap: a cascaded reply subtree is deleted
   locally but only the top status's `Delete` federates.
 

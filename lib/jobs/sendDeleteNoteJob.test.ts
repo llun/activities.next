@@ -1,11 +1,12 @@
-import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
-
-import { deleteStatus } from '@/lib/activities'
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { DELIVERY_FAILURE_DAYS_THRESHOLD } from '@/lib/database/domains/deliveryDomains/types'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { JOBS } from '@/lib/jobs'
-import { SEND_DELETE_NOTE_JOB_NAME } from '@/lib/jobs/names'
+import {
+  DELIVER_ACTIVITY_JOB_NAME,
+  SEND_DELETE_NOTE_JOB_NAME
+} from '@/lib/jobs/names'
 import { sendDeleteNoteJob } from '@/lib/jobs/sendDeleteNoteJob'
-import { expectCall, mockRequests } from '@/lib/stub/activities'
+import { getDeliveryJobId } from '@/lib/services/federation/enqueueDeliveries'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_FOLLOWER_URL, seedActor1 } from '@/lib/stub/seed/actor1'
 import {
@@ -15,43 +16,36 @@ import {
 import { Actor } from '@/lib/types/domain/actor'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
-enableFetchMocks()
+const publish = vi.fn()
+const mockGetQueue = vi.fn()
 
-// Spy on the sender while keeping its real behaviour: the delivery assertions
-// below read the actual signed POSTs, but the per-inbox isolation case needs a
-// seam that can reject. postActivityToInbox swallows every network error, so
-// failing the socket (as an earlier version of that test did) never reaches the
-// job's own guard and proves nothing.
-vi.mock('@/lib/activities', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/activities')>()
-  return { ...actual, deleteStatus: vi.fn(actual.deleteStatus) }
-})
+vi.mock('@/lib/services/queue', () => ({
+  getQueue: () => mockGetQueue()
+}))
+
+const mockQueue = (runsInline = false) => {
+  mockGetQueue.mockReturnValue({
+    runsInline,
+    dropsDelayedJobs: runsInline,
+    publish,
+    handle: vi.fn()
+  })
+}
 
 const FOLLOWERS_SHARED_INBOX = 'https://somewhere.test/inbox'
 
-const getRequestBody = (inbox: string) => {
-  const call = fetchMock.mock.calls.find((entry) => entry[0] === inbox)
-  if (!call) fail(`${inbox} request must exist`)
-  return JSON.parse(call[1]?.body as string)
-}
-
 describe('sendDeleteNoteJob', () => {
-  const database = getTestSQLDatabase()
-  let actor1: Actor | null = null
-  let realDeleteStatus: typeof deleteStatus
+  const { database, db, prepare } = createTestDatabase()
+  let actor1: Actor | null | undefined
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     actor1 = await database.getActorFromUsername({
       username: seedActor1.username,
       domain: seedActor1.domain
     })
-    const actual =
-      await vi.importActual<typeof import('@/lib/activities')>(
-        '@/lib/activities'
-      )
-    realDeleteStatus = actual.deleteStatus
   })
 
   afterAll(async () => {
@@ -59,12 +53,11 @@ describe('sendDeleteNoteJob', () => {
     await database.destroy()
   })
 
-  beforeEach(() => {
-    fetchMock.resetMocks()
-    mockRequests(fetchMock)
-    // Restore the real sender: vi.clearAllMocks() drops call history but keeps
-    // whatever implementation a previous test installed.
-    vi.mocked(deleteStatus).mockImplementation(realDeleteStatus)
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    publish.mockReset().mockResolvedValue(undefined)
+    mockQueue(false)
+    await db.deleteFrom('delivery_domain_failures').execute()
   })
 
   it('is registered under its job name', () => {
@@ -73,29 +66,53 @@ describe('sendDeleteNoteJob', () => {
 
   // Every delivery case below deliberately uses a statusId that is not in the
   // database: the row is always gone by the time this job runs.
-  it('sends the delete activity for a status that no longer exists', async () => {
+  it('publishes the delete activity for a status that no longer exists and skips unavailable domains', async () => {
     if (!actor1) fail('Actor1 is required')
     const statusId = `${actor1.id}/statuses/already-deleted`
 
+    // Confirm the statusId is absent from the database before running.
+    await expect(
+      database.getStatus({ statusId, withReplies: false })
+    ).resolves.toBeNull()
+
+    const externalDomain = new URL(EXTERNAL_ACTOR1_INBOX).hostname
+    for (let day = 1; day <= DELIVERY_FAILURE_DAYS_THRESHOLD; day++) {
+      await database.recordDeliveryFailure({
+        domain: externalDomain,
+        error: 'HTTP 503',
+        now: Date.parse(`2026-11-0${day}T00:00:00.000Z`)
+      })
+    }
+
     await sendDeleteNoteJob(database, {
-      id: 'job-id',
+      id: 'delete-job-1',
       name: SEND_DELETE_NOTE_JOB_NAME,
       data: {
         actorId: actor1.id,
         statusId,
-        to: [ACTIVITY_STREAM_PUBLIC],
+        to: [ACTIVITY_STREAM_PUBLIC, EXTERNAL_ACTOR1],
         cc: [ACTOR1_FOLLOWER_URL]
       }
     })
 
-    expectCall(fetchMock, FOLLOWERS_SHARED_INBOX, 'POST', {
-      id: `${statusId}#delete`,
-      type: 'Delete',
-      actor: actor1.id,
-      to: [ACTIVITY_STREAM_PUBLIC],
-      object: {
-        id: statusId,
-        type: 'Tombstone'
+    expect(publish).toHaveBeenCalledTimes(1)
+    expect(publish).toHaveBeenCalledWith({
+      id: getDeliveryJobId('delete-job-1', FOLLOWERS_SHARED_INBOX),
+      name: DELIVER_ACTIVITY_JOB_NAME,
+      data: {
+        inbox: FOLLOWERS_SHARED_INBOX,
+        actorId: actor1.id,
+        activity: {
+          '@context': 'https://www.w3.org/ns/activitystreams',
+          id: `${statusId}#delete`,
+          type: 'Delete',
+          actor: actor1.id,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          object: {
+            id: statusId,
+            type: 'Tombstone'
+          }
+        }
       }
     })
   })
@@ -104,11 +121,8 @@ describe('sendDeleteNoteJob', () => {
     if (!actor1) fail('Actor1 is required')
     const statusId = `${actor1.id}/statuses/followers-only-deleted`
 
-    // Followers-only: the payload's `to` is the followers collection, so a
-    // dropped isDirect branch would leak it (and the raw cc) to every shared
-    // inbox and relay instead of sending the Public default.
     await sendDeleteNoteJob(database, {
-      id: 'job-id',
+      id: 'delete-job-2',
       name: SEND_DELETE_NOTE_JOB_NAME,
       data: {
         actorId: actor1.id,
@@ -118,9 +132,10 @@ describe('sendDeleteNoteJob', () => {
       }
     })
 
-    const body = getRequestBody(FOLLOWERS_SHARED_INBOX)
-    expect(body.to).toEqual([ACTIVITY_STREAM_PUBLIC])
-    expect(body.cc).toBeUndefined()
+    expect(publish).toHaveBeenCalledTimes(1)
+    const publishedActivity = publish.mock.calls[0][0].data.activity
+    expect(publishedActivity.to).toEqual([ACTIVITY_STREAM_PUBLIC])
+    expect(publishedActivity.cc).toBeUndefined()
   })
 
   it('preserves the original recipients for a direct status', async () => {
@@ -128,7 +143,7 @@ describe('sendDeleteNoteJob', () => {
     const statusId = `${actor1.id}/statuses/direct-deleted`
 
     await sendDeleteNoteJob(database, {
-      id: 'job-id',
+      id: 'delete-job-3',
       name: SEND_DELETE_NOTE_JOB_NAME,
       data: {
         actorId: actor1.id,
@@ -138,23 +153,27 @@ describe('sendDeleteNoteJob', () => {
       }
     })
 
-    expectCall(fetchMock, EXTERNAL_ACTOR1_INBOX, 'POST', {
-      id: `${statusId}#delete`,
-      type: 'Delete',
-      actor: actor1.id,
-      to: [EXTERNAL_ACTOR1],
-      cc: [],
-      object: {
-        id: statusId,
-        type: 'Tombstone'
+    expect(publish).toHaveBeenCalledTimes(1)
+    expect(publish).toHaveBeenCalledWith({
+      id: getDeliveryJobId('delete-job-3', EXTERNAL_ACTOR1_INBOX),
+      name: DELIVER_ACTIVITY_JOB_NAME,
+      data: {
+        inbox: EXTERNAL_ACTOR1_INBOX,
+        actorId: actor1.id,
+        activity: {
+          '@context': 'https://www.w3.org/ns/activitystreams',
+          id: `${statusId}#delete`,
+          type: 'Delete',
+          actor: actor1.id,
+          to: [EXTERNAL_ACTOR1],
+          cc: [],
+          object: {
+            id: statusId,
+            type: 'Tombstone'
+          }
+        }
       }
     })
-
-    // A direct delete must not reach the follower audience.
-    const followerCall = fetchMock.mock.calls.find(
-      (entry) => entry[0] === FOLLOWERS_SHARED_INBOX
-    )
-    expect(followerCall).toBeUndefined()
   })
 
   it('does nothing if actor is not found', async () => {
@@ -169,24 +188,23 @@ describe('sendDeleteNoteJob', () => {
       }
     })
 
-    expect(fetchMock).not.toHaveBeenCalled()
+    expect(publish).not.toHaveBeenCalled()
   })
 
-  it('keeps delivering to the other inboxes when one send rejects', async () => {
+  it('keeps delivering to the other inboxes when one inline send rejects', async () => {
     if (!actor1) fail('Actor1 is required')
     const statusId = `${actor1.id}/statuses/partial-failure`
-    vi.mocked(deleteStatus).mockImplementation(async (params) => {
-      if (params.inbox === FOLLOWERS_SHARED_INBOX) {
+
+    mockQueue(true)
+    publish.mockImplementation(async (msg) => {
+      if (msg.data.inbox === FOLLOWERS_SHARED_INBOX) {
         throw new Error('Inbox unreachable')
       }
-      return realDeleteStatus(params)
     })
 
-    // Without the per-inbox guard the rejection escapes Promise.all and
-    // withSpan rethrows it, so resolving is itself the assertion.
     await expect(
       sendDeleteNoteJob(database, {
-        id: 'job-id',
+        id: 'delete-job-inline',
         name: SEND_DELETE_NOTE_JOB_NAME,
         data: {
           actorId: actor1.id,
@@ -197,17 +215,12 @@ describe('sendDeleteNoteJob', () => {
       })
     ).resolves.toBeUndefined()
 
-    expect(vi.mocked(deleteStatus)).toHaveBeenCalledWith(
-      expect.objectContaining({ inbox: FOLLOWERS_SHARED_INBOX })
+    expect(publish).toHaveBeenCalledTimes(2)
+    expect(publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: getDeliveryJobId('delete-job-inline', EXTERNAL_ACTOR1_INBOX),
+        data: expect.objectContaining({ inbox: EXTERNAL_ACTOR1_INBOX })
+      })
     )
-    expectCall(fetchMock, EXTERNAL_ACTOR1_INBOX, 'POST', {
-      id: `${statusId}#delete`,
-      type: 'Delete',
-      actor: actor1.id,
-      object: {
-        id: statusId,
-        type: 'Tombstone'
-      }
-    })
   })
 })

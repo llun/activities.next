@@ -1001,3 +1001,15 @@ export type {
   MarkBulkImportRowProcessedParams,
   UpdateBulkImportParams
 } from '@/lib/database/domains/bulkImport/types'
+
+// ============================================================================
+// Delivery Domains Database
+// ============================================================================
+
+export type {
+  ClearDeliveryFailuresParams,
+  DeliveryDomainsDatabase,
+  GetUnavailableDomainsParams,
+  IsDomainUnavailableParams,
+  RecordDeliveryFailureParams
+} from '@/lib/database/domains/deliveryDomains/types'

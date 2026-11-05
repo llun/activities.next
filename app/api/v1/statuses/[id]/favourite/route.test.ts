@@ -6,7 +6,10 @@ import type { Database } from '@/lib/database/types'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
-import { EXTERNAL_ACTOR1 } from '@/lib/stub/seed/external1'
+import {
+  EXTERNAL_ACTOR1,
+  EXTERNAL_ACTOR1_INBOX
+} from '@/lib/stub/seed/external1'
 import { StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { urlToId } from '@/lib/utils/urlToId'
@@ -52,7 +55,7 @@ vi.mock('@/lib/config', () => ({
   getConfig: vi.fn().mockReturnValue({
     allowEmails: [],
     host: 'llun.test',
-    secretPhase: 'test-secret'
+    secretPhase: 'secret phases'
   })
 }))
 
@@ -343,5 +346,42 @@ describe('POST /api/v1/statuses/[id]/favourite', () => {
       expect(response.status).toBe(404)
       expect(mockGetNote).not.toHaveBeenCalled()
     })
+  })
+
+  it('returns 200 when inline NoQueue delivery to a remote inbox fails with HTTP 503', async () => {
+    const actualActivities =
+      await vi.importActual<typeof import('@/lib/activities')>(
+        '@/lib/activities'
+      )
+    mockSendLike.mockImplementationOnce(actualActivities.sendLike)
+
+    const remoteStatusId = `${EXTERNAL_ACTOR1}/statuses/inline-fail-like-1`
+    await database.createNote({
+      id: remoteStatusId,
+      url: remoteStatusId,
+      actorId: EXTERNAL_ACTOR1,
+      text: 'remote post',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+
+    fetchMock.mockResponse(async () => ({
+      status: 503,
+      body: 'Service Unavailable'
+    }))
+
+    const response = await favourite(remoteStatusId)
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      favourited: true
+    })
+    expect(
+      fetchMock.mock.calls.some(([input]) => {
+        const url = typeof input === 'string' ? input : (input as Request)?.url
+        return url === EXTERNAL_ACTOR1_INBOX
+      })
+    ).toBe(true)
+    await database.clearDeliveryFailures({ domain: 'llun.dev' })
   })
 })

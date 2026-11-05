@@ -1,9 +1,10 @@
 import { z } from 'zod'
 
-import { undoAnnounce } from '@/lib/activities'
+import { buildUndoAnnounceActivity } from '@/lib/activities'
 import { createJobHandle } from '@/lib/jobs/createJobHandle'
 import { SEND_UNDO_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
 import { filterFederatedUrls } from '@/lib/services/federation/domainPolicy'
+import { enqueueDeliveries } from '@/lib/services/federation/enqueueDeliveries'
 import { JobHandle } from '@/lib/services/queue/type'
 import { logger } from '@/lib/utils/logger'
 import { withSpan } from '@/lib/utils/trace'
@@ -44,28 +45,34 @@ export const sendUndoAnnounceJob: JobHandle = createJobHandle(
         return
       }
 
+      const activity = buildUndoAnnounceActivity({
+        actorId: actor.id,
+        announce: {
+          id: statusId,
+          actorId,
+          createdAt,
+          to,
+          cc,
+          originalStatus: { id: originalStatusId }
+        }
+      })
+
       // Same follower fan-out the boost itself used (sendAnnounceJob), so an
       // unboost reaches everyone the Announce did.
       const inboxes = await database.getFollowersInbox({
         targetActorId: actorId
       })
       const federatedInboxes = await filterFederatedUrls(database, inboxes)
-      await Promise.all(
-        federatedInboxes.map((inbox) =>
-          undoAnnounce({
-            currentActor: actor,
-            inbox,
-            announce: {
-              id: statusId,
-              actorId,
-              createdAt,
-              to,
-              cc,
-              originalStatus: { id: originalStatusId }
-            }
-          })
-        )
-      )
+
+      await enqueueDeliveries({
+        database,
+        parentMessageId: message.id,
+        actorId: actor.id,
+        activity: activity as unknown as Record<string, unknown>,
+        inboxes: federatedInboxes,
+        span,
+        statusId
+      })
     })
   }
 )

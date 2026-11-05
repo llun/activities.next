@@ -1,7 +1,7 @@
 import { SpanStatusCode } from '@opentelemetry/api'
 
 import { getDatabase } from '@/lib/database'
-import { JOBS, JobHandle } from '@/lib/jobs'
+import type { JobHandle } from '@/lib/jobs'
 import { logger } from '@/lib/utils/logger'
 import { withSpan } from '@/lib/utils/trace'
 
@@ -29,6 +29,7 @@ export const defaultJobHandle =
           return
         }
 
+        const { JOBS } = await import('@/lib/jobs')
         const jobName = String(message.name)
         const hasJob = Object.prototype.hasOwnProperty.call(JOBS, jobName)
         const job = hasJob

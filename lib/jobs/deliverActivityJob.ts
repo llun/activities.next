@@ -7,6 +7,7 @@ import {
   SalvageableDeliveryError,
   classifyDeliveryError
 } from '@/lib/services/federation/deliveryError'
+import { getDomainFromUrl } from '@/lib/services/federation/domainPolicy'
 import { JobHandle } from '@/lib/services/queue/type'
 import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
@@ -32,8 +33,35 @@ export const deliverActivityJob: JobHandle = createJobHandle(
     }
 
     const { inbox, actorId, activity } = parsed.data
+    const domain = getDomainFromUrl(inbox)
     span?.setAttribute('inbox', inbox)
     span?.setAttribute('actorId', actorId)
+
+    if (domain) {
+      let domainUnavailable = false
+      try {
+        domainUnavailable = await database.isDomainUnavailable({ domain })
+      } catch (trackingError) {
+        logger.error(
+          { err: toLoggableError(trackingError), domain, inbox },
+          'DeliverActivityJob: failed to check domain availability'
+        )
+      }
+
+      if (domainUnavailable) {
+        span?.addEvent('delivery_skipped_unavailable_domain', {
+          'delivery.inbox': inbox,
+          'delivery.domain': domain,
+          'delivery.actor_id': actorId,
+          'delivery.activity_type': String(activity.type)
+        })
+        logger.info(
+          { inbox, domain, actorId },
+          'DeliverActivityJob: skipping delivery to unavailable domain'
+        )
+        return
+      }
+    }
 
     span?.addEvent('delivery_attempt_start', {
       'delivery.inbox': inbox,
@@ -55,6 +83,28 @@ export const deliverActivityJob: JobHandle = createJobHandle(
       return
     }
 
+    const recordSalvageableFailure = async (reason: string) => {
+      if (!domain) return
+      try {
+        const markedUnavailable = await database.recordDeliveryFailure({
+          domain,
+          error: reason,
+          now: Date.now()
+        })
+        if (markedUnavailable) {
+          logger.warn(
+            { domain, inbox },
+            'DeliverActivityJob: domain marked unavailable after repeated delivery failures'
+          )
+        }
+      } catch (trackingError) {
+        logger.error(
+          { err: toLoggableError(trackingError), domain, inbox },
+          'DeliverActivityJob: failed to record domain delivery failure'
+        )
+      }
+    }
+
     const method = 'POST'
     try {
       const { statusCode } = await request({
@@ -70,6 +120,16 @@ export const deliverActivityJob: JobHandle = createJobHandle(
       })
 
       if (statusCode !== undefined && statusCode >= 200 && statusCode < 300) {
+        if (domain) {
+          try {
+            await database.clearDeliveryFailures({ domain })
+          } catch (trackingError) {
+            logger.error(
+              { err: toLoggableError(trackingError), domain, inbox },
+              'DeliverActivityJob: failed to clear domain delivery failures'
+            )
+          }
+        }
         span?.addEvent('delivery_success', {
           'delivery.inbox': inbox,
           'delivery.status_code': statusCode
@@ -79,6 +139,7 @@ export const deliverActivityJob: JobHandle = createJobHandle(
 
       const classification = classifyDeliveryError({ statusCode })
       if (classification.disposition === DeliveryDisposition.SALVAGEABLE) {
+        await recordSalvageableFailure(classification.reason)
         const errMessage = `Delivery to ${inbox} failed with salvageable status ${statusCode}`
         span?.addEvent('delivery_salvageable_failure', {
           'delivery.inbox': inbox,
@@ -116,6 +177,7 @@ export const deliverActivityJob: JobHandle = createJobHandle(
       // through the queue's normal backoff, like Mastodon does.
       const classification = classifyDeliveryError({ error })
       if (classification.disposition === DeliveryDisposition.SALVAGEABLE) {
+        await recordSalvageableFailure(classification.reason)
         const errMessage = `Delivery to ${inbox} encountered network failure: ${(error as Error).message}`
         span?.addEvent('delivery_salvageable_failure', {
           'delivery.inbox': inbox,

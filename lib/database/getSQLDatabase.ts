@@ -18,6 +18,7 @@ import { bulkImportQueries } from '@/lib/database/domains/bulkImport/queries'
 import { createConversationQueries } from '@/lib/database/domains/conversation/queries'
 import { customEmojiQueries } from '@/lib/database/domains/customEmoji/queries'
 import { deadLetterJobQueries } from '@/lib/database/domains/deadLetterJob/queries'
+import { deliveryDomainsQueries } from '@/lib/database/domains/deliveryDomains/queries'
 import { endorsementQueries } from '@/lib/database/domains/endorsement/queries'
 import { featuredTagQueries } from '@/lib/database/domains/featuredTag/queries'
 import { filterQueries } from '@/lib/database/domains/filter/queries'
@@ -143,6 +144,7 @@ export const getSQLDatabase = (
     ...bindDb(kysely, blockQueries),
     ...bindDb(kysely, customEmojiQueries),
     ...bindDb(kysely, deadLetterJobQueries),
+    ...bindDb(kysely, deliveryDomainsQueries),
     ...bindDb(kysely, markerQueries),
     ...bindDb(kysely, muteQueries),
     ...bindDb(kysely, endorsementQueries),
