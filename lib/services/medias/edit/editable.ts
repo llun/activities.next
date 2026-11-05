@@ -17,7 +17,8 @@ export const ANIMATED_MEDIA_NOT_EDITABLE_ERROR =
 
 /**
  * Whether the photo editor may edit this media: a still image the instance
- * stored itself (JPEG, PNG or WebP — never a GIF, video or audio), whose
+ * stored itself (an uploaded JPEG, PNG, WebP, GIF or AVIF, never an animated
+ * image, a video or audio), whose
  * upload has finished, and small enough for the browser to render, going by
  * the size its row records. The routes check the size again against the
  * decoded source (`readEditSource`), since the recorded one may describe the

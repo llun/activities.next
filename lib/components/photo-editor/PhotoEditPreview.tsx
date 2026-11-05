@@ -57,8 +57,8 @@ interface Props {
 
 /**
  * Still images the editor can open (the server checks the rest). An animated
- * WebP is an accepted upload but the server refuses to edit it, so the pill is
- * hidden rather than opening an editor that fails on save.
+ * GIF or WebP is an accepted upload but the server refuses to edit it, so the
+ * pill is hidden rather than opening an editor that fails on save.
  */
 export const isEditableItem = (
   item: Pick<PreviewItem, 'mediaType' | 'pages'>
