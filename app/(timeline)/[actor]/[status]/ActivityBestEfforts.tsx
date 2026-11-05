@@ -57,8 +57,13 @@ export const ActivityBestEfforts: FC<{
             label={formatEffortDuration(effort.durationSeconds)}
             value={
               isRecord(effort) ? (
-                <span className="inline-flex items-baseline gap-1.5">
-                  {effort.watts} W
+                // Wraps the badge under the watts when a narrow cell (five
+                // columns from 521 px) has no room beside them.
+                <span
+                  data-testid="personal-record-value"
+                  className="inline-flex flex-wrap items-baseline gap-x-1.5"
+                >
+                  <span className="whitespace-nowrap">{effort.watts} W</span>
                   <PersonalRecordBadge />
                 </span>
               ) : (
