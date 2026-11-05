@@ -298,6 +298,39 @@ describe('/api/v1/statuses/[id] action routes', () => {
       ).resolves.toBe(false)
     })
 
+    it('sends no Undo for a status the actor never liked', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor3.email }
+      })
+      const { sendUndoLike } = await import('@/lib/activities')
+      vi.mocked(sendUndoLike).mockClear()
+
+      const statusId = `${ACTOR1_ID}/statuses/api-unfavourite-never-liked`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'A status nobody favourited',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const response = await unfavouriteStatus(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}/unfavourite`,
+          {
+            method: 'POST',
+            headers: { Origin: 'https://llun.test' }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      // Each Undo is its own retrying delivery, so a no-op sends nothing.
+      expect(sendUndoLike).not.toHaveBeenCalled()
+    })
+
     it('reblogs with a private visibility from a JSON body and scopes the boost to followers', async () => {
       mockGetServerSession.mockResolvedValue({
         user: { email: seedActor2.email }

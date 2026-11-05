@@ -17,7 +17,11 @@ export const defaultJobHandle =
         jobName: String(message.name)
       },
       async (span) => {
-        logger.debug({ message }, `${queueName} handle job`)
+        // Ids only: delivery jobs carry whole activities, private ones too.
+        logger.debug(
+          { messageId: message.id, jobName: String(message.name) },
+          `${queueName} handle job`
+        )
         const database = getDatabase()
         if (!database) {
           logger.error('Database is not available')

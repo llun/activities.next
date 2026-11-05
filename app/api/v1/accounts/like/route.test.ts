@@ -5,7 +5,8 @@ import { DELETE, POST } from './route'
 const mockDatabase = {
   getStatus: vi.fn(),
   createLike: vi.fn(),
-  deleteLike: vi.fn()
+  deleteLike: vi.fn(),
+  isActorLikedStatus: vi.fn()
 }
 
 const mockCurrentActor = {
@@ -132,6 +133,7 @@ describe('like and unlike of an existing status', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockDatabase.getStatus.mockResolvedValue(status)
+    mockDatabase.isActorLikedStatus.mockResolvedValue(false)
   })
 
   it('POST stores the like, then federates it to the status author', async () => {
@@ -159,6 +161,7 @@ describe('like and unlike of an existing status', () => {
   })
 
   it('DELETE removes the like, then federates an Undo', async () => {
+    mockDatabase.isActorLikedStatus.mockResolvedValue(true)
     const response = await DELETE(
       jsonRequest('DELETE', { statusId: status.id }),
       context
@@ -198,6 +201,28 @@ describe('like and unlike of an existing status', () => {
       expect(mockSendUndoLike).not.toHaveBeenCalled()
     }
   )
+
+  it('POST of a status already liked stores nothing new and sends no second Like', async () => {
+    mockDatabase.isActorLikedStatus.mockResolvedValue(true)
+
+    const response = await POST(
+      jsonRequest('POST', { statusId: status.id }),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockSendLike).not.toHaveBeenCalled()
+  })
+
+  it('DELETE of a status not liked sends no Undo', async () => {
+    const response = await DELETE(
+      jsonRequest('DELETE', { statusId: status.id }),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockSendUndoLike).not.toHaveBeenCalled()
+  })
 
   it('does not federate a like whose local write failed', async () => {
     mockDatabase.createLike.mockRejectedValueOnce(new Error('db down'))

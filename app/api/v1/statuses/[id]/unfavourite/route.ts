@@ -47,8 +47,14 @@ export const POST = traceApiRoute(
         if (!status) return apiCorsError(req, CORS_HEADERS, 404)
       }
 
+      // Each Undo is its own retrying delivery, so only a like that existed
+      // is undone remotely: a repeated unfavourite sends nothing.
+      const wasLiked = await database.isActorLikedStatus({
+        actorId: currentActor.id,
+        statusId
+      })
       await database.deleteLike({ actorId: currentActor.id, statusId })
-      await sendUndoLike({ currentActor, status })
+      if (wasLiked) await sendUndoLike({ currentActor, status })
 
       // Refetch status to get updated counts
       return refetchedStatusResponse({
