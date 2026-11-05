@@ -64,6 +64,8 @@ interface Props {
   hasMoreAncestors?: boolean
   hasMoreDescendants?: boolean
   fitnessFiles?: StatusFitnessFileItem[]
+  /** Owner only: per fitness file, the power durations that are all-time bests. */
+  personalRecordDurations?: Record<string, number[]>
 }
 
 export const StatusBox: FC<Props> = ({
@@ -78,7 +80,8 @@ export const StatusBox: FC<Props> = ({
   ancestors,
   hasMoreAncestors,
   hasMoreDescendants,
-  fitnessFiles
+  fitnessFiles,
+  personalRecordDurations
 }) => {
   const router = useRouter()
   const openStatusPath = useOpenStatusPath()
@@ -115,6 +118,7 @@ export const StatusBox: FC<Props> = ({
             hasMoreDescendants={hasMoreDescendants}
             isMediaUploadEnabled={isMediaUploadEnabled}
             initialFitnessFiles={fitnessFiles}
+            personalRecordDurations={personalRecordDurations}
             onShowAttachment={(allMedias, index) => {
               setModalMedias({
                 medias: allMedias,

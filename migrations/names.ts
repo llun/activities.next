@@ -19,7 +19,8 @@ export const MIGRATION_NAMES = [
   '20261025141323_add_actor_handles',
   '20261027134549_add_account_imports',
   '20261104133123_add_attachments_is_route_map',
-  '20261105034530_add_deleted_attachment_media'
+  '20261105034530_add_deleted_attachment_media',
+  '20261105185059_add_fitness_best_efforts'
 ] as const
 
 export type MigrationName = (typeof MIGRATION_NAMES)[number]

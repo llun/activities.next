@@ -22,6 +22,7 @@ import { getVisitedDomainIdentity } from '@/lib/services/domains/domainIdentity'
 import { getServedHostConfig } from '@/lib/services/domains/servedDomainSnapshot'
 import { getVisitedSignUpDomain } from '@/lib/services/domains/visitedSignUpDomain'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
+import { getPersonalRecordDurations } from '@/lib/services/fitness-files/personalRecords'
 import { getStatusFitnessFiles } from '@/lib/services/fitness-files/statusFitnessFiles'
 import { enrichStatusAttachments } from '@/lib/services/medias/animationMetadata'
 import { getQueue } from '@/lib/services/queue'
@@ -50,6 +51,7 @@ import { getVisibility } from '@/lib/utils/getVisibility'
 import { getCanonicalAuthority, isOwnInstanceHost } from '@/lib/utils/host'
 import { logger } from '@/lib/utils/logger'
 import { htmlToPlainText } from '@/lib/utils/text/htmlToPlainText'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import { Header } from './Header'
 import { PagedStatusThread } from './PagedStatusThread'
@@ -502,6 +504,25 @@ const Page: FC<Props> = async ({ params }) => {
       statusForLayout.id,
       currentTime
     )
+    // The PR badges are the owner's own records, so only the owner's page
+    // reads them. A failed read only costs the badges.
+    const isOwner =
+      Boolean(currentActor) &&
+      statusForLayout.isLocalActor !== false &&
+      currentActor?.id === statusForLayout.actorId
+    const personalRecordDurations = isOwner
+      ? await getPersonalRecordDurations(database, {
+          actorId: statusForLayout.actorId,
+          fitnessFileIds: fitnessFiles.map((file) => file.id)
+        }).catch((error) => {
+          logger.warn({
+            message: 'Failed to read the activity personal records',
+            statusId: statusForLayout.id,
+            err: toLoggableError(error)
+          })
+          return undefined
+        })
+      : undefined
 
     return (
       <>
@@ -589,6 +610,7 @@ const Page: FC<Props> = async ({ params }) => {
               hasMoreAncestors={hasMoreAncestors}
               hasMoreDescendants={hasMoreDescendants}
               fitnessFiles={fitnessFiles}
+              personalRecordDurations={personalRecordDurations}
             />
           </div>
 

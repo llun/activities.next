@@ -4,13 +4,29 @@ import type {
   FitnessRouteSample
 } from '@/lib/client/fitnessRoutes'
 import type { AnalysisSeriesKey } from '@/lib/components/fitness/palette'
-import { normalizeActivityTypeToSportKey } from '@/lib/services/fitness-files/sportTypes'
+import {
+  type PowerEffort,
+  computeBestEfforts,
+  estimateRecordingSeconds,
+  estimateSampleSeconds,
+  median,
+  prefixSums
+} from '@/lib/fitness/bestEfforts'
+import { isRunActivity } from '@/lib/services/fitness-files/sportTypes'
 
 import {
   computePowerHistogramMinutes,
   downsampleSeries,
   getSeriesMinMax
 } from './fitnessChartData'
+
+export {
+  type PowerEffort,
+  computeBestEfforts,
+  estimateRecordingSeconds,
+  estimateSampleSeconds,
+  isRunActivity
+}
 
 /**
  * Derived metrics for the activity page, computed in the browser from the
@@ -74,26 +90,12 @@ export const haversineMeters = (
   return 2 * EARTH_RADIUS_METERS * Math.asin(Math.min(1, Math.sqrt(a)))
 }
 
-export const isRunActivity = (activityType?: string | null): boolean => {
-  const key = normalizeActivityTypeToSportKey(activityType)
-  return key === 'run' || key === 'trail_run'
-}
-
 /**
  * Above this median, a run's recorded cadence is already in steps per minute:
  * per-foot running cadence sits around 75-100, and no runner holds 120
  * strides (240 steps) a minute, while 150-200 is an ordinary step rate.
  */
 export const RUN_CADENCE_STEPS_THRESHOLD = 120
-
-const median = (values: number[]): number | null => {
-  if (values.length === 0) return null
-  const sorted = [...values].sort((a, b) => a - b)
-  const middle = Math.floor(sorted.length / 2)
-  return sorted.length % 2 === 1
-    ? sorted[middle]
-    : (sorted[middle - 1] + sorted[middle]) / 2
-}
 
 /**
  * Running cadence is usually recorded per foot (strides per minute), and
@@ -379,52 +381,6 @@ export const getSeriesScale = (
   }
 }
 
-/**
- * Seconds between two values of a full-resolution series, given how long the
- * recording was actually running (see {@link estimateRecordingSeconds}). The
- * series keeps only recorded values, so it is read as one per second unless
- * the recording is clearly sparser (Garmin's "smart recording" writes every
- * few seconds). Pass running time, never elapsed time: an auto-paused file has
- * no samples for its stops, so elapsed time would stretch every sample, shrink
- * the windows the power maths slides over and inflate every time total.
- */
-export const estimateSampleSeconds = (
-  sampleCount: number,
-  durationSeconds: number
-): number => {
-  if (sampleCount < 2 || !(durationSeconds > 0)) return 1
-  const ratio = durationSeconds / sampleCount
-  return ratio < 1.5 ? 1 : ratio
-}
-
-/**
- * How long the recording was running, from the timeline's own timing: the sum
- * of the gaps between consecutive points, where a gap far longer than the
- * usual one (an auto-pause, or the recorder stopped) counts as one usual gap,
- * capped at `fallbackSeconds` (the elapsed time) when that is known.
- * The timeline is picked evenly by record, so an ordinary gap is the record
- * interval times the pick step and a pause stands out as one long jump. Falls
- * back to `fallbackSeconds` when there are too few points to tell.
- */
-export const estimateRecordingSeconds = (
-  points: ActivityPoint[],
-  fallbackSeconds: number
-): number => {
-  const gaps: number[] = []
-  for (let index = 1; index < points.length; index += 1) {
-    const gap = points[index].elapsedSeconds - points[index - 1].elapsedSeconds
-    if (gap > 0) gaps.push(gap)
-  }
-  const usual = median(gaps)
-  if (gaps.length < 2 || usual === null) return fallbackSeconds
-  const pauseAbove = Math.max(usual * 4, usual + 10)
-  // Each point stands for one usual gap, the last one included, and running
-  // time never exceeds the elapsed time it is part of.
-  const running =
-    gaps.reduce((sum, gap) => sum + (gap > pauseAbove ? usual : gap), 0) + usual
-  return fallbackSeconds > 0 ? Math.min(running, fallbackSeconds) : running
-}
-
 /** A pause cut out of the chart's time axis, in elapsed and in chart time. */
 export interface ChartPause {
   startSeconds: number
@@ -527,26 +483,6 @@ export const toChartSeconds = (axis: ChartTimeAxis, elapsedSeconds: number) =>
 export const toElapsedSeconds = (axis: ChartTimeAxis, chartSeconds: number) =>
   convertTime(axis.pauses, chartSeconds, 'chart')
 
-const bestAverage = (prefix: number[], windowSize: number): number | null => {
-  const count = prefix.length - 1
-  if (windowSize < 1 || windowSize > count) return null
-  let best = -Infinity
-  for (let end = windowSize; end <= count; end += 1) {
-    const sum = prefix[end] - prefix[end - windowSize]
-    if (sum > best) best = sum
-  }
-  return best / windowSize
-}
-
-const prefixSums = (series: number[]) => {
-  const prefix = new Array<number>(series.length + 1)
-  prefix[0] = 0
-  for (let index = 0; index < series.length; index += 1) {
-    prefix[index + 1] = prefix[index] + series[index]
-  }
-  return prefix
-}
-
 export const average = (values: number[]): number | null =>
   values.length === 0
     ? null
@@ -573,37 +509,11 @@ export const computeNormalizedPower = (
   return Math.round((sumOfFourthPowers / windows) ** 0.25)
 }
 
-export interface PowerEffort {
-  durationSeconds: number
-  watts: number
-}
-
-/** The durations the Best efforts strip shows. */
-export const BEST_EFFORT_DURATIONS = [5, 60, 300, 1200, 3600]
-
 /** The durations the power curve is plotted at (a log scale, 1 s to 4 h). */
 export const POWER_CURVE_DURATIONS = [
   1, 2, 3, 5, 10, 15, 20, 30, 45, 60, 90, 120, 180, 240, 300, 420, 600, 900,
   1200, 1800, 2700, 3600, 5400, 7200, 10800, 14400
 ]
-
-/**
- * The highest average power held for each duration. A duration longer than
- * the recording is left out rather than reported as the whole-ride average.
- */
-export const computeBestEfforts = (
-  power: number[],
-  sampleSeconds = 1,
-  durations: number[] = BEST_EFFORT_DURATIONS
-): PowerEffort[] => {
-  if (power.length === 0) return []
-  const prefix = prefixSums(power)
-  return durations.flatMap((durationSeconds) => {
-    const windowSize = Math.max(1, Math.round(durationSeconds / sampleSeconds))
-    const best = bestAverage(prefix, windowSize)
-    return best === null ? [] : [{ durationSeconds, watts: Math.round(best) }]
-  })
-}
 
 export const computePowerCurve = (
   power: number[],

@@ -85,6 +85,8 @@ interface Props {
   hasMoreDescendants?: boolean
   isMediaUploadEnabled?: boolean
   initialFitnessFiles?: StatusFitnessFileItem[]
+  /** Owner only: per fitness file, the power durations that are all-time bests. */
+  personalRecordDurations?: Record<string, number[]>
   onShowAttachment: (allMedias: Attachment[], selectedIndex: number) => void
 }
 
@@ -300,6 +302,7 @@ export const FitnessStatusDetail: FC<Props> = ({
   hasMoreDescendants = false,
   isMediaUploadEnabled,
   initialFitnessFiles,
+  personalRecordDurations,
   onShowAttachment
 }) => {
   // The activity's conversation, with "Load earlier posts" above it and "Load
@@ -1040,7 +1043,14 @@ export const FitnessStatusDetail: FC<Props> = ({
           </>
         ) : analysis ? (
           <>
-            <ActivityBestEfforts efforts={analysis.bestEfforts} />
+            <ActivityBestEfforts
+              efforts={analysis.bestEfforts}
+              recordDurations={
+                isOwner && fitness
+                  ? personalRecordDurations?.[fitness.id]
+                  : undefined
+              }
+            />
             <ActivityDistributionRow
               heartRateZones={heartRateZones}
               heartRateStats={heartRateStats}

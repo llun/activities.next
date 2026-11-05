@@ -346,3 +346,5 @@ CREATE INDEX "account_import_items_import_state_position_idx" on "account_import
 CREATE TABLE IF NOT EXISTS "deleted_attachment_media" ("attachmentId" varchar(255) primary key, "actorId" varchar(255) not null, "mediaId" integer not null, "createdAt" datetime default CURRENT_TIMESTAMP not null);
 CREATE INDEX "deleted_attachment_media_createdAt_idx" on "deleted_attachment_media" ("createdAt");
 CREATE INDEX "deleted_attachment_media_actorId_idx" on "deleted_attachment_media" ("actorId");
+CREATE TABLE IF NOT EXISTS "fitness_best_efforts" ("fitnessFileId" varchar(255) not null references "fitness_files" ("id") on delete cascade, "actorId" varchar(255) not null references "actors" ("id") on delete cascade, "statusId" varchar(255) not null, "activityType" varchar(255), "kind" varchar(16) not null, "key" float not null, "value" float not null, "activityDate" datetime not null, "createdAt" datetime default CURRENT_TIMESTAMP not null, constraint "fitness_best_efforts_pkey" primary key ("fitnessFileId", "kind", "key"));
+CREATE INDEX "fitness_best_efforts_actor_kind_key_date_idx" on "fitness_best_efforts" ("actorId", "kind", "key", "activityDate");
