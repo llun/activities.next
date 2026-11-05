@@ -10,7 +10,9 @@ export const getLanguageMapFields = (
   contentMap?: Record<string, string>
   summaryMap?: Record<string, string>
 } => {
-  const language = parseLanguageCode(status.language)
+  // The map key is a JSON-LD `@language` tag, so BCP 47's hyphen: creation
+  // accepts `zh_TW`, and Mastodon sends that one as `zh-TW`.
+  const language = parseLanguageCode(status.language)?.replace(/_/g, '-')
   if (!language) return {}
 
   return {

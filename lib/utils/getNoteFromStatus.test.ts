@@ -72,7 +72,9 @@ describe.each([
     'uses the same language-code validation as status creation for %j',
     (language) => {
       const note = serialize(baseStatus({ language }))!
-      expect(note.contentMap).toEqual({ [language.trim()]: note.content })
+      expect(note.contentMap).toEqual({
+        [language.trim().replace('_', '-')]: note.content
+      })
     }
   )
 
