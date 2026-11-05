@@ -95,8 +95,9 @@ const Page = async ({ params }: PageProps) => {
     )
   }
 
-  // The index is capped, so a subject seen only on older photos has no entry
-  // while its photos are still reachable. 404 only when nothing is there.
+  // Past the index's row ceiling (or when its cover's post just went away) a
+  // subject has no entry while its photos are still reachable. 404 only when
+  // nothing is there.
   const first = page.items[0]
   if (!first && page.nextMaxId === null) return notFound()
 

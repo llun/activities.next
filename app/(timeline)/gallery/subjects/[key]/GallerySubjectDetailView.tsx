@@ -27,7 +27,7 @@ import type {
 
 interface Props {
   actorId: string
-  // `count` is null when the subject is missing from the capped index.
+  // `count` is null when the subject is missing from the subjects summary.
   subject: Omit<GallerySubjectEntry, 'cover' | 'count'> & {
     count: number | null
   }
