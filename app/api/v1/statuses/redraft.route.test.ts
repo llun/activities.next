@@ -280,6 +280,24 @@ describe('POST /api/v1/statuses delete-and-redraft media resolution', () => {
     expect(response.status).toBe(422)
   })
 
+  it('refuses far more ids than the cap without looking any of them up', async () => {
+    const lookup = vi.spyOn(database, 'getDeletedAttachmentMediaIds')
+    try {
+      const response = await postStatus({
+        status: 'Post with too many ids',
+        media_ids: Array.from(
+          { length: MAX_STORED_MEDIA_ATTACHMENTS * 2 + 1 },
+          (_, index) =>
+            `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`
+        )
+      })
+      expect(response.status).toBe(422)
+      expect(lookup).not.toHaveBeenCalled()
+    } finally {
+      lookup.mockRestore()
+    }
+  })
+
   it('resolves deleted attachment UUIDs when scheduling a redrafted status', async () => {
     const suffix = `${Date.now()}-scheduled`
     const media = await createMediaForActor(ACTOR1_ID, suffix)

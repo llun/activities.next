@@ -177,6 +177,11 @@ const resolveStatusMedia = async (
   mediaIds: string[],
   hasFitnessFile: boolean
 ): Promise<PostBoxAttachment[] | null> => {
+  const maxAttachments = getMaxStatusMediaAttachments(hasFitnessFile)
+  // A media can arrive twice (its attachment uuid and its row id), so more
+  // than twice the cap of distinct ids is over it whatever they resolve to;
+  // refuse before looking any of them up.
+  if (new Set(mediaIds).size > maxAttachments * 2) return null
   const nonRowIds = [
     ...new Set(mediaIds.filter((id) => toMediaRowId(id) === null))
   ]
@@ -192,9 +197,7 @@ const resolveStatusMedia = async (
       mediaIds.map((id) => toCanonicalMediaId(deletedMediaIds.get(id) ?? id))
     )
   ]
-  if (resolvedIds.length > getMaxStatusMediaAttachments(hasFitnessFile)) {
-    return null
-  }
+  if (resolvedIds.length > maxAttachments) return null
   return getAttachmentsFromMediaIds(database, currentActor, resolvedIds)
 }
 
