@@ -149,6 +149,7 @@ describe('syncRemotePoll', () => {
     })
     expect(mockDatabase.updatePoll).toHaveBeenCalledWith({
       statusId: remotePollStatus.id,
+      expectedRemoteUpdatedAt: null,
       summary: '',
       text: '<p>Favorite color?</p>',
       choices: [
@@ -299,16 +300,15 @@ describe('syncRemotePoll', () => {
       status: { ...remotePollStatus, remoteUpdatedAt: storedUpdatedAt }
     })
 
-    const params = (mockDatabase.updatePoll as jest.Mock).mock.calls.at(-1)?.[0]
-    expect(params.remoteUpdatedAt).toEqual(
-      expectRecorded ? Date.parse('2026-09-01T00:00:00Z') : undefined
-    )
-    // An older copy refreshes tallies alone: no stale text, summary or deadline.
     if (!expectRecorded) {
-      expect(params).not.toHaveProperty('text')
-      expect(params).not.toHaveProperty('summary')
-      expect(params).not.toHaveProperty('endAt')
+      // An older copy is skipped whole: its tallies may predate a reset.
+      expect(mockDatabase.updatePoll).not.toHaveBeenCalled()
+      return
     }
+    const params = (mockDatabase.updatePoll as jest.Mock).mock.calls.at(-1)?.[0]
+    expect(params.remoteUpdatedAt).toEqual(Date.parse('2026-09-01T00:00:00Z'))
+    // The write is conditional on the row still holding what was read.
+    expect(params.expectedRemoteUpdatedAt).toBeNull()
   })
 
   it('does not record the updated of a fetch whose options differ, so the Update stays explicit', async () => {
@@ -341,6 +341,12 @@ describe('syncRemotePoll', () => {
 
     const params = (mockDatabase.updatePoll as jest.Mock).mock.calls.at(-1)?.[0]
     expect(params).not.toHaveProperty('remoteUpdatedAt')
+    // The text, summary and deadline stay with the Update that changes the
+    // options, so one edit never records a mixed revision.
+    expect(params).not.toHaveProperty('text')
+    expect(params).not.toHaveProperty('summary')
+    expect(params).not.toHaveProperty('endAt')
+    expect(params).not.toHaveProperty('expectedRemoteUpdatedAt')
   })
 
   it('compares against the row re-read after the fetch, so an Update committed meanwhile is not reverted', async () => {
@@ -382,9 +388,7 @@ describe('syncRemotePoll', () => {
       }
     })
 
-    const params = (mockDatabase.updatePoll as jest.Mock).mock.calls.at(-1)?.[0]
-    expect(params).not.toHaveProperty('text')
-    expect(params).not.toHaveProperty('remoteUpdatedAt')
+    expect(mockDatabase.updatePoll).not.toHaveBeenCalled()
   })
 
   it('handles multiple-choice anyOf polls correctly', async () => {
@@ -439,6 +443,7 @@ describe('syncRemotePoll', () => {
 
     expect(mockDatabase.updatePoll).toHaveBeenCalledWith({
       statusId: remotePollStatus.id,
+      expectedRemoteUpdatedAt: null,
       summary: '',
       text: '<p>Select features</p>',
       choices: [

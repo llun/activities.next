@@ -2088,15 +2088,18 @@ remote poll (`syncRemotePoll`) follow Mastodon's
   does set `expires_at` unless the options changed significantly, but a
   deadline move records a revision here, which a tally refresh should never
   do. `syncRemotePoll` (a fetch, not an Update) never resets votes or changes the
-  options. It refreshes tallies always, and the text, summary and deadline only
-  from a document at least as new as the last applied edit and with the same
-  option set and mode (an older cached copy cannot revert them, and an option
-  edit is left whole to its Update). It compares against the row re-read after
-  the fetch, so an Update that committed while the fetch was in flight is not
-  reverted. It records the fetched `updated` as
-  `remoteUpdatedAt` when it is newer and the fetched option set and mode match
-  the stored ones, so a late, older Update cannot revert what the fetch applied,
-  while an Update that changes the options stays explicit and still applies.
+  options. It compares against the row re-read after the fetch and skips a
+  document older than the last applied edit entirely, as Mastodon's
+  `already_updated_more_recently?` does (its tallies may predate an option
+  change that reset them). Otherwise it refreshes the tallies, and the text,
+  summary and deadline only when the fetched option set and mode match the
+  stored ones (an option edit is left whole to its Update). It records the
+  fetched `updated` as `remoteUpdatedAt` when it is newer under the same match,
+  so a late, older Update cannot revert what the fetch applied, while an Update
+  that changes the options stays explicit and still applies. Its write passes
+  the `remoteUpdatedAt` it read as `expectedRemoteUpdatedAt`: `updatePoll`
+  reads and locks the row in its own transaction and, when an Update committed
+  in between, writes the tallies alone.
 - **Deadline.** A parseable string `closed` wins over `endTime`; any other
   truthy `closed` (a bare boolean, which the `Question` schema accepts) means
   the poll closed at processing time — unless the stored `endAt` has already

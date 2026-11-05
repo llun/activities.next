@@ -134,11 +134,21 @@ const performPollSync = async ({
     const choices = getPollChoicesFromQuestion(question, stored.choices)
 
     // The text, summary and deadline apply only from a document at least as new
-    // as the last applied edit (an older cached copy refreshes tallies alone),
-    // and a newer document's `updated` is recorded so a late, older Update
+    // as the last applied edit, and a newer document's `updated` is recorded so a late, older Update
     // cannot revert what this fetch applied.
     const fetchedUpdatedAt = parseQuestionTime(question.updated)
     const storedUpdatedAt = stored.remoteUpdatedAt
+    // A document older than the last applied edit is skipped whole, as
+    // Mastodon's already_updated_more_recently? does: its tallies may predate
+    // an option change that reset them.
+    if (
+      fetchedUpdatedAt !== undefined &&
+      storedUpdatedAt !== undefined &&
+      fetchedUpdatedAt < storedUpdatedAt
+    ) {
+      failedPollSyncsAt.delete(status.id)
+      return stored
+    }
     // Text, summary and deadline follow the options: a fetch whose option set
     // differs leaves them to the Update that carries the whole edit, so one
     // edit never records a mixed revision.
@@ -167,7 +177,10 @@ const performPollSync = async ({
       ...(summary !== undefined ? { summary } : {}),
       choices,
       ...(endAt !== undefined ? { endAt } : {}),
-      ...(remoteUpdatedAt !== undefined ? { remoteUpdatedAt } : {})
+      ...(remoteUpdatedAt !== undefined ? { remoteUpdatedAt } : {}),
+      // The decision above used this read; an Update that commits before the
+      // write lands leaves only the tallies to this fetch.
+      ...(current ? { expectedRemoteUpdatedAt: storedUpdatedAt ?? null } : {})
     })
 
     failedPollSyncsAt.delete(status.id)
