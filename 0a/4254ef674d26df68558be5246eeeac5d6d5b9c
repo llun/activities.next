@@ -1,0 +1,45 @@
+docs/mastodon-api-compatibility.md
+  s_586db14537acc6::t_4e51080e1315ef 2039,2044-2046
+  s_2b1a50e2f9b981::t_3f035f4ef8bce5 1378,1380
+docs/architecture.md
+  s_586db14537acc6::t_4167dd7682eb3b 2249-2251,2253-2254
+  s_586db14537acc6::t_4e51080e1315ef 2246-2248,2252
+lib/services/statuses/publishStatusPin.ts
+  s_586db14537acc6::t_802ed3c922e15d 22,28,32,42
+app/api/v1/statuses/[id]/pin/route.ts
+  s_586db14537acc6::t_802ed3c922e15d 6,88
+app/api/v1/statuses/[id]/unpin/route.ts
+  s_586db14537acc6::t_802ed3c922e15d 5,62
+lib/jobs/sendFeaturedStatusJob.test.ts
+  s_586db14537acc6::t_19834c23de25ca 41-42,49,57,79,90-91,99,118,128-150,161,171,198-203,215,226,233,245
+lib/jobs/sendFeaturedStatusJob.ts
+  s_586db14537acc6::t_802ed3c922e15d 29-30,36,40,85
+  s_586db14537acc6::t_4e51080e1315ef 76-82
+  s_586db14537acc6::t_19834c23de25ca 41,50
+app/api/v1/statuses/[id]/actions.route.test.ts
+  s_586db14537acc6::t_26b9bce09108eb 990,1062,1082,1121,1130
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0a4254ef674d26df68558be5246eeeac5d6d5b9c",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_586db14537acc6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a902-66cd-7050-b4de-122b5309afac",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
