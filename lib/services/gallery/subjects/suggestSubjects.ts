@@ -7,10 +7,15 @@ import {
   SPECIES_OR_LOWER_RANKS,
   kingdomOfCategory
 } from '@/lib/services/gallery/lookups/normalizeTaxon'
+import {
+  countryNameOf,
+  monthNameOf
+} from '@/lib/services/gallery/subjects/subjectContext'
 import type { SubjectProviderConfig } from '@/lib/services/gallery/subjects/subjectProvider'
 import {
   MEDIA_SUBJECT_CATEGORIES,
   MediaSubjectCategory,
+  MediaSubjectContext,
   MediaSubjectSuggestions
 } from '@/lib/types/database/gallery'
 
@@ -27,6 +32,22 @@ const MAX_COMPLETION_TOKENS = 400
 export const SUBJECT_SYSTEM_PROMPT = `You identify the main subject of a photograph for a nature and photography gallery. Answer with a single JSON object and nothing else, in this shape: {"subjects":[{"name":"common name","scientificName":"Genus species or null","category":"bird","confidence":0.8}],"group":"bird"}. List at most ${MAX_SUGGESTED_CANDIDATES} subjects, most likely first. "category" and "group" must each be one of: ${MEDIA_SUBJECT_CATEGORIES.join(', ')}. "confidence" is your probability between 0 and 1 that the subject is that species. "group" is the broad kind of subject, or null when there is no clear subject. Use "landscape" for scenery. Give a scientificName only for a living organism and only when you are sure of the genus. Never describe the photo, never add commentary.`
 
 export const SUBJECT_USER_PROMPT = 'What is the main subject of this photo?'
+
+/**
+ * The user prompt, naming the country and month when they are known ("It was
+ * taken in Japan in May."), so the model prefers species found there. Without
+ * either it is `SUBJECT_USER_PROMPT` exactly.
+ */
+export const subjectUserPrompt = (context?: MediaSubjectContext | null) => {
+  const country = context?.countryCode
+    ? countryNameOf(context.countryCode)
+    : null
+  const month = context?.month ? monthNameOf(context.month) : null
+  if (!country && !month) return SUBJECT_USER_PROMPT
+  const where = country ? ` in ${country}` : ''
+  const when = month ? ` in ${month}` : ''
+  return `${SUBJECT_USER_PROMPT} It was taken${where}${when}.`
+}
 
 export class SubjectSuggestionError extends Error {
   constructor(message: string) {
@@ -120,7 +141,10 @@ export const parseSubjectSuggestions = (
   }
 }
 
-type GbifLookup = Pick<GbifClient, 'matchTaxon' | 'lookupSearch'>
+type GbifLookup = Pick<
+  GbifClient,
+  'matchTaxon' | 'lookupSearch' | 'hasOccurrencesInCountry'
+>
 
 /**
  * Checks one candidate against the GBIF backbone: by its scientific name when
@@ -183,11 +207,49 @@ const checkCandidate = async (
   }
 }
 
+type Candidate = ParsedSubjects['candidates'][number]
+
+/**
+ * Marks each candidate GBIF matched at species rank or lower with whether
+ * GBIF has records of it in the country (null when GBIF could not say), then
+ * moves the ones with none after the rest, each group in the model's order.
+ * Confidence is left as the model gave it. At most
+ * `MAX_SUGGESTED_CANDIDATES` checks, run together.
+ */
+export const rankByCountryRecords = async (
+  candidates: Candidate[],
+  gbif: Pick<GbifClient, 'hasOccurrencesInCountry'>,
+  countryCode: string
+): Promise<Candidate[]> => {
+  const checked = await Promise.all(
+    candidates
+      .slice(0, MAX_SUGGESTED_CANDIDATES)
+      .map(async (candidate): Promise<Candidate> => {
+        if (
+          !candidate.taxonKey ||
+          !SPECIES_OR_LOWER_RANKS.has(candidate.rank?.toUpperCase() ?? '')
+        ) {
+          return candidate
+        }
+        const recordedInCountry = await gbif
+          .hasOccurrencesInCountry(candidate.taxonKey, countryCode)
+          .catch(() => null)
+        return { ...candidate, recordedInCountry }
+      })
+  )
+  return [
+    ...checked.filter((candidate) => candidate.recordedInCountry !== false),
+    ...checked.filter((candidate) => candidate.recordedInCountry === false)
+  ]
+}
+
 export interface SuggestSubjectsParams {
   config: SubjectProviderConfig
   image: { buffer: Buffer; mimeType: string }
   /** Null skips the GBIF check; the suggestions then come back unchecked. */
   gbif: GbifLookup | null
+  /** Where and when the photo was taken, when known (see `toSubjectContext`). */
+  context?: MediaSubjectContext
   now?: () => Date
 }
 
@@ -202,8 +264,14 @@ export const suggestSubjects = async ({
   config,
   image,
   gbif,
+  context,
   now = () => new Date()
 }: SuggestSubjectsParams): Promise<MediaSubjectSuggestions> => {
+  const known =
+    context && (context.countryCode || context.month)
+      ? { countryCode: context.countryCode, month: context.month }
+      : null
+
   let answer: string | null
   try {
     answer = await requestVisionCompletion(
@@ -212,7 +280,7 @@ export const suggestSubjects = async ({
       image.mimeType,
       {
         systemPrompt: SUBJECT_SYSTEM_PROMPT,
-        prompt: SUBJECT_USER_PROMPT,
+        prompt: subjectUserPrompt(known),
         maxTokens: MAX_COMPLETION_TOKENS
       }
     )
@@ -240,12 +308,17 @@ export const suggestSubjects = async ({
       candidates = parsed.candidates
     }
   }
+  if (gbif && checkedAgainst === 'gbif' && known?.countryCode) {
+    candidates = await rankByCountryRecords(candidates, gbif, known.countryCode)
+  }
 
   return {
     model: config.model,
     generatedAt: now().toISOString(),
     checkedAgainst,
     candidates,
-    group: parsed.group
+    group: parsed.group,
+    // Absent when nothing was known, so such a row is what it always was.
+    ...(known ? { context: known } : {})
   }
 }

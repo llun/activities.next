@@ -541,6 +541,104 @@ describe('gbif client', () => {
     })
   })
 
+  describe('hasOccurrencesInCountry', () => {
+    // GBIF's `occurrence/search?limit=0` answers the count and no records.
+    const occurrences = (counts: Record<string, number>) => (url: URL) => {
+      if (url.pathname !== '/v1/occurrence/search') return HTML_404
+      const count =
+        counts[
+          `${url.searchParams.get('taxonKey')}|${url.searchParams.get('country')}`
+        ]
+      return count === undefined
+        ? { statusCode: 500 }
+        : {
+            body: {
+              offset: 0,
+              limit: 0,
+              endOfRecords: false,
+              count,
+              results: []
+            }
+          }
+    }
+
+    it('answers true for a taxon recorded in the country, asking for the count alone', async () => {
+      const { client, requests } = setup(occurrences({ '5232437|JP': 1534 }))
+
+      await expect(
+        client.hasOccurrencesInCountry('5232437', 'jp')
+      ).resolves.toBe(true)
+
+      expect(requests).toHaveLength(1)
+      const [{ url }] = requests
+      expect(url.origin + url.pathname).toBe(`${ENDPOINT}/occurrence/search`)
+      expect(Object.fromEntries(url.searchParams)).toEqual({
+        taxonKey: '5232437',
+        country: 'JP',
+        limit: '0'
+      })
+    })
+
+    it('answers false for a taxon with no records there', async () => {
+      const { client } = setup(occurrences({ '5232437|NZ': 0 }))
+
+      await expect(
+        client.hasOccurrencesInCountry('5232437', 'NZ')
+      ).resolves.toBe(false)
+    })
+
+    it('caches the answer for a month, a false one included', async () => {
+      const { client, requests, spies } = setup(
+        occurrences({ '5232437|JP': 3, '5232437|NZ': 0 })
+      )
+
+      await client.hasOccurrencesInCountry('5232437', 'JP')
+      await client.hasOccurrencesInCountry('5232437', 'NZ')
+      await expect(
+        client.hasOccurrencesInCountry('5232437', 'JP')
+      ).resolves.toBe(true)
+      await expect(
+        client.hasOccurrencesInCountry('5232437', 'NZ')
+      ).resolves.toBe(false)
+
+      expect(requests).toHaveLength(2)
+      expect(spies.putGalleryLookup).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: 'gbif-occurrence',
+          key: `${TAG}o1|5232437|NZ`,
+          outcome: 'ok',
+          value: { recorded: false },
+          ttlMs: 30 * 24 * 60 * 60 * 1000
+        })
+      )
+    })
+
+    it.each([
+      ['a 5xx', () => ({ statusCode: 500 })],
+      ['a 404', () => HTML_404],
+      ['an unreadable count', () => ({ body: { count: 'many' } })]
+    ])('throws, and never answers false, for %s', async (_, handler) => {
+      const { client, rows } = setup(handler)
+
+      await expect(
+        client.hasOccurrencesInCountry('5232437', 'JP')
+      ).rejects.toBeInstanceOf(LookupError)
+      expect([...rows.values()].map((row) => row.outcome)).toEqual(['error'])
+    })
+
+    it('asks nothing for a key or country that is not one', async () => {
+      const { client, requests } = setup(occurrences({}))
+
+      await expect(
+        client.hasOccurrencesInCountry('Zosterops', 'JP')
+      ).resolves.toBeNull()
+      await expect(
+        client.hasOccurrencesInCountry('5232437', 'JPN')
+      ).resolves.toBeNull()
+      expect(requests).toHaveLength(0)
+    })
+  })
+
   describe('searchTaxa', () => {
     it('searches the backbone for accepted species and shapes the results', async () => {
       const { client, requests } = setup()

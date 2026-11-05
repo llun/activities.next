@@ -157,10 +157,20 @@ export const MediaDetailsEntity = z.object({
           confidence: z.number(),
           taxonKey: z.string().nullable(),
           rank: z.string().nullable(),
-          taxonPath: z.array(z.string())
+          taxonPath: z.array(z.string()),
+          // False when GBIF has no record of it in `context.countryCode`.
+          recordedInCountry: z.boolean().nullable().optional()
         })
       ),
-      group: z.enum(MEDIA_SUBJECT_CATEGORIES).nullable()
+      group: z.enum(MEDIA_SUBJECT_CATEGORIES).nullable(),
+      // The country and month the model was told; absent on older rows.
+      context: z
+        .object({
+          countryCode: z.string().nullable(),
+          month: z.number().nullable()
+        })
+        .nullable()
+        .optional()
     })
     .nullable(),
   // The photo edit state: `version` is the optimistic version the edit routes

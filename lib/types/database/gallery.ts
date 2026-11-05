@@ -126,8 +126,23 @@ export interface MediaSubjectSuggestions {
     taxonKey: string | null
     rank: string | null
     taxonPath: string[]
+    // Whether GBIF has occurrence records of the taxon in `context.countryCode`;
+    // null when GBIF could not say. Absent when no country was known or the
+    // candidate matched no species.
+    recordedInCountry?: boolean | null
   }[]
   group: MediaSubjectCategory | null
+  // What the model was told about where and when the photo was taken. Absent
+  // on rows stored before it was sent, and when neither was known.
+  context?: MediaSubjectContext | null
+}
+
+/** The only place and time facts the vision model is told. */
+export interface MediaSubjectContext {
+  // ISO 3166-1 alpha-2, upper case.
+  countryCode: string | null
+  // 1 to 12, in UTC.
+  month: number | null
 }
 
 export const GALLERY_GEAR_KINDS = ['camera', 'lens'] as const

@@ -2,8 +2,11 @@ import { requestVisionCompletion } from '@/lib/services/altText/openai'
 import type { GbifClient } from '@/lib/services/gallery/lookups/gbif'
 
 import {
+  SUBJECT_USER_PROMPT,
   SubjectSuggestionError,
   parseSubjectSuggestions,
+  rankByCountryRecords,
+  subjectUserPrompt,
   suggestSubjects
 } from './suggestSubjects'
 
@@ -152,22 +155,213 @@ describe('parseSubjectSuggestions', () => {
 describe('suggestSubjects', () => {
   const matchTaxon = vi.fn()
   const lookupSearch = vi.fn()
-  const gbif: Pick<GbifClient, 'matchTaxon' | 'lookupSearch'> = {
+  const hasOccurrencesInCountry = vi.fn()
+  const gbif: Pick<
+    GbifClient,
+    'matchTaxon' | 'lookupSearch' | 'hasOccurrencesInCountry'
+  > = {
     matchTaxon,
-    lookupSearch
+    lookupSearch,
+    hasOccurrencesInCountry
   }
 
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  const run = (client: typeof gbif | null = gbif) =>
+  const run = (
+    client: typeof gbif | null = gbif,
+    context?: Parameters<typeof suggestSubjects>[0]['context']
+  ) =>
     suggestSubjects({
       config: CONFIG,
       image: IMAGE,
       gbif: client,
+      context,
       now: () => NOW
     })
+
+  const promptSent = () =>
+    vi.mocked(requestVisionCompletion).mock.calls[0][3].prompt
+
+  describe('place and month', () => {
+    const SPECIES = {
+      rank: 'SPECIES',
+      taxonPath: ['Animalia', 'Chordata', 'Aves'],
+      category: 'bird'
+    }
+
+    it('names the country and month in the prompt and stores them', async () => {
+      answer({ subjects: [subject()], group: 'bird' })
+
+      const suggestions = await run(null, { countryCode: 'JP', month: 5 })
+
+      expect(promptSent()).toBe(
+        `${SUBJECT_USER_PROMPT} It was taken in Japan in May.`
+      )
+      expect(suggestions.context).toEqual({ countryCode: 'JP', month: 5 })
+    })
+
+    it('names only the part that is known', () => {
+      expect(subjectUserPrompt({ countryCode: 'JP', month: null })).toBe(
+        `${SUBJECT_USER_PROMPT} It was taken in Japan.`
+      )
+      expect(subjectUserPrompt({ countryCode: null, month: 11 })).toBe(
+        `${SUBJECT_USER_PROMPT} It was taken in November.`
+      )
+    })
+
+    it('never sends coordinates or a place name', async () => {
+      answer({ subjects: [subject()], group: 'bird' })
+
+      await run(null, { countryCode: 'TH', month: 1 })
+
+      const [, , , options] = vi.mocked(requestVisionCompletion).mock.calls[0]
+      expect(options.systemPrompt).not.toMatch(/latitude|longitude|coordinat/i)
+      expect(options.prompt).not.toMatch(/\d/)
+      expect(options.prompt).toBe(
+        `${SUBJECT_USER_PROMPT} It was taken in Thailand in January.`
+      )
+    })
+
+    it('falls back to the code when Intl cannot name the country', async () => {
+      const spy = vi.spyOn(Intl, 'DisplayNames').mockImplementation(() => {
+        throw new RangeError('no region data')
+      })
+      try {
+        expect(subjectUserPrompt({ countryCode: 'JP', month: null })).toBe(
+          `${SUBJECT_USER_PROMPT} It was taken in JP.`
+        )
+      } finally {
+        spy.mockRestore()
+      }
+    })
+
+    it.each([
+      ['no context', undefined],
+      ['a context with neither', { countryCode: null, month: null }]
+    ])(
+      'asks exactly today’s prompt and stores no context with %s',
+      async (_, context) => {
+        answer({ subjects: [subject()], group: 'bird' })
+
+        const suggestions = await run(null, context)
+
+        expect(promptSent()).toBe('What is the main subject of this photo?')
+        expect(suggestions).not.toHaveProperty('context')
+        expect(suggestions.candidates[0]).not.toHaveProperty(
+          'recordedInCountry'
+        )
+      }
+    )
+
+    it('marks GBIF species with whether they are recorded in the country, and moves the unrecorded after the rest', async () => {
+      answer({
+        subjects: [
+          subject({ name: 'A', scientificName: 'Aa aa', confidence: 0.9 }),
+          subject({ name: 'B', scientificName: 'Bb bb', confidence: 0.7 }),
+          subject({ name: 'C', scientificName: 'Cc cc', confidence: 0.5 })
+        ],
+        group: 'bird'
+      })
+      matchTaxon.mockImplementation(async (name: string) => ({
+        ...SPECIES,
+        scientificName: name,
+        taxonKey: { 'Aa aa': '1', 'Bb bb': '2', 'Cc cc': '3' }[name]
+      }))
+      hasOccurrencesInCountry.mockImplementation(async (key: string) =>
+        key === '1' ? false : key === '2' ? true : null
+      )
+
+      const suggestions = await run(gbif, { countryCode: 'JP', month: null })
+
+      expect(hasOccurrencesInCountry).toHaveBeenCalledTimes(3)
+      expect(hasOccurrencesInCountry).toHaveBeenCalledWith('1', 'JP')
+      expect(
+        suggestions.candidates.map(
+          ({ name, confidence, recordedInCountry }) => [
+            name,
+            confidence,
+            recordedInCountry
+          ]
+        )
+      ).toEqual([
+        ['B', 0.7, true],
+        ['C', 0.5, null],
+        ['A', 0.9, false]
+      ])
+    })
+
+    it('reads a failed country check as unknown, not rare', async () => {
+      answer({ subjects: [subject()], group: 'bird' })
+      matchTaxon.mockResolvedValue({
+        ...SPECIES,
+        scientificName: 'Zosterops japonicus',
+        taxonKey: '5232437'
+      })
+      hasOccurrencesInCountry.mockRejectedValue(new Error('GBIF down'))
+
+      const suggestions = await run(gbif, { countryCode: 'JP', month: 5 })
+
+      expect(suggestions.checkedAgainst).toBe('gbif')
+      expect(suggestions.candidates[0].recordedInCountry).toBeNull()
+    })
+
+    it('checks only species-rank matches, and nothing without a country', async () => {
+      answer({
+        subjects: [
+          subject({ name: 'Genus', scientificName: 'Zosterops' }),
+          subject({ name: 'Unmatched', scientificName: 'Nomen nudum' })
+        ],
+        group: 'bird'
+      })
+      matchTaxon.mockImplementation(async (name: string) =>
+        name === 'Zosterops'
+          ? { ...SPECIES, rank: 'GENUS', scientificName: name, taxonKey: '9' }
+          : null
+      )
+
+      const withCountry = await run(gbif, { countryCode: 'JP', month: null })
+      expect(hasOccurrencesInCountry).not.toHaveBeenCalled()
+      for (const candidate of withCountry.candidates) {
+        expect(candidate).not.toHaveProperty('recordedInCountry')
+      }
+
+      matchTaxon.mockResolvedValue({
+        ...SPECIES,
+        scientificName: 'Zosterops japonicus',
+        taxonKey: '5232437'
+      })
+      await run(gbif, { countryCode: null, month: 5 })
+      expect(hasOccurrencesInCountry).not.toHaveBeenCalled()
+    })
+
+    it('re-ranks stably and never checks more than three', async () => {
+      const candidates = ['1', '2', '3', '4'].map((taxonKey) => ({
+        name: `N${taxonKey}`,
+        scientificName: null,
+        category: 'bird' as const,
+        confidence: 0.5,
+        taxonKey,
+        rank: 'SPECIES',
+        taxonPath: []
+      }))
+      const check = vi.fn(async (key: string) => key !== '1' && key !== '3')
+
+      const ranked = await rankByCountryRecords(
+        candidates,
+        { hasOccurrencesInCountry: check },
+        'JP'
+      )
+
+      expect(check).toHaveBeenCalledTimes(3)
+      expect(ranked.map((candidate) => candidate.taxonKey)).toEqual([
+        '2',
+        '1',
+        '3'
+      ])
+    })
+  })
 
   it('asks the vision model with the owner image and a bounded answer', async () => {
     answer({ subjects: [subject()], group: 'bird' })
